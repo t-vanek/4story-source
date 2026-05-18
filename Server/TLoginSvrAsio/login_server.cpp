@@ -21,6 +21,7 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_auth_service(config.auth_service)
     , m_connection_registry(config.connection_registry)
     , m_map_server_locator(config.map_server_locator)
+    , m_session_terminator(config.session_terminator)
 {
 }
 
@@ -81,10 +82,25 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
                 boost::asio::detached);
         });
 
-    // Connection closing — remove from registry if it was authenticated.
-    // No-op for unauthenticated sessions.
+    // Connection closing — drive the per-session cleanup chain:
+    // 1. Look up the entry stamped at LOGIN-success time (if any).
+    //    Unauthenticated sessions have no entry → skip everything.
+    // 2. If a terminator is wired, call Terminate with the entry's
+    //    user_id + session_key. The MapHandoff flag flips the reason
+    //    so the impl can preserve TCURRENTUSER for Map's dwKEY
+    //    validation (legacy CSHandler.cpp:1428 behavior).
+    // 3. Always unregister from the connection registry.
     if (m_connection_registry)
     {
+        const auto entry = m_connection_registry->Lookup(sess);
+        if (entry && m_session_terminator)
+        {
+            const auto reason = entry->handoff_to_map
+                ? services::TerminationReason::MapHandoff
+                : services::TerminationReason::Disconnect;
+            m_session_terminator->Terminate(
+                entry->user_id, entry->session_key, reason);
+        }
         m_connection_registry->Unregister(sess);
     }
 }
@@ -123,7 +139,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnDelCharReq(*sess, body);
         break;
     case MessageId::CS_START_REQ:
-        co_await handlers::OnStartReq(*sess, body, m_map_server_locator);
+        co_await handlers::OnStartReq(sess, body, m_map_server_locator, m_connection_registry);
         break;
     case MessageId::CS_AGREEMENT_REQ:
         co_await handlers::OnAgreementReq(*sess, body);

@@ -200,8 +200,12 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
             if (result.status == services::AuthStatus::Success
                 && connection_registry != nullptr)
             {
-                auto previous = connection_registry->Register(
-                    result.user_id, session);
+                services::ConnectionEntry entry{
+                    .user_id = result.user_id,
+                    .session_key = result.session_key,
+                    .handoff_to_map = false,
+                };
+                auto previous = connection_registry->Register(entry, session);
                 if (previous)
                 {
                     spdlog::warn(
@@ -313,9 +317,12 @@ OnDelCharReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
 }
 
 boost::asio::awaitable<void>
-OnStartReq(tnetlib::AsioSession& session, std::span<const std::byte> body,
-           services::IMapServerLocator* map_server_locator)
+OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
+           std::span<const std::byte> body,
+           services::IMapServerLocator* map_server_locator,
+           services::IConnectionRegistry* connection_registry)
 {
+    auto& sref = *session;
     // Request body: BYTE bGroupID + BYTE bChannel + DWORD dwCharID (6 bytes).
     std::uint8_t  bGroupID = 0;
     std::uint8_t  bChannel = 0;
@@ -356,6 +363,15 @@ OnStartReq(tnetlib::AsioSession& session, std::span<const std::byte> body,
             bGroupID, bChannel, dwCharID,
             ep->ipv4[0], ep->ipv4[1], ep->ipv4[2], ep->ipv4[3],
             ep->port, ep->server_id);
+
+        // Flag the session for Map-handoff so the eventual
+        // SessionTerminator call (in HandleConnection's close path)
+        // knows to preserve the TCURRENTUSER row — Map needs the
+        // dwKEY entry to validate the client's reconnect.
+        if (connection_registry)
+        {
+            connection_registry->MarkHandoff(session);
+        }
     }
     else
     {
@@ -365,7 +381,7 @@ OnStartReq(tnetlib::AsioSession& session, std::span<const std::byte> body,
             bGroupID, bChannel, dwCharID);
     }
 
-    co_await session.SendPacket(
+    co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_START_ACK),
         std::span<const std::byte>(payload, sizeof(payload)));
 }

@@ -25,21 +25,46 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace tloginsvr::services {
+
+// Per-session metadata stamped at LOGIN-success time. The registry
+// holds one Entry per live authenticated session; HandleConnection
+// reads it back at close to drive SessionTerminator.
+struct ConnectionEntry
+{
+    std::int32_t  user_id = 0;
+    std::uint32_t session_key = 0;
+    // Set by OnStartReq's SR_SUCCESS path. Flips the close-time
+    // termination reason from Disconnect to MapHandoff so the real
+    // SOCI impl can preserve TCURRENTUSER for the Map server's key
+    // validation.
+    bool          handoff_to_map = false;
+};
 
 class IConnectionRegistry
 {
 public:
     virtual ~IConnectionRegistry() = default;
 
-    // Register an authenticated session under `user_id`. If another
-    // session was previously registered under the same user_id,
-    // returns a shared_ptr to it (caller should close it to enforce
-    // duplicate-kick). Returns nullptr if no previous holder.
+    // Register an authenticated session under `entry.user_id`. If
+    // another session was previously registered under the same
+    // user_id, returns a shared_ptr to it (caller should close it
+    // to enforce duplicate-kick). Returns nullptr if no previous
+    // holder.
     virtual std::shared_ptr<tnetlib::AsioSession>
-    Register(std::int32_t user_id,
+    Register(ConnectionEntry entry,
              std::shared_ptr<tnetlib::AsioSession> session) = 0;
+
+    // Lookup the entry for a session. Returns nullopt if not
+    // registered (unauthenticated session).
+    virtual std::optional<ConnectionEntry>
+    Lookup(const std::shared_ptr<tnetlib::AsioSession>& session) const = 0;
+
+    // Flip handoff_to_map for the registered session.
+    virtual void MarkHandoff(
+        const std::shared_ptr<tnetlib::AsioSession>& session) = 0;
 
     // Remove a session. No-op if not registered. Always safe to call
     // from connection-close paths.

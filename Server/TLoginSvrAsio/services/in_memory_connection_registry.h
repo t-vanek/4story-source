@@ -19,8 +19,14 @@ class InMemoryConnectionRegistry : public IConnectionRegistry
 {
 public:
     std::shared_ptr<tnetlib::AsioSession>
-    Register(std::int32_t user_id,
+    Register(ConnectionEntry entry,
              std::shared_ptr<tnetlib::AsioSession> session) override;
+
+    std::optional<ConnectionEntry>
+    Lookup(const std::shared_ptr<tnetlib::AsioSession>& session) const override;
+
+    void MarkHandoff(
+        const std::shared_ptr<tnetlib::AsioSession>& session) override;
 
     void Unregister(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
@@ -32,10 +38,10 @@ private:
     // user_id → live session (weak so we don't extend lifetime)
     std::unordered_map<std::int32_t,
                        std::weak_ptr<tnetlib::AsioSession>> m_by_user;
-    // session pointer → user_id (for Unregister's reverse lookup).
-    // Stores raw pointer keys, which is safe because we always
-    // erase before the shared_ptr's last reference can be released.
-    std::unordered_map<tnetlib::AsioSession*, std::int32_t> m_by_session;
+    // session pointer → entry (for Lookup + Unregister's reverse path).
+    // Stores raw pointer keys, safe because we always erase before
+    // the shared_ptr's last reference can be released.
+    std::unordered_map<tnetlib::AsioSession*, ConnectionEntry> m_by_session;
 };
 
 } // namespace tloginsvr::services

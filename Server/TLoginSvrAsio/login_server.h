@@ -14,6 +14,7 @@
 #include "services/auth_service.h"
 #include "services/connection_registry.h"
 #include "services/map_server_locator.h"
+#include "services/session_terminator.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -51,6 +52,10 @@ struct LoginServerConfig
     // Map-server endpoint lookup. Non-owning. Null falls back to
     // the Phase-3 stub (SR_NOSERVER for every CS_START_REQ).
     services::IMapServerLocator* map_server_locator = nullptr;
+
+    // Per-session cleanup on close (TCURRENTUSER delete + TLog
+    // timestamp). Non-owning. Null = no cleanup hook fires.
+    services::ISessionTerminator* session_terminator = nullptr;
 };
 
 class LoginServer
@@ -73,6 +78,7 @@ private:
     services::IAuthService*        m_auth_service = nullptr;         // non-owning; null = stub mode
     services::IConnectionRegistry* m_connection_registry = nullptr;  // non-owning; null = no duplicate-kick
     services::IMapServerLocator*   m_map_server_locator = nullptr;   // non-owning; null = stub SR_NOSERVER
+    services::ISessionTerminator*  m_session_terminator = nullptr;   // non-owning; null = no close-time cleanup
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

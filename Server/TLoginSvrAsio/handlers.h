@@ -86,10 +86,14 @@ boost::asio::awaitable<void> OnDelCharReq(
 // When map_server_locator is non-null, real lookup → SR_SUCCESS (0)
 // with the resolved IPv4 + port + server_id. Null or no-hit lookup
 // falls back to SR_NOSERVER (1).
+// On SR_SUCCESS with a connection_registry, the session is marked
+// for Map handoff so session-terminator cleanup preserves the
+// TCURRENTUSER row for the Map server's dwKEY validation.
 boost::asio::awaitable<void> OnStartReq(
-    tnetlib::AsioSession& session,
+    std::shared_ptr<tnetlib::AsioSession> session,
     std::span<const std::byte> body,
-    services::IMapServerLocator* map_server_locator = nullptr);
+    services::IMapServerLocator* map_server_locator = nullptr,
+    services::IConnectionRegistry* connection_registry = nullptr);
 
 // CS_AGREEMENT_REQ(WORD wVersion) — no ack. Legacy upserts TUSERINFOTABLE
 // row + flips per-session m_bAgreement; we just log for now.

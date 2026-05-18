@@ -118,6 +118,31 @@ public:
     // owns the executor.
     void Close();
 
+    // Enable RC4-over-entire-packet on the RECV side. After each inbound
+    // packet is fully read (header + body), the entire buffer is
+    // RC4-decrypted with a key derived from MD5(`secret_key`) — matching
+    // what tnetlib_crypto::RC4MD5Transform does, which mirrors the
+    // Win32 CryptDeriveKey(CALG_RC4) chain the legacy client encrypts
+    // with. The 2-byte wSize field is preserved across RC4 because it
+    // was used pre-RC4 for framing (legacy convention; see Session.cpp's
+    // Decrypt).
+    //
+    // Server-side AsioSessions hosting a real legacy client should
+    // enable this. Server-server links should NOT (legacy convention is
+    // m_bUseCrypt=FALSE for server peers).
+    void EnableInboundRC4(std::vector<std::byte> secret_key);
+
+    // Enable RC4-over-entire-packet on the SEND side. Mirror of the
+    // inbound case: each outbound packet's full frame is RC4-encrypted
+    // with the MD5-derived key after the XOR header/body codec runs,
+    // wSize preserved as plaintext on the wire.
+    //
+    // Used by tooling acting as a CLIENT against a legacy server (e.g.
+    // a future packet-replay test bench). Server-side sessions hosting
+    // a legacy client should NOT enable this — legacy server Encrypt is
+    // XOR-only, no RC4 outbound.
+    void EnableOutboundRC4(std::vector<std::byte> secret_key);
+
     boost::asio::ip::tcp::socket&       Socket()       { return m_socket; }
     const boost::asio::ip::tcp::socket& Socket() const { return m_socket; }
     PeerType                            Type()   const { return m_type;   }
@@ -130,6 +155,8 @@ private:
     std::vector<std::byte>       m_send_buffer;     // SendPacket scratch
     std::uint32_t                m_recv_sequence = 0;
     std::uint32_t                m_send_sequence = 0;
+    std::vector<std::byte>       m_rc4_inbound_key;   // empty = no RC4 on recv
+    std::vector<std::byte>       m_rc4_outbound_key;  // empty = no RC4 on send
 };
 
 // Accept loop. Binds to `port` on all interfaces (INADDR_ANY) and

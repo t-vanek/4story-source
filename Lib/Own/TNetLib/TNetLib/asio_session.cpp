@@ -2,6 +2,7 @@
 // MSVC vcxproj marks this file with PrecompiledHeader=NotUsing.
 
 #include "asio_session.h"
+#include "tnetlib_crypto.h"
 
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/read.hpp>
@@ -116,6 +117,24 @@ AsioSession::RunPackets(PacketHandler on_packet)
             if (ec) break;
         }
 
+        // Step 3.5 — RC4-over-entire-packet, if enabled. Legacy
+        // convention: wSize is plaintext on the wire (used for framing
+        // pre-RC4), so we save it before RC4 scrambles it and restore
+        // it after. Matches CSession::Decrypt at Session.cpp:84-91.
+        if (!m_rc4_inbound_key.empty())
+        {
+            const auto saved_wsize = hdr->wSize;
+            if (!tnetlib_crypto::RC4MD5Transform(
+                    reinterpret_cast<unsigned char*>(m_packet_buffer.data()),
+                    m_packet_buffer.size(),
+                    reinterpret_cast<const unsigned char*>(m_rc4_inbound_key.data()),
+                    m_rc4_inbound_key.size()))
+            {
+                break;
+            }
+            hdr->wSize = saved_wsize;
+        }
+
         // Step 4 — decrypt header. Key is derived from the EXPECTED
         // sequence (legacy code increments first, then uses; mirror
         // that so we and the sender agree on the key.)
@@ -177,6 +196,23 @@ AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
     hdr->llChecksum = EncryptBody(body_dst, body.size(), key);
     EncryptHeader(hdr, key);
 
+    // RC4-over-entire-packet on outbound, if enabled. Same wSize
+    // save/restore as the inbound side — wSize must stay plaintext
+    // for the peer's framer to read pre-RC4.
+    if (!m_rc4_outbound_key.empty())
+    {
+        const auto saved_wsize = hdr->wSize;
+        if (!tnetlib_crypto::RC4MD5Transform(
+                reinterpret_cast<unsigned char*>(m_send_buffer.data()),
+                m_send_buffer.size(),
+                reinterpret_cast<const unsigned char*>(m_rc4_outbound_key.data()),
+                m_rc4_outbound_key.size()))
+        {
+            co_return;
+        }
+        hdr->wSize = saved_wsize;
+    }
+
     co_await boost::asio::async_write(
         m_socket,
         boost::asio::buffer(m_send_buffer.data(), frame_size),
@@ -190,6 +226,16 @@ void AsioSession::Close()
     boost::system::error_code ec;
     m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
     m_socket.close(ec);
+}
+
+void AsioSession::EnableInboundRC4(std::vector<std::byte> secret_key)
+{
+    m_rc4_inbound_key = std::move(secret_key);
+}
+
+void AsioSession::EnableOutboundRC4(std::vector<std::byte> secret_key)
+{
+    m_rc4_outbound_key = std::move(secret_key);
 }
 
 // ===== AsioListener =========================================================

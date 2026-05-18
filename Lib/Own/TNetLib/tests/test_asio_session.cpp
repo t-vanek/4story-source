@@ -237,6 +237,134 @@ void TestPacketRoundtrip()
     if (io_thread.joinable()) io_thread.join();
 }
 
+// Same packet round-trip as above, but with the RC4 layer enabled on
+// both ends. Validates the full wire-format pipeline that a real
+// legacy client → server connection runs through:
+//   client SEND:  body + checksum → XOR body → XOR header → RC4 entire frame (wSize preserved)
+//   server RECV:  read → RC4 entire frame (wSize restored) → XOR header → seq check → XOR body
+//
+// "Client" side here is acting as a fake legacy client (RC4 outbound only),
+// "server" side is the modernized AsioSession in server-of-legacy-client
+// mode (RC4 inbound only). One round-trip; on the return path neither
+// side does RC4 (matches legacy convention: server-to-client is XOR-only).
+void TestPacketRoundtripWithRC4()
+{
+    std::printf("[full packet round-trip via RC4 + codec]\n");
+
+    // Use a non-trivial secret key with embedded high bytes so any byte-
+    // order or signedness regression in the MD5/RC4 chain surfaces.
+    const std::vector<std::byte> secret = [] {
+        std::vector<std::byte> v;
+        const char* s = "rc4-secret-\x92test\x94";
+        for (const char* p = s; *p; ++p) v.push_back(static_cast<std::byte>(*p));
+        return v;
+    }();
+
+    asio::io_context io;
+    tnetlib::AsioListener listener(io.get_executor(), 0);
+    const std::uint16_t port = listener.Port();
+    Check(port != 0, "listener bound");
+
+    // Server-side echo.
+    asio::co_spawn(io,
+        listener.Run([&io, &secret](tcp::socket socket) {
+            auto sess = std::make_shared<tnetlib::AsioSession>(
+                std::move(socket), tnetlib::PeerType::Client);
+            // Server side: RC4 inbound only. Outbound back to the "client"
+            // here is plain to match legacy m_bUseCrypt=FALSE on outbound.
+            // (The fake client below mirrors that: outbound RC4, inbound plain.)
+            sess->EnableInboundRC4(secret);
+            asio::co_spawn(io,
+                [sess]() -> asio::awaitable<void> {
+                    co_await sess->RunPackets(
+                        [sess](const tnetlib::DecodedPacket& pkt) {
+                            std::vector<std::byte> body_copy(
+                                pkt.body.begin(), pkt.body.end());
+                            const std::uint16_t wId = pkt.wId;
+                            asio::co_spawn(
+                                sess->Socket().get_executor(),
+                                [sess, wId, body_copy = std::move(body_copy)]()
+                                    -> asio::awaitable<void> {
+                                    co_await sess->SendPacket(wId,
+                                        std::span<const std::byte>(
+                                            body_copy.data(), body_copy.size()));
+                                },
+                                asio::detached);
+                        });
+                },
+                asio::detached);
+        }),
+        asio::detached);
+
+    std::thread io_thread([&io] { io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket client_sock(client_io);
+    client_sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+    Check(client_sock.is_open(), "fake-client connected");
+
+    auto client_sess = std::make_shared<tnetlib::AsioSession>(
+        std::move(client_sock), tnetlib::PeerType::Server);
+    client_sess->EnableOutboundRC4(secret);
+
+    std::vector<std::pair<std::uint16_t, std::vector<std::byte>>> received;
+    std::atomic<int> received_count{0};
+
+    asio::co_spawn(client_io,
+        [client_sess, &received, &received_count]() -> asio::awaitable<void> {
+            co_await client_sess->RunPackets(
+                [&received, &received_count](const tnetlib::DecodedPacket& pkt) {
+                    received.push_back({
+                        pkt.wId,
+                        std::vector<std::byte>(pkt.body.begin(), pkt.body.end())});
+                    received_count.fetch_add(1);
+                });
+        },
+        asio::detached);
+
+    asio::co_spawn(client_io,
+        [client_sess]() -> asio::awaitable<void> {
+            const char* p1 = "rc4-encrypted";
+            const char* p2 = "wire works";
+            co_await client_sess->SendPacket(0x2001,
+                std::span<const std::byte>(
+                    reinterpret_cast<const std::byte*>(p1), 13));
+            co_await client_sess->SendPacket(0x2002,
+                std::span<const std::byte>(
+                    reinterpret_cast<const std::byte*>(p2), 10));
+        },
+        asio::detached);
+
+    std::thread client_thread([&client_io] { client_io.run(); });
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (received_count.load() < 2 &&
+           std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    Check(received.size() == 2, "received both echoed packets through RC4 layer");
+    if (received.size() == 2)
+    {
+        Check(received[0].first == 0x2001 &&
+              received[0].second.size() == 13 &&
+              std::memcmp(received[0].second.data(), "rc4-encrypted", 13) == 0,
+              "packet 0 wId + body match after RC4 round-trip");
+        Check(received[1].first == 0x2002 &&
+              received[1].second.size() == 10 &&
+              std::memcmp(received[1].second.data(), "wire works", 10) == 0,
+              "packet 1 wId + body match after RC4 round-trip");
+    }
+
+    client_sess->Close();
+    client_io.stop();
+    if (client_thread.joinable()) client_thread.join();
+    io.stop();
+    if (io_thread.joinable()) io_thread.join();
+}
+
 } // namespace
 
 int main()
@@ -246,6 +374,7 @@ int main()
     {
         TestEchoRoundtrip();
         TestPacketRoundtrip();
+        TestPacketRoundtripWithRC4();
     }
     catch (const std::exception& ex)
     {

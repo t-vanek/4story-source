@@ -112,12 +112,17 @@ if(Boost_FOUND OR EXISTS /usr/include/boost/asio.hpp)
     add_executable(test_tnetlib_asio
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_asio_session.cpp
         ${TNETLIB_SRC_DIR}/asio_session.cpp
-        ${TNETLIB_SRC_DIR}/packet_codec.cpp)
+        ${TNETLIB_SRC_DIR}/packet_codec.cpp
+        ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp)
     target_include_directories(test_tnetlib_asio PRIVATE ${TNETLIB_SRC_DIR})
     if(Boost_FOUND)
         target_link_libraries(test_tnetlib_asio PRIVATE Boost::system)
     else()
         target_link_libraries(test_tnetlib_asio PRIVATE boost_system)
+    endif()
+    if(OpenSSL_FOUND)
+        # asio_session.cpp now pulls in tnetlib_crypto for the RC4 layer.
+        target_link_libraries(test_tnetlib_asio PRIVATE OpenSSL::Crypto)
     endif()
     if(NOT WIN32)
         # On POSIX, the Asio io_context background thread + sync client
@@ -127,6 +132,7 @@ if(Boost_FOUND OR EXISTS /usr/include/boost/asio.hpp)
     set_source_files_properties(
         ${TNETLIB_SRC_DIR}/asio_session.cpp
         ${TNETLIB_SRC_DIR}/packet_codec.cpp
+        ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
         PROPERTIES SKIP_PRECOMPILE_HEADERS ON
         TARGET_DIRECTORY test_tnetlib_asio)
 

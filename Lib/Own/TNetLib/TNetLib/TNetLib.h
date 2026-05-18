@@ -13,8 +13,24 @@
 #include <queue>
 #include <map>
 
-using namespace ATL;
-using namespace std;
+// Tech debt: the legacy header had `using namespace ATL; using namespace std;`
+// at this spot, which leaked the entirety of both namespaces into every
+// consumer of TNetLib.h (~60 server source files). The narrowed list below
+// preserves the names that consumers actually use unqualified — anything not
+// listed here must be `std::`/`ATL::`-qualified at the call site. Phase 1
+// cleanup will whittle this list down to zero as call sites are migrated.
+using ATL::CString;
+using ATL::CTime;
+using std::string;
+using std::vector;
+using std::queue;
+using std::map;
+using std::make_pair;
+using std::exception;
+using std::runtime_error;
+using std::ifstream;
+using std::ofstream;
+using std::fstream;
 
 // DB Access header
 #include <SQL.h>

@@ -73,6 +73,116 @@ AsioSession::Send(std::span<const std::byte> bytes)
         boost::asio::use_awaitable);
 }
 
+boost::asio::awaitable<void>
+AsioSession::RunPackets(PacketHandler on_packet)
+{
+    boost::system::error_code ec;
+
+    // Per-iteration: read 16-byte header, parse plaintext wSize, read
+    // body, decrypt header+body, dispatch.
+    while (m_socket.is_open())
+    {
+        m_packet_buffer.resize(kPacketHeaderSize);
+
+        // Step 1 — read header (16 bytes). async_read with the
+        // transfer_exactly completion condition guarantees the full
+        // header arrives or we error out.
+        co_await boost::asio::async_read(
+            m_socket,
+            boost::asio::buffer(m_packet_buffer.data(), kPacketHeaderSize),
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if (ec) break;
+
+        // Step 2 — peek wSize (plaintext on the wire). Validate
+        // before allocating body buffer.
+        auto* hdr = reinterpret_cast<PacketHeader*>(m_packet_buffer.data());
+        const std::uint16_t wSize = hdr->wSize;
+        if (wSize < kPacketHeaderSize || wSize >= kMaxPacketSize)
+            break; // matches legacy CheckMessage PACKET_INVALID branch
+
+        const std::size_t body_len = wSize - kPacketHeaderSize;
+
+        // Step 3 — read body bytes.
+        if (body_len > 0)
+        {
+            m_packet_buffer.resize(wSize);
+            // hdr pointer may be invalidated by resize; re-grab.
+            hdr = reinterpret_cast<PacketHeader*>(m_packet_buffer.data());
+
+            co_await boost::asio::async_read(
+                m_socket,
+                boost::asio::buffer(m_packet_buffer.data() + kPacketHeaderSize, body_len),
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+            if (ec) break;
+        }
+
+        // Step 4 — decrypt header. Key is derived from the EXPECTED
+        // sequence (legacy code increments first, then uses; mirror
+        // that so we and the sender agree on the key.)
+        ++m_recv_sequence;
+        const std::int64_t key = KeyForSequence(m_recv_sequence);
+        DecryptHeader(hdr, key);
+
+        // Step 5 — sequence-number sanity. Legacy convention is that
+        // each side counts every packet (incl. failures) — see the
+        // step-A audit notes. Mismatch terminates the session.
+        if (hdr->dwNumber != m_recv_sequence)
+            break;
+
+        // Step 6 — decrypt body + verify checksum.
+        std::byte* body_ptr = m_packet_buffer.data() + kPacketHeaderSize;
+        if (!DecryptBody(body_ptr, body_len, key, hdr->llChecksum))
+            break;
+
+        // Step 7 — dispatch.
+        if (on_packet)
+        {
+            DecodedPacket pkt;
+            pkt.wId      = hdr->wId;
+            pkt.dwNumber = hdr->dwNumber;
+            pkt.body     = std::span<const std::byte>(body_ptr, body_len);
+            on_packet(pkt);
+        }
+    }
+    Close();
+}
+
+boost::asio::awaitable<void>
+AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
+{
+    if (!m_socket.is_open())
+        co_return;
+
+    // Reject sends that would overflow the 16-bit wSize. The codec's
+    // contract is wSize < kMaxPacketSize (see packet_codec.h).
+    if (body.size() + kPacketHeaderSize >= kMaxPacketSize)
+        co_return;
+
+    // Build the frame in m_send_buffer so the async_write sees one
+    // contiguous chunk (no scatter/gather needed).
+    const std::size_t frame_size = kPacketHeaderSize + body.size();
+    m_send_buffer.resize(frame_size);
+
+    auto* hdr = reinterpret_cast<PacketHeader*>(m_send_buffer.data());
+    hdr->wSize    = static_cast<std::uint16_t>(frame_size);
+    hdr->wId      = wId;
+    hdr->dwNumber = ++m_send_sequence;
+    // llChecksum gets filled in by EncryptBody below.
+
+    std::byte* body_dst = m_send_buffer.data() + kPacketHeaderSize;
+    if (!body.empty())
+        std::memcpy(body_dst, body.data(), body.size());
+
+    const std::int64_t key = KeyForSequence(m_send_sequence);
+    hdr->llChecksum = EncryptBody(body_dst, body.size(), key);
+    EncryptHeader(hdr, key);
+
+    co_await boost::asio::async_write(
+        m_socket,
+        boost::asio::buffer(m_send_buffer.data(), frame_size),
+        boost::asio::use_awaitable);
+}
+
 void AsioSession::Close()
 {
     if (!m_socket.is_open())

@@ -112,6 +112,131 @@ void TestEchoRoundtrip()
         io_thread.join();
 }
 
+// Two AsioSessions talking to each other via the packet codec. One side
+// listens, accepts, and echoes inbound packets back (same wId, same
+// body). The other side connects, sends three packets with distinct
+// payloads, then verifies all three arrive decoded with matching wIds
+// and bodies.
+void TestPacketRoundtrip()
+{
+    std::printf("[full packet round-trip via codec]\n");
+
+    asio::io_context io;
+    tnetlib::AsioListener listener(io.get_executor(), 0);
+    const std::uint16_t port = listener.Port();
+    Check(port != 0, "listener bound to ephemeral port");
+
+    // Server side — accept and echo packets at the codec level.
+    asio::co_spawn(io,
+        listener.Run([&io](tcp::socket socket) {
+            auto sess = std::make_shared<tnetlib::AsioSession>(
+                std::move(socket), tnetlib::PeerType::Server);
+            asio::co_spawn(io,
+                [sess]() -> asio::awaitable<void> {
+                    co_await sess->RunPackets(
+                        [sess](const tnetlib::DecodedPacket& pkt) {
+                            // Copy body before scheduling the echo —
+                            // pkt.body is only valid for the duration
+                            // of this callback.
+                            std::vector<std::byte> body_copy(
+                                pkt.body.begin(), pkt.body.end());
+                            const std::uint16_t wId = pkt.wId;
+                            asio::co_spawn(
+                                sess->Socket().get_executor(),
+                                [sess, wId, body_copy = std::move(body_copy)]()
+                                    -> asio::awaitable<void> {
+                                    co_await sess->SendPacket(wId,
+                                        std::span<const std::byte>(
+                                            body_copy.data(), body_copy.size()));
+                                },
+                                asio::detached);
+                        });
+                },
+                asio::detached);
+        }),
+        asio::detached);
+
+    std::thread io_thread([&io] { io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Client side — also an AsioSession (so we exercise both directions
+    // of the codec). Send three packets, expect three back.
+    asio::io_context client_io;
+    auto client_sock = tcp::socket(client_io);
+    client_sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+    Check(client_sock.is_open(), "client connected");
+
+    auto client_sess = std::make_shared<tnetlib::AsioSession>(
+        std::move(client_sock), tnetlib::PeerType::Server);
+
+    // Collect echoed packets here.
+    std::vector<std::pair<std::uint16_t, std::vector<std::byte>>> received;
+    std::atomic<int> received_count{0};
+
+    auto recv_coro = [client_sess, &received, &received_count]()
+        -> asio::awaitable<void>
+    {
+        co_await client_sess->RunPackets(
+            [&received, &received_count](const tnetlib::DecodedPacket& pkt) {
+                received.push_back({
+                    pkt.wId,
+                    std::vector<std::byte>(pkt.body.begin(), pkt.body.end())});
+                received_count.fetch_add(1);
+            });
+    };
+    asio::co_spawn(client_io, recv_coro(), asio::detached);
+
+    // Send three packets.
+    auto send_coro = [client_sess]() -> asio::awaitable<void>
+    {
+        const char* p1 = "hello";
+        const char* p2 = "modern";
+        const char* p3 = "world!!";
+        co_await client_sess->SendPacket(0x1001,
+            std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(p1), 5));
+        co_await client_sess->SendPacket(0x1002,
+            std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(p2), 6));
+        co_await client_sess->SendPacket(0x1003,
+            std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(p3), 7));
+    };
+    asio::co_spawn(client_io, send_coro(), asio::detached);
+
+    // Drive the client io_context on a dedicated thread; wait for echoes.
+    std::thread client_thread([&client_io] { client_io.run(); });
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (received_count.load() < 3 && std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    Check(received.size() == 3, "received all three echoed packets");
+    if (received.size() == 3)
+    {
+        Check(received[0].first == 0x1001, "packet 0 wId matches");
+        Check(received[0].second.size() == 5 &&
+              std::memcmp(received[0].second.data(), "hello", 5) == 0,
+              "packet 0 body matches");
+        Check(received[1].first == 0x1002, "packet 1 wId matches");
+        Check(received[1].second.size() == 6 &&
+              std::memcmp(received[1].second.data(), "modern", 6) == 0,
+              "packet 1 body matches");
+        Check(received[2].first == 0x1003, "packet 2 wId matches");
+        Check(received[2].second.size() == 7 &&
+              std::memcmp(received[2].second.data(), "world!!", 7) == 0,
+              "packet 2 body matches");
+    }
+
+    // Clean shutdown.
+    client_sess->Close();
+    client_io.stop();
+    if (client_thread.joinable()) client_thread.join();
+    io.stop();
+    if (io_thread.joinable()) io_thread.join();
+}
+
 } // namespace
 
 int main()
@@ -120,6 +245,7 @@ int main()
     try
     {
         TestEchoRoundtrip();
+        TestPacketRoundtrip();
     }
     catch (const std::exception& ex)
     {

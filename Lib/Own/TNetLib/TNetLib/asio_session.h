@@ -32,7 +32,19 @@
 #include <span>
 #include <vector>
 
+#include "packet_codec.h"
+
 namespace tnetlib {
+
+// Decoded view of one inbound packet. `body` points into the session's
+// internal recv buffer and is valid for the duration of the
+// PacketHandler invocation only — copy before storing.
+struct DecodedPacket
+{
+    std::uint16_t wId;
+    std::uint32_t dwNumber;
+    std::span<const std::byte> body;
+};
 
 // Peer role determines whether the session participates in the
 // RC4+XOR wire encryption. Server-to-server links run plaintext;
@@ -50,9 +62,15 @@ enum class PeerType
 class AsioSession : public std::enable_shared_from_this<AsioSession>
 {
 public:
-    // Called once per fully-read buffer of size `bytes_read` (Phase 1
-    // hands raw bytes; Phase 2 will switch to decoded packets).
+    // Phase-1 byte-level handler — fires for each `async_read_some`
+    // result. Bypasses framing/decryption. Kept for callers that want
+    // a low-level stream (debug tooling, manual codec testing).
     using BytesHandler = std::function<void(std::span<const std::byte>)>;
+
+    // Phase-2 packet-level handler — fires once per fully-decoded
+    // wire packet (header verified, body XOR-decrypted, checksum OK,
+    // sequence number matches).
+    using PacketHandler = std::function<void(const DecodedPacket&)>;
 
     AsioSession(boost::asio::ip::tcp::socket socket, PeerType type);
     ~AsioSession();
@@ -60,16 +78,32 @@ public:
     AsioSession(const AsioSession&) = delete;
     AsioSession& operator=(const AsioSession&) = delete;
 
-    // Start the read loop. Returns when the peer closes or an error
-    // occurs. Pass a handler that is invoked for each chunk of bytes
-    // received. Phase 2: this method will instead decode CPackets and
-    // invoke a PacketHandler.
+    // Byte-level read loop. Returns when peer closes or error.
     boost::asio::awaitable<void> Run(BytesHandler on_bytes);
 
-    // Write `bytes` to the socket. Awaitable; completes when all bytes
-    // are flushed (or throws on error). Phase 2 will also frame +
-    // encrypt before writing.
+    // Packet-level read loop. Drives the wire-format codec end-to-end:
+    //   read 16-byte header (wSize plaintext) → read body → decrypt
+    //   header (XOR keyed by expected sequence) → validate dwNumber →
+    //   decrypt body (XOR + checksum verify) → dispatch DecodedPacket.
+    //
+    // Any framing error, checksum mismatch, or sequence mismatch
+    // terminates the loop and the session closes (matches legacy
+    // CSession::CheckMessage → PACKET_INVALID path).
+    //
+    // Does NOT yet run the RC4-over-entire-packet client → server
+    // pre-pass. That layer is added in a follow-up commit and only
+    // applies when `Type() == PeerType::Client`.
+    boost::asio::awaitable<void> RunPackets(PacketHandler on_packet);
+
+    // Byte-level send.
     boost::asio::awaitable<void> Send(std::span<const std::byte> bytes);
+
+    // Packet-level send: assigns the next outbound sequence number,
+    // builds a 16-byte header + `body` payload in an internal scratch
+    // buffer, encrypts body + header per the wire codec, async_writes
+    // the whole frame.
+    boost::asio::awaitable<void> SendPacket(std::uint16_t wId,
+                                            std::span<const std::byte> body);
 
     // Close the socket. Idempotent. Safe to call from any thread that
     // owns the executor.
@@ -82,7 +116,11 @@ public:
 private:
     boost::asio::ip::tcp::socket m_socket;
     PeerType                     m_type;
-    std::vector<std::byte>       m_recv_buffer;
+    std::vector<std::byte>       m_recv_buffer;     // byte-level Run scratch
+    std::vector<std::byte>       m_packet_buffer;   // RunPackets header+body scratch
+    std::vector<std::byte>       m_send_buffer;     // SendPacket scratch
+    std::uint32_t                m_recv_sequence = 0;
+    std::uint32_t                m_send_sequence = 0;
 };
 
 // Accept loop. Binds to `port` on all interfaces (INADDR_ANY) and

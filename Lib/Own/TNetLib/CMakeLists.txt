@@ -24,6 +24,7 @@ set(TNETLIB_SOURCES
     ${TNETLIB_SRC_DIR}/platform.cpp
     ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
     ${TNETLIB_SRC_DIR}/asio_session.cpp
+    ${TNETLIB_SRC_DIR}/packet_codec.cpp
 )
 
 set(TNETLIB_HEADERS
@@ -42,6 +43,7 @@ set(TNETLIB_HEADERS
     ${TNETLIB_SRC_DIR}/platform.h
     ${TNETLIB_SRC_DIR}/tnetlib_crypto.h
     ${TNETLIB_SRC_DIR}/asio_session.h
+    ${TNETLIB_SRC_DIR}/packet_codec.h
 )
 
 add_library(tnetlib STATIC ${TNETLIB_SOURCES} ${TNETLIB_HEADERS})
@@ -68,6 +70,7 @@ if(WIN32)
         ${TNETLIB_SRC_DIR}/platform.cpp
         ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
         ${TNETLIB_SRC_DIR}/asio_session.cpp
+        ${TNETLIB_SRC_DIR}/packet_codec.cpp
         PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 endif()
 
@@ -108,7 +111,8 @@ endif()
 if(Boost_FOUND OR EXISTS /usr/include/boost/asio.hpp)
     add_executable(test_tnetlib_asio
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_asio_session.cpp
-        ${TNETLIB_SRC_DIR}/asio_session.cpp)
+        ${TNETLIB_SRC_DIR}/asio_session.cpp
+        ${TNETLIB_SRC_DIR}/packet_codec.cpp)
     target_include_directories(test_tnetlib_asio PRIVATE ${TNETLIB_SRC_DIR})
     if(Boost_FOUND)
         target_link_libraries(test_tnetlib_asio PRIVATE Boost::system)
@@ -122,11 +126,23 @@ if(Boost_FOUND OR EXISTS /usr/include/boost/asio.hpp)
     endif()
     set_source_files_properties(
         ${TNETLIB_SRC_DIR}/asio_session.cpp
+        ${TNETLIB_SRC_DIR}/packet_codec.cpp
         PROPERTIES SKIP_PRECOMPILE_HEADERS ON
         TARGET_DIRECTORY test_tnetlib_asio)
 
     add_test(NAME tnetlib_asio_echo COMMAND test_tnetlib_asio)
 endif()
+
+# Packet codec test — pure C++20, no Boost or OpenSSL needed.
+add_executable(test_tnetlib_packet_codec
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_packet_codec.cpp
+    ${TNETLIB_SRC_DIR}/packet_codec.cpp)
+target_include_directories(test_tnetlib_packet_codec PRIVATE ${TNETLIB_SRC_DIR})
+set_source_files_properties(
+    ${TNETLIB_SRC_DIR}/packet_codec.cpp
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+    TARGET_DIRECTORY test_tnetlib_packet_codec)
+add_test(NAME tnetlib_packet_codec COMMAND test_tnetlib_packet_codec)
 
 # Crypto backend selection:
 #   - Non-Windows: must use OpenSSL (no Win32 CryptoAPI exists)

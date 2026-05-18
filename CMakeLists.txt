@@ -48,21 +48,16 @@ set(FOURSTORY_TPROTOCOL_INCLUDE_DIR
     ${CMAKE_SOURCE_DIR}/Lib/Own/TProtocol/include
     CACHE PATH "TProtocol wire definitions header dir")
 
-# Vendored OpenSSL lives at Lib/3rdParty/openssl. On Windows we link the
-# vendored copy; on Linux we expect a system-installed OpenSSL (libssl-dev).
-# Migrating the Win32 CryptoAPI calls in TNetLib/CryptographyExt.cpp to
-# OpenSSL EVP is a Phase 1 deliverable.
+# OpenSSL — managed by vcpkg (see /vcpkg.json). The legacy vendored copy
+# at Lib/3rdParty/openssl (OpenSSL 0.9.8l, Nov 2009, EOL 2015) was deleted
+# during Phase 1 modernization because it was a dead reference (only
+# CSmtp.cpp included it and CSmtp.cpp is not in any vcxproj).
+#
+# To configure: pass -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake
+# (or set VCPKG_ROOT and use CMake 3.21+ auto-detection).
+# On Linux, a system-installed libssl-dev / openssl-devel also satisfies
+# find_package(OpenSSL).
 find_package(OpenSSL QUIET)
-if(NOT OpenSSL_FOUND AND WIN32)
-    set(_VENDORED_OPENSSL "${CMAKE_SOURCE_DIR}/Lib/3rdParty/openssl")
-    if(EXISTS "${_VENDORED_OPENSSL}/include")
-        message(STATUS "Using vendored OpenSSL at ${_VENDORED_OPENSSL}")
-        set(OPENSSL_INCLUDE_DIR "${_VENDORED_OPENSSL}/include")
-        # Library paths get wired up in the consuming target once we know the
-        # build variant (Win32 .lib layout in Lib/3rdParty/openssl/lib/).
-        set(OpenSSL_FOUND ON)
-    endif()
-endif()
 
 # ODBC — kept as the SQL layer. Native MS ODBC on Windows, unixODBC on
 # Linux. The CSqlBase/CSqlQuery surface in TNetLib stays the same; only

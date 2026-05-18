@@ -46,7 +46,7 @@ Win32 surface area (from grep):
 | Threading | `CRITICAL_SECTION`, `CreateThread` | `std::mutex`, `std::shared_mutex`, `std::jthread` |
 | Time | `GetTickCount`, `CTime` | `std::chrono` |
 | Strings | ATL `CString`, `_T()`, `LPCTSTR`, `lstrcpy` | `std::string`, `std::string_view`, `std::format`, `snprintf` |
-| Crypto | Win32 CryptoAPI | OpenSSL EVP (already vendored at `Lib/3rdParty/openssl/`) |
+| Crypto | Win32 CryptoAPI | OpenSSL EVP via vcpkg (was vendored 0.9.8l → removed; vcpkg.json declares dependency, modern 3.x with `legacy` provider for RC4) |
 | SQL | ODBC via `CSqlDatabase` | **Keep ODBC, link unixODBC on Linux** (standard API, MSSQL has native Linux ODBC driver) |
 | Logging | `LogEvent`, `OutputDebugString`, `ATLTRACE`, `printf` | spdlog |
 | Config | `CRegKey` (Windows registry) | toml++ (typed config file) |
@@ -119,7 +119,7 @@ Added `CMakeLists.txt` at repo root + `Lib/Own/TNetLib/CMakeLists.txt`. CMake co
 |---|---|---|
 | Socket APIs | `<winsock2.h>`, `SOCKET`, `WSARecv`/`WSASend` | `<sys/socket.h>`, `<netinet/in.h>`, `<arpa/inet.h>` + Boost.Asio for async |
 | IOCP extensions | `<mswsock.h>`, `AcceptEx`, `ConnectEx`, `CreateIoCompletionPort`, `OVERLAPPED` | Boost.Asio (epoll/io_uring backend) |
-| Crypto API | `<wincrypt.h>`, `<Security.h>`, `CryptAcquireContext`, `HCRYPTKEY` | OpenSSL EVP (vendored at `Lib/3rdParty/openssl`) |
+| Crypto API | `<wincrypt.h>`, `<Security.h>`, `CryptAcquireContext`, `HCRYPTKEY` | OpenSSL EVP via vcpkg (vendored 0.9.8l removed — was unused dead reference) |
 | NetBIOS | `<nb30.h>` (`GetComputerName` family) | POSIX `gethostname()` |
 | ATL | `<atlbase.h>`, `<atlstr.h>`, `<atltime.h>` — `CString` (14 sites), `CTime` (4) | `std::string`, `std::chrono`, `using namespace` removed from headers |
 | MS ODBC headers | `<SQL.h>`, `<SQLExt.h>` | unixODBC ships the same headers — no change needed, just install `libodbc2-dev` |

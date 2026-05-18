@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "fourstory",
+  "version-string": "5.0.0",
+  "description": "4Story MMORPG server cluster — modernization tree.",
+  "homepage": "internal",
+  "dependencies": [
+    {
+      "name": "openssl",
+      "comment": "Used by Lib/Own/TNetLib/TNetLib/tnetlib_crypto.cpp for RC4+MD5 wire codec compatibility with legacy clients. Replaces vendored OpenSSL 0.9.8l (Nov 2009, EOL 2015) that lived at Lib/3rdParty/openssl/. RC4 requires the OpenSSL 3.x 'legacy' provider which the wrapper loads lazily via OSSL_PROVIDER_load."
+    }
+  ],
+  "$comment-baseline": "Pin a builtin-baseline (a microsoft/vcpkg commit SHA) when you want reproducible builds across machines. Until then, vcpkg will use whatever ports tree the user's vcpkg checkout has. Example: \"builtin-baseline\": \"<sha>\""
+}

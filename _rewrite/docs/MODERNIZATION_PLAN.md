@@ -99,7 +99,19 @@ Server modernization targets `TNetLib` + `TProtocol`. Other libs stay as-is.
 
 Two TNetLib copies existed (`Server/TNetLib/` v140 + `Lib/Own/TNetLib/TNetLib/` v141, semantically identical bar formatting). Consolidated onto canonical (v141) path. TMapSvr.vcxproj re-pointed, stale prebuilt `Server/Lib/TNetLib.lib` removed.
 
-### TNetLib Linux build attempt (Phase 1 kickoff — this commit)
+### TNetLib Phase 1 progress (this session)
+
+| Step | Commit | Status |
+|---|---|---|
+| A — Namespace hygiene (remove `using namespace std/ATL` from `TNetLib.h`) | `18abe06` | Done |
+| B — Platform shim + first portable .cpp | `7ae24ce` | Done — `platform.cpp` compiles and runs on Linux (g++ 13, C++20) |
+| C — Crypto wrapper (Win32 CryptoAPI → OpenSSL EVP) | — | TODO |
+| D — `CString` → `std::string` in internal call sites | — | TODO |
+| E — IOCP → Boost.Asio (`Session.cpp` rewrite) | — | TODO — biggest piece, blocked by C++ and D being further along |
+
+Case-sensitivity fix (Linux portability): 7 .cpp files in TNetLib used `#include "StdAfx.h"` (capital) where the file is `stdafx.h`. Normalized to lowercase in commit `7ae24ce`. Worked on Windows by accident; broke immediately on Linux.
+
+### TNetLib Linux build attempt (Phase 1 kickoff — earlier commit `0033063`)
 
 Added `CMakeLists.txt` at repo root + `Lib/Own/TNetLib/CMakeLists.txt`. CMake configures cleanly with GCC 13 / CMake 3.28; build of the `tnetlib` target on Linux fails at `TNetLib.h:4` (`#include <winsock2.h>`) — expected and useful. Full inventory of headers / APIs that block Linux compilation:
 

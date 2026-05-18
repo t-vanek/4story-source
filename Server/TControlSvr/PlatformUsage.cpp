@@ -55,7 +55,8 @@ BOOL CPlatformUsage::Open(LPCTSTR strMachine)
 
 	for( int i = 0; i < NUM_PERFORMANCE_COUNTER; i++)
 	{		
-		sprintf(szPath, "\\\\%s%s", strMachine, m_szPerformancePath[i].GetString());
+		_snprintf(szPath, MAX_PATH_BUFFER, "\\\\%s%s", strMachine, m_szPerformancePath[i].GetString());
+		szPath[MAX_PATH_BUFFER - 1] = '\0';
 		pdhStatus = PdhAddCounter(m_hQuery, szPath, 0, &m_hCounter[i]);
 		if(pdhStatus != ERROR_SUCCESS)
 		{

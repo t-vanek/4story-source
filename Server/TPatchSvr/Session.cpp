@@ -44,7 +44,7 @@ CSession::~CSession()
 
 void CSession::Close()
 {
-	EnterCriticalSection(&m_cs);
+	SMART_LOCKCS(&m_cs)
 	m_bValid = FALSE;
 
 	if( INVALID_SOCKET != m_sock )
@@ -63,7 +63,6 @@ void CSession::Close()
 
 	m_dwBufSize = 0;
 	m_dwQRead = 0;
-	LeaveCriticalSection(&m_cs);
 }
 
 BOOL CSession::CreateSocket( SOCKET &socket)

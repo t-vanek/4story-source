@@ -33,4 +33,28 @@ boost::asio::awaitable<void> OnLoginReq(
     tnetlib::AsioSession& session,
     std::span<const std::byte> body);
 
+// CS_GROUPLIST_REQ → CS_GROUPLIST_ACK. Phase-3 stub: returns an empty
+// world-group list (BYTE bCount = 0 + BYTE bCheckFilePoint = 0).
+// Real implementation queries TGROUP table for active worlds.
+//
+// Wire layout from CSHandler.cpp::OnCS_GROUPLIST_REQ:
+//   request body: (none — empty)
+//   ack body:  BYTE bCount, BYTE bCheckFilePoint, [per group: STRING szNAME,
+//              BYTE bGroupID, BYTE bType, BYTE bStatus, BYTE bCharCount]
+boost::asio::awaitable<void> OnGroupListReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_CHANNELLIST_REQ(BYTE bGroupID) → CS_CHANNELLIST_ACK. Phase-3 stub:
+// returns empty channel list. Real impl queries TCHANNEL.
+boost::asio::awaitable<void> OnChannelListReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_CHARLIST_REQ(BYTE bGroupID) → CS_CHARLIST_ACK. Phase-3 stub:
+// returns empty char list. Real impl queries TCHARTABLE + TITEMTABLE.
+boost::asio::awaitable<void> OnCharListReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
 } // namespace tloginsvr::handlers

@@ -56,6 +56,10 @@ void TestLoginHandshake()
     std::printf("[tloginsvr_asio handshake — version-match]\n");
 
     asio::io_context server_io;
+    // Default config (no RC4) so the test peer can be a plain
+    // PeerType::Server too — matches the modernized-peer migration
+    // mode. The real-client mode (RC4 enabled) is exercised by the
+    // TestPacketRoundtripWithRC4 KAT in test_tnetlib_asio.
     tloginsvr::LoginServer server(server_io, 0); // ephemeral
     const std::uint16_t port = server.Port();
     Check(port != 0, "server bound to ephemeral port");
@@ -124,12 +128,114 @@ void TestLoginHandshake()
 
 } // namespace
 
+// Full lobby flow — login + grouplist + channellist + charlist round
+// trip. All four handlers are stubs returning empty lists, but the
+// test proves the dispatcher routes each request to the right handler
+// and the per-session sequence-number counter stays consistent across
+// multiple inbound/outbound packets.
+void TestLobbyFlow()
+{
+    std::printf("[tloginsvr_asio full lobby flow — login + 3 list reqs]\n");
+
+    asio::io_context server_io;
+    tloginsvr::LoginServer server(server_io, 0);
+    const std::uint16_t port = server.Port();
+    Check(port != 0, "server bound");
+
+    asio::co_spawn(server_io, server.Run(), asio::detached);
+    std::thread server_thread([&server_io] { server_io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket client_sock(client_io);
+    client_sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+    Check(client_sock.is_open(), "client connected");
+
+    auto client_sess = std::make_shared<tnetlib::AsioSession>(
+        std::move(client_sock), tnetlib::PeerType::Server);
+
+    std::atomic<int> ack_count{0};
+    std::vector<std::uint16_t> received_ids;
+
+    asio::co_spawn(client_io,
+        [client_sess, &ack_count, &received_ids]() -> asio::awaitable<void> {
+            co_await client_sess->RunPackets(
+                [&ack_count, &received_ids](const tnetlib::DecodedPacket& pkt) {
+                    received_ids.push_back(pkt.wId);
+                    ack_count.fetch_add(1);
+                });
+        },
+        asio::detached);
+
+    asio::co_spawn(client_io,
+        [client_sess]() -> asio::awaitable<void> {
+            using namespace tnetlib::protocol;
+            // 1. login (wVersion only)
+            std::uint16_t v = 0x2918;
+            std::byte login_body[2];
+            std::memcpy(login_body, &v, 2);
+            co_await client_sess->SendPacket(
+                ToUint16(MessageId::CS_LOGIN_REQ),
+                std::span<const std::byte>(login_body, 2));
+            // 2. grouplist (empty body)
+            co_await client_sess->SendPacket(
+                ToUint16(MessageId::CS_GROUPLIST_REQ),
+                std::span<const std::byte>{});
+            // 3. channellist (BYTE bGroupID = 1)
+            std::byte ch_body[1] = { std::byte{1} };
+            co_await client_sess->SendPacket(
+                ToUint16(MessageId::CS_CHANNELLIST_REQ),
+                std::span<const std::byte>(ch_body, 1));
+            // 4. charlist (BYTE bGroupID = 1)
+            std::byte cl_body[1] = { std::byte{1} };
+            co_await client_sess->SendPacket(
+                ToUint16(MessageId::CS_CHARLIST_REQ),
+                std::span<const std::byte>(cl_body, 1));
+        },
+        asio::detached);
+
+    std::thread client_thread([&client_io] { client_io.run(); });
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (ack_count.load() < 4 &&
+           std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    Check(ack_count.load() == 4, "all 4 acks received");
+    using tnetlib::protocol::MessageId;
+    using tnetlib::protocol::ToUint16;
+    if (received_ids.size() == 4)
+    {
+        // Order is preserved by the per-session TCP stream + the
+        // server's per-packet co_spawn dispatch (each handler
+        // serializes its own SendPacket through the session's
+        // implicit strand).
+        Check(received_ids[0] == ToUint16(MessageId::CS_LOGIN_ACK),
+              "ack 0 is CS_LOGIN_ACK");
+        Check(received_ids[1] == ToUint16(MessageId::CS_GROUPLIST_ACK),
+              "ack 1 is CS_GROUPLIST_ACK");
+        Check(received_ids[2] == ToUint16(MessageId::CS_CHANNELLIST_ACK),
+              "ack 2 is CS_CHANNELLIST_ACK");
+        Check(received_ids[3] == ToUint16(MessageId::CS_CHARLIST_ACK),
+              "ack 3 is CS_CHARLIST_ACK");
+    }
+
+    client_sess->Close();
+    client_io.stop();
+    if (client_thread.joinable()) client_thread.join();
+    server_io.stop();
+    if (server_thread.joinable()) server_thread.join();
+}
+
 int main()
 {
     std::printf("=== tloginsvr_asio handshake test ===\n");
     try
     {
         TestLoginHandshake();
+        TestLobbyFlow();
     }
     catch (const std::exception& ex)
     {

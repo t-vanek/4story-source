@@ -12,9 +12,15 @@
 
 namespace tloginsvr {
 
-LoginServer::LoginServer(boost::asio::io_context& io, std::uint16_t port)
+LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     : m_io(io)
-    , m_listener(io.get_executor(), port)
+    , m_listener(io.get_executor(), config.port)
+    , m_rc4_secret_key(std::move(config.rc4_secret_key))
+{
+}
+
+LoginServer::LoginServer(boost::asio::io_context& io, std::uint16_t port)
+    : LoginServer(io, LoginServerConfig{ .port = port })
 {
 }
 
@@ -27,15 +33,26 @@ boost::asio::awaitable<void>
 LoginServer::Run()
 {
     co_await m_listener.Run([this](boost::asio::ip::tcp::socket socket) {
-        // PeerType::Server here is a Phase-3 limitation: the legacy
-        // client expects PeerType::Client semantics (RC4 over the
-        // entire packet on the inbound side). Until Phase E.2.5
-        // wires RC4MD5Transform into AsioSession, the new server
-        // can only talk to other tnetlib peers, not the legacy
-        // client. The integration test uses tnetlib peers on both
-        // ends to match.
+        // PeerType::Client if we're running with the legacy-client
+        // secret configured (Phase 2.5 wire compat); PeerType::Server
+        // for the modernized peer test mode. The peer type label
+        // doesn't change behavior here — we toggle RC4 explicitly
+        // via EnableInboundRC4 — but keeping it semantically right
+        // means future code reading sess->Type() gets the truthful
+        // answer about "what kind of peer is on the other side".
+        const auto peer = m_rc4_secret_key.empty()
+            ? tnetlib::PeerType::Server
+            : tnetlib::PeerType::Client;
         auto sess = std::make_shared<tnetlib::AsioSession>(
-            std::move(socket), tnetlib::PeerType::Server);
+            std::move(socket), peer);
+
+        if (!m_rc4_secret_key.empty())
+        {
+            // Server-side: legacy convention is RC4 inbound only,
+            // XOR-only outbound (matches CSession::Decrypt RC4 path
+            // vs CSession::Encrypt XOR-only path).
+            sess->EnableInboundRC4(m_rc4_secret_key);
+        }
 
         boost::asio::co_spawn(
             m_io,
@@ -77,6 +94,15 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
     {
     case MessageId::CS_LOGIN_REQ:
         co_await handlers::OnLoginReq(*sess, body);
+        break;
+    case MessageId::CS_GROUPLIST_REQ:
+        co_await handlers::OnGroupListReq(*sess, body);
+        break;
+    case MessageId::CS_CHANNELLIST_REQ:
+        co_await handlers::OnChannelListReq(*sess, body);
+        break;
+    case MessageId::CS_CHARLIST_REQ:
+        co_await handlers::OnCharListReq(*sess, body);
         break;
     default:
     {

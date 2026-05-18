@@ -116,4 +116,55 @@ OnLoginReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
         std::span<const std::byte>(payload.data(), payload.size()));
 }
 
+boost::asio::awaitable<void>
+OnGroupListReq(tnetlib::AsioSession& session, std::span<const std::byte>)
+{
+    // Stub: empty world-group list. Two-byte payload: bCount=0,
+    // bCheckFilePoint=0 (legacy unconditionally writes it after bCount
+    // — see CSHandler.cpp:506-510). Real impl will iterate TGROUP rows.
+    std::byte payload[2] = { std::byte{0}, std::byte{0} };
+    std::printf("[tloginsvr_asio] CS_GROUPLIST_REQ → CS_GROUPLIST_ACK (stub: 0 groups)\n");
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_GROUPLIST_ACK),
+        std::span<const std::byte>(payload, 2));
+}
+
+boost::asio::awaitable<void>
+OnChannelListReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
+{
+    // Request body: BYTE bGroupID. We log it for visibility but don't
+    // act on it yet (stub returns empty channels regardless).
+    const auto groupId = body.empty()
+        ? std::uint8_t{0}
+        : static_cast<std::uint8_t>(body[0]);
+
+    // Ack: BYTE bCount=0, BYTE bCheckFilePoint=0.
+    std::byte payload[2] = { std::byte{0}, std::byte{0} };
+    std::printf("[tloginsvr_asio] CS_CHANNELLIST_REQ group=%u → CS_CHANNELLIST_ACK (stub: 0 channels)\n",
+        groupId);
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CHANNELLIST_ACK),
+        std::span<const std::byte>(payload, 2));
+}
+
+boost::asio::awaitable<void>
+OnCharListReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
+{
+    // Request body: BYTE bGroupID.
+    const auto groupId = body.empty()
+        ? std::uint8_t{0}
+        : static_cast<std::uint8_t>(body[0]);
+
+    // Ack: BYTE bCheckFilePoint=0, BYTE bCount=0 — note legacy
+    // CSHandler.cpp:723-728 writes CheckFilePoint FIRST here,
+    // bCount second (different field order than the other list acks).
+    // Real impl will iterate TCHARTABLE for this group/user.
+    std::byte payload[2] = { std::byte{0}, std::byte{0} };
+    std::printf("[tloginsvr_asio] CS_CHARLIST_REQ group=%u → CS_CHARLIST_ACK (stub: 0 chars)\n",
+        groupId);
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CHARLIST_ACK),
+        std::span<const std::byte>(payload, 2));
+}
+
 } // namespace tloginsvr::handlers

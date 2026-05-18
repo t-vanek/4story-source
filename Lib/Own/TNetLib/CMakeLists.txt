@@ -158,6 +158,42 @@ set_source_files_properties(
     TARGET_DIRECTORY test_tnetlib_messageid)
 add_test(NAME tnetlib_messageid COMMAND test_tnetlib_messageid)
 
+# tnetlib_portable — subset target with ONLY the new portable .cpp
+# files (no stdafx.h, no winsock, no ATL). Servers being migrated
+# off the legacy CSession/CPacket should link this, not the full
+# `tnetlib` STATIC target (which still drags in the legacy .cpp
+# files until step E phases 3/4 complete the per-server migration).
+add_library(tnetlib_portable STATIC
+    ${TNETLIB_SRC_DIR}/asio_session.cpp
+    ${TNETLIB_SRC_DIR}/packet_codec.cpp
+    ${TNETLIB_SRC_DIR}/platform.cpp
+    ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
+    ${TNETLIB_SRC_DIR}/MessageId.cpp)
+target_include_directories(tnetlib_portable PUBLIC
+    ${TNETLIB_SRC_DIR}
+    ${FOURSTORY_TPROTOCOL_INCLUDE_DIR})
+set_target_properties(tnetlib_portable PROPERTIES
+    POSITION_INDEPENDENT_CODE ON)
+set_source_files_properties(
+    ${TNETLIB_SRC_DIR}/asio_session.cpp
+    ${TNETLIB_SRC_DIR}/packet_codec.cpp
+    ${TNETLIB_SRC_DIR}/platform.cpp
+    ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
+    ${TNETLIB_SRC_DIR}/MessageId.cpp
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+    TARGET_DIRECTORY tnetlib_portable)
+if(Boost_FOUND)
+    target_link_libraries(tnetlib_portable PUBLIC Boost::system)
+else()
+    target_link_libraries(tnetlib_portable PUBLIC boost_system)
+endif()
+if(OpenSSL_FOUND)
+    target_link_libraries(tnetlib_portable PUBLIC OpenSSL::Crypto)
+endif()
+if(NOT WIN32)
+    target_link_libraries(tnetlib_portable PUBLIC pthread)
+endif()
+
 # Crypto backend selection:
 #   - Non-Windows: must use OpenSSL (no Win32 CryptoAPI exists)
 #   - Windows:     defaults to Win32 CryptoAPI for ABI-stable backward

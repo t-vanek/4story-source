@@ -90,3 +90,4 @@ enable_testing()
 
 # Subprojects. Add new servers / libs here as they get a CMakeLists.txt.
 add_subdirectory(Lib/Own/TNetLib)
+add_subdirectory(Server/TLoginSvrAsio)

@@ -1,7 +1,7 @@
 // Packet.cpp: implementation of the CPacket class.
 //
 //////////////////////////////////////////////////////////////////////
-#include "StdAfx.h"
+#include "stdafx.h"
 
 //COverlappedEx
 COverlappedEx::COverlappedEx()

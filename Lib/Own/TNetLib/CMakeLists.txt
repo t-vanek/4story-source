@@ -21,6 +21,7 @@ set(TNETLIB_SOURCES
     ${TNETLIB_SRC_DIR}/SqlDatabase.cpp
     ${TNETLIB_SRC_DIR}/SqlDirect.cpp
     ${TNETLIB_SRC_DIR}/SqlQuery.cpp
+    ${TNETLIB_SRC_DIR}/platform.cpp
 )
 
 set(TNETLIB_HEADERS
@@ -36,6 +37,7 @@ set(TNETLIB_HEADERS
     ${TNETLIB_SRC_DIR}/SqlQuery.h
     ${TNETLIB_SRC_DIR}/TNetDef.h
     ${TNETLIB_SRC_DIR}/TNetLib.h
+    ${TNETLIB_SRC_DIR}/platform.h
 )
 
 add_library(tnetlib STATIC ${TNETLIB_SOURCES} ${TNETLIB_HEADERS})
@@ -47,8 +49,19 @@ target_include_directories(tnetlib
         ${FOURSTORY_TPROTOCOL_INCLUDE_DIR}
 )
 
-# Precompiled header — keeps the legacy stdafx.h working under CMake.
-target_precompile_headers(tnetlib PRIVATE ${TNETLIB_SRC_DIR}/stdafx.h)
+# Precompiled header — keeps the legacy stdafx.h pattern working under CMake
+# on Windows. On Linux the PCH header drags in winsock2.h and would refuse to
+# compile until the Boost.Asio migration lands, so we skip it entirely there
+# and let each .cpp pull what it needs explicitly. Phase 1 work-in-progress.
+if(WIN32)
+    target_precompile_headers(tnetlib PRIVATE ${TNETLIB_SRC_DIR}/stdafx.h)
+
+    # platform.cpp is the cross-platform shim — opts out of PCH even on
+    # Windows so the two toolchains compile it identically (without
+    # winsock2.h being pre-included).
+    set_source_files_properties(${TNETLIB_SRC_DIR}/platform.cpp
+        PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+endif()
 
 # Platform-specific link surface.
 #   Windows: ws2_32 + mswsock for IOCP/WSARecv, odbc32 for SQL,

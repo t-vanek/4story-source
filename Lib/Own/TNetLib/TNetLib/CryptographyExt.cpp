@@ -16,17 +16,16 @@ Crypt Library Demo.  If not, see <http://www.opensource.org/licenses/gpl-3.0.htm
 
 #include "stdafx.h"
 #include "CryptographyExt.h"
+#include "platform.h"
 
-#define SECURITY_WIN32
-#include <Security.h>
-#pragma comment(lib, "secur32")
+#if defined(_WIN32)
+    #include <nb30.h>
+    #pragma comment(lib, "netapi32")
 
-#include <nb30.h>
-#pragma comment(lib, "netapi32")
-
-#include <wincrypt.h>
-#pragma comment(lib, "crypt32")
-#pragma comment(lib, "advapi32")
+    #include <wincrypt.h>
+    #pragma comment(lib, "crypt32")
+    #pragma comment(lib, "advapi32")
+#endif
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -60,27 +59,12 @@ void TraceLastError(LPCTSTR lpszLibrary, LPCTSTR lpszOperation, DWORD dwLastErro
 
 CString GetComputerID()
 {
-	CString strComputerID;
-	DWORD dwLength = MAX_STR_BUFFER;
-	TCHAR lpszComputer[MAX_STR_BUFFER] = { 0 };
-	if (GetComputerNameEx(ComputerNameDnsFullyQualified, lpszComputer, &dwLength))
-	{
-		lpszComputer[dwLength] = 0;
-		strComputerID = lpszComputer;
-	}
-	else
-	{
-		if (GetComputerName(lpszComputer, &dwLength))
-		{
-			lpszComputer[dwLength] = 0;
-			strComputerID = lpszComputer;
-		}
-		else
-		{
-			strComputerID =  _T("MihaiMoga");
-		}
-	}
-	return strComputerID;
+	// Cross-platform via tnetlib_platform::GetHostName (FQDN on Windows,
+	// gethostname() output on POSIX). The legacy fallback string
+	// "MihaiMoga" — author tag from the original Crypt Library Demo source —
+	// is replaced with "unknown" inside the helper.
+	const std::string host = tnetlib_platform::GetHostName();
+	return CString(host.c_str());
 }
 
 BOOL EncryptBuffer(ALG_ID nAlgorithm, LPBYTE lpszOutputBuffer, DWORD& dwOutputLength, LPBYTE lpszInputBuffer, DWORD dwInputLength, LPBYTE lpszSecretKey, DWORD dwSecretKey)

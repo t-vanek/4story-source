@@ -2,7 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "StdAfx.h"
+#include "stdafx.h"
 
 INT64 g_4skey[KEY_COUNT] = {
 	0x5193817ae183acee,

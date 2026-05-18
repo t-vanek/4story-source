@@ -4,6 +4,60 @@
 
 #include "stdafx.h"
 
+#include <cstdio>
+#include <ctime>
+#include <string>
+
+namespace {
+
+// Resolve the ODBC error-log path. Legacy code hard-coded two different
+// Windows paths (C:\4s\dberror.log in Open(), C:\TServices_GSP\dberror.log
+// in Fetch()) — neither portable, neither configurable, neither consistent.
+// Honor TNETLIB_DB_ERROR_LOG env var first, then fall back to a sane default
+// per platform.
+const char* ResolveDbErrorLogPath()
+{
+    static std::string cached;
+    if (!cached.empty()) return cached.c_str();
+    if (const char* env = std::getenv("TNETLIB_DB_ERROR_LOG"))
+    {
+        cached = env;
+    }
+    else
+    {
+#if defined(_WIN32)
+        cached = "C:\\4s\\dberror.log";
+#else
+        cached = "/var/log/tnetlib/dberror.log";
+#endif
+    }
+    return cached.c_str();
+}
+
+// Format and append one diagnostic record to the error log. Uses
+// std::string + snprintf instead of the legacy CString::Format +
+// fixed 1024-byte TCHAR buffer + lstrcpy chain (which was buffer-bound
+// and ATL-bound).
+void AppendDbError(const char* msg, const char* query)
+{
+    const char* path = ResolveDbErrorLogPath();
+    std::FILE* file = std::fopen(path, "a+");
+    if (!file) file = std::fopen(path, "w+");
+    if (!file) return;
+
+    std::time_t now = std::time(nullptr);
+    char ts[32];
+    if (std::strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", std::localtime(&now)) == 0)
+        ts[0] = '\0';
+
+    std::fprintf(file, "%s [%s] %s\n",
+        ts,
+        msg ? msg : "(null)",
+        query ? query : "(null)");
+    std::fclose(file);
+}
+
+} // namespace
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -111,23 +165,8 @@ BOOL CSqlBase::Open(BOOL bRetAtOnce)
 			SQL_HANDLE_STMT, m_hstmt, cntrec++, diag.state,
 			&diag.err, diag.msg, MAX_SQLDIAGREC_MSG, &diag.cbmsg))
 		{
-			FILE * file;
-			file = fopen("C:\\4s\\dberror.log", "a+");
-			if(!file)
-				file = fopen("C:\\4s\\dberror.log", "w+");
-		
-			CString strMsg;
-			if(file)
-			{
-				CTime t = CTime::GetCurrentTime();
-				TCHAR line[1024];
-				strMsg.Format(_T("%s %s %s\n"), t.Format("%c"), diag.msg, m_szQuery);
-				lstrcpy(line, strMsg);
-				fwrite(line, sizeof(char), lstrlen(line), file);
-				fclose(file);
-			}
-
-			ATLTRACE(_T("%s\n"), strMsg);
+			AppendDbError((const char*)diag.msg, (const char*)m_szQuery);
+			ATLTRACE(_T("[%hs] %hs\n"), (const char*)diag.state, (const char*)diag.msg);
 		}
 	}
 
@@ -175,22 +214,8 @@ BOOL CSqlBase::Fetch()
 				SQL_HANDLE_STMT, m_hstmt, cntrec++, diag.state,
 				&diag.err, diag.msg, MAX_SQLDIAGREC_MSG, &diag.cbmsg))
 			{
-				FILE * file;
-				file = fopen("C:\\TServices_GSP\\dberror.log", "a+");
-				if(!file)
-					file = fopen("C:\\TServices_GSP\\dberror.log", "w+");
-			
-				CString strMsg;
-				if(file)
-				{
-					char line[1024];
-					strMsg.Format(_T("%s %s\n"), diag.msg, m_szQuery);
-					lstrcpy(line, strMsg);
-					fwrite(line, sizeof(char), lstrlen(line), file);
-					fclose(file);
-				}
-
-				ATLTRACE(_T("%s\n"), strMsg);
+				AppendDbError((const char*)diag.msg, (const char*)m_szQuery);
+				ATLTRACE(_T("[%hs] %hs\n"), (const char*)diag.state, (const char*)diag.msg);
 			}
 			FreeStatement();
 		}

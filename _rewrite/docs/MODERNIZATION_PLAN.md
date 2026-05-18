@@ -107,8 +107,8 @@ Two TNetLib copies existed (`Server/TNetLib/` v140 + `Lib/Own/TNetLib/TNetLib/` 
 | B — Platform shim + first portable .cpp | `7ae24ce` | Done — `platform.cpp` compiles and runs on Linux (g++ 13, C++20) |
 | C — Crypto wrapper (Win32 CryptoAPI → OpenSSL EVP) | `b7e489a` | Done — `tnetlib_crypto` (OpenSSL EVP) plus a 18-test ctest target (RFC 6229 RC4 vectors + symmetry + legacy 4Story secret key). `CryptographyExt::Encrypt/DecryptBuffer` delegate via `FOURSTORY_USE_OPENSSL_CRYPTO` compile flag — default ON for non-Windows, OFF on Windows pending bit-for-bit validation. Legacy Win32 CryptoAPI path retained on Windows. |
 | Bug audit + fixes (8 confirmed bugs in TNetLib) | this commit | Done — see "TNetLib bug audit" section below. |
-| D — `CString` → `std::string` in internal call sites | — | TODO |
-| E — IOCP → Boost.Asio (`Session.cpp` rewrite) | — | TODO — biggest piece, blocked by C++ and D being further along |
+| D — `CString` → `std::string` in internal call sites (phase 1: internal only, public API unchanged) | this commit | Partial — `g_strSecretKey` (Session.cpp), error logging (SqlBase.cpp), and `__DBTOTIME`/`__TIMETODB` (TNetDef.h) converted off ATL. Public API surface (LPCTSTR params, `CString GetComputerID()`) still ATL — flipping those is a Phase 2 concern that requires updating all server consumers. |
+| E — IOCP → Boost.Asio (`Session.cpp` rewrite) | — | TODO — biggest piece, in progress next |
 
 Case-sensitivity fix (Linux portability): 7 .cpp files in TNetLib used `#include "StdAfx.h"` (capital) where the file is `stdafx.h`. Normalized to lowercase in commit `7ae24ce`. Worked on Windows by accident; broke immediately on Linux.
 

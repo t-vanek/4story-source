@@ -13,7 +13,13 @@ INT64 g_4skey[KEY_COUNT] = {
 	0x0139aecea89541a2,
 	0x6b97253c5fbb8b06 };
 
-CString g_strSecretKey = "A5$$8AFS13A1::-11#!..'�19716AC&�/D1;;1#";
+// Wire-format compatibility note: the secret key bytes (including the
+// non-ASCII 0x92 / 0x94) feed directly into EncryptBuffer below as
+// `(secret_len + 1)` bytes — including the trailing NUL. Any change to
+// the literal MUST keep the bytes (and length) identical or the legacy
+// client's RC4 keystream desynchronizes. Storage type changed from
+// CString to std::string so this code is no longer ATL-bound.
+std::string g_strSecretKey = "A5$$8AFS13A1::-11#!..'\x92" "19716AC&\x94" "/D1;;1#";
 
 CSession::CSession()
 {
@@ -79,9 +85,12 @@ BOOL CSession::Decrypt(CPacket * pPacket)
 	m_dwRecvNumber++;
 	INT64 key = g_4skey[m_dwRecvNumber % KEY_COUNT];
 
-	CString strSecretKey = g_strSecretKey;
-	LPBYTE lpszSecretKey = (LPBYTE)(LPCTSTR)strSecretKey;
-	DWORD dwSecretKey = (strSecretKey.GetLength() + 1) * sizeof(TCHAR);
+	// Legacy passed `(GetLength() + 1) * sizeof(TCHAR)` — i.e. strlen + 1
+	// bytes including the trailing NUL on an ANSI build. Preserve that
+	// exact length so the MD5(secret) → RC4 key derivation in
+	// EncryptBuffer / tnetlib_crypto matches the legacy wire keystream.
+	LPBYTE lpszSecretKey = (LPBYTE)g_strSecretKey.c_str();
+	DWORD dwSecretKey = (DWORD)(g_strSecretKey.size() + 1);
 
 	DWORD dwBufSize = DWORD(pPacket->m_pHeader->m_wSize);
 

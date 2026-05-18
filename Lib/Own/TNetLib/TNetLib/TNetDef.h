@@ -32,20 +32,24 @@
 
 #define SMART_LOCKCS(x)				CCSLock lock_object(x);
 
+// Portable replacements for the previous ATL CTime-based conversions.
+// CTime is MFC/ATL — Windows-only and adds an ATL link dependency for
+// callers that just want time_t↔SQL_TIMESTAMP. Using <time.h> directly
+// keeps the helpers usable from Linux builds.
 inline __time64_t __DBTOTIME(TIMESTAMP_STRUCT timestamp)
 {
 	if(timestamp.year < 2000)
 		return 0;
 
-	CTime time(
-		timestamp.year,
-		timestamp.month,
-		timestamp.day,
-		timestamp.hour,
-		timestamp.minute,
-		timestamp.second);
-
-	return time.GetTime();
+	struct tm t = {};
+	t.tm_year = timestamp.year - 1900;
+	t.tm_mon  = timestamp.month - 1;
+	t.tm_mday = timestamp.day;
+	t.tm_hour = timestamp.hour;
+	t.tm_min  = timestamp.minute;
+	t.tm_sec  = timestamp.second;
+	t.tm_isdst = -1; // let the runtime decide DST — matches CTime ctor semantics
+	return (__time64_t)mktime(&t);
 };
 
 inline void __TIMETODB(__time64_t time_t, TIMESTAMP_STRUCT & timestamp)
@@ -62,14 +66,19 @@ inline void __TIMETODB(__time64_t time_t, TIMESTAMP_STRUCT & timestamp)
 	}
 	else
 	{
-		CTime time(time_t);
-
-		timestamp.year = time.GetYear();
-		timestamp.month = time.GetMonth();
-		timestamp.day = time.GetDay();
-		timestamp.hour = time.GetHour();
-		timestamp.minute = time.GetMinute();
-		timestamp.second = time.GetSecond();
+		::time_t raw = (::time_t)time_t;
+		struct tm t = {};
+#if defined(_WIN32)
+		localtime_s(&t, &raw);
+#else
+		localtime_r(&raw, &t);
+#endif
+		timestamp.year   = (SQLSMALLINT)(t.tm_year + 1900);
+		timestamp.month  = (SQLUSMALLINT)(t.tm_mon + 1);
+		timestamp.day    = (SQLUSMALLINT)t.tm_mday;
+		timestamp.hour   = (SQLUSMALLINT)t.tm_hour;
+		timestamp.minute = (SQLUSMALLINT)t.tm_min;
+		timestamp.second = (SQLUSMALLINT)t.tm_sec;
 		timestamp.fraction = 0;
 	}
 };

@@ -3,6 +3,7 @@
 #include <boost/asio/awaitable.hpp>
 
 #include "asio_session.h"
+#include "services/auth_service.h"
 
 #include <cstddef>
 #include <span>
@@ -29,9 +30,15 @@ namespace tloginsvr::handlers {
 // This stub only reads wVersion and replies. Everything else is
 // ignored. That's enough to demonstrate the codec + dispatch
 // pipeline end-to-end without needing the auth DB plumbed in.
+// Optional auth_service: when non-null, the handler reads the full
+// legacy wire format (userId, password) and consults the service.
+// When null, falls back to the Phase-3 stub behavior (version check
+// only, replies LR_SUCCESS to everyone) — useful for wire-format
+// smoke tests that don't want to wire an auth backend.
 boost::asio::awaitable<void> OnLoginReq(
     tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::span<const std::byte> body,
+    services::IAuthService* auth_service = nullptr);
 
 // CS_GROUPLIST_REQ → CS_GROUPLIST_ACK. Phase-3 stub: returns an empty
 // world-group list (BYTE bCount = 0 + BYTE bCheckFilePoint = 0).

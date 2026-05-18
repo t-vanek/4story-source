@@ -7,6 +7,8 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 
+#include <spdlog/spdlog.h>
+
 #include <cstdio>
 #include <utility>
 
@@ -16,6 +18,7 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     : m_io(io)
     , m_listener(io.get_executor(), config.port)
     , m_rc4_secret_key(std::move(config.rc4_secret_key))
+    , m_auth_service(config.auth_service)
 {
 }
 
@@ -93,7 +96,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
     switch (id)
     {
     case MessageId::CS_LOGIN_REQ:
-        co_await handlers::OnLoginReq(*sess, body);
+        co_await handlers::OnLoginReq(*sess, body, m_auth_service);
         break;
     case MessageId::CS_GROUPLIST_REQ:
         co_await handlers::OnGroupListReq(*sess, body);
@@ -131,9 +134,9 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
     default:
     {
         const auto name = tnetlib::protocol::NameOf(id);
-        std::printf("[tloginsvr_asio] unhandled packet id=0x%04X (%s) body=%zu bytes\n",
+        spdlog::warn("unhandled packet id=0x{:04X} ({}) body={} bytes",
             packet.wId,
-            name.empty() ? "unknown" : std::string(name).c_str(),
+            name.empty() ? std::string_view{"unknown"} : name,
             body.size());
         break;
     }

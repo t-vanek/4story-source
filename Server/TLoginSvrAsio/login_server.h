@@ -11,6 +11,7 @@
 
 #include "asio_session.h"
 #include "MessageId.h"
+#include "services/auth_service.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -32,6 +33,12 @@ struct LoginServerConfig
     // client expects a specific byte string — see
     // Session.cpp:16's g_strSecretKey.
     std::vector<std::byte> rc4_secret_key;
+
+    // Authentication backend. Non-owning pointer (caller owns the
+    // service lifetime; typically constructed in main with the same
+    // lifetime as the io_context). Null disables auth — handler
+    // falls back to the version-check-only stub from Phase 3.
+    services::IAuthService* auth_service = nullptr;
 };
 
 class LoginServer
@@ -51,6 +58,7 @@ private:
     boost::asio::io_context& m_io;
     tnetlib::AsioListener    m_listener;
     std::vector<std::byte>   m_rc4_secret_key; // copied from config; empty = no RC4
+    services::IAuthService*  m_auth_service = nullptr; // non-owning; null = stub mode
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

@@ -80,5 +80,10 @@ else()
     endif()
 endif()
 
+# Test infrastructure (must be enabled at the top level so add_test()
+# calls inside subprojects register with ctest).
+include(CTest)
+enable_testing()
+
 # Subprojects. Add new servers / libs here as they get a CMakeLists.txt.
 add_subdirectory(Lib/Own/TNetLib)

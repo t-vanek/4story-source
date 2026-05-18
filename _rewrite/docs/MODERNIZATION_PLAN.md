@@ -105,7 +105,7 @@ Two TNetLib copies existed (`Server/TNetLib/` v140 + `Lib/Own/TNetLib/TNetLib/` 
 |---|---|---|
 | A — Namespace hygiene (remove `using namespace std/ATL` from `TNetLib.h`) | `18abe06` | Done |
 | B — Platform shim + first portable .cpp | `7ae24ce` | Done — `platform.cpp` compiles and runs on Linux (g++ 13, C++20) |
-| C — Crypto wrapper (Win32 CryptoAPI → OpenSSL EVP) | — | TODO |
+| C — Crypto wrapper (Win32 CryptoAPI → OpenSSL EVP) | this commit | Done — `tnetlib_crypto` (OpenSSL EVP) plus a 18-test ctest target (RFC 6229 RC4 vectors + symmetry + legacy 4Story secret key). `CryptographyExt::Encrypt/DecryptBuffer` delegate via `FOURSTORY_USE_OPENSSL_CRYPTO` compile flag — default ON for non-Windows, OFF on Windows pending bit-for-bit validation. Legacy Win32 CryptoAPI path retained on Windows. |
 | D — `CString` → `std::string` in internal call sites | — | TODO |
 | E — IOCP → Boost.Asio (`Session.cpp` rewrite) | — | TODO — biggest piece, blocked by C++ and D being further along |
 

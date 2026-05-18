@@ -54,18 +54,28 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         // Step 2 — user lookup. TACCOUNT_PW is the credentials store
         // per legacy CSPLogin (CSHandler.cpp:320). TACCOUNT is the
         // older / parallel table; not used for auth in legacy SP.
+        //
+        // Scope the statement so its cursor is released before the
+        // next query: ODBC/MSSQL doesn't allow a second statement on
+        // the same connection while a prior result set is open ("SQL
+        // state 24000 — invalid cursor state"). PG's libpq doesn't
+        // care, but the scoped form is also harmless there.
         int user_id = 0;
         std::string stored_password;
         soci::indicator pw_ind = soci::i_null;
-        soci::statement lookup =
-            (sql.prepare <<
-                "SELECT \"dwUserID\", \"szPasswd\" FROM \"TACCOUNT_PW\" "
-                "WHERE \"szUserID\" = :uid",
-                soci::use(req.user_id),
-                soci::into(user_id),
-                soci::into(stored_password, pw_ind));
-        lookup.execute(true);
-        if (!lookup.got_data())
+        bool got_row = false;
+        {
+            soci::statement lookup =
+                (sql.prepare <<
+                    "SELECT \"dwUserID\", \"szPasswd\" FROM \"TACCOUNT_PW\" "
+                    "WHERE \"szUserID\" = :uid",
+                    soci::use(req.user_id),
+                    soci::into(user_id),
+                    soci::into(stored_password, pw_ind));
+            lookup.execute(true);
+            got_row = lookup.got_data();
+        }
+        if (!got_row)
         {
             spdlog::info("auth: user '{}' not found", req.user_id);
             return AuthResult{ .status = AuthStatus::NoUser };
@@ -82,11 +92,23 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         // Step 4 — user-level ban. Match legacy TGetBanReason
         // semantics (TLogin.sql:110-125): row with bEternal=1 OR
         // (startTime + dwDuration_days) in the future blocks login.
+        //
+        // SQL dialect split: PG uses interval arithmetic, MSSQL has
+        // DATEADD. CURRENT_TIMESTAMP is the standard in both. SQLite
+        // accepts the MSSQL form via the datetime() function — not
+        // wired here since SQLite isn't a prod target for this query.
+        const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
+        const char* ban_sql = is_mssql
+            ? "SELECT COUNT(*) FROM \"TUSERPROTECTED\" "
+              "WHERE \"dwUserID\" = :uid "
+              "  AND (\"bEternal\" = 1 OR "
+              "       DATEADD(day, \"dwDuration\", \"startTime\") > CURRENT_TIMESTAMP)"
+            : "SELECT COUNT(*) FROM \"TUSERPROTECTED\" "
+              "WHERE \"dwUserID\" = :uid "
+              "  AND (\"bEternal\" = 1 OR "
+              "       \"startTime\" + (\"dwDuration\" || ' days')::interval > CURRENT_TIMESTAMP)";
         int ban_count = 0;
-        sql << "SELECT COUNT(*) FROM \"TUSERPROTECTED\" "
-               "WHERE \"dwUserID\" = :uid "
-               "  AND (\"bEternal\" = 1 OR "
-               "       \"startTime\" + (\"dwDuration\" || ' days')::interval > CURRENT_TIMESTAMP)",
+        sql << ban_sql,
             soci::use(user_id), soci::into(ban_count);
         if (ban_count > 0)
         {
@@ -116,10 +138,20 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         }
 
         // Step 6 — success: insert TCURRENTUSER, capture identity dwKEY.
+        // Dialect: PG returns the generated column via RETURNING after
+        // VALUES; MSSQL uses OUTPUT INSERTED.col before VALUES. Both
+        // work as single-statement INSERTs with a single result column,
+        // which SOCI's `into()` consumes the same way.
         int session_key = 0;
-        sql << "INSERT INTO \"TCURRENTUSER\" "
-               "(\"dwUserID\", \"szLoginIP\") VALUES (:uid, :ip) "
-               "RETURNING \"dwKEY\"",
+        const char* insert_user_sql = is_mssql
+            ? "INSERT INTO \"TCURRENTUSER\" "
+              "(\"dwUserID\", \"szLoginIP\") "
+              "OUTPUT INSERTED.\"dwKEY\" "
+              "VALUES (:uid, :ip)"
+            : "INSERT INTO \"TCURRENTUSER\" "
+              "(\"dwUserID\", \"szLoginIP\") VALUES (:uid, :ip) "
+              "RETURNING \"dwKEY\"";
+        sql << insert_user_sql,
             soci::use(user_id), soci::use(req.client_ip),
             soci::into(session_key);
 

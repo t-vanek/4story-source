@@ -6,6 +6,9 @@
 #include "login_server.h"
 #include "db/session_pool.h"
 #include "services/soci_auth_service.h"
+#include "services/soci_char_service.h"
+#include "services/soci_map_server_locator.h"
+#include "services/soci_session_terminator.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -76,8 +79,11 @@ int main(int argc, char** argv)
         // surface as a fatal startup error (failing fast is correct:
         // running with `database.connection_string` set but no DB
         // would silently downgrade to no-auth, which is worse).
-        std::unique_ptr<tloginsvr::db::SessionPool>          db_pool;
-        std::unique_ptr<tloginsvr::services::SociAuthService> soci_auth;
+        std::unique_ptr<tloginsvr::db::SessionPool>                db_pool;
+        std::unique_ptr<tloginsvr::services::SociAuthService>      soci_auth;
+        std::unique_ptr<tloginsvr::services::SociCharService>      soci_char;
+        std::unique_ptr<tloginsvr::services::SociMapServerLocator> soci_map;
+        std::unique_ptr<tloginsvr::services::SociSessionTerminator> soci_term;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -88,13 +94,19 @@ int main(int argc, char** argv)
             db_pool = std::make_unique<tloginsvr::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
             soci_auth = std::make_unique<tloginsvr::services::SociAuthService>(*db_pool);
-            cfg.server.auth_service = soci_auth.get();
-            spdlog::info("auth backend: SOCI ({})",
+            soci_char = std::make_unique<tloginsvr::services::SociCharService>(*db_pool);
+            soci_map  = std::make_unique<tloginsvr::services::SociMapServerLocator>(*db_pool);
+            soci_term = std::make_unique<tloginsvr::services::SociSessionTerminator>(*db_pool);
+            cfg.server.auth_service        = soci_auth.get();
+            cfg.server.char_service        = soci_char.get();
+            cfg.server.map_server_locator  = soci_map.get();
+            cfg.server.session_terminator  = soci_term.get();
+            spdlog::info("services: SOCI ({}) — auth + char + map_locator + session_terminator",
                 tloginsvr::db::BackendName(backend));
         }
         else
         {
-            spdlog::info("auth backend: in-memory (no [database] configured)");
+            spdlog::info("services: in-memory (no [database] configured)");
         }
 
         tloginsvr::LoginServer server(io, cfg.server);

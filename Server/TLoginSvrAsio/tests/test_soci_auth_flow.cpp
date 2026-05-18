@@ -4,11 +4,16 @@
 // share the IAuthService interface, so wire-format behavior is
 // already validated upstream of the DB).
 //
-// Skips cleanly when TLOGINSVR_TEST_PG_CONN env var is unset, so CI
-// on machines without a local PostgreSQL doesn't fail. Local invocation:
+// Runs against two backends — whichever env vars are set:
+//   TLOGINSVR_TEST_PG_CONN    → PostgreSQL via SOCI's native backend
+//   TLOGINSVR_TEST_MSSQL_CONN → SQL Server via SOCI's ODBC backend
+//                               (FreeTDS or msodbcsql18 driver)
+// Both unset → the test exits with 0 passed / 0 failed (skipped).
 //
+// Local invocation:
 //   export TLOGINSVR_TEST_PG_CONN="host=localhost port=5432 \
 //       dbname=tloginsvr_dev user=tloginsvr password=devpass"
+//   export TLOGINSVR_TEST_MSSQL_CONN="DSN=TLOGINSVR_MSSQL;DATABASE=tloginsvr_dev;UID=sa;PWD=DevPassword123!"
 //   ctest -R tloginsvr_asio_soci_auth -V
 //
 // The test seeds a unique user prefix per run (process pid) so parallel
@@ -89,13 +94,16 @@ void SeedFixtures(soci::session& sql, const std::string& prefix)
         soci::use(ip_blocked);
 }
 
-void RunTests(const std::string& conn)
+void RunTests(tloginsvr::db::Backend backend, const std::string& conn)
 {
-    tloginsvr::db::SessionPool pool(
-        tloginsvr::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
+    tloginsvr::db::SessionPool pool(backend, conn, /*pool_size=*/2);
 
+    // Distinct prefix per (backend, pid) — keeps parallel-run isolation
+    // and avoids name collisions across the two backends, even if both
+    // share a host.
+    const char* tag = (backend == tloginsvr::db::Backend::Odbc) ? "ms" : "pg";
     const std::string prefix =
-        std::string("soci_test_") + std::to_string(::getpid()) + "_";
+        std::string("soci_test_") + tag + "_" + std::to_string(::getpid()) + "_";
 
     // Seed using a dedicated session, then release before the service runs.
     {
@@ -209,23 +217,44 @@ int main()
 {
     std::printf("=== tloginsvr_asio SOCI auth-flow test ===\n");
 
-    const char* conn = std::getenv("TLOGINSVR_TEST_PG_CONN");
-    if (conn == nullptr || conn[0] == '\0')
+    const char* pg_conn    = std::getenv("TLOGINSVR_TEST_PG_CONN");
+    const char* mssql_conn = std::getenv("TLOGINSVR_TEST_MSSQL_CONN");
+
+    if ((pg_conn == nullptr || pg_conn[0] == '\0') &&
+        (mssql_conn == nullptr || mssql_conn[0] == '\0'))
     {
-        std::printf("  SKIP  TLOGINSVR_TEST_PG_CONN not set "
-                    "(no local PG configured)\n");
+        std::printf("  SKIP  neither TLOGINSVR_TEST_PG_CONN nor "
+                    "TLOGINSVR_TEST_MSSQL_CONN set\n");
         std::printf("\nResults: 0 passed, 0 failed (skipped)\n");
         return 0;
     }
 
-    try
+    if (pg_conn != nullptr && pg_conn[0] != '\0')
     {
-        RunTests(conn);
+        std::printf("\n--- backend: postgresql ---\n");
+        try
+        {
+            RunTests(tloginsvr::db::Backend::PostgreSQL, pg_conn);
+        }
+        catch (const std::exception& ex)
+        {
+            std::printf("  FAIL  pg exception: %s\n", ex.what());
+            ++g_failed;
+        }
     }
-    catch (const std::exception& ex)
+
+    if (mssql_conn != nullptr && mssql_conn[0] != '\0')
     {
-        std::printf("  FAIL  exception: %s\n", ex.what());
-        ++g_failed;
+        std::printf("\n--- backend: odbc (MSSQL) ---\n");
+        try
+        {
+            RunTests(tloginsvr::db::Backend::Odbc, mssql_conn);
+        }
+        catch (const std::exception& ex)
+        {
+            std::printf("  FAIL  mssql exception: %s\n", ex.what());
+            ++g_failed;
+        }
     }
 
     std::printf("\nResults: %d passed, %d failed\n", g_passed, g_failed);

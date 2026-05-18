@@ -49,7 +49,10 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_map_server_locator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_session_terminator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_char_service.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/soci_auth_service.cpp)
+    ${TLOGINSVR_ASIO_SRC}/services/soci_auth_service.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/soci_char_service.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/soci_map_server_locator.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/soci_session_terminator.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib
@@ -138,15 +141,34 @@ target_link_libraries(test_tloginsvr_asio_char_flow PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_char_flow COMMAND test_tloginsvr_asio_char_flow)
 
-# SOCI auth-flow integration test — exercises SociAuthService directly
-# against a real DB. Skipped automatically if TLOGINSVR_TEST_PG_CONN is
-# not set in the environment, so CI on machines without PG passes.
+# SOCI integration tests — exercise the DB-backed service impls
+# directly against a real PostgreSQL. All skipped automatically if
+# TLOGINSVR_TEST_PG_CONN is not set so CI hosts without PG pass.
 # Local run:
 #   export TLOGINSVR_TEST_PG_CONN="host=localhost port=5432 \
 #       dbname=tloginsvr_dev user=tloginsvr password=devpass"
-#   ctest -R tloginsvr_asio_soci_auth
+#   ctest -R tloginsvr_asio_soci
 add_executable(test_tloginsvr_asio_soci_auth
     ${TLOGINSVR_ASIO_SRC}/tests/test_soci_auth_flow.cpp)
 target_link_libraries(test_tloginsvr_asio_soci_auth PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_soci_auth COMMAND test_tloginsvr_asio_soci_auth)
+
+add_executable(test_tloginsvr_asio_soci_char
+    ${TLOGINSVR_ASIO_SRC}/tests/test_soci_char_flow.cpp)
+target_link_libraries(test_tloginsvr_asio_soci_char PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_soci_char COMMAND test_tloginsvr_asio_soci_char)
+
+add_executable(test_tloginsvr_asio_soci_map
+    ${TLOGINSVR_ASIO_SRC}/tests/test_soci_map_locator.cpp)
+target_link_libraries(test_tloginsvr_asio_soci_map PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_soci_map COMMAND test_tloginsvr_asio_soci_map)
+
+add_executable(test_tloginsvr_asio_soci_session_terminator
+    ${TLOGINSVR_ASIO_SRC}/tests/test_soci_session_terminator.cpp)
+target_link_libraries(test_tloginsvr_asio_soci_session_terminator PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_soci_session_terminator
+    COMMAND test_tloginsvr_asio_soci_session_terminator)

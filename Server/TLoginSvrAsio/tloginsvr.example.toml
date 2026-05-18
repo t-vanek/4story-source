@@ -31,17 +31,23 @@ level = "info"
 port = 8815
 
 [database]
-# Backend wiring for the auth service (Phase B). Leave the whole
-# section commented to run with the in-memory backend (handy for
-# tests and dev with no DB available). Set `connection_string` and
-# the binary acquires a SOCI pool against the chosen backend and
-# routes CS_LOGIN_REQ through SociAuthService.
+# Backend wiring for the SOCI-backed services (Phase B). Leave the
+# whole section commented to run with the in-memory backend (handy
+# for tests and dev with no DB available). Set `connection_string`
+# and the binary acquires a SOCI pool against the chosen backend
+# and routes auth / char / map / session-cleanup through the
+# SociXxx services.
 #
-# Production cutover from the legacy MSSQL DB is a TOML-only change
-# once the schema is present on the target instance:
+# Production cutover to the legacy MSSQL DB is a TOML-only change
+# once the schema is present on the target instance — the same
+# binary works against PostgreSQL and SQL Server via SOCI:
+#
+#   # SQL Server (production) — ODBC via msodbcsql18 / FreeTDS:
 #   backend = "odbc"
-#   connection_string = "DSN=MSSQL_PROD;UID=login;PWD=…"
+#   connection_string = "DSN=MSSQL_PROD;DATABASE=tloginsvr;UID=login;PWD=…"
+#   pool_size = 32
 #
-# backend = "postgresql"             # postgresql | sqlite3 | odbc
-# connection_string = "host=localhost port=5432 dbname=tloginsvr_dev user=tloginsvr password=devpass"
-# pool_size = 8                       # number of pooled sessions (1..1024)
+#   # PostgreSQL (dev / staging):
+#   backend = "postgresql"
+#   connection_string = "host=localhost port=5432 dbname=tloginsvr_dev user=tloginsvr password=devpass"
+#   pool_size = 8

@@ -122,11 +122,32 @@ AppConfig LoadConfig(const std::string& path)
         }
     }
 
-    spdlog::info("loaded config from '{}' — server.port={} health.port={} rc4={} log_level={}",
+    // [database] — Phase B: SOCI-backed services. Absence / empty
+    // `connection_string` keeps the binary in legacy / in-memory mode.
+    if (auto db = tbl["database"].as_table())
+    {
+        if (auto b = (*db)["backend"].value<std::string>())
+            cfg.database.backend = *b;
+        if (auto c = (*db)["connection_string"].value<std::string>())
+            cfg.database.connection_string = *c;
+        if (auto p = (*db)["pool_size"].value<std::int64_t>())
+        {
+            if (*p < 1 || *p > 1024)
+                throw std::runtime_error("database.pool_size out of range: "
+                    + std::to_string(*p));
+            cfg.database.pool_size = static_cast<std::size_t>(*p);
+        }
+    }
+
+    spdlog::info("loaded config from '{}' — server.port={} health.port={} rc4={} "
+                 "db={} log_level={}",
         path,
         cfg.server.port,
         cfg.health_port,
         cfg.server.rc4_secret_key.empty() ? "disabled" : "enabled",
+        cfg.database.connection_string.empty()
+            ? "in-memory"
+            : (cfg.database.backend + " (pool=" + std::to_string(cfg.database.pool_size) + ")"),
         spdlog::level::to_string_view(cfg.log_level));
 
     return cfg;

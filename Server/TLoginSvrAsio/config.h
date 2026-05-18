@@ -16,13 +16,38 @@
 #include <spdlog/common.h>
 
 #include <cstdint>
+#include <cstddef>
 #include <string>
 
 namespace tloginsvr {
 
+// Database connection config (Phase B). Empty `connection_string`
+// keeps the binary in legacy / in-memory mode; setting it routes auth
+// (and later, char / session lookup) through SOCI against the named
+// backend. Production cutover is a TOML-only change once the schema
+// is in place on the target DB.
+struct DbConfig
+{
+    // Backend name: "postgresql" | "sqlite3" | "odbc". Empty = no DB.
+    std::string   backend;
+
+    // SOCI-format connection string. Examples:
+    //   postgresql: "host=db.prod port=5432 dbname=tloginsvr
+    //                user=tloginsvr password=... sslmode=require"
+    //   sqlite3:    "db=/var/lib/tloginsvr/dev.sqlite"
+    //   odbc:       "DSN=MSSQL_PROD;UID=login;PWD=..."
+    std::string   connection_string;
+
+    // Number of pooled sessions. Sized to peer concurrency: ~handler
+    // throughput × max ms-per-query. 8 is a sane default for dev; tune
+    // to 32–64 in prod with a steady-state CCU >5k.
+    std::size_t   pool_size = 8;
+};
+
 struct AppConfig
 {
     LoginServerConfig            server;
+    DbConfig                     database;
     spdlog::level::level_enum    log_level = spdlog::level::info;
 
     // Health endpoint — minimal HTTP responder on a separate port,

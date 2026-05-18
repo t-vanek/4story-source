@@ -7,6 +7,35 @@ set(TLOGINSVR_ASIO_SRC ${CMAKE_CURRENT_SOURCE_DIR})
 find_package(spdlog QUIET)
 find_package(tomlplusplus QUIET)
 
+# SOCI — pluggable DB layer. Phase B. Distro packages on Debian/Ubuntu
+# ship as plain libs (libsoci_core, libsoci_postgresql, …) without a
+# CMake config file, so probe both paths: native find_package first
+# (vcpkg-installed), then fall back to plain link names.
+find_package(SOCI QUIET)
+set(TLOGINSVR_SOCI_LIBS "")
+if(SOCI_FOUND)
+    list(APPEND TLOGINSVR_SOCI_LIBS SOCI::core)
+    if(TARGET SOCI::postgresql)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::postgresql)
+    endif()
+    if(TARGET SOCI::sqlite3)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::sqlite3)
+    endif()
+    if(TARGET SOCI::odbc)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::odbc)
+    endif()
+else()
+    # Debian/Ubuntu: /usr/lib/x86_64-linux-gnu/libsoci_core.so and friends.
+    # The order matters for static linkers; backends register themselves
+    # at load time via soci::backend_factory globals.
+    list(APPEND TLOGINSVR_SOCI_LIBS
+        soci_postgresql
+        soci_sqlite3
+        soci_odbc
+        soci_core
+        dl)
+endif()
+
 # Shared library of the server's logic, so the integration test can
 # instantiate LoginServer in-process instead of forking the binary.
 add_library(tloginsvr_asio_core STATIC
@@ -14,16 +43,33 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/handlers.cpp
     ${TLOGINSVR_ASIO_SRC}/config.cpp
     ${TLOGINSVR_ASIO_SRC}/health_endpoint.cpp
+    ${TLOGINSVR_ASIO_SRC}/db/session_pool.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_auth_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_connection_registry.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_map_server_locator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_session_terminator.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_char_service.cpp)
+    ${TLOGINSVR_ASIO_SRC}/services/in_memory_char_service.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/soci_auth_service.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib
     ${FOURSTORY_TPROTOCOL_INCLUDE_DIR})
-target_link_libraries(tloginsvr_asio_core PUBLIC tnetlib_portable)
+
+# SOCI's postgresql-backend header transitively #includes <libpq-fe.h>,
+# which Debian ships under /usr/include/postgresql/ rather than the
+# default include root. Use pkg-config when available so vcpkg or
+# upstream-installed libpq is preferred over the distro layout.
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(LIBPQ QUIET libpq)
+    if(LIBPQ_FOUND)
+        target_include_directories(tloginsvr_asio_core PRIVATE ${LIBPQ_INCLUDE_DIRS})
+    endif()
+endif()
+if(NOT LIBPQ_FOUND AND EXISTS /usr/include/postgresql/libpq-fe.h)
+    target_include_directories(tloginsvr_asio_core PRIVATE /usr/include/postgresql)
+endif()
+target_link_libraries(tloginsvr_asio_core PUBLIC tnetlib_portable ${TLOGINSVR_SOCI_LIBS})
 if(spdlog_FOUND)
     target_link_libraries(tloginsvr_asio_core PUBLIC spdlog::spdlog)
 else()
@@ -91,3 +137,16 @@ add_executable(test_tloginsvr_asio_char_flow
 target_link_libraries(test_tloginsvr_asio_char_flow PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_char_flow COMMAND test_tloginsvr_asio_char_flow)
+
+# SOCI auth-flow integration test — exercises SociAuthService directly
+# against a real DB. Skipped automatically if TLOGINSVR_TEST_PG_CONN is
+# not set in the environment, so CI on machines without PG passes.
+# Local run:
+#   export TLOGINSVR_TEST_PG_CONN="host=localhost port=5432 \
+#       dbname=tloginsvr_dev user=tloginsvr password=devpass"
+#   ctest -R tloginsvr_asio_soci_auth
+add_executable(test_tloginsvr_asio_soci_auth
+    ${TLOGINSVR_ASIO_SRC}/tests/test_soci_auth_flow.cpp)
+target_link_libraries(test_tloginsvr_asio_soci_auth PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_soci_auth COMMAND test_tloginsvr_asio_soci_auth)

@@ -29,3 +29,19 @@ level = "info"
 # HTTP /healthz endpoint on a separate port. Used by k8s liveness/
 # readiness probes and load balancers. Set 0 to disable entirely.
 port = 8815
+
+[database]
+# Backend wiring for the auth service (Phase B). Leave the whole
+# section commented to run with the in-memory backend (handy for
+# tests and dev with no DB available). Set `connection_string` and
+# the binary acquires a SOCI pool against the chosen backend and
+# routes CS_LOGIN_REQ through SociAuthService.
+#
+# Production cutover from the legacy MSSQL DB is a TOML-only change
+# once the schema is present on the target instance:
+#   backend = "odbc"
+#   connection_string = "DSN=MSSQL_PROD;UID=login;PWD=…"
+#
+# backend = "postgresql"             # postgresql | sqlite3 | odbc
+# connection_string = "host=localhost port=5432 dbname=tloginsvr_dev user=tloginsvr password=devpass"
+# pool_size = 8                       # number of pooled sessions (1..1024)

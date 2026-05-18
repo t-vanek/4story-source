@@ -4,6 +4,11 @@
 #include "config.h"
 #include "health_endpoint.h"
 #include "login_server.h"
+#include "db/session_pool.h"
+#include "services/soci_auth_service.h"
+#include "services/soci_char_service.h"
+#include "services/soci_map_server_locator.h"
+#include "services/soci_session_terminator.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -16,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <memory>
 #include <string>
 
 namespace {
@@ -54,7 +60,7 @@ int main(int argc, char** argv)
 
     try
     {
-        const auto cfg = tloginsvr::LoadConfig(config_path);
+        auto cfg = tloginsvr::LoadConfig(config_path);
         spdlog::set_level(cfg.log_level);
 
         boost::asio::io_context io;
@@ -64,6 +70,44 @@ int main(int argc, char** argv)
             spdlog::info("received signal {}, shutting down", sig);
             io.stop();
         });
+
+        // Wire DB-backed services when a connection string is configured.
+        // Lifetime: both the pool and the auth service live for the
+        // duration of the io_context — kept on the stack here so they
+        // outlive LoginServer's borrowed pointers. The pool itself
+        // throws soci::soci_error if the DB is unreachable, which we
+        // surface as a fatal startup error (failing fast is correct:
+        // running with `database.connection_string` set but no DB
+        // would silently downgrade to no-auth, which is worse).
+        std::unique_ptr<tloginsvr::db::SessionPool>                db_pool;
+        std::unique_ptr<tloginsvr::services::SociAuthService>      soci_auth;
+        std::unique_ptr<tloginsvr::services::SociCharService>      soci_char;
+        std::unique_ptr<tloginsvr::services::SociMapServerLocator> soci_map;
+        std::unique_ptr<tloginsvr::services::SociSessionTerminator> soci_term;
+        if (!cfg.database.connection_string.empty())
+        {
+            if (cfg.database.backend.empty())
+                throw std::runtime_error(
+                    "database.connection_string is set but database.backend "
+                    "is empty — pick one of: postgresql | sqlite3 | odbc");
+            const auto backend = tloginsvr::db::ParseBackend(cfg.database.backend);
+            db_pool = std::make_unique<tloginsvr::db::SessionPool>(
+                backend, cfg.database.connection_string, cfg.database.pool_size);
+            soci_auth = std::make_unique<tloginsvr::services::SociAuthService>(*db_pool);
+            soci_char = std::make_unique<tloginsvr::services::SociCharService>(*db_pool);
+            soci_map  = std::make_unique<tloginsvr::services::SociMapServerLocator>(*db_pool);
+            soci_term = std::make_unique<tloginsvr::services::SociSessionTerminator>(*db_pool);
+            cfg.server.auth_service        = soci_auth.get();
+            cfg.server.char_service        = soci_char.get();
+            cfg.server.map_server_locator  = soci_map.get();
+            cfg.server.session_terminator  = soci_term.get();
+            spdlog::info("services: SOCI ({}) — auth + char + map_locator + session_terminator",
+                tloginsvr::db::BackendName(backend));
+        }
+        else
+        {
+            spdlog::info("services: in-memory (no [database] configured)");
+        }
 
         tloginsvr::LoginServer server(io, cfg.server);
         spdlog::info("login server listening on 0.0.0.0:{} (RC4: {})",

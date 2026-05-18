@@ -36,6 +36,11 @@ public:
            std::int32_t char_id,
            const std::string& password) override;
 
+    VeteranLevels GetVeteranLevels() const override { return m_veteran_levels; }
+
+    // Seed for tests / dev. Overwrites all three slots.
+    void SetVeteranLevels(VeteranLevels levels) { m_veteran_levels = levels; }
+
 private:
     // Single composite key — (user_id, group_id) bundled in a 64-bit
     // value so the std::unordered_map needs no extra hash work.
@@ -50,6 +55,7 @@ private:
     std::int32_t       m_next_char_id = 1;
     // Cross-group name uniqueness — legacy enforced same.
     std::unordered_map<std::string, std::int32_t> m_name_to_char_id;
+    VeteranLevels      m_veteran_levels{};
 };
 
 } // namespace tloginsvr::services

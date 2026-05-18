@@ -33,6 +33,10 @@ public:
 
     // IAuthService
     AuthResult Authenticate(const AuthRequest& req) override;
+    void SetAgreement(std::int32_t user_id) override;
+
+    // Test introspection — true after SetAgreement() was called for user.
+    bool HasAgreed(std::int32_t user_id) const;
 
 private:
     struct UserRecord
@@ -46,6 +50,7 @@ private:
     std::unordered_map<std::string, UserRecord>        m_users;     // user_id → record
     std::unordered_map<std::int32_t, std::string>      m_user_bans; // db_id → reason
     std::unordered_set<std::string>                    m_ip_bans;
+    std::unordered_set<std::int32_t>                   m_agreed;
     std::uint32_t                                      m_next_session_key = 1;
 };
 

@@ -125,10 +125,10 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnLoginReq(sess, body, m_auth_service, m_connection_registry);
         break;
     case MessageId::CS_GROUPLIST_REQ:
-        co_await handlers::OnGroupListReq(*sess, body);
+        co_await handlers::OnGroupListReq(sess, body, m_map_server_locator, m_connection_registry);
         break;
     case MessageId::CS_CHANNELLIST_REQ:
-        co_await handlers::OnChannelListReq(*sess, body);
+        co_await handlers::OnChannelListReq(*sess, body, m_map_server_locator);
         break;
     case MessageId::CS_CHARLIST_REQ:
         co_await handlers::OnCharListReq(sess, body, m_char_service, m_connection_registry);
@@ -143,13 +143,13 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnStartReq(sess, body, m_map_server_locator, m_connection_registry);
         break;
     case MessageId::CS_AGREEMENT_REQ:
-        co_await handlers::OnAgreementReq(*sess, body);
+        co_await handlers::OnAgreementReq(sess, body, m_auth_service, m_connection_registry);
         break;
     case MessageId::CS_HOTSEND_REQ:
         co_await handlers::OnHotsendReq(*sess, body);
         break;
     case MessageId::CS_VETERAN_REQ:
-        co_await handlers::OnVeteranReq(*sess, body);
+        co_await handlers::OnVeteranReq(*sess, body, m_char_service);
         break;
     case MessageId::CS_TERMINATE_REQ:
         co_await handlers::OnTerminateReq(*sess, body);

@@ -129,6 +129,39 @@ bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out)
     return true;
 }
 
+// Wire-format helper: build a length-prefixed packet payload one
+// field at a time. STRINGs are INT32 little-endian length + raw bytes
+// (no NUL terminator) — matches the legacy CString::Serialize layout.
+struct ByteAppender
+{
+    std::vector<std::byte> bytes;
+
+    void U8(std::uint8_t v)  { bytes.push_back(static_cast<std::byte>(v)); }
+    void U16(std::uint16_t v){ AppendRaw(&v, 2); }
+    void U32(std::uint32_t v){ AppendRaw(&v, 4); }
+    void I32(std::int32_t v) { AppendRaw(&v, 4); }
+    void Str(const std::string& s) {
+        I32(static_cast<std::int32_t>(s.size()));
+        AppendRaw(s.data(), s.size());
+    }
+    void AppendRaw(const void* src, std::size_t n) {
+        const auto* p = reinterpret_cast<const std::byte*>(src);
+        bytes.insert(bytes.end(), p, p + n);
+    }
+};
+
+// Try to recover the authenticated user_id for this session via the
+// connection registry. Returns 0 if not registered (= not authed) or
+// no registry is wired.
+std::int32_t ResolveUserId(
+    const std::shared_ptr<tnetlib::AsioSession>& session,
+    services::IConnectionRegistry* registry)
+{
+    if (!registry) return 0;
+    const auto entry = registry->Lookup(session);
+    return entry ? entry->user_id : 0;
+}
+
 } // namespace
 
 boost::asio::awaitable<void>
@@ -224,70 +257,83 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
 }
 
 boost::asio::awaitable<void>
-OnGroupListReq(tnetlib::AsioSession& session, std::span<const std::byte>)
+OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
+               std::span<const std::byte> /*body*/,
+               services::IMapServerLocator* map_server_locator,
+               services::IConnectionRegistry* connection_registry)
 {
-    // Stub: empty world-group list. Two-byte payload: bCount=0,
-    // bCheckFilePoint=0 (legacy unconditionally writes it after bCount
-    // — see CSHandler.cpp:506-510). Real impl will iterate TGROUP rows.
-    std::byte payload[2] = { std::byte{0}, std::byte{0} };
-    spdlog::info("CS_GROUPLIST_REQ → CS_GROUPLIST_ACK (stub: 0 groups)");
-    co_await session.SendPacket(
+    auto& sref = *session;
+
+    std::vector<services::GroupInfo> groups;
+    if (map_server_locator != nullptr)
+    {
+        const auto user_id = ResolveUserId(session, connection_registry);
+        groups = map_server_locator->ListGroups(user_id);
+    }
+
+    // Ack layout (legacy CSHandler.cpp:506-541):
+    //   BYTE  bCount
+    //   DWORD dwCheckPoint  — formerly file-integrity nonce; we send 0
+    //   per group: STRING szNAME (INT32 len + bytes), BYTE bGroupID,
+    //              BYTE bType, BYTE bStatus, BYTE bFlags
+    ByteAppender out;
+    const std::uint8_t count = static_cast<std::uint8_t>(
+        std::min<std::size_t>(groups.size(), 255));
+    out.U8(count);
+    out.U32(0);  // dwCheckPoint — formerly file-integrity nonce
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        const auto& g = groups[i];
+        out.Str(g.name);
+        out.U8(g.group_id);
+        out.U8(g.type);
+        out.U8(static_cast<std::uint8_t>(g.status));
+        out.U8(g.flags);
+    }
+
+    spdlog::info("CS_GROUPLIST_REQ → CS_GROUPLIST_ACK ({} groups)", count);
+    co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_GROUPLIST_ACK),
-        std::span<const std::byte>(payload, 2));
+        std::span<const std::byte>(out.bytes.data(), out.bytes.size()));
 }
 
 boost::asio::awaitable<void>
-OnChannelListReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
+OnChannelListReq(tnetlib::AsioSession& session,
+                 std::span<const std::byte> body,
+                 services::IMapServerLocator* map_server_locator)
 {
-    // Request body: BYTE bGroupID. We log it for visibility but don't
-    // act on it yet (stub returns empty channels regardless).
     const auto groupId = body.empty()
         ? std::uint8_t{0}
         : static_cast<std::uint8_t>(body[0]);
 
-    // Ack: BYTE bCount=0, BYTE bCheckFilePoint=0.
-    std::byte payload[2] = { std::byte{0}, std::byte{0} };
-    spdlog::info("CS_CHANNELLIST_REQ group={} → CS_CHANNELLIST_ACK (stub: 0 channels)", groupId);
+    std::vector<services::ChannelInfo> channels;
+    if (map_server_locator != nullptr)
+    {
+        channels = map_server_locator->ListChannels(groupId);
+    }
+
+    // Ack layout (legacy CSHandler.cpp:560-587):
+    //   BYTE  bCount, DWORD dwCheckPoint=0
+    //   per channel: STRING szNAME, BYTE bChannel, BYTE bStatus
+    ByteAppender out;
+    const std::uint8_t count = static_cast<std::uint8_t>(
+        std::min<std::size_t>(channels.size(), 255));
+    out.U8(count);
+    out.U32(0);  // dwCheckPoint
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        const auto& c = channels[i];
+        out.Str(c.name);
+        out.U8(c.channel);
+        out.U8(static_cast<std::uint8_t>(c.status));
+    }
+
+    spdlog::info("CS_CHANNELLIST_REQ group={} → CS_CHANNELLIST_ACK ({} channels)",
+        groupId, count);
     co_await session.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CHANNELLIST_ACK),
-        std::span<const std::byte>(payload, 2));
+        std::span<const std::byte>(out.bytes.data(), out.bytes.size()));
 }
-
-namespace {
-
-// Helpers to build the CS_CHARLIST_ACK payload byte-by-byte.
-// Avoids pulling in PacketWriter from the legacy codebase.
-struct ByteAppender
-{
-    std::vector<std::byte> bytes;
-
-    void U8(std::uint8_t v)  { bytes.push_back(static_cast<std::byte>(v)); }
-    void U16(std::uint16_t v){ AppendRaw(&v, 2); }
-    void U32(std::uint32_t v){ AppendRaw(&v, 4); }
-    void I32(std::int32_t v) { AppendRaw(&v, 4); }
-    void Str(const std::string& s) {
-        I32(static_cast<std::int32_t>(s.size()));
-        AppendRaw(s.data(), s.size());
-    }
-    void AppendRaw(const void* src, std::size_t n) {
-        const auto* p = reinterpret_cast<const std::byte*>(src);
-        bytes.insert(bytes.end(), p, p + n);
-    }
-};
-
-// Try to recover the authenticated user_id for this session via the
-// connection registry. Returns 0 if not registered (= not authed) or
-// no registry is wired.
-std::int32_t ResolveUserId(
-    const std::shared_ptr<tnetlib::AsioSession>& session,
-    services::IConnectionRegistry* registry)
-{
-    if (!registry) return 0;
-    const auto entry = registry->Lookup(session);
-    return entry ? entry->user_id : 0;
-}
-
-} // namespace
 
 boost::asio::awaitable<void>
 OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
@@ -580,7 +626,9 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
         spdlog::info("CS_START_REQ group={} ch={} char={} → CS_START_ACK (stub: SR_NOSERVER)",
             bGroupID, bChannel, dwCharID);
     }
-    else if (auto ep = map_server_locator->Lookup(bGroupID, bChannel, dwCharID))
+    else if (auto ep = map_server_locator->Lookup(
+                 ResolveUserId(session, connection_registry),
+                 bGroupID, bChannel, dwCharID))
     {
         payload[0] = static_cast<std::byte>(0); // SR_SUCCESS
         // DWORD dwMapIP — 4 octets in the same byte order the legacy
@@ -622,14 +670,32 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
 }
 
 boost::asio::awaitable<void>
-OnAgreementReq(tnetlib::AsioSession& /*session*/, std::span<const std::byte> body)
+OnAgreementReq(std::shared_ptr<tnetlib::AsioSession> session,
+               std::span<const std::byte> body,
+               services::IAuthService* auth_service,
+               services::IConnectionRegistry* connection_registry)
 {
-    // No ack. Body is WORD wVersion. Legacy upserts TUSERINFOTABLE and
-    // flips the per-session m_bAgreement gate. Stub just logs the
-    // version so the dispatcher path is exercised.
+    // No ack. Body is WORD wVersion. Legacy SP CSPAgreement sets
+    // TACCOUNT_PW.bCheck=1 + flips per-session m_bAgreement. The new
+    // server doesn't yet enforce the per-session gate (handlers that
+    // need it can read it back from the registry once we add it);
+    // this handler persists the DB side now.
     std::uint16_t wVersion = 0;
     if (body.size() >= 2) std::memcpy(&wVersion, body.data(), 2);
-    spdlog::info("CS_AGREEMENT_REQ version=0x{:04X} (stub: noop)", wVersion);
+
+    const auto user_id = ResolveUserId(session, connection_registry);
+    if (auth_service != nullptr && user_id != 0)
+    {
+        auth_service->SetAgreement(user_id);
+        spdlog::info("CS_AGREEMENT_REQ version=0x{:04X} uid={} → bCheck=1",
+            wVersion, user_id);
+    }
+    else
+    {
+        spdlog::info("CS_AGREEMENT_REQ version=0x{:04X} uid={} "
+                     "(no auth_service or unauth session: persisted nothing)",
+            wVersion, user_id);
+    }
     co_return;
 }
 
@@ -652,14 +718,35 @@ OnHotsendReq(tnetlib::AsioSession& /*session*/, std::span<const std::byte> body)
 }
 
 boost::asio::awaitable<void>
-OnVeteranReq(tnetlib::AsioSession& session, std::span<const std::byte> /*body*/)
+OnVeteranReq(tnetlib::AsioSession& session,
+             std::span<const std::byte> /*body*/,
+             services::ICharService* char_service)
 {
     // Ack: BYTE bOption, BYTE bFirstLevel, BYTE bSecondLevel,
-    // BYTE bThirdLevel. Legacy sends bOption=3 ("all three options")
-    // with the level thresholds from m_vVETERAN. Stub: bOption=0
-    // (no returning-player bonus offered).
-    std::byte payload[4] = {};
-    spdlog::info("CS_VETERAN_REQ → CS_VETERAN_ACK (stub: no bonus)");
+    // BYTE bThirdLevel. Legacy sends bOption=3 ("all three options
+    // unconditionally available", per CSHandler.cpp:1501-1503's
+    // comment) with the level thresholds from m_vVETERAN.
+    constexpr std::uint8_t kOptionAllAvailable = 3;
+    services::VeteranLevels levels{};
+    std::uint8_t option = 0;
+    if (char_service != nullptr)
+    {
+        levels = char_service->GetVeteranLevels();
+        // If the chart is empty (all zeros) keep bOption=0 so the
+        // client can detect "no veteran feature" — matches legacy
+        // safer default than always reporting "available".
+        if (levels.first || levels.second || levels.third)
+            option = kOptionAllAvailable;
+    }
+
+    std::byte payload[4] = {
+        static_cast<std::byte>(option),
+        static_cast<std::byte>(levels.first),
+        static_cast<std::byte>(levels.second),
+        static_cast<std::byte>(levels.third),
+    };
+    spdlog::info("CS_VETERAN_REQ → CS_VETERAN_ACK (option={}, levels={}/{}/{})",
+        option, levels.first, levels.second, levels.third);
     co_await session.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_VETERAN_ACK),
         std::span<const std::byte>(payload, sizeof(payload)));

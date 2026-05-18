@@ -29,3 +29,25 @@ level = "info"
 # HTTP /healthz endpoint on a separate port. Used by k8s liveness/
 # readiness probes and load balancers. Set 0 to disable entirely.
 port = 8815
+
+[database]
+# Backend wiring for the SOCI-backed services (Phase B). Leave the
+# whole section commented to run with the in-memory backend (handy
+# for tests and dev with no DB available). Set `connection_string`
+# and the binary acquires a SOCI pool against the chosen backend
+# and routes auth / char / map / session-cleanup through the
+# SociXxx services.
+#
+# Production cutover to the legacy MSSQL DB is a TOML-only change
+# once the schema is present on the target instance — the same
+# binary works against PostgreSQL and SQL Server via SOCI:
+#
+#   # SQL Server (production) — ODBC via msodbcsql18 / FreeTDS:
+#   backend = "odbc"
+#   connection_string = "DSN=MSSQL_PROD;DATABASE=tloginsvr;UID=login;PWD=…"
+#   pool_size = 32
+#
+#   # PostgreSQL (dev / staging):
+#   backend = "postgresql"
+#   connection_string = "host=localhost port=5432 dbname=tloginsvr_dev user=tloginsvr password=devpass"
+#   pool_size = 8

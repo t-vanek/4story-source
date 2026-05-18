@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace tloginsvr::services {
 
@@ -32,20 +33,76 @@ struct MapEndpoint
     std::uint8_t                server_id = 0;
 };
 
+// Wire-level status code (legacy TSTATUS_* in NetCode.h:940-946).
+//   0 = SLEEP   — server marked offline
+//   1 = NORMAL  — accepting logins
+//   2 = BUSY    — accepting, but >bWusy current users
+//   3 = FULL    — capped, refuses new logins
+enum class GroupStatus : std::uint8_t
+{
+    Sleep  = 0,
+    Normal = 1,
+    Busy   = 2,
+    Full   = 3,
+};
+
+// One row of CS_GROUPLIST_ACK. Wire-format per CSHandler.cpp:519-538:
+//   szName, bGroupID, bType, bStatus, bCount
+struct GroupInfo
+{
+    std::string  name;
+    std::uint8_t group_id  = 0;
+    std::uint8_t type      = 0;   // legacy TGROUP.bType (server "kind")
+    GroupStatus  status    = GroupStatus::Sleep;
+    std::uint8_t flags     = 0;   // legacy TGROUP.bCount — overloaded as flags/visibility byte
+};
+
+// One row of CS_CHANNELLIST_ACK. Wire-format per CSHandler.cpp:574-578:
+//   szName, bChannel, bStatus
+struct ChannelInfo
+{
+    std::string  name;
+    std::uint8_t channel = 0;
+    GroupStatus  status  = GroupStatus::Sleep;
+};
+
 class IMapServerLocator
 {
 public:
     virtual ~IMapServerLocator() = default;
 
-    // Resolve an endpoint for (`group_id`, `channel`, `char_id`).
-    // The triplet matches the legacy CS_START_REQ wire format —
-    // most impls only consult group_id, but the full signature is
-    // future-proof for per-channel sharding or BR override paths.
-    // Returns nullopt if no Map server is available.
+    // Resolve an endpoint for (`user_id`, `group_id`, `channel`, `char_id`).
+    // The tuple matches the legacy CS_START_REQ wire format + the
+    // session-level user_id needed by the BR/BOW override checks.
+    //
+    // Behavior reference (legacy CSHandler.cpp:1312-1430):
+    //   1. Find the "natural" server_id for the character (channel/map
+    //      based). Current impl uses "first map server in group" — a
+    //      future SociMapServerLocator revision can plug in the
+    //      character-specific routing once we wire CSPFindServerID's
+    //      logic against the schema's map placement columns.
+    //   2. If (user_id, char_id) ∈ TBOWPLAYERTABLE → override
+    //      server_id to BOW_SERVER_ID (30).
+    //   3. If (user_id, char_id) ∈ TBRPLAYERTABLE → override
+    //      server_id AND channel to BR_SERVER_ID (50).
+    //
+    // Returns nullopt if no Map server is available for the chosen
+    // server_id (covers SR_NOSERVER / SR_NOGROUP at the wire level).
     virtual std::optional<MapEndpoint> Lookup(
+        std::int32_t  user_id,
         std::uint8_t  group_id,
         std::uint8_t  channel,
         std::int32_t  char_id) = 0;
+
+    // CS_GROUPLIST_REQ — return the list of game-groups visible to
+    // this user. Status is computed from the live current-user count
+    // against the group's bBusy/wFull thresholds (legacy join with
+    // CTBLUserCount at CSHandler.cpp:524).
+    virtual std::vector<GroupInfo> ListGroups(std::int32_t user_id) = 0;
+
+    // CS_CHANNELLIST_REQ — channels within a group. Same status
+    // computation as ListGroups (per-channel counts).
+    virtual std::vector<ChannelInfo> ListChannels(std::uint8_t group_id) = 0;
 };
 
 } // namespace tloginsvr::services

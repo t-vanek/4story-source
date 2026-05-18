@@ -76,4 +76,17 @@ AuthResult InMemoryAuthService::Authenticate(const AuthRequest& req)
     };
 }
 
+void InMemoryAuthService::SetAgreement(std::int32_t user_id)
+{
+    if (user_id == 0) return;
+    std::lock_guard<std::mutex> lock(m_mtx);
+    m_agreed.insert(user_id);
+}
+
+bool InMemoryAuthService::HasAgreed(std::int32_t user_id) const
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    return m_agreed.contains(user_id);
+}
+
 } // namespace tloginsvr::services

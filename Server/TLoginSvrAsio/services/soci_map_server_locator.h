@@ -32,6 +32,9 @@ public:
         std::uint8_t  channel,
         std::int32_t  char_id) override;
 
+    std::vector<GroupInfo>   ListGroups(std::int32_t user_id) override;
+    std::vector<ChannelInfo> ListChannels(std::uint8_t group_id) override;
+
 private:
     db::SessionPool& m_pool;
 };

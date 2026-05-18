@@ -100,6 +100,17 @@ enum class DeleteCharResult : std::uint8_t
     NoGroup         = 4,
 };
 
+// Three veteran-bonus level entries for CS_VETERAN_ACK. The wire
+// format hardcodes 3 slots (CSSender.cpp:145-159). Empty cache → all
+// zeros. If TVETERANCHART has more than 3 rows, only the lowest-bID
+// three are returned.
+struct VeteranLevels
+{
+    std::uint8_t first  = 0;
+    std::uint8_t second = 0;
+    std::uint8_t third  = 0;
+};
+
 class ICharService
 {
 public:
@@ -122,6 +133,11 @@ public:
            std::uint8_t group_id,
            std::int32_t char_id,
            const std::string& password) = 0;
+
+    // CS_VETERAN_REQ — first three rows of TVETERANCHART, cached at
+    // construction. Returned to the client so the create-char screen
+    // can show the available level-boost options.
+    virtual VeteranLevels GetVeteranLevels() const = 0;
 };
 
 } // namespace tloginsvr::services

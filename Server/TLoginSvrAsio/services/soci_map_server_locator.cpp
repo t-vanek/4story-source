@@ -198,4 +198,119 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
     }
 }
 
+namespace {
+
+// Map TGROUP.bStatus + per-group current-user count → wire-level
+// GroupStatus per legacy CSHandler.cpp:524. The legacy code uses
+// COUNT(*) FROM TCURRENTUSER joined on bGroupID; we replicate that
+// here. The COUNT is computed inside the same SELECT to keep the
+// service single-query.
+GroupStatus ResolveStatus(int row_status,    // TGROUP.bStatus
+                          int current_count, // live TCURRENTUSER count
+                          int busy_threshold,
+                          int full_threshold)
+{
+    if (row_status == 2 /* TSVR_STATUS_SLEEP */) return GroupStatus::Sleep;
+    if (current_count > full_threshold)          return GroupStatus::Full;
+    if (current_count > busy_threshold)          return GroupStatus::Busy;
+    return GroupStatus::Normal;
+}
+
+} // namespace
+
+std::vector<GroupInfo>
+SociMapServerLocator::ListGroups(std::int32_t /*user_id*/)
+{
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+
+    try
+    {
+        // Join with TCURRENTUSER for the live count so the client sees
+        // accurate busy/full status. LEFT JOIN + COALESCE so empty
+        // groups still show up with count=0.
+        std::vector<GroupInfo> out;
+        soci::rowset<soci::row> rs = (sql.prepare <<
+            "SELECT g.\"bGroupID\", g.\"bType\", g.\"szNAME\", "
+            "       g.\"bStatus\", g.\"wBusy\", g.\"wFull\", g.\"bUseRate\", "
+            "       COALESCE(("
+            "         SELECT COUNT(*) FROM \"TCURRENTUSER\" cu "
+            "         WHERE cu.\"bGroupID\" = g.\"bGroupID\""
+            "       ), 0) AS curcount "
+            "FROM \"TGROUP\" g "
+            "ORDER BY g.\"bGroupID\"");
+        for (const auto& r : rs)
+        {
+            GroupInfo info{};
+            info.group_id = static_cast<std::uint8_t>(r.get<int>(0));
+            info.type     = static_cast<std::uint8_t>(r.get<int>(1));
+            info.name     = r.get<std::string>(2);
+            const int status_raw = r.get<int>(3);
+            const int busy_th    = r.get<int>(4);
+            const int full_th    = r.get<int>(5);
+            info.flags    = static_cast<std::uint8_t>(r.get<int>(6));
+            // COALESCE on COUNT(*) — SOCI surfaces it as long long on PG,
+            // int on MSSQL. Read as long long to be safe and narrow.
+            long long curcount = 0;
+            try { curcount = r.get<long long>(7); }
+            catch (...) { curcount = r.get<int>(7); }
+            info.status   = ResolveStatus(
+                status_raw, static_cast<int>(curcount), busy_th, full_th);
+            out.push_back(std::move(info));
+        }
+        return out;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("map_locator.ListGroups DB error: {}", ex.what());
+        return {};
+    }
+}
+
+std::vector<ChannelInfo>
+SociMapServerLocator::ListChannels(std::uint8_t group_id)
+{
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+
+    try
+    {
+        std::vector<ChannelInfo> out;
+        soci::rowset<soci::row> rs = (sql.prepare <<
+            "SELECT c.\"bChannel\", c.\"szNAME\", c.\"bStatus\", "
+            "       c.\"wBusy\", c.\"wFull\", "
+            "       COALESCE(("
+            "         SELECT COUNT(*) FROM \"TCURRENTUSER\" cu "
+            "         WHERE cu.\"bGroupID\" = c.\"bGroupID\" "
+            "           AND cu.\"bChannel\"  = c.\"bChannel\""
+            "       ), 0) AS curcount "
+            "FROM \"TCHANNEL\" c "
+            "WHERE c.\"bGroupID\" = :g "
+            "ORDER BY c.\"bChannel\"",
+            soci::use(static_cast<int>(group_id)));
+        for (const auto& r : rs)
+        {
+            ChannelInfo info{};
+            info.channel = static_cast<std::uint8_t>(r.get<int>(0));
+            info.name    = r.get<std::string>(1);
+            const int status_raw = r.get<int>(2);
+            const int busy_th    = r.get<int>(3);
+            const int full_th    = r.get<int>(4);
+            long long curcount = 0;
+            try { curcount = r.get<long long>(5); }
+            catch (...) { curcount = r.get<int>(5); }
+            info.status  = ResolveStatus(
+                status_raw, static_cast<int>(curcount), busy_th, full_th);
+            out.push_back(std::move(info));
+        }
+        return out;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("map_locator.ListChannels(group={}) DB error: {}",
+            static_cast<int>(group_id), ex.what());
+        return {};
+    }
+}
+
 } // namespace tloginsvr::services

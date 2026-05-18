@@ -65,6 +65,13 @@ class IAuthService
 public:
     virtual ~IAuthService() = default;
     virtual AuthResult Authenticate(const AuthRequest& req) = 0;
+
+    // CS_AGREEMENT_REQ: user accepted the terms-of-service / first-login
+    // EULA. Persisted into TACCOUNT_PW.bCheck (matches legacy CSPAgreement
+    // SP). No reply on the wire — the legacy server just acks the
+    // handler and continues. Idempotent: re-calling for an already-agreed
+    // user is a no-op at the DB level (UPDATE … WHERE bCheck = 0).
+    virtual void SetAgreement(std::int32_t user_id) = 0;
 };
 
 } // namespace tloginsvr::services

@@ -327,6 +327,37 @@ void RunTests(const std::string& conn)
             soci::use(static_cast<int>(vet_opt));
     }
 
+    // 17. GetVeteranLevels — three rows in chart → returns them sorted
+    //     by bID in the three-slot ack tuple.
+    {
+        // Seed bID=1/2/3 → levels 11/22/33; bID=99 → 99 (must be ignored).
+        {
+            auto lease = pool.Acquire();
+            soci::session& sql = *lease;
+            sql << "DELETE FROM \"TVETERANCHART\"";
+            sql << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") VALUES (1, 11)";
+            sql << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") VALUES (2, 22)";
+            sql << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") VALUES (3, 33)";
+            sql << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") VALUES (99, 99)";
+        }
+        SociCharService svc_chart(pool);
+        const auto vl = svc_chart.GetVeteranLevels();
+        Check(vl.first  == 11, "GetVeteranLevels: first (lowest bID)");
+        Check(vl.second == 22, "GetVeteranLevels: second");
+        Check(vl.third  == 33, "GetVeteranLevels: third");
+
+        auto lease = pool.Acquire();
+        *lease << "DELETE FROM \"TVETERANCHART\"";
+    }
+
+    // 18. GetVeteranLevels — empty chart → all zeros.
+    {
+        SociCharService svc_empty(pool);
+        const auto vl = svc_empty.GetVeteranLevels();
+        Check(vl.first == 0 && vl.second == 0 && vl.third == 0,
+            "GetVeteranLevels: empty chart → 0/0/0");
+    }
+
     // Cleanup.
     try
     {

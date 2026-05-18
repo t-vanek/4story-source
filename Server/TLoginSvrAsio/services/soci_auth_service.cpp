@@ -184,4 +184,23 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
     }
 }
 
+void SociAuthService::SetAgreement(std::int32_t user_id)
+{
+    if (user_id == 0) return;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        sql << "UPDATE \"TACCOUNT_PW\" SET \"bCheck\" = 1 "
+               "WHERE \"dwUserID\" = :uid",
+            soci::use(user_id);
+        spdlog::info("auth.SetAgreement uid={}", user_id);
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("auth.SetAgreement uid={} DB error: {}",
+            user_id, ex.what());
+    }
+}
+
 } // namespace tloginsvr::services

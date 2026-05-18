@@ -55,6 +55,10 @@ public:
            std::int32_t char_id,
            const std::string& password) override;
 
+    // Returns the first three rows of TVETERANCHART (cached at ctor).
+    // Empty cache → all zeros.
+    VeteranLevels GetVeteranLevels() const override;
+
 private:
     db::SessionPool& m_pool;
 

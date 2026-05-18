@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace tloginsvr::services {
 
@@ -30,6 +31,39 @@ struct MapEndpoint
     std::array<std::uint8_t, 4> ipv4 = {0, 0, 0, 0};
     std::uint16_t               port = 0;
     std::uint8_t                server_id = 0;
+};
+
+// Wire-level status code (legacy TSTATUS_* in NetCode.h:940-946).
+//   0 = SLEEP   — server marked offline
+//   1 = NORMAL  — accepting logins
+//   2 = BUSY    — accepting, but >bWusy current users
+//   3 = FULL    — capped, refuses new logins
+enum class GroupStatus : std::uint8_t
+{
+    Sleep  = 0,
+    Normal = 1,
+    Busy   = 2,
+    Full   = 3,
+};
+
+// One row of CS_GROUPLIST_ACK. Wire-format per CSHandler.cpp:519-538:
+//   szName, bGroupID, bType, bStatus, bCount
+struct GroupInfo
+{
+    std::string  name;
+    std::uint8_t group_id  = 0;
+    std::uint8_t type      = 0;   // legacy TGROUP.bType (server "kind")
+    GroupStatus  status    = GroupStatus::Sleep;
+    std::uint8_t flags     = 0;   // legacy TGROUP.bCount — overloaded as flags/visibility byte
+};
+
+// One row of CS_CHANNELLIST_ACK. Wire-format per CSHandler.cpp:574-578:
+//   szName, bChannel, bStatus
+struct ChannelInfo
+{
+    std::string  name;
+    std::uint8_t channel = 0;
+    GroupStatus  status  = GroupStatus::Sleep;
 };
 
 class IMapServerLocator
@@ -59,6 +93,16 @@ public:
         std::uint8_t  group_id,
         std::uint8_t  channel,
         std::int32_t  char_id) = 0;
+
+    // CS_GROUPLIST_REQ — return the list of game-groups visible to
+    // this user. Status is computed from the live current-user count
+    // against the group's bBusy/wFull thresholds (legacy join with
+    // CTBLUserCount at CSHandler.cpp:524).
+    virtual std::vector<GroupInfo> ListGroups(std::int32_t user_id) = 0;
+
+    // CS_CHANNELLIST_REQ — channels within a group. Same status
+    // computation as ListGroups (per-channel counts).
+    virtual std::vector<ChannelInfo> ListChannels(std::uint8_t group_id) = 0;
 };
 
 } // namespace tloginsvr::services

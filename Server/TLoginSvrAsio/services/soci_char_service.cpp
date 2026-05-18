@@ -490,4 +490,20 @@ SociCharService::Delete(std::int32_t user_id,
     }
 }
 
+VeteranLevels SociCharService::GetVeteranLevels() const
+{
+    // m_veteran_levels is keyed by bID (the option index). The wire
+    // ack returns three slots; sort by id and take the first three so
+    // the result is deterministic across DB row order.
+    std::vector<std::pair<std::uint8_t, std::uint8_t>> sorted(
+        m_veteran_levels.begin(), m_veteran_levels.end());
+    std::sort(sorted.begin(), sorted.end());
+
+    VeteranLevels out{};
+    if (sorted.size() > 0) out.first  = sorted[0].second;
+    if (sorted.size() > 1) out.second = sorted[1].second;
+    if (sorted.size() > 2) out.third  = sorted[2].second;
+    return out;
+}
+
 } // namespace tloginsvr::services

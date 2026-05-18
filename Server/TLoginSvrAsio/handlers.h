@@ -53,18 +53,26 @@ boost::asio::awaitable<void> OnLoginReq(
 // Real implementation queries TGROUP table for active worlds.
 //
 // Wire layout from CSHandler.cpp::OnCS_GROUPLIST_REQ:
-//   request body: (none — empty)
-//   ack body:  BYTE bCount, BYTE bCheckFilePoint, [per group: STRING szNAME,
-//              BYTE bGroupID, BYTE bType, BYTE bStatus, BYTE bCharCount]
+//   request body: (none — empty in current legacy build; the commented
+//                  INT64 dlCheckFile check is dead code there)
+//   ack body:  BYTE bCount, DWORD dwCheckPoint=0,
+//              per group: STRING szNAME, BYTE bGroupID, BYTE bType,
+//                         BYTE bStatus, BYTE bFlags
+// With map_server_locator+connection_registry: real list from
+// IMapServerLocator::ListGroups. Null locator → empty stub.
 boost::asio::awaitable<void> OnGroupListReq(
-    tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::shared_ptr<tnetlib::AsioSession> session,
+    std::span<const std::byte> body,
+    services::IMapServerLocator* map_server_locator = nullptr,
+    services::IConnectionRegistry* connection_registry = nullptr);
 
-// CS_CHANNELLIST_REQ(BYTE bGroupID) → CS_CHANNELLIST_ACK. Phase-3 stub:
-// returns empty channel list. Real impl queries TCHANNEL.
+// CS_CHANNELLIST_REQ(BYTE bGroupID) → CS_CHANNELLIST_ACK.
+//   ack body:  BYTE bCount, DWORD dwCheckPoint=0,
+//              per channel: STRING szNAME, BYTE bChannel, BYTE bStatus
 boost::asio::awaitable<void> OnChannelListReq(
     tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::span<const std::byte> body,
+    services::IMapServerLocator* map_server_locator = nullptr);
 
 // CS_CHARLIST_REQ(BYTE bGroupID) → CS_CHARLIST_ACK.
 // When char_service is non-null AND the session is registered (i.e.
@@ -109,11 +117,14 @@ boost::asio::awaitable<void> OnStartReq(
     services::IMapServerLocator* map_server_locator = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr);
 
-// CS_AGREEMENT_REQ(WORD wVersion) — no ack. Legacy upserts TUSERINFOTABLE
-// row + flips per-session m_bAgreement; we just log for now.
+// CS_AGREEMENT_REQ(WORD wVersion) — no ack. Persists TACCOUNT_PW.bCheck=1
+// via IAuthService::SetAgreement so the user doesn't see the EULA again.
+// Without services wired the call is a no-op log.
 boost::asio::awaitable<void> OnAgreementReq(
-    tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::shared_ptr<tnetlib::AsioSession> session,
+    std::span<const std::byte> body,
+    services::IAuthService* auth_service = nullptr,
+    services::IConnectionRegistry* connection_registry = nullptr);
 
 // CS_HOTSEND_REQ(INT64 dlValue, BYTE bAll) — no ack. Exec-file
 // integrity heartbeat. Stub: log and ignore.
@@ -121,11 +132,14 @@ boost::asio::awaitable<void> OnHotsendReq(
     tnetlib::AsioSession& session,
     std::span<const std::byte> body);
 
-// CS_VETERAN_REQ → CS_VETERAN_ACK. Stub: returns bOption=0 (no
-// returning-player bonus offered). Real impl reads TVETERANCHART.
+// CS_VETERAN_REQ → CS_VETERAN_ACK(BYTE bOption=3, BYTE level1,
+// BYTE level2, BYTE level3). Reads three level rows from
+// ICharService::GetVeteranLevels (cached at construction from
+// TVETERANCHART). Null service → no-bonus stub.
 boost::asio::awaitable<void> OnVeteranReq(
     tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::span<const std::byte> body,
+    services::ICharService* char_service = nullptr);
 
 // CS_TERMINATE_REQ(DWORD dwKey) — no ack. Clean logout request from
 // client. Legacy magic key 0x2AF3A9D1 (validated on the wire). Stub

@@ -38,6 +38,11 @@ public:
 
     AuthResult Authenticate(const AuthRequest& req) override;
 
+    // Mirrors legacy CSPAgreement SP: UPDATE TACCOUNT_PW SET bCheck=1
+    // WHERE dwUserID=:uid. Idempotent — re-call for an already-agreed
+    // user is a harmless no-op.
+    void SetAgreement(std::int32_t user_id) override;
+
 private:
     db::SessionPool& m_pool;
 };

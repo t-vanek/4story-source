@@ -196,6 +196,72 @@ void RunTests(const std::string& conn)
         Check(!ep.has_value(), "unknown group → nullopt");
     }
 
+    // 8. ListGroups + ListChannels — round-trip TGROUP + TCHANNEL.
+    //    The dev DB has rows from schema/postgres-dev.sql; we seed an
+    //    extra group + channel pair so the tests don't depend on the
+    //    exact seeded count.
+    const int test_gid = group_ok + 100;
+    const std::string gname = "ListGrp" + std::to_string(::getpid());
+    const std::string cname = "ListCh"  + std::to_string(::getpid());
+    {
+        auto lease = pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "DELETE FROM \"TGROUP\" WHERE \"bGroupID\" = :g", soci::use(test_gid);
+        sql << "DELETE FROM \"TCHANNEL\" WHERE \"bGroupID\" = :g", soci::use(test_gid);
+        // bStatus=1 (ENABLE), busy=10, full=100.
+        sql << "INSERT INTO \"TGROUP\" "
+               "(\"bGroupID\", \"bType\", \"szNAME\", \"wBusy\", \"wFull\", "
+               " \"bUseRate\", \"bStatus\") "
+               "VALUES (:g, 4, :n, 10, 100, 1, 1)",
+            soci::use(test_gid), soci::use(gname);
+        sql << "INSERT INTO \"TCHANNEL\" "
+               "(\"bGroupID\", \"bChannel\", \"szNAME\", \"wBusy\", \"wFull\", \"bStatus\") "
+               "VALUES (:g, 1, :n, 10, 100, 1)",
+            soci::use(test_gid), soci::use(cname);
+    }
+    {
+        const auto groups = svc.ListGroups(/*user_id=*/0);
+        bool found = false;
+        for (const auto& g : groups)
+        {
+            if (g.group_id == test_gid)
+            {
+                found = true;
+                Check(g.name == gname, "ListGroups: seeded name matches");
+                Check(g.type == 4, "ListGroups: type==4 (map server)");
+                Check(g.status == tloginsvr::services::GroupStatus::Normal,
+                    "ListGroups: status NORMAL (count<busy)");
+            }
+        }
+        Check(found, "ListGroups returns seeded group");
+    }
+    {
+        const auto channels = svc.ListChannels(
+            static_cast<std::uint8_t>(test_gid));
+        Check(channels.size() == 1, "ListChannels: one row for seeded group");
+        if (!channels.empty())
+        {
+            Check(channels[0].channel == 1, "ListChannels: channel==1");
+            Check(channels[0].name == cname, "ListChannels: name matches");
+            Check(channels[0].status == tloginsvr::services::GroupStatus::Normal,
+                "ListChannels: status NORMAL");
+        }
+    }
+    {
+        const auto channels = svc.ListChannels(
+            static_cast<std::uint8_t>(group_empty));
+        Check(channels.empty(),
+            "ListChannels: empty group → empty vector");
+    }
+
+    // Cleanup (additional rows from test 8).
+    {
+        auto lease = pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "DELETE FROM \"TCHANNEL\" WHERE \"bGroupID\" = :g", soci::use(test_gid);
+        sql << "DELETE FROM \"TGROUP\" WHERE \"bGroupID\" = :g", soci::use(test_gid);
+    }
+
     // Cleanup.
     try
     {

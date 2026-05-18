@@ -192,6 +192,35 @@ void RunTests(tloginsvr::db::Backend backend, const std::string& conn)
             "alice re-auth → Success (stale TCURRENTUSER cleared)");
     }
 
+    // 7. SetAgreement flips TACCOUNT_PW.bCheck (idempotent).
+    {
+        // Pre-check.
+        auto lease = pool.Acquire();
+        int before = 0;
+        *lease << "SELECT \"bCheck\" FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = 1000001",
+            soci::into(before);
+        Check(before == 0, "alice bCheck starts at 0 (default after seed)");
+
+        svc.SetAgreement(1000001);
+        int after = 0;
+        *lease << "SELECT \"bCheck\" FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = 1000001",
+            soci::into(after);
+        Check(after == 1, "SetAgreement(1000001) → bCheck=1");
+
+        // Idempotent re-call.
+        svc.SetAgreement(1000001);
+        int after2 = 0;
+        *lease << "SELECT \"bCheck\" FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = 1000001",
+            soci::into(after2);
+        Check(after2 == 1, "SetAgreement is idempotent");
+    }
+
+    // 8. SetAgreement(0) is a safe no-op (never-authed session).
+    {
+        svc.SetAgreement(0);
+        Check(true, "SetAgreement(0) → no-op (no exception)");
+    }
+
     // Cleanup. Make a best-effort pass; failures here aren't fatal.
     try
     {

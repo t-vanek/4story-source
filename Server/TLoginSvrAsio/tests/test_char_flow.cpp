@@ -5,9 +5,9 @@
 //   3. DELCHAR removes a char; CHARLIST shrinks.
 
 #include "../login_server.h"
-#include "../services/in_memory_auth_service.h"
-#include "../services/in_memory_char_service.h"
-#include "../services/in_memory_connection_registry.h"
+#include "../services/fake_auth_service.h"
+#include "../services/fake_char_service.h"
+#include "../services/local_connection_registry.h"
 #include "asio_session.h"
 #include "MessageId.h"
 
@@ -127,10 +127,10 @@ void TestCharListWithSeededChars()
 {
     std::printf("[CHARLIST returns seeded characters in slot order]\n");
 
-    auto auth = std::make_unique<tloginsvr::services::InMemoryAuthService>();
+    auto auth = std::make_unique<tloginsvr::services::FakeAuthService>();
     auth->AddUser("alice", "pw", 1001);
-    auto registry = std::make_unique<tloginsvr::services::InMemoryConnectionRegistry>();
-    auto chars = std::make_unique<tloginsvr::services::InMemoryCharService>();
+    auto registry = std::make_unique<tloginsvr::services::LocalConnectionRegistry>();
+    auto chars = std::make_unique<tloginsvr::services::FakeCharService>();
 
     // Seed alice with 2 characters in group 1.
     chars->AddCharacter(1001, 1, tloginsvr::services::CharacterInfo{
@@ -186,10 +186,10 @@ void TestCreateCharAppendsToList()
 {
     std::printf("[CREATECHAR adds; subsequent CHARLIST sees the new entry]\n");
 
-    auto auth = std::make_unique<tloginsvr::services::InMemoryAuthService>();
+    auto auth = std::make_unique<tloginsvr::services::FakeAuthService>();
     auth->AddUser("bob", "pw", 2002);
-    auto registry = std::make_unique<tloginsvr::services::InMemoryConnectionRegistry>();
-    auto chars = std::make_unique<tloginsvr::services::InMemoryCharService>();
+    auto registry = std::make_unique<tloginsvr::services::LocalConnectionRegistry>();
+    auto chars = std::make_unique<tloginsvr::services::FakeCharService>();
 
     asio::io_context server_io;
     tloginsvr::LoginServerConfig cfg{};
@@ -259,10 +259,10 @@ void TestDelCharRemovesFromList()
 {
     std::printf("[DELCHAR removes; subsequent CHARLIST is shorter]\n");
 
-    auto auth = std::make_unique<tloginsvr::services::InMemoryAuthService>();
+    auto auth = std::make_unique<tloginsvr::services::FakeAuthService>();
     auth->AddUser("carol", "pw", 3003);
-    auto registry = std::make_unique<tloginsvr::services::InMemoryConnectionRegistry>();
-    auto chars = std::make_unique<tloginsvr::services::InMemoryCharService>();
+    auto registry = std::make_unique<tloginsvr::services::LocalConnectionRegistry>();
+    auto chars = std::make_unique<tloginsvr::services::FakeCharService>();
     chars->AddCharacter(3003, 1, tloginsvr::services::CharacterInfo{
         .char_id = 500, .name = "CarolMain", .slot = 0, .level = 10});
 

@@ -7,24 +7,24 @@
   "dependencies": [
     {
       "name": "openssl",
-      "comment": "Used by Lib/Own/TNetLib/TNetLib/tnetlib_crypto.cpp for RC4+MD5 wire codec compatibility with legacy clients. Replaces vendored OpenSSL 0.9.8l (Nov 2009, EOL 2015) that lived at Lib/3rdParty/openssl/. RC4 requires the OpenSSL 3.x 'legacy' provider which the wrapper loads lazily via OSSL_PROVIDER_load."
+      "$comment": "Used by Lib/Own/TNetLib/TNetLib/tnetlib_crypto.cpp for RC4+MD5 wire codec compatibility with legacy clients. Replaces vendored OpenSSL 0.9.8l (Nov 2009, EOL 2015) that lived at Lib/3rdParty/openssl/. RC4 requires the OpenSSL 3.x 'legacy' provider which the wrapper loads lazily via OSSL_PROVIDER_load."
     },
     {
       "name": "boost-asio",
-      "comment": "Phase-1 Asio scaffolding (Lib/Own/TNetLib/TNetLib/asio_session.*). Used to write a portable async I/O layer that will eventually replace the Win32 IOCP loops in the legacy CSession class. Pulls in boost-system as transitive dep. Standalone (non-Boost) Asio is an alternative if we want fewer transitive deps later."
+      "$comment": "Phase-1 Asio scaffolding (Lib/Own/TNetLib/TNetLib/asio_session.*). Used to write a portable async I/O layer that will eventually replace the Win32 IOCP loops in the legacy CSession class. Pulls in boost-system as transitive dep. Standalone (non-Boost) Asio is an alternative if we want fewer transitive deps later."
     },
     {
       "name": "spdlog",
-      "comment": "Structured logging for TLoginSvrAsio + future modernized servers. Replaces the legacy LogEvent/printf/OutputDebugString mix. Default sink is stderr; production deployment can swap for a JSON sink or syslog."
+      "$comment": "Structured logging for TLoginSvrAsio + future modernized servers. Replaces the legacy LogEvent/printf/OutputDebugString mix. Default sink is stderr; production deployment can swap for a JSON sink or syslog."
     },
     {
       "name": "tomlplusplus",
-      "comment": "TOML config file parser for TLoginSvrAsio. Replaces the legacy Win32-registry-based config. Type-safe, header-only, no dependencies beyond C++17."
+      "$comment": "TOML config file parser for TLoginSvrAsio. Replaces the legacy Win32-registry-based config. Type-safe, header-only, no dependencies beyond C++17."
     },
     {
       "name": "soci",
-      "features": ["odbc", "postgresql"],
-      "comment": "C++ DB access library for the modernized auth/char/map services. ODBC backend covers MSSQL (via msodbcsql driver — works on Linux + Windows), PostgreSQL backend covers the eventual native PG path. Schema strategy: keep legacy TACCOUNT_PW / TUSERPROTECTED / TCURRENTUSER / TCHARTABLE for backwards compat in Phase B; PG migration is a separate later effort."
+      "features": ["odbc"],
+      "$comment": "C++ DB access library for the modernized auth/char/map services. ODBC backend covers MSSQL (via msodbcsql driver — works on Linux + Windows). PostgreSQL feature was tried but vcpkg's libpq build on Windows fails on meson configure; drop it until we need PG cross-compat. The dialect branches in services/soci_*.cpp stay so adding the feature back is a one-liner here."
     }
   ],
   "$comment-baseline": "Pin a builtin-baseline (a microsoft/vcpkg commit SHA) when you want reproducible builds across machines. Until then, vcpkg will use whatever ports tree the user's vcpkg checkout has. Example: \"builtin-baseline\": \"<sha>\""

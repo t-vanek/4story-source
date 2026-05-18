@@ -1,12 +1,18 @@
 #pragma once
 
-// Thread-safe in-memory IConnectionRegistry. Suitable for production
-// — the legacy server tracked the same state in `m_mapTUSER` (also
-// in-memory, single-process). When the server is sharded across
-// multiple instances, the duplicate-kick policy needs a distributed
-// store (Redis hash + watch); the interface above accommodates that
-// — we'd add SociConnectionRegistry / RedisConnectionRegistry beside
-// this one without touching the handler.
+// LocalConnectionRegistry — production-grade single-process session
+// registry. Stores live session state in this process's memory; same
+// shape as the legacy CTLoginSvrModule's `m_mapTUSER` map. The "Local"
+// prefix distinguishes it from a hypothetical distributed alternative
+// (Redis-backed, etc.) that a sharded multi-instance deploy would
+// need; the IConnectionRegistry interface is the same.
+//
+// Production semantics:
+//   * duplicate-kick policy (legacy parity)
+//   * per-session metadata for the agreement gate + group-id stamping
+//   * O(1) lookup by both user_id and session pointer
+//   * no persistence — sessions die with the process, which is the
+//     correct semantics (a session has no meaning across restarts)
 
 #include "connection_registry.h"
 
@@ -15,7 +21,7 @@
 
 namespace tloginsvr::services {
 
-class InMemoryConnectionRegistry : public IConnectionRegistry
+class LocalConnectionRegistry : public IConnectionRegistry
 {
 public:
     std::shared_ptr<tnetlib::AsioSession>
@@ -27,6 +33,13 @@ public:
 
     void MarkHandoff(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
+
+    void MarkAgreed(
+        const std::shared_ptr<tnetlib::AsioSession>& session) override;
+
+    void SetGroupId(
+        const std::shared_ptr<tnetlib::AsioSession>& session,
+        std::uint8_t group_id) override;
 
     void Unregister(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;

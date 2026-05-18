@@ -9,8 +9,8 @@
 // own LR_SUCCESS and remains live.
 
 #include "../login_server.h"
-#include "../services/in_memory_auth_service.h"
-#include "../services/in_memory_connection_registry.h"
+#include "../services/fake_auth_service.h"
+#include "../services/local_connection_registry.h"
 #include "asio_session.h"
 #include "MessageId.h"
 
@@ -160,11 +160,11 @@ void TestDuplicateKick()
 {
     std::printf("[duplicate-kick: second login kicks first session]\n");
 
-    auto auth = std::make_unique<tloginsvr::services::InMemoryAuthService>();
+    auto auth = std::make_unique<tloginsvr::services::FakeAuthService>();
     auth->AddUser("alice", "hunter2", 1001);
 
     auto registry =
-        std::make_unique<tloginsvr::services::InMemoryConnectionRegistry>();
+        std::make_unique<tloginsvr::services::LocalConnectionRegistry>();
 
     asio::io_context server_io;
     tloginsvr::LoginServerConfig cfg{};

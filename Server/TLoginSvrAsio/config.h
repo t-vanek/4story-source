@@ -47,13 +47,39 @@ struct DbConfig
 struct AppConfig
 {
     LoginServerConfig            server;
+
+    // TGLOBAL — accounts, sessions, server registry, cross-world char index.
+    // Configured under [database] (legacy key, kept for back-compat). Empty
+    // connection_string keeps the binary in in-memory / dev mode.
     DbConfig                     database;
+
+    // TGAME — per-world character + item + guild data. Configured under
+    // [database.world]. Required for real character ops (create / list /
+    // delete) and the BR/BOW shard routing in CS_START_REQ. If empty, the
+    // char service falls back to in-memory and the map locator skips the
+    // shard override check.
+    DbConfig                     database_world;
+
+    // Optional UDP audit shim — sends each audit event in legacy
+    // _UDPPACKET wire format to the given host:port. Empty host →
+    // shim disabled (audit goes through the structured spdlog
+    // sink only).
+    std::string                  audit_udp_host;
+    std::uint16_t                audit_udp_port = 0;
+
     spdlog::level::level_enum    log_level = spdlog::level::info;
 
     // Health endpoint — minimal HTTP responder on a separate port,
     // used by k8s liveness/readiness probes and load balancers.
     // 0 disables.
     std::uint16_t                health_port = 8815;
+
+    // Admin TCP shell. Line-based command interface; opt-in via TOML
+    // (port = 0 → disabled). Defaults to bind 127.0.0.1 — operators
+    // who want remote access should tunnel via SSH, not expose the
+    // shell to the open internet.
+    std::string                  admin_bind = "127.0.0.1";
+    std::uint16_t                admin_port = 0;
 };
 
 // Load + parse the TOML config at `path`. Throws std::runtime_error

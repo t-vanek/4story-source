@@ -1,10 +1,14 @@
 #pragma once
 
-// In-memory ISessionTerminator. Doesn't touch a database; instead
-// keeps a counter + a vector of TerminationRecord entries so tests
-// can assert "the terminator was called with these arguments". Real
-// SOCI-backed impl (Phase B) will replace this with the actual
-// DELETE/UPDATE on TCURRENTUSER + TLOG.
+// FakeSessionTerminator — TEST-ONLY ISessionTerminator. Doesn't touch
+// a database; instead keeps a counter + a vector of TerminationRecord
+// entries so tests can assert "the terminator was called with these
+// arguments".
+//
+// **Not for production.** Production uses SociSessionTerminator
+// which DELETEs from TCURRENTUSER and UPDATEs TLOG.timeLOGOUT on
+// real disconnect, or preserves TCURRENTUSER on MapHandoff so the
+// Map server can validate dwKEY on the reconnect.
 
 #include "session_terminator.h"
 
@@ -20,7 +24,7 @@ struct TerminationRecord
     TerminationReason reason;
 };
 
-class InMemorySessionTerminator : public ISessionTerminator
+class FakeSessionTerminator : public ISessionTerminator
 {
 public:
     void Terminate(std::int32_t user_id,

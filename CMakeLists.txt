@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(FourStory
     VERSION 5.0
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 set(CMAKE_CXX_STANDARD 20)
@@ -89,5 +89,6 @@ include(CTest)
 enable_testing()
 
 # Subprojects. Add new servers / libs here as they get a CMakeLists.txt.
+add_subdirectory(Lib/3rdParty/bcrypt)
 add_subdirectory(Lib/Own/TNetLib)
 add_subdirectory(Server/TLoginSvrAsio)

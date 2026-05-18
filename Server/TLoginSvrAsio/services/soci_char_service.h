@@ -1,16 +1,20 @@
 #pragma once
 
-// SOCI-backed ICharService. Schema layer:
-//   * TCHARTABLE        — per-world character row, full attrs.
+// SOCI-backed ICharService. Two-pool design matching legacy schema split:
+//   global (TGLOBAL)  — TALLCHARTABLE, TKEEPINGNAME, TRESERVEDNAME, TVETERANCHART
+//   world  (TGAME)    — TCHARTABLE, TITEMTABLE, TGUILDMEMBERTABLE
+//
+// Tables:
+//   * TCHARTABLE        — per-world character row, full attrs (world pool).
 //   * TALLCHARTABLE     — cross-world directory (one row per char per
-//                         world). Lets us implement (user, world)-scoped
-//                         List against a single PG/MSSQL instance even
-//                         though the legacy server used DB-per-world.
+//                         world). Lives in TGLOBAL so a single login server
+//                         can serve users across multiple world DBs.
 //   * TKEEPINGNAME      — name-reservation table (e.g. dead-char names
-//                         kept on cooldown).
-//   * TRESERVEDNAME     — admin-reserved names.
+//                         kept on cooldown). Global pool.
+//   * TRESERVEDNAME     — admin-reserved names. Global pool.
 //   * TGUILDMEMBERTABLE — guild membership row blocks Delete (legacy
-//                         TDeleteChar behavior).
+//                         TDeleteChar behavior). World pool.
+//   * TITEMTABLE        — starter inventory inserts on Create. World pool.
 //
 // Delete semantics — matches the legacy TDeleteChar SP:
 //   * If TGUILDMEMBERTABLE has a row for dwCharID → DR_FAILED (in-guild).
@@ -27,6 +31,7 @@
 
 #include "char_service.h"
 
+#include <mutex>
 #include <unordered_map>
 
 namespace tloginsvr::db { class SessionPool; }
@@ -41,7 +46,11 @@ public:
     // chart is small and effectively read-only, so reloading per-request
     // would just add DB load). If the table is missing or unreadable the
     // service falls back to "no veteran bonus" silently.
-    explicit SociCharService(db::SessionPool& pool);
+    //
+    // `global_pool` — TGLOBAL (accounts + cross-world directory tables).
+    // `world_pool`  — TGAME (per-world tables). Lifetimes must exceed
+    //   this service. Both required for real character ops.
+    SociCharService(db::SessionPool& global_pool, db::SessionPool& world_pool);
 
     std::vector<CharacterInfo>
     List(std::int32_t user_id, std::uint8_t group_id) override;
@@ -59,8 +68,23 @@ public:
     // Empty cache → all zeros.
     VeteranLevels GetVeteranLevels() const override;
 
+    // BR shard char lookup via TBRPLAYERTABLE (per-world TGAME).
+    // Returns the dwCharID enrolled, or 0 on miss / DB error /
+    // missing table.
+    std::int32_t GetBrCharId(std::int32_t user_id) override;
+
+    // Reload TVETERANCHART into the in-memory cache. Wired into
+    // RegistryRefresher so an operator running an UPDATE on the
+    // chart table sees the new thresholds within one tick.
+    void RefreshVeteranChart();
+
 private:
-    db::SessionPool& m_pool;
+    db::SessionPool& m_global; // TGLOBAL
+    db::SessionPool& m_world;  // TGAME (per-world)
+
+    // m_veteran_levels guarded against RefreshVeteranChart racing
+    // GetVeteranLevels — both lock m_veteran_mtx.
+    mutable std::mutex m_veteran_mtx;
 
     // m_veteran_levels: bLevelOption → bLevel. Empty means no veteran
     // chart was loaded (CR_SUCCESS still works, just defaults to the

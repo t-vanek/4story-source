@@ -126,7 +126,9 @@ void RunTests(const std::string& conn)
                "VALUES (:c, :u)", soci::use(char_bow), soci::use(user_bow);
     }
 
-    tloginsvr::services::SociMapServerLocator svc(pool);
+    // Single-DB test layout — the BR/BOW shard tables live in the same
+    // pool here, so pass it as the optional world pool too.
+    tloginsvr::services::SociMapServerLocator svc(pool, &pool);
 
     // 1. Happy path — normal char routes to default server (id=1, lowest).
     {

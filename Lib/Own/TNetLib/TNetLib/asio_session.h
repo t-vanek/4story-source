@@ -147,6 +147,14 @@ public:
     const boost::asio::ip::tcp::socket& Socket() const { return m_socket; }
     PeerType                            Type()   const { return m_type;   }
 
+    // Cached peer IPv4 (dotted-decimal). Captured at construction time
+    // — calling remote_endpoint() after the socket has been shutdown
+    // throws, and IP-banlist + audit-log lookups happen after that
+    // point on some code paths. Empty string if the socket wasn't
+    // connected (constructed from a default tcp::socket — only happens
+    // in tests).
+    const std::string& RemoteIPv4() const { return m_remote_ipv4; }
+
 private:
     boost::asio::ip::tcp::socket m_socket;
     PeerType                     m_type;
@@ -157,6 +165,7 @@ private:
     std::uint32_t                m_send_sequence = 0;
     std::vector<std::byte>       m_rc4_inbound_key;   // empty = no RC4 on recv
     std::vector<std::byte>       m_rc4_outbound_key;  // empty = no RC4 on send
+    std::string                  m_remote_ipv4;       // captured at ctor, empty if not connected
 };
 
 // Accept loop. Binds to `port` on all interfaces (INADDR_ANY) and

@@ -1,8 +1,8 @@
-#include "in_memory_session_terminator.h"
+#include "fake_session_terminator.h"
 
 namespace tloginsvr::services {
 
-void InMemorySessionTerminator::Terminate(std::int32_t user_id,
+void FakeSessionTerminator::Terminate(std::int32_t user_id,
                                           std::uint32_t session_key,
                                           TerminationReason reason)
 {
@@ -17,13 +17,13 @@ void InMemorySessionTerminator::Terminate(std::int32_t user_id,
 }
 
 std::vector<TerminationRecord>
-InMemorySessionTerminator::History() const
+FakeSessionTerminator::History() const
 {
     std::lock_guard<std::mutex> lock(m_mtx);
     return m_history; // copy under the lock
 }
 
-std::size_t InMemorySessionTerminator::Count() const
+std::size_t FakeSessionTerminator::Count() const
 {
     std::lock_guard<std::mutex> lock(m_mtx);
     return m_history.size();

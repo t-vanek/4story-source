@@ -24,7 +24,13 @@ namespace tloginsvr::services {
 class SociMapServerLocator : public IMapServerLocator
 {
 public:
-    explicit SociMapServerLocator(db::SessionPool& pool);
+    // `global_pool` (TGLOBAL) — TSERVER, TIPADDR, TGROUP, TCHANNEL,
+    // TCURRENTUSER (live count).
+    // `world_pool` (TGAME, optional) — TBRPLAYERTABLE / TBOWPLAYERTABLE
+    // for shard-override routing on CS_START_REQ. If null, the shard
+    // check is skipped (Lookup uses the default group-server target).
+    explicit SociMapServerLocator(db::SessionPool& global_pool,
+                                  db::SessionPool* world_pool = nullptr);
 
     std::optional<MapEndpoint> Lookup(
         std::int32_t  user_id,
@@ -37,6 +43,7 @@ public:
 
 private:
     db::SessionPool& m_pool;
+    db::SessionPool* m_world; // optional — null skips shard checks
 };
 
 } // namespace tloginsvr::services

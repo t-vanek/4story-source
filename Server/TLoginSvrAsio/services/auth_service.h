@@ -4,7 +4,7 @@
 //
 // Used by handlers::OnLoginReq to validate a CS_LOGIN_REQ. Two
 // implementations live alongside this interface:
-//   * InMemoryAuthService — single-user fake for tests + dev mode
+//   * FakeAuthService — single-user fake for tests + dev mode
 //     where no DB is configured. No persistence.
 //   * SociAuthService (Phase B) — real DB-backed, BCrypt password
 //     verification, IP-banlist, user-protected, duplicate-session
@@ -67,11 +67,43 @@ public:
     virtual AuthResult Authenticate(const AuthRequest& req) = 0;
 
     // CS_AGREEMENT_REQ: user accepted the terms-of-service / first-login
-    // EULA. Persisted into TACCOUNT_PW.bCheck (matches legacy CSPAgreement
-    // SP). No reply on the wire — the legacy server just acks the
-    // handler and continues. Idempotent: re-calling for an already-agreed
-    // user is a no-op at the DB level (UPDATE … WHERE bCheck = 0).
+    // EULA. Persisted into TUSERINFOTABLE.bAgreement (matches legacy
+    // CSPAgreement SP). No reply on the wire — the legacy server just
+    // acks the handler and continues. Idempotent.
     virtual void SetAgreement(std::int32_t user_id) = 0;
+
+    // CS_DELCHAR_REQ: confirm the user's password before destructive
+    // ops. Matches legacy CSPCheckPasswd — SELECT TACCOUNT_PW WHERE
+    // dwUserID = ?; verify via the same BCrypt/legacy-plaintext path as
+    // Authenticate. Returns true on match. Empty / null stored
+    // password rows are treated as a miss.
+    virtual bool VerifyPassword(std::int32_t user_id,
+                                const std::string& password) = 0;
+
+    // CS_TESTLOGIN_REQ — debug stress-test login. Picks a random row
+    // from TTESTLOGINUSER (or the equivalent test-pool), resolves to
+    // a real user in TACCOUNT_PW, and returns a Success AuthResult
+    // bypassing password / agreement checks. Same TCURRENTUSER +
+    // TLOG side effects as a normal Authenticate. Returns
+    // InternalError if the test-user pool is empty or DB unreachable.
+    //
+    // **Production builds should disable this handler** — config gate
+    // in LoginServerConfig::test_handlers_enabled.
+    virtual AuthResult AuthenticateTest(const std::string& client_ip) = 0;
+
+    // CS_SECURITYCONFIRM_ACK — validate a user-entered 2FA code
+    // against the per-user TSECURECODE row. Comparison is
+    // case-insensitive (legacy `strCode.MakeUpper()`). Decrements
+    // bTries on mismatch so a brute-force attempt eventually locks
+    // the account. Returns true on match.
+    virtual bool VerifySecurityCode(std::int32_t user_id,
+                                    const std::string& code) = 0;
+
+    // Generate a fresh 2FA code for a user, store it in TSECURECODE,
+    // and return it so the caller can mail it. Used when a new MAC
+    // address is detected during login. Returns empty string on DB
+    // error or user_id=0.
+    virtual std::string IssueSecurityCode(std::int32_t user_id) = 0;
 };
 
 } // namespace tloginsvr::services

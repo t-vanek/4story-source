@@ -1,15 +1,17 @@
 #pragma once
 
-// In-memory authentication backend. No DB, no persistence. Used by:
-//   * the test suite (deterministic seeded users)
+// FakeAuthService — TEST-ONLY in-memory IAuthService implementation.
+//
+// Used by:
+//   * the ctest suite (deterministic seeded users)
 //   * dev mode when no DB connection string is configured (the server
 //     binary boots with a one-user fake account so smoke-testing
-//     wire flow doesn't require Postgres on the dev box)
+//     wire flow doesn't require a live DB on the dev box)
 //
-// Implementation is intentionally trivial — no rate limiting, no
-// session tracking, no concurrency hardening beyond a single mutex.
-// Production use should compose with ConnectionRegistry +
-// rate-limiter outside the service.
+// **Not for production.** Production deploys MUST configure
+// [database] in tloginsvr.toml so SociAuthService takes over —
+// FakeAuthService stores passwords in plaintext memory and has no
+// persistence, rate-limit composition, or audit interaction.
 
 #include "auth_service.h"
 
@@ -19,10 +21,10 @@
 
 namespace tloginsvr::services {
 
-class InMemoryAuthService : public IAuthService
+class FakeAuthService : public IAuthService
 {
 public:
-    InMemoryAuthService() = default;
+    FakeAuthService() = default;
 
     // Seed methods — call before serving traffic. Thread-safe but
     // intended for setup, not hot path.
@@ -34,6 +36,12 @@ public:
     // IAuthService
     AuthResult Authenticate(const AuthRequest& req) override;
     void SetAgreement(std::int32_t user_id) override;
+    bool VerifyPassword(std::int32_t user_id,
+                        const std::string& password) override;
+    AuthResult AuthenticateTest(const std::string& client_ip) override;
+    bool VerifySecurityCode(std::int32_t user_id,
+                            const std::string& code) override;
+    std::string IssueSecurityCode(std::int32_t user_id) override;
 
     // Test introspection — true after SetAgreement() was called for user.
     bool HasAgreed(std::int32_t user_id) const;
@@ -51,6 +59,7 @@ private:
     std::unordered_map<std::int32_t, std::string>      m_user_bans; // db_id → reason
     std::unordered_set<std::string>                    m_ip_bans;
     std::unordered_set<std::int32_t>                   m_agreed;
+    std::unordered_map<std::int32_t, std::string>      m_security_codes; // uid → code
     std::uint32_t                                      m_next_session_key = 1;
 };
 

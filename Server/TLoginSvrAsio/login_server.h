@@ -9,12 +9,18 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#include <chrono>
+#include <functional>
+
 #include "asio_session.h"
 #include "MessageId.h"
+#include "services/audit_logger.h"
 #include "services/auth_service.h"
 #include "services/char_service.h"
 #include "services/connection_registry.h"
+#include "services/event_registry.h"
 #include "services/map_server_locator.h"
+#include "services/rate_limiter.h"
 #include "services/session_terminator.h"
 
 #include <cstddef>
@@ -29,7 +35,8 @@ namespace tloginsvr {
 // codec pipeline against another modernized peer.
 struct LoginServerConfig
 {
-    std::uint16_t port = 4815;
+    // Default matches the legacy TSERVER row for bType=TLOGIN_GSP=2.
+    std::uint16_t port = 4816;
 
     // RC4 secret key for the inbound legacy-client wire. Empty
     // disables RC4 (server-server compatible mode; useful for tests
@@ -62,6 +69,52 @@ struct LoginServerConfig
     // Non-owning. Null falls back to Phase-3 stubs (empty list /
     // CR_INTERNAL / DR_INTERNAL).
     services::ICharService* char_service = nullptr;
+
+    // Accepted client wire versions (CS_LOGIN_REQ.wVersion). Defaults
+    // to the single legacy value 0x2918 (ProtocolBase.h::TVERSION).
+    // Operators can extend the list in TOML to support older client
+    // builds during a rolling upgrade or QA windows. Empty list →
+    // reject every login with LR_VERSION (defensive: a forgotten
+    // config shouldn't open the server to whatever wire blob shows
+    // up).
+    std::vector<std::uint16_t> accepted_versions = { 0x2918 };
+
+    // Debug stress-test handlers. CS_TESTLOGIN_REQ +
+    // CS_TESTVERSION_REQ. Disabled by default — production deploys
+    // should never expose these (they bypass auth). Tooling enables
+    // them via TOML.
+    bool test_handlers_enabled = false;
+
+    // Exec-file integrity expected value. CS_HOTSEND_REQ validates
+    // `dlValue == exec_check_value ^ session.check_key`. Zero (the
+    // default) disables the check entirely — matches the shipped
+    // legacy `m_hExecFile == INVALID_HANDLE_VALUE` path.
+    std::int64_t exec_check_value = 0;
+
+    // Called when SM_QUITSERVICE_REQ arrives. Main typically wires
+    // this to `io.stop()` so the wire-protocol shutdown matches the
+    // SIGINT path. Null = SM_QUITSERVICE_REQ is logged and ignored.
+    std::function<void()> on_quit_request;
+
+    // Operational audit sink (login attempts, char create/delete,
+    // game-start handoff). Non-owning. Null disables the audit
+    // emission entirely — handlers carry on, just no audit records.
+    services::IAuditLogger* audit_logger = nullptr;
+
+    // Per-IP login rate limiter. Non-owning. Null disables (any
+    // login attempt is allowed through to the auth service).
+    services::LoginRateLimiter* login_rate_limiter = nullptr;
+
+    // GM-event registry. Non-owning. CT_EVENTUPDATE_REQ persists
+    // entries here; future GroupList ack consumers can read back.
+    // Null silences the persistence path (handler still logs).
+    services::IEventRegistry* event_registry = nullptr;
+
+    // Pre-auth idle timeout. Connections that don't complete
+    // CS_LOGIN_REQ within this window are dropped. 0 disables.
+    // Defaults to 60s — generous for a real client, hostile to
+    // half-open SYN-floods.
+    std::chrono::seconds pre_auth_timeout{ 60 };
 };
 
 class LoginServer
@@ -86,6 +139,14 @@ private:
     services::IMapServerLocator*   m_map_server_locator = nullptr;   // non-owning; null = stub SR_NOSERVER
     services::ISessionTerminator*  m_session_terminator = nullptr;   // non-owning; null = no close-time cleanup
     services::ICharService*        m_char_service = nullptr;         // non-owning; null = stub responses
+    services::IAuditLogger*        m_audit_logger = nullptr;         // non-owning; null = no audit emission
+    services::LoginRateLimiter*    m_rate_limiter = nullptr;         // non-owning; null = no rate limiting
+    services::IEventRegistry*      m_event_registry = nullptr;       // non-owning; null = no persistence
+    std::chrono::seconds           m_pre_auth_timeout{ 60 };
+    std::vector<std::uint16_t>     m_accepted_versions;              // empty = reject all
+    bool                           m_test_handlers_enabled = false;  // CS_TESTLOGIN_REQ / CS_TESTVERSION_REQ gate
+    std::function<void()>          m_on_quit_request;                // SM_QUITSERVICE_REQ → io.stop() etc. May be null.
+    std::int64_t                   m_exec_check_value = 0;           // CS_HOTSEND_REQ expected dlCheckFile; 0 = disabled
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

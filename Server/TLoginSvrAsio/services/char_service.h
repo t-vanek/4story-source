@@ -22,6 +22,23 @@
 
 namespace tloginsvr::services {
 
+// One equipped item slot in CS_CHARLIST_ACK. Wire layout per item
+// (CSHandler.cpp:749-756, 10 bytes total): bItemID, wItemID, bLevel,
+// bGradeEffect, wColor, bRegGuild, wMoggItemID. The legacy CTBLItem
+// query aliases dwColor → dwTime3 and dwRegGuild → dwTime4 because the
+// shipped TITEMTABLE schema repurposed those time columns for color +
+// guild-registration bits (see Server/TLoginSvr/DBAccess.h:607-628).
+struct EquipItem
+{
+    std::uint8_t  item_id       = 0;   // bItemID — slot category (weapon/body/…)
+    std::uint16_t item_kind     = 0;   // wItemID — item template id
+    std::uint8_t  level         = 0;
+    std::uint8_t  grade_effect  = 0;
+    std::uint16_t color         = 0;   // dwTime3 → wColor
+    std::uint8_t  reg_guild     = 0;   // dwTime4 → bRegGuild
+    std::uint16_t mogg_item_id  = 0;
+};
+
 // One row in CS_CHARLIST_ACK. Field names match the legacy wire
 // layout from CSHandler.cpp::OnCS_CHARLIST_REQ.
 struct CharacterInfo
@@ -45,8 +62,11 @@ struct CharacterInfo
     std::uint32_t fame         = 0;
     std::uint32_t fame_color   = 0;
     std::uint8_t  helmet_hide  = 0;
-    // Equipped items omitted in Phase A — wire-format slot is
-    // serialized as bEquipCount=0 + empty list. Phase B will populate.
+    // Equipped items + guild fame. Populated by the SOCI backend
+    // (TITEMTABLE/TGUILDMEMBERTABLE/TGUILDTABLE JOINs); the in-memory
+    // backend leaves both at default. Wire-format encoder sees an
+    // empty vector and emits bEquipCount=0.
+    std::vector<EquipItem> items;
 };
 
 // CS_CREATECHAR_REQ payload, parsed.
@@ -138,6 +158,13 @@ public:
     // construction. Returned to the client so the create-char screen
     // can show the available level-boost options.
     virtual VeteranLevels GetVeteranLevels() const = 0;
+
+    // BR/BOW shard membership lookup. Returns the dwCharID of the
+    // user's enrolled BR (or BOW) char, if any. Used by the lobby
+    // CHARLIST flow to send CS_BOWPLAYERNOTIFY_ACK with the matching
+    // slot so the client can highlight the shard char in the UI.
+    // Returns 0 when the user has no BR/BOW char or the lookup fails.
+    virtual std::int32_t GetBrCharId(std::int32_t user_id) = 0;
 };
 
 } // namespace tloginsvr::services

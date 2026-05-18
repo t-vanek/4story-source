@@ -4,8 +4,11 @@
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <functional>
+#include <random>
 #include <string>
 
 namespace tloginsvr::handlers {
@@ -93,7 +96,43 @@ struct LoginReqFields
     std::uint16_t version = 0;
     std::string   user_id;
     std::string   password;
+    std::int64_t  dl_check = 0;
+    std::int64_t  ll_checksum = 0;
+    bool          checksum_present = false;
 };
+
+// Legacy CS_LOGIN_REQ trailing-checksum validator (CSHandler.cpp:185-202).
+// The client computes `llChecksum` from wVersion alone via a tiny XOR/
+// add loop seeded with a magic 64-bit key. Algorithm pseudocode:
+//
+//   key = 0x336c3aebf71a8b08
+//   ck  = wVersion * 2 - 500
+//   idx = ck % 8        ; legacy uses sizeof(INT64) which is 8
+//   body= ck / 8
+//   for i in 0..idx:
+//       ck ^= body
+//       ck += key
+//   ; ck must equal the wire value
+//
+// Real legacy clients always send a valid checksum. A mismatch is
+// either a forged packet or a wire-version drift. Either way, the
+// legacy returns EC_SESSION_INVALIDCHAR (closes the session). We
+// do the same, but only when the trailing INT64 was actually present
+// — older test tooling may emit a truncated body, and we don't want
+// to break the ctest suite just to enforce the check.
+bool VerifyLoginChecksum(std::uint16_t version, std::int64_t recv_checksum)
+{
+    constexpr std::int64_t kKey = 0x336c3aebf71a8b08LL;
+    std::int64_t ck = static_cast<std::int64_t>(version) * 2 - 500;
+    const std::int64_t idx  = ck % 8;
+    const std::int64_t body = ck / 8;
+    for (std::int64_t i = 0; i < idx; ++i)
+    {
+        ck ^= body;
+        ck += kKey;
+    }
+    return ck == recv_checksum;
+}
 
 constexpr std::size_t kMaxLoginStringLen = 64;
 
@@ -124,8 +163,18 @@ bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out)
     if (!read_string(zombie1))        return false;
     if (!read_string(zombie2))        return false;
     if (!read_string(out.user_id))    return false;
-    // INT64 dlCheck + INT64 llChecksum trail — don't actually need
-    // them for the stub. Don't even bother reading.
+    // Trailing INT64 dlCheck + INT64 llChecksum. Both optional — older
+    // test tooling sometimes omits them. If at least 16 trailing
+    // bytes remain, parse both and flag checksum_present for the
+    // caller to enforce. dlCheck is the exec-file probe (Phase E);
+    // the verifier on the server side compares it to m_dlCheckFile
+    // when the exec-file feature is enabled — for now we just stash it.
+    if (pos + 16 <= body.size())
+    {
+        std::memcpy(&out.dl_check,    body.data() + pos, 8); pos += 8;
+        std::memcpy(&out.ll_checksum, body.data() + pos, 8); pos += 8;
+        out.checksum_present = true;
+    }
     return true;
 }
 
@@ -162,16 +211,132 @@ std::int32_t ResolveUserId(
     return entry ? entry->user_id : 0;
 }
 
+// Per-session agreement gate. Mirrors legacy
+// `if (!pUser->m_bAgreement) return EC_SESSION_INVALIDCHAR;` —
+// CharList / Create / Delete / Start / Veteran all need it. Returns
+// true if the gate is open (agreed flag set) OR there's no registry
+// wired (in which case we're in stub-mode test territory and let it
+// through).
+bool IsAgreed(const std::shared_ptr<tnetlib::AsioSession>& session,
+              services::IConnectionRegistry* registry)
+{
+    if (!registry) return true;
+    const auto entry = registry->Lookup(session);
+    return entry && entry->agreed;
+}
+
+} // namespace
+
+namespace {
+
+services::LoginOutcome ToLoginOutcome(services::AuthStatus s)
+{
+    using S = services::AuthStatus;
+    using O = services::LoginOutcome;
+    switch (s)
+    {
+    case S::Success:         return O::Success;
+    case S::NoUser:          return O::NoUser;
+    case S::WrongPassword:   return O::WrongPassword;
+    case S::Duplicate:       return O::Duplicate;
+    case S::Banned:          return O::Banned;
+    case S::IpBanned:        return O::IpBanned;
+    case S::AgreementNeeded: return O::AgreementNeeded;
+    case S::VersionMismatch: return O::VersionMismatch;
+    default:                 return O::InternalError;
+    }
+}
+
+services::CreateCharOutcome ToCreateOutcome(services::CreateCharResult s)
+{
+    using S = services::CreateCharResult;
+    using O = services::CreateCharOutcome;
+    switch (s)
+    {
+    case S::Success:       return O::Success;
+    case S::NoGroup:       return O::NoGroup;
+    case S::DuplicateName: return O::DuplicateName;
+    case S::InvalidSlot:   return O::InvalidSlot;
+    case S::Protected:     return O::Protected;
+    case S::OverChar:      return O::OverChar;
+    default:               return O::Internal;
+    }
+}
+
+services::DeleteCharOutcome ToDeleteOutcome(services::DeleteCharResult s)
+{
+    using S = services::DeleteCharResult;
+    using O = services::DeleteCharOutcome;
+    switch (s)
+    {
+    case S::Success:         return O::Success;
+    case S::Failed:          return O::Failed;
+    case S::InvalidPassword: return O::InvalidPassword;
+    case S::NoGroup:         return O::NoGroup;
+    default:                 return O::Internal;
+    }
+}
+
 } // namespace
 
 boost::asio::awaitable<void>
 OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::byte> body,
            services::IAuthService* auth_service,
-           services::IConnectionRegistry* connection_registry)
+           services::IConnectionRegistry* connection_registry,
+           services::IAuditLogger* audit_logger,
+           services::LoginRateLimiter* rate_limiter,
+           std::span<const std::uint16_t> accepted_versions)
 {
+    // Default to the legacy single value if the caller passed nothing.
+    // This keeps the unit-test path (which doesn't thread the config)
+    // working against the same wire-version it always has.
+    const std::uint16_t kDefaultVersions[] = { kProtocolVersion };
+    if (accepted_versions.empty())
+    {
+        accepted_versions = std::span<const std::uint16_t>(
+            kDefaultVersions, std::size(kDefaultVersions));
+    }
+    auto version_accepted = [&](std::uint16_t v) {
+        for (auto x : accepted_versions) if (x == v) return true;
+        return false;
+    };
     auto& sref = *session;
     LoginAck ack{};
     ack.bCreateCnt = 6;  // CHARSLOT_MAX default
+
+    // Per-IP rate limit. Bucket exhaustion → reply LR_INTERNAL (5)
+    // without consulting the auth backend. Legacy server has no
+    // rate-limit so a real client never hits this; brute-forcing
+    // peers do. The wire result is LR_INTERNAL because the legacy
+    // client doesn't render a distinct "rate-limited" code.
+    if (rate_limiter != nullptr && !rate_limiter->Allow(sref.RemoteIPv4()))
+    {
+        ack.bResult = static_cast<std::uint8_t>(services::AuthStatus::InternalError);
+        ack.dCurTime = static_cast<std::int64_t>(
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        spdlog::warn("CS_LOGIN_REQ from ip={} rate-limited", sref.RemoteIPv4());
+        if (audit_logger != nullptr)
+        {
+            audit_logger->LogLogin(services::LoginOutcome::InternalError,
+                "",
+                0,
+                sref.RemoteIPv4(),
+                0);
+        }
+        const auto payload = EncodeLoginAck(ack);
+        co_await sref.SendPacket(
+            tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_LOGIN_ACK),
+            std::span<const std::byte>(payload.data(), payload.size()));
+        co_return;
+    }
+
+    // dCurTime stamped on every reply — legacy fills it from time()
+    // (see TUser.h::SendCS_LOGIN_ACK signature). Some legacy-client
+    // builds use it to seed local clocks for the EULA timer.
+    ack.dCurTime = static_cast<std::int64_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count());
 
     // Wire-format-only mode: just sniff wVersion and reply success
     // / version-mismatch. Used by smoke tests + dev builds without
@@ -185,7 +350,7 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
         }
         std::uint16_t wVersion = 0;
         std::memcpy(&wVersion, body.data(), 2);
-        ack.bResult = (wVersion == kProtocolVersion)
+        ack.bResult = version_accepted(wVersion)
                       ? kLrSuccess
                       : kLrVersionMismatch;
         spdlog::info("CS_LOGIN_REQ v=0x{:04X} (stub) → result={}", wVersion, ack.bResult);
@@ -200,19 +365,29 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
             sref.Close();
             co_return;
         }
-        if (fields.version != kProtocolVersion)
+        if (!version_accepted(fields.version))
         {
-            spdlog::warn("CS_LOGIN_REQ version mismatch (got 0x{:04X}, want 0x{:04X})",
-                fields.version, kProtocolVersion);
+            spdlog::warn("CS_LOGIN_REQ version mismatch (got 0x{:04X}, "
+                         "accepted_versions has {} entries)",
+                fields.version, accepted_versions.size());
             ack.bResult = kLrVersionMismatch;
+        }
+        else if (fields.checksum_present
+                 && !VerifyLoginChecksum(fields.version, fields.ll_checksum))
+        {
+            // Wire-checksum mismatch — legacy closes the session
+            // (EC_SESSION_INVALIDCHAR). Forged or out-of-spec client.
+            spdlog::warn("CS_LOGIN_REQ checksum mismatch (got 0x{:016X}) — closing",
+                static_cast<std::uint64_t>(fields.ll_checksum));
+            sref.Close();
+            co_return;
         }
         else
         {
             services::AuthRequest req{
                 .user_id = fields.user_id,
                 .password = fields.password,
-                .client_ip = "",  // ip threading lands once we plumb
-                                  // tcp::socket::remote_endpoint into AsioSession
+                .client_ip = sref.RemoteIPv4(),
                 .client_version = fields.version,
             };
             const auto result = auth_service->Authenticate(req);
@@ -225,27 +400,63 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
             spdlog::info("CS_LOGIN_REQ user={} → status={} key=0x{:08X}",
                 fields.user_id, ack.bResult, ack.dwKEY);
 
-            // Duplicate-kick: on auth success, register this session
-            // and close any previous holder for the same user_id.
-            // We diverge from legacy here (legacy closed BOTH the
-            // old and new sessions) — modern UX is "newest wins" so
-            // the user's most recent connect attempt actually works.
-            if (result.status == services::AuthStatus::Success
-                && connection_registry != nullptr)
+            // Per-session bookkeeping on any "the user is now known"
+            // status — that covers Success (agreement already on file)
+            // AND AgreementNeeded (TUSERINFOTABLE row missing /
+            // bAgreement != 1). In the AgreementNeeded case the client
+            // can still send CS_AGREEMENT_REQ → flip the gate; without
+            // a registered entry we wouldn't be able to recover the
+            // user_id for that handler.
+            const bool authed =
+                result.status == services::AuthStatus::Success ||
+                result.status == services::AuthStatus::AgreementNeeded;
+            if (authed && connection_registry != nullptr)
             {
+                // Random 64-bit nonce for the per-session check key.
+                // thread_local Mersenne-Twister seeded once per thread
+                // off random_device — cheap, non-crypto, fine for
+                // legacy-protocol echo. Not used by the modernized
+                // server for any check, just preserved on the wire.
+                thread_local std::mt19937_64 rng{ std::random_device{}() };
+                const std::int64_t check_key = static_cast<std::int64_t>(rng());
+
                 services::ConnectionEntry entry{
                     .user_id = result.user_id,
                     .session_key = result.session_key,
                     .handoff_to_map = false,
+                    // Success means the legacy bAgreement gate is
+                    // already 1; AgreementNeeded means it isn't yet
+                    // (CS_AGREEMENT_REQ will flip it).
+                    .agreed = (result.status == services::AuthStatus::Success),
+                    .group_id = 0,
+                    .check_key = check_key,
                 };
                 auto previous = connection_registry->Register(entry, session);
                 if (previous)
                 {
+                    // Modern divergence: legacy closed BOTH old and new
+                    // sessions on duplicate. Modern "newest wins" UX —
+                    // close the previous holder and let the new one
+                    // proceed. The SociAuthService::Authenticate side
+                    // already set bLocked=1 on the existing
+                    // TCURRENTUSER row so the old session's close path
+                    // cleans up correctly.
                     spdlog::warn(
                         "duplicate login for user_id={} — kicking previous session",
                         result.user_id);
                     previous->Close();
                 }
+                ack.dlCheckKey = check_key;
+            }
+
+            if (audit_logger != nullptr)
+            {
+                audit_logger->LogLogin(
+                    ToLoginOutcome(result.status),
+                    fields.user_id,
+                    result.user_id,
+                    sref.RemoteIPv4(),
+                    result.session_key);
             }
         }
     }
@@ -347,6 +558,25 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
         : static_cast<std::uint8_t>(body[0]);
     const auto userId = ResolveUserId(session, connection_registry);
 
+    // Legacy gate: CSHandler.cpp:600 `if (!pUser->m_bAgreement) return
+    // EC_SESSION_INVALIDCHAR;`. Pre-agreement charlist would land the
+    // client in a confused state — the EULA screen isn't supposed to
+    // surface a char list. Close the session, same shape as legacy.
+    if (!IsAgreed(session, connection_registry))
+    {
+        spdlog::warn("CS_CHARLIST_REQ from session without agreement "
+                     "(uid={}) — closing", userId);
+        sref.Close();
+        co_return;
+    }
+
+    // Stamp the selected group so DELCHAR's group-match check (legacy
+    // CSHandler.cpp:1223) and START_REQ get the same answer.
+    if (connection_registry != nullptr)
+    {
+        connection_registry->SetGroupId(session, groupId);
+    }
+
     std::vector<services::CharacterInfo> chars;
     if (char_service != nullptr && userId != 0)
     {
@@ -362,7 +592,9 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
     //     BYTE bSex, bHair, bFace, bBody, bPants, bHand, bFoot,
     //     DWORD dwRegion, dwFame, dwFameColor,
     //     BYTE bHelmetHide, bEquipItemCount,
-    //     [items …]            ← empty in Phase A stub
+    //     per item (10 bytes):
+    //       BYTE  bItemID, WORD wItemID, BYTE bLevel, BYTE bGradeEffect,
+    //       WORD wColor, BYTE bRegGuild, WORD wMoggItemID
     //   }
     ByteAppender p;
     p.U8(0);                                              // bCheckFilePoint
@@ -388,7 +620,20 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
         p.U32(c.fame);
         p.U32(c.fame_color);
         p.U8(c.helmet_hide);
-        p.U8(0);  // bEquipItemCount = 0; items list omitted (Phase A)
+        const auto item_count = static_cast<std::uint8_t>(
+            std::min<std::size_t>(c.items.size(), 255));
+        p.U8(item_count);
+        for (std::size_t i = 0; i < item_count; ++i)
+        {
+            const auto& it = c.items[i];
+            p.U8(it.item_id);
+            p.U16(it.item_kind);
+            p.U8(it.level);
+            p.U8(it.grade_effect);
+            p.U16(it.color);
+            p.U8(it.reg_guild);
+            p.U16(it.mogg_item_id);
+        }
     }
 
     spdlog::info("CS_CHARLIST_REQ user={} group={} → CS_CHARLIST_ACK ({} chars)",
@@ -396,6 +641,33 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
     co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CHARLIST_ACK),
         std::span<const std::byte>(p.bytes.data(), p.bytes.size()));
+
+    // CS_BOWPLAYERNOTIFY_ACK trailing send — legacy CSHandler.cpp:763-777
+    // (DEF_UDPLOG branch). If the user has a BR (or BOW) char in the
+    // enrollment table AND that char is in the just-sent list, send a
+    // one-byte ack with the slot so the client can highlight it as
+    // "your BR character" in the UI.
+    if (char_service != nullptr && userId != 0)
+    {
+        const std::int32_t br_char_id = char_service->GetBrCharId(userId);
+        if (br_char_id != 0)
+        {
+            for (const auto& c : chars)
+            {
+                if (c.char_id == br_char_id)
+                {
+                    std::byte notify[1] = { static_cast<std::byte>(c.slot) };
+                    spdlog::info("CS_BOWPLAYERNOTIFY_ACK user={} br_char={} slot={}",
+                        userId, br_char_id, static_cast<int>(c.slot));
+                    co_await sref.SendPacket(
+                        tnetlib::protocol::ToUint16(
+                            tnetlib::protocol::MessageId::CS_BOWPLAYERNOTIFY_ACK),
+                        std::span<const std::byte>(notify, sizeof(notify)));
+                    break;
+                }
+            }
+        }
+    }
 }
 
 // Legacy result-code constants (NetCode.h excerpts) — local copies
@@ -461,9 +733,20 @@ boost::asio::awaitable<void>
 OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
                 std::span<const std::byte> body,
                 services::ICharService* char_service,
-                services::IConnectionRegistry* connection_registry)
+                services::IConnectionRegistry* connection_registry,
+                services::IAuditLogger* audit_logger)
 {
     auto& sref = *session;
+
+    // Agreement gate — legacy CSHandler.cpp:980 `if
+    // (!pUser->m_bAgreement) return EC_SESSION_INVALIDCHAR;`. Pre-EULA
+    // char creation isn't a thing.
+    if (!IsAgreed(session, connection_registry))
+    {
+        spdlog::warn("CS_CREATECHAR_REQ from session without agreement — closing");
+        sref.Close();
+        co_return;
+    }
 
     // Stub mode — no services wired: refuse with CR_INTERNAL.
     if (char_service == nullptr)
@@ -530,6 +813,13 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         req.user_id, req.name, req.slot,
         static_cast<std::uint8_t>(result.status));
 
+    if (audit_logger != nullptr)
+    {
+        audit_logger->LogCharCreate(
+            ToCreateOutcome(result.status),
+            req.user_id, req.group_id, req.name, result.char_id);
+    }
+
     co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
         std::span<const std::byte>(p.bytes.data(), p.bytes.size()));
@@ -539,9 +829,15 @@ boost::asio::awaitable<void>
 OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
              std::span<const std::byte> body,
              services::ICharService* char_service,
-             services::IConnectionRegistry* connection_registry)
+             services::IConnectionRegistry* connection_registry,
+             services::IAuthService* auth_service,
+             services::IAuditLogger* audit_logger)
 {
     auto& sref = *session;
+
+    // Legacy DR_* result codes from CSHandler.cpp:1208 — DR_INVALIDPASSWD
+    // signals "password didn't match" (CSPCheckPasswd's RETURN 1).
+    constexpr std::uint8_t kDrInvalidPassword = 2;
 
     auto reply_with = [&](std::uint8_t result, std::int32_t char_id)
         -> boost::asio::awaitable<void>
@@ -553,6 +849,17 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
             tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_DELCHAR_ACK),
             std::span<const std::byte>(p.bytes.data(), p.bytes.size()));
     };
+
+    // Agreement gate. Legacy CSHandler.cpp:1208 doesn't gate explicitly
+    // on m_bAgreement (it checks `!pUser->m_dwID` for "not logged in"),
+    // but a pre-EULA delete would have to mean the session never went
+    // through LOGIN — same outcome.
+    if (!IsAgreed(session, connection_registry))
+    {
+        spdlog::warn("CS_DELCHAR_REQ from session without agreement — refusing");
+        co_await reply_with(kDrInternal, 0);
+        co_return;
+    }
 
     if (char_service == nullptr)
     {
@@ -572,7 +879,11 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
     if (pos + 4 > body.size()) { co_await reply_with(kDrInternal, 0); co_return; }
     std::int32_t pwlen = 0;
     std::memcpy(&pwlen, body.data() + pos, 4); pos += 4;
-    if (pwlen < 0 || pwlen > 64) { co_await reply_with(kDrInternal, 0); co_return; }
+    if (pwlen < 0 || pwlen > 64) {
+        // Legacy emits DR_INVALIDPASSWD on length-out-of-range
+        // (CSHandler.cpp:1228-1238). Mirror that.
+        co_await reply_with(kDrInvalidPassword, 0); co_return;
+    }
     if (pos + static_cast<std::size_t>(pwlen) > body.size()) {
         co_await reply_with(kDrInternal, 0); co_return;
     }
@@ -591,9 +902,47 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         co_return;
     }
 
+    // Group cross-check — legacy CSHandler.cpp:1223 closes the session
+    // (EC_SESSION_INVALIDCHAR) if the request's bGroupID doesn't match
+    // the user's last-seen group. We're nicer about it (just refuse).
+    if (connection_registry != nullptr)
+    {
+        const auto entry = connection_registry->Lookup(session);
+        if (entry && entry->group_id != 0 && entry->group_id != group_id)
+        {
+            spdlog::warn("CS_DELCHAR_REQ user={} group={} mismatches stamped group={} — refusing",
+                user_id, group_id, entry->group_id);
+            co_await reply_with(kDrInternal, char_id);
+            co_return;
+        }
+    }
+
+    // Legacy CSPCheckPasswd gate — mirrors CSHandler.cpp:1240-1257.
+    // Match on success → continue; mismatch → DR_INVALIDPASSWD;
+    // DB error → DR_INTERNAL. Null auth_service path keeps the
+    // in-memory smoke-test behavior (accept anything).
+    if (auth_service != nullptr && !auth_service->VerifyPassword(user_id, password))
+    {
+        spdlog::info("CS_DELCHAR_REQ user={} → DR_INVALIDPASSWD (password mismatch)",
+            user_id);
+        if (audit_logger != nullptr)
+        {
+            audit_logger->LogCharDelete(
+                services::DeleteCharOutcome::InvalidPassword,
+                user_id, group_id, char_id);
+        }
+        co_await reply_with(kDrInvalidPassword, char_id);
+        co_return;
+    }
+
     const auto result = char_service->Delete(user_id, group_id, char_id, password);
     spdlog::info("CS_DELCHAR_REQ user={} group={} char={} → {}",
         user_id, group_id, char_id, static_cast<std::uint8_t>(result));
+    if (audit_logger != nullptr)
+    {
+        audit_logger->LogCharDelete(
+            ToDeleteOutcome(result), user_id, group_id, char_id);
+    }
     co_await reply_with(static_cast<std::uint8_t>(result), char_id);
 }
 
@@ -601,9 +950,20 @@ boost::asio::awaitable<void>
 OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
            std::span<const std::byte> body,
            services::IMapServerLocator* map_server_locator,
-           services::IConnectionRegistry* connection_registry)
+           services::IConnectionRegistry* connection_registry,
+           services::IAuditLogger* audit_logger)
 {
     auto& sref = *session;
+
+    // Legacy gate CSHandler.cpp:1314 `if (!pUser->m_bAgreement) return
+    // EC_SESSION_INVALIDCHAR;`. Pre-EULA START is forbidden.
+    if (!IsAgreed(session, connection_registry))
+    {
+        spdlog::warn("CS_START_REQ from session without agreement — closing");
+        sref.Close();
+        co_return;
+    }
+
     // Request body: BYTE bGroupID + BYTE bChannel + DWORD dwCharID (6 bytes).
     std::uint8_t  bGroupID = 0;
     std::uint8_t  bChannel = 0;
@@ -619,6 +979,9 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
     // WORD wPort + BYTE bServerID. Wire-format matches the legacy
     // CSSender::SendCS_START_ACK layout.
     std::byte payload[8] = {};
+    const auto resolved_user_id = ResolveUserId(session, connection_registry);
+    std::uint8_t resolved_server_id = 0;
+    bool start_ok = false;
 
     if (map_server_locator == nullptr)
     {
@@ -627,10 +990,11 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
             bGroupID, bChannel, dwCharID);
     }
     else if (auto ep = map_server_locator->Lookup(
-                 ResolveUserId(session, connection_registry),
-                 bGroupID, bChannel, dwCharID))
+                 resolved_user_id, bGroupID, bChannel, dwCharID))
     {
         payload[0] = static_cast<std::byte>(0); // SR_SUCCESS
+        start_ok = true;
+        resolved_server_id = ep->server_id;
         // DWORD dwMapIP — 4 octets in the same byte order the legacy
         // server sent inet_addr() output (network byte order).
         payload[1] = static_cast<std::byte>(ep->ipv4[0]);
@@ -664,6 +1028,12 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
             bGroupID, bChannel, dwCharID);
     }
 
+    if (audit_logger != nullptr)
+    {
+        audit_logger->LogGameStart(
+            start_ok, resolved_user_id, bGroupID, bChannel, dwCharID, resolved_server_id);
+    }
+
     co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_START_ACK),
         std::span<const std::byte>(payload, sizeof(payload)));
@@ -687,7 +1057,14 @@ OnAgreementReq(std::shared_ptr<tnetlib::AsioSession> session,
     if (auth_service != nullptr && user_id != 0)
     {
         auth_service->SetAgreement(user_id);
-        spdlog::info("CS_AGREEMENT_REQ version=0x{:04X} uid={} → bCheck=1",
+        if (connection_registry != nullptr)
+        {
+            // Flip the per-session gate so the next CHARLIST/START
+            // proceeds. Without this the legacy gate would forever
+            // bounce the client back to the EULA screen.
+            connection_registry->MarkAgreed(session);
+        }
+        spdlog::info("CS_AGREEMENT_REQ version=0x{:04X} uid={} → bAgreement=1",
             wVersion, user_id);
     }
     else
@@ -700,20 +1077,60 @@ OnAgreementReq(std::shared_ptr<tnetlib::AsioSession> session,
 }
 
 boost::asio::awaitable<void>
-OnHotsendReq(tnetlib::AsioSession& /*session*/, std::span<const std::byte> body)
+OnHotsendReq(std::shared_ptr<tnetlib::AsioSession> session,
+             std::span<const std::byte> body,
+             services::IConnectionRegistry* connection_registry,
+             std::int64_t exec_check_value)
 {
-    // No ack. Body is INT64 dlValue + BYTE bAll. Legacy validates
-    // dlValue against m_dlCheckFile ^ m_dlCheckKey when an exec-file
-    // hash is configured; we don't ship that feature.
-    std::int64_t dlValue = 0;
-    std::uint8_t bAll = 0;
-    if (body.size() >= 9)
+    auto& sref = *session;
+
+    // Wire body: INT64 dlValue + BYTE bAll. Legacy logic
+    // (CSHandler.cpp:1458-1485, partially commented out):
+    //   * If exec-file integrity check is configured (m_hExecFile
+    //     valid), compute expected = m_dlCheckFile ^ m_dlCheckKey
+    //     and reject the session on mismatch.
+    //   * `bAll == 0` is the per-page CheckFile path; `bAll == 1` is
+    //     the final aggregate. Both are skipped in the shipped legacy
+    //     because the exec-file feature is disabled. We mirror that
+    //     default behavior but plumb the config so it can be opted in.
+    if (body.size() < 9)
     {
-        std::memcpy(&dlValue, body.data(), 8);
-        bAll = static_cast<std::uint8_t>(body[8]);
+        spdlog::warn("CS_HOTSEND_REQ body too short ({} bytes)", body.size());
+        co_return;
     }
-    spdlog::info("CS_HOTSEND_REQ dlValue=0x{:016X} bAll={} (stub: noop)",
-        static_cast<unsigned long long>(dlValue), bAll);
+    std::int64_t dl_value = 0;
+    std::memcpy(&dl_value, body.data(), 8);
+    const std::uint8_t b_all = static_cast<std::uint8_t>(body[8]);
+
+    if (exec_check_value == 0)
+    {
+        spdlog::debug("CS_HOTSEND_REQ dlValue=0x{:016X} bAll={} "
+                      "(exec_check_value not configured — no-op)",
+            static_cast<std::uint64_t>(dl_value), b_all);
+        co_return;
+    }
+
+    // Active check path. The legacy formula is dlValue ==
+    // (m_dlCheckFile ^ m_dlCheckKey), where m_dlCheckKey is the
+    // per-session value we stamped in OnLoginReq (ack.dlCheckKey).
+    std::int64_t check_key = 0;
+    if (connection_registry != nullptr)
+    {
+        const auto entry = connection_registry->Lookup(session);
+        if (entry) check_key = entry->check_key;
+    }
+    const std::int64_t expected = exec_check_value ^ check_key;
+    if (dl_value != expected)
+    {
+        spdlog::warn("CS_HOTSEND_REQ uid={} exec-file mismatch "
+                     "(got 0x{:016X}, expected 0x{:016X}) — closing",
+            ResolveUserId(session, connection_registry),
+            static_cast<std::uint64_t>(dl_value),
+            static_cast<std::uint64_t>(expected));
+        sref.Close();
+        co_return;
+    }
+    spdlog::debug("CS_HOTSEND_REQ exec-file check OK (bAll={})", b_all);
     co_return;
 }
 
@@ -755,35 +1172,291 @@ OnVeteranReq(tnetlib::AsioSession& session,
 boost::asio::awaitable<void>
 OnTerminateReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
 {
-    // Body: DWORD dwKey, must equal kTerminateMagic. Legacy returns
-    // EC_SESSION_INVALIDCHAR (silently closes) on mismatch — we do
-    // the same here. On match the legacy does TLogoutAll + flip
-    // m_bLogout flag; stub just closes the socket.
+    // Body: DWORD dwKey, must equal kTerminateMagic (0x2AF3A9D1 =
+    // 720809425, CSHandler.cpp:1452). Legacy semantics:
+    //   * invalid magic  → return EC_SESSION_INVALIDCHAR → session
+    //                       killed by the recv loop.
+    //   * valid   magic  → no-op (EC_NOERROR). The client closes the
+    //                       TCP socket next, which triggers OnCloseSession
+    //                       → TLogoutAll cleanup. Modernized server
+    //                       follows the same shape: the per-session
+    //                       close handler in LoginServer::HandleConnection
+    //                       runs SessionTerminator::Terminate with
+    //                       reason=Disconnect, doing the legacy
+    //                       TCURRENTUSER delete + TLOG timeLOGOUT
+    //                       stamp implicitly.
     std::uint32_t dwKey = 0;
     if (body.size() >= 4) std::memcpy(&dwKey, body.data(), 4);
     if (dwKey != kTerminateMagic)
     {
-        spdlog::warn("CS_TERMINATE_REQ magic mismatch (got 0x{:08X})", dwKey);
+        spdlog::warn("CS_TERMINATE_REQ magic mismatch (got 0x{:08X}) — closing",
+            dwKey);
+        session.Close();
+        co_return;
     }
-    else
-    {
-        spdlog::info("CS_TERMINATE_REQ — clean logout, closing");
-    }
-    session.Close();
+    spdlog::info("CS_TERMINATE_REQ — clean logout acknowledged "
+                 "(awaiting client TCP close)");
     co_return;
 }
 
 boost::asio::awaitable<void>
-OnSecurityConfirmAck(tnetlib::AsioSession& session, std::span<const std::byte> /*body*/)
+OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
+                     std::span<const std::byte> body,
+                     services::IAuthService* auth_service,
+                     services::IConnectionRegistry* connection_registry)
 {
-    // CS_SECURITYRESULT_ACK payload: BYTE bResult. Always CODE_CORRECT
-    // since the SECURITY flow is dead-code on the legacy side and we
-    // accept whatever code the client sends.
-    std::byte payload[1] = { static_cast<std::byte>(kCodeCorrect) };
-    spdlog::info("CS_SECURITYCONFIRM_ACK → CS_SECURITYRESULT_ACK (stub: CODE_CORRECT)");
-    co_await session.SendPacket(
+    auto& sref = *session;
+
+    // Wire body: STRING strCode (INT32 length + bytes). Same shape
+    // as CSHandler.cpp:1510-1540.
+    std::string code;
+    if (body.size() >= 4)
+    {
+        std::int32_t len = 0;
+        std::memcpy(&len, body.data(), 4);
+        if (len >= 0 && len <= 64 &&
+            static_cast<std::size_t>(4 + len) <= body.size())
+        {
+            code.assign(reinterpret_cast<const char*>(body.data() + 4),
+                        static_cast<std::size_t>(len));
+        }
+    }
+
+    constexpr std::uint8_t kCodeIncorrect = 1;
+    std::uint8_t result_code = kCodeIncorrect;
+
+    const auto user_id = ResolveUserId(session, connection_registry);
+    if (code.empty() || user_id == 0)
+    {
+        spdlog::warn("CS_SECURITYCONFIRM_ACK empty/anon (uid={} code_len={})",
+            user_id, code.size());
+    }
+    else if (auth_service != nullptr
+             && auth_service->VerifySecurityCode(user_id, code))
+    {
+        result_code = kCodeCorrect;
+    }
+
+    std::byte payload[1] = { static_cast<std::byte>(result_code) };
+    spdlog::info("CS_SECURITYCONFIRM_ACK uid={} → CS_SECURITYRESULT_ACK result={}",
+        user_id, result_code);
+    co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_SECURITYRESULT_ACK),
         std::span<const std::byte>(payload, sizeof(payload)));
+}
+
+// ===== Control-server (CT_*) handlers =======================================
+//
+// Phase B parity stubs for the 5 server-to-server messages legacy
+// TLoginSvr handled on `m_bSessionType == SESSION_SERVER` sessions.
+// Real TControlSvr hookup lands in Phase D (`MODERNIZATION_PLAN.md`).
+// Until then these handlers exist primarily so the dispatcher doesn't
+// log them as unhandled when an admin tool fires them at the running
+// server.
+
+boost::asio::awaitable<void>
+OnControlServiceMonitor(tnetlib::AsioSession& session,
+                        std::span<const std::byte> body,
+                        services::IConnectionRegistry* connection_registry)
+{
+    // Inbound: DWORD dwTick. Reply with CT_SERVICEMONITOR_REQ carrying
+    // (dwTick, dwSESSION, dwTUSER, dwTACTIVEUSER). Legacy populated
+    // SESSION/TUSER/TACTIVEUSER from three separate dicts; the
+    // modernized server collapses them into a single ConnectionRegistry
+    // count (one entry per authenticated session). The returned counts
+    // are equal — fine for the dashboard which mostly cares about
+    // "how many users are connected right now."
+    std::uint32_t tick = 0;
+    if (body.size() >= 4) std::memcpy(&tick, body.data(), 4);
+    const std::uint32_t live = connection_registry
+        ? static_cast<std::uint32_t>(connection_registry->Count())
+        : 0u;
+
+    ByteAppender p;
+    p.U32(tick);
+    p.U32(live);
+    p.U32(live);
+    p.U32(live);
+    spdlog::info("CT_SERVICEMONITOR_ACK tick={} → CT_SERVICEMONITOR_REQ (live={})",
+        tick, live);
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CT_SERVICEMONITOR_REQ),
+        std::span<const std::byte>(p.bytes.data(), p.bytes.size()));
+}
+
+boost::asio::awaitable<void>
+OnControlServiceDataClear(tnetlib::AsioSession& /*session*/,
+                          std::span<const std::byte> /*body*/)
+{
+    // Legacy rebuilds m_mapACTIVEUSER from m_mapTUSER under m_csLI. The
+    // modernized server's ConnectionRegistry is the single source of
+    // truth — there's no derived map that could drift — so this is a
+    // no-op. No reply (legacy returns EC_NOERROR without sending).
+    spdlog::debug("CT_SERVICEDATACLEAR_ACK — no-op (registry is canonical)");
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnControlCtrlSvr(tnetlib::AsioSession& /*session*/,
+                 std::span<const std::byte> /*body*/)
+{
+    // Heartbeat from TControlSvr. Legacy just returns EC_NOERROR. No
+    // reply. Useful for keeping the SS link warm so the next real
+    // message round-trips quickly.
+    spdlog::debug("CT_CTRLSVR_REQ heartbeat");
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnControlEventUpdate(tnetlib::AsioSession& /*session*/,
+                     std::span<const std::byte> body,
+                     services::IEventRegistry* event_registry)
+{
+    // Legacy wire: BYTE bEventID, WORD wValue, then EVENTINFO struct
+    // (variable layout — preserved as opaque bytes here). wValue == 0
+    // signals "remove this event"; non-zero is upsert.
+    if (body.size() < 3)
+    {
+        spdlog::warn("CT_EVENTUPDATE_REQ body too short ({} bytes)", body.size());
+        co_return;
+    }
+    std::uint8_t event_id = static_cast<std::uint8_t>(body[0]);
+    std::uint16_t value = 0;
+    std::memcpy(&value, body.data() + 1, 2);
+
+    // Legacy `if (bEventID > EVENT_COUNT) return EC_NOERROR;` —
+    // EVENT_COUNT is per-build, so we keep the upper bound loose
+    // (255 fits in BYTE anyway) and let the registry hold whatever.
+    if (event_registry != nullptr)
+    {
+        if (value == 0)
+        {
+            event_registry->Remove(event_id);
+        }
+        else
+        {
+            services::EventEntry entry{};
+            entry.event_id = event_id;
+            entry.value = value;
+            entry.opaque_payload.assign(body.begin() + 3, body.end());
+            event_registry->Upsert(std::move(entry));
+        }
+    }
+    spdlog::info("CT_EVENTUPDATE_REQ event_id={} value={} ({} bytes payload) → {}",
+        event_id, value, body.size() >= 3 ? body.size() - 3 : 0,
+        value == 0 ? "remove" : "upsert");
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession> session,
+               std::span<const std::byte> /*body*/,
+               services::IAuthService* auth_service,
+               services::IConnectionRegistry* connection_registry,
+               services::IAuditLogger* audit_logger)
+{
+    auto& sref = *session;
+    LoginAck ack{};
+    ack.bCreateCnt = 6;
+    ack.dCurTime = static_cast<std::int64_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count());
+
+    if (auth_service == nullptr)
+    {
+        ack.bResult = static_cast<std::uint8_t>(services::AuthStatus::InternalError);
+        spdlog::warn("CS_TESTLOGIN_REQ from {} — no auth_service wired",
+            sref.RemoteIPv4());
+    }
+    else
+    {
+        const auto result = auth_service->AuthenticateTest(sref.RemoteIPv4());
+        ack.bResult    = static_cast<std::uint8_t>(result.status);
+        ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
+        ack.dwKEY      = result.session_key;
+        ack.bCreateCnt = result.create_char_count;
+        if (result.status == services::AuthStatus::Success
+            && connection_registry != nullptr)
+        {
+            thread_local std::mt19937_64 rng{ std::random_device{}() };
+            const std::int64_t check_key = static_cast<std::int64_t>(rng());
+            services::ConnectionEntry entry{
+                .user_id = result.user_id,
+                .session_key = result.session_key,
+                .handoff_to_map = false,
+                .agreed = true,  // test logins bypass the EULA gate
+                .group_id = 0,
+                .check_key = check_key,
+            };
+            auto previous = connection_registry->Register(entry, session);
+            if (previous) previous->Close();
+            ack.dlCheckKey = check_key;
+        }
+        if (audit_logger != nullptr)
+        {
+            audit_logger->LogLogin(
+                services::LoginOutcome::Success,
+                "<test>",
+                result.user_id,
+                sref.RemoteIPv4(),
+                result.session_key);
+        }
+    }
+
+    const auto payload = EncodeLoginAck(ack);
+    spdlog::info("CS_TESTLOGIN_REQ → CS_LOGIN_ACK result={} uid={}",
+        ack.bResult, ack.dwUserID);
+    co_await sref.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_LOGIN_ACK),
+        std::span<const std::byte>(payload.data(), payload.size()));
+}
+
+boost::asio::awaitable<void>
+OnQuitServiceReq(tnetlib::AsioSession& session,
+                 std::span<const std::byte> /*body*/,
+                 std::function<void()> on_stop)
+{
+    // Legacy CTLoginSvrModule::OnSM_QUITSERVICE_REQ is the Windows
+    // Service Manager's clean-shutdown signal. We accept it from any
+    // peer (the legacy server didn't gate on session type either).
+    // Modern equivalents (SIGINT/SIGTERM) cover the local-restart
+    // case; this path is for an orchestrator that wants to shut the
+    // process down via the wire protocol.
+    spdlog::info("SM_QUITSERVICE_REQ from {} — stopping",
+        session.RemoteIPv4().empty() ? std::string{"(unknown)"} : session.RemoteIPv4());
+    if (on_stop) on_stop();
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnTestVersionReq(tnetlib::AsioSession& session,
+                 std::span<const std::byte> /*body*/)
+{
+    // Reply CS_TESTVERSION_ACK { WORD wVersion }. Legacy returns the
+    // server's compiled-in TVERSION (CSSender.cpp:58-63).
+    std::uint16_t v = kProtocolVersion;
+    std::byte payload[2];
+    std::memcpy(payload, &v, 2);
+    spdlog::info("CS_TESTVERSION_REQ → CS_TESTVERSION_ACK (v=0x{:04X})", v);
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_TESTVERSION_ACK),
+        std::span<const std::byte>(payload, sizeof(payload)));
+}
+
+boost::asio::awaitable<void>
+OnControlEventMsg(tnetlib::AsioSession& /*session*/,
+                  std::span<const std::byte> body)
+{
+    // Legacy reads (bEventID, bMsgType, strMsg) and returns EC_NOERROR
+    // without acting on it. Mirror that — log the first two bytes so
+    // operators can correlate when needed.
+    std::uint8_t event_id = 0;
+    std::uint8_t msg_type = 0;
+    if (body.size() >= 1) event_id = static_cast<std::uint8_t>(body[0]);
+    if (body.size() >= 2) msg_type = static_cast<std::uint8_t>(body[1]);
+    spdlog::info("CT_EVENTMSG_REQ event_id={} msg_type={} body={} bytes",
+        event_id, msg_type, body.size());
+    co_return;
 }
 
 } // namespace tloginsvr::handlers

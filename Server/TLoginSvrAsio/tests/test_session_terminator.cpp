@@ -11,10 +11,10 @@
 //   B. login + START_REQ success → terminator called with MapHandoff reason
 
 #include "../login_server.h"
-#include "../services/in_memory_auth_service.h"
-#include "../services/in_memory_connection_registry.h"
-#include "../services/in_memory_map_server_locator.h"
-#include "../services/in_memory_session_terminator.h"
+#include "../services/fake_auth_service.h"
+#include "../services/local_connection_registry.h"
+#include "../services/fake_map_server_locator.h"
+#include "../services/fake_session_terminator.h"
 #include "asio_session.h"
 #include "MessageId.h"
 
@@ -136,10 +136,10 @@ void TestPlainDisconnectFiresTerminator()
 {
     std::printf("[plain disconnect → SessionTerminator called with Disconnect]\n");
 
-    auto auth = std::make_unique<tloginsvr::services::InMemoryAuthService>();
+    auto auth = std::make_unique<tloginsvr::services::FakeAuthService>();
     auth->AddUser("alice", "pw", /*db_id=*/1001);
-    auto registry = std::make_unique<tloginsvr::services::InMemoryConnectionRegistry>();
-    auto term = std::make_unique<tloginsvr::services::InMemorySessionTerminator>();
+    auto registry = std::make_unique<tloginsvr::services::LocalConnectionRegistry>();
+    auto term = std::make_unique<tloginsvr::services::FakeSessionTerminator>();
 
     asio::io_context server_io;
     tloginsvr::LoginServerConfig cfg{};
@@ -183,11 +183,11 @@ void TestStartReqFlipsToMapHandoff()
 {
     std::printf("[LOGIN + START_REQ + close → terminator called with MapHandoff]\n");
 
-    auto auth = std::make_unique<tloginsvr::services::InMemoryAuthService>();
+    auto auth = std::make_unique<tloginsvr::services::FakeAuthService>();
     auth->AddUser("bob", "pw", /*db_id=*/2002);
-    auto registry = std::make_unique<tloginsvr::services::InMemoryConnectionRegistry>();
-    auto term = std::make_unique<tloginsvr::services::InMemorySessionTerminator>();
-    auto locator = std::make_unique<tloginsvr::services::InMemoryMapServerLocator>();
+    auto registry = std::make_unique<tloginsvr::services::LocalConnectionRegistry>();
+    auto term = std::make_unique<tloginsvr::services::FakeSessionTerminator>();
+    auto locator = std::make_unique<tloginsvr::services::FakeMapServerLocator>();
     locator->AddMapServer(1, tloginsvr::services::MapEndpoint{
         .ipv4 = {127, 0, 0, 1}, .port = 5815, .server_id = 1});
 
@@ -232,8 +232,8 @@ void TestUnauthenticatedSessionDoesNotFireTerminator()
 {
     std::printf("[connect + disconnect without login → no terminator call]\n");
 
-    auto registry = std::make_unique<tloginsvr::services::InMemoryConnectionRegistry>();
-    auto term = std::make_unique<tloginsvr::services::InMemorySessionTerminator>();
+    auto registry = std::make_unique<tloginsvr::services::LocalConnectionRegistry>();
+    auto term = std::make_unique<tloginsvr::services::FakeSessionTerminator>();
 
     asio::io_context server_io;
     tloginsvr::LoginServerConfig cfg{};

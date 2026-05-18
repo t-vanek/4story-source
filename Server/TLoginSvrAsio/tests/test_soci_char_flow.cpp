@@ -93,7 +93,8 @@ void RunTests(const std::string& conn)
         WipeFixtures(*lease, prefix);
     }
 
-    tloginsvr::services::SociCharService svc(pool);
+    // Single-DB test layout — pass the same pool for both global + world.
+    tloginsvr::services::SociCharService svc(pool, pool);
     using namespace tloginsvr::services;
 
     const int user_a = 2000001;
@@ -311,7 +312,7 @@ void RunTests(const std::string& conn)
         }
 
         // Spin up a fresh service so it reloads the veteran cache.
-        SociCharService svc_vet(pool);
+        SociCharService svc_vet(pool, pool);
 
         auto req = MakeCreateReq(
             user_a, world, prefix + "Vetx", /*slot=*/5, kCountryPeace);
@@ -340,7 +341,7 @@ void RunTests(const std::string& conn)
             sql << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") VALUES (3, 33)";
             sql << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") VALUES (99, 99)";
         }
-        SociCharService svc_chart(pool);
+        SociCharService svc_chart(pool, pool);
         const auto vl = svc_chart.GetVeteranLevels();
         Check(vl.first  == 11, "GetVeteranLevels: first (lowest bID)");
         Check(vl.second == 22, "GetVeteranLevels: second");
@@ -352,7 +353,7 @@ void RunTests(const std::string& conn)
 
     // 18. GetVeteranLevels — empty chart → all zeros.
     {
-        SociCharService svc_empty(pool);
+        SociCharService svc_empty(pool, pool);
         const auto vl = svc_empty.GetVeteranLevels();
         Check(vl.first == 0 && vl.second == 0 && vl.third == 0,
             "GetVeteranLevels: empty chart → 0/0/0");

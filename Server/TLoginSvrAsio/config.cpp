@@ -87,6 +87,28 @@ AppConfig LoadConfig(const std::string& path)
                 throw std::runtime_error("server.port out of range: " + std::to_string(*p));
             cfg.server.port = static_cast<std::uint16_t>(*p);
         }
+        // accepted_versions = [0x2918, 0x2917, …]
+        // List of CS_LOGIN_REQ.wVersion values the server will accept.
+        // Missing → defaults to the legacy single value 0x2918.
+        if (auto t = (*srv)["test_handlers_enabled"].value<bool>())
+            cfg.server.test_handlers_enabled = *t;
+        if (auto av = (*srv)["accepted_versions"].as_array())
+        {
+            std::vector<std::uint16_t> list;
+            for (const auto& el : *av)
+            {
+                if (auto v = el.value<std::int64_t>())
+                {
+                    if (*v < 0 || *v > 0xFFFF)
+                        throw std::runtime_error(
+                            "server.accepted_versions: value out of u16 range: "
+                            + std::to_string(*v));
+                    list.push_back(static_cast<std::uint16_t>(*v));
+                }
+            }
+            if (!list.empty())
+                cfg.server.accepted_versions = std::move(list);
+        }
     }
 
     // [crypto]
@@ -102,12 +124,43 @@ AppConfig LoadConfig(const std::string& path)
         }
     }
 
+    // [audit] — optional UDP shim to TLogSvr collector.
+    if (auto audit = tbl["audit"].as_table())
+    {
+        if (auto udp = (*audit)["udp"].as_table())
+        {
+            if (auto h = (*udp)["host"].value<std::string>())
+                cfg.audit_udp_host = *h;
+            if (auto p = (*udp)["port"].value<std::int64_t>())
+            {
+                if (*p < 0 || *p > 65535)
+                    throw std::runtime_error("audit.udp.port out of range: "
+                        + std::to_string(*p));
+                cfg.audit_udp_port = static_cast<std::uint16_t>(*p);
+            }
+        }
+    }
+
     // [log]
     if (auto log = tbl["log"].as_table())
     {
         if (auto lvl = (*log)["level"].value<std::string>())
         {
             cfg.log_level = ParseLogLevel(*lvl);
+        }
+    }
+
+    // [admin] — opt-in TCP shell.
+    if (auto admin = tbl["admin"].as_table())
+    {
+        if (auto h = (*admin)["bind"].value<std::string>())
+            cfg.admin_bind = *h;
+        if (auto p = (*admin)["port"].value<std::int64_t>())
+        {
+            if (*p < 0 || *p > 65535)
+                throw std::runtime_error("admin.port out of range: "
+                    + std::to_string(*p));
+            cfg.admin_port = static_cast<std::uint16_t>(*p);
         }
     }
 
@@ -122,25 +175,37 @@ AppConfig LoadConfig(const std::string& path)
         }
     }
 
-    // [database] — Phase B: SOCI-backed services. Absence / empty
-    // `connection_string` keeps the binary in legacy / in-memory mode.
-    if (auto db = tbl["database"].as_table())
+    // [database] — TGLOBAL (accounts, sessions, server registry).
+    // [database.world] — TGAME (per-world chars, items, guilds).
+    // Absence / empty `connection_string` on the global section keeps the
+    // binary in legacy / in-memory mode. Missing [database.world] degrades
+    // gracefully: char service falls back to in-memory, map locator skips
+    // BR/BOW shard checks.
+    auto parse_db = [](const toml::table& t, DbConfig& out, const char* section)
     {
-        if (auto b = (*db)["backend"].value<std::string>())
-            cfg.database.backend = *b;
-        if (auto c = (*db)["connection_string"].value<std::string>())
-            cfg.database.connection_string = *c;
-        if (auto p = (*db)["pool_size"].value<std::int64_t>())
+        if (auto b = t["backend"].value<std::string>())
+            out.backend = *b;
+        if (auto c = t["connection_string"].value<std::string>())
+            out.connection_string = *c;
+        if (auto p = t["pool_size"].value<std::int64_t>())
         {
             if (*p < 1 || *p > 1024)
-                throw std::runtime_error("database.pool_size out of range: "
+                throw std::runtime_error(std::string(section) + ".pool_size out of range: "
                     + std::to_string(*p));
-            cfg.database.pool_size = static_cast<std::size_t>(*p);
+            out.pool_size = static_cast<std::size_t>(*p);
+        }
+    };
+    if (auto db = tbl["database"].as_table())
+    {
+        parse_db(*db, cfg.database, "database");
+        if (auto world = (*db)["world"].as_table())
+        {
+            parse_db(*world, cfg.database_world, "database.world");
         }
     }
 
     spdlog::info("loaded config from '{}' — server.port={} health.port={} rc4={} "
-                 "db={} log_level={}",
+                 "db_global={} db_world={} log_level={}",
         path,
         cfg.server.port,
         cfg.health_port,
@@ -148,6 +213,9 @@ AppConfig LoadConfig(const std::string& path)
         cfg.database.connection_string.empty()
             ? "in-memory"
             : (cfg.database.backend + " (pool=" + std::to_string(cfg.database.pool_size) + ")"),
+        cfg.database_world.connection_string.empty()
+            ? "in-memory"
+            : (cfg.database_world.backend + " (pool=" + std::to_string(cfg.database_world.pool_size) + ")"),
         spdlog::level::to_string_view(cfg.log_level));
 
     return cfg;

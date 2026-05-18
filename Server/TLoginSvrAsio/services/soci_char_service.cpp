@@ -29,47 +29,28 @@ constexpr std::uint8_t kMaxCharsPerUser    = 6;  // legacy CHARSLOT_MAX
 constexpr std::uint8_t kCountryPeace       = 4;  // NetCode.h: TCONTRY_PEACE
 constexpr std::uint8_t kPeaceStartLevel    = 1;  // peace country starts at 1
 constexpr std::uint8_t kChoiceStartLevel   = 9;  // NetCode.h: CHOICE_COUNTRY_LEVEL
-constexpr std::int32_t kClassCount         = 6;  // NetCode.h: TCLASS_COUNT (WARRIOR..SORCERER)
+constexpr std::int32_t kClassCount         = 6;  // NetCode.h: TCLASS_COUNT
+
+// Equipped-inventory selector for CTBLItem (NetCode.h):
+//   bStorageType = STORAGE_INVEN = 0
+//   dwStorageID  = INVEN_EQUIP   = 0xFE
+//   bOwnerType   = TOWNER_CHAR   = 0
+constexpr int kStorageInven = 0;
+constexpr int kInvenEquip   = 0xFE;
+constexpr int kOwnerChar    = 0;
 
 // Starter inventory per class — placeholder mapping. The legacy SP
-// CSPCreateChar inserts the real starter inventory and we don't have
-// its source here; these item IDs are tuned to NOT collide with the
-// 16-bit reserved ranges, but they're meant to be replaced once the
-// prod item catalog is wired. Each tuple is (bItemID, wItemID, bLevel).
-//
-// Wired now because the wire-format CHARLIST ack expects bEquipCount + N
-// equipment rows; without something here new chars show as naked which
-// confuses the client. Treat as scaffolding, not gameplay-tuned.
+// CSPCreateChar inserts the gameplay-tuned starter set; we don't have
+// its source here. Each tuple: (storage_type, item_kind, item_id, level).
 struct StarterItem { std::int16_t storage_type; std::int16_t item_kind; std::int16_t item_id; std::int16_t level; };
 const StarterItem* StarterSet(std::uint8_t char_class, std::size_t& out_n)
 {
-    // bStorageType 1 = equipped (legacy ITEMSTOR_EQUIP); 2 = inventory.
-    // bItemID is the slot/category (legacy TItem.h enum), wItemID is
-    // the specific item template id.
-    static const StarterItem warrior[] = {
-        { 1, 1,   1, 1 },  // sword (slot=weapon)
-        { 1, 5,  10, 1 },  // tunic (slot=body)
-    };
-    static const StarterItem ranger[] = {
-        { 1, 1,   2, 1 },  // dagger
-        { 1, 5,  10, 1 },
-    };
-    static const StarterItem archer[] = {
-        { 1, 1,   3, 1 },  // bow
-        { 1, 5,  10, 1 },
-    };
-    static const StarterItem wizard[] = {
-        { 1, 1,   4, 1 },  // staff
-        { 1, 5,  11, 1 },  // robe
-    };
-    static const StarterItem priest[] = {
-        { 1, 1,   4, 1 },
-        { 1, 5,  11, 1 },
-    };
-    static const StarterItem sorcerer[] = {
-        { 1, 1,   4, 1 },
-        { 1, 5,  11, 1 },
-    };
+    static const StarterItem warrior[] = { { 1, 1, 1, 1 }, { 1, 5, 10, 1 } };
+    static const StarterItem ranger[]  = { { 1, 1, 2, 1 }, { 1, 5, 10, 1 } };
+    static const StarterItem archer[]  = { { 1, 1, 3, 1 }, { 1, 5, 10, 1 } };
+    static const StarterItem wizard[]  = { { 1, 1, 4, 1 }, { 1, 5, 11, 1 } };
+    static const StarterItem priest[]  = { { 1, 1, 4, 1 }, { 1, 5, 11, 1 } };
+    static const StarterItem sorcerer[]= { { 1, 1, 4, 1 }, { 1, 5, 11, 1 } };
     switch (char_class)
     {
     case 0: out_n = std::size(warrior);  return warrior;
@@ -78,22 +59,28 @@ const StarterItem* StarterSet(std::uint8_t char_class, std::size_t& out_n)
     case 3: out_n = std::size(wizard);   return wizard;
     case 4: out_n = std::size(priest);   return priest;
     case 5: out_n = std::size(sorcerer); return sorcerer;
-    default:
-        out_n = 0;
-        return nullptr;
+    default: out_n = 0; return nullptr;
     }
 }
 
 } // namespace
 
-SociCharService::SociCharService(db::SessionPool& pool)
-    : m_pool(pool)
+SociCharService::SociCharService(db::SessionPool& global_pool,
+                                 db::SessionPool& world_pool)
+    : m_global(global_pool)
+    , m_world(world_pool)
 {
-    // Best-effort TVETERANCHART load. Empty / missing is OK — chars
-    // then just get the country-based starting level.
+    RefreshVeteranChart();
+}
+
+void SociCharService::RefreshVeteranChart()
+{
+    // Best-effort TVETERANCHART load from TGLOBAL. Empty / missing is OK —
+    // chars then just get the country-based starting level.
+    std::unordered_map<std::uint8_t, std::uint8_t> next;
     try
     {
-        auto lease = m_pool.Acquire();
+        auto lease = m_global.Acquire();
         soci::session& sql = *lease;
         int opt = 0, lvl = 0;
         soci::statement st = (sql.prepare <<
@@ -102,76 +89,167 @@ SociCharService::SociCharService(db::SessionPool& pool)
         st.execute();
         while (st.fetch())
         {
-            m_veteran_levels[static_cast<std::uint8_t>(opt)] =
+            next[static_cast<std::uint8_t>(opt)] =
                 static_cast<std::uint8_t>(lvl);
         }
-        spdlog::info("char_service: loaded {} veteran-chart row(s)",
-            m_veteran_levels.size());
     }
     catch (const std::exception& ex)
     {
         spdlog::warn("char_service: TVETERANCHART unreadable ({}) — "
                      "veteran bonus disabled",
             ex.what());
+        return;
     }
+    std::lock_guard<std::mutex> lock(m_veteran_mtx);
+    m_veteran_levels = std::move(next);
+    spdlog::info("char_service: refreshed {} veteran-chart row(s)",
+        m_veteran_levels.size());
 }
 
 std::vector<CharacterInfo>
-SociCharService::List(std::int32_t user_id, std::uint8_t group_id)
+SociCharService::List(std::int32_t user_id, std::uint8_t /*group_id*/)
 {
-    auto lease = m_pool.Acquire();
+    // TCHARTABLE / TITEMTABLE / TGUILDMEMBERTABLE / TGUILDTABLE are
+    // per-world (TGAME). The current schema doesn't carry a bWorldID
+    // column on TCHARTABLE — each world has its own TGAME DB, so the
+    // world pool already pins us to the right world.
+    auto lease = m_world.Acquire();
     soci::session& sql = *lease;
 
+    std::vector<CharacterInfo> out;
     try
     {
-        // Join TCHARTABLE to TALLCHARTABLE so we can filter by world.
-        // In legacy DB-per-world deployments the join is implicit (one
-        // DB per world), here it's explicit so a single PG/MSSQL works
-        // for multi-world setups.
-        soci::rowset<soci::row> rs = (sql.prepare <<
-            "SELECT c.\"dwCharID\", c.\"szNAME\", c.\"bSlot\", c.\"bLevel\","
-            "       c.\"bClass\", c.\"bRace\", c.\"bCountry\", c.\"bSex\","
-            "       c.\"bHair\", c.\"bFace\", c.\"bBody\", c.\"bPants\","
-            "       c.\"bHand\", c.\"bFoot\", c.\"bHelmetHide\","
-            "       c.\"dwRegion\", c.\"bStartAct\" "
-            "FROM \"TCHARTABLE\" c "
-            "JOIN \"TALLCHARTABLE\" a ON a.\"dwCharID\" = c.\"dwCharID\" "
-            "WHERE c.\"dwUserID\" = :uid "
-            "  AND a.\"bWorldID\" = :w "
-            "  AND c.\"bDelete\" = 0 "
-            "ORDER BY c.\"bSlot\"",
-            soci::use(user_id), soci::use(static_cast<int>(group_id)));
-
-        std::vector<CharacterInfo> out;
-        for (const auto& r : rs)
+        // Step 1 — character rows. Scope the rowset to release its
+        // cursor before any other query runs on the same connection
+        // (MSSQL "SQL state 24000" otherwise).
         {
-            CharacterInfo info{};
-            info.char_id     = r.get<int>(0);
-            info.name        = r.get<std::string>(1);
-            info.slot        = static_cast<std::uint8_t>(r.get<int>(2));
-            info.level       = static_cast<std::uint8_t>(r.get<int>(3));
-            info.char_class  = static_cast<std::uint8_t>(r.get<int>(4));
-            info.race        = static_cast<std::uint8_t>(r.get<int>(5));
-            info.country     = static_cast<std::uint8_t>(r.get<int>(6));
-            info.sex         = static_cast<std::uint8_t>(r.get<int>(7));
-            info.hair        = static_cast<std::uint8_t>(r.get<int>(8));
-            info.face        = static_cast<std::uint8_t>(r.get<int>(9));
-            info.body        = static_cast<std::uint8_t>(r.get<int>(10));
-            info.pants       = static_cast<std::uint8_t>(r.get<int>(11));
-            info.hand        = static_cast<std::uint8_t>(r.get<int>(12));
-            info.foot        = static_cast<std::uint8_t>(r.get<int>(13));
-            info.helmet_hide = static_cast<std::uint8_t>(r.get<int>(14));
-            info.region      = static_cast<std::uint32_t>(r.get<int>(15));
-            info.start_act   = static_cast<std::uint8_t>(r.get<int>(16));
-            out.push_back(std::move(info));
+            soci::rowset<soci::row> rs = (sql.prepare <<
+                "SELECT \"dwCharID\", \"szNAME\", \"bSlot\", \"bLevel\","
+                "       \"bClass\", \"bRace\", \"bCountry\", \"bSex\","
+                "       \"bHair\", \"bFace\", \"bBody\", \"bPants\","
+                "       \"bHand\", \"bFoot\", \"bHelmetHide\","
+                "       \"dwRegion\", \"bStartAct\" "
+                "FROM \"TCHARTABLE\" "
+                "WHERE \"dwUserID\" = :uid "
+                "  AND \"bDelete\" = 0 "
+                "ORDER BY \"bSlot\"",
+                soci::use(user_id));
+            for (const auto& r : rs)
+            {
+                CharacterInfo info{};
+                info.char_id     = r.get<int>(0);
+                info.name        = r.get<std::string>(1);
+                info.slot        = static_cast<std::uint8_t>(r.get<int>(2));
+                info.level       = static_cast<std::uint8_t>(r.get<int>(3));
+                info.char_class  = static_cast<std::uint8_t>(r.get<int>(4));
+                info.race        = static_cast<std::uint8_t>(r.get<int>(5));
+                info.country     = static_cast<std::uint8_t>(r.get<int>(6));
+                info.sex         = static_cast<std::uint8_t>(r.get<int>(7));
+                info.hair        = static_cast<std::uint8_t>(r.get<int>(8));
+                info.face        = static_cast<std::uint8_t>(r.get<int>(9));
+                info.body        = static_cast<std::uint8_t>(r.get<int>(10));
+                info.pants       = static_cast<std::uint8_t>(r.get<int>(11));
+                info.hand        = static_cast<std::uint8_t>(r.get<int>(12));
+                info.foot        = static_cast<std::uint8_t>(r.get<int>(13));
+                info.helmet_hide = static_cast<std::uint8_t>(r.get<int>(14));
+                info.region      = static_cast<std::uint32_t>(r.get<int>(15));
+                info.start_act   = static_cast<std::uint8_t>(r.get<int>(16));
+                out.push_back(std::move(info));
+            }
+        }
+
+        // Step 2 — equipped items + guild fame per char. Two small
+        // per-char queries matching legacy CTBLItem + TGetGuildInfo
+        // semantics. Done in a separate pass after the char rowset is
+        // released so the cursor doesn't conflict.
+        for (auto& info : out)
+        {
+            const int char_id = info.char_id;
+            const int storage_type = kStorageInven;
+            const int storage_id   = kInvenEquip;
+            const int owner_type   = kOwnerChar;
+
+            // Items — column aliasing per legacy DBAccess.h:607-628.
+            // dwTime3 → wColor, dwTime4 → bRegGuild.
+            try
+            {
+                soci::rowset<soci::row> items = (sql.prepare <<
+                    "SELECT \"bItemID\", \"wItemID\", \"bLevel\", "
+                    "       \"bGradeEffect\", \"dwTime3\", \"dwTime4\", "
+                    "       \"wMoggItemID\" "
+                    "FROM \"TITEMTABLE\" "
+                    "WHERE \"dwOwnerID\" = :c "
+                    "  AND \"bOwnerType\" = :ot "
+                    "  AND \"bStorageType\" = :st "
+                    "  AND \"dwStorageID\" = :sid",
+                    soci::use(char_id),
+                    soci::use(owner_type),
+                    soci::use(storage_type),
+                    soci::use(storage_id));
+                for (const auto& r : items)
+                {
+                    EquipItem it{};
+                    it.item_id      = static_cast<std::uint8_t>(r.get<int>(0));
+                    it.item_kind    = static_cast<std::uint16_t>(r.get<int>(1));
+                    it.level        = static_cast<std::uint8_t>(r.get<int>(2));
+                    it.grade_effect = static_cast<std::uint8_t>(r.get<int>(3));
+                    it.color        = static_cast<std::uint16_t>(r.get<int>(4));
+                    it.reg_guild    = static_cast<std::uint8_t>(r.get<int>(5));
+                    it.mogg_item_id = static_cast<std::uint16_t>(r.get<int>(6));
+                    info.items.push_back(it);
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("char.List items char_id={} skipped: {}",
+                    char_id, ex.what());
+            }
+
+            // Guild fame — TGetGuildInfo SP equivalent. Two-step lookup:
+            // TGUILDMEMBERTABLE → dwGuildID; if found, TGUILDTABLE for
+            // szName/dwFame/dwFameColor. No row in either → fame stays 0.
+            try
+            {
+                int guild_id = 0;
+                soci::indicator gid_ind = soci::i_null;
+                {
+                    soci::statement g = (sql.prepare <<
+                        "SELECT \"dwGuildID\" FROM \"TGUILDMEMBERTABLE\" "
+                        "WHERE \"dwCharID\" = :c",
+                        soci::use(char_id),
+                        soci::into(guild_id, gid_ind));
+                    g.execute(true);
+                }
+                if (gid_ind != soci::i_null && guild_id > 0)
+                {
+                    int fame = 0;
+                    int fame_color = 0;
+                    soci::indicator fame_ind = soci::i_null, color_ind = soci::i_null;
+                    {
+                        soci::statement gt = (sql.prepare <<
+                            "SELECT \"dwFame\", \"dwFameColor\" FROM \"TGUILDTABLE\" "
+                            "WHERE \"dwID\" = :g",
+                            soci::use(guild_id),
+                            soci::into(fame, fame_ind),
+                            soci::into(fame_color, color_ind));
+                        gt.execute(true);
+                    }
+                    if (fame_ind != soci::i_null) info.fame = static_cast<std::uint32_t>(fame);
+                    if (color_ind != soci::i_null) info.fame_color = static_cast<std::uint32_t>(fame_color);
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("char.List guild char_id={} skipped: {}",
+                    char_id, ex.what());
+            }
         }
         return out;
     }
     catch (const std::exception& ex)
     {
-        spdlog::error("char.List(uid={}, group={}) DB error: {}",
-            user_id, static_cast<int>(group_id), ex.what());
-        return {};
+        spdlog::error("char.List(uid={}) DB error: {}", user_id, ex.what());
+        return out; // return whatever was collected so far
     }
 }
 
@@ -184,14 +262,44 @@ SociCharService::Create(const CharacterCreateRequest& req)
         return CharacterCreateResponse{ .status = CreateCharResult::OverChar };
     }
 
-    auto lease = m_pool.Acquire();
+    // Name reservations live in TGLOBAL — check those first.
+    {
+        auto lease = m_global.Acquire();
+        soci::session& sql = *lease;
+        try
+        {
+            int reserved_hit = 0;
+            sql << "SELECT COUNT(*) FROM \"TRESERVEDNAME\" WHERE \"szName\" = :n",
+                soci::use(req.name), soci::into(reserved_hit);
+            if (reserved_hit > 0)
+            {
+                spdlog::info("char.Create rejected (reserved) name='{}'", req.name);
+                return CharacterCreateResponse{ .status = CreateCharResult::Protected };
+            }
+
+            int keep_hit = 0;
+            sql << "SELECT COUNT(*) FROM \"TKEEPINGNAME\" WHERE \"szName\" = :n",
+                soci::use(req.name), soci::into(keep_hit);
+            if (keep_hit > 0)
+            {
+                spdlog::info("char.Create rejected (kept) name='{}'", req.name);
+                return CharacterCreateResponse{ .status = CreateCharResult::Protected };
+            }
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::error("char.Create name-check (global) DB error: {}", ex.what());
+            return CharacterCreateResponse{ .status = CreateCharResult::Internal };
+        }
+    }
+
+    // Everything else (live name lookup, slot check, INSERT) goes against
+    // the per-world TGAME.
+    auto lease = m_world.Acquire();
     soci::session& sql = *lease;
 
     try
     {
-        // Name conflict: check live row in TCHARTABLE, plus the
-        // reservation tables. Each is a separate small SELECT so the
-        // DR_DuplicateName reason stays distinguishable in the log.
         int name_hit = 0;
         sql << "SELECT COUNT(*) FROM \"TCHARTABLE\" "
                "WHERE \"szNAME\" = :n AND \"bDelete\" = 0",
@@ -203,26 +311,6 @@ SociCharService::Create(const CharacterCreateRequest& req)
             return CharacterCreateResponse{ .status = CreateCharResult::DuplicateName };
         }
 
-        int reserved_hit = 0;
-        sql << "SELECT COUNT(*) FROM \"TRESERVEDNAME\" WHERE \"szName\" = :n",
-            soci::use(req.name), soci::into(reserved_hit);
-        if (reserved_hit > 0)
-        {
-            spdlog::info("char.Create rejected (reserved) name='{}'", req.name);
-            return CharacterCreateResponse{ .status = CreateCharResult::Protected };
-        }
-
-        int keep_hit = 0;
-        sql << "SELECT COUNT(*) FROM \"TKEEPINGNAME\" WHERE \"szName\" = :n",
-            soci::use(req.name), soci::into(keep_hit);
-        if (keep_hit > 0)
-        {
-            spdlog::info("char.Create rejected (kept) name='{}'", req.name);
-            return CharacterCreateResponse{ .status = CreateCharResult::Protected };
-        }
-
-        // Slot availability — TCHARTABLE is the source of truth for live
-        // chars; soft-deleted rows free their slot up.
         int slot_hit = 0;
         sql << "SELECT COUNT(*) FROM \"TCHARTABLE\" "
                "WHERE \"dwUserID\" = :uid AND \"bSlot\" = :s AND \"bDelete\" = 0",
@@ -247,17 +335,6 @@ SociCharService::Create(const CharacterCreateRequest& req)
             return CharacterCreateResponse{ .status = CreateCharResult::OverChar };
         }
 
-        // INSERT TCHARTABLE, capture identity dwCharID via the
-        // backend-appropriate clause: PG uses trailing RETURNING,
-        // MSSQL uses OUTPUT INSERTED.col between the column list and
-        // VALUES. SOCI's into() consumes the single-column result the
-        // same way either way.
-        //
-        // Distinct placeholders for each column — SOCI's positional
-        // binding tracks soci::use() calls one-to-one with the literal
-        // placeholders in the query string, so repeating `:country`
-        // would bind 15 values to 14 slots and silently corrupt the
-        // INSERT.
         const int       ucountry = static_cast<int>(req.country);
         const int       uclass   = static_cast<int>(req.char_class);
         const int       urace    = static_cast<int>(req.race);
@@ -271,41 +348,38 @@ SociCharService::Create(const CharacterCreateRequest& req)
         const int       uslot    = static_cast<int>(req.slot);
         const int       uworld   = static_cast<int>(req.group_id);
 
-        // Starting level: country picks the floor (PEACE=1, others=9),
-        // veteran-bonus option may raise it. Same precedence as legacy
-        // CSHandler.cpp:1083-1087 + SP's country-vs-CHOICE_COUNTRY_LEVEL
-        // branch — the SP stamps the country-based level into TCHARTABLE
-        // and the C++ overlays the veteran-chosen level for the ACK.
         std::uint8_t starting_level = (req.country == kCountryPeace)
             ? kPeaceStartLevel
             : kChoiceStartLevel;
-        if (auto it = m_veteran_levels.find(req.level_option);
-            it != m_veteran_levels.end() && it->second > starting_level)
         {
-            starting_level = it->second;
+            std::lock_guard<std::mutex> vlock(m_veteran_mtx);
+            if (auto it = m_veteran_levels.find(req.level_option);
+                it != m_veteran_levels.end() && it->second > starting_level)
+            {
+                starting_level = it->second;
+            }
         }
         const int ulevel = static_cast<int>(starting_level);
 
-        const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
-        const char* insert_char_sql = is_mssql
-            ? "INSERT INTO \"TCHARTABLE\" "
-              "(\"dwUserID\", \"bSlot\", \"szNAME\", \"bClass\", \"bRace\", "
-              " \"bCountry\", \"bRealSex\", \"bSex\", \"bHair\", \"bFace\", "
-              " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", \"bOriCountry\", "
-              " \"bLevel\") "
-              "OUTPUT INSERTED.\"dwCharID\" "
-              "VALUES (:uid, :slot, :n, :cls, :race, :country, :rsex, :sex, "
-              ":hair, :face, :body, :pants, :hand, :foot, :ori_country, :lvl)"
-            : "INSERT INTO \"TCHARTABLE\" "
-              "(\"dwUserID\", \"bSlot\", \"szNAME\", \"bClass\", \"bRace\", "
-              " \"bCountry\", \"bRealSex\", \"bSex\", \"bHair\", \"bFace\", "
-              " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", \"bOriCountry\", "
-              " \"bLevel\") "
-              "VALUES (:uid, :slot, :n, :cls, :race, :country, :rsex, :sex, "
-              ":hair, :face, :body, :pants, :hand, :foot, :ori_country, :lvl) "
-              "RETURNING \"dwCharID\"";
-        int new_id = 0;
-        sql << insert_char_sql,
+        // TCHARTABLE.dwCharID is NOT IDENTITY in legacy schema — the SP
+        // computes the next id manually. We do the same: SELECT MAX+1
+        // inside the same connection. Race-safety: the world pool
+        // serializes connections one-per-lease, and the MSSQL default
+        // isolation level snapshots the MAX. For multi-instance writes
+        // this would need a sequence table, but the login server is the
+        // only writer.
+        int next_id = 0;
+        sql << "SELECT COALESCE(MAX(\"dwCharID\"), 0) + 1 FROM \"TCHARTABLE\"",
+            soci::into(next_id);
+
+        sql << "INSERT INTO \"TCHARTABLE\" "
+               "(\"dwCharID\", \"dwUserID\", \"bSlot\", \"szNAME\", \"bClass\", \"bRace\", "
+               " \"bCountry\", \"bRealSex\", \"bSex\", \"bHair\", \"bFace\", "
+               " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", \"bOriCountry\", "
+               " \"bLevel\") "
+               "VALUES (:cid, :uid, :slot, :n, :cls, :race, :country, :rsex, :sex, "
+               " :hair, :face, :body, :pants, :hand, :foot, :ori_country, :lvl)",
+            soci::use(next_id),
             soci::use(req.user_id),
             soci::use(uslot),
             soci::use(req.name),
@@ -321,45 +395,17 @@ SociCharService::Create(const CharacterCreateRequest& req)
             soci::use(uhand),
             soci::use(ufoot),
             soci::use(ucountry),  // bOriCountry — same as bCountry on create
-            soci::use(ulevel),
-            soci::into(new_id);
-
-        // Cross-world directory row.
-        sql << "INSERT INTO \"TALLCHARTABLE\" "
-               "(\"dwUserID\", \"bWorldID\", \"dwCharID\", \"bSlot\", \"szName\", "
-               " \"bClass\", \"bRace\", \"bCountry\", \"bSex\", \"bHair\", "
-               " \"bFace\", \"bBody\", \"bPants\", \"bHand\", \"bFoot\", "
-               " \"bLevel\", \"dwEXP\") "
-               "VALUES (:uid, :w, :cid, :slot, :n, :cls, :race, :country, "
-               ":sex, :hair, :face, :body, :pants, :hand, :foot, :lvl, 0)",
-            soci::use(req.user_id),
-            soci::use(uworld),
-            soci::use(new_id),
-            soci::use(uslot),
-            soci::use(req.name),
-            soci::use(uclass),
-            soci::use(urace),
-            soci::use(ucountry),
-            soci::use(usex),
-            soci::use(uhair),
-            soci::use(uface),
-            soci::use(ubody),
-            soci::use(upants),
-            soci::use(uhand),
-            soci::use(ufoot),
             soci::use(ulevel);
 
-        // Starter inventory. The legacy SP CSPCreateChar inserts the
-        // gameplay-tuned starter set; the static table here is a
-        // placeholder so a fresh char isn't naked in the lobby. dlID is
-        // composed deterministically from (char_id, slot) — TITEMTABLE
-        // doesn't auto-increment in our schema (mirrors legacy MSSQL).
+        // Starter inventory in TGAME.TITEMTABLE — dlID is composed
+        // deterministically from (char_id, slot) since the column is not
+        // auto-increment in the legacy schema.
         std::size_t starter_n = 0;
         const auto* starter = StarterSet(req.char_class, starter_n);
         for (std::size_t i = 0; i < starter_n; ++i)
         {
             const std::int64_t dl_id =
-                (static_cast<std::int64_t>(new_id) << 16) | static_cast<std::int64_t>(i);
+                (static_cast<std::int64_t>(next_id) << 16) | static_cast<std::int64_t>(i);
             const int store_type = starter[i].storage_type;
             const int item_kind  = starter[i].item_kind;
             const int item_id    = starter[i].item_id;
@@ -371,11 +417,41 @@ SociCharService::Create(const CharacterCreateRequest& req)
                    "VALUES (:dl, :st, :stid, 1, :own, :ik, :iid, :lvl)",
                 soci::use(dl_id),
                 soci::use(store_type),
-                soci::use(new_id),
-                soci::use(new_id),
+                soci::use(next_id),
+                soci::use(next_id),
                 soci::use(item_kind),
                 soci::use(item_id),
                 soci::use(item_level);
+        }
+
+        // Cross-world directory row in TGLOBAL.TALLCHARTABLE. dwSeq is
+        // identity; we don't need it back here.
+        {
+            auto glease = m_global.Acquire();
+            soci::session& gsql = *glease;
+            gsql << "INSERT INTO \"TALLCHARTABLE\" "
+                    "(\"dwUserID\", \"bWorldID\", \"dwCharID\", \"bSlot\", \"szName\", "
+                    " \"bClass\", \"bRace\", \"bCountry\", \"bSex\", \"bHair\", "
+                    " \"bFace\", \"bBody\", \"bPants\", \"bHand\", \"bFoot\", "
+                    " \"bLevel\", \"dwEXP\") "
+                    "VALUES (:uid, :w, :cid, :slot, :n, :cls, :race, :country, "
+                    " :sex, :hair, :face, :body, :pants, :hand, :foot, :lvl, 0)",
+                soci::use(req.user_id),
+                soci::use(uworld),
+                soci::use(next_id),
+                soci::use(uslot),
+                soci::use(req.name),
+                soci::use(uclass),
+                soci::use(urace),
+                soci::use(ucountry),
+                soci::use(usex),
+                soci::use(uhair),
+                soci::use(uface),
+                soci::use(ubody),
+                soci::use(upants),
+                soci::use(uhand),
+                soci::use(ufoot),
+                soci::use(ulevel);
         }
 
         const std::uint8_t remaining = static_cast<std::uint8_t>(
@@ -384,11 +460,11 @@ SociCharService::Create(const CharacterCreateRequest& req)
         spdlog::info("char.Create user_id={} world={} → char_id={} "
                      "(name='{}', level={}, starter_items={})",
             req.user_id, static_cast<int>(req.group_id),
-            new_id, req.name, ulevel, starter_n);
+            next_id, req.name, ulevel, starter_n);
 
         return CharacterCreateResponse{
             .status          = CreateCharResult::Success,
-            .char_id         = new_id,
+            .char_id         = next_id,
             .remaining_slots = remaining,
             .starting_level  = starting_level,
         };
@@ -407,27 +483,21 @@ SociCharService::Delete(std::int32_t user_id,
                         std::int32_t char_id,
                         const std::string& /*password*/)
 {
-    auto lease = m_pool.Acquire();
+    // Guild check + owner lookup + actual delete all live in TGAME.
+    auto lease = m_world.Acquire();
     soci::session& sql = *lease;
 
     try
     {
-        // Guild block — legacy TDeleteChar returns FAILED if the char
-        // is still in a guild. Player must leave first.
         int guild_hit = 0;
         sql << "SELECT COUNT(*) FROM \"TGUILDMEMBERTABLE\" WHERE \"dwCharID\" = :c",
             soci::use(char_id), soci::into(guild_hit);
         if (guild_hit > 0)
         {
-            spdlog::info("char.Delete char_id={} blocked: still in guild",
-                char_id);
+            spdlog::info("char.Delete char_id={} blocked: still in guild", char_id);
             return DeleteCharResult::Failed;
         }
 
-        // Confirm ownership + read level for the soft-vs-hard split.
-        // Also confirms the char actually exists alive. The statement
-        // is scoped so its cursor closes before the next UPDATE/DELETE
-        // runs on the same connection — required for ODBC/MSSQL.
         int  owner_id = 0;
         int  level    = 0;
         soci::indicator owner_ind = soci::i_null;
@@ -447,36 +517,32 @@ SociCharService::Delete(std::int32_t user_id,
             return DeleteCharResult::Failed;
         }
 
-        // > level 5 → soft delete: keep row for audit/restore window.
-        // ≤ level 5 → hard delete: row removed entirely (legacy behavior
-        // since low-level chars accumulate fast and clutter the table).
         if (level > 5)
         {
             sql << "UPDATE \"TCHARTABLE\" SET \"bDelete\" = 1, "
                    "       \"dDeleteDate\" = CURRENT_TIMESTAMP "
                    "WHERE \"dwCharID\" = :c",
                 soci::use(char_id);
-            // Soft path: leave TITEMTABLE rows intact so a restore
-            // (legacy GM operation) can return the inventory.
         }
         else
         {
             sql << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
                 soci::use(char_id);
-            // Hard path: scrub the inventory too, otherwise orphan
-            // TITEMTABLE rows accumulate forever (no FK in legacy
-            // schema; this service is the only enforcement).
             sql << "DELETE FROM \"TITEMTABLE\" WHERE \"dwOwnerID\" = :c "
                    "  AND \"bOwnerType\" = 1",
                 soci::use(char_id);
         }
 
-        // TALLCHARTABLE always gets the soft-delete marker — audit row
-        // stays even after hard-delete of TCHARTABLE.
-        sql << "UPDATE \"TALLCHARTABLE\" SET \"bDelete\" = 1, "
-               "       \"dDeleteDate\" = CURRENT_TIMESTAMP "
-               "WHERE \"dwCharID\" = :c",
-            soci::use(char_id);
+        // TALLCHARTABLE lives in TGLOBAL — always soft-delete so audit
+        // can reconstruct.
+        {
+            auto glease = m_global.Acquire();
+            soci::session& gsql = *glease;
+            gsql << "UPDATE \"TALLCHARTABLE\" SET \"bDelete\" = 1, "
+                    "       \"dDeleteDate\" = CURRENT_TIMESTAMP "
+                    "WHERE \"dwCharID\" = :c",
+                soci::use(char_id);
+        }
 
         spdlog::info("char.Delete char_id={} (level={}, {})",
             char_id, level, level > 5 ? "soft" : "hard");
@@ -484,17 +550,50 @@ SociCharService::Delete(std::int32_t user_id,
     }
     catch (const std::exception& ex)
     {
-        spdlog::error("char.Delete char_id={} DB error: {}",
-            char_id, ex.what());
+        spdlog::error("char.Delete char_id={} DB error: {}", char_id, ex.what());
         return DeleteCharResult::Internal;
+    }
+}
+
+std::int32_t SociCharService::GetBrCharId(std::int32_t user_id)
+{
+    if (user_id == 0) return 0;
+    auto lease = m_world.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        int char_id = 0;
+        soci::indicator ind = soci::i_null;
+        bool got = false;
+        {
+            // TBRPLAYERTABLE schema (per TGAME): one row per user
+            // currently enrolled in BR. Legacy SP TFindBRPlayer returns
+            // the dwCharID for the user_id. Same shape inlined here so
+            // we don't depend on the SP existing on every world DB.
+            soci::statement st = (sql.prepare <<
+                "SELECT TOP 1 \"dwCharID\" FROM \"TBRPLAYERTABLE\" "
+                "WHERE \"dwUserID\" = :u",
+                soci::use(user_id),
+                soci::into(char_id, ind));
+            st.execute(true);
+            got = st.got_data();
+        }
+        if (!got || ind == soci::i_null) return 0;
+        return char_id;
+    }
+    catch (const std::exception& ex)
+    {
+        // TBRPLAYERTABLE may not exist on every world DB. Quiet
+        // failure — the caller treats 0 as "no BR char" which is the
+        // correct UX when the feature isn't deployed.
+        spdlog::debug("char.GetBrCharId uid={} skipped: {}", user_id, ex.what());
+        return 0;
     }
 }
 
 VeteranLevels SociCharService::GetVeteranLevels() const
 {
-    // m_veteran_levels is keyed by bID (the option index). The wire
-    // ack returns three slots; sort by id and take the first three so
-    // the result is deterministic across DB row order.
+    std::lock_guard<std::mutex> lock(m_veteran_mtx);
     std::vector<std::pair<std::uint8_t, std::uint8_t>> sorted(
         m_veteran_levels.begin(), m_veteran_levels.end());
     std::sort(sorted.begin(), sorted.end());

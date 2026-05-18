@@ -6,6 +6,9 @@
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/redirect_error.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/use_awaitable.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -23,6 +26,14 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_map_server_locator(config.map_server_locator)
     , m_session_terminator(config.session_terminator)
     , m_char_service(config.char_service)
+    , m_audit_logger(config.audit_logger)
+    , m_rate_limiter(config.login_rate_limiter)
+    , m_event_registry(config.event_registry)
+    , m_pre_auth_timeout(config.pre_auth_timeout)
+    , m_accepted_versions(std::move(config.accepted_versions))
+    , m_test_handlers_enabled(config.test_handlers_enabled)
+    , m_on_quit_request(std::move(config.on_quit_request))
+    , m_exec_check_value(config.exec_check_value)
 {
 }
 
@@ -71,6 +82,35 @@ LoginServer::Run()
 boost::asio::awaitable<void>
 LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
 {
+    // Pre-auth idle watchdog. Spawn a deadline that closes the
+    // socket if the session hasn't completed CS_LOGIN_REQ within
+    // m_pre_auth_timeout. Cancel when RunPackets returns (real
+    // disconnect path) — the timer's `wait` will get error_code
+    // operation_aborted which is fine, we just bail.
+    auto watchdog = std::make_shared<boost::asio::steady_timer>(m_io);
+    if (m_pre_auth_timeout.count() > 0)
+    {
+        watchdog->expires_after(m_pre_auth_timeout);
+        const auto registry = m_connection_registry;
+        const auto timeout = m_pre_auth_timeout;
+        boost::asio::co_spawn(
+            m_io,
+            [sess, watchdog, registry, timeout]() -> boost::asio::awaitable<void> {
+                boost::system::error_code ec;
+                co_await watchdog->async_wait(
+                    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+                if (ec) co_return; // timer cancelled — connection healthy
+                // Timer elapsed. If the session is registered, auth
+                // already finished and we don't need to act. Otherwise
+                // it's stuck pre-auth and gets dropped.
+                if (registry && registry->Lookup(sess).has_value())
+                    co_return;
+                spdlog::warn("pre-auth idle timeout ({}s) — closing session", timeout.count());
+                sess->Close();
+            },
+            boost::asio::detached);
+    }
+
     // RunPackets fires the handler synchronously per packet, but the
     // handler we want to invoke is awaitable (it issues SendPacket).
     // Spawn a per-packet coroutine instead of trying to do it inline,
@@ -82,6 +122,13 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
                 Dispatch(sess, packet),
                 boost::asio::detached);
         });
+
+    // Cancel the pre-auth watchdog (no-op if it already fired or was
+    // never armed). Otherwise it might keep a shared_ptr to sess
+    // alive past the connection close. cancel() in Asio 1.91 returns
+    // the number of pending handlers and doesn't throw — no need for
+    // an error_code overload.
+    if (watchdog) watchdog->cancel();
 
     // Connection closing — drive the per-session cleanup chain:
     // 1. Look up the entry stamped at LOGIN-success time (if any).
@@ -122,7 +169,10 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
     switch (id)
     {
     case MessageId::CS_LOGIN_REQ:
-        co_await handlers::OnLoginReq(sess, body, m_auth_service, m_connection_registry);
+        co_await handlers::OnLoginReq(sess, body, m_auth_service,
+            m_connection_registry, m_audit_logger, m_rate_limiter,
+            std::span<const std::uint16_t>(
+                m_accepted_versions.data(), m_accepted_versions.size()));
         break;
     case MessageId::CS_GROUPLIST_REQ:
         co_await handlers::OnGroupListReq(sess, body, m_map_server_locator, m_connection_registry);
@@ -134,19 +184,23 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnCharListReq(sess, body, m_char_service, m_connection_registry);
         break;
     case MessageId::CS_CREATECHAR_REQ:
-        co_await handlers::OnCreateCharReq(sess, body, m_char_service, m_connection_registry);
+        co_await handlers::OnCreateCharReq(sess, body, m_char_service,
+            m_connection_registry, m_audit_logger);
         break;
     case MessageId::CS_DELCHAR_REQ:
-        co_await handlers::OnDelCharReq(sess, body, m_char_service, m_connection_registry);
+        co_await handlers::OnDelCharReq(sess, body, m_char_service,
+            m_connection_registry, m_auth_service, m_audit_logger);
         break;
     case MessageId::CS_START_REQ:
-        co_await handlers::OnStartReq(sess, body, m_map_server_locator, m_connection_registry);
+        co_await handlers::OnStartReq(sess, body, m_map_server_locator,
+            m_connection_registry, m_audit_logger);
         break;
     case MessageId::CS_AGREEMENT_REQ:
         co_await handlers::OnAgreementReq(sess, body, m_auth_service, m_connection_registry);
         break;
     case MessageId::CS_HOTSEND_REQ:
-        co_await handlers::OnHotsendReq(*sess, body);
+        co_await handlers::OnHotsendReq(sess, body,
+            m_connection_registry, m_exec_check_value);
         break;
     case MessageId::CS_VETERAN_REQ:
         co_await handlers::OnVeteranReq(*sess, body, m_char_service);
@@ -155,7 +209,45 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnTerminateReq(*sess, body);
         break;
     case MessageId::CS_SECURITYCONFIRM_ACK:
-        co_await handlers::OnSecurityConfirmAck(*sess, body);
+        co_await handlers::OnSecurityConfirmAck(sess, body,
+            m_auth_service, m_connection_registry);
+        break;
+    case MessageId::CS_TESTLOGIN_REQ:
+        if (m_test_handlers_enabled)
+        {
+            co_await handlers::OnTestLoginReq(sess, body, m_auth_service,
+                m_connection_registry, m_audit_logger);
+        }
+        else
+        {
+            spdlog::warn("CS_TESTLOGIN_REQ received but test_handlers_enabled=false — dropping");
+        }
+        break;
+    case MessageId::CS_TESTVERSION_REQ:
+        if (m_test_handlers_enabled)
+            co_await handlers::OnTestVersionReq(*sess, body);
+        else
+            spdlog::warn("CS_TESTVERSION_REQ received but test_handlers_enabled=false — dropping");
+        break;
+    // Control protocol — TControlSvr / GM tooling. Phase B parity
+    // stubs; real wiring lands with the full TControlSvr port.
+    case MessageId::CT_SERVICEMONITOR_ACK:
+        co_await handlers::OnControlServiceMonitor(*sess, body, m_connection_registry);
+        break;
+    case MessageId::CT_SERVICEDATACLEAR_ACK:
+        co_await handlers::OnControlServiceDataClear(*sess, body);
+        break;
+    case MessageId::CT_CTRLSVR_REQ:
+        co_await handlers::OnControlCtrlSvr(*sess, body);
+        break;
+    case MessageId::CT_EVENTUPDATE_REQ:
+        co_await handlers::OnControlEventUpdate(*sess, body, m_event_registry);
+        break;
+    case MessageId::CT_EVENTMSG_REQ:
+        co_await handlers::OnControlEventMsg(*sess, body);
+        break;
+    case MessageId::SM_QUITSERVICE_REQ:
+        co_await handlers::OnQuitServiceReq(*sess, body, m_on_quit_request);
         break;
     default:
     {

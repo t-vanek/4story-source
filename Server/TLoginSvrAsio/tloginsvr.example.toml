@@ -5,8 +5,17 @@
 # you a working binary.
 
 [server]
-# TCP port for the game protocol (CS_LOGIN_REQ et al).
-port = 4815
+# TCP port for the game protocol (CS_LOGIN_REQ et al). 4816 matches
+# the TSERVER row for bType=TLOGIN_GSP in the legacy schema.
+port = 4816
+
+# Accepted client wire versions. List of CS_LOGIN_REQ.wVersion values
+# the server will accept; everything else gets LR_VERSION. Default if
+# the key is omitted is the single legacy value 0x2918 (matches
+# ProtocolBase.h::TVERSION in the shipped client). Extend the list
+# during rolling upgrades or QA windows that need to flight multiple
+# client builds against the same server.
+# accepted_versions = [0x2918]
 
 [crypto]
 # RC4 wire-encryption layer for the legacy-client direction. Set true
@@ -30,24 +39,28 @@ level = "info"
 # readiness probes and load balancers. Set 0 to disable entirely.
 port = 8815
 
+# ---------------------------------------------------------------------------
+# Databases
+# ---------------------------------------------------------------------------
+# The legacy schema is split:
+#   [database]        — TGLOBAL: accounts (TACCOUNT_PW), sessions
+#                       (TCURRENTUSER), server registry (TSERVER, TIPADDR,
+#                       TGROUP, TCHANNEL), cross-world directory
+#                       (TALLCHARTABLE), name reservations.
+#   [database.world]  — TGAME:   per-world chars (TCHARTABLE), items
+#                       (TITEMTABLE), guilds (TGUILDMEMBERTABLE),
+#                       BR/BOW shard tables.
+#
+# Leaving [database] empty keeps the binary in in-memory dev mode.
+# Configuring [database] but not [database.world] runs auth + session +
+# map locator against TGLOBAL and falls back to in-memory for char ops.
+
 [database]
-# Backend wiring for the SOCI-backed services (Phase B). Leave the
-# whole section commented to run with the in-memory backend (handy
-# for tests and dev with no DB available). Set `connection_string`
-# and the binary acquires a SOCI pool against the chosen backend
-# and routes auth / char / map / session-cleanup through the
-# SociXxx services.
-#
-# Production cutover to the legacy MSSQL DB is a TOML-only change
-# once the schema is present on the target instance — the same
-# binary works against PostgreSQL and SQL Server via SOCI:
-#
-#   # SQL Server (production) — ODBC via msodbcsql18 / FreeTDS:
-#   backend = "odbc"
-#   connection_string = "DSN=MSSQL_PROD;DATABASE=tloginsvr;UID=login;PWD=…"
-#   pool_size = 32
-#
-#   # PostgreSQL (dev / staging):
-#   backend = "postgresql"
-#   connection_string = "host=localhost port=5432 dbname=tloginsvr_dev user=tloginsvr password=devpass"
-#   pool_size = 8
+# backend = "odbc"     # odbc | postgresql | sqlite3
+# connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes"
+# pool_size = 8
+
+[database.world]
+# backend = "odbc"
+# connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGAME_RAGEZONE;Trusted_Connection=yes"
+# pool_size = 8

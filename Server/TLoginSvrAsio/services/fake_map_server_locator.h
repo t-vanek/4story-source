@@ -1,7 +1,12 @@
 #pragma once
 
-// In-memory IMapServerLocator. Seeded via AddMapServer; production
-// dev mode wires one entry pointing at a co-located test Map binary.
+// FakeMapServerLocator — TEST-ONLY in-memory IMapServerLocator.
+// Seeded via AddMapServer; dev mode without a DB wires one entry
+// pointing at a co-located test Map binary.
+//
+// **Not for production.** Production uses SociMapServerLocator which
+// resolves endpoints from TSERVER + TIPADDR joins against TGLOBAL,
+// plus the BR/BOW shard table lookup against TGAME.
 
 #include "map_server_locator.h"
 
@@ -10,7 +15,7 @@
 
 namespace tloginsvr::services {
 
-class InMemoryMapServerLocator : public IMapServerLocator
+class FakeMapServerLocator : public IMapServerLocator
 {
 public:
     // Register the Map endpoint that handles `group_id`. Overwrites

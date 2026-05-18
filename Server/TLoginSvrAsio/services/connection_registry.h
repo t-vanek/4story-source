@@ -41,6 +41,23 @@ struct ConnectionEntry
     // SOCI impl can preserve TCURRENTUSER for the Map server's key
     // validation.
     bool          handoff_to_map = false;
+    // Per-session agreement gate. Mirrors legacy CTUser::m_bAgreement
+    // (TLoginSvr/TUser.h:28). Set to true when LR_SUCCESS comes back
+    // from IAuthService::Authenticate (agreement already on file) or
+    // when CS_AGREEMENT_REQ is acknowledged. CharList / Create /
+    // Delete / Start / Veteran all gate on this — legacy
+    // CSHandler.cpp:600 returns EC_SESSION_INVALIDCHAR if not set.
+    bool          agreed = false;
+    // Selected world group. Stamped on the first CS_CHARLIST_REQ (the
+    // group_id byte the client sends). DELCHAR refuses if the request
+    // arrives with a mismatching bGroupID — same defensive check as
+    // legacy CSHandler.cpp:1223.
+    std::uint8_t  group_id = 0;
+    // Random 64-bit nonce stamped at LOGIN. Echoed in CS_LOGIN_ACK so
+    // the client can derive a per-session HMAC seed for the legacy
+    // exec-check feature. Modernized server doesn't use it but
+    // populates it to match the wire layout.
+    std::int64_t  check_key = 0;
 };
 
 class IConnectionRegistry
@@ -65,6 +82,20 @@ public:
     // Flip handoff_to_map for the registered session.
     virtual void MarkHandoff(
         const std::shared_ptr<tnetlib::AsioSession>& session) = 0;
+
+    // Flip the per-session agreement gate. Called from OnAgreementReq
+    // after IAuthService::SetAgreement returns, and from OnLoginReq
+    // when LR_SUCCESS arrives (agreement already on file). No-op if
+    // the session isn't registered.
+    virtual void MarkAgreed(
+        const std::shared_ptr<tnetlib::AsioSession>& session) = 0;
+
+    // Stamp the per-session selected world group. First CHARLIST_REQ
+    // sets this; downstream handlers (DELCHAR, START) read it back
+    // for cross-check. No-op if the session isn't registered.
+    virtual void SetGroupId(
+        const std::shared_ptr<tnetlib::AsioSession>& session,
+        std::uint8_t group_id) = 0;
 
     // Remove a session. No-op if not registered. Always safe to call
     // from connection-close paths.

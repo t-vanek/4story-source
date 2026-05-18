@@ -5,7 +5,7 @@
 //   2. Group has nothing registered → SR_NOSERVER, body zeroed.
 
 #include "../login_server.h"
-#include "../services/in_memory_map_server_locator.h"
+#include "../services/fake_map_server_locator.h"
 #include "asio_session.h"
 #include "MessageId.h"
 
@@ -107,7 +107,7 @@ void TestStartFlow()
     std::printf("[CS_START_REQ via IMapServerLocator — hit + miss]\n");
 
     auto locator =
-        std::make_unique<tloginsvr::services::InMemoryMapServerLocator>();
+        std::make_unique<tloginsvr::services::FakeMapServerLocator>();
     // Group 1 maps to 192.168.42.7:5815 server_id=2.
     locator->AddMapServer(1, tloginsvr::services::MapEndpoint{
         .ipv4 = {192, 168, 42, 7},

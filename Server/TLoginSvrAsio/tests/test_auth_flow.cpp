@@ -11,7 +11,7 @@
 // handshake test; the new bit is the IAuthService dispatch.
 
 #include "../login_server.h"
-#include "../services/in_memory_auth_service.h"
+#include "../services/fake_auth_service.h"
 #include "asio_session.h"
 #include "MessageId.h"
 
@@ -137,7 +137,7 @@ void TestAuthFlow()
     std::printf("[in-memory auth backend: good / bad-password / no-user / banned-user]\n");
 
     // Seed the backend with one good user and one banned user.
-    auto auth = std::make_unique<tloginsvr::services::InMemoryAuthService>();
+    auto auth = std::make_unique<tloginsvr::services::FakeAuthService>();
     auth->AddUser("alice", "hunter2", /*db_id=*/1001);
     auth->AddUser("bob",   "secret",  /*db_id=*/1002);
     auth->BanUser(/*db_id=*/1002, "spam");

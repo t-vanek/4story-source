@@ -1,7 +1,5 @@
 #include "session_pool.h"
 
-#include <soci/postgresql/soci-postgresql.h>
-#include <soci/sqlite3/soci-sqlite3.h>
 #include <soci/odbc/soci-odbc.h>
 
 #include <spdlog/spdlog.h>
@@ -16,8 +14,20 @@ const soci::backend_factory& BackendFactory(Backend b)
 {
     switch (b)
     {
-    case Backend::PostgreSQL: return soci::postgresql;
-    case Backend::Sqlite3:    return soci::sqlite3;
+    case Backend::PostgreSQL:
+        // The vcpkg soci[postgresql] feature was dropped because libpq's
+        // Windows build is unreliable. Code keeps the enum + dialect
+        // branches so re-enabling is a single feature flip in vcpkg.json
+        // + restoring the soci-postgresql include here.
+        throw std::runtime_error(
+            "postgresql backend not compiled in (re-add soci[postgresql] "
+            "feature to vcpkg.json to enable)");
+    case Backend::Sqlite3:
+        // Similarly, sqlite3 isn't in the vcpkg feature set right now —
+        // re-enable by adding the feature + restoring the include.
+        throw std::runtime_error(
+            "sqlite3 backend not compiled in (re-add soci[sqlite3] feature "
+            "to vcpkg.json to enable)");
     case Backend::Odbc:       return soci::odbc;
     }
     throw std::runtime_error("unknown DB backend");

@@ -1,4 +1,4 @@
-#include "in_memory_char_service.h"
+#include "fake_char_service.h"
 
 #include <algorithm>
 #include <utility>
@@ -27,7 +27,7 @@ constexpr std::uint8_t kMaxCharsPerUser = 6;  // legacy CHARSLOT_MAX
 
 } // namespace
 
-void InMemoryCharService::AddCharacter(std::int32_t user_id,
+void FakeCharService::AddCharacter(std::int32_t user_id,
                                        std::uint8_t group_id,
                                        CharacterInfo info)
 {
@@ -45,7 +45,7 @@ void InMemoryCharService::AddCharacter(std::int32_t user_id,
 }
 
 std::vector<CharacterInfo>
-InMemoryCharService::List(std::int32_t user_id, std::uint8_t group_id)
+FakeCharService::List(std::int32_t user_id, std::uint8_t group_id)
 {
     std::lock_guard<std::mutex> lock(m_mtx);
     if (auto it = m_chars.find(MakeKey(user_id, group_id)); it != m_chars.end())
@@ -61,7 +61,7 @@ InMemoryCharService::List(std::int32_t user_id, std::uint8_t group_id)
 }
 
 CharacterCreateResponse
-InMemoryCharService::Create(const CharacterCreateRequest& req)
+FakeCharService::Create(const CharacterCreateRequest& req)
 {
     // Name validation first — same charset / length as legacy.
     if (!IsValidCharName(req.name))
@@ -130,7 +130,7 @@ InMemoryCharService::Create(const CharacterCreateRequest& req)
 }
 
 DeleteCharResult
-InMemoryCharService::Delete(std::int32_t user_id,
+FakeCharService::Delete(std::int32_t user_id,
                             std::uint8_t group_id,
                             std::int32_t char_id,
                             const std::string& /*password*/)
@@ -147,6 +147,24 @@ InMemoryCharService::Delete(std::int32_t user_id,
     m_name_to_char_id.erase(target->name);
     list.erase(target);
     return DeleteCharResult::Success;
+}
+
+void FakeCharService::SetBrChar(std::int32_t user_id, std::int32_t char_id)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (char_id == 0)
+        m_br_user_to_char.erase(user_id);
+    else
+        m_br_user_to_char[user_id] = char_id;
+}
+
+std::int32_t FakeCharService::GetBrCharId(std::int32_t user_id)
+{
+    if (user_id == 0) return 0;
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_br_user_to_char.find(user_id); it != m_br_user_to_char.end())
+        return it->second;
+    return 0;
 }
 
 } // namespace tloginsvr::services

@@ -38,10 +38,28 @@ public:
 
     AuthResult Authenticate(const AuthRequest& req) override;
 
-    // Mirrors legacy CSPAgreement SP: UPDATE TACCOUNT_PW SET bCheck=1
-    // WHERE dwUserID=:uid. Idempotent — re-call for an already-agreed
-    // user is a harmless no-op.
+    // Mirrors legacy CSPAgreement SP — upserts TUSERINFOTABLE.bAgreement=1
+    // for the user. Idempotent — re-calling for an already-agreed user
+    // is a harmless no-op.
     void SetAgreement(std::int32_t user_id) override;
+
+    // Mirrors legacy CSPCheckPasswd SP: SELECT szPasswd FROM TACCOUNT_PW
+    // WHERE dwUserID = ?; compare via the same BCrypt/plaintext path as
+    // Authenticate. Used by CS_DELCHAR_REQ to confirm intent before
+    // destructive ops. Returns false on user_id=0, missing row, NULL
+    // password, or mismatch.
+    bool VerifyPassword(std::int32_t user_id,
+                        const std::string& password) override;
+
+    // Mirrors legacy CSPTestLogin SP: picks a random dwUserID from
+    // TTESTLOGINUSER, looks up the matching row in TACCOUNT_PW, and
+    // returns it as a Success result with a fresh session_key (no
+    // password / agreement check). Performs the same TCURRENTUSER +
+    // TLOG inserts as a normal login so disconnect cleanup works.
+    AuthResult AuthenticateTest(const std::string& client_ip) override;
+    bool VerifySecurityCode(std::int32_t user_id,
+                            const std::string& code) override;
+    std::string IssueSecurityCode(std::int32_t user_id) override;
 
 private:
     db::SessionPool& m_pool;

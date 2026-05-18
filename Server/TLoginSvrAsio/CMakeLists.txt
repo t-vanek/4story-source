@@ -7,29 +7,46 @@ set(TLOGINSVR_ASIO_SRC ${CMAKE_CURRENT_SOURCE_DIR})
 find_package(spdlog QUIET)
 find_package(tomlplusplus QUIET)
 
+# libbcrypt — password verification for TACCOUNT_PW. Sources vendored at
+# Lib/3rdParty/bcrypt (no working vcpkg port for libbcrypt; libxcrypt is
+# Unix-only). Target is wired by the root CMakeLists.txt as
+# fourstory_bcrypt.
+set(TLOGINSVR_BCRYPT_LIB fourstory_bcrypt)
+
 # SOCI — pluggable DB layer. Phase B. Distro packages on Debian/Ubuntu
 # ship as plain libs (libsoci_core, libsoci_postgresql, …) without a
 # CMake config file, so probe both paths: native find_package first
 # (vcpkg-installed), then fall back to plain link names.
-find_package(SOCI QUIET)
+find_package(SOCI CONFIG QUIET)
 set(TLOGINSVR_SOCI_LIBS "")
 if(SOCI_FOUND)
-    list(APPEND TLOGINSVR_SOCI_LIBS SOCI::core)
-    if(TARGET SOCI::postgresql)
-        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::postgresql)
+    # vcpkg's SOCI exports targets as SOCI::soci_core / SOCI::soci_odbc
+    # (and `_static` variants). Pick whichever flavor is present.
+    if(TARGET SOCI::soci_core)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::soci_core)
+    elseif(TARGET SOCI::soci_core_static)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::soci_core_static)
     endif()
-    if(TARGET SOCI::sqlite3)
-        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::sqlite3)
+    if(TARGET SOCI::soci_odbc)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::soci_odbc)
+    elseif(TARGET SOCI::soci_odbc_static)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::soci_odbc_static)
     endif()
-    if(TARGET SOCI::odbc)
-        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::odbc)
+    if(TARGET SOCI::soci_sqlite3)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::soci_sqlite3)
+    elseif(TARGET SOCI::soci_sqlite3_static)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::soci_sqlite3_static)
+    endif()
+    if(TARGET SOCI::soci_postgresql)
+        list(APPEND TLOGINSVR_SOCI_LIBS SOCI::soci_postgresql)
     endif()
 else()
     # Debian/Ubuntu: /usr/lib/x86_64-linux-gnu/libsoci_core.so and friends.
     # The order matters for static linkers; backends register themselves
-    # at load time via soci::backend_factory globals.
+    # at load time via soci::backend_factory globals. Postgres backend is
+    # not in the vcpkg feature set right now (see vcpkg.json) — re-add
+    # `soci_postgresql` here when re-enabled.
     list(APPEND TLOGINSVR_SOCI_LIBS
-        soci_postgresql
         soci_sqlite3
         soci_odbc
         soci_core
@@ -40,19 +57,27 @@ endif()
 # instantiate LoginServer in-process instead of forking the binary.
 add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/login_server.cpp
+    ${TLOGINSVR_ASIO_SRC}/admin_shell.cpp
     ${TLOGINSVR_ASIO_SRC}/handlers.cpp
     ${TLOGINSVR_ASIO_SRC}/config.cpp
     ${TLOGINSVR_ASIO_SRC}/health_endpoint.cpp
+    ${TLOGINSVR_ASIO_SRC}/db/schema_validator.cpp
     ${TLOGINSVR_ASIO_SRC}/db/session_pool.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_auth_service.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_connection_registry.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_map_server_locator.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_session_terminator.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_char_service.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/fake_auth_service.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/local_connection_registry.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/local_event_registry.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/fake_map_server_locator.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/fake_session_terminator.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/fake_char_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_auth_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_char_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_map_server_locator.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/soci_session_terminator.cpp)
+    ${TLOGINSVR_ASIO_SRC}/services/soci_session_terminator.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/rate_limiter.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/registry_refresher.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/spdlog_audit_logger.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/spdlog_smtp_client.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/udp_audit_logger.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib
@@ -72,7 +97,7 @@ endif()
 if(NOT LIBPQ_FOUND AND EXISTS /usr/include/postgresql/libpq-fe.h)
     target_include_directories(tloginsvr_asio_core PRIVATE /usr/include/postgresql)
 endif()
-target_link_libraries(tloginsvr_asio_core PUBLIC tnetlib_portable ${TLOGINSVR_SOCI_LIBS})
+target_link_libraries(tloginsvr_asio_core PUBLIC tnetlib_portable ${TLOGINSVR_SOCI_LIBS} ${TLOGINSVR_BCRYPT_LIB})
 if(spdlog_FOUND)
     target_link_libraries(tloginsvr_asio_core PUBLIC spdlog::spdlog)
 else()

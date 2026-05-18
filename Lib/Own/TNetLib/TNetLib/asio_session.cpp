@@ -30,6 +30,16 @@ AsioSession::AsioSession(boost::asio::ip::tcp::socket socket, PeerType type)
     , m_type(type)
     , m_recv_buffer(kRecvChunkBytes)
 {
+    // Capture peer IPv4 once at construction. remote_endpoint() throws
+    // on a closed / unconnected socket; the auth path (IP banlist,
+    // audit log) needs the address even if the socket is gone by the
+    // time it's read.
+    boost::system::error_code ec;
+    auto ep = m_socket.remote_endpoint(ec);
+    if (!ec && ep.address().is_v4())
+    {
+        m_remote_ipv4 = ep.address().to_v4().to_string();
+    }
 }
 
 AsioSession::~AsioSession()

@@ -1,10 +1,10 @@
-#include "in_memory_connection_registry.h"
+#include "local_connection_registry.h"
 
 namespace tloginsvr::services {
 
 std::shared_ptr<tnetlib::AsioSession>
-InMemoryConnectionRegistry::Register(ConnectionEntry entry,
-                                     std::shared_ptr<tnetlib::AsioSession> session)
+LocalConnectionRegistry::Register(ConnectionEntry entry,
+                                  std::shared_ptr<tnetlib::AsioSession> session)
 {
     std::lock_guard<std::mutex> lock(m_mtx);
 
@@ -34,7 +34,7 @@ InMemoryConnectionRegistry::Register(ConnectionEntry entry,
 }
 
 std::optional<ConnectionEntry>
-InMemoryConnectionRegistry::Lookup(
+LocalConnectionRegistry::Lookup(
     const std::shared_ptr<tnetlib::AsioSession>& session) const
 {
     std::lock_guard<std::mutex> lock(m_mtx);
@@ -45,7 +45,7 @@ InMemoryConnectionRegistry::Lookup(
     return std::nullopt;
 }
 
-void InMemoryConnectionRegistry::MarkHandoff(
+void LocalConnectionRegistry::MarkHandoff(
     const std::shared_ptr<tnetlib::AsioSession>& session)
 {
     std::lock_guard<std::mutex> lock(m_mtx);
@@ -55,7 +55,28 @@ void InMemoryConnectionRegistry::MarkHandoff(
     }
 }
 
-void InMemoryConnectionRegistry::Unregister(
+void LocalConnectionRegistry::MarkAgreed(
+    const std::shared_ptr<tnetlib::AsioSession>& session)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_by_session.find(session.get()); it != m_by_session.end())
+    {
+        it->second.agreed = true;
+    }
+}
+
+void LocalConnectionRegistry::SetGroupId(
+    const std::shared_ptr<tnetlib::AsioSession>& session,
+    std::uint8_t group_id)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_by_session.find(session.get()); it != m_by_session.end())
+    {
+        it->second.group_id = group_id;
+    }
+}
+
+void LocalConnectionRegistry::Unregister(
     const std::shared_ptr<tnetlib::AsioSession>& session)
 {
     std::lock_guard<std::mutex> lock(m_mtx);
@@ -78,7 +99,7 @@ void InMemoryConnectionRegistry::Unregister(
     }
 }
 
-std::size_t InMemoryConnectionRegistry::Count() const
+std::size_t LocalConnectionRegistry::Count() const
 {
     std::lock_guard<std::mutex> lock(m_mtx);
     return m_by_session.size();

@@ -54,17 +54,123 @@ bool IsInShard(soci::session& sql,
     return hits > 0;
 }
 
+// Port of TFindServerID (Server/TLoginSvr DB plan, TGAME.dbo.TFindServerID).
+// Resolves the Map server hosting a character's current map zone.
+//
+//   1. Read char's wMapID + (fPosX, fPosZ) + wSpawnID from TCHARTABLE
+//   2. Compute spatial wUnitID = trunc(fPosZ/1024)*256 + trunc(fPosX/1024)
+//   3. JOIN TSVRCHART + TCHANNELCHART for (group, mapID, unitID, channel) → bServerID
+//   4. If no row, fall back to TSPAWNPOSCHART by wSpawnID — char is in a
+//      zone with no server; the legacy SP repositions them to the spawn
+//      point first.
+//   5. Return resolved bServerID, or nullopt if every lookup misses.
+//
+// Step 4's "stamp wMapID + fPosX/fPosZ on the char row" side-effect from
+// the legacy SP is intentionally NOT replicated — that's gameplay state
+// the Map server owns; the legacy bundled it into the routing SP to
+// avoid an extra DB hit, but in our split Map server handles
+// repositioning on EnterMap, and the login server has no business
+// mutating the char row.
+std::optional<int> FindServerForChar(soci::session& sql,
+                                     int char_id,
+                                     int group_id,
+                                     int channel)
+{
+    // SOCI's exchange-traits supports double + long long + int +
+    // std::string. `float` from TCHARTABLE's `real` column reads
+    // back into a `double` cleanly on both MSSQL (FLOAT/REAL → double)
+    // and PG (REAL → double).
+    double pos_x = 0.0, pos_z = 0.0;
+    int    map_id = 0;
+    int    spawn_id = 0;
+    bool   got_char = false;
+    {
+        soci::statement st = (sql.prepare <<
+            "SELECT \"wMapID\", \"fPosX\", \"fPosZ\", \"wSpawnID\" "
+            "FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c "
+            "  AND \"bDelete\" = 0",
+            soci::use(char_id),
+            soci::into(map_id),
+            soci::into(pos_x),
+            soci::into(pos_z),
+            soci::into(spawn_id));
+        st.execute(true);
+        got_char = st.got_data();
+    }
+    if (!got_char) return std::nullopt;
+
+    // Spatial bucket — matches the SP's CAST(fPosZ/1024 AS SMALLINT)*256
+    // + CAST(fPosX/1024 AS SMALLINT). Negative coordinates round
+    // towards zero in both T-SQL CAST AS SMALLINT and C++ static_cast
+    // <int16_t>, so the bucket math stays equivalent.
+    const auto unit_id_for = [](double x, double z) -> int {
+        return static_cast<int>(static_cast<std::int16_t>(z / 1024.0)) * 256
+             + static_cast<int>(static_cast<std::int16_t>(x / 1024.0));
+    };
+    int unit_id = unit_id_for(pos_x, pos_z);
+
+    auto lookup_at = [&](int mid, int uid) -> std::optional<int> {
+        int sid = 0;
+        bool got = false;
+        {
+            soci::statement st = (sql.prepare <<
+                "SELECT TOP 1 s.\"bServerID\" "
+                "FROM \"TSVRCHART\" s "
+                "JOIN \"TCHANNELCHART\" c "
+                "  ON s.\"bGroup\" = c.\"bGroupID\" "
+                " AND s.\"wMapID\" = c.\"wMapID\" "
+                " AND s.\"wUnitID\" = c.\"wUnitID\" "
+                " AND s.\"bChannel\" = c.\"bPhyChannel\" "
+                "WHERE s.\"bGroup\" = :g "
+                "  AND s.\"wMapID\" = :m "
+                "  AND s.\"wUnitID\" = :u "
+                "  AND c.\"bLogChannel\" = :ch",
+                soci::use(group_id),
+                soci::use(mid),
+                soci::use(uid),
+                soci::use(channel),
+                soci::into(sid));
+            st.execute(true);
+            got = st.got_data();
+        }
+        return got ? std::optional<int>(sid) : std::nullopt;
+    };
+
+    if (auto sid = lookup_at(map_id, unit_id)) return sid;
+
+    // Fallback — char is in an invalid zone; repoint to their spawn.
+    double spawn_x = 0.0, spawn_z = 0.0;
+    int    spawn_map = 0;
+    bool   got_spawn = false;
+    {
+        soci::statement st = (sql.prepare <<
+            "SELECT \"wMapID\", \"fPosX\", \"fPosZ\" "
+            "FROM \"TSPAWNPOSCHART\" WHERE \"wID\" = :s",
+            soci::use(spawn_id),
+            soci::into(spawn_map),
+            soci::into(spawn_x),
+            soci::into(spawn_z));
+        st.execute(true);
+        got_spawn = st.got_data();
+    }
+    if (!got_spawn) return std::nullopt;
+    unit_id = unit_id_for(spawn_x, spawn_z);
+    return lookup_at(spawn_map, unit_id);
+}
+
 } // namespace
 
-SociMapServerLocator::SociMapServerLocator(db::SessionPool& pool)
-    : m_pool(pool)
+SociMapServerLocator::SociMapServerLocator(db::SessionPool& global_pool,
+                                           db::SessionPool* world_pool)
+    : m_pool(global_pool)
+    , m_world(world_pool)
 {
 }
 
 std::optional<MapEndpoint>
 SociMapServerLocator::Lookup(std::int32_t user_id,
                              std::uint8_t group_id,
-                             std::uint8_t /*channel*/,
+                             std::uint8_t channel,
                              std::int32_t char_id)
 {
     auto lease = m_pool.Acquire();
@@ -72,20 +178,52 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
 
     try
     {
-        // BR / BOW shard membership — overrides the routing target.
-        // BR takes precedence over BOW per legacy CSHandler ordering
-        // (BR check runs after BOW and unconditionally overrides the
-        // server_id; we collapse it here into a single decision).
-        std::optional<int> shard_override;
-        if (user_id != 0 && char_id != 0)
+        // Three-tier server resolution, matching the legacy chain:
+        //   1. BR / BOW shard membership (TBRPLAYERTABLE / TBOWPLAYERTABLE)
+        //      pins the user to a dedicated shard for those PvP modes.
+        //   2. Otherwise per-character routing via TFindServerID logic —
+        //      char's current zone → bServerID. This is the legacy
+        //      default flow for normal PvE chars.
+        //   3. If both miss, fall through to "first map server in
+        //      group" — used when char_id is 0 (group-list screen) or
+        //      the char's zone has no server registered.
+        std::optional<int> resolved_server_id;
+        if (m_world != nullptr && user_id != 0 && char_id != 0)
         {
-            if (IsInShard(sql, "TBRPLAYERTABLE", user_id, char_id))
+            auto wlease = m_world->Acquire();
+            soci::session& wsql = *wlease;
+            try
             {
-                shard_override = kBrServerId;
+                if (IsInShard(wsql, "TBRPLAYERTABLE", user_id, char_id))
+                {
+                    resolved_server_id = kBrServerId;
+                }
+                else if (IsInShard(wsql, "TBOWPLAYERTABLE", user_id, char_id))
+                {
+                    resolved_server_id = kBowServerId;
+                }
             }
-            else if (IsInShard(sql, "TBOWPLAYERTABLE", user_id, char_id))
+            catch (const std::exception& ex)
             {
-                shard_override = kBowServerId;
+                spdlog::debug("map_locator: shard-table check failed ({}) — "
+                              "defaulting to no override", ex.what());
+            }
+
+            // Per-char routing if BR/BOW didn't claim them.
+            if (!resolved_server_id.has_value())
+            {
+                try
+                {
+                    resolved_server_id = FindServerForChar(
+                        wsql, char_id, static_cast<int>(group_id),
+                        static_cast<int>(channel));
+                }
+                catch (const std::exception& ex)
+                {
+                    spdlog::warn("map_locator: per-char routing failed "
+                                 "(char_id={}): {} — falling back to default",
+                        char_id, ex.what());
+                }
             }
         }
 
@@ -103,7 +241,7 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
         // the first map server in the group (the per-character routing
         // currently isn't wired, see header doc).
         const char* query;
-        if (shard_override.has_value())
+        if (resolved_server_id.has_value())
         {
             query = is_mssql
                 ? "SELECT TOP 1 s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
@@ -145,8 +283,8 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
             // Scope the statement so the cursor closes before this
             // function returns / any other query runs on the connection —
             // ODBC/MSSQL semantics require it; PG is unaffected.
-            const int shard_sid = shard_override.value_or(0);
-            soci::statement st = shard_override.has_value()
+            const int shard_sid = resolved_server_id.value_or(0);
+            soci::statement st = resolved_server_id.has_value()
                 ? (sql.prepare << query,
                     soci::use(static_cast<int>(group_id)),
                     soci::use(kServerTypeMap),
@@ -165,12 +303,12 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
         }
         if (!got_row || ip_ind == soci::i_null)
         {
-            if (shard_override.has_value())
+            if (resolved_server_id.has_value())
             {
                 spdlog::warn("map_locator: shard override server_id={} "
                              "configured for char_id={} but no TSERVER row "
                              "matches in group={}",
-                    *shard_override, char_id, static_cast<int>(group_id));
+                    *resolved_server_id, char_id, static_cast<int>(group_id));
             }
             return std::nullopt;
         }

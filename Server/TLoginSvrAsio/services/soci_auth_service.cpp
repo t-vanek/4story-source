@@ -5,23 +5,73 @@
 
 #include <spdlog/spdlog.h>
 
+#include <bcrypt/bcrypt.h>
+
 #include <chrono>
+#include <cstring>
 #include <ctime>
+#include <random>
 
 namespace tloginsvr::services {
 
 namespace {
 
-bool VerifyPassword(const std::string& stored, const std::string& candidate)
+// $2a$ / $2b$ / $2y$ — BCrypt hash prefixes (Provos & Mazières). Any
+// other shape is treated as legacy plaintext for back-compat with the
+// pre-bcrypt data shape in TACCOUNT_PW.szPasswd.
+bool IsBcrypt(const std::string& s)
 {
-    // Phase B initial impl: plaintext compare. BCrypt verify lands
-    // in Phase C alongside the transparent-upgrade path. Stored
-    // password format is documented as plaintext in the legacy
-    // TACCOUNT_PW schema; production may already have hashed rows
-    // mixed in, which this impl currently rejects (returns false).
-    // Marker for future: if stored starts with "$2", route through
-    // libcrypt-based verifier instead.
-    return stored == candidate;
+    return s.size() >= 4
+        && s[0] == '$' && s[1] == '2'
+        && (s[2] == 'a' || s[2] == 'b' || s[2] == 'y')
+        && s[3] == '$';
+}
+
+// Result of a password check. `matched` is the only bit the caller
+// needs to gate the login on; `needs_rehash` flags a legacy plaintext
+// row that just matched — the caller should rewrite it with a fresh
+// BCrypt hash (transparent upgrade) so the row migrates without
+// forcing the user through a password reset.
+struct PasswordCheck
+{
+    bool matched = false;
+    bool needs_rehash = false;
+};
+
+PasswordCheck CheckPassword(const std::string& stored,
+                            const std::string& candidate)
+{
+    PasswordCheck r{};
+    if (stored.empty()) return r;
+    if (IsBcrypt(stored))
+    {
+        // libbcrypt: bcrypt_checkpw returns 0 on a match, -1 on miss / err.
+        // The hash must be a valid $2x$cc$<22-salt><31-hash> string; an
+        // invalid hash also returns -1 (logged as wrong password by the
+        // caller).
+        r.matched = ::bcrypt_checkpw(candidate.c_str(), stored.c_str()) == 0;
+        return r;
+    }
+    // Legacy plaintext row — direct compare. On success flag for
+    // transparent upgrade so the caller rewrites it with a fresh
+    // BCrypt hash on the way out.
+    r.matched = (stored == candidate);
+    r.needs_rehash = r.matched;
+    return r;
+}
+
+// Generate a BCrypt hash of `password` at work factor 10. Returns
+// empty string on libbcrypt failure (extremely unlikely — only when
+// the system PRNG can't seed). Cost 10 mirrors the testuser row's
+// $2a$11$ — one step lower for slightly cheaper rehash latency on
+// the login hot path; admins can re-rehash at higher cost offline.
+std::string MakeBcryptHash(const std::string& password)
+{
+    char salt[BCRYPT_HASHSIZE]{};
+    if (::bcrypt_gensalt(10, salt) != 0) return {};
+    char hash[BCRYPT_HASHSIZE]{};
+    if (::bcrypt_hashpw(password.c_str(), salt, hash) != 0) return {};
+    return std::string(hash);
 }
 
 } // namespace
@@ -38,7 +88,7 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
 
     try
     {
-        // Step 1 — IP ban check.
+        // Step 1 — IP banlist (TLogin SP step 1: IPBLACKLIST_game).
         if (!req.client_ip.empty())
         {
             int hit = 0;
@@ -51,15 +101,10 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             }
         }
 
-        // Step 2 — user lookup. TACCOUNT_PW is the credentials store
-        // per legacy CSPLogin (CSHandler.cpp:320). TACCOUNT is the
-        // older / parallel table; not used for auth in legacy SP.
-        //
-        // Scope the statement so its cursor is released before the
-        // next query: ODBC/MSSQL doesn't allow a second statement on
-        // the same connection while a prior result set is open ("SQL
-        // state 24000 — invalid cursor state"). PG's libpq doesn't
-        // care, but the scoped form is also harmless there.
+        // Step 2 — user lookup. Scope the statement so its cursor closes
+        // before the next query — ODBC/MSSQL doesn't allow a second
+        // statement on the same connection while a prior result set is
+        // open ("SQL state 24000 — invalid cursor state").
         int user_id = 0;
         std::string stored_password;
         soci::indicator pw_ind = soci::i_null;
@@ -82,66 +127,117 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         }
 
         // Step 3 — password check.
-        if (pw_ind == soci::i_null || !VerifyPassword(stored_password, req.password))
+        if (pw_ind == soci::i_null)
+        {
+            spdlog::info("auth: user '{}' (uid={}) wrong password (null hash)",
+                req.user_id, user_id);
+            return AuthResult{ .status = AuthStatus::WrongPassword };
+        }
+        const auto pw = CheckPassword(stored_password, req.password);
+        if (!pw.matched)
         {
             spdlog::info("auth: user '{}' (uid={}) wrong password",
                 req.user_id, user_id);
             return AuthResult{ .status = AuthStatus::WrongPassword };
         }
 
-        // Step 4 — user-level ban. Match legacy TGetBanReason
-        // semantics (TLogin.sql:110-125): row with bEternal=1 OR
-        // (startTime + dwDuration_days) in the future blocks login.
-        //
-        // SQL dialect split: PG uses interval arithmetic, MSSQL has
-        // DATEADD. CURRENT_TIMESTAMP is the standard in both. SQLite
-        // accepts the MSSQL form via the datetime() function — not
-        // wired here since SQLite isn't a prod target for this query.
+        // Transparent BCrypt upgrade — fires when a legacy plaintext
+        // row just matched. Rewriting the row inside the same
+        // transaction is fine because we're between the lookup and
+        // the post-auth writes; if the UPDATE fails for any reason we
+        // log and continue (the user is already authenticated and
+        // shouldn't pay for a maintenance write error).
+        if (pw.needs_rehash)
+        {
+            const auto fresh = MakeBcryptHash(req.password);
+            if (!fresh.empty())
+            {
+                try
+                {
+                    sql << "UPDATE \"TACCOUNT_PW\" SET \"szPasswd\" = :h "
+                           "WHERE \"dwUserID\" = :uid",
+                        soci::use(fresh), soci::use(user_id);
+                    spdlog::info("auth: user '{}' (uid={}) — plaintext row upgraded to bcrypt",
+                        req.user_id, user_id);
+                }
+                catch (const std::exception& ex)
+                {
+                    spdlog::warn("auth: bcrypt upgrade failed for uid={} ({}) — login proceeds",
+                        user_id, ex.what());
+                }
+            }
+        }
+
+        // Step 4 — user-level ban. Match the legacy TLogin SP semantics:
+        // two separate SELECTs, one for an active duration window
+        // (startTime + dwDuration days >= now), one for the eternal flag.
+        // The SP runs them in that order and both map to LR_IPBLOCK on
+        // the wire (return 7). Our AuthStatus split keeps Banned (user)
+        // vs IpBanned (network) distinguishable in logs; the handler
+        // collapses both onto the LR_IPBLOCK value the legacy client
+        // expects.
         const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
-        const char* ban_sql = is_mssql
+        const char* ban_dur_sql = is_mssql
             ? "SELECT COUNT(*) FROM \"TUSERPROTECTED\" "
               "WHERE \"dwUserID\" = :uid "
-              "  AND (\"bEternal\" = 1 OR "
-              "       DATEADD(day, \"dwDuration\", \"startTime\") > CURRENT_TIMESTAMP)"
+              "  AND DATEADD(day, \"dwDuration\", \"startTime\") >= CURRENT_TIMESTAMP"
             : "SELECT COUNT(*) FROM \"TUSERPROTECTED\" "
               "WHERE \"dwUserID\" = :uid "
-              "  AND (\"bEternal\" = 1 OR "
-              "       \"startTime\" + (\"dwDuration\" || ' days')::interval > CURRENT_TIMESTAMP)";
-        int ban_count = 0;
-        sql << ban_sql,
-            soci::use(user_id), soci::into(ban_count);
-        if (ban_count > 0)
+              "  AND \"startTime\" + (\"dwDuration\" || ' days')::interval >= CURRENT_TIMESTAMP";
+        int ban_dur = 0;
+        sql << ban_dur_sql, soci::use(user_id), soci::into(ban_dur);
+        if (ban_dur > 0)
         {
-            spdlog::warn("auth: user_id={} is banned ({} active protection rows)",
-                user_id, ban_count);
+            spdlog::warn("auth: user_id={} is banned ({} active duration row(s))",
+                user_id, ban_dur);
             return AuthResult{
                 .status = AuthStatus::Banned,
                 .user_id = user_id,
-                .ban_reason = std::string("protected"),
+                .ban_reason = std::string("temporary"),
+            };
+        }
+        int ban_eternal = 0;
+        sql << "SELECT COUNT(*) FROM \"TUSERPROTECTED\" "
+               "WHERE \"dwUserID\" = :uid AND \"bEternal\" = 1",
+            soci::use(user_id), soci::into(ban_eternal);
+        if (ban_eternal > 0)
+        {
+            spdlog::warn("auth: user_id={} is banned (eternal)", user_id);
+            return AuthResult{
+                .status = AuthStatus::Banned,
+                .user_id = user_id,
+                .ban_reason = std::string("eternal"),
             };
         }
 
-        // Step 5 — duplicate session check.
+        // Step 5 — duplicate session. Match legacy TLogin SP:
+        //   UPDATE TCURRENTUSER SET bLocked = 1 WHERE dwUserID = :uid
+        //   RETURN 3 (LR_DUPLICATE)
+        // The handler then kicks the previously connected peer via
+        // IConnectionRegistry; the kick triggers SessionTerminator which
+        // removes the row. The lock-then-return pattern (rather than
+        // DELETE-now) keeps the old session's audit context intact while
+        // the kick is in flight and avoids a race where a fast retry
+        // races the DELETE.
         int existing = 0;
         sql << "SELECT COUNT(*) FROM \"TCURRENTUSER\" WHERE \"dwUserID\" = :uid",
             soci::use(user_id), soci::into(existing);
         if (existing > 0)
         {
-            // Legacy LR_DUPLICATE: lock the existing row + return
-            // duplicate. The handler then kicks the previous session
-            // via ConnectionRegistry. For now we just delete the
-            // stale row so the new session's insert succeeds.
-            spdlog::warn("auth: user_id={} duplicate session — clearing stale TCURRENTUSER",
-                user_id);
-            sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\" = :uid",
+            sql << "UPDATE \"TCURRENTUSER\" SET \"bLocked\" = 1 "
+                   "WHERE \"dwUserID\" = :uid",
                 soci::use(user_id);
+            spdlog::warn("auth: user_id={} duplicate session — flagged for kick",
+                user_id);
+            return AuthResult{
+                .status = AuthStatus::Duplicate,
+                .user_id = user_id,
+            };
         }
 
         // Step 6 — success: insert TCURRENTUSER, capture identity dwKEY.
-        // Dialect: PG returns the generated column via RETURNING after
-        // VALUES; MSSQL uses OUTPUT INSERTED.col before VALUES. Both
-        // work as single-statement INSERTs with a single result column,
-        // which SOCI's `into()` consumes the same way.
+        // Dialect: MSSQL uses OUTPUT INSERTED.col before VALUES; PG uses
+        // trailing RETURNING. SOCI's into() consumes both the same.
         int session_key = 0;
         const char* insert_user_sql = is_mssql
             ? "INSERT INTO \"TCURRENTUSER\" "
@@ -155,15 +251,38 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             soci::use(user_id), soci::use(req.client_ip),
             soci::into(session_key);
 
-        // Stamp TACCOUNT_PW.dLastLogin too (CSPLogin SP step).
+        // Stamp TACCOUNT_PW.dLastLogin (TLogin SP final UPDATE).
         sql << "UPDATE \"TACCOUNT_PW\" SET \"dLastLogin\" = CURRENT_TIMESTAMP "
                "WHERE \"dwUserID\" = :uid",
             soci::use(user_id);
 
-        // Insert audit log row (TLog).
+        // Insert audit log row (TLOG). TLOG.dwKEY is NOT identity in the
+        // legacy schema — it carries the TCURRENTUSER.dwKEY value so the
+        // session and the audit row share a key.
         sql << "INSERT INTO \"TLOG\" "
                "(\"dwKEY\", \"dwUserID\") VALUES (:key, :uid)",
             soci::use(session_key), soci::use(user_id);
+
+        // Step 7 — terms-of-service / first-login agreement check.
+        // Legacy TLogin SP final block: if TUSERINFOTABLE has no row for
+        // (dwUserID, bAgreement=1), RETURN 8 (LR_NEEDAGREEMENT). The
+        // session is still considered logged in — the client routes to
+        // the agreement screen and ACKs back via CS_AGREEMENT_REQ.
+        int agreement_ok = 0;
+        sql << "SELECT COUNT(*) FROM \"TUSERINFOTABLE\" "
+               "WHERE \"dwUserID\" = :uid AND \"bAgreement\" = 1",
+            soci::use(user_id), soci::into(agreement_ok);
+        if (agreement_ok == 0)
+        {
+            spdlog::info("auth: user_id={} needs agreement (bAgreement != 1)",
+                user_id);
+            return AuthResult{
+                .status = AuthStatus::AgreementNeeded,
+                .user_id = user_id,
+                .session_key = static_cast<std::uint32_t>(session_key),
+                .create_char_count = 6,
+            };
+        }
 
         spdlog::info("auth: user '{}' (uid={}) success, session_key={}",
             req.user_id, user_id, session_key);
@@ -191,15 +310,260 @@ void SociAuthService::SetAgreement(std::int32_t user_id)
     soci::session& sql = *lease;
     try
     {
-        sql << "UPDATE \"TACCOUNT_PW\" SET \"bCheck\" = 1 "
-               "WHERE \"dwUserID\" = :uid",
-            soci::use(user_id);
+        // Real schema: agreement lives in TUSERINFOTABLE.bAgreement, NOT
+        // TACCOUNT_PW.bCheck (which is a separate, legacy flag). The row
+        // may not exist for older accounts that never touched the
+        // agreement flow, so existence-check first to decide INSERT vs
+        // UPDATE. (SOCI 4's session has no portable get_affected_rows;
+        // doing the check up front is simpler than juggling statement
+        // objects per-dialect.)
+        int exists = 0;
+        sql << "SELECT COUNT(*) FROM \"TUSERINFOTABLE\" WHERE \"dwUserID\" = :uid",
+            soci::use(user_id), soci::into(exists);
+        if (exists > 0)
+        {
+            sql << "UPDATE \"TUSERINFOTABLE\" SET \"bAgreement\" = 1 "
+                   "WHERE \"dwUserID\" = :uid",
+                soci::use(user_id);
+        }
+        else
+        {
+            try
+            {
+                sql << "INSERT INTO \"TUSERINFOTABLE\" "
+                       "(\"dwUserID\", \"bCanCreateCharCount\", \"bAgreement\") "
+                       "VALUES (:uid, 6, 1)",
+                    soci::use(user_id);
+            }
+            catch (const std::exception& ex)
+            {
+                // Duplicate-key race with a concurrent SetAgreement —
+                // the row exists now, retry the UPDATE.
+                spdlog::debug("auth.SetAgreement uid={} insert raced: {} — retry UPDATE",
+                    user_id, ex.what());
+                sql << "UPDATE \"TUSERINFOTABLE\" SET \"bAgreement\" = 1 "
+                       "WHERE \"dwUserID\" = :uid",
+                    soci::use(user_id);
+            }
+        }
         spdlog::info("auth.SetAgreement uid={}", user_id);
     }
     catch (const std::exception& ex)
     {
         spdlog::error("auth.SetAgreement uid={} DB error: {}",
             user_id, ex.what());
+    }
+}
+
+namespace {
+std::string UpperAscii(std::string s)
+{
+    for (auto& c : s) if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
+    return s;
+}
+} // namespace
+
+bool SociAuthService::VerifySecurityCode(std::int32_t user_id,
+                                        const std::string& code)
+{
+    if (user_id == 0 || code.empty()) return false;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        std::string stored;
+        int enabled = 0, tries = 0;
+        soci::indicator s_ind = soci::i_null;
+        bool got = false;
+        {
+            soci::statement st = (sql.prepare <<
+                "SELECT \"strSecurityCode\", \"bEnabled\", \"bTries\" "
+                "FROM \"TSECURECODE\" WHERE \"dwUserID\" = :u",
+                soci::use(user_id),
+                soci::into(stored, s_ind),
+                soci::into(enabled),
+                soci::into(tries));
+            st.execute(true);
+            got = st.got_data();
+        }
+        if (!got || s_ind == soci::i_null || stored.empty())
+        {
+            spdlog::info("auth.VerifySecurityCode uid={} → no row / empty", user_id);
+            return false;
+        }
+        if (enabled == 0)
+        {
+            spdlog::info("auth.VerifySecurityCode uid={} → bEnabled=0 (disabled)", user_id);
+            return false;
+        }
+        const bool ok = UpperAscii(code) == UpperAscii(stored);
+        if (ok)
+        {
+            // Clear the code on success — matches legacy
+            // pUser->m_strCode.Empty(). Reset tries too so the next
+            // issuance starts clean.
+            sql << "UPDATE \"TSECURECODE\" "
+                   "SET \"strSecurityCode\" = '', \"bTries\" = 0, \"bEnabled\" = 0 "
+                   "WHERE \"dwUserID\" = :u",
+                soci::use(user_id);
+        }
+        else
+        {
+            sql << "UPDATE \"TSECURECODE\" SET \"bTries\" = \"bTries\" + 1 "
+                   "WHERE \"dwUserID\" = :u",
+                soci::use(user_id);
+        }
+        spdlog::info("auth.VerifySecurityCode uid={} → {}", user_id, ok);
+        return ok;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("auth.VerifySecurityCode uid={} DB error: {}",
+            user_id, ex.what());
+        return false;
+    }
+}
+
+std::string SociAuthService::IssueSecurityCode(std::int32_t user_id)
+{
+    if (user_id == 0) return {};
+    // 6-char alphanumeric, A-Z+0-9 — matches legacy szPool format.
+    constexpr char kPool[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    constexpr int kLen = 6;
+    thread_local std::mt19937_64 rng{ std::random_device{}() };
+    std::string code(kLen, ' ');
+    for (int i = 0; i < kLen; ++i)
+        code[i] = kPool[rng() % (sizeof(kPool) - 1)];
+
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        // Upsert pattern — TSECURECODE has dwUserID as effective PK.
+        // Try UPDATE first; if no row matched, INSERT.
+        int exists = 0;
+        sql << "SELECT COUNT(*) FROM \"TSECURECODE\" WHERE \"dwUserID\" = :u",
+            soci::use(user_id), soci::into(exists);
+        if (exists > 0)
+        {
+            sql << "UPDATE \"TSECURECODE\" "
+                   "SET \"strSecurityCode\" = :c, \"bEnabled\" = 1, "
+                   "    \"bTries\" = 0, \"iLockTick\" = 0 "
+                   "WHERE \"dwUserID\" = :u",
+                soci::use(code), soci::use(user_id);
+        }
+        else
+        {
+            sql << "INSERT INTO \"TSECURECODE\" "
+                   "(\"dwUserID\", \"strSecurityCode\", \"bEnabled\", "
+                   " \"bTries\", \"iLockTick\") VALUES (:u, :c, 1, 0, 0)",
+                soci::use(user_id), soci::use(code);
+        }
+        spdlog::info("auth.IssueSecurityCode uid={} code='{}'", user_id, code);
+        return code;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("auth.IssueSecurityCode uid={} DB error: {}",
+            user_id, ex.what());
+        return {};
+    }
+}
+
+AuthResult SociAuthService::AuthenticateTest(const std::string& client_ip)
+{
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
+        // Pick a random dwUserID from TTESTLOGINUSER. NEWID() / RAND()
+        // each have caveats — NEWID() is per-row randomization, exactly
+        // what legacy CSPTestLogin uses. PG equivalent is random().
+        const char* pick_sql = is_mssql
+            ? "SELECT TOP 1 \"dwuserid\" FROM \"TTESTLOGINUSER\" "
+              "ORDER BY NEWID()"
+            : "SELECT \"dwuserid\" FROM \"TTESTLOGINUSER\" "
+              "ORDER BY random() LIMIT 1";
+
+        int test_user_id = 0;
+        bool got = false;
+        {
+            soci::statement st = (sql.prepare << pick_sql,
+                soci::into(test_user_id));
+            st.execute(true);
+            got = st.got_data();
+        }
+        if (!got || test_user_id == 0)
+        {
+            spdlog::warn("auth.AuthenticateTest: TTESTLOGINUSER pool is empty");
+            return AuthResult{ .status = AuthStatus::InternalError };
+        }
+
+        // Insert TCURRENTUSER + TLOG just like a real login so the
+        // session has a dwKEY and the disconnect cleanup path works.
+        int session_key = 0;
+        const char* insert_user_sql = is_mssql
+            ? "INSERT INTO \"TCURRENTUSER\" "
+              "(\"dwUserID\", \"szLoginIP\") "
+              "OUTPUT INSERTED.\"dwKEY\" "
+              "VALUES (:uid, :ip)"
+            : "INSERT INTO \"TCURRENTUSER\" "
+              "(\"dwUserID\", \"szLoginIP\") VALUES (:uid, :ip) "
+              "RETURNING \"dwKEY\"";
+        sql << insert_user_sql,
+            soci::use(test_user_id), soci::use(client_ip),
+            soci::into(session_key);
+        sql << "INSERT INTO \"TLOG\" "
+               "(\"dwKEY\", \"dwUserID\") VALUES (:k, :u)",
+            soci::use(session_key), soci::use(test_user_id);
+
+        spdlog::info("auth.AuthenticateTest: test_user_id={} session_key={}",
+            test_user_id, session_key);
+        return AuthResult{
+            .status = AuthStatus::Success,
+            .user_id = test_user_id,
+            .session_key = static_cast<std::uint32_t>(session_key),
+            .create_char_count = 6,
+        };
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("auth.AuthenticateTest DB error: {}", ex.what());
+        return AuthResult{ .status = AuthStatus::InternalError };
+    }
+}
+
+bool SociAuthService::VerifyPassword(std::int32_t user_id,
+                                     const std::string& password)
+{
+    if (user_id == 0) return false;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        std::string stored;
+        soci::indicator pw_ind = soci::i_null;
+        bool got_row = false;
+        {
+            soci::statement st = (sql.prepare <<
+                "SELECT \"szPasswd\" FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = :uid",
+                soci::use(user_id),
+                soci::into(stored, pw_ind));
+            st.execute(true);
+            got_row = st.got_data();
+        }
+        if (!got_row || pw_ind == soci::i_null) return false;
+        const auto pw = CheckPassword(stored, password);
+        spdlog::debug("auth.VerifyPassword uid={} → {} (needs_rehash={})",
+            user_id, pw.matched, pw.needs_rehash);
+        return pw.matched;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("auth.VerifyPassword uid={} DB error: {}",
+            user_id, ex.what());
+        return false;
     }
 }
 

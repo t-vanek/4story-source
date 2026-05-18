@@ -13,3 +13,10 @@ CMakeUserPresets.json
 
 # vcpkg local
 vcpkg_installed/
+
+# CMake configure logs at repo root
+cmake-configure.log
+
+# Local deploy config (template lives in tloginsvr.example.toml).
+# tloginsvr.toml is per-deployment — connection strings, ports.
+Server/TLoginSvrAsio/tloginsvr.toml

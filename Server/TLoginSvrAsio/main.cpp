@@ -1,14 +1,22 @@
 // Entry point for the modernized TLoginSvrAsio binary. PCH-free,
 // portable C++20 + Boost.Asio.
 
+#include "admin_shell.h"
 #include "config.h"
 #include "health_endpoint.h"
 #include "login_server.h"
+#include "db/schema_validator.h"
 #include "db/session_pool.h"
+#include "services/local_connection_registry.h"
+#include "services/local_event_registry.h"
+#include "services/rate_limiter.h"
+#include "services/registry_refresher.h"
 #include "services/soci_auth_service.h"
 #include "services/soci_char_service.h"
 #include "services/soci_map_server_locator.h"
 #include "services/soci_session_terminator.h"
+#include "services/spdlog_audit_logger.h"
+#include "services/udp_audit_logger.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -65,25 +73,69 @@ int main(int argc, char** argv)
 
         boost::asio::io_context io;
 
+        // Connection registry — single-process duplicate-kick map.
+        // ALWAYS constructed (production-correct in-memory impl;
+        // matches legacy CTLoginSvrModule::m_mapTUSER). Sharded
+        // multi-instance deploys would swap for a Redis-backed
+        // impl behind the same IConnectionRegistry interface.
+        auto registry =
+            std::make_unique<tloginsvr::services::LocalConnectionRegistry>();
+        cfg.server.connection_registry = registry.get();
+
+        // Per-IP login rate limiter. In-memory token bucket; no
+        // distributed coordination needed for single-process deploys.
+        auto rate_limiter =
+            std::make_unique<tloginsvr::services::LoginRateLimiter>();
+        cfg.server.login_rate_limiter = rate_limiter.get();
+
+        // GM event registry — populated by CT_EVENTUPDATE_REQ from the
+        // control server. Single-process LocalEventRegistry; sharded
+        // deploys would swap for a Redis-backed IEventRegistry impl.
+        auto event_registry =
+            std::make_unique<tloginsvr::services::LocalEventRegistry>();
+        cfg.server.event_registry = event_registry.get();
+
+        // Audit logger — emits structured records via spdlog "audit"
+        // logger. Always wired so events land somewhere; production
+        // deploys can register a different "audit" logger before main
+        // returns control to overlap with a structured sink.
+        std::unique_ptr<tloginsvr::services::IAuditLogger> audit =
+            std::make_unique<tloginsvr::services::SpdlogAuditLogger>();
+
+        // Optional UDP shim — when [audit.udp] host is set, wrap the
+        // spdlog logger so each event also lands on the legacy TLogSvr
+        // collector in wire-compatible _UDPPACKET format.
+        if (!cfg.audit_udp_host.empty() && cfg.audit_udp_port != 0)
+        {
+            audit = std::make_unique<tloginsvr::services::UdpAuditLogger>(
+                io, cfg.audit_udp_host, cfg.audit_udp_port, std::move(audit));
+            spdlog::info("audit: UDP shim → {}:{}",
+                cfg.audit_udp_host, cfg.audit_udp_port);
+        }
+
         boost::asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&io](auto, int sig) {
             spdlog::info("received signal {}, shutting down", sig);
             io.stop();
         });
 
-        // Wire DB-backed services when a connection string is configured.
-        // Lifetime: both the pool and the auth service live for the
-        // duration of the io_context — kept on the stack here so they
-        // outlive LoginServer's borrowed pointers. The pool itself
-        // throws soci::soci_error if the DB is unreachable, which we
-        // surface as a fatal startup error (failing fast is correct:
-        // running with `database.connection_string` set but no DB
-        // would silently downgrade to no-auth, which is worse).
-        std::unique_ptr<tloginsvr::db::SessionPool>                db_pool;
-        std::unique_ptr<tloginsvr::services::SociAuthService>      soci_auth;
-        std::unique_ptr<tloginsvr::services::SociCharService>      soci_char;
-        std::unique_ptr<tloginsvr::services::SociMapServerLocator> soci_map;
-        std::unique_ptr<tloginsvr::services::SociSessionTerminator> soci_term;
+        // Wire SM_QUITSERVICE_REQ → io.stop() so wire-protocol
+        // shutdown matches the SIGINT path.
+        cfg.server.on_quit_request = [&io]() { io.stop(); };
+
+        // Wire DB-backed services. Two pools mirror the legacy schema split:
+        //   * global_pool → TGLOBAL (accounts, sessions, server registry)
+        //   * world_pool  → TGAME   (per-world chars + items + guilds)
+        // The pools throw soci::soci_error if the DB is unreachable — we
+        // surface that as a fatal startup error (failing fast is correct:
+        // running with a connection_string set but no DB would silently
+        // downgrade to no-auth, which is worse).
+        std::unique_ptr<tloginsvr::db::SessionPool>                  global_pool;
+        std::unique_ptr<tloginsvr::db::SessionPool>                  world_pool;
+        std::unique_ptr<tloginsvr::services::SociAuthService>        soci_auth;
+        std::unique_ptr<tloginsvr::services::SociCharService>        soci_char;
+        std::unique_ptr<tloginsvr::services::SociMapServerLocator>   soci_map;
+        std::unique_ptr<tloginsvr::services::SociSessionTerminator>  soci_term;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -91,21 +143,74 @@ int main(int argc, char** argv)
                     "database.connection_string is set but database.backend "
                     "is empty — pick one of: postgresql | sqlite3 | odbc");
             const auto backend = tloginsvr::db::ParseBackend(cfg.database.backend);
-            db_pool = std::make_unique<tloginsvr::db::SessionPool>(
+            global_pool = std::make_unique<tloginsvr::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
-            soci_auth = std::make_unique<tloginsvr::services::SociAuthService>(*db_pool);
-            soci_char = std::make_unique<tloginsvr::services::SociCharService>(*db_pool);
-            soci_map  = std::make_unique<tloginsvr::services::SociMapServerLocator>(*db_pool);
-            soci_term = std::make_unique<tloginsvr::services::SociSessionTerminator>(*db_pool);
+            tloginsvr::db::ValidateGlobalSchema(*global_pool);
+
+            if (!cfg.database_world.connection_string.empty())
+            {
+                if (cfg.database_world.backend.empty())
+                    throw std::runtime_error(
+                        "database.world.connection_string is set but "
+                        "database.world.backend is empty");
+                const auto wbackend =
+                    tloginsvr::db::ParseBackend(cfg.database_world.backend);
+                world_pool = std::make_unique<tloginsvr::db::SessionPool>(
+                    wbackend,
+                    cfg.database_world.connection_string,
+                    cfg.database_world.pool_size);
+                tloginsvr::db::ValidateWorldSchema(*world_pool);
+            }
+
+            soci_auth = std::make_unique<tloginsvr::services::SociAuthService>(
+                *global_pool);
+            soci_term = std::make_unique<tloginsvr::services::SociSessionTerminator>(
+                *global_pool);
+            soci_map  = std::make_unique<tloginsvr::services::SociMapServerLocator>(
+                *global_pool, world_pool.get());
+
             cfg.server.auth_service        = soci_auth.get();
-            cfg.server.char_service        = soci_char.get();
             cfg.server.map_server_locator  = soci_map.get();
             cfg.server.session_terminator  = soci_term.get();
-            spdlog::info("services: SOCI ({}) — auth + char + map_locator + session_terminator",
-                tloginsvr::db::BackendName(backend));
+            cfg.server.audit_logger        = audit.get();
+
+            // Char service needs both pools; only wire it when the world
+            // DB is configured. Without TGAME we'd be unable to do real
+            // create/list/delete — fall back to in-memory so the lobby
+            // path still works for smoke tests.
+            if (world_pool != nullptr)
+            {
+                soci_char = std::make_unique<tloginsvr::services::SociCharService>(
+                    *global_pool, *world_pool);
+                cfg.server.char_service = soci_char.get();
+
+                // Periodic 30s refresh — currently just bumps the
+                // veteran-chart cache so admins can hot-edit the
+                // table without a server restart.
+                auto refresher = tloginsvr::services::RegistryRefresher::Make(
+                    io, std::chrono::seconds(30));
+                tloginsvr::services::SociCharService* svc = soci_char.get();
+                refresher->AddHook([svc]() { svc->RefreshVeteranChart(); });
+                refresher->Start();
+                // Keep it alive for the duration of the process.
+                static std::shared_ptr<tloginsvr::services::RegistryRefresher> s_refresher;
+                s_refresher = std::move(refresher);
+                spdlog::info("services: SOCI ({}+{}) — auth + char + map + terminator",
+                    tloginsvr::db::BackendName(backend),
+                    tloginsvr::db::BackendName(
+                        tloginsvr::db::ParseBackend(cfg.database_world.backend)));
+            }
+            else
+            {
+                spdlog::warn("services: SOCI ({}) — auth + map + terminator. "
+                             "char_service stays in-memory: [database.world] "
+                             "not configured",
+                    tloginsvr::db::BackendName(backend));
+            }
         }
         else
         {
+            cfg.server.audit_logger = audit.get();
             spdlog::info("services: in-memory (no [database] configured)");
         }
 
@@ -114,6 +219,28 @@ int main(int argc, char** argv)
             server.Port(),
             cfg.server.rc4_secret_key.empty() ? "disabled" : "enabled");
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
+
+        // Optional admin TCP shell — opt-in via [admin] port > 0.
+        if (cfg.admin_port != 0)
+        {
+            try
+            {
+                auto admin = std::make_shared<tloginsvr::AdminShell>(
+                    io, cfg.admin_bind, cfg.admin_port,
+                    cfg.server.connection_registry,
+                    std::chrono::steady_clock::now());
+                spdlog::info("admin shell listening on {}:{}",
+                    cfg.admin_bind, admin->Port());
+                boost::asio::co_spawn(io, admin->Run(), boost::asio::detached);
+                static std::shared_ptr<tloginsvr::AdminShell> s_admin;
+                s_admin = std::move(admin);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("admin shell failed to bind on {}:{} — {}",
+                    cfg.admin_bind, cfg.admin_port, ex.what());
+            }
+        }
 
         // Optional health endpoint on a separate port.
         if (cfg.health_port != 0)

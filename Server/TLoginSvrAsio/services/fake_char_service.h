@@ -1,8 +1,12 @@
 #pragma once
 
-// InMemoryCharService — character lifecycle backed by per-user
-// std::vector<CharacterInfo>. No persistence; suitable for tests +
-// dev-mode binary launch without a DB.
+// FakeCharService — TEST-ONLY character-lifecycle backend backed by
+// per-user std::vector<CharacterInfo>. No persistence; suitable for
+// the ctest suite and the dev-mode binary launch without a DB.
+//
+// **Not for production.** Production uses SociCharService against
+// TCHARTABLE / TITEMTABLE / TALLCHARTABLE / TGUILDMEMBERTABLE /
+// TGUILDTABLE in the legacy MSSQL schema.
 //
 // Behavior matches what TLoginSvr does at the wire level:
 //   * List   — returns chars for (user_id, group_id), order by slot
@@ -16,7 +20,7 @@
 
 namespace tloginsvr::services {
 
-class InMemoryCharService : public ICharService
+class FakeCharService : public ICharService
 {
 public:
     // Seed helper for tests / dev mode.
@@ -41,6 +45,12 @@ public:
     // Seed for tests / dev. Overwrites all three slots.
     void SetVeteranLevels(VeteranLevels levels) { m_veteran_levels = levels; }
 
+    // Test seed for the BR shard map: user_id → char_id. Defaults
+    // empty so GetBrCharId returns 0 unless the test wires it.
+    void SetBrChar(std::int32_t user_id, std::int32_t char_id);
+
+    std::int32_t GetBrCharId(std::int32_t user_id) override;
+
 private:
     // Single composite key — (user_id, group_id) bundled in a 64-bit
     // value so the std::unordered_map needs no extra hash work.
@@ -56,6 +66,7 @@ private:
     // Cross-group name uniqueness — legacy enforced same.
     std::unordered_map<std::string, std::int32_t> m_name_to_char_id;
     VeteranLevels      m_veteran_levels{};
+    std::unordered_map<std::int32_t, std::int32_t> m_br_user_to_char;
 };
 
 } // namespace tloginsvr::services

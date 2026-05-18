@@ -22,6 +22,7 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_connection_registry(config.connection_registry)
     , m_map_server_locator(config.map_server_locator)
     , m_session_terminator(config.session_terminator)
+    , m_char_service(config.char_service)
 {
 }
 
@@ -130,13 +131,13 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnChannelListReq(*sess, body);
         break;
     case MessageId::CS_CHARLIST_REQ:
-        co_await handlers::OnCharListReq(*sess, body);
+        co_await handlers::OnCharListReq(sess, body, m_char_service, m_connection_registry);
         break;
     case MessageId::CS_CREATECHAR_REQ:
-        co_await handlers::OnCreateCharReq(*sess, body);
+        co_await handlers::OnCreateCharReq(sess, body, m_char_service, m_connection_registry);
         break;
     case MessageId::CS_DELCHAR_REQ:
-        co_await handlers::OnDelCharReq(*sess, body);
+        co_await handlers::OnDelCharReq(sess, body, m_char_service, m_connection_registry);
         break;
     case MessageId::CS_START_REQ:
         co_await handlers::OnStartReq(sess, body, m_map_server_locator, m_connection_registry);

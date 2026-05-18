@@ -12,6 +12,7 @@
 #include "asio_session.h"
 #include "MessageId.h"
 #include "services/auth_service.h"
+#include "services/char_service.h"
 #include "services/connection_registry.h"
 #include "services/map_server_locator.h"
 #include "services/session_terminator.h"
@@ -56,6 +57,11 @@ struct LoginServerConfig
     // Per-session cleanup on close (TCURRENTUSER delete + TLog
     // timestamp). Non-owning. Null = no cleanup hook fires.
     services::ISessionTerminator* session_terminator = nullptr;
+
+    // Character lifecycle (CS_CHARLIST/CREATECHAR/DELCHAR backing).
+    // Non-owning. Null falls back to Phase-3 stubs (empty list /
+    // CR_INTERNAL / DR_INTERNAL).
+    services::ICharService* char_service = nullptr;
 };
 
 class LoginServer
@@ -79,6 +85,7 @@ private:
     services::IConnectionRegistry* m_connection_registry = nullptr;  // non-owning; null = no duplicate-kick
     services::IMapServerLocator*   m_map_server_locator = nullptr;   // non-owning; null = stub SR_NOSERVER
     services::ISessionTerminator*  m_session_terminator = nullptr;   // non-owning; null = no close-time cleanup
+    services::ICharService*        m_char_service = nullptr;         // non-owning; null = stub responses
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

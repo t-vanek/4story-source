@@ -4,6 +4,7 @@
 
 #include "asio_session.h"
 #include "services/auth_service.h"
+#include "services/char_service.h"
 #include "services/connection_registry.h"
 #include "services/map_server_locator.h"
 
@@ -65,22 +66,35 @@ boost::asio::awaitable<void> OnChannelListReq(
     tnetlib::AsioSession& session,
     std::span<const std::byte> body);
 
-// CS_CHARLIST_REQ(BYTE bGroupID) → CS_CHARLIST_ACK. Phase-3 stub:
-// returns empty char list. Real impl queries TCHARTABLE + TITEMTABLE.
+// CS_CHARLIST_REQ(BYTE bGroupID) → CS_CHARLIST_ACK.
+// When char_service is non-null AND the session is registered (i.e.
+// authenticated), the list comes from ICharService::List for the
+// session's user_id. Otherwise returns the empty-list stub.
 boost::asio::awaitable<void> OnCharListReq(
-    tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::shared_ptr<tnetlib::AsioSession> session,
+    std::span<const std::byte> body,
+    services::ICharService* char_service = nullptr,
+    services::IConnectionRegistry* connection_registry = nullptr);
 
-// CS_CREATECHAR_REQ → CS_CREATECHAR_ACK. Stub: refuses with
-// CR_INTERNAL (7) until the CharService port lands.
+// CS_CREATECHAR_REQ → CS_CREATECHAR_ACK.
+// With both services wired: parses the 14-byte char-template body,
+// looks up the session's user_id, calls ICharService::Create.
+// Without services: stub returns CR_INTERNAL.
 boost::asio::awaitable<void> OnCreateCharReq(
-    tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::shared_ptr<tnetlib::AsioSession> session,
+    std::span<const std::byte> body,
+    services::ICharService* char_service = nullptr,
+    services::IConnectionRegistry* connection_registry = nullptr);
 
-// CS_DELCHAR_REQ → CS_DELCHAR_ACK. Stub: refuses with DR_INTERNAL (3).
+// CS_DELCHAR_REQ → CS_DELCHAR_ACK.
+// Parses (bGroupID, strPasswd, dwCharID). With services wired, calls
+// ICharService::Delete. The password is passed through; the in-memory
+// impl ignores it, real Phase-B impl will route via IAuthService.
 boost::asio::awaitable<void> OnDelCharReq(
-    tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::shared_ptr<tnetlib::AsioSession> session,
+    std::span<const std::byte> body,
+    services::ICharService* char_service = nullptr,
+    services::IConnectionRegistry* connection_registry = nullptr);
 
 // CS_START_REQ(bGroupID, bChannel, dwCharID) → CS_START_ACK.
 // When map_server_locator is non-null, real lookup → SR_SUCCESS (0)

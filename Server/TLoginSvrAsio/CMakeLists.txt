@@ -17,7 +17,8 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_auth_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_connection_registry.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_map_server_locator.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_session_terminator.cpp)
+    ${TLOGINSVR_ASIO_SRC}/services/in_memory_session_terminator.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/in_memory_char_service.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib
@@ -82,3 +83,11 @@ add_executable(test_tloginsvr_asio_session_terminator
 target_link_libraries(test_tloginsvr_asio_session_terminator PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_session_terminator COMMAND test_tloginsvr_asio_session_terminator)
+
+# Char-flow test — exercises CS_CHARLIST/CREATECHAR/DELCHAR through
+# ICharService with the in-memory backend.
+add_executable(test_tloginsvr_asio_char_flow
+    ${TLOGINSVR_ASIO_SRC}/tests/test_char_flow.cpp)
+target_link_libraries(test_tloginsvr_asio_char_flow PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_char_flow COMMAND test_tloginsvr_asio_char_flow)

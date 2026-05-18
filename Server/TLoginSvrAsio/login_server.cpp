@@ -20,6 +20,7 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_rc4_secret_key(std::move(config.rc4_secret_key))
     , m_auth_service(config.auth_service)
     , m_connection_registry(config.connection_registry)
+    , m_map_server_locator(config.map_server_locator)
 {
 }
 
@@ -122,7 +123,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnDelCharReq(*sess, body);
         break;
     case MessageId::CS_START_REQ:
-        co_await handlers::OnStartReq(*sess, body);
+        co_await handlers::OnStartReq(*sess, body, m_map_server_locator);
         break;
     case MessageId::CS_AGREEMENT_REQ:
         co_await handlers::OnAgreementReq(*sess, body);

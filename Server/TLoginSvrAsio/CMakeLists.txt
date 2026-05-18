@@ -15,7 +15,8 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/config.cpp
     ${TLOGINSVR_ASIO_SRC}/health_endpoint.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_auth_service.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_connection_registry.cpp)
+    ${TLOGINSVR_ASIO_SRC}/services/in_memory_connection_registry.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/in_memory_map_server_locator.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib
@@ -63,3 +64,11 @@ add_executable(test_tloginsvr_asio_duplicate_kick
 target_link_libraries(test_tloginsvr_asio_duplicate_kick PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_duplicate_kick COMMAND test_tloginsvr_asio_duplicate_kick)
+
+# Start-flow test — CS_START_REQ wired through IMapServerLocator,
+# hit + miss scenarios.
+add_executable(test_tloginsvr_asio_start_flow
+    ${TLOGINSVR_ASIO_SRC}/tests/test_start_flow.cpp)
+target_link_libraries(test_tloginsvr_asio_start_flow PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_start_flow COMMAND test_tloginsvr_asio_start_flow)

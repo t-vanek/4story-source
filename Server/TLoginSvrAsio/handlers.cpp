@@ -313,19 +313,61 @@ OnDelCharReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
 }
 
 boost::asio::awaitable<void>
-OnStartReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
+OnStartReq(tnetlib::AsioSession& session, std::span<const std::byte> body,
+           services::IMapServerLocator* map_server_locator)
 {
-    // Ack: BYTE bResult + DWORD dwMapIP + WORD wPort + BYTE bServerID.
-    // Real impl resolves the Map endpoint via MapServerLocator; the
-    // stub refuses with SR_NOSERVER so the client falls back to the
-    // server-select screen instead of trying to connect to 0.0.0.0:0.
+    // Request body: BYTE bGroupID + BYTE bChannel + DWORD dwCharID (6 bytes).
+    std::uint8_t  bGroupID = 0;
+    std::uint8_t  bChannel = 0;
+    std::int32_t  dwCharID = 0;
+    if (body.size() >= 6)
+    {
+        bGroupID = static_cast<std::uint8_t>(body[0]);
+        bChannel = static_cast<std::uint8_t>(body[1]);
+        std::memcpy(&dwCharID, body.data() + 2, 4);
+    }
+
+    // Ack: BYTE bResult + DWORD dwMapIP (network-order octets) +
+    // WORD wPort + BYTE bServerID. Wire-format matches the legacy
+    // CSSender::SendCS_START_ACK layout.
     std::byte payload[8] = {};
-    payload[0] = static_cast<std::byte>(kSrNoServer);
-    spdlog::info("CS_START_REQ → CS_START_ACK (stub: SR_NOSERVER)");
+
+    if (map_server_locator == nullptr)
+    {
+        payload[0] = static_cast<std::byte>(kSrNoServer);
+        spdlog::info("CS_START_REQ group={} ch={} char={} → CS_START_ACK (stub: SR_NOSERVER)",
+            bGroupID, bChannel, dwCharID);
+    }
+    else if (auto ep = map_server_locator->Lookup(bGroupID, bChannel, dwCharID))
+    {
+        payload[0] = static_cast<std::byte>(0); // SR_SUCCESS
+        // DWORD dwMapIP — 4 octets in the same byte order the legacy
+        // server sent inet_addr() output (network byte order).
+        payload[1] = static_cast<std::byte>(ep->ipv4[0]);
+        payload[2] = static_cast<std::byte>(ep->ipv4[1]);
+        payload[3] = static_cast<std::byte>(ep->ipv4[2]);
+        payload[4] = static_cast<std::byte>(ep->ipv4[3]);
+        // WORD wPort — little-endian (matches legacy memcpy from
+        // WORD field into packet buffer on an LE host).
+        std::memcpy(&payload[5], &ep->port, 2);
+        payload[7] = static_cast<std::byte>(ep->server_id);
+        spdlog::info("CS_START_REQ group={} ch={} char={} → CS_START_ACK "
+                     "(SR_SUCCESS, {}.{}.{}.{}:{} server_id={})",
+            bGroupID, bChannel, dwCharID,
+            ep->ipv4[0], ep->ipv4[1], ep->ipv4[2], ep->ipv4[3],
+            ep->port, ep->server_id);
+    }
+    else
+    {
+        payload[0] = static_cast<std::byte>(kSrNoServer);
+        spdlog::warn("CS_START_REQ group={} ch={} char={} → CS_START_ACK "
+                     "(SR_NOSERVER — no map endpoint registered)",
+            bGroupID, bChannel, dwCharID);
+    }
+
     co_await session.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_START_ACK),
         std::span<const std::byte>(payload, sizeof(payload)));
-    (void)body;
 }
 
 boost::asio::awaitable<void>

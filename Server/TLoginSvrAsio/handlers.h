@@ -5,6 +5,7 @@
 #include "asio_session.h"
 #include "services/auth_service.h"
 #include "services/connection_registry.h"
+#include "services/map_server_locator.h"
 
 #include <cstddef>
 #include <memory>
@@ -81,11 +82,14 @@ boost::asio::awaitable<void> OnDelCharReq(
     tnetlib::AsioSession& session,
     std::span<const std::byte> body);
 
-// CS_START_REQ(bGroupID, bChannel, dwCharID) → CS_START_ACK. Stub:
-// refuses with SR_NOSERVER (1) — real impl resolves via MapServerLocator.
+// CS_START_REQ(bGroupID, bChannel, dwCharID) → CS_START_ACK.
+// When map_server_locator is non-null, real lookup → SR_SUCCESS (0)
+// with the resolved IPv4 + port + server_id. Null or no-hit lookup
+// falls back to SR_NOSERVER (1).
 boost::asio::awaitable<void> OnStartReq(
     tnetlib::AsioSession& session,
-    std::span<const std::byte> body);
+    std::span<const std::byte> body,
+    services::IMapServerLocator* map_server_locator = nullptr);
 
 // CS_AGREEMENT_REQ(WORD wVersion) — no ack. Legacy upserts TUSERINFOTABLE
 // row + flips per-session m_bAgreement; we just log for now.

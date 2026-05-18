@@ -167,4 +167,143 @@ OnCharListReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
         std::span<const std::byte>(payload, 2));
 }
 
+// Legacy result-code constants (NetCode.h excerpts) — local copies
+// to keep this TU PCH-free. Real ports use them via the enum once
+// AuthService et al land.
+namespace {
+constexpr std::uint8_t kCrInternal    = 7;  // CS_CREATECHAR_ACK "internal error"
+constexpr std::uint8_t kDrInternal    = 3;  // CS_DELCHAR_ACK    "internal error"
+constexpr std::uint8_t kSrNoServer    = 1;  // CS_START_ACK      "no server"
+constexpr std::uint8_t kCodeCorrect   = 0;  // CS_SECURITYRESULT_ACK
+constexpr std::uint32_t kTerminateMagic = 0x2AF3A9D1; // CSHandler.cpp:1452
+} // namespace
+
+boost::asio::awaitable<void>
+OnCreateCharReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
+{
+    // Stub ack: bResult=CR_INTERNAL, then all the legacy character
+    // fields zeroed out (the client expects the full 13-trailing-byte
+    // layout regardless of result code). The wire layout is
+    // documented in CSSender.cpp::SendCS_CREATECHAR_ACK; payload sizes
+    // here are intentionally minimal — just bResult + dwCharID — and
+    // a real implementation will fill in the rest once CharService is
+    // ported. Until then the client will see CR_INTERNAL and abort.
+    std::byte payload[5] = {};
+    payload[0] = static_cast<std::byte>(kCrInternal);
+    std::printf("[tloginsvr_asio] CS_CREATECHAR_REQ → CS_CREATECHAR_ACK (stub: CR_INTERNAL)\n");
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
+        std::span<const std::byte>(payload, sizeof(payload)));
+    (void)body;
+}
+
+boost::asio::awaitable<void>
+OnDelCharReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
+{
+    // Ack: BYTE bResult + DWORD dwCharID. Stub returns DR_INTERNAL +
+    // dwCharID=0 regardless of input.
+    std::byte payload[5] = {};
+    payload[0] = static_cast<std::byte>(kDrInternal);
+    std::printf("[tloginsvr_asio] CS_DELCHAR_REQ → CS_DELCHAR_ACK (stub: DR_INTERNAL)\n");
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_DELCHAR_ACK),
+        std::span<const std::byte>(payload, sizeof(payload)));
+    (void)body;
+}
+
+boost::asio::awaitable<void>
+OnStartReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
+{
+    // Ack: BYTE bResult + DWORD dwMapIP + WORD wPort + BYTE bServerID.
+    // Real impl resolves the Map endpoint via MapServerLocator; the
+    // stub refuses with SR_NOSERVER so the client falls back to the
+    // server-select screen instead of trying to connect to 0.0.0.0:0.
+    std::byte payload[8] = {};
+    payload[0] = static_cast<std::byte>(kSrNoServer);
+    std::printf("[tloginsvr_asio] CS_START_REQ → CS_START_ACK (stub: SR_NOSERVER)\n");
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_START_ACK),
+        std::span<const std::byte>(payload, sizeof(payload)));
+    (void)body;
+}
+
+boost::asio::awaitable<void>
+OnAgreementReq(tnetlib::AsioSession& /*session*/, std::span<const std::byte> body)
+{
+    // No ack. Body is WORD wVersion. Legacy upserts TUSERINFOTABLE and
+    // flips the per-session m_bAgreement gate. Stub just logs the
+    // version so the dispatcher path is exercised.
+    std::uint16_t wVersion = 0;
+    if (body.size() >= 2) std::memcpy(&wVersion, body.data(), 2);
+    std::printf("[tloginsvr_asio] CS_AGREEMENT_REQ version=0x%04X (stub: noop)\n", wVersion);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnHotsendReq(tnetlib::AsioSession& /*session*/, std::span<const std::byte> body)
+{
+    // No ack. Body is INT64 dlValue + BYTE bAll. Legacy validates
+    // dlValue against m_dlCheckFile ^ m_dlCheckKey when an exec-file
+    // hash is configured; we don't ship that feature.
+    std::int64_t dlValue = 0;
+    std::uint8_t bAll = 0;
+    if (body.size() >= 9)
+    {
+        std::memcpy(&dlValue, body.data(), 8);
+        bAll = static_cast<std::uint8_t>(body[8]);
+    }
+    std::printf("[tloginsvr_asio] CS_HOTSEND_REQ dlValue=0x%016llx bAll=%u (stub: noop)\n",
+        static_cast<unsigned long long>(dlValue), bAll);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnVeteranReq(tnetlib::AsioSession& session, std::span<const std::byte> /*body*/)
+{
+    // Ack: BYTE bOption, BYTE bFirstLevel, BYTE bSecondLevel,
+    // BYTE bThirdLevel. Legacy sends bOption=3 ("all three options")
+    // with the level thresholds from m_vVETERAN. Stub: bOption=0
+    // (no returning-player bonus offered).
+    std::byte payload[4] = {};
+    std::printf("[tloginsvr_asio] CS_VETERAN_REQ → CS_VETERAN_ACK (stub: no bonus)\n");
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_VETERAN_ACK),
+        std::span<const std::byte>(payload, sizeof(payload)));
+}
+
+boost::asio::awaitable<void>
+OnTerminateReq(tnetlib::AsioSession& session, std::span<const std::byte> body)
+{
+    // Body: DWORD dwKey, must equal kTerminateMagic. Legacy returns
+    // EC_SESSION_INVALIDCHAR (silently closes) on mismatch — we do
+    // the same here. On match the legacy does TLogoutAll + flip
+    // m_bLogout flag; stub just closes the socket.
+    std::uint32_t dwKey = 0;
+    if (body.size() >= 4) std::memcpy(&dwKey, body.data(), 4);
+    if (dwKey != kTerminateMagic)
+    {
+        std::printf("[tloginsvr_asio] CS_TERMINATE_REQ magic mismatch (got 0x%08X)\n",
+            dwKey);
+    }
+    else
+    {
+        std::printf("[tloginsvr_asio] CS_TERMINATE_REQ — clean logout, closing\n");
+    }
+    session.Close();
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnSecurityConfirmAck(tnetlib::AsioSession& session, std::span<const std::byte> /*body*/)
+{
+    // CS_SECURITYRESULT_ACK payload: BYTE bResult. Always CODE_CORRECT
+    // since the SECURITY flow is dead-code on the legacy side and we
+    // accept whatever code the client sends.
+    std::byte payload[1] = { static_cast<std::byte>(kCodeCorrect) };
+    std::printf("[tloginsvr_asio] CS_SECURITYCONFIRM_ACK → CS_SECURITYRESULT_ACK (stub: CODE_CORRECT)\n");
+    co_await session.SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_SECURITYRESULT_ACK),
+        std::span<const std::byte>(payload, sizeof(payload)));
+}
+
 } // namespace tloginsvr::handlers

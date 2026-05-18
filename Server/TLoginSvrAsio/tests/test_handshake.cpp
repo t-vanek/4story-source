@@ -229,6 +229,100 @@ void TestLobbyFlow()
     if (server_thread.joinable()) server_thread.join();
 }
 
+// Exercise the remaining stub handlers that have an ack: CREATECHAR,
+// DELCHAR, START, VETERAN. AGREEMENT and HOTSEND have no ack on the
+// legacy wire; TERMINATE closes the session and is therefore tested
+// last in its own KAT.
+void TestStubHandlerAcks()
+{
+    std::printf("[tloginsvr_asio stub-handler acks — create/del/start/veteran]\n");
+
+    asio::io_context server_io;
+    tloginsvr::LoginServer server(server_io, 0);
+    const std::uint16_t port = server.Port();
+    Check(port != 0, "server bound");
+    asio::co_spawn(server_io, server.Run(), asio::detached);
+    std::thread server_thread([&server_io] { server_io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket client_sock(client_io);
+    client_sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+    auto client_sess = std::make_shared<tnetlib::AsioSession>(
+        std::move(client_sock), tnetlib::PeerType::Server);
+
+    std::atomic<int> ack_count{0};
+    std::vector<std::pair<std::uint16_t, std::uint8_t>> ack_info; // wId + first byte (= result)
+
+    asio::co_spawn(client_io,
+        [client_sess, &ack_count, &ack_info]() -> asio::awaitable<void> {
+            co_await client_sess->RunPackets(
+                [&ack_count, &ack_info](const tnetlib::DecodedPacket& pkt) {
+                    const std::uint8_t first =
+                        pkt.body.empty() ? 0xFF
+                                         : static_cast<std::uint8_t>(pkt.body[0]);
+                    ack_info.push_back({pkt.wId, first});
+                    ack_count.fetch_add(1);
+                });
+        },
+        asio::detached);
+
+    asio::co_spawn(client_io,
+        [client_sess]() -> asio::awaitable<void> {
+            using namespace tnetlib::protocol;
+            // Minimal bodies — handlers don't validate beyond the
+            // first few bytes in stub mode.
+            std::byte dummy[16] = {};
+            co_await client_sess->SendPacket(
+                ToUint16(MessageId::CS_CREATECHAR_REQ),
+                std::span<const std::byte>(dummy, 16));
+            co_await client_sess->SendPacket(
+                ToUint16(MessageId::CS_DELCHAR_REQ),
+                std::span<const std::byte>(dummy, 9));
+            co_await client_sess->SendPacket(
+                ToUint16(MessageId::CS_START_REQ),
+                std::span<const std::byte>(dummy, 6));
+            co_await client_sess->SendPacket(
+                ToUint16(MessageId::CS_VETERAN_REQ),
+                std::span<const std::byte>{});
+        },
+        asio::detached);
+
+    std::thread client_thread([&client_io] { client_io.run(); });
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (ack_count.load() < 4 &&
+           std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    Check(ack_count.load() == 4, "all 4 stub-handler acks received");
+    using tnetlib::protocol::MessageId;
+    using tnetlib::protocol::ToUint16;
+    if (ack_info.size() == 4)
+    {
+        Check(ack_info[0].first == ToUint16(MessageId::CS_CREATECHAR_ACK)
+              && ack_info[0].second == 7,
+              "CREATECHAR_ACK with CR_INTERNAL (7)");
+        Check(ack_info[1].first == ToUint16(MessageId::CS_DELCHAR_ACK)
+              && ack_info[1].second == 3,
+              "DELCHAR_ACK with DR_INTERNAL (3)");
+        Check(ack_info[2].first == ToUint16(MessageId::CS_START_ACK)
+              && ack_info[2].second == 1,
+              "START_ACK with SR_NOSERVER (1)");
+        Check(ack_info[3].first == ToUint16(MessageId::CS_VETERAN_ACK)
+              && ack_info[3].second == 0,
+              "VETERAN_ACK with bOption=0 (no bonus)");
+    }
+
+    client_sess->Close();
+    client_io.stop();
+    if (client_thread.joinable()) client_thread.join();
+    server_io.stop();
+    if (server_thread.joinable()) server_thread.join();
+}
+
 int main()
 {
     std::printf("=== tloginsvr_asio handshake test ===\n");
@@ -236,6 +330,7 @@ int main()
     {
         TestLoginHandshake();
         TestLobbyFlow();
+        TestStubHandlerAcks();
     }
     catch (const std::exception& ex)
     {

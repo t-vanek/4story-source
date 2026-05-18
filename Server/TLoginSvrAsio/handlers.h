@@ -57,4 +57,54 @@ boost::asio::awaitable<void> OnCharListReq(
     tnetlib::AsioSession& session,
     std::span<const std::byte> body);
 
+// CS_CREATECHAR_REQ → CS_CREATECHAR_ACK. Stub: refuses with
+// CR_INTERNAL (7) until the CharService port lands.
+boost::asio::awaitable<void> OnCreateCharReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_DELCHAR_REQ → CS_DELCHAR_ACK. Stub: refuses with DR_INTERNAL (3).
+boost::asio::awaitable<void> OnDelCharReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_START_REQ(bGroupID, bChannel, dwCharID) → CS_START_ACK. Stub:
+// refuses with SR_NOSERVER (1) — real impl resolves via MapServerLocator.
+boost::asio::awaitable<void> OnStartReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_AGREEMENT_REQ(WORD wVersion) — no ack. Legacy upserts TUSERINFOTABLE
+// row + flips per-session m_bAgreement; we just log for now.
+boost::asio::awaitable<void> OnAgreementReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_HOTSEND_REQ(INT64 dlValue, BYTE bAll) — no ack. Exec-file
+// integrity heartbeat. Stub: log and ignore.
+boost::asio::awaitable<void> OnHotsendReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_VETERAN_REQ → CS_VETERAN_ACK. Stub: returns bOption=0 (no
+// returning-player bonus offered). Real impl reads TVETERANCHART.
+boost::asio::awaitable<void> OnVeteranReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_TERMINATE_REQ(DWORD dwKey) — no ack. Clean logout request from
+// client. Legacy magic key 0x2AF3A9D1 (validated on the wire). Stub
+// closes the session.
+boost::asio::awaitable<void> OnTerminateReq(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
+// CS_SECURITYCONFIRM_ACK(STRING strCode) → CS_SECURITYRESULT_ACK.
+// Dead-code path on the legacy server (commented out in CSHandler.cpp);
+// kept here so the dispatcher doesn't log it as unhandled. Always
+// replies CODE_CORRECT (0).
+boost::asio::awaitable<void> OnSecurityConfirmAck(
+    tnetlib::AsioSession& session,
+    std::span<const std::byte> body);
+
 } // namespace tloginsvr::handlers

@@ -104,6 +104,30 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
     case MessageId::CS_CHARLIST_REQ:
         co_await handlers::OnCharListReq(*sess, body);
         break;
+    case MessageId::CS_CREATECHAR_REQ:
+        co_await handlers::OnCreateCharReq(*sess, body);
+        break;
+    case MessageId::CS_DELCHAR_REQ:
+        co_await handlers::OnDelCharReq(*sess, body);
+        break;
+    case MessageId::CS_START_REQ:
+        co_await handlers::OnStartReq(*sess, body);
+        break;
+    case MessageId::CS_AGREEMENT_REQ:
+        co_await handlers::OnAgreementReq(*sess, body);
+        break;
+    case MessageId::CS_HOTSEND_REQ:
+        co_await handlers::OnHotsendReq(*sess, body);
+        break;
+    case MessageId::CS_VETERAN_REQ:
+        co_await handlers::OnVeteranReq(*sess, body);
+        break;
+    case MessageId::CS_TERMINATE_REQ:
+        co_await handlers::OnTerminateReq(*sess, body);
+        break;
+    case MessageId::CS_SECURITYCONFIRM_ACK:
+        co_await handlers::OnSecurityConfirmAck(*sess, body);
+        break;
     default:
     {
         const auto name = tnetlib::protocol::NameOf(id);

@@ -5,12 +5,15 @@
 set(TLOGINSVR_ASIO_SRC ${CMAKE_CURRENT_SOURCE_DIR})
 
 find_package(spdlog QUIET)
+find_package(tomlplusplus QUIET)
 
 # Shared library of the server's logic, so the integration test can
 # instantiate LoginServer in-process instead of forking the binary.
 add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/login_server.cpp
     ${TLOGINSVR_ASIO_SRC}/handlers.cpp
+    ${TLOGINSVR_ASIO_SRC}/config.cpp
+    ${TLOGINSVR_ASIO_SRC}/health_endpoint.cpp
     ${TLOGINSVR_ASIO_SRC}/services/in_memory_auth_service.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
@@ -25,6 +28,11 @@ else()
     # is libspdlog-dev.
     target_link_libraries(tloginsvr_asio_core PUBLIC spdlog)
 endif()
+if(tomlplusplus_FOUND)
+    target_link_libraries(tloginsvr_asio_core PUBLIC tomlplusplus::tomlplusplus)
+endif()
+# Else: toml++ is header-only on Debian/Ubuntu (libtomlplusplus-dev)
+# so no link step is needed — the headers ship at /usr/include/toml++.
 set_target_properties(tloginsvr_asio_core PROPERTIES
     POSITION_INDEPENDENT_CODE ON)
 

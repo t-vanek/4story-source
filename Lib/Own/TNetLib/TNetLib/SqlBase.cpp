@@ -21,17 +21,22 @@ CSqlBase::~CSqlBase()
 
 void CSqlBase::Init(CSqlDatabase *pdb, LPCTSTR lpszQuery)
 {
+	// Bug fix: previously this function silently did nothing if the query
+	// string was too long, leaving m_pdb / m_hdbc / m_hstmt / m_szQuery
+	// uninitialized. Any subsequent method call on the object would
+	// dereference garbage. Always initialize the bookkeeping fields; if
+	// the query is over-length, store an empty query (AllocStatement will
+	// fail loudly via SQLPrepare instead of corrupting memory).
+	m_pdb = pdb;
+	m_hdbc = pdb ? pdb->HDBC() : SQL_NULL_HANDLE;
+	m_hstmt = SQL_NULL_HANDLE;
+	ZeroMemory(m_szQuery, MAX_QUERY_LEN);
+	ZeroMemory(m_liCOLS, MAX_LEN_IND_SIZE*sizeof(SQLINTEGER));
+	ZeroMemory(m_liPARAMS, MAX_LEN_IND_SIZE*sizeof(SQLINTEGER));
+
 	if(MAX_QUERY_LEN > lstrlen(lpszQuery))
 	{
-		m_pdb = pdb;
-		m_hdbc = pdb->HDBC();	
-		m_hstmt = SQL_NULL_HANDLE;	
-
-		ZeroMemory(m_szQuery, MAX_QUERY_LEN);
-		strcpy( (char *) m_szQuery, (const char *)lpszQuery);	
-
-		ZeroMemory(m_liCOLS, MAX_LEN_IND_SIZE*sizeof(SQLINTEGER));
-		ZeroMemory(m_liPARAMS, MAX_LEN_IND_SIZE*sizeof(SQLINTEGER));			
+		strcpy( (char *) m_szQuery, (const char *)lpszQuery);
 	}
 }
 
@@ -47,9 +52,13 @@ int CSqlBase::GetNumParam()
 
 BOOL CSqlBase::IsNull(int nCol)
 {
-	if(nCol < GetNumCol())
+	// Bug fix: nCol is signed int. Negative input previously passed the
+	// `nCol < GetNumCol()` check (signed comparison) and indexed m_liCOLS
+	// negatively → out-of-bounds read. Also guard against subclasses that
+	// might return GetNumCol() > MAX_LEN_IND_SIZE.
+	if(nCol >= 0 && nCol < GetNumCol() && nCol < MAX_LEN_IND_SIZE)
 		return (m_liCOLS[nCol] == SQL_NULL_DATA)? TRUE : FALSE;
-	
+
 	return FALSE;
 }
 

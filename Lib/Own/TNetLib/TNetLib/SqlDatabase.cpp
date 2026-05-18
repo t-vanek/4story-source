@@ -26,35 +26,43 @@ BOOL CSqlDatabase::Open(LPCTSTR lpszDsn,
 
 	if (!InitializeCriticalSectionAndSpinCount(&m_csExecution, 4000))
 		return FALSE;
+	m_bCsInitialized = TRUE;
 
-	sqlret = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &m_henv);	
+	sqlret = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &m_henv);
 	if( TSQL_FAIL( sqlret ) )
+	{
+		// Bug fix: previous code returned FALSE here without calling Close(),
+		// leaking the critical section and (in driver-internal state) any
+		// partially-allocated ENV handle. Funnel through Close() like every
+		// other failure path below.
+		Close();
 		return FALSE;
+	}
 
-	sqlret = SQLSetEnvAttr(m_henv, SQL_ATTR_ODBC_VERSION, (void*)SQL_OV_ODBC3, 0); 
+	sqlret = SQLSetEnvAttr(m_henv, SQL_ATTR_ODBC_VERSION, (void*)SQL_OV_ODBC3, 0);
 	if( TSQL_FAIL( sqlret ) )
-	{	
+	{
 		Close();
 		return FALSE;
 	}
 
 	sqlret = SQLAllocHandle(SQL_HANDLE_DBC, m_henv, &m_hdbc);
 	if( TSQL_FAIL( sqlret ) )
-	{		
+	{
 		Close();
 		return FALSE;
 	}
 
 	sqlret = SQLConnect( m_hdbc,
 		(SQLCHAR*)lpszDsn, SQL_NTS,
-		(SQLCHAR*)lpszUser, SQL_NTS, 
+		(SQLCHAR*)lpszUser, SQL_NTS,
 		(SQLCHAR*)lpszPasswd, SQL_NTS);
 	if( TSQL_FAIL( sqlret ) )
-	{		
+	{
 		Close();
 		return FALSE;
 	}
-	
+
 	m_bOpen = TRUE;
 
 	return TRUE;
@@ -63,7 +71,17 @@ BOOL CSqlDatabase::Open(LPCTSTR lpszDsn,
 void CSqlDatabase::Close()
 {
 	ClearQuery();
-	DeleteCriticalSection(&m_csExecution);
+
+	// Bug fix: DeleteCriticalSection on uninitialized memory is UB. The
+	// destructor calls Close() unconditionally, so a default-constructed
+	// CSqlDatabase that never had Open() called (or Open failed before
+	// the InitializeCriticalSectionAndSpinCount line) used to corrupt
+	// memory here.
+	if( m_bCsInitialized )
+	{
+		DeleteCriticalSection(&m_csExecution);
+		m_bCsInitialized = FALSE;
+	}
 
 	if( IsOpen() )
 		SQLDisconnect(m_hdbc );
@@ -80,6 +98,7 @@ void CSqlDatabase::Close()
 void CSqlDatabase::Clear()
 {
 	m_bOpen = FALSE;
+	m_bCsInitialized = FALSE;
 	m_hdbc = m_henv = SQL_NULL_HANDLE;
 }
 

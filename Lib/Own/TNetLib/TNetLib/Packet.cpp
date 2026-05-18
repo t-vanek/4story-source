@@ -72,7 +72,13 @@ void CPacket::EncryptHeader(INT64 key)
 
 	LPBYTE lpHeader = (LPBYTE)((LPBYTE)m_pHeader+sizeof(WORD));
 	WORD wID = m_pHeader->m_wID;
-	for(BYTE i=0; i<PACKET_HEADER_SIZE-sizeof(WORD); i++)
+	// Bug fix: loop counter was BYTE — the comparison i<14 was correct only
+	// because PACKET_HEADER_SIZE is 16 today. If the header struct ever
+	// grows past 255 bytes, the comparison silently wraps and the loop
+	// runs forever, corrupting memory past the header. DWORD is wide
+	// enough for any plausible header size.
+	const DWORD dwSpan = (DWORD)(PACKET_HEADER_SIZE - sizeof(WORD));
+	for(DWORD i=0; i<dwSpan; i++)
 	{
 		if(i<2)
 			lpHeader[i] ^= (BYTE)(key + m_pHeader->m_wSize + i);
@@ -121,7 +127,9 @@ void CPacket::DecryptHeader(INT64 key)
 	if(!m_pHeader) return;
 
 	LPBYTE lpHeader = (LPBYTE)((LPBYTE)m_pHeader+sizeof(WORD));
-	for(BYTE i=0; i<PACKET_HEADER_SIZE-sizeof(WORD); i++)
+	// See EncryptHeader for rationale on the DWORD counter widening.
+	const DWORD dwSpan = (DWORD)(PACKET_HEADER_SIZE - sizeof(WORD));
+	for(DWORD i=0; i<dwSpan; i++)
 	{
 		if(i<2)
 			lpHeader[i] ^= (BYTE)(key + m_pHeader->m_wSize + i);
@@ -263,16 +271,21 @@ void CPacket::Write( LPVOID param, int nLength)
 	if(!IsValid())
 		return;
 
+	// Bug fix: previous code would memcpy first then cap m_wSize at
+	// MAX_PACKET_SIZE (which IsValid() rejects as invalid — see :201),
+	// leaving a packet with bytes written but a wSize the rest of the
+	// codebase treats as corrupt. Refuse the write up-front instead, so
+	// the caller has a chance to handle it (no signal here as Write
+	// returns void, but at least the packet stays internally consistent).
+	if((DWORD)m_pHeader->m_wSize + (DWORD)nLength >= MAX_PACKET_SIZE)
+		return;
+
 	if(!CanWrite(nLength))
 		ExpandIoBuffer(m_dwBufferSize + max(nLength, DEF_PACKET_SIZE));
 
 	memcpy( m_ptrOffset, param, nLength);
 	m_ptrOffset += nLength;
-
-	if(m_pHeader->m_wSize + nLength > MAX_PACKET_SIZE)
-		m_pHeader->m_wSize = MAX_PACKET_SIZE;
-	else
-		m_pHeader->m_wSize += nLength;
+	m_pHeader->m_wSize += (WORD)nLength;
 }
 
 void CPacket::Copy( CPacket *pMsg)
@@ -300,6 +313,13 @@ void CPacket::CopyData(CPacket * pMsg, WORD wDeleteSize)
 		return;
 
 	WORD wAddSize = pMsg->GetSize() - PACKET_HEADER_SIZE - wDeleteSize;
+
+	// Bug fix: AddData (right below) does this check via `>= MAX_PACKET_SIZE`;
+	// CopyData was missing it, so a large append could wrap m_wSize (both
+	// operands are WORD). Guard the same way so the wire-level invariant
+	// `wSize < MAX_PACKET_SIZE` is preserved on either entry point.
+	if( (DWORD)GetSize() + (DWORD)wAddSize >= MAX_PACKET_SIZE )
+		return;
 
 	if( m_dwBufferSize < DWORD(GetSize() + wAddSize) )
 		ExpandIoBuffer(GetSize() + wAddSize);

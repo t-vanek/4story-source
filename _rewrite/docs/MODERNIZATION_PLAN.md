@@ -105,11 +105,34 @@ Two TNetLib copies existed (`Server/TNetLib/` v140 + `Lib/Own/TNetLib/TNetLib/` 
 |---|---|---|
 | A — Namespace hygiene (remove `using namespace std/ATL` from `TNetLib.h`) | `18abe06` | Done |
 | B — Platform shim + first portable .cpp | `7ae24ce` | Done — `platform.cpp` compiles and runs on Linux (g++ 13, C++20) |
-| C — Crypto wrapper (Win32 CryptoAPI → OpenSSL EVP) | this commit | Done — `tnetlib_crypto` (OpenSSL EVP) plus a 18-test ctest target (RFC 6229 RC4 vectors + symmetry + legacy 4Story secret key). `CryptographyExt::Encrypt/DecryptBuffer` delegate via `FOURSTORY_USE_OPENSSL_CRYPTO` compile flag — default ON for non-Windows, OFF on Windows pending bit-for-bit validation. Legacy Win32 CryptoAPI path retained on Windows. |
+| C — Crypto wrapper (Win32 CryptoAPI → OpenSSL EVP) | `b7e489a` | Done — `tnetlib_crypto` (OpenSSL EVP) plus a 18-test ctest target (RFC 6229 RC4 vectors + symmetry + legacy 4Story secret key). `CryptographyExt::Encrypt/DecryptBuffer` delegate via `FOURSTORY_USE_OPENSSL_CRYPTO` compile flag — default ON for non-Windows, OFF on Windows pending bit-for-bit validation. Legacy Win32 CryptoAPI path retained on Windows. |
+| Bug audit + fixes (8 confirmed bugs in TNetLib) | this commit | Done — see "TNetLib bug audit" section below. |
 | D — `CString` → `std::string` in internal call sites | — | TODO |
 | E — IOCP → Boost.Asio (`Session.cpp` rewrite) | — | TODO — biggest piece, blocked by C++ and D being further along |
 
 Case-sensitivity fix (Linux portability): 7 .cpp files in TNetLib used `#include "StdAfx.h"` (capital) where the file is `stdafx.h`. Normalized to lowercase in commit `7ae24ce`. Worked on Windows by accident; broke immediately on Linux.
+
+### TNetLib bug audit (this commit)
+
+Read every `.cpp`/`.h` in `Lib/Own/TNetLib/TNetLib/` end-to-end. Eight real functional bugs found and fixed; two agent-reported issues confirmed as false alarms.
+
+**Fixed:**
+
+| # | File | Bug | Severity |
+|---|------|-----|----------|
+| 1 | `SqlDatabase.cpp::Open` | `SQLAllocHandle(ENV)` failure path returned without `DeleteCriticalSection` → CS leak on every failed connect | High |
+| 2 | `SqlDatabase.cpp::Close` | Unconditional `DeleteCriticalSection` on `m_csExecution` was UB when `Open()` had never been called (default-constructed instance destroyed) | High |
+| 3 | `SqlBase.cpp::Init` | If `lpszQuery` length ≥ `MAX_QUERY_LEN`, every member was left uninitialized — caller's subsequent `m_hdbc` / `m_pdb` dereferences read garbage | High |
+| 4 | `SqlBase.cpp::IsNull` | `int nCol` allowed negative values to pass the `nCol < GetNumCol()` check (signed comparison) and index `m_liCOLS` negatively | Medium |
+| 5 | `BindDesc.cpp` default ctor | `m_size` and `m_type` left uninitialized; the zero-arg `MAlloc()` calls `MAlloc(m_size)` → `malloc(garbage)` | Medium |
+| 6 | `Packet.cpp::EncryptHeader` + `::DecryptHeader` | Loop counter `BYTE i` would silently wrap if `PACKET_HEADER_SIZE` ever exceeded 255 → infinite loop / OOB write. Defensive widen to `DWORD`. | Low (latent) |
+| 7 | `Packet.cpp::Write` | Capped `m_wSize` at `MAX_PACKET_SIZE` when the write would overflow; `IsValid()` then rejects exactly that value, leaving the packet with bytes written but an "invalid" size marker. Refuse the write up-front instead. | Medium |
+| 8 | `Packet.cpp::CopyData` | No `MAX_PACKET_SIZE` guard before `m_pHeader->m_wSize += wAddSize` (both `WORD`) → silent 16-bit wraparound. `AddData` already had this guard; symmetry. | Medium |
+
+**False alarms (verified, no change needed):**
+
+- *"Race condition in `Session::Decrypt` on `m_dwRecvNumber`"* — IOCP serializes completion processing per session; `CheckMessage` is only ever invoked from one worker thread per `CSession` at a time. The increment is safe by IOCP design, not by an explicit lock.
+- *"IsValid `>=` instead of `>`"* — `wSize == 0xFFFF` is intentionally treated as the "overflow / invalid" sentinel across the codebase (matches `TLoginSvr/TLoginSvr.cpp:1071` check). Write was the inconsistent side; that's the fix above.
 
 ### TNetLib Linux build attempt (Phase 1 kickoff — earlier commit `0033063`)
 

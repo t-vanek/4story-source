@@ -42,9 +42,12 @@ class CSqlDatabase
 public:
 	CRITICAL_SECTION m_csExecution;
 
-protected:	
+protected:
 	//Attributes
 	BOOL		m_bOpen;
+	BOOL		m_bCsInitialized; // tracks whether m_csExecution was successfully Initialize'd;
+	                              // guards DeleteCriticalSection in Close() against the
+	                              // never-opened path (default ctor → destructor → Close()).
 
 	SQLHENV		m_henv;
 	SQLHDBC		m_hdbc;

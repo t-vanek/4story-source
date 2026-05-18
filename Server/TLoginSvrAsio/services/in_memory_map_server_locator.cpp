@@ -12,7 +12,8 @@ void InMemoryMapServerLocator::AddMapServer(std::uint8_t group_id,
 }
 
 std::optional<MapEndpoint>
-InMemoryMapServerLocator::Lookup(std::uint8_t group_id,
+InMemoryMapServerLocator::Lookup(std::int32_t /*user_id*/,
+                                 std::uint8_t group_id,
                                  std::uint8_t /*channel*/,
                                  std::int32_t /*char_id*/)
 {

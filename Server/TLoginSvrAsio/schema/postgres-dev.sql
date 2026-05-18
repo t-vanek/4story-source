@@ -304,6 +304,14 @@ CREATE TABLE "TBRPLAYERTABLE" (
     "dwUserID" INTEGER NOT NULL
 );
 
+-- BOW (Battle of Worlds) shard membership — same shape as BR.
+-- Override route to ServerID=30 if (user, char) matches.
+DROP TABLE IF EXISTS "TBOWPLAYERTABLE" CASCADE;
+CREATE TABLE "TBOWPLAYERTABLE" (
+    "dwCharID" INTEGER PRIMARY KEY,
+    "dwUserID" INTEGER NOT NULL
+);
+
 -- Equipped-item slot for CHARLIST display (subset of TITEMTABLE).
 DROP TABLE IF EXISTS "TITEMTABLE" CASCADE;
 CREATE TABLE "TITEMTABLE" (

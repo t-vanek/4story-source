@@ -49,9 +49,16 @@ void WipeFixtures(soci::session& sql, const std::string& name_prefix)
         soci::use(like);
 }
 
+// NetCode.h constants used by tests below.
+constexpr std::uint8_t kCountryPeace      = 4;  // TCONTRY_PEACE → start level 1
+constexpr std::uint8_t kCountryChoice     = 2;  // TCONTRY_B     → start level 9
+constexpr std::uint8_t kPeaceStartLevel   = 1;
+constexpr std::uint8_t kChoiceStartLevel  = 9;
+
 tloginsvr::services::CharacterCreateRequest
 MakeCreateReq(int user_id, std::uint8_t world,
-              const std::string& name, std::uint8_t slot)
+              const std::string& name, std::uint8_t slot,
+              std::uint8_t country = kCountryPeace)
 {
     tloginsvr::services::CharacterCreateRequest r{};
     r.user_id    = user_id;
@@ -60,7 +67,7 @@ MakeCreateReq(int user_id, std::uint8_t world,
     r.slot       = slot;
     r.char_class = 1;
     r.race       = 0;
-    r.country    = 2;
+    r.country    = country;
     r.sex        = 0;
     r.hair       = 1;
     r.face       = 2;
@@ -245,6 +252,79 @@ void RunTests(const std::string& conn)
         const auto r = svc.Delete(user_b, world, cr.char_id, "ignored");
         Check(r == DeleteCharResult::Failed,
             "delete with wrong owner → Failed");
+    }
+
+    // 14. Choice-country char starts at CHOICE_COUNTRY_LEVEL (9).
+    {
+        const auto r = svc.Create(MakeCreateReq(
+            user_a, world, prefix + "Epsi", 4, kCountryChoice));
+        Check(r.status == CreateCharResult::Success, "create choice-country → Success");
+        Check(r.starting_level == kChoiceStartLevel,
+            "choice-country starting_level == 9");
+
+        // Verify it landed in the row.
+        auto lease = pool.Acquire();
+        int stored_level = 0;
+        *lease << "SELECT \"bLevel\" FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
+            soci::use(r.char_id), soci::into(stored_level);
+        Check(stored_level == kChoiceStartLevel,
+            "TCHARTABLE.bLevel == 9 for choice-country create");
+    }
+
+    // 15. Starter items: a fresh char gets TITEMTABLE rows (placeholder
+    //     set; real values driven by class).
+    {
+        const auto r = svc.Create(MakeCreateReq(user_a, world, prefix + "Zeta", 5));
+        Check(r.status == CreateCharResult::Success, "create Zeta → Success");
+
+        auto lease = pool.Acquire();
+        int item_hits = 0;
+        *lease << "SELECT COUNT(*) FROM \"TITEMTABLE\" "
+                  "WHERE \"dwOwnerID\" = :c AND \"bOwnerType\" = 1",
+            soci::use(r.char_id), soci::into(item_hits);
+        Check(item_hits >= 2,
+            "starter inventory inserted (TITEMTABLE rows for new char)");
+
+        // Hard delete scrubs the inventory.
+        const auto del = svc.Delete(user_a, world, r.char_id, "ignored");
+        Check(del == DeleteCharResult::Success, "delete Zeta → Success (hard, level=1)");
+        int items_after = 0;
+        *lease << "SELECT COUNT(*) FROM \"TITEMTABLE\" "
+                  "WHERE \"dwOwnerID\" = :c AND \"bOwnerType\" = 1",
+            soci::use(r.char_id), soci::into(items_after);
+        Check(items_after == 0, "hard-delete scrubs TITEMTABLE rows");
+    }
+
+    // 16. Veteran bonus boosts the starting level above the country floor.
+    {
+        // Seed a veteran row for level_option=7 that gives level 20.
+        const std::uint8_t vet_opt = 7;
+        const std::uint8_t vet_level = 20;
+        {
+            auto lease = pool.Acquire();
+            *lease << "DELETE FROM \"TVETERANCHART\" WHERE \"bID\" = :o",
+                soci::use(static_cast<int>(vet_opt));
+            *lease << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") "
+                      "VALUES (:o, :l)",
+                soci::use(static_cast<int>(vet_opt)),
+                soci::use(static_cast<int>(vet_level));
+        }
+
+        // Spin up a fresh service so it reloads the veteran cache.
+        SociCharService svc_vet(pool);
+
+        auto req = MakeCreateReq(
+            user_a, world, prefix + "Vetx", /*slot=*/5, kCountryPeace);
+        req.level_option = vet_opt;
+        const auto r = svc_vet.Create(req);
+        Check(r.status == CreateCharResult::Success,
+            "create with veteran level_option → Success");
+        Check(r.starting_level == vet_level,
+            "veteran bonus overrides country floor (level == 20)");
+
+        auto lease = pool.Acquire();
+        *lease << "DELETE FROM \"TVETERANCHART\" WHERE \"bID\" = :o",
+            soci::use(static_cast<int>(vet_opt));
     }
 
     // Cleanup.

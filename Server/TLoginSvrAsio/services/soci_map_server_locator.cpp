@@ -36,6 +36,23 @@ ParseIPv4(const std::string& s)
 
 // Legacy SVRGRP_MAPSVR (see Server/TLoginSvr NetCode.h).
 constexpr int kServerTypeMap = 4;
+// Shard-override IDs — NetCode.h:143/146.
+constexpr int kBowServerId  = 30;  // Battle of Worlds
+constexpr int kBrServerId   = 50;  // Battle Royale
+
+// True if (user_id, char_id) is registered in the named shard table.
+// `table` is interpolated directly (no user input → no injection risk).
+bool IsInShard(soci::session& sql,
+               const char* table,
+               int user_id,
+               int char_id)
+{
+    int hits = 0;
+    std::string q = std::string("SELECT COUNT(*) FROM \"") + table +
+        "\" WHERE \"dwUserID\" = :u AND \"dwCharID\" = :c";
+    sql << q, soci::use(user_id), soci::use(char_id), soci::into(hits);
+    return hits > 0;
+}
 
 } // namespace
 
@@ -45,15 +62,33 @@ SociMapServerLocator::SociMapServerLocator(db::SessionPool& pool)
 }
 
 std::optional<MapEndpoint>
-SociMapServerLocator::Lookup(std::uint8_t group_id,
+SociMapServerLocator::Lookup(std::int32_t user_id,
+                             std::uint8_t group_id,
                              std::uint8_t /*channel*/,
-                             std::int32_t /*char_id*/)
+                             std::int32_t char_id)
 {
     auto lease = m_pool.Acquire();
     soci::session& sql = *lease;
 
     try
     {
+        // BR / BOW shard membership — overrides the routing target.
+        // BR takes precedence over BOW per legacy CSHandler ordering
+        // (BR check runs after BOW and unconditionally overrides the
+        // server_id; we collapse it here into a single decision).
+        std::optional<int> shard_override;
+        if (user_id != 0 && char_id != 0)
+        {
+            if (IsInShard(sql, "TBRPLAYERTABLE", user_id, char_id))
+            {
+                shard_override = kBrServerId;
+            }
+            else if (IsInShard(sql, "TBOWPLAYERTABLE", user_id, char_id))
+            {
+                shard_override = kBowServerId;
+            }
+        }
+
         int port = 0;
         int server_id = 0;
         std::string ip;
@@ -62,37 +97,81 @@ SociMapServerLocator::Lookup(std::uint8_t group_id,
         // Dialect: PG/SQLite use trailing LIMIT 1, MSSQL uses TOP 1
         // immediately after SELECT.
         const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
-        const char* query = is_mssql
-            ? "SELECT TOP 1 s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
-              "FROM \"TSERVER\" s "
-              "JOIN \"TIPADDR\" i "
-              "  ON i.\"bMachineID\" = s.\"bMachineID\" "
-              " AND i.\"bActive\" = 1 "
-              "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
-              "ORDER BY s.\"bServerID\""
-            : "SELECT s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
-              "FROM \"TSERVER\" s "
-              "JOIN \"TIPADDR\" i "
-              "  ON i.\"bMachineID\" = s.\"bMachineID\" "
-              " AND i.\"bActive\" = 1 "
-              "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
-              "ORDER BY s.\"bServerID\" "
-              "LIMIT 1";
+
+        // Two query shapes per dialect — with and without the shard-id
+        // filter. The shard path pins server_id; default path takes
+        // the first map server in the group (the per-character routing
+        // currently isn't wired, see header doc).
+        const char* query;
+        if (shard_override.has_value())
+        {
+            query = is_mssql
+                ? "SELECT TOP 1 s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
+                  "FROM \"TSERVER\" s "
+                  "JOIN \"TIPADDR\" i "
+                  "  ON i.\"bMachineID\" = s.\"bMachineID\" "
+                  " AND i.\"bActive\" = 1 "
+                  "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
+                  "  AND s.\"bServerID\" = :sid"
+                : "SELECT s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
+                  "FROM \"TSERVER\" s "
+                  "JOIN \"TIPADDR\" i "
+                  "  ON i.\"bMachineID\" = s.\"bMachineID\" "
+                  " AND i.\"bActive\" = 1 "
+                  "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
+                  "  AND s.\"bServerID\" = :sid "
+                  "LIMIT 1";
+        }
+        else
+        {
+            query = is_mssql
+                ? "SELECT TOP 1 s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
+                  "FROM \"TSERVER\" s "
+                  "JOIN \"TIPADDR\" i "
+                  "  ON i.\"bMachineID\" = s.\"bMachineID\" "
+                  " AND i.\"bActive\" = 1 "
+                  "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
+                  "ORDER BY s.\"bServerID\""
+                : "SELECT s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
+                  "FROM \"TSERVER\" s "
+                  "JOIN \"TIPADDR\" i "
+                  "  ON i.\"bMachineID\" = s.\"bMachineID\" "
+                  " AND i.\"bActive\" = 1 "
+                  "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
+                  "ORDER BY s.\"bServerID\" "
+                  "LIMIT 1";
+        }
         {
             // Scope the statement so the cursor closes before this
             // function returns / any other query runs on the connection —
             // ODBC/MSSQL semantics require it; PG is unaffected.
-            soci::statement st = (sql.prepare << query,
-                soci::use(static_cast<int>(group_id)),
-                soci::use(kServerTypeMap),
-                soci::into(port),
-                soci::into(server_id),
-                soci::into(ip, ip_ind));
+            const int shard_sid = shard_override.value_or(0);
+            soci::statement st = shard_override.has_value()
+                ? (sql.prepare << query,
+                    soci::use(static_cast<int>(group_id)),
+                    soci::use(kServerTypeMap),
+                    soci::use(shard_sid),
+                    soci::into(port),
+                    soci::into(server_id),
+                    soci::into(ip, ip_ind))
+                : (sql.prepare << query,
+                    soci::use(static_cast<int>(group_id)),
+                    soci::use(kServerTypeMap),
+                    soci::into(port),
+                    soci::into(server_id),
+                    soci::into(ip, ip_ind));
             st.execute(true);
             got_row = st.got_data();
         }
         if (!got_row || ip_ind == soci::i_null)
         {
+            if (shard_override.has_value())
+            {
+                spdlog::warn("map_locator: shard override server_id={} "
+                             "configured for char_id={} but no TSERVER row "
+                             "matches in group={}",
+                    *shard_override, char_id, static_cast<int>(group_id));
+            }
             return std::nullopt;
         }
 

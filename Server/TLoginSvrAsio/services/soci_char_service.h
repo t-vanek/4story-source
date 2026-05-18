@@ -27,6 +27,8 @@
 
 #include "char_service.h"
 
+#include <unordered_map>
+
 namespace tloginsvr::db { class SessionPool; }
 
 namespace tloginsvr::services {
@@ -34,6 +36,11 @@ namespace tloginsvr::services {
 class SociCharService : public ICharService
 {
 public:
+    // Loads the TVETERANCHART rows into an in-memory cache at construction
+    // time (matches legacy CTLoginSvrModule init at TLoginSvr.cpp:382 — the
+    // chart is small and effectively read-only, so reloading per-request
+    // would just add DB load). If the table is missing or unreadable the
+    // service falls back to "no veteran bonus" silently.
     explicit SociCharService(db::SessionPool& pool);
 
     std::vector<CharacterInfo>
@@ -50,6 +57,11 @@ public:
 
 private:
     db::SessionPool& m_pool;
+
+    // m_veteran_levels: bLevelOption → bLevel. Empty means no veteran
+    // chart was loaded (CR_SUCCESS still works, just defaults to the
+    // country-based starting level).
+    std::unordered_map<std::uint8_t, std::uint8_t> m_veteran_levels;
 };
 
 } // namespace tloginsvr::services

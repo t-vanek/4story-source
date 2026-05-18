@@ -18,6 +18,7 @@ public:
     void AddMapServer(std::uint8_t group_id, MapEndpoint endpoint);
 
     std::optional<MapEndpoint> Lookup(
+        std::int32_t user_id,
         std::uint8_t group_id,
         std::uint8_t channel,
         std::int32_t char_id) override;

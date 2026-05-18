@@ -25,13 +25,95 @@ bool IsValidCharName(const std::string& name)
     return true;
 }
 
-constexpr std::uint8_t kMaxCharsPerUser = 6;  // legacy CHARSLOT_MAX
+constexpr std::uint8_t kMaxCharsPerUser    = 6;  // legacy CHARSLOT_MAX
+constexpr std::uint8_t kCountryPeace       = 4;  // NetCode.h: TCONTRY_PEACE
+constexpr std::uint8_t kPeaceStartLevel    = 1;  // peace country starts at 1
+constexpr std::uint8_t kChoiceStartLevel   = 9;  // NetCode.h: CHOICE_COUNTRY_LEVEL
+constexpr std::int32_t kClassCount         = 6;  // NetCode.h: TCLASS_COUNT (WARRIOR..SORCERER)
+
+// Starter inventory per class — placeholder mapping. The legacy SP
+// CSPCreateChar inserts the real starter inventory and we don't have
+// its source here; these item IDs are tuned to NOT collide with the
+// 16-bit reserved ranges, but they're meant to be replaced once the
+// prod item catalog is wired. Each tuple is (bItemID, wItemID, bLevel).
+//
+// Wired now because the wire-format CHARLIST ack expects bEquipCount + N
+// equipment rows; without something here new chars show as naked which
+// confuses the client. Treat as scaffolding, not gameplay-tuned.
+struct StarterItem { std::int16_t storage_type; std::int16_t item_kind; std::int16_t item_id; std::int16_t level; };
+const StarterItem* StarterSet(std::uint8_t char_class, std::size_t& out_n)
+{
+    // bStorageType 1 = equipped (legacy ITEMSTOR_EQUIP); 2 = inventory.
+    // bItemID is the slot/category (legacy TItem.h enum), wItemID is
+    // the specific item template id.
+    static const StarterItem warrior[] = {
+        { 1, 1,   1, 1 },  // sword (slot=weapon)
+        { 1, 5,  10, 1 },  // tunic (slot=body)
+    };
+    static const StarterItem ranger[] = {
+        { 1, 1,   2, 1 },  // dagger
+        { 1, 5,  10, 1 },
+    };
+    static const StarterItem archer[] = {
+        { 1, 1,   3, 1 },  // bow
+        { 1, 5,  10, 1 },
+    };
+    static const StarterItem wizard[] = {
+        { 1, 1,   4, 1 },  // staff
+        { 1, 5,  11, 1 },  // robe
+    };
+    static const StarterItem priest[] = {
+        { 1, 1,   4, 1 },
+        { 1, 5,  11, 1 },
+    };
+    static const StarterItem sorcerer[] = {
+        { 1, 1,   4, 1 },
+        { 1, 5,  11, 1 },
+    };
+    switch (char_class)
+    {
+    case 0: out_n = std::size(warrior);  return warrior;
+    case 1: out_n = std::size(ranger);   return ranger;
+    case 2: out_n = std::size(archer);   return archer;
+    case 3: out_n = std::size(wizard);   return wizard;
+    case 4: out_n = std::size(priest);   return priest;
+    case 5: out_n = std::size(sorcerer); return sorcerer;
+    default:
+        out_n = 0;
+        return nullptr;
+    }
+}
 
 } // namespace
 
 SociCharService::SociCharService(db::SessionPool& pool)
     : m_pool(pool)
 {
+    // Best-effort TVETERANCHART load. Empty / missing is OK — chars
+    // then just get the country-based starting level.
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        int opt = 0, lvl = 0;
+        soci::statement st = (sql.prepare <<
+            "SELECT \"bID\", \"bLevel\" FROM \"TVETERANCHART\"",
+            soci::into(opt), soci::into(lvl));
+        st.execute();
+        while (st.fetch())
+        {
+            m_veteran_levels[static_cast<std::uint8_t>(opt)] =
+                static_cast<std::uint8_t>(lvl);
+        }
+        spdlog::info("char_service: loaded {} veteran-chart row(s)",
+            m_veteran_levels.size());
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::warn("char_service: TVETERANCHART unreadable ({}) — "
+                     "veteran bonus disabled",
+            ex.what());
+    }
 }
 
 std::vector<CharacterInfo>
@@ -188,21 +270,39 @@ SociCharService::Create(const CharacterCreateRequest& req)
         const int       ufoot    = static_cast<int>(req.foot);
         const int       uslot    = static_cast<int>(req.slot);
         const int       uworld   = static_cast<int>(req.group_id);
+
+        // Starting level: country picks the floor (PEACE=1, others=9),
+        // veteran-bonus option may raise it. Same precedence as legacy
+        // CSHandler.cpp:1083-1087 + SP's country-vs-CHOICE_COUNTRY_LEVEL
+        // branch — the SP stamps the country-based level into TCHARTABLE
+        // and the C++ overlays the veteran-chosen level for the ACK.
+        std::uint8_t starting_level = (req.country == kCountryPeace)
+            ? kPeaceStartLevel
+            : kChoiceStartLevel;
+        if (auto it = m_veteran_levels.find(req.level_option);
+            it != m_veteran_levels.end() && it->second > starting_level)
+        {
+            starting_level = it->second;
+        }
+        const int ulevel = static_cast<int>(starting_level);
+
         const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
         const char* insert_char_sql = is_mssql
             ? "INSERT INTO \"TCHARTABLE\" "
               "(\"dwUserID\", \"bSlot\", \"szNAME\", \"bClass\", \"bRace\", "
               " \"bCountry\", \"bRealSex\", \"bSex\", \"bHair\", \"bFace\", "
-              " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", \"bOriCountry\") "
+              " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", \"bOriCountry\", "
+              " \"bLevel\") "
               "OUTPUT INSERTED.\"dwCharID\" "
               "VALUES (:uid, :slot, :n, :cls, :race, :country, :rsex, :sex, "
-              ":hair, :face, :body, :pants, :hand, :foot, :ori_country)"
+              ":hair, :face, :body, :pants, :hand, :foot, :ori_country, :lvl)"
             : "INSERT INTO \"TCHARTABLE\" "
               "(\"dwUserID\", \"bSlot\", \"szNAME\", \"bClass\", \"bRace\", "
               " \"bCountry\", \"bRealSex\", \"bSex\", \"bHair\", \"bFace\", "
-              " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", \"bOriCountry\") "
+              " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", \"bOriCountry\", "
+              " \"bLevel\") "
               "VALUES (:uid, :slot, :n, :cls, :race, :country, :rsex, :sex, "
-              ":hair, :face, :body, :pants, :hand, :foot, :ori_country) "
+              ":hair, :face, :body, :pants, :hand, :foot, :ori_country, :lvl) "
               "RETURNING \"dwCharID\"";
         int new_id = 0;
         sql << insert_char_sql,
@@ -221,6 +321,7 @@ SociCharService::Create(const CharacterCreateRequest& req)
             soci::use(uhand),
             soci::use(ufoot),
             soci::use(ucountry),  // bOriCountry — same as bCountry on create
+            soci::use(ulevel),
             soci::into(new_id);
 
         // Cross-world directory row.
@@ -230,7 +331,7 @@ SociCharService::Create(const CharacterCreateRequest& req)
                " \"bFace\", \"bBody\", \"bPants\", \"bHand\", \"bFoot\", "
                " \"bLevel\", \"dwEXP\") "
                "VALUES (:uid, :w, :cid, :slot, :n, :cls, :race, :country, "
-               ":sex, :hair, :face, :body, :pants, :hand, :foot, 1, 0)",
+               ":sex, :hair, :face, :body, :pants, :hand, :foot, :lvl, 0)",
             soci::use(req.user_id),
             soci::use(uworld),
             soci::use(new_id),
@@ -245,19 +346,51 @@ SociCharService::Create(const CharacterCreateRequest& req)
             soci::use(ubody),
             soci::use(upants),
             soci::use(uhand),
-            soci::use(ufoot);
+            soci::use(ufoot),
+            soci::use(ulevel);
+
+        // Starter inventory. The legacy SP CSPCreateChar inserts the
+        // gameplay-tuned starter set; the static table here is a
+        // placeholder so a fresh char isn't naked in the lobby. dlID is
+        // composed deterministically from (char_id, slot) — TITEMTABLE
+        // doesn't auto-increment in our schema (mirrors legacy MSSQL).
+        std::size_t starter_n = 0;
+        const auto* starter = StarterSet(req.char_class, starter_n);
+        for (std::size_t i = 0; i < starter_n; ++i)
+        {
+            const std::int64_t dl_id =
+                (static_cast<std::int64_t>(new_id) << 16) | static_cast<std::int64_t>(i);
+            const int store_type = starter[i].storage_type;
+            const int item_kind  = starter[i].item_kind;
+            const int item_id    = starter[i].item_id;
+            const int item_level = starter[i].level;
+            sql << "INSERT INTO \"TITEMTABLE\" "
+                   "(\"dlID\", \"bStorageType\", \"dwStorageID\", "
+                   " \"bOwnerType\", \"dwOwnerID\", "
+                   " \"bItemID\", \"wItemID\", \"bLevel\") "
+                   "VALUES (:dl, :st, :stid, 1, :own, :ik, :iid, :lvl)",
+                soci::use(dl_id),
+                soci::use(store_type),
+                soci::use(new_id),
+                soci::use(new_id),
+                soci::use(item_kind),
+                soci::use(item_id),
+                soci::use(item_level);
+        }
 
         const std::uint8_t remaining = static_cast<std::uint8_t>(
             std::max(0, kMaxCharsPerUser - (live_count + 1)));
 
-        spdlog::info("char.Create user_id={} world={} → char_id={} (name='{}')",
-            req.user_id, static_cast<int>(req.group_id), new_id, req.name);
+        spdlog::info("char.Create user_id={} world={} → char_id={} "
+                     "(name='{}', level={}, starter_items={})",
+            req.user_id, static_cast<int>(req.group_id),
+            new_id, req.name, ulevel, starter_n);
 
         return CharacterCreateResponse{
             .status          = CreateCharResult::Success,
             .char_id         = new_id,
             .remaining_slots = remaining,
-            .starting_level  = 1,
+            .starting_level  = starting_level,
         };
     }
     catch (const std::exception& ex)
@@ -323,10 +456,18 @@ SociCharService::Delete(std::int32_t user_id,
                    "       \"dDeleteDate\" = CURRENT_TIMESTAMP "
                    "WHERE \"dwCharID\" = :c",
                 soci::use(char_id);
+            // Soft path: leave TITEMTABLE rows intact so a restore
+            // (legacy GM operation) can return the inventory.
         }
         else
         {
             sql << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
+                soci::use(char_id);
+            // Hard path: scrub the inventory too, otherwise orphan
+            // TITEMTABLE rows accumulate forever (no FK in legacy
+            // schema; this service is the only enforcement).
+            sql << "DELETE FROM \"TITEMTABLE\" WHERE \"dwOwnerID\" = :c "
+                   "  AND \"bOwnerType\" = 1",
                 soci::use(char_id);
         }
 

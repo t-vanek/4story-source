@@ -580,7 +580,9 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
         spdlog::info("CS_START_REQ group={} ch={} char={} → CS_START_ACK (stub: SR_NOSERVER)",
             bGroupID, bChannel, dwCharID);
     }
-    else if (auto ep = map_server_locator->Lookup(bGroupID, bChannel, dwCharID))
+    else if (auto ep = map_server_locator->Lookup(
+                 ResolveUserId(session, connection_registry),
+                 bGroupID, bChannel, dwCharID))
     {
         payload[0] = static_cast<std::byte>(0); // SR_SUCCESS
         // DWORD dwMapIP — 4 octets in the same byte order the legacy

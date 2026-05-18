@@ -78,6 +78,42 @@ Phase 6  Cleanup                                      ~1 week
          Remove TBR/TBoW shells, dead code, conditional compile flags
 ```
 
+## Library Scope Clarification (post-inventory)
+
+Per-vcxproj grep across `Server/T*Svr/` shows which `Lib/Own/` modules are actually used by server processes (vs. client/Tools-only):
+
+| Lib | LOC | Used by servers? | Scope |
+|---|---:|---|---|
+| **TNetLib** | 4 499 | **7 servers** (canonical at `Lib/Own/TNetLib/TNetLib/`) | **In scope — Phase 1** |
+| **TProtocol** | 8 778 | **8 servers** (mostly headers) | **In scope — Phase 1** |
+| HwidLib | 1 533 | 0 servers — 11 refs in Client/Tools | Out of scope (client) |
+| TCML | 5 332 | 0 servers — 300 refs in Client/Tools | Out of scope (client) |
+| TChart | 15 342 | 0 servers — 406 refs in Client/Tools | Out of scope (client) |
+| TComp | 13 047 | 0 servers — used by Tools | Out of scope (Tools) |
+| TachyonControl | 50 328 | 0 servers — GUI lib for Tools | Out of scope (Tools) |
+| Engine Lib | 0 | (empty in tree) | N/A |
+
+Server modernization targets `TNetLib` + `TProtocol`. Other libs stay as-is.
+
+### TNetLib consolidation (DONE — commit `dd18d8d`)
+
+Two TNetLib copies existed (`Server/TNetLib/` v140 + `Lib/Own/TNetLib/TNetLib/` v141, semantically identical bar formatting). Consolidated onto canonical (v141) path. TMapSvr.vcxproj re-pointed, stale prebuilt `Server/Lib/TNetLib.lib` removed.
+
+### TNetLib Linux build attempt (Phase 1 kickoff — this commit)
+
+Added `CMakeLists.txt` at repo root + `Lib/Own/TNetLib/CMakeLists.txt`. CMake configures cleanly with GCC 13 / CMake 3.28; build of the `tnetlib` target on Linux fails at `TNetLib.h:4` (`#include <winsock2.h>`) — expected and useful. Full inventory of headers / APIs that block Linux compilation:
+
+| Win32 dependency | Headers / APIs | Linux replacement |
+|---|---|---|
+| Socket APIs | `<winsock2.h>`, `SOCKET`, `WSARecv`/`WSASend` | `<sys/socket.h>`, `<netinet/in.h>`, `<arpa/inet.h>` + Boost.Asio for async |
+| IOCP extensions | `<mswsock.h>`, `AcceptEx`, `ConnectEx`, `CreateIoCompletionPort`, `OVERLAPPED` | Boost.Asio (epoll/io_uring backend) |
+| Crypto API | `<wincrypt.h>`, `<Security.h>`, `CryptAcquireContext`, `HCRYPTKEY` | OpenSSL EVP (vendored at `Lib/3rdParty/openssl`) |
+| NetBIOS | `<nb30.h>` (`GetComputerName` family) | POSIX `gethostname()` |
+| ATL | `<atlbase.h>`, `<atlstr.h>`, `<atltime.h>` — `CString` (14 sites), `CTime` (4) | `std::string`, `std::chrono`, `using namespace` removed from headers |
+| MS ODBC headers | `<SQL.h>`, `<SQLExt.h>` | unixODBC ships the same headers — no change needed, just install `libodbc2-dev` |
+
+The `using namespace ATL;` + `using namespace std;` at `TNetLib.h:16-17` are global header pollution — a separate cleanup item.
+
 ## Phase 0 — Foundation
 
 Goal: cross-platform build skeleton + safety fixes, **no semantic changes**.

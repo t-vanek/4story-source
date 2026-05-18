@@ -13,7 +13,7 @@ INT64 g_4skey[KEY_COUNT] = {
 	0x0139aecea89541a2,
 	0x6b97253c5fbb8b06 };
 
-CString g_strSecretKey = "A5$$8AFS13A1::-11#!..'§19716AC&§/D1;;1#";
+CString g_strSecretKey = "A5$$8AFS13A1::-11#!..'ï¿½19716AC&ï¿½/D1;;1#";
 
 CSession::CSession()
 {
@@ -100,7 +100,7 @@ BOOL CSession::Decrypt(CPacket * pPacket)
 
 void CSession::Close()
 {
-	EnterCriticalSection(&m_cs);
+	SMART_LOCKCS(&m_cs)
 	m_bValid = FALSE;
 
 	if (INVALID_SOCKET != m_sock)
@@ -119,7 +119,6 @@ void CSession::Close()
 
 	m_dwBufSize = 0;
 	m_dwQRead = 0;
-	LeaveCriticalSection(&m_cs);
 }
 
 BOOL CSession::CreateSocket(SOCKET &socket)

@@ -36,16 +36,17 @@ struct AuthRequest
 // caller (OnLoginReq) maps these straight into CS_LOGIN_ACK::bResult.
 enum class AuthStatus : std::uint8_t
 {
-    Success         = 0,   // LR_SUCCESS
-    VersionMismatch = 4,   // LR_VERSION
-    NoUser          = 1,   // LR_NOUSER
-    WrongPassword   = 2,   // LR_INVALIDPASSWD
-    Duplicate       = 3,   // LR_DUPLICATE — peer logs in while another session is live
-    Banned          = 6,   // LR_BLOCK    — user-level ban
-    IpBanned        = 7,   // LR_IPBLOCK  — IP-level block
-    AgreementNeeded = 9,   // LR_NEEDAGREEMENT — first-time terms-of-service
-    InternalError   = 5,   // LR_INTERNAL — DB / system fault
-    RateLimited     = 10,  // not in legacy; modern addition. Map back to LR_INTERNAL on the wire if compat matters.
+    Success          = 0,   // LR_SUCCESS
+    VersionMismatch  = 4,   // LR_VERSION
+    NoUser           = 1,   // LR_NOUSER
+    WrongPassword    = 2,   // LR_INVALIDPASSWD
+    Duplicate        = 3,   // LR_DUPLICATE — peer logs in while another session is live
+    SecurityRequired = 5,   // LR_SECURITY  — new device, 2FA challenge required
+    Banned           = 6,   // LR_BLOCK    — user-level ban
+    IpBanned         = 7,   // LR_IPBLOCK  — IP-level block
+    AgreementNeeded  = 9,   // LR_NEEDAGREEMENT — first-time terms-of-service
+    InternalError    = 8,   // LR_INTERNAL — DB / system fault
+    RateLimited      = 10,  // not in legacy; modern addition. Map back to LR_INTERNAL on the wire if compat matters.
 };
 
 struct AuthResult
@@ -104,6 +105,32 @@ public:
     // address is detected during login. Returns empty string on DB
     // error or user_id=0.
     virtual std::string IssueSecurityCode(std::int32_t user_id) = 0;
+
+    // Per-user 2FA email + toggle. Empty optional → no email on file
+    // (2FA challenge can't be sent, login proceeds without check).
+    struct EmailRecord
+    {
+        std::string  email;
+        bool         two_factor_enabled = false;
+    };
+    virtual std::optional<EmailRecord> LookupEmail(std::int32_t user_id) = 0;
+
+    // Trusted-IP whitelist for 2FA. IsTrustedIp returns true if the
+    // (uid, ip) pair has been confirmed before — login skips the
+    // challenge. AddTrustedIp INSERTs after a successful
+    // CS_SECURITYCONFIRM_ACK. Idempotent (PK conflict swallowed).
+    virtual bool IsTrustedIp(std::int32_t user_id,
+                             const std::string& client_ip) = 0;
+    virtual void AddTrustedIp(std::int32_t user_id,
+                              const std::string& client_ip) = 0;
+
+    // Complete a 2FA-deferred login: insert TCURRENTUSER + TLOG rows
+    // exactly like the success branch of Authenticate would have done.
+    // Returns the dwKEY for the new session row, or 0 on failure. The
+    // caller (CS_SECURITYCONFIRM_ACK handler) hands the result back to
+    // the client in a deferred CS_LOGIN_ACK.
+    virtual std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
+                                                const std::string& client_ip) = 0;
 };
 
 } // namespace tloginsvr::services

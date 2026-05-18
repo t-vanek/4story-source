@@ -5,13 +5,14 @@
 #include <functional>
 
 #include "asio_session.h"
-#include "services/audit_logger.h"
+#include "fourstory/audit/audit_logger.h"
 #include "services/auth_service.h"
 #include "services/char_service.h"
 #include "services/connection_registry.h"
 #include "services/event_registry.h"
 #include "services/map_server_locator.h"
-#include "services/rate_limiter.h"
+#include "fourstory/ops/rate_limiter.h"
+#include "fourstory/smtp/smtp_client.h"
 
 #include <cstddef>
 #include <memory>
@@ -52,9 +53,10 @@ boost::asio::awaitable<void> OnLoginReq(
     std::span<const std::byte> body,
     services::IAuthService* auth_service = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr,
-    services::IAuditLogger* audit_logger = nullptr,
-    services::LoginRateLimiter* rate_limiter = nullptr,
-    std::span<const std::uint16_t> accepted_versions = {});
+    fourstory::audit::IAuditLogger* audit_logger = nullptr,
+    fourstory::ops::LoginRateLimiter* rate_limiter = nullptr,
+    std::span<const std::uint16_t> accepted_versions = {},
+    fourstory::smtp::ISmtpClient* smtp_client = nullptr);
 
 // CS_GROUPLIST_REQ → CS_GROUPLIST_ACK. Phase-3 stub: returns an empty
 // world-group list (BYTE bCount = 0 + BYTE bCheckFilePoint = 0).
@@ -101,7 +103,7 @@ boost::asio::awaitable<void> OnCreateCharReq(
     std::span<const std::byte> body,
     services::ICharService* char_service = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr,
-    services::IAuditLogger* audit_logger = nullptr);
+    fourstory::audit::IAuditLogger* audit_logger = nullptr);
 
 // CS_DELCHAR_REQ → CS_DELCHAR_ACK.
 // Parses (bGroupID, strPasswd, dwCharID). If `auth_service` is non-null
@@ -115,7 +117,7 @@ boost::asio::awaitable<void> OnDelCharReq(
     services::ICharService* char_service = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr,
     services::IAuthService* auth_service = nullptr,
-    services::IAuditLogger* audit_logger = nullptr);
+    fourstory::audit::IAuditLogger* audit_logger = nullptr);
 
 // CS_START_REQ(bGroupID, bChannel, dwCharID) → CS_START_ACK.
 // When map_server_locator is non-null, real lookup → SR_SUCCESS (0)
@@ -129,7 +131,7 @@ boost::asio::awaitable<void> OnStartReq(
     std::span<const std::byte> body,
     services::IMapServerLocator* map_server_locator = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr,
-    services::IAuditLogger* audit_logger = nullptr);
+    fourstory::audit::IAuditLogger* audit_logger = nullptr);
 
 // CS_AGREEMENT_REQ(WORD wVersion) — no ack. Persists TACCOUNT_PW.bCheck=1
 // via IAuthService::SetAgreement so the user doesn't see the EULA again.
@@ -140,17 +142,14 @@ boost::asio::awaitable<void> OnAgreementReq(
     services::IAuthService* auth_service = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr);
 
-// CS_HOTSEND_REQ(INT64 dlValue, BYTE bAll) — no ack. Exec-file
-// integrity heartbeat. When `exec_check_value` is non-zero, the
-// handler validates `dlValue == exec_check_value ^ session.check_key`
-// (legacy m_dlCheckFile XOR m_dlCheckKey) and closes the socket on
-// mismatch. Zero check_value keeps the legacy default (feature
-// disabled — handler is a no-op).
+// CS_HOTSEND_REQ — legacy client's exec-file integrity heartbeat
+// (TNetHandler.cpp:337 + :721 fire one per GROUPLIST/CHANNELLIST ack).
+// Silently accepted and dropped here: validation belongs to the
+// anti-cheat tooling that's intentionally out of scope for this
+// rewrite.
 boost::asio::awaitable<void> OnHotsendReq(
     std::shared_ptr<tnetlib::AsioSession> session,
-    std::span<const std::byte> body,
-    services::IConnectionRegistry* connection_registry = nullptr,
-    std::int64_t exec_check_value = 0);
+    std::span<const std::byte> body);
 
 // CS_VETERAN_REQ → CS_VETERAN_ACK(BYTE bOption=3, BYTE level1,
 // BYTE level2, BYTE level3). Reads three level rows from
@@ -176,7 +175,8 @@ boost::asio::awaitable<void> OnSecurityConfirmAck(
     std::shared_ptr<tnetlib::AsioSession> session,
     std::span<const std::byte> body,
     services::IAuthService* auth_service = nullptr,
-    services::IConnectionRegistry* connection_registry = nullptr);
+    services::IConnectionRegistry* connection_registry = nullptr,
+    fourstory::audit::IAuditLogger* audit_logger = nullptr);
 
 // CT_SERVICEMONITOR_ACK(DWORD dwTick) → CT_SERVICEMONITOR_REQ.
 // Control-server polling shim — replies with session counts so the GM
@@ -225,7 +225,7 @@ boost::asio::awaitable<void> OnTestLoginReq(
     std::span<const std::byte> body,
     services::IAuthService* auth_service = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr,
-    services::IAuditLogger* audit_logger = nullptr);
+    fourstory::audit::IAuditLogger* audit_logger = nullptr);
 
 // CS_TESTVERSION_REQ — Svr Tester version probe. Returns the current
 // protocol version so a test harness can detect a drifted client.

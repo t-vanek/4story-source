@@ -29,11 +29,11 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_audit_logger(config.audit_logger)
     , m_rate_limiter(config.login_rate_limiter)
     , m_event_registry(config.event_registry)
+    , m_smtp_client(config.smtp_client)
     , m_pre_auth_timeout(config.pre_auth_timeout)
     , m_accepted_versions(std::move(config.accepted_versions))
     , m_test_handlers_enabled(config.test_handlers_enabled)
     , m_on_quit_request(std::move(config.on_quit_request))
-    , m_exec_check_value(config.exec_check_value)
 {
 }
 
@@ -172,7 +172,8 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnLoginReq(sess, body, m_auth_service,
             m_connection_registry, m_audit_logger, m_rate_limiter,
             std::span<const std::uint16_t>(
-                m_accepted_versions.data(), m_accepted_versions.size()));
+                m_accepted_versions.data(), m_accepted_versions.size()),
+            m_smtp_client);
         break;
     case MessageId::CS_GROUPLIST_REQ:
         co_await handlers::OnGroupListReq(sess, body, m_map_server_locator, m_connection_registry);
@@ -199,8 +200,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnAgreementReq(sess, body, m_auth_service, m_connection_registry);
         break;
     case MessageId::CS_HOTSEND_REQ:
-        co_await handlers::OnHotsendReq(sess, body,
-            m_connection_registry, m_exec_check_value);
+        co_await handlers::OnHotsendReq(sess, body);
         break;
     case MessageId::CS_VETERAN_REQ:
         co_await handlers::OnVeteranReq(*sess, body, m_char_service);
@@ -210,7 +210,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_SECURITYCONFIRM_ACK:
         co_await handlers::OnSecurityConfirmAck(sess, body,
-            m_auth_service, m_connection_registry);
+            m_auth_service, m_connection_registry, m_audit_logger);
         break;
     case MessageId::CS_TESTLOGIN_REQ:
         if (m_test_handlers_enabled)

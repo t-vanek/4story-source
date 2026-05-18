@@ -1,5 +1,5 @@
 #include "soci_session_terminator.h"
-#include "../db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
 
@@ -7,7 +7,7 @@
 
 namespace tloginsvr::services {
 
-SociSessionTerminator::SociSessionTerminator(db::SessionPool& pool)
+SociSessionTerminator::SociSessionTerminator(fourstory::db::SessionPool& pool)
     : m_pool(pool)
 {
 }

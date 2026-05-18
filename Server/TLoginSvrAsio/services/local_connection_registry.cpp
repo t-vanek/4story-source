@@ -76,6 +76,18 @@ void LocalConnectionRegistry::SetGroupId(
     }
 }
 
+void LocalConnectionRegistry::CompleteSecurityLogin(
+    const std::shared_ptr<tnetlib::AsioSession>& session,
+    std::uint32_t session_key)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_by_session.find(session.get()); it != m_by_session.end())
+    {
+        it->second.session_key = session_key;
+        it->second.awaiting_security = false;
+    }
+}
+
 void LocalConnectionRegistry::Unregister(
     const std::shared_ptr<tnetlib::AsioSession>& session)
 {

@@ -65,9 +65,14 @@ std::vector<std::byte> MakeLoginReq(std::uint16_t version,
     append_string("");
     append_string("");
     append_string(user_id);
-    std::int64_t z = 0;
-    append_bytes(&z, 8);
-    append_bytes(&z, 8);
+    // Legacy checksum (CSHandler.cpp:185-202).
+    constexpr std::int64_t kKey = 0x336c3aebf71a8b08LL;
+    std::int64_t ck = static_cast<std::int64_t>(version) * 2 - 500;
+    const std::int64_t idx = ck % 8, body = ck / 8;
+    for (std::int64_t i = 0; i < idx; ++i) { ck ^= body; ck += kKey; }
+    std::int64_t dlCheck = 0;
+    append_bytes(&dlCheck, 8);
+    append_bytes(&ck, 8);
     return out;
 }
 
@@ -145,6 +150,11 @@ ClientOutcome RunOneClient(std::uint16_t port,
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
+    // Snapshot BEFORE we tear down the socket — otherwise our own
+    // Close() would set recv_loop_done = true and the caller could
+    // never tell whether the server kicked us or we self-closed.
+    const bool eof_observed = recv_loop_done.load();
+
     sess->Close();
     client_io.stop();
     if (t.joinable()) t.join();
@@ -152,7 +162,7 @@ ClientOutcome RunOneClient(std::uint16_t port,
     return ClientOutcome{
         .ack_seen = ack_seen.load(),
         .ack_result = result.load(),
-        .got_eof = recv_loop_done.load(),
+        .got_eof = eof_observed,
     };
 }
 

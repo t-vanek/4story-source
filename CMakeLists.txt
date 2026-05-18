@@ -91,4 +91,7 @@ enable_testing()
 # Subprojects. Add new servers / libs here as they get a CMakeLists.txt.
 add_subdirectory(Lib/3rdParty/bcrypt)
 add_subdirectory(Lib/Own/TNetLib)
+add_subdirectory(Lib/Own/FourStoryCommon)
 add_subdirectory(Server/TLoginSvrAsio)
+add_subdirectory(Server/TPatchSvrAsio)
+add_subdirectory(Server/TLogSvrAsio)

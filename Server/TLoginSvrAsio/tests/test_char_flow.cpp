@@ -56,9 +56,15 @@ std::vector<std::byte> MakeLoginReq(const std::string& user, const std::string& 
     std::uint16_t v = kProtocolVersion;
     bytes(&v, 2);
     str(""); str(pass); str(""); str(""); str(user);
-    std::int64_t z = 0;
-    bytes(&z, 8);
-    bytes(&z, 8);
+    // Legacy checksum (CSHandler.cpp:185-202). dlCheck=0 ok (exec-file
+    // probe disabled); llChecksum must match the per-version compute.
+    constexpr std::int64_t kKey = 0x336c3aebf71a8b08LL;
+    std::int64_t ck = static_cast<std::int64_t>(v) * 2 - 500;
+    const std::int64_t idx = ck % 8, body = ck / 8;
+    for (std::int64_t i = 0; i < idx; ++i) { ck ^= body; ck += kKey; }
+    std::int64_t dlCheck = 0;
+    bytes(&dlCheck, 8);
+    bytes(&ck, 8);
     return out;
 }
 
@@ -170,11 +176,12 @@ void TestCharListWithSeededChars()
         Check(cap.acks[1].first == tnetlib::protocol::ToUint16(
                 tnetlib::protocol::MessageId::CS_CHARLIST_ACK),
               "second ack is CS_CHARLIST_ACK");
-        // payload[0]=CheckFilePoint=0, payload[1]=bCount
-        Check(charlist.size() >= 2, "CHARLIST_ACK has at least 2 bytes");
-        Check(static_cast<std::uint8_t>(charlist[0]) == 0,
-              "CheckFilePoint = 0");
-        Check(static_cast<std::uint8_t>(charlist[1]) == 2,
+        // payload[0..3]=DWORD CheckFilePoint=0, payload[4]=BYTE bCount
+        Check(charlist.size() >= 5, "CHARLIST_ACK has at least 5 bytes");
+        std::uint32_t check_point = 0;
+        std::memcpy(&check_point, charlist.data(), 4);
+        Check(check_point == 0, "CheckFilePoint = 0");
+        Check(static_cast<std::uint8_t>(charlist[4]) == 2,
               "bCount = 2 (matches seeded characters)");
     }
 
@@ -247,7 +254,7 @@ void TestCreateCharAppendsToList()
         Check(cap.acks[2].first == tnetlib::protocol::ToUint16(
                 tnetlib::protocol::MessageId::CS_CHARLIST_ACK),
               "third ack is CS_CHARLIST_ACK");
-        Check(static_cast<std::uint8_t>(cl_ack[1]) == 1,
+        Check(static_cast<std::uint8_t>(cl_ack[4]) == 1,
               "CHARLIST shows 1 character after CREATE");
     }
 
@@ -317,7 +324,7 @@ void TestDelCharRemovesFromList()
               "DELCHAR result = DR_SUCCESS (0)");
 
         const auto& cl_ack = cap.acks[2].second;
-        Check(static_cast<std::uint8_t>(cl_ack[1]) == 0,
+        Check(static_cast<std::uint8_t>(cl_ack[4]) == 0,
               "CHARLIST shows 0 characters after DELETE");
     }
 

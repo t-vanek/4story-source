@@ -48,8 +48,8 @@ void WipeFixtures(soci::session& sql,
 
 void RunTests(const std::string& conn)
 {
-    tloginsvr::db::SessionPool pool(
-        tloginsvr::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
+    fourstory::db::SessionPool pool(
+        fourstory::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
 
     // PID-scoped machine + group IDs to avoid colliding with other test
     // runs. smallint is 16-bit signed; cap at 200 + pid%50 etc to stay

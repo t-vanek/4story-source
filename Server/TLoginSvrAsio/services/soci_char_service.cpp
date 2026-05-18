@@ -1,5 +1,5 @@
 #include "soci_char_service.h"
-#include "../db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
 
@@ -65,8 +65,8 @@ const StarterItem* StarterSet(std::uint8_t char_class, std::size_t& out_n)
 
 } // namespace
 
-SociCharService::SociCharService(db::SessionPool& global_pool,
-                                 db::SessionPool& world_pool)
+SociCharService::SociCharService(fourstory::db::SessionPool& global_pool,
+                                 fourstory::db::SessionPool& world_pool)
     : m_global(global_pool)
     , m_world(world_pool)
 {

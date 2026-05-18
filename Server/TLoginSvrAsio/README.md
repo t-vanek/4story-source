@@ -44,7 +44,7 @@ and the binary runs end-to-end against the restored MSSQL databases
 | `CS_START_REQ` | ✅ real | `IMapServerLocator::Lookup` — TFindServerID port, BR/BOW shard |
 | `CS_VETERAN_REQ` | ✅ real | `ICharService::GetVeteranLevels` (cached TVETERANCHART, 30s refresh) |
 | `CS_TERMINATE_REQ` | ✅ real | legacy magic check + `ISessionTerminator` cleanup |
-| `CS_HOTSEND_REQ` | ✅ real | exec-file integrity check; disabled by default (`exec_check_value = 0`) |
+| `CS_HOTSEND_REQ` | ✅ silently dropped | Legacy client's exec-file integrity heartbeat; validation is anti-cheat tooling, intentionally out of scope |
 | `CS_SECURITYCONFIRM_ACK` | ✅ real | TSECURECODE compare + `ISmtpClient` for the issuance side |
 | `CS_TESTLOGIN_REQ` | ✅ real | TTESTLOGINUSER pick; gated `test_handlers_enabled = false` |
 | `CS_TESTVERSION_REQ` | ✅ real | returns server's protocol version |
@@ -121,7 +121,6 @@ mode (SOCI services, schema validator, audit log).
 port = 4816                          # legacy TSERVER row for bType=TLOGIN_GSP
 # accepted_versions = [0x2918]       # client wVersion whitelist; default = legacy single value
 # test_handlers_enabled = false      # CS_TESTLOGIN_REQ / CS_TESTVERSION_REQ gate
-# exec_check_value = 0               # CS_HOTSEND_REQ exec-file integrity check (0 = disabled)
 
 [crypto]
 disable_rc4 = false                  # set true for server-server test peers

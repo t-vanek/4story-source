@@ -1,5 +1,5 @@
 #include "soci_map_server_locator.h"
-#include "../db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
 
@@ -160,8 +160,8 @@ std::optional<int> FindServerForChar(soci::session& sql,
 
 } // namespace
 
-SociMapServerLocator::SociMapServerLocator(db::SessionPool& global_pool,
-                                           db::SessionPool* world_pool)
+SociMapServerLocator::SociMapServerLocator(fourstory::db::SessionPool& global_pool,
+                                           fourstory::db::SessionPool* world_pool)
     : m_pool(global_pool)
     , m_world(world_pool)
 {
@@ -234,7 +234,7 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
         bool got_row = false;
         // Dialect: PG/SQLite use trailing LIMIT 1, MSSQL uses TOP 1
         // immediately after SELECT.
-        const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
+        const bool is_mssql = (m_pool.GetBackend() == fourstory::db::Backend::Odbc);
 
         // Two query shapes per dialect — with and without the shard-id
         // filter. The shard path pins server_id; default path takes

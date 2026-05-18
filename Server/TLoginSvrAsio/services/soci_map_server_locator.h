@@ -17,7 +17,7 @@
 
 #include "map_server_locator.h"
 
-namespace tloginsvr::db { class SessionPool; }
+namespace fourstory::db { class SessionPool; }
 
 namespace tloginsvr::services {
 
@@ -29,8 +29,8 @@ public:
     // `world_pool` (TGAME, optional) — TBRPLAYERTABLE / TBOWPLAYERTABLE
     // for shard-override routing on CS_START_REQ. If null, the shard
     // check is skipped (Lookup uses the default group-server target).
-    explicit SociMapServerLocator(db::SessionPool& global_pool,
-                                  db::SessionPool* world_pool = nullptr);
+    explicit SociMapServerLocator(fourstory::db::SessionPool& global_pool,
+                                  fourstory::db::SessionPool* world_pool = nullptr);
 
     std::optional<MapEndpoint> Lookup(
         std::int32_t  user_id,
@@ -42,8 +42,8 @@ public:
     std::vector<ChannelInfo> ListChannels(std::uint8_t group_id) override;
 
 private:
-    db::SessionPool& m_pool;
-    db::SessionPool* m_world; // optional — null skips shard checks
+    fourstory::db::SessionPool& m_pool;
+    fourstory::db::SessionPool* m_world; // optional — null skips shard checks
 };
 
 } // namespace tloginsvr::services

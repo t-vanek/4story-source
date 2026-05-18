@@ -20,3 +20,5 @@ cmake-configure.log
 # Local deploy config (template lives in tloginsvr.example.toml).
 # tloginsvr.toml is per-deployment — connection strings, ports.
 Server/TLoginSvrAsio/tloginsvr.toml
+Server/TPatchSvrAsio/tpatchsvr.toml
+Server/TLogSvrAsio/tlogsvr.toml

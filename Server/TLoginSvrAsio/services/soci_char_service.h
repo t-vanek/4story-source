@@ -34,7 +34,7 @@
 #include <mutex>
 #include <unordered_map>
 
-namespace tloginsvr::db { class SessionPool; }
+namespace fourstory::db { class SessionPool; }
 
 namespace tloginsvr::services {
 
@@ -50,7 +50,7 @@ public:
     // `global_pool` — TGLOBAL (accounts + cross-world directory tables).
     // `world_pool`  — TGAME (per-world tables). Lifetimes must exceed
     //   this service. Both required for real character ops.
-    SociCharService(db::SessionPool& global_pool, db::SessionPool& world_pool);
+    SociCharService(fourstory::db::SessionPool& global_pool, fourstory::db::SessionPool& world_pool);
 
     std::vector<CharacterInfo>
     List(std::int32_t user_id, std::uint8_t group_id) override;
@@ -79,8 +79,8 @@ public:
     void RefreshVeteranChart();
 
 private:
-    db::SessionPool& m_global; // TGLOBAL
-    db::SessionPool& m_world;  // TGAME (per-world)
+    fourstory::db::SessionPool& m_global; // TGLOBAL
+    fourstory::db::SessionPool& m_world;  // TGAME (per-world)
 
     // m_veteran_levels guarded against RefreshVeteranChart racing
     // GetVeteranLevels — both lock m_veteran_mtx.

@@ -14,14 +14,15 @@
 
 #include "asio_session.h"
 #include "MessageId.h"
-#include "services/audit_logger.h"
+#include "fourstory/audit/audit_logger.h"
 #include "services/auth_service.h"
 #include "services/char_service.h"
 #include "services/connection_registry.h"
 #include "services/event_registry.h"
 #include "services/map_server_locator.h"
-#include "services/rate_limiter.h"
+#include "fourstory/ops/rate_limiter.h"
 #include "services/session_terminator.h"
+#include "fourstory/smtp/smtp_client.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -85,12 +86,6 @@ struct LoginServerConfig
     // them via TOML.
     bool test_handlers_enabled = false;
 
-    // Exec-file integrity expected value. CS_HOTSEND_REQ validates
-    // `dlValue == exec_check_value ^ session.check_key`. Zero (the
-    // default) disables the check entirely — matches the shipped
-    // legacy `m_hExecFile == INVALID_HANDLE_VALUE` path.
-    std::int64_t exec_check_value = 0;
-
     // Called when SM_QUITSERVICE_REQ arrives. Main typically wires
     // this to `io.stop()` so the wire-protocol shutdown matches the
     // SIGINT path. Null = SM_QUITSERVICE_REQ is logged and ignored.
@@ -99,11 +94,18 @@ struct LoginServerConfig
     // Operational audit sink (login attempts, char create/delete,
     // game-start handoff). Non-owning. Null disables the audit
     // emission entirely — handlers carry on, just no audit records.
-    services::IAuditLogger* audit_logger = nullptr;
+    fourstory::audit::IAuditLogger* audit_logger = nullptr;
 
     // Per-IP login rate limiter. Non-owning. Null disables (any
     // login attempt is allowed through to the auth service).
-    services::LoginRateLimiter* login_rate_limiter = nullptr;
+    fourstory::ops::LoginRateLimiter* login_rate_limiter = nullptr;
+
+    // SMTP client for 2FA emails. Non-owning. Null disables the
+    // outbound mail path — the LR_SECURITY challenge still runs, the
+    // code is generated + stored in TSECURECODE, but no email lands
+    // (useful for tests + dev mode where operators read the code from
+    // the spdlog "audit" stream).
+    fourstory::smtp::ISmtpClient* smtp_client = nullptr;
 
     // GM-event registry. Non-owning. CT_EVENTUPDATE_REQ persists
     // entries here; future GroupList ack consumers can read back.
@@ -139,14 +141,14 @@ private:
     services::IMapServerLocator*   m_map_server_locator = nullptr;   // non-owning; null = stub SR_NOSERVER
     services::ISessionTerminator*  m_session_terminator = nullptr;   // non-owning; null = no close-time cleanup
     services::ICharService*        m_char_service = nullptr;         // non-owning; null = stub responses
-    services::IAuditLogger*        m_audit_logger = nullptr;         // non-owning; null = no audit emission
-    services::LoginRateLimiter*    m_rate_limiter = nullptr;         // non-owning; null = no rate limiting
+    fourstory::audit::IAuditLogger*        m_audit_logger = nullptr;         // non-owning; null = no audit emission
+    fourstory::ops::LoginRateLimiter*    m_rate_limiter = nullptr;         // non-owning; null = no rate limiting
     services::IEventRegistry*      m_event_registry = nullptr;       // non-owning; null = no persistence
+    fourstory::smtp::ISmtpClient*         m_smtp_client = nullptr;          // non-owning; null = no 2FA mail
     std::chrono::seconds           m_pre_auth_timeout{ 60 };
     std::vector<std::uint16_t>     m_accepted_versions;              // empty = reject all
     bool                           m_test_handlers_enabled = false;  // CS_TESTLOGIN_REQ / CS_TESTVERSION_REQ gate
     std::function<void()>          m_on_quit_request;                // SM_QUITSERVICE_REQ → io.stop() etc. May be null.
-    std::int64_t                   m_exec_check_value = 0;           // CS_HOTSEND_REQ expected dlCheckFile; 0 = disabled
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

@@ -1,79 +1,16 @@
 #include "schema_validator.h"
-#include "session_pool.h"
 
-#include <soci/soci.h>
-
-#include <spdlog/spdlog.h>
-
-#include <initializer_list>
-#include <string>
-#include <vector>
+#include "fourstory/db/schema_validator.h"
+#include "fourstory/db/session_pool.h"
 
 namespace tloginsvr::db {
 
-namespace {
-
-// One-shot per-pool check: confirm every (table, column) listed exists
-// in the connected database. Uses INFORMATION_SCHEMA (portable across
-// MSSQL + PostgreSQL — both surface columns there).
-//
-// Implementation choice — one COUNT query per column. Could be one
-// query with IN-list per table, but the per-column form keeps the
-// error message specific ("table TFOO column bar missing") and
-// startup cost is trivial.
-void CheckColumns(soci::session& sql,
-                  const char* pool_label,
-                  std::initializer_list<std::pair<const char*, const char*>> required)
+void ValidateGlobalSchema(fourstory::db::SessionPool& pool)
 {
-    std::vector<std::string> missing;
-    for (const auto& [table, column] : required)
-    {
-        int hits = 0;
-        try
-        {
-            // Inline the identifier literals rather than binding as
-            // parameters. INFORMATION_SCHEMA.COLUMNS stores
-            // TABLE_NAME / COLUMN_NAME as `sysname` (NVARCHAR(128))
-            // on MSSQL; SOCI's default ODBC string binding maps to
-            // SQL_VARCHAR which compares to non-matching widechar
-            // columns as "no rows" (silent miss). Table + column
-            // names here are compile-time constants from the
-            // CheckColumns list, so direct substitution is safe.
-            std::string q =
-                std::string("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS "
-                            "WHERE TABLE_NAME = '") + table +
-                "' AND COLUMN_NAME = '" + column + "'";
-            sql << q, soci::into(hits);
-        }
-        catch (const std::exception& ex)
-        {
-            throw SchemaError(std::string("schema_validator (") + pool_label +
-                "): INFORMATION_SCHEMA query failed: " + ex.what());
-        }
-        if (hits == 0)
-        {
-            missing.emplace_back(std::string(table) + "." + column);
-        }
-    }
-    if (!missing.empty())
-    {
-        std::string msg = std::string("schema_validator (") + pool_label +
-            "): missing column(s):";
-        for (const auto& m : missing) { msg += ' '; msg += m; }
-        throw SchemaError(msg);
-    }
-    spdlog::info("schema_validator ({}) OK ({} columns checked)",
-        pool_label, required.size());
-}
-
-} // namespace
-
-void ValidateGlobalSchema(SessionPool& pool)
-{
-    // Columns SociAuthService + SociMapServerLocator + the
-    // global-side parts of SociCharService read or write.
+    // Columns SociAuthService + SociMapServerLocator + the global-side
+    // parts of SociCharService read or write.
     auto lease = pool.Acquire();
-    CheckColumns(*lease, "global", {
+    fourstory::db::CheckColumns(*lease, "global", {
         // Accounts + credentials
         { "TACCOUNT_PW",      "dwUserID" },
         { "TACCOUNT_PW",      "szUserID" },
@@ -124,13 +61,19 @@ void ValidateGlobalSchema(SessionPool& pool)
         // Veteran chart
         { "TVETERANCHART",    "bID" },
         { "TVETERANCHART",    "bLevel" },
+        // 2FA (apply schema/2fa-tables.sql if missing)
+        { "TUSEREMAIL",       "dwUserID" },
+        { "TUSEREMAIL",       "szEmail" },
+        { "TUSEREMAIL",       "bTwoFactorEnabled" },
+        { "TUSERTRUSTEDIP",   "dwUserID" },
+        { "TUSERTRUSTEDIP",   "szIP" },
     });
 }
 
-void ValidateWorldSchema(SessionPool& pool)
+void ValidateWorldSchema(fourstory::db::SessionPool& pool)
 {
     auto lease = pool.Acquire();
-    CheckColumns(*lease, "world", {
+    fourstory::db::CheckColumns(*lease, "world", {
         // Per-world char rows (read by CharList, write by Create/Delete)
         { "TCHARTABLE",       "dwCharID" },
         { "TCHARTABLE",       "dwUserID" },

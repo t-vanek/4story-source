@@ -11,21 +11,21 @@
 
 #include "session_terminator.h"
 
-namespace tloginsvr::db { class SessionPool; }
+namespace fourstory::db { class SessionPool; }
 
 namespace tloginsvr::services {
 
 class SociSessionTerminator : public ISessionTerminator
 {
 public:
-    explicit SociSessionTerminator(db::SessionPool& pool);
+    explicit SociSessionTerminator(fourstory::db::SessionPool& pool);
 
     void Terminate(std::int32_t user_id,
                    std::uint32_t session_key,
                    TerminationReason reason) override;
 
 private:
-    db::SessionPool& m_pool;
+    fourstory::db::SessionPool& m_pool;
 };
 
 } // namespace tloginsvr::services

@@ -57,12 +57,9 @@ endif()
 # instantiate LoginServer in-process instead of forking the binary.
 add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/login_server.cpp
-    ${TLOGINSVR_ASIO_SRC}/admin_shell.cpp
     ${TLOGINSVR_ASIO_SRC}/handlers.cpp
     ${TLOGINSVR_ASIO_SRC}/config.cpp
-    ${TLOGINSVR_ASIO_SRC}/health_endpoint.cpp
     ${TLOGINSVR_ASIO_SRC}/db/schema_validator.cpp
-    ${TLOGINSVR_ASIO_SRC}/db/session_pool.cpp
     ${TLOGINSVR_ASIO_SRC}/services/fake_auth_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/local_connection_registry.cpp
     ${TLOGINSVR_ASIO_SRC}/services/local_event_registry.cpp
@@ -72,12 +69,7 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/services/soci_auth_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_char_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_map_server_locator.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/soci_session_terminator.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/rate_limiter.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/registry_refresher.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/spdlog_audit_logger.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/spdlog_smtp_client.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/udp_audit_logger.cpp)
+    ${TLOGINSVR_ASIO_SRC}/services/soci_session_terminator.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib
@@ -97,7 +89,7 @@ endif()
 if(NOT LIBPQ_FOUND AND EXISTS /usr/include/postgresql/libpq-fe.h)
     target_include_directories(tloginsvr_asio_core PRIVATE /usr/include/postgresql)
 endif()
-target_link_libraries(tloginsvr_asio_core PUBLIC tnetlib_portable ${TLOGINSVR_SOCI_LIBS} ${TLOGINSVR_BCRYPT_LIB})
+target_link_libraries(tloginsvr_asio_core PUBLIC tnetlib_portable fourstory_common ${TLOGINSVR_SOCI_LIBS} ${TLOGINSVR_BCRYPT_LIB})
 if(spdlog_FOUND)
     target_link_libraries(tloginsvr_asio_core PUBLIC spdlog::spdlog)
 else()

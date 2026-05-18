@@ -80,8 +80,8 @@ MakeCreateReq(int user_id, std::uint8_t world,
 
 void RunTests(const std::string& conn)
 {
-    tloginsvr::db::SessionPool pool(
-        tloginsvr::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
+    fourstory::db::SessionPool pool(
+        fourstory::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
 
     // Alphanumeric-only — legacy IsValidCharName disallows _ and other
     // punctuation, so the prefix has to satisfy that too.

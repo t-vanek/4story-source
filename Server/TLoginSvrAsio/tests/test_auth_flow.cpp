@@ -69,9 +69,16 @@ std::vector<std::byte> MakeLoginReq(std::uint16_t version,
     append_string("");        // zombie1
     append_string("");        // zombie2
     append_string(user_id);
-    std::int64_t dlCheck = 0, llChecksum = 0;
+    // Legacy checksum from CSHandler.cpp:185-202 — the client computes
+    // it from wVersion alone. Server enforces a match; sending 0 → close.
+    constexpr std::int64_t kKey = 0x336c3aebf71a8b08LL;
+    std::int64_t ck = static_cast<std::int64_t>(version) * 2 - 500;
+    const std::int64_t idx  = ck % 8;
+    const std::int64_t body = ck / 8;
+    for (std::int64_t i = 0; i < idx; ++i) { ck ^= body; ck += kKey; }
+    std::int64_t dlCheck = 0;
     append_bytes(&dlCheck, 8);
-    append_bytes(&llChecksum, 8);
+    append_bytes(&ck, 8);
     return out;
 }
 

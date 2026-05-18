@@ -26,7 +26,7 @@
 #include <memory>
 #include <string>
 
-namespace tloginsvr::db { class SessionPool; }
+namespace fourstory::db { class SessionPool; }
 
 namespace tloginsvr::services {
 
@@ -34,7 +34,7 @@ class SociAuthService : public IAuthService
 {
 public:
     // `pool` is non-owning; lifetime must exceed this service.
-    explicit SociAuthService(db::SessionPool& pool);
+    explicit SociAuthService(fourstory::db::SessionPool& pool);
 
     AuthResult Authenticate(const AuthRequest& req) override;
 
@@ -60,9 +60,16 @@ public:
     bool VerifySecurityCode(std::int32_t user_id,
                             const std::string& code) override;
     std::string IssueSecurityCode(std::int32_t user_id) override;
+    std::optional<EmailRecord> LookupEmail(std::int32_t user_id) override;
+    bool IsTrustedIp(std::int32_t user_id,
+                     const std::string& client_ip) override;
+    void AddTrustedIp(std::int32_t user_id,
+                      const std::string& client_ip) override;
+    std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
+                                        const std::string& client_ip) override;
 
 private:
-    db::SessionPool& m_pool;
+    fourstory::db::SessionPool& m_pool;
 };
 
 } // namespace tloginsvr::services

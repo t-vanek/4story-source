@@ -42,6 +42,18 @@ public:
     bool VerifySecurityCode(std::int32_t user_id,
                             const std::string& code) override;
     std::string IssueSecurityCode(std::int32_t user_id) override;
+    std::optional<EmailRecord> LookupEmail(std::int32_t user_id) override;
+    bool IsTrustedIp(std::int32_t user_id,
+                     const std::string& client_ip) override;
+    void AddTrustedIp(std::int32_t user_id,
+                      const std::string& client_ip) override;
+    std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
+                                        const std::string& client_ip) override;
+
+    // Test seeds for 2FA state.
+    void SetUserEmail(std::int32_t user_id, std::string email,
+                      bool two_factor_enabled);
+    void SeedTrustedIp(std::int32_t user_id, std::string ip);
 
     // Test introspection — true after SetAgreement() was called for user.
     bool HasAgreed(std::int32_t user_id) const;
@@ -60,6 +72,8 @@ private:
     std::unordered_set<std::string>                    m_ip_bans;
     std::unordered_set<std::int32_t>                   m_agreed;
     std::unordered_map<std::int32_t, std::string>      m_security_codes; // uid → code
+    std::unordered_map<std::int32_t, EmailRecord>      m_emails;
+    std::unordered_set<std::string>                    m_trusted_ips; // "uid|ip"
     std::uint32_t                                      m_next_session_key = 1;
 };
 

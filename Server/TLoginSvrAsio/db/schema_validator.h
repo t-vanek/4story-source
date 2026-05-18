@@ -1,37 +1,20 @@
 #pragma once
 
-// Schema validator. Run once at startup against each SessionPool to
-// confirm the expected legacy tables exist before accepting traffic.
-// Fail-fast on mismatch is preferred over discovering it on the first
-// CS_LOGIN_REQ — the alternative is a 500-equivalent for the first
-// real user.
-//
-// The check is column-level: confirm each table exists AND has the
-// columns the SOCI services query by name. Missing rows in the table
-// are fine; we don't sample data. Spurious columns are fine too —
-// only "service expects X but X doesn't exist" is fatal.
+// Login-specific schema validation entry points. Delegates to the
+// shared fourstory::db::CheckColumns helper with the TGLOBAL +
+// TGAME column lists this server's SOCI services consult.
 
-#include <stdexcept>
-#include <string>
+namespace fourstory::db { class SessionPool; }
 
 namespace tloginsvr::db {
 
-class SessionPool;
+// Validate the TGLOBAL schema — accounts, sessions, server registry,
+// 2FA (TUSEREMAIL/TUSERTRUSTEDIP). Throws fourstory::db::SchemaError
+// on mismatch.
+void ValidateGlobalSchema(fourstory::db::SessionPool& pool);
 
-// SchemaError describes a missing table or column found by the
-// validator. Caller throws on first error; we ship it as a typed
-// exception so main() can format the message consistently.
-struct SchemaError : std::runtime_error
-{
-    using std::runtime_error::runtime_error;
-};
-
-// Validate the TGLOBAL schema. Throws SchemaError on missing
-// table/column. Quiet on success — caller logs at info level.
-void ValidateGlobalSchema(SessionPool& pool);
-
-// Validate the TGAME schema (world DB). Throws SchemaError on
-// missing table/column.
-void ValidateWorldSchema(SessionPool& pool);
+// Validate the TGAME (per-world) schema — chars, items, guilds,
+// BR/BOW shard tables. Throws fourstory::db::SchemaError on mismatch.
+void ValidateWorldSchema(fourstory::db::SessionPool& pool);
 
 } // namespace tloginsvr::db

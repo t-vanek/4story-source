@@ -51,8 +51,8 @@ Seeded SeedSession(soci::session& sql, int user_id)
 
 void RunTests(const std::string& conn)
 {
-    tloginsvr::db::SessionPool pool(
-        tloginsvr::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
+    fourstory::db::SessionPool pool(
+        fourstory::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
 
     // PID-scoped user IDs.
     const int base_uid = 3000000 + (::getpid() % 1000);

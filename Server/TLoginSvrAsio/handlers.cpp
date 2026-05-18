@@ -229,10 +229,10 @@ bool IsAgreed(const std::shared_ptr<tnetlib::AsioSession>& session,
 
 namespace {
 
-services::LoginOutcome ToLoginOutcome(services::AuthStatus s)
+fourstory::audit::LoginOutcome ToLoginOutcome(services::AuthStatus s)
 {
     using S = services::AuthStatus;
-    using O = services::LoginOutcome;
+    using O = fourstory::audit::LoginOutcome;
     switch (s)
     {
     case S::Success:         return O::Success;
@@ -247,10 +247,10 @@ services::LoginOutcome ToLoginOutcome(services::AuthStatus s)
     }
 }
 
-services::CreateCharOutcome ToCreateOutcome(services::CreateCharResult s)
+fourstory::audit::CreateCharOutcome ToCreateOutcome(services::CreateCharResult s)
 {
     using S = services::CreateCharResult;
-    using O = services::CreateCharOutcome;
+    using O = fourstory::audit::CreateCharOutcome;
     switch (s)
     {
     case S::Success:       return O::Success;
@@ -263,10 +263,10 @@ services::CreateCharOutcome ToCreateOutcome(services::CreateCharResult s)
     }
 }
 
-services::DeleteCharOutcome ToDeleteOutcome(services::DeleteCharResult s)
+fourstory::audit::DeleteCharOutcome ToDeleteOutcome(services::DeleteCharResult s)
 {
     using S = services::DeleteCharResult;
-    using O = services::DeleteCharOutcome;
+    using O = fourstory::audit::DeleteCharOutcome;
     switch (s)
     {
     case S::Success:         return O::Success;
@@ -283,9 +283,10 @@ boost::asio::awaitable<void>
 OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::byte> body,
            services::IAuthService* auth_service,
            services::IConnectionRegistry* connection_registry,
-           services::IAuditLogger* audit_logger,
-           services::LoginRateLimiter* rate_limiter,
-           std::span<const std::uint16_t> accepted_versions)
+           fourstory::audit::IAuditLogger* audit_logger,
+           fourstory::ops::LoginRateLimiter* rate_limiter,
+           std::span<const std::uint16_t> accepted_versions,
+           fourstory::smtp::ISmtpClient* smtp_client)
 {
     // Default to the legacy single value if the caller passed nothing.
     // This keeps the unit-test path (which doesn't thread the config)
@@ -318,7 +319,7 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
         spdlog::warn("CS_LOGIN_REQ from ip={} rate-limited", sref.RemoteIPv4());
         if (audit_logger != nullptr)
         {
-            audit_logger->LogLogin(services::LoginOutcome::InternalError,
+            audit_logger->LogLogin(fourstory::audit::LoginOutcome::InternalError,
                 "",
                 0,
                 sref.RemoteIPv4(),
@@ -399,6 +400,58 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
             ack.dwPremium  = result.premium_id;
             spdlog::info("CS_LOGIN_REQ user={} → status={} key=0x{:08X}",
                 fields.user_id, ack.bResult, ack.dwKEY);
+
+            // 2FA challenge — Authenticate held off the TCURRENTUSER /
+            // TLOG inserts; we issue a code, mail it, register the
+            // session in pending state, and send CS_SECURITYCONFIRM_REQ.
+            // The client shows the code-entry dialog; on success
+            // OnSecurityConfirmAck completes the login + delivers the
+            // deferred CS_LOGIN_ACK.
+            if (result.status == services::AuthStatus::SecurityRequired
+                && connection_registry != nullptr
+                && auth_service != nullptr)
+            {
+                const std::string code = auth_service->IssueSecurityCode(result.user_id);
+                const auto email_rec = auth_service->LookupEmail(result.user_id);
+                if (!code.empty() && email_rec && smtp_client != nullptr)
+                {
+                    smtp_client->Send(email_rec->email,
+                        "4Story — login verification code",
+                        "A login attempt from a new device was detected.\n\n"
+                        "If this was you, enter the following code in the "
+                        "verification dialog:\n\n"
+                        "    " + code + "\n\n"
+                        "If it wasn't you, change your password immediately.");
+                }
+                services::ConnectionEntry entry{
+                    .user_id = result.user_id,
+                    .session_key = 0,             // assigned after confirm
+                    .handoff_to_map = false,
+                    .agreed = false,
+                    .group_id = 0,
+                    .check_key = 0,
+                    .awaiting_security = true,
+                    .pending_client_ip = sref.RemoteIPv4(),
+                };
+                connection_registry->Register(entry, session);
+
+                // Server → client: prompt the code-entry dialog.
+                co_await sref.SendPacket(
+                    tnetlib::protocol::ToUint16(
+                        tnetlib::protocol::MessageId::CS_SECURITYCONFIRM_REQ),
+                    std::span<const std::byte>{});
+
+                if (audit_logger != nullptr)
+                {
+                    audit_logger->LogLogin(
+                        fourstory::audit::LoginOutcome::AgreementNeeded, // closest existing label
+                        fields.user_id, result.user_id, sref.RemoteIPv4(), 0);
+                }
+                spdlog::info("CS_LOGIN_REQ user={} → SecurityRequired "
+                             "(2FA email sent, awaiting CONFIRM_ACK)",
+                    fields.user_id);
+                co_return;  // do NOT send CS_LOGIN_ACK now
+            }
 
             // Per-session bookkeeping on any "the user is now known"
             // status — that covers Success (agreement already on file)
@@ -583,11 +636,13 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
         chars = char_service->List(userId, groupId);
     }
 
-    // Wire layout (CSHandler.cpp:723-761):
-    //   BYTE  bCheckFilePoint = 0
+    // Wire layout (verified against TClient/TNetHandler.cpp:372-415):
+    //   DWORD dwCheckPoint  — file-integrity probe offset; client
+    //                         reads INT64 at this offset from its
+    //                         own TClient.exe and replies via
+    //                         CS_HOTSEND_REQ. 0 disables.
     //   BYTE  bCount
-    //   { per char:
-    //     DWORD dwCharID, STRING strName,
+    //   { per char: DWORD dwCharID, STRING strName,
     //     BYTE bStartAct, bSlot, bLevel, bClass, bRace, bCountry,
     //     BYTE bSex, bHair, bFace, bBody, bPants, bHand, bFoot,
     //     DWORD dwRegion, dwFame, dwFameColor,
@@ -597,7 +652,7 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
     //       WORD wColor, BYTE bRegGuild, WORD wMoggItemID
     //   }
     ByteAppender p;
-    p.U8(0);                                              // bCheckFilePoint
+    p.U32(0);                                             // dwCheckPoint
     p.U8(static_cast<std::uint8_t>(chars.size()));        // bCount
     for (const auto& c : chars)
     {
@@ -734,7 +789,7 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
                 std::span<const std::byte> body,
                 services::ICharService* char_service,
                 services::IConnectionRegistry* connection_registry,
-                services::IAuditLogger* audit_logger)
+                fourstory::audit::IAuditLogger* audit_logger)
 {
     auto& sref = *session;
 
@@ -831,7 +886,7 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
              services::ICharService* char_service,
              services::IConnectionRegistry* connection_registry,
              services::IAuthService* auth_service,
-             services::IAuditLogger* audit_logger)
+             fourstory::audit::IAuditLogger* audit_logger)
 {
     auto& sref = *session;
 
@@ -928,7 +983,7 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         if (audit_logger != nullptr)
         {
             audit_logger->LogCharDelete(
-                services::DeleteCharOutcome::InvalidPassword,
+                fourstory::audit::DeleteCharOutcome::InvalidPassword,
                 user_id, group_id, char_id);
         }
         co_await reply_with(kDrInvalidPassword, char_id);
@@ -951,7 +1006,7 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
            std::span<const std::byte> body,
            services::IMapServerLocator* map_server_locator,
            services::IConnectionRegistry* connection_registry,
-           services::IAuditLogger* audit_logger)
+           fourstory::audit::IAuditLogger* audit_logger)
 {
     auto& sref = *session;
 
@@ -1077,60 +1132,20 @@ OnAgreementReq(std::shared_ptr<tnetlib::AsioSession> session,
 }
 
 boost::asio::awaitable<void>
-OnHotsendReq(std::shared_ptr<tnetlib::AsioSession> session,
-             std::span<const std::byte> body,
-             services::IConnectionRegistry* connection_registry,
-             std::int64_t exec_check_value)
+OnHotsendReq(std::shared_ptr<tnetlib::AsioSession> /*session*/,
+             std::span<const std::byte> /*body*/)
 {
-    auto& sref = *session;
-
-    // Wire body: INT64 dlValue + BYTE bAll. Legacy logic
-    // (CSHandler.cpp:1458-1485, partially commented out):
-    //   * If exec-file integrity check is configured (m_hExecFile
-    //     valid), compute expected = m_dlCheckFile ^ m_dlCheckKey
-    //     and reject the session on mismatch.
-    //   * `bAll == 0` is the per-page CheckFile path; `bAll == 1` is
-    //     the final aggregate. Both are skipped in the shipped legacy
-    //     because the exec-file feature is disabled. We mirror that
-    //     default behavior but plumb the config so it can be opted in.
-    if (body.size() < 9)
-    {
-        spdlog::warn("CS_HOTSEND_REQ body too short ({} bytes)", body.size());
-        co_return;
-    }
-    std::int64_t dl_value = 0;
-    std::memcpy(&dl_value, body.data(), 8);
-    const std::uint8_t b_all = static_cast<std::uint8_t>(body[8]);
-
-    if (exec_check_value == 0)
-    {
-        spdlog::debug("CS_HOTSEND_REQ dlValue=0x{:016X} bAll={} "
-                      "(exec_check_value not configured — no-op)",
-            static_cast<std::uint64_t>(dl_value), b_all);
-        co_return;
-    }
-
-    // Active check path. The legacy formula is dlValue ==
-    // (m_dlCheckFile ^ m_dlCheckKey), where m_dlCheckKey is the
-    // per-session value we stamped in OnLoginReq (ack.dlCheckKey).
-    std::int64_t check_key = 0;
-    if (connection_registry != nullptr)
-    {
-        const auto entry = connection_registry->Lookup(session);
-        if (entry) check_key = entry->check_key;
-    }
-    const std::int64_t expected = exec_check_value ^ check_key;
-    if (dl_value != expected)
-    {
-        spdlog::warn("CS_HOTSEND_REQ uid={} exec-file mismatch "
-                     "(got 0x{:016X}, expected 0x{:016X}) — closing",
-            ResolveUserId(session, connection_registry),
-            static_cast<std::uint64_t>(dl_value),
-            static_cast<std::uint64_t>(expected));
-        sref.Close();
-        co_return;
-    }
-    spdlog::debug("CS_HOTSEND_REQ exec-file check OK (bAll={})", b_all);
+    // CS_HOTSEND_REQ is the legacy client's exec-file integrity
+    // heartbeat. The shipped TClient sends it after every
+    // CS_GROUPLIST_ACK / CS_CHANNELLIST_ACK (TNetHandler.cpp:337 +
+    // :721 call CheckModuleFile → SendCS_HOTSEND_REQ). The legacy
+    // server's validation path is anti-cheat tooling and is
+    // intentionally out of scope here per the project's stated
+    // anti-cheat-omitted scope.
+    //
+    // Quiet silent accept — handler exists only so the dispatcher
+    // doesn't surface the per-lobby heartbeats as "unhandled packet"
+    // warnings.
     co_return;
 }
 
@@ -1203,7 +1218,8 @@ boost::asio::awaitable<void>
 OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
                      std::span<const std::byte> body,
                      services::IAuthService* auth_service,
-                     services::IConnectionRegistry* connection_registry)
+                     services::IConnectionRegistry* connection_registry,
+                     fourstory::audit::IAuditLogger* audit_logger)
 {
     auto& sref = *session;
 
@@ -1225,7 +1241,22 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
     constexpr std::uint8_t kCodeIncorrect = 1;
     std::uint8_t result_code = kCodeIncorrect;
 
-    const auto user_id = ResolveUserId(session, connection_registry);
+    // Recover the pending login state (user_id + pending_client_ip)
+    // from the registry entry we stamped during the LOGIN_REQ path.
+    std::int32_t user_id = 0;
+    std::string  client_ip;
+    bool         was_awaiting_security = false;
+    if (connection_registry != nullptr)
+    {
+        if (auto entry = connection_registry->Lookup(session))
+        {
+            user_id = entry->user_id;
+            client_ip = entry->pending_client_ip;
+            was_awaiting_security = entry->awaiting_security;
+        }
+    }
+    if (client_ip.empty()) client_ip = sref.RemoteIPv4();
+
     if (code.empty() || user_id == 0)
     {
         spdlog::warn("CS_SECURITYCONFIRM_ACK empty/anon (uid={} code_len={})",
@@ -1243,6 +1274,52 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
     co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_SECURITYRESULT_ACK),
         std::span<const std::byte>(payload, sizeof(payload)));
+
+    // If we were in 2FA-pending mode AND the code matched, complete
+    // the deferred login: whitelist the IP, insert TCURRENTUSER + TLOG,
+    // flip the session's pending flag, then send the long-awaited
+    // CS_LOGIN_ACK so the client can move on to the lobby.
+    if (was_awaiting_security && result_code == kCodeCorrect
+        && auth_service != nullptr && connection_registry != nullptr)
+    {
+        auth_service->AddTrustedIp(user_id, client_ip);
+        const std::uint32_t key = auth_service->CompleteSecurityLogin(
+            user_id, client_ip);
+        if (key == 0)
+        {
+            spdlog::error("CS_SECURITYCONFIRM_ACK uid={} — complete login "
+                          "failed (DB error)", user_id);
+            sref.Close();
+            co_return;
+        }
+        connection_registry->CompleteSecurityLogin(session, key);
+
+        // Build the deferred CS_LOGIN_ACK with full session info. The
+        // client sees this and moves on as if the original LOGIN had
+        // succeeded.
+        LoginAck ack{};
+        ack.bResult    = static_cast<std::uint8_t>(services::AuthStatus::Success);
+        ack.dwUserID   = static_cast<std::uint32_t>(user_id);
+        ack.dwKEY      = key;
+        ack.bCreateCnt = 6;
+        ack.dCurTime = static_cast<std::int64_t>(
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        thread_local std::mt19937_64 rng{ std::random_device{}() };
+        ack.dlCheckKey = static_cast<std::int64_t>(rng());
+        const auto payload2 = EncodeLoginAck(ack);
+        spdlog::info("CS_SECURITYCONFIRM_ACK uid={} → deferred CS_LOGIN_ACK "
+                     "(key=0x{:08X}, ip whitelisted)", user_id, key);
+        co_await sref.SendPacket(
+            tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_LOGIN_ACK),
+            std::span<const std::byte>(payload2.data(), payload2.size()));
+
+        if (audit_logger != nullptr)
+        {
+            audit_logger->LogLogin(fourstory::audit::LoginOutcome::Success,
+                "<2fa>", user_id, client_ip, key);
+        }
+    }
 }
 
 // ===== Control-server (CT_*) handlers =======================================
@@ -1353,7 +1430,7 @@ OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession> session,
                std::span<const std::byte> /*body*/,
                services::IAuthService* auth_service,
                services::IConnectionRegistry* connection_registry,
-               services::IAuditLogger* audit_logger)
+               fourstory::audit::IAuditLogger* audit_logger)
 {
     auto& sref = *session;
     LoginAck ack{};
@@ -1395,7 +1472,7 @@ OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession> session,
         if (audit_logger != nullptr)
         {
             audit_logger->LogLogin(
-                services::LoginOutcome::Success,
+                fourstory::audit::LoginOutcome::Success,
                 "<test>",
                 result.user_id,
                 sref.RemoteIPv4(),

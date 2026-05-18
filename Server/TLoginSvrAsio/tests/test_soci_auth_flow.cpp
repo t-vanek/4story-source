@@ -94,14 +94,14 @@ void SeedFixtures(soci::session& sql, const std::string& prefix)
         soci::use(ip_blocked);
 }
 
-void RunTests(tloginsvr::db::Backend backend, const std::string& conn)
+void RunTests(fourstory::db::Backend backend, const std::string& conn)
 {
-    tloginsvr::db::SessionPool pool(backend, conn, /*pool_size=*/2);
+    fourstory::db::SessionPool pool(backend, conn, /*pool_size=*/2);
 
     // Distinct prefix per (backend, pid) — keeps parallel-run isolation
     // and avoids name collisions across the two backends, even if both
     // share a host.
-    const char* tag = (backend == tloginsvr::db::Backend::Odbc) ? "ms" : "pg";
+    const char* tag = (backend == fourstory::db::Backend::Odbc) ? "ms" : "pg";
     const std::string prefix =
         std::string("soci_test_") + tag + "_" + std::to_string(::getpid()) + "_";
 
@@ -263,7 +263,7 @@ int main()
         std::printf("\n--- backend: postgresql ---\n");
         try
         {
-            RunTests(tloginsvr::db::Backend::PostgreSQL, pg_conn);
+            RunTests(fourstory::db::Backend::PostgreSQL, pg_conn);
         }
         catch (const std::exception& ex)
         {
@@ -277,7 +277,7 @@ int main()
         std::printf("\n--- backend: odbc (MSSQL) ---\n");
         try
         {
-            RunTests(tloginsvr::db::Backend::Odbc, mssql_conn);
+            RunTests(fourstory::db::Backend::Odbc, mssql_conn);
         }
         catch (const std::exception& ex)
         {

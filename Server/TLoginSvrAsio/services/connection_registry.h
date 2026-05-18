@@ -58,6 +58,13 @@ struct ConnectionEntry
     // exec-check feature. Modernized server doesn't use it but
     // populates it to match the wire layout.
     std::int64_t  check_key = 0;
+
+    // 2FA pending state. Set when SociAuthService::Authenticate
+    // returns SecurityRequired. session_key is 0 until the
+    // CS_SECURITYCONFIRM_ACK match completes the deferred login.
+    // pending_client_ip is what gets whitelisted on success.
+    bool          awaiting_security = false;
+    std::string   pending_client_ip;
 };
 
 class IConnectionRegistry
@@ -96,6 +103,13 @@ public:
     virtual void SetGroupId(
         const std::shared_ptr<tnetlib::AsioSession>& session,
         std::uint8_t group_id) = 0;
+
+    // Promote a 2FA-pending session to fully authenticated. Stamps
+    // session_key + clears awaiting_security so downstream handlers
+    // accept the session as a regular login.
+    virtual void CompleteSecurityLogin(
+        const std::shared_ptr<tnetlib::AsioSession>& session,
+        std::uint32_t session_key) = 0;
 
     // Remove a session. No-op if not registered. Always safe to call
     // from connection-close paths.

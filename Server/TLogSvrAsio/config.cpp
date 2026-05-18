@@ -1,0 +1,75 @@
+#include "config.h"
+
+#include <toml++/toml.hpp>
+#include <spdlog/spdlog.h>
+
+#include <filesystem>
+#include <stdexcept>
+
+namespace tlogsvr {
+
+namespace {
+spdlog::level::level_enum ParseLogLevel(std::string_view s)
+{
+    if (s == "trace")    return spdlog::level::trace;
+    if (s == "debug")    return spdlog::level::debug;
+    if (s == "info")     return spdlog::level::info;
+    if (s == "warn")     return spdlog::level::warn;
+    if (s == "error")    return spdlog::level::err;
+    if (s == "critical") return spdlog::level::critical;
+    if (s == "off")      return spdlog::level::off;
+    throw std::runtime_error("invalid log level: " + std::string(s));
+}
+} // namespace
+
+AppConfig LoadConfig(const std::string& path)
+{
+    AppConfig cfg;
+    if (path.empty() || !std::filesystem::exists(path))
+    {
+        spdlog::info("no config file at '{}'; using defaults", path);
+        return cfg;
+    }
+    toml::table tbl;
+    try { tbl = toml::parse_file(path); }
+    catch (const toml::parse_error& ex)
+    {
+        const auto d = ex.description();
+        throw std::runtime_error("TOML parse error in '" + path + "': "
+            + std::string(d.data(), d.size()));
+    }
+    if (auto srv = tbl["server"].as_table())
+    {
+        if (auto p = (*srv)["port"].value<std::int64_t>())
+        {
+            if (*p < 0 || *p > 65535)
+                throw std::runtime_error("server.port out of range");
+            cfg.port = static_cast<std::uint16_t>(*p);
+        }
+        if (auto b = (*srv)["bind"].value<std::string>())
+            cfg.bind_address = *b;
+    }
+    if (auto t = tbl["target_table"].value<std::string>())
+        cfg.target_table = *t;
+    if (auto db = tbl["database"].as_table())
+    {
+        if (auto b = (*db)["backend"].value<std::string>())          cfg.database.backend = *b;
+        if (auto c = (*db)["connection_string"].value<std::string>()) cfg.database.connection_string = *c;
+        if (auto s = (*db)["pool_size"].value<std::int64_t>())
+        {
+            if (*s < 1 || *s > 256) throw std::runtime_error("database.pool_size out of range");
+            cfg.database.pool_size = static_cast<std::size_t>(*s);
+        }
+    }
+    if (auto log = tbl["log"].as_table())
+    {
+        if (auto l = (*log)["level"].value<std::string>())
+            cfg.log_level = ParseLogLevel(*l);
+    }
+    spdlog::info("loaded config from '{}' — udp_port={} table='{}' db={}",
+        path, cfg.port, cfg.target_table,
+        cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend);
+    return cfg;
+}
+
+} // namespace tlogsvr

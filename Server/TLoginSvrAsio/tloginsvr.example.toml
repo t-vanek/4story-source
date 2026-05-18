@@ -17,6 +17,12 @@ port = 4816
 # client builds against the same server.
 # accepted_versions = [0x2918]
 
+# CS_HOTSEND_REQ heartbeat — silently dropped by the server. The
+# legacy client fires it after every GROUPLIST_ACK / CHANNELLIST_ACK
+# (its exec-file integrity probe). Anti-cheat validation of those
+# probes is intentionally out of scope for this rewrite; no config
+# knob is exposed.
+
 [crypto]
 # RC4 wire-encryption layer for the legacy-client direction. Set true
 # in server-server test environments where neither end runs the

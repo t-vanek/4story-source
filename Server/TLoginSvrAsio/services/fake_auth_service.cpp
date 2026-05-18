@@ -132,6 +132,54 @@ std::string FakeAuthService::IssueSecurityCode(std::int32_t user_id)
     return code;
 }
 
+std::optional<IAuthService::EmailRecord>
+FakeAuthService::LookupEmail(std::int32_t user_id)
+{
+    if (user_id == 0) return std::nullopt;
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_emails.find(user_id); it != m_emails.end())
+        return it->second;
+    return std::nullopt;
+}
+
+bool FakeAuthService::IsTrustedIp(std::int32_t user_id, const std::string& client_ip)
+{
+    if (user_id == 0 || client_ip.empty()) return false;
+    std::lock_guard<std::mutex> lock(m_mtx);
+    return m_trusted_ips.contains(std::to_string(user_id) + "|" + client_ip);
+}
+
+void FakeAuthService::AddTrustedIp(std::int32_t user_id, const std::string& client_ip)
+{
+    if (user_id == 0 || client_ip.empty()) return;
+    std::lock_guard<std::mutex> lock(m_mtx);
+    m_trusted_ips.insert(std::to_string(user_id) + "|" + client_ip);
+}
+
+std::uint32_t FakeAuthService::CompleteSecurityLogin(std::int32_t user_id,
+                                                    const std::string& /*client_ip*/)
+{
+    if (user_id == 0) return 0;
+    std::lock_guard<std::mutex> lock(m_mtx);
+    return m_next_session_key++;
+}
+
+void FakeAuthService::SetUserEmail(std::int32_t user_id, std::string email,
+                                  bool two_factor_enabled)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    m_emails[user_id] = EmailRecord{
+        .email = std::move(email),
+        .two_factor_enabled = two_factor_enabled,
+    };
+}
+
+void FakeAuthService::SeedTrustedIp(std::int32_t user_id, std::string ip)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    m_trusted_ips.insert(std::to_string(user_id) + "|" + ip);
+}
+
 AuthResult FakeAuthService::AuthenticateTest(const std::string& /*client_ip*/)
 {
     // Test-pool login — pick the first seeded user. Tests can seed a

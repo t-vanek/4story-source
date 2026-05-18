@@ -1,5 +1,5 @@
 #include "soci_auth_service.h"
-#include "../db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
 
@@ -76,7 +76,7 @@ std::string MakeBcryptHash(const std::string& password)
 
 } // namespace
 
-SociAuthService::SociAuthService(db::SessionPool& pool)
+SociAuthService::SociAuthService(fourstory::db::SessionPool& pool)
     : m_pool(pool)
 {
 }
@@ -176,7 +176,7 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         // vs IpBanned (network) distinguishable in logs; the handler
         // collapses both onto the LR_IPBLOCK value the legacy client
         // expects.
-        const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
+        const bool is_mssql = (m_pool.GetBackend() == fourstory::db::Backend::Odbc);
         const char* ban_dur_sql = is_mssql
             ? "SELECT COUNT(*) FROM \"TUSERPROTECTED\" "
               "WHERE \"dwUserID\" = :uid "
@@ -233,6 +233,72 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
                 .status = AuthStatus::Duplicate,
                 .user_id = user_id,
             };
+        }
+
+        // Step 5b — 2FA new-device challenge.
+        //
+        // Lookup the user's email + 2FA toggle. If 2FA is on AND this
+        // IP isn't on the trusted list, defer the login: do NOT insert
+        // TCURRENTUSER/TLOG yet (the session has no dwKEY until the
+        // CS_SECURITYCONFIRM_ACK comes back). Returning SecurityRequired
+        // tells the handler to issue a code, mail it, and send
+        // CS_SECURITYCONFIRM_REQ to the client.
+        //
+        // Three release valves prevent locking users out:
+        //   * email row missing  → log info, fall through to normal login
+        //   * 2FA flag = 0       → fall through (per-user opt-in)
+        //   * client_ip empty    → fall through (test paths)
+        if (!req.client_ip.empty())
+        {
+            // Inline the email + trusted-IP check on the same session
+            // we already hold — calling the public LookupEmail / etc.
+            // would re-acquire a lease and deadlock under pool_size=1.
+            std::string email_row;
+            int tfa = 0;
+            soci::indicator email_ind = soci::i_null;
+            bool email_present = false;
+            try
+            {
+                soci::statement st = (sql.prepare <<
+                    "SELECT \"szEmail\", \"bTwoFactorEnabled\" FROM \"TUSEREMAIL\" "
+                    "WHERE \"dwUserID\" = :u",
+                    soci::use(user_id),
+                    soci::into(email_row, email_ind),
+                    soci::into(tfa));
+                st.execute(true);
+                email_present = st.got_data() && email_ind != soci::i_null;
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("auth: TUSEREMAIL lookup uid={} skipped: {}",
+                    user_id, ex.what());
+            }
+
+            if (email_present && tfa != 0)
+            {
+                int trusted_hits = 0;
+                try
+                {
+                    sql << "SELECT COUNT(*) FROM \"TUSERTRUSTEDIP\" "
+                           "WHERE \"dwUserID\" = :u AND \"szIP\" = :ip",
+                        soci::use(user_id), soci::use(req.client_ip),
+                        soci::into(trusted_hits);
+                }
+                catch (const std::exception& ex)
+                {
+                    spdlog::debug("auth: TUSERTRUSTEDIP lookup uid={} skipped: {}",
+                        user_id, ex.what());
+                }
+                if (trusted_hits == 0)
+                {
+                    spdlog::info("auth: user_id={} new device {} — 2FA challenge",
+                        user_id, req.client_ip);
+                    return AuthResult{
+                        .status  = AuthStatus::SecurityRequired,
+                        .user_id = user_id,
+                    };
+                }
+            }
         }
 
         // Step 6 — success: insert TCURRENTUSER, capture identity dwKEY.
@@ -470,13 +536,138 @@ std::string SociAuthService::IssueSecurityCode(std::int32_t user_id)
     }
 }
 
+std::optional<IAuthService::EmailRecord>
+SociAuthService::LookupEmail(std::int32_t user_id)
+{
+    if (user_id == 0) return std::nullopt;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        std::string email;
+        int tfa = 0;
+        soci::indicator email_ind = soci::i_null;
+        bool got = false;
+        {
+            soci::statement st = (sql.prepare <<
+                "SELECT \"szEmail\", \"bTwoFactorEnabled\" FROM \"TUSEREMAIL\" "
+                "WHERE \"dwUserID\" = :u",
+                soci::use(user_id),
+                soci::into(email, email_ind),
+                soci::into(tfa));
+            st.execute(true);
+            got = st.got_data();
+        }
+        if (!got || email_ind == soci::i_null) return std::nullopt;
+        return EmailRecord{
+            .email = std::move(email),
+            .two_factor_enabled = tfa != 0,
+        };
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::debug("auth.LookupEmail uid={} skipped: {}", user_id, ex.what());
+        return std::nullopt;
+    }
+}
+
+bool SociAuthService::IsTrustedIp(std::int32_t user_id,
+                                  const std::string& client_ip)
+{
+    if (user_id == 0 || client_ip.empty()) return false;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        int hits = 0;
+        sql << "SELECT COUNT(*) FROM \"TUSERTRUSTEDIP\" "
+               "WHERE \"dwUserID\" = :u AND \"szIP\" = :ip",
+            soci::use(user_id), soci::use(client_ip), soci::into(hits);
+        return hits > 0;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::debug("auth.IsTrustedIp uid={} ip={} skipped: {}",
+            user_id, client_ip, ex.what());
+        return false;
+    }
+}
+
+void SociAuthService::AddTrustedIp(std::int32_t user_id,
+                                  const std::string& client_ip)
+{
+    if (user_id == 0 || client_ip.empty()) return;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        // Composite PK (dwUserID, szIP) — INSERT may throw on dup;
+        // swallow because the desired state (entry exists) is reached.
+        try
+        {
+            sql << "INSERT INTO \"TUSERTRUSTEDIP\" (\"dwUserID\", \"szIP\") "
+                   "VALUES (:u, :ip)",
+                soci::use(user_id), soci::use(client_ip);
+            spdlog::info("auth.AddTrustedIp uid={} ip={} → whitelisted",
+                user_id, client_ip);
+        }
+        catch (const std::exception&)
+        {
+            // already there — fine.
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("auth.AddTrustedIp uid={} DB error: {}", user_id, ex.what());
+    }
+}
+
+std::uint32_t SociAuthService::CompleteSecurityLogin(std::int32_t user_id,
+                                                    const std::string& client_ip)
+{
+    if (user_id == 0) return 0;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        const bool is_mssql = (m_pool.GetBackend() == fourstory::db::Backend::Odbc);
+        int session_key = 0;
+        const char* insert_sql = is_mssql
+            ? "INSERT INTO \"TCURRENTUSER\" "
+              "(\"dwUserID\", \"szLoginIP\") "
+              "OUTPUT INSERTED.\"dwKEY\" "
+              "VALUES (:uid, :ip)"
+            : "INSERT INTO \"TCURRENTUSER\" "
+              "(\"dwUserID\", \"szLoginIP\") VALUES (:uid, :ip) "
+              "RETURNING \"dwKEY\"";
+        sql << insert_sql,
+            soci::use(user_id), soci::use(client_ip),
+            soci::into(session_key);
+        sql << "UPDATE \"TACCOUNT_PW\" SET \"dLastLogin\" = CURRENT_TIMESTAMP "
+               "WHERE \"dwUserID\" = :uid",
+            soci::use(user_id);
+        sql << "INSERT INTO \"TLOG\" "
+               "(\"dwKEY\", \"dwUserID\") VALUES (:key, :uid)",
+            soci::use(session_key), soci::use(user_id);
+        spdlog::info("auth.CompleteSecurityLogin uid={} ip={} session_key={}",
+            user_id, client_ip, session_key);
+        return static_cast<std::uint32_t>(session_key);
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("auth.CompleteSecurityLogin uid={} DB error: {}",
+            user_id, ex.what());
+        return 0;
+    }
+}
+
 AuthResult SociAuthService::AuthenticateTest(const std::string& client_ip)
 {
     auto lease = m_pool.Acquire();
     soci::session& sql = *lease;
     try
     {
-        const bool is_mssql = (m_pool.GetBackend() == db::Backend::Odbc);
+        const bool is_mssql = (m_pool.GetBackend() == fourstory::db::Backend::Odbc);
         // Pick a random dwUserID from TTESTLOGINUSER. NEWID() / RAND()
         // each have caveats — NEWID() is per-row randomization, exactly
         // what legacy CSPTestLogin uses. PG equivalent is random().

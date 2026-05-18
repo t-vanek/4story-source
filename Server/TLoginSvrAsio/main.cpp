@@ -1,22 +1,23 @@
 // Entry point for the modernized TLoginSvrAsio binary. PCH-free,
 // portable C++20 + Boost.Asio.
 
-#include "admin_shell.h"
+#include "fourstory/ops/admin_shell.h"
 #include "config.h"
-#include "health_endpoint.h"
+#include "fourstory/ops/health_endpoint.h"
 #include "login_server.h"
 #include "db/schema_validator.h"
-#include "db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 #include "services/local_connection_registry.h"
 #include "services/local_event_registry.h"
-#include "services/rate_limiter.h"
-#include "services/registry_refresher.h"
+#include "fourstory/ops/rate_limiter.h"
+#include "fourstory/ops/registry_refresher.h"
 #include "services/soci_auth_service.h"
 #include "services/soci_char_service.h"
 #include "services/soci_map_server_locator.h"
 #include "services/soci_session_terminator.h"
-#include "services/spdlog_audit_logger.h"
-#include "services/udp_audit_logger.h"
+#include "fourstory/audit/spdlog_audit_logger.h"
+#include "fourstory/smtp/spdlog_smtp_client.h"
+#include "fourstory/audit/udp_audit_logger.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -85,7 +86,7 @@ int main(int argc, char** argv)
         // Per-IP login rate limiter. In-memory token bucket; no
         // distributed coordination needed for single-process deploys.
         auto rate_limiter =
-            std::make_unique<tloginsvr::services::LoginRateLimiter>();
+            std::make_unique<fourstory::ops::LoginRateLimiter>();
         cfg.server.login_rate_limiter = rate_limiter.get();
 
         // GM event registry — populated by CT_EVENTUPDATE_REQ from the
@@ -95,19 +96,27 @@ int main(int argc, char** argv)
             std::make_unique<tloginsvr::services::LocalEventRegistry>();
         cfg.server.event_registry = event_registry.get();
 
+        // SMTP client for 2FA emails. Default log-only impl emits the
+        // code through spdlog so operators can read it from the log
+        // stream during dev / staging. Production deploys swap this
+        // for a real SMTP-talking impl before this line runs.
+        auto smtp_client =
+            std::make_unique<fourstory::smtp::SpdlogSmtpClient>();
+        cfg.server.smtp_client = smtp_client.get();
+
         // Audit logger — emits structured records via spdlog "audit"
         // logger. Always wired so events land somewhere; production
         // deploys can register a different "audit" logger before main
         // returns control to overlap with a structured sink.
-        std::unique_ptr<tloginsvr::services::IAuditLogger> audit =
-            std::make_unique<tloginsvr::services::SpdlogAuditLogger>();
+        std::unique_ptr<fourstory::audit::IAuditLogger> audit =
+            std::make_unique<fourstory::audit::SpdlogAuditLogger>();
 
         // Optional UDP shim — when [audit.udp] host is set, wrap the
         // spdlog logger so each event also lands on the legacy TLogSvr
         // collector in wire-compatible _UDPPACKET format.
         if (!cfg.audit_udp_host.empty() && cfg.audit_udp_port != 0)
         {
-            audit = std::make_unique<tloginsvr::services::UdpAuditLogger>(
+            audit = std::make_unique<fourstory::audit::UdpAuditLogger>(
                 io, cfg.audit_udp_host, cfg.audit_udp_port, std::move(audit));
             spdlog::info("audit: UDP shim → {}:{}",
                 cfg.audit_udp_host, cfg.audit_udp_port);
@@ -130,8 +139,8 @@ int main(int argc, char** argv)
         // surface that as a fatal startup error (failing fast is correct:
         // running with a connection_string set but no DB would silently
         // downgrade to no-auth, which is worse).
-        std::unique_ptr<tloginsvr::db::SessionPool>                  global_pool;
-        std::unique_ptr<tloginsvr::db::SessionPool>                  world_pool;
+        std::unique_ptr<fourstory::db::SessionPool>                  global_pool;
+        std::unique_ptr<fourstory::db::SessionPool>                  world_pool;
         std::unique_ptr<tloginsvr::services::SociAuthService>        soci_auth;
         std::unique_ptr<tloginsvr::services::SociCharService>        soci_char;
         std::unique_ptr<tloginsvr::services::SociMapServerLocator>   soci_map;
@@ -142,8 +151,8 @@ int main(int argc, char** argv)
                 throw std::runtime_error(
                     "database.connection_string is set but database.backend "
                     "is empty — pick one of: postgresql | sqlite3 | odbc");
-            const auto backend = tloginsvr::db::ParseBackend(cfg.database.backend);
-            global_pool = std::make_unique<tloginsvr::db::SessionPool>(
+            const auto backend = fourstory::db::ParseBackend(cfg.database.backend);
+            global_pool = std::make_unique<fourstory::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
             tloginsvr::db::ValidateGlobalSchema(*global_pool);
 
@@ -154,8 +163,8 @@ int main(int argc, char** argv)
                         "database.world.connection_string is set but "
                         "database.world.backend is empty");
                 const auto wbackend =
-                    tloginsvr::db::ParseBackend(cfg.database_world.backend);
-                world_pool = std::make_unique<tloginsvr::db::SessionPool>(
+                    fourstory::db::ParseBackend(cfg.database_world.backend);
+                world_pool = std::make_unique<fourstory::db::SessionPool>(
                     wbackend,
                     cfg.database_world.connection_string,
                     cfg.database_world.pool_size);
@@ -187,25 +196,25 @@ int main(int argc, char** argv)
                 // Periodic 30s refresh — currently just bumps the
                 // veteran-chart cache so admins can hot-edit the
                 // table without a server restart.
-                auto refresher = tloginsvr::services::RegistryRefresher::Make(
+                auto refresher = fourstory::ops::RegistryRefresher::Make(
                     io, std::chrono::seconds(30));
                 tloginsvr::services::SociCharService* svc = soci_char.get();
                 refresher->AddHook([svc]() { svc->RefreshVeteranChart(); });
                 refresher->Start();
                 // Keep it alive for the duration of the process.
-                static std::shared_ptr<tloginsvr::services::RegistryRefresher> s_refresher;
+                static std::shared_ptr<fourstory::ops::RegistryRefresher> s_refresher;
                 s_refresher = std::move(refresher);
                 spdlog::info("services: SOCI ({}+{}) — auth + char + map + terminator",
-                    tloginsvr::db::BackendName(backend),
-                    tloginsvr::db::BackendName(
-                        tloginsvr::db::ParseBackend(cfg.database_world.backend)));
+                    fourstory::db::BackendName(backend),
+                    fourstory::db::BackendName(
+                        fourstory::db::ParseBackend(cfg.database_world.backend)));
             }
             else
             {
                 spdlog::warn("services: SOCI ({}) — auth + map + terminator. "
                              "char_service stays in-memory: [database.world] "
                              "not configured",
-                    tloginsvr::db::BackendName(backend));
+                    fourstory::db::BackendName(backend));
             }
         }
         else
@@ -225,14 +234,17 @@ int main(int argc, char** argv)
         {
             try
             {
-                auto admin = std::make_shared<tloginsvr::AdminShell>(
+                auto* reg_raw = registry.get();
+                auto admin = std::make_shared<fourstory::ops::AdminShell>(
                     io, cfg.admin_bind, cfg.admin_port,
-                    cfg.server.connection_registry,
+                    [reg_raw]() -> std::size_t {
+                        return reg_raw ? reg_raw->Count() : std::size_t{0};
+                    },
                     std::chrono::steady_clock::now());
                 spdlog::info("admin shell listening on {}:{}",
                     cfg.admin_bind, admin->Port());
                 boost::asio::co_spawn(io, admin->Run(), boost::asio::detached);
-                static std::shared_ptr<tloginsvr::AdminShell> s_admin;
+                static std::shared_ptr<fourstory::ops::AdminShell> s_admin;
                 s_admin = std::move(admin);
             }
             catch (const std::exception& ex)
@@ -247,13 +259,10 @@ int main(int argc, char** argv)
         {
             try
             {
-                auto health = std::make_unique<tloginsvr::HealthEndpoint>(io, cfg.health_port);
+                auto health = std::make_unique<fourstory::ops::HealthEndpoint>(io, cfg.health_port);
                 spdlog::info("health endpoint listening on 0.0.0.0:{}", health->Port());
                 boost::asio::co_spawn(io, health->Run(), boost::asio::detached);
-                // Hand ownership to the io_context for the duration; the
-                // simplest approach is to leak through a static — daemon
-                // lifetime is process lifetime.
-                static std::unique_ptr<tloginsvr::HealthEndpoint> s_health;
+                static std::unique_ptr<fourstory::ops::HealthEndpoint> s_health;
                 s_health = std::move(health);
             }
             catch (const std::exception& ex)

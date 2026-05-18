@@ -41,6 +41,10 @@ public:
         const std::shared_ptr<tnetlib::AsioSession>& session,
         std::uint8_t group_id) override;
 
+    void CompleteSecurityLogin(
+        const std::shared_ptr<tnetlib::AsioSession>& session,
+        std::uint32_t session_key) override;
+
     void Unregister(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
 

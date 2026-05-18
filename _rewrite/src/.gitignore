@@ -1,9 +1,0 @@
-bin/
-obj/
-*.user
-*.suo
-.vs/
-.vscode/
-TestResults/
-*.log
-.idea/

@@ -10,6 +10,9 @@
     #pragma comment(lib, "secur32")
 #endif
 
+#include <mutex>
+#include <random>
+
 namespace tnetlib_platform {
 
 std::string GetHostName()
@@ -35,6 +38,25 @@ std::string GetHostName()
     }
     return "unknown";
 #endif
+}
+
+std::uint64_t SecureRandom64()
+{
+    // Seeded once per process from std::random_device — which delegates
+    // to /dev/urandom on POSIX and RtlGenRandom (BCryptGenRandom on
+    // newer SDKs) on Windows. Both are CSPRNGs. The Mersenne twister
+    // is then deterministic but the seed is unpredictable, which is
+    // sufficient for session-key / nonce purposes; for actual key
+    // material the caller should reach for OpenSSL's RAND_bytes via
+    // tnetlib_crypto instead.
+    //
+    // Thread-safety: the static engine is guarded by a mutex. Cheap
+    // enough at the rate we call this (login flows, session creation).
+    static std::mt19937_64 engine{ std::random_device{}() };
+    static std::mutex      engine_mtx;
+
+    std::lock_guard<std::mutex> lock(engine_mtx);
+    return engine();
 }
 
 } // namespace tnetlib_platform

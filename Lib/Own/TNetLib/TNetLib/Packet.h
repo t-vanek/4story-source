@@ -126,7 +126,21 @@ public:
 	void CopyData(CPacket * pMsg, WORD wDeleteSize);
 	void AddData(CPacket * pMsg);
 	void AttachBinary( LPVOID param, int nLength);
+	// UNSAFE: ptr must already be at least MAX_PACKET_SIZE bytes wide,
+	// because the on-wire length is attacker-controlled and clamped
+	// only at MAX_PACKET_SIZE (~64 KB). Existing call sites in
+	// TMapSvr / TWorldSvr pass small fixed-size struct fields here
+	// — each of those needs auditing in Phase-3 work and migrating to
+	// the bounded overload below.
 	int DetachBinary( LPVOID ptr); //Caller should delete the ptr
+
+	// Bounded variant — reads at most `maxBytes` body bytes. Returns
+	// the number of bytes actually written to `ptr` (0 on any
+	// malformed length or buffer-too-small situation). New code should
+	// always use this form; the unbounded DetachBinary above remains
+	// for backwards compatibility until every legacy caller is
+	// migrated.
+	int DetachBinary( LPVOID ptr, DWORD maxBytes);
 };
 
 

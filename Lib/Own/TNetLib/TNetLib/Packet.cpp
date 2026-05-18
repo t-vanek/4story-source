@@ -390,6 +390,33 @@ int CPacket::DetachBinary( LPVOID ptr)
 	return nLength;
 }
 
+int CPacket::DetachBinary( LPVOID ptr, DWORD maxBytes)
+{
+	// Safer overload — refuses to read more than the caller's buffer
+	// can hold. The unbounded DetachBinary(LPVOID) above will read up
+	// to MAX_PACKET_SIZE bytes (~64 KB) into whatever buffer the
+	// caller passed, which is a 64 KB heap/stack overflow primitive
+	// from any peer that can send a packet with a chosen length
+	// prefix. New code MUST use this form.
+	if( ptr == NULL || maxBytes == 0 )
+		return 0;
+
+	int nLength;
+	Read( &nLength, sizeof(DWORD));
+
+	// Bounds-check the on-wire length against:
+	//   * positive (Read already rejects non-positive but be explicit)
+	//   * within MAX_PACKET_SIZE (CanRead enforces this too, kept for clarity)
+	//   * within the caller-provided buffer size
+	if( nLength <= 0 ||
+	    static_cast<DWORD>(nLength) > maxBytes ||
+	    !CanRead(static_cast<DWORD>(nLength)) )
+		return 0;
+
+	Read( ptr, nLength);
+	return nLength;
+}
+
 void CPacket::AttachBinary( LPVOID param, int nLength)
 {
 	Write( &nLength, sizeof(int));

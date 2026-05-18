@@ -65,11 +65,27 @@
 
 #include <string>
 
+#include <cstdint>
+
 namespace tnetlib_platform {
 
 // Replaces GetComputerNameEx(ComputerNameDnsFullyQualified, ...) with a
 // portable equivalent. Returns hostname on POSIX, FQDN on Windows.
 // Falls back to "unknown" if the OS can't tell us.
 std::string GetHostName();
+
+// Cryptographically-strong 64-bit random number, seeded from
+// std::random_device on first call. Thread-safe. Use this — NOT the
+// legacy TRand() — anywhere a session key, nonce, token, or anything
+// else an adversary might benefit from predicting is being generated.
+//
+// Notes for callers:
+//   * The 7-key wire table (Session.cpp / packet_codec.h) and the
+//     legacy `g_strSecretKey` are NOT generated here — they're wire
+//     constants that every legacy client knows. Don't replace them.
+//   * For game-balance randomness (loot drops, lottery, monster
+//     choice) TRand() remains acceptable; the saved entropy doesn't
+//     matter when the protocol is open about its outputs anyway.
+std::uint64_t SecureRandom64();
 
 } // namespace tnetlib_platform

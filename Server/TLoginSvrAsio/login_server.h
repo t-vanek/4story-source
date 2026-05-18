@@ -12,6 +12,7 @@
 #include "asio_session.h"
 #include "MessageId.h"
 #include "services/auth_service.h"
+#include "services/connection_registry.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -39,6 +40,12 @@ struct LoginServerConfig
     // lifetime as the io_context). Null disables auth — handler
     // falls back to the version-check-only stub from Phase 3.
     services::IAuthService* auth_service = nullptr;
+
+    // Connection registry for duplicate-session enforcement. Non-
+    // owning. Null disables registry tracking — login handler still
+    // works, just no kick-on-duplicate behavior (single-session
+    // dev/test convenience).
+    services::IConnectionRegistry* connection_registry = nullptr;
 };
 
 class LoginServer
@@ -58,7 +65,8 @@ private:
     boost::asio::io_context& m_io;
     tnetlib::AsioListener    m_listener;
     std::vector<std::byte>   m_rc4_secret_key; // copied from config; empty = no RC4
-    services::IAuthService*  m_auth_service = nullptr; // non-owning; null = stub mode
+    services::IAuthService*       m_auth_service = nullptr;        // non-owning; null = stub mode
+    services::IConnectionRegistry* m_connection_registry = nullptr; // non-owning; null = no duplicate-kick
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

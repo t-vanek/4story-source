@@ -19,6 +19,7 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_listener(io.get_executor(), config.port)
     , m_rc4_secret_key(std::move(config.rc4_secret_key))
     , m_auth_service(config.auth_service)
+    , m_connection_registry(config.connection_registry)
 {
 }
 
@@ -78,6 +79,13 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
                 Dispatch(sess, packet),
                 boost::asio::detached);
         });
+
+    // Connection closing — remove from registry if it was authenticated.
+    // No-op for unauthenticated sessions.
+    if (m_connection_registry)
+    {
+        m_connection_registry->Unregister(sess);
+    }
 }
 
 boost::asio::awaitable<void>
@@ -96,7 +104,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
     switch (id)
     {
     case MessageId::CS_LOGIN_REQ:
-        co_await handlers::OnLoginReq(*sess, body, m_auth_service);
+        co_await handlers::OnLoginReq(sess, body, m_auth_service, m_connection_registry);
         break;
     case MessageId::CS_GROUPLIST_REQ:
         co_await handlers::OnGroupListReq(*sess, body);

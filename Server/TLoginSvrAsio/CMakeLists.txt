@@ -14,7 +14,8 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/handlers.cpp
     ${TLOGINSVR_ASIO_SRC}/config.cpp
     ${TLOGINSVR_ASIO_SRC}/health_endpoint.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/in_memory_auth_service.cpp)
+    ${TLOGINSVR_ASIO_SRC}/services/in_memory_auth_service.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/in_memory_connection_registry.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib
@@ -54,3 +55,11 @@ add_executable(test_tloginsvr_asio_auth_flow
 target_link_libraries(test_tloginsvr_asio_auth_flow PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_auth_flow COMMAND test_tloginsvr_asio_auth_flow)
+
+# Duplicate-kick test — two concurrent client AsioSessions log in as
+# the same user; verifies the older session gets its socket closed.
+add_executable(test_tloginsvr_asio_duplicate_kick
+    ${TLOGINSVR_ASIO_SRC}/tests/test_duplicate_kick.cpp)
+target_link_libraries(test_tloginsvr_asio_duplicate_kick PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_duplicate_kick COMMAND test_tloginsvr_asio_duplicate_kick)

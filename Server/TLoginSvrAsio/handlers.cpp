@@ -132,9 +132,11 @@ bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out)
 } // namespace
 
 boost::asio::awaitable<void>
-OnLoginReq(tnetlib::AsioSession& session, std::span<const std::byte> body,
-           services::IAuthService* auth_service)
+OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::byte> body,
+           services::IAuthService* auth_service,
+           services::IConnectionRegistry* connection_registry)
 {
+    auto& sref = *session;
     LoginAck ack{};
     ack.bCreateCnt = 6;  // CHARSLOT_MAX default
 
@@ -162,7 +164,7 @@ OnLoginReq(tnetlib::AsioSession& session, std::span<const std::byte> body,
         if (!ParseLoginReq(body, fields))
         {
             spdlog::warn("CS_LOGIN_REQ malformed body — closing session");
-            session.Close();
+            sref.Close();
             co_return;
         }
         if (fields.version != kProtocolVersion)
@@ -189,11 +191,30 @@ OnLoginReq(tnetlib::AsioSession& session, std::span<const std::byte> body,
             ack.dwPremium  = result.premium_id;
             spdlog::info("CS_LOGIN_REQ user={} → status={} key=0x{:08X}",
                 fields.user_id, ack.bResult, ack.dwKEY);
+
+            // Duplicate-kick: on auth success, register this session
+            // and close any previous holder for the same user_id.
+            // We diverge from legacy here (legacy closed BOTH the
+            // old and new sessions) — modern UX is "newest wins" so
+            // the user's most recent connect attempt actually works.
+            if (result.status == services::AuthStatus::Success
+                && connection_registry != nullptr)
+            {
+                auto previous = connection_registry->Register(
+                    result.user_id, session);
+                if (previous)
+                {
+                    spdlog::warn(
+                        "duplicate login for user_id={} — kicking previous session",
+                        result.user_id);
+                    previous->Close();
+                }
+            }
         }
     }
 
     const auto payload = EncodeLoginAck(ack);
-    co_await session.SendPacket(
+    co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_LOGIN_ACK),
         std::span<const std::byte>(payload.data(), payload.size()));
 }

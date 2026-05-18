@@ -226,7 +226,27 @@ BOOL CPacket::IsEOF()
 
 BOOL CPacket::CanRead( DWORD length)
 {
-	DWORD dwReadBytes = DWORD(m_ptrOffset - m_pBuf) + length;
+	// Bug fix: previously this function did
+	//     DWORD dwReadBytes = DWORD(m_ptrOffset - m_pBuf) + length;
+	// with no overflow guard. Callers reaching this from
+	// operator>>(CString&) pass a signed int read from a wire packet;
+	// a negative input cast to DWORD becomes ~4 GB, then
+	// `offset + length` wraps modulo 2^32 to a tiny value, the
+	// "is it within buffer?" check passes, and Read() then memcpys
+	// 4 GB into a 0-byte heap allocation — remote heap corruption
+	// from any unauthenticated peer that can frame one packet.
+	// Reject lengths past the wire-format ceiling outright; that
+	// fixes the wrap source.
+	if( length > MAX_PACKET_SIZE )
+		return FALSE;
+
+	const ptrdiff_t offset = m_ptrOffset - m_pBuf;
+	if( offset < 0 )
+		return FALSE;
+	if( static_cast<DWORD>(offset) > MAX_PACKET_SIZE - length )
+		return FALSE; // sum would still wrap even after the length guard
+
+	DWORD dwReadBytes = static_cast<DWORD>(offset) + length;
 	WORD wPacketSize = GetSize();
 
 	return m_dwBufferSize >= dwReadBytes && wPacketSize >= dwReadBytes;
@@ -257,13 +277,23 @@ WORD CPacket::GetSize()
 
 void CPacket::Read( LPVOID param, int nLength)
 {
-	if(CanRead(nLength))
+	// Bug fix: defensive guard. nLength is signed; the public Read API
+	// historically passed it through to memcpy / memset with implicit
+	// cast to size_t. A negative value (e.g. attacker-supplied length
+	// from operator>>(CString&)) became ~16 EB on 64-bit hosts and
+	// trashed adjacent memory. Treat non-positive / oversized lengths
+	// as a no-op.
+	if (nLength <= 0 || nLength > static_cast<int>(MAX_PACKET_SIZE))
+		return;
+
+	const DWORD dwLength = static_cast<DWORD>(nLength);
+	if(CanRead(dwLength))
 	{
-		memcpy( param, m_ptrOffset, nLength);
-		m_ptrOffset += nLength;
+		memcpy( param, m_ptrOffset, dwLength);
+		m_ptrOffset += dwLength;
 	}
 	else
-		memset( param, 0, nLength);
+		memset( param, 0, dwLength);
 }
 
 void CPacket::Write( LPVOID param, int nLength)
@@ -460,10 +490,30 @@ CPacket& CPacket::operator >> ( WORD& param)
 
 CPacket& CPacket::operator >> ( CString& param)
 {
-	int nLength;
+	int nLength = 0;
 
 	Read( (LPVOID) &nLength, sizeof(int));
-	if(CanRead(nLength))
+
+	// Security fix: nLength is a signed int read from a wire packet.
+	// Previously this was passed straight to CanRead(DWORD) and then
+	// `new char[nLength + 1]` and `Read(buff, nLength)`. Three bugs
+	// converged into a remote, pre-auth heap-corruption primitive
+	// reachable from every CS_ handler that reads a CString
+	// (e.g. CS_LOGIN_REQ → m_strUserID, m_strPasswd):
+	//   1. CanRead's DWORD math wrapped around for negative input
+	//      and returned TRUE (now also hardened in CanRead itself).
+	//   2. `new char[nLength + 1]` with negative nLength either
+	//      allocated 0 bytes or threw bad_alloc.
+	//   3. Read(buff, nLength) → memcpy(buff, src, (size_t)nLength)
+	//      with size_t(-1) = ~16 EB → heap obliteration.
+	// Reject anything that isn't a sane in-bounds length. Caller
+	// gets an empty CString, matching the legacy "read past end of
+	// packet" silent-empty behavior — see COMPLETENESS_ANALYSIS.md
+	// §3.2 documenting that behavior on the C# port side.
+	if (nLength < 0 || nLength > static_cast<int>(MAX_PACKET_SIZE))
+		return *this;
+
+	if(CanRead(static_cast<DWORD>(nLength)))
 	{
 		LPTSTR buff = new char[nLength + 1];
 

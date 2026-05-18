@@ -15,7 +15,6 @@ set(TNETLIB_SOURCES
     ${TNETLIB_SRC_DIR}/BindDesc.cpp
     ${TNETLIB_SRC_DIR}/CryptographyExt.cpp
     ${TNETLIB_SRC_DIR}/Packet.cpp
-    ${TNETLIB_SRC_DIR}/Rijndael.cpp
     ${TNETLIB_SRC_DIR}/Session.cpp
     ${TNETLIB_SRC_DIR}/SqlBase.cpp
     ${TNETLIB_SRC_DIR}/SqlDatabase.cpp
@@ -32,7 +31,6 @@ set(TNETLIB_HEADERS
     ${TNETLIB_SRC_DIR}/CryptographyExt.h
     ${TNETLIB_SRC_DIR}/ErrorCode.h
     ${TNETLIB_SRC_DIR}/Packet.h
-    ${TNETLIB_SRC_DIR}/Rijndael.h
     ${TNETLIB_SRC_DIR}/Session.h
     ${TNETLIB_SRC_DIR}/SqlBase.h
     ${TNETLIB_SRC_DIR}/SqlDatabase.h

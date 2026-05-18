@@ -115,7 +115,39 @@ Two TNetLib copies existed (`Server/TNetLib/` v140 + `Lib/Own/TNetLib/TNetLib/` 
 
 Case-sensitivity fix (Linux portability): 7 .cpp files in TNetLib used `#include "StdAfx.h"` (capital) where the file is `stdafx.h`. Normalized to lowercase in commit `7ae24ce`. Worked on Windows by accident; broke immediately on Linux.
 
-### TNetLib bug audit (this commit)
+### TNetLib security audit (security-focused, follow-on)
+
+Read each unaudited area end-to-end after the functional audit. Three real issues plus three defensive cleanups; two informational notes on dead code and self-audit findings.
+
+**Critical:**
+
+| # | File | Issue | CVE-class |
+|---|------|-------|-----------|
+| S1 | `Packet.cpp::operator>>(CString&)` + `Read()` + `CanRead()` | Pre-auth remote heap corruption. `nLength` read from wire as `int`; cast to `DWORD` in `CanRead` wraps modulo 2^32 for negatives → returns TRUE; then `Read(buff, nLength)` does `memcpy(buff, src, (size_t)-1)` = ~16 EB write. Reachable from every CS_ handler that reads a CString (e.g. `CS_LOGIN_REQ` → `m_strUserID`). | Memory corruption / RCE |
+
+Fixed in three layers (defense in depth) so adding new operator>> overloads later can't accidentally re-introduce it:
+- `operator>>(CString&)`: validate `nLength` in [0, MAX_PACKET_SIZE] up front.
+- `Read(LPVOID, int)`: reject `nLength <= 0` or `> MAX_PACKET_SIZE`.
+- `CanRead(DWORD)`: reject `length > MAX_PACKET_SIZE` AND check offset+length doesn't wrap.
+
+**Defensive cleanups (this commit):**
+
+| # | File | Issue |
+|---|------|-------|
+| S2 | `CryptographyExt.cpp:135,190` | `CryptDeriveKey(..., CRYPT_EXPORTABLE, ...)` allows key material to be exported from the crypto provider. Not used by us. Removed. |
+| S3 | `Rijndael.cpp/.h` (1572 LOC) | Entire custom AES implementation was DEAD CODE — zero references in the whole repo (`grep -arn CRijndael Server/ Lib/Own/ Client/` returned nothing). Eliminated two theoretical issues raised by the audit (cache-timing on S-box lookups; potential key-schedule underflow). Deleted. |
+
+**Self-audit findings on new code (this commit):**
+
+| # | File | Issue |
+|---|------|-------|
+| S4 | `asio_session.h::SendPacket` | NOT thread-safe — concurrent calls race on `m_send_sequence` and conflict with Asio's "no concurrent writes on one socket" rule. Documented in the header with a "caller must serialize" note. Phase-3 server migration will replace with an internal send queue per session. |
+
+**Unsafe API documented (no behavior change):**
+
+`Packet.cpp::DetachBinary(LPVOID ptr)` accepts an attacker-controlled length up to MAX_PACKET_SIZE (~64 KB) and `Read`s that many bytes into the caller's buffer without knowing its size. Worst case: 64 KB write into whatever the caller pre-allocated. Multiple production callers in TMapSvr/TWorldSvr — auditing each call site individually is Phase-3 work; the safe replacement is a `DetachBinary(buf, max_size)` overload that bounds the read.
+
+### TNetLib bug audit (functional, 8 fixes)
 
 Read every `.cpp`/`.h` in `Lib/Own/TNetLib/TNetLib/` end-to-end. Eight real functional bugs found and fixed; two agent-reported issues confirmed as false alarms.
 

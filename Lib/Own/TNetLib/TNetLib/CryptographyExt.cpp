@@ -132,7 +132,7 @@ BOOL EncryptBuffer(ALG_ID nAlgorithm, LPBYTE lpszOutputBuffer, DWORD& dwOutputLe
 		{
 			if (CryptHashData(hCryptHash, lpszSecretKey, dwSecretKey, 0))
 			{
-				if (CryptDeriveKey(hCryptProv, nAlgorithm, hCryptHash, CRYPT_EXPORTABLE, &hCryptKey))
+				if (CryptDeriveKey(hCryptProv, nAlgorithm, hCryptHash, 0 /* no CRYPT_EXPORTABLE — defensive */, &hCryptKey))
 				{
 					if (CryptEncrypt(hCryptKey, NULL, TRUE, 0, lpszOutputBuffer, &dwHowManyBytes, dwOutputLength))
 					{
@@ -187,7 +187,7 @@ BOOL DecryptBuffer(ALG_ID nAlgorithm, LPBYTE lpszOutputBuffer, DWORD& dwOutputLe
 		{
 			if (CryptHashData(hCryptHash, lpszSecretKey, dwSecretKey, 0))
 			{
-				if (CryptDeriveKey(hCryptProv, nAlgorithm, hCryptHash, CRYPT_EXPORTABLE, &hCryptKey))
+				if (CryptDeriveKey(hCryptProv, nAlgorithm, hCryptHash, 0 /* no CRYPT_EXPORTABLE — defensive */, &hCryptKey))
 				{
 					if (CryptDecrypt(hCryptKey, NULL, TRUE, 0, lpszOutputBuffer, &dwHowManyBytes))
 					{

@@ -102,6 +102,15 @@ public:
     // builds a 16-byte header + `body` payload in an internal scratch
     // buffer, encrypts body + header per the wire codec, async_writes
     // the whole frame.
+    //
+    // THREAD-SAFETY: NOT thread-safe. Two coroutines calling SendPacket
+    // concurrently on the same AsioSession will interleave their
+    // sequence-number assignments and async_writes — both fatal for
+    // the wire codec (sequence-number mismatch on the receiver, and
+    // async_write is documented as not safe to call concurrently on
+    // the same socket). Caller must serialize through a strand, a
+    // single coroutine, or an explicit send queue. Phase-3 server
+    // migration will add an internal send queue here.
     boost::asio::awaitable<void> SendPacket(std::uint16_t wId,
                                             std::span<const std::byte> body);
 

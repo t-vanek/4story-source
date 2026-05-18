@@ -1,0 +1,14 @@
+﻿
+
+CREATE PROCEDURE [dbo].[TCashItemSale] 
+	@wID		SMALLINT,
+	@bSaleValue	TINYINT
+AS
+	IF(@wID = 0 )
+		UPDATE TCASHSHOPITEMCHART SET bSaleValue = @bSaleValue
+	ELSE
+		UPDATE TCASHSHOPITEMCHART SET bSaleValue = @bSaleValue  WHERE wID = @wID
+
+	RETURN 0
+
+

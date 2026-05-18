@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- SqlClient requires full globalization (collations, locale-aware sorting).
+         Override the global AOT default. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- System.Security.Cryptography.Xml is pulled in transitively by EF Core SqlClient (via
+         Microsoft.Data.SqlClient for SqlAuthenticationProvider). We don't use SignedXml or
+         XML auth flows here, so the GHSA-37gx-xxp4-5rgx / GHSA-w3x6-4m5h-cxqf advisories don't
+         apply to our usage. Revisit when MS ships a patched version. -->
+    <!-- CA1707: underscores in identifiers — scaffolded entities preserve legacy DB names (TACCOUNT_PW etc.). -->
+    <!-- CA1062: validate args — scaffolded code doesn't, fine for internal entity types. -->
+    <!-- CA1716: identifier matches reserved keyword — legacy DB names. -->
+    <!-- CA2227: collection properties should be read-only — EF Core needs setters. -->
+    <!-- CA1002: do not expose generic List — EF Core navigation properties. -->
+    <!-- CS8981: type names with only lowercase ASCII chars — legacy tables like 'ttempuser' / 'ttemplevel'. -->
+    <NoWarn>$(NoWarn);NU1903;CA1707;CA1062;CA1716;CA2227;CA1002;CA1819;CS8981</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FourStory.Shared\FourStory.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

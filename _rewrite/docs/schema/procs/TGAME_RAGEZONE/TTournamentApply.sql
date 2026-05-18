@@ -1,0 +1,15 @@
+﻿
+CREATE PROCEDURE [dbo].[TTournamentApply]
+@bAdd TINYINT,
+@dwCharID INT,
+@bEntry TINYINT,
+@dwChiefID INT
+AS
+
+IF EXISTS(SELECT dwCharID FROM TTOURNAMENTPLAYERTABLE WHERE dwCharID = @dwCharID)
+	DELETE TTOURNAMENTPLAYERTABLE WHERE dwCharID = @dwCharID
+
+IF(@bAdd > 0)
+	INSERT INTO TTOURNAMENTPLAYERTABLE (dwCharID, dwChiefID, bEntry, bStep, bResult) VALUES(@dwCharID, @dwChiefID, @bEntry, 0, 0)
+
+

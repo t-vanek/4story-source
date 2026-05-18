@@ -1,0 +1,15 @@
+// TBoWSvr.idl
+//
+
+import "oaidl.idl";
+import "ocidl.idl";
+
+[
+	uuid(c79ea05a-b0e6-11e7-abc4-cec278b6b50a),
+	version(1.0),
+	helpstring("TBoWSvr 1.0")
+]
+library TBoWSvrLib
+{
+	importlib("stdole2.tlb");
+};

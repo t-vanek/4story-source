@@ -1,0 +1,27 @@
+===== Start [22:17:18] =====
+[22:17:25.090] Left Button Clicked. X = 525, Y = 501
+[22:17:26.706] Left Button Clicked. X = 488, Y = 495
+[22:17:28.474] Left Button Clicked. X = 367, Y = 460
+[22:17:28.860] Left Button Clicked. X = 461, Y = 370
+[22:17:29.213] Left Button Clicked. X = 521, Y = 281
+[22:17:29.518] Left Button Clicked. X = 463, Y = 106
+[22:17:30.023] Left Button Clicked. X = 278, Y = 79
+[22:17:30.697] Left Button Clicked. X = 156, Y = 192
+[22:17:31.535] Right Button Clicked. X = 156, Y = 192
+[22:17:32.418] Right Button Clicked. X = 350, Y = 367
+[22:17:32.867] Left Button Clicked. X = 158, Y = 518
+[22:17:33.248] Left Button Clicked. X = 189, Y = 578
+[22:17:33.781] Left Button Clicked. X = 189, Y = 578
+[22:17:34.078] Left Button Clicked. X = 264, Y = 584
+[22:17:34.415] Left Button Clicked. X = 264, Y = 584
+[22:17:34.933] Left Button Clicked. X = 264, Y = 584
+[22:17:35.334] Left Button Clicked. X = 264, Y = 584
+[22:17:35.719] Left Button Clicked. X = 343, Y = 580
+[22:17:36.068] Left Button Clicked. X = 383, Y = 567
+[22:17:36.376] Left Button Clicked. X = 516, Y = 518
+[22:17:36.733] Right Button Clicked. X = 577, Y = 472
+[22:17:37.130] Right Button Clicked. X = 546, Y = 460
+[22:17:37.355] Right Button Clicked. X = 546, Y = 460
+[22:17:40.311] Left Button Clicked. X = 778, Y = 10
+===== End [22:17:43] =====
+MajorVer = 6 MinorVer = 2 BuildNumber = 9200

@@ -1,0 +1,411 @@
+﻿
+  TChart.vcxproj -> C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Lib\Own\TChart\Lib\x86\TChart.lib
+  TCML.vcxproj -> C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Lib\Own\TCML\Lib\x86\TCML.lib
+  TComp.vcxproj -> C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Lib\Own\TComp\Lib\x86\TComp.lib
+  HwidLib.vcxproj -> C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Lib\Own\HwidLib\Lib\x86\HwidLib.lib
+  Engine Lib.vcxproj -> C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Lib\Own\Engine Lib\Lib\x86\Engine Lib.lib
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(536,5): warning MSB8004: Adresář Intermediate nekončí závěrečným lomítkem. Tato instance sestavení lomítko přidá, protože je nutné pro správné vyhodnocení adresáře Intermediate. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(537,5): warning MSB8004: Adresář Output nekončí závěrečným lomítkem. Tato instance sestavení lomítko přidá, protože je nutné pro správné vyhodnocení adresáře Output. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  ArenaRanking.cpp
+  BattleRankProgressDlg.cpp
+  BattleRankTex.cpp
+  BRPannels.cpp
+  BRRankingDlg.cpp
+  BRTeamDlg.cpp
+  BRTRanking.cpp
+  CompStyleDlg.cpp
+  CSHandler.cpp
+  CSSender.cpp
+  CSSenderAll.cpp
+  Curse.cpp
+  GuildSkillsDlg.cpp
+  HwidManager.cpp
+  IPDialog.cpp
+  MacroProtection.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\Curse.cpp(153,3): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSSender.cpp(1992,12): warning C4267: inicializování: Převod z: size_t na: WORD, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSSenderAll.cpp(504,14): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSSenderAll.cpp(825,14): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSSenderAll.cpp(926,14): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  md5.cpp
+  Outro.cpp
+  PacketSpyAcks.cpp
+  PacketSpyDlg.cpp
+  SmoothScrolling.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSHandler.cpp(21406,2): warning C4065: Příkaz přepínače obsahuje jmenovku default, ale neobsahuje žádné jmenovky case. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  StdAfx.cpp
+  TAidCountry.cpp
+  TArenaReg.cpp
+  TAuctionBasket.cpp
+  TAuctionCategory.cpp
+  TAuctionCommander.cpp
+  TAuctionCtrlList.cpp
+  TAuctionInnerFrame.cpp
+  TAuctionMainFrame.cpp
+  TAuctionMsgBox.cpp
+  TAuctionMyBid.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\md5.cpp(97,22): warning C4244: =: std::streamsize se převádí na int; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\md5.cpp(118,22): warning C4244: =: std::streamsize se převádí na int; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\md5.cpp(228,5): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\PacketSpyDlg.cpp(69,6): warning C4101: i: neodkazovaná lokální proměnná [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TAuctionRegist.cpp
+  TAuctionSearch.cpp
+  TBattleInvenDlg.cpp
+  TBFGAlarm.cpp
+  TBFGStatus.cpp
+  TBlockListDlg.cpp
+  TBodGuildRankClass.cpp
+  TBodRankClass.cpp
+  TBowBPTradeDlg.cpp
+  TBowGuildRankClass.cpp
+  TBowRankClass.cpp
+  TBowRankingDlg.cpp
+  TBowRegisterDlg.cpp
+  TBowRegisterWaitingDlg.cpp
+  TBowRespawnDlg.cpp
+  TBoxOpen.cpp
+  TBoxOpenList.cpp
+  TCabinetDlg.cpp
+  TCandidateFrame.cpp
+  TCashCabinetDlg.cpp
+  TChallengeEvent.cpp
+  TChallengeItem.cpp
+  TChallengeWaiting.cpp
+  TCharInfoNewDlg.cpp
+  TCharInfoNewInner.cpp
+  TCharInfoNewPVPDlg.cpp
+  TCharInfoNewWarDlg.cpp
+  TChatCommander.cpp
+  TChatFrame.cpp
+  TChatList.cpp
+  TChatMenuNew.cpp
+  TChatTabButton.cpp
+  TCinematicDlg.cpp
+  TClient.cpp
+  TClientArrow.cpp
+  TClientBSP.cpp
+  TClientCAM.cpp
+  TClientChar.cpp
+  TClientCompanion.cpp
+  TClientCustomCloak.cpp
+  TClientFake.cpp
+  TClientFlag.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(886,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(887,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(888,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(889,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(890,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TClientGame.cpp
+  TClientGate.cpp
+  TClientGM.cpp
+  TClientGuildMark.cpp
+  TClientInven.cpp
+  TClientItem.cpp
+  TClientKEY.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.cpp(678,25): warning C4477: sscanf: Formátovací řetězec %s vyžaduje argument typu char *, ale variadický argument 1 má typ LPCTSTR. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.cpp(678,4): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.cpp(782,19): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TClientMaintain.cpp
+  TClientMAP.cpp
+  TClientMonster.cpp
+  TClientMoveObj.cpp
+  TClientMsgBox.cpp
+  TClientNET.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientGM.cpp(12211,20): warning C4838: Převod z: DWORD na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientGM.cpp(12211,20): warning C4244: inicializování: DWORD se převádí na WORD; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TClientNICEventSink.cpp
+  TClientNpc.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientGame.cpp(26845,14): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TClientNumber.cpp
+  TClientObjBase.cpp
+  TClientObject.cpp
+  TClientPath.cpp
+  TClientPet.cpp
+  TClientQClass.cpp
+  TClientQuest.cpp
+  TClientRecall.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientMAP.cpp(2187,7): warning C4101: i: neodkazovaná lokální proměnná [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TClientSession.cpp
+  TClientSfx.cpp
+  TClientSkill.cpp
+  TClientSpolecnik.cpp
+  TClientSwitch.cpp
+  TClientTalkBox.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(1328,60): warning C4267: argument: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(2263,7): warning C4101: i: neodkazovaná lokální proměnná [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(2436,56): warning C4244: argument: DWORD se převádí na BYTE; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(7189,57): warning C4244: argument: DWORD se převádí na BYTE; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(7904,3): warning C4244: argument: DWORD se převádí na WORD; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TClientTerm.cpp
+  TClientUIBase.cpp
+  TClientWebCtrl.cpp
+  TClientWnd.cpp
+  TColorPicker.cpp
+  TCommunityDlg.cpp
+  TCompanionAttrs.cpp
+  TCompanionInner.cpp
+  TCompanionMiniUI.cpp
+  TCompanionStats.cpp
+  TCraftQuestDlg.cpp
+  TCtrlList.cpp
+  TCustomCloakDlg.cpp
+  TDetailInfo.cpp
+  TDetailInfoDlg.cpp
+  TDetailInfoManager.cpp
+  TDetailNameDlg.cpp
+  TDurationFrame.cpp
+  TDynamicHelpDlg.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientWnd.cpp(3923,11): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientWnd.cpp(3938,20): warning C4996: 'strtok': This function or variable may be unsafe. Consider using strtok_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientWnd.cpp(3939,19): warning C4996: 'strtok': This function or variable may be unsafe. Consider using strtok_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TFameBaseDlg.cpp
+  TFameListDlg.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TCompanionMiniUI.cpp(46,14): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TFameRank.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TCompanionInner.cpp(267,42): warning C4267: =: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TCompanionInner.cpp(500,60): warning C4267: argument: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TFrameGroupBase.cpp
+  TGameSettingFrame.cpp
+  TGaugePannel.cpp
+  TGuildAppInnerFrame.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(145,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(1085,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(1133,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2105,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2279,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2632,16): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2793,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2909,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TGuildApplicationDlg.cpp
+  TGuildCabinetDlg.cpp
+  TGuildCmdHelpDlg.cpp
+  TGuildCommander.cpp
+  TGuildExpDonDlg.cpp
+  TGuildJoinNewDlg.cpp
+  TGuildMainNewDlg.cpp
+  TGuildMarkMakeDlg.cpp
+  TGuildMemberFrame.cpp
+  TGuildMembersNewDlg.cpp
+  TGuildMercenaryNewDlg.cpp
+  TGuildMoneyDonDlg.cpp
+  TGuildNormalFrame.cpp
+  TGuildNotifyDlg.cpp
+  TGuildOfferFrame.cpp
+  TGuildPointLogFrame.cpp
+  TGuildPointRewardFrame.cpp
+  TGuildPvPRecordFrame.cpp
+  TGuildRegularOffer.cpp
+  TGuildRTTypeFrame.cpp
+  TGuildSeekFrame.cpp
+  TGuildSummaryNewDlg.cpp
+  TGuildTacticsOffer.cpp
+  TGuildTerritoryFrame.cpp
+  TGuildVolunteerFrame.cpp
+  TGuildWarInfoNewDlg.cpp
+  THelpFrame.cpp
+  TInvenDlg.cpp
+  TItemCraftDlg.cpp
+  TItemExtPeriodDlg.cpp
+  TItemGambleDlg.cpp
+  TItemRefineDlg.cpp
+  TItemRegBox.cpp
+  TItemRegGuildDlg.cpp
+  TItemRepairDlg.cpp
+  TItemSlotBaseDlg.cpp
+  TItemUpCashDlg.cpp
+  TItemUpDlg.cpp
+  TItemUpGaugeDlg.cpp
+  TKeySettingDefines.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\THelpFrame.cpp(82,52): warning C4267: argument: Převod z: size_t na: WORD, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TKeySettingDlg.cpp
+  TLimitEdit.cpp
+  TListEx.cpp
+  TMagicItemShopDlg.cpp
+  TMailAskMoneyDlg.cpp
+  TMailListFrame.cpp
+  TMailRecvDlg.cpp
+  TMailSendDlg.cpp
+  TMailSender.cpp
+  TMaintainPannel.cpp
+  TMainUI.cpp
+  TMessengerBase.cpp
+  TMessengerChat.cpp
+  TMessengerCommander.cpp
+  TMiniDump.cpp
+  TMinimapDlg.cpp
+  TMiniPopupDlg.cpp
+  TMsgChatMemberList.cpp
+  TMsgGroupList.cpp
+  TNationOption.cpp
+  TNetGM.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TMailSender.cpp(242,2): warning C4996: 'itoa': The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _itoa. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TNetHandler.cpp
+  TNetSender.cpp
+  TNewAuctionHouseDlg.cpp
+  TNewQuestDlg.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TMiniDump.cpp(293,61): warning C4996: 'ctime': This function or variable may be unsafe. Consider using ctime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TMiniDump.cpp(421,19): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TMiniDump.cpp(428,19): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TNormalCabinetDlg.cpp
+  TNPCTalkDlg.cpp
+  TNumberEdit.cpp
+  TPartyCommander.cpp
+  TPartyItemLottery.cpp
+  TPetDlg.cpp
+  TPetMakeDlg.cpp
+  TPetManageDlg.cpp
+  TPopupMenu.cpp
+  TPopupNewMenu.cpp
+  TPortalShopDlgNew.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TNetGM.cpp(193,52): warning C4267: =: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TPotionPannel.cpp
+  TPremiumSkillsDlg.cpp
+  TPrivateShopDlg.cpp
+  TProgressRegDlg.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TNormalCabinetDlg.cpp(57,6): warning C4101: i: neodkazovaná lokální proměnná [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TNumberEdit.cpp(166,6): warning C4996: 'itoa': The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _itoa. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TQuestNewDlg.cpp
+  TRankingNewDlg.cpp
+  TRankingNewMain.cpp
+  TRelayHandler.cpp
+  TRelaySender.cpp
+  TRentSkillDlg.cpp
+  TRpcDlg.cpp
+  TRpcRewardDlg.cpp
+  TRpsRewardList.cpp
+  TRSCSDlg.cpp
+  TScenePlayer.cpp
+  TSecuritySystemDlg.cpp
+  TSelectCountry.cpp
+  TSettingFrame.cpp
+  TShopBaseDlg.cpp
+  TShopDlg.cpp
+  TShopItem.cpp
+  TSiegeEnd.cpp
+  TSiegeGodBall.cpp
+  TSiegeGodTower.cpp
+  TSiegeManager.cpp
+  TSiegeUI.cpp
+  TSkillDlg.cpp
+  TSkygardenEnd.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(703,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(754,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(758,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(782,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(786,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(894,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TSkygardenMap.cpp
+  TSMSDlg.cpp
+  TSoulLotteryDlg.cpp
+  TSoulLotteryWinDlg.cpp
+  TSoulmateFrame.cpp
+  TSystemInfo.cpp
+  TSystemSettingFrame.cpp
+  TTacticsInviteDlg.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TSiegeGodTower.cpp(87,26): warning C4267: argument: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TTextLinkData.cpp
+  TTextLinker.cpp
+  TTextPopup.cpp
+  TTitleDlg.cpp
+  TTournament.cpp
+  TTournamentEvent.cpp
+  TTournamentGage.cpp
+  TTournamentMode.cpp
+  TTournamentResult.cpp
+  TTournamentSelectTarget.cpp
+  TTournamentSelectWinner.cpp
+  TTradeDlg.cpp
+  TUpItemSellDlg.cpp
+  TUtilityBarDlg.cpp
+  TWelcome.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(123,22): warning C4838: Převod z: int na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(124,22): warning C4838: Převod z: int na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(210,23): warning C4838: Převod z: int na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(211,23): warning C4838: Převod z: int na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(264,2): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(281,2): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(298,3): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(343,2): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(361,3): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(446,2): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(475,3): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TWorldmapDlg.cpp
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTitleDlg.cpp(411,204): warning C4267: argument: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+  TClient.vcxproj -> C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4STORY_PW CLIENT 01\TClient.exe
+
+Vytváření sestavení bylo úspěšně dokončeno.
+
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(536,5): warning MSB8004: Adresář Intermediate nekončí závěrečným lomítkem. Tato instance sestavení lomítko přidá, protože je nutné pro správné vyhodnocení adresáře Intermediate. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(537,5): warning MSB8004: Adresář Output nekončí závěrečným lomítkem. Tato instance sestavení lomítko přidá, protože je nutné pro správné vyhodnocení adresáře Output. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\Curse.cpp(153,3): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSSender.cpp(1992,12): warning C4267: inicializování: Převod z: size_t na: WORD, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSSenderAll.cpp(504,14): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSSenderAll.cpp(825,14): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSSenderAll.cpp(926,14): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\CSHandler.cpp(21406,2): warning C4065: Příkaz přepínače obsahuje jmenovku default, ale neobsahuje žádné jmenovky case. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\md5.cpp(97,22): warning C4244: =: std::streamsize se převádí na int; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\md5.cpp(118,22): warning C4244: =: std::streamsize se převádí na int; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\md5.cpp(228,5): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\PacketSpyDlg.cpp(69,6): warning C4101: i: neodkazovaná lokální proměnná [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(886,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(887,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(888,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(889,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TChatFrame.cpp(890,3): warning C4838: Převod z: int na: DWORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.cpp(678,25): warning C4477: sscanf: Formátovací řetězec %s vyžaduje argument typu char *, ale variadický argument 1 má typ LPCTSTR. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.cpp(678,4): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.cpp(782,19): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientGM.cpp(12211,20): warning C4838: Převod z: DWORD na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientGM.cpp(12211,20): warning C4244: inicializování: DWORD se převádí na WORD; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientGame.cpp(26845,14): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientMAP.cpp(2187,7): warning C4101: i: neodkazovaná lokální proměnná [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(1328,60): warning C4267: argument: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(2263,7): warning C4101: i: neodkazovaná lokální proměnná [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(2436,56): warning C4244: argument: DWORD se převádí na BYTE; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(7189,57): warning C4244: argument: DWORD se převádí na BYTE; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientObjBase.cpp(7904,3): warning C4244: argument: DWORD se převádí na WORD; může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientWnd.cpp(3923,11): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientWnd.cpp(3938,20): warning C4996: 'strtok': This function or variable may be unsafe. Consider using strtok_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClientWnd.cpp(3939,19): warning C4996: 'strtok': This function or variable may be unsafe. Consider using strtok_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TCompanionMiniUI.cpp(46,14): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TCompanionInner.cpp(267,42): warning C4267: =: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TCompanionInner.cpp(500,60): warning C4267: argument: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(145,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(1085,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(1133,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2105,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2279,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2632,16): warning C4267: inicializování: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2793,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TDetailInfo.cpp(2909,16): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\THelpFrame.cpp(82,52): warning C4267: argument: Převod z: size_t na: WORD, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TMailSender.cpp(242,2): warning C4996: 'itoa': The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _itoa. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TMiniDump.cpp(293,61): warning C4996: 'ctime': This function or variable may be unsafe. Consider using ctime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TMiniDump.cpp(421,19): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TMiniDump.cpp(428,19): warning C4858: Zahodí se návratová hodnota: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TNetGM.cpp(193,52): warning C4267: =: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TNormalCabinetDlg.cpp(57,6): warning C4101: i: neodkazovaná lokální proměnná [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TNumberEdit.cpp(166,6): warning C4996: 'itoa': The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _itoa. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(703,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(754,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(758,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(782,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(786,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TScenePlayer.cpp(894,6): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TSiegeGodTower.cpp(87,26): warning C4267: argument: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(123,22): warning C4838: Převod z: int na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(124,22): warning C4838: Převod z: int na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(210,23): warning C4838: Převod z: int na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(211,23): warning C4838: Převod z: int na: WORD vyžaduje zužující převod. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(264,2): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(281,2): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(298,3): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(343,2): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(361,3): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(446,2): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTextLinker.cpp(475,3): warning C4996: 'sscanf': This function or variable may be unsafe. Consider using sscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TTitleDlg.cpp(411,204): warning C4267: argument: Převod z: size_t na: BYTE, může dojít ke ztrátě dat. [C:\Users\tomas\Desktop\Sources 5.0 (Araz)\Sources 5.0 (Araz)\4Story_5.0_Source\Client\TClient\TClient.vcxproj]
+    70 upozornění
+    Počet chyb: 0
+
+Uplynulý čas 00:01:12.41

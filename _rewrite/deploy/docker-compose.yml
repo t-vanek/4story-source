@@ -1,0 +1,91 @@
+# FourStory dev stack — `docker compose up` brings the whole server cluster
+# up against a local SQL Server. Designed for fast dev iteration, NOT prod:
+#   • SQL Server runs on the host (we don't containerise the 67 MB legacy DBs);
+#     containers reach it via `host.docker.internal`.
+#   • Seq is the log/trace sink — point your browser at http://localhost:5341.
+#   • The three game workers (Login, Map, World) are built from the local
+#     Dockerfiles next to this compose file.
+#
+# Use `--profile observability` to also start the OTel collector / Seq combo.
+
+services:
+  seq:
+    image: datalust/seq:2024.3
+    container_name: fourstory-seq
+    ports:
+      - "5341:80"          # Seq UI
+      - "5342:5341"        # Ingest (Serilog / OTel)
+    environment:
+      ACCEPT_EULA: "Y"
+    volumes:
+      - seq-data:/data
+    profiles: ["observability", "all"]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    container_name: fourstory-otel
+    command: ["--config=/etc/otel.yml"]
+    volumes:
+      - ./otel-collector.yml:/etc/otel.yml:ro
+    ports:
+      - "4317:4317"        # OTLP gRPC
+      - "4318:4318"        # OTLP HTTP
+    depends_on:
+      - seq
+    profiles: ["observability", "all"]
+
+  login:
+    build:
+      context: ../src
+      dockerfile: ../deploy/Dockerfile.login
+    container_name: fourstory-login
+    ports:
+      - "4815:4815"
+    environment:
+      ConnectionStrings__Global: "Server=host.docker.internal;Database=TGLOBAL_RAGEZONE;User Id=sa;Password=${SA_PASSWORD:?};TrustServerCertificate=True;"
+      ConnectionStrings__Game:   "Server=host.docker.internal;Database=TGAME_RAGEZONE;User Id=sa;Password=${SA_PASSWORD:?};TrustServerCertificate=True;"
+      Telemetry__Enabled: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      DOTNET_ENVIRONMENT: "Development"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles: ["all"]
+
+  world:
+    build:
+      context: ../src
+      dockerfile: ../deploy/Dockerfile.world
+    container_name: fourstory-world
+    ports:
+      - "3815:3815"
+    environment:
+      ConnectionStrings__Global: "Server=host.docker.internal;Database=TGLOBAL_RAGEZONE;User Id=sa;Password=${SA_PASSWORD:?};TrustServerCertificate=True;"
+      ConnectionStrings__Game:   "Server=host.docker.internal;Database=TGAME_RAGEZONE;User Id=sa;Password=${SA_PASSWORD:?};TrustServerCertificate=True;"
+      Telemetry__Enabled: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles: ["all"]
+
+  map:
+    build:
+      context: ../src
+      dockerfile: ../deploy/Dockerfile.map
+    container_name: fourstory-map
+    ports:
+      - "5815:5815"
+    environment:
+      ConnectionStrings__Global: "Server=host.docker.internal;Database=TGLOBAL_RAGEZONE;User Id=sa;Password=${SA_PASSWORD:?};TrustServerCertificate=True;"
+      ConnectionStrings__Game:   "Server=host.docker.internal;Database=TGAME_RAGEZONE;User Id=sa;Password=${SA_PASSWORD:?};TrustServerCertificate=True;"
+      World__Host: "world"
+      World__Port: "3815"
+      Telemetry__Enabled: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - world
+    profiles: ["all"]
+
+volumes:
+  seq-data:

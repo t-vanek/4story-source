@@ -1,0 +1,11 @@
+﻿CREATE PROCEDURE [dbo].[TGiveTitle]
+@dwCharID INT,
+@wTitleID SMALLINT
+AS
+BEGIN
+	IF NOT EXISTS( SELECT wTitleID FROM TTITLETABLE WHERE dwCharID = @dwCharID)
+	BEGIN
+	INSERT INTO TTITLETABLE (dwCharID, wTitleID, bSelected)
+										VALUES (@dwCharID, @wTitleID, 0)
+	END
+END

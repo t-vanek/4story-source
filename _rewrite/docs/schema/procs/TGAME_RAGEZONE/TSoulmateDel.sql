@@ -1,0 +1,17 @@
+﻿
+
+CREATE PROCEDURE [dbo].[TSoulmateDel]
+	@dwCharID	INT,
+	@dwSoul	INT
+AS
+
+BEGIN TRAN SOULMATE_DEL
+
+	DELETE 
+		TSOULMATETABLE 
+	WHERE 
+		dwCharID = @dwCharID AND dwTarget = @dwSoul
+
+COMMIT TRAN SOULMATE_DEL
+
+

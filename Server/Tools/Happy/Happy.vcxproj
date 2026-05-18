@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release RPS|Win32">
+      <Configuration>Release RPS</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{70A8255C-815D-4F14-B449-7B28DCF2D379}</ProjectGuid>
+    <SccProjectName>"$/TServer/Tools", SXCAAAAA</SccProjectName>
+    <SccAuxPath />
+    <SccLocalPath>..</SccLocalPath>
+    <SccProvider>MSSCCI:Microsoft Visual SourceSafe</SccProvider>
+    <Keyword>MFCProj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release RPS|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v141</PlatformToolset>
+    <UseOfMfc>Static</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v141</PlatformToolset>
+    <UseOfMfc>Static</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v141</PlatformToolset>
+    <UseOfMfc>Static</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release RPS|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>15.0.28127.55</_ProjectFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>Debug\</OutDir>
+    <IntDir>Debug\</IntDir>
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>Release\</OutDir>
+    <IntDir>Release\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+    <IncludePath>..\..\..\Lib\3rdParty\DirectX9 (June 2010)\Include;$(IncludePath)</IncludePath>
+    <LibraryPath>..\..\..\Lib\3rdParty\DirectX9 (June 2010)\Lib;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release RPS|Win32'">
+    <OutDir>$(Configuration)\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+    <IncludePath>..\..\..\Lib\3rdParty\DirectX9 (June 2010)\Include;$(IncludePath)</IncludePath>
+    <LibraryPath>..\..\..\Lib\3rdParty\DirectX9 (June 2010)\Lib;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>..\..\..\TProtocol;..\..\TServer\TNetLib;..\zlib114;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG; PACKET_CRYPT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>zlibstat.lib;winmm.lib;shlwapi.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\TServer\lib;..\zlib114;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <Midl>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+    </Midl>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0412</Culture>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <AdditionalIncludeDirectories>..\..\..\Lib\Own\TProtocol\Include;..\..\..\Lib\Own\TNetLib;..\..\..\Lib\3rdParty\zlib\include\minizip;..\..\..\Lib\3rdParty\zlib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;PACKET_CRYPT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>zlibstat.lib;wininet.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\Lib\3rdParty\zlib\lib\zlibstat;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <TargetMachine>MachineX86</TargetMachine>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+    <Midl>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+    </Midl>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0412</Culture>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release RPS|Win32'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <AdditionalIncludeDirectories>..\..\..\Lib\Own\TProtocol\Include;..\..\..\Lib\Own\TNetLib;..\..\..\Lib\3rdParty\zlib\include\minizip;..\..\..\Lib\3rdParty\zlib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;PACKET_CRYPT;RPSGAME_ON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>zlibstat.lib;winmm.lib;shlwapi.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\Lib\3rdParty\zlib\lib\zlibstat;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <TargetMachine>MachineX86</TargetMachine>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+    <Midl>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+    </Midl>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0412</Culture>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Announce.cpp" />
+    <ClCompile Include="AutoPatch.cpp" />
+    <ClCompile Include="CastleSettingDlg.cpp" />
+    <ClCompile Include="CharMsg.cpp" />
+    <ClCompile Include="ChatBanDlg.cpp" />
+    <ClCompile Include="ChatBanList.cpp" />
+    <ClCompile Include="ChildFrm.cpp" />
+    <ClCompile Include="DlgConnect.cpp" />
+    <ClCompile Include="DlgPatchProgress.cpp" />
+    <ClCompile Include="DlgServiceLog.cpp" />
+    <ClCompile Include="DlgUpload.cpp" />
+    <ClCompile Include="DlgUploadProgress.cpp" />
+    <ClCompile Include="EventDlg.cpp" />
+    <ClCompile Include="EventInfo.cpp" />
+    <ClCompile Include="GMToolDlg.cpp" />
+    <ClCompile Include="GuildChange.cpp" />
+    <ClCompile Include="Handler.cpp" />
+    <ClCompile Include="Happy.cpp" />
+    <ClCompile Include="HappyDoc.cpp" />
+    <ClCompile Include="HappyGroup.cpp" />
+    <ClCompile Include="HappySplitter.cpp" />
+    <ClCompile Include="HappyView.cpp" />
+    <ClCompile Include="HelpMessage.cpp" />
+    <ClCompile Include="HSession.cpp" />
+    <ClCompile Include="ItemChgState.cpp" />
+    <ClCompile Include="LocalInit.cpp" />
+    <ClCompile Include="LuckyEventDlg.cpp" />
+    <ClCompile Include="Machine.cpp" />
+    <ClCompile Include="MachineGraph.cpp" />
+    <ClCompile Include="MainFrm.cpp" />
+    <ClCompile Include="MonsterSpawn.cpp" />
+    <ClCompile Include="Packet.cpp" />
+    <ClCompile Include="PatchBar.cpp" />
+    <ClCompile Include="PatchList.cpp" />
+    <ClCompile Include="PosListDlg.cpp" />
+    <ClCompile Include="PreVersion.cpp" />
+    <ClCompile Include="RetDlg.cpp" />
+    <ClCompile Include="RPSGame.cpp" />
+    <ClCompile Include="SavePos.cpp" />
+    <ClCompile Include="Sender.cpp" />
+    <ClCompile Include="ServiceGraph.cpp" />
+    <ClCompile Include="ServiceList.cpp" />
+    <ClCompile Include="ServiceTree.cpp" />
+    <ClCompile Include="stdafx.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RPS|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="TabCtrlHappy.cpp" />
+    <ClCompile Include="TGiftItem.cpp" />
+    <ClCompile Include="TGiftSet.cpp" />
+    <ClCompile Include="Tournament.cpp" />
+    <ClCompile Include="UserKickout.cpp" />
+    <ClCompile Include="UserMove.cpp" />
+    <ClCompile Include="XListCtrl.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\Lib\3rdParty\zlib\include\minizip\zip.h" />
+    <ClInclude Include="..\..\..\Lib\3rdParty\zlib\include\zconf.h" />
+    <ClInclude Include="..\..\..\Lib\3rdParty\zlib\include\zlib.h" />
+    <ClInclude Include="Announce.h" />
+    <ClInclude Include="AutoPatch.h" />
+    <ClInclude Include="CastleSettingDlg.h" />
+    <ClInclude Include="CharMsg.h" />
+    <ClInclude Include="ChatBanDlg.h" />
+    <ClInclude Include="ChatBanList.h" />
+    <ClInclude Include="ChildFrm.h" />
+    <ClInclude Include="DlgConnect.h" />
+    <ClInclude Include="DlgPatchProgress.h" />
+    <ClInclude Include="DlgServiceLog.h" />
+    <ClInclude Include="DlgUpload.h" />
+    <ClInclude Include="DlgUploadProgress.h" />
+    <ClInclude Include="EventDlg.h" />
+    <ClInclude Include="EventInfo.h" />
+    <ClInclude Include="GMToolDlg.h" />
+    <ClInclude Include="GuildChange.h" />
+    <ClInclude Include="Happy.h" />
+    <ClInclude Include="HappyDoc.h" />
+    <ClInclude Include="HappyGroup.h" />
+    <ClInclude Include="HappySplitter.h" />
+    <ClInclude Include="HappyView.h" />
+    <ClInclude Include="HelpMessage.h" />
+    <ClInclude Include="HSession.h" />
+    <ClInclude Include="ItemChgState.h" />
+    <ClInclude Include="LocalInit.h" />
+    <ClInclude Include="LuckyEventDlg.h" />
+    <ClInclude Include="Machine.h" />
+    <ClInclude Include="MachineGraph.h" />
+    <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="MonsterSpawn.h" />
+    <ClInclude Include="Packet.h" />
+    <ClInclude Include="PatchBar.h" />
+    <ClInclude Include="PatchList.h" />
+    <ClInclude Include="PosListDlg.h" />
+    <ClInclude Include="PreVersion.h" />
+    <ClInclude Include="Resource.h" />
+    <ClInclude Include="RetDlg.h" />
+    <ClInclude Include="RPSGame.h" />
+    <ClInclude Include="SavePos.h" />
+    <ClInclude Include="ServiceGraph.h" />
+    <ClInclude Include="ServiceList.h" />
+    <ClInclude Include="ServiceTree.h" />
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="TabCtrlHappy.h" />
+    <ClInclude Include="TGiftItem.h" />
+    <ClInclude Include="TGiftSet.h" />
+    <ClInclude Include="Tournament.h" />
+    <ClInclude Include="UserKickout.h" />
+    <ClInclude Include="UserMove.h" />
+    <ClInclude Include="XListCtrl.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\bitmap1.bmp" />
+    <Image Include="res\bitmap2.bmp" />
+    <Image Include="res\bmp00001.bmp" />
+    <Image Include="res\Earth.ico" />
+    <Image Include="res\Happy.ico" />
+    <Image Include="res\HappyDoc.ico" />
+    <Image Include="res\ico00001.ico" />
+    <Image Include="res\ico00002.ico" />
+    <Image Include="res\ico00003.ico" />
+    <Image Include="res\ico00004.ico" />
+    <Image Include="res\icon1.ico" />
+    <Image Include="res\nethood.ico" />
+    <Image Include="res\nethoodH.ico" />
+    <Image Include="res\Toolbar.bmp" />
+    <Image Include="res\toolbar1.bmp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Happy.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="DlgConnect.htm">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="res\Happy.rc2" />
+    <None Include="res\wave1.bin" />
+    <None Include="TGiftSet.htm">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Media Include="res\beep.wav" />
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="res\Happy.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <ProjectExtensions>
+    <VisualStudio>
+      <UserProperties RESOURCE_FILE="Happy.rc" />
+    </VisualStudio>
+  </ProjectExtensions>
+</Project>

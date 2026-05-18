@@ -1,0 +1,5 @@
+﻿CREATE PROCEDURE [dbo].[TClearLoginCurrentUser]
+AS
+
+DELETE TCURRENTUSER WHERE dwCharID = 0
+

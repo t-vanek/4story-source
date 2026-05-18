@@ -1,0 +1,8 @@
+﻿
+CREATE PROCEDURE [dbo].[TDeleteDealItem]
+@dlID BIGINT
+AS
+
+DELETE TITEMTABLE WHERE dlID = @dlID
+
+

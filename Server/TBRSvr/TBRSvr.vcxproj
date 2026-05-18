@@ -1,0 +1,317 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{7a163baa-b0e5-11e7-abc4-cec278b6b50a}</ProjectGuid>
+    <RootNamespace>TBRSvr</RootNamespace>
+    <SccProjectName>
+    </SccProjectName>
+    <SccAuxPath />
+    <SccLocalPath>
+    </SccLocalPath>
+    <SccProvider>
+    </SccProvider>
+    <Keyword>AtlProj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v141</PlatformToolset>
+    <UseOfMfc>false</UseOfMfc>
+    <UseOfAtl>Static</UseOfAtl>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WindowsAppContainer>false</WindowsAppContainer>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v141</PlatformToolset>
+    <UseOfMfc>false</UseOfMfc>
+    <UseOfAtl>Static</UseOfAtl>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>14.0.24720.0</_ProjectFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>..\Servicesd\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <IgnoreImportLibrary>true</IgnoreImportLibrary>
+    <LinkIncremental>true</LinkIncremental>
+    <PostBuildEventUseInBuild>false</PostBuildEventUseInBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>..\Services\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <IgnoreImportLibrary>true</IgnoreImportLibrary>
+    <LinkIncremental>false</LinkIncremental>
+    <PostBuildEventUseInBuild>false</PostBuildEventUseInBuild>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>..\..\Lib\Own\TNetLib\TNetLib;..\..\Lib\Own\TProtocol\Include;.\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;BR_COMPILE_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>odbc32.lib;ws2_32.lib;mswsock.lib;TNetLibd.Lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalLibraryDirectories>..\..\Lib\Own\TNetLib\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <DelayLoadDLLs />
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateMapFile>false</GenerateMapFile>
+      <SubSystem>Windows</SubSystem>
+      <ImportLibrary>$(OutDir)TBRSvr.lib</ImportLibrary>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <Midl>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+      <TargetEnvironment>Win32</TargetEnvironment>
+      <GenerateStublessProxies>true</GenerateStublessProxies>
+      <TypeLibraryName>$(IntDir)TBRSvr.tlb</TypeLibraryName>
+      <HeaderFileName>TBRSvr.h</HeaderFileName>
+      <DllDataFileName />
+      <InterfaceIdentifierFileName>TBRSvr_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>TBRSvr_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message>
+      </Message>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0009</Culture>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\Lib\Own\TNetLib\TNetLib;..\..\Lib\Own\TProtocol\Include;.\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;BOW_COMPILE_MODE;BR_COMPILE_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AssemblerOutput>All</AssemblerOutput>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>odbc32.lib;ws2_32.lib;mswsock.lib;TNetLib.Lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalLibraryDirectories>..\..\Lib\Own\TNetLib\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <DelayLoadDLLs />
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapFileName>$(OutDir)$(ProjectName)</MapFileName>
+      <SubSystem>Windows</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <ImportLibrary>$(OutDir)TBRSvr.lib</ImportLibrary>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <Midl>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+      <TargetEnvironment>Win32</TargetEnvironment>
+      <GenerateStublessProxies>true</GenerateStublessProxies>
+      <TypeLibraryName>$(IntDir)TBRSvr.tlb</TypeLibraryName>
+      <HeaderFileName>TBRSvr.h</HeaderFileName>
+      <DllDataFileName />
+      <InterfaceIdentifierFileName>TBRSvr_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>TBRSvr_p.c</ProxyFileName>
+    </Midl>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0009</Culture>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\TMapSvr\CSHandler.cpp" />
+    <ClCompile Include="..\TMapSvr\CSSender.cpp" />
+    <ClCompile Include="..\TMapSvr\DBAccess.cpp" />
+    <ClCompile Include="..\TMapSvr\DebugSocket.cpp" />
+    <ClCompile Include="..\TMapSvr\Log.cpp" />
+    <ClCompile Include="..\TMapSvr\Quest.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestChapterMsg.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestComplete.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestCraft.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestDefaultTalk.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestDefendSkill.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestDeleteItem.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestDieMon.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestDrop.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestDropItem.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestGiveItem.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestGiveSkill.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestMission.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestRegen.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestRouting.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestSendPost.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestSpawnMon.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestSwitch.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestTalk.cpp" />
+    <ClCompile Include="..\TMapSvr\QuestTeleport.cpp" />
+    <ClCompile Include="..\TMapSvr\SSHandler.cpp" />
+    <ClCompile Include="..\TMapSvr\SSSender.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdAttack.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdBeginAtk.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdChgHost.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdChgMode.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdChkHost.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdFollow.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdGetaway.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdGohome.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdLeave.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdLottery.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdRefill.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdRegen.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdRemove.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdRoam.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICmdSetHost.cpp" />
+    <ClCompile Include="..\TMapSvr\TAICommand.cpp" />
+    <ClCompile Include="..\TMapSvr\TCell.cpp" />
+    <ClCompile Include="..\TMapSvr\TChannel.cpp" />
+    <ClCompile Include="..\TMapSvr\TCompanionClass.cpp" />
+    <ClCompile Include="..\TMapSvr\TInven.cpp" />
+    <ClCompile Include="..\TMapSvr\TItem.cpp" />
+    <ClCompile Include="..\TMapSvr\TMap.cpp" />
+    <ClCompile Include="..\TMapSvr\TMapSession.cpp" />
+    <ClCompile Include="..\TMapSvr\TMapSvr.cpp" />
+    <ClCompile Include="..\TMapSvr\TMiniDump.cpp" />
+    <ClCompile Include="..\TMapSvr\TMonSpawn.cpp" />
+    <ClCompile Include="..\TMapSvr\TMonster.cpp" />
+    <ClCompile Include="..\TMapSvr\TMonsterAI.cpp" />
+    <ClCompile Include="..\TMapSvr\TNpc.cpp" />
+    <ClCompile Include="..\TMapSvr\TObjBase.cpp" />
+    <ClCompile Include="..\TMapSvr\TPlayer.cpp" />
+    <ClCompile Include="..\TMapSvr\TRecallMon.cpp" />
+    <ClCompile Include="..\TMapSvr\TSelfObj.cpp" />
+    <ClCompile Include="..\TMapSvr\TSkill.cpp" />
+    <ClCompile Include="..\TMapSvr\TSkillTemp.cpp" />
+    <ClCompile Include="..\TMapSvr\TSpolecnikMon.cpp" />
+    <ClCompile Include="..\TMapSvr\TTextLinkData.cpp" />
+    <ClCompile Include="..\TMapSvr\TTextLinker.cpp" />
+    <ClCompile Include="..\TMapSvr\UdpSocket.cpp" />
+    <ClCompile Include="TBRSvr_i.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+      </PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+      </PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="TBRSvr.idl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="TBRSvr.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="TBRSvr.rgs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\TMapSvr\BRSettings.h" />
+    <ClInclude Include="..\TMapSvr\DBAccess.h" />
+    <ClInclude Include="..\TMapSvr\DebugSocket.h" />
+    <ClInclude Include="..\TMapSvr\Log.h" />
+    <ClInclude Include="..\TMapSvr\Quest.h" />
+    <ClInclude Include="..\TMapSvr\QuestChapterMsg.h" />
+    <ClInclude Include="..\TMapSvr\QuestComplete.h" />
+    <ClInclude Include="..\TMapSvr\QuestCraft.h" />
+    <ClInclude Include="..\TMapSvr\QuestDefaultTalk.h" />
+    <ClInclude Include="..\TMapSvr\QuestDefendSkill.h" />
+    <ClInclude Include="..\TMapSvr\QuestDeleteItem.h" />
+    <ClInclude Include="..\TMapSvr\QuestDieMon.h" />
+    <ClInclude Include="..\TMapSvr\QuestDrop.h" />
+    <ClInclude Include="..\TMapSvr\QuestDropItem.h" />
+    <ClInclude Include="..\TMapSvr\QuestGiveItem.h" />
+    <ClInclude Include="..\TMapSvr\QuestGiveSkill.h" />
+    <ClInclude Include="..\TMapSvr\QuestMission.h" />
+    <ClInclude Include="..\TMapSvr\QuestRegen.h" />
+    <ClInclude Include="..\TMapSvr\QuestRouting.h" />
+    <ClInclude Include="..\TMapSvr\QuestSendPost.h" />
+    <ClInclude Include="..\TMapSvr\QuestSpawnMon.h" />
+    <ClInclude Include="..\TMapSvr\QuestSwitch.h" />
+    <ClInclude Include="..\TMapSvr\QuestTalk.h" />
+    <ClInclude Include="..\TMapSvr\QuestTeleport.h" />
+    <ClInclude Include="..\TMapSvr\Resource.h" />
+    <ClInclude Include="..\TMapSvr\stdafx.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdAttack.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdBeginAtk.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdChgHost.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdChgMode.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdChkHost.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdFollow.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdGetaway.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdGohome.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdLeave.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdLottery.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdRefill.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdRegen.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdRemove.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdRoam.h" />
+    <ClInclude Include="..\TMapSvr\TAICmdSetHost.h" />
+    <ClInclude Include="..\TMapSvr\TAICommand.h" />
+    <ClInclude Include="..\TMapSvr\TBowSettings.h" />
+    <ClInclude Include="..\TMapSvr\TCell.h" />
+    <ClInclude Include="..\TMapSvr\TChannel.h" />
+    <ClInclude Include="..\TMapSvr\TCompanionClass.h" />
+    <ClInclude Include="..\TMapSvr\TInven.h" />
+    <ClInclude Include="..\TMapSvr\TItem.h" />
+    <ClInclude Include="..\TMapSvr\TMap.h" />
+    <ClInclude Include="..\TMapSvr\TMapSession.h" />
+    <ClInclude Include="..\TMapSvr\TMapSvrModule.h" />
+    <ClInclude Include="..\TMapSvr\TMapType.h" />
+    <ClInclude Include="..\TMapSvr\TMiniDump.h" />
+    <ClInclude Include="..\TMapSvr\TMonSpawn.h" />
+    <ClInclude Include="..\TMapSvr\TMonster.h" />
+    <ClInclude Include="..\TMapSvr\TMonsterAI.h" />
+    <ClInclude Include="..\TMapSvr\TNpc.h" />
+    <ClInclude Include="..\TMapSvr\TObjBase.h" />
+    <ClInclude Include="..\TMapSvr\TPlayer.h" />
+    <ClInclude Include="..\TMapSvr\TRecallMon.h" />
+    <ClInclude Include="..\TMapSvr\TSelfObj.h" />
+    <ClInclude Include="..\TMapSvr\TSkill.h" />
+    <ClInclude Include="..\TMapSvr\TSkillTemp.h" />
+    <ClInclude Include="..\TMapSvr\TSpolecnikMon.h" />
+    <ClInclude Include="..\TMapSvr\TTextLinkData.h" />
+    <ClInclude Include="..\TMapSvr\TTextLinker.h" />
+    <ClInclude Include="..\TMapSvr\UdpSocket.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

@@ -1,0 +1,9 @@
+﻿
+CREATE PROCEDURE [dbo].[TGuildWantedDel]
+@dwGuildID INT
+AS
+
+DELETE TGUILDWANTEDTABLE WHERE dwGuildID=@dwGuildID
+
+
+

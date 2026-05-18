@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Content '_rewrite\\\\docs\\\\packet-ids.csv' -TotalCount 6; '...'; Get-Content '_rewrite\\\\docs\\\\packet-ids.csv' | Select-Object -Last 3)",
+      "PowerShell(sqlcmd *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Get-PSDrive C | Select-Object @{N='FreeGB';E={[math]::Round\\($_.Free/1GB,1\\)}}, @{N='UsedGB';E={[math]::Round\\($_.Used/1GB,1\\)}} | Format-Table -AutoSize)",
+      "PowerShell($mod = Get-Module -ListAvailable -Name SqlServer | Select-Object -First 1; if \\($mod\\) { \"SqlServer module v$\\($mod.Version\\) available\" } else { 'SqlServer module NOT installed'; 'Trying to find Microsoft.SqlServer.Smo via .NET...'; try { Add-Type -AssemblyName 'Microsoft.SqlServer.Smo' -ErrorAction Stop; 'SMO assembly loaded directly' } catch { \"SMO not in GAC: $\\($_.Exception.Message\\)\" } })",
+      "PowerShell(& 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source\\\\_rewrite\\\\docs\\\\extract-schema.ps1')",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(Import-Csv *)",
+      "PowerShell(Add-Type -AssemblyName 'System.Data'; $c = New-Object System.Data.SqlClient.SqlConnection 'Server=localhost;Database=TGAME_RAGEZONE;Integrated Security=True;TrustServerCertificate=True;'; $c.Open\\(\\); $cmd = $c.CreateCommand\\(\\); $cmd.CommandText = \"SELECT TOP 10 dwCharID, szNAME, CAST\\(szNAME AS VARBINARY\\(50\\)\\) AS NameBytes FROM TCHARTABLE WHERE bDelete = 0\"; $r = $cmd.ExecuteReader\\(\\); while \\($r.Read\\(\\)\\) { $id = $r.GetInt32\\(0\\); $name = $r.GetString\\(1\\); $bytes = $r.GetSqlBytes\\(2\\).Buffer; $hex = \\($bytes | ForEach-Object { '{0:X2}' -f $_ }\\) -join ' '; \"{0,-10} {1,-20} {2}\" -f $id, $name, $hex }; $r.Close\\(\\); $c.Close\\(\\))",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(dotnet build *)",
+      "PowerShell(& 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source\\\\_rewrite\\\\src\\\\FourStory.Protocol\\\\generate-messageid.ps1')",
+      "PowerShell(Set-Location *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell('=== Looking for TClient.exe in source tree ==='; Get-ChildItem -Path 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source' -Filter 'TClient.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime; ''; '=== Any *.exe in client folder ==='; Get-ChildItem -Path 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source\\\\Client' -Filter '*.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length; ''; '=== History files ==='; Get-ChildItem 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source\\\\Client\\\\History Files' -ErrorAction SilentlyContinue | Select-Object Name -First 20)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(Out-File *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell($setup = 'C:\\\\Program Files \\(x86\\)\\\\Microsoft Visual Studio\\\\Installer\\\\setup.exe'; Start-Process -FilePath $setup -ArgumentList 'modify','--installPath','C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community' -Verb RunAs; 'VS Installer GUI launched. Waiting for you to install MFC and close the installer.')",
+      "PowerShell('=== TClient.exe ==='; Get-ChildItem -Path 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source\\\\Client' -Filter 'TClient.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, @{N='MB';E={[math]::Round\\($_.Length/1MB,2\\)}}, LastWriteTime)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Get-ChildItem 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)' -Filter 'TClient.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, @{N='MB';E={[math]::Round\\($_.Length/1MB,2\\)}}, LastWriteTime)",
+      "PowerShell(Get-ChildItem 'C:\\\\Users\\\\tomas\\\\Desktop' -Filter 'TClient.exe' -Recurse -ErrorAction SilentlyContinue -Depth 5 | Select-Object FullName, @{N='MB';E={[math]::Round\\($_.Length/1MB,2\\)}}, LastWriteTime; ''; Test-Path 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\4STORY_PW CLIENT 01'; Test-Path 'C:\\\\Users\\\\tomas\\\\Desktop\\\\4STORY_PW CLIENT 01')",
+      "PowerShell(Get-ChildItem 'C:\\\\' -Filter 'TClient.exe' -Recurse -ErrorAction SilentlyContinue -Force -Depth 7 | Select-Object FullName, @{N='MB';E={[math]::Round\\($_.Length/1MB,2\\)}}, LastWriteTime -First 5)",
+      "PowerShell(Add-Type -AssemblyName 'System.Data'; $c = New-Object System.Data.SqlClient.SqlConnection 'Server=localhost;Database=TGLOBAL_RAGEZONE;Integrated Security=True;TrustServerCertificate=True;'; $c.Open\\(\\); $cmd = $c.CreateCommand\\(\\); $cmd.CommandText = \"SELECT s.bGroupID, s.bServerID, s.bType, s.wPort, s.bMachineID, ip.szIPAddr, ip.bActive FROM TSERVER s LEFT JOIN TIPADDR ip ON ip.bMachineID = s.bMachineID WHERE s.bType = 4 ORDER BY s.bGroupID, s.bServerID\"; $r = $cmd.ExecuteReader\\(\\); 'TSERVER \\(MapSvr\\) rows:'; while \\($r.Read\\(\\)\\) { 'group={0} server={1} port={2} machine={3} ip={4} active={5}' -f $r.GetByte\\(0\\), $r.GetByte\\(1\\), $r.GetInt16\\(3\\), $r.GetByte\\(4\\), $\\(if \\($r.IsDBNull\\(5\\)\\) {'<null>'} else {$r.GetString\\(5\\)}\\), $\\(if \\($r.IsDBNull\\(6\\)\\) {'?'} else {$r.GetByte\\(6\\)}\\) }; $r.Close\\(\\); $c.Close\\(\\))",
+      "Bash(grep -v \":0$\")",
+      "PowerShell(Set-Location 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source\\\\_rewrite\\\\src\\\\FourStory.Login'; \\(Get-Content FourStory.Login.csproj | Select-String 'OpenTelemetry'\\) -join \"`n\")",
+      "Bash(awk -F'On' '{print $2}')"
+    ]
+  }
+}

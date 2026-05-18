@@ -1,0 +1,20 @@
+﻿
+
+CREATE PROCEDURE [dbo].[TSaveCastleApplicant]
+@wCastle SMALLINT,
+@dwCharID INT,
+@bCamp TINYINT
+AS
+
+IF (@wCastle = 0)
+BEGIN
+	DELETE TCASTLEAPPLICANTTABLE WHERE dwCharID = @dwCharID
+	RETURN 0
+END
+
+IF EXISTS(SELECT dwCharID FROM TCASTLEAPPLICANTTABLE WHERE dwCharID = @dwCharID)
+	UPDATE TCASTLEAPPLICANTTABLE SET wCastleID = @wCastle, bCamp=@bCamp WHERE dwCharID = @dwCharID
+ELSE
+	INSERT INTO TCASTLEAPPLICANTTABLE (wCastleID, dwCharID, bCamp) VALUES(@wCastle, @dwCharID, @bCamp)
+
+

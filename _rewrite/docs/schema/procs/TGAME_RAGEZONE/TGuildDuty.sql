@@ -1,0 +1,21 @@
+﻿
+
+CREATE PROCEDURE [dbo].[TGuildDuty]
+	@dwCharID 	INT,
+	@dwGuildID	INT,
+	@bDuty 	TINYINT
+AS
+
+BEGIN TRAN GUILD_DUTY
+
+	UPDATE TGUILDMEMBERTABLE SET bDuty = @bDuty WHERE dwCharID=@dwCharID  AND dwGuildID = @dwGuildID
+
+	IF @bDuty = 2
+	BEGIN
+		UPDATE TGUILDTABLE SET dwChief = @dwCharID WHERE dwID = @dwGuildID
+	END
+
+COMMIT TRAN GUILD_DUTY
+
+
+

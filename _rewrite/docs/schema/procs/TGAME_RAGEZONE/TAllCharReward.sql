@@ -1,0 +1,35 @@
+﻿
+CREATE PROCEDURE [dbo].[TAllCharReward]
+AS
+
+DECLARE @wSkillPoint SMALLINT
+DECLARE @dwCharID INT
+DECLARE @bLevel TINYINT
+DECLARE @bClass TINYINT
+DECLARE CUR_CR CURSOR FOR
+SELECT dwCharID, bLevel, bClass FROM TCHARTABLE
+OPEN CUR_CR
+FETCH NEXT FROM CUR_CR INTO @dwCharID, @bLevel, @bClass
+WHILE(@@FETCH_STATUS = 0)
+BEGIN
+
+	SELECT @wSkillPoint = SUM(bSkillPoint) FROM TLEVELCHART WHERE bLevel<=@bLevel
+	UPDATE TCHARTABLE SET wSkillPoint = @wSkillPoint WHERE dwCharID = @dwCharID
+	INSERT INTO TSKILLTABLE SELECT @dwCharID, wID, 1, 0 FROM TSKILLCHART WHERE (dwClassID & power(2,@bClass) <> 0) and (bCanLearn =1) and blevel=1
+
+	INSERT INTO THOTKEYTABLE VALUES(@dwCharID, 0, 1, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+	IF(@bClass = 0 OR @bClass = 1)
+		UPDATE THOTKEYTABLE SET bType2=1, wID2=32 WHERE dwCharID = @dwCharID AND bInvenID = 0
+	ELSE IF(@bClass =2)
+		UPDATE THOTKEYTABLE SET bType2=1, wID2=33 WHERE dwCharID = @dwCharID AND bInvenID = 0
+	ELSE
+		UPDATE THOTKEYTABLE SET bType2=1, wID2=34 WHERE dwCharID = @dwCharID AND bInvenID = 0
+
+FETCH NEXT FROM CUR_CR INTO @dwCharID, @bLevel, @bClass
+END
+CLOSE CUR_CR
+DEALLOCATE CUR_CR
+
+
+

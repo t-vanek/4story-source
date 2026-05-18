@@ -1,0 +1,15 @@
+# CMake build outputs
+build/
+build-*/
+out/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# CMake user presets
+CMakeUserPresets.json
+
+# vcpkg local
+vcpkg_installed/

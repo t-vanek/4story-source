@@ -1,0 +1,31 @@
+# tloginsvr.toml — TLoginSvrAsio configuration.
+# Pass via `tloginsvr_asio --config /path/to/this/file`.
+# All sections + keys are optional; defaults below match the shipped
+# legacy server's hardcoded behavior so a missing config still gives
+# you a working binary.
+
+[server]
+# TCP port for the game protocol (CS_LOGIN_REQ et al).
+port = 4815
+
+[crypto]
+# RC4 wire-encryption layer for the legacy-client direction. Set true
+# in server-server test environments where neither end runs the
+# legacy client wire codec.
+disable_rc4 = false
+
+# Override the default legacy wire secret (Session.cpp:16's
+# g_strSecretKey) with a hex-encoded byte string. Uncomment + edit
+# to use a custom secret — but note that any real legacy client will
+# stop decrypting your traffic if this drifts from what the client
+# was built with.
+# rc4_secret_hex = "4135243824414653313341313a3a2d31312321..."
+
+[log]
+# spdlog severity: trace, debug, info, warn, error, critical, off
+level = "info"
+
+[health]
+# HTTP /healthz endpoint on a separate port. Used by k8s liveness/
+# readiness probes and load balancers. Set 0 to disable entirely.
+port = 8815

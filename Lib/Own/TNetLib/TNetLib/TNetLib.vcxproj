@@ -102,6 +102,22 @@
     <ClCompile Include="SqlDatabase.cpp" />
     <ClCompile Include="SqlDirect.cpp" />
     <ClCompile Include="SqlQuery.cpp" />
+    <ClCompile Include="platform.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="tnetlib_crypto.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="asio_session.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="packet_codec.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -118,6 +134,10 @@
     <ClInclude Include="SqlDatabase.h" />
     <ClInclude Include="SqlDirect.h" />
     <ClInclude Include="SqlQuery.h" />
+    <ClInclude Include="platform.h" />
+    <ClInclude Include="tnetlib_crypto.h" />
+    <ClInclude Include="asio_session.h" />
+    <ClInclude Include="packet_codec.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="TNetDef.h" />
     <ClInclude Include="TNetLib.h" />

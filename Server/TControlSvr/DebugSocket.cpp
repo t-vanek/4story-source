@@ -37,12 +37,10 @@ BOOL CDebugSocket::Initialize(char *szIPAddr,int nPort)
 }
 
 void CDebugSocket::SendToTerminal(char *szData)
-{	
-	EnterCriticalSection(&m_DebugLock);
+{
+	SMART_LOCKCS(&m_DebugLock)
 
-		send(m_SendSock, szData, INT(strlen(szData)), 0);
-
-	LeaveCriticalSection(&m_DebugLock);
+	send(m_SendSock, szData, INT(strlen(szData)), 0);
 }
 
 void CDebugSocket::LogAction(CString strData)

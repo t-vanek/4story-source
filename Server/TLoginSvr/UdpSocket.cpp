@@ -53,14 +53,14 @@ BOOL CUdpSocket::Initialize(char *pIPAddr,int pPort)
  */
 void CUdpSocket::SendToLogPacket(_LPUDPPACKET pUdpPacket)
 {
-	
-	EnterCriticalSection(&m_LogLock);
+	{
+		SMART_LOCKCS(&m_LogLock)
 
 		memcpy(m_lpLogBuf, pUdpPacket, sizeof(_UDPPACKET));
 
 		int nSendByte = sendto(m_SendSock, (char*)pUdpPacket, pUdpPacket->dwSize, 0, (SOCKADDR *)&m_LogAddr, sizeof(m_LogAddr));
 
-		if(SOCKET_ERROR == nSendByte) 
+		if(SOCKET_ERROR == nSendByte)
 		{
 			//
 			//	Mr Park Add Log
@@ -68,10 +68,9 @@ void CUdpSocket::SendToLogPacket(_LPUDPPACKET pUdpPacket)
 			//	LogEvent("(X) UDP sendto failed with error");
 			//
 		}
+	}
 
-	LeaveCriticalSection(&m_LogLock);
-
-	if(pUdpPacket) 
+	if(pUdpPacket)
 	{
 		delete pUdpPacket;
 		pUdpPacket	= 0x00;
@@ -111,10 +110,10 @@ void CUdpSocket::LogLogin(CTUser *pUser, DWORD pReturnCode)
     
 
 	pLogData->dwAction	=	LOGLOGIN_LOGIN;	
-	lstrcpy( pLogData->szClientIP, inet_ntoa(pUser->m_addr.sin_addr));
+	lstrcpyn( pLogData->szClientIP, inet_ntoa(pUser->m_addr.sin_addr), sizeof(pLogData->szClientIP));
 
 	pLogData->dwKey[0]	=	pUser->m_dwID;
-	lstrcpy( pLogData->szKey[0], pUser->m_strUserID );
+	lstrcpyn( pLogData->szKey[0], pUser->m_strUserID, sizeof(pLogData->szKey[0]) );
 
 	switch(pReturnCode)
 	{
@@ -150,13 +149,13 @@ void CUdpSocket::LogCharCreate(CTUser *pUser, DWORD pReturnCode, BYTE pGroupID, 
 	pLogData->dwAction		=	LOGLOGIN_CHARCREATE;	
 	pLogData->dwServerID	=	pGroupID;
 	
-	lstrcpy( pLogData->szClientIP, inet_ntoa(pUser->m_addr.sin_addr));
+	lstrcpyn( pLogData->szClientIP, inet_ntoa(pUser->m_addr.sin_addr), sizeof(pLogData->szClientIP));
 
 	pLogData->dwKey[0]	=	pUser->m_dwID;
-	lstrcpy( pLogData->szKey[0], pUser->m_strUserID);
+	lstrcpyn( pLogData->szKey[0], pUser->m_strUserID, sizeof(pLogData->szKey[0]));
 
 
-	lstrcpy( pLogData->szKey[1], pChar->m_strName);
+	lstrcpyn( pLogData->szKey[1], pChar->m_strName, sizeof(pLogData->szKey[1]));
 
 	pLogData->dwKey[3]	=	pChar->m_bRace;
 	pLogData->dwKey[5]	=	pChar->m_bClass;
@@ -181,7 +180,7 @@ void CUdpSocket::LogCharCreate(CTUser *pUser, DWORD pReturnCode, BYTE pGroupID, 
 	_LPLOG_CHARBASE_ pCharBase = (_LPLOG_CHARBASE_)pLogData->szLog;
 	
 	pCharBase->dwCharID = pChar->m_dwCharID;
-	lstrcpy( pCharBase->szName, pChar->m_strName);
+	lstrcpyn( pCharBase->szName, pChar->m_strName, sizeof(pCharBase->szName));
 	pCharBase->bSlot	= pChar->m_bSlot;
 	pCharBase->bLevel	= pChar->m_bLevel;
 	pCharBase->bClass	= pChar->m_bClass;
@@ -217,13 +216,13 @@ void CUdpSocket::LogCharDelete(CTUser *pUser, DWORD pReturnCode, BYTE pGroupID, 
 	pLogData->dwServerID	=	pGroupID;
 
 
-	lstrcpy( pLogData->szClientIP, inet_ntoa(pUser->m_addr.sin_addr));
+	lstrcpyn( pLogData->szClientIP, inet_ntoa(pUser->m_addr.sin_addr), sizeof(pLogData->szClientIP));
 
 	pLogData->dwKey[0]	=	pUser->m_dwID;
-	lstrcpy( pLogData->szKey[0], pUser->m_strUserID);
+	lstrcpyn( pLogData->szKey[0], pUser->m_strUserID, sizeof(pLogData->szKey[0]));
 
 	pLogData->dwKey[1]	= pChar->m_dwCharID;
-	lstrcpy( pLogData->szKey[1], pChar->m_strName);
+	lstrcpyn( pLogData->szKey[1], pChar->m_strName, sizeof(pLogData->szKey[1]));
 
 	pLogData->dwKey[3]	=	pChar->m_bRace;
 	pLogData->dwKey[5]	=	pChar->m_bClass;
@@ -246,7 +245,7 @@ void CUdpSocket::LogCharDelete(CTUser *pUser, DWORD pReturnCode, BYTE pGroupID, 
 	_LPLOG_CHARBASE_ pCharBase = (_LPLOG_CHARBASE_)pLogData->szLog;
 
 	pCharBase->dwCharID = pChar->m_dwCharID;
-	lstrcpy( pCharBase->szName, pChar->m_strName);
+	lstrcpyn( pCharBase->szName, pChar->m_strName, sizeof(pCharBase->szName));
 
 	pCharBase->bSlot	= pChar->m_bSlot;
 
@@ -285,12 +284,12 @@ void CUdpSocket::LogGameStart(CTUser *pUser, DWORD pReturnCode, BYTE pGroupID, L
 	pLogData->dwAction	=	LOGLOGIN_GAMESTART;	
 	pLogData->dwServerID=	pGroupID;
 
-	lstrcpy( pLogData->szClientIP, inet_ntoa(pUser->m_addr.sin_addr));
+	lstrcpyn( pLogData->szClientIP, inet_ntoa(pUser->m_addr.sin_addr), sizeof(pLogData->szClientIP));
 
 	pLogData->dwKey[0]	=	pUser->m_dwID;
-	lstrcpy( pLogData->szKey[0], pUser->m_strUserID);
+	lstrcpyn( pLogData->szKey[0], pUser->m_strUserID, sizeof(pLogData->szKey[0]));
 	
-	lstrcpy( pLogData->szKey[1], pChar->m_strName);
+	lstrcpyn( pLogData->szKey[1], pChar->m_strName, sizeof(pLogData->szKey[1]));
 
 
 	pLogData->dwKey[3]	=	pChar->m_bRace;
@@ -315,7 +314,7 @@ void CUdpSocket::LogGameStart(CTUser *pUser, DWORD pReturnCode, BYTE pGroupID, L
 	_LPLOG_CHARBASE_ pCharBase = (_LPLOG_CHARBASE_)pLogData->szLog;
 
 	pCharBase->dwCharID = pChar->m_dwCharID;
-	lstrcpy( pCharBase->szName, pChar->m_strName);
+	lstrcpyn( pCharBase->szName, pChar->m_strName, sizeof(pCharBase->szName));
 	
 
 	pCharBase->bSlot	= pChar->m_bSlot;

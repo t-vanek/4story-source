@@ -24,6 +24,7 @@ set(TNETLIB_SOURCES
     ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
     ${TNETLIB_SRC_DIR}/asio_session.cpp
     ${TNETLIB_SRC_DIR}/packet_codec.cpp
+    ${TNETLIB_SRC_DIR}/MessageId.cpp
 )
 
 set(TNETLIB_HEADERS
@@ -69,6 +70,7 @@ if(WIN32)
         ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
         ${TNETLIB_SRC_DIR}/asio_session.cpp
         ${TNETLIB_SRC_DIR}/packet_codec.cpp
+        ${TNETLIB_SRC_DIR}/MessageId.cpp
         PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 endif()
 
@@ -141,6 +143,20 @@ set_source_files_properties(
     PROPERTIES SKIP_PRECOMPILE_HEADERS ON
     TARGET_DIRECTORY test_tnetlib_packet_codec)
 add_test(NAME tnetlib_packet_codec COMMAND test_tnetlib_packet_codec)
+
+# MessageId enum test — pure C++20. Pins a handful of known wire values
+# so a generator regression surfaces in ctest.
+add_executable(test_tnetlib_messageid
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_messageid.cpp
+    ${TNETLIB_SRC_DIR}/MessageId.cpp)
+target_include_directories(test_tnetlib_messageid PRIVATE
+    ${TNETLIB_SRC_DIR}
+    ${FOURSTORY_TPROTOCOL_INCLUDE_DIR})
+set_source_files_properties(
+    ${TNETLIB_SRC_DIR}/MessageId.cpp
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+    TARGET_DIRECTORY test_tnetlib_messageid)
+add_test(NAME tnetlib_messageid COMMAND test_tnetlib_messageid)
 
 # Crypto backend selection:
 #   - Non-Windows: must use OpenSSL (no Win32 CryptoAPI exists)

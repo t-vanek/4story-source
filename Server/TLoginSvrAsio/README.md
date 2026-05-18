@@ -10,9 +10,13 @@ client (RC4 + XOR codec, RFC 6229 verified).
 ## Status — production complete (minus anticheat)
 
 Every legacy `CTLoginSvrModule` handler is ported, every operational
-piece (audit log, schema validator, rate limit, admin shell) is wired,
-and the binary runs end-to-end against the restored MSSQL databases
-(`TGLOBAL_RAGEZONE` + `TGAME_RAGEZONE`).
+piece (audit log, schema validator, rate limit, admin shell, 2FA) is
+wired, and the binary runs end-to-end against the restored MSSQL
+databases (`TGLOBAL_RAGEZONE` + `TGAME_RAGEZONE`). Shared infrastructure
+(SOCI pool, audit, SMTP, admin shell, health, rate limit, registry
+refresher) was lifted into the [`fourstory_common`](../../Lib/Own/FourStoryCommon/README.md)
+static library and is now also consumed by `TPatchSvrAsio` and
+`TLogSvrAsio`.
 
 | Area | State |
 |---|---|
@@ -82,6 +86,14 @@ without a DB.
 `[database]` is empty in TOML (smoke tests / no-DB dev). `main.cpp`
 explicitly constructs production variants when a connection string is
 configured.
+
+Shared plumbing (`SpdlogAuditLogger`, `UdpAuditLogger`,
+`SpdlogSmtpClient`, `LoginRateLimiter`, `AdminShell`, `HealthEndpoint`,
+`RegistryRefresher`) lives in
+[`fourstory_common`](../../Lib/Own/FourStoryCommon/README.md) — login-
+specific interfaces (`IAuthService`, `ICharService`,
+`IConnectionRegistry`, `IMapServerLocator`, `ISessionTerminator`) stay
+in this server's `services/`.
 
 ## Database schema
 
@@ -281,7 +293,8 @@ Services (production wiring in main.cpp):
 | **A** | Wire codec + handler scaffolding | ✅ |
 | **B** | SOCI services + real DB | ✅ |
 | **C** | Production hardening (audit, rate limit, schema validator, admin shell, 2FA, per-char routing, …) | ✅ |
-| **D** | Sibling-server modernization (Patch, Log, Control) | not started |
-| **D** | World/Map modernization | only if a concrete driver (cross-platform, security, vendor pressure) shows up |
+| **D.1** | Sibling-server modernization — patch + log + shared lib | ✅ `TPatchSvrAsio` + `TLogSvrAsio` + `fourstory_common` |
+| **D.2** | Sibling-server modernization — control | ⏸ legacy `TControlSvr` retained for now |
+| **E** | World/Map modernization | only if a concrete driver (cross-platform, security, vendor pressure) shows up |
 
 See `_rewrite/docs/MODERNIZATION_PLAN.md` for the cluster-wide roadmap.

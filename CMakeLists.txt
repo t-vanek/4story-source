@@ -59,6 +59,14 @@ set(FOURSTORY_TPROTOCOL_INCLUDE_DIR
 # find_package(OpenSSL).
 find_package(OpenSSL QUIET)
 
+# Boost.Asio — used by the Phase-1 AsioSession scaffolding that will
+# eventually replace the Win32 IOCP loops in CSession. Required for
+# building the asio_session.cpp translation unit. Provided via vcpkg
+# (boost-asio port) on Windows; system-installed libboost-system-dev
+# on Linux works too. Asio itself is mostly header-only but
+# boost_system is needed for error codes.
+find_package(Boost QUIET COMPONENTS system)
+
 # ODBC — kept as the SQL layer. Native MS ODBC on Windows, unixODBC on
 # Linux. The CSqlBase/CSqlQuery surface in TNetLib stays the same; only
 # the Win32-specific glue around it (string types, paths) gets modernized.

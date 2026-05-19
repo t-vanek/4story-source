@@ -37,10 +37,16 @@ DWORD CTControlSvrModule::OnCT_OPLOGIN_REQ( LPPACKETBUF pBUF)
 	lstrcpy(query->m_szID, strID);
 	lstrcpy(query->m_szPW, strPasswd);
 
-	if (query->m_nRET == 1 && CString(inet_ntoa(pManager->m_addr.sin_addr)) != CString("127.0.0.1"))
-		return EC_NOERROR;
-
-	if(!query->Call() || !query->m_nRET )	
+	// CSPOPLogin's m_nRET is an SP OUTPUT param â€” uninitialized until
+	// Call() populates it. Earlier revisions tested `m_nRET == 1` for
+	// the localhost-only authority-1 gate BEFORE Call(), reading
+	// undefined memory; the auth result was then never enforced for
+	// remote authority-1 connections. Run Call() first, then evaluate
+	// the gate against the real return code.
+	if (!query->Call() || !query->m_nRET)
+		pManager->SendCT_OPLOGIN_ACK(1, 0);
+	else if (query->m_nRET == 1 &&
+		CString(inet_ntoa(pManager->m_addr.sin_addr)) != CString("127.0.0.1"))
 		pManager->SendCT_OPLOGIN_ACK(1, 0);
 	else if( !pAlreadyM )
 	{
@@ -68,7 +74,7 @@ DWORD CTControlSvrModule::OnCT_OPLOGIN_REQ( LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_STLOGIN_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_STLOGIN_REQ
 DWORD CTControlSvrModule::OnCT_STLOGIN_REQ( LPPACKETBUF pBUF)
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION;
@@ -137,7 +143,7 @@ DWORD CTControlSvrModule::OnCT_SERVICECONTROL_REQ(LPPACKETBUF pBUF)
 		{			
 			(*it).second->m_bManagerControl = FALSE;
 			
-			if( (*it).second->m_pSvrType->m_bType == SVRGRP_WORLDSVR ) // ¿ùµå¼­¹öÀÌ¸é
+			if( (*it).second->m_pSvrType->m_bType == SVRGRP_WORLDSVR ) // ï¿½ï¿½ï¿½å¼­ï¿½ï¿½ï¿½Ì¸ï¿½
 			{
 				MAPTSVRTEMP::iterator itM;
 				for( itM = m_mapTSVRTEMP.begin(); itM != m_mapTSVRTEMP.end(); itM++)
@@ -548,7 +554,7 @@ DWORD CTControlSvrModule::OnCT_SERVICEUPLOADEND_REQ(LPPACKETBUF pBUF)
 	return EC_NOERROR;
 }
 ///////////////////////////////////////////////////////////////////////////////
-// Çö½Â·æ CT_UPDATEPATCH_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_UPDATEPATCH_REQ
 DWORD CTControlSvrModule::OnCT_UPDATEPATCH_REQ(LPPACKETBUF pBUF)
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION;
@@ -587,7 +593,7 @@ DWORD CTControlSvrModule::OnCT_UPDATEPATCH_REQ(LPPACKETBUF pBUF)
 }
 /////////////////////////////////////////////////////////////////////////////////
 
-//	TPREVERSION Å×ÀÌºí¿¡ µî·ÏµÈ ÆÄÀÏ ¸ñ·Ï °¡Á®¿À±â
+//	TPREVERSION ï¿½ï¿½ï¿½Ìºï¿½ï¿½ï¿½ ï¿½ï¿½Ïµï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 DWORD CTControlSvrModule::OnCT_PREVERSIONTABLE_REQ(LPPACKETBUF pBUF)
 {	
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION;
@@ -628,7 +634,7 @@ DWORD CTControlSvrModule::OnCT_PREVERSIONUPDATE_REQ(LPPACKETBUF pBUF)//WORD wNew
 
 	pBUF->m_packet	>> wCount;	
 
-	// 1. TPREVERSION ¿¡¼­ TVERSIONÀ¸·Î ÀÌµ¿
+	// 1. TPREVERSION ï¿½ï¿½ï¿½ï¿½ TVERSIONï¿½ï¿½ï¿½ï¿½ ï¿½Ìµï¿½
 	DEFINE_QUERY(&m_db, CSPBetaToVer)
 	for(WORD i = 0; i < wCount; i++)
 	{
@@ -641,7 +647,7 @@ DWORD CTControlSvrModule::OnCT_PREVERSIONUPDATE_REQ(LPPACKETBUF pBUF)//WORD wNew
 
 	pBUF->m_packet	>> wCount;	
 
-	//	2. TRPEVERSION Á¦°Å
+	//	2. TRPEVERSION ï¿½ï¿½ï¿½ï¿½
 	DEFINE_QUERY(&m_db, CSPDeletePreVersion)
 	for(WORD i = 0; i < wCount; i++)
 	{
@@ -654,7 +660,7 @@ DWORD CTControlSvrModule::OnCT_PREVERSIONUPDATE_REQ(LPPACKETBUF pBUF)//WORD wNew
 
 	pBUF->m_packet	>> wCount;	
 
-	//	3. TPREVERSION ½Å±Ôµî·Ï
+	//	3. TPREVERSION ï¿½Å±Ôµï¿½ï¿½
 	DEFINE_QUERY(&m_db, CSPUpdatePrePatch)
 	for(WORD i = 0; i < wCount; i++)
 	{
@@ -673,7 +679,7 @@ DWORD CTControlSvrModule::OnCT_PREVERSIONUPDATE_REQ(LPPACKETBUF pBUF)//WORD wNew
 	}
 	UNDEFINE_QUERY()
 
-	//	¸ñ·Ï º¸³»±â.
+	//	ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½.
 	VPATCHFILE vList;
 	DEFINE_QUERY(&m_db,CTBLPreVersion)
 	if(query->Open())
@@ -698,7 +704,7 @@ DWORD CTControlSvrModule::OnCT_PREVERSIONUPDATE_REQ(LPPACKETBUF pBUF)//WORD wNew
 }
 
 /////////////////////////////////////////////////////////////////////////////////
-// Çö½Â·æ CT_ANNOUNCEMENT_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_ANNOUNCEMENT_REQ
 DWORD CTControlSvrModule::OnCT_ANNOUNCEMENT_REQ(LPPACKETBUF pBUF)
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION;
@@ -754,7 +760,7 @@ DWORD CTControlSvrModule::OnCT_ANNOUNCEMENT_REQ(LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_USERKICKOUT_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_USERKICKOUT_REQ
 DWORD CTControlSvrModule::OnCT_USERKICKOUT_REQ(LPPACKETBUF pBUF)
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION;
@@ -781,7 +787,7 @@ DWORD CTControlSvrModule::OnCT_USERKICKOUT_REQ(LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_USERMOVE_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_USERMOVE_REQ
 DWORD CTControlSvrModule::OnCT_USERMOVE_REQ(LPPACKETBUF pBUF)
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION; 
@@ -832,7 +838,7 @@ DWORD CTControlSvrModule::OnCT_USERMOVE_REQ(LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_USERPOSITION_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_USERPOSITION_REQ
 DWORD CTControlSvrModule::OnCT_USERPOSITION_REQ(LPPACKETBUF pBUF)
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION; 
@@ -874,7 +880,7 @@ DWORD CTControlSvrModule::OnCT_USERPOSITION_REQ(LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_MONSPAWNFIND_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_MONSPAWNFIND_REQ
 DWORD CTControlSvrModule::OnCT_MONSPAWNFIND_REQ(LPPACKETBUF pBUF) 
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION; 
@@ -905,7 +911,7 @@ DWORD CTControlSvrModule::OnCT_MONSPAWNFIND_REQ(LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_MONSPAWNFIND_ACK
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_MONSPAWNFIND_ACK
 DWORD CTControlSvrModule::OnCT_MONSPAWNFIND_ACK(LPPACKETBUF pBUF)
 {
 	DWORD dwManager;
@@ -957,7 +963,7 @@ DWORD CTControlSvrModule::OnCT_MONSPAWNFIND_ACK(LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_MONACTION_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_MONACTION_REQ
 DWORD CTControlSvrModule::OnCT_MONACTION_REQ(LPPACKETBUF pBUF)
 {
 	BYTE bGroup;
@@ -994,7 +1000,7 @@ DWORD CTControlSvrModule::OnCT_MONACTION_REQ(LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_PLATFORM_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_PLATFORM_REQ
 DWORD CTControlSvrModule::OnCT_PLATFORM_REQ(LPPACKETBUF pBUF)
 {
 	BYTE bMachineID;
@@ -1015,7 +1021,7 @@ DWORD CTControlSvrModule::OnCT_PLATFORM_REQ(LPPACKETBUF pBUF)
 
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_USERPROTECTED_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_USERPROTECTED_REQ
 DWORD CTControlSvrModule::OnCT_USERPROTECTED_REQ(LPPACKETBUF pBUF)
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION;
@@ -1052,7 +1058,7 @@ DWORD CTControlSvrModule::OnCT_USERPROTECTED_REQ(LPPACKETBUF pBUF)
 	
 	return EC_NOERROR;
 }
-// Çö½Â·æ CT_CHARMSG_REQ
+// ï¿½ï¿½ï¿½Â·ï¿½ CT_CHARMSG_REQ
 DWORD CTControlSvrModule::OnCT_CHARMSG_REQ(LPPACKETBUF pBUF)
 {
 	CTManager * pManager = (CTManager *)pBUF->m_pSESSION;
@@ -1669,7 +1675,7 @@ DWORD CTControlSvrModule::OnCT_EVENTCHANGE_REQ(LPPACKETBUF pBUF)
 	if(bRet)
 		return EC_NOERROR;
 	
-	//	½ÇÇàÁßÀÎ °æ¿ì, (¾ÆÀÌÅÛ ÃßÃ·Àº ½ÇÇàÁß ¸ø°íÄ§,)
+	//	ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½, (ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã·ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ä§,)
 	if((*it).second.m_bState && stEVENT.m_bID != EVENT_LOTTERY && stEVENT.m_bID != EVENT_GIFTTIME)
 	{
 		MAPTSVRTEMP::iterator itSvr;

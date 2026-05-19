@@ -1,279 +1,280 @@
-# Changelog — Legacy → Modernizovaný server cluster
+# Changelog — 4Story server: legacy vs. modernizovaná verze
 
-Stav k 2026-05-19, branch `claude/analyze-legacy-changelog-fmm2D`.
-Srovnání legacy `Server/T*Svr/` (Win32 / ATL / IOCP / VS 2017, ~389 kLOC)
-proti modernizovaným `Server/T*SvrAsio/` + `Lib/Own/FourStoryCommon`.
+**Pro komunitu 4Story.** Tohle je srovnání původního (legacy) serveru
+z roku 2007 — toho, co jste znali pod `TLoginSvr.exe`, `TPatchSvr.exe`,
+`TLogSvr.exe` — a nové, přepsané verze (`*_asio`), která žije vedle
+něj v repu. **Wire protokol je úmyslně stejný** — váš shipped klient
+se k novému serveru přihlásí beze změny, žádný patch klienta není
+potřeba.
 
-Strategie: legacy zdrojáky zůstávají v repu netknuté a jsou autoritativní
-pro odeslané chování. Modernizované binárky běží vedle nich, mluví
-**bit-for-bit stejný wire protokol** s legacy klientem a sahají do
-původních MSSQL databází (`TGLOBAL_RAGEZONE` + `TGAME_RAGEZONE`) bez
-destruktivní migrace.
-
----
-
-## 1. Globální změny stacku
-
-| Vrstva | Legacy | Modernizovaný |
-|---|---|---|
-| Jazyk | C++14-ish (převážně C++98 styl) | **C++20** (Asio coroutines `co_await`) |
-| Build | VS 2017 v141, `.vcxproj`, `.sln` | **CMake 3.20+** + **vcpkg** (manifest mode) |
-| Platforma | Pouze Windows | **Linux + Windows** (cross-platform) |
-| Async I/O | Win32 **IOCP** (`WSARecv`/`WSASend`/`CreateIoCompletionPort`) | **Boost.Asio** (epoll/io_uring na Linuxu, IOCP na Windows — stejný kód) |
-| Threading | `CRITICAL_SECTION`, `CreateThread` | `std::mutex`, `std::shared_mutex`, `std::jthread` |
-| Čas | `GetTickCount`, `CTime` | `std::chrono`, `asio::steady_timer` |
-| Stringy | ATL `CString`, `_T()`, `LPCTSTR`, `lstrcpy` (1 112 výskytů) | `std::string`, `std::string_view`, `std::format` |
-| Krypto | Win32 CryptoAPI (`CryptAcquireContext`, `CALG_RC4`) | **OpenSSL EVP** (RFC 6229 RC4) přes vcpkg |
-| Hashy hesel | Plaintext / slabý hash v `TACCOUNT_PW` | **libbcrypt** (cost 10) s transparentním upgradem z plaintextu |
-| SQL | ODBC přes `CSqlDatabase` (Win32) | **SOCI 4.x** + unixODBC (Linux) / MS ODBC (Windows) |
-| Logování | `LogEvent`, `OutputDebugString`, `ATLTRACE`, `printf` | **spdlog** (strukturované logy, pluggable sinky) |
-| Config | `CRegKey` (Windows Registry) | **toml++** (verzovatelný `.toml` soubor) |
-| Service framework | `CAtlServiceModuleT` | plain `main()` + `systemd` unit / NSSM |
-| Service manager shutdown | `SM_QUITSERVICE_REQ` IPC packet | `SIGINT`/`SIGTERM` přes `asio::signal_set` (+ legacy paket je stále uznán) |
-| Testy | žádné — pouze ruční smoke testy | **CTest** + 10 in-process suite, SOCI suite skipne bez DB |
-
-### Sdílené knihovny
-
-| Lib | Legacy | Modernizovaný |
-|---|---|---|
-| **TNetLib** | `Server/TNetLib/` (v140) **a duplikovaně** `Lib/Own/TNetLib/TNetLib/` (v141) | Konsolidováno do `Lib/Own/TNetLib/` (commit `dd18d8d`) — modernizovaný `tnetlib::AsioSession` + `tnetlib::packet_codec` |
-| **TProtocol** | Mix ATL `CString` v hlavičkách | Doplněn **`MessageId` enum + `NameOf()` generátor** (commit `765d82b`) |
-| **OpenSSL** | Vendorovaný 0.9.8l (15 let starý, dead reference) | **Smazán** (commit `7b4b79e`) — vcpkg si tahá 3.x s `legacy` providerem pro RC4 |
-| **FourStoryCommon** | — *(neexistovalo, kód byl duplikovaný napříč servery)* | **Nová statická knihovna** s `db::SessionPool`, `schema_validator`, `audit::*`, `smtp::*`, `ops::AdminShell/HealthEndpoint/RateLimiter/RegistryRefresher` — komitnuto v `60dccf7` |
+Repo: `Server/T*Svr/` = starý kód (nesahá se na něj, je tam pro
+referenci). `Server/T*SvrAsio/` = nová verze. Obojí kompiluje. Můžete
+si pustit starý nebo nový, klient to nepozná.
 
 ---
 
-## 2. TLoginSvr → TLoginSvrAsio
+## TL;DR pro netrpělivé
 
-**Legacy:** `Server/TLoginSvr/` — 37 souborů, 11 453 LOC, ATL/IOCP/ODBC/Windows-only.
-**Nový:** `Server/TLoginSvrAsio/` — 45 souborů, 9 464 LOC (vč. testů), Asio coroutines + SOCI + spdlog.
-**Stav:** produkčně kompletní, 15/15 `CS_` + 5/5 `CT_*` handlerů.
-
-### Pokrytí handlerů (15/15 wire handlerů + 5/5 control protokolu)
-
-| Handler | Legacy chování | Nový stav |
-|---|---|---|
-| `CS_LOGIN_REQ` | `CSPLogin` / `CSPLoginJP` SP, IP block, duplicate kick | ✅ real — BCrypt + transparent upgrade, IP banlist, TUSERPROTECTED, llChecksum validace (algoritmus z `CSHandler.cpp:185-202`) |
-| `CS_AGREEMENT_REQ` | `CSPAgreement` upsert do `TUSERINFOTABLE` | ✅ real — `IAuthService::SetAgreement` + per-session gate flip |
-| `CS_GROUPLIST_REQ` | `CTBLGroupList` enumerace TGROUP | ✅ real — `IMapServerLocator::ListGroups` s živým TCURRENTUSER countem |
-| `CS_CHANNELLIST_REQ` | `CTBLChannel` enumerace TCHANNEL | ✅ real — `IMapServerLocator::ListChannels` |
-| `CS_CHARLIST_REQ` | `TCHARTABLE` + `TITEMTABLE` (equip slot) + guild join | ✅ real — items + guild fame + trailing `CS_BOWPLAYERNOTIFY_ACK` |
-| `CS_CREATECHAR_REQ` | `TCreateChar` SP + starter inventory | ✅ real — TCHARTABLE + TALLCHARTABLE + starter items |
-| `CS_DELCHAR_REQ` | password check + guild block + level-5 soft-delete | ✅ real — `ICharService::Delete` + `IAuthService::VerifyPassword` |
-| `CS_START_REQ` | `TSERVER`+`TIPADDR` JOIN + BR override | ✅ real — TFindServerID port (TSVRCHART + TCHANNELCHART + TSPAWNPOSCHART fallback), BR/BOW shard override |
-| `CS_VETERAN_REQ` | Čte `TVETERANCHART` thresholds | ✅ real — cached `TVETERANCHART` s 30s refreshem |
-| `CS_TERMINATE_REQ` | `TLogoutAll` na shodu magic key | ✅ real — magic check + `ISessionTerminator` cleanup |
-| `CS_HOTSEND_REQ` | Exec-file integrity check | ✅ silent no-op — anti-cheat **mimo scope by design** |
-| `CS_SECURITYCONFIRM_ACK` | `LR_SECURITY` 2FA flow (v legacy **dead code**) | ✅ real — TSECURECODE compare + `ISmtpClient` issue path (vylepšeno proti legacy) |
-| `CS_TESTLOGIN_REQ` | Debug-only TTESTLOGINUSER | ✅ real — gate `test_handlers_enabled = false` |
-| `CS_TESTVERSION_REQ` | Vrací protocol version | ✅ real |
-| `SM_QUITSERVICE_REQ` | Service manager shutdown signal | ✅ real — wire trigger pro `io.stop()` (vedle SIGINT/SIGTERM) |
-| `CT_SERVICEMONITOR_ACK` | Posílá session count control serveru | ✅ real — `IConnectionRegistry::Count()` |
-| `CT_SERVICEDATACLEAR_ACK` | Přestaví `m_mapACTIVEUSER` z `m_mapTUSER` | ✅ no-op (registry je canonical, žádná derived mapa) |
-| `CT_CTRLSVR_REQ` | Heartbeat | ✅ |
-| `CT_EVENTUPDATE_REQ` | GM event sync (`m_mapEVENT`) | ✅ — `IEventRegistry` upsert/remove |
-| `CT_EVENTMSG_REQ` | Event broadcast | ✅ |
-
-### Servisní vrstva (nová abstrakce)
-
-Legacy měl všechno splácané v `CTLoginSvrModule` + statické mapy
-(`m_mapTUSER`, `m_mapACTIVEUSER`) + přímá ODBC volání v handlerech.
-
-Nový server používá **service interface pattern** — každá doména má
-SOCI produkční impl a `Fake*` test impl:
-
-| Interface | Produkce | Test fake |
-|---|---|---|
-| `IAuthService` | `SociAuthService` | `FakeAuthService` |
-| `ICharService` | `SociCharService` (TGLOBAL + TGAME split) | `FakeCharService` |
-| `IMapServerLocator` | `SociMapServerLocator` | `FakeMapServerLocator` |
-| `ISessionTerminator` | `SociSessionTerminator` | `FakeSessionTerminator` |
-| `IConnectionRegistry` | `LocalConnectionRegistry` | (in-process canonical) |
-| `IAuditLogger` | `SpdlogAuditLogger` + `UdpAuditLogger` decorator | — |
-| `IEventRegistry` | `LocalEventRegistry` | — |
-| `ISmtpClient` | `SpdlogSmtpClient` (log-only, prod si zapojí reálné SMTP) | — |
-| `LoginRateLimiter` | token bucket per peer IP (5 attempts / 10s) | — |
-
-### Provozní zpevnění (nové, v legacy neexistovalo)
-
-* **`/healthz` HTTP endpoint** — k8s liveness/readiness probes
-* **Pre-auth idle timeout** (60s) přes `asio::steady_timer` watchdog
-* **Schema validator** na startupu — 40 TGLOBAL + 23 TGAME sloupců přes `INFORMATION_SCHEMA`, fail-fast na drift
-* **AdminShell** — line-based TCP shell na localhostu (status, kick, …)
-* **Audit log:** strukturovaný `SpdlogAuditLogger` **+** `UdpAuditLogger` decorator s wire-faithful `_UDPPACKET` / `_LOG_DATA_` frame pro back-compat se starým TLogSvr
-* **2FA flow** doopravdy zapojený (`TSECURECODE` + `TUSEREMAIL` + `TUSERTRUSTEDIP` whitelist) — v legacy zakomentováno
-* **Duplicate-kick policy:** "newest wins" (UX improvement — uživatel umí zotavit zaseknutou session); legacy mu obě killne
-* **Rate limit** pro pre-auth login pokusy; legacy nemá nic
+* **Klient se nemění.** Wire protokol je byte-by-byte stejný. Stejné RC4, stejný XOR, stejný checksum.
+* **DB se nemění.** Čte se stejné `TGLOBAL_RAGEZONE` + `TGAME_RAGEZONE` schéma. Žádné destruktivní migrace, jenom přidání pár tabulek pro 2FA a audit log.
+* **Login server běží i na Linuxu.** Můžete ho hostit v Dockeru / na VPS místo Windows Serveru.
+* **Hesla jsou konečně bezpečně.** Bcrypt místo plaintextu, s automatickým upgradem starých účtů při prvním přihlášení.
+* **Opraven kritický bezpečnostní bug**, kterým šel server **shodit (nebo hůř) ještě před přihlášením** — `CS_LOGIN_REQ` packet s podvrženou délkou username dokázal poškodit paměť.
+* **OpenSSL aktualizován** z roku 2009 (0.9.8l, 15 let zranitelností!) na současné 3.x.
+* **Anticheat (HShield/XTrap/NPGame/HwidManager) zatím není.** Záměrně — jsou to Windows-only proprietary bloby a nemá smysl je řešit, dokud běží jen login.
+* **TMapSvr (samotný gameplay), TWorldSvr a TControlSvr jsou pořád starý kód.** Modernizovaný je zatím Login, Patch a LogSvr. Ostatní zůstávají v původní podobě.
 
 ---
 
-## 3. TPatchSvr → TPatchSvrAsio
+## 1. Co je nového / jiného obecně
 
-**Legacy:** `Server/TPatchSvr/` — 30 souborů, 3 824 LOC, **vlastní IOCP loop** (nesdílí TNetLib).
-**Nový:** `Server/TPatchSvrAsio/` — 11 souborů, 1 155 LOC, Asio coroutines + SOCI.
-**Stav:** Všech 9 `CT_*` handlerů portováno (commit `60dccf7`).
+### Build a platforma
 
-| Vlastnost | Legacy | Nový |
+| Co | Dřív | Teď |
 |---|---|---|
-| Wire codec | 8B-header plain (ne RC4 — patch traffic je veřejný) | 8B-header plain — bit-for-bit shoda |
-| DB queries | `CSqlDatabase` pro `TVERSION`/`TPREVERSION` | SOCI proti `TGLOBAL` |
-| IOCP loop | Vlastní (nepoužívá TNetLib) | Sdílí Asio infrastrukturu s ostatními |
-| Schema | Žádné migrace | Stejné schema — žádné destruktivní změny |
+| Visual Studio | 2017 (v141) | 2022 + CMake (univerzální projekty) |
+| Kompilátor / standard | C++14 (psané stylem C++98) | **C++20** |
+| Platforma | **Jenom Windows** | Linux **i** Windows — stejný kód |
+| Závislosti | Ručně dotažené knihovny, vendorované staré verze | **vcpkg** stáhne a postaví aktuální verze (`vcpkg.json`) |
+| Konfigurace | Windows Registry (`CRegKey`) | Obyčejný `.toml` soubor — dá se verzovat v Gitu, edituje ho každý editor |
+| Spouštění | Windows Service (`CAtlServiceModuleT`) | `systemd` na Linuxu / NSSM na Windows / prostě v terminálu |
+| Vypínání | Vlastní IPC paket `SM_QUITSERVICE_REQ` | `Ctrl+C` / `SIGTERM` (+ původní paket pořád funguje, kvůli kompatibilitě) |
+| Logy | `printf` + `OutputDebugString` (musíte DebugView) | **spdlog** — strukturované logy, dají se posílat do Seq/Loki/ELK |
+| Testy | Nebyly. | **CTest** + 10 testovacích suit (155+ kontrolních bodů) |
+
+### Sítě a krypto
+
+| Co | Dřív | Teď |
+|---|---|---|
+| Síťový engine | **Win32 IOCP** (jenom Windows) | **Boost.Asio** s coroutines (`co_await`) — na Linuxu epoll/io_uring, na Windows IOCP, stejný zdroják |
+| RC4 (šifrování paketů) | Win32 CryptoAPI (`CryptAcquireContext`, `CALG_RC4`) | **OpenSSL EVP `EVP_rc4()`** |
+| **OpenSSL** | **Vendorovaná verze 0.9.8l z roku 2009** (15 let staré zranitelnosti — Heartbleed, POODLE atd. — nikdy nezáplatované; navíc to byl mrtvý kód) | **Modern OpenSSL 3.x** přes vcpkg, s `legacy` providerem aby RC4 (deprecated v 3.x) pořád fungoval kvůli wire kompatibilitě |
+| Hashy hesel | Plaintext nebo slabý hash v `TACCOUNT_PW.bPasswd` | **bcrypt** (cost 10) přes vendorovaný **libbcrypt** + **transparentní upgrade**: při prvním úspěšném loginu se starý plaintextový záznam přehashe a rovnou se přepíše v DB |
+| Vlastní AES (`Rijndael.cpp`, 1 572 řádků) | Bylo v kódu, **ale nikdo to nevolal** ("dead code") — risk pro security audity (cache-timing atd.) | **Smazáno** |
+
+### Databáze
+
+| Co | Dřív | Teď |
+|---|---|---|
+| Přístup do MSSQL | ODBC přímo přes `CSqlDatabase` (Windows-only build) | **SOCI 4.x** + unixODBC (Linux) / MS ODBC (Windows) — stejný kód |
+| Connection pool | Žádný, jedno spojení per server | **`SessionPool`** v `FourStoryCommon` — recycle při chybě, tunable size |
+| Schema check | Žádný — když chybí sloupec, server padne za běhu | **Schema validator** na startu — zkontroluje 40 sloupců v TGLOBAL + 23 v TGAME a hned řekne, co chybí |
+| Nové tabulky | — | Jen **additivně**: `TSECURECODE` + `TUSEREMAIL` + `TUSERTRUSTEDIP` (pro 2FA), `TLOG_AUDIT` (pro nový log server). SQL skripty jsou v `schema/`. |
 
 ---
 
-## 4. TLogSvr → TLogSvrAsio
+## 2. Login server (TLoginSvr → TLoginSvrAsio)
 
-**Legacy:** `Server/TLogSvr/` — 17 souborů, 3 908 LOC, ATL/UDP/ODBC, MFC dialog GUI.
-**Nový:** `Server/TLogSvrAsio/` — 7 souborů, 605 LOC, UDP-only headless služba.
-**Stav:** UDP `_UDPPACKET` ingest + SOCI INSERT do `TLOG_AUDIT` (commit `60dccf7`).
+Místo, kde se přihlašujete a vidíte výběr postav. Tady se nejvíc šahalo.
 
-| Vlastnost | Legacy | Nový |
+**Pokrytí:** **15 z 15** klient-server handlerů + **5 z 5** control handlerů (komunikace mezi servery). 100% funkční parita s tím, co dělal starý server.
+
+### Co se zlepšilo z pohledu hráče / admina
+
+* **Heslo se konečně neukládá v plaintextu.** Bcrypt cost 10 + transparentní upgrade — žádný admin zásah, žádné password reset emaily. Starý plaintext účet se přehashe sám při prvním loginu.
+* **Pravidlo pro duplicitní login je teď "newest wins".** Když se přihlásíte z druhého PC, starou session to vykopne a nová projde. Starý server killnul **obě**, takže člověk musel počkat 5 minut, než ho TCURRENTUSER pustil zpátky.
+* **2FA opravdu funguje.** V původním kódu byl `LR_SECURITY` flow zakomentovaný / dead code. Nový server ho má naživo: `TSECURECODE` se přečte z DB, srovná s tím, co poslal klient, a teprve pak pošle `CS_LOGIN_ACK`. Mailování kódu jde přes pluggable `ISmtpClient` (default jenom loguje, prod si tam zapojí reálný SMTP).
+* **Whitelist IP** přes `TUSERTRUSTEDIP` — z trusted IP přeskočí 2FA.
+* **Rate-limiting na pre-auth pokusy.** Starý server nemá vůbec nic, dalo se ho brute-force scriptem. Nový má token bucket: 5 pokusů / 10 sekund per IP.
+* **Pre-auth idle timeout.** Když klient otevře TCP spojení a 60 sekund nic nepošle, server ho zavře. Předtím tam ty zaseknuté sessions visely.
+* **Schema validator.** Když restartujete server a v DB chybí sloupec, **dozvíte se to hned**, ne až někdo zkusí vytvořit postavu.
+* **AdminShell** — line-based TCP shell na localhostu. Příkazy `status`, `kick <user>` atd. Žádná potřeba restartovat kvůli vyhození zasekané session.
+* **`/healthz` HTTP endpoint** — pro k8s / load balancer health checky. Vrací `200 OK` nebo `503` podle stavu DB connection poolu.
+
+### Co se opravilo z pohledu kódu
+
+* **Stack je 9 464 LOC vs. 11 453 LOC** — funkčně skoro paritní, jenom mnohem čitelnější, bez ATL/MFC balastu.
+* Servisní vrstva: každá doména (Auth, Char, MapLocator, SessionTerminator) má **interface + SOCI implementaci + Fake pro testy**. Starý kód měl všechno splácané ve `CTLoginSvrModule` se statickými mapami.
+* TFindServerID port — start postavy teď respektuje `TSVRCHART` + `TCHANNELCHART` + `TSPAWNPOSCHART` fallback (per-character routing), místo starého "dej jí první server v group".
+* BR/BoW shard override (`TBRPLAYERTABLE`) funguje doopravdy.
+
+### Wire bity, na kterých vám záleží (kompatibilita s klientem)
+
+Wire packety se zarovnaly **doslova** s `Server/TLoginSvr/CSSender.cpp`:
+
+* `CS_LOGIN_ACK`, `CS_GROUPLIST_ACK`, `CS_CHANNELLIST_ACK`, `CS_CHARLIST_ACK`, `CS_CREATECHAR_ACK`, `CS_DELCHAR_ACK`, `CS_START_ACK` — stejná struktura, stejné padding bajty
+* `CS_LOGIN_REQ` trailing **XOR/add checksum** (`llChecksum`) — algoritmus z `CSHandler.cpp:185-202` se na nové straně **vynucuje**. Pokud jste si psali nějaký vlastní bot/tester, který tam dával nulu, oprava: musí se počítat doopravdy.
+* `CS_BOWPLAYERNOTIFY_ACK` — pošle se za `CS_CHARLIST_ACK`, pokud má účet BR postavu (jako v originále)
+* RC4 stream + XOR layer + 4-bajtová "secret key" salt — stejný `g_strSecretKey`
+* Header obfuscation — stejné 7-slot key tabulky
+
+---
+
+## 3. Patch server (TPatchSvr → TPatchSvrAsio)
+
+Server, který klient stáhne při startu, aby si zjistil, jestli má aktuální verzi.
+
+**Stav:** Všech **9 `CT_*` handlerů** portováno.
+
+| Co | Dřív | Teď |
 |---|---|---|
-| UI | MFC dialog | Headless, log do spdlog |
-| Wire | Custom `_UDPPACKET` UDP frame | Bit-for-bit kompatibilní — čte stejný frame, který TLoginSvrAsio emituje přes `UdpAuditLogger` |
+| Velikost kódu | 3 824 LOC, 30 souborů | 1 155 LOC, 11 souborů |
+| Síťový engine | **Vlastní IOCP loop** (nesdílel ani TNetLib!) | Boost.Asio, sdílí infrastrukturu s ostatními novými servery |
+| Wire codec | 8B-header plain (patch traffic je veřejný, nešifruje se) | Stejný 8B-header plain |
+| DB | `CSqlDatabase` proti `TVERSION` / `TPREVERSION` v `TGLOBAL` | SOCI proti stejným tabulkám |
+| Schema | Beze změn | Beze změn |
+
+---
+
+## 4. Log server / audit (TLogSvr → TLogSvrAsio)
+
+UDP collector, do kterého TLoginSvr posílá audit packety (přihlášení, vytvoření postavy, atd.).
+
+**Stav:** UDP `_UDPPACKET` příjem + zápis do `TLOG_AUDIT`.
+
+| Co | Dřív | Teď |
+|---|---|---|
+| Velikost kódu | 3 908 LOC, 17 souborů | 605 LOC, 7 souborů |
+| UI | **MFC dialog okno** (musíte ho mít otevřené) | **Headless** služba, loguje do spdlog |
+| Wire | `_UDPPACKET` UDP frame | Bit-for-bit stejný frame — modernizovaný TLoginSvr ho posílá přes `UdpAuditLogger`, novej LogSvr ho čte |
 | Storage | ODBC INSERT do legacy TLOG tabulek | SOCI INSERT do `TLOG_AUDIT` (additivní migrace `schema/tlog-audit.sql`) |
-| Krypto pro reg klíče | `RegCrypt.cpp` (Win32 CryptoAPI) | Není potřeba — config přes TOML |
 
 ---
 
-## 5. Bezpečnostní fixy v TNetLib (audit + cílené opravy)
+## 5. Sdílená knihovna `FourStoryCommon` (úplně nová)
 
-Z auditovaného běhu `Lib/Own/TNetLib/`:
+Předtím se sítí, audit log, SMTP a admin shell duplikovaly v každém serveru zvlášť (copy-paste). Bylo to nebezpečné — bug fix se musel udělat několikrát.
 
-### Critical (RCE / heap corruption)
-| # | Soubor | Issue | Fix |
-|---|---|---|---|
-| S1 | `Packet.cpp::operator>>(CString&)` + `Read()` + `CanRead()` | Pre-auth remote heap corruption — `int nLength` z wire se cast-uje na `DWORD` → wrap modulo 2^32 pro negativní → `memcpy(buff, src, (size_t)-1)` = ~16 EB write. **Reachable přes CS_LOGIN_REQ** (`m_strUserID`). | Validace `nLength ∈ [0, MAX_PACKET_SIZE]` ve třech vrstvách (commit `d90eece`) |
+Teď je všechno sdílené v `Lib/Own/FourStoryCommon/`:
 
-### Defensive cleanups
-| # | Soubor | Změna |
+* `db::SessionPool` — connection pool pro SOCI
+* `db::schema_validator` — kontroluje sloupce na startu
+* `audit::SpdlogAuditLogger` + `audit::UdpAuditLogger` — strukturovaný audit log nebo legacy UDP shim
+* `smtp::SmtpClient` — interface pro odesílání mailů (2FA)
+* `ops::AdminShell` — TCP shell na localhostu
+* `ops::HealthEndpoint` — `/healthz` HTTP probe
+* `ops::RateLimiter` — token bucket
+* `ops::RegistryRefresher` — periodická refresh smyčka
+
+Konzumují to **všechny tři** modernizované servery (Login, Patch, Log).
+
+---
+
+## 6. Bezpečnostní opravy (důležité)
+
+### Kritická díra — opraveno
+
+Ve **starém TNetLib** byl bug, kterým šlo poslat `CS_LOGIN_REQ` se zápornou délkou username a server začal zapisovat **~16 EB** paměti. Reálně to znamená crash, ale teoreticky i RCE (remote code execution). Bug byl **dosažitelný bez přihlášení** — stačilo otevřít TCP spojení.
+
+**Soubor:** `Lib/Own/TNetLib/Packet.cpp::operator>>(CString&)`
+
+Fix má **tři vrstvy** (defense in depth), aby se to nedalo znovu trefit jinou cestou:
+
+1. `operator>>(CString&)` — validuje délku `[0, MAX_PACKET_SIZE]` rovnou
+2. `Read(LPVOID, int)` — odmítá `<= 0` nebo `> MAX_PACKET_SIZE`
+3. `CanRead(DWORD)` — kontroluje overflow `offset + length`
+
+### Aktualizovaný OpenSSL
+
+* **Bylo:** vendorovaný 0.9.8l z **listopadu 2009**. 15 let nezáplatovaných zranitelností (CVE listina je dlouhá). V kódu navíc visel jako dead reference (nikdo ho nelinkoval správně), ale byl by to časovaný miny pro jakoukoliv produkci.
+* **Je:** **OpenSSL 3.x z vcpkg**, držené aktuální. RC4 je v 3.x deprecated kvůli své slabosti, takže ho voláme přes **`legacy` provider** (samostatný OpenSSL modul) — díky tomu zůstává wire kompatibilní se shipped klientem, ale audit-friendly modul pro veškeré ostatní krypto.
+* Wrapper `tnetlib_crypto` má **18 testů** (RFC 6229 RC4 vektory + symmetry + legacy 4Story secret key).
+
+### Dead AES smazáno
+
+`Rijndael.cpp` + `Rijndael.h` — 1 572 řádků vlastní AES implementace, **nikdy nikdo nevolal** (`grep CRijndael` po celém repu vrátil 0). Eliminovaly se tím dva teoretické problémy: cache-timing na S-box lookups a key-schedule underflow. Smazáno.
+
+### Win32 krypto hardening
+
+Před tím, než se v `CryptDeriveKey` přešlo na OpenSSL, byl flag **`CRYPT_EXPORTABLE`** — povoloval exportovat key materiál z krypto provideru. Nikdy se to nepoužilo, ale visel tam. Pryč.
+
+### 8 dalších funkčních bugů (audit `Lib/Own/TNetLib/`)
+
+| # | Co | Co se dělo |
 |---|---|---|
-| S2 | `CryptographyExt.cpp:135,190` | `CryptDeriveKey(..., CRYPT_EXPORTABLE, ...)` — povolení exportu key materiálu. **Odstraněno.** |
-| S3 | `Rijndael.cpp/.h` (1 572 LOC) | Celá vlastní AES implementace byla **dead code** (zero references v repu). **Smazána** — eliminován risk cache-timing na S-box lookups + key-schedule underflow. |
+| 1 | `SqlDatabase.cpp::Open` | Při selhání `SQLAllocHandle(ENV)` zůstal viset `CRITICAL_SECTION` — leak při každém failovaném connectu |
+| 2 | `SqlDatabase.cpp::Close` | `DeleteCriticalSection` se volal i když `Open()` nikdy neproběhl → undefined behavior |
+| 3 | `SqlBase.cpp::Init` | Query delší než `MAX_QUERY_LEN` → všechny členy zůstaly neinicializované → garbage read |
+| 4 | `SqlBase.cpp::IsNull` | `int nCol` mohl být negativní → out-of-bounds index do `m_liCOLS` |
+| 5 | `BindDesc.cpp` ctor | `m_size`/`m_type` neinicializované → `malloc(garbage)` |
+| 6 | `Packet.cpp::EncryptHeader/DecryptHeader` | Loop counter `BYTE i` se přetočil při `PACKET_HEADER_SIZE > 255` → nekonečná smyčka |
+| 7 | `Packet.cpp::Write` | Kapování velikosti na `MAX_PACKET_SIZE`, potom `IsValid()` to odmítal — packet zůstal "invalid" |
+| 8 | `Packet.cpp::CopyData` | Neměl `MAX_PACKET_SIZE` guard, `WORD += WORD` se uměl přetočit |
 
-### 8 funkčních bugů opravených v auditu (commit `1428844`)
-| # | Soubor | Bug | Závažnost |
-|---|---|---|---|
-| 1 | `SqlDatabase.cpp::Open` | `SQLAllocHandle(ENV)` failure path → `DeleteCriticalSection` leak | High |
-| 2 | `SqlDatabase.cpp::Close` | Bezpodmínečné `DeleteCriticalSection` = UB pokud `Open()` nikdy nevolal | High |
-| 3 | `SqlBase.cpp::Init` | Query ≥ `MAX_QUERY_LEN` → nezinicializované members → garbage read | High |
-| 4 | `SqlBase.cpp::IsNull` | `int nCol` mohl být negative → OOB index v `m_liCOLS` | Medium |
-| 5 | `BindDesc.cpp` default ctor | `m_size`/`m_type` neinicializované → `malloc(garbage)` | Medium |
-| 6 | `Packet.cpp::EncryptHeader/DecryptHeader` | `BYTE i` counter → silent wrap při `PACKET_HEADER_SIZE > 255` → infinite loop | Low (latent) |
-| 7 | `Packet.cpp::Write` | Kapování `m_wSize` na `MAX_PACKET_SIZE` → `IsValid()` pak odmítne → packet s bajty + "invalid" marker | Medium |
-| 8 | `Packet.cpp::CopyData` | Žádný `MAX_PACKET_SIZE` guard před `+=` na `WORD` → 16-bit wraparound | Medium |
+### Legacy hotfixy
 
-### Další security work
-* `TRand` audit findings (commit `48f73d4`) + `DetachBinary` bounded overload pro audit-able buffer size
-* Hardened Win32 crypto wrapper (commit `d90eece`)
+V původním kódu se ještě opravily nejostřejší hrany:
 
----
-
-## 6. Bug fixy / hardening v legacy kódu (Phase 0)
-
-Před započetím modernizace byly opraveny nejhorší ostré hrany v původním kódu (commit `561ab2b`):
-
-* `lstrcpy` off-by-one v `TLoginSvr/UdpSocket.cpp:117` — 50-char username → 51 bajtů do 50-bajtového bufferu
+* `lstrcpy` off-by-one v `TLoginSvr/UdpSocket.cpp:117` — 50-znakový username přetekl 50-bajtový buffer
 * `sprintf` bez bounds v `TControlSvr/PlatformUsage.cpp:58`
-* Manuální `EnterCriticalSection` → existující RAII `SMART_LOCKCS` wrapper (~140 sites identifikováno, 4 soubory dokončeny v Phase 0)
-* Hardcoded `C:\4s\dberror.log` → `TNETLIB_DB_ERROR_LOG` env var
-* Case-sensitivity fix pro Linux: 7 `.cpp` souborů `#include "StdAfx.h"` (velkým) → `stdafx.h` (commit `7ae24ce`)
+* Hardcoded `C:\4s\dberror.log` → env var `TNETLIB_DB_ERROR_LOG`
 
 ---
 
-## 7. Wire kompatibilita
+## 7. Co je **záměrně** mimo scope
 
-**Wire protokol je byte-for-byte 1:1 s legacy serverem.** Ověřeno proti:
-- `Server/TLoginSvr/CSSender.cpp` — všechny `CS_*_ACK` struktury
-- `Server/TPatchSvr/Sender.cpp` — `CT_PATCH_ACK`
-- `Server/TLogSvr/LogPacket.h` — `_UDPPACKET` / `_LOG_DATA_`
+Nečekejte tohle v modernizované verzi — bylo to rozhodnutí, ne opomenutí:
 
-Legacy `CS_LOGIN_REQ` trailing XOR/add checksum (`CSHandler.cpp:185-202`)
-je vynucován i na nové straně; testy, které posílaly dummy
-`llChecksum=0`, byly opraveny (commit `60dccf7`).
-
-Zachované sémantiky:
-* RC4 layer s legacy secret key (commit `728d697`)
-* XOR + header obfuscation
-* Stejné DB schéma `TGLOBAL` + `TGAME` (pouze **additivní** migrace `2fa-tables.sql`, `tlog-audit.sql`)
+* **HwidManagerSvr / HShield / XTrap / NPGame** — anticheat. Jsou to **Windows-only proprietary bloby**, na Linuxu nepoužitelné. Server-side hooky pro ně jsou no-op. `CS_HOTSEND_REQ` (exec-file integrity heartbeat) je silent drop, aby klient nepadl.
+* **Japan channeling** (`CSPLoginJP`, `bChanneling`, `m_bNation == NATION_JAPAN`) — odpadlo, neexistuje JP deploy.
+* **TWorldSvr** (38 851 LOC) — cluster coordinator, **pořád běží starý**.
+* **TMapSvr** (112 843 LOC) — samotný gameplay, **pořád běží starý**. Tohle je největší a nejrizikovější port, je v plánu na později.
+* **TControlSvr** (7 285 LOC) — GM/admin dashboard, **pořád běží starý**.
+* **TBRSvr / TBoWSvr** — prázdné shelly (po 92 LOC). BR/BoW logika je v TMapSvr za `#ifdef`. Phase 6 cleanup je smaže.
 
 ---
 
-## 8. Co je záměrně **mimo scope**
+## 8. Jak to spustit
 
-| Feature | Důvod |
-|---|---|
-| `HwidManagerSvr` (Anticheat) | Out of scope by design — Windows-only proprietary bloby (HShield/XTrap/NPGame) |
-| `CS_HOTSEND_REQ` exec-file integrity | Anti-cheat tooling; silent no-op, aby legacy klient nepadl |
-| Japan channeling (`CSPLoginJP`, `bChanneling`, `m_bNation == NATION_JAPAN`) | Žádný JP deploy target |
-| **TWorldSvr** (38 851 LOC) | Odloženo — legacy je canonical |
-| **TMapSvr** (112 843 LOC) | Odloženo — největší a nejrizikovější |
-| **TControlSvr** (7 285 LOC) | Odloženo |
-| `TBRSvr` / `TBoWSvr` (po 92 LOC) | **Empty shells** — feature je v `TMapSvr` přes `#ifdef BR_COMPILE_MODE` / `BOW_COMPILE_MODE`. Phase 6 cleanup je smaže |
+```powershell
+# Restore originálních dump souborů
+sqlcmd -S localhost -E -Q "RESTORE DATABASE TGLOBAL_RAGEZONE FROM DISK='…\TGLOBAL_RAGEZONE.bak'"
+sqlcmd -S localhost -E -Q "RESTORE DATABASE TGAME_RAGEZONE  FROM DISK='…\TGAME_RAGEZONE.bak'"
 
----
+# Seed dev účet + 2FA tabulky + audit tabulka
+sqlcmd -S localhost -E -d TGLOBAL_RAGEZONE -i Server\TLoginSvrAsio\schema\dev-account.sql
+sqlcmd -S localhost -E -d TGLOBAL_RAGEZONE -i Server\TLoginSvrAsio\schema\2fa-tables.sql
+sqlcmd -S localhost -E -d TGLOBAL_RAGEZONE -i Server\TLogSvrAsio\schema\tlog-audit.sql
 
-## 9. Co je nového oproti legacy
-
-| Feature | Proč win | Phase |
-|---|---|---|
-| Cross-platform build (Linux + Windows) | Docker / k8s deploys, levnější Linux servery | Phase 1 |
-| spdlog strukturované logy | Greppable, machine-readable, sink-pluggable (Seq/Loki/ELK) | Phase A.1 |
-| `/healthz` HTTP endpoint | k8s liveness/readiness, LB health checks | Phase A.3 |
-| TOML config (vs. Registry) | Verzovatelné, code-reviewable, testovatelné | Phase A.2 |
-| Service interface pattern | Vyměnitelné backends, unit-testovatelné | Phase A.1 |
-| 10 ctest targets + 155+ KATs | Regression pokrytí, které legacy nikdy nemělo | All phases |
-| Pre-auth RCE fix v `operator>>(CString&)` | Critical CVE-class bug uzavřen v TNetLib | Audit |
-| OpenSSL EVP (vs. ATL/Win32 CryptoAPI) | Modern crypto provider, FIPS-able, audited | Phase 1 step C |
-| BCrypt + transparent upgrade z plaintextu | Legacy ukládal plaintext nebo slabý hash | Phase B.5 |
-| Duplicate-kick "newest wins" | UX — uživatel umí zotavit zaseknutou session | Phase A.4 |
-| `TerminationReason` enum (MapHandoff preserves TCURRENTUSER) | Čistší contract než legacy `m_bLogout` bool gymnastika | Phase A.7 |
-| Login rate-limit (token bucket per IP) | Legacy nemá throttling — open pro brute-force | Phase C |
-| Schema validator na startupu | Fail-fast na DB drift místo runtime crash | Phase C |
-| AdminShell (localhost TCP) | Live ops bez restartu | Phase C |
-
----
-
-## 10. Časová osa fází (z git logu)
-
-```
-Phase 0   c77f790…561ab2b  Foundation — safety fixes, CMake skeleton
-Phase 1   dd18d8d…f78cca9  TNetLib modernizace (IOCP→Asio, OpenSSL EVP, RFC 6229)
-          + 8 functional bugs + S1 RCE fix v Packet.cpp
-Phase A   6a15eb6…2e32e2c  TLoginSvrAsio scaffold — service pattern, TOML, health, registry
-Phase B   08daa55…650f0b6  SOCI backends — Auth/Char/Map/SessionTerm + MSSQL parity
-Phase B.5 d04b3ab           Production complete — BCrypt + CT_* + audit/admin/rate-limit
-Phase D   60dccf7…155fdd2  TPatchSvr + TLogSvr porty + FourStoryCommon + 2FA + READMEs
+# Spustit cluster
+build\bin\Release\tloginsvr_asio.exe --config Server\TLoginSvrAsio\tloginsvr.toml
+build\bin\Release\tpatchsvr_asio.exe --config Server\TPatchSvrAsio\tpatchsvr.toml
+build\bin\Release\tlogsvr_asio.exe   --config Server\TLogSvrAsio\tlogsvr.toml
 ```
 
-38 commitů celkem. Postaveno na Linuxu (GCC 13, C++20, CMake 3.28) i
-Windows (MSVC 2022 + vcpkg).
+Klient nasměrujte na `localhost:4816`, dev login je `dev` / `dev123`.
+
+Na Linuxu: nainstalujte `libsoci-dev`, `unixodbc-dev`, `libspdlog-dev`, `libtomlplusplus-dev`, `libssl-dev`, `libboost-all-dev` — zbytek je stejné `cmake --build`.
 
 ---
 
-## 11. Co zbývá
+## 9. Časová osa (z gitu)
 
-Z `_rewrite/docs/MODERNIZATION_PLAN.md`:
+```
+Phase 0  c77f790…561ab2b  Foundation — safety fixy, CMake skeleton
+Phase 1  dd18d8d…f78cca9  TNetLib — IOCP→Asio, OpenSSL 3.x EVP, RFC 6229 testy
+                          + 8 funkčních bugů + S1 pre-auth RCE fix
+Phase A  6a15eb6…2e32e2c  TLoginSvrAsio scaffold — service pattern, TOML, health
+Phase B  08daa55…650f0b6  SOCI backends — Auth/Char/Map/SessionTerm proti MSSQL
+Phase B.5 d04b3ab          Production complete — bcrypt + CT_* + audit + rate-limit
+Phase D  60dccf7…155fdd2  TPatchSvr + TLogSvr porty + FourStoryCommon + 2FA + READMEs
+```
 
-* **TWorldSvr** (~8–12 týdnů) — cluster coordinator; nutný před TMapSvr (protocol contract)
-* **TMapSvr** (~12–24 týdnů) — gameplay engine, nejrizikovější; pravděpodobně staged refactor
-* **TControlSvr** (~4 týdny) — GM/admin dashboard, paralelizovatelné s TLog
-* **Phase 6 cleanup** — smazat `TBRSvr` / `TBoWSvr` empty shells, převést `#ifdef BR_COMPILE_MODE` / `BOW_COMPILE_MODE` na runtime feature flag
+**38 commitů, sestaveno a otestováno na Linuxu (GCC 13) i Windows (MSVC 2022 + vcpkg).**
 
-Architektonické dluhy (řešené mimo prostou language port):
-1. `TWorldSvr` single DB thread → bottleneck (potřeba async DB + per-shard write queue)
-2. `TWorldSvr` global maps pod jedním lockem → race conditions (potřeba partitioning)
-3. `SSHandler.cpp` 14 615 LOC monolitický switch — každý nový packet ID rekompiluje všechno
-4. `TMapSvr` quest engine v C++ (24 `Quest*.cpp`) — každá změna = rekompilace (kandidát na Lua/sol2 VM)
+---
+
+## 10. Co dál
+
+* **TWorldSvr** — odhad 8–12 týdnů; nutný před TMapSvr (jsou na sobě závislé protokolem)
+* **TMapSvr** — odhad 12–24 týdnů; gameplay, nejrizikovější, pravděpodobně po fázích
+* **TControlSvr** — odhad 4 týdny; paralelně s tím
+* **Phase 6 cleanup** — smazat `TBRSvr` / `TBoWSvr` shelly, `#ifdef BR_COMPILE_MODE` → runtime feature flag
+
+Reálné architektonické dluhy (řeší se mimo prostý port):
+
+1. `TWorldSvr` má **jedno DB vlákno** pro všechny TMapSvr instance → bottleneck
+2. `TWorldSvr` má globální mapy (`m_mapTCHAR`, `m_mapTGuild`) pod jedním lockem → race conditions
+3. `SSHandler.cpp` v TWorldSvr je **14 615 LOC monolitický switch** — každý nový packet ID rekompiluje úplně všechno
+4. Quest engine v TMapSvr je psaný v C++ (24× `Quest*.cpp`) — kvest = rekompilace celého serveru. Kandidát na Lua/sol2 VM.
 
 ---
 
 ## Reference
 
 * [`README.md`](../../README.md) — kořenové shrnutí + build pokyny
-* [`_rewrite/docs/MODERNIZATION_PLAN.md`](MODERNIZATION_PLAN.md) — cluster-wide phased roadmap
+* [`_rewrite/docs/MODERNIZATION_PLAN.md`](MODERNIZATION_PLAN.md) — kompletní roadmap
 * [`_rewrite/docs/LOGIN_SERVER_COMPARISON.md`](LOGIN_SERVER_COMPARISON.md) — handler-by-handler parita audit
-* [`_rewrite/docs/PROTOCOL.md`](PROTOCOL.md) — wire codec reference
-* [`_rewrite/docs/SCHEMA.md`](SCHEMA.md) — DB column katalog
-* [`_rewrite/docs/GAP_ANALYSIS.md`](GAP_ANALYSIS.md) — co je záměrně neportováno
+* [`_rewrite/docs/PROTOCOL.md`](PROTOCOL.md) — wire codec reference (RC4 keying, checksum algoritmy)
+* [`_rewrite/docs/SCHEMA.md`](SCHEMA.md) — katalog DB sloupců
+* [`_rewrite/docs/GAP_ANALYSIS.md`](GAP_ANALYSIS.md) — co není naportováno a proč

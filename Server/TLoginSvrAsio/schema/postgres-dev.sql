@@ -73,6 +73,21 @@ CREATE TABLE "TCURRENTUSER" (
 );
 CREATE INDEX "IDX_TCURRENTUSER_dwUserID" ON "TCURRENTUSER" ("dwUserID");
 
+-- Per-login IP audit. Legacy TLogin SP (TLogin.sql:160) INSERTs one
+-- row per successful login: (IP, Username, Date_time). Survives the
+-- session lifecycle (unlike TCURRENTUSER.szLoginIP which is deleted
+-- on logout), so historical "which IP logged in as X on date D"
+-- queries land here. Optional in modern — auth_service swallows the
+-- missing-table error if ops don't want this audit trail.
+DROP TABLE IF EXISTS "USERIPLOG" CASCADE;
+CREATE TABLE "USERIPLOG" (
+    "IP"        TEXT,
+    "Username"  TEXT,
+    "Date_time" TIMESTAMP
+);
+CREATE INDEX "IDX_USERIPLOG_Date_time" ON "USERIPLOG" ("Date_time");
+CREATE INDEX "IDX_USERIPLOG_Username"  ON "USERIPLOG" ("Username");
+
 -- Audit log — INSERTed on login, timeLOGOUT UPDATEd on disconnect.
 DROP TABLE IF EXISTS "TLOG" CASCADE;
 CREATE TABLE "TLOG" (
@@ -119,10 +134,25 @@ CREATE TABLE "TUSERPROTECTED" (
 CREATE INDEX "IDX_TUSERPROTECTED_dwUserID" ON "TUSERPROTECTED" ("dwUserID");
 
 -- IP banlist (game-server-side; the older IPBLACKLIST is legacy).
+-- Exact-match against the inbound client IP. Operator-managed.
 DROP TABLE IF EXISTS "IPBLACKLIST_game" CASCADE;
 CREATE TABLE "IPBLACKLIST_game" (
     "szIP" VARCHAR(50) PRIMARY KEY
 );
+
+-- Pattern-match IP banlist. Legacy CSPCheckIP / TCheckIP SP queries
+-- this with `@ip LIKE szIP` — the stored row IS the pattern, so
+-- entries like '192.168.%' ban entire subnets. Modern auth uses the
+-- same shape. bAuthority is a legacy block(0)/allow(1) discriminator;
+-- only the block path is wired (whitelist branch was commented out in
+-- the legacy SP). Empty / missing table → no-op in modern.
+DROP TABLE IF EXISTS "TIPAUTHORITY" CASCADE;
+CREATE TABLE "TIPAUTHORITY" (
+    "szIP"       VARCHAR(50) PRIMARY KEY,
+    "bAuthority" SMALLINT NOT NULL DEFAULT 0
+);
+CREATE INDEX "IDX_TIPAUTHORITY_IP_AUTHORITY" ON "TIPAUTHORITY"
+    ("szIP", "bAuthority");
 
 -- World groups.
 DROP TABLE IF EXISTS "TGROUP" CASCADE;
@@ -173,6 +203,19 @@ CREATE TABLE "TIPADDR" (
     "szPriAddr"  VARCHAR(50) NOT NULL DEFAULT '',
     "bActive"    SMALLINT NOT NULL DEFAULT 1,
     PRIMARY KEY ("bMachineID", "szIPAddr")
+);
+
+-- Per-machine round-robin counter for the LB rotation across TIPADDR
+-- rows. Legacy TRoute SP (TRoute.sql:58-71) reads bRouteID, picks the
+-- N-th active IP via cursor FETCH ABSOLUTE, then UPDATEs back. Modern
+-- PickIpForMachine does the same without cursors. Optional — if the
+-- table is absent, modern silently falls back to "always pick first
+-- active IP" (same as the pre-G12 JOIN-only behavior).
+DROP TABLE IF EXISTS "TMACHINE" CASCADE;
+CREATE TABLE "TMACHINE" (
+    "bMachineID" SMALLINT NOT NULL PRIMARY KEY,
+    "szNAME"     VARCHAR(50) NOT NULL DEFAULT '',
+    "bRouteID"   SMALLINT NOT NULL DEFAULT 0
 );
 
 -- Veteran-bonus thresholds (CS_VETERAN_REQ reads top 3 rows).
@@ -322,6 +365,28 @@ DROP TABLE IF EXISTS "TBOWPLAYERTABLE" CASCADE;
 CREATE TABLE "TBOWPLAYERTABLE" (
     "dwCharID" INTEGER PRIMARY KEY,
     "dwUserID" INTEGER NOT NULL
+);
+
+-- Kingdom-war / castle-siege eligibility registry. Legacy
+-- TUpdateActiveChar SP (called from TFindServerID after route
+-- resolution) populates this: chars at level >= 80 enrolled in a
+-- PvP-aligned country (bCountry < 2 OR aid_country < 2) get a row;
+-- chars who drop below the threshold get DELETEd. Optional table —
+-- modern silently skips the update if absent.
+DROP TABLE IF EXISTS "TACTIVECHARTABLE" CASCADE;
+CREATE TABLE "TACTIVECHARTABLE" (
+    "dwCharID"  INTEGER PRIMARY KEY,
+    "dateEnter" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Aiding-country override for the PvP eligibility check. A char
+-- whose primary country is non-PvP (>= 2) but who has joined a PvP
+-- faction as an "aid" can still register as active. Optional —
+-- absence falls through to char's primary country.
+DROP TABLE IF EXISTS "TAIDTABLE" CASCADE;
+CREATE TABLE "TAIDTABLE" (
+    "dwCharID" INTEGER PRIMARY KEY,
+    "bCountry" SMALLINT NOT NULL
 );
 
 -- Equipped-item slot for CHARLIST display (subset of TITEMTABLE).

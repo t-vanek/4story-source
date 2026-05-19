@@ -16,11 +16,22 @@ IF OBJECT_ID('TCURRENTUSER', 'U') IS NOT NULL DROP TABLE TCURRENTUSER;
 IF OBJECT_ID('TUSERPROTECTED', 'U') IS NOT NULL DROP TABLE TUSERPROTECTED;
 IF OBJECT_ID('TACCOUNT_PW', 'U') IS NOT NULL DROP TABLE TACCOUNT_PW;
 IF OBJECT_ID('IPBLACKLIST_game', 'U') IS NOT NULL DROP TABLE IPBLACKLIST_game;
+IF OBJECT_ID('TIPAUTHORITY', 'U') IS NOT NULL DROP TABLE TIPAUTHORITY;
+IF OBJECT_ID('USERIPLOG', 'U') IS NOT NULL DROP TABLE USERIPLOG;
 go
 
 CREATE TABLE IPBLACKLIST_game (
     szIP varchar(50) NOT NULL PRIMARY KEY
 );
+go
+
+-- Pattern-match IP banlist. Stored szIP is the LIKE pattern (e.g.
+-- '192.168.%'). See postgres-dev.sql for prose.
+CREATE TABLE TIPAUTHORITY (
+    szIP       varchar(50) NOT NULL PRIMARY KEY,
+    bAuthority tinyint     NOT NULL DEFAULT 0
+);
+CREATE INDEX IX_TIPAUTHORITY_IP_AUTHORITY ON TIPAUTHORITY(szIP, bAuthority);
 go
 
 CREATE TABLE TACCOUNT_PW (
@@ -74,6 +85,17 @@ CREATE TABLE TLOG (
     timeLOGIN   smalldatetime NOT NULL DEFAULT GETDATE(),
     timeLOGOUT  smalldatetime NOT NULL DEFAULT GETDATE()
 );
+go
+
+-- Per-login IP audit. See postgres-dev.sql for prose. Optional —
+-- modern auth_service swallows missing-table errors.
+CREATE TABLE USERIPLOG (
+    IP        varchar(50)   NULL,
+    Username  varchar(50)   NULL,
+    Date_time smalldatetime NULL
+);
+CREATE INDEX IDX_USERIPLOG_Date_time ON USERIPLOG(Date_time);
+CREATE INDEX IDX_USERIPLOG_Username  ON USERIPLOG(Username);
 go
 
 -- PC-Bang IP whitelist + premium tier — see postgres-dev.sql for the

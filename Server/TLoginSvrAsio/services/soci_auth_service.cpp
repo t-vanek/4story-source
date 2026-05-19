@@ -106,7 +106,17 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
 
     try
     {
-        // Step 1 — IP banlist (TLogin SP step 1: IPBLACKLIST_game).
+        // Step 1 — IP banlist. Legacy uses two parallel tables:
+        //   1) `IPBLACKLIST_game` — exact-match IP list, queried inline
+        //      inside TLogin SP (TLogin.sql:80). Operator-managed.
+        //   2) `TIPAUTHORITY`     — LIKE-pattern list, queried by
+        //      CSPCheckIP → TCheckIP SP. Returns code 6 (LR_NOMATCHED)
+        //      which TLogin re-checks via @bIPCheck and early-aborts.
+        //      Patterns like `192.168.%` ban entire subnets.
+        // Modern collapses the two into a single Step 1 — both tables
+        // are queried, either match → IpBanned. TIPAUTHORITY is
+        // optional (table may not be deployed); we swallow the
+        // "missing table" error like the TPCBANG / TUSERPREMIUM path.
         if (!req.client_ip.empty())
         {
             int hit = 0;
@@ -114,8 +124,35 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
                 soci::use(req.client_ip), soci::into(hit);
             if (hit > 0)
             {
-                spdlog::warn("auth: IP {} on banlist", req.client_ip);
+                spdlog::warn("auth: IP {} on banlist (IPBLACKLIST_game)",
+                    req.client_ip);
                 return AuthResult{ .status = AuthStatus::IpBanned };
+            }
+
+            try
+            {
+                // `:ip LIKE "szIP"` — the stored row is the pattern,
+                // the incoming IP is the haystack. Matches legacy
+                // TCheckIP SP semantics exactly. Legacy also has a
+                // commented-out `AND bAuthority = 1` whitelist
+                // exception (TCheckIP.sql:6-8) — dead in legacy too,
+                // so we mirror just the block path.
+                int pattern_hit = 0;
+                sql << "SELECT COUNT(*) FROM \"TIPAUTHORITY\" "
+                       "WHERE :ip LIKE \"szIP\"",
+                    soci::use(req.client_ip), soci::into(pattern_hit);
+                if (pattern_hit > 0)
+                {
+                    spdlog::warn("auth: IP {} on banlist (TIPAUTHORITY pattern)",
+                        req.client_ip);
+                    return AuthResult{ .status = AuthStatus::IpBanned };
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                // TIPAUTHORITY missing or shape mismatch — skip the
+                // pattern check and let the rest of auth proceed.
+                spdlog::debug("auth: TIPAUTHORITY lookup skipped: {}", ex.what());
             }
         }
 
@@ -428,6 +465,30 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         sql << "INSERT INTO \"TLOG\" "
                "(\"dwKEY\", \"dwUserID\") VALUES (:key, :uid)",
             soci::use(session_key), soci::use(user_id);
+
+        // USERIPLOG audit row (legacy TLogin SP line 160). Per-login
+        // IP + username + timestamp. Survives session termination, so
+        // post-mortem "what IP did user X log in from on date D"
+        // queries work. TLOG.szLoginIP doesn't exist in legacy schema —
+        // USERIPLOG is the canonical "historical login → IP" table.
+        // Optional: swallow missing-table errors so deployments that
+        // don't want the audit can drop the DDL.
+        if (!req.client_ip.empty())
+        {
+            try
+            {
+                sql << "INSERT INTO \"USERIPLOG\" "
+                       "(\"IP\", \"Username\", \"Date_time\") "
+                       "VALUES (:ip, :u, CURRENT_TIMESTAMP)",
+                    soci::use(req.client_ip),
+                    soci::use(req.user_id);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("auth: USERIPLOG insert skipped: {}",
+                    ex.what());
+            }
+        }
 
         // Step 7 — terms-of-service / first-login agreement check.
         // Legacy TLogin SP final block: if TUSERINFOTABLE has no row for

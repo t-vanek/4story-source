@@ -74,6 +74,22 @@ void SeedFixtures(soci::session& sql, const std::string& prefix)
         soci::use(like);
     sql << "DELETE FROM \"IPBLACKLIST_game\" WHERE \"szIP\" LIKE :p",
         soci::use(like);
+    // Best-effort: TIPAUTHORITY may not exist on every deploy (modern
+    // treats it as optional). Wrap so prefix cleanup doesn't abort the
+    // whole seed when the column / table is missing.
+    try
+    {
+        sql << "DELETE FROM \"TIPAUTHORITY\" WHERE \"szIP\" LIKE :p",
+            soci::use(like);
+    }
+    catch (const std::exception&) { /* swallow */ }
+    // Same for USERIPLOG — optional audit table.
+    try
+    {
+        sql << "DELETE FROM \"USERIPLOG\" WHERE \"Username\" LIKE :p",
+            soci::use(like);
+    }
+    catch (const std::exception&) { /* swallow */ }
 
     // User 1: alice — clean, valid credentials.
     sql << "INSERT INTO \"TACCOUNT_PW\" (\"dwUserID\", \"szUserID\", \"szPasswd\") "
@@ -92,6 +108,18 @@ void SeedFixtures(soci::session& sql, const std::string& prefix)
     // IP block fixture.
     sql << "INSERT INTO \"IPBLACKLIST_game\" (\"szIP\") VALUES (:ip)",
         soci::use(ip_blocked);
+
+    // TIPAUTHORITY pattern fixture — wildcard-banned IP range. Best-
+    // effort: if the optional table isn't deployed we just skip the
+    // companion test below.
+    try
+    {
+        const std::string pattern = prefix + "9.%";
+        sql << "INSERT INTO \"TIPAUTHORITY\" (\"szIP\", \"bAuthority\") "
+               "VALUES (:p, 0)",
+            soci::use(pattern);
+    }
+    catch (const std::exception&) { /* swallow */ }
 }
 
 void RunTests(fourstory::db::Backend backend, const std::string& conn)
@@ -128,6 +156,26 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
             "alice + correct password → Success");
         Check(r.user_id == 1000001, "alice user_id matches seeded row");
         Check(r.session_key != 0, "session_key populated");
+
+        // USERIPLOG row recorded for post-mortem audit (legacy TLogin
+        // SP line 160). Best-effort: skip the assertion if the
+        // optional table isn't deployed.
+        try
+        {
+            auto lease = pool.Acquire();
+            int hits = 0;
+            *lease << "SELECT COUNT(*) FROM \"USERIPLOG\" "
+                      "WHERE \"Username\" = :u AND \"IP\" = :ip",
+                soci::use(req.user_id),
+                soci::use(req.client_ip),
+                soci::into(hits);
+            Check(hits >= 1,
+                "Successful login → USERIPLOG row recorded");
+        }
+        catch (const std::exception&)
+        {
+            std::printf("  SKIP  USERIPLOG audit check — table not deployed\n");
+        }
     }
 
     // 2. Wrong password.
@@ -167,7 +215,7 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
         Check(r.user_id == 1000002, "ban result carries user_id");
     }
 
-    // 5. IP banlist.
+    // 5. IP banlist (IPBLACKLIST_game exact match).
     {
         AuthRequest req{
             .user_id = prefix + "alice",
@@ -176,7 +224,56 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
         };
         const auto r = svc.Authenticate(req);
         Check(r.status == AuthStatus::IpBanned,
-            "banned IP → IpBanned (precedes user lookup)");
+            "IPBLACKLIST_game exact match → IpBanned");
+    }
+
+    // 5b. TIPAUTHORITY LIKE-pattern banlist. Seed pattern is
+    // `<prefix>9.%`; client_ip below matches that pattern. Mirrors
+    // legacy CSPCheckIP / TCheckIP SP semantics. Best-effort: if the
+    // table isn't deployed, the seeding step swallowed silently and
+    // this test would fail-open (status != IpBanned). Detect by
+    // checking the row landed before asserting.
+    {
+        bool seeded = false;
+        try
+        {
+            auto lease = pool.Acquire();
+            const std::string pattern = prefix + "9.%";
+            int hit = 0;
+            *lease << "SELECT COUNT(*) FROM \"TIPAUTHORITY\" "
+                      "WHERE \"szIP\" = :p",
+                soci::use(pattern), soci::into(hit);
+            seeded = (hit > 0);
+        }
+        catch (const std::exception&) { /* table missing — skip */ }
+
+        if (seeded)
+        {
+            AuthRequest req{
+                .user_id = prefix + "alice",
+                .password = "hunter2",
+                .client_ip = prefix + "9.42.42.42",
+            };
+            const auto r = svc.Authenticate(req);
+            Check(r.status == AuthStatus::IpBanned,
+                "TIPAUTHORITY pattern match → IpBanned");
+
+            // Negative: an IP outside the pattern should NOT be banned
+            // by TIPAUTHORITY (would still need to bypass everything
+            // else to reach Success — we just check it's not IpBanned).
+            AuthRequest req_ok{
+                .user_id = prefix + "alice",
+                .password = "hunter2",
+                .client_ip = prefix + "8.42.42.42",
+            };
+            const auto r_ok = svc.Authenticate(req_ok);
+            Check(r_ok.status != AuthStatus::IpBanned,
+                "TIPAUTHORITY non-matching IP → not IpBanned");
+        }
+        else
+        {
+            std::printf("  SKIP  TIPAUTHORITY test — table not deployed\n");
+        }
     }
 
     // 6. Duplicate-session cleanup. Alice already has a live row from
@@ -233,6 +330,18 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
         const std::string cleanup_like = prefix + "%";
         sql << "DELETE FROM \"IPBLACKLIST_game\" WHERE \"szIP\" LIKE :p",
             soci::use(cleanup_like);
+        try
+        {
+            sql << "DELETE FROM \"TIPAUTHORITY\" WHERE \"szIP\" LIKE :p",
+                soci::use(cleanup_like);
+        }
+        catch (const std::exception&) { /* optional table */ }
+        try
+        {
+            sql << "DELETE FROM \"USERIPLOG\" WHERE \"Username\" LIKE :p",
+                soci::use(cleanup_like);
+        }
+        catch (const std::exception&) { /* optional table */ }
     }
     catch (const std::exception& ex)
     {

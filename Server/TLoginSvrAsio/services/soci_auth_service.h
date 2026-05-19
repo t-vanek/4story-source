@@ -1,11 +1,17 @@
 #pragma once
 
 // SOCI-backed IAuthService. Talks to:
-//   IPBLACKLIST_game   — IP banlist (CSPCheckIP equivalent)
+//   IPBLACKLIST_game   — IP banlist, exact match (inlined inside legacy
+//                        TLogin SP — TLogin.sql:80)
+//   TIPAUTHORITY       — IP banlist, LIKE-pattern match (legacy
+//                        CSPCheckIP / TCheckIP SP). Optional table —
+//                        modern silently skips if missing.
 //   TACCOUNT_PW        — credentials (CSPLogin's auth check)
 //   TUSERPROTECTED     — user-level bans (CSPLogin's ban check)
 //   TCURRENTUSER       — live-session marker (LR_DUPLICATE detection)
 //   TLOG               — audit log insert on success
+//   USERIPLOG          — per-login IP audit, persists across logout
+//                        (legacy TLogin SP line 160). Optional table.
 //
 // Order matches legacy TLogin SP:
 //   1. IP banned          → AuthStatus::IpBanned (LR_IPBLOCK)

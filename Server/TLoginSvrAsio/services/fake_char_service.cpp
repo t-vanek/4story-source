@@ -167,4 +167,22 @@ std::int32_t FakeCharService::GetBrCharId(std::int32_t user_id)
     return 0;
 }
 
+void FakeCharService::SetBowChar(std::int32_t user_id, std::int32_t char_id)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (char_id == 0)
+        m_bow_user_to_char.erase(user_id);
+    else
+        m_bow_user_to_char[user_id] = char_id;
+}
+
+std::int32_t FakeCharService::GetBowCharId(std::int32_t user_id)
+{
+    if (user_id == 0) return 0;
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_bow_user_to_char.find(user_id); it != m_bow_user_to_char.end())
+        return it->second;
+    return 0;
+}
+
 } // namespace tloginsvr::services

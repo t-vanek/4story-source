@@ -45,11 +45,14 @@ public:
     // Seed for tests / dev. Overwrites all three slots.
     void SetVeteranLevels(VeteranLevels levels) { m_veteran_levels = levels; }
 
-    // Test seed for the BR shard map: user_id → char_id. Defaults
-    // empty so GetBrCharId returns 0 unless the test wires it.
+    // Test seed for the BR/BOW shard maps: user_id → char_id.
+    // Default empty so GetBrCharId / GetBowCharId return 0 unless
+    // the test wires them.
     void SetBrChar(std::int32_t user_id, std::int32_t char_id);
+    void SetBowChar(std::int32_t user_id, std::int32_t char_id);
 
     std::int32_t GetBrCharId(std::int32_t user_id) override;
+    std::int32_t GetBowCharId(std::int32_t user_id) override;
 
 private:
     // Single composite key — (user_id, group_id) bundled in a 64-bit
@@ -67,6 +70,7 @@ private:
     std::unordered_map<std::string, std::int32_t> m_name_to_char_id;
     VeteranLevels      m_veteran_levels{};
     std::unordered_map<std::int32_t, std::int32_t> m_br_user_to_char;
+    std::unordered_map<std::int32_t, std::int32_t> m_bow_user_to_char;
 };
 
 } // namespace tloginsvr::services

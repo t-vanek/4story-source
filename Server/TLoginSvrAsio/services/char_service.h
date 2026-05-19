@@ -171,12 +171,20 @@ public:
     // can show the available level-boost options.
     virtual VeteranLevels GetVeteranLevels() const = 0;
 
-    // BR/BOW shard membership lookup. Returns the dwCharID of the
-    // user's enrolled BR (or BOW) char, if any. Used by the lobby
+    // BR/BOW shard membership lookups. Return the dwCharID of the
+    // user's enrolled BR or BOW char, if any. Used by the lobby
     // CHARLIST flow to send CS_BOWPLAYERNOTIFY_ACK with the matching
     // slot so the client can highlight the shard char in the UI.
-    // Returns 0 when the user has no BR/BOW char or the lookup fails.
+    //
+    // Legacy CSHandler.cpp:617-635 queries BOW first; if BOW returns
+    // 0 it falls through to BR. The handler should mirror that order
+    // so the user's primary shard wins when they're enrolled in both.
+    //
+    // Returns 0 when the user has no enrolled char or the lookup
+    // fails (table missing, DB error). Modern treats both tables as
+    // optional — absence is silently downgraded to 0.
     virtual std::int32_t GetBrCharId(std::int32_t user_id) = 0;
+    virtual std::int32_t GetBowCharId(std::int32_t user_id) = 0;
 };
 
 } // namespace tloginsvr::services

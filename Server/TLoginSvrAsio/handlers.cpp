@@ -778,23 +778,33 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CHARLIST_ACK),
         std::span<const std::byte>(p.bytes.data(), p.bytes.size()));
 
-    // CS_BOWPLAYERNOTIFY_ACK trailing send — legacy CSHandler.cpp:763-777
-    // (DEF_UDPLOG branch). If the user has a BR (or BOW) char in the
-    // enrollment table AND that char is in the just-sent list, send a
-    // one-byte ack with the slot so the client can highlight it as
-    // "your BR character" in the UI.
+    // CS_BOWPLAYERNOTIFY_ACK trailing send — legacy CSHandler.cpp:617-635
+    // + 766-776. Lookup order matters: legacy queries BOW first, falls
+    // through to BR only when BOW returns 0. A user enrolled in both
+    // gets the BOW slot highlighted (BOW is the primary shard). The
+    // single notify packet covers both — the client uses it as a
+    // generic "shard char" indicator regardless of which table it
+    // came from.
     if (char_service != nullptr && userId != 0)
     {
-        const std::int32_t br_char_id = char_service->GetBrCharId(userId);
-        if (br_char_id != 0)
+        std::int32_t shard_char_id = char_service->GetBowCharId(userId);
+        const char* shard_kind = "bow";
+        if (shard_char_id == 0)
+        {
+            shard_char_id = char_service->GetBrCharId(userId);
+            shard_kind = "br";
+        }
+        if (shard_char_id != 0)
         {
             for (const auto& c : chars)
             {
-                if (c.char_id == br_char_id)
+                if (c.char_id == shard_char_id)
                 {
                     std::byte notify[1] = { static_cast<std::byte>(c.slot) };
-                    spdlog::info("CS_BOWPLAYERNOTIFY_ACK user={} br_char={} slot={}",
-                        userId, br_char_id, static_cast<int>(c.slot));
+                    spdlog::info("CS_BOWPLAYERNOTIFY_ACK user={} "
+                                 "{}_char={} slot={}",
+                        userId, shard_kind, shard_char_id,
+                        static_cast<int>(c.slot));
                     co_await sref.SendPacket(
                         tnetlib::protocol::ToUint16(
                             tnetlib::protocol::MessageId::CS_BOWPLAYERNOTIFY_ACK),

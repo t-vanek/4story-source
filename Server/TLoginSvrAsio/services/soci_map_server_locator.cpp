@@ -6,7 +6,10 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace tloginsvr::services {
 
@@ -54,6 +57,189 @@ bool IsInShard(soci::session& sql,
     return hits > 0;
 }
 
+// Round-robin IP picker. Port of legacy TRoute SP (TRoute.sql:48-71):
+//
+//   1. Count active TIPADDR rows for the machine.
+//   2. Read TMACHINE.bRouteID (defaults to 0 if no row).
+//   3. Advance the counter modulo count, 1-indexed
+//      (`new = (cur % count) + 1`).
+//   4. Pick the n-th active IP (sorted by szIPAddr — legacy uses
+//      cursor FETCH ABSOLUTE which iterates in the implementation-
+//      defined index order; sorting by szIPAddr gives stable,
+//      deterministic rotation across the active IPs).
+//   5. UPSERT TMACHINE.bRouteID with the new value.
+//
+// Best-effort throughout: TMACHINE is optional in modern, and a
+// missing row just means the counter starts at 0 on every call (we
+// always pick ips[0] — same as the pre-G12 JOIN-only behavior).
+// Step 5 swallows persistence errors so a read-only TMACHINE doesn't
+// break routing.
+std::optional<std::string>
+PickIpForMachine(soci::session& sql, int machine_id)
+{
+    // Step 1+4 combined: fetch all active IPs sorted. SOCI rowset
+    // closes its statement when the destructor runs at end of this
+    // scope, so subsequent queries on the same connection are clean.
+    std::vector<std::string> ips;
+    {
+        soci::rowset<std::string> rs = (sql.prepare <<
+            "SELECT \"szIPAddr\" FROM \"TIPADDR\" "
+            "WHERE \"bMachineID\" = :m AND \"bActive\" = 1 "
+            "ORDER BY \"szIPAddr\"",
+            soci::use(machine_id));
+        for (const auto& ip : rs) ips.push_back(ip);
+    }
+    if (ips.empty()) return std::nullopt;
+
+    // Step 2 — read current counter. Optional table; default 0.
+    int current_route = 0;
+    try
+    {
+        soci::indicator ind = soci::i_null;
+        soci::statement st = (sql.prepare <<
+            "SELECT \"bRouteID\" FROM \"TMACHINE\" WHERE \"bMachineID\" = :m",
+            soci::use(machine_id),
+            soci::into(current_route, ind));
+        st.execute(true);
+        if (!st.got_data() || ind == soci::i_null)
+            current_route = 0;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::debug("map_locator: TMACHINE read skipped (machine_id={}): {}",
+            machine_id, ex.what());
+        current_route = 0;
+    }
+
+    // Step 3 — advance modulo count. 1-indexed to match the legacy
+    // cursor's FETCH ABSOLUTE indexing.
+    const int count = static_cast<int>(ips.size());
+    const int next_route = (current_route % count) + 1;
+
+    // Step 5 — persist new counter (INSERT-or-UPDATE). Race-safe
+    // enough for LB: at worst, two concurrent picks observe the same
+    // current_route and both write next_route, resulting in slightly
+    // uneven distribution. Legacy SP wraps in TRAN TROUTE; modern
+    // skips that — the deviation is bounded by pool_size and
+    // bounded LB skew is fine.
+    try
+    {
+        int row_exists = 0;
+        sql << "SELECT COUNT(*) FROM \"TMACHINE\" WHERE \"bMachineID\" = :m",
+            soci::use(machine_id), soci::into(row_exists);
+        if (row_exists > 0)
+        {
+            sql << "UPDATE \"TMACHINE\" SET \"bRouteID\" = :r "
+                   "WHERE \"bMachineID\" = :m",
+                soci::use(next_route), soci::use(machine_id);
+        }
+        else
+        {
+            sql << "INSERT INTO \"TMACHINE\" "
+                   "(\"bMachineID\", \"szNAME\", \"bRouteID\") "
+                   "VALUES (:m, '', :r)",
+                soci::use(machine_id), soci::use(next_route);
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::debug("map_locator: TMACHINE upsert skipped (machine_id={}): {}",
+            machine_id, ex.what());
+    }
+
+    return ips[next_route - 1];
+}
+
+// Port of legacy TUpdateActiveChar (TGAME) — TFindServerID SP EXECs
+// this after a successful route resolution (TFindServerID.sql:84).
+// Maintains TACTIVECHARTABLE — the "high-level chars eligible for
+// kingdom-war / castle-siege" registry. Eligibility = level >= 80
+// AND (char's country < 2 OR aid country < 2), i.e. enrolled in a
+// PvP-aligned country (legacy NetCode countries 0/1 are the two PvP
+// factions; 2 is the AI / neutral country, 4 is peace).
+//
+// Behavior matches legacy SP exactly:
+//   if row exists in TACTIVECHARTABLE:
+//      eligible → UPDATE dateEnter = now
+//      not eligible → DELETE (char re-rolled / dropped from PvP)
+//   else if eligible AND level >= 80 → INSERT
+//
+// Tables `TAIDTABLE` and `TACTIVECHARTABLE` are optional in modern;
+// each lookup is wrapped so a missing table downgrades to a no-op.
+// `world_sql` is the TGAME session.
+void UpdateActiveChar(soci::session& world_sql, int char_id)
+{
+    int level = 0, country = 0;
+    bool got_char = false;
+    {
+        soci::indicator l_ind = soci::i_null, c_ind = soci::i_null;
+        soci::statement st = (world_sql.prepare <<
+            "SELECT \"bLevel\", \"bCountry\" FROM \"TCHARTABLE\" "
+            "WHERE \"dwCharID\" = :c",
+            soci::use(char_id),
+            soci::into(level, l_ind),
+            soci::into(country, c_ind));
+        st.execute(true);
+        got_char = st.got_data();
+    }
+    if (!got_char) return;
+
+    // TAIDTABLE optional — default aid_country=3 (no aiding) so the
+    // eligibility check falls through to char's primary country.
+    int aid_country = 3;
+    try
+    {
+        soci::indicator a_ind = soci::i_null;
+        soci::statement st = (world_sql.prepare <<
+            "SELECT \"bCountry\" FROM \"TAIDTABLE\" "
+            "WHERE \"dwCharID\" = :c",
+            soci::use(char_id),
+            soci::into(aid_country, a_ind));
+        st.execute(true);
+        if (!st.got_data() || a_ind == soci::i_null) aid_country = 3;
+    }
+    catch (const std::exception&) { aid_country = 3; }
+
+    const bool eligible = (country < 2 || aid_country < 2);
+
+    try
+    {
+        int exists_count = 0;
+        world_sql << "SELECT COUNT(*) FROM \"TACTIVECHARTABLE\" "
+                     "WHERE \"dwCharID\" = :c",
+            soci::use(char_id), soci::into(exists_count);
+
+        if (exists_count > 0)
+        {
+            if (eligible)
+            {
+                world_sql << "UPDATE \"TACTIVECHARTABLE\" SET "
+                             "  \"dateEnter\" = CURRENT_TIMESTAMP "
+                             "WHERE \"dwCharID\" = :c",
+                    soci::use(char_id);
+            }
+            else
+            {
+                world_sql << "DELETE FROM \"TACTIVECHARTABLE\" "
+                             "WHERE \"dwCharID\" = :c",
+                    soci::use(char_id);
+            }
+        }
+        else if (level >= 80 && eligible)
+        {
+            world_sql << "INSERT INTO \"TACTIVECHARTABLE\" "
+                         "(\"dwCharID\", \"dateEnter\") "
+                         "VALUES (:c, CURRENT_TIMESTAMP)",
+                soci::use(char_id);
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::debug("map_locator: TACTIVECHARTABLE update skipped "
+                      "(char_id={}): {}", char_id, ex.what());
+    }
+}
+
 // Port of TFindServerID (Server/TLoginSvr DB plan, TGAME.dbo.TFindServerID).
 // Resolves the Map server hosting a character's current map zone.
 //
@@ -61,16 +247,14 @@ bool IsInShard(soci::session& sql,
 //   2. Compute spatial wUnitID = trunc(fPosZ/1024)*256 + trunc(fPosX/1024)
 //   3. JOIN TSVRCHART + TCHANNELCHART for (group, mapID, unitID, channel) → bServerID
 //   4. If no row, fall back to TSPAWNPOSCHART by wSpawnID — char is in a
-//      zone with no server; the legacy SP repositions them to the spawn
-//      point first.
+//      zone with no server; reposition them to the spawn point and
+//      stamp the new (wMapID, fPosX, fPosZ) onto TCHARTABLE so the
+//      legacy map server (frozen — doesn't auto-correct stale
+//      positions on EnterMap) gets a coherent char row. Only update
+//      after the spawn-side server lookup succeeds, matching legacy
+//      TFindServerID SP semantics (UPDATE inside the same IF block
+//      that has the second SELECT).
 //   5. Return resolved bServerID, or nullopt if every lookup misses.
-//
-// Step 4's "stamp wMapID + fPosX/fPosZ on the char row" side-effect from
-// the legacy SP is intentionally NOT replicated — that's gameplay state
-// the Map server owns; the legacy bundled it into the routing SP to
-// avoid an extra DB hit, but in our split Map server handles
-// repositioning on EnterMap, and the login server has no business
-// mutating the char row.
 std::optional<int> FindServerForChar(soci::session& sql,
                                      int char_id,
                                      int group_id,
@@ -155,7 +339,36 @@ std::optional<int> FindServerForChar(soci::session& sql,
     }
     if (!got_spawn) return std::nullopt;
     unit_id = unit_id_for(spawn_x, spawn_z);
-    return lookup_at(spawn_map, unit_id);
+    auto resolved = lookup_at(spawn_map, unit_id);
+    if (!resolved) return std::nullopt;
+
+    // Persist the corrected position so the next CS_START_REQ skips
+    // the fallback path (and the legacy map server reads a coherent
+    // wMapID + position from TCHARTABLE when the client connects).
+    // Legacy TFindServerID SP does this inline (TFindServerID.sql:81).
+    // Best-effort: a stale position is recoverable on the next login;
+    // an UPDATE failure shouldn't break routing for this attempt.
+    try
+    {
+        sql << "UPDATE \"TCHARTABLE\" SET "
+               "  \"wMapID\" = :m, "
+               "  \"fPosX\"  = :x, "
+               "  \"fPosY\"  = 0, "
+               "  \"fPosZ\"  = :z "
+               "WHERE \"dwCharID\" = :c",
+            soci::use(spawn_map),
+            soci::use(spawn_x),
+            soci::use(spawn_z),
+            soci::use(char_id);
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::warn("map_locator: spawn-respawn UPDATE TCHARTABLE "
+                     "char_id={} failed ({}) — routing still succeeded, "
+                     "next login will re-enter fallback path",
+            char_id, ex.what());
+    }
+    return resolved;
 }
 
 } // namespace
@@ -229,54 +442,44 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
 
         int port = 0;
         int server_id = 0;
-        std::string ip;
-        soci::indicator ip_ind = soci::i_null;
+        int machine_id = 0;
         bool got_row = false;
         // Dialect: PG/SQLite use trailing LIMIT 1, MSSQL uses TOP 1
         // immediately after SELECT.
         const bool is_mssql = (m_pool.GetBackend() == fourstory::db::Backend::Odbc);
 
-        // Two query shapes per dialect — with and without the shard-id
-        // filter. The shard path pins server_id; default path takes
-        // the first map server in the group (the per-character routing
-        // currently isn't wired, see header doc).
+        // Step 1 — find the TSERVER row matching the filter. Two
+        // shapes (shard / default) × two dialects (MSSQL / PG). The
+        // shard path pins server_id; the default path takes the first
+        // map server in the group ordered by bServerID. We pull
+        // bMachineID here so Step 2 can rotate across that machine's
+        // active IPs (TIPADDR rows) via the TMACHINE round-robin
+        // counter — see PickIpForMachine.
         const char* query;
         if (resolved_server_id.has_value())
         {
             query = is_mssql
-                ? "SELECT TOP 1 s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
-                  "FROM \"TSERVER\" s "
-                  "JOIN \"TIPADDR\" i "
-                  "  ON i.\"bMachineID\" = s.\"bMachineID\" "
-                  " AND i.\"bActive\" = 1 "
-                  "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
-                  "  AND s.\"bServerID\" = :sid"
-                : "SELECT s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
-                  "FROM \"TSERVER\" s "
-                  "JOIN \"TIPADDR\" i "
-                  "  ON i.\"bMachineID\" = s.\"bMachineID\" "
-                  " AND i.\"bActive\" = 1 "
-                  "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
-                  "  AND s.\"bServerID\" = :sid "
+                ? "SELECT TOP 1 \"wPort\", \"bServerID\", \"bMachineID\" "
+                  "FROM \"TSERVER\" "
+                  "WHERE \"bGroupID\" = :g AND \"bType\" = :t "
+                  "  AND \"bServerID\" = :sid"
+                : "SELECT \"wPort\", \"bServerID\", \"bMachineID\" "
+                  "FROM \"TSERVER\" "
+                  "WHERE \"bGroupID\" = :g AND \"bType\" = :t "
+                  "  AND \"bServerID\" = :sid "
                   "LIMIT 1";
         }
         else
         {
             query = is_mssql
-                ? "SELECT TOP 1 s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
-                  "FROM \"TSERVER\" s "
-                  "JOIN \"TIPADDR\" i "
-                  "  ON i.\"bMachineID\" = s.\"bMachineID\" "
-                  " AND i.\"bActive\" = 1 "
-                  "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
-                  "ORDER BY s.\"bServerID\""
-                : "SELECT s.\"wPort\", s.\"bServerID\", i.\"szIPAddr\" "
-                  "FROM \"TSERVER\" s "
-                  "JOIN \"TIPADDR\" i "
-                  "  ON i.\"bMachineID\" = s.\"bMachineID\" "
-                  " AND i.\"bActive\" = 1 "
-                  "WHERE s.\"bGroupID\" = :g AND s.\"bType\" = :t "
-                  "ORDER BY s.\"bServerID\" "
+                ? "SELECT TOP 1 \"wPort\", \"bServerID\", \"bMachineID\" "
+                  "FROM \"TSERVER\" "
+                  "WHERE \"bGroupID\" = :g AND \"bType\" = :t "
+                  "ORDER BY \"bServerID\""
+                : "SELECT \"wPort\", \"bServerID\", \"bMachineID\" "
+                  "FROM \"TSERVER\" "
+                  "WHERE \"bGroupID\" = :g AND \"bType\" = :t "
+                  "ORDER BY \"bServerID\" "
                   "LIMIT 1";
         }
         {
@@ -291,17 +494,17 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
                     soci::use(shard_sid),
                     soci::into(port),
                     soci::into(server_id),
-                    soci::into(ip, ip_ind))
+                    soci::into(machine_id))
                 : (sql.prepare << query,
                     soci::use(static_cast<int>(group_id)),
                     soci::use(kServerTypeMap),
                     soci::into(port),
                     soci::into(server_id),
-                    soci::into(ip, ip_ind));
+                    soci::into(machine_id));
             st.execute(true);
             got_row = st.got_data();
         }
-        if (!got_row || ip_ind == soci::i_null)
+        if (!got_row)
         {
             if (resolved_server_id.has_value())
             {
@@ -312,6 +515,22 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
             }
             return std::nullopt;
         }
+
+        // Step 2 — pick a rotating IP for the resolved machine.
+        // Matches legacy TRoute SP (TRoute.sql:48-71): count active IPs,
+        // load TMACHINE.bRouteID, advance modulo count, pick the n-th
+        // IP, persist the new counter. Multi-NIC machines get LB
+        // across all active IPs; single-IP machines always return
+        // that one IP (cycle length 1).
+        const auto picked = PickIpForMachine(sql, machine_id);
+        if (!picked)
+        {
+            spdlog::warn("map_locator: group={} server_id={} machine_id={} "
+                         "has no active TIPADDR rows",
+                static_cast<int>(group_id), server_id, machine_id);
+            return std::nullopt;
+        }
+        const std::string& ip = *picked;
 
         const auto octets = ParseIPv4(ip);
         if (!octets)
@@ -326,6 +545,60 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
         ep.ipv4      = *octets;
         ep.port      = static_cast<std::uint16_t>(port);
         ep.server_id = static_cast<std::uint8_t>(server_id);
+
+        // Post-route side effects — legacy TFindServerID SP EXECs a
+        // chain of helpers after the route is resolved
+        // (TFindServerID.sql:84-97). Modern ports the in-scope ones:
+        //
+        //   * TUpdateEnterLuckyDate — stamps TCURRENTUSER.dEnterDate
+        //     + bLuckyNumber. Login-server scope (TGLOBAL write).
+        //   * TUpdateActiveChar — maintains TACTIVECHARTABLE for
+        //     kingdom-war eligibility. World-server-adjacent but
+        //     wired here so the registry stays in sync with logins.
+        //
+        // NOT ported (out of scope):
+        //   * TScammingPost — in-game post / GM messaging.
+        //   * TChangedPetSystemToMountSystem — empty SP body in
+        //     legacy (one-time migration, no-op now).
+
+        // TUpdateEnterLuckyDate. Lucky number: legacy uses
+        // `CAST(RAND()*100 AS TINYINT)`, we approximate with
+        // `std::rand() % 100`. Best-effort.
+        if (user_id != 0)
+        {
+            try
+            {
+                const int lucky = std::rand() % 100;
+                sql << "UPDATE \"TCURRENTUSER\" SET "
+                       "  \"dEnterDate\"   = CURRENT_TIMESTAMP, "
+                       "  \"bLuckyNumber\" = :n "
+                       "WHERE \"dwUserID\" = :u",
+                    soci::use(lucky), soci::use(user_id);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("map_locator: enter-date stamp skipped "
+                              "(uid={}): {}", user_id, ex.what());
+            }
+        }
+
+        // TUpdateActiveChar — runs on the world pool against
+        // TCHARTABLE / TAIDTABLE / TACTIVECHARTABLE. Only meaningful
+        // when char_id != 0 (group-list lookups have no char yet).
+        if (m_world != nullptr && char_id != 0)
+        {
+            try
+            {
+                auto wlease = m_world->Acquire();
+                UpdateActiveChar(*wlease, char_id);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("map_locator: UpdateActiveChar skipped "
+                              "(char_id={}): {}", char_id, ex.what());
+            }
+        }
+
         return ep;
     }
     catch (const std::exception& ex)

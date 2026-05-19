@@ -38,6 +38,14 @@ void WipeFixtures(soci::session& sql,
     for (int m : machine_ids)
     {
         sql << "DELETE FROM \"TIPADDR\" WHERE \"bMachineID\" = :m", soci::use(m);
+        // TMACHINE optional — clear the round-robin counter for our
+        // test machines so each run starts from index 0.
+        try
+        {
+            sql << "DELETE FROM \"TMACHINE\" WHERE \"bMachineID\" = :m",
+                soci::use(m);
+        }
+        catch (const std::exception&) { /* optional table */ }
     }
     for (int u : user_ids)
     {
@@ -59,12 +67,14 @@ void RunTests(const std::string& conn)
     const int group_inactive = base + 1; // map server points at inactive machine
     const int group_other    = base + 2; // only non-map (bType != 4) servers
     const int group_empty    = base + 3; // no rows at all
+    const int group_lb       = base + 4; // multi-IP machine for round-robin test
 
     const int mach_active   = base + 10;
     const int mach_inactive = base + 11;
+    const int mach_lb       = base + 12; // has 2 active IPs
 
-    const std::vector<int> all_groups   = { group_ok, group_inactive, group_other, group_empty };
-    const std::vector<int> all_machines = { mach_active, mach_inactive };
+    const std::vector<int> all_groups   = { group_ok, group_inactive, group_other, group_empty, group_lb };
+    const std::vector<int> all_machines = { mach_active, mach_inactive, mach_lb };
 
     // Test users for BR/BOW shard scenarios.
     const int user_normal = 5000000 + (::getpid() % 1000);
@@ -91,6 +101,25 @@ void RunTests(const std::string& conn)
         sql << "INSERT INTO \"TIPADDR\" (\"bMachineID\", \"szIPAddr\", \"bActive\") "
                "VALUES (:m, :ip, 0)",
             soci::use(mach_inactive), soci::use(ip_inactive);
+
+        // mach_lb: 2 active IPs for round-robin test, sorted as
+        // 10.20.30.71 / .72 so the rotation order is deterministic.
+        // Plus one inactive IP that should be ignored by the picker.
+        sql << "INSERT INTO \"TIPADDR\" (\"bMachineID\", \"szIPAddr\", \"bActive\") "
+               "VALUES (:m, '10.20.30.71', 1)",
+            soci::use(mach_lb);
+        sql << "INSERT INTO \"TIPADDR\" (\"bMachineID\", \"szIPAddr\", \"bActive\") "
+               "VALUES (:m, '10.20.30.72', 1)",
+            soci::use(mach_lb);
+        sql << "INSERT INTO \"TIPADDR\" (\"bMachineID\", \"szIPAddr\", \"bActive\") "
+               "VALUES (:m, '10.20.30.73', 0)",
+            soci::use(mach_lb);
+
+        // group_lb: one server pointing to the multi-IP machine.
+        sql << "INSERT INTO \"TSERVER\" "
+               "(\"bGroupID\", \"bServerID\", \"bType\", \"bMachineID\", \"wPort\") "
+               "VALUES (:g, 1, 4, :m, 5070)",
+            soci::use(group_lb), soci::use(mach_lb);
 
         // group_ok: server_id=1 (default), 50 (BR shard), 30 (BOW shard).
         sql << "INSERT INTO \"TSERVER\" "
@@ -191,6 +220,46 @@ void RunTests(const std::string& conn)
             "group with no SVRGRP_MAPSVR row → nullopt");
     }
 
+    // 6b. Round-robin LB across multiple active IPs (G12). Machine
+    //     mach_lb has 2 active IPs (.71, .72) sorted and 1 inactive
+    //     (.73 — must be skipped). Three successive lookups for the
+    //     same (group, char) should rotate: .71 → .72 → .71. Counter
+    //     persistence verified via TMACHINE.bRouteID.
+    {
+        const std::uint8_t glb = static_cast<std::uint8_t>(group_lb);
+        const auto ep1 = svc.Lookup(user_normal, glb, 0, char_normal);
+        const auto ep2 = svc.Lookup(user_normal, glb, 0, char_normal);
+        const auto ep3 = svc.Lookup(user_normal, glb, 0, char_normal);
+        Check(ep1.has_value() && ep2.has_value() && ep3.has_value(),
+            "LB: three lookups all return endpoints");
+        if (ep1 && ep2 && ep3)
+        {
+            // Inactive IP must never appear.
+            const auto is_active = [](const auto& ep) {
+                return ep->ipv4 == std::array<std::uint8_t,4>{10,20,30,71}
+                    || ep->ipv4 == std::array<std::uint8_t,4>{10,20,30,72};
+            };
+            Check(is_active(ep1) && is_active(ep2) && is_active(ep3),
+                "LB: inactive .73 IP never picked");
+
+            // Sorted order: .71 first, then .72, then back to .71.
+            Check(ep1->ipv4[3] == 71, "LB: first lookup picks .71");
+            Check(ep2->ipv4[3] == 72, "LB: second lookup picks .72");
+            Check(ep3->ipv4[3] == 71, "LB: third lookup cycles back to .71");
+        }
+
+        // Counter persisted in TMACHINE — verify the upsert landed.
+        {
+            auto lease = pool.Acquire();
+            int route_id = 0;
+            *lease << "SELECT \"bRouteID\" FROM \"TMACHINE\" "
+                      "WHERE \"bMachineID\" = :m",
+                soci::use(mach_lb), soci::into(route_id);
+            Check(route_id == 1,
+                "LB: TMACHINE.bRouteID persisted after rotation cycle");
+        }
+    }
+
     // 7. Empty group → no endpoint.
     {
         const auto ep = svc.Lookup(
@@ -262,6 +331,119 @@ void RunTests(const std::string& conn)
         soci::session& sql = *lease;
         sql << "DELETE FROM \"TCHANNEL\" WHERE \"bGroupID\" = :g", soci::use(test_gid);
         sql << "DELETE FROM \"TGROUP\" WHERE \"bGroupID\" = :g", soci::use(test_gid);
+    }
+
+    // 9. Post-route side effects (G5). Lookup() runs two helpers
+    //    after resolving the endpoint:
+    //      a) TUpdateEnterLuckyDate equivalent — UPDATE TCURRENTUSER
+    //         SET dEnterDate=now, bLuckyNumber=rand.
+    //      b) TUpdateActiveChar equivalent — INSERT into
+    //         TACTIVECHARTABLE for level>=80 PvP-country chars.
+    //
+    //    Both tables are optional in modern; the helpers swallow
+    //    missing-table errors. This test seeds the required rows
+    //    and asserts the writes landed. If the optional tables
+    //    aren't deployed, the inserts SKIP rather than fail.
+    {
+        const int side_uid  = user_normal + 100;
+        const int side_char = char_normal + 100;
+        const std::string old_ts = "1970-01-02 00:00:00";
+
+        // Pre-clean.
+        {
+            auto lease = pool.Acquire();
+            soci::session& sql = *lease;
+            sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\" = :u",
+                soci::use(side_uid);
+            sql << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
+                soci::use(side_char);
+            try
+            {
+                sql << "DELETE FROM \"TACTIVECHARTABLE\" "
+                       "WHERE \"dwCharID\" = :c",
+                    soci::use(side_char);
+            }
+            catch (const std::exception&) { /* optional */ }
+        }
+
+        // Seed TCURRENTUSER with explicit old dEnterDate so we can
+        // verify the stamp moved past it.
+        {
+            auto lease = pool.Acquire();
+            *lease << "INSERT INTO \"TCURRENTUSER\" "
+                      "(\"dwUserID\", \"dEnterDate\", \"bLuckyNumber\", "
+                      " \"szLoginIP\") "
+                      "VALUES (:u, :t, 99, '127.0.0.1')",
+                soci::use(side_uid), soci::use(old_ts);
+        }
+
+        // Seed TCHARTABLE with high-level PvP-country char so
+        // UpdateActiveChar's INSERT branch fires.
+        {
+            auto lease = pool.Acquire();
+            soci::session& sql = *lease;
+            const std::string cname = "LbSide" + std::to_string(::getpid());
+            sql << "INSERT INTO \"TCHARTABLE\" "
+                   "(\"dwCharID\", \"dwUserID\", \"bSlot\", \"szNAME\", "
+                   " \"bClass\", \"bRace\", \"bCountry\", \"bRealSex\", "
+                   " \"bSex\", \"bHair\", \"bFace\", \"bBody\", "
+                   " \"bPants\", \"bHand\", \"bFoot\", \"bLevel\") "
+                   "VALUES (:c, :u, 0, :n, 0, 0, 0, 0, 0, 0, 0, 0, "
+                   " 0, 0, 0, 80)",
+                soci::use(side_char), soci::use(side_uid), soci::use(cname);
+        }
+
+        const auto ep = svc.Lookup(
+            side_uid, static_cast<std::uint8_t>(group_ok), 0, side_char);
+        Check(ep.has_value(), "side-effects: Lookup resolved endpoint");
+
+        // (a) TCURRENTUSER.dEnterDate moved past the seeded 1970 ts.
+        {
+            auto lease = pool.Acquire();
+            int recent_hits = 0;
+            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\" "
+                      "WHERE \"dwUserID\"   = :u "
+                      "  AND \"dEnterDate\" > :t",
+                soci::use(side_uid), soci::use(old_ts),
+                soci::into(recent_hits);
+            Check(recent_hits == 1,
+                "TUpdateEnterLuckyDate: dEnterDate bumped past seed");
+        }
+
+        // (b) TACTIVECHARTABLE row inserted (best-effort — skip
+        //     assert if the optional table isn't deployed).
+        try
+        {
+            auto lease = pool.Acquire();
+            int active_hits = 0;
+            *lease << "SELECT COUNT(*) FROM \"TACTIVECHARTABLE\" "
+                      "WHERE \"dwCharID\" = :c",
+                soci::use(side_char), soci::into(active_hits);
+            Check(active_hits == 1,
+                "TUpdateActiveChar: TACTIVECHARTABLE row inserted "
+                "(level>=80, country<2)");
+        }
+        catch (const std::exception&)
+        {
+            std::printf("  SKIP  TACTIVECHARTABLE check — table not deployed\n");
+        }
+
+        // Cleanup.
+        {
+            auto lease = pool.Acquire();
+            soci::session& sql = *lease;
+            sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\" = :u",
+                soci::use(side_uid);
+            sql << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
+                soci::use(side_char);
+            try
+            {
+                sql << "DELETE FROM \"TACTIVECHARTABLE\" "
+                       "WHERE \"dwCharID\" = :c",
+                    soci::use(side_char);
+            }
+            catch (const std::exception&) { /* optional */ }
+        }
     }
 
     // Cleanup.

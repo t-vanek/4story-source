@@ -334,6 +334,16 @@ CREATE TABLE "TITEMTABLE" (
     "bLevel"        SMALLINT NOT NULL,
     "bCount"        SMALLINT NOT NULL DEFAULT 1,
     "bGradeEffect"  SMALLINT NOT NULL DEFAULT 0,
+    -- Legacy column aliasing (DBAccess.h:607-628): dwTime3 = wColor,
+    -- dwTime4 = bRegGuild. Both repurposed from the original "expiry
+    -- timestamp" columns so the SELECT can pull them without an
+    -- ALTER on the production schema.
+    "dwTime3"       INTEGER  NOT NULL DEFAULT 0,
+    "dwTime4"       INTEGER  NOT NULL DEFAULT 0,
+    -- wCustomTex — custom-texture skin id. Shipped client parses this
+    -- between wColor and bRegGuild in CS_CHARLIST_ACK; SociCharService
+    -- selects it with a fallback for older schemas without the column.
+    "wCustomTex"    SMALLINT NOT NULL DEFAULT 0,
     "wMoggItemID"   SMALLINT NOT NULL DEFAULT 0
 );
 CREATE INDEX "IDX_TITEMTABLE_owner" ON "TITEMTABLE"

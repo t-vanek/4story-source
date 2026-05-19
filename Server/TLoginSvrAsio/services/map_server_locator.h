@@ -51,12 +51,13 @@ enum class GroupStatus : std::uint8_t
 //
 // `has_char` is the wire byte the legacy server fills with
 // `COUNT(DISTINCT TALLCHARTABLE.dwCharID) WHERE dwUserID=:u AND bDelete=0`
-// — i.e. "does this user have a non-deleted character in this world?".
-// The client uses it to decorate the group entry in the lobby UI
-// (highlight slots the user already has a character in). Sent on the
-// wire after `status`. A previous version of this struct mislabeled
-// the byte as a flags/visibility nibble, which made the legacy client
-// always show every group as un-decorated.
+// — i.e. the count of non-deleted characters the user has in this
+// world. The shipped client (TNetHandler.cpp:351) parses it as
+// `m_bCharCnt` BYTE and uses it to decorate the group entry in the
+// lobby UI. Capped at 255 to fit the wire byte; the lobby UI doesn't
+// distinguish above ~3 anyway. A previous version of this struct
+// mislabeled the byte as a flags/visibility nibble, which made the
+// legacy client always show every group as un-decorated.
 //
 // `max_user` (TGROUP.dwMaxUser) drives the per-group cap override:
 // when the user has no character in the group AND the live count hits

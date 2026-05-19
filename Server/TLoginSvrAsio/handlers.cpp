@@ -706,9 +706,9 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
     //     BYTE bSex, bHair, bFace, bBody, bPants, bHand, bFoot,
     //     DWORD dwRegion, dwFame, dwFameColor,
     //     BYTE bHelmetHide, bEquipItemCount,
-    //     per item (10 bytes):
+    //     per item (12 bytes — TNetHandler.cpp:425-440 parser order):
     //       BYTE  bItemID, WORD wItemID, BYTE bLevel, BYTE bGradeEffect,
-    //       WORD wColor, BYTE bRegGuild, WORD wMoggItemID
+    //       WORD wColor, WORD wCustomTex, BYTE bRegGuild, WORD wMoggItemID
     //   }
     ByteAppender p;
     p.U32(0);                                             // dwCheckPoint
@@ -745,6 +745,7 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
             p.U8(it.level);
             p.U8(it.grade_effect);
             p.U16(it.color);
+            p.U16(it.custom_tex);  // shipped client expects this between color and reg_guild
             p.U8(it.reg_guild);
             p.U16(it.mogg_item_id);
         }

@@ -170,33 +170,77 @@ SociCharService::List(std::int32_t user_id, std::uint8_t /*group_id*/)
             const int owner_type   = kOwnerChar;
 
             // Items — column aliasing per legacy DBAccess.h:607-628.
-            // dwTime3 → wColor, dwTime4 → bRegGuild.
+            // dwTime3 → wColor, dwTime4 → bRegGuild. wCustomTex is a
+            // separate column in TITEMTABLE (shipped client parses it
+            // between wColor and bRegGuild — TNetHandler.cpp:438).
+            // The SELECT lists wCustomTex inside an inner try so a
+            // schema without the column gracefully falls back to 0.
             try
             {
-                soci::rowset<soci::row> items = (sql.prepare <<
-                    "SELECT \"bItemID\", \"wItemID\", \"bLevel\", "
-                    "       \"bGradeEffect\", \"dwTime3\", \"dwTime4\", "
-                    "       \"wMoggItemID\" "
-                    "FROM \"TITEMTABLE\" "
-                    "WHERE \"dwOwnerID\" = :c "
-                    "  AND \"bOwnerType\" = :ot "
-                    "  AND \"bStorageType\" = :st "
-                    "  AND \"dwStorageID\" = :sid",
-                    soci::use(char_id),
-                    soci::use(owner_type),
-                    soci::use(storage_type),
-                    soci::use(storage_id));
-                for (const auto& r : items)
+                bool customtex_supported = true;
+                try
                 {
-                    EquipItem it{};
-                    it.item_id      = static_cast<std::uint8_t>(r.get<int>(0));
-                    it.item_kind    = static_cast<std::uint16_t>(r.get<int>(1));
-                    it.level        = static_cast<std::uint8_t>(r.get<int>(2));
-                    it.grade_effect = static_cast<std::uint8_t>(r.get<int>(3));
-                    it.color        = static_cast<std::uint16_t>(r.get<int>(4));
-                    it.reg_guild    = static_cast<std::uint8_t>(r.get<int>(5));
-                    it.mogg_item_id = static_cast<std::uint16_t>(r.get<int>(6));
-                    info.items.push_back(it);
+                    soci::rowset<soci::row> items = (sql.prepare <<
+                        "SELECT \"bItemID\", \"wItemID\", \"bLevel\", "
+                        "       \"bGradeEffect\", \"dwTime3\", \"wCustomTex\", "
+                        "       \"dwTime4\", \"wMoggItemID\" "
+                        "FROM \"TITEMTABLE\" "
+                        "WHERE \"dwOwnerID\" = :c "
+                        "  AND \"bOwnerType\" = :ot "
+                        "  AND \"bStorageType\" = :st "
+                        "  AND \"dwStorageID\" = :sid",
+                        soci::use(char_id),
+                        soci::use(owner_type),
+                        soci::use(storage_type),
+                        soci::use(storage_id));
+                    for (const auto& r : items)
+                    {
+                        EquipItem it{};
+                        it.item_id      = static_cast<std::uint8_t>(r.get<int>(0));
+                        it.item_kind    = static_cast<std::uint16_t>(r.get<int>(1));
+                        it.level        = static_cast<std::uint8_t>(r.get<int>(2));
+                        it.grade_effect = static_cast<std::uint8_t>(r.get<int>(3));
+                        it.color        = static_cast<std::uint16_t>(r.get<int>(4));
+                        it.custom_tex   = static_cast<std::uint16_t>(r.get<int>(5));
+                        it.reg_guild    = static_cast<std::uint8_t>(r.get<int>(6));
+                        it.mogg_item_id = static_cast<std::uint16_t>(r.get<int>(7));
+                        info.items.push_back(it);
+                    }
+                }
+                catch (const std::exception&)
+                {
+                    // Older schema without wCustomTex — retry without
+                    // the column. custom_tex defaults to 0.
+                    customtex_supported = false;
+                }
+                if (!customtex_supported)
+                {
+                    soci::rowset<soci::row> items = (sql.prepare <<
+                        "SELECT \"bItemID\", \"wItemID\", \"bLevel\", "
+                        "       \"bGradeEffect\", \"dwTime3\", \"dwTime4\", "
+                        "       \"wMoggItemID\" "
+                        "FROM \"TITEMTABLE\" "
+                        "WHERE \"dwOwnerID\" = :c "
+                        "  AND \"bOwnerType\" = :ot "
+                        "  AND \"bStorageType\" = :st "
+                        "  AND \"dwStorageID\" = :sid",
+                        soci::use(char_id),
+                        soci::use(owner_type),
+                        soci::use(storage_type),
+                        soci::use(storage_id));
+                    for (const auto& r : items)
+                    {
+                        EquipItem it{};
+                        it.item_id      = static_cast<std::uint8_t>(r.get<int>(0));
+                        it.item_kind    = static_cast<std::uint16_t>(r.get<int>(1));
+                        it.level        = static_cast<std::uint8_t>(r.get<int>(2));
+                        it.grade_effect = static_cast<std::uint8_t>(r.get<int>(3));
+                        it.color        = static_cast<std::uint16_t>(r.get<int>(4));
+                        // custom_tex stays 0 — TITEMTABLE column absent.
+                        it.reg_guild    = static_cast<std::uint8_t>(r.get<int>(5));
+                        it.mogg_item_id = static_cast<std::uint16_t>(r.get<int>(6));
+                        info.items.push_back(it);
+                    }
                 }
             }
             catch (const std::exception& ex)

@@ -424,11 +424,17 @@ SociMapServerLocator::ListGroups(std::int32_t user_id)
             long long haschar = 0;
             try { haschar = r.get<long long>(8); }
             catch (...) { haschar = r.get<int>(8); }
-            info.has_char = haschar > 0 ? std::uint8_t{1} : std::uint8_t{0};
+            // Cap at 255 — the wire byte fits a uint8_t; the lobby UI
+            // doesn't render above ~3 distinct chars per world anyway.
+            info.has_char = static_cast<std::uint8_t>(
+                std::min<long long>(255, std::max<long long>(0, haschar)));
+            // The cap-override branch in ResolveStatus only cares
+            // about the >0 / ==0 distinction, so pass it as a 0/1 flag
+            // there even though we send the full count on the wire.
+            const int has_char_flag = info.has_char > 0 ? 1 : 0;
             info.status   = ResolveStatus(
                 status_raw, static_cast<int>(curcount), busy_th, full_th,
-                static_cast<int>(info.max_user),
-                static_cast<int>(info.has_char));
+                static_cast<int>(info.max_user), has_char_flag);
             out.push_back(std::move(info));
         }
         return out;

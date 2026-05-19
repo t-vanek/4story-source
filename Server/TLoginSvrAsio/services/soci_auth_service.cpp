@@ -374,15 +374,24 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         // and fall back to the duplicate path.
         int session_key = 0;
         soci::indicator key_ind = soci::i_null;
+        // Real MSSQL TCURRENTUSER has 5 extra NOT-NULL/no-default
+        // columns (dwCharID, bGroupID, bChannel, wPort, bLocked) that
+        // PG dev fixture defines with DEFAULT 0. The short INSERT
+        // worked on PG but null-violated on the legacy MSSQL schema —
+        // explicit zeros for all of them keeps both backends happy.
         const char* insert_user_sql = is_mssql
-            ? "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
+            ? "INSERT INTO \"TCURRENTUSER\" "
+              "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+              " \"wPort\", \"bLocked\", \"szLoginIP\") "
               "OUTPUT INSERTED.\"dwKEY\" "
-              "SELECT :uid, :ip "
+              "SELECT :uid, 0, 0, 0, 0, 0, :ip "
               "WHERE NOT EXISTS ("
               "  SELECT 1 FROM \"TCURRENTUSER\" WITH (UPDLOCK, HOLDLOCK) "
               "  WHERE \"dwUserID\" = :uid2)"
-            : "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
-              "SELECT :uid, :ip "
+            : "INSERT INTO \"TCURRENTUSER\" "
+              "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+              " \"wPort\", \"bLocked\", \"szLoginIP\") "
+              "SELECT :uid, 0, 0, 0, 0, 0, :ip "
               "WHERE NOT EXISTS ("
               "  SELECT 1 FROM \"TCURRENTUSER\" "
               "  WHERE \"dwUserID\" = :uid2) "
@@ -462,8 +471,16 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         // Insert audit log row (TLOG). TLOG.dwKEY is NOT identity in the
         // legacy schema — it carries the TCURRENTUSER.dwKEY value so the
         // session and the audit row share a key.
+        // Real MSSQL TLOG has 5 extra NOT-NULL/no-default columns
+        // (dwCharID, bGroupID, bChannel, timeLOGIN, timeLOGOUT) —
+        // PG dev fixture defaults all of them. Insert full shape so
+        // both backends accept the audit row.
         sql << "INSERT INTO \"TLOG\" "
-               "(\"dwKEY\", \"dwUserID\") VALUES (:key, :uid)",
+               "(\"dwKEY\", \"dwUserID\", \"dwCharID\", "
+               " \"bGroupID\", \"bChannel\", "
+               " \"timeLOGIN\", \"timeLOGOUT\") "
+               "VALUES (:key, :uid, 0, 0, 0, "
+               "        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             soci::use(session_key), soci::use(user_id);
 
         // USERIPLOG audit row (legacy TLogin SP line 160). Per-login
@@ -891,13 +908,18 @@ std::uint32_t SociAuthService::CompleteSecurityLogin(std::int32_t user_id,
     {
         const bool is_mssql = (m_pool.GetBackend() == fourstory::db::Backend::Odbc);
         int session_key = 0;
+        // Full NOT-NULL column set matches the legacy MSSQL schema —
+        // see Authenticate() above for the rationale.
         const char* insert_sql = is_mssql
             ? "INSERT INTO \"TCURRENTUSER\" "
-              "(\"dwUserID\", \"szLoginIP\") "
+              "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+              " \"wPort\", \"bLocked\", \"szLoginIP\") "
               "OUTPUT INSERTED.\"dwKEY\" "
-              "VALUES (:uid, :ip)"
+              "VALUES (:uid, 0, 0, 0, 0, 0, :ip)"
             : "INSERT INTO \"TCURRENTUSER\" "
-              "(\"dwUserID\", \"szLoginIP\") VALUES (:uid, :ip) "
+              "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+              " \"wPort\", \"bLocked\", \"szLoginIP\") "
+              "VALUES (:uid, 0, 0, 0, 0, 0, :ip) "
               "RETURNING \"dwKEY\"";
         sql << insert_sql,
             soci::use(user_id), soci::use(client_ip),
@@ -906,7 +928,11 @@ std::uint32_t SociAuthService::CompleteSecurityLogin(std::int32_t user_id,
                "WHERE \"dwUserID\" = :uid",
             soci::use(user_id);
         sql << "INSERT INTO \"TLOG\" "
-               "(\"dwKEY\", \"dwUserID\") VALUES (:key, :uid)",
+               "(\"dwKEY\", \"dwUserID\", \"dwCharID\", "
+               " \"bGroupID\", \"bChannel\", "
+               " \"timeLOGIN\", \"timeLOGOUT\") "
+               "VALUES (:key, :uid, 0, 0, 0, "
+               "        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             soci::use(session_key), soci::use(user_id);
         spdlog::info("auth.CompleteSecurityLogin uid={} ip={} session_key={}",
             user_id, client_ip, session_key);
@@ -978,19 +1004,28 @@ AuthResult SociAuthService::AuthenticateTest(const std::string& client_ip)
         // Insert TCURRENTUSER + TLOG just like a real login so the
         // session has a dwKEY and the disconnect cleanup path works.
         int session_key = 0;
+        // Same full NOT-NULL column shape as the normal Authenticate
+        // path — see notes there.
         const char* insert_user_sql = is_mssql
             ? "INSERT INTO \"TCURRENTUSER\" "
-              "(\"dwUserID\", \"szLoginIP\") "
+              "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+              " \"wPort\", \"bLocked\", \"szLoginIP\") "
               "OUTPUT INSERTED.\"dwKEY\" "
-              "VALUES (:uid, :ip)"
+              "VALUES (:uid, 0, 0, 0, 0, 0, :ip)"
             : "INSERT INTO \"TCURRENTUSER\" "
-              "(\"dwUserID\", \"szLoginIP\") VALUES (:uid, :ip) "
+              "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+              " \"wPort\", \"bLocked\", \"szLoginIP\") "
+              "VALUES (:uid, 0, 0, 0, 0, 0, :ip) "
               "RETURNING \"dwKEY\"";
         sql << insert_user_sql,
             soci::use(test_user_id), soci::use(client_ip),
             soci::into(session_key);
         sql << "INSERT INTO \"TLOG\" "
-               "(\"dwKEY\", \"dwUserID\") VALUES (:k, :u)",
+               "(\"dwKEY\", \"dwUserID\", \"dwCharID\", "
+               " \"bGroupID\", \"bChannel\", "
+               " \"timeLOGIN\", \"timeLOGOUT\") "
+               "VALUES (:k, :u, 0, 0, 0, "
+               "        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             soci::use(session_key), soci::use(test_user_id);
 
         spdlog::info("auth.AuthenticateTest: test_user_id={} session_key={}",

@@ -25,7 +25,12 @@
 
 #include <soci/soci.h>
 
+#if defined(_WIN32)
+#include <process.h>  // _getpid
+#define getpid _getpid
+#else
 #include <unistd.h>
+#endif
 
 #include <cstdio>
 #include <cstdlib>
@@ -49,8 +54,11 @@ void Check(bool ok, const char* label)
 // bound value must outlive the statement. Pass named locals — not
 // `prefix + "%"` temporaries — or the param gets read after the
 // std::string destructor and you see garbage on the wire.
-void SeedFixtures(soci::session& sql, const std::string& prefix)
+void SeedFixtures(soci::session& sql,
+                  const std::string& prefix,
+                  fourstory::db::Backend backend)
 {
+    const bool is_mssql = (backend == fourstory::db::Backend::Odbc);
     const std::string like = prefix + "%";
     const std::string alice = prefix + "alice";
     const std::string bob = prefix + "bob";
@@ -60,7 +68,11 @@ void SeedFixtures(soci::session& sql, const std::string& prefix)
     const int uid_alice = 1000001;
     const int uid_bob = 1000002;
 
-    // Cleanup any prior state for this prefix.
+    // Cleanup any prior state. Two passes: by name prefix (catches
+    // same-PID re-runs) and by the hardcoded uid range
+    // (1000001-1000002 — catches stale rows from older PID runs
+    // that crashed mid-seed before the per-prefix cleanup at end
+    // could fire).
     sql << "DELETE FROM \"TLOG\" WHERE \"dwUserID\" IN ("
            "SELECT \"dwUserID\" FROM \"TACCOUNT_PW\" WHERE \"szUserID\" LIKE :p)",
         soci::use(like);
@@ -72,6 +84,13 @@ void SeedFixtures(soci::session& sql, const std::string& prefix)
         soci::use(like);
     sql << "DELETE FROM \"TACCOUNT_PW\" WHERE \"szUserID\" LIKE :p",
         soci::use(like);
+    // Catch stale rows from crashed runs (no prefix match, but the
+    // hardcoded test uids landed in the DB).
+    sql << "DELETE FROM \"TLOG\"          WHERE \"dwUserID\" IN (1000001, 1000002)";
+    sql << "DELETE FROM \"TCURRENTUSER\"  WHERE \"dwUserID\" IN (1000001, 1000002)";
+    sql << "DELETE FROM \"TUSERPROTECTED\" WHERE \"dwUserID\" IN (1000001, 1000002)";
+    sql << "DELETE FROM \"TUSERINFOTABLE\" WHERE \"dwUserID\" IN (1000001, 1000002)";
+    sql << "DELETE FROM \"TACCOUNT_PW\"   WHERE \"dwUserID\" IN (1000001, 1000002)";
     sql << "DELETE FROM \"IPBLACKLIST_game\" WHERE \"szIP\" LIKE :p",
         soci::use(like);
     // Best-effort: TIPAUTHORITY may not exist on every deploy (modern
@@ -91,18 +110,59 @@ void SeedFixtures(soci::session& sql, const std::string& prefix)
     }
     catch (const std::exception&) { /* swallow */ }
 
-    // User 1: alice — clean, valid credentials.
-    sql << "INSERT INTO \"TACCOUNT_PW\" (\"dwUserID\", \"szUserID\", \"szPasswd\") "
-           "VALUES (:uid, :u, :p)",
-        soci::use(uid_alice), soci::use(alice), soci::use(pw_alice);
+    // Real MSSQL has TACCOUNT_PW.dwUserID as IDENTITY — explicit
+    // INSERT values get rejected with "Cannot insert explicit value
+    // for identity column" unless IDENTITY_INSERT is briefly toggled
+    // ON for this session. PG dev fixture defines dwUserID as a
+    // plain PK with no identity/serial, so the bracket statements
+    // only fire for the ODBC backend.
+    // MSSQL: SET IDENTITY_INSERT must be batched with the INSERT
+    // because the pragma only sticks for the duration of the batch
+    // statement. Issuing it as a separate SOCI statement gets the
+    // SET committed and then "forgotten" before the next INSERT —
+    // SOCI's ODBC binding seems to reset state between sessions.
+    // Combine SET + INSERT + SET-OFF into a single multi-statement
+    // batch per row.
+    auto insert_account = [&](int uid, const std::string& uname,
+                              const std::string& pw) {
+        if (is_mssql)
+        {
+            sql << "SET IDENTITY_INSERT \"TACCOUNT_PW\" ON; "
+                   "INSERT INTO \"TACCOUNT_PW\" "
+                   "(\"dwUserID\", \"szUserID\", \"szPasswd\") "
+                   "VALUES (:uid, :u, :p); "
+                   "SET IDENTITY_INSERT \"TACCOUNT_PW\" OFF;",
+                soci::use(uid), soci::use(uname), soci::use(pw);
+        }
+        else
+        {
+            sql << "INSERT INTO \"TACCOUNT_PW\" "
+                   "(\"dwUserID\", \"szUserID\", \"szPasswd\") "
+                   "VALUES (:uid, :u, :p)",
+                soci::use(uid), soci::use(uname), soci::use(pw);
+        }
+    };
 
-    // User 2: bob — valid creds but flagged in TUSERPROTECTED.
-    sql << "INSERT INTO \"TACCOUNT_PW\" (\"dwUserID\", \"szUserID\", \"szPasswd\") "
-           "VALUES (:uid, :u, :p)",
-        soci::use(uid_bob), soci::use(bob), soci::use(pw_bob);
+    insert_account(uid_alice, alice, pw_alice);
+    insert_account(uid_bob,   bob,   pw_bob);
+
+    // Pre-seed TUSERINFOTABLE so alice's auth doesn't trip the
+    // post-login agreement check (LR_NEEDAGREEMENT). Bob doesn't
+    // need this — his test path stops at the ban check upstream.
+    sql << "INSERT INTO \"TUSERINFOTABLE\" "
+           "(\"dwUserID\", \"bCanCreateCharCount\", \"bAgreement\") "
+           "VALUES (:u, 6, 1)",
+        soci::use(uid_alice);
+    // Real MSSQL TUSERPROTECTED has more NOT-NULL/no-default columns
+    // than PG dev fixture (startTime, szComment, szGMID, sentBanMail).
+    // Set them explicitly so both backends accept the INSERT.
     sql << "INSERT INTO \"TUSERPROTECTED\" "
-           "(\"dwUserID\", \"bBlockType\", \"bEternal\", \"dwDuration\", \"bBlockReason\") "
-           "VALUES (:uid, 1, 1, 0, 1)",
+           "(\"dwUserID\", \"bBlockType\", \"bEternal\", "
+           " \"startTime\", \"dwDuration\", \"bBlockReason\", "
+           " \"szComment\", \"szGMID\", \"sentBanMail\") "
+           "VALUES (:uid, 1, 1, "
+           "        CURRENT_TIMESTAMP, 0, 1, "
+           "        '', '', 0)",
         soci::use(uid_bob);
 
     // IP block fixture.
@@ -136,7 +196,7 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
     // Seed using a dedicated session, then release before the service runs.
     {
         auto lease = pool.Acquire();
-        SeedFixtures(*lease, prefix);
+        SeedFixtures(*lease, prefix, backend);
     }
 
     tloginsvr::services::SociAuthService svc(pool);
@@ -276,8 +336,11 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
         }
     }
 
-    // 6. Duplicate-session cleanup. Alice already has a live row from
-    // test 1; re-auth must succeed (current impl deletes the stale row).
+    // 6. Duplicate-session detection. Alice already has a live row
+    // from test 1; modern's flow (post-G8) is to flag the stale row
+    // for kick and return Duplicate so the handler can route to the
+    // duplicate-kick ack. The terminator clears the row
+    // asynchronously after the prior session disconnects.
     {
         AuthRequest req{
             .user_id = prefix + "alice",
@@ -285,31 +348,50 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
             .client_ip = "127.0.0.1",
         };
         const auto r = svc.Authenticate(req);
-        Check(r.status == AuthStatus::Success,
-            "alice re-auth → Success (stale TCURRENTUSER cleared)");
+        Check(r.status == AuthStatus::Duplicate,
+            "alice re-auth with live session → Duplicate (flagged for kick)");
     }
 
-    // 7. SetAgreement flips TACCOUNT_PW.bCheck (idempotent).
+    // 7. SetAgreement writes TUSERINFOTABLE.bAgreement (NOT
+    //    TACCOUNT_PW.bCheck — separate legacy flag). Exercises the
+    //    UPDATE branch since alice's TUSERINFOTABLE row was seeded
+    //    above. Use bob (uid 1000002) for the INSERT branch — his
+    //    row wasn't seeded so SetAgreement will INSERT it.
     {
-        // Pre-check.
         auto lease = pool.Acquire();
-        int before = 0;
-        *lease << "SELECT \"bCheck\" FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = 1000001",
-            soci::into(before);
-        Check(before == 0, "alice bCheck starts at 0 (default after seed)");
 
-        svc.SetAgreement(1000001);
-        int after = 0;
-        *lease << "SELECT \"bCheck\" FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = 1000001",
-            soci::into(after);
-        Check(after == 1, "SetAgreement(1000001) → bCheck=1");
+        // INSERT branch: bob has no TUSERINFOTABLE row.
+        int bob_rows_before = 0;
+        *lease << "SELECT COUNT(*) FROM \"TUSERINFOTABLE\" WHERE \"dwUserID\" = 1000002",
+            soci::into(bob_rows_before);
+        Check(bob_rows_before == 0,
+            "bob has no TUSERINFOTABLE row before SetAgreement (INSERT branch)");
 
-        // Idempotent re-call.
+        svc.SetAgreement(1000002);
+        int bob_after = 0;
+        *lease << "SELECT \"bAgreement\" FROM \"TUSERINFOTABLE\" "
+                  "WHERE \"dwUserID\" = 1000002",
+            soci::into(bob_after);
+        Check(bob_after == 1,
+            "SetAgreement(bob) → INSERT TUSERINFOTABLE.bAgreement=1");
+
+        // UPDATE branch: alice's row was seeded with bAgreement=1.
+        // SetAgreement should leave it at 1 (idempotent UPDATE).
         svc.SetAgreement(1000001);
-        int after2 = 0;
-        *lease << "SELECT \"bCheck\" FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = 1000001",
-            soci::into(after2);
-        Check(after2 == 1, "SetAgreement is idempotent");
+        int alice_after = 0;
+        *lease << "SELECT \"bAgreement\" FROM \"TUSERINFOTABLE\" "
+                  "WHERE \"dwUserID\" = 1000001",
+            soci::into(alice_after);
+        Check(alice_after == 1,
+            "SetAgreement(alice) → UPDATE branch, bAgreement stays 1");
+
+        // Idempotent re-call for bob.
+        svc.SetAgreement(1000002);
+        int bob_after2 = 0;
+        *lease << "SELECT \"bAgreement\" FROM \"TUSERINFOTABLE\" "
+                  "WHERE \"dwUserID\" = 1000002",
+            soci::into(bob_after2);
+        Check(bob_after2 == 1, "SetAgreement is idempotent");
     }
 
     // 8. SetAgreement(0) is a safe no-op (never-authed session).
@@ -326,6 +408,7 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
         sql << "DELETE FROM \"TLOG\" WHERE \"dwUserID\" IN (1000001, 1000002)";
         sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\" IN (1000001, 1000002)";
         sql << "DELETE FROM \"TUSERPROTECTED\" WHERE \"dwUserID\" IN (1000001, 1000002)";
+        sql << "DELETE FROM \"TUSERINFOTABLE\" WHERE \"dwUserID\" IN (1000001, 1000002)";
         sql << "DELETE FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" IN (1000001, 1000002)";
         const std::string cleanup_like = prefix + "%";
         sql << "DELETE FROM \"IPBLACKLIST_game\" WHERE \"szIP\" LIKE :p",

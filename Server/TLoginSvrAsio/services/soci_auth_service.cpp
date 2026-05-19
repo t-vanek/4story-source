@@ -393,9 +393,33 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             spdlog::debug("auth: TUSERPREMIUM lookup skipped: {}", ex.what());
         }
 
+        // Last-played char (TLogin SP returns it as the 7th OUT
+        // param). Modern schema parks it on TUSERINFOTABLE.dwLastCharID;
+        // missing column or NULL row → 0, matching the "no last char"
+        // path the client UI already handles.
+        std::uint32_t last_char_id = 0;
+        try
+        {
+            int last = 0;
+            soci::indicator ind = soci::i_null;
+            soci::statement st = (sql.prepare <<
+                "SELECT \"dwLastCharID\" FROM \"TUSERINFOTABLE\" "
+                "WHERE \"dwUserID\" = :u",
+                soci::use(user_id),
+                soci::into(last, ind));
+            st.execute(true);
+            if (st.got_data() && ind != soci::i_null && last > 0)
+                last_char_id = static_cast<std::uint32_t>(last);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("auth: TUSERINFOTABLE.dwLastCharID lookup skipped: {}",
+                ex.what());
+        }
+
         spdlog::info("auth: user '{}' (uid={}) success, session_key={} "
-                     "pc_bang={} premium={}",
-            req.user_id, user_id, session_key, in_pc_bang, premium_id);
+                     "pc_bang={} premium={} last_char={}",
+            req.user_id, user_id, session_key, in_pc_bang, premium_id, last_char_id);
 
         return AuthResult{
             .status = AuthStatus::Success,
@@ -404,6 +428,7 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             .create_char_count = 6,
             .in_pc_bang = in_pc_bang,
             .premium_id = premium_id,
+            .last_char_id = last_char_id,
         };
     }
     catch (const std::exception& ex)
@@ -703,6 +728,31 @@ std::uint32_t SociAuthService::CompleteSecurityLogin(std::int32_t user_id,
             user_id, ex.what());
         return 0;
     }
+}
+
+std::uint32_t SociAuthService::LookupLastCharId(std::int32_t user_id)
+{
+    if (user_id == 0) return 0;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        int last = 0;
+        soci::indicator ind = soci::i_null;
+        soci::statement st = (sql.prepare <<
+            "SELECT \"dwLastCharID\" FROM \"TUSERINFOTABLE\" "
+            "WHERE \"dwUserID\" = :u",
+            soci::use(user_id),
+            soci::into(last, ind));
+        st.execute(true);
+        if (st.got_data() && ind != soci::i_null && last > 0)
+            return static_cast<std::uint32_t>(last);
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::debug("auth.LookupLastCharId uid={} skipped: {}", user_id, ex.what());
+    }
+    return 0;
 }
 
 AuthResult SociAuthService::AuthenticateTest(const std::string& client_ip)

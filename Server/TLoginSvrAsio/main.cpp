@@ -141,15 +141,53 @@ int main(int argc, char** argv)
                 cfg.audit_udp_host, cfg.audit_udp_port);
         }
 
-        boost::asio::signal_set signals(io, SIGINT, SIGTERM);
-        signals.async_wait([&io](auto, int sig) {
-            spdlog::info("received signal {}, shutting down", sig);
+        // SOCI services declared up front so the shutdown lambda below
+        // can capture them by reference even though they're populated
+        // later (only after [database] is validated).
+        std::unique_ptr<fourstory::db::SessionPool>                  global_pool;
+        std::unique_ptr<fourstory::db::SessionPool>                  world_pool;
+        std::unique_ptr<tloginsvr::services::SociAuthService>        soci_auth;
+        std::unique_ptr<tloginsvr::services::SociCharService>        soci_char;
+        std::unique_ptr<tloginsvr::services::SociMapServerLocator>   soci_map;
+        std::unique_ptr<tloginsvr::services::SociSessionTerminator>  soci_term;
+
+        // Pre-shutdown sweep: legacy CTLoginSvrModule::UpdateData walks
+        // m_mapTSESSION and calls CSPLogout for every session with
+        // m_bLogout=TRUE. We do the same: snapshot the registry, drive
+        // SessionTerminator::Terminate (Disconnect reason → DELETE
+        // TCURRENTUSER + UPDATE TLOG.timeLOGOUT) for each live entry,
+        // then signal io.stop. Without this every live session leaves a
+        // stale TCURRENTUSER row that has to be reaped on the next
+        // boot's ClearStaleSessions sweep.
+        auto* registry_raw = registry.get();
+        auto graceful_shutdown = [&io, registry_raw, &soci_term]() {
+            if (registry_raw != nullptr && soci_term != nullptr)
+            {
+                const auto live = registry_raw->Snapshot();
+                if (!live.empty())
+                {
+                    spdlog::info("shutdown: terminating {} live session(s)",
+                        live.size());
+                    for (const auto& it : live)
+                    {
+                        soci_term->Terminate(it.entry.user_id,
+                            it.entry.session_key,
+                            tloginsvr::services::TerminationReason::Disconnect);
+                    }
+                }
+            }
             io.stop();
+        };
+
+        boost::asio::signal_set signals(io, SIGINT, SIGTERM);
+        signals.async_wait([graceful_shutdown](auto, int sig) {
+            spdlog::info("received signal {}, shutting down", sig);
+            graceful_shutdown();
         });
 
-        // Wire SM_QUITSERVICE_REQ → io.stop() so wire-protocol
+        // Wire SM_QUITSERVICE_REQ → graceful shutdown so wire-protocol
         // shutdown matches the SIGINT path.
-        cfg.server.on_quit_request = [&io]() { io.stop(); };
+        cfg.server.on_quit_request = graceful_shutdown;
 
         // Wire DB-backed services. Two pools mirror the legacy schema split:
         //   * global_pool → TGLOBAL (accounts, sessions, server registry)
@@ -158,12 +196,6 @@ int main(int argc, char** argv)
         // surface that as a fatal startup error (failing fast is correct:
         // running with a connection_string set but no DB would silently
         // downgrade to no-auth, which is worse).
-        std::unique_ptr<fourstory::db::SessionPool>                  global_pool;
-        std::unique_ptr<fourstory::db::SessionPool>                  world_pool;
-        std::unique_ptr<tloginsvr::services::SociAuthService>        soci_auth;
-        std::unique_ptr<tloginsvr::services::SociCharService>        soci_char;
-        std::unique_ptr<tloginsvr::services::SociMapServerLocator>   soci_map;
-        std::unique_ptr<tloginsvr::services::SociSessionTerminator>  soci_term;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())

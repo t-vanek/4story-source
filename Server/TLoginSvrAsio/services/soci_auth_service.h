@@ -67,6 +67,7 @@ public:
                       const std::string& client_ip) override;
     std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
                                         const std::string& client_ip) override;
+    std::uint32_t LookupLastCharId(std::int32_t user_id) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

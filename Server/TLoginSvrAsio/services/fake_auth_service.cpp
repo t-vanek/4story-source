@@ -66,6 +66,9 @@ AuthResult FakeAuthService::Authenticate(const AuthRequest& req)
     }
 
     const std::uint32_t key = m_next_session_key++;
+    std::uint32_t last_char = 0;
+    if (auto lc = m_last_char.find(rec.db_id); lc != m_last_char.end())
+        last_char = lc->second;
     return AuthResult{
         .status = AuthStatus::Success,
         .user_id = rec.db_id,
@@ -73,6 +76,7 @@ AuthResult FakeAuthService::Authenticate(const AuthRequest& req)
         .create_char_count = rec.create_char_count,
         .in_pc_bang = 0,
         .premium_id = 0,
+        .last_char_id = last_char,
     };
 }
 
@@ -178,6 +182,20 @@ void FakeAuthService::SeedTrustedIp(std::int32_t user_id, std::string ip)
 {
     std::lock_guard<std::mutex> lock(m_mtx);
     m_trusted_ips.insert(std::to_string(user_id) + "|" + ip);
+}
+
+void FakeAuthService::SetLastCharId(std::int32_t user_id, std::uint32_t char_id)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    m_last_char[user_id] = char_id;
+}
+
+std::uint32_t FakeAuthService::LookupLastCharId(std::int32_t user_id)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_last_char.find(user_id); it != m_last_char.end())
+        return it->second;
+    return 0;
 }
 
 AuthResult FakeAuthService::AuthenticateTest(const std::string& /*client_ip*/)

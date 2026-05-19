@@ -26,6 +26,8 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace tloginsvr::services {
 
@@ -118,6 +120,20 @@ public:
 
     // Currently-registered session count.
     virtual std::size_t Count() const = 0;
+
+    // Snapshot of all live entries. Used by the shutdown path to drive
+    // a bulk SessionTerminator::Terminate sweep (legacy
+    // CTLoginSvrModule::UpdateData walks m_mapTSESSION and calls
+    // CSPLogout for every session with m_bLogout=TRUE). The pair holds
+    // the entry data + a strong shared_ptr to the session so callers
+    // can close it after the terminator runs without racing the
+    // session's natural close path.
+    struct LiveEntry
+    {
+        ConnectionEntry                          entry;
+        std::shared_ptr<tnetlib::AsioSession>    session;
+    };
+    virtual std::vector<LiveEntry> Snapshot() const = 0;
 };
 
 } // namespace tloginsvr::services

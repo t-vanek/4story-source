@@ -64,6 +64,15 @@ struct AuthResult
     std::uint8_t  create_char_count = 0; // remaining char slots; populated on Success
     std::uint8_t  in_pc_bang = 0;     // 1 if peer IP matches a PCBang range
     std::uint32_t premium_id = 0;     // active premium tier
+
+    // Last-played character ID — legacy TLogin SP returns this as the
+    // 7th OUT param (CSPLogin::m_dwCharID, DBAccess.h:33). The shipped
+    // client uses it in the lobby to highlight / preselect the slot the
+    // user logged off from. Zero on first-time login or when the last
+    // char was deleted. Populated from TUSERINFOTABLE.dwLastCharID on
+    // the SOCI side; the in-memory backend leaves it at 0.
+    std::uint32_t last_char_id = 0;
+
     // populated on Banned: human-readable reason for the ack tail (legacy code adds it on wire)
     std::optional<std::string> ban_reason;
 };
@@ -138,6 +147,12 @@ public:
     // the client in a deferred CS_LOGIN_ACK.
     virtual std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
                                                 const std::string& client_ip) = 0;
+
+    // Lookup the user's last-played char ID. Mirrors the OUT param the
+    // legacy TLogin SP returns as m_dwCharID; used by the deferred
+    // CS_LOGIN_ACK path (CS_SECURITYCONFIRM_ACK handler) to populate
+    // the same field. Returns 0 on unknown user / first-time login.
+    virtual std::uint32_t LookupLastCharId(std::int32_t user_id) = 0;
 };
 
 } // namespace tloginsvr::services

@@ -423,6 +423,7 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
             const auto result = auth_service->Authenticate(req);
             ack.bResult    = static_cast<std::uint8_t>(result.status);
             ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
+            ack.dwCharID   = result.last_char_id;   // legacy: SP TLogin OUT m_dwCharID
             ack.dwKEY      = result.session_key;
             ack.bCreateCnt = result.create_char_count;
             ack.bInPcBang  = result.in_pc_bang;
@@ -557,6 +558,20 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
 {
     auto& sref = *session;
 
+    // Legacy CSHandler.cpp:494 — `if (!pUser->m_bAgreement) return
+    // EC_SESSION_INVALIDCHAR;`. The default agreement flag is TRUE in
+    // the legacy CTUser ctor so this gate only blocks LR_NEEDAGREEMENT
+    // users (logged in but EULA missing); pre-auth peers never reach
+    // here because they have no registry entry to ask. Mirror that
+    // shape via IsAgreed (which returns true when there's no registry
+    // wired — covers the in-memory test path).
+    if (!IsAgreed(session, connection_registry))
+    {
+        spdlog::warn("CS_GROUPLIST_REQ from session without agreement — closing");
+        sref.Close();
+        co_return;
+    }
+
     std::vector<services::GroupInfo> groups;
     if (map_server_locator != nullptr)
     {
@@ -591,10 +606,20 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
 }
 
 boost::asio::awaitable<void>
-OnChannelListReq(tnetlib::AsioSession& session,
+OnChannelListReq(std::shared_ptr<tnetlib::AsioSession> session,
                  std::span<const std::byte> body,
-                 services::IMapServerLocator* map_server_locator)
+                 services::IMapServerLocator* map_server_locator,
+                 services::IConnectionRegistry* connection_registry)
 {
+    auto& sref = *session;
+    // Same agreement gate as GROUPLIST — see legacy CSHandler.cpp:555.
+    if (!IsAgreed(session, connection_registry))
+    {
+        spdlog::warn("CS_CHANNELLIST_REQ from session without agreement — closing");
+        sref.Close();
+        co_return;
+    }
+
     const auto groupId = body.empty()
         ? std::uint8_t{0}
         : static_cast<std::uint8_t>(body[0]);
@@ -623,7 +648,7 @@ OnChannelListReq(tnetlib::AsioSession& session,
 
     spdlog::info("CS_CHANNELLIST_REQ group={} → CS_CHANNELLIST_ACK ({} channels)",
         groupId, count);
-    co_await session.SendPacket(
+    co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CHANNELLIST_ACK),
         std::span<const std::byte>(out.bytes.data(), out.bytes.size()));
 }
@@ -1360,6 +1385,7 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
         LoginAck ack{};
         ack.bResult    = static_cast<std::uint8_t>(services::AuthStatus::Success);
         ack.dwUserID   = static_cast<std::uint32_t>(user_id);
+        ack.dwCharID   = auth_service->LookupLastCharId(user_id);
         ack.dwKEY      = key;
         ack.bCreateCnt = 6;
         ack.dCurTime = static_cast<std::int64_t>(
@@ -1444,13 +1470,109 @@ OnControlCtrlSvr(tnetlib::AsioSession& /*session*/,
     co_return;
 }
 
+namespace {
+
+// Parse the EVENTINFO body that follows (bEventID, wValue) on the wire.
+// Mirrors legacy EVENTINFO::WrapPacketOut field order (TLoginType.h:212).
+// Returns true on a clean decode; on malformed input leaves the partly
+// populated entry as-is and returns false (the caller falls back to
+// opaque-only storage so the wire body is at least preserved).
+bool ParseEventInfo(std::span<const std::byte> body, services::EventEntry& out)
+{
+    std::size_t pos = 0;
+    auto remaining = [&](std::size_t n) { return pos + n <= body.size(); };
+    auto read = [&](void* dst, std::size_t n) -> bool {
+        if (!remaining(n)) return false;
+        std::memcpy(dst, body.data() + pos, n); pos += n;
+        return true;
+    };
+    auto read_str = [&](std::string& dst) -> bool {
+        std::int32_t len = 0;
+        if (!read(&len, 4)) return false;
+        if (len < 0 || len > 4096 || !remaining(static_cast<std::size_t>(len))) return false;
+        dst.assign(reinterpret_cast<const char*>(body.data() + pos), len);
+        pos += len;
+        return true;
+    };
+
+    if (!read(&out.index, 4))         return false;
+    if (!read(&out.id_inner, 1))      return false;
+    if (!read(&out.state, 1))         return false;
+    if (!read(&out.group_id, 1))      return false;
+    if (!read(&out.svr_type, 1))      return false;
+    if (!read(&out.svr_id, 1))        return false;
+    if (!read(&out.start_date, 8))    return false;
+    if (!read(&out.end_date, 8))      return false;
+    std::uint16_t inner_value = 0;
+    if (!read(&inner_value, 2))       return false;  // duplicate of outer wValue
+    if (!read(&out.map_id, 2))        return false;
+    if (!read(&out.start_alarm, 4))   return false;
+    if (!read(&out.end_alarm, 4))     return false;
+    if (!read_str(out.start_msg))     return false;
+    if (!read_str(out.end_msg))       return false;
+    if (!read_str(out.title))         return false;
+    if (!read(&out.part_time, 1))     return false;
+    if (!read_str(out.lot_msg))       return false;
+
+    std::uint16_t count = 0;
+    if (!read(&count, 2))             return false;
+    out.cash_items.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        services::CashItemSale ci{};
+        if (!read(&ci.item_id, 2))    return false;
+        if (!read(&ci.sale_value, 1)) return false;
+        out.cash_items.push_back(ci);
+    }
+
+    if (!read(&out.mon_start_action, 1)) return false;
+    if (!read(&out.mon_end_action, 1))   return false;
+    if (!read(&count, 2))                return false;
+    out.spawn_ids.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        std::uint16_t spawn = 0;
+        if (!read(&spawn, 2)) return false;
+        out.spawn_ids.push_back(spawn);
+    }
+
+    if (!read(&count, 2)) return false;
+    out.mon_regens.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        services::MonsterRegen mr{};
+        if (!read(&mr.mon_id, 2))  return false;
+        if (!read(&mr.delay, 4))   return false;
+        if (!read(&mr.map_id, 2))  return false;
+        if (!read(&mr.pos_x, 4))   return false;
+        if (!read(&mr.pos_y, 4))   return false;
+        if (!read(&mr.pos_z, 4))   return false;
+        out.mon_regens.push_back(mr);
+    }
+
+    if (!read(&count, 2)) return false;
+    out.lottery.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        services::LotteryItem li{};
+        if (!read(&li.item_id, 2)) return false;
+        if (!read(&li.count, 1))   return false;
+        if (!read(&li.winner, 2))  return false;
+        out.lottery.push_back(li);
+    }
+
+    return true;
+}
+
+} // namespace
+
 boost::asio::awaitable<void>
 OnControlEventUpdate(tnetlib::AsioSession& /*session*/,
                      std::span<const std::byte> body,
                      services::IEventRegistry* event_registry)
 {
     // Legacy wire: BYTE bEventID, WORD wValue, then EVENTINFO struct
-    // (variable layout — preserved as opaque bytes here). wValue == 0
+    // (per EVENTINFO::WrapPacketOut in TLoginType.h:212). wValue == 0
     // signals "remove this event"; non-zero is upsert.
     if (body.size() < 3)
     {
@@ -1475,7 +1597,15 @@ OnControlEventUpdate(tnetlib::AsioSession& /*session*/,
             services::EventEntry entry{};
             entry.event_id = event_id;
             entry.value = value;
-            entry.opaque_payload.assign(body.begin() + 3, body.end());
+            const auto payload = body.subspan(3);
+            entry.opaque_payload.assign(payload.begin(), payload.end());
+            entry.parsed = ParseEventInfo(payload, entry);
+            if (!entry.parsed)
+            {
+                spdlog::warn("CT_EVENTUPDATE_REQ event_id={} payload didn't match "
+                             "EVENTINFO layout — storing opaque only",
+                    event_id);
+            }
             event_registry->Upsert(std::move(entry));
         }
     }
@@ -1510,6 +1640,7 @@ OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession> session,
         const auto result = auth_service->AuthenticateTest(sref.RemoteIPv4());
         ack.bResult    = static_cast<std::uint8_t>(result.status);
         ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
+        ack.dwCharID   = result.last_char_id;
         ack.dwKEY      = result.session_key;
         ack.bCreateCnt = result.create_char_count;
         if (result.status == services::AuthStatus::Success

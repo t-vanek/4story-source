@@ -82,10 +82,15 @@ boost::asio::awaitable<void> OnGroupListReq(
 // CS_CHANNELLIST_REQ(BYTE bGroupID) → CS_CHANNELLIST_ACK.
 //   ack body:  BYTE bCount, DWORD dwCheckPoint=0,
 //              per channel: STRING szNAME, BYTE bChannel, BYTE bStatus
+//
+// The session is shared_ptr instead of reference so the agreement gate
+// can call IConnectionRegistry::Lookup; the registry keys off the
+// session's identity which is captured by the shared_ptr.
 boost::asio::awaitable<void> OnChannelListReq(
-    tnetlib::AsioSession& session,
+    std::shared_ptr<tnetlib::AsioSession> session,
     std::span<const std::byte> body,
-    services::IMapServerLocator* map_server_locator = nullptr);
+    services::IMapServerLocator* map_server_locator = nullptr,
+    services::IConnectionRegistry* connection_registry = nullptr);
 
 // CS_CHARLIST_REQ(BYTE bGroupID) → CS_CHARLIST_ACK.
 // When char_service is non-null AND the session is registered (i.e.

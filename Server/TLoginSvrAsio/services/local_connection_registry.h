@@ -50,6 +50,8 @@ public:
 
     std::size_t Count() const override;
 
+    std::vector<LiveEntry> Snapshot() const override;
+
 private:
     mutable std::mutex m_mtx;
     // user_id → live session (weak so we don't extend lifetime)

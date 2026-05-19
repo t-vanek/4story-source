@@ -125,6 +125,8 @@ AppConfig LoadConfig(const std::string& path)
             cfg.server.test_handlers_enabled = *t;
         if (auto n = (*srv)["nation"].value<std::string>())
             cfg.server.nation = ParseNation(*n);
+        if (auto c = (*srv)["control_server_ip"].value<std::string>())
+            cfg.server.control_server_ip = *c;
         if (auto av = (*srv)["accepted_versions"].as_array())
         {
             std::vector<std::uint16_t> list;

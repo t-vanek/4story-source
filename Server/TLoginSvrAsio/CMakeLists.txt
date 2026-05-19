@@ -167,6 +167,14 @@ target_link_libraries(test_tloginsvr_asio_charname_validator PRIVATE
 add_test(NAME tloginsvr_asio_charname_validator
     COMMAND test_tloginsvr_asio_charname_validator)
 
+# Event-registry test — structured EVENTINFO upsert/remove parity.
+add_executable(test_tloginsvr_asio_event_registry
+    ${TLOGINSVR_ASIO_SRC}/tests/test_event_registry.cpp)
+target_link_libraries(test_tloginsvr_asio_event_registry PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_event_registry
+    COMMAND test_tloginsvr_asio_event_registry)
+
 # SOCI integration tests — exercise the DB-backed service impls
 # directly against a real PostgreSQL. All skipped automatically if
 # TLOGINSVR_TEST_PG_CONN is not set so CI hosts without PG pass.

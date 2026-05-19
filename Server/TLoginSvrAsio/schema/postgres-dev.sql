@@ -83,7 +83,11 @@ CREATE TABLE "TUSERINFOTABLE" (
     "dwUserID"            INTEGER PRIMARY KEY,
     "bCanCreateCharCount" SMALLINT NOT NULL DEFAULT 6,
     "bAgreement"          SMALLINT NOT NULL DEFAULT 0,
-    "dCabinetUse"         TIMESTAMP DEFAULT '2008-01-01'
+    "dCabinetUse"         TIMESTAMP DEFAULT '2008-01-01',
+    -- Last-played char (legacy TLogin SP m_dwCharID OUT). Stamped by
+    -- TWorldSvr on map-server exit; read by SociAuthService on login
+    -- to populate CS_LOGIN_ACK.dwCharID. Zero on first login.
+    "dwLastCharID"        INTEGER NOT NULL DEFAULT 0
 );
 
 -- User-level bans (vs IP-level which is in IPBLACKLIST_game).

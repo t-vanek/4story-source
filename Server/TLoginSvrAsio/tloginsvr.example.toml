@@ -24,6 +24,14 @@ port = 4816
 # Default "us" (ASCII-only) matches the legacy non-localized build.
 # nation = "us"
 
+# IPv4 dotted-decimal of the TControlSvr peer. CT_* control packets
+# (event registry, service monitor) are accepted ONLY from this
+# address — mirroring the legacy m_bSessionType=SESSION_SERVER gate.
+# Empty / omitted = gate open (useful for in-process tests on
+# 127.0.0.1; production deploys MUST set this to the operator's
+# TControlSvr IP).
+# control_server_ip = "10.0.0.5"
+
 # CS_HOTSEND_REQ heartbeat — silently dropped by the server. The
 # legacy client fires it after every GROUPLIST_ACK / CHANNELLIST_ACK
 # (its exec-file integrity probe). Anti-cheat validation of those

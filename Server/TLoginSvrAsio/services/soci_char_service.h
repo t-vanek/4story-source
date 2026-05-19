@@ -68,10 +68,12 @@ public:
     // Empty cache → all zeros.
     VeteranLevels GetVeteranLevels() const override;
 
-    // BR shard char lookup via TBRPLAYERTABLE (per-world TGAME).
-    // Returns the dwCharID enrolled, or 0 on miss / DB error /
-    // missing table.
+    // BR / BOW shard char lookup via TBRPLAYERTABLE / TBOWPLAYERTABLE
+    // (per-world TGAME). Returns the dwCharID enrolled, or 0 on miss /
+    // DB error / missing table. Legacy CSHandler queries BOW first
+    // and falls through to BR — the handler mirrors that ordering.
     std::int32_t GetBrCharId(std::int32_t user_id) override;
+    std::int32_t GetBowCharId(std::int32_t user_id) override;
 
     // Reload TVETERANCHART into the in-memory cache. Wired into
     // RegistryRefresher so an operator running an UPDATE on the

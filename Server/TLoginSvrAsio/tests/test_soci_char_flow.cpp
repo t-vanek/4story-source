@@ -47,6 +47,24 @@ void WipeFixtures(soci::session& sql, const std::string& name_prefix)
         soci::use(like);
     sql << "DELETE FROM \"TKEEPINGNAME\" WHERE \"szName\" LIKE :p",
         soci::use(like);
+    // BR/BOW shard tables are user-id-keyed (no name prefix). Clean
+    // the test user range so successive runs don't see stale shard
+    // enrollments. Optional tables — wrap in try/catch.
+    for (int uid : { 2000001, 2000002 })
+    {
+        try
+        {
+            sql << "DELETE FROM \"TBRPLAYERTABLE\" WHERE \"dwUserID\" = :u",
+                soci::use(uid);
+        }
+        catch (const std::exception&) { /* table optional */ }
+        try
+        {
+            sql << "DELETE FROM \"TBOWPLAYERTABLE\" WHERE \"dwUserID\" = :u",
+                soci::use(uid);
+        }
+        catch (const std::exception&) { /* table optional */ }
+    }
 }
 
 // NetCode.h constants used by tests below.
@@ -164,7 +182,37 @@ void RunTests(const std::string& conn)
             "reserved name → Protected");
     }
 
-    // 8. List returns the created char.
+    // 7b. TKEEPINGNAME LIKE-pattern match. Legacy TGLOBAL.TCreateChar
+    //     uses `@szName LIKE szName` so stored rows are patterns
+    //     (e.g. 'Mod%' bans every name starting with Mod). Seed a
+    //     pattern and try both a name that matches and one that
+    //     doesn't. The negative test uses user_b so the resulting
+    //     char doesn't perturb user_a's slot/list assertions below.
+    {
+        {
+            auto lease = pool.Acquire();
+            soci::session& sql = *lease;
+            const std::string pattern = prefix + "Kept%";
+            sql << "INSERT INTO \"TKEEPINGNAME\" (\"szName\") VALUES (:n)",
+                soci::use(pattern);
+        }
+        const auto r_match = svc.Create(
+            MakeCreateReq(user_a, world, prefix + "KeptBob", 1));
+        Check(r_match.status == CreateCharResult::Protected,
+            "TKEEPINGNAME pattern match → Protected");
+
+        const auto r_miss = svc.Create(
+            MakeCreateReq(user_b, world, prefix + "OtherBob", 0));
+        Check(r_miss.status != CreateCharResult::Protected,
+            "TKEEPINGNAME non-matching name → not Protected");
+    }
+
+    // 8. List returns the created char with starter items. Items
+    //     showing up here requires Create + List to agree on
+    //     bOwnerType (= TOWNER_CHAR = kOwnerChar = 0). The earlier
+    //     INSERT-with-1 bug made items invisible — test 15 catches
+    //     the direct SELECT count, but only this round-trip check
+    //     guards against a future regression in the CharList path.
     {
         const auto list = svc.List(user_a, world);
         Check(list.size() == 1, "list has 1 char");
@@ -175,6 +223,8 @@ void RunTests(const std::string& conn)
             Check(list[0].slot == 0, "list slot matches");
             Check(list[0].level == 1, "list level matches");
             Check(list[0].char_class == 1, "list char_class matches");
+            Check(!list[0].items.empty(),
+                "list returns starter items (Create/List bOwnerType match)");
         }
     }
 
@@ -272,8 +322,12 @@ void RunTests(const std::string& conn)
             "TCHARTABLE.bLevel == 9 for choice-country create");
     }
 
-    // 15. Starter items: a fresh char gets TITEMTABLE rows (placeholder
-    //     set; real values driven by class).
+    // 15. Starter items: a fresh char gets TITEMTABLE rows with the
+    //     canonical equipped-items triple (bStorageType=STORAGE_INVEN
+    //     (= 0), dwStorageID=INVEN_EQUIP (= 0xFE), bOwnerType=
+    //     TOWNER_CHAR (= 0)). Earlier modern revisions used different
+    //     values on every column making the rows invisible to the
+    //     CharList SELECT.
     {
         const auto r = svc.Create(MakeCreateReq(user_a, world, prefix + "Zeta", 5));
         Check(r.status == CreateCharResult::Success, "create Zeta → Success");
@@ -281,17 +335,20 @@ void RunTests(const std::string& conn)
         auto lease = pool.Acquire();
         int item_hits = 0;
         *lease << "SELECT COUNT(*) FROM \"TITEMTABLE\" "
-                  "WHERE \"dwOwnerID\" = :c AND \"bOwnerType\" = 1",
+                  "WHERE \"dwOwnerID\"    = :c "
+                  "  AND \"bOwnerType\"   = 0 "
+                  "  AND \"bStorageType\" = 0 "
+                  "  AND \"dwStorageID\"  = 254",
             soci::use(r.char_id), soci::into(item_hits);
         Check(item_hits >= 2,
-            "starter inventory inserted (TITEMTABLE rows for new char)");
+            "starter items inserted with (STORAGE_INVEN, INVEN_EQUIP, TOWNER_CHAR) triple");
 
         // Hard delete scrubs the inventory.
         const auto del = svc.Delete(user_a, world, r.char_id, "ignored");
         Check(del == DeleteCharResult::Success, "delete Zeta → Success (hard, level=1)");
         int items_after = 0;
         *lease << "SELECT COUNT(*) FROM \"TITEMTABLE\" "
-                  "WHERE \"dwOwnerID\" = :c AND \"bOwnerType\" = 1",
+                  "WHERE \"dwOwnerID\" = :c AND \"bOwnerType\" = 0",
             soci::use(r.char_id), soci::into(items_after);
         Check(items_after == 0, "hard-delete scrubs TITEMTABLE rows");
     }
@@ -357,6 +414,61 @@ void RunTests(const std::string& conn)
         const auto vl = svc_empty.GetVeteranLevels();
         Check(vl.first == 0 && vl.second == 0 && vl.third == 0,
             "GetVeteranLevels: empty chart → 0/0/0");
+    }
+
+    // 19. GetBrCharId / GetBowCharId — shard enrollment lookup. Mirrors
+    //     legacy TFindBRPlayer / TFindBOWPlayer SPs. Used by the
+    //     CharList handler to send CS_BOWPLAYERNOTIFY_ACK with the
+    //     enrolled char's slot. Lookup contract: BOW first; fall
+    //     through to BR if BOW returns 0.
+    {
+        const int br_char  = 8001;
+        const int bow_char = 8002;
+
+        // No enrollment → both return 0.
+        Check(svc.GetBrCharId(user_a) == 0,
+            "GetBrCharId: no enrollment → 0");
+        Check(svc.GetBowCharId(user_a) == 0,
+            "GetBowCharId: no enrollment → 0");
+        Check(svc.GetBrCharId(0) == 0,
+            "GetBrCharId(0) → 0 (no DB hit)");
+        Check(svc.GetBowCharId(0) == 0,
+            "GetBowCharId(0) → 0 (no DB hit)");
+
+        // BR-only enrollment.
+        {
+            auto lease = pool.Acquire();
+            *lease << "INSERT INTO \"TBRPLAYERTABLE\" "
+                      "(\"dwCharID\", \"dwUserID\") VALUES (:c, :u)",
+                soci::use(br_char), soci::use(user_a);
+        }
+        Check(svc.GetBrCharId(user_a) == br_char,
+            "GetBrCharId: BR enrolled → returns char_id");
+        Check(svc.GetBowCharId(user_a) == 0,
+            "GetBowCharId: BR enrolled but not BOW → still 0");
+
+        // BOW enrollment added — handler will prefer this on charlist.
+        {
+            auto lease = pool.Acquire();
+            *lease << "INSERT INTO \"TBOWPLAYERTABLE\" "
+                      "(\"dwCharID\", \"dwUserID\") VALUES (:c, :u)",
+                soci::use(bow_char), soci::use(user_a);
+        }
+        Check(svc.GetBowCharId(user_a) == bow_char,
+            "GetBowCharId: BOW enrolled → returns char_id");
+        // BR still returns its enrollment — both lookups independent;
+        // the legacy "BOW takes priority" rule lives in the handler.
+        Check(svc.GetBrCharId(user_a) == br_char,
+            "GetBrCharId: BR still returns char_id when BOW also set");
+
+        // Cleanup before next test.
+        {
+            auto lease = pool.Acquire();
+            *lease << "DELETE FROM \"TBRPLAYERTABLE\" WHERE \"dwUserID\" = :u",
+                soci::use(user_a);
+            *lease << "DELETE FROM \"TBOWPLAYERTABLE\" WHERE \"dwUserID\" = :u",
+                soci::use(user_a);
+        }
     }
 
     // Cleanup.

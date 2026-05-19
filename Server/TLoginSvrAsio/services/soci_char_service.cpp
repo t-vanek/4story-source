@@ -6,6 +6,9 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <tuple>
+#include <vector>
 
 namespace tloginsvr::services {
 
@@ -321,8 +324,14 @@ SociCharService::Create(const CharacterCreateRequest& req)
                 return CharacterCreateResponse{ .status = CreateCharResult::Protected };
             }
 
+            // TKEEPINGNAME stores LIKE patterns, not literal names —
+            // legacy TGLOBAL.TCreateChar SP uses `@szName LIKE szName`
+            // (TCreateChar.sql:33). Entries like 'Admin%' or '_dmin'
+            // ban whole families of names. The candidate name is the
+            // haystack, the stored row is the pattern.
             int keep_hit = 0;
-            sql << "SELECT COUNT(*) FROM \"TKEEPINGNAME\" WHERE \"szName\" = :n",
+            sql << "SELECT COUNT(*) FROM \"TKEEPINGNAME\" "
+                   "WHERE :n LIKE \"szName\"",
                 soci::use(req.name), soci::into(keep_hit);
             if (keep_hit > 0)
             {
@@ -353,6 +362,36 @@ SociCharService::Create(const CharacterCreateRequest& req)
             spdlog::info("char.Create rejected (duplicate name) name='{}' hits={}",
                 req.name, name_hit);
             return CharacterCreateResponse{ .status = CreateCharResult::DuplicateName };
+        }
+
+        // Legacy TCreateChar.sql:88-99 also rejects names that collide
+        // with NPCs (TNPCCHART) or monsters (TMONSTERCHART). Both
+        // tables are chart data so name space is curated by ops, but
+        // a player creating "Goblin" or "Innkeeper" would confuse the
+        // world server's name-resolution paths. Modern mirrors the
+        // legacy guard. Both tables are optional in dev fixtures —
+        // missing-table errors swallowed.
+        for (const auto* table : { "TNPCCHART", "TMONSTERCHART" })
+        {
+            try
+            {
+                int chart_hit = 0;
+                const std::string q =
+                    std::string("SELECT COUNT(*) FROM \"") + table +
+                    "\" WHERE \"szNAME\" = :n";
+                sql << q, soci::use(req.name), soci::into(chart_hit);
+                if (chart_hit > 0)
+                {
+                    spdlog::info("char.Create rejected ({} collision) "
+                                 "name='{}'", table, req.name);
+                    return CharacterCreateResponse{ .status = CreateCharResult::DuplicateName };
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("char.Create: {} name check skipped: {}",
+                    table, ex.what());
+            }
         }
 
         int slot_hit = 0;
@@ -392,6 +431,7 @@ SociCharService::Create(const CharacterCreateRequest& req)
         const int       uslot    = static_cast<int>(req.slot);
         const int       uworld   = static_cast<int>(req.group_id);
 
+        // Veteran level lookup (cached chart loaded at startup).
         std::uint8_t starting_level = (req.country == kCountryPeace)
             ? kPeaceStartLevel
             : kChoiceStartLevel;
@@ -405,6 +445,105 @@ SociCharService::Create(const CharacterCreateRequest& req)
         }
         const int ulevel = static_cast<int>(starting_level);
 
+        // HP/MP computation — legacy TCreateChar.sql:80-86:
+        //   dwHP = 7 * (2 + class.wCON + race.wCON) + 1
+        //   dwMP = 9 * (2 + class.wMEN + race.wMEN) + 1
+        // Lookup TCLASSCHART + TRACECHART; if either is unavailable
+        // (dev fixture without the chart, missing row) fall back to a
+        // sensible baseline so create still succeeds. The schema's
+        // dwHP/dwMP columns are NOT NULL with no default in legacy
+        // MSSQL — modern MUST supply explicit values, can't lean on
+        // DB defaults like the PG dev fixture does.
+        int class_con = 10, class_men = 5;
+        int race_con  = 10, race_men  = 10;
+        try
+        {
+            soci::statement st = (sql.prepare <<
+                "SELECT \"wCON\", \"wMEN\" FROM \"TCLASSCHART\" "
+                "WHERE \"bClassID\" = :c",
+                soci::use(uclass),
+                soci::into(class_con),
+                soci::into(class_men));
+            st.execute(true);
+            // got_data == false → use baseline above.
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TCLASSCHART lookup skipped "
+                          "(class={}): {}", uclass, ex.what());
+        }
+        try
+        {
+            soci::statement st = (sql.prepare <<
+                "SELECT \"wCON\", \"wMEN\" FROM \"TRACECHART\" "
+                "WHERE \"bRaceID\" = :r",
+                soci::use(urace),
+                soci::into(race_con),
+                soci::into(race_men));
+            st.execute(true);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TRACECHART lookup skipped "
+                          "(race={}): {}", urace, ex.what());
+        }
+        const int dwHP = 7 * (2 + class_con + race_con) + 1;
+        const int dwMP = 9 * (2 + class_men + race_men) + 1;
+
+        // Veteran-level EXP — legacy TCreateChar.sql:125:
+        //   SELECT dwExp FROM TLEVELCHART WHERE bLevel = @bLevel - 1
+        // Look up the EXP threshold for the level *below* the target,
+        // so the char arrives at exactly the threshold for its level.
+        // Defaults to 1 for level=1 (the SP's default).
+        int dwEXP = 1;
+        int wSkillPoint = 0;
+        if (req.level_option != 0 && ulevel > 1)
+        {
+            try
+            {
+                soci::statement st = (sql.prepare <<
+                    "SELECT \"dwExp\" FROM \"TLEVELCHART\" "
+                    "WHERE \"bLevel\" = :l",
+                    soci::use(ulevel - 1),
+                    soci::into(dwEXP));
+                st.execute(true);
+                if (!st.got_data()) dwEXP = 1;
+                wSkillPoint = 200;  // legacy SP gives veteran chars 200 SP
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("char.Create: TLEVELCHART lookup skipped: {}",
+                    ex.what());
+                dwEXP = 1;
+            }
+        }
+
+        // Spawn map ID — legacy SP picks the spawn based on the user's
+        // existing PvP country (bOriCountry). For peaceful country=4
+        // chars, the default 15003 stands. Veteran-boosted chars
+        // adopt the user's PvP-country spawn (15001 / 15002).
+        int wSpawnID = 15003;
+        if (req.level_option != 0)
+        {
+            // Look up the user's existing PvP-country char to mirror
+            // legacy's bOriCountry inheritance (TCreateChar.sql:119).
+            int existing_ori = 4;
+            try
+            {
+                soci::statement st = (sql.prepare <<
+                    "SELECT TOP 1 \"bOriCountry\" FROM \"TCHARTABLE\" "
+                    "WHERE \"dwUserID\" = :u "
+                    "  AND \"bDelete\"  = 0 "
+                    "  AND \"bOriCountry\" < 2",
+                    soci::use(req.user_id),
+                    soci::into(existing_ori));
+                st.execute(true);
+            }
+            catch (const std::exception&) { existing_ori = 4; }
+            if (existing_ori == 0)      wSpawnID = 15001;
+            else if (existing_ori == 1) wSpawnID = 15002;
+        }
+
         // TCHARTABLE.dwCharID is NOT IDENTITY in legacy schema — the SP
         // computes the next id manually. We do the same: SELECT MAX+1
         // inside the same connection. Race-safety: the world pool
@@ -416,13 +555,37 @@ SociCharService::Create(const CharacterCreateRequest& req)
         sql << "SELECT COALESCE(MAX(\"dwCharID\"), 0) + 1 FROM \"TCHARTABLE\"",
             soci::into(next_id);
 
+        // Full column INSERT — every NOT-NULL column in the legacy
+        // TCHARTABLE schema must be provided explicitly. PG dev
+        // fixture has DEFAULTs on many of these (dwHP/dwMP excepted)
+        // so the previous abbreviated INSERT happened to work there;
+        // against real MSSQL it would fail with a NOT NULL violation.
+        // Constants below mirror TCreateChar.sql:135-138 + 222-233.
+        // SOCI binds `double` for floating-point parameters; the
+        // driver converts to REAL when writing TCHARTABLE.fPosX/Y/Z.
+        const double fPosX = 3664.405;
+        const double fPosY = 86.16578;
+        const double fPosZ = 557.2542;
+        const int    wDIR  = 762;
+        const int    wMapID = 2010;
+        const int    zero  = 0;
         sql << "INSERT INTO \"TCHARTABLE\" "
-               "(\"dwCharID\", \"dwUserID\", \"bSlot\", \"szNAME\", \"bClass\", \"bRace\", "
-               " \"bCountry\", \"bRealSex\", \"bSex\", \"bHair\", \"bFace\", "
-               " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", \"bOriCountry\", "
-               " \"bLevel\") "
-               "VALUES (:cid, :uid, :slot, :n, :cls, :race, :country, :rsex, :sex, "
-               " :hair, :face, :body, :pants, :hand, :foot, :ori_country, :lvl)",
+               "(\"dwCharID\", \"dwUserID\", \"bSlot\", \"szNAME\", "
+               " \"bClass\", \"bRace\", \"bCountry\", \"bOriCountry\", "
+               " \"bRealSex\", \"bSex\", \"bHair\", \"bFace\", "
+               " \"bBody\", \"bPants\", \"bHand\", \"bFoot\", "
+               " \"bLevel\", \"dwEXP\", \"dwHP\", \"dwMP\", "
+               " \"wSkillPoint\", \"dwGold\", \"dwSilver\", \"dwCooper\", "
+               " \"wMapID\", \"wSpawnID\", \"wTemptedMon\", \"bAftermath\", "
+               " \"fPosX\", \"fPosY\", \"fPosZ\", \"wDIR\") "
+               "VALUES (:cid, :uid, :slot, :n, "
+               " :cls, :race, :country, :ori_country, "
+               " :rsex, :sex, :hair, :face, "
+               " :body, :pants, :hand, :foot, "
+               " :lvl, :exp, :hp, :mp, "
+               " :sp, :gold, :silver, :copper, "
+               " :map, :spawn, :tmp_mon, :aftermath, "
+               " :px, :py, :pz, :dir)",
             soci::use(next_id),
             soci::use(req.user_id),
             soci::use(uslot),
@@ -430,7 +593,8 @@ SociCharService::Create(const CharacterCreateRequest& req)
             soci::use(uclass),
             soci::use(urace),
             soci::use(ucountry),
-            soci::use(usex),   // bRealSex
+            soci::use(ucountry),  // bOriCountry — same as bCountry on create
+            soci::use(usex),      // bRealSex
             soci::use(usex),
             soci::use(uhair),
             soci::use(uface),
@@ -438,34 +602,503 @@ SociCharService::Create(const CharacterCreateRequest& req)
             soci::use(upants),
             soci::use(uhand),
             soci::use(ufoot),
-            soci::use(ucountry),  // bOriCountry — same as bCountry on create
-            soci::use(ulevel);
+            soci::use(ulevel),
+            soci::use(dwEXP),
+            soci::use(dwHP),
+            soci::use(dwMP),
+            soci::use(wSkillPoint),
+            soci::use(zero),  // dwGold
+            soci::use(zero),  // dwSilver
+            soci::use(zero),  // dwCooper
+            soci::use(wMapID),
+            soci::use(wSpawnID),
+            soci::use(zero),  // wTemptedMon — recall mon set later if applicable
+            soci::use(zero),  // bAftermath
+            soci::use(fPosX),
+            soci::use(fPosY),
+            soci::use(fPosZ),
+            soci::use(wDIR);
+
+        // Side-table INSERTs — port of legacy TCreateChar.sql:237-269.
+        // Each is best-effort: PG dev fixture doesn't ship these
+        // tables (only TCHARTABLE + TITEMTABLE + TALLCHARTABLE are in
+        // postgres-dev.sql), and operators may opt-out individual
+        // tables in slimmed-down deployments. Real MSSQL legacy
+        // schema has all of them — char creation against the real
+        // schema needs every INSERT to land or the world server
+        // sees a partial char (missing inventory slots / skills /
+        // hotkeys / title / cabinet).
+
+        // TINVENTABLE — two default rows (legacy slots 255 = inventory
+        // tab marker, 254 = INVEN_EQUIP equipped slot).
+        try
+        {
+            sql << "INSERT INTO \"TINVENTABLE\" "
+                   "(\"dwCharID\", \"bInvenID\", \"wItemID\", \"dEndTime\") "
+                   "VALUES (:c, 255, 3, 0)", soci::use(next_id);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TINVENTABLE(255) skipped: {}", ex.what());
+        }
+        try
+        {
+            sql << "INSERT INTO \"TINVENTABLE\" "
+                   "(\"dwCharID\", \"bInvenID\", \"wItemID\", \"dEndTime\") "
+                   "VALUES (:c, 254, 2, 0)", soci::use(next_id);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TINVENTABLE(254) skipped: {}", ex.what());
+        }
+
+        // TTITLETABLE — default title row (no title equipped).
+        try
+        {
+            sql << "INSERT INTO \"TTITLETABLE\" "
+                   "(\"dwCharID\", \"wTitleID\", \"bSelected\") "
+                   "VALUES (:c, 0, 1)", soci::use(next_id);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TTITLETABLE skipped: {}", ex.what());
+        }
+
+        // TCABINETTABLE — default cabinet (storage chest) row.
+        try
+        {
+            sql << "INSERT INTO \"TCABINETTABLE\" "
+                   "(\"dwCharID\", \"bCabinetID\", \"bUse\") "
+                   "VALUES (:c, 0, 1)", soci::use(next_id);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TCABINETTABLE skipped: {}", ex.what());
+        }
+
+        // TSKILLTABLE — class starter skills (TCreateChar.sql:269).
+        // INSERT-SELECT from TSTARTSKILL keyed by class. Legacy SP
+        // uses `(@dwCharID, wSkillID, bLevel, 0)` — the trailing 0
+        // matches the 4th column in TSKILLTABLE (name unknown
+        // without schema introspection; legacy SP positional binding).
+        try
+        {
+            sql << "INSERT INTO \"TSKILLTABLE\" "
+                   "SELECT :c, \"wSkillID\", \"bLevel\", 0 "
+                   "FROM \"TSTARTSKILL\" WHERE \"bClassID\" = :cl",
+                soci::use(next_id), soci::use(uclass);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TSKILLTABLE bulk-insert skipped: {}",
+                ex.what());
+        }
+
+        // THOTKEYTABLE — class starter hotkey bars (TCreateChar.sql:316).
+        // 26-column copy from TSTARTHOTKEY keyed by class.
+        try
+        {
+            sql << "INSERT INTO \"THOTKEYTABLE\" "
+                   "SELECT :c, \"bInvenID\", "
+                   "       \"bType1\",  \"wID1\",  \"bType2\",  \"wID2\", "
+                   "       \"bType3\",  \"wID3\",  \"bType4\",  \"wID4\", "
+                   "       \"bType5\",  \"wID5\",  \"bType6\",  \"wID6\", "
+                   "       \"bType7\",  \"wID7\",  \"bType8\",  \"wID8\", "
+                   "       \"bType9\",  \"wID9\",  \"bType10\", \"wID10\", "
+                   "       \"bType11\", \"wID11\", \"bType12\", \"wID12\" "
+                   "FROM \"TSTARTHOTKEY\" WHERE \"bClassID\" = :cl",
+                soci::use(next_id), soci::use(uclass);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: THOTKEYTABLE bulk-insert skipped: {}",
+                ex.what());
+        }
 
         // Starter inventory in TGAME.TITEMTABLE — dlID is composed
         // deterministically from (char_id, slot) since the column is not
         // auto-increment in the legacy schema.
-        std::size_t starter_n = 0;
-        const auto* starter = StarterSet(req.char_class, starter_n);
-        for (std::size_t i = 0; i < starter_n; ++i)
+        //
+        // bStorageType + dwStorageID + bOwnerType MUST match what the
+        // CharList SELECT filters on (lines 189-191) — otherwise the
+        // items become orphans, invisible to the lobby. The CharList
+        // path uses the canonical "equipped items for char" triple:
+        //   bStorageType = STORAGE_INVEN = kStorageInven (= 0)
+        //   dwStorageID  = INVEN_EQUIP   = kInvenEquip   (= 0xFE)
+        //   bOwnerType   = TOWNER_CHAR   = kOwnerChar    (= 0)
+        // Earlier impls hardcoded different values for all three on
+        // INSERT (storage_type from per-item starter struct = 1,
+        // dwStorageID = char_id, bOwnerType = 1) which broke the
+        // round-trip — items were inserted but never surfaced.
+        // StarterItem::storage_type is no longer honoured here; if
+        // future starter sets need items in non-equipped slots,
+        // adjust both INSERT and the CharList query in tandem.
+        // dlID generation — legacy TGenerateDBItemID SP increments the
+        // TDBITEMINDEXTABLE counter and returns the new value. Items
+        // across all chars share this global ID space, so a deterministic
+        // (char_id << 16 | slot) scheme like the pre-Phase-3 fallback
+        // would eventually collide with whatever the legacy world
+        // server has allocated. Use the counter when the table exists;
+        // fall back to the synthetic id when it doesn't (PG dev fixture).
+        auto next_dl_id = [&sql, next_id](std::int64_t fallback_seed)
+            -> std::int64_t
         {
-            const std::int64_t dl_id =
-                (static_cast<std::int64_t>(next_id) << 16) | static_cast<std::int64_t>(i);
-            const int store_type = starter[i].storage_type;
-            const int item_kind  = starter[i].item_kind;
-            const int item_id    = starter[i].item_id;
-            const int item_level = starter[i].level;
-            sql << "INSERT INTO \"TITEMTABLE\" "
-                   "(\"dlID\", \"bStorageType\", \"dwStorageID\", "
-                   " \"bOwnerType\", \"dwOwnerID\", "
-                   " \"bItemID\", \"wItemID\", \"bLevel\") "
-                   "VALUES (:dl, :st, :stid, 1, :own, :ik, :iid, :lvl)",
-                soci::use(dl_id),
-                soci::use(store_type),
+            try
+            {
+                // UPDATE + SELECT, scoped so cursors close between
+                // statements on ODBC/MSSQL.
+                sql << "UPDATE \"TDBITEMINDEXTABLE\" SET \"dlID\" = \"dlID\" + 1";
+                std::int64_t id = 0;
+                {
+                    soci::statement st = (sql.prepare <<
+                        "SELECT TOP 1 \"dlID\" FROM \"TDBITEMINDEXTABLE\"",
+                        soci::into(id));
+                    st.execute(true);
+                    if (st.got_data()) return id;
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("char.Create: TDBITEMINDEXTABLE counter "
+                              "unavailable ({}) — using synthetic dlID",
+                    ex.what());
+            }
+            // Fallback — composes a per-char/slot dlID. Stable within
+            // modern's writes but can collide with legacy IDs if both
+            // ever share a DB; modern operators MUST deploy
+            // TDBITEMINDEXTABLE for any prod use against legacy data.
+            return (static_cast<std::int64_t>(next_id) << 16) | fallback_seed;
+        };
+
+        // Phase 4 — TSTARTITEMCHART cursor (legacy TCreateChar.sql:272-287).
+        // For real MSSQL deployments the legacy SP cursors through
+        // TSTARTITEMCHART rows keyed by (bCountry, bClass) and calls
+        // TPutItemInInven per row, which itself branches on
+        // bChartType:
+        //   * 1 → look up TITEMCHART.dwDuraMax, INSERT a minimal row
+        //         with zeros for the per-item enchant/effect fields.
+        //   * 0 → INSERT-SELECT from TQUESTITEMCHART so all 30+ stat
+        //         columns get the chart's curated values.
+        //
+        // Both branches write into TITEMTABLE's full 35-column legacy
+        // schema; PG dev fixture has only ~14 of those columns, so
+        // the full INSERT throws "column does not exist" on PG and
+        // we fall back to the hardcoded StarterSet (the small modern
+        // set that exercises the lobby render against dev fixtures).
+        // No charts present → also fall back.
+        bool used_chart = false;
+        std::vector<std::tuple<int,int,int,int,int>> chart_rows; // bInven, bSlot, bChartType, wItemID, bCount
+        try
+        {
+            soci::rowset<soci::row> rs = (sql.prepare <<
+                "SELECT \"bInven\", \"bSlot\", \"bChartType\", \"wItemID\", \"bCount\" "
+                "FROM \"TSTARTITEMCHART\" "
+                "WHERE \"bCountry\" = :ct AND \"bClass\" = :cl",
+                soci::use(ucountry), soci::use(uclass));
+            for (const auto& r : rs)
+            {
+                chart_rows.emplace_back(
+                    r.get<int>(0), r.get<int>(1), r.get<int>(2),
+                    r.get<int>(3), r.get<int>(4));
+            }
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TSTARTITEMCHART query skipped "
+                          "(class={}, country={}): {}",
+                uclass, ucountry, ex.what());
+        }
+
+        for (const auto& [bInven, bSlot, bChartType, wItemID, bCount] : chart_rows)
+        {
+            const std::int64_t dl_id = next_dl_id(
+                static_cast<std::int64_t>(used_chart ? chart_rows.size() : 0));
+            try
+            {
+                if (bChartType == 1)
+                {
+                    // Look up durability from TITEMCHART. Best-effort —
+                    // missing item id leaves dura_max at 0.
+                    int dura_max = 0;
+                    try
+                    {
+                        soci::statement st = (sql.prepare <<
+                            "SELECT \"dwDuraMax\" FROM \"TITEMCHART\" "
+                            "WHERE \"wItemID\" = :w",
+                            soci::use(wItemID), soci::into(dura_max));
+                        st.execute(true);
+                    }
+                    catch (const std::exception&) { dura_max = 0; }
+
+                    sql << "INSERT INTO \"TITEMTABLE\" "
+                           "(\"dlID\", \"bStorageType\", \"dwStorageID\", "
+                           " \"bOwnerType\", \"dwOwnerID\", "
+                           " \"bItemID\", \"wItemID\", \"bLevel\", "
+                           " \"bCount\", \"bGLevel\", "
+                           " \"dwDuraMax\", \"dwDuraCur\", \"bRefineCur\", "
+                           " \"dEndTime\", \"bGradeEffect\", "
+                           " \"bMagic1\", \"bMagic2\", \"bMagic3\", "
+                           " \"bMagic4\", \"bMagic5\", \"bMagic6\", "
+                           " \"wValue1\", \"wValue2\", \"wValue3\", "
+                           " \"wValue4\", \"wValue5\", \"wValue6\", "
+                           " \"dwTime1\", \"dwTime2\", \"dwTime3\", "
+                           " \"dwTime4\", \"dwTime5\", \"dwTime6\", "
+                           " \"bGem\", \"wMoggItemID\") "
+                           "VALUES (:dl, 0, :inv, 0, :own, :slot, :w, 0, "
+                           " :cnt, 0, :dura, :dura2, 0, 0, 0, "
+                           " 0, 0, 0, 0, 0, 0, "
+                           " 0, 0, 0, 0, 0, 0, "
+                           " 0, 0, 0, 0, 0, 0, 0, 0)",
+                        soci::use(dl_id),
+                        soci::use(bInven),
+                        soci::use(next_id),
+                        soci::use(bSlot),
+                        soci::use(wItemID),
+                        soci::use(bCount),
+                        soci::use(dura_max),
+                        soci::use(dura_max);
+                }
+                else
+                {
+                    // bChartType=0: copy curated quest-item stats.
+                    sql << "INSERT INTO \"TITEMTABLE\" "
+                           "(\"dlID\", \"bStorageType\", \"dwStorageID\", "
+                           " \"bOwnerType\", \"dwOwnerID\", "
+                           " \"bItemID\", \"wItemID\", \"bLevel\", "
+                           " \"bCount\", \"bGLevel\", "
+                           " \"dwDuraMax\", \"dwDuraCur\", \"bRefineCur\", "
+                           " \"dEndTime\", \"bGradeEffect\", "
+                           " \"bMagic1\", \"bMagic2\", \"bMagic3\", "
+                           " \"bMagic4\", \"bMagic5\", \"bMagic6\", "
+                           " \"wValue1\", \"wValue2\", \"wValue3\", "
+                           " \"wValue4\", \"wValue5\", \"wValue6\", "
+                           " \"dwTime1\", \"dwTime2\", \"dwTime3\", "
+                           " \"dwTime4\", \"dwTime5\", \"dwTime6\", "
+                           " \"bGem\", \"wMoggItemID\") "
+                           "SELECT :dl, 0, :inv, 0, :own, :slot, "
+                           "       \"wItemID\", \"bLevel\", :cnt, \"bGLevel\", "
+                           "       \"dwDuraMax\", \"dwDuraCur\", \"bRefineCur\", "
+                           "       0, \"bGradeEffect\", "
+                           "       \"bMagic1\", \"bMagic2\", \"bMagic3\", "
+                           "       \"bMagic4\", \"bMagic5\", \"bMagic6\", "
+                           "       \"wValue1\", \"wValue2\", \"wValue3\", "
+                           "       \"wValue4\", \"wValue5\", \"wValue6\", "
+                           "       \"dwTime1\", \"dwTime2\", \"dwTime3\", "
+                           "       \"dwTime4\", \"dwTime5\", \"dwTime6\", "
+                           "       0, 0 "
+                           "FROM \"TQUESTITEMCHART\" WHERE \"dwID\" = :w",
+                        soci::use(dl_id),
+                        soci::use(bInven),
+                        soci::use(next_id),
+                        soci::use(bSlot),
+                        soci::use(bCount),
+                        soci::use(wItemID);
+                }
+                used_chart = true;
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("char.Create: TSTARTITEMCHART row "
+                              "(slot={}, type={}, item={}) skipped: {}",
+                    bSlot, bChartType, wItemID, ex.what());
+                used_chart = false;  // bail to fallback
+                break;
+            }
+        }
+
+        // Fallback for dev fixtures (no TSTARTITEMCHART or its
+        // companion charts) — the hardcoded modern StarterSet, used
+        // since Phase B. Items go into the equipped slot triple
+        // (STORAGE_INVEN, INVEN_EQUIP, TOWNER_CHAR) so CharList shows
+        // them. Less faithful than the real chart data but lets the
+        // dev/test pipeline exercise the lobby render path.
+        if (!used_chart)
+        {
+            std::size_t starter_n = 0;
+            const auto* starter = StarterSet(req.char_class, starter_n);
+            for (std::size_t i = 0; i < starter_n; ++i)
+            {
+                const std::int64_t dl_id = next_dl_id(static_cast<std::int64_t>(i));
+                const int item_kind  = starter[i].item_kind;
+                const int item_id    = starter[i].item_id;
+                const int item_level = starter[i].level;
+                sql << "INSERT INTO \"TITEMTABLE\" "
+                       "(\"dlID\", \"bStorageType\", \"dwStorageID\", "
+                       " \"bOwnerType\", \"dwOwnerID\", "
+                       " \"bItemID\", \"wItemID\", \"bLevel\") "
+                       "VALUES (:dl, :st, :stid, :ot, :own, :ik, :iid, :lvl)",
+                    soci::use(dl_id),
+                    soci::use(kStorageInven),
+                    soci::use(kInvenEquip),
+                    soci::use(kOwnerChar),
+                    soci::use(next_id),
+                    soci::use(item_kind),
+                    soci::use(item_id),
+                    soci::use(item_level);
+            }
+        }
+
+        // Phase 5a — welcome mail. Legacy TCreateChar.sql:289-311 calls
+        // TSavePost SP to drop a "Welcome to 4Story" message into the
+        // new char's TPOSTTABLE inbox. Length-prefixed text format
+        // (legacy `fn_sqlvarbasetostr` trick): 8-char hex length
+        // prepended so the client renders the rich-text body. Modern
+        // mirrors the wire format and INSERTs directly into TPOSTTABLE
+        // (the SP itself adds nothing we can't do inline). Best-effort:
+        // missing TPOSTTABLE = no welcome message, char still created.
+        try
+        {
+            const std::string raw_title   = "Welcome to 4Story!";
+            const std::string raw_message =
+                "Welcome to 4Story,\n"
+                "if you find some bugs please report them in our Forum.\n"
+                "\n"
+                "Your 4Story Team!";
+            auto prefix_len = [](const std::string& body) {
+                char buf[16];
+                std::snprintf(buf, sizeof(buf), "%08X",
+                    static_cast<unsigned>(body.size()));
+                return std::string(buf) + body;
+            };
+            const std::string title_w   = prefix_len(raw_title);
+            const std::string message_w = prefix_len(raw_message);
+            const std::string sender    = "Mysterious helper";
+            const int post_type  = 0;
+            const int post_read  = 0;
+            const int gold       = 9999;  // matches legacy SP call
+            const int silver     = 0;
+            const int cooper     = 0;
+            sql << "INSERT INTO \"TPOSTTABLE\" "
+                   "(\"dwCharID\", \"szSender\", \"dwSendID\", \"szRecvName\", "
+                   " \"szTitle\", \"szMessage\", \"bType\", \"bRead\", "
+                   " \"dwGold\", \"dwSilver\", \"dwCooper\", \"timeRecv\") "
+                   "VALUES (:c, :s, 0, :rn, :t, :m, :ty, :rd, "
+                   "        :g, :sv, :cp, CURRENT_TIMESTAMP)",
                 soci::use(next_id),
-                soci::use(next_id),
-                soci::use(item_kind),
-                soci::use(item_id),
-                soci::use(item_level);
+                soci::use(sender),
+                soci::use(req.name),
+                soci::use(title_w),
+                soci::use(message_w),
+                soci::use(post_type),
+                soci::use(post_read),
+                soci::use(gold),
+                soci::use(silver),
+                soci::use(cooper);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TPOSTTABLE welcome mail skipped: {}",
+                ex.what());
+        }
+
+        // Phase 5b — recall mon (starter combat pet). Legacy
+        // TCreateChar.sql:323-353: if TSTARTRECALL has a row for
+        // (class, country), look up wMonID + wSummonAttr from
+        // TMONSTERCHART, HP/MP from TMONATTRCHART, then UPDATE
+        // TCHARTABLE.wTemptedMon and INSERT TRECALLMONTABLE.
+        // Skipped silently when any of the supporting chart tables
+        // are missing — the char loses its starter pet but is
+        // otherwise functional.
+        try
+        {
+            int recall_mon = 0;
+            {
+                soci::indicator ind = soci::i_null;
+                soci::statement st = (sql.prepare <<
+                    "SELECT \"wMonID\" FROM \"TSTARTRECALL\" "
+                    "WHERE \"bClassID\" = :cl AND \"bCountryID\" = :ct",
+                    soci::use(uclass), soci::use(ucountry),
+                    soci::into(recall_mon, ind));
+                st.execute(true);
+                if (!st.got_data() || ind == soci::i_null) recall_mon = 0;
+            }
+            if (recall_mon > 0)
+            {
+                int summon_attr = 0;
+                {
+                    soci::statement st = (sql.prepare <<
+                        "SELECT \"wSummonAttr\" FROM \"TMONSTERCHART\" "
+                        "WHERE \"wID\" = :w",
+                        soci::use(recall_mon),
+                        soci::into(summon_attr));
+                    st.execute(true);
+                }
+                int mon_hp = 0, mon_mp = 0;
+                {
+                    soci::statement st = (sql.prepare <<
+                        "SELECT \"dwMaxHP\", \"dwMaxMP\" FROM \"TMONATTRCHART\" "
+                        "WHERE \"wID\" = :w AND \"bLevel\" = 1",
+                        soci::use(summon_attr),
+                        soci::into(mon_hp), soci::into(mon_mp));
+                    st.execute(true);
+                }
+                // Legacy: @dwATTR = @dwATTR + POWER(2,16) — flips the
+                // high bit indicating "summoned by char" vs "wild".
+                const int dwAttr = summon_attr + (1 << 16);
+                const int pet_id = 0, skill_level = 1;
+                const int pos_x = static_cast<int>(fPosX);
+                const int pos_y = static_cast<int>(fPosY);
+                const int pos_z = static_cast<int>(fPosZ);
+                const int dwTime = 0;
+                const int bLevel = 1;
+                sql << "UPDATE \"TCHARTABLE\" SET \"wTemptedMon\" = :m "
+                       "WHERE \"dwCharID\" = :c",
+                    soci::use(recall_mon), soci::use(next_id);
+                sql << "INSERT INTO \"TRECALLMONTABLE\" "
+                       "(\"dwOwnerID\", \"wMonID\", \"wPetID\", \"dwATTR\", "
+                       " \"bLevel\", \"dwHP\", \"dwMP\", \"bSkillLevel\", "
+                       " \"wPosX\", \"wPosY\", \"wPosZ\", \"dwTime\") "
+                       "VALUES (:c, :m, :p, :a, :lv, :hp, :mp, :sl, "
+                       "        :px, :py, :pz, :t)",
+                    soci::use(next_id),
+                    soci::use(recall_mon),
+                    soci::use(pet_id),
+                    soci::use(dwAttr),
+                    soci::use(bLevel),
+                    soci::use(mon_hp),
+                    soci::use(mon_mp),
+                    soci::use(skill_level),
+                    soci::use(pos_x), soci::use(pos_y), soci::use(pos_z),
+                    soci::use(dwTime);
+            }
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: recall mon setup skipped: {}",
+                ex.what());
+        }
+
+        // Phase 5c — mount (TPETTABLE). Legacy TCreateChar.sql:357-360
+        // builds the mount name as "<charname>'s Mount", then runs
+        // a REPLACE("s's", "s'") fixup so names ending in 's' get
+        // the proper possessive ("Boss's Mount" → "Boss' Mount").
+        // DELETE old wPetID=2 row (idempotency for replays) then
+        // INSERT the fresh one. Per-user (not per-char), wPetID=2
+        // is the mount slot legacy reserved.
+        try
+        {
+            std::string mount_name = req.name + "'s Mount";
+            for (std::size_t pos = 0;
+                 (pos = mount_name.find("s's", pos)) != std::string::npos; )
+            {
+                mount_name.replace(pos, 3, "s'");
+                pos += 2;
+            }
+            const int pet_mount_id = 2;
+            sql << "DELETE FROM \"TPETTABLE\" "
+                   "WHERE \"dwUserID\" = :u AND \"wPetID\" = :p",
+                soci::use(req.user_id), soci::use(pet_mount_id);
+            sql << "INSERT INTO \"TPETTABLE\" "
+                   "(\"dwUserID\", \"wPetID\", \"szName\", \"timeUse\") "
+                   "VALUES (:u, :p, :n, 0)",
+                soci::use(req.user_id),
+                soci::use(pet_mount_id),
+                soci::use(mount_name);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("char.Create: TPETTABLE mount skipped: {}",
+                ex.what());
         }
 
         // Cross-world directory row in TGLOBAL.TALLCHARTABLE. dwSeq is
@@ -502,9 +1135,10 @@ SociCharService::Create(const CharacterCreateRequest& req)
             std::max(0, kMaxCharsPerUser - (live_count + 1)));
 
         spdlog::info("char.Create user_id={} world={} → char_id={} "
-                     "(name='{}', level={}, starter_items={})",
+                     "(name='{}', level={}, items_source={})",
             req.user_id, static_cast<int>(req.group_id),
-            next_id, req.name, ulevel, starter_n);
+            next_id, req.name, ulevel,
+            used_chart ? "TSTARTITEMCHART" : "fallback-StarterSet");
 
         return CharacterCreateResponse{
             .status          = CreateCharResult::Success,
@@ -570,10 +1204,100 @@ SociCharService::Delete(std::int32_t user_id,
         }
         else
         {
-            sql << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
-                soci::use(char_id);
+            // Hard-delete cleanup — port of legacy TGAME.TDeleteChar SP
+            // body (TDeleteChar.sql:51-82). Modern only used to clean
+            // TCHARTABLE + TITEMTABLE, leaving ~23 tables of orphan
+            // rows (friend lists, hotkeys, skills, quests, PvP records,
+            // soulmate bonds, etc.) per deleted character.
+            //
+            // Each cleanup is best-effort: most of these tables aren't
+            // in modern dev fixtures, only in the legacy production
+            // schema. A missing table throws "relation does not exist"
+            // (PG) / "Invalid object name" (MSSQL) which we swallow at
+            // debug level so the cleanup chain doesn't abort on the
+            // first missing table.
+            auto try_delete = [&sql, char_id](const char* stmt,
+                                              const char* table) {
+                try
+                {
+                    sql << stmt, soci::use(char_id);
+                }
+                catch (const std::exception& ex)
+                {
+                    spdlog::debug("char.Delete: {} cleanup skipped: {}",
+                        table, ex.what());
+                }
+            };
+
+            // Tables keyed by dwCharID — straightforward sweep.
+            try_delete("DELETE FROM \"TPOSTTABLE\"             WHERE \"dwCharID\" = :c", "TPOSTTABLE");
+            try_delete("DELETE FROM \"TFRIENDGROUPTABLE\"      WHERE \"dwCharID\" = :c", "TFRIENDGROUPTABLE");
+            try_delete("DELETE FROM \"TPROTECTEDTABLE\"        WHERE \"dwCharID\" = :c", "TPROTECTEDTABLE");
+            try_delete("DELETE FROM \"TSKILLTABLE\"            WHERE \"dwCharID\" = :c", "TSKILLTABLE");
+            try_delete("DELETE FROM \"TINVENTABLE\"            WHERE \"dwCharID\" = :c", "TINVENTABLE");
+            try_delete("DELETE FROM \"TCABINETTABLE\"          WHERE \"dwCharID\" = :c", "TCABINETTABLE");
+            try_delete("DELETE FROM \"TQUESTTERMTABLE\"        WHERE \"dwCharID\" = :c", "TQUESTTERMTABLE");
+            try_delete("DELETE FROM \"TQUESTTABLE\"            WHERE \"dwCharID\" = :c", "TQUESTTABLE");
+            try_delete("DELETE FROM \"TRECALLMAINTAINTABLE\"   WHERE \"dwCharID\" = :c", "TRECALLMAINTAINTABLE");
+            try_delete("DELETE FROM \"TSKILLMAINTAINTABLE\"    WHERE \"dwCharID\" = :c", "TSKILLMAINTAINTABLE");
+            try_delete("DELETE FROM \"THOTKEYTABLE\"           WHERE \"dwCharID\" = :c", "THOTKEYTABLE");
+            try_delete("DELETE FROM \"TITEMUSEDTABLE\"         WHERE \"dwCharID\" = :c", "TITEMUSEDTABLE");
+            try_delete("DELETE FROM \"TEXPITEMTABLE\"          WHERE \"dwCharID\" = :c", "TEXPITEMTABLE");
+            try_delete("DELETE FROM \"TCASTLEAPPLICANTTABLE\"  WHERE \"dwCharID\" = :c", "TCASTLEAPPLICANTTABLE");
+            try_delete("DELETE FROM \"TDUELCHARTABLE\"         WHERE \"dwCharID\" = :c", "TDUELCHARTABLE");
+            try_delete("DELETE FROM \"TDUELSCORETABLE\"        WHERE \"dwCharID\" = :c", "TDUELSCORETABLE");
+            try_delete("DELETE FROM \"TPVPOINTTABLE\"          WHERE \"dwCharID\" = :c", "TPVPOINTTABLE");
+            try_delete("DELETE FROM \"TPVPRECENTTABLE\"        WHERE \"dwCharID\" = :c", "TPVPRECENTTABLE");
+            try_delete("DELETE FROM \"TPVPRECORDTABLE\"        WHERE \"dwCharID\" = :c", "TPVPRECORDTABLE");
+            // TEMP-prefixed mirrors of the main tables — same pattern.
+            try_delete("DELETE FROM \"TTEMPINVENTABLE\"            WHERE \"dwCharID\" = :c", "TTEMPINVENTABLE");
+            try_delete("DELETE FROM \"TTEMPSKILLTABLE\"            WHERE \"dwCharID\" = :c", "TTEMPSKILLTABLE");
+            try_delete("DELETE FROM \"TTEMPEXPITEMTABLE\"          WHERE \"dwCharID\" = :c", "TTEMPEXPITEMTABLE");
+            try_delete("DELETE FROM \"TTEMPCABINETTABLE\"          WHERE \"dwCharID\" = :c", "TTEMPCABINETTABLE");
+            try_delete("DELETE FROM \"TTEMPITEMUSEDTABLE\"         WHERE \"dwCharID\" = :c", "TTEMPITEMUSEDTABLE");
+            try_delete("DELETE FROM \"TTEMPSKILLMAINTAINTABLE\"    WHERE \"dwCharID\" = :c", "TTEMPSKILLMAINTAINTABLE");
+
+            // TFRIENDTABLE + TSOULMATETABLE: char appears as either
+            // side of the relation. Named `:c` substitutes once per
+            // SOCI binding semantics, so reuse the same param across
+            // both columns.
+            try
+            {
+                sql << "DELETE FROM \"TFRIENDTABLE\" "
+                       "WHERE \"dwCharID\" = :c OR \"dwFriendID\" = :c",
+                    soci::use(char_id);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("char.Delete: TFRIENDTABLE cleanup skipped: {}",
+                    ex.what());
+            }
+            try
+            {
+                sql << "DELETE FROM \"TSOULMATETABLE\" "
+                       "WHERE \"dwCharID\" = :c OR \"dwTarget\" = :c",
+                    soci::use(char_id);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("char.Delete: TSOULMATETABLE cleanup skipped: {}",
+                    ex.what());
+            }
+
+            // Owner-typed item tables. bOwnerType = kOwnerChar (= 0)
+            // matches Create + CharList paths and legacy TOWNER_CHAR.
+            try_delete("DELETE FROM \"TRECALLMONTABLE\" WHERE \"dwOwnerID\" = :c", "TRECALLMONTABLE");
+            try_delete("DELETE FROM \"TTEMPITEMTABLE\" "
+                       "WHERE \"dwOwnerID\" = :c AND \"bOwnerType\" = 0",
+                       "TTEMPITEMTABLE");
+
+            // Existing modern cleanups — kept inline (these tables
+            // exist in dev fixtures so the outer try/catch can still
+            // catch genuine errors on them).
             sql << "DELETE FROM \"TITEMTABLE\" WHERE \"dwOwnerID\" = :c "
-                   "  AND \"bOwnerType\" = 1",
+                   "  AND \"bOwnerType\" = :ot",
+                soci::use(char_id), soci::use(kOwnerChar);
+            sql << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
                 soci::use(char_id);
         }
 
@@ -599,10 +1323,18 @@ SociCharService::Delete(std::int32_t user_id,
     }
 }
 
-std::int32_t SociCharService::GetBrCharId(std::int32_t user_id)
+namespace {
+// Single-table shard-membership lookup shared by GetBrCharId /
+// GetBowCharId. Both tables have the same shape ((dwUserID, dwCharID)),
+// only the table name differs. Legacy SPs TFindBRPlayer /
+// TFindBOWPlayer also share the same SELECT shape.
+std::int32_t LookupShardChar(fourstory::db::SessionPool& world_pool,
+                             std::int32_t user_id,
+                             const char* table,
+                             const char* tag)
 {
     if (user_id == 0) return 0;
-    auto lease = m_world.Acquire();
+    auto lease = world_pool.Acquire();
     soci::session& sql = *lease;
     try
     {
@@ -610,13 +1342,12 @@ std::int32_t SociCharService::GetBrCharId(std::int32_t user_id)
         soci::indicator ind = soci::i_null;
         bool got = false;
         {
-            // TBRPLAYERTABLE schema (per TGAME): one row per user
-            // currently enrolled in BR. Legacy SP TFindBRPlayer returns
-            // the dwCharID for the user_id. Same shape inlined here so
-            // we don't depend on the SP existing on every world DB.
-            soci::statement st = (sql.prepare <<
-                "SELECT TOP 1 \"dwCharID\" FROM \"TBRPLAYERTABLE\" "
-                "WHERE \"dwUserID\" = :u",
+            // Table name is hard-coded from a compile-time constant —
+            // no untrusted input, no SQL-injection surface.
+            const std::string q =
+                std::string("SELECT TOP 1 \"dwCharID\" FROM \"") + table +
+                "\" WHERE \"dwUserID\" = :u";
+            soci::statement st = (sql.prepare << q,
                 soci::use(user_id),
                 soci::into(char_id, ind));
             st.execute(true);
@@ -627,12 +1358,23 @@ std::int32_t SociCharService::GetBrCharId(std::int32_t user_id)
     }
     catch (const std::exception& ex)
     {
-        // TBRPLAYERTABLE may not exist on every world DB. Quiet
-        // failure — the caller treats 0 as "no BR char" which is the
-        // correct UX when the feature isn't deployed.
-        spdlog::debug("char.GetBrCharId uid={} skipped: {}", user_id, ex.what());
+        // Table may not exist on every world DB. Quiet failure —
+        // caller treats 0 as "no shard char" which is the correct UX
+        // when the feature isn't deployed.
+        spdlog::debug("char.{} uid={} skipped: {}", tag, user_id, ex.what());
         return 0;
     }
+}
+} // namespace
+
+std::int32_t SociCharService::GetBrCharId(std::int32_t user_id)
+{
+    return LookupShardChar(m_world, user_id, "TBRPLAYERTABLE", "GetBrCharId");
+}
+
+std::int32_t SociCharService::GetBowCharId(std::int32_t user_id)
+{
+    return LookupShardChar(m_world, user_id, "TBOWPLAYERTABLE", "GetBowCharId");
 }
 
 VeteranLevels SociCharService::GetVeteranLevels() const

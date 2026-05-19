@@ -157,10 +157,102 @@ void RunTests(const std::string& conn)
             "Terminate(uid, 0, Disconnect) → TCURRENTUSER cleared by uid");
     }
 
-    // 6. ClearStaleSessions — startup-recovery sweep. Seeds 3 rows
-    //    that look like a previous process's crash leftovers, then
-    //    calls the bulk clearer and asserts they're all gone. This
-    //    is the legacy ClearLoginUser/CSPClearLoginUser equivalent.
+    // 5b. Group + channel stamping on TLOG. Legacy TLogout SP reads
+    //     bGroupID + bChannel from TCURRENTUSER and copies them onto
+    //     the matching TLOG row (TLogout.sql:46-51). Modern matches:
+    //     seed a session with group=5, channel=3, char=42; on
+    //     Terminate the TLOG row should carry those.
+    {
+        const int uid_gc = base_uid + 5;
+        const int char_gc = 42;
+        const int group_gc = 5;
+        const int channel_gc = 3;
+        int session_key = 0;
+        {
+            auto lease = pool.Acquire();
+            soci::session& sql = *lease;
+            sql << "INSERT INTO \"TCURRENTUSER\" "
+                   "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+                   " \"szLoginIP\") "
+                   "VALUES (:u, :c, :g, :ch, '127.0.0.1') "
+                   "RETURNING \"dwKEY\"",
+                soci::use(uid_gc), soci::use(char_gc),
+                soci::use(group_gc), soci::use(channel_gc),
+                soci::into(session_key);
+            sql << "INSERT INTO \"TLOG\" "
+                   "(\"dwKEY\", \"dwUserID\", \"timeLOGOUT\") "
+                   "VALUES (:k, :u, '1970-01-02 00:00:00')",
+                soci::use(session_key), soci::use(uid_gc);
+        }
+        svc.Terminate(uid_gc, session_key,
+            TerminationReason::Disconnect, char_gc);
+
+        auto lease = pool.Acquire();
+        int tlog_group = -1;
+        int tlog_channel = -1;
+        int tlog_char = -1;
+        *lease << "SELECT \"bGroupID\", \"bChannel\", \"dwCharID\" "
+                  "FROM \"TLOG\" WHERE \"dwKEY\" = :k",
+            soci::use(session_key),
+            soci::into(tlog_group),
+            soci::into(tlog_channel),
+            soci::into(tlog_char);
+        Check(tlog_group == group_gc,
+            "Terminate → TLOG.bGroupID copied from TCURRENTUSER");
+        Check(tlog_channel == channel_gc,
+            "Terminate → TLOG.bChannel copied from TCURRENTUSER");
+        Check(tlog_char == char_gc,
+            "Terminate → TLOG.dwCharID set from arg");
+    }
+
+    // 5c. Same stamping path but char_id = 0 (pre-handoff disconnect).
+    //     Group/channel come from TCURRENTUSER; dwCharID stays at the
+    //     row's existing value (since the UPDATE skips it when char=0).
+    {
+        const int uid_gc = base_uid + 6;
+        const int group_gc = 7;
+        const int channel_gc = 2;
+        int session_key = 0;
+        {
+            auto lease = pool.Acquire();
+            soci::session& sql = *lease;
+            sql << "INSERT INTO \"TCURRENTUSER\" "
+                   "(\"dwUserID\", \"bGroupID\", \"bChannel\", \"szLoginIP\") "
+                   "VALUES (:u, :g, :ch, '127.0.0.1') "
+                   "RETURNING \"dwKEY\"",
+                soci::use(uid_gc),
+                soci::use(group_gc), soci::use(channel_gc),
+                soci::into(session_key);
+            sql << "INSERT INTO \"TLOG\" "
+                   "(\"dwKEY\", \"dwUserID\", \"timeLOGOUT\") "
+                   "VALUES (:k, :u, '1970-01-02 00:00:00')",
+                soci::use(session_key), soci::use(uid_gc);
+        }
+        svc.Terminate(uid_gc, session_key,
+            TerminationReason::Disconnect, /*char_id=*/0);
+
+        auto lease = pool.Acquire();
+        int tlog_group = -1;
+        int tlog_channel = -1;
+        *lease << "SELECT \"bGroupID\", \"bChannel\" "
+                  "FROM \"TLOG\" WHERE \"dwKEY\" = :k",
+            soci::use(session_key),
+            soci::into(tlog_group),
+            soci::into(tlog_channel);
+        Check(tlog_group == group_gc,
+            "Terminate(char=0) → TLOG.bGroupID still stamped");
+        Check(tlog_channel == channel_gc,
+            "Terminate(char=0) → TLOG.bChannel still stamped");
+    }
+
+    // 6. ClearStaleSessions — startup-recovery sweep. Seeds 3 pre-
+    //    handoff rows (dwCharID = 0) plus 1 in-game row
+    //    (dwCharID != 0) that simulates a user already handed off to
+    //    a map server. Asserts only the pre-handoff rows are wiped;
+    //    the in-game row must survive so global session state stays
+    //    in sync with the live world-server state.
+    //    Mirrors legacy CSPClearLoginUser / TClearLoginCurrentUser SP
+    //    (`DELETE TCURRENTUSER WHERE dwCharID = 0`).
     {
         // Seed (don't bother SeedSession's TLOG insert — ClearStale
         // only touches TCURRENTUSER, and the cleanup at function end
@@ -174,36 +266,58 @@ void RunTests(const std::string& conn)
                    "VALUES (:u, '127.0.0.1')", soci::use(base_uid + 11);
             sql << "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
                    "VALUES (:u, '127.0.0.1')", soci::use(base_uid + 12);
+            // In-game session: dwCharID != 0. Must survive sweep.
+            const int handoff_uid  = base_uid + 13;
+            const int handoff_char = 99001;
+            sql << "INSERT INTO \"TCURRENTUSER\" "
+                   "(\"dwUserID\", \"dwCharID\", \"szLoginIP\") "
+                   "VALUES (:u, :c, '127.0.0.1')",
+                soci::use(handoff_uid), soci::use(handoff_char);
         }
 
-        // ClearStaleSessions truncates EVERY TCURRENTUSER row, not
-        // just our PID range. Capture the pre-count so we can assert
-        // "at least the three we seeded" got wiped — anything else
-        // belongs to other tests sharing the DB and isn't our
-        // responsibility to defend against.
-        int before = 0;
+        // Count pre-handoff rows (the ones the sweep should claim).
+        // Anything from other tests sharing the DB that's also
+        // dwCharID=0 will also get wiped — that's fine, ClearStale
+        // is a startup-only call and the test fixture rebuilds state.
+        int prehandoff_before = 0;
+        int handoff_before    = 0;
         {
             auto lease = pool.Acquire();
-            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\"",
-                soci::into(before);
+            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\" "
+                      "WHERE \"dwCharID\" = 0",
+                soci::into(prehandoff_before);
+            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\" "
+                      "WHERE \"dwCharID\" <> 0",
+                soci::into(handoff_before);
         }
-        Check(before >= 3, "ClearStaleSessions: seeded rows visible");
+        Check(prehandoff_before >= 3,
+            "ClearStaleSessions: seeded pre-handoff rows visible");
+        Check(handoff_before >= 1,
+            "ClearStaleSessions: seeded in-game row visible");
 
         const int cleared = svc.ClearStaleSessions();
-        Check(cleared == before,
-            "ClearStaleSessions: return value equals pre-count");
+        Check(cleared == prehandoff_before,
+            "ClearStaleSessions: cleared count == pre-handoff rows");
 
-        int after = 0;
+        int prehandoff_after = 0;
+        int handoff_after    = 0;
         {
             auto lease = pool.Acquire();
-            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\"",
-                soci::into(after);
+            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\" "
+                      "WHERE \"dwCharID\" = 0",
+                soci::into(prehandoff_after);
+            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\" "
+                      "WHERE \"dwCharID\" <> 0",
+                soci::into(handoff_after);
         }
-        Check(after == 0, "ClearStaleSessions: TCURRENTUSER is empty after sweep");
+        Check(prehandoff_after == 0,
+            "ClearStaleSessions: no pre-handoff rows left after sweep");
+        Check(handoff_after == handoff_before,
+            "ClearStaleSessions: in-game rows (dwCharID != 0) preserved");
 
-        // Re-calling on an empty table returns 0 immediately.
+        // Re-calling on a table with no pre-handoff rows returns 0.
         Check(svc.ClearStaleSessions() == 0,
-            "ClearStaleSessions: idempotent on empty table");
+            "ClearStaleSessions: idempotent when no pre-handoff rows remain");
     }
 
     // Cleanup.

@@ -34,6 +34,39 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
         // (it's the boundary between "Login holds the session" and
         // "Map holds the session").
         //
+        // Legacy TLogout SP (TLogout.sql:38-51) reads dwCharID, bGroupID,
+        // bChannel from TCURRENTUSER and copies them onto the matching
+        // TLOG row. The login server never set them at INSERT time
+        // (login happens before group/channel are known), so without
+        // this copy the TLOG audit row stays at the schema defaults (0)
+        // and BI queries filtered by group/channel return nothing.
+        //
+        // Read them inline. If the TCURRENTUSER row is already gone
+        // (race with another Terminate, or early auth-failure cleanup)
+        // we fall back to zeros — same outcome as legacy's
+        // @@ROWCOUNT = 0 branch (RETURN 1 without writing TLOG).
+        int session_group   = 0;
+        int session_channel = 0;
+        if (user_id != 0)
+        {
+            try
+            {
+                soci::statement st = (sql.prepare <<
+                    "SELECT \"bGroupID\", \"bChannel\" FROM \"TCURRENTUSER\" "
+                    "WHERE \"dwUserID\" = :u",
+                    soci::use(user_id),
+                    soci::into(session_group),
+                    soci::into(session_channel));
+                st.execute(true);
+                // got_data() == false → leave group/channel at 0.
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("session.Terminate TCURRENTUSER group/channel "
+                              "lookup skipped: {}", ex.what());
+            }
+        }
+
         // If char_id is non-zero, also stamp TLOG.dwCharID — the
         // session was attached to that char at handoff time (set by
         // OnStartReq's MarkHandoffWithChar). Legacy CSPLogout's
@@ -44,15 +77,24 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
             {
                 sql << "UPDATE \"TLOG\" SET "
                        "  \"timeLOGOUT\" = CURRENT_TIMESTAMP, "
-                       "  \"dwCharID\"   = :c "
+                       "  \"dwCharID\"   = :c, "
+                       "  \"bGroupID\"   = :g, "
+                       "  \"bChannel\"   = :ch "
                        "WHERE \"dwKEY\" = :k",
                     soci::use(char_id),
+                    soci::use(session_group),
+                    soci::use(session_channel),
                     soci::use(static_cast<int>(session_key));
             }
             else
             {
-                sql << "UPDATE \"TLOG\" SET \"timeLOGOUT\" = CURRENT_TIMESTAMP "
+                sql << "UPDATE \"TLOG\" SET "
+                       "  \"timeLOGOUT\" = CURRENT_TIMESTAMP, "
+                       "  \"bGroupID\"   = :g, "
+                       "  \"bChannel\"   = :ch "
                        "WHERE \"dwKEY\" = :k",
+                    soci::use(session_group),
+                    soci::use(session_channel),
                     soci::use(static_cast<int>(session_key));
             }
         }
@@ -108,13 +150,21 @@ int SociSessionTerminator::ClearStaleSessions()
 
     try
     {
+        // Mirror legacy CSPClearLoginUser (`TClearLoginCurrentUser` SP):
+        //   DELETE TCURRENTUSER WHERE dwCharID = 0
+        // Only wipe sessions that never made it past character select.
+        // Rows with dwCharID != 0 represent users already handed off to
+        // a map server; wiping them desynchronises global session state
+        // from the live world-server in-memory state and breaks
+        // cross-instance duplicate-kick (LR_DUPLICATE) on the next login.
         int before = 0;
-        sql << "SELECT COUNT(*) FROM \"TCURRENTUSER\"", soci::into(before);
+        sql << "SELECT COUNT(*) FROM \"TCURRENTUSER\" WHERE \"dwCharID\" = 0",
+            soci::into(before);
         if (before == 0) return 0;
 
-        sql << "DELETE FROM \"TCURRENTUSER\"";
-        spdlog::info("session.ClearStaleSessions wiped {} stale TCURRENTUSER row(s)",
-            before);
+        sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwCharID\" = 0";
+        spdlog::info("session.ClearStaleSessions wiped {} pre-handoff "
+            "TCURRENTUSER row(s)", before);
         return before;
     }
     catch (const std::exception& ex)

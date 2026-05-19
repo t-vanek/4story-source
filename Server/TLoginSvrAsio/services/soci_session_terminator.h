@@ -25,12 +25,18 @@ public:
                    TerminationReason reason,
                    std::int32_t  char_id = 0) override;
 
-    // Bulk-clear every TCURRENTUSER row. Mirrors legacy
-    // CSPClearLoginUser, which CTLoginSvrModule::OnEnter calls right
-    // after InitNetwork: if the previous process crashed with live
-    // sessions the rows are still there and the next login would hit
-    // LR_DUPLICATE forever. Returning the row-count so the caller can
-    // log it (operators want to know when recovery picks something up).
+    // Clear pre-handoff TCURRENTUSER rows (`WHERE dwCharID = 0`).
+    // Mirrors legacy CSPClearLoginUser / TClearLoginCurrentUser SP,
+    // which CTLoginSvrModule::OnEnter calls right after InitNetwork:
+    // if the previous process crashed with sessions stuck on the
+    // group/char-select screen, the rows are still there and the next
+    // login would hit LR_DUPLICATE forever. Returns the row-count so
+    // the caller can log it.
+    //
+    // Sessions already handed off to a map server (dwCharID != 0) are
+    // preserved — wiping them would desync global session state from
+    // the world server's in-memory state and silently break the
+    // cross-instance duplicate-kick path.
     int ClearStaleSessions();
 
 private:

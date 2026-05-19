@@ -34,6 +34,10 @@ public:
     void MarkHandoff(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
 
+    void MarkHandoffWithChar(
+        const std::shared_ptr<tnetlib::AsioSession>& session,
+        std::int32_t char_id) override;
+
     void MarkAgreed(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
 
@@ -49,6 +53,8 @@ public:
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
 
     std::size_t Count() const override;
+
+    std::vector<LiveEntry> Snapshot() const override;
 
 private:
     mutable std::mutex m_mtx;

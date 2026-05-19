@@ -101,12 +101,15 @@ struct LoginReqFields
     std::int64_t  dl_check = 0;
     std::int64_t  ll_checksum = 0;
     bool          checksum_present = false;
-    // JP deployments append a single trailing BYTE bChanneling after
-    // llChecksum (CSHandler.cpp:173). Non-JP bodies don't carry it.
-    // Stays 0 / absent on the other locales — SOCI auth ignores it
-    // unless the deployment nation is Japan.
-    std::uint8_t  channeling = 0;
-    bool          channeling_present = false;
+    // JP/TW deployments append a trailing DWORD dwSiteCode after
+    // llChecksum (TNetSender.cpp:46, gated on MODIFY_DIRECTLOGIN
+    // which TNationOption::SetNation flips ON for both
+    // TNATION_JAPAN and TNATION_TAIWAN). Legacy server reads only
+    // the low byte as `bChanneling` (CSHandler.cpp:173-174); we
+    // capture the full DWORD for any consumer that wants the
+    // canonical wire value. Non-JP/TW bodies don't carry it.
+    std::uint32_t site_code = 0;
+    bool          site_code_present = false;
 };
 
 // Legacy CS_LOGIN_REQ trailing-checksum validator (CSHandler.cpp:185-202).
@@ -145,7 +148,7 @@ bool VerifyLoginChecksum(std::uint16_t version, std::int64_t recv_checksum)
 constexpr std::size_t kMaxLoginStringLen = 64;
 
 bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out,
-                   bool expect_channeling = false)
+                   bool expect_site_code = false)
 {
     std::size_t pos = 0;
     auto read_bytes = [&](void* dst, std::size_t n) -> bool {
@@ -184,11 +187,11 @@ bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out,
         std::memcpy(&out.ll_checksum, body.data() + pos, 8); pos += 8;
         out.checksum_present = true;
     }
-    if (expect_channeling && pos + 1 <= body.size())
+    if (expect_site_code && pos + 4 <= body.size())
     {
-        out.channeling = static_cast<std::uint8_t>(body[pos]);
-        pos += 1;
-        out.channeling_present = true;
+        std::memcpy(&out.site_code, body.data() + pos, 4);
+        pos += 4;
+        out.site_code_present = true;
     }
     return true;
 }
@@ -376,20 +379,25 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
     {
         // Full path: parse the wire, delegate to IAuthService.
         LoginReqFields fields;
-        const bool jp = (nation == Nation::Japan);
-        if (!ParseLoginReq(body, fields, /*expect_channeling=*/jp))
+        // The shipped client appends a DWORD dwSiteCode tail when
+        // MODIFY_DIRECTLOGIN is set; TNationOption::SetNation flips
+        // that ON for Japan and Taiwan.
+        const bool expects_site_code =
+            (nation == Nation::Japan || nation == Nation::Taiwan);
+        if (!ParseLoginReq(body, fields, expects_site_code))
         {
             spdlog::warn("CS_LOGIN_REQ malformed body — closing session");
             sref.Close();
             co_return;
         }
-        if (jp && !fields.channeling_present)
+        if (expects_site_code && !fields.site_code_present)
         {
-            // JP deployment expects the trailing channeling byte. A
-            // missing one means either a non-JP client connected to
-            // a JP server, or a forged packet. Mirror legacy behavior:
+            // JP/TW deployment expects the trailing site_code DWORD.
+            // A missing one means either the wrong-locale client
+            // connected, or a forged packet. Mirror legacy behavior:
             // close.
-            spdlog::warn("CS_LOGIN_REQ (JP) missing bChanneling tail — closing");
+            spdlog::warn("CS_LOGIN_REQ ({}) missing dwSiteCode tail — closing",
+                nation == Nation::Japan ? "JP" : "TW");
             sref.Close();
             co_return;
         }
@@ -417,16 +425,30 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
                 .password = fields.password,
                 .client_ip = sref.RemoteIPv4(),
                 .client_version = fields.version,
-                .channeling = fields.channeling,
-                .channeling_present = fields.channeling_present,
+                .site_code = fields.site_code,
+                .site_code_present = fields.site_code_present,
             };
             const auto result = auth_service->Authenticate(req);
             ack.bResult    = static_cast<std::uint8_t>(result.status);
             ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
+            ack.dwCharID   = result.last_char_id;   // legacy: SP TLogin OUT m_dwCharID
             ack.dwKEY      = result.session_key;
             ack.bCreateCnt = result.create_char_count;
             ack.bInPcBang  = result.in_pc_bang;
             ack.dwPremium  = result.premium_id;
+            // dlCheck is the client's XOR-hash of its own TClient.exe
+            // (TClient.cpp:498-503). Legacy anti-cheat used it to gate
+            // login; we log it (debug level) so ops can correlate
+            // hash → known build fingerprint when investigating an
+            // incident, without paying the legacy gate's enforcement
+            // cost. Zero when the client elected not to send the
+            // optional checksum tail (older test tooling).
+            if (fields.checksum_present)
+            {
+                spdlog::debug("CS_LOGIN_REQ user={} client_hash=0x{:016X}",
+                    fields.user_id,
+                    static_cast<std::uint64_t>(fields.dl_check));
+            }
             spdlog::info("CS_LOGIN_REQ user={} → status={} key=0x{:08X}",
                 fields.user_id, ack.bResult, ack.dwKEY);
 
@@ -557,6 +579,20 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
 {
     auto& sref = *session;
 
+    // Legacy CSHandler.cpp:494 — `if (!pUser->m_bAgreement) return
+    // EC_SESSION_INVALIDCHAR;`. The default agreement flag is TRUE in
+    // the legacy CTUser ctor so this gate only blocks LR_NEEDAGREEMENT
+    // users (logged in but EULA missing); pre-auth peers never reach
+    // here because they have no registry entry to ask. Mirror that
+    // shape via IsAgreed (which returns true when there's no registry
+    // wired — covers the in-memory test path).
+    if (!IsAgreed(session, connection_registry))
+    {
+        spdlog::warn("CS_GROUPLIST_REQ from session without agreement — closing");
+        sref.Close();
+        co_return;
+    }
+
     std::vector<services::GroupInfo> groups;
     if (map_server_locator != nullptr)
     {
@@ -568,7 +604,12 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
     //   BYTE  bCount
     //   DWORD dwCheckPoint  — formerly file-integrity nonce; we send 0
     //   per group: STRING szNAME (INT32 len + bytes), BYTE bGroupID,
-    //              BYTE bType, BYTE bStatus, BYTE bFlags
+    //              BYTE bType, BYTE bStatus,
+    //              BYTE bCount   ← "user owns a char in this group?" (0/1)
+    // An earlier revision sent g.flags (= TGROUP.bUseRate) here, which
+    // the client interprets as "you have a char here", so every group
+    // was rendered un-decorated. Fixed to match legacy semantics
+    // (DBAccess.h:339, COLUMN_ENTRY(m_bCount)).
     ByteAppender out;
     const std::uint8_t count = static_cast<std::uint8_t>(
         std::min<std::size_t>(groups.size(), 255));
@@ -581,7 +622,7 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
         out.U8(g.group_id);
         out.U8(g.type);
         out.U8(static_cast<std::uint8_t>(g.status));
-        out.U8(g.flags);
+        out.U8(g.has_char);
     }
 
     spdlog::info("CS_GROUPLIST_REQ → CS_GROUPLIST_ACK ({} groups)", count);
@@ -591,10 +632,20 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
 }
 
 boost::asio::awaitable<void>
-OnChannelListReq(tnetlib::AsioSession& session,
+OnChannelListReq(std::shared_ptr<tnetlib::AsioSession> session,
                  std::span<const std::byte> body,
-                 services::IMapServerLocator* map_server_locator)
+                 services::IMapServerLocator* map_server_locator,
+                 services::IConnectionRegistry* connection_registry)
 {
+    auto& sref = *session;
+    // Same agreement gate as GROUPLIST — see legacy CSHandler.cpp:555.
+    if (!IsAgreed(session, connection_registry))
+    {
+        spdlog::warn("CS_CHANNELLIST_REQ from session without agreement — closing");
+        sref.Close();
+        co_return;
+    }
+
     const auto groupId = body.empty()
         ? std::uint8_t{0}
         : static_cast<std::uint8_t>(body[0]);
@@ -623,7 +674,7 @@ OnChannelListReq(tnetlib::AsioSession& session,
 
     spdlog::info("CS_CHANNELLIST_REQ group={} → CS_CHANNELLIST_ACK ({} channels)",
         groupId, count);
-    co_await session.SendPacket(
+    co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CHANNELLIST_ACK),
         std::span<const std::byte>(out.bytes.data(), out.bytes.size()));
 }
@@ -676,9 +727,9 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
     //     BYTE bSex, bHair, bFace, bBody, bPants, bHand, bFoot,
     //     DWORD dwRegion, dwFame, dwFameColor,
     //     BYTE bHelmetHide, bEquipItemCount,
-    //     per item (10 bytes):
+    //     per item (12 bytes — TNetHandler.cpp:425-440 parser order):
     //       BYTE  bItemID, WORD wItemID, BYTE bLevel, BYTE bGradeEffect,
-    //       WORD wColor, BYTE bRegGuild, WORD wMoggItemID
+    //       WORD wColor, WORD wCustomTex, BYTE bRegGuild, WORD wMoggItemID
     //   }
     ByteAppender p;
     p.U32(0);                                             // dwCheckPoint
@@ -715,6 +766,7 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
             p.U8(it.level);
             p.U8(it.grade_effect);
             p.U16(it.color);
+            p.U16(it.custom_tex);  // shipped client expects this between color and reg_guild
             p.U8(it.reg_guild);
             p.U16(it.mogg_item_id);
         }
@@ -1130,9 +1182,12 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
         // SessionTerminator call (in HandleConnection's close path)
         // knows to preserve the TCURRENTUSER row — Map needs the
         // dwKEY entry to validate the client's reconnect.
+        // Also stamp the char_id so the terminator can stamp
+        // TLOG.dwCharID + TUSERINFOTABLE.dwLastCharID (legacy
+        // CSPLogout's m_dwCharID arg parity).
         if (connection_registry)
         {
-            connection_registry->MarkHandoff(session);
+            connection_registry->MarkHandoffWithChar(session, dwCharID);
         }
     }
     else
@@ -1360,6 +1415,7 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
         LoginAck ack{};
         ack.bResult    = static_cast<std::uint8_t>(services::AuthStatus::Success);
         ack.dwUserID   = static_cast<std::uint32_t>(user_id);
+        ack.dwCharID   = auth_service->LookupLastCharId(user_id);
         ack.dwKEY      = key;
         ack.bCreateCnt = 6;
         ack.dCurTime = static_cast<std::int64_t>(
@@ -1444,13 +1500,109 @@ OnControlCtrlSvr(tnetlib::AsioSession& /*session*/,
     co_return;
 }
 
+namespace {
+
+// Parse the EVENTINFO body that follows (bEventID, wValue) on the wire.
+// Mirrors legacy EVENTINFO::WrapPacketOut field order (TLoginType.h:212).
+// Returns true on a clean decode; on malformed input leaves the partly
+// populated entry as-is and returns false (the caller falls back to
+// opaque-only storage so the wire body is at least preserved).
+bool ParseEventInfo(std::span<const std::byte> body, services::EventEntry& out)
+{
+    std::size_t pos = 0;
+    auto remaining = [&](std::size_t n) { return pos + n <= body.size(); };
+    auto read = [&](void* dst, std::size_t n) -> bool {
+        if (!remaining(n)) return false;
+        std::memcpy(dst, body.data() + pos, n); pos += n;
+        return true;
+    };
+    auto read_str = [&](std::string& dst) -> bool {
+        std::int32_t len = 0;
+        if (!read(&len, 4)) return false;
+        if (len < 0 || len > 4096 || !remaining(static_cast<std::size_t>(len))) return false;
+        dst.assign(reinterpret_cast<const char*>(body.data() + pos), len);
+        pos += len;
+        return true;
+    };
+
+    if (!read(&out.index, 4))         return false;
+    if (!read(&out.id_inner, 1))      return false;
+    if (!read(&out.state, 1))         return false;
+    if (!read(&out.group_id, 1))      return false;
+    if (!read(&out.svr_type, 1))      return false;
+    if (!read(&out.svr_id, 1))        return false;
+    if (!read(&out.start_date, 8))    return false;
+    if (!read(&out.end_date, 8))      return false;
+    std::uint16_t inner_value = 0;
+    if (!read(&inner_value, 2))       return false;  // duplicate of outer wValue
+    if (!read(&out.map_id, 2))        return false;
+    if (!read(&out.start_alarm, 4))   return false;
+    if (!read(&out.end_alarm, 4))     return false;
+    if (!read_str(out.start_msg))     return false;
+    if (!read_str(out.end_msg))       return false;
+    if (!read_str(out.title))         return false;
+    if (!read(&out.part_time, 1))     return false;
+    if (!read_str(out.lot_msg))       return false;
+
+    std::uint16_t count = 0;
+    if (!read(&count, 2))             return false;
+    out.cash_items.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        services::CashItemSale ci{};
+        if (!read(&ci.item_id, 2))    return false;
+        if (!read(&ci.sale_value, 1)) return false;
+        out.cash_items.push_back(ci);
+    }
+
+    if (!read(&out.mon_start_action, 1)) return false;
+    if (!read(&out.mon_end_action, 1))   return false;
+    if (!read(&count, 2))                return false;
+    out.spawn_ids.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        std::uint16_t spawn = 0;
+        if (!read(&spawn, 2)) return false;
+        out.spawn_ids.push_back(spawn);
+    }
+
+    if (!read(&count, 2)) return false;
+    out.mon_regens.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        services::MonsterRegen mr{};
+        if (!read(&mr.mon_id, 2))  return false;
+        if (!read(&mr.delay, 4))   return false;
+        if (!read(&mr.map_id, 2))  return false;
+        if (!read(&mr.pos_x, 4))   return false;
+        if (!read(&mr.pos_y, 4))   return false;
+        if (!read(&mr.pos_z, 4))   return false;
+        out.mon_regens.push_back(mr);
+    }
+
+    if (!read(&count, 2)) return false;
+    out.lottery.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        services::LotteryItem li{};
+        if (!read(&li.item_id, 2)) return false;
+        if (!read(&li.count, 1))   return false;
+        if (!read(&li.winner, 2))  return false;
+        out.lottery.push_back(li);
+    }
+
+    return true;
+}
+
+} // namespace
+
 boost::asio::awaitable<void>
 OnControlEventUpdate(tnetlib::AsioSession& /*session*/,
                      std::span<const std::byte> body,
                      services::IEventRegistry* event_registry)
 {
     // Legacy wire: BYTE bEventID, WORD wValue, then EVENTINFO struct
-    // (variable layout — preserved as opaque bytes here). wValue == 0
+    // (per EVENTINFO::WrapPacketOut in TLoginType.h:212). wValue == 0
     // signals "remove this event"; non-zero is upsert.
     if (body.size() < 3)
     {
@@ -1475,7 +1627,15 @@ OnControlEventUpdate(tnetlib::AsioSession& /*session*/,
             services::EventEntry entry{};
             entry.event_id = event_id;
             entry.value = value;
-            entry.opaque_payload.assign(body.begin() + 3, body.end());
+            const auto payload = body.subspan(3);
+            entry.opaque_payload.assign(payload.begin(), payload.end());
+            entry.parsed = ParseEventInfo(payload, entry);
+            if (!entry.parsed)
+            {
+                spdlog::warn("CT_EVENTUPDATE_REQ event_id={} payload didn't match "
+                             "EVENTINFO layout — storing opaque only",
+                    event_id);
+            }
             event_registry->Upsert(std::move(entry));
         }
     }
@@ -1510,6 +1670,7 @@ OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession> session,
         const auto result = auth_service->AuthenticateTest(sref.RemoteIPv4());
         ack.bResult    = static_cast<std::uint8_t>(result.status);
         ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
+        ack.dwCharID   = result.last_char_id;
         ack.dwKEY      = result.session_key;
         ack.bCreateCnt = result.create_char_count;
         if (result.status == services::AuthStatus::Success

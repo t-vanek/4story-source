@@ -35,6 +35,7 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_test_handlers_enabled(config.test_handlers_enabled)
     , m_on_quit_request(std::move(config.on_quit_request))
     , m_nation(config.nation)
+    , m_control_server_ip(std::move(config.control_server_ip))
 {
 }
 
@@ -148,7 +149,8 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
                 ? services::TerminationReason::MapHandoff
                 : services::TerminationReason::Disconnect;
             m_session_terminator->Terminate(
-                entry->user_id, entry->session_key, reason);
+                entry->user_id, entry->session_key, reason,
+                entry->last_char_id);
         }
         m_connection_registry->Unregister(sess);
     }
@@ -180,7 +182,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await handlers::OnGroupListReq(sess, body, m_map_server_locator, m_connection_registry);
         break;
     case MessageId::CS_CHANNELLIST_REQ:
-        co_await handlers::OnChannelListReq(*sess, body, m_map_server_locator);
+        co_await handlers::OnChannelListReq(sess, body, m_map_server_locator, m_connection_registry);
         break;
     case MessageId::CS_CHARLIST_REQ:
         co_await handlers::OnCharListReq(sess, body, m_char_service, m_connection_registry);
@@ -230,22 +232,44 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         else
             spdlog::warn("CS_TESTVERSION_REQ received but test_handlers_enabled=false — dropping");
         break;
-    // Control protocol — TControlSvr / GM tooling. Phase B parity
-    // stubs; real wiring lands with the full TControlSvr port.
+    // Control protocol — TControlSvr / GM tooling. Legacy gates
+    // these on `m_bSessionType == SESSION_SERVER`, set in Accept()
+    // by comparing the peer's IP against the resolved Control Server
+    // address. We mirror that: only the configured control_server_ip
+    // is allowed to drive event/state mutations. Empty config = gate
+    // open (single-process dev + in-process tests).
     case MessageId::CT_SERVICEMONITOR_ACK:
-        co_await handlers::OnControlServiceMonitor(*sess, body, m_connection_registry);
-        break;
     case MessageId::CT_SERVICEDATACLEAR_ACK:
-        co_await handlers::OnControlServiceDataClear(*sess, body);
-        break;
     case MessageId::CT_CTRLSVR_REQ:
-        co_await handlers::OnControlCtrlSvr(*sess, body);
-        break;
     case MessageId::CT_EVENTUPDATE_REQ:
-        co_await handlers::OnControlEventUpdate(*sess, body, m_event_registry);
-        break;
     case MessageId::CT_EVENTMSG_REQ:
-        co_await handlers::OnControlEventMsg(*sess, body);
+        if (!m_control_server_ip.empty() && sess->RemoteIPv4() != m_control_server_ip)
+        {
+            spdlog::warn("ct: dropping {} from non-control peer {} (expected {})",
+                tnetlib::protocol::NameOf(id),
+                sess->RemoteIPv4(),
+                m_control_server_ip);
+            break;
+        }
+        switch (id)
+        {
+        case MessageId::CT_SERVICEMONITOR_ACK:
+            co_await handlers::OnControlServiceMonitor(*sess, body, m_connection_registry);
+            break;
+        case MessageId::CT_SERVICEDATACLEAR_ACK:
+            co_await handlers::OnControlServiceDataClear(*sess, body);
+            break;
+        case MessageId::CT_CTRLSVR_REQ:
+            co_await handlers::OnControlCtrlSvr(*sess, body);
+            break;
+        case MessageId::CT_EVENTUPDATE_REQ:
+            co_await handlers::OnControlEventUpdate(*sess, body, m_event_registry);
+            break;
+        case MessageId::CT_EVENTMSG_REQ:
+            co_await handlers::OnControlEventMsg(*sess, body);
+            break;
+        default: break;  // unreachable — outer case covers exactly these five
+        }
         break;
     case MessageId::SM_QUITSERVICE_REQ:
         co_await handlers::OnQuitServiceReq(*sess, body, m_on_quit_request);

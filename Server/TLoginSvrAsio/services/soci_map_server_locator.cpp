@@ -339,17 +339,22 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
 namespace {
 
 // Map TGROUP.bStatus + per-group current-user count → wire-level
-// GroupStatus per legacy CSHandler.cpp:524. The legacy code uses
-// COUNT(*) FROM TCURRENTUSER joined on bGroupID; we replicate that
-// here. The COUNT is computed inside the same SELECT to keep the
-// service single-query.
+// GroupStatus per legacy CSHandler.cpp:524. Plus the legacy cap
+// override (CSHandler.cpp:525-534): if max_user > 0 AND the user
+// has no existing character in the group AND live count >= max_user,
+// force the status to Full. Already-enrolled users (has_char == 1)
+// bypass the cap so they can keep playing on a "full" world.
 GroupStatus ResolveStatus(int row_status,    // TGROUP.bStatus
                           int current_count, // live TCURRENTUSER count
                           int busy_threshold,
-                          int full_threshold)
+                          int full_threshold,
+                          int max_user,
+                          int has_char)
 {
     if (row_status == 2 /* TSVR_STATUS_SLEEP */) return GroupStatus::Sleep;
     if (current_count > full_threshold)          return GroupStatus::Full;
+    if (max_user > 0 && has_char == 0 && current_count >= max_user)
+        return GroupStatus::Full;
     if (current_count > busy_threshold)          return GroupStatus::Busy;
     return GroupStatus::Normal;
 }
@@ -357,7 +362,7 @@ GroupStatus ResolveStatus(int row_status,    // TGROUP.bStatus
 } // namespace
 
 std::vector<GroupInfo>
-SociMapServerLocator::ListGroups(std::int32_t /*user_id*/)
+SociMapServerLocator::ListGroups(std::int32_t user_id)
 {
     auto lease = m_pool.Acquire();
     soci::session& sql = *lease;
@@ -365,18 +370,33 @@ SociMapServerLocator::ListGroups(std::int32_t /*user_id*/)
     try
     {
         // Join with TCURRENTUSER for the live count so the client sees
-        // accurate busy/full status. LEFT JOIN + COALESCE so empty
-        // groups still show up with count=0.
+        // accurate busy/full status, plus TALLCHARTABLE for the
+        // per-user `has_char` flag the client uses to decorate the
+        // lobby entry. LEFT JOIN + COALESCE so empty groups still
+        // show up with count=0 / has_char=0.
+        //
+        // Legacy CTBLGroupList query (DBAccess.h:305) uses
+        // `TALLCHARTABLE.dwUserID = ? AND bDelete = 0` inside the
+        // join predicate; we do the same.
         std::vector<GroupInfo> out;
         soci::rowset<soci::row> rs = (sql.prepare <<
             "SELECT g.\"bGroupID\", g.\"bType\", g.\"szNAME\", "
-            "       g.\"bStatus\", g.\"wBusy\", g.\"wFull\", g.\"bUseRate\", "
+            "       g.\"bStatus\", g.\"wBusy\", g.\"wFull\", "
+            "       COALESCE(g.\"dwMaxUser\", 0) AS maxuser, "
             "       COALESCE(("
             "         SELECT COUNT(*) FROM \"TCURRENTUSER\" cu "
             "         WHERE cu.\"bGroupID\" = g.\"bGroupID\""
-            "       ), 0) AS curcount "
+            "       ), 0) AS curcount, "
+            "       COALESCE(("
+            "         SELECT COUNT(DISTINCT ac.\"dwCharID\") "
+            "         FROM \"TALLCHARTABLE\" ac "
+            "         WHERE ac.\"bWorldID\" = g.\"bGroupID\" "
+            "           AND ac.\"dwUserID\" = :uid "
+            "           AND ac.\"bDelete\" = 0"
+            "       ), 0) AS haschar "
             "FROM \"TGROUP\" g "
-            "ORDER BY g.\"bGroupID\"");
+            "ORDER BY g.\"bGroupID\"",
+            soci::use(user_id));
         for (const auto& r : rs)
         {
             GroupInfo info{};
@@ -386,14 +406,35 @@ SociMapServerLocator::ListGroups(std::int32_t /*user_id*/)
             const int status_raw = r.get<int>(3);
             const int busy_th    = r.get<int>(4);
             const int full_th    = r.get<int>(5);
-            info.flags    = static_cast<std::uint8_t>(r.get<int>(6));
+            // dwMaxUser → unsigned 32-bit on the wire side. The column
+            // may be NULL in older schemas (COALESCE'd to 0) — that
+            // disables the override.
+            long long max_user_ll = 0;
+            try { max_user_ll = r.get<long long>(6); }
+            catch (...) { max_user_ll = r.get<int>(6); }
+            info.max_user = static_cast<std::uint32_t>(
+                std::max<long long>(0, max_user_ll));
             // COALESCE on COUNT(*) — SOCI surfaces it as long long on PG,
             // int on MSSQL. Read as long long to be safe and narrow.
             long long curcount = 0;
             try { curcount = r.get<long long>(7); }
             catch (...) { curcount = r.get<int>(7); }
+            info.current_count = static_cast<std::uint32_t>(
+                std::max<long long>(0, curcount));
+            long long haschar = 0;
+            try { haschar = r.get<long long>(8); }
+            catch (...) { haschar = r.get<int>(8); }
+            // Cap at 255 — the wire byte fits a uint8_t; the lobby UI
+            // doesn't render above ~3 distinct chars per world anyway.
+            info.has_char = static_cast<std::uint8_t>(
+                std::min<long long>(255, std::max<long long>(0, haschar)));
+            // The cap-override branch in ResolveStatus only cares
+            // about the >0 / ==0 distinction, so pass it as a 0/1 flag
+            // there even though we send the full count on the wire.
+            const int has_char_flag = info.has_char > 0 ? 1 : 0;
             info.status   = ResolveStatus(
-                status_raw, static_cast<int>(curcount), busy_th, full_th);
+                status_raw, static_cast<int>(curcount), busy_th, full_th,
+                static_cast<int>(info.max_user), has_char_flag);
             out.push_back(std::move(info));
         }
         return out;
@@ -437,8 +478,13 @@ SociMapServerLocator::ListChannels(std::uint8_t group_id)
             long long curcount = 0;
             try { curcount = r.get<long long>(5); }
             catch (...) { curcount = r.get<int>(5); }
+            // Channels don't carry the per-user has-char / cap-override
+            // semantics — legacy CSHandler.cpp:577 uses the same
+            // busy/full thresholds without those. Pass 0/0 so the
+            // override branch in ResolveStatus is a no-op.
             info.status  = ResolveStatus(
-                status_raw, static_cast<int>(curcount), busy_th, full_th);
+                status_raw, static_cast<int>(curcount), busy_th, full_th,
+                /*max_user=*/0, /*has_char=*/0);
             out.push_back(std::move(info));
         }
         return out;

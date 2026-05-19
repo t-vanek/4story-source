@@ -3,6 +3,10 @@ build/
 build-*/
 out/
 
+# CTest scratch dir — created when ctest runs from the repo root
+# (Testing/Temporary/{CTestCostData.txt,LastTest.log}).
+Testing/
+
 # IDE
 .vs/
 .vscode/

@@ -20,7 +20,7 @@
 // runs don't collide and so the DB doesn't accumulate state across runs
 // (cleanup at start + end via DELETE WHERE szUserID LIKE 'soci_test_%').
 
-#include "../db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 #include "../services/soci_auth_service.h"
 
 #include <soci/soci.h>

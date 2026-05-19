@@ -167,6 +167,47 @@ target_link_libraries(test_tloginsvr_asio_charname_validator PRIVATE
 add_test(NAME tloginsvr_asio_charname_validator
     COMMAND test_tloginsvr_asio_charname_validator)
 
+# Event-registry test — structured EVENTINFO upsert/remove parity.
+add_executable(test_tloginsvr_asio_event_registry
+    ${TLOGINSVR_ASIO_SRC}/tests/test_event_registry.cpp)
+target_link_libraries(test_tloginsvr_asio_event_registry PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_event_registry
+    COMMAND test_tloginsvr_asio_event_registry)
+
+# Control-gate test — CT_* peer-IP discrimination (round 2 #1).
+add_executable(test_tloginsvr_asio_control_gate
+    ${TLOGINSVR_ASIO_SRC}/tests/test_control_gate.cpp)
+target_link_libraries(test_tloginsvr_asio_control_gate PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_control_gate
+    COMMAND test_tloginsvr_asio_control_gate)
+
+# Shutdown-sweep test — Snapshot + Terminate chain (round 2 #4).
+add_executable(test_tloginsvr_asio_shutdown_sweep
+    ${TLOGINSVR_ASIO_SRC}/tests/test_shutdown_sweep.cpp)
+target_link_libraries(test_tloginsvr_asio_shutdown_sweep PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_shutdown_sweep
+    COMMAND test_tloginsvr_asio_shutdown_sweep)
+
+# Site-code test — JP/TW DWORD dwSiteCode tail parsing (round 5 #1).
+add_executable(test_tloginsvr_asio_site_code
+    ${TLOGINSVR_ASIO_SRC}/tests/test_site_code.cpp)
+target_link_libraries(test_tloginsvr_asio_site_code PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_site_code
+    COMMAND test_tloginsvr_asio_site_code)
+
+# RC4-secret-length test — guards the trailing-NUL invariant in the
+# default secret (round 6: legacy Session.cpp:18-22 hard-requires it).
+add_executable(test_tloginsvr_asio_rc4_secret_length
+    ${TLOGINSVR_ASIO_SRC}/tests/test_rc4_secret_length.cpp)
+target_link_libraries(test_tloginsvr_asio_rc4_secret_length PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_rc4_secret_length
+    COMMAND test_tloginsvr_asio_rc4_secret_length)
+
 # SOCI integration tests — exercise the DB-backed service impls
 # directly against a real PostgreSQL. All skipped automatically if
 # TLOGINSVR_TEST_PG_CONN is not set so CI hosts without PG pass.

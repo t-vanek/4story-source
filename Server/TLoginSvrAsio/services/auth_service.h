@@ -31,12 +31,25 @@ struct AuthRequest
     std::string   client_ip;        // peer ip — IPv4 dotted notation
     std::uint16_t client_version;   // CS_LOGIN_REQ wVersion (TVERSION)
 
-    // JP-only trailing BYTE bChanneling (CSHandler.cpp:173-174). Tells
-    // the legacy TLoginJP SP which channeling partner (NHN, GMO, …)
-    // brokered this account. Zero on every other locale. SOCI impls
-    // are expected to ignore this on non-JP nations.
-    std::uint8_t  channeling = 0;
-    bool          channeling_present = false;
+    // JP/TW trailing DWORD dwSiteCode. The shipped client with
+    // `MODIFY_DIRECTLOGIN=TRUE` (TNetSender.cpp:46, set by
+    // TNationOption::SetNation for TNATION_JAPAN + TNATION_TAIWAN)
+    // appends 4 bytes after llChecksum. Legacy server's
+    // CSHandler.cpp:173 only reads the low byte (`bChanneling`),
+    // which silently truncates the wire DWORD; the upper 3 bytes
+    // get parsed as part of the next packet's header but the recv
+    // boundary makes that harmless. Modern impl reads the full
+    // DWORD and keeps the low byte as the legacy-compatible
+    // `bChanneling` projection for SP-call parity.
+    std::uint32_t site_code = 0;
+    bool          site_code_present = false;
+
+    // Convenience accessor: low byte of site_code. Matches legacy
+    // CSPLoginJP's IN-param semantics.
+    std::uint8_t channeling() const
+    {
+        return static_cast<std::uint8_t>(site_code & 0xFF);
+    }
 };
 
 // Status codes mirror the legacy LR_* values in NetCode.h. The
@@ -64,6 +77,15 @@ struct AuthResult
     std::uint8_t  create_char_count = 0; // remaining char slots; populated on Success
     std::uint8_t  in_pc_bang = 0;     // 1 if peer IP matches a PCBang range
     std::uint32_t premium_id = 0;     // active premium tier
+
+    // Last-played character ID — legacy TLogin SP returns this as the
+    // 7th OUT param (CSPLogin::m_dwCharID, DBAccess.h:33). The shipped
+    // client uses it in the lobby to highlight / preselect the slot the
+    // user logged off from. Zero on first-time login or when the last
+    // char was deleted. Populated from TUSERINFOTABLE.dwLastCharID on
+    // the SOCI side; the in-memory backend leaves it at 0.
+    std::uint32_t last_char_id = 0;
+
     // populated on Banned: human-readable reason for the ack tail (legacy code adds it on wire)
     std::optional<std::string> ban_reason;
 };
@@ -138,6 +160,12 @@ public:
     // the client in a deferred CS_LOGIN_ACK.
     virtual std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
                                                 const std::string& client_ip) = 0;
+
+    // Lookup the user's last-played char ID. Mirrors the OUT param the
+    // legacy TLogin SP returns as m_dwCharID; used by the deferred
+    // CS_LOGIN_ACK path (CS_SECURITYCONFIRM_ACK handler) to populate
+    // the same field. Returns 0 on unknown user / first-time login.
+    virtual std::uint32_t LookupLastCharId(std::int32_t user_id) = 0;
 };
 
 } // namespace tloginsvr::services

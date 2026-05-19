@@ -61,7 +61,15 @@ CREATE TABLE "TCURRENTUSER" (
     "dEnterDate"   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "dwPcBangID"   INTEGER NOT NULL DEFAULT 0,
     "bLuckyNumber" SMALLINT NOT NULL DEFAULT 0,
-    "szLoginIP"    VARCHAR(50) NOT NULL DEFAULT ''
+    "szLoginIP"    VARCHAR(50) NOT NULL DEFAULT '',
+    -- JP/TW: the shipped client appends a DWORD dwSiteCode to
+    -- CS_LOGIN_REQ when MODIFY_DIRECTLOGIN is set (TNationOption
+    -- flips this on for both nations). Legacy server only reads
+    -- the low byte as `bChanneling` (CSPLoginJP IN-param), but we
+    -- persist the full DWORD too so audits can recover the real
+    -- partner / portal identifier. 0 on non-JP/TW deployments.
+    "dwSiteCode"   INTEGER  NOT NULL DEFAULT 0,
+    "bChanneling"  SMALLINT NOT NULL DEFAULT 0
 );
 CREATE INDEX "IDX_TCURRENTUSER_dwUserID" ON "TCURRENTUSER" ("dwUserID");
 
@@ -83,7 +91,11 @@ CREATE TABLE "TUSERINFOTABLE" (
     "dwUserID"            INTEGER PRIMARY KEY,
     "bCanCreateCharCount" SMALLINT NOT NULL DEFAULT 6,
     "bAgreement"          SMALLINT NOT NULL DEFAULT 0,
-    "dCabinetUse"         TIMESTAMP DEFAULT '2008-01-01'
+    "dCabinetUse"         TIMESTAMP DEFAULT '2008-01-01',
+    -- Last-played char (legacy TLogin SP m_dwCharID OUT). Stamped by
+    -- TWorldSvr on map-server exit; read by SociAuthService on login
+    -- to populate CS_LOGIN_ACK.dwCharID. Zero on first login.
+    "dwLastCharID"        INTEGER NOT NULL DEFAULT 0
 );
 
 -- User-level bans (vs IP-level which is in IPBLACKLIST_game).
@@ -325,6 +337,16 @@ CREATE TABLE "TITEMTABLE" (
     "bLevel"        SMALLINT NOT NULL,
     "bCount"        SMALLINT NOT NULL DEFAULT 1,
     "bGradeEffect"  SMALLINT NOT NULL DEFAULT 0,
+    -- Legacy column aliasing (DBAccess.h:607-628): dwTime3 = wColor,
+    -- dwTime4 = bRegGuild. Both repurposed from the original "expiry
+    -- timestamp" columns so the SELECT can pull them without an
+    -- ALTER on the production schema.
+    "dwTime3"       INTEGER  NOT NULL DEFAULT 0,
+    "dwTime4"       INTEGER  NOT NULL DEFAULT 0,
+    -- wCustomTex — custom-texture skin id. Shipped client parses this
+    -- between wColor and bRegGuild in CS_CHARLIST_ACK; SociCharService
+    -- selects it with a fallback for older schemas without the column.
+    "wCustomTex"    SMALLINT NOT NULL DEFAULT 0,
     "wMoggItemID"   SMALLINT NOT NULL DEFAULT 0
 );
 CREATE INDEX "IDX_TITEMTABLE_owner" ON "TITEMTABLE"

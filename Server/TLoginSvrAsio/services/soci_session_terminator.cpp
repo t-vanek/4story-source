@@ -12,9 +12,10 @@ SociSessionTerminator::SociSessionTerminator(fourstory::db::SessionPool& pool)
 {
 }
 
-void SociSessionTerminator::Terminate(std::int32_t user_id,
+void SociSessionTerminator::Terminate(std::int32_t  user_id,
                                       std::uint32_t session_key,
-                                      TerminationReason reason)
+                                      TerminationReason reason,
+                                      std::int32_t  char_id)
 {
     if (user_id == 0 && session_key == 0)
     {
@@ -32,11 +33,49 @@ void SociSessionTerminator::Terminate(std::int32_t user_id,
         // wants to see the session-end timestamp even on Map handoffs
         // (it's the boundary between "Login holds the session" and
         // "Map holds the session").
+        //
+        // If char_id is non-zero, also stamp TLOG.dwCharID — the
+        // session was attached to that char at handoff time (set by
+        // OnStartReq's MarkHandoffWithChar). Legacy CSPLogout's
+        // m_dwCharID arg lands on the same row column.
         if (session_key != 0)
         {
-            sql << "UPDATE \"TLOG\" SET \"timeLOGOUT\" = CURRENT_TIMESTAMP "
-                   "WHERE \"dwKEY\" = :k",
-                soci::use(static_cast<int>(session_key));
+            if (char_id != 0)
+            {
+                sql << "UPDATE \"TLOG\" SET "
+                       "  \"timeLOGOUT\" = CURRENT_TIMESTAMP, "
+                       "  \"dwCharID\"   = :c "
+                       "WHERE \"dwKEY\" = :k",
+                    soci::use(char_id),
+                    soci::use(static_cast<int>(session_key));
+            }
+            else
+            {
+                sql << "UPDATE \"TLOG\" SET \"timeLOGOUT\" = CURRENT_TIMESTAMP "
+                       "WHERE \"dwKEY\" = :k",
+                    soci::use(static_cast<int>(session_key));
+            }
+        }
+
+        // Stamp TUSERINFOTABLE.dwLastCharID so the next login's
+        // CS_LOGIN_ACK.dwCharID pre-highlights the right slot.
+        // Best-effort — if the column doesn't exist on the deployed
+        // schema we silently skip (modern fallback path returns 0
+        // and lobby UX degrades gracefully).
+        if (char_id != 0 && user_id != 0)
+        {
+            try
+            {
+                sql << "UPDATE \"TUSERINFOTABLE\" SET \"dwLastCharID\" = :c "
+                       "WHERE \"dwUserID\" = :u",
+                    soci::use(char_id),
+                    soci::use(user_id);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("session.Terminate TUSERINFOTABLE.dwLastCharID "
+                              "skipped: {}", ex.what());
+            }
         }
 
         // Only delete the TCURRENTUSER row on real disconnects. The
@@ -48,8 +87,8 @@ void SociSessionTerminator::Terminate(std::int32_t user_id,
                 soci::use(user_id);
         }
 
-        spdlog::debug("session.Terminate uid={} key={} reason={}",
-            user_id, session_key, static_cast<int>(reason));
+        spdlog::debug("session.Terminate uid={} key={} char={} reason={}",
+            user_id, session_key, char_id, static_cast<int>(reason));
     }
     catch (const std::exception& ex)
     {

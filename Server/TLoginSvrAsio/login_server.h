@@ -128,6 +128,16 @@ struct LoginServerConfig
     // Defaults to US (ASCII-only) — same fallback the legacy server
     // uses when CSPGetNation is unset.
     Nation nation = Nation::US;
+
+    // IPv4 dotted-decimal of the TControlSvr peer. CT_* messages
+    // (event registry, service monitor, etc.) are accepted ONLY from
+    // this address — mirroring legacy `m_bSessionType == SESSION_SERVER`
+    // which is set in CTLoginSvrModule::Accept when the peer's IP
+    // matches m_addrCtrl. Empty value disables the gate, falling back
+    // to the dev / single-process behavior where every peer can fire
+    // CT_* packets (useful for in-process tests that loopback over
+    // 127.0.0.1 from arbitrary ports).
+    std::string control_server_ip;
 };
 
 class LoginServer
@@ -161,6 +171,7 @@ private:
     bool                           m_test_handlers_enabled = false;  // CS_TESTLOGIN_REQ / CS_TESTVERSION_REQ gate
     std::function<void()>          m_on_quit_request;                // SM_QUITSERVICE_REQ → io.stop() etc. May be null.
     Nation                         m_nation = Nation::US;            // deployment locale — selects JP wire tail + CheckCharName charset
+    std::string                    m_control_server_ip;              // empty = no peer-IP gate on CT_* dispatch
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

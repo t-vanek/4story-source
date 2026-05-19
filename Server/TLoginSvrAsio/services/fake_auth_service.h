@@ -49,11 +49,15 @@ public:
                       const std::string& client_ip) override;
     std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
                                         const std::string& client_ip) override;
+    std::uint32_t LookupLastCharId(std::int32_t user_id) override;
 
     // Test seeds for 2FA state.
     void SetUserEmail(std::int32_t user_id, std::string email,
                       bool two_factor_enabled);
     void SeedTrustedIp(std::int32_t user_id, std::string ip);
+
+    // Test seed for last-played char (drives AuthResult.last_char_id).
+    void SetLastCharId(std::int32_t user_id, std::uint32_t char_id);
 
     // Test introspection — true after SetAgreement() was called for user.
     bool HasAgreed(std::int32_t user_id) const;
@@ -74,6 +78,7 @@ private:
     std::unordered_map<std::int32_t, std::string>      m_security_codes; // uid → code
     std::unordered_map<std::int32_t, EmailRecord>      m_emails;
     std::unordered_set<std::string>                    m_trusted_ips; // "uid|ip"
+    std::unordered_map<std::int32_t, std::uint32_t>    m_last_char;   // uid → last char id
     std::uint32_t                                      m_next_session_key = 1;
 };
 

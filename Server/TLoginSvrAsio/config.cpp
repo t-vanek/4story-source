@@ -10,12 +10,20 @@ namespace tloginsvr {
 
 namespace {
 
-// Default legacy wire-format secret — same bytes as Session.cpp:16's
+// Default legacy wire-format secret — same bytes as Session.cpp:22's
 // `g_strSecretKey`. Repeated here so a default-empty config still
 // produces a binary that can accept a real legacy client.
+//
+// CRITICAL: the length passed into RC4MD5Transform MUST include the
+// trailing NUL byte. Legacy Session.cpp:93 calls EncryptBuffer with
+// `g_strSecretKey.size() + 1`, feeding the NUL into MD5. Without it
+// the modern server hashes 31 bytes, the client hashes 32, the
+// derived RC4 keys differ, and every packet decrypts to garbage.
+// kDefaultLegacySecretLen therefore uses sizeof() unchanged (i.e.
+// includes the array's terminating '\0').
 constexpr unsigned char kDefaultLegacySecret[] =
     "A5$$8AFS13A1::-11#!..'\x92" "19716AC&\x94" "/D1;;1#";
-constexpr std::size_t   kDefaultLegacySecretLen = sizeof(kDefaultLegacySecret) - 1;
+constexpr std::size_t   kDefaultLegacySecretLen = sizeof(kDefaultLegacySecret);
 
 Nation ParseNation(std::string_view s)
 {
@@ -125,6 +133,8 @@ AppConfig LoadConfig(const std::string& path)
             cfg.server.test_handlers_enabled = *t;
         if (auto n = (*srv)["nation"].value<std::string>())
             cfg.server.nation = ParseNation(*n);
+        if (auto c = (*srv)["control_server_ip"].value<std::string>())
+            cfg.server.control_server_ip = *c;
         if (auto av = (*srv)["accepted_versions"].as_array())
         {
             std::vector<std::uint16_t> list;
@@ -153,6 +163,11 @@ AppConfig LoadConfig(const std::string& path)
         }
         if (auto hex = (*crypto)["rc4_secret_hex"].value<std::string>())
         {
+            // Operator-supplied bytes are passed through verbatim —
+            // no implicit NUL append. Operators porting from the
+            // legacy default secret MUST include the trailing 00
+            // byte in their hex string (see Session.cpp:18 + the
+            // kDefaultLegacySecretLen comment in this file).
             cfg.server.rc4_secret_key = ParseHexBytes(*hex);
         }
     }

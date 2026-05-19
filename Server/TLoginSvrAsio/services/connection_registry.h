@@ -26,6 +26,8 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace tloginsvr::services {
 
@@ -65,6 +67,17 @@ struct ConnectionEntry
     // pending_client_ip is what gets whitelisted on success.
     bool          awaiting_security = false;
     std::string   pending_client_ip;
+
+    // Character ID the client launched into (from CS_START_REQ
+    // SR_SUCCESS). Stamped by OnStartReq right before MarkHandoff;
+    // the close-time SessionTerminator forwards it so:
+    //   * TLOG.dwCharID gets the actual char_id of the session
+    //     (legacy CSPLogout's m_dwCharID arg)
+    //   * TUSERINFOTABLE.dwLastCharID gets updated so the next
+    //     login's CS_LOGIN_ACK.dwCharID highlights the right slot
+    // Zero when the session never reached CS_START_REQ (lobby-only
+    // disconnect) — terminator skips both updates in that case.
+    std::int32_t  last_char_id = 0;
 };
 
 class IConnectionRegistry
@@ -89,6 +102,15 @@ public:
     // Flip handoff_to_map for the registered session.
     virtual void MarkHandoff(
         const std::shared_ptr<tnetlib::AsioSession>& session) = 0;
+
+    // Combined flip: MarkHandoff + stamp last_char_id. Used by
+    // OnStartReq's SR_SUCCESS branch — the session leaves login
+    // for the map server holding this char, so the close-time
+    // terminator needs to know which char it was for TLOG /
+    // TUSERINFOTABLE bookkeeping.
+    virtual void MarkHandoffWithChar(
+        const std::shared_ptr<tnetlib::AsioSession>& session,
+        std::int32_t char_id) = 0;
 
     // Flip the per-session agreement gate. Called from OnAgreementReq
     // after IAuthService::SetAgreement returns, and from OnLoginReq
@@ -118,6 +140,20 @@ public:
 
     // Currently-registered session count.
     virtual std::size_t Count() const = 0;
+
+    // Snapshot of all live entries. Used by the shutdown path to drive
+    // a bulk SessionTerminator::Terminate sweep (legacy
+    // CTLoginSvrModule::UpdateData walks m_mapTSESSION and calls
+    // CSPLogout for every session with m_bLogout=TRUE). The pair holds
+    // the entry data + a strong shared_ptr to the session so callers
+    // can close it after the terminator runs without racing the
+    // session's natural close path.
+    struct LiveEntry
+    {
+        ConnectionEntry                          entry;
+        std::shared_ptr<tnetlib::AsioSession>    session;
+    };
+    virtual std::vector<LiveEntry> Snapshot() const = 0;
 };
 
 } // namespace tloginsvr::services

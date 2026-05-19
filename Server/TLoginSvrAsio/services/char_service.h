@@ -23,11 +23,22 @@
 namespace tloginsvr::services {
 
 // One equipped item slot in CS_CHARLIST_ACK. Wire layout per item
-// (CSHandler.cpp:749-756, 10 bytes total): bItemID, wItemID, bLevel,
-// bGradeEffect, wColor, bRegGuild, wMoggItemID. The legacy CTBLItem
-// query aliases dwColor → dwTime3 and dwRegGuild → dwTime4 because the
-// shipped TITEMTABLE schema repurposed those time columns for color +
-// guild-registration bits (see Server/TLoginSvr/DBAccess.h:607-628).
+// matches what the shipped client parses in TNetHandler.cpp:425-440:
+//   bItemID, wItemID, bLevel, bGradeEffect, wColor, wCustomTex,
+//   bRegGuild, wMoggItemID  (12 bytes total).
+//
+// An earlier revision dropped `wCustomTex` because legacy server's
+// DEF_UDPLOG branch (CSHandler.cpp:749-756) doesn't emit it. The
+// shipped client was built against the non-DEF_UDPLOG branch
+// (CSHandler.cpp:935-943) and reads `wCustomTex` between `wColor`
+// and `bRegGuild`. Without the field the client parses every
+// following byte at the wrong offset, rendering characters with
+// garbled equipment.
+//
+// The legacy CTBLItem query aliases dwColor → dwTime3 and dwRegGuild
+// → dwTime4 because the shipped TITEMTABLE schema repurposed those
+// time columns (Server/TLoginSvr/DBAccess.h:607-628). wCustomTex
+// stays in its own column.
 struct EquipItem
 {
     std::uint8_t  item_id       = 0;   // bItemID — slot category (weapon/body/…)
@@ -35,6 +46,7 @@ struct EquipItem
     std::uint8_t  level         = 0;
     std::uint8_t  grade_effect  = 0;
     std::uint16_t color         = 0;   // dwTime3 → wColor
+    std::uint16_t custom_tex    = 0;   // wCustomTex — custom texture skin
     std::uint8_t  reg_guild     = 0;   // dwTime4 → bRegGuild
     std::uint16_t mogg_item_id  = 0;
 };

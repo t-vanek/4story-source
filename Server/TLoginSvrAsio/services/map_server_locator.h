@@ -48,13 +48,30 @@ enum class GroupStatus : std::uint8_t
 
 // One row of CS_GROUPLIST_ACK. Wire-format per CSHandler.cpp:519-538:
 //   szName, bGroupID, bType, bStatus, bCount
+//
+// `has_char` is the wire byte the legacy server fills with
+// `COUNT(DISTINCT TALLCHARTABLE.dwCharID) WHERE dwUserID=:u AND bDelete=0`
+// — i.e. the count of non-deleted characters the user has in this
+// world. The shipped client (TNetHandler.cpp:351) parses it as
+// `m_bCharCnt` BYTE and uses it to decorate the group entry in the
+// lobby UI. Capped at 255 to fit the wire byte; the lobby UI doesn't
+// distinguish above ~3 anyway. A previous version of this struct
+// mislabeled the byte as a flags/visibility nibble, which made the
+// legacy client always show every group as un-decorated.
+//
+// `max_user` (TGROUP.dwMaxUser) drives the per-group cap override:
+// when the user has no character in the group AND the live count hits
+// max_user, status is forced to Full so the client refuses to enroll
+// (legacy CSHandler.cpp:525-534).
 struct GroupInfo
 {
-    std::string  name;
-    std::uint8_t group_id  = 0;
-    std::uint8_t type      = 0;   // legacy TGROUP.bType (server "kind")
-    GroupStatus  status    = GroupStatus::Sleep;
-    std::uint8_t flags     = 0;   // legacy TGROUP.bCount — overloaded as flags/visibility byte
+    std::string   name;
+    std::uint8_t  group_id  = 0;
+    std::uint8_t  type      = 0;   // legacy TGROUP.bType (server "kind")
+    GroupStatus   status    = GroupStatus::Sleep;
+    std::uint8_t  has_char  = 0;   // wire bCount — 1 if user owns a non-deleted char in this group
+    std::uint32_t max_user  = 0;   // legacy TGROUP.dwMaxUser — soft enrollment cap for new users
+    std::uint32_t current_count = 0; // live TCURRENTUSER count — used by the cap override
 };
 
 // One row of CS_CHANNELLIST_ACK. Wire-format per CSHandler.cpp:574-578:

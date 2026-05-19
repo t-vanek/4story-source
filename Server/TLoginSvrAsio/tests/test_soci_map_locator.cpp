@@ -3,7 +3,7 @@
 // logic returns the right endpoint (or none, when no map server is
 // configured / the machine is inactive).
 
-#include "../db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 #include "../services/soci_map_server_locator.h"
 
 #include <soci/soci.h>

@@ -7,6 +7,7 @@
 
 #include <bcrypt/bcrypt.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <ctime>
@@ -16,9 +17,26 @@ namespace tloginsvr::services {
 
 namespace {
 
+// Wire-level password format the shipped client sends:
+//
+//   Client/TClient/TClientWnd.cpp:327 hashes the user-entered string
+//   through GetSHA1String (TClientGame.cpp:462 — std SHA1 → hex)
+//   BEFORE handing it to SendCS_LOGIN_REQ. The legacy server stores
+//   passwords in the same shape, so direct strcmp against TACCOUNT_PW
+//   .szPasswd works.
+//
+// Implication for operators migrating to BCrypt: the BCrypt hash must
+// be computed over the **SHA1 hex string**, not the plaintext
+// password. Practical migration:
+//   * existing row:  szPasswd = "<40-char SHA1 hex>"  (legacy shape)
+//   * after upgrade: szPasswd = "$2a$10$<bcrypt over SHA1 hex>"
+//                                (server transparently rehashes on
+//                                 first successful login below)
+//
 // $2a$ / $2b$ / $2y$ — BCrypt hash prefixes (Provos & Mazières). Any
-// other shape is treated as legacy plaintext for back-compat with the
-// pre-bcrypt data shape in TACCOUNT_PW.szPasswd.
+// other shape is treated as legacy "stored password" (= SHA1 hex on
+// shipped builds, raw plaintext on older deploys) and matched via
+// strcmp.
 bool IsBcrypt(const std::string& s)
 {
     return s.size() >= 4
@@ -302,20 +320,102 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         }
 
         // Step 6 — success: insert TCURRENTUSER, capture identity dwKEY.
-        // Dialect: MSSQL uses OUTPUT INSERTED.col before VALUES; PG uses
-        // trailing RETURNING. SOCI's into() consumes both the same.
+        //
+        // Race-immune INSERT. Legacy's TLogin SP runs steps 5-9 in
+        // one atomic transaction; our 8-statement port has a window
+        // between the duplicate check above and this INSERT where a
+        // second concurrent login for the same user could slip in
+        // and both INSERTs would succeed, leaving two TCURRENTUSER
+        // rows for one user.
+        //
+        // We close the window by switching from a plain INSERT to
+        // `INSERT ... SELECT ... WHERE NOT EXISTS`. The SELECT runs
+        // inside the INSERT statement and atomically blocks the row
+        // when another concurrent INSERT races us. RETURNING /
+        // OUTPUT yields zero rows when the WHERE-NOT-EXISTS clause
+        // suppresses the insert; we detect that as "lost the race"
+        // and fall back to the duplicate path.
         int session_key = 0;
+        soci::indicator key_ind = soci::i_null;
         const char* insert_user_sql = is_mssql
-            ? "INSERT INTO \"TCURRENTUSER\" "
-              "(\"dwUserID\", \"szLoginIP\") "
+            ? "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
               "OUTPUT INSERTED.\"dwKEY\" "
-              "VALUES (:uid, :ip)"
-            : "INSERT INTO \"TCURRENTUSER\" "
-              "(\"dwUserID\", \"szLoginIP\") VALUES (:uid, :ip) "
+              "SELECT :uid, :ip "
+              "WHERE NOT EXISTS ("
+              "  SELECT 1 FROM \"TCURRENTUSER\" WITH (UPDLOCK, HOLDLOCK) "
+              "  WHERE \"dwUserID\" = :uid2)"
+            : "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
+              "SELECT :uid, :ip "
+              "WHERE NOT EXISTS ("
+              "  SELECT 1 FROM \"TCURRENTUSER\" "
+              "  WHERE \"dwUserID\" = :uid2) "
               "RETURNING \"dwKEY\"";
-        sql << insert_user_sql,
-            soci::use(user_id), soci::use(req.client_ip),
-            soci::into(session_key);
+        {
+            soci::statement st = (sql.prepare << insert_user_sql,
+                soci::use(user_id, "uid"),
+                soci::use(req.client_ip, "ip"),
+                soci::use(user_id, "uid2"),
+                soci::into(session_key, key_ind));
+            st.execute(true);
+            if (!st.got_data() || key_ind == soci::i_null)
+            {
+                // Lost the race — someone else inserted between our
+                // duplicate-check and this insert. Flag the existing
+                // row for kick and report Duplicate, same as the
+                // step-5 branch above.
+                sql << "UPDATE \"TCURRENTUSER\" SET \"bLocked\" = 1 "
+                       "WHERE \"dwUserID\" = :uid",
+                    soci::use(user_id);
+                spdlog::warn("auth: user_id={} lost duplicate-race during "
+                             "INSERT — flagged existing row for kick",
+                    user_id);
+                return AuthResult{
+                    .status  = AuthStatus::Duplicate,
+                    .user_id = user_id,
+                };
+            }
+        }
+
+        // JP/TW site-code persistence. The shipped client appends
+        // a DWORD dwSiteCode when MODIFY_DIRECTLOGIN is set
+        // (TNationOption::SetNation enables it for JP + TW); legacy
+        // server's CSPLoginJP only reads the low byte as
+        // `bChanneling`, but we keep the full DWORD on the row so
+        // ops can trace the brokering partner end-to-end. Both
+        // updates are fire-and-forget — schema without these
+        // columns logs + continues so non-JP/TW builds keep
+        // working.
+        if (req.site_code_present && req.site_code != 0)
+        {
+            try
+            {
+                sql << "UPDATE \"TCURRENTUSER\" SET \"dwSiteCode\" = :s "
+                       "WHERE \"dwKEY\" = :k",
+                    soci::use(static_cast<int>(req.site_code)),
+                    soci::use(session_key);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("auth: TCURRENTUSER.dwSiteCode update skipped: {}",
+                    ex.what());
+            }
+            // Legacy bChanneling = low byte projection. Kept as a
+            // separate column so the legacy CSPLoginJP SP signature
+            // round-trips. Catches independently from dwSiteCode so
+            // either column can exist alone.
+            try
+            {
+                sql << "UPDATE \"TCURRENTUSER\" SET \"bChanneling\" = :c "
+                       "WHERE \"dwKEY\" = :k",
+                    soci::use(static_cast<int>(req.channeling())),
+                    soci::use(session_key);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("auth: TCURRENTUSER.bChanneling update skipped: {}",
+                    ex.what());
+            }
+        }
 
         // Stamp TACCOUNT_PW.dLastLogin (TLogin SP final UPDATE).
         sql << "UPDATE \"TACCOUNT_PW\" SET \"dLastLogin\" = CURRENT_TIMESTAMP "
@@ -334,11 +434,40 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         // (dwUserID, bAgreement=1), RETURN 8 (LR_NEEDAGREEMENT). The
         // session is still considered logged in — the client routes to
         // the agreement screen and ACKs back via CS_AGREEMENT_REQ.
+        // Pull bAgreement + bCanCreateCharCount in one SELECT so the
+        // AgreementNeeded return path also gets the real slot count.
+        // The legacy TLogin SP returns m_bCreateCnt as an OUT param
+        // populated from the same column. Falls back to 6 when the
+        // row doesn't exist (first-time login, no TUSERINFOTABLE
+        // entry yet — handler path will upsert on agreement).
         int agreement_ok = 0;
-        sql << "SELECT COUNT(*) FROM \"TUSERINFOTABLE\" "
-               "WHERE \"dwUserID\" = :uid AND \"bAgreement\" = 1",
-            soci::use(user_id), soci::into(agreement_ok);
-        if (agreement_ok == 0)
+        int slots_remaining = 6;
+        soci::indicator agree_ind = soci::i_null;
+        soci::indicator slots_ind = soci::i_null;
+        {
+            soci::statement st = (sql.prepare <<
+                "SELECT \"bAgreement\", \"bCanCreateCharCount\" "
+                "FROM \"TUSERINFOTABLE\" WHERE \"dwUserID\" = :uid",
+                soci::use(user_id),
+                soci::into(agreement_ok, agree_ind),
+                soci::into(slots_remaining, slots_ind));
+            st.execute(true);
+            if (!st.got_data())
+            {
+                agreement_ok = 0;     // no row → treat as un-agreed
+                slots_remaining = 6;  // default per legacy CHARSLOT_MAX
+            }
+            else
+            {
+                if (agree_ind == soci::i_null) agreement_ok = 0;
+                if (slots_ind == soci::i_null) slots_remaining = 6;
+            }
+        }
+        // Cap at 0..6 — legacy column is tinyint; if it ever drifts out
+        // of range, clamp rather than send a nonsense byte on the wire.
+        const std::uint8_t cap = static_cast<std::uint8_t>(
+            std::clamp(slots_remaining, 0, 255));
+        if (agreement_ok != 1)
         {
             spdlog::info("auth: user_id={} needs agreement (bAgreement != 1)",
                 user_id);
@@ -346,7 +475,7 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
                 .status = AuthStatus::AgreementNeeded,
                 .user_id = user_id,
                 .session_key = static_cast<std::uint32_t>(session_key),
-                .create_char_count = 6,
+                .create_char_count = cap,
             };
         }
 
@@ -393,17 +522,42 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             spdlog::debug("auth: TUSERPREMIUM lookup skipped: {}", ex.what());
         }
 
+        // Last-played char (TLogin SP returns it as the 7th OUT
+        // param). Modern schema parks it on TUSERINFOTABLE.dwLastCharID;
+        // missing column or NULL row → 0, matching the "no last char"
+        // path the client UI already handles.
+        std::uint32_t last_char_id = 0;
+        try
+        {
+            int last = 0;
+            soci::indicator ind = soci::i_null;
+            soci::statement st = (sql.prepare <<
+                "SELECT \"dwLastCharID\" FROM \"TUSERINFOTABLE\" "
+                "WHERE \"dwUserID\" = :u",
+                soci::use(user_id),
+                soci::into(last, ind));
+            st.execute(true);
+            if (st.got_data() && ind != soci::i_null && last > 0)
+                last_char_id = static_cast<std::uint32_t>(last);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("auth: TUSERINFOTABLE.dwLastCharID lookup skipped: {}",
+                ex.what());
+        }
+
         spdlog::info("auth: user '{}' (uid={}) success, session_key={} "
-                     "pc_bang={} premium={}",
-            req.user_id, user_id, session_key, in_pc_bang, premium_id);
+                     "pc_bang={} premium={} last_char={}",
+            req.user_id, user_id, session_key, in_pc_bang, premium_id, last_char_id);
 
         return AuthResult{
             .status = AuthStatus::Success,
             .user_id = user_id,
             .session_key = static_cast<std::uint32_t>(session_key),
-            .create_char_count = 6,
+            .create_char_count = cap,
             .in_pc_bang = in_pc_bang,
             .premium_id = premium_id,
+            .last_char_id = last_char_id,
         };
     }
     catch (const std::exception& ex)
@@ -703,6 +857,31 @@ std::uint32_t SociAuthService::CompleteSecurityLogin(std::int32_t user_id,
             user_id, ex.what());
         return 0;
     }
+}
+
+std::uint32_t SociAuthService::LookupLastCharId(std::int32_t user_id)
+{
+    if (user_id == 0) return 0;
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+    try
+    {
+        int last = 0;
+        soci::indicator ind = soci::i_null;
+        soci::statement st = (sql.prepare <<
+            "SELECT \"dwLastCharID\" FROM \"TUSERINFOTABLE\" "
+            "WHERE \"dwUserID\" = :u",
+            soci::use(user_id),
+            soci::into(last, ind));
+        st.execute(true);
+        if (st.got_data() && ind != soci::i_null && last > 0)
+            return static_cast<std::uint32_t>(last);
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::debug("auth.LookupLastCharId uid={} skipped: {}", user_id, ex.what());
+    }
+    return 0;
 }
 
 AuthResult SociAuthService::AuthenticateTest(const std::string& client_ip)

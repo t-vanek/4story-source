@@ -32,6 +32,22 @@ struct DbTimestamp
 
 // _LOG_DATA_ from Lib/Own/TProtocol/include/LogPacket.h. Fixed-size
 // fields followed by szLog payload — we only fill the prefix.
+//
+// CRITICAL alignment note: the legacy LogPacket.h declares this
+// struct WITHOUT a `#pragma pack` directive, so MSVC applies its
+// default natural alignment. Two compiler-inserted padding gaps
+// matter to the wire:
+//
+//   * 2 bytes after `wMapID` (2-byte field at offset 40) before
+//     `int nX` (4-byte align → offset 44, not 42)
+//   * 2 bytes after `szKey[7][50]` (350-byte char array ending at
+//     offset 494) before `DWORD dwFormat` (4-byte align → offset
+//     496, not 494)
+//
+// We declare them explicitly as `_pad*` fields so the struct stays
+// `#pragma pack(1)` (no surprise alignment differences across
+// compilers) while still matching the wire bytes the legacy senders
+// emit. The static_asserts below pin the offsets.
 struct LogData
 {
     DbTimestamp   timestamp;
@@ -39,22 +55,35 @@ struct LogData
     char          clientIp[16];
     std::uint32_t action;
     std::uint16_t mapId;
+    std::uint16_t _pad_after_mapId;       // compiler padding on legacy MSVC
     std::int32_t  posX;
     std::int32_t  posY;
     std::int32_t  posZ;
     std::int64_t  searchKeyInt[11];
     char          searchKeyStr[7][50];
+    std::uint16_t _pad_after_searchKeyStr;// compiler padding on legacy MSVC
     std::uint32_t format;
     char          logPayload[512];
 };
 
 // _UDPPACKET — legacy wraps the LogData inside this fixed-size
 // envelope. We mirror it 1:1 so TLogSvr accepts the frame.
+//
+// CRITICAL byte-layout note: the legacy struct (LogPacket.h) declares
+// the third field as `void* pSocketFD`. Every legacy server in the
+// cluster (TLoginSvr, TWorldSvr, TMapSvr, …) compiles as Win32 (32-bit)
+// per their vcxproj configurations, which makes that pointer 4 bytes
+// wide. Using `uint64_t` here on a 64-bit host shifts every following
+// field by 4 bytes — TLogSvrAsio would then read seq from the void*
+// upper half, srcIp from seq + checksum, etc., and reject every frame
+// as malformed (or worse, silently store garbage into the DB).
+// Keep it `uint32_t` so the wire layout matches the still-Win32-only
+// legacy senders. The mirroring TLogSvrAsio struct must match.
 struct UdpPacket
 {
     std::uint16_t size;       // total bytes written (dwSize)
     std::uint16_t command;    // LP_LOG = 0
-    std::uint64_t socketFd;   // unused, zero
+    std::uint32_t socketFd;   // legacy `void* pSocketFD` on Win32 — 4 bytes
     std::uint32_t seq;
     std::uint16_t checksum;
     char          srcIp[20];
@@ -62,6 +91,36 @@ struct UdpPacket
     char          payload[1024]; // szPacket — holds LogData prefix
 };
 #pragma pack(pop)
+
+// Compile-time wire-layout guards. The legacy receiver expects
+// these exact offsets; any drift (changing socketFd's width, adding
+// fields, reordering) silently corrupts every audit row. The
+// payload offset is the most load-bearing — it's what the
+// `udp_overhead` runtime constant in TLogSvrAsio's DecodeRecord
+// reaches via `offsetof(UdpPacket, payload)`. Match must hold on
+// both sides.
+static_assert(offsetof(UdpPacket, socketFd) == 4,
+              "UdpPacket.socketFd offset drifted — receiver will misframe");
+static_assert(offsetof(UdpPacket, seq)      == 8,
+              "UdpPacket.seq offset drifted");
+static_assert(offsetof(UdpPacket, srcIp)    == 14,
+              "UdpPacket.srcIp offset drifted");
+static_assert(offsetof(UdpPacket, payload)  == 36,
+              "UdpPacket.payload offset drifted — legacy szPacket starts at 36");
+
+// LogData offsets — keep them aligned with the legacy MSVC natural-
+// alignment layout (no #pragma pack). The two padding fields above
+// are the load-bearing pieces; if they're removed the wire shifts.
+static_assert(offsetof(LogData, posX)         == 44,
+              "LogData.posX must land at byte 44 (legacy 2-byte pad after wMapID)");
+static_assert(offsetof(LogData, searchKeyInt) == 56,
+              "LogData.searchKeyInt offset drifted");
+static_assert(offsetof(LogData, searchKeyStr) == 144,
+              "LogData.searchKeyStr offset drifted");
+static_assert(offsetof(LogData, format)       == 496,
+              "LogData.format must land at byte 496 (legacy 2-byte pad after szKey)");
+static_assert(offsetof(LogData, logPayload)   == 500,
+              "LogData.logPayload offset drifted");
 
 static_assert(sizeof(DbTimestamp) == 16, "DbTimestamp must be 16 bytes");
 

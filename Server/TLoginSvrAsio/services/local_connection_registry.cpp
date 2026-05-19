@@ -55,6 +55,18 @@ void LocalConnectionRegistry::MarkHandoff(
     }
 }
 
+void LocalConnectionRegistry::MarkHandoffWithChar(
+    const std::shared_ptr<tnetlib::AsioSession>& session,
+    std::int32_t char_id)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_by_session.find(session.get()); it != m_by_session.end())
+    {
+        it->second.handoff_to_map = true;
+        it->second.last_char_id   = char_id;
+    }
+}
+
 void LocalConnectionRegistry::MarkAgreed(
     const std::shared_ptr<tnetlib::AsioSession>& session)
 {
@@ -115,6 +127,29 @@ std::size_t LocalConnectionRegistry::Count() const
 {
     std::lock_guard<std::mutex> lock(m_mtx);
     return m_by_session.size();
+}
+
+std::vector<IConnectionRegistry::LiveEntry>
+LocalConnectionRegistry::Snapshot() const
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    std::vector<LiveEntry> out;
+    out.reserve(m_by_session.size());
+    // Walk m_by_user so we can lock the weak_ptr → shared_ptr cheaply.
+    // m_by_session keys are raw pointers; the strong ref we need lives
+    // on the user-side map. Sessions whose weak_ptr has expired since
+    // the by_user insert but before Unregister fires (rare but possible
+    // during a connection-close race) are silently skipped — the caller
+    // doesn't need them: there's nobody to Terminate against.
+    for (const auto& [uid, weak] : m_by_user)
+    {
+        auto sess = weak.lock();
+        if (!sess) continue;
+        auto it = m_by_session.find(sess.get());
+        if (it == m_by_session.end()) continue;
+        out.push_back(LiveEntry{ .entry = it->second, .session = std::move(sess) });
+    }
+    return out;
 }
 
 } // namespace tloginsvr::services

@@ -33,11 +33,23 @@ typedef __int64 ssize_t;
 
 #include "../include/bcrypt/bcrypt.h"
 
+/* Windows 11 24H2 SDK (10.0.26100) wincrypt.h / ncrypt.h reference
+ * CNG types (BCRYPT_KEY_HANDLE, NCRYPT_*_HANDLE) that live in the
+ * Windows <bcrypt.h>. Pulling Windows <bcrypt.h> in via the system
+ * include path is the natural fix — but the CMakeLists.txt PRIVATE
+ * include dir made "<bcrypt.h>" resolve to libbcrypt's own header
+ * instead. The CMakeLists.txt now omits that PRIVATE entry so this
+ * compile unit gets the Windows CNG types correctly. */
 #include <windows.h>
+#include <bcrypt.h>   /* Windows CNG — BCRYPT_KEY_HANDLE et al */
 #include <wincrypt.h> /* CryptAcquireContext, CryptGenRandom */
 #else
-#include "bcrypt.h"
-#include "ow-crypt.h"
+/* Explicit relative paths — the CMakeLists.txt no longer adds
+ * include/bcrypt/ to the PRIVATE search path (so <bcrypt.h> picks
+ * Windows CNG cleanly on Win32), which means these would-be
+ * unqualified includes have to spell out the directory too. */
+#include "../include/bcrypt/bcrypt.h"
+#include "../include/bcrypt/ow-crypt.h"
 #endif
 
 #define RANDBYTES (16)

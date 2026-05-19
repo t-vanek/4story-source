@@ -1,6 +1,18 @@
 # Login Server: Legacy vs. New — Pre-Phase-B Analysis
 
-Status: 2026-05-18, before Phase B (DB backends) starts.
+> **Status: historical snapshot from 2026-05-18.** This file captures
+> the gap analysis taken right before Phase B (DB backends) started.
+> Phases B, C, D and a seven-round wire-compatibility audit have
+> since landed all the items called out below. For the current
+> state and the audit log, see
+> [`Server/TLoginSvrAsio/README.md`](../../Server/TLoginSvrAsio/README.md)
+> — its "Wire-compatibility fixes" table indexes the 14 follow-up
+> patches (`37044bf..HEAD` on `claude/compare-login-servers-zeUDp`).
+>
+> Keeping this file around as institutional memory: the original
+> "TL;DR" snapshot below is useful for reviewers tracing why a given
+> interface was shaped the way it is.
+
 Compare `Server/TLoginSvr/` (Win32/ATL/IOCP/ODBC, ~11 444 LOC) with
 `Server/TLoginSvrAsio/` (C++20/Asio/spdlog/TOML, ~1 500 LOC after
 Phase A).

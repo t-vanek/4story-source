@@ -79,7 +79,7 @@ without a DB.
 | `IConnectionRegistry` | `LocalConnectionRegistry` | — (in-process is canonical) | duplicate-kick + agreement gate state |
 | `IAuditLogger` | `SpdlogAuditLogger` (+ `UdpAuditLogger` decorator) | — | structured stderr or legacy `_UDPPACKET` UDP shim to TLogSvr |
 | `IEventRegistry` | `LocalEventRegistry` | — | GM-broadcast events from CT_EVENTUPDATE_REQ |
-| `ISmtpClient` | `SpdlogSmtpClient` (log-only) | — | replace with real SMTP impl for production 2FA mail |
+| `ISmtpClient` | `SpdlogSmtpClient` (log-only default) or `AsioSmtpClient` (plain SMTP via Boost.Asio when `[smtp] host` is set) | — | EHLO/HELO + optional AUTH LOGIN; no STARTTLS — front with a Postfix loopback relay if TLS is required |
 | `LoginRateLimiter` | concrete class | — | token bucket per peer IP |
 
 **Production = SOCI/Local/Spdlog impls.** `Fake*` are only wired when
@@ -252,13 +252,20 @@ Then point a legacy client at `localhost:4816` and log in as
 | Legacy piece | Why skipped |
 |---|---|
 | `HwidManagerSvr` (HWID anticheat) | Out of scope by user request; not wired into auth flow in legacy build anyway |
-| `CSPLoginJP` (Japan channeling) | Only fires when `m_bNation == NATION_JAPAN`; no JP deploy target |
 | `m_qCheckPoint` HotSend queue | Trigger path commented out in legacy build (`m_hExecFile == INVALID_HANDLE_VALUE`) |
 | `CDebugSocket` outbound client | Replaced by inbound `AdminShell` |
-| `CSmtp` / `jwsmtp` direct linkage | Replaced by `ISmtpClient` interface — operators plug in their preferred transport |
+| `CSmtp` / `jwsmtp` direct linkage | Replaced by `ISmtpClient` interface (`SpdlogSmtpClient` log-only or `AsioSmtpClient` for real SMTP) |
 | `base64.cpp` / `md5.cpp` | Replaced by OpenSSL EVP + libbcrypt |
 | Win32 IOCP | Replaced by Boost.Asio coroutines |
 | Win32 Registry config | Replaced by TOML |
+
+**Note:** JP/TW deployments (`CSPLoginJP` channeling) used to be in
+this table as "no JP target" — they're now supported. Set
+`[server] nation = "japan"` (or `"taiwan"`) and the wire parser
+reads the trailing `DWORD dwSiteCode` the shipped JP/TW client
+emits when `MODIFY_DIRECTLOGIN` is set; `SociAuthService` writes
+both `dwSiteCode` and the legacy low-byte `bChanneling` projection
+into `TCURRENTUSER` for audit trace.
 
 ## Architecture
 
@@ -283,8 +290,36 @@ Services (production wiring in main.cpp):
 ├── LocalEventRegistry (in-process — matches legacy m_mapEVENT)
 ├── LoginRateLimiter
 ├── SpdlogAuditLogger [+ UdpAuditLogger decorator if [audit.udp] set]
-└── SpdlogSmtpClient (default; swap for real SMTP in prod)
+└── ISmtpClient (SpdlogSmtpClient log-only default; AsioSmtpClient
+    when [smtp] host is configured — plain SMTP over Boost.Asio with
+    EHLO/HELO + AUTH LOGIN + dot-stuffing)
 ```
+
+## Wire-compatibility fixes — institutional memory
+
+A multi-round audit (commits `37044bf` through `8be20b1`) cross-
+checked the server's wire side against the shipped `TClient.exe`
+parsers. The non-obvious gaps:
+
+| # | Symptom on the wire | Cause | Where |
+|---|---|---|---|
+| 1 | Login storms after a server crash — every account stuck on `LR_DUPLICATE` | Stale `TCURRENTUSER` rows from the previous PID's live sessions | `SociSessionTerminator::ClearStaleSessions` called from `main.cpp` after schema validation |
+| 2 | JP/TW logins silently drop trailing bytes; high site_code values get truncated | `TNetSender.cpp:46` emits `DWORD dwSiteCode` when `MODIFY_DIRECTLOGIN` is on; legacy server (and round-1 impl) read only the low byte | `handlers.cpp::ParseLoginReq` reads 4 bytes when nation is JP/TW; `AuthRequest::site_code` carries the full DWORD |
+| 3 | Non-ASCII names in JP/KR/TW/RU/DE always returned `CR_PROTECTED` | `IsValidCharName` ASCII-only | `services/charname_validator.cpp` — per-locale byte filters (Latin-1 umlauts, Shift-JIS, Big5, EUC-KR, CP1251) |
+| 4 | `bInPcBang` / `dwPremium` always 0 in `CS_LOGIN_ACK` regardless of DB state | `AuthResult` fields hard-coded | `SociAuthService::Authenticate` queries `TPCBANG` (IP match or LIKE pattern) + `TUSERPREMIUM` (non-expired tier) |
+| 5 | 2FA codes never reached users | `SpdlogSmtpClient` log-only default | `AsioSmtpClient` (Boost.Asio plain SMTP, EHLO/HELO + AUTH LOGIN) wired when `[smtp] host` is set |
+| 6 | Any peer could fire `CT_EVENTUPDATE_REQ` and poison the event registry | Dispatcher didn't gate CT_* on peer IP | `LoginServer::Dispatch` checks `sess->RemoteIPv4() == m_control_server_ip` before invoking `OnControl*` handlers |
+| 7 | Lobby never highlighted the user's last-played slot | `LoginAck.dwCharID` always 0 | `AuthResult::last_char_id` populated from `TUSERINFOTABLE.dwLastCharID` (schema-optional; falls back to 0) |
+| 8 | `LR_NEEDAGREEMENT` users could pull `CS_GROUPLIST_ACK` / `CS_CHANNELLIST_ACK` before completing EULA | Two handlers missed the `IsAgreed` gate | `handlers.cpp::OnGroupListReq` + `OnChannelListReq` now `Close()` on miss |
+| 9 | TCURRENTUSER stale rows after SIGTERM/SIGINT | No bulk sweep before `io.stop()` | `IConnectionRegistry::Snapshot` + `graceful_shutdown` lambda in `main.cpp` |
+| 10 | `EventEntry` stored opaque bytes; downstream consumers couldn't introspect | Parser flat-stored the body | `services/event_registry.h` — typed fields + `parsed` flag, with opaque fallback when the wire shape doesn't match `WrapPacketOut` |
+| 11 | Garbled equipment rendering across the entire char list | CHARLIST item layout sent 10 bytes; the shipped client (`TNetHandler.cpp:425-440`) expects 12 with `wCustomTex` between `wColor` and `bRegGuild` | `EquipItem::custom_tex` + wire encoding + `TITEMTABLE.wCustomTex` schema column |
+| 12 | Lobby never decorated worlds with the user's char counts | `GROUPLIST` 5th byte sent `flags` (= `TGROUP.bUseRate`) instead of `bCount` (per-user char count) | `GroupInfo::has_char` (`COUNT(DISTINCT TALLCHARTABLE.dwCharID)` capped to 255); cap-override branch in `ResolveStatus` |
+| 13 | RC4 keystream desync with shipped client → every byte garbage | Default secret was hashed as 31 bytes; legacy hashes 31 + trailing NUL | `config.cpp::kDefaultLegacySecretLen` uses `sizeof()` unchanged (32 bytes); regression test `test_rc4_secret_length` |
+| 14 | (Operational, not a bug) No way to fingerprint client builds in audits | `dlCheck` parsed but not logged | `spdlog::debug("CS_LOGIN_REQ user=X client_hash=0x…")` when checksum tail present |
+
+Round-by-round commit messages capture the legacy file:line each fix
+maps back to; `git log` from `37044bf..HEAD` walks the chain.
 
 ## Roadmap
 

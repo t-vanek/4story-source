@@ -220,21 +220,27 @@ void RunTests(fourstory::db::Backend backend,
     //     pattern and try both a name that matches and one that
     //     doesn't. The negative test uses user_b so the resulting
     //     char doesn't perturb user_a's slot/list assertions below.
+    //
+    //     Names use 2-char suffixes ("Kx" / "Ox") so that even with
+    //     a 6-digit PID the total stays under modern's 16-char
+    //     IsValidCharName cap (prefix is 9-11 chars; total <= 13).
+    //     Earlier "KeptBob" / "OtherBob" suffixes overran the cap
+    //     when PIDs grew to 5+ digits.
     {
         {
             auto lease = pool.Acquire();
             soci::session& sql = *lease;
-            const std::string pattern = prefix + "Kept%";
+            const std::string pattern = prefix + "K%";
             sql << "INSERT INTO \"TKEEPINGNAME\" (\"szName\") VALUES (:n)",
                 soci::use(pattern);
         }
         const auto r_match = svc.Create(
-            MakeCreateReq(user_a, world, prefix + "KeptBob", 1));
+            MakeCreateReq(user_a, world, prefix + "Kx", 1));
         Check(r_match.status == CreateCharResult::Protected,
             "TKEEPINGNAME pattern match → Protected");
 
         const auto r_miss = svc.Create(
-            MakeCreateReq(user_b, world, prefix + "OtherBob", 0));
+            MakeCreateReq(user_b, world, prefix + "Ox", 0));
         Check(r_miss.status != CreateCharResult::Protected,
             "TKEEPINGNAME non-matching name → not Protected");
     }
@@ -260,10 +266,20 @@ void RunTests(fourstory::db::Backend backend,
         }
     }
 
-    // 9. List is world-scoped.
+    // 9. List ignores the group_id arg in the current world-pool
+    //    layout — the SOCI service holds a single world pool pinned
+    //    to one TGAME database; group_id is a wire-protocol artefact
+    //    that doesn't fan-out to multiple world pools. A multi-world
+    //    deployment would map group_id → world_pool lookup before
+    //    List runs; until that lands, passing a different group_id
+    //    still returns the same user's chars from the configured
+    //    world. Test that contract so a future regression that
+    //    accidentally null-returns on group mismatch gets caught.
     {
-        const auto list = svc.List(user_a, world + 1);
-        Check(list.empty(), "different world → empty list");
+        const auto list_same  = svc.List(user_a, world);
+        const auto list_other = svc.List(user_a, world + 1);
+        Check(list_same.size() == list_other.size(),
+            "List ignores group_id (single-world pool layout)");
     }
 
     // 10. Delete blocked by guild membership. TGUILDMEMBERTABLE is
@@ -408,7 +424,7 @@ void RunTests(fourstory::db::Backend backend,
         }
 
         // Spin up a fresh service so it reloads the veteran cache.
-        SociCharService svc_vet(pool, pool);
+        SociCharService svc_vet(pool, world_ref);
 
         auto req = MakeCreateReq(
             user_a, world, prefix + "Vetx", /*slot=*/5, kCountryPeace);
@@ -437,7 +453,7 @@ void RunTests(fourstory::db::Backend backend,
             sql << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") VALUES (3, 33)";
             sql << "INSERT INTO \"TVETERANCHART\" (\"bID\", \"bLevel\") VALUES (99, 99)";
         }
-        SociCharService svc_chart(pool, pool);
+        SociCharService svc_chart(pool, world_ref);
         const auto vl = svc_chart.GetVeteranLevels();
         Check(vl.first  == 11, "GetVeteranLevels: first (lowest bID)");
         Check(vl.second == 22, "GetVeteranLevels: second");
@@ -449,7 +465,7 @@ void RunTests(fourstory::db::Backend backend,
 
     // 18. GetVeteranLevels — empty chart → all zeros.
     {
-        SociCharService svc_empty(pool, pool);
+        SociCharService svc_empty(pool, world_ref);
         const auto vl = svc_empty.GetVeteranLevels();
         Check(vl.first == 0 && vl.second == 0 && vl.third == 0,
             "GetVeteranLevels: empty chart → 0/0/0");

@@ -18,10 +18,15 @@ PatchRepository::ListPatchesSince(std::uint32_t from_version)
     soci::session& sql = *lease;
     try
     {
+        // Legacy CTBLVersion uses strict greater-than so the client's
+        // own current version is NOT echoed back as a "new patch" —
+        // mirror that ordering exactly. Off-by-one here means each
+        // poll returns one stale row and wastes the file download
+        // round-trip on the client.
         soci::rowset<soci::row> rs = (sql.prepare <<
             "SELECT \"dwVersion\", \"szPath\", \"szName\", \"dwSize\", "
             "       \"dwBetaVer\" "
-            "FROM \"TVERSION\" WHERE \"dwVersion\" >= :v "
+            "FROM \"TVERSION\" WHERE \"dwVersion\" > :v "
             "ORDER BY \"dwVersion\"",
             soci::use(static_cast<int>(from_version)));
         for (const auto& r : rs)
@@ -53,9 +58,10 @@ PatchRepository::ListPrePatchesSince(std::uint32_t beta_version)
     soci::session& sql = *lease;
     try
     {
+        // Legacy CTBLPreVersion uses strict greater-than — mirror it.
         soci::rowset<soci::row> rs = (sql.prepare <<
             "SELECT \"dwBetaVer\", \"szPath\", \"szName\", \"dwSize\" "
-            "FROM \"TPREVERSION\" WHERE \"dwBetaVer\" >= :v "
+            "FROM \"TPREVERSION\" WHERE \"dwBetaVer\" > :v "
             "ORDER BY \"dwBetaVer\"",
             soci::use(static_cast<int>(beta_version)));
         for (const auto& r : rs)
@@ -84,17 +90,27 @@ PatchRepository::ListInterfaceFiles(std::uint8_t option)
     soci::session& sql = *lease;
     try
     {
+        // Legacy CTBLInterface queries TUSER_INTERFACE — there is no
+        // dwVersion column on the row itself, so the legacy SP grafts
+        // on a `(SELECT MAX(dwVersion) FROM TVERSION)` subquery to
+        // synthesize a per-row version. TUSER_INTERFACE.dwSize is
+        // declared `float` in the deployed schema (not int), so bind
+        // it as `double` and narrow on the C++ side. Naming the
+        // subquery column `wDV` keeps it stable across both SOCI's
+        // positional and column-name binding paths.
         soci::rowset<soci::row> rs = (sql.prepare <<
-            "SELECT \"dwVersion\", \"szName\", \"dwSize\" "
-            "FROM \"TINTERFACECHART\" WHERE \"bOption\" = :o "
-            "ORDER BY \"dwVersion\"",
+            "SELECT (SELECT MAX(\"dwVersion\") FROM \"TVERSION\") AS \"wDV\", "
+            "       \"szName\", \"dwSize\" "
+            "FROM \"TUSER_INTERFACE\" WHERE \"bOption\" = :o",
             soci::use(static_cast<int>(option)));
         for (const auto& r : rs)
         {
             PatchFile p{};
-            p.version = static_cast<std::uint32_t>(r.get<int>(0));
-            p.name    = r.get<std::string>(1);
-            p.size    = static_cast<std::uint32_t>(r.get<int>(2));
+            const auto v_ind = r.get_indicator(0);
+            if (v_ind != soci::i_null)
+                p.version = static_cast<std::uint32_t>(r.get<int>(0));
+            p.name = r.get<std::string>(1);
+            p.size = static_cast<std::uint32_t>(r.get<double>(2));
             out.push_back(std::move(p));
         }
     }
@@ -113,12 +129,20 @@ std::uint32_t PatchRepository::MinBetaVersion()
     soci::session& sql = *lease;
     try
     {
-        // The deployed SP is `TMinBetaVer` — returns the minimum
-        // dwBetaVer the client must have. Call via T-SQL EXEC because
-        // SOCI doesn't have a portable stored-proc wrapper.
+        // Legacy CSPMinBetaVer calls the deployed `TMinBetaVer` SP
+        // (operator-configured cutoff, returned via the SP's @dwMinVer
+        // OUTPUT parameter). The previous heuristic `MIN(dwBetaVer)`
+        // on TPREVERSION returned the lowest existing pre-version,
+        // which has nothing to do with the cutoff — fixed in the
+        // round-1 audit. The exec wrapper here uses a T-SQL local
+        // variable to capture the OUT param and SELECT it back as a
+        // single-column rowset SOCI can bind into. Falls back to 0
+        // on any error (SP missing, ODBC quirk, etc.) so the wire
+        // path stays compatible with deploys that haven't shipped
+        // the SP.
         int min_ver = 0;
-        sql << "SELECT TOP 1 \"dwBetaVer\" FROM \"TPREVERSION\" "
-               "ORDER BY \"dwBetaVer\"",
+        sql << "DECLARE @v INT; EXEC \"TMinBetaVer\" @dwMinVer = @v OUTPUT; "
+               "SELECT @v",
             soci::into(min_ver);
         return static_cast<std::uint32_t>(min_ver);
     }

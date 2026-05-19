@@ -13,6 +13,12 @@ plain (no RC4): legacy `PACKETHEADER` is `WORD wSize; WORD wID; DWORD
 dwChkSum;` — we replicate the legacy `CPacket::Encrypt` byte-sum
 checksum so the client's framing check passes.
 
+> **Round 1 audit (2026-05-19):** the handler catalogue alone hides
+> a handful of SQL-shape divergences. See
+> [`_rewrite/docs/TPATCH_AUDIT.md`](../../_rewrite/docs/TPATCH_AUDIT.md)
+> for the per-gap rationale. P-1 through P-4 fixed; P-5/P-6
+> documented as known limitations.
+
 | Handler | Wire | Backed by |
 |---|---|---|
 | `CT_SERVICEMONITOR_ACK` | `INT64 pad, DWORD tick` → `DWORD tick, DWORD session, DWORD user, DWORD active` | live counter |

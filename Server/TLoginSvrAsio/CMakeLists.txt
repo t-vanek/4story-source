@@ -239,3 +239,14 @@ target_link_libraries(test_tloginsvr_asio_soci_session_terminator PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_soci_session_terminator
     COMMAND test_tloginsvr_asio_soci_session_terminator)
+
+# Wire + SOCI end-to-end smoke: spawns the LoginServer in-process,
+# wires it with a real SociAuthService against MSSQL, and runs a
+# CS_LOGIN_REQ round-trip from a loopback client. Validates the seam
+# the in-process auth_flow + the standalone SOCI tests both leave open.
+add_executable(test_tloginsvr_asio_wire_e2e_soci
+    ${TLOGINSVR_ASIO_SRC}/tests/test_wire_e2e_soci.cpp)
+target_link_libraries(test_tloginsvr_asio_wire_e2e_soci PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_wire_e2e_soci
+    COMMAND test_tloginsvr_asio_wire_e2e_soci)

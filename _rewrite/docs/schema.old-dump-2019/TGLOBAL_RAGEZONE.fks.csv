@@ -1,0 +1,6 @@
+﻿"fk_name"	"parent_table"	"parent_column"	"referenced_table"	"referenced_column"	"delete_action"	"update_action"
+"FK_TIPADDR_TMACHINE"	"TIPADDR"	"bMachineID"	"TMACHINE"	"bMachineID"	"NO_ACTION"	"NO_ACTION"
+"FK_TNETWORK_TMACHINE"	"TNETWORK"	"bMachineID"	"TMACHINE"	"bMachineID"	"NO_ACTION"	"NO_ACTION"
+"FK__TCHANNEL__bGroup__7ADC2F5E"	"TCHANNEL"	"bGroupID"	"TGROUP"	"bGroupID"	"NO_ACTION"	"NO_ACTION"
+"FK__TSERVER__bGroupI__009508B4"	"TSERVER"	"bGroupID"	"TGROUP"	"bGroupID"	"NO_ACTION"	"NO_ACTION"
+"FK__TSERVER__bMachin__01892CED"	"TSERVER"	"bMachineID"	"TMACHINE"	"bMachineID"	"NO_ACTION"	"NO_ACTION"

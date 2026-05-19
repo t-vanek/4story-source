@@ -1,0 +1,17 @@
+﻿
+
+
+CREATE PROCEDURE [dbo].[TGuildMaxCabinet]
+	@dwGuildID	INT,
+	@bMaxCabinet	TINYINT
+AS
+
+BEGIN TRAN GUILD_MAXCABINET
+
+	UPDATE TGUILDTABLE SET bMaxCabinet = @bMaxCabinet WHERE dwID = @dwGuildID
+
+COMMIT TRAN GUILD_MAXCABINET
+
+
+
+

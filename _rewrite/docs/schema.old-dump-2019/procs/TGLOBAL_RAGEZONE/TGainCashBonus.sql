@@ -1,0 +1,14 @@
+﻿
+CREATE PROCEDURE [dbo].[TGainCashBonus]
+@dwUserID INT,
+@dwBonus INT
+AS
+
+BEGIN TRAN SAVECASHBONUS
+
+UPDATE TCASHTESTTABLE SET dwBonus = dwBonus + @dwBonus WHERE dwUserID = @dwUserID
+IF (@@ROWCOUNT = 0)
+	INSERT INTO TCASHTESTTABLE (dwUserID, dwCash, dwBonus) VALUES (@dwUserID, 0, @dwBonus)
+
+COMMIT TRAN SAVECASHBONUS
+

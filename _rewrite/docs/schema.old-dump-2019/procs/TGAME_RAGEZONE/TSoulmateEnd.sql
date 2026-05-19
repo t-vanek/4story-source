@@ -1,0 +1,20 @@
+﻿
+
+CREATE PROCEDURE [dbo].[TSoulmateEnd]
+	@dwCharID	INT,
+	@dwTime	INT
+AS
+
+BEGIN TRAN SOULMATE_END
+
+	UPDATE 
+		TSOULMATETABLE 
+	SET 
+		dwTime = @dwTime 
+	WHERE 
+		dwCharID = @dwCharID
+
+COMMIT TRAN SOULMATE_END
+
+
+

@@ -1,0 +1,15 @@
+﻿
+
+
+CREATE PROCEDURE [dbo].[TGuildTacticsDel]
+@dwCharID 	INT,
+@dwCharGuildID INT OUTPUT
+AS
+
+SET @dwCharGuildID = 0
+
+SELECT @dwCharGuildID = dwGuildID FROM TGUILDMEMBERTABLE WHERE dwCharID=@dwCharID
+
+DELETE TGUILDTACTICSTABLE WHERE dwCharID = @dwCharID
+
+

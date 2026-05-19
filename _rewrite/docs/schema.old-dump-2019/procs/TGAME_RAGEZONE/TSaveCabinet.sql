@@ -1,0 +1,24 @@
+﻿
+
+
+CREATE PROCEDURE [dbo].[TSaveCabinet]
+	@dwCharID	INT,
+	@bCabinetID	TINYINT,
+	@bUse		TINYINT	
+AS
+
+	BEGIN TRAN TSAVECABINET
+
+	INSERT INTO TTEMPCABINETTABLE(
+		dwCharID,
+		bCabinetID,
+		bUse) VALUES(
+		@dwCharID,
+		@bCabinetID,
+		@bUse)
+
+	COMMIT TRAN TSAVECABINET
+	RETURN 0
+
+
+

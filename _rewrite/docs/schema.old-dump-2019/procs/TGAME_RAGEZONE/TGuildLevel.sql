@@ -1,0 +1,17 @@
+﻿
+
+
+CREATE PROCEDURE [dbo].[TGuildLevel]
+	@dwGuildID	INT,
+	@bLevel	TINYINT
+AS
+
+BEGIN TRAN GUILD_LEVEL
+
+	UPDATE TGUILDTABLE SET bLevel = @bLevel WHERE dwID = @dwGuildID
+
+COMMIT TRAN GUILD_LEVEL
+
+
+
+

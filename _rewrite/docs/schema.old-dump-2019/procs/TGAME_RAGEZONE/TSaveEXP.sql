@@ -1,0 +1,17 @@
+﻿
+
+
+CREATE PROCEDURE [dbo].[TSaveEXP]
+	@dwCharID	INT,
+	@dwEXP	INT
+AS
+
+BEGIN TRAN SAVE_EXP
+
+	UPDATE TCHARTABLE SET dwEXP = @dwEXP WHERE dwCharID = @dwCharID
+
+COMMIT TRAN SAVE_EXP
+
+
+
+

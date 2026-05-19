@@ -1,0 +1,14 @@
+﻿
+CREATE PROCEDURE [dbo].[THelpMessage]
+@bID TINYINT,
+@dStart SMALLDATETIME,
+@dEnd SMALLDATETIME,
+@szMessage VARCHAR(2048)
+AS
+
+IF EXISTS(SELECT bID FROM THELPMESSAGETABLE WHERE bID=@bID)
+	UPDATE THELPMESSAGETABLE SET dStart=@dStart, dEnd=@dEnd, szMessage=@szMessage WHERE bID=@bID
+ELSE
+	INSERT INTO THELPMESSAGETABLE(bID, dStart, dEnd, szMessage) VALUES(@bID, @dStart, @dEnd, @szMessage)
+
+

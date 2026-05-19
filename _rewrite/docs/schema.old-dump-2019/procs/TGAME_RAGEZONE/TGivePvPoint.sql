@@ -1,0 +1,21 @@
+﻿
+CREATE PROCEDURE [dbo].[TGivePvPoint]
+@szName VARCHAR(50),
+@dwPoint INT
+AS
+
+DECLARE @dwID INT
+
+SELECT @dwID = dwCharID FROM TCHARTABLE WHERE szName=@szName
+IF(@@ROWCOUNT = 0)
+BEGIN
+	SELECT '그런 캐릭터 없거든'
+	RETURN 1
+END
+
+IF EXISTS (SELECT dwCharID FROM TPVPOINTTABLE WHERE dwCharID = @dwID)
+	UPDATE TPVPOINTTABLE SET dwUseablePoint = @dwPoint WHERE dwCharID = @dwID
+ELSE
+	INSERT INTO TPVPOINTTABLE VALUES(@dwID, @dwPoint, @dwPoint)
+
+

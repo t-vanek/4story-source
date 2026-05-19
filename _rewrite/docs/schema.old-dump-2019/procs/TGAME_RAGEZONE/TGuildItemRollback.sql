@@ -1,0 +1,61 @@
+﻿
+
+
+
+
+CREATE PROCEDURE [dbo].[TGuildItemRollback]
+	@dlID		BIGINT,
+	@dwGuildID	INT,
+	@dwItemID	INT,
+	@wItemID	SMALLINT,
+	@bLevel	TINYINT,
+	@bGem TINYINT,
+	@wMoggItemID SMALLINT,
+	@bCount	TINYINT,
+	@bGLevel	TINYINT,
+	@dwDuraMax	INT,
+	@dwDuraCur	INT,
+	@bRefineCur	TINYINT,
+	@dEndTime	SMALLDATETIME,
+	@bGradeEffect	TINYINT,
+	@bMagic1	TINYINT,
+	@bMagic2	TINYINT,
+	@bMagic3	TINYINT,
+	@bMagic4	TINYINT,
+	@bMagic5	TINYINT,
+	@bMagic6	TINYINT,
+	@wValue1	SMALLINT,
+	@wValue2	SMALLINT,
+	@wValue3	SMALLINT,
+	@wValue4	SMALLINT,
+	@wValue5	SMALLINT,
+	@wValue6	SMALLINT,
+	@dwTime1	INT,
+	@dwTime2	INT,
+	@dwTime3	INT,
+	@dwTime4	INT,
+	@dwTime5	INT,
+	@dwTime6	INT
+AS
+
+BEGIN TRAN GUILD_ITEM_ROLLBACK
+IF NOT EXISTS(SELECT dlID FROM TITEMTABLE WHERE dlID = @dlID)
+BEGIN
+	INSERT INTO TITEMTABLE(
+		dlID, bStorageType, dwStorageID, bOwnerType, dwOwnerID, bItemID, wItemID, bLevel, bCount, bGLevel, dwDuraMax, dwDuraCur, bRefineCur,dEndTime,bGradeEffect,
+		bMagic1, bMagic2, bMagic3, bMagic4, bMagic5, bMagic6,
+		wValue1, wValue2, wValue3, wValue4, wValue5, wValue6,
+		dwTime1, dwTime2, dwTime3, dwTime4, dwTime5, dwTime6, bGem, wMoggItemID)
+	VALUES
+	(
+		@dlID, 1,@dwItemID,1,	@dwGuildID,0,@wItemID,@bLevel,@bCount,@bGLevel,@dwDuraMax,@dwDuraCur,@bRefineCur,@dEndTime,@bGradeEffect,
+		@bMagic1, @bMagic2, @bMagic3, @bMagic4, @bMagic5, @bMagic6,
+		@wValue1, @wValue2, @wValue3, @wValue4, @wValue5, @wValue6,
+		@dwTime1, @dwTime2, @dwTime3, @dwTime4, @dwTime5, @dwTime6, @bGem, @wMoggItemID
+	)
+END
+COMMIT TRAN GUILD_ITEM_ROLLBACK
+
+RETURN 0
+
+

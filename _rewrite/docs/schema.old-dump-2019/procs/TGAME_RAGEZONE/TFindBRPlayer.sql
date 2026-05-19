@@ -1,0 +1,6 @@
+﻿CREATE PROCEDURE [dbo].[TFindBRPlayer]
+@dwUserID INT,
+@dwCharID INT OUTPUT
+AS
+SET @dwCharID = (SELECT dwCharID FROM TBRPLAYERTABLE WHERE dwUserID = @dwUserID)
+

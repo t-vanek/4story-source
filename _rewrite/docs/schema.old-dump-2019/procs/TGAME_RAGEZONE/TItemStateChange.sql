@@ -1,0 +1,14 @@
+﻿
+CREATE PROCEDURE [dbo].[TItemStateChange] 
+	@wItemID	SMALLINT,
+	@bInitState	TINYINT
+AS
+	SELECT szName FROM TITEMCHART WHERE wItemID = @wItemID
+	IF( @@ROWCOUNT = 0)
+		RETURN 1
+
+	UPDATE TITEMCHART SET bInitState = @bInitState WHERE wItemID = @wItemID
+
+	RETURN 0
+
+

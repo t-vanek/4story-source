@@ -1,0 +1,117 @@
+﻿-- TRIGGER: TALLCHARTABLE_TRIGGER_DELETE_copy ON TALLCHARTABLE
+CREATE TRIGGER [dbo].[TALLCHARTABLE_TRIGGER_DELETE_copy]
+ON [dbo].[TALLCHARTABLE_PW]
+AFTER DELETE
+AS
+
+	DECLARE  @dwSeq  INT
+
+	SELECT @dwSeq = dwSeq FROM DELETED
+
+	IF @dwSeq IS NOT NULL
+	BEGIN
+
+		INSERT INTO	TALLCHARTABLE_TRIGGER
+		(
+			szDBOP,
+			dwSeq
+		)
+		VALUES
+		(
+			'D',
+			@dwSeq
+		)
+
+	END
+
+
+
+
+
+GO
+
+-- TRIGGER: TALLCHARTABLE_TRIGGER_INSERT_copy ON TALLCHARTABLE
+CREATE TRIGGER [dbo].[TALLCHARTABLE_TRIGGER_INSERT_copy]
+ON [dbo].[TALLCHARTABLE_PW]
+AFTER INSERT
+AS
+
+	DECLARE  @dwSeq  INT
+
+	SELECT @dwSeq = dwSeq FROM INSERTED
+
+	INSERT INTO	TALLCHARTABLE_TRIGGER
+	(
+		szDBOP,
+		dwSeq
+	)
+	VALUES
+	(
+		'I',
+		@dwSeq
+	)
+
+
+
+
+
+GO
+
+-- TRIGGER: TALLCHARTABLE_TRIGGER_UPDATE_copy ON TALLCHARTABLE
+CREATE TRIGGER [dbo].[TALLCHARTABLE_TRIGGER_UPDATE_copy]
+ON [dbo].[TALLCHARTABLE_PW]
+AFTER UPDATE
+AS
+
+
+	DECLARE  @dwSeq  		INT
+
+	DECLARE  @bOldDelete  	TINYINT
+	DECLARE  @bOldLevel		TINYINT
+
+	DECLARE  @bNewDelete  	TINYINT
+	DECLARE  @bNewLevel	TINYINT
+
+
+
+	--
+	--	Old Data
+	--
+	SELECT 	@bOldLevel 	= bLevel,
+			@bOldDelete	= bDelete			
+	FROM DELETED
+	
+	
+
+	--
+	-- 	New Data
+	--
+	SELECT 	@dwSeq 	= dwSeq , 
+			@bNewLevel 	= bLevel,
+			@bNewDelete	= bDelete			
+	FROM INSERTED
+
+
+	IF	@bOldLevel <> 	@bNewLevel   OR @bOldDelete <> @bNewDelete
+	BEGIN
+
+		INSERT INTO	TALLCHARTABLE_TRIGGER
+		(
+			szDBOP,
+			dwSeq
+		)
+		VALUES
+		(
+			'U',
+			@dwSeq
+		)
+
+	END
+
+
+
+
+
+GO
+
+

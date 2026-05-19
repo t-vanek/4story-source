@@ -1,0 +1,12 @@
+﻿
+
+
+CREATE PROCEDURE [dbo].[TInitMonthRank]
+	@bMonth	TINYINT
+ AS
+	DELETE TMONTHRANKTABLE WHERE bMonth = @bMonth
+	DELETE THEROTABLE WHERE bMonth = @bMonth
+
+	RETURN 0
+
+

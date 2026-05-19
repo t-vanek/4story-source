@@ -1,0 +1,9 @@
+﻿
+CREATE PROCEDURE [dbo].[TGetRecallID]
+@dwRecallID INT OUTPUT
+AS
+
+SET @dwRecallID = 0
+SELECT @dwRecallID = MAX(dwID) FROM TRECALLMONTABLE
+
+

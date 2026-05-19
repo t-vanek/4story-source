@@ -1,0 +1,20 @@
+﻿
+CREATE PROCEDURE [dbo].[TInitGenItemID]
+@dlID BIGINT OUTPUT,
+@bServerID TINYINT
+AS
+
+DECLARE @wInitGen SMALLINT
+DECLARE @bWorld TINYINT
+DECLARE @dlSvrItemID BIGINT
+
+SELECT @bWorld = bWorld FROM TDBITEMINDEXTABLE
+
+SET @wInitGen = @bWorld * 256 + @bServerID
+SET @dlSvrItemID = @wInitGen * POWER(CAST(2 AS BIGINT),48)
+
+SELECT @dlID = MAX(dlID)  FROM TITEMTABLE WHERE dlID > @dlSvrItemID AND dlID < (@wInitGen+1) * POWER(CAST(2 AS BIGINT),48)
+IF(@dlID IS NULL)
+	SET @dlID = @dlSvrItemID
+
+

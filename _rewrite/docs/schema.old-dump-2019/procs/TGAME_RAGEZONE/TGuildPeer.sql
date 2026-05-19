@@ -1,0 +1,18 @@
+﻿
+
+
+CREATE PROCEDURE [dbo].[TGuildPeer]
+	@dwCharID 	INT,
+	@dwGuildID	INT,
+	@bPeer 	TINYINT
+AS
+
+BEGIN TRAN GUILD_PEER
+
+	UPDATE TGUILDMEMBERTABLE SET bPeer = @bPeer WHERE dwCharID=@dwCharID AND dwGuildID = @dwGuildID
+
+COMMIT TRAN GUILD_PEER
+
+
+
+

@@ -1,0 +1,10 @@
+﻿
+CREATE PROCEDURE [dbo].[TGetNation]
+@bNation TINYINT OUTPUT
+AS
+
+SET @bNation = 0
+
+SELECT @bNation = bNation FROM TLIMITEDLEVELCHART
+
+

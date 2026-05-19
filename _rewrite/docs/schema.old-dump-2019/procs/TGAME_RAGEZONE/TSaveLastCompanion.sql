@@ -1,0 +1,10 @@
+﻿CREATE PROCEDURE [dbo].[TSaveLastCompanion]
+@dwCharID INT,
+@bCompanionSlot TINYINT
+AS
+BEGIN
+IF NOT EXISTS(SELECT * FROM TLASTCOMPANIONTABLE WHERE dwCharID = @dwCharID)
+INSERT INTO TLASTCOMPANIONTABLE(dwCharID, bCompanionSlot) VALUES (@dwCharID, @bCompanionSlot)
+ELSE
+UPDATE TLASTCOMPANIONTABLE SET bCompanionSlot = @bCompanionSlot WHERE dwCharID = @dwCharID
+END

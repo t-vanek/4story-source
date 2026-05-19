@@ -1,0 +1,13 @@
+﻿
+CREATE PROCEDURE [dbo].[TCheckConnect]
+	@dwUserID		INT,
+	@dwCharID		INT
+AS
+	SELECT dwUserID FROM TCHARTABLE WHERE @dwUserID = dwUserID AND @dwCharID = dwCharID
+	IF @@ROWCOUNT = 0
+	BEGIN
+		RETURN 1
+	END
+
+	RETURN 0
+

@@ -1,0 +1,14 @@
+﻿
+CREATE PROCEDURE [dbo].[TTnmtEventTime]
+@wTourID SMALLINT,
+@bWeek TINYINT,
+@bDay TINYINT,
+@dwStart INT
+AS
+
+DELETE FROM TTNMTEVENTTIMETABLE WHERE wTournamentID=@wTourID
+DELETE FROM TTNMTEVENTSCHEDULETABLE WHERE wTournamentID = @wTourID
+
+INSERT INTO TTNMTEVENTTIMETABLE(wTournamentID, bWeek, bDay, dwStart) VALUES(@wTourID, @bWeek, @bDay, @dwStart)
+
+

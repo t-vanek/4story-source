@@ -1,0 +1,8 @@
+﻿
+CREATE PROCEDURE [dbo].[TGetLimitedLevel]
+@bMaxLevel TINYINT OUTPUT
+AS
+
+SELECT @bMaxLevel =  bMaxLevel FROM TGLOBAL_GSP.DBO.TLIMITEDLEVELCHART
+
+

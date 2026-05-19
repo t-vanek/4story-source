@@ -1,0 +1,9 @@
+﻿
+CREATE PROCEDURE [dbo].[TGuildTacticsWantedDel]
+@dwID INT
+AS
+
+DELETE TGUILDTACTICSWANTEDTABLE WHERE dwID=@dwID
+
+
+

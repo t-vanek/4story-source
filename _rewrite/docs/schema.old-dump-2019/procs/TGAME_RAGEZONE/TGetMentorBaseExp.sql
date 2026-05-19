@@ -1,0 +1,9 @@
+﻿
+CREATE PROCEDURE [dbo].[TGetMentorBaseExp]
+@dwExp INT OUTPUT
+ AS
+
+SET @dwExp = 3923253
+SELECT @dwExp = dwExp FROM TLEVELCHART WHERE bLevel = 49
+
+

@@ -149,7 +149,8 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
                 ? services::TerminationReason::MapHandoff
                 : services::TerminationReason::Disconnect;
             m_session_terminator->Terminate(
-                entry->user_id, entry->session_key, reason);
+                entry->user_id, entry->session_key, reason,
+                entry->last_char_id);
         }
         m_connection_registry->Unregister(sess);
     }

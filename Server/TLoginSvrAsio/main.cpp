@@ -172,7 +172,8 @@ int main(int argc, char** argv)
                     {
                         soci_term->Terminate(it.entry.user_id,
                             it.entry.session_key,
-                            tloginsvr::services::TerminationReason::Disconnect);
+                            tloginsvr::services::TerminationReason::Disconnect,
+                            it.entry.last_char_id);
                     }
                 }
             }

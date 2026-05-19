@@ -20,9 +20,10 @@ class SociSessionTerminator : public ISessionTerminator
 public:
     explicit SociSessionTerminator(fourstory::db::SessionPool& pool);
 
-    void Terminate(std::int32_t user_id,
+    void Terminate(std::int32_t  user_id,
                    std::uint32_t session_key,
-                   TerminationReason reason) override;
+                   TerminationReason reason,
+                   std::int32_t  char_id = 0) override;
 
     // Bulk-clear every TCURRENTUSER row. Mirrors legacy
     // CSPClearLoginUser, which CTLoginSvrModule::OnEnter calls right

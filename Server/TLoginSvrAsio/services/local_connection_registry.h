@@ -34,6 +34,10 @@ public:
     void MarkHandoff(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
 
+    void MarkHandoffWithChar(
+        const std::shared_ptr<tnetlib::AsioSession>& session,
+        std::int32_t char_id) override;
+
     void MarkAgreed(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
 

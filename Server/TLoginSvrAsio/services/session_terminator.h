@@ -48,9 +48,16 @@ public:
     // Called on session close. `user_id` and `session_key` come from
     // the AsioSession's auth-success state — both 0 if the session
     // never authenticated (terminator should no-op in that case).
-    virtual void Terminate(std::int32_t user_id,
+    //
+    // `char_id` is the character the session was bound to (set by
+    // OnStartReq's MarkHandoffWithChar, 0 for lobby-only sessions).
+    // SOCI impls use it to stamp TLOG.dwCharID and
+    // TUSERINFOTABLE.dwLastCharID, mirroring legacy
+    // CSPLogout(dwID, dwCharID, ...) side effects.
+    virtual void Terminate(std::int32_t  user_id,
                            std::uint32_t session_key,
-                           TerminationReason reason) = 0;
+                           TerminationReason reason,
+                           std::int32_t  char_id = 0) = 0;
 };
 
 } // namespace tloginsvr::services

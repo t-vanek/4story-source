@@ -1182,9 +1182,12 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
         // SessionTerminator call (in HandleConnection's close path)
         // knows to preserve the TCURRENTUSER row — Map needs the
         // dwKEY entry to validate the client's reconnect.
+        // Also stamp the char_id so the terminator can stamp
+        // TLOG.dwCharID + TUSERINFOTABLE.dwLastCharID (legacy
+        // CSPLogout's m_dwCharID arg parity).
         if (connection_registry)
         {
-            connection_registry->MarkHandoff(session);
+            connection_registry->MarkHandoffWithChar(session, dwCharID);
         }
     }
     else

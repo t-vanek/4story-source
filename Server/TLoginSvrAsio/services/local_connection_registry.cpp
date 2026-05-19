@@ -55,6 +55,18 @@ void LocalConnectionRegistry::MarkHandoff(
     }
 }
 
+void LocalConnectionRegistry::MarkHandoffWithChar(
+    const std::shared_ptr<tnetlib::AsioSession>& session,
+    std::int32_t char_id)
+{
+    std::lock_guard<std::mutex> lock(m_mtx);
+    if (auto it = m_by_session.find(session.get()); it != m_by_session.end())
+    {
+        it->second.handoff_to_map = true;
+        it->second.last_char_id   = char_id;
+    }
+}
+
 void LocalConnectionRegistry::MarkAgreed(
     const std::shared_ptr<tnetlib::AsioSession>& session)
 {

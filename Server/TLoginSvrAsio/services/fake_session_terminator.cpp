@@ -2,9 +2,10 @@
 
 namespace tloginsvr::services {
 
-void FakeSessionTerminator::Terminate(std::int32_t user_id,
-                                          std::uint32_t session_key,
-                                          TerminationReason reason)
+void FakeSessionTerminator::Terminate(std::int32_t  user_id,
+                                      std::uint32_t session_key,
+                                      TerminationReason reason,
+                                      std::int32_t  char_id)
 {
     if (user_id == 0 && session_key == 0)
     {
@@ -13,7 +14,7 @@ void FakeSessionTerminator::Terminate(std::int32_t user_id,
         return;
     }
     std::lock_guard<std::mutex> lock(m_mtx);
-    m_history.push_back(TerminationRecord{ user_id, session_key, reason });
+    m_history.push_back(TerminationRecord{ user_id, session_key, reason, char_id });
 }
 
 std::vector<TerminationRecord>

@@ -22,14 +22,16 @@ struct TerminationRecord
     std::int32_t      user_id;
     std::uint32_t     session_key;
     TerminationReason reason;
+    std::int32_t      char_id = 0;
 };
 
 class FakeSessionTerminator : public ISessionTerminator
 {
 public:
-    void Terminate(std::int32_t user_id,
+    void Terminate(std::int32_t  user_id,
                    std::uint32_t session_key,
-                   TerminationReason reason) override;
+                   TerminationReason reason,
+                   std::int32_t  char_id = 0) override;
 
     // Test introspection — returns a snapshot copy.
     std::vector<TerminationRecord> History() const;

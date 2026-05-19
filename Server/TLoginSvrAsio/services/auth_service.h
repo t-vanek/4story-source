@@ -30,6 +30,13 @@ struct AuthRequest
     std::string   password;         // CS_LOGIN_REQ strPasswd
     std::string   client_ip;        // peer ip — IPv4 dotted notation
     std::uint16_t client_version;   // CS_LOGIN_REQ wVersion (TVERSION)
+
+    // JP-only trailing BYTE bChanneling (CSHandler.cpp:173-174). Tells
+    // the legacy TLoginJP SP which channeling partner (NHN, GMO, …)
+    // brokered this account. Zero on every other locale. SOCI impls
+    // are expected to ignore this on non-JP nations.
+    std::uint8_t  channeling = 0;
+    bool          channeling_present = false;
 };
 
 // Status codes mirror the legacy LR_* values in NetCode.h. The

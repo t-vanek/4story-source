@@ -24,6 +24,14 @@ public:
                    std::uint32_t session_key,
                    TerminationReason reason) override;
 
+    // Bulk-clear every TCURRENTUSER row. Mirrors legacy
+    // CSPClearLoginUser, which CTLoginSvrModule::OnEnter calls right
+    // after InitNetwork: if the previous process crashed with live
+    // sessions the rows are still there and the next login would hit
+    // LR_DUPLICATE forever. Returning the row-count so the caller can
+    // log it (operators want to know when recovery picks something up).
+    int ClearStaleSessions();
+
 private:
     fourstory::db::SessionPool& m_pool;
 };

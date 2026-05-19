@@ -329,3 +329,38 @@ CREATE TABLE "TITEMTABLE" (
 );
 CREATE INDEX "IDX_TITEMTABLE_owner" ON "TITEMTABLE"
     ("bStorageType", "dwStorageID", "bOwnerType", "dwOwnerID");
+
+-- ============================================================
+-- Premium / PC-Bang side tables — populated by the legacy TLogin SP
+-- final-block lookups. Both are optional; SociAuthService catches the
+-- "missing table" exception and returns 0 for the corresponding fields
+-- so deployments that don't care about PC-Bang or premium tiers can
+-- skip applying these tables entirely.
+-- ============================================================
+
+-- PC-Bang (Korean / TW gaming-cafe) IP whitelist. The legacy SP matches
+-- a peer IP against either an exact entry or a SQL LIKE pattern
+-- (`192.168.%`). We keep both columns so operators can choose the form
+-- per region.
+DROP TABLE IF EXISTS "TPCBANG" CASCADE;
+CREATE TABLE "TPCBANG" (
+    "szIP"      VARCHAR(40),         -- exact match
+    "szIPRange" VARCHAR(40),         -- SQL LIKE pattern, e.g. "192.168.%"
+    "szName"    VARCHAR(64)
+);
+CREATE INDEX "IDX_TPCBANG_szIP" ON "TPCBANG" ("szIP");
+
+-- Active premium tier per user. Legacy TLogin SP returns the highest
+-- non-expired dwPremiumID — we mirror that via ORDER BY dwPremiumID DESC
+-- LIMIT 1 in SociAuthService. Multiple rows per user are allowed
+-- (different products / billing windows) so the unique constraint is
+-- composite.
+DROP TABLE IF EXISTS "TUSERPREMIUM" CASCADE;
+CREATE TABLE "TUSERPREMIUM" (
+    "dwUserID"    INTEGER  NOT NULL,
+    "dwPremiumID" INTEGER  NOT NULL,
+    "dtStart"     TIMESTAMP,
+    "dtExpire"    TIMESTAMP NOT NULL,
+    PRIMARY KEY ("dwUserID", "dwPremiumID")
+);
+CREATE INDEX "IDX_TUSERPREMIUM_user" ON "TUSERPREMIUM" ("dwUserID", "dtExpire");

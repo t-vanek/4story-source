@@ -62,4 +62,27 @@ void SociSessionTerminator::Terminate(std::int32_t user_id,
     }
 }
 
+int SociSessionTerminator::ClearStaleSessions()
+{
+    auto lease = m_pool.Acquire();
+    soci::session& sql = *lease;
+
+    try
+    {
+        int before = 0;
+        sql << "SELECT COUNT(*) FROM \"TCURRENTUSER\"", soci::into(before);
+        if (before == 0) return 0;
+
+        sql << "DELETE FROM \"TCURRENTUSER\"";
+        spdlog::info("session.ClearStaleSessions wiped {} stale TCURRENTUSER row(s)",
+            before);
+        return before;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("session.ClearStaleSessions DB error: {}", ex.what());
+        return -1;
+    }
+}
+
 } // namespace tloginsvr::services

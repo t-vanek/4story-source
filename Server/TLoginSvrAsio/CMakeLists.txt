@@ -66,6 +66,7 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/services/fake_map_server_locator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/fake_session_terminator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/fake_char_service.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/charname_validator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_auth_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_char_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_map_server_locator.cpp
@@ -157,6 +158,14 @@ add_executable(test_tloginsvr_asio_char_flow
 target_link_libraries(test_tloginsvr_asio_char_flow PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_char_flow COMMAND test_tloginsvr_asio_char_flow)
+
+# Charname-validator test — nation-aware charset rules for CheckCharName.
+add_executable(test_tloginsvr_asio_charname_validator
+    ${TLOGINSVR_ASIO_SRC}/tests/test_charname_validator.cpp)
+target_link_libraries(test_tloginsvr_asio_charname_validator PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_charname_validator
+    COMMAND test_tloginsvr_asio_charname_validator)
 
 # SOCI integration tests — exercise the DB-backed service impls
 # directly against a real PostgreSQL. All skipped automatically if

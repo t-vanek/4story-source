@@ -73,3 +73,24 @@ CREATE TABLE TLOG (
     timeLOGOUT  smalldatetime NOT NULL DEFAULT GETDATE()
 );
 go
+
+-- PC-Bang IP whitelist + premium tier — see postgres-dev.sql for the
+-- prose. Optional: SociAuthService swallows "table missing" so a
+-- deployment that doesn't care about either feature can skip them.
+CREATE TABLE TPCBANG (
+    szIP      varchar(40) NULL,
+    szIPRange varchar(40) NULL,
+    szName    varchar(64) NULL
+);
+CREATE INDEX IDX_TPCBANG_szIP ON TPCBANG(szIP);
+go
+
+CREATE TABLE TUSERPREMIUM (
+    dwUserID    int          NOT NULL,
+    dwPremiumID int          NOT NULL,
+    dtStart     smalldatetime NULL,
+    dtExpire    smalldatetime NOT NULL,
+    PRIMARY KEY (dwUserID, dwPremiumID)
+);
+CREATE INDEX IDX_TUSERPREMIUM_user ON TUSERPREMIUM(dwUserID, dtExpire);
+go

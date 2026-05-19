@@ -17,6 +17,7 @@
 #include "services/soci_session_terminator.h"
 #include "fourstory/audit/spdlog_audit_logger.h"
 #include "fourstory/smtp/spdlog_smtp_client.h"
+#include "fourstory/smtp/asio_smtp_client.h"
 #include "fourstory/audit/udp_audit_logger.h"
 
 #include <boost/asio/co_spawn.hpp>
@@ -96,12 +97,30 @@ int main(int argc, char** argv)
             std::make_unique<tloginsvr::services::LocalEventRegistry>();
         cfg.server.event_registry = event_registry.get();
 
-        // SMTP client for 2FA emails. Default log-only impl emits the
-        // code through spdlog so operators can read it from the log
-        // stream during dev / staging. Production deploys swap this
-        // for a real SMTP-talking impl before this line runs.
-        auto smtp_client =
-            std::make_unique<fourstory::smtp::SpdlogSmtpClient>();
+        // SMTP client for 2FA emails. `[smtp] host` set → real
+        // Asio-based SMTP transport; empty → log-only fallback (codes
+        // land in the spdlog stream so dev / staging deploys still
+        // exercise the 2FA path without a relay).
+        std::unique_ptr<fourstory::smtp::ISmtpClient> smtp_client;
+        if (!cfg.smtp.host.empty())
+        {
+            fourstory::smtp::AsioSmtpConfig sc;
+            sc.host         = cfg.smtp.host;
+            sc.port         = cfg.smtp.port;
+            sc.from_address = cfg.smtp.from_address;
+            sc.from_display = cfg.smtp.from_display;
+            sc.username     = cfg.smtp.username;
+            sc.password     = cfg.smtp.password;
+            smtp_client = std::make_unique<fourstory::smtp::AsioSmtpClient>(std::move(sc));
+            spdlog::info("smtp: real relay {}:{} (from={}{})",
+                cfg.smtp.host, cfg.smtp.port, cfg.smtp.from_address,
+                cfg.smtp.username.empty() ? "" : ", AUTH LOGIN");
+        }
+        else
+        {
+            smtp_client = std::make_unique<fourstory::smtp::SpdlogSmtpClient>();
+            spdlog::info("smtp: log-only (no [smtp] host configured)");
+        }
         cfg.server.smtp_client = smtp_client.get();
 
         // Audit logger — emits structured records via spdlog "audit"
@@ -177,6 +196,12 @@ int main(int argc, char** argv)
                 *global_pool);
             soci_map  = std::make_unique<tloginsvr::services::SociMapServerLocator>(
                 *global_pool, world_pool.get());
+
+            // Crash-recovery: legacy CTLoginSvrModule::OnEnter calls
+            // CSPClearLoginUser here so a previous process's stale
+            // session rows don't lock every account into LR_DUPLICATE.
+            // The new server runs the same one-shot DELETE.
+            soci_term->ClearStaleSessions();
 
             cfg.server.auth_service        = soci_auth.get();
             cfg.server.map_server_locator  = soci_map.get();

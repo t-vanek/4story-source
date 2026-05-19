@@ -17,6 +17,37 @@ constexpr unsigned char kDefaultLegacySecret[] =
     "A5$$8AFS13A1::-11#!..'\x92" "19716AC&\x94" "/D1;;1#";
 constexpr std::size_t   kDefaultLegacySecretLen = sizeof(kDefaultLegacySecret) - 1;
 
+Nation ParseNation(std::string_view s)
+{
+    // Accept the same labels CSPGetNation returns plus the obvious
+    // lowercase shorthands. Anything else is a config error — fail
+    // loud at startup rather than silently fall back to US (a JP
+    // operator who typos "japane" would otherwise reject every
+    // bChanneling-carrying login with a malformed-body close).
+    if (s == "us"      || s == "US")      return Nation::US;
+    if (s == "germany" || s == "de")      return Nation::Germany;
+    if (s == "taiwan"  || s == "tw")      return Nation::Taiwan;
+    if (s == "japan"   || s == "jp")      return Nation::Japan;
+    if (s == "korea"   || s == "kr")      return Nation::Korea;
+    if (s == "russia"  || s == "ru")      return Nation::Russia;
+    throw std::runtime_error("invalid nation: " + std::string(s)
+        + " (expected one of: us|germany|taiwan|japan|korea|russia)");
+}
+
+const char* NationName(Nation n)
+{
+    switch (n)
+    {
+    case Nation::US:      return "us";
+    case Nation::Germany: return "germany";
+    case Nation::Taiwan:  return "taiwan";
+    case Nation::Japan:   return "japan";
+    case Nation::Korea:   return "korea";
+    case Nation::Russia:  return "russia";
+    }
+    return "us";
+}
+
 spdlog::level::level_enum ParseLogLevel(std::string_view s)
 {
     if (s == "trace")    return spdlog::level::trace;
@@ -92,6 +123,8 @@ AppConfig LoadConfig(const std::string& path)
         // Missing → defaults to the legacy single value 0x2918.
         if (auto t = (*srv)["test_handlers_enabled"].value<bool>())
             cfg.server.test_handlers_enabled = *t;
+        if (auto n = (*srv)["nation"].value<std::string>())
+            cfg.server.nation = ParseNation(*n);
         if (auto av = (*srv)["accepted_versions"].as_array())
         {
             std::vector<std::uint16_t> list;
@@ -164,6 +197,29 @@ AppConfig LoadConfig(const std::string& path)
         }
     }
 
+    // [smtp] — outbound mail relay for 2FA security codes.
+    if (auto smtp = tbl["smtp"].as_table())
+    {
+        if (auto h = (*smtp)["host"].value<std::string>())
+            cfg.smtp.host = *h;
+        if (auto p = (*smtp)["port"].value<std::int64_t>())
+        {
+            if (*p < 0 || *p > 65535)
+                throw std::runtime_error("smtp.port out of range: " + std::to_string(*p));
+            cfg.smtp.port = static_cast<std::uint16_t>(*p);
+        }
+        if (auto f = (*smtp)["from_address"].value<std::string>())
+            cfg.smtp.from_address = *f;
+        if (auto d = (*smtp)["from_display"].value<std::string>())
+            cfg.smtp.from_display = *d;
+        if (auto u = (*smtp)["username"].value<std::string>())
+            cfg.smtp.username = *u;
+        if (auto p = (*smtp)["password"].value<std::string>())
+            cfg.smtp.password = *p;
+    }
+    if (!cfg.smtp.host.empty() && cfg.smtp.from_address.empty())
+        throw std::runtime_error("smtp.host is set but smtp.from_address is empty");
+
     // [health]
     if (auto health = tbl["health"].as_table())
     {
@@ -204,10 +260,11 @@ AppConfig LoadConfig(const std::string& path)
         }
     }
 
-    spdlog::info("loaded config from '{}' — server.port={} health.port={} rc4={} "
+    spdlog::info("loaded config from '{}' — server.port={} nation={} health.port={} rc4={} "
                  "db_global={} db_world={} log_level={}",
         path,
         cfg.server.port,
+        NationName(cfg.server.nation),
         cfg.health_port,
         cfg.server.rc4_secret_key.empty() ? "disabled" : "enabled",
         cfg.database.connection_string.empty()

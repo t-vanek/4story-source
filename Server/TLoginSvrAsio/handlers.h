@@ -5,6 +5,7 @@
 #include <functional>
 
 #include "asio_session.h"
+#include "nation.h"
 #include "fourstory/audit/audit_logger.h"
 #include "services/auth_service.h"
 #include "services/char_service.h"
@@ -15,6 +16,7 @@
 #include "fourstory/smtp/smtp_client.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <span>
 #include <vector>
@@ -56,7 +58,8 @@ boost::asio::awaitable<void> OnLoginReq(
     fourstory::audit::IAuditLogger* audit_logger = nullptr,
     fourstory::ops::LoginRateLimiter* rate_limiter = nullptr,
     std::span<const std::uint16_t> accepted_versions = {},
-    fourstory::smtp::ISmtpClient* smtp_client = nullptr);
+    fourstory::smtp::ISmtpClient* smtp_client = nullptr,
+    Nation nation = Nation::US);
 
 // CS_GROUPLIST_REQ → CS_GROUPLIST_ACK. Phase-3 stub: returns an empty
 // world-group list (BYTE bCount = 0 + BYTE bCheckFilePoint = 0).
@@ -103,7 +106,8 @@ boost::asio::awaitable<void> OnCreateCharReq(
     std::span<const std::byte> body,
     services::ICharService* char_service = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr,
-    fourstory::audit::IAuditLogger* audit_logger = nullptr);
+    fourstory::audit::IAuditLogger* audit_logger = nullptr,
+    Nation nation = Nation::US);
 
 // CS_DELCHAR_REQ → CS_DELCHAR_ACK.
 // Parses (bGroupID, strPasswd, dwCharID). If `auth_service` is non-null

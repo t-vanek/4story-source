@@ -1,0 +1,31 @@
+# tloginsvr.toml — local dev config against restored MSSQL.
+# Used by `tloginsvr_asio --config tloginsvr.local.toml` for full E2E
+# testing against TGLOBAL_RAGEZONE + TGAME_RAGEZONE on localhost.
+
+[server]
+port = 4816
+nation = "us"
+
+[crypto]
+# Server-server test mode: legacy RC4 client codec disabled so the
+# in-tree harness can poke wire frames without the keystream layer.
+disable_rc4 = false
+
+[log]
+level = "debug"
+
+[health]
+port = 8815
+
+[database]
+backend = "odbc"
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+pool_size = 4
+
+[database.world]
+backend = "odbc"
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGAME_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+pool_size = 4
+
+[smtp]
+# Log-only mode for dev — 2FA codes appear in the spdlog stream.

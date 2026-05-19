@@ -28,7 +28,13 @@
       "PowerShell(Add-Type -AssemblyName 'System.Data'; $c = New-Object System.Data.SqlClient.SqlConnection 'Server=localhost;Database=TGLOBAL_RAGEZONE;Integrated Security=True;TrustServerCertificate=True;'; $c.Open\\(\\); $cmd = $c.CreateCommand\\(\\); $cmd.CommandText = \"SELECT s.bGroupID, s.bServerID, s.bType, s.wPort, s.bMachineID, ip.szIPAddr, ip.bActive FROM TSERVER s LEFT JOIN TIPADDR ip ON ip.bMachineID = s.bMachineID WHERE s.bType = 4 ORDER BY s.bGroupID, s.bServerID\"; $r = $cmd.ExecuteReader\\(\\); 'TSERVER \\(MapSvr\\) rows:'; while \\($r.Read\\(\\)\\) { 'group={0} server={1} port={2} machine={3} ip={4} active={5}' -f $r.GetByte\\(0\\), $r.GetByte\\(1\\), $r.GetInt16\\(3\\), $r.GetByte\\(4\\), $\\(if \\($r.IsDBNull\\(5\\)\\) {'<null>'} else {$r.GetString\\(5\\)}\\), $\\(if \\($r.IsDBNull\\(6\\)\\) {'?'} else {$r.GetByte\\(6\\)}\\) }; $r.Close\\(\\); $c.Close\\(\\))",
       "Bash(grep -v \":0$\")",
       "PowerShell(Set-Location 'C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source\\\\_rewrite\\\\src\\\\FourStory.Login'; \\(Get-Content FourStory.Login.csproj | Select-String 'OpenTelemetry'\\) -join \"`n\")",
-      "Bash(awk -F'On' '{print $2}')"
+      "Bash(awk -F'On' '{print $2}')",
+      "Bash(cmake --build build --config Debug --target tloginsvr_asio)",
+      "PowerShell(cmake *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Program Files \\(x86\\)\\\\Windows Kits\\\\10\\\\Include\" -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })",
+      "Bash(awk NR>=1560 && NR<=1570 *)",
+      "PowerShell(sqlcmd -S localhost -E -i $f 2>&1)",
+      "PowerShell($f = \"C:\\\\Users\\\\tomas\\\\Desktop\\\\Sources 5.0 \\(Araz\\)\\\\Sources 5.0 \\(Araz\\)\\\\4Story_5.0_Source\\\\Server\\\\TLoginSvrAsio\\\\schema\\\\2fa-tables.sql\")"
     ]
   }
 }

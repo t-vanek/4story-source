@@ -24,7 +24,7 @@ static library and is now also consumed by `TPatchSvrAsio` and
 | Asio reactor + session lifecycle | ✅ coroutines, RAII, pre-auth idle watchdog |
 | Two-pool DB layer (TGLOBAL + TGAME) | ✅ SOCI ODBC against MSSQL |
 | Schema validator on startup | ✅ 40 TGLOBAL + 23 TGAME columns checked, fail-fast |
-| Auth flow (LOGIN, AGREEMENT) | ✅ TLogin SP parity — IP banlist, TUSERPROTECTED, bLocked-kick, TUSERINFOTABLE agreement, BCrypt + transparent upgrade |
+| Auth flow (LOGIN, AGREEMENT) | ✅ TLogin SP parity — IP banlist, TUSERPROTECTED, bLocked-kick, TUSERINFOTABLE agreement, **BCrypt-only** (run `tloginsvr_bcrypt_migrate` once on legacy DBs) |
 | Char flow (LIST, CREATE, DELETE) | ✅ TCHARTABLE + TITEMTABLE equipped + TGUILDTABLE fame, guild block + level-5 split, password verify, BR/BOW notify |
 | Map locator (START + lobby lists) | ✅ TFindServerID port (TSVRCHART + TCHANNELCHART + TSPAWNPOSCHART fallback), BR/BOW shard override, live TCURRENTUSER counts |
 | Session cleanup (TLOGOUT) | ✅ Disconnect/ClientRequest/MapHandoff modes |
@@ -38,7 +38,7 @@ static library and is now also consumed by `TPatchSvrAsio` and
 
 | Handler | Status | Backed by |
 |---|---|---|
-| `CS_LOGIN_REQ` | ✅ real | `IAuthService::Authenticate` — BCrypt + transparent upgrade, IP banlist, TUSERPROTECTED, llChecksum |
+| `CS_LOGIN_REQ` | ✅ real | `IAuthService::Authenticate` — BCrypt-only, IP banlist, TUSERPROTECTED, llChecksum |
 | `CS_AGREEMENT_REQ` | ✅ real | `IAuthService::SetAgreement` (TUSERINFOTABLE upsert) + per-session gate flip |
 | `CS_GROUPLIST_REQ` | ✅ real | `IMapServerLocator::ListGroups` — live TCURRENTUSER count |
 | `CS_CHANNELLIST_REQ` | ✅ real | `IMapServerLocator::ListChannels` |
@@ -72,7 +72,7 @@ without a DB.
 
 | Interface | Production impl | Test fake | Notes |
 |---|---|---|---|
-| `IAuthService` | `SociAuthService` | `FakeAuthService` | BCrypt + transparent upgrade, TUSERINFOTABLE agreement, TSECURECODE 2FA |
+| `IAuthService` | `SociAuthService` | `FakeAuthService` | BCrypt-only (`tloginsvr_bcrypt_migrate`), TUSERINFOTABLE agreement, TSECURECODE 2FA |
 | `ICharService` | `SociCharService` | `FakeCharService` | TGLOBAL + TGAME split; items, fame, BR shard |
 | `IMapServerLocator` | `SociMapServerLocator` | `FakeMapServerLocator` | TFindServerID port + BR/BOW |
 | `ISessionTerminator` | `SociSessionTerminator` | `FakeSessionTerminator` | DELETE TCURRENTUSER / UPDATE TLOG.timeLOGOUT |
@@ -178,7 +178,7 @@ Full annotated schema with all keys: `tloginsvr.example.toml`.
 | **Periodic cache refresh** | `RegistryRefresher` — 30s tick reloads `TVETERANCHART` |
 | **Health endpoint** | `/healthz` HTTP JSON (uptime + status) for k8s probes |
 | **Graceful shutdown** | SIGINT/SIGTERM + `SM_QUITSERVICE_REQ` both trigger `io.stop()` |
-| **BCrypt transparent upgrade** | Legacy plaintext rows in `TACCOUNT_PW.szPasswd` get rewritten on successful login |
+| **BCrypt-only auth (hard cutover)** | Plaintext/SHA1-hex `TACCOUNT_PW.szPasswd` rows are rejected as `LR_INVALIDPASSWD`. One-shot offline `tloginsvr_bcrypt_migrate` (in `Server/TLoginSvrAsio/tools/`) rehashes legacy rows. Idempotent — already-bcrypt rows are skipped. |
 
 ## Build
 

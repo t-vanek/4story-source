@@ -70,7 +70,8 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/services/soci_auth_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_char_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_map_server_locator.cpp
-    ${TLOGINSVR_ASIO_SRC}/services/soci_session_terminator.cpp)
+    ${TLOGINSVR_ASIO_SRC}/services/soci_session_terminator.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/bcrypt_util.cpp)
 target_include_directories(tloginsvr_asio_core PUBLIC
     ${TLOGINSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib
@@ -110,6 +111,15 @@ set_target_properties(tloginsvr_asio_core PROPERTIES
 # Entry-point binary.
 add_executable(tloginsvr_asio ${TLOGINSVR_ASIO_SRC}/main.cpp)
 target_link_libraries(tloginsvr_asio PRIVATE tloginsvr_asio_core)
+
+# Offline bcrypt migration tool. Single-purpose CLI that rehashes any
+# non-bcrypt szPasswd in TACCOUNT_PW. Required one-shot step when
+# upgrading a legacy deploy — the modern server's auth path is
+# bcrypt-only (no plaintext / SHA1-hex fallback).
+add_executable(tloginsvr_bcrypt_migrate
+    ${TLOGINSVR_ASIO_SRC}/tools/bcrypt_migrate_main.cpp)
+target_link_libraries(tloginsvr_bcrypt_migrate PRIVATE
+    tloginsvr_asio_core)
 
 # End-to-end handshake test.
 add_executable(test_tloginsvr_asio_handshake

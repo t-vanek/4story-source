@@ -21,11 +21,12 @@
 //   5. Duplicate session? → AuthStatus::Duplicate (LR_DUPLICATE)
 //   6. else → success: insert TCURRENTUSER, insert TLOG, return key
 //
-// Password hashing: rows with $2a$ / $2b$ / $2y$ prefix are treated as
-// BCrypt and verified via libsodium / crypt_blowfish; everything else
-// is treated as legacy plaintext with transparent upgrade-on-success
-// (rewrites the row with a fresh BCrypt hash). The upgrade path is
-// Phase C — for now plaintext rows match directly.
+// Password hashing: BCrypt-only (hard cutover). Rows whose szPasswd
+// starts with $2a$ / $2b$ / $2y$ are verified via libbcrypt; any
+// other shape (legacy plaintext, SHA1-hex, NULL) is treated as
+// LR_INVALIDPASSWD. Operators migrating an existing deploy must run
+// the offline tloginsvr_bcrypt_migrate tool once to rehash legacy
+// rows before bringing the modern server online.
 
 #include "auth_service.h"
 

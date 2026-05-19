@@ -22,6 +22,7 @@
 
 #include "fourstory/db/session_pool.h"
 #include "../services/soci_auth_service.h"
+#include "../services/bcrypt_util.h"
 
 #include <soci/soci.h>
 
@@ -124,7 +125,12 @@ void SeedFixtures(soci::session& sql,
     // Combine SET + INSERT + SET-OFF into a single multi-statement
     // batch per row.
     auto insert_account = [&](int uid, const std::string& uname,
-                              const std::string& pw) {
+                              const std::string& pw_plain) {
+        // Bcrypt-only cutover: SeedAccount writes a freshly-computed
+        // hash, not the plaintext. The candidate password the test
+        // hands to Authenticate must match what's hashed here.
+        const std::string pw_hash =
+            tloginsvr::services::bcrypt_util::MakeBcryptHash(pw_plain);
         if (is_mssql)
         {
             sql << "SET IDENTITY_INSERT \"TACCOUNT_PW\" ON; "
@@ -132,14 +138,14 @@ void SeedFixtures(soci::session& sql,
                    "(\"dwUserID\", \"szUserID\", \"szPasswd\") "
                    "VALUES (:uid, :u, :p); "
                    "SET IDENTITY_INSERT \"TACCOUNT_PW\" OFF;",
-                soci::use(uid), soci::use(uname), soci::use(pw);
+                soci::use(uid), soci::use(uname), soci::use(pw_hash);
         }
         else
         {
             sql << "INSERT INTO \"TACCOUNT_PW\" "
                    "(\"dwUserID\", \"szUserID\", \"szPasswd\") "
                    "VALUES (:uid, :u, :p)",
-                soci::use(uid), soci::use(uname), soci::use(pw);
+                soci::use(uid), soci::use(uname), soci::use(pw_hash);
         }
     };
 
@@ -248,6 +254,64 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
         const auto r = svc.Authenticate(req);
         Check(r.status == AuthStatus::WrongPassword,
             "alice + wrong password → WrongPassword");
+    }
+
+    // 2b. Bcrypt-only cutover regression: a row whose szPasswd is the
+    //     legacy SHA1-hex shape (no $2x$ prefix) must NOT authenticate,
+    //     even if the candidate string exactly matches the stored
+    //     value. Pre-migration deploys see WrongPassword and the
+    //     auth service logs a warning telling operators to run
+    //     tloginsvr_bcrypt_migrate.
+    {
+        const bool        is_mssql_now =
+            (backend == fourstory::db::Backend::Odbc);
+        const std::string legacy_user  = prefix + "legacy";
+        const int         legacy_uid   = 1000003;
+        const std::string sha1_hex     =
+            "da39a3ee5e6b4b0d3255bfef95601890afd80709";  // SHA1("")
+
+        {
+            auto seed_lease = pool.Acquire();
+            soci::session& seed = *seed_lease;
+            // Clear any stale row from a crashed previous run.
+            seed << "DELETE FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = :u",
+                soci::use(legacy_uid);
+
+            if (is_mssql_now)
+            {
+                seed << "SET IDENTITY_INSERT \"TACCOUNT_PW\" ON; "
+                        "INSERT INTO \"TACCOUNT_PW\" "
+                        "(\"dwUserID\", \"szUserID\", \"szPasswd\") "
+                        "VALUES (:uid, :u, :p); "
+                        "SET IDENTITY_INSERT \"TACCOUNT_PW\" OFF;",
+                    soci::use(legacy_uid), soci::use(legacy_user),
+                    soci::use(sha1_hex);
+            }
+            else
+            {
+                seed << "INSERT INTO \"TACCOUNT_PW\" "
+                        "(\"dwUserID\", \"szUserID\", \"szPasswd\") "
+                        "VALUES (:uid, :u, :p)",
+                    soci::use(legacy_uid), soci::use(legacy_user),
+                    soci::use(sha1_hex);
+            }
+        }
+
+        AuthRequest req{
+            .user_id = legacy_user,
+            .password = sha1_hex,  // would have matched on legacy path
+            .client_ip = "127.0.0.1",
+        };
+        const auto r = svc.Authenticate(req);
+        Check(r.status == AuthStatus::WrongPassword,
+            "legacy SHA1-hex row + matching candidate → WrongPassword "
+            "(bcrypt-only cutover)");
+
+        // Clean up the legacy row inline so the outer LIKE cleanup
+        // doesn't have to special-case the hardcoded uid.
+        auto cleanup_lease = pool.Acquire();
+        *cleanup_lease << "DELETE FROM \"TACCOUNT_PW\" WHERE \"dwUserID\" = :u",
+            soci::use(legacy_uid);
     }
 
     // 3. Unknown user.

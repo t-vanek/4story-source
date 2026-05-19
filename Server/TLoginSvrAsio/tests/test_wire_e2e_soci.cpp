@@ -19,6 +19,7 @@
 #include "../services/soci_auth_service.h"
 #include "../services/soci_char_service.h"
 #include "../services/local_connection_registry.h"
+#include "../services/bcrypt_util.h"
 #include "asio_session.h"
 #include "MessageId.h"
 
@@ -451,14 +452,13 @@ MultiAckResult SendLoginCharListCreate(std::uint16_t port,
     return out;
 }
 
-// Seed a TACCOUNT_PW row with a plaintext password — modern's
-// CheckPassword treats non-$2-prefixed `szPasswd` as legacy plaintext
-// and direct-compares (then transparent-upgrades to BCrypt on the way
-// out). Lets the test skip BCrypt-hash generation in C++.
-// Real MSSQL has TACCOUNT_PW.dwUserID as IDENTITY — wrap the explicit
-// dwUserID INSERT with SET IDENTITY_INSERT so the test owns the value.
-// Also pre-seeds TUSERINFOTABLE.bAgreement = 1 so the happy-path auth
-// doesn't trip LR_NEEDAGREEMENT.
+// Seed a TACCOUNT_PW row with a freshly-computed BCrypt hash — modern's
+// CheckPassword is bcrypt-only after the hard cutover, so the test
+// must store a `$2a$` hash. Real MSSQL has TACCOUNT_PW.dwUserID as
+// IDENTITY — wrap the explicit dwUserID INSERT with SET
+// IDENTITY_INSERT so the test owns the value. Also pre-seeds
+// TUSERINFOTABLE.bAgreement = 1 so the happy-path auth doesn't trip
+// LR_NEEDAGREEMENT.
 void SeedAccount(soci::session& sql,
                  int uid, const std::string& uname,
                  const std::string& pw_plain)
@@ -468,12 +468,15 @@ void SeedAccount(soci::session& sql,
     sql << "DELETE FROM \"TUSERINFOTABLE\" WHERE \"dwUserID\" = :u", soci::use(uid);
     sql << "DELETE FROM \"TACCOUNT_PW\"   WHERE \"dwUserID\" = :u", soci::use(uid);
 
+    const std::string pw_hash =
+        tloginsvr::services::bcrypt_util::MakeBcryptHash(pw_plain);
+
     sql << "SET IDENTITY_INSERT \"TACCOUNT_PW\" ON; "
            "INSERT INTO \"TACCOUNT_PW\" "
            "(\"dwUserID\", \"szUserID\", \"szPasswd\") "
            "VALUES (:u, :n, :p); "
            "SET IDENTITY_INSERT \"TACCOUNT_PW\" OFF;",
-        soci::use(uid), soci::use(uname), soci::use(pw_plain);
+        soci::use(uid), soci::use(uname), soci::use(pw_hash);
 
     sql << "INSERT INTO \"TUSERINFOTABLE\" "
            "(\"dwUserID\", \"bCanCreateCharCount\", \"bAgreement\") "

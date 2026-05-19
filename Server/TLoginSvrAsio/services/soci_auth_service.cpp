@@ -1,4 +1,5 @@
 #include "soci_auth_service.h"
+#include "bcrypt_util.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -21,75 +22,40 @@ namespace {
 //
 //   Client/TClient/TClientWnd.cpp:327 hashes the user-entered string
 //   through GetSHA1String (TClientGame.cpp:462 — std SHA1 → hex)
-//   BEFORE handing it to SendCS_LOGIN_REQ. The legacy server stores
-//   passwords in the same shape, so direct strcmp against TACCOUNT_PW
-//   .szPasswd works.
+//   BEFORE handing it to SendCS_LOGIN_REQ. The legacy server stored
+//   that SHA1-hex value directly in TACCOUNT_PW.szPasswd; the modern
+//   server stores a BCrypt hash *over* that SHA1-hex value instead.
 //
-// Implication for operators migrating to BCrypt: the BCrypt hash must
-// be computed over the **SHA1 hex string**, not the plaintext
-// password. Practical migration:
-//   * existing row:  szPasswd = "<40-char SHA1 hex>"  (legacy shape)
-//   * after upgrade: szPasswd = "$2a$10$<bcrypt over SHA1 hex>"
-//                                (server transparently rehashes on
-//                                 first successful login below)
+// Migration to bcrypt is a hard cutover — the legacy plaintext /
+// SHA1-hex compare path has been removed. Existing deploys must run
+// the offline `tloginsvr_bcrypt_migrate` tool once before bringing
+// the modern server online; any row in TACCOUNT_PW whose szPasswd
+// does not start with a BCrypt prefix ($2a$/$2b$/$2y$) is treated as
+// "wrong password" by the auth path below.
 //
-// $2a$ / $2b$ / $2y$ — BCrypt hash prefixes (Provos & Mazières). Any
-// other shape is treated as legacy "stored password" (= SHA1 hex on
-// shipped builds, raw plaintext on older deploys) and matched via
-// strcmp.
-bool IsBcrypt(const std::string& s)
-{
-    return s.size() >= 4
-        && s[0] == '$' && s[1] == '2'
-        && (s[2] == 'a' || s[2] == 'b' || s[2] == 'y')
-        && s[3] == '$';
-}
+// $2a$ / $2b$ / $2y$ — BCrypt hash prefixes (Provos & Mazières).
 
-// Result of a password check. `matched` is the only bit the caller
-// needs to gate the login on; `needs_rehash` flags a legacy plaintext
-// row that just matched — the caller should rewrite it with a fresh
-// BCrypt hash (transparent upgrade) so the row migrates without
-// forcing the user through a password reset.
-struct PasswordCheck
+// Returns true on a successful BCrypt check, false on any other
+// stored shape (legacy plaintext / SHA1-hex / null) or on hash
+// mismatch. The auth path treats `false` as LR_INVALIDPASSWD; a
+// non-bcrypt row therefore looks identical to a wrong password and
+// is the operator's cue to run the migration tool.
+bool CheckPassword(const std::string& stored,
+                   const std::string& candidate)
 {
-    bool matched = false;
-    bool needs_rehash = false;
-};
-
-PasswordCheck CheckPassword(const std::string& stored,
-                            const std::string& candidate)
-{
-    PasswordCheck r{};
-    if (stored.empty()) return r;
-    if (IsBcrypt(stored))
+    if (stored.empty()) return false;
+    if (!bcrypt_util::IsBcrypt(stored))
     {
-        // libbcrypt: bcrypt_checkpw returns 0 on a match, -1 on miss / err.
-        // The hash must be a valid $2x$cc$<22-salt><31-hash> string; an
-        // invalid hash also returns -1 (logged as wrong password by the
-        // caller).
-        r.matched = ::bcrypt_checkpw(candidate.c_str(), stored.c_str()) == 0;
-        return r;
+        // Pre-migration row — log loudly so operators notice. We
+        // explicitly do NOT fall back to a strcmp compare; that
+        // codepath was the whole point of the cutover.
+        spdlog::warn("auth: stored password not bcrypt-shaped — run "
+                     "tloginsvr_bcrypt_migrate before serving traffic");
+        return false;
     }
-    // Legacy plaintext row — direct compare. On success flag for
-    // transparent upgrade so the caller rewrites it with a fresh
-    // BCrypt hash on the way out.
-    r.matched = (stored == candidate);
-    r.needs_rehash = r.matched;
-    return r;
-}
-
-// Generate a BCrypt hash of `password` at work factor 10. Returns
-// empty string on libbcrypt failure (extremely unlikely — only when
-// the system PRNG can't seed). Cost 10 mirrors the testuser row's
-// $2a$11$ — one step lower for slightly cheaper rehash latency on
-// the login hot path; admins can re-rehash at higher cost offline.
-std::string MakeBcryptHash(const std::string& password)
-{
-    char salt[BCRYPT_HASHSIZE]{};
-    if (::bcrypt_gensalt(10, salt) != 0) return {};
-    char hash[BCRYPT_HASHSIZE]{};
-    if (::bcrypt_hashpw(password.c_str(), salt, hash) != 0) return {};
-    return std::string(hash);
+    // libbcrypt: bcrypt_checkpw returns 0 on a match, -1 on miss / err.
+    // An invalid hash also returns -1; logged upstream as wrong password.
+    return ::bcrypt_checkpw(candidate.c_str(), stored.c_str()) == 0;
 }
 
 } // namespace
@@ -188,39 +154,11 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
                 req.user_id, user_id);
             return AuthResult{ .status = AuthStatus::WrongPassword };
         }
-        const auto pw = CheckPassword(stored_password, req.password);
-        if (!pw.matched)
+        if (!CheckPassword(stored_password, req.password))
         {
             spdlog::info("auth: user '{}' (uid={}) wrong password",
                 req.user_id, user_id);
             return AuthResult{ .status = AuthStatus::WrongPassword };
-        }
-
-        // Transparent BCrypt upgrade — fires when a legacy plaintext
-        // row just matched. Rewriting the row inside the same
-        // transaction is fine because we're between the lookup and
-        // the post-auth writes; if the UPDATE fails for any reason we
-        // log and continue (the user is already authenticated and
-        // shouldn't pay for a maintenance write error).
-        if (pw.needs_rehash)
-        {
-            const auto fresh = MakeBcryptHash(req.password);
-            if (!fresh.empty())
-            {
-                try
-                {
-                    sql << "UPDATE \"TACCOUNT_PW\" SET \"szPasswd\" = :h "
-                           "WHERE \"dwUserID\" = :uid",
-                        soci::use(fresh), soci::use(user_id);
-                    spdlog::info("auth: user '{}' (uid={}) — plaintext row upgraded to bcrypt",
-                        req.user_id, user_id);
-                }
-                catch (const std::exception& ex)
-                {
-                    spdlog::warn("auth: bcrypt upgrade failed for uid={} ({}) — login proceeds",
-                        user_id, ex.what());
-                }
-            }
         }
 
         // Step 4 — user-level ban. Match the legacy TLogin SP semantics:
@@ -1064,10 +1002,9 @@ bool SociAuthService::VerifyPassword(std::int32_t user_id,
             got_row = st.got_data();
         }
         if (!got_row || pw_ind == soci::i_null) return false;
-        const auto pw = CheckPassword(stored, password);
-        spdlog::debug("auth.VerifyPassword uid={} → {} (needs_rehash={})",
-            user_id, pw.matched, pw.needs_rehash);
-        return pw.matched;
+        const bool matched = CheckPassword(stored, password);
+        spdlog::debug("auth.VerifyPassword uid={} → {}", user_id, matched);
+        return matched;
     }
     catch (const std::exception& ex)
     {

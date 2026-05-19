@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <memory>
 #include <string>
 
 namespace {
@@ -31,43 +32,87 @@ void Check(bool ok, const char* label)
     else    { ++g_failed; std::printf("  FAIL  %s\n", label); }
 }
 
-void WipeFixtures(soci::session& sql,
+void WipeFixtures(soci::session& gsql,
+                  soci::session& wsql,
                   const std::vector<int>& group_ids,
                   const std::vector<int>& machine_ids,
                   const std::vector<int>& user_ids)
 {
+    // Global-pool cleanup. Delete in FK-respecting order:
+    // TSERVER + TCHANNEL (both child of TGROUP), THEN TGROUP.
     for (int g : group_ids)
     {
-        sql << "DELETE FROM \"TSERVER\" WHERE \"bGroupID\" = :g", soci::use(g);
+        gsql << "DELETE FROM \"TSERVER\" WHERE \"bGroupID\" = :g", soci::use(g);
+        try
+        {
+            gsql << "DELETE FROM \"TCHANNEL\" WHERE \"bGroupID\" = :g",
+                soci::use(g);
+        }
+        catch (const std::exception&) { /* may be empty */ }
+        try
+        {
+            gsql << "DELETE FROM \"TGROUP\" WHERE \"bGroupID\" = :g",
+                soci::use(g);
+        }
+        catch (const std::exception&) { /* may be empty */ }
     }
     for (int m : machine_ids)
     {
-        sql << "DELETE FROM \"TIPADDR\" WHERE \"bMachineID\" = :m", soci::use(m);
+        gsql << "DELETE FROM \"TIPADDR\" WHERE \"bMachineID\" = :m", soci::use(m);
         // TMACHINE optional — clear the round-robin counter for our
         // test machines so each run starts from index 0.
         try
         {
-            sql << "DELETE FROM \"TMACHINE\" WHERE \"bMachineID\" = :m",
+            gsql << "DELETE FROM \"TMACHINE\" WHERE \"bMachineID\" = :m",
                 soci::use(m);
         }
         catch (const std::exception&) { /* optional table */ }
     }
+    // World-pool cleanup (TBR/BOW shard tables live in TGAME). TBOW
+    // table not deployed on every world DB — wrap in try/catch.
     for (int u : user_ids)
     {
-        sql << "DELETE FROM \"TBRPLAYERTABLE\" WHERE \"dwUserID\" = :u", soci::use(u);
-        sql << "DELETE FROM \"TBOWPLAYERTABLE\" WHERE \"dwUserID\" = :u", soci::use(u);
+        try
+        {
+            wsql << "DELETE FROM \"TBRPLAYERTABLE\" WHERE \"dwUserID\" = :u", soci::use(u);
+        }
+        catch (const std::exception&) { /* optional */ }
+        try
+        {
+            wsql << "DELETE FROM \"TBOWPLAYERTABLE\" WHERE \"dwUserID\" = :u", soci::use(u);
+        }
+        catch (const std::exception&) { /* optional */ }
     }
 }
 
-void RunTests(const std::string& conn)
+void RunTests(fourstory::db::Backend backend,
+              const std::string& conn,
+              const std::string& world_conn = "")
 {
-    fourstory::db::SessionPool pool(
-        fourstory::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
+    fourstory::db::SessionPool pool(backend, conn, /*pool_size=*/2);
+    const bool is_mssql = (backend == fourstory::db::Backend::Odbc);
 
-    // PID-scoped machine + group IDs to avoid colliding with other test
-    // runs. smallint is 16-bit signed; cap at 200 + pid%50 etc to stay
-    // safe.
-    const int base = 100 + (::getpid() % 50);
+    // For MSSQL the legacy schema is split TGLOBAL/TGAME — TBR/BOW
+    // shard tables, TCHARTABLE, TACTIVECHARTABLE all live in TGAME.
+    // PG dev fixture flattens both into one DB; pass world_conn==""
+    // there to share the pool. The map locator's constructor takes
+    // a world_pool*; when split, we hand it a second pool.
+    std::unique_ptr<fourstory::db::SessionPool> world_pool;
+    if (!world_conn.empty())
+    {
+        world_pool = std::make_unique<fourstory::db::SessionPool>(
+            backend, world_conn, /*pool_size=*/2);
+    }
+    fourstory::db::SessionPool& world_ref =
+        world_pool ? *world_pool : pool;
+
+    // PID-scoped machine + group IDs to avoid colliding with other
+    // test runs. Real MSSQL has bGroupID / bMachineID as tinyint
+    // (max 255), so the test_gid in test 8 (base + 100, see below)
+    // can't go past 155 — cap base at 50. PG dev fixture has them
+    // as smallint and tolerates any 16-bit value. PG and MSSQL hit
+    // separate DBs so no cross-backend collision; only PID matters.
+    const int base = 50 + (::getpid() % 50);
     const int group_ok       = base;     // has active map server
     const int group_inactive = base + 1; // map server points at inactive machine
     const int group_other    = base + 2; // only non-map (bType != 4) servers
@@ -90,15 +135,34 @@ void RunTests(const std::string& conn)
     const int char_bow    = char_normal + 2;
     const std::vector<int> all_users = { user_normal, user_br, user_bow };
 
+    bool bow_seeded_outer = false;
     {
-        auto lease = pool.Acquire();
-        soci::session& sql = *lease;
-        WipeFixtures(sql, all_groups, all_machines, all_users);
+        auto glease = pool.Acquire();
+        auto wlease = world_ref.Acquire();
+        WipeFixtures(*glease, *wlease, all_groups, all_machines, all_users);
+        soci::session& sql = *glease;
 
         const std::string ip_active   = "10.20.30.40";
         const std::string ip_inactive = "10.20.30.99";
         const std::string ip_br_shard = "10.20.30.50";
         const std::string ip_bow_shard = "10.20.30.30";
+
+        // Legacy MSSQL TIPADDR has a FK on bMachineID → TMACHINE.
+        // PG dev fixture doesn't enforce it, but for the MSSQL run
+        // we have to seed the parent rows first. TMACHINE is also
+        // the round-robin LB counter target (G12 fix), so all three
+        // test machines need parent rows.
+        for (int m : { mach_active, mach_inactive, mach_lb })
+        {
+            try
+            {
+                sql << "INSERT INTO \"TMACHINE\" "
+                       "(\"bMachineID\", \"szNAME\", \"bRouteID\") "
+                       "VALUES (:m, 'test', 0)",
+                    soci::use(m);
+            }
+            catch (const std::exception&) { /* PG without TMACHINE */ }
+        }
 
         sql << "INSERT INTO \"TIPADDR\" (\"bMachineID\", \"szIPAddr\", \"bActive\") "
                "VALUES (:m, :ip, 1)",
@@ -119,6 +183,21 @@ void RunTests(const std::string& conn)
         sql << "INSERT INTO \"TIPADDR\" (\"bMachineID\", \"szIPAddr\", \"bActive\") "
                "VALUES (:m, '10.20.30.73', 0)",
             soci::use(mach_lb);
+
+        // Legacy MSSQL has TSERVER.bGroupID → TGROUP FK and
+        // TCHANNEL.bGroupID → TGROUP FK. Seed the parent group rows
+        // before any TSERVER INSERT. Full NOT-NULL column set
+        // (bGroupID/bType/szNAME/szDSN/szUserID). Skip group_empty
+        // (no TSERVER rows for it either) so we keep the "unknown
+        // group → no endpoint" assertion path intact.
+        for (int g : { group_ok, group_inactive, group_other, group_lb })
+        {
+            sql << "INSERT INTO \"TGROUP\" "
+                   "(\"bGroupID\", \"bType\", \"szNAME\", "
+                   " \"szDSN\", \"szUserID\") "
+                   "VALUES (:g, 4, 'test', '', '')",
+                soci::use(g);
+        }
 
         // group_lb: one server pointing to the multi-IP machine.
         sql << "INSERT INTO \"TSERVER\" "
@@ -153,16 +232,31 @@ void RunTests(const std::string& conn)
                "VALUES (:g, 1, 1, :m, 5003)",
             soci::use(group_other), soci::use(mach_active);
 
-        // Shard membership rows.
-        sql << "INSERT INTO \"TBRPLAYERTABLE\" (\"dwCharID\", \"dwUserID\") "
-               "VALUES (:c, :u)", soci::use(char_br), soci::use(user_br);
-        sql << "INSERT INTO \"TBOWPLAYERTABLE\" (\"dwCharID\", \"dwUserID\") "
-               "VALUES (:c, :u)", soci::use(char_bow), soci::use(user_bow);
+        // Shard membership rows live in the world (TGAME) pool.
+        // TBOWPLAYERTABLE not deployed on every legacy world DB
+        // (e.g. the restored 2019 dump's TGAME has TBRPLAYERTABLE
+        // but no BOW); track whether the seed actually landed so
+        // the BOW assertions can SKIP cleanly.
+        soci::session& wsql = *wlease;
+        try
+        {
+            wsql << "INSERT INTO \"TBRPLAYERTABLE\" (\"dwCharID\", \"dwUserID\") "
+                    "VALUES (:c, :u)", soci::use(char_br), soci::use(user_br);
+        }
+        catch (const std::exception&) { /* optional */ }
+        try
+        {
+            wsql << "INSERT INTO \"TBOWPLAYERTABLE\" (\"dwCharID\", \"dwUserID\") "
+                    "VALUES (:c, :u)", soci::use(char_bow), soci::use(user_bow);
+            bow_seeded_outer = true;
+        }
+        catch (const std::exception&) { /* TBOWPLAYERTABLE absent */ }
     }
 
-    // Single-DB test layout — the BR/BOW shard tables live in the same
-    // pool here, so pass it as the optional world pool too.
-    tloginsvr::services::SociMapServerLocator svc(pool, &pool);
+    // Hand the locator the appropriate (global, world) pool pair.
+    // When world_conn was empty, world_ref aliases the global pool —
+    // matches the legacy single-DB PG dev fixture.
+    tloginsvr::services::SociMapServerLocator svc(pool, &world_ref);
 
     // 1. Happy path — normal char routes to default server (id=1, lowest).
     {
@@ -188,7 +282,12 @@ void RunTests(const std::string& conn)
         }
     }
 
-    // 3. BOW shard override → routes to server_id=30.
+    // 3. BOW shard override → routes to server_id=30. Skipped on
+    //    deploys without TBOWPLAYERTABLE (the seed above swallowed
+    //    the "invalid object name" so we know the table wasn't
+    //    available — the lookup would fall through to the default
+    //    route and fail the assertion).
+    if (bow_seeded_outer)
     {
         const auto ep = svc.Lookup(
             user_bow, static_cast<std::uint8_t>(group_ok), 0, char_bow);
@@ -198,6 +297,10 @@ void RunTests(const std::string& conn)
             Check(ep->port == 5030, "BOW shard port (5030)");
             Check(ep->server_id == 30, "BOW shard server_id (30)");
         }
+    }
+    else
+    {
+        std::printf("  SKIP  BOW shard test — TBOWPLAYERTABLE not deployed\n");
     }
 
     // 4. Shard membership is (user, char)-scoped — BR row for a different
@@ -286,9 +389,10 @@ void RunTests(const std::string& conn)
         sql << "DELETE FROM \"TCHANNEL\" WHERE \"bGroupID\" = :g", soci::use(test_gid);
         // bStatus=1 (ENABLE), busy=10, full=100.
         sql << "INSERT INTO \"TGROUP\" "
-               "(\"bGroupID\", \"bType\", \"szNAME\", \"wBusy\", \"wFull\", "
-               " \"bUseRate\", \"bStatus\") "
-               "VALUES (:g, 4, :n, 10, 100, 1, 1)",
+               "(\"bGroupID\", \"bType\", \"szNAME\", "
+               " \"szDSN\", \"szUserID\", "
+               " \"wBusy\", \"wFull\", \"bUseRate\", \"bStatus\") "
+               "VALUES (:g, 4, :n, '', '', 10, 100, 1, 1)",
             soci::use(test_gid), soci::use(gname);
         sql << "INSERT INTO \"TCHANNEL\" "
                "(\"bGroupID\", \"bChannel\", \"szNAME\", \"wBusy\", \"wFull\", \"bStatus\") "
@@ -354,47 +458,82 @@ void RunTests(const std::string& conn)
         const int side_char = char_normal + 100;
         const std::string old_ts = "1970-01-02 00:00:00";
 
-        // Pre-clean.
+        // Pre-clean. TCURRENTUSER → global pool; TCHARTABLE +
+        // TACTIVECHARTABLE → world pool.
         {
-            auto lease = pool.Acquire();
-            soci::session& sql = *lease;
-            sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\" = :u",
+            auto glease = pool.Acquire();
+            *glease << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\" = :u",
                 soci::use(side_uid);
-            sql << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
-                soci::use(side_char);
+
+            auto wlease = world_ref.Acquire();
             try
             {
-                sql << "DELETE FROM \"TACTIVECHARTABLE\" "
-                       "WHERE \"dwCharID\" = :c",
+                *wlease << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
+                    soci::use(side_char);
+            }
+            catch (const std::exception&) { /* may not exist if TGAME unavailable */ }
+            try
+            {
+                *wlease << "DELETE FROM \"TACTIVECHARTABLE\" "
+                           "WHERE \"dwCharID\" = :c",
                     soci::use(side_char);
             }
             catch (const std::exception&) { /* optional */ }
         }
 
-        // Seed TCURRENTUSER with explicit old dEnterDate so we can
-        // verify the stamp moved past it.
+        // Seed TCURRENTUSER. PG dev fixture has DEFAULTs on most
+        // columns; legacy MSSQL has dwCharID, bGroupID, bChannel,
+        // wPort, bLocked as NOT NULL with no default — supply all
+        // explicitly so both backends accept the INSERT.
         {
             auto lease = pool.Acquire();
             *lease << "INSERT INTO \"TCURRENTUSER\" "
-                      "(\"dwUserID\", \"dEnterDate\", \"bLuckyNumber\", "
-                      " \"szLoginIP\") "
-                      "VALUES (:u, :t, 99, '127.0.0.1')",
+                      "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+                      " \"wPort\", \"bLocked\", \"dEnterDate\", "
+                      " \"bLuckyNumber\", \"szLoginIP\") "
+                      "VALUES (:u, 0, 0, 0, 0, 0, :t, 99, '127.0.0.1')",
                 soci::use(side_uid), soci::use(old_ts);
         }
 
         // Seed TCHARTABLE with high-level PvP-country char so
-        // UpdateActiveChar's INSERT branch fires.
+        // UpdateActiveChar's INSERT branch fires. The legacy MSSQL
+        // schema has TCHARTABLE.dwCharID as IDENTITY + ~14 more
+        // NOT-NULL columns than PG dev fixture (dwHP/dwMP/wMapID/
+        // fPos*/wDIR/wTemptedMon/bAftermath/dwGold/dwSilver/dwCooper).
+        // The SET IDENTITY_INSERT batch lets the test pin the
+        // explicit side_char value; the full column list keeps both
+        // backends happy. TCHARTABLE lives in the world pool.
         {
-            auto lease = pool.Acquire();
+            auto lease = world_ref.Acquire();
             soci::session& sql = *lease;
             const std::string cname = "LbSide" + std::to_string(::getpid());
-            sql << "INSERT INTO \"TCHARTABLE\" "
-                   "(\"dwCharID\", \"dwUserID\", \"bSlot\", \"szNAME\", "
-                   " \"bClass\", \"bRace\", \"bCountry\", \"bRealSex\", "
-                   " \"bSex\", \"bHair\", \"bFace\", \"bBody\", "
-                   " \"bPants\", \"bHand\", \"bFoot\", \"bLevel\") "
-                   "VALUES (:c, :u, 0, :n, 0, 0, 0, 0, 0, 0, 0, 0, "
-                   " 0, 0, 0, 80)",
+            const std::string char_insert_pg =
+                "INSERT INTO \"TCHARTABLE\" "
+                "(\"dwCharID\", \"dwUserID\", \"bSlot\", \"szNAME\", "
+                " \"bClass\", \"bRace\", \"bCountry\", \"bRealSex\", "
+                " \"bSex\", \"bHair\", \"bFace\", \"bBody\", "
+                " \"bPants\", \"bHand\", \"bFoot\", \"bLevel\") "
+                "VALUES (:c, :u, 0, :n, 0, 0, 0, 0, 0, 0, 0, 0, "
+                " 0, 0, 0, 80)";
+            const std::string char_insert_ms =
+                "SET IDENTITY_INSERT \"TCHARTABLE\" ON; "
+                "INSERT INTO \"TCHARTABLE\" "
+                "(\"dwCharID\", \"dwUserID\", \"bSlot\", \"szNAME\", "
+                " \"bClass\", \"bRace\", \"bCountry\", \"bRealSex\", "
+                " \"bSex\", \"bHair\", \"bFace\", \"bBody\", "
+                " \"bPants\", \"bHand\", \"bFoot\", \"bLevel\", "
+                " \"dwEXP\", \"dwHP\", \"dwMP\", \"wSkillPoint\", "
+                " \"dwGold\", \"dwSilver\", \"dwCooper\", "
+                " \"wMapID\", \"wSpawnID\", \"wTemptedMon\", \"bAftermath\", "
+                " \"fPosX\", \"fPosY\", \"fPosZ\", \"wDIR\") "
+                "VALUES (:c, :u, 0, :n, 0, 0, 0, 0, 0, 0, 0, 0, "
+                " 0, 0, 0, 80, "
+                " 0, 100, 100, 0, 0, 0, 0, "
+                " 2010, 15003, 0, 0, "
+                " 0, 0, 0, 0); "
+                "SET IDENTITY_INSERT \"TCHARTABLE\" OFF;";
+            const std::string& stmt = is_mssql ? char_insert_ms : char_insert_pg;
+            sql << stmt,
                 soci::use(side_char), soci::use(side_uid), soci::use(cname);
         }
 
@@ -416,10 +555,11 @@ void RunTests(const std::string& conn)
         }
 
         // (b) TACTIVECHARTABLE row inserted (best-effort — skip
-        //     assert if the optional table isn't deployed).
+        //     assert if the optional table isn't deployed). TGAME
+        //     table → world pool.
         try
         {
-            auto lease = pool.Acquire();
+            auto lease = world_ref.Acquire();
             int active_hits = 0;
             *lease << "SELECT COUNT(*) FROM \"TACTIVECHARTABLE\" "
                       "WHERE \"dwCharID\" = :c",
@@ -433,18 +573,23 @@ void RunTests(const std::string& conn)
             std::printf("  SKIP  TACTIVECHARTABLE check — table not deployed\n");
         }
 
-        // Cleanup.
+        // Cleanup — TCURRENTUSER on global pool, TCHARTABLE +
+        // TACTIVECHARTABLE on world pool.
         {
-            auto lease = pool.Acquire();
-            soci::session& sql = *lease;
-            sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\" = :u",
+            auto glease = pool.Acquire();
+            *glease << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\" = :u",
                 soci::use(side_uid);
-            sql << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
-                soci::use(side_char);
+            auto wlease = world_ref.Acquire();
             try
             {
-                sql << "DELETE FROM \"TACTIVECHARTABLE\" "
-                       "WHERE \"dwCharID\" = :c",
+                *wlease << "DELETE FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
+                    soci::use(side_char);
+            }
+            catch (const std::exception&) { /* TGAME unavailable */ }
+            try
+            {
+                *wlease << "DELETE FROM \"TACTIVECHARTABLE\" "
+                           "WHERE \"dwCharID\" = :c",
                     soci::use(side_char);
             }
             catch (const std::exception&) { /* optional */ }
@@ -454,8 +599,9 @@ void RunTests(const std::string& conn)
     // Cleanup.
     try
     {
-        auto lease = pool.Acquire();
-        WipeFixtures(*lease, all_groups, all_machines, all_users);
+        auto glease = pool.Acquire();
+        auto wlease = world_ref.Acquire();
+        WipeFixtures(*glease, *wlease, all_groups, all_machines, all_users);
     }
     catch (const std::exception& ex)
     {
@@ -469,22 +615,55 @@ int main()
 {
     std::printf("=== tloginsvr_asio SOCI map-locator test ===\n");
 
-    const char* conn = std::getenv("TLOGINSVR_TEST_PG_CONN");
-    if (conn == nullptr || conn[0] == '\0')
+    const char* pg_conn          = std::getenv("TLOGINSVR_TEST_PG_CONN");
+    const char* mssql_conn       = std::getenv("TLOGINSVR_TEST_MSSQL_CONN");
+    const char* mssql_world_conn = std::getenv("TLOGINSVR_TEST_MSSQL_WORLD_CONN");
+
+    if ((pg_conn    == nullptr || pg_conn[0]    == '\0') &&
+        (mssql_conn == nullptr || mssql_conn[0] == '\0'))
     {
-        std::printf("  SKIP  TLOGINSVR_TEST_PG_CONN not set\n");
+        std::printf("  SKIP  neither TLOGINSVR_TEST_PG_CONN nor "
+                    "TLOGINSVR_TEST_MSSQL_CONN set\n");
         std::printf("\nResults: 0 passed, 0 failed (skipped)\n");
         return 0;
     }
 
-    try
+    if (pg_conn != nullptr && pg_conn[0] != '\0')
     {
-        RunTests(conn);
+        std::printf("\n--- backend: postgresql ---\n");
+        try
+        {
+            RunTests(fourstory::db::Backend::PostgreSQL, pg_conn);
+        }
+        catch (const std::exception& ex)
+        {
+            std::printf("  FAIL  pg exception: %s\n", ex.what());
+            ++g_failed;
+        }
     }
-    catch (const std::exception& ex)
+
+    if (mssql_conn != nullptr && mssql_conn[0] != '\0')
     {
-        std::printf("  FAIL  exception: %s\n", ex.what());
-        ++g_failed;
+        std::printf("\n--- backend: odbc (MSSQL) ---\n");
+        const std::string world_conn =
+            (mssql_world_conn != nullptr && mssql_world_conn[0] != '\0')
+                ? mssql_world_conn
+                : "";
+        if (world_conn.empty())
+        {
+            std::printf("  NOTE  TLOGINSVR_TEST_MSSQL_WORLD_CONN unset — "
+                        "TGAME-table operations (BR/BOW shard + test 9) "
+                        "will fall through to silent failures\n");
+        }
+        try
+        {
+            RunTests(fourstory::db::Backend::Odbc, mssql_conn, world_conn);
+        }
+        catch (const std::exception& ex)
+        {
+            std::printf("  FAIL  mssql exception: %s\n", ex.what());
+            ++g_failed;
+        }
     }
 
     std::printf("\nResults: %d passed, %d failed\n", g_passed, g_failed);

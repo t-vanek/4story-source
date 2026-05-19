@@ -34,6 +34,7 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_accepted_versions(std::move(config.accepted_versions))
     , m_test_handlers_enabled(config.test_handlers_enabled)
     , m_on_quit_request(std::move(config.on_quit_request))
+    , m_nation(config.nation)
 {
 }
 
@@ -173,7 +174,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
             m_connection_registry, m_audit_logger, m_rate_limiter,
             std::span<const std::uint16_t>(
                 m_accepted_versions.data(), m_accepted_versions.size()),
-            m_smtp_client);
+            m_smtp_client, m_nation);
         break;
     case MessageId::CS_GROUPLIST_REQ:
         co_await handlers::OnGroupListReq(sess, body, m_map_server_locator, m_connection_registry);
@@ -186,7 +187,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_CREATECHAR_REQ:
         co_await handlers::OnCreateCharReq(sess, body, m_char_service,
-            m_connection_registry, m_audit_logger);
+            m_connection_registry, m_audit_logger, m_nation);
         break;
     case MessageId::CS_DELCHAR_REQ:
         co_await handlers::OnDelCharReq(sess, body, m_char_service,

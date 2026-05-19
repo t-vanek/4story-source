@@ -350,16 +350,60 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             };
         }
 
-        spdlog::info("auth: user '{}' (uid={}) success, session_key={}",
-            req.user_id, user_id, session_key);
+        // PC-Bang + premium-tier lookups. The legacy TLogin SP populates
+        // these from TPCBANG (IP-range whitelist) and TUSERPREMIUM
+        // (active subscription). Both tables are optional in the modern
+        // schema: missing tables → fall back to 0, matching the legacy
+        // behavior when the operator hasn't deployed those side tables.
+        std::uint8_t in_pc_bang = 0;
+        try
+        {
+            int hits = 0;
+            sql << "SELECT COUNT(*) FROM \"TPCBANG\" "
+                   "WHERE \"szIP\" = :ip OR :ip LIKE \"szIPRange\"",
+                soci::use(req.client_ip), soci::use(req.client_ip),
+                soci::into(hits);
+            if (hits > 0) in_pc_bang = 1;
+        }
+        catch (const std::exception& ex)
+        {
+            // TPCBANG missing or shape doesn't match — keep going at 0.
+            spdlog::debug("auth: TPCBANG lookup skipped: {}", ex.what());
+        }
+
+        std::uint32_t premium_id = 0;
+        try
+        {
+            int prem = 0;
+            const char* prem_sql = is_mssql
+                ? "SELECT TOP 1 \"dwPremiumID\" FROM \"TUSERPREMIUM\" "
+                  "WHERE \"dwUserID\" = :u AND \"dtExpire\" >= CURRENT_TIMESTAMP "
+                  "ORDER BY \"dwPremiumID\" DESC"
+                : "SELECT \"dwPremiumID\" FROM \"TUSERPREMIUM\" "
+                  "WHERE \"dwUserID\" = :u AND \"dtExpire\" >= CURRENT_TIMESTAMP "
+                  "ORDER BY \"dwPremiumID\" DESC LIMIT 1";
+            soci::statement st = (sql.prepare << prem_sql,
+                soci::use(user_id),
+                soci::into(prem));
+            st.execute(true);
+            if (st.got_data()) premium_id = static_cast<std::uint32_t>(prem);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("auth: TUSERPREMIUM lookup skipped: {}", ex.what());
+        }
+
+        spdlog::info("auth: user '{}' (uid={}) success, session_key={} "
+                     "pc_bang={} premium={}",
+            req.user_id, user_id, session_key, in_pc_bang, premium_id);
 
         return AuthResult{
             .status = AuthStatus::Success,
             .user_id = user_id,
             .session_key = static_cast<std::uint32_t>(session_key),
             .create_char_count = 6,
-            .in_pc_bang = 0,
-            .premium_id = 0,
+            .in_pc_bang = in_pc_bang,
+            .premium_id = premium_id,
         };
     }
     catch (const std::exception& ex)

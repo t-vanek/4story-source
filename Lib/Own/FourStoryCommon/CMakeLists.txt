@@ -15,6 +15,7 @@ set(FOURSTORY_COMMON_HEADERS
     fourstory/audit/udp_audit_logger.h
     fourstory/smtp/smtp_client.h
     fourstory/smtp/spdlog_smtp_client.h
+    fourstory/smtp/asio_smtp_client.h
     fourstory/ops/admin_shell.h
     fourstory/ops/health_endpoint.h
     fourstory/ops/rate_limiter.h
@@ -27,6 +28,7 @@ set(FOURSTORY_COMMON_SOURCES
     src/audit/spdlog_audit_logger.cpp
     src/audit/udp_audit_logger.cpp
     src/smtp/spdlog_smtp_client.cpp
+    src/smtp/asio_smtp_client.cpp
     src/ops/admin_shell.cpp
     src/ops/health_endpoint.cpp
     src/ops/rate_limiter.cpp
@@ -44,20 +46,48 @@ target_include_directories(fourstory_common
 )
 
 # Boost.Asio (headers only — system supplies error codes), spdlog, SOCI.
-find_package(Boost CONFIG REQUIRED COMPONENTS system)
-find_package(spdlog CONFIG REQUIRED)
-find_package(SOCI CONFIG REQUIRED)
+find_package(Boost CONFIG QUIET COMPONENTS system)
+if(NOT Boost_FOUND)
+    # Debian/Ubuntu: header-only Asio usage + libboost_system from
+    # libboost-system-dev. No CMake config file shipped → plain link.
+    find_package(Boost REQUIRED COMPONENTS system)
+endif()
+find_package(spdlog QUIET)
+find_package(SOCI CONFIG QUIET)
 
 target_link_libraries(fourstory_common
     PUBLIC
         Boost::system
-        spdlog::spdlog
-        SOCI::soci_core
 )
 
-# ODBC backend is used at runtime via SOCI's dynamic backend loader;
-# we keep the include path consistent with the SOCI ODBC backend so the
-# session_pool.cpp `#include <soci/odbc/soci-odbc.h>` resolves.
-if(TARGET SOCI::soci_odbc)
-    target_link_libraries(fourstory_common PUBLIC SOCI::soci_odbc)
+if(spdlog_FOUND)
+    target_link_libraries(fourstory_common PUBLIC spdlog::spdlog)
+else()
+    # Distro libspdlog-dev: header path is /usr/include/spdlog,
+    # plain link name is `spdlog`.
+    target_link_libraries(fourstory_common PUBLIC spdlog)
+endif()
+
+if(SOCI_FOUND)
+    if(TARGET SOCI::soci_core)
+        target_link_libraries(fourstory_common PUBLIC SOCI::soci_core)
+    elseif(TARGET SOCI::soci_core_static)
+        target_link_libraries(fourstory_common PUBLIC SOCI::soci_core_static)
+    endif()
+    # ODBC backend is used at runtime via SOCI's dynamic backend loader;
+    # we keep the include path consistent with the SOCI ODBC backend so the
+    # session_pool.cpp `#include <soci/odbc/soci-odbc.h>` resolves.
+    if(TARGET SOCI::soci_odbc)
+        target_link_libraries(fourstory_common PUBLIC SOCI::soci_odbc)
+    endif()
+else()
+    # Debian/Ubuntu libsoci-dev. The dynamic backend loader pulls the
+    # backend .sos in lazily — listing soci_odbc / soci_sqlite3 here
+    # just makes them link-resolvable when the SOCI dlopen path looks
+    # them up. dl is required on Linux for the dynamic loader.
+    target_link_libraries(fourstory_common PUBLIC
+        soci_sqlite3
+        soci_odbc
+        soci_core
+        dl)
 endif()

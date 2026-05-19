@@ -17,6 +17,13 @@ port = 4816
 # client builds against the same server.
 # accepted_versions = [0x2918]
 
+# Deployment locale — selects the client wire variant (JP appends a
+# bChanneling byte to CS_LOGIN_REQ) and the per-locale character
+# name charset for CS_CREATECHAR_REQ. One of:
+#   us | germany | taiwan | japan | korea | russia
+# Default "us" (ASCII-only) matches the legacy non-localized build.
+# nation = "us"
+
 # CS_HOTSEND_REQ heartbeat — silently dropped by the server. The
 # legacy client fires it after every GROUPLIST_ACK / CHANNELLIST_ACK
 # (its exec-file integrity probe). Anti-cheat validation of those
@@ -70,3 +77,28 @@ port = 8815
 # backend = "odbc"
 # connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGAME_RAGEZONE;Trusted_Connection=yes"
 # pool_size = 8
+
+# ---------------------------------------------------------------------------
+# SMTP relay for 2FA security codes
+# ---------------------------------------------------------------------------
+# Leave [smtp] empty (or omit it) for log-only mode — the SpdlogSmtpClient
+# default writes each would-be email to the spdlog stream so you can
+# read codes from the log during dev. Setting `host` switches to the
+# real AsioSmtpClient.
+#
+# Auth: provide `username` + `password` for AUTH LOGIN; leave both
+# empty to submit anonymously (relay must accept the server IP).
+#
+# Notes:
+#   * No STARTTLS / SMTPS support. For TLS, run a local Postfix
+#     submission relay on 127.0.0.1 that fronts to your real provider.
+#   * Each Send opens a one-shot connection (open → 1 message → close).
+#     Fine for the 2FA volume (one mail per new-device login).
+
+[smtp]
+# host = "127.0.0.1"
+# port = 25
+# from_address = "noreply@example.com"
+# from_display = "4Story Login"
+# username = ""
+# password = ""

@@ -1,4 +1,6 @@
 #include "handlers.h"
+#include "nation.h"
+#include "services/charname_validator.h"
 
 #include "MessageId.h"
 
@@ -99,6 +101,12 @@ struct LoginReqFields
     std::int64_t  dl_check = 0;
     std::int64_t  ll_checksum = 0;
     bool          checksum_present = false;
+    // JP deployments append a single trailing BYTE bChanneling after
+    // llChecksum (CSHandler.cpp:173). Non-JP bodies don't carry it.
+    // Stays 0 / absent on the other locales — SOCI auth ignores it
+    // unless the deployment nation is Japan.
+    std::uint8_t  channeling = 0;
+    bool          channeling_present = false;
 };
 
 // Legacy CS_LOGIN_REQ trailing-checksum validator (CSHandler.cpp:185-202).
@@ -136,7 +144,8 @@ bool VerifyLoginChecksum(std::uint16_t version, std::int64_t recv_checksum)
 
 constexpr std::size_t kMaxLoginStringLen = 64;
 
-bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out)
+bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out,
+                   bool expect_channeling = false)
 {
     std::size_t pos = 0;
     auto read_bytes = [&](void* dst, std::size_t n) -> bool {
@@ -174,6 +183,12 @@ bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out)
         std::memcpy(&out.dl_check,    body.data() + pos, 8); pos += 8;
         std::memcpy(&out.ll_checksum, body.data() + pos, 8); pos += 8;
         out.checksum_present = true;
+    }
+    if (expect_channeling && pos + 1 <= body.size())
+    {
+        out.channeling = static_cast<std::uint8_t>(body[pos]);
+        pos += 1;
+        out.channeling_present = true;
     }
     return true;
 }
@@ -286,7 +301,8 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
            fourstory::audit::IAuditLogger* audit_logger,
            fourstory::ops::LoginRateLimiter* rate_limiter,
            std::span<const std::uint16_t> accepted_versions,
-           fourstory::smtp::ISmtpClient* smtp_client)
+           fourstory::smtp::ISmtpClient* smtp_client,
+           Nation nation)
 {
     // Default to the legacy single value if the caller passed nothing.
     // This keeps the unit-test path (which doesn't thread the config)
@@ -360,9 +376,20 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
     {
         // Full path: parse the wire, delegate to IAuthService.
         LoginReqFields fields;
-        if (!ParseLoginReq(body, fields))
+        const bool jp = (nation == Nation::Japan);
+        if (!ParseLoginReq(body, fields, /*expect_channeling=*/jp))
         {
             spdlog::warn("CS_LOGIN_REQ malformed body — closing session");
+            sref.Close();
+            co_return;
+        }
+        if (jp && !fields.channeling_present)
+        {
+            // JP deployment expects the trailing channeling byte. A
+            // missing one means either a non-JP client connected to
+            // a JP server, or a forged packet. Mirror legacy behavior:
+            // close.
+            spdlog::warn("CS_LOGIN_REQ (JP) missing bChanneling tail — closing");
             sref.Close();
             co_return;
         }
@@ -390,6 +417,8 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
                 .password = fields.password,
                 .client_ip = sref.RemoteIPv4(),
                 .client_version = fields.version,
+                .channeling = fields.channeling,
+                .channeling_present = fields.channeling_present,
             };
             const auto result = auth_service->Authenticate(req);
             ack.bResult    = static_cast<std::uint8_t>(result.status);
@@ -789,7 +818,8 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
                 std::span<const std::byte> body,
                 services::ICharService* char_service,
                 services::IConnectionRegistry* connection_registry,
-                fourstory::audit::IAuditLogger* audit_logger)
+                fourstory::audit::IAuditLogger* audit_logger,
+                Nation nation)
 {
     auto& sref = *session;
 
@@ -835,6 +865,36 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         co_await sref.SendPacket(
             tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
             std::span<const std::byte>(payload, sizeof(payload)));
+        co_return;
+    }
+
+    // Legacy CheckCharName parity — reject names with bytes that don't
+    // belong to the deployment's locale character set. Length is also
+    // re-checked here (3..16) so the SOCI backend can keep its strict
+    // alnum gate as a defense-in-depth fallback. CR_PROTECTED matches
+    // the legacy code for "name contains forbidden bytes".
+    if (!services::IsValidCharName(req.name, nation))
+    {
+        constexpr std::uint8_t kCrProtected = 4;
+        spdlog::info("CS_CREATECHAR_REQ user={} name='{}' rejected — invalid charset for nation",
+            req.user_id, req.name);
+        ByteAppender p;
+        p.U8(kCrProtected);
+        p.I32(0);
+        p.Str(req.name);
+        // 13 trailing bytes echoed back like in the success path —
+        // the legacy client expects a fixed-shape ack and renders the
+        // error using bResult alone.
+        p.U8(req.slot);
+        p.U8(req.char_class); p.U8(req.race); p.U8(req.country);
+        p.U8(req.sex);
+        p.U8(req.hair); p.U8(req.face); p.U8(req.body);
+        p.U8(req.pants); p.U8(req.hand); p.U8(req.foot);
+        p.U8(0); // remaining_slots — unchanged on rejection
+        p.U8(0); // starting_level
+        co_await sref.SendPacket(
+            tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
+            std::span<const std::byte>(p.bytes.data(), p.bytes.size()));
         co_return;
     }
 

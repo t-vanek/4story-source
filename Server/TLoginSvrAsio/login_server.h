@@ -14,6 +14,7 @@
 
 #include "asio_session.h"
 #include "MessageId.h"
+#include "nation.h"
 #include "fourstory/audit/audit_logger.h"
 #include "services/auth_service.h"
 #include "services/char_service.h"
@@ -30,6 +31,9 @@
 #include <vector>
 
 namespace tloginsvr {
+
+// Nation enum lives in nation.h to keep utility modules (e.g. the
+// charname validator) free of Boost.Asio + TNetLib transitive deps.
 
 // Per-server configuration. Constructed by main from CLI flags / env
 // vars. Tests use the default (no RC4 secret) to exercise the
@@ -117,6 +121,13 @@ struct LoginServerConfig
     // Defaults to 60s — generous for a real client, hostile to
     // half-open SYN-floods.
     std::chrono::seconds pre_auth_timeout{ 60 };
+
+    // Deployment locale. Affects:
+    //   * CS_LOGIN_REQ tail parsing (JP appends bChanneling)
+    //   * CS_CREATECHAR_REQ name charset
+    // Defaults to US (ASCII-only) — same fallback the legacy server
+    // uses when CSPGetNation is unset.
+    Nation nation = Nation::US;
 };
 
 class LoginServer
@@ -149,6 +160,7 @@ private:
     std::vector<std::uint16_t>     m_accepted_versions;              // empty = reject all
     bool                           m_test_handlers_enabled = false;  // CS_TESTLOGIN_REQ / CS_TESTVERSION_REQ gate
     std::function<void()>          m_on_quit_request;                // SM_QUITSERVICE_REQ → io.stop() etc. May be null.
+    Nation                         m_nation = Nation::US;            // deployment locale — selects JP wire tail + CheckCharName charset
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

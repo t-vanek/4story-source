@@ -13,6 +13,11 @@ add_library(fourstory_bcrypt STATIC
 
 target_include_directories(fourstory_bcrypt PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include)
+# src/bcrypt.c does `#include "bcrypt.h"` (unqualified) which only resolves
+# when include/bcrypt/ is in the search path. PUBLIC adds the parent; this
+# adds the actual header dir to PRIVATE for the .c units.
+target_include_directories(fourstory_bcrypt PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/bcrypt)
 
 # crypt_blowfish.c uses #warning when no portable __asm__ is available;
 # MSVC doesn't have that and treats it as an error under /W3. Silence the

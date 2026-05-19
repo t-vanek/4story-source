@@ -44,6 +44,20 @@ struct DbConfig
     std::size_t   pool_size = 8;
 };
 
+// Optional SMTP relay config. Empty `host` keeps the binary on the
+// SpdlogSmtpClient default (2FA codes go to the log; no mail leaves
+// the process). Setting `host` switches the wiring to the real
+// Asio-based SMTP client.
+struct SmtpConfig
+{
+    std::string   host;          // empty → log-only mode
+    std::uint16_t port = 25;
+    std::string   from_address;  // MAIL FROM envelope + From: header
+    std::string   from_display;  // optional display name; default = from_address
+    std::string   username;      // AUTH LOGIN — empty → no AUTH
+    std::string   password;
+};
+
 struct AppConfig
 {
     LoginServerConfig            server;
@@ -80,6 +94,9 @@ struct AppConfig
     // shell to the open internet.
     std::string                  admin_bind = "127.0.0.1";
     std::uint16_t                admin_port = 0;
+
+    // SMTP relay for 2FA mail. Empty host → log-only fallback.
+    SmtpConfig                   smtp;
 };
 
 // Load + parse the TOML config at `path`. Throws std::runtime_error

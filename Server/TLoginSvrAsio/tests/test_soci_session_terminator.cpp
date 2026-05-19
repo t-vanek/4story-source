@@ -36,31 +36,80 @@ struct Seeded
     int session_key;
 };
 
+// INSERT TCURRENTUSER row with the full NOT-NULL column set the
+// legacy MSSQL schema requires (dwCharID/bGroupID/bChannel/wPort/
+// bLocked are NOT NULL with no default). PG dev fixture has
+// DEFAULT 0 on those columns, so the legacy short shape also
+// worked there. The function returns the auto-generated dwKEY
+// (MSSQL: OUTPUT INSERTED, PG: RETURNING).
+int InsertCurrentUser(soci::session& sql,
+                      fourstory::db::Backend backend,
+                      int user_id,
+                      int char_id = 0,
+                      int group_id = 0,
+                      int channel = 0)
+{
+    const bool is_mssql = (backend == fourstory::db::Backend::Odbc);
+    int session_key = 0;
+    if (is_mssql)
+    {
+        sql << "INSERT INTO \"TCURRENTUSER\" "
+               "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+               " \"wPort\", \"bLocked\", \"szLoginIP\") "
+               "OUTPUT INSERTED.\"dwKEY\" "
+               "VALUES (:u, :c, :g, :ch, 0, 0, '127.0.0.1')",
+            soci::use(user_id), soci::use(char_id),
+            soci::use(group_id), soci::use(channel),
+            soci::into(session_key);
+    }
+    else
+    {
+        sql << "INSERT INTO \"TCURRENTUSER\" "
+               "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
+               " \"wPort\", \"bLocked\", \"szLoginIP\") "
+               "VALUES (:u, :c, :g, :ch, 0, 0, '127.0.0.1') "
+               "RETURNING \"dwKEY\"",
+            soci::use(user_id), soci::use(char_id),
+            soci::use(group_id), soci::use(channel),
+            soci::into(session_key);
+    }
+    return session_key;
+}
+
+// INSERT TLOG row with the full NOT-NULL column set (dwCharID,
+// bGroupID, bChannel, timeLOGIN, timeLOGOUT). timeLOGOUT explicitly
+// set to 1970-01-02 so the test can later assert "Terminate bumped
+// timeLOGOUT to now".
+void InsertLog(soci::session& sql, int session_key, int user_id)
+{
+    sql << "INSERT INTO \"TLOG\" "
+           "(\"dwKEY\", \"dwUserID\", \"dwCharID\", "
+           " \"bGroupID\", \"bChannel\", "
+           " \"timeLOGIN\", \"timeLOGOUT\") "
+           "VALUES (:k, :u, 0, 0, 0, "
+           "        CURRENT_TIMESTAMP, '1970-01-02 00:00:00')",
+        soci::use(session_key), soci::use(user_id);
+}
+
 // Insert one TCURRENTUSER row + one TLOG row and return the assigned
 // dwKEY / dwUserID. Returns the values for the test to assert against.
-Seeded SeedSession(soci::session& sql, int user_id)
+Seeded SeedSession(soci::session& sql,
+                   fourstory::db::Backend backend,
+                   int user_id)
 {
-    int session_key = 0;
-    sql << "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
-           "VALUES (:u, '127.0.0.1') RETURNING \"dwKEY\"",
-        soci::use(user_id), soci::into(session_key);
-    // timeLOGOUT defaults to CURRENT_TIMESTAMP at INSERT; for the
-    // assertion we want a "pre-Terminate" timestamp that we can compare
-    // against, so set it explicitly to 1970-01-02 (definitely older
-    // than `now`).
-    sql << "INSERT INTO \"TLOG\" (\"dwKEY\", \"dwUserID\", \"timeLOGOUT\") "
-           "VALUES (:k, :u, '1970-01-02 00:00:00')",
-        soci::use(session_key), soci::use(user_id);
+    const int session_key = InsertCurrentUser(sql, backend, user_id);
+    InsertLog(sql, session_key, user_id);
     return Seeded{ user_id, session_key };
 }
 
-void RunTests(const std::string& conn)
+void RunTests(fourstory::db::Backend backend, const std::string& conn)
 {
-    fourstory::db::SessionPool pool(
-        fourstory::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
+    fourstory::db::SessionPool pool(backend, conn, /*pool_size=*/2);
 
-    // PID-scoped user IDs.
-    const int base_uid = 3000000 + (::getpid() % 1000);
+    // PID-scoped user IDs — split per-backend tag too so PG and MSSQL
+    // runs against the same physical host don't collide.
+    const int backend_tag = (backend == fourstory::db::Backend::Odbc) ? 500000 : 0;
+    const int base_uid = 3000000 + backend_tag + (::getpid() % 1000);
 
     // Cleanup any leftover state for our range.
     {
@@ -86,7 +135,7 @@ void RunTests(const std::string& conn)
         Seeded s{};
         {
             auto lease = pool.Acquire();
-            s = SeedSession(*lease, base_uid + 1);
+            s = SeedSession(*lease, backend, base_uid + 1);
         }
         svc.Terminate(s.user_id, s.session_key, TerminationReason::Disconnect);
 
@@ -109,7 +158,7 @@ void RunTests(const std::string& conn)
         Seeded s{};
         {
             auto lease = pool.Acquire();
-            s = SeedSession(*lease, base_uid + 2);
+            s = SeedSession(*lease, backend, base_uid + 2);
         }
         svc.Terminate(s.user_id, s.session_key, TerminationReason::ClientRequest);
 
@@ -125,7 +174,7 @@ void RunTests(const std::string& conn)
         Seeded s{};
         {
             auto lease = pool.Acquire();
-            s = SeedSession(*lease, base_uid + 3);
+            s = SeedSession(*lease, backend, base_uid + 3);
         }
         svc.Terminate(s.user_id, s.session_key, TerminationReason::MapHandoff);
 
@@ -148,7 +197,7 @@ void RunTests(const std::string& conn)
         Seeded s{};
         {
             auto lease = pool.Acquire();
-            s = SeedSession(*lease, base_uid + 4);
+            s = SeedSession(*lease, backend, base_uid + 4);
         }
         // Note: passing session_key=0 means "no audit row to stamp",
         // but TCURRENTUSER cleanup still runs based on user_id alone.
@@ -175,19 +224,9 @@ void RunTests(const std::string& conn)
         int session_key = 0;
         {
             auto lease = pool.Acquire();
-            soci::session& sql = *lease;
-            sql << "INSERT INTO \"TCURRENTUSER\" "
-                   "(\"dwUserID\", \"dwCharID\", \"bGroupID\", \"bChannel\", "
-                   " \"szLoginIP\") "
-                   "VALUES (:u, :c, :g, :ch, '127.0.0.1') "
-                   "RETURNING \"dwKEY\"",
-                soci::use(uid_gc), soci::use(char_gc),
-                soci::use(group_gc), soci::use(channel_gc),
-                soci::into(session_key);
-            sql << "INSERT INTO \"TLOG\" "
-                   "(\"dwKEY\", \"dwUserID\", \"timeLOGOUT\") "
-                   "VALUES (:k, :u, '1970-01-02 00:00:00')",
-                soci::use(session_key), soci::use(uid_gc);
+            session_key = InsertCurrentUser(
+                *lease, backend, uid_gc, char_gc, group_gc, channel_gc);
+            InsertLog(*lease, session_key, uid_gc);
         }
         svc.Terminate(uid_gc, session_key,
             TerminationReason::Disconnect, char_gc);
@@ -220,18 +259,10 @@ void RunTests(const std::string& conn)
         int session_key = 0;
         {
             auto lease = pool.Acquire();
-            soci::session& sql = *lease;
-            sql << "INSERT INTO \"TCURRENTUSER\" "
-                   "(\"dwUserID\", \"bGroupID\", \"bChannel\", \"szLoginIP\") "
-                   "VALUES (:u, :g, :ch, '127.0.0.1') "
-                   "RETURNING \"dwKEY\"",
-                soci::use(uid_gc),
-                soci::use(group_gc), soci::use(channel_gc),
-                soci::into(session_key);
-            sql << "INSERT INTO \"TLOG\" "
-                   "(\"dwKEY\", \"dwUserID\", \"timeLOGOUT\") "
-                   "VALUES (:k, :u, '1970-01-02 00:00:00')",
-                soci::use(session_key), soci::use(uid_gc);
+            session_key = InsertCurrentUser(
+                *lease, backend, uid_gc,
+                /*char_id=*/0, group_gc, channel_gc);
+            InsertLog(*lease, session_key, uid_gc);
         }
         svc.Terminate(uid_gc, session_key,
             TerminationReason::Disconnect, /*char_id=*/0);
@@ -264,20 +295,12 @@ void RunTests(const std::string& conn)
         // deletes any uid range we touched).
         {
             auto lease = pool.Acquire();
-            soci::session& sql = *lease;
-            sql << "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
-                   "VALUES (:u, '127.0.0.1')", soci::use(base_uid + 10);
-            sql << "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
-                   "VALUES (:u, '127.0.0.1')", soci::use(base_uid + 11);
-            sql << "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
-                   "VALUES (:u, '127.0.0.1')", soci::use(base_uid + 12);
+            (void)InsertCurrentUser(*lease, backend, base_uid + 10);
+            (void)InsertCurrentUser(*lease, backend, base_uid + 11);
+            (void)InsertCurrentUser(*lease, backend, base_uid + 12);
             // In-game session: dwCharID != 0. Must survive sweep.
-            const int handoff_uid  = base_uid + 13;
-            const int handoff_char = 99001;
-            sql << "INSERT INTO \"TCURRENTUSER\" "
-                   "(\"dwUserID\", \"dwCharID\", \"szLoginIP\") "
-                   "VALUES (:u, :c, '127.0.0.1')",
-                soci::use(handoff_uid), soci::use(handoff_char);
+            (void)InsertCurrentUser(*lease, backend, base_uid + 13,
+                /*char_id=*/99001);
         }
 
         // Count pre-handoff rows (the ones the sweep should claim).
@@ -347,22 +370,44 @@ int main()
 {
     std::printf("=== tloginsvr_asio SOCI session-terminator test ===\n");
 
-    const char* conn = std::getenv("TLOGINSVR_TEST_PG_CONN");
-    if (conn == nullptr || conn[0] == '\0')
+    const char* pg_conn    = std::getenv("TLOGINSVR_TEST_PG_CONN");
+    const char* mssql_conn = std::getenv("TLOGINSVR_TEST_MSSQL_CONN");
+
+    if ((pg_conn    == nullptr || pg_conn[0]    == '\0') &&
+        (mssql_conn == nullptr || mssql_conn[0] == '\0'))
     {
-        std::printf("  SKIP  TLOGINSVR_TEST_PG_CONN not set\n");
+        std::printf("  SKIP  neither TLOGINSVR_TEST_PG_CONN nor "
+                    "TLOGINSVR_TEST_MSSQL_CONN set\n");
         std::printf("\nResults: 0 passed, 0 failed (skipped)\n");
         return 0;
     }
 
-    try
+    if (pg_conn != nullptr && pg_conn[0] != '\0')
     {
-        RunTests(conn);
+        std::printf("\n--- backend: postgresql ---\n");
+        try
+        {
+            RunTests(fourstory::db::Backend::PostgreSQL, pg_conn);
+        }
+        catch (const std::exception& ex)
+        {
+            std::printf("  FAIL  pg exception: %s\n", ex.what());
+            ++g_failed;
+        }
     }
-    catch (const std::exception& ex)
+
+    if (mssql_conn != nullptr && mssql_conn[0] != '\0')
     {
-        std::printf("  FAIL  exception: %s\n", ex.what());
-        ++g_failed;
+        std::printf("\n--- backend: odbc (MSSQL) ---\n");
+        try
+        {
+            RunTests(fourstory::db::Backend::Odbc, mssql_conn);
+        }
+        catch (const std::exception& ex)
+        {
+            std::printf("  FAIL  mssql exception: %s\n", ex.what());
+            ++g_failed;
+        }
     }
 
     std::printf("\nResults: %d passed, %d failed\n", g_passed, g_failed);

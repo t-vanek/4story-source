@@ -27,14 +27,22 @@ struct DbTimestamp
 
 struct LogData
 {
+    // Legacy LogPacket.h declares this struct WITHOUT #pragma pack,
+    // so MSVC's natural alignment inserts 2 bytes of padding after
+    // `wMapID` (before `int nX`) and 2 bytes after `szKey[7][50]`
+    // (before `DWORD dwFormat`). We declare those gaps explicitly
+    // so #pragma pack(1) still yields the legacy wire layout —
+    // sender side does the same. static_asserts below pin offsets.
     DbTimestamp    timestamp;
     std::uint32_t  serverId;
     char           clientIp[16];
     std::uint32_t  action;
     std::uint16_t  mapId;
+    std::uint16_t  _pad_after_mapId;
     std::int32_t   posX, posY, posZ;
     std::int64_t   searchKeyInt[11];
     char           searchKeyStr[7][50];
+    std::uint16_t  _pad_after_searchKeyStr;
     std::uint32_t  format;
     char           logPayload[512];
 };
@@ -71,6 +79,18 @@ static_assert(offsetof(UdpPacket, srcIp)    == 14,
               "UdpPacket.srcIp offset drifted");
 static_assert(offsetof(UdpPacket, payload)  == 36,
               "UdpPacket.payload offset drifted from legacy szPacket=36");
+
+// LogData offsets must match the legacy MSVC natural-alignment
+// layout. Pinning these so a future "remove the unused pad field"
+// refactor fails loudly instead of silently corrupting every row.
+static_assert(offsetof(LogData, posX)         == 44,
+              "LogData.posX must land at byte 44 (legacy 2-byte pad after wMapID)");
+static_assert(offsetof(LogData, searchKeyInt) == 56,
+              "LogData.searchKeyInt offset drifted");
+static_assert(offsetof(LogData, format)       == 496,
+              "LogData.format must land at byte 496 (legacy pad after szKey)");
+static_assert(offsetof(LogData, logPayload)   == 500,
+              "LogData.logPayload offset drifted");
 
 constexpr std::uint16_t LP_LOG = 0;
 

@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <memory>
 #include <string>
 
 namespace {
@@ -36,36 +37,51 @@ void Check(bool ok, const char* label)
 // 2000001 (the "owner") and 2000002 (an unrelated user for isolation
 // tests). The TCHARTABLE rows that already belong to those users are
 // removed at the start so each run starts clean.
-void WipeFixtures(soci::session& sql, const std::string& name_prefix)
+void WipeFixtures(soci::session& gsql, soci::session& wsql,
+                  const std::string& name_prefix)
 {
     const std::string like = name_prefix + "%";
 
-    // Cascade-clean in dependency order.
-    sql << "DELETE FROM \"TGUILDMEMBERTABLE\" WHERE \"dwCharID\" IN ("
-           "SELECT \"dwCharID\" FROM \"TCHARTABLE\" WHERE \"szNAME\" LIKE :p)",
+    // World-pool cleanup. Cascade-clean in dependency order: guild
+    // members (FK → TCHARTABLE-ish), then per-char items, then
+    // TCHARTABLE itself.
+    wsql << "DELETE FROM \"TGUILDMEMBERTABLE\" WHERE \"dwCharID\" IN ("
+            "SELECT \"dwCharID\" FROM \"TCHARTABLE\" WHERE \"szNAME\" LIKE :p)",
         soci::use(like);
-    sql << "DELETE FROM \"TALLCHARTABLE\" WHERE \"szName\" LIKE :p",
+    try
+    {
+        wsql << "DELETE FROM \"TITEMTABLE\" WHERE \"dwOwnerID\" IN ("
+                "SELECT \"dwCharID\" FROM \"TCHARTABLE\" WHERE \"szNAME\" LIKE :p)",
+            soci::use(like);
+    }
+    catch (const std::exception&) { /* may not exist on dev */ }
+    wsql << "DELETE FROM \"TCHARTABLE\" WHERE \"szNAME\" LIKE :p",
         soci::use(like);
-    sql << "DELETE FROM \"TCHARTABLE\" WHERE \"szNAME\" LIKE :p",
+
+    // Global-pool cleanup. TALLCHARTABLE is the cross-world directory;
+    // TRESERVED/TKEEPINGNAME are name-reservation lists.
+    gsql << "DELETE FROM \"TALLCHARTABLE\" WHERE \"szName\" LIKE :p",
         soci::use(like);
-    sql << "DELETE FROM \"TRESERVEDNAME\" WHERE \"szName\" LIKE :p",
+    gsql << "DELETE FROM \"TRESERVEDNAME\" WHERE \"szName\" LIKE :p",
         soci::use(like);
-    sql << "DELETE FROM \"TKEEPINGNAME\" WHERE \"szName\" LIKE :p",
+    gsql << "DELETE FROM \"TKEEPINGNAME\" WHERE \"szName\" LIKE :p",
         soci::use(like);
+
     // BR/BOW shard tables are user-id-keyed (no name prefix). Clean
     // the test user range so successive runs don't see stale shard
-    // enrollments. Optional tables — wrap in try/catch.
+    // enrollments. World-pool tables — TBOWPLAYERTABLE often absent
+    // on legacy builds.
     for (int uid : { 2000001, 2000002 })
     {
         try
         {
-            sql << "DELETE FROM \"TBRPLAYERTABLE\" WHERE \"dwUserID\" = :u",
+            wsql << "DELETE FROM \"TBRPLAYERTABLE\" WHERE \"dwUserID\" = :u",
                 soci::use(uid);
         }
         catch (const std::exception&) { /* table optional */ }
         try
         {
-            sql << "DELETE FROM \"TBOWPLAYERTABLE\" WHERE \"dwUserID\" = :u",
+            wsql << "DELETE FROM \"TBOWPLAYERTABLE\" WHERE \"dwUserID\" = :u",
                 soci::use(uid);
         }
         catch (const std::exception&) { /* table optional */ }
@@ -101,10 +117,19 @@ MakeCreateReq(int user_id, std::uint8_t world,
     return r;
 }
 
-void RunTests(const std::string& conn)
+void RunTests(fourstory::db::Backend backend,
+              const std::string& conn,
+              const std::string& world_conn = "")
 {
-    fourstory::db::SessionPool pool(
-        fourstory::db::Backend::PostgreSQL, conn, /*pool_size=*/2);
+    fourstory::db::SessionPool pool(backend, conn, /*pool_size=*/2);
+    std::unique_ptr<fourstory::db::SessionPool> world_pool;
+    if (!world_conn.empty())
+    {
+        world_pool = std::make_unique<fourstory::db::SessionPool>(
+            backend, world_conn, /*pool_size=*/2);
+    }
+    fourstory::db::SessionPool& world_ref =
+        world_pool ? *world_pool : pool;
 
     // Alphanumeric-only — legacy IsValidCharName disallows _ and other
     // punctuation, so the prefix has to satisfy that too.
@@ -112,12 +137,14 @@ void RunTests(const std::string& conn)
         std::string("Soci") + std::to_string(::getpid()) + "X";
 
     {
-        auto lease = pool.Acquire();
-        WipeFixtures(*lease, prefix);
+        auto glease = pool.Acquire();
+        auto wlease = world_ref.Acquire();
+        WipeFixtures(*glease, *wlease, prefix);
     }
 
-    // Single-DB test layout — pass the same pool for both global + world.
-    tloginsvr::services::SociCharService svc(pool, pool);
+    // Two-pool layout — when world_conn is empty, world_ref aliases
+    // the global pool (legacy PG dev fixture single-DB layout).
+    tloginsvr::services::SociCharService svc(pool, world_ref);
     using namespace tloginsvr::services;
 
     const int user_a = 2000001;
@@ -239,10 +266,11 @@ void RunTests(const std::string& conn)
         Check(list.empty(), "different world → empty list");
     }
 
-    // 10. Delete blocked by guild membership.
+    // 10. Delete blocked by guild membership. TGUILDMEMBERTABLE is
+    //     a world-pool (TGAME) table.
     {
         {
-            auto lease = pool.Acquire();
+            auto lease = world_ref.Acquire();
             *lease << "INSERT INTO \"TGUILDMEMBERTABLE\" "
                       "(\"dwCharID\", \"dwGuildID\", \"bDuty\", \"bPeer\") "
                       "VALUES (:c, 1, 0, 0)",
@@ -253,31 +281,36 @@ void RunTests(const std::string& conn)
             "delete with active guild membership → Failed");
         // Cleanup the guild row so the next delete can succeed.
         {
-            auto lease = pool.Acquire();
+            auto lease = world_ref.Acquire();
             *lease << "DELETE FROM \"TGUILDMEMBERTABLE\" WHERE \"dwCharID\" = :c",
                 soci::use(alice_id);
         }
     }
 
-    // 11. Hard delete (level <= 5).
+    // 11. Hard delete (level <= 5). TCHARTABLE is world, TALLCHARTABLE
+    //     is global — split the leases.
     {
         const auto r = svc.Delete(user_a, world, alice_id, "ignored");
         Check(r == DeleteCharResult::Success, "delete level-1 char → Success (hard)");
 
-        // TCHARTABLE row should be gone, TALLCHARTABLE row marked deleted.
-        auto lease = pool.Acquire();
         int char_hits = 0;
-        *lease << "SELECT COUNT(*) FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
-            soci::use(alice_id), soci::into(char_hits);
+        {
+            auto wlease = world_ref.Acquire();
+            *wlease << "SELECT COUNT(*) FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
+                soci::use(alice_id), soci::into(char_hits);
+        }
         Check(char_hits == 0, "TCHARTABLE row hard-deleted");
         int all_hits_alive = 0;
-        *lease << "SELECT COUNT(*) FROM \"TALLCHARTABLE\" "
-                  "WHERE \"dwCharID\" = :c AND \"bDelete\" = 0",
-            soci::use(alice_id), soci::into(all_hits_alive);
+        {
+            auto glease = pool.Acquire();
+            *glease << "SELECT COUNT(*) FROM \"TALLCHARTABLE\" "
+                       "WHERE \"dwCharID\" = :c AND \"bDelete\" = 0",
+                soci::use(alice_id), soci::into(all_hits_alive);
+        }
         Check(all_hits_alive == 0, "TALLCHARTABLE row marked deleted");
     }
 
-    // 12. Soft delete (level > 5).
+    // 12. Soft delete (level > 5). TCHARTABLE is world.
     {
         const auto cr = svc.Create(MakeCreateReq(user_a, world, prefix + "Gamma", 2));
         Check(cr.status == CreateCharResult::Success, "create Gamma → Success");
@@ -285,7 +318,7 @@ void RunTests(const std::string& conn)
 
         // Bump level past the threshold.
         {
-            auto lease = pool.Acquire();
+            auto lease = world_ref.Acquire();
             *lease << "UPDATE \"TCHARTABLE\" SET \"bLevel\" = 10 WHERE \"dwCharID\" = :c",
                 soci::use(gamma_id);
         }
@@ -293,7 +326,7 @@ void RunTests(const std::string& conn)
         const auto r = svc.Delete(user_a, world, gamma_id, "ignored");
         Check(r == DeleteCharResult::Success, "delete level-10 char → Success (soft)");
 
-        auto lease = pool.Acquire();
+        auto lease = world_ref.Acquire();
         int soft_marked = 0;
         *lease << "SELECT COUNT(*) FROM \"TCHARTABLE\" "
                   "WHERE \"dwCharID\" = :c AND \"bDelete\" = 1",
@@ -318,8 +351,8 @@ void RunTests(const std::string& conn)
         Check(r.starting_level == kChoiceStartLevel,
             "choice-country starting_level == 9");
 
-        // Verify it landed in the row.
-        auto lease = pool.Acquire();
+        // Verify it landed in the row. TCHARTABLE → world pool.
+        auto lease = world_ref.Acquire();
         int stored_level = 0;
         *lease << "SELECT \"bLevel\" FROM \"TCHARTABLE\" WHERE \"dwCharID\" = :c",
             soci::use(r.char_id), soci::into(stored_level);
@@ -337,7 +370,8 @@ void RunTests(const std::string& conn)
         const auto r = svc.Create(MakeCreateReq(user_a, world, prefix + "Zeta", 5));
         Check(r.status == CreateCharResult::Success, "create Zeta → Success");
 
-        auto lease = pool.Acquire();
+        // TITEMTABLE lives in the world pool.
+        auto lease = world_ref.Acquire();
         int item_hits = 0;
         *lease << "SELECT COUNT(*) FROM \"TITEMTABLE\" "
                   "WHERE \"dwOwnerID\"    = :c "
@@ -440,9 +474,12 @@ void RunTests(const std::string& conn)
         Check(svc.GetBowCharId(0) == 0,
             "GetBowCharId(0) → 0 (no DB hit)");
 
-        // BR-only enrollment.
+        // BR-only enrollment. TBR/BOWPLAYERTABLE are world-pool
+        // (TGAME) tables. TBOWPLAYERTABLE is not in every legacy
+        // world DB — wrap the BOW INSERT so the BOW-half of the
+        // test SKIPs cleanly on those deploys.
         {
-            auto lease = pool.Acquire();
+            auto lease = world_ref.Acquire();
             *lease << "INSERT INTO \"TBRPLAYERTABLE\" "
                       "(\"dwCharID\", \"dwUserID\") VALUES (:c, :u)",
                 soci::use(br_char), soci::use(user_a);
@@ -453,34 +490,53 @@ void RunTests(const std::string& conn)
             "GetBowCharId: BR enrolled but not BOW → still 0");
 
         // BOW enrollment added — handler will prefer this on charlist.
+        bool bow_seeded = false;
+        try
         {
-            auto lease = pool.Acquire();
+            auto lease = world_ref.Acquire();
             *lease << "INSERT INTO \"TBOWPLAYERTABLE\" "
                       "(\"dwCharID\", \"dwUserID\") VALUES (:c, :u)",
                 soci::use(bow_char), soci::use(user_a);
+            bow_seeded = true;
         }
-        Check(svc.GetBowCharId(user_a) == bow_char,
-            "GetBowCharId: BOW enrolled → returns char_id");
-        // BR still returns its enrollment — both lookups independent;
-        // the legacy "BOW takes priority" rule lives in the handler.
-        Check(svc.GetBrCharId(user_a) == br_char,
-            "GetBrCharId: BR still returns char_id when BOW also set");
+        catch (const std::exception&) { /* TBOWPLAYERTABLE absent */ }
+
+        if (bow_seeded)
+        {
+            Check(svc.GetBowCharId(user_a) == bow_char,
+                "GetBowCharId: BOW enrolled → returns char_id");
+            // BR still returns its enrollment — both lookups
+            // independent; the legacy "BOW takes priority" rule
+            // lives in the handler.
+            Check(svc.GetBrCharId(user_a) == br_char,
+                "GetBrCharId: BR still returns char_id when BOW also set");
+        }
+        else
+        {
+            std::printf("  SKIP  BOW enrollment test — TBOWPLAYERTABLE "
+                        "not deployed\n");
+        }
 
         // Cleanup before next test.
         {
-            auto lease = pool.Acquire();
+            auto lease = world_ref.Acquire();
             *lease << "DELETE FROM \"TBRPLAYERTABLE\" WHERE \"dwUserID\" = :u",
                 soci::use(user_a);
-            *lease << "DELETE FROM \"TBOWPLAYERTABLE\" WHERE \"dwUserID\" = :u",
-                soci::use(user_a);
+            try
+            {
+                *lease << "DELETE FROM \"TBOWPLAYERTABLE\" WHERE \"dwUserID\" = :u",
+                    soci::use(user_a);
+            }
+            catch (const std::exception&) { /* optional */ }
         }
     }
 
     // Cleanup.
     try
     {
-        auto lease = pool.Acquire();
-        WipeFixtures(*lease, prefix);
+        auto glease = pool.Acquire();
+        auto wlease = world_ref.Acquire();
+        WipeFixtures(*glease, *wlease, prefix);
     }
     catch (const std::exception& ex)
     {
@@ -494,22 +550,53 @@ int main()
 {
     std::printf("=== tloginsvr_asio SOCI char-flow test ===\n");
 
-    const char* conn = std::getenv("TLOGINSVR_TEST_PG_CONN");
-    if (conn == nullptr || conn[0] == '\0')
+    const char* pg_conn          = std::getenv("TLOGINSVR_TEST_PG_CONN");
+    const char* mssql_conn       = std::getenv("TLOGINSVR_TEST_MSSQL_CONN");
+    const char* mssql_world_conn = std::getenv("TLOGINSVR_TEST_MSSQL_WORLD_CONN");
+
+    if ((pg_conn    == nullptr || pg_conn[0]    == '\0') &&
+        (mssql_conn == nullptr || mssql_conn[0] == '\0'))
     {
-        std::printf("  SKIP  TLOGINSVR_TEST_PG_CONN not set\n");
+        std::printf("  SKIP  neither TLOGINSVR_TEST_PG_CONN nor "
+                    "TLOGINSVR_TEST_MSSQL_CONN set\n");
         std::printf("\nResults: 0 passed, 0 failed (skipped)\n");
         return 0;
     }
 
-    try
+    if (pg_conn != nullptr && pg_conn[0] != '\0')
     {
-        RunTests(conn);
+        std::printf("\n--- backend: postgresql ---\n");
+        try
+        {
+            RunTests(fourstory::db::Backend::PostgreSQL, pg_conn);
+        }
+        catch (const std::exception& ex)
+        {
+            std::printf("  FAIL  pg exception: %s\n", ex.what());
+            ++g_failed;
+        }
     }
-    catch (const std::exception& ex)
+
+    if (mssql_conn != nullptr && mssql_conn[0] != '\0')
     {
-        std::printf("  FAIL  exception: %s\n", ex.what());
-        ++g_failed;
+        std::printf("\n--- backend: odbc (MSSQL) ---\n");
+        const std::string world_conn =
+            (mssql_world_conn != nullptr && mssql_world_conn[0] != '\0')
+                ? mssql_world_conn : "";
+        if (world_conn.empty())
+        {
+            std::printf("  NOTE  TLOGINSVR_TEST_MSSQL_WORLD_CONN unset — "
+                        "world-pool ops will share the global pool\n");
+        }
+        try
+        {
+            RunTests(fourstory::db::Backend::Odbc, mssql_conn, world_conn);
+    }
+        catch (const std::exception& ex)
+        {
+            std::printf("  FAIL  mssql exception: %s\n", ex.what());
+            ++g_failed;
+        }
     }
 
     std::printf("\nResults: %d passed, %d failed\n", g_passed, g_failed);

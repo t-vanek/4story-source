@@ -50,11 +50,22 @@ struct LogData
 
 // _UDPPACKET — legacy wraps the LogData inside this fixed-size
 // envelope. We mirror it 1:1 so TLogSvr accepts the frame.
+//
+// CRITICAL byte-layout note: the legacy struct (LogPacket.h) declares
+// the third field as `void* pSocketFD`. Every legacy server in the
+// cluster (TLoginSvr, TWorldSvr, TMapSvr, …) compiles as Win32 (32-bit)
+// per their vcxproj configurations, which makes that pointer 4 bytes
+// wide. Using `uint64_t` here on a 64-bit host shifts every following
+// field by 4 bytes — TLogSvrAsio would then read seq from the void*
+// upper half, srcIp from seq + checksum, etc., and reject every frame
+// as malformed (or worse, silently store garbage into the DB).
+// Keep it `uint32_t` so the wire layout matches the still-Win32-only
+// legacy senders. The mirroring TLogSvrAsio struct must match.
 struct UdpPacket
 {
     std::uint16_t size;       // total bytes written (dwSize)
     std::uint16_t command;    // LP_LOG = 0
-    std::uint64_t socketFd;   // unused, zero
+    std::uint32_t socketFd;   // legacy `void* pSocketFD` on Win32 — 4 bytes
     std::uint32_t seq;
     std::uint16_t checksum;
     char          srcIp[20];
@@ -62,6 +73,22 @@ struct UdpPacket
     char          payload[1024]; // szPacket — holds LogData prefix
 };
 #pragma pack(pop)
+
+// Compile-time wire-layout guards. The legacy receiver expects
+// these exact offsets; any drift (changing socketFd's width, adding
+// fields, reordering) silently corrupts every audit row. The
+// payload offset is the most load-bearing — it's what the
+// `udp_overhead` runtime constant in TLogSvrAsio's DecodeRecord
+// reaches via `offsetof(UdpPacket, payload)`. Match must hold on
+// both sides.
+static_assert(offsetof(UdpPacket, socketFd) == 4,
+              "UdpPacket.socketFd offset drifted — receiver will misframe");
+static_assert(offsetof(UdpPacket, seq)      == 8,
+              "UdpPacket.seq offset drifted");
+static_assert(offsetof(UdpPacket, srcIp)    == 14,
+              "UdpPacket.srcIp offset drifted");
+static_assert(offsetof(UdpPacket, payload)  == 36,
+              "UdpPacket.payload offset drifted — legacy szPacket starts at 36");
 
 static_assert(sizeof(DbTimestamp) == 16, "DbTimestamp must be 16 bytes");
 

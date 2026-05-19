@@ -43,7 +43,13 @@ struct UdpPacket
 {
     std::uint16_t  size;
     std::uint16_t  command;
-    std::uint64_t  socketFd;
+    // Legacy `void* pSocketFD` (LogPacket.h). Every legacy server
+    // compiles as Win32 (32-bit) per its vcxproj — so the pointer is
+    // 4 bytes on the wire, not 8. Using uint64_t here would shift
+    // every following field by 4 bytes and silently corrupt every
+    // log record from a legacy sender. The mirroring sender in
+    // FourStoryCommon UdpAuditLogger must match.
+    std::uint32_t  socketFd;
     std::uint32_t  seq;
     std::uint16_t  checksum;
     char           srcIp[20];
@@ -53,6 +59,18 @@ struct UdpPacket
 #pragma pack(pop)
 
 static_assert(sizeof(DbTimestamp) == 16, "DbTimestamp must be 16 bytes");
+
+// Wire-layout invariants — keep in sync with the mirroring sender in
+// FourStoryCommon::udp_audit_logger.cpp. Any drift here silently
+// corrupts every received log record.
+static_assert(offsetof(UdpPacket, socketFd) == 4,
+              "UdpPacket.socketFd offset drifted from sender");
+static_assert(offsetof(UdpPacket, seq)      == 8,
+              "UdpPacket.seq offset drifted");
+static_assert(offsetof(UdpPacket, srcIp)    == 14,
+              "UdpPacket.srcIp offset drifted");
+static_assert(offsetof(UdpPacket, payload)  == 36,
+              "UdpPacket.payload offset drifted from legacy szPacket=36");
 
 constexpr std::uint16_t LP_LOG = 0;
 

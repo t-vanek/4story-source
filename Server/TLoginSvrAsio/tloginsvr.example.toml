@@ -44,11 +44,17 @@ port = 4816
 # legacy client wire codec.
 disable_rc4 = false
 
-# Override the default legacy wire secret (Session.cpp:16's
+# Override the default legacy wire secret (Session.cpp:22's
 # g_strSecretKey) with a hex-encoded byte string. Uncomment + edit
 # to use a custom secret — but note that any real legacy client will
 # stop decrypting your traffic if this drifts from what the client
 # was built with.
+#
+# IMPORTANT: The hex bytes go into the RC4 key derivation verbatim.
+# The legacy default secret is fed in as `strlen + 1` bytes —
+# i.e. INCLUDING the trailing NUL — so operators porting the
+# default with a custom prefix MUST include "00" at the end of the
+# hex string. Drop the "00" and clients won't decrypt anything.
 # rc4_secret_hex = "4135243824414653313341313a3a2d31312321..."
 
 [log]

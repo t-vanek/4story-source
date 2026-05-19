@@ -199,6 +199,15 @@ target_link_libraries(test_tloginsvr_asio_site_code PRIVATE
 add_test(NAME tloginsvr_asio_site_code
     COMMAND test_tloginsvr_asio_site_code)
 
+# RC4-secret-length test — guards the trailing-NUL invariant in the
+# default secret (round 6: legacy Session.cpp:18-22 hard-requires it).
+add_executable(test_tloginsvr_asio_rc4_secret_length
+    ${TLOGINSVR_ASIO_SRC}/tests/test_rc4_secret_length.cpp)
+target_link_libraries(test_tloginsvr_asio_rc4_secret_length PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_rc4_secret_length
+    COMMAND test_tloginsvr_asio_rc4_secret_length)
+
 # SOCI integration tests — exercise the DB-backed service impls
 # directly against a real PostgreSQL. All skipped automatically if
 # TLOGINSVR_TEST_PG_CONN is not set so CI hosts without PG pass.

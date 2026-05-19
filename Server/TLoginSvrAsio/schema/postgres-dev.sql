@@ -62,10 +62,13 @@ CREATE TABLE "TCURRENTUSER" (
     "dwPcBangID"   INTEGER NOT NULL DEFAULT 0,
     "bLuckyNumber" SMALLINT NOT NULL DEFAULT 0,
     "szLoginIP"    VARCHAR(50) NOT NULL DEFAULT '',
-    -- JP-only: channeling partner the user authenticated through
-    -- (NHN/GMO/etc.). Legacy CSPLoginJP takes this as the bChanneling
-    -- IN-param; we persist it so admin / audit can later trace which
-    -- partner brokered the session. 0 on non-JP nations.
+    -- JP/TW: the shipped client appends a DWORD dwSiteCode to
+    -- CS_LOGIN_REQ when MODIFY_DIRECTLOGIN is set (TNationOption
+    -- flips this on for both nations). Legacy server only reads
+    -- the low byte as `bChanneling` (CSPLoginJP IN-param), but we
+    -- persist the full DWORD too so audits can recover the real
+    -- partner / portal identifier. 0 on non-JP/TW deployments.
+    "dwSiteCode"   INTEGER  NOT NULL DEFAULT 0,
     "bChanneling"  SMALLINT NOT NULL DEFAULT 0
 );
 CREATE INDEX "IDX_TCURRENTUSER_dwUserID" ON "TCURRENTUSER" ("dwUserID");

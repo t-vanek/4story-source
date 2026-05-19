@@ -31,12 +31,25 @@ struct AuthRequest
     std::string   client_ip;        // peer ip — IPv4 dotted notation
     std::uint16_t client_version;   // CS_LOGIN_REQ wVersion (TVERSION)
 
-    // JP-only trailing BYTE bChanneling (CSHandler.cpp:173-174). Tells
-    // the legacy TLoginJP SP which channeling partner (NHN, GMO, …)
-    // brokered this account. Zero on every other locale. SOCI impls
-    // are expected to ignore this on non-JP nations.
-    std::uint8_t  channeling = 0;
-    bool          channeling_present = false;
+    // JP/TW trailing DWORD dwSiteCode. The shipped client with
+    // `MODIFY_DIRECTLOGIN=TRUE` (TNetSender.cpp:46, set by
+    // TNationOption::SetNation for TNATION_JAPAN + TNATION_TAIWAN)
+    // appends 4 bytes after llChecksum. Legacy server's
+    // CSHandler.cpp:173 only reads the low byte (`bChanneling`),
+    // which silently truncates the wire DWORD; the upper 3 bytes
+    // get parsed as part of the next packet's header but the recv
+    // boundary makes that harmless. Modern impl reads the full
+    // DWORD and keeps the low byte as the legacy-compatible
+    // `bChanneling` projection for SP-call parity.
+    std::uint32_t site_code = 0;
+    bool          site_code_present = false;
+
+    // Convenience accessor: low byte of site_code. Matches legacy
+    // CSPLoginJP's IN-param semantics.
+    std::uint8_t channeling() const
+    {
+        return static_cast<std::uint8_t>(site_code & 0xFF);
+    }
 };
 
 // Status codes mirror the legacy LR_* values in NetCode.h. The

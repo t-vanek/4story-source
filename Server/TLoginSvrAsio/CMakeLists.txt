@@ -191,6 +191,14 @@ target_link_libraries(test_tloginsvr_asio_shutdown_sweep PRIVATE
 add_test(NAME tloginsvr_asio_shutdown_sweep
     COMMAND test_tloginsvr_asio_shutdown_sweep)
 
+# Site-code test — JP/TW DWORD dwSiteCode tail parsing (round 5 #1).
+add_executable(test_tloginsvr_asio_site_code
+    ${TLOGINSVR_ASIO_SRC}/tests/test_site_code.cpp)
+target_link_libraries(test_tloginsvr_asio_site_code PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_site_code
+    COMMAND test_tloginsvr_asio_site_code)
+
 # SOCI integration tests — exercise the DB-backed service impls
 # directly against a real PostgreSQL. All skipped automatically if
 # TLOGINSVR_TEST_PG_CONN is not set so CI hosts without PG pass.

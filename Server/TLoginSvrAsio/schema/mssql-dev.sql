@@ -59,6 +59,7 @@ CREATE TABLE TCURRENTUSER (
     dLoginDate   smalldatetime NOT NULL DEFAULT GETDATE(),
     dEnterDate   smalldatetime NOT NULL DEFAULT GETDATE(),
     szLoginIP    varchar(50)  NOT NULL DEFAULT '',
+    dwSiteCode   int          NOT NULL DEFAULT 0,
     bChanneling  tinyint      NOT NULL DEFAULT 0
 );
 CREATE INDEX IDX_TCURRENTUSER_dwUserID ON TCURRENTUSER(dwUserID);

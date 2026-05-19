@@ -16,9 +16,26 @@ namespace tloginsvr::services {
 
 namespace {
 
+// Wire-level password format the shipped client sends:
+//
+//   Client/TClient/TClientWnd.cpp:327 hashes the user-entered string
+//   through GetSHA1String (TClientGame.cpp:462 — std SHA1 → hex)
+//   BEFORE handing it to SendCS_LOGIN_REQ. The legacy server stores
+//   passwords in the same shape, so direct strcmp against TACCOUNT_PW
+//   .szPasswd works.
+//
+// Implication for operators migrating to BCrypt: the BCrypt hash must
+// be computed over the **SHA1 hex string**, not the plaintext
+// password. Practical migration:
+//   * existing row:  szPasswd = "<40-char SHA1 hex>"  (legacy shape)
+//   * after upgrade: szPasswd = "$2a$10$<bcrypt over SHA1 hex>"
+//                                (server transparently rehashes on
+//                                 first successful login below)
+//
 // $2a$ / $2b$ / $2y$ — BCrypt hash prefixes (Provos & Mazières). Any
-// other shape is treated as legacy plaintext for back-compat with the
-// pre-bcrypt data shape in TACCOUNT_PW.szPasswd.
+// other shape is treated as legacy "stored password" (= SHA1 hex on
+// shipped builds, raw plaintext on older deploys) and matched via
+// strcmp.
 bool IsBcrypt(const std::string& s)
 {
     return s.size() >= 4
@@ -317,18 +334,38 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             soci::use(user_id), soci::use(req.client_ip),
             soci::into(session_key);
 
-        // JP channeling persistence (legacy CSPLoginJP's bChanneling
-        // IN-param). Update is fire-and-forget: if the column isn't in
-        // the deployed schema, log + continue — the legacy login flow
-        // doesn't fail when the JP-specific column is missing on a
-        // non-JP build.
-        if (req.channeling_present && req.channeling != 0)
+        // JP/TW site-code persistence. The shipped client appends
+        // a DWORD dwSiteCode when MODIFY_DIRECTLOGIN is set
+        // (TNationOption::SetNation enables it for JP + TW); legacy
+        // server's CSPLoginJP only reads the low byte as
+        // `bChanneling`, but we keep the full DWORD on the row so
+        // ops can trace the brokering partner end-to-end. Both
+        // updates are fire-and-forget — schema without these
+        // columns logs + continues so non-JP/TW builds keep
+        // working.
+        if (req.site_code_present && req.site_code != 0)
         {
+            try
+            {
+                sql << "UPDATE \"TCURRENTUSER\" SET \"dwSiteCode\" = :s "
+                       "WHERE \"dwKEY\" = :k",
+                    soci::use(static_cast<int>(req.site_code)),
+                    soci::use(session_key);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("auth: TCURRENTUSER.dwSiteCode update skipped: {}",
+                    ex.what());
+            }
+            // Legacy bChanneling = low byte projection. Kept as a
+            // separate column so the legacy CSPLoginJP SP signature
+            // round-trips. Catches independently from dwSiteCode so
+            // either column can exist alone.
             try
             {
                 sql << "UPDATE \"TCURRENTUSER\" SET \"bChanneling\" = :c "
                        "WHERE \"dwKEY\" = :k",
-                    soci::use(static_cast<int>(req.channeling)),
+                    soci::use(static_cast<int>(req.channeling())),
                     soci::use(session_key);
             }
             catch (const std::exception& ex)

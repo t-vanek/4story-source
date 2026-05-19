@@ -101,12 +101,15 @@ struct LoginReqFields
     std::int64_t  dl_check = 0;
     std::int64_t  ll_checksum = 0;
     bool          checksum_present = false;
-    // JP deployments append a single trailing BYTE bChanneling after
-    // llChecksum (CSHandler.cpp:173). Non-JP bodies don't carry it.
-    // Stays 0 / absent on the other locales — SOCI auth ignores it
-    // unless the deployment nation is Japan.
-    std::uint8_t  channeling = 0;
-    bool          channeling_present = false;
+    // JP/TW deployments append a trailing DWORD dwSiteCode after
+    // llChecksum (TNetSender.cpp:46, gated on MODIFY_DIRECTLOGIN
+    // which TNationOption::SetNation flips ON for both
+    // TNATION_JAPAN and TNATION_TAIWAN). Legacy server reads only
+    // the low byte as `bChanneling` (CSHandler.cpp:173-174); we
+    // capture the full DWORD for any consumer that wants the
+    // canonical wire value. Non-JP/TW bodies don't carry it.
+    std::uint32_t site_code = 0;
+    bool          site_code_present = false;
 };
 
 // Legacy CS_LOGIN_REQ trailing-checksum validator (CSHandler.cpp:185-202).
@@ -145,7 +148,7 @@ bool VerifyLoginChecksum(std::uint16_t version, std::int64_t recv_checksum)
 constexpr std::size_t kMaxLoginStringLen = 64;
 
 bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out,
-                   bool expect_channeling = false)
+                   bool expect_site_code = false)
 {
     std::size_t pos = 0;
     auto read_bytes = [&](void* dst, std::size_t n) -> bool {
@@ -184,11 +187,11 @@ bool ParseLoginReq(std::span<const std::byte> body, LoginReqFields& out,
         std::memcpy(&out.ll_checksum, body.data() + pos, 8); pos += 8;
         out.checksum_present = true;
     }
-    if (expect_channeling && pos + 1 <= body.size())
+    if (expect_site_code && pos + 4 <= body.size())
     {
-        out.channeling = static_cast<std::uint8_t>(body[pos]);
-        pos += 1;
-        out.channeling_present = true;
+        std::memcpy(&out.site_code, body.data() + pos, 4);
+        pos += 4;
+        out.site_code_present = true;
     }
     return true;
 }
@@ -376,20 +379,25 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
     {
         // Full path: parse the wire, delegate to IAuthService.
         LoginReqFields fields;
-        const bool jp = (nation == Nation::Japan);
-        if (!ParseLoginReq(body, fields, /*expect_channeling=*/jp))
+        // The shipped client appends a DWORD dwSiteCode tail when
+        // MODIFY_DIRECTLOGIN is set; TNationOption::SetNation flips
+        // that ON for Japan and Taiwan.
+        const bool expects_site_code =
+            (nation == Nation::Japan || nation == Nation::Taiwan);
+        if (!ParseLoginReq(body, fields, expects_site_code))
         {
             spdlog::warn("CS_LOGIN_REQ malformed body — closing session");
             sref.Close();
             co_return;
         }
-        if (jp && !fields.channeling_present)
+        if (expects_site_code && !fields.site_code_present)
         {
-            // JP deployment expects the trailing channeling byte. A
-            // missing one means either a non-JP client connected to
-            // a JP server, or a forged packet. Mirror legacy behavior:
+            // JP/TW deployment expects the trailing site_code DWORD.
+            // A missing one means either the wrong-locale client
+            // connected, or a forged packet. Mirror legacy behavior:
             // close.
-            spdlog::warn("CS_LOGIN_REQ (JP) missing bChanneling tail — closing");
+            spdlog::warn("CS_LOGIN_REQ ({}) missing dwSiteCode tail — closing",
+                nation == Nation::Japan ? "JP" : "TW");
             sref.Close();
             co_return;
         }
@@ -417,8 +425,8 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
                 .password = fields.password,
                 .client_ip = sref.RemoteIPv4(),
                 .client_version = fields.version,
-                .channeling = fields.channeling,
-                .channeling_present = fields.channeling_present,
+                .site_code = fields.site_code,
+                .site_code_present = fields.site_code_present,
             };
             const auto result = auth_service->Authenticate(req);
             ack.bResult    = static_cast<std::uint8_t>(result.status);

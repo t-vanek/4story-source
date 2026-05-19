@@ -61,7 +61,12 @@ CREATE TABLE "TCURRENTUSER" (
     "dEnterDate"   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "dwPcBangID"   INTEGER NOT NULL DEFAULT 0,
     "bLuckyNumber" SMALLINT NOT NULL DEFAULT 0,
-    "szLoginIP"    VARCHAR(50) NOT NULL DEFAULT ''
+    "szLoginIP"    VARCHAR(50) NOT NULL DEFAULT '',
+    -- JP-only: channeling partner the user authenticated through
+    -- (NHN/GMO/etc.). Legacy CSPLoginJP takes this as the bChanneling
+    -- IN-param; we persist it so admin / audit can later trace which
+    -- partner brokered the session. 0 on non-JP nations.
+    "bChanneling"  SMALLINT NOT NULL DEFAULT 0
 );
 CREATE INDEX "IDX_TCURRENTUSER_dwUserID" ON "TCURRENTUSER" ("dwUserID");
 

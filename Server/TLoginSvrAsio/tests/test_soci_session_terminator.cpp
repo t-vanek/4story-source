@@ -2,7 +2,7 @@
 // Validates the two-step cleanup (TCURRENTUSER delete + TLOG.timeLOGOUT
 // stamp) and the MapHandoff exception path (TCURRENTUSER stays alive).
 
-#include "../db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 #include "../services/soci_session_terminator.h"
 
 #include <soci/soci.h>
@@ -155,6 +155,55 @@ void RunTests(const std::string& conn)
             soci::use(s.user_id), soci::into(row_hits);
         Check(row_hits == 0,
             "Terminate(uid, 0, Disconnect) → TCURRENTUSER cleared by uid");
+    }
+
+    // 6. ClearStaleSessions — startup-recovery sweep. Seeds 3 rows
+    //    that look like a previous process's crash leftovers, then
+    //    calls the bulk clearer and asserts they're all gone. This
+    //    is the legacy ClearLoginUser/CSPClearLoginUser equivalent.
+    {
+        // Seed (don't bother SeedSession's TLOG insert — ClearStale
+        // only touches TCURRENTUSER, and the cleanup at function end
+        // deletes any uid range we touched).
+        {
+            auto lease = pool.Acquire();
+            soci::session& sql = *lease;
+            sql << "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
+                   "VALUES (:u, '127.0.0.1')", soci::use(base_uid + 10);
+            sql << "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
+                   "VALUES (:u, '127.0.0.1')", soci::use(base_uid + 11);
+            sql << "INSERT INTO \"TCURRENTUSER\" (\"dwUserID\", \"szLoginIP\") "
+                   "VALUES (:u, '127.0.0.1')", soci::use(base_uid + 12);
+        }
+
+        // ClearStaleSessions truncates EVERY TCURRENTUSER row, not
+        // just our PID range. Capture the pre-count so we can assert
+        // "at least the three we seeded" got wiped — anything else
+        // belongs to other tests sharing the DB and isn't our
+        // responsibility to defend against.
+        int before = 0;
+        {
+            auto lease = pool.Acquire();
+            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\"",
+                soci::into(before);
+        }
+        Check(before >= 3, "ClearStaleSessions: seeded rows visible");
+
+        const int cleared = svc.ClearStaleSessions();
+        Check(cleared == before,
+            "ClearStaleSessions: return value equals pre-count");
+
+        int after = 0;
+        {
+            auto lease = pool.Acquire();
+            *lease << "SELECT COUNT(*) FROM \"TCURRENTUSER\"",
+                soci::into(after);
+        }
+        Check(after == 0, "ClearStaleSessions: TCURRENTUSER is empty after sweep");
+
+        // Re-calling on an empty table returns 0 immediately.
+        Check(svc.ClearStaleSessions() == 0,
+            "ClearStaleSessions: idempotent on empty table");
     }
 
     // Cleanup.

@@ -175,6 +175,22 @@ target_link_libraries(test_tloginsvr_asio_event_registry PRIVATE
 add_test(NAME tloginsvr_asio_event_registry
     COMMAND test_tloginsvr_asio_event_registry)
 
+# Control-gate test — CT_* peer-IP discrimination (round 2 #1).
+add_executable(test_tloginsvr_asio_control_gate
+    ${TLOGINSVR_ASIO_SRC}/tests/test_control_gate.cpp)
+target_link_libraries(test_tloginsvr_asio_control_gate PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_control_gate
+    COMMAND test_tloginsvr_asio_control_gate)
+
+# Shutdown-sweep test — Snapshot + Terminate chain (round 2 #4).
+add_executable(test_tloginsvr_asio_shutdown_sweep
+    ${TLOGINSVR_ASIO_SRC}/tests/test_shutdown_sweep.cpp)
+target_link_libraries(test_tloginsvr_asio_shutdown_sweep PRIVATE
+    tloginsvr_asio_core)
+add_test(NAME tloginsvr_asio_shutdown_sweep
+    COMMAND test_tloginsvr_asio_shutdown_sweep)
+
 # SOCI integration tests — exercise the DB-backed service impls
 # directly against a real PostgreSQL. All skipped automatically if
 # TLOGINSVR_TEST_PG_CONN is not set so CI hosts without PG pass.

@@ -3,7 +3,7 @@
 // unset → test passes with 0/0. Seeds an isolated namespace per PID
 // so parallel runs (or cross-test pollution) don't collide.
 
-#include "../db/session_pool.h"
+#include "fourstory/db/session_pool.h"
 #include "../services/soci_char_service.h"
 
 #include <soci/soci.h>

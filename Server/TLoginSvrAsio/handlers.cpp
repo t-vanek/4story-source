@@ -583,7 +583,12 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
     //   BYTE  bCount
     //   DWORD dwCheckPoint  — formerly file-integrity nonce; we send 0
     //   per group: STRING szNAME (INT32 len + bytes), BYTE bGroupID,
-    //              BYTE bType, BYTE bStatus, BYTE bFlags
+    //              BYTE bType, BYTE bStatus,
+    //              BYTE bCount   ← "user owns a char in this group?" (0/1)
+    // An earlier revision sent g.flags (= TGROUP.bUseRate) here, which
+    // the client interprets as "you have a char here", so every group
+    // was rendered un-decorated. Fixed to match legacy semantics
+    // (DBAccess.h:339, COLUMN_ENTRY(m_bCount)).
     ByteAppender out;
     const std::uint8_t count = static_cast<std::uint8_t>(
         std::min<std::size_t>(groups.size(), 255));
@@ -596,7 +601,7 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
         out.U8(g.group_id);
         out.U8(g.type);
         out.U8(static_cast<std::uint8_t>(g.status));
-        out.U8(g.flags);
+        out.U8(g.has_char);
     }
 
     spdlog::info("CS_GROUPLIST_REQ → CS_GROUPLIST_ACK ({} groups)", count);

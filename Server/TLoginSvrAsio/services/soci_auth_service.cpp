@@ -317,6 +317,27 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             soci::use(user_id), soci::use(req.client_ip),
             soci::into(session_key);
 
+        // JP channeling persistence (legacy CSPLoginJP's bChanneling
+        // IN-param). Update is fire-and-forget: if the column isn't in
+        // the deployed schema, log + continue — the legacy login flow
+        // doesn't fail when the JP-specific column is missing on a
+        // non-JP build.
+        if (req.channeling_present && req.channeling != 0)
+        {
+            try
+            {
+                sql << "UPDATE \"TCURRENTUSER\" SET \"bChanneling\" = :c "
+                       "WHERE \"dwKEY\" = :k",
+                    soci::use(static_cast<int>(req.channeling)),
+                    soci::use(session_key);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::debug("auth: TCURRENTUSER.bChanneling update skipped: {}",
+                    ex.what());
+            }
+        }
+
         // Stamp TACCOUNT_PW.dLastLogin (TLogin SP final UPDATE).
         sql << "UPDATE \"TACCOUNT_PW\" SET \"dLastLogin\" = CURRENT_TIMESTAMP "
                "WHERE \"dwUserID\" = :uid",

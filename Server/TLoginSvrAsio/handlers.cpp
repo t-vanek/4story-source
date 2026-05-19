@@ -436,6 +436,19 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
             ack.bCreateCnt = result.create_char_count;
             ack.bInPcBang  = result.in_pc_bang;
             ack.dwPremium  = result.premium_id;
+            // dlCheck is the client's XOR-hash of its own TClient.exe
+            // (TClient.cpp:498-503). Legacy anti-cheat used it to gate
+            // login; we log it (debug level) so ops can correlate
+            // hash → known build fingerprint when investigating an
+            // incident, without paying the legacy gate's enforcement
+            // cost. Zero when the client elected not to send the
+            // optional checksum tail (older test tooling).
+            if (fields.checksum_present)
+            {
+                spdlog::debug("CS_LOGIN_REQ user={} client_hash=0x{:016X}",
+                    fields.user_id,
+                    static_cast<std::uint64_t>(fields.dl_check));
+            }
             spdlog::info("CS_LOGIN_REQ user={} → status={} key=0x{:08X}",
                 fields.user_id, ack.bResult, ack.dwKEY);
 

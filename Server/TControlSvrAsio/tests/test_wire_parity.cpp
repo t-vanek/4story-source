@@ -404,6 +404,33 @@ void TestServiceDataClearReqResetsCounters()
     EXPECT(st->stop_count == 0);
 }
 
+void TestServiceUploadStub()
+{
+    // Plan §6: CT_SERVICEUPLOAD* is intentionally disabled. The
+    // operator GUI must receive an explicit failure ack (bRet=2)
+    // for UPLOADSTART and a matching terminating ack for UPLOADEND,
+    // not a silent drop.
+    Harness h;
+    auto op = h.Login("all", "pw");
+
+    // UPLOADSTART → fail.
+    std::vector<std::byte> body;
+    tcontrolsvr::wire::WritePOD<std::uint8_t>(body, 1);     // machine_id
+    tcontrolsvr::wire::WriteString(body, std::string("ignored.bin"));
+    SendFramed(op, ToUint16(MessageId::CT_SERVICEUPLOADSTART_REQ), body);
+    auto ack = RecvFramed(op);
+    EXPECT(ack.wId == ToUint16(MessageId::CT_SERVICEUPLOADSTART_ACK));
+    EXPECT(ack.body.size() == 1);
+    EXPECT(static_cast<std::uint8_t>(ack.body[0]) == 2);
+
+    // UPLOADEND → terminating fail.
+    SendFramed(op, ToUint16(MessageId::CT_SERVICEUPLOADEND_REQ), {});
+    auto end_ack = RecvFramed(op);
+    EXPECT(end_ack.wId == ToUint16(MessageId::CT_SERVICEUPLOADEND_ACK));
+    EXPECT(end_ack.body.size() == 1);
+    EXPECT(static_cast<std::uint8_t>(end_ack.body[0]) == 2);
+}
+
 void TestEventUpdateReqAppendsEventInfo()
 {
     // After F4 was patched to write the full EventInfo body, the
@@ -463,6 +490,7 @@ int main()
     TestMonActionReqForwarder();
     TestItemFindReqForwarder();
     TestServiceDataClearReqResetsCounters();
+    TestServiceUploadStub();
     TestEventUpdateReqAppendsEventInfo();
     if (g_fails) { std::fprintf(stderr, "%d failure(s)\n", g_fails); return 1; }
     std::printf("ok\n");

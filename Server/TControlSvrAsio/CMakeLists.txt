@@ -145,3 +145,15 @@ target_link_libraries(test_tcontrolsvr_asio_wire_parity PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_wire_parity
     COMMAND test_tcontrolsvr_asio_wire_parity)
+
+# SOCI integration suite: exercises the five SOCI repositories
+# against a live database. Skips cleanly when neither
+# TCONTROLSVR_TEST_PG_CONN nor TCONTROLSVR_TEST_MSSQL_CONN is in
+# the environment, matching the convention from
+# Server/TLoginSvrAsio/tests and Server/TPatchSvrAsio/tests.
+add_executable(test_tcontrolsvr_asio_soci_repositories
+    ${TCONTROL_ASIO_SRC}/tests/test_soci_repositories.cpp)
+target_link_libraries(test_tcontrolsvr_asio_soci_repositories PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_soci_repositories
+    COMMAND test_tcontrolsvr_asio_soci_repositories)

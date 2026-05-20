@@ -317,6 +317,19 @@ Dispatch(std::shared_ptr<OperatorSession> op,
     case MessageId::CT_PLATFORM_REQ:
         co_await OnPlatformReq(std::move(op), std::move(body), ctx);
         break;
+
+    // Disabled-feature stubs (CT_SERVICEUPLOAD* — UNC-share upload
+    // path, plan §6 out-of-scope). The GUI gets an explicit failure
+    // ack instead of a silent drop.
+    case MessageId::CT_SERVICEUPLOADSTART_REQ:
+        co_await OnServiceUploadStartReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICEUPLOAD_REQ:
+        co_await OnServiceUploadReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICEUPLOADEND_REQ:
+        co_await OnServiceUploadEndReq(std::move(op), std::move(body), ctx);
+        break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap
         // so the bring-up notes can surface what TController.exe

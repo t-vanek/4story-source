@@ -552,4 +552,24 @@ boost::asio::awaitable<void> SendServiceDataClearAck(
         ToUint16(MessageId::CT_SERVICEDATACLEAR_ACK), {});
 }
 
+boost::asio::awaitable<void> SendServiceUploadEndAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t>(body, ret);
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CT_SERVICEUPLOADEND_ACK), std::move(body));
+}
+
+boost::asio::awaitable<void> SendServiceUploadStartAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t>(body, ret);
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CT_SERVICEUPLOADSTART_ACK), std::move(body));
+}
+
 } // namespace tcontrolsvr::senders

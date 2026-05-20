@@ -364,4 +364,23 @@ boost::asio::awaitable<void> SendPlatformAck(
 boost::asio::awaitable<void> SendServiceDataClearAck(
     const std::shared_ptr<ControlSession>& sess);
 
+// CT_SERVICEUPLOADEND_ACK = { BYTE bRet }
+//   1 = upload-in-progress (someone else holds the slot)
+//   2 = machine ID not found
+//   3 = local file open error
+//   4 = backup file create error
+// Legacy uses these as failure codes; the modern server fires
+// bRet=2 across the board to indicate "feature unavailable" without
+// adding a new wire enum value.
+boost::asio::awaitable<void> SendServiceUploadEndAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret);
+
+// CT_SERVICEUPLOADSTART_ACK = { BYTE bRet }
+//   ACK_SUCCESS (= 1) when the file slot is reserved; any other
+//   value is a failure with the same numbering as UPLOADEND_ACK.
+boost::asio::awaitable<void> SendServiceUploadStartAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret);
+
 } // namespace tcontrolsvr::senders

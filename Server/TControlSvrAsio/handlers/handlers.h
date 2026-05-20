@@ -363,5 +363,27 @@ boost::asio::awaitable<void> OnPeerCashItemSaleAck(
     std::vector<std::byte> body,
     const HandlerContext& ctx);
 
+// CT_SERVICEUPLOAD* — operator wants to push a binary onto a peer
+// machine via UNC share. Intentionally not implemented (see
+// _rewrite/docs/CONTROL_SERVER_PORT_PLAN.md §6 — UNC-share
+// fileshare is Windows-only + a security anti-pattern, replaced
+// by CI/CD pipelines). The handler replies with the legacy
+// failure code so the GUI shows an error instead of dropping the
+// packet silently.
+boost::asio::awaitable<void> OnServiceUploadStartReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnServiceUploadReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnServiceUploadEndReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
 } // namespace handlers
 } // namespace tcontrolsvr

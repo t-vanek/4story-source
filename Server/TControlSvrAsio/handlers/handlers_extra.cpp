@@ -351,4 +351,48 @@ OnPeerCashItemSaleAck(std::shared_ptr<PeerSession> /*peer*/,
     co_return;
 }
 
+// CT_SERVICEUPLOAD* — disabled-feature stub. Always returns failure
+// code 2 ("machine not found", reused as "feature unavailable")
+// for UPLOADSTART; UPLOAD chunks are silently swallowed because
+// the operator GUI stops sending after UPLOADSTART rejects.
+// UPLOADEND replies with the same code so a stuck GUI still
+// receives a terminating ack.
+boost::asio::awaitable<void>
+OnServiceUploadStartReq(std::shared_ptr<OperatorSession> op,
+                        std::vector<std::byte> /*body*/,
+                        const HandlerContext& ctx)
+{
+    if (!op->LoggedIn()) co_return;
+    spdlog::info("CT_SERVICEUPLOADSTART_REQ from op='{}' — feature "
+                 "disabled (UNC-share upload is intentionally not "
+                 "implemented; use the CI/CD pipeline instead)",
+        op->UserId());
+    if (ctx.audit)
+        ctx.audit->LogAdminAction(op->UserId(),
+            "service_upload_rejected", "disabled");
+    co_await senders::SendServiceUploadStartAck(op->Wire(), 2);
+}
+
+boost::asio::awaitable<void>
+OnServiceUploadReq(std::shared_ptr<OperatorSession> op,
+                   std::vector<std::byte> /*body*/,
+                   const HandlerContext& /*ctx*/)
+{
+    // The GUI should not reach this branch — UPLOADSTART always
+    // fails. If it does (out-of-spec client), drop the chunk
+    // silently. Logging at debug so a curious operator can spot it.
+    spdlog::debug("CT_SERVICEUPLOAD_REQ chunk from op='{}' — dropped "
+                  "(feature disabled)", op->UserId());
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnServiceUploadEndReq(std::shared_ptr<OperatorSession> op,
+                      std::vector<std::byte> /*body*/,
+                      const HandlerContext& /*ctx*/)
+{
+    if (!op->LoggedIn()) co_return;
+    co_await senders::SendServiceUploadEndAck(op->Wire(), 2);
+}
+
 } // namespace tcontrolsvr::handlers

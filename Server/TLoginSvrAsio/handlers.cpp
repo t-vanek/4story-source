@@ -36,12 +36,15 @@
 
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <optional>
 #include <random>
 #include <string>
 
@@ -337,7 +340,8 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
            fourstory::ops::LoginRateLimiter* rate_limiter,
            std::span<const std::uint16_t> accepted_versions,
            fourstory::smtp::ISmtpClient* smtp_client,
-           Nation nation)
+           Nation nation,
+           boost::asio::thread_pool* db_pool)
 {
     // Default to the legacy single value if the caller passed nothing.
     // This keeps the unit-test path (which doesn't thread the config)
@@ -460,7 +464,8 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
                 .site_code = fields.site_code,
                 .site_code_present = fields.site_code_present,
             };
-            const auto result = auth_service->Authenticate(req);
+            const auto result = co_await fourstory::db::CoOffloadIf(
+                db_pool, [&] { return auth_service->Authenticate(req); });
             ack.bResult    = static_cast<std::uint8_t>(result.status);
             ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
             ack.dwCharID   = result.last_char_id;   // legacy: SP TLogin OUT m_dwCharID
@@ -494,8 +499,12 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
                 && connection_registry != nullptr
                 && auth_service != nullptr)
             {
-                const std::string code = auth_service->IssueSecurityCode(result.user_id);
-                const auto email_rec = auth_service->LookupEmail(result.user_id);
+                const std::string code = co_await fourstory::db::CoOffloadIf(
+                    db_pool,
+                    [&] { return auth_service->IssueSecurityCode(result.user_id); });
+                const auto email_rec = co_await fourstory::db::CoOffloadIf(
+                    db_pool,
+                    [&] { return auth_service->LookupEmail(result.user_id); });
                 if (!code.empty() && email_rec && smtp_client != nullptr)
                 {
                     smtp_client->Send(email_rec->email,
@@ -607,7 +616,8 @@ boost::asio::awaitable<void>
 OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
                std::span<const std::byte> /*body*/,
                services::IMapServerLocator* map_server_locator,
-               services::IConnectionRegistry* connection_registry)
+               services::IConnectionRegistry* connection_registry,
+               boost::asio::thread_pool* db_pool)
 {
     auto& sref = *session;
 
@@ -629,7 +639,8 @@ OnGroupListReq(std::shared_ptr<tnetlib::AsioSession> session,
     if (map_server_locator != nullptr)
     {
         const auto user_id = ResolveUserId(session, connection_registry);
-        groups = map_server_locator->ListGroups(user_id);
+        groups = co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] { return map_server_locator->ListGroups(user_id); });
     }
 
     // Ack layout (legacy CSHandler.cpp:506-541):
@@ -667,7 +678,8 @@ boost::asio::awaitable<void>
 OnChannelListReq(std::shared_ptr<tnetlib::AsioSession> session,
                  std::span<const std::byte> body,
                  services::IMapServerLocator* map_server_locator,
-                 services::IConnectionRegistry* connection_registry)
+                 services::IConnectionRegistry* connection_registry,
+                 boost::asio::thread_pool* db_pool)
 {
     auto& sref = *session;
     // Same agreement gate as GROUPLIST — see legacy CSHandler.cpp:555.
@@ -685,7 +697,8 @@ OnChannelListReq(std::shared_ptr<tnetlib::AsioSession> session,
     std::vector<services::ChannelInfo> channels;
     if (map_server_locator != nullptr)
     {
-        channels = map_server_locator->ListChannels(groupId);
+        channels = co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] { return map_server_locator->ListChannels(groupId); });
     }
 
     // Ack layout (legacy CSHandler.cpp:560-587):
@@ -715,7 +728,8 @@ boost::asio::awaitable<void>
 OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
               std::span<const std::byte> body,
               services::ICharService* char_service,
-              services::IConnectionRegistry* connection_registry)
+              services::IConnectionRegistry* connection_registry,
+              boost::asio::thread_pool* db_pool)
 {
     auto& sref = *session;
     const auto groupId = body.empty()
@@ -745,7 +759,8 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
     std::vector<services::CharacterInfo> chars;
     if (char_service != nullptr && userId != 0)
     {
-        chars = char_service->List(userId, groupId);
+        chars = co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] { return char_service->List(userId, groupId); });
     }
 
     // Wire layout (verified against TClient/TNetHandler.cpp:372-415):
@@ -819,11 +834,13 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
     // came from.
     if (char_service != nullptr && userId != 0)
     {
-        std::int32_t shard_char_id = char_service->GetBowCharId(userId);
+        std::int32_t shard_char_id = co_await fourstory::db::CoOffloadIf(
+            db_pool, [&] { return char_service->GetBowCharId(userId); });
         const char* shard_kind = "bow";
         if (shard_char_id == 0)
         {
-            shard_char_id = char_service->GetBrCharId(userId);
+            shard_char_id = co_await fourstory::db::CoOffloadIf(
+                db_pool, [&] { return char_service->GetBrCharId(userId); });
             shard_kind = "br";
         }
         if (shard_char_id != 0)
@@ -913,7 +930,8 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
                 services::ICharService* char_service,
                 services::IConnectionRegistry* connection_registry,
                 fourstory::audit::IAuditLogger* audit_logger,
-                Nation nation)
+                Nation nation,
+                boost::asio::thread_pool* db_pool)
 {
     auto& sref = *session;
 
@@ -992,7 +1010,8 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         co_return;
     }
 
-    const auto result = char_service->Create(req);
+    const auto result = co_await fourstory::db::CoOffloadIf(db_pool,
+        [&] { return char_service->Create(req); });
 
     // Ack wire layout (CSSender.cpp:68-103):
     //   BYTE bResult, DWORD dwCharID, STRING strName,
@@ -1040,7 +1059,8 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
              services::ICharService* char_service,
              services::IConnectionRegistry* connection_registry,
              services::IAuthService* auth_service,
-             fourstory::audit::IAuditLogger* audit_logger)
+             fourstory::audit::IAuditLogger* audit_logger,
+             boost::asio::thread_pool* db_pool)
 {
     auto& sref = *session;
 
@@ -1130,7 +1150,10 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
     // Match on success → continue; mismatch → DR_INVALIDPASSWD;
     // DB error → DR_INTERNAL. Null auth_service path keeps the
     // in-memory smoke-test behavior (accept anything).
-    if (auth_service != nullptr && !auth_service->VerifyPassword(user_id, password))
+    const bool password_ok = (auth_service == nullptr) ||
+        co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] { return auth_service->VerifyPassword(user_id, password); });
+    if (auth_service != nullptr && !password_ok)
     {
         spdlog::info("CS_DELCHAR_REQ user={} → DR_INVALIDPASSWD (password mismatch)",
             user_id);
@@ -1144,7 +1167,8 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         co_return;
     }
 
-    const auto result = char_service->Delete(user_id, group_id, char_id, password);
+    const auto result = co_await fourstory::db::CoOffloadIf(db_pool,
+        [&] { return char_service->Delete(user_id, group_id, char_id, password); });
     spdlog::info("CS_DELCHAR_REQ user={} group={} char={} → {}",
         user_id, group_id, char_id, static_cast<std::uint8_t>(result));
     if (audit_logger != nullptr)
@@ -1160,7 +1184,8 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
            std::span<const std::byte> body,
            services::IMapServerLocator* map_server_locator,
            services::IConnectionRegistry* connection_registry,
-           fourstory::audit::IAuditLogger* audit_logger)
+           fourstory::audit::IAuditLogger* audit_logger,
+           boost::asio::thread_pool* db_pool)
 {
     auto& sref = *session;
 
@@ -1192,14 +1217,20 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
     std::uint8_t resolved_server_id = 0;
     bool start_ok = false;
 
+    auto ep = (map_server_locator == nullptr)
+        ? std::optional<services::MapEndpoint>{}
+        : co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] {
+                return map_server_locator->Lookup(
+                    resolved_user_id, bGroupID, bChannel, dwCharID);
+            });
     if (map_server_locator == nullptr)
     {
         payload[0] = static_cast<std::byte>(kSrNoServer);
         spdlog::info("CS_START_REQ group={} ch={} char={} → CS_START_ACK (stub: SR_NOSERVER)",
             bGroupID, bChannel, dwCharID);
     }
-    else if (auto ep = map_server_locator->Lookup(
-                 resolved_user_id, bGroupID, bChannel, dwCharID))
+    else if (ep)
     {
         payload[0] = static_cast<std::byte>(0); // SR_SUCCESS
         start_ok = true;
@@ -1255,7 +1286,8 @@ boost::asio::awaitable<void>
 OnAgreementReq(std::shared_ptr<tnetlib::AsioSession> session,
                std::span<const std::byte> body,
                services::IAuthService* auth_service,
-               services::IConnectionRegistry* connection_registry)
+               services::IConnectionRegistry* connection_registry,
+               boost::asio::thread_pool* db_pool)
 {
     // No ack. Body is WORD wVersion. Legacy SP CSPAgreement sets
     // TACCOUNT_PW.bCheck=1 + flips per-session m_bAgreement. The new
@@ -1268,7 +1300,8 @@ OnAgreementReq(std::shared_ptr<tnetlib::AsioSession> session,
     const auto user_id = ResolveUserId(session, connection_registry);
     if (auth_service != nullptr && user_id != 0)
     {
-        auth_service->SetAgreement(user_id);
+        co_await fourstory::db::CoOffloadVoidIf(db_pool,
+            [&] { auth_service->SetAgreement(user_id); });
         if (connection_registry != nullptr)
         {
             // Flip the per-session gate so the next CHARLIST/START
@@ -1309,7 +1342,8 @@ OnHotsendReq(std::shared_ptr<tnetlib::AsioSession> /*session*/,
 boost::asio::awaitable<void>
 OnVeteranReq(tnetlib::AsioSession& session,
              std::span<const std::byte> /*body*/,
-             services::ICharService* char_service)
+             services::ICharService* char_service,
+             boost::asio::thread_pool* db_pool)
 {
     // Ack: BYTE bOption, BYTE bFirstLevel, BYTE bSecondLevel,
     // BYTE bThirdLevel. Legacy sends bOption=3 ("all three options
@@ -1320,7 +1354,8 @@ OnVeteranReq(tnetlib::AsioSession& session,
     std::uint8_t option = 0;
     if (char_service != nullptr)
     {
-        levels = char_service->GetVeteranLevels();
+        levels = co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] { return char_service->GetVeteranLevels(); });
         // If the chart is empty (all zeros) keep bOption=0 so the
         // client can detect "no veteran feature" — matches legacy
         // safer default than always reporting "available".
@@ -1376,7 +1411,8 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
                      std::span<const std::byte> body,
                      services::IAuthService* auth_service,
                      services::IConnectionRegistry* connection_registry,
-                     fourstory::audit::IAuditLogger* audit_logger)
+                     fourstory::audit::IAuditLogger* audit_logger,
+                     boost::asio::thread_pool* db_pool)
 {
     auto& sref = *session;
 
@@ -1419,10 +1455,11 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
         spdlog::warn("CS_SECURITYCONFIRM_ACK empty/anon (uid={} code_len={})",
             user_id, code.size());
     }
-    else if (auth_service != nullptr
-             && auth_service->VerifySecurityCode(user_id, code))
+    else if (auth_service != nullptr)
     {
-        result_code = kCodeCorrect;
+        const bool ok = co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] { return auth_service->VerifySecurityCode(user_id, code); });
+        if (ok) result_code = kCodeCorrect;
     }
 
     std::byte payload[1] = { static_cast<std::byte>(result_code) };
@@ -1439,9 +1476,13 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
     if (was_awaiting_security && result_code == kCodeCorrect
         && auth_service != nullptr && connection_registry != nullptr)
     {
-        auth_service->AddTrustedIp(user_id, client_ip);
-        const std::uint32_t key = auth_service->CompleteSecurityLogin(
-            user_id, client_ip);
+        co_await fourstory::db::CoOffloadVoidIf(db_pool,
+            [&] { auth_service->AddTrustedIp(user_id, client_ip); });
+        const std::uint32_t key = co_await fourstory::db::CoOffloadIf(
+            db_pool, [&] {
+                return auth_service->CompleteSecurityLogin(
+                    user_id, client_ip);
+            });
         if (key == 0)
         {
             spdlog::error("CS_SECURITYCONFIRM_ACK uid={} — complete login "
@@ -1457,7 +1498,8 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
         LoginAck ack{};
         ack.bResult    = static_cast<std::uint8_t>(services::AuthStatus::Success);
         ack.dwUserID   = static_cast<std::uint32_t>(user_id);
-        ack.dwCharID   = auth_service->LookupLastCharId(user_id);
+        ack.dwCharID   = co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] { return auth_service->LookupLastCharId(user_id); });
         ack.dwKEY      = key;
         ack.bCreateCnt = 6;
         ack.dCurTime = static_cast<std::int64_t>(
@@ -1692,7 +1734,8 @@ OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession> session,
                std::span<const std::byte> /*body*/,
                services::IAuthService* auth_service,
                services::IConnectionRegistry* connection_registry,
-               fourstory::audit::IAuditLogger* audit_logger)
+               fourstory::audit::IAuditLogger* audit_logger,
+               boost::asio::thread_pool* db_pool)
 {
     auto& sref = *session;
     LoginAck ack{};
@@ -1709,7 +1752,9 @@ OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession> session,
     }
     else
     {
-        const auto result = auth_service->AuthenticateTest(sref.RemoteIPv4());
+        const auto remote_ip = sref.RemoteIPv4();
+        const auto result = co_await fourstory::db::CoOffloadIf(db_pool,
+            [&] { return auth_service->AuthenticateTest(remote_ip); });
         ack.bResult    = static_cast<std::uint8_t>(result.status);
         ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
         ack.dwCharID   = result.last_char_id;

@@ -49,6 +49,16 @@ struct DbConfig
     // (legacy blocking behavior — only for tests that intentionally
     // want to deadlock on an exhausted pool).
     std::uint32_t acquire_timeout_secs = 30;
+
+    // Worker threads for off-loop SOCI calls. Handlers wrap their
+    // SOCI calls in fourstory::db::CoOffloadIf — when this is > 0
+    // the work runs on a worker thread, keeping the io_context
+    // responsive under DB latency. 0 = legacy in-line behavior
+    // (handler coroutine blocks on the SOCI session for its
+    // duration). Recommended 2–4 for production; the workers
+    // share `pool_size` SOCI sessions so worker_threads <= pool_size
+    // is reasonable.
+    std::size_t   worker_threads = 4;
 };
 
 // Optional SMTP relay config. Empty `host` keeps the binary on the

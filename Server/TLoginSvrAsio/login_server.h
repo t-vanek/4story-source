@@ -9,6 +9,8 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+namespace boost::asio { class thread_pool; }
+
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -75,6 +77,14 @@ struct LoginServerConfig
     // Non-owning. Null falls back to Phase-3 stubs (empty list /
     // CR_INTERNAL / DR_INTERNAL).
     services::ICharService* char_service = nullptr;
+
+    // Optional worker pool for off-loop SOCI calls. When null
+    // (default), handlers run SOCI in-line on the io_context
+    // (legacy behavior); when non-null, every Auth/Char/MapLocator
+    // call goes through fourstory::db::CoOffloadIf so the reactor
+    // stays responsive under DB latency. Production wiring lives
+    // in main.cpp.
+    boost::asio::thread_pool* db_pool = nullptr;
 
     // Accepted client wire versions (CS_LOGIN_REQ.wVersion). Defaults
     // to the single legacy value 0x2918 (ProtocolBase.h::TVERSION).
@@ -173,6 +183,7 @@ private:
     tnetlib::AsioListener    m_listener;
     std::vector<std::byte>   m_rc4_secret_key; // copied from config; empty = no RC4
     services::IAuthService*        m_auth_service = nullptr;         // non-owning; null = stub mode
+    boost::asio::thread_pool*      m_db_pool = nullptr;              // non-owning; null = in-line SOCI
     services::IConnectionRegistry* m_connection_registry = nullptr;  // non-owning; null = no duplicate-kick
     services::IMapServerLocator*   m_map_server_locator = nullptr;   // non-owning; null = stub SR_NOSERVER
     services::ISessionTerminator*  m_session_terminator = nullptr;   // non-owning; null = no close-time cleanup

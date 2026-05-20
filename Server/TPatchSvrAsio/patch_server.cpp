@@ -145,6 +145,7 @@ PatchServer::HandleConnection(std::shared_ptr<PatchSession> session)
             ctx.login_port    = m_cfg.login_port;
             ctx.session_count = m_live_sessions.load();
             ctx.server        = this;
+            ctx.db_pool       = m_cfg.db_pool;
 
             const auto id = ToMessageId(pkt.wId);
             switch (id)

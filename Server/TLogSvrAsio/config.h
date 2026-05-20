@@ -14,6 +14,13 @@ struct DbConfig
     std::string  backend;
     std::string  connection_string;
     std::size_t  pool_size = 4;
+    // Worker threads for off-loop SOCI INSERTs. Single thread
+    // preserves FIFO ordering between UDP datagrams; multi-thread
+    // pools work too (retry queue + drain semantics still hold)
+    // but may reorder INSERTs. 0 = legacy in-line behavior
+    // (INSERT runs on the UDP receive coroutine, blocks the io
+    // context on DB latency).
+    std::size_t  worker_threads = 1;
 };
 
 struct RetryConfig

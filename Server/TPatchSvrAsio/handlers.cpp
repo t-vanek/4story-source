@@ -3,6 +3,8 @@
 
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <chrono>
@@ -275,7 +277,17 @@ OnPrePatchComplete(std::shared_ptr<PatchSession> session,
 {
     std::uint32_t beta_ver = 0;
     ReadDWORD(body, 0, beta_ver);
-    if (ctx.repo) ctx.repo->MarkPreVersionComplete(beta_ver);
+    if (ctx.repo)
+    {
+        // MarkPreVersionComplete runs a MERGE+DELETE transaction —
+        // the slowest call path in this server. Offload to a worker
+        // when a db_pool is wired so the patch_session coroutine
+        // doesn't block the io_context for the duration of the txn.
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.repo, beta_ver] {
+                repo->MarkPreVersionComplete(beta_ver);
+            });
+    }
     spdlog::info("CT_PREPATCHCOMPLETE_REQ beta_ver={} — closing", beta_ver);
     session->Close();
     co_return;

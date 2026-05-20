@@ -55,6 +55,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -201,6 +202,7 @@ int main(int argc, char** argv)
         // later (only after [database] is validated).
         std::unique_ptr<fourstory::db::SessionPool>                  global_pool;
         std::unique_ptr<fourstory::db::SessionPool>                  world_pool;
+        std::unique_ptr<boost::asio::thread_pool>                    db_pool;
         std::unique_ptr<tloginsvr::services::SociAuthService>        soci_auth;
         std::unique_ptr<tloginsvr::services::SociCharService>        soci_char;
         std::unique_ptr<tloginsvr::services::SociMapServerLocator>   soci_map;
@@ -264,6 +266,24 @@ int main(int argc, char** argv)
                 std::chrono::seconds(cfg.database.acquire_timeout_secs));
             tloginsvr::db::ValidateGlobalSchema(*global_pool);
 
+            // Worker pool for off-loop SOCI calls. Handlers call
+            // through fourstory::db::CoOffloadIf — non-null pool
+            // moves the SOCI work off the io_context thread, keeping
+            // the reactor responsive when the DB is slow. Sized off
+            // cfg.database.worker_threads (0 = legacy in-line).
+            if (cfg.database.worker_threads > 0)
+            {
+                db_pool = std::make_unique<boost::asio::thread_pool>(
+                    cfg.database.worker_threads);
+                spdlog::info("db worker pool: {} thread(s)",
+                    cfg.database.worker_threads);
+            }
+            else
+            {
+                spdlog::info("db worker pool: disabled "
+                             "(SOCI calls run on io_context thread)");
+            }
+
             if (!cfg.database_world.connection_string.empty())
             {
                 if (cfg.database_world.backend.empty())
@@ -297,6 +317,7 @@ int main(int argc, char** argv)
             cfg.server.map_server_locator  = soci_map.get();
             cfg.server.session_terminator  = soci_term.get();
             cfg.server.audit_logger        = audit.get();
+            cfg.server.db_pool             = db_pool.get();
 
             // Char service needs both pools; only wire it when the world
             // DB is configured. Without TGAME we'd be unable to do real
@@ -388,6 +409,14 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        // Drain the SOCI worker pool so an in-flight handler call
+        // doesn't lose its session lease on shutdown.
+        if (db_pool)
+        {
+            db_pool->stop();
+            db_pool->join();
+        }
     }
     catch (const std::exception& ex)
     {

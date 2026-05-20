@@ -5,12 +5,17 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/redirect_error.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/asio/thread_pool.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
+
+#include <functional>
+#include <utility>
 
 #include <utility>
 
@@ -150,46 +155,75 @@ bool SociLogSink::TryInsert(const LogRecord& rec)
     return true;
 }
 
-void SociLogSink::Write(const LogRecord& rec)
+namespace {
+// Body of the SOCI-INSERT-then-fall-back-to-queue logic. Shared
+// between the in-line path and the worker-pool path so behavior
+// stays identical regardless of which thread runs it.
+void RunInsertOrQueue(SociLogSink& self,
+                      LogRecord rec,
+                      RetryQueue& queue,
+                      std::atomic<std::uint64_t>& inserts,
+                      std::atomic<std::uint64_t>& enqueued,
+                      std::atomic<std::uint64_t>& drops_full,
+                      std::function<bool(const LogRecord&)> try_insert)
 {
+    (void)self;
     // If we already have a backlog the drain loop is working through,
     // don't interleave a fresh INSERT — keep ordering and put the
     // new record on the tail. The drain loop picks it up in turn
     // once the DB recovers.
-    //
-    // Without this short-circuit, fresh records would race past
-    // records that have been waiting in the queue, which violates
-    // the legacy "FIFO retry" semantics
-    // (`CUdpSocket.cpp::ReadPacket` requeues to tail, read thread
-    // pops from head).
-    if (!m_queue->Empty())
+    if (!queue.Empty())
     {
-        if (m_queue->PushBack(rec)) m_enqueued.fetch_add(1);
-        else                        m_drops_full.fetch_add(1);
+        if (queue.PushBack(rec)) enqueued.fetch_add(1);
+        else                     drops_full.fetch_add(1);
         return;
     }
-
-    // Queue is empty — try the direct path first.
     try
     {
-        if (TryInsert(rec))
+        if (try_insert(rec))
         {
-            m_inserts.fetch_add(1);
+            inserts.fetch_add(1);
             return;
         }
     }
     catch (const std::exception& ex)
     {
-        // First failure into a previously-quiet sink is worth logging
-        // at warn so operators see the DB hiccup landed; subsequent
-        // failures while the queue is non-empty are quieter (handled
-        // by the drain loop's own logs).
         spdlog::warn("log_sink: INSERT failed (action={} uid={} ip={}) "
                      "— buffering for retry: {}",
             rec.action, rec.search_int[0], rec.client_ip, ex.what());
     }
-    if (m_queue->PushBack(rec)) m_enqueued.fetch_add(1);
-    else                        m_drops_full.fetch_add(1);
+    if (queue.PushBack(std::move(rec))) enqueued.fetch_add(1);
+    else                                drops_full.fetch_add(1);
+}
+} // namespace
+
+void SociLogSink::SetWorkerPool(boost::asio::thread_pool* pool)
+{
+    m_worker_pool = pool;
+}
+
+void SociLogSink::Write(const LogRecord& rec)
+{
+    // Off-loop path: post the INSERT work to the worker pool so the
+    // caller's executor (typically the UDP receive coroutine on the
+    // io_context) doesn't block on DB latency. A single-thread pool
+    // preserves FIFO ordering; multi-thread pools may reorder but
+    // the retry queue still maintains correctness.
+    if (m_worker_pool != nullptr)
+    {
+        boost::asio::post(*m_worker_pool,
+            [this, rec]() mutable {
+                RunInsertOrQueue(*this, std::move(rec), *m_queue,
+                    m_inserts, m_enqueued, m_drops_full,
+                    [this](const LogRecord& r) { return TryInsert(r); });
+            });
+        return;
+    }
+
+    // Legacy in-line path: caller's thread runs SOCI directly.
+    RunInsertOrQueue(*this, rec, *m_queue,
+        m_inserts, m_enqueued, m_drops_full,
+        [this](const LogRecord& r) { return TryInsert(r); });
 }
 
 void SociLogSink::StartDrainLoop(boost::asio::io_context& io)

@@ -10,6 +10,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -55,6 +56,7 @@ int main(int argc, char** argv)
         });
 
         std::unique_ptr<fourstory::db::SessionPool> pool;
+        std::unique_ptr<boost::asio::thread_pool>   db_pool;
         std::unique_ptr<tlogsvr::ILogSink>           sink;
         tlogsvr::SociLogSink*                        soci_sink = nullptr;
         if (!cfg.database.connection_string.empty())
@@ -78,6 +80,20 @@ int main(int argc, char** argv)
             soci_sink = owning.get();
             sink = std::move(owning);
             soci_sink->StartDrainLoop(io);
+
+            // Single-thread worker pool so INSERTs run off the
+            // io_context (which is also handling UDP receive).
+            // Single thread preserves FIFO ordering between
+            // datagrams — see SociLogSink::SetWorkerPool. Disabled
+            // when worker_threads=0 (legacy in-line behavior).
+            if (cfg.database.worker_threads > 0)
+            {
+                db_pool = std::make_unique<boost::asio::thread_pool>(
+                    cfg.database.worker_threads);
+                soci_sink->SetWorkerPool(db_pool.get());
+                spdlog::info("log_sink: worker pool = {} thread(s)",
+                    cfg.database.worker_threads);
+            }
             spdlog::info("log_sink: SOCI → {}.{} (retry_queue={} drain={}s)",
                 cfg.database.backend, cfg.target_table,
                 cfg.retry.max_queue,
@@ -122,6 +138,15 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        // Wait for any in-flight pool work (SOCI INSERTs) to finish
+        // so a record posted just before io.stop() doesn't disappear.
+        if (db_pool)
+        {
+            db_pool->stop();
+            db_pool->join();
+        }
+
         if (soci_sink != nullptr)
         {
             spdlog::info(

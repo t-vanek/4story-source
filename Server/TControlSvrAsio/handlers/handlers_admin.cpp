@@ -262,20 +262,11 @@ OnUserProtectedReq(std::shared_ptr<OperatorSession> op,
     if (ctx.user_ban)
     {
         const std::string operator_id = op->UserId();
-        if (ctx.db_pool)
-        {
-            ret = co_await fourstory::db::CoOffload(*ctx.db_pool,
-                [&ctx, &user, duration, &reason, permanent,
-                 &operator_id] {
-                    return ctx.user_ban->AddBan(user, duration, reason,
-                                                permanent, operator_id);
-                });
-        }
-        else
-        {
-            ret = ctx.user_ban->AddBan(user, duration, reason,
-                                       permanent, op->UserId());
-        }
+        ret = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [&ctx, &user, duration, &reason, permanent, &operator_id] {
+                return ctx.user_ban->AddBan(user, duration, reason,
+                                            permanent, operator_id);
+            });
     }
     if (ctx.audit)
         ctx.audit->LogBan(op->UserId(), user, duration, permanent, reason,

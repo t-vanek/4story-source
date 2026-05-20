@@ -51,6 +51,7 @@ LoginServer::LoginServer(boost::asio::io_context& io, LoginServerConfig config)
     , m_listener(io.get_executor(), config.port)
     , m_rc4_secret_key(std::move(config.rc4_secret_key))
     , m_auth_service(config.auth_service)
+    , m_db_pool(config.db_pool)
     , m_connection_registry(config.connection_registry)
     , m_map_server_locator(config.map_server_locator)
     , m_session_terminator(config.session_terminator)
@@ -312,50 +313,54 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
             m_connection_registry, m_audit_logger, m_rate_limiter,
             std::span<const std::uint16_t>(
                 m_accepted_versions.data(), m_accepted_versions.size()),
-            m_smtp_client, m_nation);
+            m_smtp_client, m_nation, m_db_pool);
         break;
     case MessageId::CS_GROUPLIST_REQ:
-        co_await handlers::OnGroupListReq(sess, body, m_map_server_locator, m_connection_registry);
+        co_await handlers::OnGroupListReq(sess, body, m_map_server_locator,
+            m_connection_registry, m_db_pool);
         break;
     case MessageId::CS_CHANNELLIST_REQ:
-        co_await handlers::OnChannelListReq(sess, body, m_map_server_locator, m_connection_registry);
+        co_await handlers::OnChannelListReq(sess, body, m_map_server_locator,
+            m_connection_registry, m_db_pool);
         break;
     case MessageId::CS_CHARLIST_REQ:
-        co_await handlers::OnCharListReq(sess, body, m_char_service, m_connection_registry);
+        co_await handlers::OnCharListReq(sess, body, m_char_service,
+            m_connection_registry, m_db_pool);
         break;
     case MessageId::CS_CREATECHAR_REQ:
         co_await handlers::OnCreateCharReq(sess, body, m_char_service,
-            m_connection_registry, m_audit_logger, m_nation);
+            m_connection_registry, m_audit_logger, m_nation, m_db_pool);
         break;
     case MessageId::CS_DELCHAR_REQ:
         co_await handlers::OnDelCharReq(sess, body, m_char_service,
-            m_connection_registry, m_auth_service, m_audit_logger);
+            m_connection_registry, m_auth_service, m_audit_logger, m_db_pool);
         break;
     case MessageId::CS_START_REQ:
         co_await handlers::OnStartReq(sess, body, m_map_server_locator,
-            m_connection_registry, m_audit_logger);
+            m_connection_registry, m_audit_logger, m_db_pool);
         break;
     case MessageId::CS_AGREEMENT_REQ:
-        co_await handlers::OnAgreementReq(sess, body, m_auth_service, m_connection_registry);
+        co_await handlers::OnAgreementReq(sess, body, m_auth_service,
+            m_connection_registry, m_db_pool);
         break;
     case MessageId::CS_HOTSEND_REQ:
         co_await handlers::OnHotsendReq(sess, body);
         break;
     case MessageId::CS_VETERAN_REQ:
-        co_await handlers::OnVeteranReq(*sess, body, m_char_service);
+        co_await handlers::OnVeteranReq(*sess, body, m_char_service, m_db_pool);
         break;
     case MessageId::CS_TERMINATE_REQ:
         co_await handlers::OnTerminateReq(*sess, body);
         break;
     case MessageId::CS_SECURITYCONFIRM_ACK:
         co_await handlers::OnSecurityConfirmAck(sess, body,
-            m_auth_service, m_connection_registry, m_audit_logger);
+            m_auth_service, m_connection_registry, m_audit_logger, m_db_pool);
         break;
     case MessageId::CS_TESTLOGIN_REQ:
         if (m_test_handlers_enabled)
         {
             co_await handlers::OnTestLoginReq(sess, body, m_auth_service,
-                m_connection_registry, m_audit_logger);
+                m_connection_registry, m_audit_logger, m_db_pool);
         }
         else
         {

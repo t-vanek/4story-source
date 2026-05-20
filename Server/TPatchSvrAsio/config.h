@@ -18,6 +18,10 @@ struct DbConfig
     std::string  backend;
     std::string  connection_string;
     std::size_t  pool_size = 4;
+    // Worker threads for off-loop SOCI calls. 0 disables (legacy
+    // in-line behavior). Primary beneficiary is the MERGE+DELETE
+    // transaction in CT_PREPATCHCOMPLETE_REQ.
+    std::size_t  worker_threads = 2;
 };
 
 struct AppConfig

@@ -304,6 +304,14 @@ AppConfig LoadConfig(const std::string& path)
                     + std::to_string(*a));
             out.acquire_timeout_secs = static_cast<std::uint32_t>(*a);
         }
+        if (auto w = t["worker_threads"].value<std::int64_t>())
+        {
+            if (*w < 0 || *w > 256)
+                throw std::runtime_error(std::string(section)
+                    + ".worker_threads out of range (0..256): "
+                    + std::to_string(*w));
+            out.worker_threads = static_cast<std::size_t>(*w);
+        }
     };
     if (auto db = tbl["database"].as_table())
     {

@@ -60,6 +60,12 @@ AppConfig LoadConfig(const std::string& path)
             if (*s < 1 || *s > 256) throw std::runtime_error("database.pool_size out of range");
             cfg.database.pool_size = static_cast<std::size_t>(*s);
         }
+        if (auto s = (*db)["worker_threads"].value<std::int64_t>())
+        {
+            if (*s < 0 || *s > 256)
+                throw std::runtime_error("database.worker_threads out of range");
+            cfg.database.worker_threads = static_cast<std::size_t>(*s);
+        }
     }
     if (auto log = tbl["log"].as_table())
     {

@@ -13,6 +13,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -59,6 +60,7 @@ int main(int argc, char** argv)
         });
 
         std::unique_ptr<fourstory::db::SessionPool> pool;
+        std::unique_ptr<boost::asio::thread_pool>   db_pool;
         std::unique_ptr<tpatchsvr::PatchRepository> repo;
         if (!cfg.database.connection_string.empty())
         {
@@ -73,6 +75,16 @@ int main(int argc, char** argv)
             // notes.
             tpatchsvr::db::ValidateGlobalSchema(*pool);
             repo = std::make_unique<tpatchsvr::PatchRepository>(*pool);
+
+            // Worker pool for off-loop SOCI. The hot site is
+            // MarkPreVersionComplete (MERGE+DELETE txn).
+            if (cfg.database.worker_threads > 0)
+            {
+                db_pool = std::make_unique<boost::asio::thread_pool>(
+                    cfg.database.worker_threads);
+                spdlog::info("db worker pool: {} thread(s)",
+                    cfg.database.worker_threads);
+            }
             spdlog::info("patch_repo: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
         }
@@ -88,6 +100,7 @@ int main(int argc, char** argv)
         srv_cfg.pre_ftp_url = cfg.pre_ftp_url;
         srv_cfg.login_host  = cfg.login_host;
         srv_cfg.login_port  = cfg.login_port;
+        srv_cfg.db_pool     = db_pool.get();
 
         tpatchsvr::PatchServer server(io, srv_cfg);
         spdlog::info("patch server listening on 0.0.0.0:{}", server.Port());
@@ -116,6 +129,14 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        // Drain in-flight worker tasks before exit so a posted
+        // MarkPreVersionComplete doesn't lose its session lease.
+        if (db_pool)
+        {
+            db_pool->stop();
+            db_pool->join();
+        }
     }
     catch (const std::exception& ex)
     {

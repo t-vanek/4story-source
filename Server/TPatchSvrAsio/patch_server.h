@@ -7,6 +7,8 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+namespace boost::asio { class thread_pool; }
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -25,6 +27,10 @@ struct PatchServerConfig
     std::string        pre_ftp_url;
     std::string        login_host;
     std::uint16_t      login_port = 0;
+    // Optional worker pool for off-loop SOCI calls.
+    // MarkPreVersionComplete (txn write path) is the primary
+    // beneficiary; reads are best-effort.
+    boost::asio::thread_pool* db_pool = nullptr;
 };
 
 class PatchServer

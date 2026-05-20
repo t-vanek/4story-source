@@ -13,12 +13,22 @@ add_library(fourstory_bcrypt STATIC
 
 target_include_directories(fourstory_bcrypt PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include)
-# Intentionally NOT adding include/bcrypt/ to PRIVATE search path:
+# Windows: NOT adding include/bcrypt/ to PRIVATE search path —
 # Windows 11 24H2 SDK's wincrypt.h / ncrypt.h reference CNG types
 # from <bcrypt.h>, and we want that to resolve to the Windows SDK
 # header. The libbcrypt sources include their own bcrypt.h via
 # explicit relative path ("../include/bcrypt/bcrypt.h") to avoid
 # the collision.
+#
+# Non-Windows: no collision exists; the C sources use bare
+# `#include "crypt_gensalt.h"` etc. which fail without the
+# include/bcrypt path on the PRIVATE search path. The relative
+# path `../include/bcrypt/bcrypt.h` they also include works either
+# way.
+if(NOT WIN32)
+    target_include_directories(fourstory_bcrypt PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/bcrypt)
+endif()
 
 # crypt_blowfish.c uses #warning when no portable __asm__ is available;
 # MSVC doesn't have that and treats it as an error under /W3. Silence the

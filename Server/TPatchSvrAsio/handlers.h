@@ -9,8 +9,11 @@
 #include "services/patch_repository.h"
 
 #include <boost/asio/awaitable.hpp>
+
 #include <cstdint>
 #include <string>
+
+namespace boost::asio { class thread_pool; }
 
 namespace tpatchsvr {
 class PatchServer;
@@ -30,6 +33,12 @@ struct ServerContext
     // Back-reference for the SERVICEMONITOR handler so it can run
     // legacy's stale-client sweep on each heartbeat (P-6).
     PatchServer*      server = nullptr;
+
+    // Optional worker pool for off-loop SOCI calls. When non-null
+    // the txn-heavy MarkPreVersionComplete + reads run on a worker
+    // thread via fourstory::db::CoOffload; otherwise they execute
+    // synchronously on the io_context (legacy path).
+    boost::asio::thread_pool* db_pool = nullptr;
 };
 
 // CT_SERVICEMONITOR_ACK(INT64 pad + DWORD tick) →

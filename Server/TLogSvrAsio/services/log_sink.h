@@ -21,7 +21,10 @@
 #include <string>
 #include <vector>
 
-namespace boost::asio { class io_context; }
+namespace boost::asio {
+class io_context;
+class thread_pool;
+} // namespace boost::asio
 
 namespace tlogsvr {
 
@@ -101,6 +104,19 @@ public:
     // in the queue until destruction (and are logged then).
     void StartDrainLoop(boost::asio::io_context& io);
 
+    // Opt into off-loop INSERTs: every Write() call's SOCI work is
+    // posted to `pool` instead of running on the caller's thread.
+    // Use a single-thread pool to preserve FIFO ordering between
+    // arriving datagrams; multi-threaded pools work but may reorder
+    // INSERTs (the retry-queue + drain semantics still hold so this
+    // is safe, just no longer per-source-IP ordered).
+    //
+    // Must be called before the receive loop spawns. The pool must
+    // outlive this sink — typically a member of the same main()
+    // scope. Pass nullptr (or skip the call entirely) to keep the
+    // legacy in-line behavior on the caller's executor.
+    void SetWorkerPool(boost::asio::thread_pool* pool);
+
     void Write(const LogRecord& rec) override;
 
     // Counters for ops + shutdown summary. Cheap, lock-free reads.
@@ -124,6 +140,10 @@ private:
     std::string                  m_table;
     Options                      m_opts;
     std::unique_ptr<RetryQueue>  m_queue;
+    // Optional off-loop worker pool. nullptr = legacy behavior:
+    // INSERTs run synchronously on the caller's thread (typically
+    // the receive coroutine). Set via SetWorkerPool. Non-owning.
+    boost::asio::thread_pool*    m_worker_pool = nullptr;
 
     std::atomic<std::uint64_t>   m_inserts{0};
     std::atomic<std::uint64_t>   m_enqueued{0};

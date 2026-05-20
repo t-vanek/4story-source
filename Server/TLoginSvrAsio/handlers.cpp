@@ -945,15 +945,44 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         co_return;
     }
 
+    // Build a full-shape failure ack matching the legacy success
+    // body so wire parity holds even on early-error paths. Layout:
+    // BYTE bResult, DWORD dwCharID=0, STRING name, 13 BYTE echoes
+    // (slot..level). The IsValidCharName path below echoes the
+    // parsed request; the early-stub paths echo zeros + an empty
+    // name. Legacy clients only render `bResult` but defensive
+    // bots / log scrapers expect the full ~22-byte body.
+    auto send_create_failure = [&](std::uint8_t result_code,
+                                   const services::CharacterCreateRequest* echo)
+        -> boost::asio::awaitable<void>
+    {
+        ByteAppender p;
+        p.U8(result_code);
+        p.I32(0);                          // dwCharID = 0 on failure
+        p.Str(echo ? echo->name : "");     // empty when no parsed req
+        p.U8(echo ? echo->slot       : 0);
+        p.U8(echo ? echo->char_class : 0);
+        p.U8(echo ? echo->race       : 0);
+        p.U8(echo ? echo->country    : 0);
+        p.U8(echo ? echo->sex        : 0);
+        p.U8(echo ? echo->hair       : 0);
+        p.U8(echo ? echo->face       : 0);
+        p.U8(echo ? echo->body       : 0);
+        p.U8(echo ? echo->pants      : 0);
+        p.U8(echo ? echo->hand       : 0);
+        p.U8(echo ? echo->foot       : 0);
+        p.U8(0);  // remaining_slots — unchanged on rejection
+        p.U8(0);  // starting_level
+        co_await sref.SendPacket(
+            tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
+            std::span<const std::byte>(p.bytes.data(), p.bytes.size()));
+    };
+
     // Stub mode — no services wired: refuse with CR_INTERNAL.
     if (char_service == nullptr)
     {
-        std::byte payload[5] = {};
-        payload[0] = static_cast<std::byte>(kCrInternal);
         spdlog::info("CS_CREATECHAR_REQ → CS_CREATECHAR_ACK (stub: CR_INTERNAL)");
-        co_await sref.SendPacket(
-            tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
-            std::span<const std::byte>(payload, sizeof(payload)));
+        co_await send_create_failure(kCrInternal, nullptr);
         co_return;
     }
 
@@ -961,22 +990,14 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
     if (!ParseCreateCharReq(body, req))
     {
         spdlog::warn("CS_CREATECHAR_REQ malformed body — refusing");
-        std::byte payload[5] = {};
-        payload[0] = static_cast<std::byte>(kCrInternal);
-        co_await sref.SendPacket(
-            tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
-            std::span<const std::byte>(payload, sizeof(payload)));
+        co_await send_create_failure(kCrInternal, nullptr);
         co_return;
     }
     req.user_id = ResolveUserId(session, connection_registry);
     if (req.user_id == 0)
     {
         spdlog::warn("CS_CREATECHAR_REQ from unauthenticated session — refusing");
-        std::byte payload[5] = {};
-        payload[0] = static_cast<std::byte>(kCrInternal);
-        co_await sref.SendPacket(
-            tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
-            std::span<const std::byte>(payload, sizeof(payload)));
+        co_await send_create_failure(kCrInternal, &req);
         co_return;
     }
 

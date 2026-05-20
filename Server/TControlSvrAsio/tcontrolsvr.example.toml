@@ -1,0 +1,60 @@
+# TControlSvrAsio example config — F1 scaffold.
+#
+# The F1 binary runs without a database: operators auth against the
+# in-memory FakeOperatorAuthService seeded from [[fake.operators]],
+# and the post-login list acks come from [[fake.groups]] /
+# [[fake.machines]] / [[fake.types]]. F2 swaps these for SOCI loads
+# from TGLOBAL_RAGEZONE.
+
+[server]
+port       = 12000   # operator + peer TCP listener
+auto_start = 0       # initial value of the auto-restart flag
+
+# Uncomment when F2 lands and you want the SOCI inventory loader
+# wired in. Until then the database string is ignored (the binary
+# logs a warning at startup).
+# [database]
+# backend           = "mssql"
+# connection_string = "DSN=4story;UID=sa;PWD=…"
+# pool_size         = 4
+
+[health]
+port = 18086
+
+[admin]
+bind = "127.0.0.1"
+port = 18186
+
+[log]
+level = "info"
+
+# --- F1 fakes ---------------------------------------------------------
+
+[[fake.operators]]
+id        = "gm_alpha"
+password  = "secret"
+authority = 3    # MANAGER_USER — kick / move / position
+# Authority values: 1 = MANAGER_ALL (console / 127.0.0.1 only),
+# 2 = MANAGER_CONTROL, 3 = MANAGER_USER, 4 = MANAGER_SERVICE,
+# 5..7 = MANAGER_GMLEVEL1..3. See TControlType.h.
+
+[[fake.operators]]
+id        = "ops_console"
+password  = "console-pw"
+authority = 1    # full control — rejected from non-loopback IPs
+
+[[fake.groups]]
+id   = 1
+name = "World1"
+
+[[fake.machines]]
+id   = 1
+name = "host-a"
+
+[[fake.types]]
+id   = 2
+name = "LoginSvr"
+
+[[fake.types]]
+id   = 3
+name = "MapSvr"

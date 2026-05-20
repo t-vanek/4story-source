@@ -1,0 +1,143 @@
+// Entry point for the modernized TControlSvrAsio binary. F1 brings
+// up the bare scaffold: TOML config, OperatorSession accept loop,
+// fake auth + inventory service from config, health endpoint, admin
+// shell. Service controller starts disabled (the GUI will see
+// "unknown" status until F2 wires the Windows SCM impl).
+
+#include "config.h"
+#include "control_server.h"
+#include "services/fake_operator_auth_service.h"
+#include "services/fake_service_inventory.h"
+
+#include "fourstory/ops/admin_shell.h"
+#include "fourstory/ops/health_endpoint.h"
+
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/signal_set.hpp>
+
+#include <spdlog/spdlog.h>
+
+#include <chrono>
+#include <cstdio>
+#include <cstring>
+#include <memory>
+#include <string>
+
+namespace {
+void Usage()
+{
+    std::printf(
+        "tcontrolsvr_asio — modernized 4Story control / orchestration server\n"
+        "Usage: tcontrolsvr_asio [--config FILE]\n");
+}
+} // namespace
+
+int main(int argc, char** argv)
+{
+    std::string config_path = "tcontrolsvr.toml";
+    for (int i = 1; i < argc; ++i)
+    {
+        if (std::strcmp(argv[i], "--config") == 0 && i + 1 < argc)
+            config_path = argv[++i];
+        else if (std::strcmp(argv[i], "--help") == 0 ||
+                 std::strcmp(argv[i], "-h") == 0)
+        {
+            Usage();
+            return 0;
+        }
+    }
+
+    try
+    {
+        auto cfg = tcontrolsvr::LoadConfig(config_path);
+        spdlog::set_level(cfg.log_level);
+
+        boost::asio::io_context io;
+
+        boost::asio::signal_set signals(io, SIGINT, SIGTERM);
+        signals.async_wait([&io](auto, int sig) {
+            spdlog::info("received signal {}, shutting down", sig);
+            io.stop();
+        });
+
+        // Auth + inventory — F1 always runs against the in-memory
+        // fakes seeded from TOML. F2 swaps these for SOCI-backed
+        // implementations against TGLOBAL_RAGEZONE.
+        auto auth = std::make_unique<tcontrolsvr::FakeOperatorAuthService>();
+        for (const auto& op : cfg.fake_operators)
+            auth->AddOperator(op.id, op.password, op.authority);
+
+        auto inventory = std::make_unique<tcontrolsvr::FakeServiceInventory>();
+        for (const auto& g : cfg.fake_inventory.groups)
+            inventory->AddGroup({g.id, g.name});
+        for (const auto& m : cfg.fake_inventory.machines)
+            inventory->AddMachine({m.id, m.name, 0, {}, {}, ""});
+        for (const auto& t : cfg.fake_inventory.types)
+            inventory->AddType({t.id, 0, t.name});
+
+        if (!cfg.database.connection_string.empty())
+        {
+            spdlog::warn("database.connection_string set but F1 only uses "
+                         "fake auth+inventory; SOCI impl lands in F2");
+        }
+
+        tcontrolsvr::ControlServerConfig svr_cfg{};
+        svr_cfg.port       = cfg.port;
+        svr_cfg.auth       = auth.get();
+        svr_cfg.inventory  = inventory.get();
+        svr_cfg.auto_start = cfg.auto_start;
+        tcontrolsvr::ControlServer server(io, svr_cfg);
+        spdlog::info("control server listening on 0.0.0.0:{}", server.Port());
+        boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
+
+        std::unique_ptr<fourstory::ops::HealthEndpoint> health;
+        if (cfg.health_port != 0)
+        {
+            try
+            {
+                health = std::make_unique<fourstory::ops::HealthEndpoint>(
+                    io, cfg.health_port);
+                spdlog::info("health endpoint listening on 0.0.0.0:{}",
+                    health->Port());
+                boost::asio::co_spawn(io, health->Run(),
+                    boost::asio::detached);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("health endpoint failed to bind on port {}: {}",
+                    cfg.health_port, ex.what());
+            }
+        }
+
+        std::shared_ptr<fourstory::ops::AdminShell> admin;
+        if (cfg.admin_port != 0)
+        {
+            try
+            {
+                admin = std::make_shared<fourstory::ops::AdminShell>(
+                    io, cfg.admin_bind, cfg.admin_port,
+                    [&server] { return server.LiveOperators(); },
+                    std::chrono::steady_clock::now());
+                spdlog::info("admin shell listening on {}:{}",
+                    cfg.admin_bind, admin->Port());
+                boost::asio::co_spawn(io, admin->Run(),
+                    boost::asio::detached);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("admin shell failed to bind on {}:{}: {}",
+                    cfg.admin_bind, cfg.admin_port, ex.what());
+            }
+        }
+
+        io.run();
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::critical("fatal: {}", ex.what());
+        return 1;
+    }
+    return 0;
+}

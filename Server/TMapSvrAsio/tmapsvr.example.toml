@@ -1,0 +1,48 @@
+# tmapsvr.example.toml — annotated TMapSvrAsio config.
+#
+# Copy this file to `tmapsvr.toml` next to the binary (or pass via
+# `--config <path>`) and edit the values for your deployment.
+
+[server]
+# Legacy TMapSvr port (TSERVER row for bType=TMAP=4). Multiple Map
+# shards on one host need distinct ports.
+port = 5815
+
+# Soft cap on concurrent player sessions. New accepts past the cap
+# are dropped immediately. 0 disables the cap.
+max_connections = 8000
+
+# Idle window (seconds) before CS_CONNECT_REQ; connections that don't
+# complete the handshake within this are closed. 0 disables.
+pre_auth_timeout_seconds = 30
+
+# Wire-version gate. The legacy ProtocolBase.h::TVERSION value is
+# 0x2918; older builds can be added during a client rollout.
+accepted_versions = [0x2918]
+
+# Per-IP token bucket on inbound CS_CONNECT_REQ. burst=0 disables.
+[connect_rate]
+burst          = 10
+refill_seconds = 5
+
+# [database] — empty / unset uses the in-memory accept-all validator
+# (dev / smoke mode). F2+ swaps in a SOCI-backed validator that reads
+# TCURRENTUSER, which means a real TLoginSvr peer must mint the dwKEY
+# row before the client can connect.
+# [database]
+# backend           = "odbc"
+# connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+# pool_size         = 8
+# worker_threads    = 4
+
+# Ops endpoints — match the other Asio servers so an operator can hit
+# /healthz and the admin shell with the same shape everywhere.
+[health]
+port = 18095
+
+[admin]
+bind = "127.0.0.1"
+port = 18195
+
+[log]
+level = "info"

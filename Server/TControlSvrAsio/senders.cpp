@@ -98,4 +98,82 @@ boost::asio::awaitable<void> SendServiceAutoStartAck(
                               std::move(body));
 }
 
+boost::asio::awaitable<void> SendServiceStatAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<ServiceStatRow>& rows)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, static_cast<std::uint32_t>(rows.size()));
+    for (const auto& r : rows)
+    {
+        wire::WritePOD<std::uint8_t >(body, r.group_id);
+        wire::WritePOD<std::uint8_t >(body, r.type_id);
+        wire::WritePOD<std::uint8_t >(body, r.server_id);
+        wire::WriteString(body, r.name);
+        wire::WritePOD<std::uint8_t >(body, r.machine_id);
+        wire::WritePOD<std::uint32_t>(body, r.status);
+    }
+    co_await sess->SendPacket(ToUint16(MessageId::CT_SERVICESTAT_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendServiceControlAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t>(body, ret);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_SERVICECONTROL_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendServiceChangeAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t service_id, std::uint32_t status)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, service_id);
+    wire::WritePOD<std::uint32_t>(body, status);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_SERVICECHANGE_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendServiceDataAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t service_id, std::uint32_t session_count,
+    std::uint32_t cur_users, std::uint32_t max_users,
+    std::uint32_t ping_ms, std::int64_t peak_time_unix,
+    std::uint32_t stop_count, std::int64_t latest_stop_unix,
+    std::uint32_t active_users)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, service_id);
+    wire::WritePOD<std::uint32_t>(body, session_count);
+    wire::WritePOD<std::uint32_t>(body, cur_users);
+    wire::WritePOD<std::uint32_t>(body, max_users);
+    wire::WritePOD<std::uint32_t>(body, ping_ms);
+    wire::WritePOD<std::int64_t >(body, peak_time_unix);
+    wire::WritePOD<std::uint32_t>(body, stop_count);
+    wire::WritePOD<std::int64_t >(body, latest_stop_unix);
+    wire::WritePOD<std::uint32_t>(body, active_users);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_SERVICEDATA_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendServiceMonitorAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t tick)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, tick);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_SERVICEMONITOR_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendCtrlSvrReq(
+    const std::shared_ptr<ControlSession>& sess)
+{
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CTRLSVR_REQ), {});
+}
+
 } // namespace tcontrolsvr::senders

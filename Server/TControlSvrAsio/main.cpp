@@ -1,14 +1,22 @@
-// Entry point for the modernized TControlSvrAsio binary. F1 brings
-// up the bare scaffold: TOML config, OperatorSession accept loop,
-// fake auth + inventory service from config, health endpoint, admin
-// shell. Service controller starts disabled (the GUI will see
-// "unknown" status until F2 wires the Windows SCM impl).
+// Entry point for the modernized TControlSvrAsio binary. F1 brought
+// up the scaffold + operator login; F2 layers on the SOCI service
+// inventory + auth, peer dialer, peer registry, monitoring timers,
+// and the schema validator.
 
 #include "config.h"
 #include "control_server.h"
+#include "peer_dialer.h"
+#include "db/schema_validator.h"
+#include "services/disabled_service_controller.h"
 #include "services/fake_operator_auth_service.h"
 #include "services/fake_service_inventory.h"
+#include "services/operator_auth_service.h"
+#include "services/peer_registry.h"
+#include "services/service_inventory.h"
+#include "services/soci_operator_auth_service.h"
+#include "services/soci_service_inventory.h"
 
+#include "fourstory/db/session_pool.h"
 #include "fourstory/ops/admin_shell.h"
 #include "fourstory/ops/health_endpoint.h"
 
@@ -32,6 +40,15 @@ void Usage()
         "tcontrolsvr_asio — modernized 4Story control / orchestration server\n"
         "Usage: tcontrolsvr_asio [--config FILE]\n");
 }
+
+// Pick the controller backend. F2 ships only the disabled default
+// on Linux; the Windows SCM impl is gated behind FOURSTORY_HAS_WIN32
+// (see services/windows_scm_service_controller.h once added).
+std::unique_ptr<tcontrolsvr::IServiceController> MakeServiceController()
+{
+    return std::make_unique<tcontrolsvr::DisabledServiceController>();
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -62,35 +79,80 @@ int main(int argc, char** argv)
             io.stop();
         });
 
-        // Auth + inventory — F1 always runs against the in-memory
-        // fakes seeded from TOML. F2 swaps these for SOCI-backed
-        // implementations against TGLOBAL_RAGEZONE.
-        auto auth = std::make_unique<tcontrolsvr::FakeOperatorAuthService>();
-        for (const auto& op : cfg.fake_operators)
-            auth->AddOperator(op.id, op.password, op.authority);
-
-        auto inventory = std::make_unique<tcontrolsvr::FakeServiceInventory>();
-        for (const auto& g : cfg.fake_inventory.groups)
-            inventory->AddGroup({g.id, g.name});
-        for (const auto& m : cfg.fake_inventory.machines)
-            inventory->AddMachine({m.id, m.name, 0, {}, {}, ""});
-        for (const auto& t : cfg.fake_inventory.types)
-            inventory->AddType({t.id, 0, t.name});
+        // --- Auth + inventory --------------------------------------
+        //
+        // Prefer the SOCI-backed services when a [database] section
+        // is present. Fall back to the in-memory fakes otherwise (F1
+        // bring-up path).
+        std::unique_ptr<fourstory::db::SessionPool>           pool;
+        std::unique_ptr<tcontrolsvr::IOperatorAuthService>    auth;
+        std::unique_ptr<tcontrolsvr::IServiceInventory>       inventory_ptr;
 
         if (!cfg.database.connection_string.empty())
         {
-            spdlog::warn("database.connection_string set but F1 only uses "
-                         "fake auth+inventory; SOCI impl lands in F2");
+            if (cfg.database.backend.empty())
+                throw std::runtime_error(
+                    "database.connection_string set but database.backend empty");
+            const auto backend =
+                fourstory::db::ParseBackend(cfg.database.backend);
+            pool = std::make_unique<fourstory::db::SessionPool>(
+                backend, cfg.database.connection_string, cfg.database.pool_size);
+
+            // Fail-fast on missing inventory tables before we accept
+            // operator traffic. Optional tables (TEVENTCHART etc.)
+            // log warnings; required tables throw.
+            tcontrolsvr::db::ValidateGlobalSchema(*pool);
+
+            auto soci_inv =
+                std::make_unique<tcontrolsvr::SociServiceInventory>(*pool);
+            soci_inv->Reload();
+            inventory_ptr = std::move(soci_inv);
+            auth = std::make_unique<tcontrolsvr::SociOperatorAuthService>(*pool);
+            spdlog::info("auth + inventory: SOCI ({}) ready",
+                fourstory::db::BackendName(backend));
+        }
+        else
+        {
+            spdlog::info("no [database] — running with FakeAuth + FakeInventory");
+            auto fake_auth =
+                std::make_unique<tcontrolsvr::FakeOperatorAuthService>();
+            for (const auto& op : cfg.fake_operators)
+                fake_auth->AddOperator(op.id, op.password, op.authority);
+            auth = std::move(fake_auth);
+
+            auto fake_inv =
+                std::make_unique<tcontrolsvr::FakeServiceInventory>();
+            for (const auto& g : cfg.fake_inventory.groups)
+                fake_inv->AddGroup({g.id, g.name});
+            for (const auto& m : cfg.fake_inventory.machines)
+                fake_inv->AddMachine({m.id, m.name, 0, {}, {}, ""});
+            for (const auto& t : cfg.fake_inventory.types)
+                fake_inv->AddType({t.id, 0, t.name});
+            inventory_ptr = std::move(fake_inv);
         }
 
+        // --- Peer infra --------------------------------------------
+        tcontrolsvr::PeerRegistry peers(*inventory_ptr);
+        auto controller = MakeServiceController();
+        tcontrolsvr::PeerDialer dialer(io, peers, *inventory_ptr);
+
+        // --- Server ------------------------------------------------
         tcontrolsvr::ControlServerConfig svr_cfg{};
         svr_cfg.port       = cfg.port;
         svr_cfg.auth       = auth.get();
-        svr_cfg.inventory  = inventory.get();
+        svr_cfg.inventory  = inventory_ptr.get();
+        svr_cfg.controller = controller.get();
+        svr_cfg.dialer     = &dialer;
+        svr_cfg.peers      = &peers;
         svr_cfg.auto_start = cfg.auto_start;
         tcontrolsvr::ControlServer server(io, svr_cfg);
         spdlog::info("control server listening on 0.0.0.0:{}", server.Port());
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
+
+        // 1Hz peer-keepalive watchdog (legacy TimerThread).
+        boost::asio::co_spawn(io,
+            server.PeerKeepaliveLoop(),
+            boost::asio::detached);
 
         std::unique_ptr<fourstory::ops::HealthEndpoint> health;
         if (cfg.health_port != 0)

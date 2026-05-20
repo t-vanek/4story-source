@@ -10,53 +10,75 @@ The plan, handler-by-handler, lives in
 [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](../../_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md).
 This README only covers what F1 ships and how to bring it up.
 
-## Status — F1 scaffold
+## Status — F1 scaffold + F2 peer infra
 
 | Area | F1 | F2 | F3 | F4 | F5 | F6 |
 |------|----|----|----|----|----|----|
 | Accept loop + ControlSession framing | ✅ | | | | | |
 | OperatorSession state machine | ✅ | | | | | |
-| PeerSession skeleton | ✅ (type only) | impl | | | | |
+| PeerSession + PeerRegistry + outbound dial | ✅ (type only) | ✅ | | | | |
 | TOML config | ✅ | + DB | | | | |
 | Health endpoint + admin shell | ✅ | | | | | |
 | `IOperatorAuthService` interface + fake | ✅ | + SOCI | | | | |
 | `IServiceInventory` interface + fake | ✅ | + SOCI | | | | |
-| `IServiceController` interface (Windows SCM impl) | ✅ (disabled default) | + WindowsScm | | | | |
+| `IServiceController` interface | ✅ (disabled default) | + WindowsScm | | | | |
 | `CT_OPLOGIN_REQ` / `CT_STLOGIN_REQ` | ✅ | | | | | |
 | Post-login ack chain (GROUP/MACHINE/SVRTYPE/AUTOSTART) | ✅ | | | | | |
-| `CT_SERVICESTAT_REQ`, peer dial, monitoring | | ✅ | | | | |
-| Admin operations + audit | | | ✅ | | | |
+| `CT_SERVICESTAT_REQ` / `CT_SERVICECONTROL_REQ` | | ✅ | | | | |
+| `CT_NEWCONNECT_REQ` / `CT_RECONNECT_REQ` / `CT_CTRLSVR_REQ` | | ✅ | | | | |
+| Peer-driven `CT_SERVICEMONITOR_REQ` + `CT_SERVICEDATA_ACK` fan-out | | ✅ | | | | |
+| 1Hz peer keep-alive watchdog (`PeerKeepaliveLoop`) | | ✅ | | | | |
+| Schema validator (TGROUP / TMACHINE / TIPADDR / TSVRTYPE / TSERVER) | | ✅ | | | | |
+| Admin operations + audit (TLOG_AUDIT shared) | | | ✅ | | | |
 | Event scheduler + manager | | | | ✅ | | |
 | Patch metadata + castle + ops polish | | | | | ✅ | |
-| Schema validator + smoke test | | | | | | ✅ |
+| End-to-end legacy `TController.exe` smoke test | | | | | | ✅ |
 
 The 6-phase plan estimates 23 working days end-to-end.
 
-## What the F1 binary does
+## What the F1+F2 binary does
 
 1. Loads TOML config (default `tcontrolsvr.toml` next to the binary).
-2. Seeds an in-memory `FakeOperatorAuthService` from
-   `[[fake.operators]]` and a `FakeServiceInventory` from
-   `[[fake.groups]]` / `[[fake.machines]]` / `[[fake.types]]`.
+2. **Auth + inventory**: when `[database]` is configured, opens a
+   SOCI pool against `TGLOBAL_RAGEZONE`, runs the schema validator
+   (TGROUP / TMACHINE / TIPADDR / TSVRTYPE / TSERVER required;
+   TEVENTCHART / TCASHSHOPITEMCHART / TPREVERSION reported as warnings
+   when missing), and uses `SociOperatorAuthService` +
+   `SociServiceInventory`. Without a database it falls back to the
+   in-memory fakes seeded from `[[fake.*]]` TOML tables.
 3. Binds the configured TCP port and runs the accept loop. Each
    accepted socket spawns one `ControlSession` coroutine that
    demuxes 8-byte-header CPacket frames, verifies the running-XOR
    checksum, and hands the body off to the handler dispatch.
-4. Handles three CT_\* messages:
-   - `CT_OPLOGIN_REQ` — authenticates, registers in
-     `OperatorRegistry` (duplicate-kick mirrors the legacy gate),
-     replies with `CT_OPLOGIN_ACK` + the GROUP/MACHINE/SVRTYPE list
-     acks + `CT_SERVICEAUTOSTART_ACK`. Authority 1 (MANAGER_ALL) is
-     restricted to `127.0.0.1` connections (legacy console gate).
-   - `CT_STLOGIN_REQ` — read-only stat tool variant; no duplicate
-     kick, no follow-up acks.
-   - `CT_SERVICEAUTOSTART_REQ` — flips the cluster-wide auto-restart
-     flag and broadcasts the new value to every logged-in operator.
+4. Handles the F1+F2 CT_\* surface:
+   - **F1 operator auth** — `CT_OPLOGIN_REQ` (with the 127.0.0.1
+     authority-1 gate + duplicate-kick), `CT_STLOGIN_REQ` (read-only
+     stat tool), `CT_SERVICEAUTOSTART_REQ` (cluster-wide broadcast).
+     After a successful OPLogin the server emits the
+     `GROUP/MACHINE/SVRTYPE/AUTOSTART_ACK` chain.
+   - **F2 service lifecycle** — `CT_SERVICESTAT_REQ` (snapshot from
+     `PeerRegistry`), `CT_SERVICECONTROL_REQ` (Start/Stop via
+     `IServiceController`; default-disabled controller returns
+     NotSupported, the WorldSvr cascade clears manager_control on
+     siblings in the same group).
+   - **F2 peer dial** — `CT_NEWCONNECT_REQ` and `CT_RECONNECT_REQ`
+     route through `PeerDialer` (async connect with timeout) and
+     register the resulting `PeerSession` in `PeerRegistry`. The
+     `CT_CTRLSVR_REQ` handshake fires on dial success; the peer's
+     read loop spawns on the same io_context.
+   - **F2 peer monitoring** — Inbound `CT_SERVICEMONITOR_REQ` echoes
+     the tick back via `CT_SERVICEMONITOR_ACK` and broadcasts the
+     full counters via `CT_SERVICEDATA_ACK` to every logged-in
+     operator. The 1Hz `PeerKeepaliveLoop` walks the registry,
+     marks offline peers (>60s since last recv), closes their
+     sockets, and emits zero-filled SERVICEDATA so the GUI tile
+     transitions to "stopped".
 5. Exposes `/healthz` on a separate port and a localhost admin shell
    (`telnet 127.0.0.1 18186`) for ops introspection.
 
-The rest of the 65 CT_\* handlers log a warning and drop the packet.
-F2..F5 fill them in.
+The remaining ~45 CT_\* handlers (admin operations, castle, event
+manager, patch metadata, file upload) log a warning and drop the
+packet. F3..F5 fill them in.
 
 ### Wire compatibility
 
@@ -112,23 +134,36 @@ Server/TControlSvrAsio/
 ├── config.{h,cpp}                 — TOML loader
 ├── control_session.{h,cpp}        — 8-byte CPacket framing
 ├── control_server.{h,cpp}         — accept loop + per-session dispatch
+│                                    + 1Hz peer-keepalive loop
+├── peer_dialer.{h,cpp}            — outbound connect with timeout
 ├── operator_session.h             — CTManager equivalent (login state)
-├── peer_session.h                 — CTServer equivalent (F2)
-├── senders.{h,cpp}                — CT_*_ACK wire builders
+├── peer_session.h                 — CTServer equivalent
+├── senders.{h,cpp}                — CT_*_ACK / CT_*_REQ wire builders
 ├── wire_codec.h                   — POD + length-prefixed-string helpers
 ├── handlers/
-│   ├── handlers.h                 — HandlerContext + Dispatch
-│   └── handlers_auth.cpp          — OPLOGIN / STLOGIN / SERVICEAUTOSTART
+│   ├── handlers.h                 — HandlerContext + Dispatch + RunPeerLoop
+│   ├── handlers_auth.cpp          — OPLOGIN / STLOGIN / SERVICEAUTOSTART
+│   └── handlers_service.cpp       — SERVICESTAT / SERVICECONTROL /
+│                                    NEWCONNECT / RECONNECT /
+│                                    SERVICEMONITOR + RunPeerLoop
+├── db/
+│   └── schema_validator.{h,cpp}   — boot-time fail-fast on TGLOBAL_RAGEZONE
 ├── services/
 │   ├── operator_auth_service.h    — IOperatorAuthService
 │   ├── fake_operator_auth_service.{h,cpp}
+│   ├── soci_operator_auth_service.{h,cpp} — TOPLogin SP impl
 │   ├── service_inventory.h        — IServiceInventory + POD shapes
 │   ├── fake_service_inventory.h
+│   ├── soci_service_inventory.{h,cpp} — TMACHINE/TGROUP/TSVRTYPE/TSERVER/TIPADDR
+│   ├── peer_registry.{h,cpp}      — service_id → PeerSession + RuntimeStatus
 │   ├── operator_registry.{h,cpp}  — by-id + by-seq tracking, dup-kick
 │   ├── service_controller.h       — IServiceController interface
-│   └── disabled_service_controller.h — F1 default (NotSupported)
+│   ├── disabled_service_controller.h — default (NotSupported)
+│   └── windows_scm_service_controller.{h,cpp} — Win32 SCM impl
+│                                    (Linux build returns NotSupported)
 └── tests/
-    └── test_operator_login.cpp    — wire round-trip
+    ├── test_operator_login.cpp    — F1 wire round-trip
+    └── test_peer_monitor.cpp      — F2 peer dial + SERVICEMONITOR fan-out
 ```
 
 ## Design decisions captured in F1

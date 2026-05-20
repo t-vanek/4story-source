@@ -33,10 +33,17 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/config.cpp
     ${TCONTROL_ASIO_SRC}/control_session.cpp
     ${TCONTROL_ASIO_SRC}/control_server.cpp
+    ${TCONTROL_ASIO_SRC}/peer_dialer.cpp
     ${TCONTROL_ASIO_SRC}/senders.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_auth.cpp
+    ${TCONTROL_ASIO_SRC}/handlers/handlers_service.cpp
+    ${TCONTROL_ASIO_SRC}/db/schema_validator.cpp
     ${TCONTROL_ASIO_SRC}/services/fake_operator_auth_service.cpp
-    ${TCONTROL_ASIO_SRC}/services/operator_registry.cpp)
+    ${TCONTROL_ASIO_SRC}/services/operator_registry.cpp
+    ${TCONTROL_ASIO_SRC}/services/peer_registry.cpp
+    ${TCONTROL_ASIO_SRC}/services/soci_operator_auth_service.cpp
+    ${TCONTROL_ASIO_SRC}/services/soci_service_inventory.cpp
+    ${TCONTROL_ASIO_SRC}/services/windows_scm_service_controller.cpp)
 
 target_include_directories(tcontrolsvr_asio_core PUBLIC
     ${TCONTROL_ASIO_SRC})
@@ -72,3 +79,14 @@ target_link_libraries(test_tcontrolsvr_asio_operator_login PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_operator_login
     COMMAND test_tcontrolsvr_asio_operator_login)
+
+# F2 wire test: peer dial + SERVICEMONITOR fan-out. Stands up a loopback
+# "peer" listener and verifies the full path CT_NEWCONNECT_REQ →
+# dial → CT_CTRLSVR_REQ → CT_SERVICEMONITOR_REQ → CT_SERVICEMONITOR_ACK
+# echo + CT_SERVICEDATA_ACK operator broadcast.
+add_executable(test_tcontrolsvr_asio_peer_monitor
+    ${TCONTROL_ASIO_SRC}/tests/test_peer_monitor.cpp)
+target_link_libraries(test_tcontrolsvr_asio_peer_monitor PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_peer_monitor
+    COMMAND test_tcontrolsvr_asio_peer_monitor)

@@ -8,6 +8,7 @@
 // readable and matches the TPatchSvrAsio convention.
 
 #include "control_session.h"
+#include "services/peer_registry.h"
 #include "services/service_inventory.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -57,5 +58,61 @@ boost::asio::awaitable<void> SendSvrTypeListAck(
 boost::asio::awaitable<void> SendServiceAutoStartAck(
     const std::shared_ptr<ControlSession>& sess,
     std::uint8_t auto_start);
+
+// CT_SERVICESTAT_ACK = {
+//   DWORD count,
+//   [ BYTE bGroupID, BYTE bType, BYTE bServerID, CString szName,
+//     BYTE bMachineID, DWORD dwStatus ] * count
+// }
+struct ServiceStatRow
+{
+    std::uint8_t   group_id;
+    std::uint8_t   type_id;
+    std::uint8_t   server_id;
+    std::string    name;
+    std::uint8_t   machine_id;
+    std::uint32_t  status;
+};
+boost::asio::awaitable<void> SendServiceStatAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<ServiceStatRow>& rows);
+
+// CT_SERVICECONTROL_ACK = { BYTE bRet }
+boost::asio::awaitable<void> SendServiceControlAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret);
+
+// CT_SERVICECHANGE_ACK = { DWORD dwID, DWORD dwStatus }
+boost::asio::awaitable<void> SendServiceChangeAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t service_id,
+    std::uint32_t status);
+
+// CT_SERVICEDATA_ACK = {
+//   DWORD dwID, DWORD dwSession, DWORD dwCurUser, DWORD dwMaxUser,
+//   DWORD dwPing, INT64 nPickTime, DWORD dwStopCount,
+//   INT64 nLatestStop, DWORD dwActiveUser
+// }
+boost::asio::awaitable<void> SendServiceDataAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t service_id,
+    std::uint32_t session_count,
+    std::uint32_t cur_users,
+    std::uint32_t max_users,
+    std::uint32_t ping_ms,
+    std::int64_t  peak_time_unix,
+    std::uint32_t stop_count,
+    std::int64_t  latest_stop_unix,
+    std::uint32_t active_users);
+
+// Peer-side: CT_SERVICEMONITOR_ACK = { DWORD dwTick }
+boost::asio::awaitable<void> SendServiceMonitorAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t tick);
+
+// Peer-side: CT_CTRLSVR_REQ — body empty, peer learns "you're
+// talking to a control server" and flips its inbound socket type.
+boost::asio::awaitable<void> SendCtrlSvrReq(
+    const std::shared_ptr<ControlSession>& sess);
 
 } // namespace tcontrolsvr::senders

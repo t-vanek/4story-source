@@ -180,8 +180,20 @@ Dispatch(std::shared_ptr<OperatorSession> op,
     case MessageId::CT_SERVICEAUTOSTART_REQ:
         co_await OnServiceAutoStartReq(std::move(op), std::move(body), ctx);
         break;
+    case MessageId::CT_SERVICESTAT_REQ:
+        co_await OnServiceStatReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICECONTROL_REQ:
+        co_await OnServiceControlReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_NEWCONNECT_REQ:
+        co_await OnNewConnectReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_RECONNECT_REQ:
+        co_await OnReconnectReq(std::move(op), std::move(body), ctx);
+        break;
     default:
-        // F2+ wires the rest of the 65 handlers. For now log the gap
+        // F3+ wires the rest of the 65 handlers. For now log the gap
         // so the bring-up notes can surface what TController.exe
         // actually sends in the wild.
         spdlog::warn("control_svr: unhandled CT_* id=0x{:04X} body={} bytes",

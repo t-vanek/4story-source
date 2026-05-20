@@ -17,11 +17,15 @@
 
 #include "../control_session.h"
 #include "../operator_session.h"
+#include "../peer_session.h"
 #include "../services/operator_auth_service.h"
 #include "../services/operator_registry.h"
+#include "../services/peer_registry.h"
+#include "../services/service_controller.h"
 #include "../services/service_inventory.h"
 
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/io_context.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -32,11 +36,17 @@ namespace tcontrolsvr {
 // Shared per-request context handed to every handler. Owned by the
 // ControlServer; non-owning pointers so the context is cheap to copy
 // per-packet and so test fakes can substitute parts independently.
+class PeerDialer;
+
 struct HandlerContext
 {
-    IOperatorAuthService*  auth      = nullptr;
-    IServiceInventory*     inventory = nullptr;
-    OperatorRegistry*      operators = nullptr;
+    IOperatorAuthService*    auth        = nullptr;
+    IServiceInventory*       inventory   = nullptr;
+    OperatorRegistry*        operators   = nullptr;
+    PeerRegistry*            peers       = nullptr;
+    IServiceController*      controller  = nullptr;
+    PeerDialer*              dialer      = nullptr;
+    boost::asio::io_context* io          = nullptr;
 
     // Mirror of legacy CTControlSvrModule::m_bAutoStart — whether
     // the cluster scheduler auto-restarts a crashed daemon. Mutated
@@ -71,6 +81,45 @@ boost::asio::awaitable<void> OnServiceAutoStartReq(
     std::shared_ptr<OperatorSession> op,
     std::vector<std::byte> body,
     const HandlerContext& ctx);
+
+// --- F2: service lifecycle + monitoring -----------------------------
+
+boost::asio::awaitable<void> OnServiceStatReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnServiceControlReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnNewConnectReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnReconnectReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Inbound from peer servers (Login / Map / World / Patch / Log):
+//   CT_SERVICEMONITOR_REQ = {
+//     DWORD dwTick, DWORD dwSession, DWORD dwUser, DWORD dwActiveUser
+//   }
+boost::asio::awaitable<void> OnServiceMonitorReq(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Drive the read loop for an outbound peer connection. Dispatches
+// CT_* packets the peer pushes to us (SERVICEMONITOR_REQ in F2; the
+// admin-ack forwarders ITEMFIND_ACK / ITEMSTATE_ACK / CHATBAN_ACK /
+// CASTLEINFO_ACK / etc. arrive here in F3).
+boost::asio::awaitable<void> RunPeerLoop(
+    std::shared_ptr<PeerSession> peer,
+    HandlerContext ctx);
 
 } // namespace handlers
 } // namespace tcontrolsvr

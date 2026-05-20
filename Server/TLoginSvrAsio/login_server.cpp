@@ -1,5 +1,31 @@
+// LoginServer implementation — accept loop, per-connection session
+// lifecycle, per-packet dispatch.
+//
+// Architecture (mirrors legacy CTLoginSvrModule with a portable
+// reactor underneath):
+//   Run()                    — AsioListener accept loop. Per accept:
+//                              gate on max_connections, attach RC4
+//                              codec when configured, hand the socket
+//                              to a fresh AsioSession, co_spawn the
+//                              per-connection coroutine with a
+//                              top-level exception trap.
+//   HandleConnection()       — pre-auth idle watchdog + RunPackets
+//                              read loop + post-disconnect cleanup
+//                              chain (TCURRENTUSER delete / TLOG
+//                              timestamp via ISessionTerminator).
+//   Dispatch()               — switch on MessageId; one case per
+//                              handler. CT_* messages additionally
+//                              gate on peer IP == control_server_ip.
+//
+// Exception safety: handler-side throws (SOCI pool exhaustion, DB
+// outages, constraint violations) are caught per-packet and per-
+// connection so a single bad query can't take down the io_context.
+//
 // PCH-free; depends only on TNetLib's portable surface (AsioSession,
 // AsioListener, MessageId) plus Boost.Asio.
+//
+// Legacy parity: Server/TLoginSvr/CTLoginSvrModule.cpp (IOCP accept
+// loop), Server/TLoginSvr/CSHandler.cpp (dispatch switch).
 
 #include "login_server.h"
 #include "handlers.h"

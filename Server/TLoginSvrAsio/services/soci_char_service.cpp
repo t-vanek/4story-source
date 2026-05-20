@@ -1,3 +1,35 @@
+// SociCharService implementation — SOCI-backed ICharService against
+// the TGLOBAL + TGAME two-pool split.
+//
+// Pool routing:
+//   global pool → TALLCHARTABLE, TKEEPINGNAME, TRESERVEDNAME,
+//                 TVETERANCHART
+//   world pool  → TCHARTABLE, TITEMTABLE, TGUILDMEMBERTABLE,
+//                 TGUILDTABLE, TBRPLAYERTABLE
+//
+// Methods:
+//   List()   — SELECT TCHARTABLE rows for the user, LEFT JOIN
+//              TITEMTABLE for equipped items, LEFT JOIN TGUILDTABLE
+//              for fame, append BR/BOW shard hint. Trailing
+//              CS_BOWPLAYERNOTIFY_ACK is encoded by the handler, not
+//              this service.
+//   Create() — Reserved-name + duplicate-name + per-user slot checks,
+//              then INSERT into TCHARTABLE (world) + TALLCHARTABLE
+//              (global) + starter TITEMTABLE rows (StarterItem table
+//              picked by class). Level-5+ chars are split across the
+//              shard tables.
+//   Delete() — Soft-delete via TCHARTABLE.bDelete=1 + TALLCHARTABLE
+//              update; password verify is enforced upstream by the
+//              handler via IAuthService::VerifyPassword.
+//   GetVeteranLevels() — reads from the cached TVETERANCHART snapshot
+//              refreshed periodically by RegistryRefresher (30s).
+//   GetBrCharId / GetBowCharId — TBRPLAYERTABLE / TBOWPLAYERTABLE
+//              shard membership lookups.
+//
+// Legacy parity: Server/TLoginSvr/CTLoginSvrModule's CSPCharList /
+// CSPCreateChar / CSPDeleteChar SP calls + the TGUILDMEMBERTABLE
+// fame JOIN added in commit history (see README:298+).
+
 #include "soci_char_service.h"
 #include "fourstory/db/session_pool.h"
 

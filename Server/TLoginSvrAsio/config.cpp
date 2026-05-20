@@ -1,3 +1,25 @@
+// TOML config loader — implementation of tloginsvr::LoadConfig.
+//
+// Each [section] in tloginsvr.toml maps to a struct in config.h. Order
+// of business per section:
+//   1. Look up the section as a sub-table; absent → fall through with
+//      defaults.
+//   2. For each key, check the value's TOML type; out-of-range integer
+//      values throw std::runtime_error with the offending value
+//      embedded so operators see exactly what's wrong.
+//   3. Cross-field validation (e.g. smtp.host set but smtp.from_address
+//      empty) happens after parsing, before the function returns.
+//
+// Defaults are picked so a no-config build still produces a binary
+// that can accept the shipped legacy client. The default RC4 secret is
+// the exact byte string from Session.cpp:22's g_strSecretKey,
+// including the trailing NUL byte — see the kDefaultLegacySecretLen
+// comment for why that matters.
+//
+// Legacy parity: replaces the Win32 registry reads in
+// Server/TLoginSvr/CTLoginSvrModule::Init (HKLM\Software\...\Config).
+// Modernized: portable, git-able, version-controllable, testable.
+
 #include "config.h"
 
 #include <toml++/toml.hpp>

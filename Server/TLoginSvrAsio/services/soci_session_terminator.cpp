@@ -1,3 +1,25 @@
+// SociSessionTerminator implementation — SOCI-backed
+// ISessionTerminator. Runs the per-session DB cleanup on disconnect.
+//
+// Terminate() executes the legacy TLogout SP body inline as two SOCI
+// statements:
+//   * DELETE FROM TCURRENTUSER WHERE dwUserID = :uid
+//   * UPDATE TLOG SET timeLOGOUT = CURRENT_TIMESTAMP,
+//                     dwCharID, bGroupID, bChannel = :…
+//     WHERE dwKEY = :session_key
+//
+// MapHandoff branch: when reason == MapHandoff the TCURRENTUSER row is
+// preserved (Map server validates the handoff dwKEY); only TLOG is
+// stamped. See README's row #1 / #9 — the modes are wire-faithful to
+// CSHandler.cpp:1428's handoff path.
+//
+// ClearStaleSessions() is the boot-time crash-recovery sweep — wipes
+// TCURRENTUSER rows whose Login process is no longer alive, so a
+// previous PID's session entries don't lock accounts into LR_DUPLICATE.
+//
+// Legacy parity: Server/TLoginSvr's TLogout SP +
+// CTLoginSvrModule::OnEnter's CSPClearLoginUser call.
+
 #include "soci_session_terminator.h"
 #include "fourstory/db/session_pool.h"
 

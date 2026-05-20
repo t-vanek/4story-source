@@ -37,12 +37,16 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/senders.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_auth.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_service.cpp
+    ${TCONTROL_ASIO_SRC}/handlers/handlers_admin.cpp
     ${TCONTROL_ASIO_SRC}/db/schema_validator.cpp
+    ${TCONTROL_ASIO_SRC}/services/chat_ban_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/fake_operator_auth_service.cpp
     ${TCONTROL_ASIO_SRC}/services/operator_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/peer_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_operator_auth_service.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_service_inventory.cpp
+    ${TCONTROL_ASIO_SRC}/services/soci_user_protected_service.cpp
+    ${TCONTROL_ASIO_SRC}/services/spdlog_admin_audit_logger.cpp
     ${TCONTROL_ASIO_SRC}/services/windows_scm_service_controller.cpp)
 
 target_include_directories(tcontrolsvr_asio_core PUBLIC
@@ -90,3 +94,14 @@ target_link_libraries(test_tcontrolsvr_asio_peer_monitor PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_peer_monitor
     COMMAND test_tcontrolsvr_asio_peer_monitor)
+
+# F3 wire test: admin forwarders (kick, ban, chat-ban N-wave) +
+# authority gate behavior. Pre-stages peer sockets in PeerRegistry
+# without going through the dialer, drives operator wire packets,
+# and asserts on FakeAdminAudit + FakeUserProtected records.
+add_executable(test_tcontrolsvr_asio_admin_forwarders
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_forwarders.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_forwarders PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_forwarders
+    COMMAND test_tcontrolsvr_asio_admin_forwarders)

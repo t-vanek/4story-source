@@ -176,4 +176,134 @@ boost::asio::awaitable<void> SendCtrlSvrReq(
     co_await sess->SendPacket(ToUint16(MessageId::CT_CTRLSVR_REQ), {});
 }
 
+// --- F3: admin operations ------------------------------------------
+
+boost::asio::awaitable<void> SendUserProtectedAck(
+    const std::shared_ptr<ControlSession>& sess, std::uint8_t ret)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t>(body, ret);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_USERPROTECTED_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendChatBanAck(
+    const std::shared_ptr<ControlSession>& sess, std::uint8_t ret)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t>(body, ret);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CHATBAN_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendChatBanListAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<ChatBanRow>& rows)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, static_cast<std::uint32_t>(rows.size()));
+    for (const auto& r : rows)
+    {
+        wire::WritePOD<std::uint32_t>(body, r.id);
+        wire::WriteString(body, r.operator_id);
+        wire::WriteString(body, r.target_user);
+        wire::WritePOD<std::uint16_t>(body, r.minutes);
+        wire::WriteString(body, r.reason);
+        wire::WritePOD<std::int64_t >(body, r.created_unix);
+    }
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CHATBANLIST_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendAnnouncementAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& message)
+{
+    std::vector<std::byte> body;
+    wire::WriteString(body, message);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_ANNOUNCEMENT_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendUserKickoutAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& user)
+{
+    std::vector<std::byte> body;
+    wire::WriteString(body, user);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_USERKICKOUT_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendUserMoveAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& user,
+    std::uint8_t channel, std::uint16_t map_id,
+    float x, float y, float z)
+{
+    std::vector<std::byte> body;
+    wire::WriteString(body, user);
+    wire::WritePOD<std::uint8_t >(body, channel);
+    wire::WritePOD<std::uint16_t>(body, map_id);
+    wire::WritePOD<float>(body, x);
+    wire::WritePOD<float>(body, y);
+    wire::WritePOD<float>(body, z);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_USERMOVE_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendUserPositionAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& mover, const std::string& target)
+{
+    std::vector<std::byte> body;
+    wire::WriteString(body, mover);
+    wire::WriteString(body, target);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_USERPOSITION_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendCharMsgAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& user, const std::string& message)
+{
+    std::vector<std::byte> body;
+    wire::WriteString(body, user);
+    wire::WriteString(body, message);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CHARMSG_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendChatBanReq(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& user,
+    std::uint16_t minutes,
+    std::uint32_t ban_seq,
+    std::uint32_t manager_id)
+{
+    std::vector<std::byte> body;
+    wire::WriteString(body, user);
+    wire::WritePOD<std::uint16_t>(body, minutes);
+    wire::WritePOD<std::uint32_t>(body, ban_seq);
+    wire::WritePOD<std::uint32_t>(body, manager_id);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CHATBAN_REQ),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendMonSpawnFindAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t manager_id,
+    std::uint8_t channel,
+    std::uint16_t map_id,
+    std::uint16_t spawn_id)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, manager_id);
+    wire::WritePOD<std::uint8_t >(body, channel);
+    wire::WritePOD<std::uint16_t>(body, map_id);
+    wire::WritePOD<std::uint16_t>(body, spawn_id);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_MONSPAWNFIND_ACK),
+                              std::move(body));
+}
+
 } // namespace tcontrolsvr::senders

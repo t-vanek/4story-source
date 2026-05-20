@@ -10,7 +10,7 @@ The plan, handler-by-handler, lives in
 [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](../../_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md).
 This README only covers what F1 ships and how to bring it up.
 
-## Status — F1 scaffold + F2 peer infra
+## Status — F1 scaffold + F2 peer infra + F3 admin operations
 
 | Area | F1 | F2 | F3 | F4 | F5 | F6 |
 |------|----|----|----|----|----|----|
@@ -29,7 +29,12 @@ This README only covers what F1 ships and how to bring it up.
 | Peer-driven `CT_SERVICEMONITOR_REQ` + `CT_SERVICEDATA_ACK` fan-out | | ✅ | | | | |
 | 1Hz peer keep-alive watchdog (`PeerKeepaliveLoop`) | | ✅ | | | | |
 | Schema validator (TGROUP / TMACHINE / TIPADDR / TSVRTYPE / TSERVER) | | ✅ | | | | |
-| Admin operations + audit (TLOG_AUDIT shared) | | | ✅ | | | |
+| Authority gate enum + `CT_AUTHORITY_ACK` reject path | | | ✅ | | | |
+| Admin forwarders — KICK / MOVE / POSITION / CHARMSG / ANNOUNCEMENT | | | ✅ | | | |
+| `CT_USERPROTECTED_REQ` via `IUserProtectedService` (SOCI: `TUserProtectedAdd`) | | | ✅ | | | |
+| Chat-ban: N-wave aggregator + list + delete | | | ✅ | | | |
+| `IAdminAuditLogger` interface + spdlog impl (shared "audit" channel) | | | ✅ | | | |
+| `CT_MONSPAWNFIND_REQ` map broadcast | | | ✅ | | | |
 | Event scheduler + manager | | | | ✅ | | |
 | Patch metadata + castle + ops polish | | | | | ✅ | |
 | End-to-end legacy `TController.exe` smoke test | | | | | | ✅ |

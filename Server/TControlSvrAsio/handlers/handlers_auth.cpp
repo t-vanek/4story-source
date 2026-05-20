@@ -192,6 +192,36 @@ Dispatch(std::shared_ptr<OperatorSession> op,
     case MessageId::CT_RECONNECT_REQ:
         co_await OnReconnectReq(std::move(op), std::move(body), ctx);
         break;
+    case MessageId::CT_ANNOUNCEMENT_REQ:
+        co_await OnAnnouncementReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_USERKICKOUT_REQ:
+        co_await OnUserKickoutReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_USERMOVE_REQ:
+        co_await OnUserMoveReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_USERPOSITION_REQ:
+        co_await OnUserPositionReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_USERPROTECTED_REQ:
+        co_await OnUserProtectedReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CHARMSG_REQ:
+        co_await OnCharMsgReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CHATBAN_REQ:
+        co_await OnChatBanReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CHATBANLIST_REQ:
+        co_await OnChatBanListReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CHATBANLISTDEL_REQ:
+        co_await OnChatBanListDelReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_MONSPAWNFIND_REQ:
+        co_await OnMonSpawnFindReq(std::move(op), std::move(body), ctx);
+        break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap
         // so the bring-up notes can surface what TController.exe

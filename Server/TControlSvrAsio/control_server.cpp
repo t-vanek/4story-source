@@ -65,6 +65,9 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.peers      = m_cfg.peers;
     ctx.controller = m_cfg.controller;
     ctx.dialer     = m_cfg.dialer;
+    ctx.audit      = m_cfg.audit;
+    ctx.user_ban   = m_cfg.user_ban;
+    ctx.chat_bans  = m_cfg.chat_bans;
     ctx.io         = &m_io;
     ctx.auto_start = &m_auto_start;
 

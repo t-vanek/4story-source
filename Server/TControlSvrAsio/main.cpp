@@ -7,14 +7,19 @@
 #include "control_server.h"
 #include "peer_dialer.h"
 #include "db/schema_validator.h"
+#include "services/chat_ban_repository.h"
 #include "services/disabled_service_controller.h"
 #include "services/fake_operator_auth_service.h"
 #include "services/fake_service_inventory.h"
+#include "services/fake_user_protected_service.h"
 #include "services/operator_auth_service.h"
 #include "services/peer_registry.h"
 #include "services/service_inventory.h"
 #include "services/soci_operator_auth_service.h"
 #include "services/soci_service_inventory.h"
+#include "services/soci_user_protected_service.h"
+#include "services/spdlog_admin_audit_logger.h"
+#include "services/user_protected_service.h"
 
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/admin_shell.h"
@@ -87,6 +92,7 @@ int main(int argc, char** argv)
         std::unique_ptr<fourstory::db::SessionPool>           pool;
         std::unique_ptr<tcontrolsvr::IOperatorAuthService>    auth;
         std::unique_ptr<tcontrolsvr::IServiceInventory>       inventory_ptr;
+        std::unique_ptr<tcontrolsvr::IUserProtectedService>   user_ban;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -108,6 +114,8 @@ int main(int argc, char** argv)
             soci_inv->Reload();
             inventory_ptr = std::move(soci_inv);
             auth = std::make_unique<tcontrolsvr::SociOperatorAuthService>(*pool);
+            user_ban =
+                std::make_unique<tcontrolsvr::SociUserProtectedService>(*pool);
             spdlog::info("auth + inventory: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
         }
@@ -129,7 +137,12 @@ int main(int argc, char** argv)
             for (const auto& t : cfg.fake_inventory.types)
                 fake_inv->AddType({t.id, 0, t.name});
             inventory_ptr = std::move(fake_inv);
+            user_ban = std::make_unique<tcontrolsvr::FakeUserProtectedService>();
         }
+
+        // --- Admin audit + chat-ban registry -----------------------
+        tcontrolsvr::SpdlogAdminAuditLogger audit;
+        tcontrolsvr::ChatBanRepository      chat_bans;
 
         // --- Peer infra --------------------------------------------
         tcontrolsvr::PeerRegistry peers(*inventory_ptr);
@@ -144,6 +157,9 @@ int main(int argc, char** argv)
         svr_cfg.controller = controller.get();
         svr_cfg.dialer     = &dialer;
         svr_cfg.peers      = &peers;
+        svr_cfg.audit      = &audit;
+        svr_cfg.user_ban   = user_ban.get();
+        svr_cfg.chat_bans  = &chat_bans;
         svr_cfg.auto_start = cfg.auto_start;
         tcontrolsvr::ControlServer server(io, svr_cfg);
         spdlog::info("control server listening on 0.0.0.0:{}", server.Port());

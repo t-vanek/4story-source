@@ -3,6 +3,7 @@
 #include "../peer_dialer.h"
 #include "../senders.h"
 #include "../wire_codec.h"
+#include "../services/svr_type.h"
 #include "MessageId.h"
 
 #include <boost/asio/co_spawn.hpp>
@@ -141,7 +142,6 @@ OnServiceControlReq(std::shared_ptr<OperatorSession> op,
     // implicitly disables auto-restart for every other service in
     // the same group. F2 mirrors the flag flip; the actual stop
     // happens via the IServiceController in the same step.
-    constexpr std::uint8_t SVRGRP_WORLDSVR = 5;  // legacy bType enum
     auto status_before = resolved.status->status;
 
     std::uint8_t ack = ACK_FAILED;
@@ -179,7 +179,7 @@ OnServiceControlReq(std::shared_ptr<OperatorSession> op,
                 spdlog::info("CT_SERVICECONTROL: stop svc_id={:08x} "
                              "name='{}'", service_id, resolved.svc->name);
 
-                if (resolved.svc->type_id == SVRGRP_WORLDSVR && ctx.peers)
+                if (resolved.svc->type_id == svr_type::kWorldSvr && ctx.peers)
                 {
                     // Cascade: every other service in the same group
                     // loses its manager_control flag (auto-restart
@@ -362,6 +362,9 @@ RunPeerLoop(std::shared_ptr<PeerSession> peer, HandlerContext ctx)
             {
             case MessageId::CT_SERVICEMONITOR_REQ:
                 co_await OnServiceMonitorReq(peer, std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_CHATBAN_ACK:
+                co_await OnPeerChatBanAck(peer, std::move(pkt.body), ctx);
                 break;
             default:
                 spdlog::debug("peer_loop: unhandled CT_* id=0x{:04X} from "

@@ -18,11 +18,14 @@
 #include "../control_session.h"
 #include "../operator_session.h"
 #include "../peer_session.h"
+#include "../services/admin_audit_logger.h"
+#include "../services/chat_ban_repository.h"
 #include "../services/operator_auth_service.h"
 #include "../services/operator_registry.h"
 #include "../services/peer_registry.h"
 #include "../services/service_controller.h"
 #include "../services/service_inventory.h"
+#include "../services/user_protected_service.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -40,13 +43,16 @@ class PeerDialer;
 
 struct HandlerContext
 {
-    IOperatorAuthService*    auth        = nullptr;
-    IServiceInventory*       inventory   = nullptr;
-    OperatorRegistry*        operators   = nullptr;
-    PeerRegistry*            peers       = nullptr;
-    IServiceController*      controller  = nullptr;
-    PeerDialer*              dialer      = nullptr;
-    boost::asio::io_context* io          = nullptr;
+    IOperatorAuthService*    auth         = nullptr;
+    IServiceInventory*       inventory    = nullptr;
+    OperatorRegistry*        operators    = nullptr;
+    PeerRegistry*            peers        = nullptr;
+    IServiceController*      controller   = nullptr;
+    PeerDialer*              dialer       = nullptr;
+    IAdminAuditLogger*       audit        = nullptr;
+    IUserProtectedService*   user_ban     = nullptr;
+    ChatBanRepository*       chat_bans    = nullptr;
+    boost::asio::io_context* io           = nullptr;
 
     // Mirror of legacy CTControlSvrModule::m_bAutoStart — whether
     // the cluster scheduler auto-restarts a crashed daemon. Mutated
@@ -120,6 +126,66 @@ boost::asio::awaitable<void> OnServiceMonitorReq(
 boost::asio::awaitable<void> RunPeerLoop(
     std::shared_ptr<PeerSession> peer,
     HandlerContext ctx);
+
+// --- F3: admin operations (operator → control → peer broadcast) -----
+
+boost::asio::awaitable<void> OnAnnouncementReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnUserKickoutReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnUserMoveReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnUserPositionReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnUserProtectedReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCharMsgReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnChatBanReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Inbound from World/Relay peer: CT_CHATBAN_ACK = { BYTE bRet,
+// DWORD ban_seq, DWORD manager_id }. Aggregates per-seq; when all
+// expected acks land, the operator gets one CT_CHATBAN_ACK.
+boost::asio::awaitable<void> OnPeerChatBanAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnChatBanListReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnChatBanListDelReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnMonSpawnFindReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
 
 } // namespace handlers
 } // namespace tcontrolsvr

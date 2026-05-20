@@ -115,4 +115,88 @@ boost::asio::awaitable<void> SendServiceMonitorAck(
 boost::asio::awaitable<void> SendCtrlSvrReq(
     const std::shared_ptr<ControlSession>& sess);
 
+// --- F3: admin operations (operator → control → peer) ----------------
+
+// CT_USERPROTECTED_ACK = { BYTE bRet }
+boost::asio::awaitable<void> SendUserProtectedAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret);
+
+// CT_CHATBAN_ACK = { BYTE bRet }
+boost::asio::awaitable<void> SendChatBanAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret);
+
+// CT_CHATBANLIST_ACK = {
+//   DWORD count,
+//   [ DWORD dwID, CString operator, CString target, WORD minutes,
+//     CString reason, INT64 created ] * count
+// }
+struct ChatBanRow
+{
+    std::uint32_t  id;
+    std::string    operator_id;
+    std::string    target_user;
+    std::uint16_t  minutes;
+    std::string    reason;
+    std::int64_t   created_unix;
+};
+boost::asio::awaitable<void> SendChatBanListAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<ChatBanRow>& rows);
+
+// Peer-side forwarders. Same wire shape as the legacy
+// CTServer::SendCT_*_ACK / ::SendCT_*_REQ methods.
+
+// CT_ANNOUNCEMENT_ACK = { CString message }
+boost::asio::awaitable<void> SendAnnouncementAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& message);
+
+// CT_USERKICKOUT_ACK = { CString user }
+boost::asio::awaitable<void> SendUserKickoutAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& user);
+
+// CT_USERMOVE_ACK = { CString user, BYTE channel, WORD map_id,
+//                     float x, float y, float z }
+boost::asio::awaitable<void> SendUserMoveAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& user,
+    std::uint8_t channel,
+    std::uint16_t map_id,
+    float x, float y, float z);
+
+// CT_USERPOSITION_ACK = { CString mover, CString target }
+boost::asio::awaitable<void> SendUserPositionAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& mover,
+    const std::string& target);
+
+// CT_CHARMSG_ACK = { CString user, CString message }
+boost::asio::awaitable<void> SendCharMsgAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& user,
+    const std::string& message);
+
+// CT_CHATBAN_REQ (control → peer) = {
+//   CString user, WORD minutes, DWORD ban_seq, DWORD manager_id
+// }
+boost::asio::awaitable<void> SendChatBanReq(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::string& user,
+    std::uint16_t minutes,
+    std::uint32_t ban_seq,
+    std::uint32_t manager_id);
+
+// CT_MONSPAWNFIND_ACK (control → peer) = {
+//   DWORD manager_id, BYTE channel, WORD map_id, WORD spawn_id
+// }
+boost::asio::awaitable<void> SendMonSpawnFindAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t manager_id,
+    std::uint8_t channel,
+    std::uint16_t map_id,
+    std::uint16_t spawn_id);
+
 } // namespace tcontrolsvr::senders

@@ -9,9 +9,12 @@
 #include "operator_session.h"
 #include "peer_session.h"
 #include "handlers/handlers.h"
+#include "services/admin_audit_logger.h"
+#include "services/chat_ban_repository.h"
 #include "services/operator_registry.h"
 #include "services/peer_registry.h"
 #include "services/service_controller.h"
+#include "services/user_protected_service.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -32,6 +35,9 @@ struct ControlServerConfig
     IServiceController*    controller  = nullptr;
     PeerDialer*            dialer      = nullptr;
     PeerRegistry*          peers       = nullptr;
+    IAdminAuditLogger*     audit       = nullptr;
+    IUserProtectedService* user_ban    = nullptr;
+    ChatBanRepository*     chat_bans   = nullptr;
     std::uint8_t           auto_start  = 0;
 };
 

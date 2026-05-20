@@ -1,6 +1,6 @@
 // Spec test for LocalQuestEngine + HardcodedQuestChart.
 //
-// §1  HardcodedQuestChart: quest 101 + 102 present, NPC 1 has both
+// §1  HardcodedQuestChart: quest 101-104 present, NPC 1 has all four
 // §2  StartQuest — success on first start, fail on duplicate
 // §3  StartQuest — fail for unknown quest_id
 // §4  OnMonsterKilled — hunt term progresses
@@ -8,6 +8,8 @@
 // §6  OnMonsterKilled — specific template_id (quest 102 target_id=10)
 // §7  DropQuest — removes active quest
 // §8  GetActiveQuests / GetCompletedQuestIds
+// §9  OnItemPickedUp — GETITEM term (quest 103 collect 3 of item 5)
+// §10 OnNpcTalked    — TALK term (quest 104 talk to NPC 2)
 
 #include "quest_engine.h"
 #include <cstdio>
@@ -31,11 +33,27 @@ void TestQuestChart()
 
     Check(chart.GetQuest(101) != nullptr, "quest 101 exists");
     Check(chart.GetQuest(102) != nullptr, "quest 102 exists");
+    Check(chart.GetQuest(103) != nullptr, "quest 103 exists (collect)");
+    Check(chart.GetQuest(104) != nullptr, "quest 104 exists (talk)");
     Check(chart.GetQuest(999) == nullptr, "unknown quest → nullptr");
 
     auto npc_quests = chart.GetNpcQuests(1);
-    Check(npc_quests.size() == 2, "NPC 1 has 2 quests");
+    Check(npc_quests.size() == 4, "NPC 1 has 4 quests");
     Check(chart.GetNpcQuests(99).empty(), "unknown NPC has no quests");
+
+    // Verify term types match legacy wire values
+    const auto* q101 = chart.GetQuest(101);
+    Check(q101 && !q101->terms.empty() &&
+          q101->terms[0].term_type == tmapsvr::QuestTermType::Hunt,
+          "quest 101 term type = Hunt=3");
+    const auto* q103 = chart.GetQuest(103);
+    Check(q103 && !q103->terms.empty() &&
+          q103->terms[0].term_type == tmapsvr::QuestTermType::GetItem,
+          "quest 103 term type = GetItem=2");
+    const auto* q104 = chart.GetQuest(104);
+    Check(q104 && !q104->terms.empty() &&
+          q104->terms[0].term_type == tmapsvr::QuestTermType::Talk,
+          "quest 104 term type = Talk=13");
 }
 
 void TestStartQuest()
@@ -82,7 +100,7 @@ void TestQuestCompletion()
     tmapsvr::LocalQuestEngine    engine(chart);
     engine.StartQuest(2u, 101u);  // kill 5 monsters
 
-    tmapsvr::QuestKillEvent last;
+    tmapsvr::QuestProgressEvent last;
     for (int i = 0; i < 5; ++i)
     {
         auto evs = engine.OnMonsterKilled(2u, 1u);
@@ -138,6 +156,70 @@ void TestDropQuest()
     Check(engine.GetActiveQuests(4u).empty(), "no active quests after drop");
 }
 
+void TestCollectItem()
+{
+    std::printf("[§9 OnItemPickedUp — GETITEM term]\n");
+    tmapsvr::HardcodedQuestChart chart;
+    tmapsvr::LocalQuestEngine    engine(chart);
+    engine.StartQuest(5u, 103u);  // collect 3 of item_id=5
+
+    // Wrong item should not progress
+    auto ev_wrong = engine.OnItemPickedUp(5u, 99u);
+    Check(ev_wrong.empty(), "pick up wrong item → no events");
+
+    // Two correct pickups — progresses but not complete
+    auto ev1 = engine.OnItemPickedUp(5u, 5u);
+    Check(ev1.size() == 1, "first pickup → 1 event");
+    if (!ev1.empty())
+    {
+        Check(ev1[0].quest_id == 103u,                 "correct quest_id");
+        Check(ev1[0].term_type == tmapsvr::QuestTermType::GetItem,
+                                                        "term_type = GetItem=2");
+        Check(ev1[0].new_count == 1u,                   "count = 1");
+        Check(!ev1[0].term_complete,                    "term not complete");
+        Check(!ev1[0].quest_complete,                   "quest not complete");
+    }
+    engine.OnItemPickedUp(5u, 5u);
+
+    // Third pickup completes quest
+    auto ev3 = engine.OnItemPickedUp(5u, 5u);
+    Check(!ev3.empty() && ev3[0].term_complete,  "term complete at 3 pickups");
+    Check(!ev3.empty() && ev3[0].quest_complete, "quest complete at 3 pickups");
+    Check(engine.GetActiveQuests(5u).empty(),    "no active quests after collect completion");
+
+    const auto done = engine.GetCompletedQuestIds(5u);
+    Check(done.size() == 1 && done[0] == 103u,   "quest 103 in completed list");
+}
+
+void TestNpcTalk()
+{
+    std::printf("[§10 OnNpcTalked — TALK term]\n");
+    tmapsvr::HardcodedQuestChart chart;
+    tmapsvr::LocalQuestEngine    engine(chart);
+    engine.StartQuest(6u, 104u);  // talk to NPC 2
+
+    // Talk to wrong NPC — no progress
+    auto ev_wrong = engine.OnNpcTalked(6u, 99u);
+    Check(ev_wrong.empty(), "talk to wrong NPC → no events");
+
+    // Talk to correct NPC — one-shot completion
+    auto ev = engine.OnNpcTalked(6u, 2u);
+    Check(ev.size() == 1, "talk to NPC 2 → 1 event");
+    if (!ev.empty())
+    {
+        Check(ev[0].quest_id == 104u,                  "correct quest_id");
+        Check(ev[0].term_type == tmapsvr::QuestTermType::Talk,
+                                                        "term_type = Talk=13");
+        Check(ev[0].term_complete,                     "term complete immediately");
+        Check(ev[0].quest_complete,                    "quest complete");
+        Check(ev[0].new_count == 1u,                   "count = target = 1");
+    }
+    Check(engine.GetActiveQuests(6u).empty(),   "no active quests after talk completion");
+
+    const auto done = engine.GetCompletedQuestIds(6u);
+    Check(done.size() == 1 && done[0] == 104u,  "quest 104 in completed list");
+}
+
 } // namespace
 
 int main()
@@ -151,6 +233,8 @@ int main()
         TestQuestCompletion();
         TestSpecificTemplateId();
         TestDropQuest();
+        TestCollectItem();
+        TestNpcTalk();
     }
     catch (const std::exception& ex)
     {

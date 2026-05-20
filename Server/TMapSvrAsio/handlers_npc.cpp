@@ -63,6 +63,14 @@ OnNpcTalkReq(std::shared_ptr<tnetlib::AsioSession> sess,
         ToUint16(MessageId::CS_NPCTALK_ACK),
         std::span<const std::byte>(body.data(), body.size()));
 
+    // F7 Part 2: progress TALK quest terms
+    if (ctx.quest_engine && state.snapshot)
+    {
+        const auto ev = ctx.quest_engine->OnNpcTalked(
+            state.char_id, static_cast<std::uint32_t>(npc_id));
+        co_await DispatchQuestEvents(sess, state, ctx, ev);
+    }
+
     // F7: send available quests for this NPC
     if (ctx.quest_engine && ctx.npc_svc)
     {

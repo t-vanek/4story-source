@@ -18,6 +18,7 @@
 #include "handlers_items.h"
 #include "handlers.h"
 #include "handlers_combat.h"  // SendHpMpAck
+#include "handlers_quest.h"   // DispatchQuestEvents
 #include "loot_registry.h"
 #include "wire_codec.h"
 
@@ -448,6 +449,14 @@ OnMonItemTakeReq(std::shared_ptr<tnetlib::AsioSession> sess,
     co_await SendTakeAck(0u);  // success
     spdlog::debug("OnMonItemTakeReq: uid={} took item_id={} from mon={}",
         state.user_id, taken->item_id, mon_id);
+
+    // F7 Part 2: progress GETITEM quest terms
+    if (ctx.quest_engine && state.snapshot)
+    {
+        const auto ev = ctx.quest_engine->OnItemPickedUp(
+            state.char_id, taken->item_id);
+        co_await DispatchQuestEvents(sess, state, ctx, ev);
+    }
 }
 
 } // namespace tmapsvr

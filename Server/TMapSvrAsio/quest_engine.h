@@ -1,27 +1,32 @@
 #pragma once
 
-// Quest engine — F7 Part 1.
+// Quest engine — F7.
 //
 // Quest lifecycle:
 //   1. Player talks to NPC → CS_QUESTLIST_POSSIBLE_ACK shows available quests
 //   2. Player accepts quest → CS_QUESTEXEC_REQ → IQuestEngine::StartQuest
-//   3. Player kills monsters / picks items → IQuestEngine::OnMonsterKilled
+//   3. Progress: kill monsters   → OnMonsterKilled → QuestProgressEvent
+//               pick up items    → OnItemPickedUp  → QuestProgressEvent
+//               talk to NPC      → OnNpcTalked     → QuestProgressEvent
 //      → CS_QUESTUPDATE_ACK when term progresses
-//   4. All terms complete → CS_QUESTCOMPLETE_ACK → CS_EXP_ACK reward
+//   4. All terms complete → DispatchQuestEvents grants rewards + CS_QUESTCOMPLETE_ACK
 //   5. Player abandons quest → CS_QUESTDROP_REQ → IQuestEngine::DropQuest
 //
 // Quest template (IQuestChart):
-//   Loaded from TQUESTCHART at boot; defines quest_id, trigger_npc,
-//   terms (kill N of template_id X), rewards.
-//   HardcodedQuestChart ships two kill quests for smoke testing.
+//   HardcodedQuestChart ships four quests for smoke testing.
+//   SociQuestChart loads from TQUESTCHART / TQUESTTERMCHART / TQREWARDCHART at boot.
+//
+// Term type values match NetCode.h QTT_* (legacy wire values).
 //
 // Source:
 //   CSHandler.cpp:3535 — OnCS_QUESTEXEC_REQ
 //   CSHandler.cpp:3590 — OnCS_QUESTDROP_REQ
+//   CSHandler.cpp:20997 — OnCS_QUESTPOSEXEC_REQ
 //   CSSender.cpp:1825  — SendCS_QUESTUPDATE_ACK
 //   CSSender.cpp:1843  — SendCS_QUESTCOMPLETE_ACK
 //   CSSender.cpp:1861  — SendCS_QUESTLIST_ACK
 //   TMapType.h:2009    — tagQUESTTERM
+//   NetCode.h:1907     — TERM_TYPE enum
 
 #include <algorithm>
 #include <cstdint>
@@ -34,14 +39,16 @@
 namespace tmapsvr {
 
 // ---------------------------------------------------------------------------
-// Quest term types (legacy QTT_* enum)
+// Quest term types — match NetCode.h QTT_* enum values
 // ---------------------------------------------------------------------------
 namespace QuestTermType {
-    constexpr std::uint8_t Hunt     = 1;  // kill N monsters
-    constexpr std::uint8_t Timer    = 2;  // time-limited
-    constexpr std::uint8_t Item     = 3;  // collect N items
-    constexpr std::uint8_t Talk     = 4;  // talk to NPC
-    constexpr std::uint8_t Deliver  = 5;  // deliver item to NPC
+    constexpr std::uint8_t CompQuest = 1;   // complete another quest
+    constexpr std::uint8_t GetItem   = 2;   // collect N items   (QTT_GETITEM)
+    constexpr std::uint8_t Hunt      = 3;   // kill N monsters   (QTT_HUNT)
+    constexpr std::uint8_t ItemId    = 5;   // qualifier: specific item template
+    constexpr std::uint8_t Timer     = 6;   // time-limited      (QTT_TIMER)
+    constexpr std::uint8_t MonId     = 7;   // qualifier: specific monster template
+    constexpr std::uint8_t Talk      = 13;  // talk to NPC       (QTT_TALK)
 }
 
 // Quest term status
@@ -51,11 +58,18 @@ namespace QuestTermStatus {
     constexpr std::uint8_t Failed   = 2;
 }
 
-// Quest result
+// Quest result — CS_QUESTCOMPLETE_ACK bResult field
 namespace QuestResult {
     constexpr std::uint8_t Success  = 0;
     constexpr std::uint8_t Drop     = 1;
     constexpr std::uint8_t Failed   = 2;
+}
+
+// Reward types — match NetCode.h RT_* enum values
+namespace RewardType {
+    constexpr std::uint8_t Gold      = 1;  // RT_GOLD
+    constexpr std::uint8_t Item      = 2;  // RT_ITEM
+    constexpr std::uint8_t Exp       = 6;  // RT_EXP
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +82,7 @@ struct QuestTermProgress
     std::uint8_t  term_type     = 0;
     std::uint8_t  target_count  = 0;   // required
     std::uint8_t  current_count = 0;   // achieved
-    std::uint32_t target_id     = 0;   // monster/item template_id for this term
+    std::uint32_t target_id     = 0;   // monster/item template_id or npc_id
     std::uint8_t  status        = QuestTermStatus::Running;
 
     bool IsComplete() const
@@ -103,15 +117,15 @@ struct QuestTermTemplate
     std::uint32_t term_id      = 0;
     std::uint8_t  term_type    = QuestTermType::Hunt;
     std::uint8_t  count        = 1;    // required count
-    std::uint32_t target_id    = 0;    // monster/item template_id
+    std::uint32_t target_id    = 0;    // monster/item/npc template_id
 };
 
 struct QuestRewardTemplate
 {
-    std::uint16_t item_id     = 0;
-    std::uint8_t  count       = 1;
-    std::uint32_t exp_reward  = 0;
-    std::uint32_t gold        = 0;
+    std::uint16_t item_id      = 0;    // 0 = no item reward
+    std::uint8_t  item_count   = 1;
+    std::uint32_t exp_reward   = 0;
+    std::uint32_t gold         = 0;
 };
 
 struct QuestTemplate
@@ -136,24 +150,29 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// IQuestEngine
+// Quest progress event — emitted by all On* methods
 // ---------------------------------------------------------------------------
 
-struct QuestKillEvent
+struct QuestProgressEvent
 {
-    std::uint32_t quest_id = 0;   // which quest progressed
-    std::uint32_t term_id  = 0;   // which term progressed
-    std::uint8_t  new_count = 0;
-    bool          term_complete = false;
+    std::uint32_t quest_id      = 0;   // which quest progressed
+    std::uint32_t term_id       = 0;   // which term progressed
+    std::uint8_t  term_type     = 0;   // QuestTermType::*
+    std::uint8_t  new_count     = 0;
+    bool          term_complete  = false;
     bool          quest_complete = false;
 };
+
+// ---------------------------------------------------------------------------
+// IQuestEngine
+// ---------------------------------------------------------------------------
 
 class IQuestEngine
 {
 public:
     virtual ~IQuestEngine() = default;
 
-    // Accept a quest (returns false if already active or invalid).
+    // Accept a quest (returns false if already active/completed or invalid).
     virtual bool StartQuest(std::uint32_t char_id,
                             std::uint32_t quest_id) = 0;
 
@@ -162,9 +181,27 @@ public:
                            std::uint32_t quest_id) = 0;
 
     // Report monster kill; returns events for each affected quest term.
-    virtual std::vector<QuestKillEvent>
+    virtual std::vector<QuestProgressEvent>
         OnMonsterKilled(std::uint32_t char_id,
                         std::uint32_t monster_template_id) = 0;
+
+    // Report item picked up; returns events for GETITEM terms.
+    virtual std::vector<QuestProgressEvent>
+        OnItemPickedUp(std::uint32_t char_id,
+                       std::uint32_t item_id) = 0;
+
+    // Report NPC talked to; returns events for TALK terms.
+    virtual std::vector<QuestProgressEvent>
+        OnNpcTalked(std::uint32_t char_id,
+                    std::uint32_t npc_id) = 0;
+
+    // Directly complete a specific Hunt term by quest+term id (position quests).
+    // Source: CSHandler.cpp:20997 — FinishTerm(dwTermID).
+    // Returns events as OnMonsterKilled would; empty if term/quest not found.
+    virtual std::vector<QuestProgressEvent>
+        ForceCompleteHuntTerm(std::uint32_t char_id,
+                              std::uint32_t quest_id,
+                              std::uint32_t term_id) = 0;
 
     // Get all active QuestStates for char.
     virtual std::vector<const QuestState*>
@@ -174,12 +211,12 @@ public:
     virtual std::vector<std::uint32_t>
         GetCompletedQuestIds(std::uint32_t char_id) const = 0;
 
-    // Collect chart pointer (for quest list queries).
+    // Collect chart pointer (for quest list queries and reward lookup).
     virtual const IQuestChart* Chart() const = 0;
 };
 
 // ---------------------------------------------------------------------------
-// HardcodedQuestChart — two kill quests for smoke testing
+// HardcodedQuestChart — four quests for smoke testing
 // ---------------------------------------------------------------------------
 
 class HardcodedQuestChart : public IQuestChart
@@ -187,15 +224,15 @@ class HardcodedQuestChart : public IQuestChart
 public:
     HardcodedQuestChart()
     {
-        // Quest 101 — kill 5 monsters (any, template_id=0 = any)
+        // Quest 101 — kill 5 monsters (any, target_id=0 = any)
         {
             QuestTemplate q{};
             q.quest_id    = 101;
             q.name        = "First Hunt";
             q.trigger_npc = 1;
             QuestTermTemplate t{};
-            t.term_id   = 1001; t.term_type = QuestTermType::Hunt;
-            t.count     = 5;    t.target_id = 0;  // 0 = any monster
+            t.term_id    = 1001; t.term_type = QuestTermType::Hunt;
+            t.count      = 5;   t.target_id = 0;
             q.terms.push_back(t);
             q.reward.exp_reward = 200; q.reward.gold = 50;
             m_quests[q.quest_id] = q;
@@ -208,10 +245,39 @@ public:
             q.name        = "Wolf Hunt";
             q.trigger_npc = 1;
             QuestTermTemplate t{};
-            t.term_id   = 1002; t.term_type = QuestTermType::Hunt;
-            t.count     = 3;    t.target_id = 10; // template_id=10
+            t.term_id    = 1002; t.term_type = QuestTermType::Hunt;
+            t.count      = 3;   t.target_id = 10;
             q.terms.push_back(t);
             q.reward.exp_reward = 500; q.reward.gold = 100;
+            m_quests[q.quest_id] = q;
+            m_npc_quests[1].push_back(q.quest_id);
+        }
+        // Quest 103 — collect 3 of item_id=5
+        {
+            QuestTemplate q{};
+            q.quest_id    = 103;
+            q.name        = "Resource Gathering";
+            q.trigger_npc = 1;
+            QuestTermTemplate t{};
+            t.term_id    = 1003; t.term_type = QuestTermType::GetItem;
+            t.count      = 3;   t.target_id = 5;  // item_id=5
+            q.terms.push_back(t);
+            q.reward.exp_reward = 300;
+            q.reward.item_id    = 2; q.reward.item_count = 1;
+            m_quests[q.quest_id] = q;
+            m_npc_quests[1].push_back(q.quest_id);
+        }
+        // Quest 104 — talk to NPC 2
+        {
+            QuestTemplate q{};
+            q.quest_id    = 104;
+            q.name        = "Delivery Request";
+            q.trigger_npc = 1;
+            QuestTermTemplate t{};
+            t.term_id    = 1004; t.term_type = QuestTermType::Talk;
+            t.count      = 1;   t.target_id = 2;  // npc_id=2
+            q.terms.push_back(t);
+            q.reward.exp_reward = 100;
             m_quests[q.quest_id] = q;
             m_npc_quests[1].push_back(q.quest_id);
         }
@@ -239,7 +305,7 @@ public:
     }
 
 private:
-    std::unordered_map<std::uint32_t, QuestTemplate>             m_quests;
+    std::unordered_map<std::uint32_t, QuestTemplate>              m_quests;
     std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> m_npc_quests;
 };
 
@@ -259,12 +325,9 @@ public:
         const auto* tmpl = m_chart.GetQuest(quest_id);
         if (!tmpl) return false;
         auto& active = m_active[char_id];
-        // Already active?
         for (const auto& q : active)
             if (q.quest_id == quest_id) return false;
-        // Already completed?
-        auto& done = m_completed[char_id];
-        if (done.count(quest_id)) return false;
+        if (m_completed[char_id].count(quest_id)) return false;
 
         QuestState state{};
         state.quest_id   = quest_id;
@@ -297,30 +360,49 @@ public:
         return vec.size() < before;
     }
 
-    std::vector<QuestKillEvent>
+    std::vector<QuestProgressEvent>
     OnMonsterKilled(std::uint32_t char_id,
                     std::uint32_t monster_template_id) override
     {
-        std::vector<QuestKillEvent> events;
+        return ProgressTerms(char_id, QuestTermType::Hunt, monster_template_id);
+    }
+
+    std::vector<QuestProgressEvent>
+    OnItemPickedUp(std::uint32_t char_id,
+                   std::uint32_t item_id) override
+    {
+        return ProgressTerms(char_id, QuestTermType::GetItem, item_id);
+    }
+
+    std::vector<QuestProgressEvent>
+    OnNpcTalked(std::uint32_t char_id,
+                std::uint32_t npc_id) override
+    {
+        // Talk terms are one-shot — jump directly to target_count.
+        return ProgressTerms(char_id, QuestTermType::Talk, npc_id,
+                             /*one_shot=*/true);
+    }
+
+    std::vector<QuestProgressEvent>
+    ForceCompleteHuntTerm(std::uint32_t char_id,
+                          std::uint32_t quest_id,
+                          std::uint32_t term_id) override
+    {
+        std::vector<QuestProgressEvent> events;
         auto it = m_active.find(char_id);
         if (it == m_active.end()) return events;
 
         for (auto& quest : it->second)
         {
-            if (quest.complete) continue;
+            if (quest.quest_id != quest_id || quest.complete) continue;
             for (auto& term : quest.terms)
             {
+                if (term.term_id != term_id) continue;
                 if (term.term_type != QuestTermType::Hunt) continue;
-                if (term.IsComplete()) continue;
-                // target_id=0 means "any monster"
-                if (term.target_id != 0 &&
-                    term.target_id != monster_template_id) continue;
+                if (term.IsComplete()) return events;
 
-                ++term.current_count;
-                const bool term_done =
-                    term.current_count >= term.target_count;
-                if (term_done)
-                    term.status = QuestTermStatus::Success;
+                term.current_count = term.target_count;
+                term.status        = QuestTermStatus::Success;
 
                 const bool quest_done = quest.AllTermsComplete();
                 if (quest_done)
@@ -329,22 +411,25 @@ public:
                     m_completed[char_id].insert(quest.quest_id);
                 }
 
-                QuestKillEvent ev{};
-                ev.quest_id       = quest.quest_id;
-                ev.term_id        = term.term_id;
-                ev.new_count      = term.current_count;
-                ev.term_complete  = term_done;
+                QuestProgressEvent ev{};
+                ev.quest_id      = quest.quest_id;
+                ev.term_id       = term.term_id;
+                ev.term_type     = term.term_type;
+                ev.new_count     = term.current_count;
+                ev.term_complete  = true;
                 ev.quest_complete = quest_done;
                 events.push_back(ev);
+
+                if (quest_done)
+                {
+                    it->second.erase(
+                        std::remove_if(it->second.begin(), it->second.end(),
+                            [](const QuestState& q) { return q.complete; }),
+                        it->second.end());
+                }
+                return events;
             }
         }
-
-        // Remove completed quests from active list
-        it->second.erase(
-            std::remove_if(it->second.begin(), it->second.end(),
-                [](const QuestState& q) { return q.complete; }),
-            it->second.end());
-
         return events;
     }
 
@@ -371,6 +456,66 @@ public:
     const IQuestChart* Chart() const override { return &m_chart; }
 
 private:
+    // Generic term progression used by all On* methods.
+    // one_shot: advance current_count directly to target_count (Talk terms).
+    std::vector<QuestProgressEvent>
+    ProgressTerms(std::uint32_t char_id,
+                  std::uint8_t  term_type,
+                  std::uint32_t target_id,
+                  bool          one_shot = false)
+    {
+        std::vector<QuestProgressEvent> events;
+        auto it = m_active.find(char_id);
+        if (it == m_active.end()) return events;
+
+        for (auto& quest : it->second)
+        {
+            if (quest.complete) continue;
+            for (auto& term : quest.terms)
+            {
+                if (term.term_type != term_type) continue;
+                if (term.IsComplete()) continue;
+                // target_id=0 means "any"
+                if (term.target_id != 0 &&
+                    term.target_id != target_id) continue;
+
+                if (one_shot)
+                    term.current_count = term.target_count;
+                else
+                    ++term.current_count;
+
+                const bool term_done =
+                    term.current_count >= term.target_count;
+                if (term_done)
+                    term.status = QuestTermStatus::Success;
+
+                const bool quest_done = quest.AllTermsComplete();
+                if (quest_done)
+                {
+                    quest.complete = true;
+                    m_completed[char_id].insert(quest.quest_id);
+                }
+
+                QuestProgressEvent ev{};
+                ev.quest_id      = quest.quest_id;
+                ev.term_id       = term.term_id;
+                ev.term_type     = term.term_type;
+                ev.new_count     = term.current_count;
+                ev.term_complete  = term_done;
+                ev.quest_complete = quest_done;
+                events.push_back(ev);
+            }
+        }
+
+        // Remove completed quests from active list
+        it->second.erase(
+            std::remove_if(it->second.begin(), it->second.end(),
+                [](const QuestState& q) { return q.complete; }),
+            it->second.end());
+
+        return events;
+    }
+
     const IQuestChart&                                                    m_chart;
     std::unordered_map<std::uint32_t, std::vector<QuestState>>            m_active;
     std::unordered_map<std::uint32_t, std::unordered_set<std::uint32_t>> m_completed;

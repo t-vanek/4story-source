@@ -1,13 +1,14 @@
 #pragma once
 
-// Quest handlers — F7 Part 1.
+// Quest handlers — F7.
 //
 // Wire references:
-//   CS_QUESTEXEC_REQ  — CSHandler.cpp:3535
-//   CS_QUESTDROP_REQ  — CSHandler.cpp:3590
-//   CS_QUESTLIST_ACK  — CSSender.cpp:1861
-//   CS_QUESTUPDATE_ACK — CSSender.cpp:1825
-//   CS_QUESTCOMPLETE_ACK — CSSender.cpp:1843
+//   CS_QUESTEXEC_REQ         — CSHandler.cpp:3535
+//   CS_QUESTDROP_REQ         — CSHandler.cpp:3590
+//   CS_QUESTPOSEXEC_REQ      — CSHandler.cpp:20997
+//   CS_QUESTLIST_ACK         — CSSender.cpp:1861
+//   CS_QUESTUPDATE_ACK       — CSSender.cpp:1825
+//   CS_QUESTCOMPLETE_ACK     — CSSender.cpp:1843
 //   CS_QUESTLIST_POSSIBLE_ACK — CSSender.cpp:1952
 
 #include "asio_session.h"
@@ -18,8 +19,25 @@
 
 namespace tmapsvr {
 
+// Dispatch quest progress events: sends QUESTUPDATE_ACK per term, grants
+// exp/item rewards and QUESTCOMPLETE_ACK on quest completion.
+// Called from OnActionReq (kills), OnMonItemTakeReq (items), OnNpcTalkReq (talk).
+boost::asio::awaitable<void> DispatchQuestEvents(
+    std::shared_ptr<tnetlib::AsioSession>           sess,
+    struct MapSessionState&                         state,
+    const struct HandlerContext&                    ctx,
+    const std::vector<QuestProgressEvent>&          events);
+
 // F7: accept a quest. Source: CSHandler.cpp:3535.
 boost::asio::awaitable<void> OnQuestExecReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    struct MapSessionState&              state,
+    const tnetlib::DecodedPacket&        packet,
+    const struct HandlerContext&         ctx);
+
+// F7 Part 2: confirm position-based quest term completion.
+// Source: CSHandler.cpp:20997.
+boost::asio::awaitable<void> OnQuestPosExecReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     struct MapSessionState&              state,
     const tnetlib::DecodedPacket&        packet,

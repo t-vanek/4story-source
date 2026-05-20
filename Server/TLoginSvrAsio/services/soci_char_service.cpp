@@ -74,9 +74,13 @@ constexpr int kStorageInven = 0;
 constexpr int kInvenEquip   = 0xFE;
 constexpr int kOwnerChar    = 0;
 
-// Starter inventory per class — placeholder mapping. The legacy SP
-// CSPCreateChar inserts the gameplay-tuned starter set; we don't have
-// its source here. Each tuple: (storage_type, item_kind, item_id, level).
+// Dev-fixture fallback (PG schema-light). Real MSSQL deployments hit
+// the chart-driven path below at the TSTARTITEMCHART cursor (line ~826),
+// which mirrors legacy TGAME.TCreateChar.sql:278-287 — the "gameplay-
+// tuned starter set" is data in TSTARTITEMCHART keyed by (bCountry,
+// bClass), not hardcoded in the SP. This hardcoded set only fires when
+// that table is absent so the lobby has something to render against
+// dev fixtures. Each tuple: (storage_type, item_kind, item_id, level).
 struct StarterItem { std::int16_t storage_type; std::int16_t item_kind; std::int16_t item_id; std::int16_t level; };
 const StarterItem* StarterSet(std::uint8_t char_class, std::size_t& out_n)
 {

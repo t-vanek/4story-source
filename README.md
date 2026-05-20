@@ -1,40 +1,73 @@
-# 4Story Server Cluster — Modernization
+# 4Story Emulator Server
 
-A C++20 / Boost.Asio reimplementation of the 4Story MMORPG server cluster.
-The legacy Win32/ATL/IOCP sources from `Server/T*Svr/` stay in the tree
-untouched and remain authoritative for shipped behavior; the modernized
-binaries under `Server/T*SvrAsio/` run alongside them and are wire-format
-byte-for-byte compatible with the original game client.
+A modern, open re-implementation of the **4Story** MMORPG server cluster.
+The project hosts a private-server emulator that speaks the original game
+client's wire protocol byte-for-byte, so a shipped legacy 4Story client
+can connect to it without any binary patching and walk the full
+LOGIN → CHARLIST → CREATECHAR → START round-trip.
 
-## Status
+The original Win32 / ATL / IOCP server sources are kept in the tree
+under `Server/T*Svr/` as the authoritative reference for shipped
+behavior. The emulator binaries live next to them under
+`Server/T*SvrAsio/` and replace the legacy daemons one component at a
+time while staying wire-compatible.
 
-| Component | Legacy path | Modernized path | State |
-|---|---|---|---|
-| Login server | `Server/TLoginSvr` | `Server/TLoginSvrAsio` | ✅ production complete (auth, lobby, char flow, 2FA, ops hardening) |
-| Patch metadata server | `Server/TPatchSvr` | `Server/TPatchSvrAsio` | ✅ all 9 `CT_*` handlers ported |
-| Audit log collector | `Server/TLogSvr` | `Server/TLogSvrAsio` | ✅ UDP `_UDPPACKET` ingest + SOCI INSERT into `TLOG_AUDIT` |
-| Shared infrastructure | (was duplicated per server) | `Lib/Own/FourStoryCommon` | ✅ extracted: SOCI pool, audit, SMTP, admin shell, health, rate limit |
-| Wire codec | `Lib/Own/TNetLib` (legacy) | `Lib/Own/TNetLib` (modernized) | ✅ RC4 + XOR + framing, RFC 6229 verified |
-| Anticheat (`HwidManagerSvr`) | `Server/TLoginSvr/HwidManagerSvr.cpp` | — | 🚫 out of scope by design |
-| Map / world server (`TWorldSvr`) | `Server/TWorldSvr` | — | ⏸ deferred; legacy stays canonical for now |
-| Control server (`TControlSvr`) | `Server/TControlSvr` | — | ⏸ deferred |
+The emulator targets preservation, study, and private hosting of a game
+that is no longer commercially operated — the goal is a server cluster
+that boots on commodity hardware, builds cleanly on modern toolchains,
+and can be reasoned about without the original Win32-only build farm.
 
-The cluster runs end-to-end against the restored `TGLOBAL_RAGEZONE` +
-`TGAME_RAGEZONE` MSSQL databases. A shipped legacy 4Story client connects
-to the modernized login server and walks the full LOGIN → CHARLIST →
-CREATECHAR → START round-trip; the patch server serves real
-`TVERSION`/`TPREVERSION` rows; the log collector receives the live
-`_UDPPACKET` audit stream the login server emits.
+## Why re-write the emulator
 
-## Stack
+The shipped server was tightly coupled to a 2000s-era Windows stack:
+ATL/COM, Win32 IOCP completion ports, MFC dialog ops UIs, per-server
+duplicated SQL access layers, and a hand-rolled threading model with
+implicit lock ordering. That code still runs, but it is hard to host
+outside its original environment, hard to instrument, and hard to extend.
 
-* **C++20** with Boost.Asio coroutines (`co_await`, `async_*`)
-* **SOCI 4.x** with the ODBC backend → MS SQL Server (postgres branches kept but disabled)
-* **OpenSSL** EVP for RC4; **libbcrypt** (vendored at `Lib/3rdParty/bcrypt/`) for password hashing
-* **spdlog** for structured logging + the audit channel
+Re-writing the emulator on a modern foundation buys us:
+
+* **Portability** — the cluster builds on both MSVC 2022 and Linux
+  (GCC/Clang) from the same CMake. No more "Windows-only build server."
+* **Readability** — Boost.Asio coroutines (`co_await`) replace IOCP
+  callback chains; the handler flow reads top-to-bottom instead of
+  being scattered across `OnRead` / `OnWrite` / completion routines.
+* **Memory safety** — RAII sessions, `std::span`/`std::string_view`
+  framing, and bounded buffers replace raw `char*` arithmetic. The
+  legacy `CS_LOGIN_REQ` trailing XOR/add checksum is now actually
+  enforced server-side.
+* **Shared infrastructure** — SOCI connection pooling, structured
+  audit logging, SMTP, the admin shell, health probes, and rate
+  limiting are extracted once into `Lib/Own/FourStoryCommon` instead
+  of being copy-pasted per server.
+* **Testability** — handler dispatch, the wire codec, and per-service
+  business logic run in-process against `Fake*` services under CTest.
+  The SOCI integration suites skip cleanly when no DB is configured,
+  so CI passes without a database.
+* **Operability** — TOML config (`toml++`) replaces ad-hoc INI parsing;
+  `spdlog` gives structured logs and a dedicated audit channel; the
+  schema validator fails fast on DB drift instead of crashing mid-session.
+* **No anti-cheat lock-in** — HShield / XTrap / NPGame / `HwidManagerSvr`
+  are intentionally out of scope. The emulator does not call home to
+  any third-party anti-cheat service.
+* **Wire compatibility, not behavior drift** — every ACK structure is
+  reproduced byte-for-byte against the legacy `CSSender.cpp` /
+  `Sender.cpp` / `LogPacket.h` references, so the original client
+  binary stays the source of truth for what the server must emit.
+
+## Technology stack
+
+* **C++20** with Boost.Asio stackless coroutines (`co_await`, `async_*`)
+* **SOCI 4.x** with the ODBC backend → MS SQL Server
+  (PostgreSQL branches are kept but disabled)
+* **OpenSSL** EVP for RC4; **libbcrypt** (vendored at
+  `Lib/3rdParty/bcrypt/`) for password hashing
+* **spdlog** for structured logging and the audit channel
 * **toml++** for configuration
-* **vcpkg** (manifest mode — `vcpkg.json`) for dependency management
-* **CTest** with in-process integration tests against test fakes; SOCI suites skip cleanly without a DB
+* **vcpkg** manifest mode (`vcpkg.json`) for dependency pinning
+* **CMake 3.20+** as the single build system across MSVC and Linux
+* **CTest** with in-process integration tests against test fakes; SOCI
+  suites skip cleanly when no DB is configured
 
 Builds with MSVC 2022 + vcpkg on Windows; the same CMake also builds on
 Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
@@ -50,27 +83,23 @@ Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
 ├── Lib/
 │   ├── 3rdParty/bcrypt/            # vendored libbcrypt (no working vcpkg port)
 │   └── Own/
-│       ├── TNetLib/                # wire codec + AsioSession (Phase 1 modernized)
+│       ├── TNetLib/                # wire codec + AsioSession (modernized)
 │       ├── TProtocol/              # wire structs / MessageId enum (shared)
 │       └── FourStoryCommon/        # shared infra: SOCI pool, audit, smtp, ops
 ├── Server/
-│   ├── TLoginSvr/                  # legacy login (unmodified)
-│   ├── TLoginSvrAsio/              # modernized login — production-ready
-│   ├── TPatchSvr/                  # legacy patch (unmodified)
-│   ├── TPatchSvrAsio/              # modernized patch
+│   ├── TLoginSvr/                  # legacy login (reference, unmodified)
+│   ├── TLoginSvrAsio/              # emulator login server
+│   ├── TPatchSvr/                  # legacy patch (reference, unmodified)
+│   ├── TPatchSvrAsio/              # emulator patch metadata server
 │   ├── TLogSvr/                    # legacy audit log collector (unmodified)
-│   ├── TLogSvrAsio/                # modernized log collector
-│   ├── TWorldSvr/                  # legacy world (not yet ported)
-│   └── TControlSvr/                # legacy control (not yet ported)
+│   ├── TLogSvrAsio/                # emulator audit UDP collector
+│   ├── TWorldSvr/                  # legacy world server (reference)
+│   └── TControlSvr/                # legacy control server (reference)
 ├── _rewrite/docs/                  # plan + analysis documents
-│   ├── MODERNIZATION_PLAN.md
-│   ├── LOGIN_SERVER_COMPARISON.md
-│   ├── PROTOCOL.md, SCHEMA.md
-│   └── GAP_ANALYSIS.md
 └── tools/                          # dev scripts
 ```
 
-Each modernized component has its own README with the full handler
+Each emulator component has its own README with the full handler
 mapping, configuration schema, and bring-up notes:
 
 * [`Server/TLoginSvrAsio/README.md`](Server/TLoginSvrAsio/README.md)
@@ -78,7 +107,9 @@ mapping, configuration schema, and bring-up notes:
 * [`Server/TLogSvrAsio/README.md`](Server/TLogSvrAsio/README.md)
 * [`Lib/Own/FourStoryCommon/README.md`](Lib/Own/FourStoryCommon/README.md)
 
-## Build (Windows / MSVC + vcpkg)
+## Build
+
+### Windows (MSVC 2022 + vcpkg)
 
 ```powershell
 $env:VCPKG_ROOT = "C:\vcpkg"
@@ -87,16 +118,26 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
 cmake --build build --config Release
 ```
 
-First configure pulls + builds Boost, OpenSSL, SOCI[odbc], spdlog,
-toml++ (≈30 min). Subsequent configures are incremental.
+First configure pulls and builds Boost, OpenSSL, SOCI[odbc], spdlog,
+and toml++ (≈30 min). Subsequent configures are incremental.
 
 Targets produced under `build/bin/Release/`:
 
 * `tloginsvr_asio.exe` — login + lobby + char flow
 * `tpatchsvr_asio.exe` — patch metadata
-* `tlogsvr_asio.exe` — audit UDP collector
+* `tlogsvr_asio.exe`   — audit UDP collector
 
-## Tests
+### Linux (GCC/Clang + distro packages)
+
+```sh
+sudo apt install cmake g++ libboost-all-dev libssl-dev \
+                 libsoci-dev unixodbc-dev \
+                 libspdlog-dev libtomlplusplus-dev
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+## Testing
 
 ```sh
 ctest --test-dir build -C Release --output-on-failure
@@ -106,68 +147,76 @@ In-process tests (handler dispatch, wire codec, per-service business
 logic against `Fake*` services) run without a DB. The SOCI integration
 suites under `Server/TLoginSvrAsio/tests/test_soci_*` skip automatically
 when `TLOGINSVR_TEST_MSSQL_CONN` is unset, so CI without a DB still
-passes. Set the env var to a connection string to run them.
+passes. Set the env var to a connection string to run them:
 
-## Bringing the cluster up against the real legacy DB
-
-```powershell
-# 1. Restore the .bak files (one-shot)
-sqlcmd -S localhost -E -Q "RESTORE DATABASE TGLOBAL_RAGEZONE FROM DISK='…\TGLOBAL_RAGEZONE.bak'"
-sqlcmd -S localhost -E -Q "RESTORE DATABASE TGAME_RAGEZONE  FROM DISK='…\TGAME_RAGEZONE.bak'"
-
-# 2. Seed a dev account + apply the 2FA tables
-sqlcmd -S localhost -E -d TGLOBAL_RAGEZONE -i Server\TLoginSvrAsio\schema\dev-account.sql
-sqlcmd -S localhost -E -d TGLOBAL_RAGEZONE -i Server\TLoginSvrAsio\schema\2fa-tables.sql
-
-# 3. Apply the TLogSvr audit schema (one table)
-sqlcmd -S localhost -E -d TGLOBAL_RAGEZONE -i Server\TLogSvrAsio\schema\tlog-audit.sql
-
-# 4. Launch the cluster (three terminals)
-build\bin\Release\tloginsvr_asio.exe --config Server\TLoginSvrAsio\tloginsvr.toml
-build\bin\Release\tpatchsvr_asio.exe --config Server\TPatchSvrAsio\tpatchsvr.toml
-build\bin\Release\tlogsvr_asio.exe   --config Server\TLogSvrAsio\tlogsvr.toml
+```sh
+export TLOGINSVR_TEST_MSSQL_CONN="DSN=4story;UID=sa;PWD=…"
+ctest --test-dir build -C Release --output-on-failure
 ```
-
-Point a legacy client at `localhost:4816` and log in as `dev` / `dev123`.
-
-## Compatibility
-
-* **Wire protocol**: byte-for-byte 1:1 with the legacy server. Every
-  ACK structure (`CS_LOGIN_ACK`, `CS_CHARLIST_ACK`, `CS_GROUPLIST_ACK`,
-  `CS_START_ACK`, `CT_PATCH_ACK`, `_UDPPACKET`/`_LOG_DATA_`) is verified
-  against `Server/TLoginSvr/CSSender.cpp`, `Server/TPatchSvr/Sender.cpp`,
-  and `Server/TLogSvr/LogPacket.h`. The legacy `CS_LOGIN_REQ` trailing
-  XOR/add checksum (CSHandler.cpp:185-202) is enforced on the server
-  side; tests that previously sent zero-checksum dummy bodies were
-  fixed.
-* **Database schema**: unchanged. The legacy `TGLOBAL` + `TGAME` schemas
-  are read as-is. The startup `schema_validator` checks 40 TGLOBAL + 23
-  TGAME column names and fails fast on drift. Only additive migrations
-  (`Server/TLoginSvrAsio/schema/2fa-tables.sql`,
-  `Server/TLogSvrAsio/schema/tlog-audit.sql`) are needed; no destructive
-  changes.
-* **Anti-cheat (HShield / XTrap / NPGame / HwidManagerSvr)**: removed
-  from scope by design. `CS_HOTSEND_REQ` (the legacy exec-file integrity
-  heartbeat) is a silent no-op so the legacy client's post-CHANNELLIST
-  ping doesn't crash the session.
-* **Japan channeling (`m_bNation == NATION_JAPAN`)**: skipped — no JP
-  deploy target. The branch is dead code on every other build.
 
 ## Documentation index
 
 * [`_rewrite/docs/MODERNIZATION_PLAN.md`](_rewrite/docs/MODERNIZATION_PLAN.md)
   — cluster-wide phased roadmap
 * [`_rewrite/docs/LOGIN_SERVER_COMPARISON.md`](_rewrite/docs/LOGIN_SERVER_COMPARISON.md)
-  — handler-by-handler legacy vs modernized parity audit
+  — handler-by-handler legacy vs emulator parity audit
 * [`_rewrite/docs/PROTOCOL.md`](_rewrite/docs/PROTOCOL.md) — wire codec
   reference (header layout, RC4 keying, checksum algorithms)
 * [`_rewrite/docs/SCHEMA.md`](_rewrite/docs/SCHEMA.md) — DB column
-  catalog the modernized services read/write
+  catalog the emulator services read/write
 * [`_rewrite/docs/GAP_ANALYSIS.md`](_rewrite/docs/GAP_ANALYSIS.md) —
-  what's intentionally not ported (and why)
+  what's intentionally not emulated (and why)
+* [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md)
+  — design notes for the upcoming control-server port
+* [`_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md`](_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md)
+  — behavioral diff between the shipped server and the emulator
+* [`_rewrite/docs/CLIENT_BUILD_NOTES.md`](_rewrite/docs/CLIENT_BUILD_NOTES.md)
+  — notes on rebuilding the legacy client from source
+
+## Roadmap
+
+Near-term (cluster edge):
+
+* **Control server (`TControlSvr` → `TControlSvrAsio`)** — port the
+  inter-server routing/orchestration daemon onto the shared
+  `FourStoryCommon` infra. Design captured in
+  `_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`.
+* **Operator tooling** — round out the admin shell (account lookup,
+  ban/unban, session kick) and expose a minimal HTTP health/metrics
+  endpoint so the cluster is observable without RDP.
+
+Mid-term (gameplay surface):
+
+* **World server (`TWorldSvr` → `TWorldSvrAsio`)** — the big one. Port
+  zone hosting, mob AI, party/guild, trade, and inventory persistence.
+  Until this lands, the legacy `TWorldSvr` binary remains canonical
+  for in-game behavior.
+* **Map data pipeline** — reproducible extraction of map / NPC / drop
+  tables from the shipped data files, so world content can be
+  regenerated rather than restored from a binary backup.
+
+Longer-term (preservation):
+
+* **Linux production deployment** — the code already builds on Linux;
+  the goal is a fully Linux-hosted cluster (systemd units, container
+  images, no Wine for the auxiliary tools).
+* **Schema migration story** — formalize the additive-only migration
+  flow so community deployments can upgrade between emulator versions
+  without hand-editing tables.
+* **Reference dataset** — publish a minimal, lawful starter DB seed so
+  new operators don't need access to an original `.bak` to stand the
+  cluster up.
+
+Explicitly **out of scope**:
+
+* HShield / XTrap / NPGame / `HwidManagerSvr` anti-cheat. The emulator
+  no-ops `CS_HOTSEND_REQ` so the legacy client's post-CHANNELLIST
+  heartbeat does not crash the session, and nothing more.
+* Japan channeling (`m_bNation == NATION_JAPAN`). No JP deploy target;
+  the branch is dead code on every other build.
 
 ## License
 
 See `Server/TLoginSvr/` and other legacy sub-trees for original notices.
-Modernized code carries no separate license header; the project is for
+Emulator code carries no separate license header; the project is for
 private-server preservation work.

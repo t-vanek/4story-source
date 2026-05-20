@@ -42,6 +42,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_map.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_world.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_combat.cpp
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp
@@ -202,6 +203,24 @@ target_link_libraries(test_tmapsvr_asio_dm_loadchar_req_spec PRIVATE
 add_test(NAME tmapsvr_asio_dm_loadchar_req_spec
     COMMAND test_tmapsvr_asio_dm_loadchar_req_spec)
 fourstory_deploy_ossl_legacy(test_tmapsvr_asio_dm_loadchar_req_spec)
+
+# F4 — LocalMonsterRegistry spec (pure-unit).
+add_executable(test_tmapsvr_asio_monster_state_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_monster_state_spec.cpp)
+target_include_directories(test_tmapsvr_asio_monster_state_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_monster_state_spec
+    COMMAND test_tmapsvr_asio_monster_state_spec)
+
+# F4 — CS_ACTION_REQ characterization spec.
+add_executable(test_tmapsvr_asio_cs_action_req_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_cs_action_req_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_cs_action_req_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_cs_action_req_spec
+    COMMAND test_tmapsvr_asio_cs_action_req_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_cs_action_req_spec)
 
 # F3 — CS_MOVE_REQ characterization spec (pure-unit, no wire sockets).
 add_executable(test_tmapsvr_asio_cs_move_req_spec

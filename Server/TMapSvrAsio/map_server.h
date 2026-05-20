@@ -15,6 +15,7 @@
 #include "services/world_client.h"
 #include "services/session_registry.h"
 #include "map_state.h"
+#include "monster_state.h"
 
 #include "fourstory/ops/rate_limiter.h"
 
@@ -63,6 +64,10 @@ struct MapServerConfig
     // F3: session lookup for AOI broadcasts.
     // Non-null enables CS_ENTER_ACK / CS_MOVE_ACK sends to neighbours.
     ISessionRegistry*                   session_registry = nullptr;
+
+    // F4: live monster registry.
+    // Non-null enables CS_ADDMON_ACK on EnterMap and damage in OnActionReq.
+    IMonsterRegistry*                   monster_registry = nullptr;
 };
 
 class MapServer

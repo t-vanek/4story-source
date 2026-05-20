@@ -74,4 +74,7 @@ without forward declarations of yet-to-be-written code.
 | 1 | `MaintainSkill` | `CSSender.cpp:CS_CHARINFO_ACK maintain loop` | ✅ |
 | 2 | `PartyMember` | `TMapType.h:1465-1490` | ✅ |
 | 2 | `PlayerPresence` | `CSSender.cpp:SendCS_ENTER_ACK field set` | ✅ |
+| 1 | `MonsterTemplate` | `TMapType.h:1579-1635` | ✅ |
+| 1 | `MonsterSpawn` | `TMapType.h:1647-1695` | ✅ |
+| 1 | `Aggro` | `TMapType.h:1247-1271` | ✅ |
 | 3 | `CharSnapshot` | `SSHandler.cpp:DM_LOADCHAR_ACK` + `CSSender.cpp:CS_CHARINFO_ACK` | ✅ |

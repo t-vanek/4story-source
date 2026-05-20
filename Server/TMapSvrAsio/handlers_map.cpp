@@ -12,6 +12,7 @@
 
 #include "handlers.h"
 #include "handlers_map.h"
+#include "handlers_combat.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -369,6 +370,19 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
         spdlog::info("CS_CONREADY_REQ uid={} char='{}' → CS_CHARINFO_ACK "
                      "(no IMapState wired)",
             state.user_id, state.snapshot->name);
+    }
+
+    // F4: send CS_ADDMON_ACK for each monster in AOI
+    if (ctx.monster_registry)
+    {
+        const auto mon_ids = ctx.monster_registry->GetNeighborIds(
+            state.snapshot->position.pos_x,
+            state.snapshot->position.pos_z);
+        for (std::uint32_t mid : mon_ids)
+        {
+            if (const auto* mon = ctx.monster_registry->Get(mid))
+                co_await SendAddMonAck(sess, *mon, false);
+        }
     }
 
     co_await SendCharInfoAck(sess, *state.snapshot);

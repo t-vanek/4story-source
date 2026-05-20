@@ -23,6 +23,7 @@
 //   * Lib/Own/TProtocol/include/NetCode.h:319-328 — CN_* enum
 
 #include "handlers.h"
+#include "handlers_combat.h"
 #include "wire_codec.h"
 
 #include <spdlog/spdlog.h>
@@ -594,6 +595,12 @@ Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_MOVE_REQ:
         co_await OnMoveReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_ACTION_REQ:
+        co_await OnActionReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_SKILLUSE_REQ:
+        co_await OnSkillUseReq(std::move(sess), state, packet, ctx);
         break;
     case MessageId::CS_TERMINATE_REQ:
         co_await OnTerminateReq(std::move(sess), state, packet, ctx);

@@ -26,6 +26,7 @@ MapServer::MapServer(boost::asio::io_context& io, MapServerConfig cfg)
     m_ctx.world_client       = m_cfg.world_client;
     m_ctx.map_state          = m_cfg.map_state;
     m_ctx.session_registry   = m_cfg.session_registry;
+    m_ctx.monster_registry   = m_cfg.monster_registry;
     m_ctx.live_session_count = [this]() -> std::uint32_t {
         return LiveSessions();
     };

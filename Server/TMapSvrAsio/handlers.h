@@ -22,6 +22,7 @@
 #include "services/world_client.h"
 #include "services/session_registry.h"
 #include "map_state.h"
+#include "monster_state.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -80,6 +81,11 @@ struct HandlerContext
     // OnConReadyReq look up neighbour sessions to send CS_ENTER_ACK
     // and CS_MOVE_ACK. Null = log only (no actual sends).
     ISessionRegistry*                 session_registry  = nullptr;
+
+    // F4: live monster registry. If non-null, OnConReadyReq sends
+    // CS_ADDMON_ACK for nearby monsters; OnActionReq applies damage
+    // and broadcasts CS_HPMP_ACK / CS_DELMON_ACK.
+    IMonsterRegistry*                 monster_registry  = nullptr;
 };
 
 // Per-session state. F1 carries the player id assigned on
@@ -151,6 +157,24 @@ boost::asio::awaitable<void> OnConReadyReq(
 // broadcasts CS_MOVE_ACK / CS_ENTER_ACK / CS_LEAVE_ACK via session_registry.
 // Source: CSHandler.cpp:439-485.
 boost::asio::awaitable<void> OnMoveReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F4: basic action (attack, use item on target, etc.).
+// CS_ACTION_ACK + CS_HPMP_ACK broadcast; damage calc stub.
+// Source: CSHandler.cpp:1248.
+boost::asio::awaitable<void> OnActionReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F4: skill cast. F4 Part 1 parses and logs only; full skill execution
+// (CS_SKILLUSE_ACK + CS_DEFEND_REQ) is F4 Part 2.
+// Source: CSHandler.cpp:2459.
+boost::asio::awaitable<void> OnSkillUseReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     MapSessionState&                     state,
     const tnetlib::DecodedPacket&        packet,

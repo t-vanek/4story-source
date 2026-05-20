@@ -41,17 +41,23 @@ public:
     // Mirrors legacy `OnCT_SERVICEMONITOR_ACK`'s stale-client purge
     // (P-6 in the audit). Called from the service-monitor handler;
     // also driven by a periodic timer as a belt-and-suspenders
-    // safety net in case TControlSvr never connects.
-    std::size_t SweepStaleClients(std::chrono::seconds max_age);
+    // safety net in case TControlSvr never connects. Parameter type
+    // is `milliseconds` (not `seconds`) so tests can drive the sweep
+    // on a sub-second scale; production callers pass `60s` which
+    // implicitly converts.
+    std::size_t SweepStaleClients(std::chrono::milliseconds max_age);
+
+    // Session-registry hooks. Public so tests can drive the sweep
+    // without standing up the full accept loop; Run/HandleConnection
+    // are the only normal callers.
+    void Register(std::shared_ptr<PatchSession> session);
+    void Unregister(PatchSession* raw);
 
 private:
     boost::asio::awaitable<void> HandleConnection(
         std::shared_ptr<PatchSession> session);
 
     boost::asio::awaitable<void> StaleClientSweepLoop();
-
-    void Register(std::shared_ptr<PatchSession> session);
-    void Unregister(PatchSession* raw);
 
     boost::asio::io_context&        m_io;
     boost::asio::ip::tcp::acceptor  m_acceptor;

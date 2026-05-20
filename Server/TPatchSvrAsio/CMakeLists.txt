@@ -55,3 +55,28 @@ set_target_properties(tpatchsvr_asio_core PROPERTIES POSITION_INDEPENDENT_CODE O
 
 add_executable(tpatchsvr_asio ${TPATCHSVR_ASIO_SRC}/main.cpp)
 target_link_libraries(tpatchsvr_asio PRIVATE tpatchsvr_asio_core)
+
+# ----- Tests --------------------------------------------------------
+#
+# Pure-unit: stale-client sweep semantics — opens loopback sockets to
+# manufacture peered PatchSessions, exercises the sweep against the
+# real predicate (IsOpen + IsServerPeer + ConnectedAt). Runs anywhere
+# we can build the binary.
+add_executable(test_tpatchsvr_asio_stale_sweep
+    ${TPATCHSVR_ASIO_SRC}/tests/test_stale_sweep.cpp)
+target_link_libraries(test_tpatchsvr_asio_stale_sweep PRIVATE
+    tpatchsvr_asio_core)
+add_test(NAME tpatchsvr_asio_stale_sweep
+    COMMAND test_tpatchsvr_asio_stale_sweep)
+
+# Integration: PatchRepository + schema validator against a live DB.
+# Skips when neither TPATCHSVR_TEST_PG_CONN nor TPATCHSVR_TEST_MSSQL_CONN
+# is in the environment. Covers all four round-1 audit fixes
+# (P-1..P-4 regressions) plus the round-2 promote-pre-version
+# (P-5) and the F5 schema validator.
+add_executable(test_tpatchsvr_asio_soci_repository
+    ${TPATCHSVR_ASIO_SRC}/tests/test_soci_patch_repository.cpp)
+target_link_libraries(test_tpatchsvr_asio_soci_repository PRIVATE
+    tpatchsvr_asio_core)
+add_test(NAME tpatchsvr_asio_soci_repository
+    COMMAND test_tpatchsvr_asio_soci_repository)

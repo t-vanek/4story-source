@@ -25,6 +25,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -49,6 +50,9 @@ struct ControlServerConfig
     IPatchMetadataService* patch_meta  = nullptr;
     IAlerter*              alerter     = nullptr;
     fourstory::ops::LoginRateLimiter* login_rate = nullptr;
+    // Worker pool for synchronous SOCI calls. nullptr → fall back
+    // to in-line execution on the io_context thread.
+    boost::asio::thread_pool* db_pool = nullptr;
     std::uint8_t           auto_start  = 0;
 };
 

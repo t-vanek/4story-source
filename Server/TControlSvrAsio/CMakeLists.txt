@@ -157,3 +157,13 @@ target_link_libraries(test_tcontrolsvr_asio_soci_repositories PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_soci_repositories
     COMMAND test_tcontrolsvr_asio_soci_repositories)
+
+# CoOffload helper test — verifies the lambda runs on a worker
+# thread, the coroutine resumes on the io_context, and exceptions
+# propagate. Pure logic, no DB.
+add_executable(test_tcontrolsvr_asio_co_offload
+    ${TCONTROL_ASIO_SRC}/tests/test_co_offload.cpp)
+target_link_libraries(test_tcontrolsvr_asio_co_offload PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_co_offload
+    COMMAND test_tcontrolsvr_asio_co_offload)

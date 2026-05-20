@@ -10,13 +10,18 @@
 port       = 12000   # operator + peer TCP listener
 auto_start = 0       # initial value of the auto-restart flag
 
-# Uncomment when F2 lands and you want the SOCI inventory loader
-# wired in. Until then the database string is ignored (the binary
-# logs a warning at startup).
+# When [database] is set the SOCI repos load the inventory + auth
+# from TGLOBAL_RAGEZONE instead of from the in-memory fakes below.
+# `worker_threads` controls a boost::asio::thread_pool that handlers
+# offload SOCI calls onto via `fourstory::db::CoOffload` — keeps
+# the io_context responsive for other operators + the 1Hz peer
+# monitor while a DB query is in flight. Set worker_threads=0 to
+# run SOCI in-line on the io_context (legacy F1–F5 behavior).
 # [database]
 # backend           = "mssql"
 # connection_string = "DSN=4story;UID=sa;PWD=…"
 # pool_size         = 4
+# worker_threads    = 2
 
 [health]
 port = 18086

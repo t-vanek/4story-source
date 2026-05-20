@@ -73,6 +73,7 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.patch_meta = m_cfg.patch_meta;
     ctx.alerter    = m_cfg.alerter;
     ctx.login_rate = m_cfg.login_rate;
+    ctx.db_pool    = m_cfg.db_pool;
     ctx.io         = &m_io;
     ctx.auto_start = &m_auto_start;
 

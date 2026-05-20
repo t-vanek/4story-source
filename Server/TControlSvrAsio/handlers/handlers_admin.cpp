@@ -27,6 +27,8 @@
 #include "../services/svr_type.h"
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 namespace tcontrolsvr::handlers {
@@ -259,8 +261,21 @@ OnUserProtectedReq(std::shared_ptr<OperatorSession> op,
     std::uint8_t ret = 0;
     if (ctx.user_ban)
     {
-        ret = ctx.user_ban->AddBan(user, duration, reason,
-                                   permanent, op->UserId());
+        const std::string operator_id = op->UserId();
+        if (ctx.db_pool)
+        {
+            ret = co_await fourstory::db::CoOffload(*ctx.db_pool,
+                [&ctx, &user, duration, &reason, permanent,
+                 &operator_id] {
+                    return ctx.user_ban->AddBan(user, duration, reason,
+                                                permanent, operator_id);
+                });
+        }
+        else
+        {
+            ret = ctx.user_ban->AddBan(user, duration, reason,
+                                       permanent, op->UserId());
+        }
     }
     if (ctx.audit)
         ctx.audit->LogBan(op->UserId(), user, duration, permanent, reason,

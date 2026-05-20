@@ -19,6 +19,13 @@ struct DbConfig
     std::string  backend;
     std::string  connection_string;
     std::size_t  pool_size = 4;
+    // Worker threads for synchronous SOCI calls. Each worker
+    // serves one in-flight DB query at a time, so this can be
+    // smaller than pool_size if your bottleneck is DB latency, or
+    // equal if it's CPU. Defaults to 2 — adequate for the control
+    // server's low DB rate. 0 disables the worker pool (handlers
+    // run SOCI in-line on the io_context, legacy F1–F5 behavior).
+    std::size_t  worker_threads = 2;
 };
 
 // One row of [[fake.operators]] in TOML.

@@ -42,6 +42,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -103,6 +104,7 @@ int main(int argc, char** argv)
         // is present. Fall back to the in-memory fakes otherwise (F1
         // bring-up path).
         std::unique_ptr<fourstory::db::SessionPool>           pool;
+        std::unique_ptr<boost::asio::thread_pool>             db_pool;
         std::unique_ptr<tcontrolsvr::IOperatorAuthService>    auth;
         std::unique_ptr<tcontrolsvr::IServiceInventory>       inventory_ptr;
         std::unique_ptr<tcontrolsvr::IUserProtectedService>   user_ban;
@@ -119,6 +121,24 @@ int main(int argc, char** argv)
                 fourstory::db::ParseBackend(cfg.database.backend);
             pool = std::make_unique<fourstory::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
+
+            // Worker pool for synchronous SOCI calls. Sized off
+            // cfg.database.worker_threads; 0 disables (legacy
+            // F1–F5 behavior of running SOCI in-line on the
+            // io_context). Production deploys with non-trivial DB
+            // latency should keep this at 2+.
+            if (cfg.database.worker_threads > 0)
+            {
+                db_pool = std::make_unique<boost::asio::thread_pool>(
+                    cfg.database.worker_threads);
+                spdlog::info("db worker pool: {} threads",
+                    cfg.database.worker_threads);
+            }
+            else
+            {
+                spdlog::info("db worker pool: disabled "
+                             "(SOCI calls run on io_context thread)");
+            }
 
             // Fail-fast on missing inventory tables before we accept
             // operator traffic. Optional tables (TEVENTCHART etc.)
@@ -215,6 +235,7 @@ int main(int argc, char** argv)
         svr_cfg.patch_meta = patch_meta.get();
         svr_cfg.alerter    = alerter.get();
         svr_cfg.login_rate = login_rate.get();
+        svr_cfg.db_pool    = db_pool.get();
         svr_cfg.auto_start = cfg.auto_start;
         tcontrolsvr::ControlServer server(io, svr_cfg);
         spdlog::info("control server listening on 0.0.0.0:{}", server.Port());
@@ -304,6 +325,15 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        // Graceful shutdown of the worker pool: wait for any
+        // in-flight SOCI call to finish before returning so a SOCI
+        // session lease isn't dropped mid-query.
+        if (db_pool)
+        {
+            db_pool->stop();
+            db_pool->join();
+        }
     }
     catch (const std::exception& ex)
     {

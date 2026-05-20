@@ -5,6 +5,8 @@
 #include "../services/svr_type.h"
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 namespace tcontrolsvr::handlers {
@@ -61,7 +63,23 @@ OnOpLoginReq(std::shared_ptr<OperatorSession> op,
         co_return;
     }
 
-    auto result = ctx.auth->Authenticate(user_id, password);
+    // SOCI auth blocks until the SP returns. If a db_pool is wired
+    // (production path), offload the call to a worker thread so the
+    // io_context stays responsive for other operators + peer
+    // monitoring. Without a pool (test / fake-auth path) we just
+    // run inline.
+    OperatorAuthResult result;
+    if (ctx.db_pool)
+    {
+        result = co_await fourstory::db::CoOffload(*ctx.db_pool,
+            [&ctx, &user_id, &password] {
+                return ctx.auth->Authenticate(user_id, password);
+            });
+    }
+    else
+    {
+        result = ctx.auth->Authenticate(user_id, password);
+    }
     if (!result.ok || !AuthorityOneFromLoopback(result, remote_ip))
     {
         spdlog::info("CT_OPLOGIN_REQ id='{}' rejected", user_id);
@@ -136,7 +154,18 @@ OnStLoginReq(std::shared_ptr<OperatorSession> op,
         co_await senders::SendStLoginAck(op->Wire(), 1, 0);
         co_return;
     }
-    auto result = ctx.auth->Authenticate(user_id, password);
+    OperatorAuthResult result;
+    if (ctx.db_pool)
+    {
+        result = co_await fourstory::db::CoOffload(*ctx.db_pool,
+            [&ctx, &user_id, &password] {
+                return ctx.auth->Authenticate(user_id, password);
+            });
+    }
+    else
+    {
+        result = ctx.auth->Authenticate(user_id, password);
+    }
     if (!result.ok)
     {
         co_await senders::SendStLoginAck(op->Wire(), 1, 0);

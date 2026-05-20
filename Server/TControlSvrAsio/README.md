@@ -38,6 +38,7 @@ every previously-missing handler is wired in dispatch.
 | `RegistryRefresher` for SOCI inventory | ✅ | Re-reads TMACHINE / TGROUP / TSVRTYPE / TSERVER / TIPADDR every `[inventory] refresh_seconds`; `PeerRegistry.Rebind` picks up new services + drops removed ones. 0 disables (legacy load-once behavior). |
 | `CT_SERVICEUPLOAD*` graceful stub | ✅ | Plan §6: returns `bRet=2` instead of dropping silently, so GUI shows an error tile. |
 | SOCI integration suite | ✅ | `test_soci_repositories` exercises all five SOCI repos; skips when no `TCONTROLSVR_TEST_{PG,MSSQL}_CONN` env var is set. |
+| `fourstory::db::CoOffload` thread-pool offload helper | ✅ | Header in `Lib/Own/FourStoryCommon/fourstory/db/co_offload.h`. Wraps a sync SOCI call in `co_await asio::post(pool, …)` + resumes on the original executor; exceptions propagate via the canonical `void(exception_ptr, R)` completion signature. Wired into CT_OPLOGIN_REQ / CT_STLOGIN_REQ / CT_USERPROTECTED_REQ as the hot-path proof-of-concept; other call sites opt in by writing `co_await fourstory::db::CoOffload(*ctx.db_pool, [&] { … })`. Worker pool size via `[database] worker_threads` (0 = legacy in-line behavior). |
 
 | Area | F1 | F2 | F3 | F4 | F5 | F6 |
 |------|----|----|----|----|----|----|
@@ -86,19 +87,20 @@ code in legacy too).
 
 ## Known concerns
 
-* **SOCI calls run on the io_context thread.** Every SOCI repo
-  (`SociServiceInventory`, `SociOperatorAuthService`,
-  `SociUserProtectedService`, `SociEventRepository`,
-  `SociPatchMetadataService`, `SociAlerter`) is invoked synchronously
-  from handler coroutines. On a slow DB this will stall the single
-  io_context thread, blocking every operator and peer for the
-  duration of the call. The architectural fix is to wrap each SOCI
-  call in `co_await asio::post(thread_pool, ...)`; the modernization
-  plan §4.5 notes this as the planned production path. Deferred from
-  the F1–F5 scope because the control server's request rate is low
-  (~10 operators, ~10 peers, ~1Hz monitoring) and the dev/test
-  fakes don't exhibit the problem; production deploys should land
-  this before going live.
+* **SOCI thread-pool offload is opt-in per call site.** The
+  `fourstory::db::CoOffload` helper bridges sync SOCI calls onto a
+  `boost::asio::thread_pool` worker so the io_context stays
+  responsive. CT_OPLOGIN_REQ / CT_STLOGIN_REQ / CT_USERPROTECTED_REQ
+  are wired through it (hot operator-facing DB paths). The remaining
+  SOCI call sites — `SociServiceInventory::Reload` (boot + 30s
+  refresher), `SociEventRepository::*`, `SociPatchMetadataService::*`,
+  `SociAlerter::Notify` — still execute in-line on the io_context.
+  For the control server's low DB rate (~10 operators, ~10 peers,
+  ~1Hz monitoring) that's acceptable, but production deploys with
+  high-latency DB links should opt them in by wrapping the call
+  sites with `co_await fourstory::db::CoOffload(*ctx.db_pool, …)`.
+  The helper is in `Lib/Own/FourStoryCommon/fourstory/db/co_offload.h`
+  and is reusable across every Asio server.
 * **PDH platform counters are not collected.** Per the
   modernization plan §3.3, `CT_PLATFORM_REQ` is wire-preserved but
   the peer-side data is expected to be zero-filled; operators

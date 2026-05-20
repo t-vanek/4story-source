@@ -35,6 +35,7 @@
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -64,6 +65,11 @@ struct HandlerContext
     IAlerter*                alerter      = nullptr;
     fourstory::ops::LoginRateLimiter* login_rate = nullptr;
     boost::asio::io_context* io           = nullptr;
+    // Worker pool for synchronous SOCI calls. nullptr → handlers
+    // fall back to invoking the repos directly on the io_context
+    // thread (which blocks the reactor but works for low-rate
+    // workloads). Wired by main when [database] is configured.
+    boost::asio::thread_pool* db_pool     = nullptr;
 
     // Mirror of legacy CTControlSvrModule::m_bAutoStart — whether
     // the cluster scheduler auto-restarts a crashed daemon. Mutated

@@ -53,7 +53,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_player_service.cpp
-    ${TMAPSVR_ASIO_SRC}/services/world_client.cpp)
+    ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_quest_chart.cpp)
 target_include_directories(tmapsvr_asio_core PUBLIC
     ${TMAPSVR_ASIO_SRC}
     ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib

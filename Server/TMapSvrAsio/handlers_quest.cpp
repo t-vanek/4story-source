@@ -1,4 +1,4 @@
-// Quest handlers — F7 Part 1.
+// Quest handlers — F7.
 //
 // Wire helpers for CS_QUEST* ACK packets + request handlers.
 //
@@ -13,6 +13,7 @@
 #include "handlers_quest.h"
 #include "handlers.h"
 #include "handlers_combat.h"  // SendExpAck
+#include "handlers_items.h"   // SendAddItemAck, ItemInstance, InvenType
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -149,6 +150,108 @@ SendQuestListPossibleAck(std::shared_ptr<tnetlib::AsioSession>               ses
     co_await sess->SendPacket(
         ToUint16(MessageId::CS_QUESTLIST_POSSIBLE_ACK),
         std::span<const std::byte>(body.data(), body.size()));
+}
+
+// ---------------------------------------------------------------------------
+// DispatchQuestEvents — central reward/ACK handler for all quest term types
+// ---------------------------------------------------------------------------
+//
+// Called from OnActionReq (Hunt), OnMonItemTakeReq (GetItem), OnNpcTalkReq (Talk).
+// For each event: sends CS_QUESTUPDATE_ACK; on quest completion grants rewards
+// (CS_EXP_ACK, CS_ADDITEM_ACK) then CS_QUESTCOMPLETE_ACK.
+
+boost::asio::awaitable<void>
+DispatchQuestEvents(std::shared_ptr<tnetlib::AsioSession>       sess,
+                    MapSessionState&                             state,
+                    const HandlerContext&                        ctx,
+                    const std::vector<QuestProgressEvent>&       events)
+{
+    for (const auto& ev : events)
+    {
+        co_await SendQuestUpdateAck(sess,
+            ev.quest_id, ev.term_id, ev.term_type,
+            ev.new_count,
+            ev.term_complete ? QuestTermStatus::Success
+                             : QuestTermStatus::Running);
+
+        if (!ev.quest_complete) continue;
+
+        spdlog::info("Quest {} completed by uid={}", ev.quest_id, state.user_id);
+
+        // Rewards — requires chart + snapshot
+        if (ctx.quest_engine && state.snapshot)
+        {
+            const auto* chart = ctx.quest_engine->Chart();
+            const auto* tmpl  = chart ? chart->GetQuest(ev.quest_id) : nullptr;
+            if (tmpl)
+            {
+                // Exp reward
+                if (tmpl->reward.exp_reward > 0)
+                {
+                    state.snapshot->exp += tmpl->reward.exp_reward;
+                    co_await SendExpAck(sess, state.snapshot->exp, 0u, 0u);
+                }
+                // Item reward
+                if (tmpl->reward.item_id != 0 && ctx.inventory_svc)
+                {
+                    ItemInstance rw{};
+                    rw.item_id    = tmpl->reward.item_id;
+                    rw.count      = tmpl->reward.item_count ? tmpl->reward.item_count : 1u;
+                    rw.inven_type = InvenType::Main;
+                    rw.inven_id   = 0;
+                    ctx.inventory_svc->AddItem(state.char_id, rw);
+                    co_await SendAddItemAck(sess,
+                        static_cast<std::uint8_t>(InvenType::Main), rw);
+                }
+            }
+        }
+
+        co_await SendQuestCompleteAck(sess, QuestResult::Success,
+            ev.quest_id, ev.term_id, ev.term_type, 0u);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CS_QUESTPOSEXEC_REQ handler
+// ---------------------------------------------------------------------------
+//
+// Confirms that a position-based (Hunt/area) quest term was fulfilled at the
+// player's current location. Client sends when it arrives at the term point.
+//
+// Wire body: DWORD dwQuestID, DWORD dwTermID
+// Source: CSHandler.cpp:20997
+
+boost::asio::awaitable<void>
+OnQuestPosExecReq(std::shared_ptr<tnetlib::AsioSession> sess,
+                  MapSessionState&                     state,
+                  const tnetlib::DecodedPacket&        packet,
+                  const HandlerContext&                ctx)
+{
+    if (!state.connected || !state.snapshot) co_return;
+
+    wire::Reader r(packet.body.data(), packet.body.size());
+    std::uint32_t quest_id = 0, term_id = 0;
+    if (!r.Read(quest_id) || !r.Read(term_id))
+    {
+        spdlog::warn("CS_QUESTPOSEXEC_REQ malformed uid={}", state.user_id);
+        co_return;
+    }
+
+    if (!ctx.quest_engine) co_return;
+
+    // Directly complete the specified Hunt term by quest+term id.
+    // Legacy: CSHandler.cpp:20997 — FindTerm(dwTermID, QTT_HUNT) + FinishTerm.
+    auto ev = ctx.quest_engine->ForceCompleteHuntTerm(
+        state.char_id, quest_id, term_id);
+
+    if (ev.empty())
+    {
+        spdlog::debug("CS_QUESTPOSEXEC_REQ: no matching term uid={} quest={} term={}",
+            state.user_id, quest_id, term_id);
+        co_return;
+    }
+
+    co_await DispatchQuestEvents(sess, state, ctx, ev);
 }
 
 // ---------------------------------------------------------------------------

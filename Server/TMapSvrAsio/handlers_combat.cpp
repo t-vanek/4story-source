@@ -206,7 +206,11 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
         // Monster death
         if (new_hp == 0)
         {
-            const std::uint16_t spawn_id = mon->spawn_id;
+            // Capture fields before Remove() invalidates the pointer.
+            const std::uint16_t spawn_id    = mon->spawn_id;
+            const std::uint16_t mon_tmpl_id = mon->template_id;
+            const std::uint8_t  mon_level   = mon->level;
+
             spdlog::info("CS_ACTION_REQ: monster {} (spawn={}) killed by uid={}",
                 obj_id, spawn_id, state.user_id);
 
@@ -220,7 +224,7 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
             // Generate loot before removing from registry
             if (ctx.loot_registry)
                 ctx.loot_registry->SetLoot(obj_id,
-                    GenerateStubLoot(mon->level));
+                    GenerateStubLoot(mon_level));
 
             ctx.monster_registry->Remove(obj_id);
 
@@ -228,39 +232,19 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
             if (ctx.spawn_manager)
                 ctx.spawn_manager->OnMonsterDied(obj_id, spawn_id);
 
-            // F7: update quest kill progress
+            // F7: update quest kill progress + rewards
             if (ctx.quest_engine && state.snapshot)
             {
-                const auto mon_tmpl = mon->template_id;
-                auto events = ctx.quest_engine->OnMonsterKilled(
-                    state.char_id, mon_tmpl);
-                for (const auto& ev : events)
-                {
-                    co_await SendQuestUpdateAck(sess,
-                        ev.quest_id, ev.term_id,
-                        QuestTermType::Hunt,
-                        ev.new_count,
-                        ev.term_complete
-                            ? QuestTermStatus::Success
-                            : QuestTermStatus::Running);
-
-                    if (ev.quest_complete)
-                    {
-                        spdlog::info("Quest {} completed by uid={}",
-                            ev.quest_id, state.user_id);
-                        co_await SendQuestCompleteAck(sess,
-                            QuestResult::Success,
-                            ev.quest_id, ev.term_id,
-                            QuestTermType::Hunt, 0u);
-                    }
-                }
+                const auto ev = ctx.quest_engine->OnMonsterKilled(
+                    state.char_id, mon_tmpl_id);
+                co_await DispatchQuestEvents(sess, state, ctx, ev);
             }
 
             // Grant experience to attacker
             if (ctx.level_chart && state.snapshot)
             {
                 const auto exp_gain =
-                    ctx.level_chart->GetMonsterStats(mon->level).exp_give;
+                    ctx.level_chart->GetMonsterStats(mon_level).exp_give;
                 state.snapshot->exp += exp_gain;
                 co_await SendExpAck(sess,
                     state.snapshot->exp,

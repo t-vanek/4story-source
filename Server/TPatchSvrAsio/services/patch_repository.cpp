@@ -158,46 +158,78 @@ void PatchRepository::MarkPreVersionComplete(std::uint32_t beta_version)
     // Legacy SP `TPreCompleteAdd` is *not* deployed in the restored
     // RageZone DB (P-5 in TPATCH_AUDIT). The documented operator
     // procedure is to promote every TPREVERSION row at the given
-    // beta into TVERSION and then delete them — we run that exact
-    // sequence inline, wrapped in a single transaction so a crash
-    // mid-promote can't leave half-promoted rows behind.
+    // beta into TVERSION and then delete them — we run that sequence
+    // inline, wrapped in a single transaction so a crash mid-promote
+    // can't leave half-promoted rows behind.
     //
     // dwVersion is assigned by reusing dwBetaVer (matches the legacy
-    // operator runbook in TPATCH_AUDIT P-5). If the promotion target
-    // already exists in TVERSION at (szPath, szName) the INSERT is
-    // skipped — the second statement turns into an UPDATE with the
-    // pre-version's size + dwBetaVer = beta. This is the same
-    // upsert-by-(szPath, szName) shape the TUpdateVersion SP uses
-    // for the single-file path.
+    // operator runbook in TPATCH_AUDIT P-5). Upsert key is
+    // (szPath, szName), same shape as the TUpdateVersion SP uses for
+    // the single-file path.
+    //
+    // Backend dispatch: MSSQL gets a single atomic MERGE; PostgreSQL
+    // and SQLite fall back to the standard UPDATE-then-INSERT
+    // WHERE NOT EXISTS pattern (both wrapped in the same
+    // transaction so either way the visible state is all-or-nothing).
     auto lease = m_pool.Acquire();
     soci::session& sql = *lease;
     try
     {
         const int beta = static_cast<int>(beta_version);
+        const bool is_mssql =
+            (m_pool.GetBackend() == fourstory::db::Backend::Odbc);
 
         soci::transaction tx(sql);
 
-        // Upsert any pre-versions at this beta into TVERSION. MSSQL
-        // uses MERGE; the SQLite/PG path in dev fixtures relies on
-        // the equivalent two-statement pattern (UPDATE then INSERT
-        // any rows that didn't match), but we keep it MSSQL-shaped
-        // because this code path is only ever exercised against the
-        // operator's prod ODBC pool.
-        sql <<
-            "MERGE INTO \"TVERSION\" AS T "
-            "USING (SELECT \"dwBetaVer\", \"szPath\", \"szName\", \"dwSize\" "
-            "       FROM \"TPREVERSION\" WHERE \"dwBetaVer\" = :b) AS S "
-            "ON  T.\"szPath\" = S.\"szPath\" "
-            "AND T.\"szName\" = S.\"szName\" "
-            "WHEN MATCHED THEN UPDATE SET "
-            "    T.\"dwVersion\"  = S.\"dwBetaVer\", "
-            "    T.\"dwSize\"     = S.\"dwSize\", "
-            "    T.\"dwBetaVer\"  = S.\"dwBetaVer\" "
-            "WHEN NOT MATCHED THEN INSERT "
-            "    (\"dwVersion\", \"szPath\", \"szName\", \"dwSize\", \"dwBetaVer\") "
-            "    VALUES (S.\"dwBetaVer\", S.\"szPath\", S.\"szName\", "
-            "            S.\"dwSize\",    S.\"dwBetaVer\") ;",
-            soci::use(beta, "b");
+        if (is_mssql)
+        {
+            sql <<
+                "MERGE INTO \"TVERSION\" AS T "
+                "USING (SELECT \"dwBetaVer\", \"szPath\", \"szName\", \"dwSize\" "
+                "       FROM \"TPREVERSION\" WHERE \"dwBetaVer\" = :b) AS S "
+                "ON  T.\"szPath\" = S.\"szPath\" "
+                "AND T.\"szName\" = S.\"szName\" "
+                "WHEN MATCHED THEN UPDATE SET "
+                "    T.\"dwVersion\"  = S.\"dwBetaVer\", "
+                "    T.\"dwSize\"     = S.\"dwSize\", "
+                "    T.\"dwBetaVer\"  = S.\"dwBetaVer\" "
+                "WHEN NOT MATCHED THEN INSERT "
+                "    (\"dwVersion\", \"szPath\", \"szName\", \"dwSize\", \"dwBetaVer\") "
+                "    VALUES (S.\"dwBetaVer\", S.\"szPath\", S.\"szName\", "
+                "            S.\"dwSize\",    S.\"dwBetaVer\") ;",
+                soci::use(beta, "b");
+        }
+        else
+        {
+            // UPDATE pass — picks up any rows already in TVERSION at
+            // the same (szPath, szName), refreshes their dwVersion /
+            // dwSize / dwBetaVer.
+            sql <<
+                "UPDATE \"TVERSION\" "
+                "SET    \"dwVersion\"  = p.\"dwBetaVer\", "
+                "       \"dwSize\"     = p.\"dwSize\", "
+                "       \"dwBetaVer\"  = p.\"dwBetaVer\" "
+                "FROM   \"TPREVERSION\" p "
+                "WHERE  \"TVERSION\".\"szPath\" = p.\"szPath\" "
+                "AND    \"TVERSION\".\"szName\" = p.\"szName\" "
+                "AND    p.\"dwBetaVer\" = :b",
+                soci::use(beta, "b");
+
+            // INSERT pass — append the pre-versions that didn't
+            // already have a (szPath, szName) row in TVERSION.
+            sql <<
+                "INSERT INTO \"TVERSION\" "
+                "  (\"dwVersion\", \"szPath\", \"szName\", \"dwSize\", \"dwBetaVer\") "
+                "SELECT p.\"dwBetaVer\", p.\"szPath\", p.\"szName\", "
+                "       p.\"dwSize\",    p.\"dwBetaVer\" "
+                "FROM   \"TPREVERSION\" p "
+                "WHERE  p.\"dwBetaVer\" = :b "
+                "AND    NOT EXISTS ( "
+                "    SELECT 1 FROM \"TVERSION\" v "
+                "    WHERE v.\"szPath\" = p.\"szPath\" "
+                "    AND   v.\"szName\" = p.\"szName\")",
+                soci::use(beta, "b");
+        }
 
         // Remove the now-promoted rows so subsequent CT_PREPATCH_REQ
         // calls don't replay them.
@@ -207,8 +239,8 @@ void PatchRepository::MarkPreVersionComplete(std::uint32_t beta_version)
         tx.commit();
 
         spdlog::info("patch_repo.MarkPreVersionComplete beta_ver={} "
-                     "promoted",
-            beta_version);
+                     "promoted (backend={})",
+            beta_version, is_mssql ? "mssql" : "pg/sqlite");
     }
     catch (const std::exception& ex)
     {

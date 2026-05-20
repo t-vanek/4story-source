@@ -127,28 +127,27 @@ REQ`. The SP is not deployed on the restored RageZone DB. Round-2
 fix inlines the documented operator promote-pre-version sequence
 directly inside `PatchRepository::MarkPreVersionComplete`, wrapped
 in a `soci::transaction` so a mid-promote crash can't leave half
-the files promoted:
+the files promoted. Backend-dispatched:
 
-```sql
-BEGIN TRAN;
-MERGE INTO TVERSION AS T
-USING (SELECT dwBetaVer, szPath, szName, dwSize
-       FROM TPREVERSION WHERE dwBetaVer = @b) AS S
-ON  T.szPath = S.szPath AND T.szName = S.szName
-WHEN MATCHED THEN UPDATE SET T.dwVersion = S.dwBetaVer,
-                             T.dwSize    = S.dwSize,
-                             T.dwBetaVer = S.dwBetaVer
-WHEN NOT MATCHED THEN INSERT (...) VALUES (S.dwBetaVer, ...);
+* **MSSQL** — single atomic `MERGE INTO TVERSION ... USING TPREVERSION`.
+* **PostgreSQL / SQLite** — portable two-statement pattern:
+  `UPDATE TVERSION ... FROM TPREVERSION ...` then
+  `INSERT INTO TVERSION ... WHERE NOT EXISTS (...)`. Same atomic
+  guarantees thanks to the surrounding transaction.
 
-DELETE FROM TPREVERSION WHERE dwBetaVer = @b;
-COMMIT;
-```
+Both paths end with `DELETE FROM TPREVERSION WHERE dwBetaVer = @b`.
 
 For deploys that *want* the SP (so legacy `TPatchSvr.exe` binaries
 can still call it), the same body now ships in
 `Server/TPatchSvrAsio/schema/patch-tables.sql` as
 `dbo.TPreCompleteAdd`. Modern doesn't depend on the SP existing —
 both paths are independently complete.
+
+Regression coverage:
+`Server/TPatchSvrAsio/tests/test_soci_patch_repository.cpp` exercises
+the insert path AND the upsert-on-collision path against both
+PG and MSSQL (when the corresponding `TPATCHSVR_TEST_*_CONN` env var
+is set).
 
 ## P-6 — Stale-client sweep (fixed)
 
@@ -177,3 +176,8 @@ Round-2 port:
   legacy semantics exactly), and a periodic 60-second timer
   (`StaleClientSweepLoop`) runs as a belt-and-suspenders safety net
   for deploys where no TControlSvr peer is connected.
+* Regression coverage:
+  `Server/TPatchSvrAsio/tests/test_stale_sweep.cpp` exercises all
+  three predicate branches (stale-client closed, stale-server peer
+  exempt, fresh client preserved) via real loopback sockets — runs
+  unconditionally (no DB needed).

@@ -79,7 +79,7 @@ void PatchServer::Unregister(PatchSession* raw)
         m_sessions.end());
 }
 
-std::size_t PatchServer::SweepStaleClients(std::chrono::seconds max_age)
+std::size_t PatchServer::SweepStaleClients(std::chrono::milliseconds max_age)
 {
     // Snapshot the registry under the lock, then release before
     // calling Close() so the close path can take its own locks /
@@ -101,7 +101,7 @@ std::size_t PatchServer::SweepStaleClients(std::chrono::seconds max_age)
     for (const auto& v : victims)
     {
         spdlog::info("patch_server: stale client sweep closing {} "
-                     "(age > {}s)",
+                     "(age > {}ms)",
             v->RemoteIPv4(),
             static_cast<long long>(max_age.count()));
         v->Close();

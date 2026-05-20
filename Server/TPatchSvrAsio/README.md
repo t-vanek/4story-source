@@ -79,6 +79,18 @@ every `CT_SERVICEMONITOR_ACK` heartbeat (legacy semantics) and as a
 whose `connected_at` is older than 60 seconds — matching legacy
 `OnCT_SERVICEMONITOR_ACK`'s `m_dwTick` purge.
 
+## Tests
+
+Two test binaries under `tests/`:
+
+| Test | Backend needed | Notes |
+|---|---|---|
+| `test_tpatchsvr_asio_stale_sweep` | none | Pure-unit sweep semantics over loopback sockets. |
+| `test_tpatchsvr_asio_soci_repository` | PG and/or MSSQL | Schema validator + P-1/P-2/P-4 regressions + P-5 promote-pre-version (insert + upsert paths). Skips silently when neither `TPATCHSVR_TEST_PG_CONN` nor `TPATCHSVR_TEST_MSSQL_CONN` is set. |
+
+Apply `schema/patch-tables.sql` to the test DB before the repository
+test or it will fail at the validator step.
+
 ## Configuration
 
 ```toml

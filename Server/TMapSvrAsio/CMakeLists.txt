@@ -204,6 +204,24 @@ add_test(NAME tmapsvr_asio_dm_loadchar_req_spec
     COMMAND test_tmapsvr_asio_dm_loadchar_req_spec)
 fourstory_deploy_ossl_legacy(test_tmapsvr_asio_dm_loadchar_req_spec)
 
+# F4b — HardcodedLevelChart spec (pure-unit, no Asio).
+add_executable(test_tmapsvr_asio_level_chart_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_level_chart_spec.cpp)
+target_include_directories(test_tmapsvr_asio_level_chart_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_level_chart_spec
+    COMMAND test_tmapsvr_asio_level_chart_spec)
+
+# F4b — LocalSpawnManager spec (needs io_context).
+add_executable(test_tmapsvr_asio_spawn_manager_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_spawn_manager_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_spawn_manager_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_spawn_manager_spec
+    COMMAND test_tmapsvr_asio_spawn_manager_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_spawn_manager_spec)
+
 # F4 — LocalMonsterRegistry spec (pure-unit).
 add_executable(test_tmapsvr_asio_monster_state_spec
     ${TMAPSVR_ASIO_SRC}/tests/test_monster_state_spec.cpp)

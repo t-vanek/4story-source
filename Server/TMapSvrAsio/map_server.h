@@ -16,6 +16,7 @@
 #include "services/session_registry.h"
 #include "map_state.h"
 #include "monster_state.h"
+#include "level_chart.h"
 
 #include "fourstory/ops/rate_limiter.h"
 
@@ -66,8 +67,15 @@ struct MapServerConfig
     ISessionRegistry*                   session_registry = nullptr;
 
     // F4: live monster registry.
-    // Non-null enables CS_ADDMON_ACK on EnterMap and damage in OnActionReq.
     IMonsterRegistry*                   monster_registry = nullptr;
+
+    // F4: level chart for HP/exp/damage formulas.
+    ILevelChart*                        level_chart      = nullptr;
+
+    // F4: spawn manager — timer-based monster lifecycle + roam AI.
+    // If non-null, Start() is called by MapServer after the listener
+    // is ready. Null = no monster spawning.
+    class ISpawnManager*                spawn_manager    = nullptr;
 };
 
 class MapServer

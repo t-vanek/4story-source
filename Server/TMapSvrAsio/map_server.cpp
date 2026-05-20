@@ -1,5 +1,6 @@
 #include "map_server.h"
 #include "handlers_map.h"
+#include "spawn_manager.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -27,6 +28,8 @@ MapServer::MapServer(boost::asio::io_context& io, MapServerConfig cfg)
     m_ctx.map_state          = m_cfg.map_state;
     m_ctx.session_registry   = m_cfg.session_registry;
     m_ctx.monster_registry   = m_cfg.monster_registry;
+    m_ctx.level_chart        = m_cfg.level_chart;
+    m_ctx.spawn_manager      = m_cfg.spawn_manager;
     m_ctx.live_session_count = [this]() -> std::uint32_t {
         return LiveSessions();
     };
@@ -35,6 +38,10 @@ MapServer::MapServer(boost::asio::io_context& io, MapServerConfig cfg)
 boost::asio::awaitable<void>
 MapServer::Run()
 {
+    // F4: start monster spawn manager after the listener is ready.
+    if (m_cfg.spawn_manager)
+        m_cfg.spawn_manager->Start();
+
     co_await m_listener.Run([this](boost::asio::ip::tcp::socket socket) {
         // Pre-auth flood gate. Counter is decremented in HandleConnection
         // after the per-session coroutine finishes.

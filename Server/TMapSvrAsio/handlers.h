@@ -23,6 +23,7 @@
 #include "services/session_registry.h"
 #include "map_state.h"
 #include "monster_state.h"
+#include "level_chart.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -82,10 +83,17 @@ struct HandlerContext
     // and CS_MOVE_ACK. Null = log only (no actual sends).
     ISessionRegistry*                 session_registry  = nullptr;
 
-    // F4: live monster registry. If non-null, OnConReadyReq sends
-    // CS_ADDMON_ACK for nearby monsters; OnActionReq applies damage
-    // and broadcasts CS_HPMP_ACK / CS_DELMON_ACK.
+    // F4: live monster registry.
     IMonsterRegistry*                 monster_registry  = nullptr;
+
+    // F4: level chart for HP/exp/damage formulas.
+    // Null → CalcBaseDamage stub used instead.
+    ILevelChart*                      level_chart       = nullptr;
+
+    // F4: spawn manager — receives OnMonsterDied for respawn scheduling.
+    // Null → dead monsters stay dead (no respawn).
+    // ISpawnManager forward-declared to avoid including spawn_manager.h here.
+    class ISpawnManager*              spawn_manager     = nullptr;
 };
 
 // Per-session state. F1 carries the player id assigned on

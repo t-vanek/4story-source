@@ -15,6 +15,7 @@
 
 #include "handlers_combat.h"
 #include "handlers.h"
+#include "spawn_manager.h"
 #include "services/session_registry.h"
 #include "wire_codec.h"
 
@@ -173,18 +174,21 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
             std::span<const std::byte>(ack.data(), ack.size()));
     }
 
-    // Apply stub damage if target is a monster (obj_type == OT_MON = 2).
+    // Apply damage if target is a monster (obj_type == OT_MON = 2).
     constexpr std::uint8_t OT_MON = 2;
     if (obj_type == OT_MON && ctx.monster_registry && ctx.session_registry)
     {
-        const std::int64_t dmg =
-            static_cast<std::int64_t>(state.snapshot->level) * 10 + 25;
+        // Damage formula: use level chart if wired, else CalcBaseDamage stub
+        const std::uint32_t dmg = ctx.level_chart
+            ? CalcBaseDamage(state.snapshot->level)
+            : (static_cast<std::uint32_t>(state.snapshot->level) * 10 + 25);
 
-        const auto new_hp = ctx.monster_registry->ApplyHpDelta(obj_id, -dmg);
+        const auto new_hp = ctx.monster_registry->ApplyHpDelta(
+            obj_id, -static_cast<std::int64_t>(dmg));
         const auto* mon = ctx.monster_registry->Get(obj_id);
         if (!mon) co_return;
 
-        // Broadcast CS_HPMP_ACK to all AOI players
+        // Broadcast CS_HPMP_ACK to AOI players
         const auto aoi = ctx.monster_registry->GetNeighborIds(
             mon->pos_x, mon->pos_z);
         for (std::uint32_t pid : aoi)
@@ -194,26 +198,31 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
                 co_await SendHpMpAck(nbr, obj_id, OT_MON,
                     mon->max_hp, new_hp, mon->max_mp, mon->mp);
         }
-        // Also send to the attacker's own session
         co_await SendHpMpAck(sess, obj_id, OT_MON,
             mon->max_hp, new_hp, mon->max_mp, mon->mp);
 
-        // Monster death → CS_DELMON_ACK broadcast
+        // Monster death
         if (new_hp == 0)
         {
-            spdlog::info("CS_ACTION_REQ: monster {} killed by uid={}",
-                obj_id, state.user_id);
+            const std::uint16_t spawn_id = mon->spawn_id;
+            spdlog::info("CS_ACTION_REQ: monster {} (spawn={}) killed by uid={}",
+                obj_id, spawn_id, state.user_id);
+
             for (std::uint32_t pid : aoi)
             {
                 auto nbr = ctx.session_registry->Get(pid);
-                if (nbr)
-                    co_await SendDelMonAck(nbr, obj_id, 0u);
+                if (nbr) co_await SendDelMonAck(nbr, obj_id, 0u);
             }
             co_await SendDelMonAck(sess, obj_id, 0u);
+
             ctx.monster_registry->Remove(obj_id);
+
+            // Notify spawn manager for respawn scheduling
+            if (ctx.spawn_manager)
+                ctx.spawn_manager->OnMonsterDied(obj_id, spawn_id);
         }
     }
-    // PvP damage is F4 Part 2 (CS_DEFEND_REQ flow)
+    // PvP damage (CS_DEFEND_REQ flow) is F4 Part 3
 }
 
 // ---------------------------------------------------------------------------

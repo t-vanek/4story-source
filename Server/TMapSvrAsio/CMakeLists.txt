@@ -47,6 +47,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers_chat.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_npc.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_party.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_quest.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_inventory_service.cpp
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp
@@ -217,6 +218,15 @@ target_include_directories(test_tmapsvr_asio_loot_registry_spec
             ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
 add_test(NAME tmapsvr_asio_loot_registry_spec
     COMMAND test_tmapsvr_asio_loot_registry_spec)
+
+# F7 — LocalQuestEngine spec (pure-unit).
+add_executable(test_tmapsvr_asio_quest_engine_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_quest_engine_spec.cpp)
+target_include_directories(test_tmapsvr_asio_quest_engine_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_quest_engine_spec
+    COMMAND test_tmapsvr_asio_quest_engine_spec)
 
 # F6 Part 2 — NpcService spec (pure-unit).
 add_executable(test_tmapsvr_asio_npc_service_spec

@@ -635,6 +635,12 @@ Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
     case MessageId::CS_PARTYJOIN_REQ:
         co_await OnPartyJoinReq(std::move(sess), state, packet, ctx);
         break;
+    case MessageId::CS_QUESTEXEC_REQ:
+        co_await OnQuestExecReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_QUESTDROP_REQ:
+        co_await OnQuestDropReq(std::move(sess), state, packet, ctx);
+        break;
     case MessageId::CS_SKILLUSE_REQ:
         co_await OnSkillUseReq(std::move(sess), state, packet, ctx);
         break;

@@ -13,6 +13,7 @@
 #include "handlers.h"
 #include "handlers_map.h"
 #include "handlers_combat.h"
+#include "handlers_quest.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -392,6 +393,15 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
             if (const auto* mon = ctx.monster_registry->Get(mid))
                 co_await SendAddMonAck(sess, *mon, false);
         }
+    }
+
+    // F7: sync quest state on world entry
+    if (ctx.quest_engine)
+    {
+        const auto active    = ctx.quest_engine->GetActiveQuests(state.char_id);
+        const auto completed = ctx.quest_engine->GetCompletedQuestIds(state.char_id);
+        co_await SendQuestListAck(sess, active);
+        co_await SendQuestListCompleteAck(sess, completed);
     }
 
     co_await SendCharInfoAck(sess, *state.snapshot);

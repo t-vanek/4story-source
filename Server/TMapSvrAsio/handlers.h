@@ -29,6 +29,7 @@
 #include "loot_registry.h"
 #include "npc_service.h"
 #include "party_service.h"
+#include "quest_engine.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -111,6 +112,9 @@ struct HandlerContext
 
     // F6: party state (standalone — no TWorldSvr).
     IPartyService*                    party_svc         = nullptr;
+
+    // F7: quest engine.
+    IQuestEngine*                     quest_engine      = nullptr;
 };
 
 // Per-session state. F1 carries the player id assigned on
@@ -253,6 +257,20 @@ boost::asio::awaitable<void> OnPartyAddReq(
 
 // F6: accept party invite. Source: CSHandler.cpp:3451.
 boost::asio::awaitable<void> OnPartyJoinReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F7: accept (exec) a quest from NPC. Source: CSHandler.cpp:3535.
+boost::asio::awaitable<void> OnQuestExecReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F7: abandon an active quest. Source: CSHandler.cpp:3590.
+boost::asio::awaitable<void> OnQuestDropReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     MapSessionState&                     state,
     const tnetlib::DecodedPacket&        packet,

@@ -22,6 +22,7 @@
 #include "loot_registry.h"
 #include "npc_service.h"
 #include "party_service.h"
+#include "quest_engine.h"
 
 #include "fourstory/ops/rate_limiter.h"
 
@@ -96,6 +97,9 @@ struct MapServerConfig
 
     // F6: party service (standalone).
     IPartyService*                      party_svc        = nullptr;
+
+    // F7: quest engine.
+    IQuestEngine*                       quest_engine     = nullptr;
 };
 
 class MapServer

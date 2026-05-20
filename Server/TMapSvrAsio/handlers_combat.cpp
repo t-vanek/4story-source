@@ -17,6 +17,7 @@
 #include "handlers.h"
 #include "spawn_manager.h"
 #include "loot_registry.h"
+#include "handlers_quest.h"
 #include "services/session_registry.h"
 #include "wire_codec.h"
 
@@ -226,6 +227,34 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
             // Notify spawn manager for respawn scheduling
             if (ctx.spawn_manager)
                 ctx.spawn_manager->OnMonsterDied(obj_id, spawn_id);
+
+            // F7: update quest kill progress
+            if (ctx.quest_engine && state.snapshot)
+            {
+                const auto mon_tmpl = mon->template_id;
+                auto events = ctx.quest_engine->OnMonsterKilled(
+                    state.char_id, mon_tmpl);
+                for (const auto& ev : events)
+                {
+                    co_await SendQuestUpdateAck(sess,
+                        ev.quest_id, ev.term_id,
+                        QuestTermType::Hunt,
+                        ev.new_count,
+                        ev.term_complete
+                            ? QuestTermStatus::Success
+                            : QuestTermStatus::Running);
+
+                    if (ev.quest_complete)
+                    {
+                        spdlog::info("Quest {} completed by uid={}",
+                            ev.quest_id, state.user_id);
+                        co_await SendQuestCompleteAck(sess,
+                            QuestResult::Success,
+                            ev.quest_id, ev.term_id,
+                            QuestTermType::Hunt, 0u);
+                    }
+                }
+            }
 
             // Grant experience to attacker
             if (ctx.level_chart && state.snapshot)

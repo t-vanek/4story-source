@@ -14,7 +14,8 @@
 
 #include "handlers_npc.h"
 #include "handlers.h"
-#include "handlers_items.h"  // SendAddItemAck
+#include "handlers_items.h"   // SendAddItemAck
+#include "handlers_quest.h"   // SendQuestListPossibleAck
 #include "npc_service.h"
 #include "wire_codec.h"
 
@@ -61,6 +62,18 @@ OnNpcTalkReq(std::shared_ptr<tnetlib::AsioSession> sess,
     co_await sess->SendPacket(
         ToUint16(MessageId::CS_NPCTALK_ACK),
         std::span<const std::byte>(body.data(), body.size()));
+
+    // F7: send available quests for this NPC
+    if (ctx.quest_engine && ctx.npc_svc)
+    {
+        const auto* npc = ctx.npc_svc->GetNpc(npc_id);
+        const std::uint8_t npc_country = npc ? npc->discount_rate : 0u;
+        const auto available =
+            ctx.quest_engine->Chart()->GetNpcQuests(npc_id);
+        if (!available.empty())
+            co_await SendQuestListPossibleAck(sess, npc_id,
+                npc_country, available);
+    }
 }
 
 // ---------------------------------------------------------------------------

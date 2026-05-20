@@ -25,6 +25,7 @@
 #include "monster_state.h"
 #include "level_chart.h"
 #include "player_hp_registry.h"
+#include "inventory_service.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -95,6 +96,9 @@ struct HandlerContext
 
     // F4 Part 3: server-side player vitals for monster damage.
     IPlayerHpRegistry*                player_hp         = nullptr;
+
+    // F5: live item inventory.
+    IInventoryService*                inventory_svc     = nullptr;
 };
 
 // Per-session state. F1 carries the player id assigned on
@@ -171,6 +175,21 @@ boost::asio::awaitable<void> OnConReadyReq(
 // broadcasts CS_MOVE_ACK / CS_ENTER_ACK / CS_LEAVE_ACK via session_registry.
 // Source: CSHandler.cpp:439-485.
 boost::asio::awaitable<void> OnMoveReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F5: inventory slot move + equip/unequip. Broadcasts CS_EQUIP_ACK to AOI.
+// Source: CSHandler.cpp:1782.
+boost::asio::awaitable<void> OnMoveItemReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F5: consume an item (potion heal stub). Source: CSHandler.cpp:9092.
+boost::asio::awaitable<void> OnItemUseReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     MapSessionState&                     state,
     const tnetlib::DecodedPacket&        packet,

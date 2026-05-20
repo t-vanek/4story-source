@@ -24,6 +24,7 @@
 
 #include "handlers.h"
 #include "handlers_combat.h"
+#include "handlers_items.h"
 #include "wire_codec.h"
 
 #include <spdlog/spdlog.h>
@@ -604,6 +605,12 @@ Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_REVIVAL_REQ:
         co_await OnRevivalReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_MOVEITEM_REQ:
+        co_await OnMoveItemReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_ITEMUSE_REQ:
+        co_await OnItemUseReq(std::move(sess), state, packet, ctx);
         break;
     case MessageId::CS_SKILLUSE_REQ:
         co_await OnSkillUseReq(std::move(sess), state, packet, ctx);

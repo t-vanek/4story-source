@@ -18,6 +18,7 @@
 #include "monster_state.h"
 #include "level_chart.h"
 #include "player_hp_registry.h"
+#include "inventory_service.h"
 
 #include "fourstory/ops/rate_limiter.h"
 
@@ -80,6 +81,9 @@ struct MapServerConfig
 
     // F4 Part 3: server-side player HP/MP tracking for monster damage.
     IPlayerHpRegistry*                  player_hp        = nullptr;
+
+    // F5: live item inventory service.
+    IInventoryService*                  inventory_svc    = nullptr;
 };
 
 class MapServer

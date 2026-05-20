@@ -43,6 +43,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers_map.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_world.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_combat.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_items.cpp
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp
@@ -203,6 +204,15 @@ target_link_libraries(test_tmapsvr_asio_dm_loadchar_req_spec PRIVATE
 add_test(NAME tmapsvr_asio_dm_loadchar_req_spec
     COMMAND test_tmapsvr_asio_dm_loadchar_req_spec)
 fourstory_deploy_ossl_legacy(test_tmapsvr_asio_dm_loadchar_req_spec)
+
+# F5 — FakeInventoryService spec (pure-unit).
+add_executable(test_tmapsvr_asio_inventory_service_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_inventory_service_spec.cpp)
+target_include_directories(test_tmapsvr_asio_inventory_service_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_inventory_service_spec
+    COMMAND test_tmapsvr_asio_inventory_service_spec)
 
 # F4 Part 4 — CS_REVIVAL_REQ characterization spec.
 add_executable(test_tmapsvr_asio_cs_revival_req_spec

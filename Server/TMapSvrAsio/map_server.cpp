@@ -31,6 +31,7 @@ MapServer::MapServer(boost::asio::io_context& io, MapServerConfig cfg)
     m_ctx.level_chart        = m_cfg.level_chart;
     m_ctx.spawn_manager      = m_cfg.spawn_manager;
     m_ctx.player_hp          = m_cfg.player_hp;
+    m_ctx.inventory_svc      = m_cfg.inventory_svc;
     m_ctx.live_session_count = [this]() -> std::uint32_t {
         return LiveSessions();
     };

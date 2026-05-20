@@ -11,6 +11,8 @@
 #include "handlers/handlers.h"
 #include "services/admin_audit_logger.h"
 #include "services/chat_ban_repository.h"
+#include "services/event_registry.h"
+#include "services/event_repository.h"
 #include "services/operator_registry.h"
 #include "services/peer_registry.h"
 #include "services/service_controller.h"
@@ -38,6 +40,8 @@ struct ControlServerConfig
     IAdminAuditLogger*     audit       = nullptr;
     IUserProtectedService* user_ban    = nullptr;
     ChatBanRepository*     chat_bans   = nullptr;
+    EventRegistry*         events      = nullptr;
+    IEventRepository*      event_repo  = nullptr;
     std::uint8_t           auto_start  = 0;
 };
 

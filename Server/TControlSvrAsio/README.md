@@ -10,7 +10,7 @@ The plan, handler-by-handler, lives in
 [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](../../_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md).
 This README only covers what F1 ships and how to bring it up.
 
-## Status — F1 scaffold + F2 peer infra + F3 admin operations
+## Status — F1 scaffold + F2 peer infra + F3 admin operations + F4 event manager
 
 | Area | F1 | F2 | F3 | F4 | F5 | F6 |
 |------|----|----|----|----|----|----|
@@ -35,7 +35,11 @@ This README only covers what F1 ships and how to bring it up.
 | Chat-ban: N-wave aggregator + list + delete | | | ✅ | | | |
 | `IAdminAuditLogger` interface + spdlog impl (shared "audit" channel) | | | ✅ | | | |
 | `CT_MONSPAWNFIND_REQ` map broadcast | | | ✅ | | | |
-| Event scheduler + manager | | | | ✅ | | |
+| `IEventRepository` + `EventRegistry` + overlap validation | | | | ✅ | | |
+| Event CRUD handlers (CHANGE / DEL / LIST / MSG / UPDATE) | | | | ✅ | | |
+| Cash-shop handlers (CASHITEMSALE / CASHSHOPSTOP / CASHITEMLIST) | | | | ✅ | | |
+| 1Hz `EventSchedulerLoop` — daily / term + alarms + auto-delete | | | | ✅ | | |
+| Raw passthrough forwarders (EVENTQUARTER / TOURNAMENT / HELP / RPS / CMGIFT) | | | | ✅ | | |
 | Patch metadata + castle + ops polish | | | | | ✅ | |
 | End-to-end legacy `TController.exe` smoke test | | | | | | ✅ |
 

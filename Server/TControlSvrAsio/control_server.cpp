@@ -68,6 +68,8 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.audit      = m_cfg.audit;
     ctx.user_ban   = m_cfg.user_ban;
     ctx.chat_bans  = m_cfg.chat_bans;
+    ctx.events     = m_cfg.events;
+    ctx.event_repo = m_cfg.event_repo;
     ctx.io         = &m_io;
     ctx.auto_start = &m_auto_start;
 

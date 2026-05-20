@@ -20,6 +20,8 @@
 #include "../peer_session.h"
 #include "../services/admin_audit_logger.h"
 #include "../services/chat_ban_repository.h"
+#include "../services/event_registry.h"
+#include "../services/event_repository.h"
 #include "../services/operator_auth_service.h"
 #include "../services/operator_registry.h"
 #include "../services/peer_registry.h"
@@ -52,6 +54,8 @@ struct HandlerContext
     IAdminAuditLogger*       audit        = nullptr;
     IUserProtectedService*   user_ban     = nullptr;
     ChatBanRepository*       chat_bans    = nullptr;
+    EventRegistry*           events       = nullptr;
+    IEventRepository*        event_repo   = nullptr;
     boost::asio::io_context* io           = nullptr;
 
     // Mirror of legacy CTControlSvrModule::m_bAutoStart — whether
@@ -185,6 +189,59 @@ boost::asio::awaitable<void> OnChatBanListDelReq(
 boost::asio::awaitable<void> OnMonSpawnFindReq(
     std::shared_ptr<OperatorSession> op,
     std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// --- F4: event manager ------------------------------------------------
+
+boost::asio::awaitable<void> OnEventListReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnEventChangeReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnEventDelReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnEventUpdateReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnEventMsgReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCashItemSaleReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCashShopStopReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCashItemListReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Generic forward — used by EVENTQUARTER*, TOURNAMENTEVENT,
+// HELPMESSAGE, RPSGAME*, CMGIFT* handlers that just shuttle the
+// packet to a peer World/Map of a given group + type.
+boost::asio::awaitable<void> ForwardRawToType(
+    std::shared_ptr<OperatorSession> op,
+    std::uint16_t wId,
+    std::vector<std::byte> body,
+    std::uint8_t target_type,
+    bool single_target,
     const HandlerContext& ctx);
 
 } // namespace handlers

@@ -2,6 +2,7 @@
 
 #include "../senders.h"
 #include "../wire_codec.h"
+#include "../services/svr_type.h"
 #include "MessageId.h"
 
 #include <spdlog/spdlog.h>
@@ -221,6 +222,63 @@ Dispatch(std::shared_ptr<OperatorSession> op,
         break;
     case MessageId::CT_MONSPAWNFIND_REQ:
         co_await OnMonSpawnFindReq(std::move(op), std::move(body), ctx);
+        break;
+
+    // --- F4: event manager ---------------------------------------
+    case MessageId::CT_EVENTLIST_REQ:
+        co_await OnEventListReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_EVENTCHANGE_REQ:
+        co_await OnEventChangeReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_EVENTDEL_REQ:
+        co_await OnEventDelReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_EVENTUPDATE_REQ:
+        co_await OnEventUpdateReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_EVENTMSG_REQ:
+        co_await OnEventMsgReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASHITEMSALE_REQ:
+        co_await OnCashItemSaleReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASHSHOPSTOP_REQ:
+        co_await OnCashShopStopReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASHITEMLIST_REQ:
+        co_await OnCashItemListReq(std::move(op), std::move(body), ctx);
+        break;
+
+    // F4 raw passthrough forwarders — quartal events, tournament,
+    // help message, RPS game, CM gift. Each routes to a single
+    // World server in the targeted group (legacy parity).
+    case MessageId::CT_EVENTQUARTERLIST_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/true, ctx);
+        break;
+    case MessageId::CT_EVENTQUARTERUPDATE_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+    case MessageId::CT_TOURNAMENTEVENT_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+    case MessageId::CT_HELPMESSAGE_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+    case MessageId::CT_RPSGAMEDATA_REQ:
+    case MessageId::CT_RPSGAMECHANGE_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+    case MessageId::CT_CMGIFT_REQ:
+    case MessageId::CT_CMGIFTLIST_REQ:
+    case MessageId::CT_CMGIFTCHARTUPDATE_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
         break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap

@@ -8,6 +8,7 @@
 // readable and matches the TPatchSvrAsio convention.
 
 #include "control_session.h"
+#include "services/event_types.h"
 #include "services/peer_registry.h"
 #include "services/service_inventory.h"
 
@@ -198,5 +199,68 @@ boost::asio::awaitable<void> SendMonSpawnFindAck(
     std::uint8_t channel,
     std::uint16_t map_id,
     std::uint16_t spawn_id);
+
+// --- F4: event manager (operator ↔ control ↔ peer) -----------------
+
+// CT_EVENTCHANGE_ACK = { BYTE bRet, BYTE bType, EventInfo serialized }
+//   bRet is event_result::* (Success / Fail / InvalidTime / …).
+//   bType is event_op::* — the CRUD op the operator requested.
+boost::asio::awaitable<void> SendEventChangeAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  ret,
+    std::uint8_t  op,
+    const EventInfo& ev);
+
+// CT_EVENTLIST_ACK = { DWORD count, EventInfo * count }
+boost::asio::awaitable<void> SendEventListAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<EventInfo>& events);
+
+// CT_CASHITEMLIST_ACK = { DWORD count, [ WORD wID, CString szName ] }
+boost::asio::awaitable<void> SendCashItemListAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<CashItem>& items);
+
+// Peer-side event forwarders (control → World/Map/Login):
+
+// CT_EVENTUPDATE_REQ = { BYTE kind, WORD value }
+//   The full EventInfo body normally follows on the wire (legacy
+//   serializes it via WrapPacketIn). F4 ships the header + kind/
+//   value; downstream consumers re-read state from the next
+//   CT_EVENTLIST_REQ poll.
+boost::asio::awaitable<void> SendEventUpdateReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  kind,
+    std::uint16_t value);
+
+// CT_EVENTMSG_REQ = { BYTE kind, BYTE msg_type, CString msg }
+//   msg_type = 0 → start announcement, 1 → end announcement.
+boost::asio::awaitable<void> SendEventMsgReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t kind,
+    std::uint8_t msg_type,
+    const std::string& msg);
+
+// CT_CASHITEMSALE_REQ = {
+//   DWORD index, WORD value, WORD count, [ WORD wID, BYTE bSale ] * count
+// }
+boost::asio::awaitable<void> SendCashItemSaleReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t index,
+    std::uint16_t value,
+    const std::vector<CashItemSale>& items);
+
+// CT_CASHSHOPSTOP_REQ = { BYTE bType }
+boost::asio::awaitable<void> SendCashShopStopReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t type);
+
+// Raw passthrough — packet body verbatim, repacked with the given
+// wId. Used by EVENTQUARTER*, TOURNAMENTEVENT, HELPMESSAGE,
+// RPSGAME*, CMGIFT* forwarders.
+boost::asio::awaitable<void> SendRawForward(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint16_t wId,
+    const std::vector<std::byte>& body);
 
 } // namespace tcontrolsvr::senders

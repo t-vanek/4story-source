@@ -1,5 +1,6 @@
 #include "senders.h"
 
+#include "event_codec.h"
 #include "wire_codec.h"
 #include "MessageId.h"
 
@@ -304,6 +305,109 @@ boost::asio::awaitable<void> SendMonSpawnFindAck(
     wire::WritePOD<std::uint16_t>(body, spawn_id);
     co_await sess->SendPacket(ToUint16(MessageId::CT_MONSPAWNFIND_ACK),
                               std::move(body));
+}
+
+// --- F4: event manager ---------------------------------------------
+
+boost::asio::awaitable<void> SendEventChangeAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t ret, std::uint8_t op, const EventInfo& ev)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t>(body, ret);
+    wire::WritePOD<std::uint8_t>(body, op);
+    event_codec::Write(body, ev);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_EVENTCHANGE_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendEventListAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<EventInfo>& events)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body,
+        static_cast<std::uint32_t>(events.size()));
+    for (const auto& ev : events)
+        event_codec::Write(body, ev);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_EVENTLIST_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendCashItemListAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<CashItem>& items)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body,
+        static_cast<std::uint32_t>(items.size()));
+    for (const auto& ci : items)
+    {
+        wire::WritePOD<std::uint16_t>(body, ci.id);
+        wire::WriteString(body, ci.name);
+    }
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CASHITEMLIST_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendEventUpdateReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t kind, std::uint16_t value)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t >(body, kind);
+    wire::WritePOD<std::uint16_t>(body, value);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_EVENTUPDATE_REQ),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendEventMsgReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t kind, std::uint8_t msg_type, const std::string& msg)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t>(body, kind);
+    wire::WritePOD<std::uint8_t>(body, msg_type);
+    wire::WriteString(body, msg);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_EVENTMSG_REQ),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendCashItemSaleReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t index, std::uint16_t value,
+    const std::vector<CashItemSale>& items)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, index);
+    wire::WritePOD<std::uint16_t>(body, value);
+    wire::WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(items.size()));
+    for (const auto& s : items)
+    {
+        wire::WritePOD<std::uint16_t>(body, s.item_id);
+        wire::WritePOD<std::uint8_t >(body, s.sale_value);
+    }
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CASHITEMSALE_REQ),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendCashShopStopReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t type)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t>(body, type);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CASHSHOPSTOP_REQ),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendRawForward(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint16_t wId,
+    const std::vector<std::byte>& body)
+{
+    co_await sess->SendPacket(wId, body);
 }
 
 } // namespace tcontrolsvr::senders

@@ -5,16 +5,21 @@
 
 #include "config.h"
 #include "control_server.h"
+#include "event_scheduler.h"
 #include "peer_dialer.h"
 #include "db/schema_validator.h"
 #include "services/chat_ban_repository.h"
 #include "services/disabled_service_controller.h"
+#include "services/event_registry.h"
+#include "services/event_repository.h"
+#include "services/fake_event_repository.h"
 #include "services/fake_operator_auth_service.h"
 #include "services/fake_service_inventory.h"
 #include "services/fake_user_protected_service.h"
 #include "services/operator_auth_service.h"
 #include "services/peer_registry.h"
 #include "services/service_inventory.h"
+#include "services/soci_event_repository.h"
 #include "services/soci_operator_auth_service.h"
 #include "services/soci_service_inventory.h"
 #include "services/soci_user_protected_service.h"
@@ -93,6 +98,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tcontrolsvr::IOperatorAuthService>    auth;
         std::unique_ptr<tcontrolsvr::IServiceInventory>       inventory_ptr;
         std::unique_ptr<tcontrolsvr::IUserProtectedService>   user_ban;
+        std::unique_ptr<tcontrolsvr::IEventRepository>        event_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -116,6 +122,8 @@ int main(int argc, char** argv)
             auth = std::make_unique<tcontrolsvr::SociOperatorAuthService>(*pool);
             user_ban =
                 std::make_unique<tcontrolsvr::SociUserProtectedService>(*pool);
+            event_repo =
+                std::make_unique<tcontrolsvr::SociEventRepository>(*pool);
             spdlog::info("auth + inventory: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
         }
@@ -138,11 +146,15 @@ int main(int argc, char** argv)
                 fake_inv->AddType({t.id, 0, t.name});
             inventory_ptr = std::move(fake_inv);
             user_ban = std::make_unique<tcontrolsvr::FakeUserProtectedService>();
+            event_repo = std::make_unique<tcontrolsvr::FakeEventRepository>();
         }
 
-        // --- Admin audit + chat-ban registry -----------------------
+        // --- Admin audit + chat-ban registry + event registry -----
         tcontrolsvr::SpdlogAdminAuditLogger audit;
         tcontrolsvr::ChatBanRepository      chat_bans;
+        tcontrolsvr::EventRegistry          events;
+        if (event_repo) events.LoadFrom(event_repo->LoadAll());
+        spdlog::info("event_registry: loaded {} events", events.Size());
 
         // --- Peer infra --------------------------------------------
         tcontrolsvr::PeerRegistry peers(*inventory_ptr);
@@ -160,6 +172,8 @@ int main(int argc, char** argv)
         svr_cfg.audit      = &audit;
         svr_cfg.user_ban   = user_ban.get();
         svr_cfg.chat_bans  = &chat_bans;
+        svr_cfg.events     = &events;
+        svr_cfg.event_repo = event_repo.get();
         svr_cfg.auto_start = cfg.auto_start;
         tcontrolsvr::ControlServer server(io, svr_cfg);
         spdlog::info("control server listening on 0.0.0.0:{}", server.Port());
@@ -168,6 +182,13 @@ int main(int argc, char** argv)
         // 1Hz peer-keepalive watchdog (legacy TimerThread).
         boost::asio::co_spawn(io,
             server.PeerKeepaliveLoop(),
+            boost::asio::detached);
+
+        // 1Hz event scheduler — daily / term events, alarms,
+        // auto-delete for one-shot lottery / gifttime kinds.
+        tcontrolsvr::EventSchedulerLoop event_loop(io, events, peers,
+            event_repo.get());
+        boost::asio::co_spawn(io, event_loop.Run(),
             boost::asio::detached);
 
         std::unique_ptr<fourstory::ops::HealthEndpoint> health;

@@ -1,5 +1,36 @@
 // Entry point for the modernized TLoginSvrAsio binary. PCH-free,
 // portable C++20 + Boost.Asio.
+//
+// Responsibilities:
+//   1. Parse CLI (just --config / --help).
+//   2. Load + validate the TOML config (tloginsvr::LoadConfig).
+//   3. Construct services in dependency order:
+//        a. LocalConnectionRegistry  (always — single-process
+//                                     duplicate-kick map; matches
+//                                     legacy CTLoginSvrModule::m_mapTUSER).
+//        b. LoginRateLimiter         (always — per-IP token bucket).
+//        c. LocalEventRegistry       (always — GM event store; matches
+//                                     legacy m_mapEVENT).
+//        d. ISmtpClient              (AsioSmtpClient when [smtp] host
+//                                     set, else log-only fallback).
+//        e. IAuditLogger             (SpdlogAuditLogger + optional UDP
+//                                     shim to legacy TLogSvr collector).
+//        f. SOCI services            (auth, char, map, terminator) +
+//                                     SessionPool×2 when [database] is
+//                                     configured. Fail-fast if pools
+//                                     can't be opened. Validates
+//                                     TGLOBAL + TGAME schema before
+//                                     listener opens.
+//   4. Run the boot-time ClearStaleSessions sweep (mirrors legacy
+//      CSPClearLoginUser in CTLoginSvrModule::OnEnter — prevents
+//      every account hitting LR_DUPLICATE after a crash).
+//   5. Wire SIGINT/SIGTERM + SM_QUITSERVICE_REQ → graceful shutdown
+//      (snapshot the registry, terminate each live session, io.stop).
+//   6. co_spawn LoginServer::Run, the admin shell, the health endpoint;
+//      hand control to io.run().
+//
+// Legacy parity: Server/TLoginSvr/TLoginSvr.cpp (WinMain) +
+// CTLoginSvrModule::OnEnter / OnLeave for the boot/shutdown chain.
 
 #include "fourstory/ops/admin_shell.h"
 #include "config.h"

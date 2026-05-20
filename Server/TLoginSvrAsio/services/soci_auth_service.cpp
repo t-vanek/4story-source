@@ -1,3 +1,32 @@
+// SociAuthService implementation — SOCI-backed IAuthService against
+// TGLOBAL.
+//
+// One method per IAuthService entry point. Each acquires a session
+// from the pool (with the bounded acquire_timeout — exhaustion throws
+// AcquireTimeout, which the dispatch wrapper turns into a clean
+// per-connection close), runs the relevant query, releases the lease
+// on scope exit.
+//
+// Authenticate() is the centerpiece — mirrors legacy `TLogin` SP:
+//   1. Check IPBLACKLIST_game / TIPAUTHORITY → LR_BLOCKEDIP.
+//   2. SELECT TACCOUNT_PW row by szUserID → LR_NOTEXIST / LR_INVALIDPASSWD.
+//   3. BCrypt verify the stored szPasswd (legacy plaintext/SHA1 rows
+//      are rejected — run tloginsvr_bcrypt_migrate once before cutover).
+//   4. Check TUSERPROTECTED → LR_BLOCKEDUSER if bEternal or in window.
+//   5. Check TCURRENTUSER.bLocked → LR_DUPLICATE for prior live session.
+//   6. INSERT TCURRENTUSER row, UPDATE TACCOUNT_PW.dLastLogin, INSERT
+//      TLOG audit row.
+//   7. Populate AuthResult with TUSERINFOTABLE agreement, TPCBANG,
+//      TUSERPREMIUM, dwLastCharID.
+//
+// Two-factor: VerifySecurityCode / IssueSecurityCode read/write
+// TSECURECODE, LookupEmail / SetUserEmail use TUSEREMAIL,
+// IsTrustedIp / AddTrustedIp use TUSERTRUSTEDIP.
+//
+// Legacy parity: Server/TLoginSvr/CTLoginSvrModule's CSPLogin /
+// TLogin / CSPCheckPasswd / CSPGetUserAgreement / CSPSetUserAgreement
+// stored-proc calls.
+
 #include "soci_auth_service.h"
 #include "bcrypt_util.h"
 #include "fourstory/db/session_pool.h"

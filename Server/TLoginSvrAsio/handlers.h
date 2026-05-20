@@ -1,5 +1,24 @@
 #pragma once
 
+// Per-packet handler declarations for TLoginSvrAsio.
+//
+// One free function per wire message ID — handlers are dispatched from
+// LoginServer::Dispatch (login_server.cpp). All handlers are coroutines
+// returning boost::asio::awaitable<void> so they can `co_await
+// SendPacket(...)` without blocking the io_context.
+//
+// Legacy parity: each handler corresponds to a case in the legacy
+// `CTLoginSvrModule::CSHandler::OnCS_*` / `OnCT_*` dispatch
+// (Server/TLoginSvr/CSHandler.cpp). Wire layouts are documented per
+// handler with file:line references back to the legacy sender /
+// receiver. CT_* handlers additionally require the peer to match the
+// configured `control_server_ip` (gate enforced in Dispatch).
+//
+// Service dependencies are passed as raw pointers and ALL default to
+// nullptr — that gives the test harness a way to exercise a handler in
+// isolation by wiring only the services it cares about. Production
+// wiring in main.cpp constructs every service.
+
 #include <boost/asio/awaitable.hpp>
 
 #include <functional>

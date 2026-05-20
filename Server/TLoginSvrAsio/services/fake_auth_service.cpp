@@ -1,3 +1,18 @@
+// FakeAuthService implementation — TEST-ONLY in-memory IAuthService.
+//
+// Each public method is a thin wrapper over the in-memory maps
+// declared in fake_auth_service.h. No DB, no I/O, no threading
+// primitives — fakes assume single-threaded test drivers.
+//
+// Authenticate() and VerifyPassword() compare plaintext; the
+// production SOCI impl runs bcrypt_checkpw against TACCOUNT_PW
+// instead. Two-factor flows (IssueSecurityCode / VerifySecurityCode /
+// CompleteSecurityLogin) write into in-memory side tables so the
+// ctest 2FA flow can exercise the handler path without needing
+// TSECURECODE / TUSEREMAIL / TUSERTRUSTEDIP wired up.
+//
+// **Not for production.** Wired only when [database] is empty in TOML.
+
 #include "fake_auth_service.h"
 
 #include <utility>

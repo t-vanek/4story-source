@@ -1,3 +1,17 @@
+// Per-nation character-name validator implementation.
+//
+// One CheckXxx() predicate per locale — each accepts a string_view and
+// returns true iff the bytes are legal in that locale's character set.
+// The dispatch in IsValidCharName routes by Nation enum, with US
+// (ASCII-only) as the safe fallback.
+//
+// Double-byte locales (Taiwan / Japan / Korea) use the shared
+// CheckDoubleByte helper plus a pair of lead/trail predicates per
+// locale (Big5, Shift-JIS, EUC-KR ranges) — matches the legacy
+// per-byte checks in CSHandler.cpp:1010-1066's CheckCharName.
+//
+// Legacy parity: Server/TLoginSvr/CSHandler.cpp::CheckCharName.
+
 #include "charname_validator.h"
 
 #include <cstddef>

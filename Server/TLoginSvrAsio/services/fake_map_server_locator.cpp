@@ -1,3 +1,17 @@
+// FakeMapServerLocator implementation — TEST-ONLY in-memory
+// IMapServerLocator.
+//
+// Three maps mirror the legacy lookups against TSERVER + TGROUP +
+// TCHANNEL:
+//   m_map_servers   (group_id → endpoint)
+//   m_groups        (group_id → GroupInfo)
+//   m_channels      (group_id → vector<ChannelInfo>)
+// Seeded via AddMapServer / AddGroup / AddChannel from test setup;
+// Lookup / ListGroups / ListChannels just read back.
+//
+// **Not for production.** Production uses SociMapServerLocator
+// resolving TSERVER + TIPADDR + TSVRCHART/TCHANNELCHART/TSPAWNPOSCHART.
+
 #include "fake_map_server_locator.h"
 
 #include <utility>

@@ -1,3 +1,22 @@
+// LocalConnectionRegistry implementation — single-process duplicate-
+// kick + agreement gate state.
+//
+// Production-grade (not a test fake) for any single-process login
+// deployment. Two maps under a single mutex:
+//   m_by_user      (user_id → LiveEntry)  — for duplicate-kick lookup
+//                                            on a fresh successful login.
+//   m_by_session   (session ptr → user_id) — for the reverse lookup
+//                                            used by lobby handlers
+//                                            and the close-time cleanup.
+//
+// Register() returns any prior session that needs to be kicked — the
+// caller (handlers::OnLoginReq) is responsible for closing it so the
+// duplicate user sees a disconnect. Snapshot() is used by main.cpp's
+// graceful_shutdown lambda to drive a final TCURRENTUSER sweep.
+//
+// Legacy parity: Server/TLoginSvr/CTLoginSvrModule::m_mapTUSER +
+// m_csLI critical section.
+
 #include "local_connection_registry.h"
 
 namespace tloginsvr::services {

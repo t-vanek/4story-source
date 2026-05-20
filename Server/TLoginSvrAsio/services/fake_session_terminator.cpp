@@ -1,3 +1,15 @@
+// FakeSessionTerminator implementation — TEST-ONLY ISessionTerminator.
+//
+// Records every Terminate call into a vector so tests can assert on
+// the (user_id, session_key, reason, char_id) tuple. History() and
+// Count() are the read-side accessors. Thread-safe via a plain mutex
+// because the dispatch coroutines from LoginServer can call Terminate
+// from different executor strands.
+//
+// **Not for production.** Production uses SociSessionTerminator which
+// runs the actual DELETE TCURRENTUSER / UPDATE TLOG.timeLOGOUT
+// statements.
+
 #include "fake_session_terminator.h"
 
 namespace tloginsvr::services {

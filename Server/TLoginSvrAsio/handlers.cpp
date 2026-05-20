@@ -1,3 +1,35 @@
+// Per-wire-message handler implementations. One coroutine per
+// MessageId — declarations live in handlers.h, dispatch happens in
+// LoginServer::Dispatch (login_server.cpp).
+//
+// Structure of each handler:
+//   1. Parse the legacy CSHandler.cpp wire layout (defensive — any
+//      malformed body closes the session, never throws).
+//   2. Look up the session's auth state via IConnectionRegistry
+//      (handlers that require an authenticated user reject otherwise).
+//   3. Drive the relevant service (auth / char / map / terminator /
+//      event registry / smtp).
+//   4. Encode + co_await SendPacket to reply with the legacy ACK.
+//   5. Emit a structured audit record for ops follow-up.
+//
+// Helpers (anonymous namespace at the top):
+//   * EncodeLoginAck / EncodeStartAck / Encode*Ack — pack legacy wire
+//     ACK structs into byte vectors. Field-by-field memcpy with a
+//     compile-time size assertion at the bottom — any layout drift
+//     breaks the build instead of the wire.
+//   * ParseLoginReq / ParseCreateCharReq / ParseEventInfo — symmetric
+//     readers. STRING is "int32 LE length + bytes" per
+//     CSHandler.cpp's ReadString. All readers cap lengths at the
+//     legacy MAX_NAME ceiling and return false on any out-of-range
+//     value so a hostile client can't allocate gigabytes.
+//   * ResolveUserId / IsAgreed — connection-registry lookups shared
+//     by multiple handlers (lobby + agreement gate).
+//   * VerifyLoginChecksum — TVERSION ^ dlCheck parity check
+//     (CSHandler.cpp:171).
+//
+// Legacy parity: Server/TLoginSvr/CSHandler.cpp (the legacy handler
+// switch). Per-handler line references in the body.
+
 #include "handlers.h"
 #include "nation.h"
 #include "services/charname_validator.h"

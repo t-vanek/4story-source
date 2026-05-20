@@ -1,3 +1,14 @@
+// FakeCharService implementation — TEST-ONLY in-memory ICharService.
+//
+// Stores per-user character vectors in a map keyed by user_id. List /
+// Create / Delete walk that map; BR/BOW shard membership is kept in
+// a side map per (user_id → char_id) to mimic TBRPLAYERTABLE without
+// the world DB.
+//
+// **Not for production.** Production uses SociCharService against
+// TCHARTABLE / TITEMTABLE / TALLCHARTABLE / TGUILDMEMBERTABLE /
+// TBRPLAYERTABLE. Wired only when [database] is empty in TOML.
+
 #include "fake_char_service.h"
 
 #include <algorithm>

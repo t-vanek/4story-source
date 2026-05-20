@@ -1,3 +1,25 @@
+// Boot-time schema validator — fail-fast on schema drift.
+//
+// The two entry points each hand a curated `{table, column}` list to
+// the shared fourstory::db::CheckColumns helper, which issues a
+// dialect-aware introspection query (information_schema.columns on PG
+// / MSSQL, sqlite_master pragma_table_info on SQLite) and throws
+// fourstory::db::SchemaError naming the first missing entry.
+//
+// Why fail-fast: a missing column on TGLOBAL would otherwise surface
+// only on the first CS_LOGIN_REQ, by which time the listener is open
+// and ops sees a flood of LR_INTERNAL replies with no clear cause.
+// Validating before the listener binds turns the same problem into a
+// loud startup error.
+//
+// Columns covered match exactly what SociAuthService /
+// SociCharService / SociMapServerLocator / SociSessionTerminator read
+// or write — TGLOBAL: 40 columns, TGAME: 23 columns. Keep both lists
+// in lockstep with the SOCI impls.
+//
+// Legacy parity: legacy server didn't validate — it just crashed on
+// the first SQL error. This is a new safety net.
+
 #include "schema_validator.h"
 
 #include "fourstory/db/schema_validator.h"

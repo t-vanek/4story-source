@@ -1,3 +1,25 @@
+// SociMapServerLocator implementation — SOCI-backed
+// IMapServerLocator. Replaces the legacy TFindServerID stored proc
+// with explicit, traceable SOCI queries.
+//
+// Lookup() resolves CS_START_REQ to a Map endpoint by walking three
+// candidate tables in order, mirroring the legacy SP:
+//   1. TSVRCHART        — explicit char-to-server pin (used by
+//                          long-lived chars).
+//   2. TCHANNELCHART    — char→channel hint, then resolve channel→server.
+//   3. TSPAWNPOSCHART   — fallback: map the char's last-spawn coord to
+//                          a server via spawn-zone ownership table.
+// Round-robin load-balancing over TMACHINE rows ties for active count.
+// BR / BOW shard chars are routed to the dedicated shard server when
+// the char is found in TBRPLAYERTABLE / TBOWPLAYERTABLE.
+//
+// ListGroups() / ListChannels() back the lobby's CS_GROUPLIST_REQ /
+// CS_CHANNELLIST_REQ — query TGROUP / TCHANNEL with a live count of
+// TCURRENTUSER rows for status decoration.
+//
+// Legacy parity: Server/TLoginSvr's TFindServerID stored proc +
+// CTLoginSvrModule::CSPGroupList / CSPChannelList SP calls.
+
 #include "soci_map_server_locator.h"
 #include "fourstory/db/session_pool.h"
 

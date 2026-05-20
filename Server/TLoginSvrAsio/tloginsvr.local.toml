@@ -5,6 +5,9 @@
 [server]
 port = 4816
 nation = "us"
+# Dev mode: no TControlSvr peer wired, so we opt into the open CT_*
+# gate explicitly. Production deploys pin control_server_ip instead.
+control_server_gate_open = true
 
 [crypto]
 # Server-server test mode: legacy RC4 client codec disabled so the

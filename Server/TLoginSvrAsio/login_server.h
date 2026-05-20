@@ -9,6 +9,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <functional>
 
@@ -138,6 +139,20 @@ struct LoginServerConfig
     // CT_* packets (useful for in-process tests that loopback over
     // 127.0.0.1 from arbitrary ports).
     std::string control_server_ip;
+
+    // Explicit opt-in for running with `control_server_ip` empty (i.e.
+    // CT_* dispatch gate fully open to any peer). Without this flag,
+    // main() refuses to start when control_server_ip isn't configured —
+    // production deploys must either pin the gate or opt-in to "open"
+    // mode for dev/test. Default false = strict / secure.
+    bool control_server_gate_open = false;
+
+    // Soft cap on concurrent TCP connections. New accepts are dropped
+    // immediately when the count is exceeded (warning logged + socket
+    // closed). Protects against pre-auth flooding (no LOGIN_REQ ever
+    // arrives but the socket holds memory + an AsioSession until the
+    // pre-auth watchdog fires). 0 = no cap (legacy behavior).
+    std::uint32_t max_connections = 4096;
 };
 
 class LoginServer
@@ -172,6 +187,8 @@ private:
     std::function<void()>          m_on_quit_request;                // SM_QUITSERVICE_REQ → io.stop() etc. May be null.
     Nation                         m_nation = Nation::US;            // deployment locale — selects JP wire tail + CheckCharName charset
     std::string                    m_control_server_ip;              // empty = no peer-IP gate on CT_* dispatch
+    std::uint32_t                  m_max_connections = 0;            // 0 = no cap
+    std::atomic<std::uint32_t>     m_active_connections{ 0 };        // live AsioSession count for max_connections gate
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.

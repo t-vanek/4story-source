@@ -73,6 +73,30 @@ int main(int argc, char** argv)
         auto cfg = tloginsvr::LoadConfig(config_path);
         spdlog::set_level(cfg.log_level);
 
+        // Refuse to start with the CT_* gate fully open unless the
+        // operator explicitly opted in. Production deploys MUST pin
+        // control_server_ip to TControlSvr's address — leaving it
+        // empty lets any peer push CT_EVENTUPDATE_REQ et al. into the
+        // event registry. Dev / in-process tests can set
+        // [server] control_server_gate_open = true to silence this.
+        if (cfg.server.control_server_ip.empty()
+            && !cfg.server.control_server_gate_open)
+        {
+            throw std::runtime_error(
+                "[server] control_server_ip is empty and "
+                "control_server_gate_open is not set. CT_* dispatch "
+                "would accept packets from any peer. Pin "
+                "control_server_ip to TControlSvr's address, or "
+                "explicitly opt in to the open gate with "
+                "control_server_gate_open = true (dev/test only).");
+        }
+        if (cfg.server.control_server_ip.empty()
+            && cfg.server.control_server_gate_open)
+        {
+            spdlog::warn("control_server_gate_open = true — CT_* dispatch "
+                         "accepts packets from any peer (dev/test mode)");
+        }
+
         boost::asio::io_context io;
 
         // Connection registry — single-process duplicate-kick map.
@@ -205,7 +229,8 @@ int main(int argc, char** argv)
                     "is empty — pick one of: postgresql | sqlite3 | odbc");
             const auto backend = fourstory::db::ParseBackend(cfg.database.backend);
             global_pool = std::make_unique<fourstory::db::SessionPool>(
-                backend, cfg.database.connection_string, cfg.database.pool_size);
+                backend, cfg.database.connection_string, cfg.database.pool_size,
+                std::chrono::seconds(cfg.database.acquire_timeout_secs));
             tloginsvr::db::ValidateGlobalSchema(*global_pool);
 
             if (!cfg.database_world.connection_string.empty())
@@ -219,7 +244,8 @@ int main(int argc, char** argv)
                 world_pool = std::make_unique<fourstory::db::SessionPool>(
                     wbackend,
                     cfg.database_world.connection_string,
-                    cfg.database_world.pool_size);
+                    cfg.database_world.pool_size,
+                    std::chrono::seconds(cfg.database_world.acquire_timeout_secs));
                 tloginsvr::db::ValidateWorldSchema(*world_pool);
             }
 

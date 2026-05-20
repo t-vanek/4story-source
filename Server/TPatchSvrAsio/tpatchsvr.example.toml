@@ -1,0 +1,48 @@
+# tpatchsvr.toml — TPatchSvrAsio configuration.
+# Pass via `tpatchsvr_asio --config /path/to/this/file`.
+# All sections + keys are optional; defaults below match the shipped
+# legacy server's hardcoded behavior (port 3715 = DEF_PATCHPORT) so a
+# missing config still gives you a working binary.
+
+[server]
+# TCP port for the patch protocol. 3715 = DEF_PATCHPORT (TSERVER row
+# bType=5 in the legacy schema).
+port = 3715
+
+[patch]
+# FTP root URL the client hits after CT_PATCH_ACK to actually fetch
+# patch payloads. The patch server only serves metadata — payload
+# distribution is delegated to a separate FTP daemon the operator
+# runs.
+ftp_url     = "ftp://127.0.0.1/patches"
+pre_ftp_url = "ftp://127.0.0.1/patches/pre"
+
+[login]
+# IPv4 + port the client should connect to after patching completes.
+# Advertised back to the client inside CT_PATCH_ACK so it knows where
+# to log in once the file roster is up to date.
+host = "127.0.0.1"
+port = 4816
+
+[health]
+# Optional /healthz HTTP endpoint on a separate port. Set to 0 to
+# disable. Useful for k8s liveness/readiness probes and external
+# load-balancer health checks.
+port = 8915
+
+[log]
+# spdlog level. One of: trace | debug | info | warn | error | critical | off
+level = "info"
+
+[database]
+# TGLOBAL pool — patch metadata lives in TVERSION / TPREVERSION /
+# TUSER_INTERFACE there. Apply schema/patch-tables.sql once before
+# first start; the boot-time validator will refuse to open the
+# listener if TVERSION or TPREVERSION columns are missing.
+#
+# backend: one of  odbc | postgresql | sqlite3
+# Production uses ODBC against SQL Server; the SOCI connection
+# string follows the standard ODBC driver syntax.
+backend = "odbc"
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+pool_size = 4

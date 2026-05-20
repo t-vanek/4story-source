@@ -13,11 +13,12 @@ plain (no RC4): legacy `PACKETHEADER` is `WORD wSize; WORD wID; DWORD
 dwChkSum;` — we replicate the legacy `CPacket::Encrypt` byte-sum
 checksum so the client's framing check passes.
 
-> **Round 1 audit (2026-05-19):** the handler catalogue alone hides
-> a handful of SQL-shape divergences. See
-> [`_rewrite/docs/TPATCH_AUDIT.md`](../../_rewrite/docs/TPATCH_AUDIT.md)
-> for the per-gap rationale. P-1 through P-4 fixed; P-5/P-6
-> documented as known limitations.
+> **Round 2 audit (2026-05-20):** all six TPATCH audit items closed
+> (P-1…P-4 in round 1, P-5 + P-6 in round 2). Boot-time schema
+> validator (SQL_AUDIT F5) wired in `main.cpp`; periodic
+> stale-client sweep on a 60-second cap; pre-version promotion
+> implemented inline via MERGE+DELETE in a transaction. See
+> [`_rewrite/docs/TPATCH_AUDIT.md`](../../_rewrite/docs/TPATCH_AUDIT.md).
 
 | Handler | Wire | Backed by |
 |---|---|---|
@@ -41,12 +42,42 @@ Single connection pool against **TGLOBAL** — patch metadata lives there:
 
 * `TVERSION` — released patch files; one row per (version, file)
 * `TPREVERSION` — pre-release / beta files
-* `TINTERFACECHART` — UI / interface files keyed by option byte (optional;
-  the repository returns empty if the table isn't deployed)
+* `TUSER_INTERFACE` — UI / interface files keyed by option byte
+  (optional; the repository returns empty if the table isn't
+  deployed and the schema validator only emits a warning)
 * `TMinBetaVer` SP — min-beta version constraint (returns 0 when missing)
+* `TPreCompleteAdd` SP — pre-version promotion (optional; modern
+  inlines the equivalent MERGE+DELETE so deploys without the SP
+  work fine)
 
-Read-only, except `MarkPreVersionComplete` which calls the
-`CSPPreComplete` SP equivalent.
+Reads are independent (each handler takes its own pool lease);
+`MarkPreVersionComplete` runs `MERGE INTO TVERSION … DELETE FROM
+TPREVERSION` inside a single `soci::transaction`.
+
+### Boot-time schema validator
+
+`tpatchsvr::db::ValidateGlobalSchema` (in `db/schema_validator.cpp`)
+runs once between pool construction and the listener opening. It
+fails fast on missing columns of TVERSION / TPREVERSION, and emits a
+warning if TUSER_INTERFACE is absent — paralleling the validator
+TLoginSvrAsio already shipped (SQL_AUDIT F5).
+
+### Schema fixtures
+
+`schema/patch-tables.sql` ships idempotent MSSQL DDL for the three
+tables plus the two stored procedures. Apply on a fresh dev DB with:
+
+```powershell
+sqlcmd -S localhost -E -d tpatchsvr_dev -i Server\TPatchSvrAsio\schema\patch-tables.sql
+```
+
+### Stale-client sweep
+
+`PatchServer` maintains a weak_ptr registry of live sessions. On
+every `CT_SERVICEMONITOR_ACK` heartbeat (legacy semantics) and as a
+60-second periodic safety net, the server closes non-server sessions
+whose `connected_at` is older than 60 seconds — matching legacy
+`OnCT_SERVICEMONITOR_ACK`'s `m_dwTick` purge.
 
 ## Configuration
 
@@ -99,6 +130,8 @@ plumbing) is picked up automatically.
 ```
 Boost.Asio io_context
 ├── PatchServer (port 3715)
+│   ├── PatchSession registry (weak_ptr, mutex-guarded)
+│   ├── StaleClientSweepLoop (60s tick)
 │   └── PatchSession (per peer)
 │       └── dispatch → handlers::On* coroutines
 ├── HealthEndpoint (port 8915) — /healthz
@@ -106,5 +139,6 @@ Boost.Asio io_context
 
 Services:
 └── fourstory::db::SessionPool (TGLOBAL)
-    └── PatchRepository — TVERSION / TPREVERSION / TINTERFACECHART
+    ├── tpatchsvr::db::ValidateGlobalSchema (boot fail-fast)
+    └── PatchRepository — TVERSION / TPREVERSION / TUSER_INTERFACE
 ```

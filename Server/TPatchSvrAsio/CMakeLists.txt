@@ -29,7 +29,8 @@ add_library(tpatchsvr_asio_core STATIC
     ${TPATCHSVR_ASIO_SRC}/handlers.cpp
     ${TPATCHSVR_ASIO_SRC}/config.cpp
     ${TPATCHSVR_ASIO_SRC}/patch_session.cpp
-    ${TPATCHSVR_ASIO_SRC}/services/patch_repository.cpp)
+    ${TPATCHSVR_ASIO_SRC}/services/patch_repository.cpp
+    ${TPATCHSVR_ASIO_SRC}/db/schema_validator.cpp)
 
 # Shared infrastructure (DB pool, audit, admin shell, health endpoint,
 # rate limiter, registry refresher) lives in fourstory_common. tnetlib

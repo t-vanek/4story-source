@@ -12,6 +12,10 @@
 #include <cstdint>
 #include <string>
 
+namespace tpatchsvr {
+class PatchServer;
+}
+
 namespace tpatchsvr::handlers {
 
 struct ServerContext
@@ -22,6 +26,10 @@ struct ServerContext
     std::string       login_host;   // dotted IPv4 advertised to client
     std::uint16_t     login_port = 0;
     std::size_t       session_count = 0;  // for SERVICEMONITOR reply
+
+    // Back-reference for the SERVICEMONITOR handler so it can run
+    // legacy's stale-client sweep on each heartbeat (P-6).
+    PatchServer*      server = nullptr;
 };
 
 // CT_SERVICEMONITOR_ACK(INT64 pad + DWORD tick) →

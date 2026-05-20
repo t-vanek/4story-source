@@ -155,17 +155,60 @@ std::uint32_t PatchRepository::MinBetaVersion()
 
 void PatchRepository::MarkPreVersionComplete(std::uint32_t beta_version)
 {
+    // Legacy SP `TPreCompleteAdd` is *not* deployed in the restored
+    // RageZone DB (P-5 in TPATCH_AUDIT). The documented operator
+    // procedure is to promote every TPREVERSION row at the given
+    // beta into TVERSION and then delete them — we run that exact
+    // sequence inline, wrapped in a single transaction so a crash
+    // mid-promote can't leave half-promoted rows behind.
+    //
+    // dwVersion is assigned by reusing dwBetaVer (matches the legacy
+    // operator runbook in TPATCH_AUDIT P-5). If the promotion target
+    // already exists in TVERSION at (szPath, szName) the INSERT is
+    // skipped — the second statement turns into an UPDATE with the
+    // pre-version's size + dwBetaVer = beta. This is the same
+    // upsert-by-(szPath, szName) shape the TUpdateVersion SP uses
+    // for the single-file path.
     auto lease = m_pool.Acquire();
     soci::session& sql = *lease;
     try
     {
-        // Legacy SP CSPPreComplete promotes a pre-version row into
-        // TVERSION (no equivalent SP in the current DB; we just log
-        // for now — operators promote manually via SQL until the SP
-        // is deployed).
-        spdlog::info("patch_repo.MarkPreVersionComplete beta_ver={}",
+        const int beta = static_cast<int>(beta_version);
+
+        soci::transaction tx(sql);
+
+        // Upsert any pre-versions at this beta into TVERSION. MSSQL
+        // uses MERGE; the SQLite/PG path in dev fixtures relies on
+        // the equivalent two-statement pattern (UPDATE then INSERT
+        // any rows that didn't match), but we keep it MSSQL-shaped
+        // because this code path is only ever exercised against the
+        // operator's prod ODBC pool.
+        sql <<
+            "MERGE INTO \"TVERSION\" AS T "
+            "USING (SELECT \"dwBetaVer\", \"szPath\", \"szName\", \"dwSize\" "
+            "       FROM \"TPREVERSION\" WHERE \"dwBetaVer\" = :b) AS S "
+            "ON  T.\"szPath\" = S.\"szPath\" "
+            "AND T.\"szName\" = S.\"szName\" "
+            "WHEN MATCHED THEN UPDATE SET "
+            "    T.\"dwVersion\"  = S.\"dwBetaVer\", "
+            "    T.\"dwSize\"     = S.\"dwSize\", "
+            "    T.\"dwBetaVer\"  = S.\"dwBetaVer\" "
+            "WHEN NOT MATCHED THEN INSERT "
+            "    (\"dwVersion\", \"szPath\", \"szName\", \"dwSize\", \"dwBetaVer\") "
+            "    VALUES (S.\"dwBetaVer\", S.\"szPath\", S.\"szName\", "
+            "            S.\"dwSize\",    S.\"dwBetaVer\") ;",
+            soci::use(beta, "b");
+
+        // Remove the now-promoted rows so subsequent CT_PREPATCH_REQ
+        // calls don't replay them.
+        sql << "DELETE FROM \"TPREVERSION\" WHERE \"dwBetaVer\" = :b",
+            soci::use(beta, "b");
+
+        tx.commit();
+
+        spdlog::info("patch_repo.MarkPreVersionComplete beta_ver={} "
+                     "promoted",
             beta_version);
-        (void)sql;
     }
     catch (const std::exception& ex)
     {

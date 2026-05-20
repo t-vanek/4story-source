@@ -33,6 +33,8 @@ MapServer::MapServer(boost::asio::io_context& io, MapServerConfig cfg)
     m_ctx.player_hp          = m_cfg.player_hp;
     m_ctx.inventory_svc      = m_cfg.inventory_svc;
     m_ctx.loot_registry      = m_cfg.loot_registry;
+    m_ctx.npc_svc            = m_cfg.npc_svc;
+    m_ctx.party_svc          = m_cfg.party_svc;
     m_ctx.live_session_count = [this]() -> std::uint32_t {
         return LiveSessions();
     };

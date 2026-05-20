@@ -20,6 +20,8 @@
 #include "player_hp_registry.h"
 #include "inventory_service.h"
 #include "loot_registry.h"
+#include "npc_service.h"
+#include "party_service.h"
 
 #include "fourstory/ops/rate_limiter.h"
 
@@ -88,6 +90,12 @@ struct MapServerConfig
 
     // F5 Part 2: monster loot store.
     ILootRegistry*                      loot_registry    = nullptr;
+
+    // F6: NPC service.
+    INpcService*                        npc_svc          = nullptr;
+
+    // F6: party service (standalone).
+    IPartyService*                      party_svc        = nullptr;
 };
 
 class MapServer

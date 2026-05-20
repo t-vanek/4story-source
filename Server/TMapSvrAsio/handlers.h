@@ -27,6 +27,8 @@
 #include "player_hp_registry.h"
 #include "inventory_service.h"
 #include "loot_registry.h"
+#include "npc_service.h"
+#include "party_service.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -103,6 +105,12 @@ struct HandlerContext
 
     // F5 Part 2: monster loot store.
     ILootRegistry*                    loot_registry     = nullptr;
+
+    // F6: NPC shop + dialogue data.
+    INpcService*                      npc_svc           = nullptr;
+
+    // F6: party state (standalone — no TWorldSvr).
+    IPartyService*                    party_svc         = nullptr;
 };
 
 // Per-session state. F1 carries the player id assigned on
@@ -210,6 +218,41 @@ boost::asio::awaitable<void> OnMonItemTakeReq(
 // F6: near/shout chat. Broadcasts CS_CHAT_ACK to AOI neighbours.
 // Source: CSHandler.cpp:5206.
 boost::asio::awaitable<void> OnChatReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: open NPC dialogue. Source: CSHandler.cpp:3506.
+boost::asio::awaitable<void> OnNpcTalkReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: NPC shop item list. Source: CSHandler.cpp:6192.
+boost::asio::awaitable<void> OnNpcItemListReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: buy item from NPC shop. Source: CSHandler.cpp:6247.
+boost::asio::awaitable<void> OnItemBuyReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: invite player to party. Source: CSHandler.cpp:3419.
+boost::asio::awaitable<void> OnPartyAddReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: accept party invite. Source: CSHandler.cpp:3451.
+boost::asio::awaitable<void> OnPartyJoinReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     MapSessionState&                     state,
     const tnetlib::DecodedPacket&        packet,

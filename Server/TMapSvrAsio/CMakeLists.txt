@@ -45,6 +45,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers_combat.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_items.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_chat.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_npc.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_party.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_inventory_service.cpp
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp
@@ -215,6 +217,24 @@ target_include_directories(test_tmapsvr_asio_loot_registry_spec
             ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
 add_test(NAME tmapsvr_asio_loot_registry_spec
     COMMAND test_tmapsvr_asio_loot_registry_spec)
+
+# F6 Part 2 — NpcService spec (pure-unit).
+add_executable(test_tmapsvr_asio_npc_service_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_npc_service_spec.cpp)
+target_include_directories(test_tmapsvr_asio_npc_service_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_npc_service_spec
+    COMMAND test_tmapsvr_asio_npc_service_spec)
+
+# F6 Part 2 — PartyService spec (pure-unit).
+add_executable(test_tmapsvr_asio_party_service_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_party_service_spec.cpp)
+target_include_directories(test_tmapsvr_asio_party_service_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_party_service_spec
+    COMMAND test_tmapsvr_asio_party_service_spec)
 
 # F6 Part 1 — CS_CHAT_REQ spec.
 add_executable(test_tmapsvr_asio_cs_chat_req_spec

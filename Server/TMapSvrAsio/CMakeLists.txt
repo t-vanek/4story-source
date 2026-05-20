@@ -204,6 +204,15 @@ add_test(NAME tmapsvr_asio_dm_loadchar_req_spec
     COMMAND test_tmapsvr_asio_dm_loadchar_req_spec)
 fourstory_deploy_ossl_legacy(test_tmapsvr_asio_dm_loadchar_req_spec)
 
+# F4 Part 4 — CS_REVIVAL_REQ characterization spec.
+add_executable(test_tmapsvr_asio_cs_revival_req_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_cs_revival_req_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_cs_revival_req_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_cs_revival_req_spec
+    COMMAND test_tmapsvr_asio_cs_revival_req_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_cs_revival_req_spec)
+
 # F4 Part 3 — LocalPlayerHpRegistry spec (pure-unit).
 add_executable(test_tmapsvr_asio_player_hp_registry_spec
     ${TMAPSVR_ASIO_SRC}/tests/test_player_hp_registry_spec.cpp)

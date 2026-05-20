@@ -22,6 +22,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace tmapsvr {
 
@@ -102,5 +103,58 @@ boost::asio::awaitable<void> SendMonAttackAck(
     std::uint8_t  attacker_type,   // OT_MON = 2
     std::uint8_t  target_type,     // OT_PC = 1
     std::uint16_t skill_id);
+
+// Send CS_SKILLUSE_ACK — broadcast skill-use result to one receiver.
+// Contains attacker stats + ground position + target list.
+// Source: CSSender.cpp:1518 — SendCS_SKILLUSE_ACK
+struct SkillUseAckParams
+{
+    std::uint8_t  result         = 0;   // SKILL_SUCCESS=0
+    std::uint32_t attack_id      = 0;
+    std::uint8_t  attack_type    = 0;
+    std::uint16_t skill_id       = 0;
+    std::uint16_t back_skill     = 0;
+    std::uint8_t  action_id      = 0;
+    std::uint32_t act_id         = 0;
+    std::uint32_t ani_id         = 0;
+    std::uint8_t  skill_level    = 0;
+    std::uint16_t attack_level   = 0;
+    std::uint8_t  attacker_level = 0;
+    std::uint32_t pys_min        = 0;
+    std::uint32_t pys_max        = 0;
+    std::uint32_t mg_min         = 0;
+    std::uint32_t mg_max         = 0;
+    std::uint16_t trans_hp       = 0;
+    std::uint16_t trans_mp       = 0;
+    std::uint8_t  curse_prob     = 0;
+    std::uint8_t  equip_special  = 0;
+    std::uint8_t  can_select     = 1;
+    std::uint8_t  attack_country = 0;
+    std::uint8_t  attack_aid     = 0;
+    std::uint8_t  cp             = 0;
+    float         gnd_px = 0.0f, gnd_py = 0.0f, gnd_pz = 0.0f;
+    std::vector<std::uint32_t> target_ids;
+    std::vector<std::uint8_t>  target_types;
+};
+
+boost::asio::awaitable<void> SendSkillUseAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    const SkillUseAckParams&             p);
+
+// Send CS_EXP_ACK — experience gain notification.
+// Source: CSSender.cpp:1375
+boost::asio::awaitable<void> SendExpAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::uint32_t current_exp,
+    std::uint32_t prev_level_exp,
+    std::uint32_t next_level_exp,
+    std::uint32_t soul_exp = 0);
+
+// Send CS_REVIVAL_ACK — confirms revival to the revived player and AOI.
+// Source: CSSender.cpp:1404
+boost::asio::awaitable<void> SendRevivalAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::uint32_t char_id,
+    float px, float py, float pz);
 
 } // namespace tmapsvr

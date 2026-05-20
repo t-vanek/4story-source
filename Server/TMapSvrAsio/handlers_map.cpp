@@ -412,7 +412,7 @@ OnMoveReq(std::shared_ptr<tnetlib::AsioSession> sess,
           const tnetlib::DecodedPacket&        packet,
           const HandlerContext&                ctx)
 {
-    if (!state.connected || !state.snapshot) co_return;
+    if (!state.connected || !state.snapshot || state.is_dead) co_return;
 
     wire::Reader r(packet.body.data(), packet.body.size());
     std::uint32_t map_id  = 0;

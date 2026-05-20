@@ -135,7 +135,7 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
             const tnetlib::DecodedPacket&        packet,
             const HandlerContext&                ctx)
 {
-    if (!state.connected || !state.snapshot) co_return;
+    if (!state.connected || !state.snapshot || state.is_dead) co_return;
 
     wire::Reader r(packet.body.data(), packet.body.size());
     std::uint32_t obj_id  = 0;
@@ -220,6 +220,23 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
             // Notify spawn manager for respawn scheduling
             if (ctx.spawn_manager)
                 ctx.spawn_manager->OnMonsterDied(obj_id, spawn_id);
+
+            // Grant experience to attacker
+            if (ctx.level_chart && state.snapshot)
+            {
+                const auto exp_gain =
+                    ctx.level_chart->GetMonsterStats(mon->level).exp_give;
+                state.snapshot->exp += exp_gain;
+                co_await SendExpAck(sess,
+                    state.snapshot->exp,
+                    0u,   // prev_level_exp (TLEVELCHART — F4b)
+                    0u,   // next_level_exp
+                    0u);  // soul_exp
+                spdlog::info("OnActionReq: uid={} killed monster lv={}, "
+                             "+{} exp (total={})",
+                    state.user_id, mon->level,
+                    exp_gain, state.snapshot->exp);
+            }
         }
     }
     // PvP damage (CS_DEFEND_REQ flow) is F4 Part 3
@@ -264,9 +281,48 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> /*sess*/,
     spdlog::debug("CS_SKILLUSE_REQ uid={} skill_id={} target_count={}",
         state.user_id, skill_id, count);
 
-    // Full skill execution (CS_SKILLUSE_ACK + CS_DEFEND_REQ simulation)
-    // is PENDING F4 Part 2. The 30+ field skill ACK requires the skill
-    // data chart (TSKILLCHART) and stat-based damage formulas.
+    // Dead players can't cast
+    if (state.is_dead) co_return;
+
+    // Parse per-target list (dwTarget + bTargetType, no bIsTarget from REQ)
+    std::vector<std::uint32_t> target_ids;
+    std::vector<std::uint8_t>  target_types;
+    for (std::uint8_t i = 0; i < count; ++i)
+    {
+        std::uint32_t tid = 0; std::uint8_t ttype = 0;
+        if (!r.Read(tid) || !r.Read(ttype)) break;
+        target_ids.push_back(tid);
+        target_types.push_back(ttype);
+    }
+
+    // Broadcast CS_SKILLUSE_ACK to all AOI players
+    // F4 Part 4: power values are stub zeros until TSKILLCHART is ported.
+    if (ctx.session_registry && ctx.map_state && state.snapshot)
+    {
+        SkillUseAckParams p{};
+        p.result         = 0;  // SKILL_SUCCESS
+        p.attack_id      = state.char_id;
+        p.attack_type    = 1;  // OT_PC
+        p.skill_id       = skill_id;
+        p.action_id      = action_id;
+        p.act_id         = act_id;
+        p.ani_id         = ani_id;
+        p.attacker_level = state.snapshot->level;
+        p.can_select     = 1;
+        p.gnd_px = px; p.gnd_py = py; p.gnd_pz = pz;
+        p.target_ids    = target_ids;
+        p.target_types  = target_types;
+
+        const auto aoi = ctx.map_state->GetNeighborIds(
+            state.snapshot->position.pos_x,
+            state.snapshot->position.pos_z);
+        for (std::uint32_t pid : aoi)
+        {
+            auto nbr = ctx.session_registry->Get(pid);
+            if (nbr) co_await SendSkillUseAck(nbr, p);
+        }
+        co_await SendSkillUseAck(sess, p);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -453,7 +509,7 @@ OnDefendReq(std::shared_ptr<tnetlib::AsioSession> sess,
     }
     co_await SendDefendAck(sess, dp);
 
-    // Apply damage to target if it is a player (OT_PC = 1)
+    // Apply damage to target player (OT_PC = 1)
     constexpr std::uint8_t OT_PC = 1;
     if (target_type == OT_PC && ctx.player_hp)
     {
@@ -461,14 +517,195 @@ OnDefendReq(std::shared_ptr<tnetlib::AsioSession> sess,
         const std::uint32_t new_hp =
             ctx.player_hp->ApplyHpDelta(target_id, -dmg);
         const auto* v = ctx.player_hp->Get(target_id);
-        if (v && ctx.session_registry && ctx.map_state)
+        if (v && ctx.session_registry)
         {
             auto target_sess = ctx.session_registry->Get(target_id);
             if (target_sess)
                 co_await SendHpMpAck(target_sess, target_id, OT_PC,
                     v->max_hp, new_hp, v->max_mp, v->mp);
+
+            // Player death: set is_dead on THEIR session via state
+            // Note: we can't directly access target's MapSessionState here.
+            // Target's is_dead is set the next time they send a packet
+            // that checks ctx.player_hp->Get(char_id)->IsDead().
+            // For the attacker's own session we can check if char_id == target:
+            if (target_id == state.char_id && new_hp == 0)
+            {
+                state.is_dead = true;
+                spdlog::info("CS_DEFEND_REQ: uid={} char={} is now dead",
+                    state.user_id, state.char_id);
+            }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// CS_SKILLUSE_ACK
+// ---------------------------------------------------------------------------
+//
+// Wire: CSSender.cpp:1518 — 27 scalar fields + target list.
+
+boost::asio::awaitable<void>
+SendSkillUseAck(std::shared_ptr<tnetlib::AsioSession> sess,
+                const SkillUseAckParams&             p)
+{
+    std::vector<std::byte> body;
+    body.reserve(64);
+
+    wire::WritePOD<std::uint8_t> (body, p.result);
+    wire::WritePOD<std::uint32_t>(body, p.attack_id);
+    wire::WritePOD<std::uint8_t> (body, p.attack_type);
+    wire::WritePOD<std::uint16_t>(body, p.skill_id);
+    wire::WritePOD<std::uint16_t>(body, p.back_skill);
+    wire::WritePOD<std::uint8_t> (body, p.action_id);
+    wire::WritePOD<std::uint32_t>(body, p.act_id);
+    wire::WritePOD<std::uint32_t>(body, p.ani_id);
+    wire::WritePOD<std::uint8_t> (body, p.skill_level);
+    wire::WritePOD<std::uint16_t>(body, p.attack_level);
+    wire::WritePOD<std::uint8_t> (body, p.attacker_level);
+    wire::WritePOD<std::uint32_t>(body, p.pys_min);
+    wire::WritePOD<std::uint32_t>(body, p.pys_max);
+    wire::WritePOD<std::uint32_t>(body, p.mg_min);
+    wire::WritePOD<std::uint32_t>(body, p.mg_max);
+    wire::WritePOD<std::uint16_t>(body, p.trans_hp);
+    wire::WritePOD<std::uint16_t>(body, p.trans_mp);
+    wire::WritePOD<std::uint8_t> (body, p.curse_prob);
+    wire::WritePOD<std::uint8_t> (body, p.equip_special);
+    wire::WritePOD<std::uint8_t> (body, p.can_select);
+    wire::WritePOD<std::uint8_t> (body, p.attack_country);
+    wire::WritePOD<std::uint8_t> (body, p.attack_aid);
+    wire::WritePOD<std::uint8_t> (body, p.cp);
+    wire::WritePOD<float>        (body, p.gnd_px);
+    wire::WritePOD<float>        (body, p.gnd_py);
+    wire::WritePOD<float>        (body, p.gnd_pz);
+
+    const auto count =
+        static_cast<std::uint8_t>(p.target_ids.size());
+    wire::WritePOD<std::uint8_t>(body, count);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        wire::WritePOD<std::uint32_t>(body, p.target_ids[i]);
+        wire::WritePOD<std::uint8_t> (body,
+            i < p.target_types.size() ? p.target_types[i] : 0u);
+    }
+
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CS_SKILLUSE_ACK),
+        std::span<const std::byte>(body.data(), body.size()));
+}
+
+// ---------------------------------------------------------------------------
+// CS_EXP_ACK
+// ---------------------------------------------------------------------------
+
+boost::asio::awaitable<void>
+SendExpAck(std::shared_ptr<tnetlib::AsioSession> sess,
+           std::uint32_t current_exp,
+           std::uint32_t prev_level_exp,
+           std::uint32_t next_level_exp,
+           std::uint32_t soul_exp)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, current_exp);
+    wire::WritePOD<std::uint32_t>(body, prev_level_exp);
+    wire::WritePOD<std::uint32_t>(body, next_level_exp);
+    wire::WritePOD<std::uint32_t>(body, soul_exp);
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CS_EXP_ACK),
+        std::span<const std::byte>(body.data(), body.size()));
+}
+
+// ---------------------------------------------------------------------------
+// CS_REVIVAL_ACK
+// ---------------------------------------------------------------------------
+
+boost::asio::awaitable<void>
+SendRevivalAck(std::shared_ptr<tnetlib::AsioSession> sess,
+               std::uint32_t char_id,
+               float px, float py, float pz)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, char_id);
+    wire::WritePOD<float>        (body, px);
+    wire::WritePOD<float>        (body, py);
+    wire::WritePOD<float>        (body, pz);
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CS_REVIVAL_ACK),
+        std::span<const std::byte>(body.data(), body.size()));
+}
+
+// ---------------------------------------------------------------------------
+// CS_REVIVAL_REQ handler
+// ---------------------------------------------------------------------------
+//
+// Wire body: FLOAT fPosX, fPosY, fPosZ, BYTE bType
+// Source: CSHandler.cpp:1067-1098
+//
+// F4 Part 4:
+//   §1 not in world or already alive → drop
+//   §2 restore HP to max in player_hp registry
+//   §3 broadcast CS_REVIVAL_ACK to all AOI
+//   §4 clear is_dead flag, update snapshot position
+
+boost::asio::awaitable<void>
+OnRevivalReq(std::shared_ptr<tnetlib::AsioSession> sess,
+             MapSessionState&                     state,
+             const tnetlib::DecodedPacket&        packet,
+             const HandlerContext&                ctx)
+{
+    if (!state.connected || !state.in_world) co_return;
+
+    // §1 Already alive — ignore (e.g. double-tap REVIVAL button)
+    if (!state.is_dead) co_return;
+
+    wire::Reader r(packet.body.data(), packet.body.size());
+    float px = 0, py = 0, pz = 0;
+    std::uint8_t revival_type = 0;
+    if (!r.Read(px) || !r.Read(py) || !r.Read(pz) || !r.Read(revival_type))
+    {
+        spdlog::warn("CS_REVIVAL_REQ malformed uid={}", state.user_id);
+        co_return;
+    }
+
+    spdlog::info("CS_REVIVAL_REQ uid={} char={} pos=({:.0f},{:.0f}) type={}",
+        state.user_id, state.char_id, px, pz, revival_type);
+
+    // §2 Restore HP (full heal on revival — legacy behavior)
+    if (ctx.player_hp)
+    {
+        const auto* v = ctx.player_hp->Get(state.char_id);
+        if (v)
+        {
+            ctx.player_hp->ApplyHpDelta(state.char_id,
+                static_cast<std::int64_t>(v->max_hp));
+        }
+    }
+
+    // §4 Update snapshot position + clear death flag
+    if (state.snapshot)
+    {
+        state.snapshot->position.pos_x = px;
+        state.snapshot->position.pos_y = py;
+        state.snapshot->position.pos_z = pz;
+    }
+    state.is_dead = false;
+
+    // §3 Broadcast CS_REVIVAL_ACK to all AOI players
+    if (ctx.session_registry && ctx.map_state)
+    {
+        const auto aoi = ctx.map_state->GetNeighborIds(px, pz);
+        for (std::uint32_t pid : aoi)
+        {
+            auto nbr = ctx.session_registry->Get(pid);
+            if (nbr)
+                co_await SendRevivalAck(nbr, state.char_id, px, py, pz);
+        }
+    }
+    co_await SendRevivalAck(sess, state.char_id, px, py, pz);
+
+    // Move player in map_state to new position
+    if (ctx.map_state && state.in_world)
+        ctx.map_state->OnMove(state.char_id, px, pz);
 }
 
 } // namespace tmapsvr

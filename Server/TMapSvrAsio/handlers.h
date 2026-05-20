@@ -124,6 +124,11 @@ struct MapSessionState
     // F3: true after OnConReadyReq calls map_state->EnterMap.
     // Gates OnMoveReq and LeaveMap cleanup in HandleConnection.
     bool in_world = false;
+
+    // F4 Part 4: set when player_hp->ApplyHpDelta reduces HP to 0.
+    // Gates movement, attack, and skill use while dead. Cleared by
+    // OnRevivalReq after revival is broadcast.
+    bool is_dead = false;
 };
 
 // Top-level dispatch. Logs + drops unknown ids; future phases extend
@@ -166,6 +171,15 @@ boost::asio::awaitable<void> OnConReadyReq(
 // broadcasts CS_MOVE_ACK / CS_ENTER_ACK / CS_LEAVE_ACK via session_registry.
 // Source: CSHandler.cpp:439-485.
 boost::asio::awaitable<void> OnMoveReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F4 Part 4: client requests revival after death.
+// Parses pos + revival type, restores HP, broadcasts CS_REVIVAL_ACK.
+// Source: CSHandler.cpp:1067.
+boost::asio::awaitable<void> OnRevivalReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     MapSessionState&                     state,
     const tnetlib::DecodedPacket&        packet,

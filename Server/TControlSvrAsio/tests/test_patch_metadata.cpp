@@ -208,8 +208,9 @@ void TestPreVersionTableSnapshotReply()
 
     auto ack = RecvFramed(op);
     EXPECT(ack.wId == ToUint16(MessageId::CT_PREVERSIONTABLE_ACK));
-    std::uint32_t count = 0;
-    std::memcpy(&count, ack.body.data(), 4);
+    // Legacy wire shape: WORD count (Sender.cpp:351), not DWORD.
+    std::uint16_t count = 0;
+    std::memcpy(&count, ack.body.data(), 2);
     EXPECT(count == 2);
 }
 

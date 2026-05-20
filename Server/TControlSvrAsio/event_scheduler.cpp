@@ -256,7 +256,7 @@ EventSchedulerLoop::Apply(const SchedulerAction& action)
         case SchedulerAction::Kind::EventUpdateStart:
         case SchedulerAction::Kind::EventUpdateEnd:
             co_await senders::SendEventUpdateReq(peer->Wire(),
-                ev->kind, action.value);
+                ev->kind, action.value, *ev);
             break;
         case SchedulerAction::Kind::CashSaleStart:
         case SchedulerAction::Kind::CashSaleEnd:

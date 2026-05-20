@@ -178,7 +178,7 @@ OnEventChangeReq(std::shared_ptr<OperatorSession> op,
                     ev.index, 0, ev.cash_items);
             else
                 co_await senders::SendEventUpdateReq(peer->Wire(),
-                    ev.kind, 0);
+                    ev.kind, 0, ev);
         }
     }
 
@@ -230,7 +230,8 @@ OnEventUpdateReq(std::shared_ptr<OperatorSession> op,
     const auto* ev = ctx.events->Find(index);
     if (!ev) co_return;
     for (const auto& peer : PeersForEvent(*ev, *ctx.peers))
-        co_await senders::SendEventUpdateReq(peer->Wire(), ev->kind, value);
+        co_await senders::SendEventUpdateReq(peer->Wire(),
+            ev->kind, value, *ev);
 }
 
 boost::asio::awaitable<void>

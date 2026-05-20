@@ -129,10 +129,14 @@ boost::asio::awaitable<void> SendChatBanAck(
     std::uint8_t ret);
 
 // CT_CHATBANLIST_ACK = {
-//   DWORD count,
-//   [ DWORD dwID, CString operator, CString target, WORD minutes,
-//     CString reason, INT64 created ] * count
+//   WORD count,
+//   [ DWORD dwID, CString target, INT64 created, WORD minutes,
+//     CString reason, CString operator ] * count
 // }
+// Layout matches legacy CTManager::SendCT_CHATBANLIST_ACK in
+// Server/TControlSvr/Sender.cpp:233 byte-for-byte (WORD count,
+// dwID first, then target name, then time, then minutes, then
+// reason, then operator name).
 struct ChatBanRow
 {
     std::uint32_t  id;
@@ -223,15 +227,18 @@ boost::asio::awaitable<void> SendCashItemListAck(
 
 // Peer-side event forwarders (control → World/Map/Login):
 
-// CT_EVENTUPDATE_REQ = { BYTE kind, WORD value }
-//   The full EventInfo body normally follows on the wire (legacy
-//   serializes it via WrapPacketIn). F4 ships the header + kind/
-//   value; downstream consumers re-read state from the next
-//   CT_EVENTLIST_REQ poll.
+// CT_EVENTUPDATE_REQ = { BYTE kind, WORD value, EventInfo body }
+//   Matches legacy CTServer::SendCT_EVENTUPDATE_REQ
+//   (Server/TControlSvr/TServer.cpp:190) byte-for-byte: the kind
+//   + value header is followed by the full EventInfo body via
+//   the legacy WrapPacketIn writer. Without the trailing body
+//   the peer's matching On*EVENTUPDATE_REQ reads garbage past the
+//   header and either crashes or misapplies the event state.
 boost::asio::awaitable<void> SendEventUpdateReq(
     const std::shared_ptr<ControlSession>& sess,
     std::uint8_t  kind,
-    std::uint16_t value);
+    std::uint16_t value,
+    const EventInfo& ev);
 
 // CT_EVENTMSG_REQ = { BYTE kind, BYTE msg_type, CString msg }
 //   msg_type = 0 → start announcement, 1 → end announcement.
@@ -304,5 +311,57 @@ boost::asio::awaitable<void> SendBattleStatusReq(
     std::uint8_t  battle_type,
     std::uint8_t  status,
     std::uint32_t seconds);
+
+// --- Round-2 audit fixes: ITEMFIND/STATE, MONACTION, platform,
+// service-change, service-data-clear ---------------------------------
+
+// CT_ITEMFIND_REQ (control → World) = {
+//   DWORD manager_id, WORD item_id, CString user_name
+// }
+boost::asio::awaitable<void> SendItemFindReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t manager_id,
+    std::uint16_t item_id,
+    const std::string& user_name);
+
+// CT_ITEMSTATE_REQ (control → World) — body is repacked verbatim
+// from the operator request after the world filter is stripped.
+boost::asio::awaitable<void> SendItemStateReq(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<std::byte>& body);
+
+// CT_MONACTION_ACK (control → Map) = {
+//   BYTE channel, WORD map_id, DWORD mon_id, BYTE action,
+//   DWORD trigger_id, DWORD host_id, DWORD rh_id, BYTE rh_type,
+//   WORD spawn_id
+// }
+boost::asio::awaitable<void> SendMonActionAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  channel,
+    std::uint16_t map_id,
+    std::uint32_t mon_id,
+    std::uint8_t  action,
+    std::uint32_t trigger_id,
+    std::uint32_t host_id,
+    std::uint32_t rh_id,
+    std::uint8_t  rh_type,
+    std::uint16_t spawn_id);
+
+// CT_PLATFORM_ACK = { BYTE machine_id, DWORD cpu, DWORD mem,
+//                     float net }
+// Legacy fan-out to every MANAGER_SERVICE operator. F1+ ships a
+// no-op zero-filled body — PDH counters were Windows-only and the
+// modernization plan explicitly defers monitoring to /metrics.
+boost::asio::awaitable<void> SendPlatformAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t machine_id,
+    std::uint32_t cpu,
+    std::uint32_t mem,
+    float net);
+
+// CT_SERVICEDATACLEAR_ACK (control → peer) — body empty.
+// Resets the per-peer max-user / stop-count counters.
+boost::asio::awaitable<void> SendServiceDataClearAck(
+    const std::shared_ptr<ControlSession>& sess);
 
 } // namespace tcontrolsvr::senders

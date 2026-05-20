@@ -10,7 +10,25 @@ The plan, handler-by-handler, lives in
 [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](../../_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md).
 This README only covers what F1 ships and how to bring it up.
 
-## Status — F1 → F5 complete (scaffold, peer infra, admin, events, patch + castle)
+## Status — F1 → F5 complete + round-2 audit fixes applied
+
+Round-2 audit (2026-05-20) caught real wire-parity gaps and missing
+handlers that F1–F5 had overlooked. All findings are now closed
+except for the architectural SOCI-on-io_context concern (see
+"Known concerns" below); the wire matches legacy byte-for-byte and
+every previously-missing handler is wired in dispatch.
+
+### Round-2 fixes
+
+| Severity | Issue | Fix | Test |
+|---|---|---|---|
+| 🔴 Wire breaker | CHATBANLIST / EVENTLIST / CASHITEMLIST / PREVERSIONTABLE count was DWORD; legacy uses WORD | `senders.cpp` writes uint16 | `test_wire_parity` |
+| 🔴 Wire breaker | CHATBANLIST_ACK row order wrong | Reordered to legacy: id, target, created, minutes, reason, op | `test_wire_parity` |
+| 🔴 Truncated | CT_EVENTUPDATE_REQ shipped only `kind+value` | Appends full EventInfo via `event_codec::Write` | `test_wire_parity` |
+| 🟠 Missing | CT_ITEMFIND_REQ / CT_ITEMSTATE_REQ / CT_MONACTION_REQ / CT_SERVICEDATACLEAR_REQ / CT_PLATFORM_REQ | Wired in `handlers_extra.cpp` | `test_wire_parity` |
+| 🟠 Missing | CT_SERVICECHANGE_REQ (peer → control) | Wired in `RunPeerLoop` | smoke |
+| 🟠 Missing | 9 peer→operator ACK route-backs (ITEMFIND/STATE/MONSPAWNFIND/EVENTQUARTER*/TOURNAMENT/RPSGAME/CMGIFT*) | Wired in `RunPeerLoop` via `OnPeerAckRouteBack` and the two specialized strip-paths | smoke |
+| 🟠 Missing | Post-dial event push (`SendEventToNewConnect`) | Restored in `OnNewConnectReq` for Login/Map/World peers | smoke |
 
 | Area | F1 | F2 | F3 | F4 | F5 | F6 |
 |------|----|----|----|----|----|----|
@@ -46,6 +64,38 @@ This README only covers what F1 ships and how to bring it up.
 | `IAlerter` (SOCI: `OPTool_SMSEmergency` / spdlog default) fired on offline peer | | | | | ✅ | |
 | Service-upload no-op stubs (`CT_SERVICEUPLOAD*`) | | | | | ⏸ | (intentional: legacy UNC-share anti-pattern) |
 | End-to-end legacy `TController.exe` smoke test | | | | | | ⏸ |
+
+## Handler coverage
+
+After round-2 fixes the dispatcher wires **63 / 65** legacy CT_* handlers.
+The two intentional skips are documented in
+`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md` §6 (CT_SERVICEUPLOAD* UNC
+file-share path) and are not in the legacy dispatch table either
+(`CT_INSTALLVERSION_*`, `CT_ACCOUNTINPUT_*`, `CT_SERVICECLOSE_*`,
+`CT_DISCONNECT_*`, `CT_LOCALGUILDCHANGE_*`, `CT_LOCALINIT_*` — dead
+code in legacy too).
+
+## Known concerns
+
+* **SOCI calls run on the io_context thread.** Every SOCI repo
+  (`SociServiceInventory`, `SociOperatorAuthService`,
+  `SociUserProtectedService`, `SociEventRepository`,
+  `SociPatchMetadataService`, `SociAlerter`) is invoked synchronously
+  from handler coroutines. On a slow DB this will stall the single
+  io_context thread, blocking every operator and peer for the
+  duration of the call. The architectural fix is to wrap each SOCI
+  call in `co_await asio::post(thread_pool, ...)`; the modernization
+  plan §4.5 notes this as the planned production path. Deferred from
+  the F1–F5 scope because the control server's request rate is low
+  (~10 operators, ~10 peers, ~1Hz monitoring) and the dev/test
+  fakes don't exhibit the problem; production deploys should land
+  this before going live.
+* **PDH platform counters are not collected.** Per the
+  modernization plan §3.3, `CT_PLATFORM_REQ` is wire-preserved but
+  the peer-side data is expected to be zero-filled; operators
+  observe machine health via `/metrics` instead. The control-server
+  handler forwards whatever the peer sent — if the peer ships
+  zeros, the GUI's platform tile shows zeros.
 
 The 6-phase plan estimates 23 working days end-to-end.
 

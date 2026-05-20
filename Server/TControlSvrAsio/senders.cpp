@@ -201,16 +201,20 @@ boost::asio::awaitable<void> SendChatBanListAck(
     const std::shared_ptr<ControlSession>& sess,
     const std::vector<ChatBanRow>& rows)
 {
+    // Legacy CTManager::SendCT_CHATBANLIST_ACK shape (Sender.cpp:233):
+    // WORD count, [ DWORD id, CString target, INT64 created,
+    //   WORD minutes, CString reason, CString operator ] * count.
     std::vector<std::byte> body;
-    wire::WritePOD<std::uint32_t>(body, static_cast<std::uint32_t>(rows.size()));
+    wire::WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(rows.size()));
     for (const auto& r : rows)
     {
         wire::WritePOD<std::uint32_t>(body, r.id);
-        wire::WriteString(body, r.operator_id);
         wire::WriteString(body, r.target_user);
+        wire::WritePOD<std::int64_t >(body, r.created_unix);
         wire::WritePOD<std::uint16_t>(body, r.minutes);
         wire::WriteString(body, r.reason);
-        wire::WritePOD<std::int64_t >(body, r.created_unix);
+        wire::WriteString(body, r.operator_id);
     }
     co_await sess->SendPacket(ToUint16(MessageId::CT_CHATBANLIST_ACK),
                               std::move(body));
@@ -325,9 +329,12 @@ boost::asio::awaitable<void> SendEventListAck(
     const std::shared_ptr<ControlSession>& sess,
     const std::vector<EventInfo>& events)
 {
+    // Legacy CTManager::SendCT_EVENTLIST_ACK (Sender.cpp:284): WORD
+    // count, EventInfo * count (the legacy CPacket cast is
+    // `(WORD)pMapEvent->size()`).
     std::vector<std::byte> body;
-    wire::WritePOD<std::uint32_t>(body,
-        static_cast<std::uint32_t>(events.size()));
+    wire::WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(events.size()));
     for (const auto& ev : events)
         event_codec::Write(body, ev);
     co_await sess->SendPacket(ToUint16(MessageId::CT_EVENTLIST_ACK),
@@ -338,9 +345,11 @@ boost::asio::awaitable<void> SendCashItemListAck(
     const std::shared_ptr<ControlSession>& sess,
     const std::vector<CashItem>& items)
 {
+    // Legacy CTManager::SendCT_CASHITEMLIST_ACK (Sender.cpp:297):
+    // WORD count, [ WORD id, CString name ] * count.
     std::vector<std::byte> body;
-    wire::WritePOD<std::uint32_t>(body,
-        static_cast<std::uint32_t>(items.size()));
+    wire::WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(items.size()));
     for (const auto& ci : items)
     {
         wire::WritePOD<std::uint16_t>(body, ci.id);
@@ -352,11 +361,12 @@ boost::asio::awaitable<void> SendCashItemListAck(
 
 boost::asio::awaitable<void> SendEventUpdateReq(
     const std::shared_ptr<ControlSession>& sess,
-    std::uint8_t kind, std::uint16_t value)
+    std::uint8_t kind, std::uint16_t value, const EventInfo& ev)
 {
     std::vector<std::byte> body;
     wire::WritePOD<std::uint8_t >(body, kind);
     wire::WritePOD<std::uint16_t>(body, value);
+    event_codec::Write(body, ev);   // legacy WrapPacketIn payload
     co_await sess->SendPacket(ToUint16(MessageId::CT_EVENTUPDATE_REQ),
                               std::move(body));
 }
@@ -416,9 +426,12 @@ boost::asio::awaitable<void> SendPreVersionTableAck(
     const std::shared_ptr<ControlSession>& sess,
     const std::vector<PreVersionAckRow>& rows)
 {
+    // Legacy CTManager::SendCT_PREVERSIONTABLE_ACK (Sender.cpp:347):
+    // WORD count, [ DWORD beta, CString path, CString name,
+    //   DWORD size ] * count.
     std::vector<std::byte> body;
-    wire::WritePOD<std::uint32_t>(body,
-        static_cast<std::uint32_t>(rows.size()));
+    wire::WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(rows.size()));
     for (const auto& r : rows)
     {
         wire::WritePOD<std::uint32_t>(body, r.beta_ver);
@@ -471,6 +484,72 @@ boost::asio::awaitable<void> SendBattleStatusReq(
     wire::WritePOD<std::uint32_t>(body, seconds);
     co_await sess->SendPacket(ToUint16(MessageId::SM_BATTLESTATUS_REQ),
                               std::move(body));
+}
+
+// --- Round-2 audit fixes ------------------------------------------
+
+boost::asio::awaitable<void> SendItemFindReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t manager_id,
+    std::uint16_t item_id,
+    const std::string& user_name)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, manager_id);
+    wire::WritePOD<std::uint16_t>(body, item_id);
+    wire::WriteString(body, user_name);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_ITEMFIND_REQ),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendItemStateReq(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<std::byte>& body)
+{
+    co_await sess->SendPacket(ToUint16(MessageId::CT_ITEMSTATE_REQ), body);
+}
+
+boost::asio::awaitable<void> SendMonActionAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t channel, std::uint16_t map_id,
+    std::uint32_t mon_id, std::uint8_t action,
+    std::uint32_t trigger_id, std::uint32_t host_id,
+    std::uint32_t rh_id, std::uint8_t rh_type,
+    std::uint16_t spawn_id)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t >(body, channel);
+    wire::WritePOD<std::uint16_t>(body, map_id);
+    wire::WritePOD<std::uint32_t>(body, mon_id);
+    wire::WritePOD<std::uint8_t >(body, action);
+    wire::WritePOD<std::uint32_t>(body, trigger_id);
+    wire::WritePOD<std::uint32_t>(body, host_id);
+    wire::WritePOD<std::uint32_t>(body, rh_id);
+    wire::WritePOD<std::uint8_t >(body, rh_type);
+    wire::WritePOD<std::uint16_t>(body, spawn_id);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_MONACTION_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendPlatformAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t machine_id, std::uint32_t cpu,
+    std::uint32_t mem, float net)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t >(body, machine_id);
+    wire::WritePOD<std::uint32_t>(body, cpu);
+    wire::WritePOD<std::uint32_t>(body, mem);
+    wire::WritePOD<float        >(body, net);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_PLATFORM_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendServiceDataClearAck(
+    const std::shared_ptr<ControlSession>& sess)
+{
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CT_SERVICEDATACLEAR_ACK), {});
 }
 
 } // namespace tcontrolsvr::senders

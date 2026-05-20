@@ -300,6 +300,23 @@ Dispatch(std::shared_ptr<OperatorSession> op,
     case MessageId::CT_CASTLEENABLE_REQ:
         co_await OnCastleEnableReq(std::move(op), std::move(body), ctx);
         break;
+
+    // --- Round-2 audit: missing operator-side handlers -----------
+    case MessageId::CT_ITEMFIND_REQ:
+        co_await OnItemFindReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_ITEMSTATE_REQ:
+        co_await OnItemStateReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_MONACTION_REQ:
+        co_await OnMonActionReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICEDATACLEAR_REQ:
+        co_await OnServiceDataClearReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PLATFORM_REQ:
+        co_await OnPlatformReq(std::move(op), std::move(body), ctx);
+        break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap
         // so the bring-up notes can surface what TController.exe

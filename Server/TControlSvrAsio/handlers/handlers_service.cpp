@@ -1,6 +1,7 @@
 #include "handlers.h"
 
 #include "../peer_dialer.h"
+#include "../peer_session.h"
 #include "../senders.h"
 #include "../wire_codec.h"
 #include "../services/svr_type.h"
@@ -256,6 +257,34 @@ OnNewConnectReq(std::shared_ptr<OperatorSession> op,
     // patching client (legacy CTServer::SendCT_CTRLSVR_REQ).
     co_await senders::SendCtrlSvrReq(result.session->Wire());
 
+    // Legacy SendEventToNewConnect — re-push every currently-running
+    // event that targets this peer's (group, type, server_id). Skips
+    // CashSale events through the CASHITEMSALE_REQ path; everything
+    // else flows through EVENTUPDATE_REQ with the full EventInfo
+    // payload. LoginSvr / MapSvr / WorldSvr only — the other peer
+    // types don't consume event broadcasts.
+    if (ctx.events &&
+        (svc->type_id == svr_type::kLoginSvr ||
+         svc->type_id == svr_type::kMapSvr   ||
+         svc->type_id == svr_type::kWorldSvr))
+    {
+        for (const auto& ev : ctx.events->Snapshot())
+        {
+            if (ev.state == 0)                       continue;
+            if (ev.server_type != svc->type_id)      continue;
+            if (ev.group_id  != 0 && ev.group_id  != svc->group_id)  continue;
+            if (ev.server_id != 0 && ev.server_id != svc->server_id) continue;
+            if (ev.kind == event_kind::kCashSale)
+                co_await senders::SendCashItemSaleReq(
+                    result.session->Wire(),
+                    ev.index, ev.value, ev.cash_items);
+            else
+                co_await senders::SendEventUpdateReq(
+                    result.session->Wire(),
+                    ev.kind, ev.value, ev);
+        }
+    }
+
     // Spawn the read loop so the peer's CT_SERVICEMONITOR_REQ +
     // admin-ack forwarders (F3) can land back here. The loop exits
     // when the peer closes or framing breaks.
@@ -363,6 +392,12 @@ RunPeerLoop(std::shared_ptr<PeerSession> peer, HandlerContext ctx)
             case MessageId::CT_SERVICEMONITOR_REQ:
                 co_await OnServiceMonitorReq(peer, std::move(pkt.body), ctx);
                 break;
+            case MessageId::CT_SERVICECHANGE_REQ:
+                co_await OnPeerServiceChangeReq(peer, std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_PLATFORM_REQ:
+                co_await OnPlatformReq(nullptr, std::move(pkt.body), ctx);
+                break;
             case MessageId::CT_CHATBAN_ACK:
                 co_await OnPeerChatBanAck(peer, std::move(pkt.body), ctx);
                 break;
@@ -371,6 +406,52 @@ RunPeerLoop(std::shared_ptr<PeerSession> peer, HandlerContext ctx)
                 break;
             case MessageId::CT_CASTLEGUILDCHG_ACK:
                 co_await OnPeerCastleGuildChgAck(peer, std::move(pkt.body), ctx);
+                break;
+
+            // --- Round-2 audit: peer→operator route-backs ----------
+            case MessageId::CT_ITEMFIND_ACK:
+                co_await OnPeerItemFindAck(peer, std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_ITEMSTATE_ACK:
+                co_await OnPeerAckRouteBack(peer,
+                    tnetlib::protocol::ToUint16(MessageId::CT_ITEMSTATE_ACK),
+                    std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_MONSPAWNFIND_ACK:
+                co_await OnPeerMonSpawnFindAck(peer, std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_EVENTQUARTERLIST_ACK:
+                co_await OnPeerAckRouteBack(peer,
+                    tnetlib::protocol::ToUint16(MessageId::CT_EVENTQUARTERLIST_ACK),
+                    std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_EVENTQUARTERUPDATE_ACK:
+                co_await OnPeerAckRouteBack(peer,
+                    tnetlib::protocol::ToUint16(MessageId::CT_EVENTQUARTERUPDATE_ACK),
+                    std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_TOURNAMENTEVENT_ACK:
+                co_await OnPeerAckRouteBack(peer,
+                    tnetlib::protocol::ToUint16(MessageId::CT_TOURNAMENTEVENT_ACK),
+                    std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_RPSGAMEDATA_ACK:
+                co_await OnPeerAckRouteBack(peer,
+                    tnetlib::protocol::ToUint16(MessageId::CT_RPSGAMEDATA_ACK),
+                    std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_CMGIFT_ACK:
+                co_await OnPeerAckRouteBack(peer,
+                    tnetlib::protocol::ToUint16(MessageId::CT_CMGIFT_ACK),
+                    std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_CMGIFTLIST_ACK:
+                co_await OnPeerAckRouteBack(peer,
+                    tnetlib::protocol::ToUint16(MessageId::CT_CMGIFTLIST_ACK),
+                    std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_CASHITEMSALE_ACK:
+                co_await OnPeerCashItemSaleAck(peer, std::move(pkt.body), ctx);
                 break;
             default:
                 spdlog::debug("peer_loop: unhandled CT_* id=0x{:04X} from "

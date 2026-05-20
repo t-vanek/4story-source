@@ -41,6 +41,7 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/handlers/handlers_service.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_admin.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_event.cpp
+    ${TCONTROL_ASIO_SRC}/handlers/handlers_extra.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_patch.cpp
     ${TCONTROL_ASIO_SRC}/db/schema_validator.cpp
     ${TCONTROL_ASIO_SRC}/services/chat_ban_repository.cpp
@@ -132,3 +133,15 @@ target_link_libraries(test_tcontrolsvr_asio_patch_metadata PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_patch_metadata
     COMMAND test_tcontrolsvr_asio_patch_metadata)
+
+# Round-2 wire-parity regression suite: locks down the four
+# count-width mismatches (CHATBANLIST / EVENTLIST / CASHITEMLIST /
+# PREVERSIONTABLE), the CHATBANLIST field order, the EVENTUPDATE_REQ
+# EventInfo body append, plus smoke coverage for the previously-
+# missing handlers (MONACTION_REQ, ITEMFIND_REQ, SERVICEDATACLEAR_REQ).
+add_executable(test_tcontrolsvr_asio_wire_parity
+    ${TCONTROL_ASIO_SRC}/tests/test_wire_parity.cpp)
+target_link_libraries(test_tcontrolsvr_asio_wire_parity PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_wire_parity
+    COMMAND test_tcontrolsvr_asio_wire_parity)

@@ -293,5 +293,75 @@ boost::asio::awaitable<void> OnPeerCastleGuildChgAck(
     std::vector<std::byte> body,
     const HandlerContext& ctx);
 
+// --- Round-2 audit: item / mon / platform / service-data-clear /
+// service-change inbound from peer + missing operator-side handlers.
+
+boost::asio::awaitable<void> OnItemFindReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnItemStateReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnMonActionReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPlatformReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnServiceDataClearReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Peer inbound — CT_SERVICECHANGE_REQ from a peer broadcasts the
+// new status to every operator + optionally fires the SMS alerter.
+boost::asio::awaitable<void> OnPeerServiceChangeReq(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Peer inbound — strip the manager_id prefix and forward the rest
+// of the body verbatim to the operator. Covers ITEMFIND_ACK,
+// ITEMSTATE_ACK, MONSPAWNFIND_ACK, EVENTQUARTERLIST_ACK,
+// EVENTQUARTERUPDATE_ACK, TOURNAMENTEVENT_ACK, RPSGAMEDATA_ACK,
+// CMGIFT_ACK, CMGIFTLIST_ACK. Each has its own dispatch entry but
+// they share the same body shape.
+boost::asio::awaitable<void> OnPeerAckRouteBack(
+    std::shared_ptr<PeerSession> peer,
+    std::uint16_t out_id,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// CT_ITEMFIND_ACK is special: peer sends { WORD count, DWORD
+// manager_id, items }; the operator wants { WORD count, items }
+// — manager_id is stripped from the middle, not the head.
+boost::asio::awaitable<void> OnPeerItemFindAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// CT_MONSPAWNFIND_ACK is special: peer sends { DWORD manager_id,
+// WORD map_id, WORD spawn_id, BYTE count, [items] }; operator
+// wants { WORD map_id, WORD spawn_id, BYTE count, [items] }.
+boost::asio::awaitable<void> OnPeerMonSpawnFindAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// CT_CASHITEMSALE_ACK — peer acknowledges a cash-sale state
+// change. Legacy is observer-only (just verifies wValue and noops).
+boost::asio::awaitable<void> OnPeerCashItemSaleAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
 } // namespace handlers
 } // namespace tcontrolsvr

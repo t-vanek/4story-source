@@ -135,6 +135,15 @@ AppConfig LoadConfig(const std::string& path)
             cfg.server.nation = ParseNation(*n);
         if (auto c = (*srv)["control_server_ip"].value<std::string>())
             cfg.server.control_server_ip = *c;
+        if (auto g = (*srv)["control_server_gate_open"].value<bool>())
+            cfg.server.control_server_gate_open = *g;
+        if (auto mc = (*srv)["max_connections"].value<std::int64_t>())
+        {
+            if (*mc < 0 || *mc > 0xFFFFFFFFLL)
+                throw std::runtime_error("server.max_connections out of range: "
+                    + std::to_string(*mc));
+            cfg.server.max_connections = static_cast<std::uint32_t>(*mc);
+        }
         if (auto av = (*srv)["accepted_versions"].as_array())
         {
             std::vector<std::uint16_t> list;
@@ -264,6 +273,14 @@ AppConfig LoadConfig(const std::string& path)
                 throw std::runtime_error(std::string(section) + ".pool_size out of range: "
                     + std::to_string(*p));
             out.pool_size = static_cast<std::size_t>(*p);
+        }
+        if (auto a = t["acquire_timeout_secs"].value<std::int64_t>())
+        {
+            if (*a < 0 || *a > 3600)
+                throw std::runtime_error(std::string(section)
+                    + ".acquire_timeout_secs out of range (0..3600): "
+                    + std::to_string(*a));
+            out.acquire_timeout_secs = static_cast<std::uint32_t>(*a);
         }
     };
     if (auto db = tbl["database"].as_table())

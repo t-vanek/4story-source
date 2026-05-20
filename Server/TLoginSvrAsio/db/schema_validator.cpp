@@ -28,10 +28,15 @@ void ValidateGlobalSchema(fourstory::db::SessionPool& pool)
         { "TCURRENTUSER",     "dwUserID" },
         { "TCURRENTUSER",     "szLoginIP" },
         { "TCURRENTUSER",     "bLocked" },
+        { "TCURRENTUSER",     "bGroupID" },
+        { "TCURRENTUSER",     "bChannel" },
         // Audit
         { "TLOG",             "dwKEY" },
         { "TLOG",             "dwUserID" },
         { "TLOG",             "timeLOGOUT" },
+        { "TLOG",             "dwCharID" },
+        { "TLOG",             "bGroupID" },
+        { "TLOG",             "bChannel" },
         // Agreement
         { "TUSERINFOTABLE",   "dwUserID" },
         { "TUSERINFOTABLE",   "bAgreement" },

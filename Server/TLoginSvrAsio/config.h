@@ -42,6 +42,13 @@ struct DbConfig
     // throughput × max ms-per-query. 8 is a sane default for dev; tune
     // to 32–64 in prod with a steady-state CCU >5k.
     std::size_t   pool_size = 8;
+
+    // Maximum time a handler will wait for a free pool session before
+    // failing with AcquireTimeout. Bounds the worst-case latency of a
+    // single request when the pool is saturated. Zero = wait forever
+    // (legacy blocking behavior — only for tests that intentionally
+    // want to deadlock on an exhausted pool).
+    std::uint32_t acquire_timeout_secs = 30;
 };
 
 // Optional SMTP relay config. Empty `host` keeps the binary on the

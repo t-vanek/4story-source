@@ -19,8 +19,10 @@
 
 #include <soci/soci.h>
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 namespace fourstory::db {
@@ -43,9 +45,18 @@ public:
     //                user=tloginsvr password=devpass"
     //   SQLite:     "dbname=/tmp/test.sqlite" or ":memory:"
     //   ODBC:       "DSN=MSSQL_PROD;UID=login;PWD=…"
+    //
+    // `default_acquire_timeout` bounds how long Acquire() will wait for
+    // a free session before throwing AcquireTimeout. Zero means "wait
+    // forever" (legacy behavior, kept only for tests that intentionally
+    // exhaust the pool). Anything else makes pool exhaustion observable
+    // via an exception that the caller can catch and surface as a
+    // service-unavailable error to the client.
     SessionPool(Backend backend,
                 const std::string& conn_string,
-                std::size_t pool_size = 8);
+                std::size_t pool_size = 8,
+                std::chrono::milliseconds default_acquire_timeout
+                    = std::chrono::seconds(30));
 
     ~SessionPool();
     SessionPool(const SessionPool&) = delete;
@@ -75,16 +86,34 @@ public:
         soci::session* m_session; // non-owning view into the pool
     };
 
-    // Acquire a session. Blocks if all sessions are in use.
+    // Acquire a session. Waits up to `timeout` for a free session;
+    // throws AcquireTimeout on exhaustion. Passing
+    // std::chrono::milliseconds{0} reverts to the legacy blocking
+    // behavior — only used by tests that want to deadlock on purpose.
+    //
+    // The default uses whatever timeout the pool was constructed with.
     Lease Acquire();
+    Lease Acquire(std::chrono::milliseconds timeout);
 
     Backend GetBackend() const { return m_backend; }
     std::size_t PoolSize() const { return m_pool_size; }
+    std::chrono::milliseconds DefaultAcquireTimeout() const { return m_default_acquire_timeout; }
 
 private:
     Backend                       m_backend;
     std::size_t                   m_pool_size;
+    std::chrono::milliseconds     m_default_acquire_timeout;
     soci::connection_pool         m_pool;
+};
+
+// Thrown by SessionPool::Acquire when no session becomes free within
+// the requested timeout. Distinct type so handlers can catch this
+// specifically and reply with a "service busy" error to the client
+// instead of falling through into the generic exception path.
+class AcquireTimeout : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
 };
 
 // Map enum → SOCI backend factory. Header-public so config code

@@ -56,9 +56,11 @@ Backend ParseBackend(const std::string& s)
 
 SessionPool::SessionPool(Backend backend,
                          const std::string& conn_string,
-                         std::size_t pool_size)
+                         std::size_t pool_size,
+                         std::chrono::milliseconds default_acquire_timeout)
     : m_backend(backend)
     , m_pool_size(pool_size > 0 ? pool_size : 1)
+    , m_default_acquire_timeout(default_acquire_timeout)
     , m_pool(m_pool_size)
 {
     const auto& factory = BackendFactory(m_backend);
@@ -67,19 +69,59 @@ SessionPool::SessionPool(Backend backend,
         soci::session& sess = m_pool.at(i);
         sess.open(factory, conn_string);
     }
-    spdlog::info("SessionPool ready: backend={} pool_size={}",
-        BackendName(m_backend), m_pool_size);
+    spdlog::info("SessionPool ready: backend={} pool_size={} acquire_timeout_ms={}",
+        BackendName(m_backend), m_pool_size,
+        static_cast<long long>(m_default_acquire_timeout.count()));
 }
 
 SessionPool::~SessionPool() = default;
 
 SessionPool::Lease SessionPool::Acquire()
 {
-    // SOCI 4.0: lease() blocks if all sessions are in use and returns
-    // the leased index. (The deprecated two-arg form took the idx by
-    // reference; the modern API returns it directly.)
-    const std::size_t idx = m_pool.lease();
-    return Lease{ this, idx, &m_pool.at(idx) };
+    return Acquire(m_default_acquire_timeout);
+}
+
+SessionPool::Lease SessionPool::Acquire(std::chrono::milliseconds timeout)
+{
+    std::size_t idx = 0;
+    if (timeout.count() <= 0)
+    {
+        // Legacy blocking behavior — kept for tests that intentionally
+        // want to deadlock on an exhausted pool. Production deploys
+        // should always pass a positive timeout.
+        idx = m_pool.lease();
+        return Lease{ this, idx, &m_pool.at(idx) };
+    }
+
+    // SOCI 4.0 try_lease(pos, timeout_ms) returns false if no session
+    // became available within the deadline. We split the wait into
+    // 100ms chunks so the calling io_context thread can still field
+    // ctrl-C / io.stop() in a bounded time when the pool is exhausted
+    // under steady load. (Services call Acquire() synchronously from
+    // their coroutines, so the calling reactor thread does block for
+    // each chunk — a longer chunk would make signal response laggy.)
+    using clock = std::chrono::steady_clock;
+    const auto deadline = clock::now() + timeout;
+    constexpr int kChunkMs = 100;
+
+    for (;;)
+    {
+        const auto now = clock::now();
+        if (now >= deadline)
+        {
+            throw AcquireTimeout(
+                "SessionPool::Acquire timed out after "
+                + std::to_string(timeout.count())
+                + "ms (pool_size=" + std::to_string(m_pool_size)
+                + ", backend=" + BackendName(m_backend) + ")");
+        }
+        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - now).count();
+        const int wait_ms = static_cast<int>(
+            remaining < kChunkMs ? remaining : kChunkMs);
+        if (m_pool.try_lease(idx, wait_ms))
+            return Lease{ this, idx, &m_pool.at(idx) };
+    }
 }
 
 SessionPool::Lease::Lease(SessionPool* pool, std::size_t idx, soci::session* sess)

@@ -27,10 +27,24 @@ port = 4816
 # IPv4 dotted-decimal of the TControlSvr peer. CT_* control packets
 # (event registry, service monitor) are accepted ONLY from this
 # address — mirroring the legacy m_bSessionType=SESSION_SERVER gate.
-# Empty / omitted = gate open (useful for in-process tests on
-# 127.0.0.1; production deploys MUST set this to the operator's
-# TControlSvr IP).
+# Production deploys MUST pin this to the operator's TControlSvr IP.
+# The binary refuses to start if this key is missing AND
+# control_server_gate_open below is false.
 # control_server_ip = "10.0.0.5"
+
+# Explicit opt-in for running with control_server_ip empty (i.e.
+# any peer can fire CT_* packets). Required for in-process tests
+# that loopback over 127.0.0.1 from arbitrary ports. Production
+# deploys MUST keep this false (the default) and pin
+# control_server_ip above.
+# control_server_gate_open = false
+
+# Soft cap on concurrent TCP connections. New accepts beyond this
+# are dropped immediately (warn-logged + socket closed). Bounds the
+# blast radius of a pre-auth flood: each open socket holds memory
+# + an AsioSession until the pre-auth watchdog fires. Tune for
+# observed steady-state CCU × 2. 0 disables the cap (legacy).
+# max_connections = 4096
 
 # CS_HOTSEND_REQ heartbeat — silently dropped by the server. The
 # legacy client fires it after every GROUPLIST_ACK / CHANNELLIST_ACK
@@ -86,11 +100,17 @@ port = 8815
 # backend = "odbc"     # odbc | postgresql | sqlite3
 # connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes"
 # pool_size = 8
+# acquire_timeout_secs = 30   # bounds Acquire() wait when pool is saturated;
+                              # 0 = wait forever (legacy / test-only). Production
+                              # should keep this >0 so pool exhaustion surfaces
+                              # as a per-request error rather than hanging the
+                              # whole io_context.
 
 [database.world]
 # backend = "odbc"
 # connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGAME_RAGEZONE;Trusted_Connection=yes"
 # pool_size = 8
+# acquire_timeout_secs = 30
 
 # ---------------------------------------------------------------------------
 # SMTP relay for 2FA security codes

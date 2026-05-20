@@ -42,6 +42,7 @@ struct Args
     std::string conn;
     bool        apply = false;
     int         cost  = 10;
+    int         batch = 100;   // rows per transaction; 0 = one txn for the whole run
 };
 
 void PrintUsage()
@@ -56,6 +57,9 @@ void PrintUsage()
         "  --conn <s>   ODBC connection string (or TLOGINSVR_BCRYPT_MIGRATE_CONN env)\n"
         "  --apply      actually UPDATE rows (default is dry-run)\n"
         "  --cost N     bcrypt work factor, 4..15 (default 10)\n"
+        "  --batch N    rows committed per transaction, 1..10000 (default 100;\n"
+        "               0 = single transaction for the whole run — fastest but\n"
+        "               re-running from scratch on crash)\n"
         "  --help       print this help\n",
         stderr);
 }
@@ -86,6 +90,16 @@ bool ParseArgs(int argc, char** argv, Args& out)
             if (out.cost < 4 || out.cost > 15)
             {
                 std::fputs("--cost must be in [4, 15]\n", stderr);
+                return false;
+            }
+        }
+        else if (a == "--batch")
+        {
+            if (i + 1 >= argc) { std::fputs("--batch needs a value\n", stderr); return false; }
+            out.batch = std::atoi(argv[++i]);
+            if (out.batch < 0 || out.batch > 10000)
+            {
+                std::fputs("--batch must be in [0, 10000]\n", stderr);
                 return false;
             }
         }
@@ -120,8 +134,9 @@ int main(int argc, char** argv)
     }
 
     std::printf("tloginsvr_bcrypt_migrate\n");
-    std::printf("  mode = %s\n", args.apply ? "APPLY (rows will be rewritten)" : "dry-run");
-    std::printf("  cost = %d\n", args.cost);
+    std::printf("  mode  = %s\n", args.apply ? "APPLY (rows will be rewritten)" : "dry-run");
+    std::printf("  cost  = %d\n", args.cost);
+    std::printf("  batch = %d\n", args.batch);
 
     soci::session sql;
     try
@@ -168,6 +183,39 @@ int main(int argc, char** argv)
 
     using namespace tloginsvr::services;
 
+    // Batched-transaction loop. We commit every `args.batch` UPDATEs so
+    // a crash mid-run loses at most one batch (re-runnable safely — the
+    // tool skips already-bcrypt rows on the next pass). batch=0 = wrap
+    // the entire run in one transaction (fastest, but everything rolls
+    // back on any failure).
+    std::unique_ptr<soci::transaction> txn;
+    std::size_t batch_pending = 0;
+    auto open_txn = [&]() {
+        if (!args.apply) return;
+        if (!txn) txn = std::make_unique<soci::transaction>(sql);
+    };
+    auto commit_txn = [&](const char* reason) {
+        if (!args.apply || !txn) return;
+        try
+        {
+            txn->commit();
+            std::printf("  [commit] %s — %zu update(s) flushed\n", reason, batch_pending);
+        }
+        catch (const std::exception& ex)
+        {
+            std::fprintf(stderr, "  [commit] %s — FAILED: %s\n", reason, ex.what());
+            // The transaction destructor will roll back. We surface the
+            // failure to the caller via the exit code; subsequent
+            // updates can still proceed in a fresh transaction.
+            ++failed;
+        }
+        txn.reset();
+        batch_pending = 0;
+    };
+
+    if (args.apply && args.batch == 0)
+        open_txn();   // single-transaction mode: open once, commit at end
+
     for (const auto& row : rows)
     {
         if (row.pw_ind == soci::i_null)
@@ -202,12 +250,16 @@ int main(int argc, char** argv)
             std::fprintf(stderr, "  uid=%d — bcrypt_hashpw failed, skipping\n", row.uid);
             continue;
         }
+
+        if (args.batch > 0) open_txn();
+
         try
         {
             sql << "UPDATE \"TACCOUNT_PW\" SET \"szPasswd\" = :h "
                    "WHERE \"dwUserID\" = :uid",
                 soci::use(fresh), soci::use(row.uid);
             ++migrated;
+            ++batch_pending;
             std::printf("  uid=%d → bcrypt'd\n", row.uid);
         }
         catch (const std::exception& ex)
@@ -215,7 +267,14 @@ int main(int argc, char** argv)
             ++failed;
             std::fprintf(stderr, "  uid=%d — UPDATE failed: %s\n", row.uid, ex.what());
         }
+
+        if (args.batch > 0 && batch_pending >= static_cast<std::size_t>(args.batch))
+            commit_txn("batch full");
     }
+
+    // Final flush — either the leftover batch, or (for batch=0) the
+    // single transaction covering the whole run.
+    if (args.apply) commit_txn("final");
 
     std::printf("\nSummary:\n");
     std::printf("  total rows         : %zu\n", total);

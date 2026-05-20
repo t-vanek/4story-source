@@ -10,10 +10,12 @@
 #include "peer_session.h"
 #include "handlers/handlers.h"
 #include "services/admin_audit_logger.h"
+#include "services/alerter.h"
 #include "services/chat_ban_repository.h"
 #include "services/event_registry.h"
 #include "services/event_repository.h"
 #include "services/operator_registry.h"
+#include "services/patch_metadata_service.h"
 #include "services/peer_registry.h"
 #include "services/service_controller.h"
 #include "services/user_protected_service.h"
@@ -42,6 +44,8 @@ struct ControlServerConfig
     ChatBanRepository*     chat_bans   = nullptr;
     EventRegistry*         events      = nullptr;
     IEventRepository*      event_repo  = nullptr;
+    IPatchMetadataService* patch_meta  = nullptr;
+    IAlerter*              alerter     = nullptr;
     std::uint8_t           auto_start  = 0;
 };
 

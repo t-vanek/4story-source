@@ -263,4 +263,46 @@ boost::asio::awaitable<void> SendRawForward(
     std::uint16_t wId,
     const std::vector<std::byte>& body);
 
+// --- F5: patch metadata + castle ----------------------------------
+
+// CT_PREVERSIONTABLE_ACK = { DWORD count,
+//   [ DWORD beta, CString path, CString name, DWORD size ] * count }
+struct PreVersionAckRow
+{
+    std::uint32_t  beta_ver;
+    std::string    path;
+    std::string    name;
+    std::uint32_t  size;
+};
+boost::asio::awaitable<void> SendPreVersionTableAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<PreVersionAckRow>& rows);
+
+// CT_CASTLEINFO_REQ (control → peer) = { DWORD manager_id }
+boost::asio::awaitable<void> SendCastleInfoReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t manager_id);
+
+// CT_CASTLEGUILDCHG_REQ (control → peer) = {
+//   WORD castle_id, DWORD def_guild, DWORD atk_guild,
+//   DWORD manager_id, INT64 time
+// }
+boost::asio::awaitable<void> SendCastleGuildChangeReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint16_t castle_id,
+    std::uint32_t def_guild_id,
+    std::uint32_t atk_guild_id,
+    std::uint32_t manager_id,
+    std::int64_t  time_unix);
+
+// Battle status — legacy SM_BATTLESTATUS_REQ = {
+//   BYTE type, BYTE status, DWORD reserved, DWORD seconds
+// }
+// Used for CT_CASTLEENABLE_REQ (operator → control → World).
+boost::asio::awaitable<void> SendBattleStatusReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  battle_type,
+    std::uint8_t  status,
+    std::uint32_t seconds);
+
 } // namespace tcontrolsvr::senders

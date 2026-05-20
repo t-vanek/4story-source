@@ -8,22 +8,28 @@
 #include "event_scheduler.h"
 #include "peer_dialer.h"
 #include "db/schema_validator.h"
+#include "services/alerter.h"
 #include "services/chat_ban_repository.h"
 #include "services/disabled_service_controller.h"
 #include "services/event_registry.h"
 #include "services/event_repository.h"
 #include "services/fake_event_repository.h"
 #include "services/fake_operator_auth_service.h"
+#include "services/fake_patch_metadata_service.h"
 #include "services/fake_service_inventory.h"
 #include "services/fake_user_protected_service.h"
 #include "services/operator_auth_service.h"
+#include "services/patch_metadata_service.h"
 #include "services/peer_registry.h"
 #include "services/service_inventory.h"
+#include "services/soci_alerter.h"
 #include "services/soci_event_repository.h"
 #include "services/soci_operator_auth_service.h"
+#include "services/soci_patch_metadata_service.h"
 #include "services/soci_service_inventory.h"
 #include "services/soci_user_protected_service.h"
 #include "services/spdlog_admin_audit_logger.h"
+#include "services/spdlog_alerter.h"
 #include "services/user_protected_service.h"
 
 #include "fourstory/db/session_pool.h"
@@ -99,6 +105,8 @@ int main(int argc, char** argv)
         std::unique_ptr<tcontrolsvr::IServiceInventory>       inventory_ptr;
         std::unique_ptr<tcontrolsvr::IUserProtectedService>   user_ban;
         std::unique_ptr<tcontrolsvr::IEventRepository>        event_repo;
+        std::unique_ptr<tcontrolsvr::IPatchMetadataService>   patch_meta;
+        std::unique_ptr<tcontrolsvr::IAlerter>                alerter;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -124,6 +132,13 @@ int main(int argc, char** argv)
                 std::make_unique<tcontrolsvr::SociUserProtectedService>(*pool);
             event_repo =
                 std::make_unique<tcontrolsvr::SociEventRepository>(*pool);
+            patch_meta =
+                std::make_unique<tcontrolsvr::SociPatchMetadataService>(*pool);
+            // F5: SMS alerter via OPTool_SMSEmergency. Wired only
+            // when the DB is configured — otherwise the spdlog
+            // default catches the offline-peer event in logs.
+            alerter =
+                std::make_unique<tcontrolsvr::SociAlerter>(*pool);
             spdlog::info("auth + inventory: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
         }
@@ -147,7 +162,10 @@ int main(int argc, char** argv)
             inventory_ptr = std::move(fake_inv);
             user_ban = std::make_unique<tcontrolsvr::FakeUserProtectedService>();
             event_repo = std::make_unique<tcontrolsvr::FakeEventRepository>();
+            patch_meta = std::make_unique<tcontrolsvr::FakePatchMetadataService>();
         }
+        if (!alerter)
+            alerter = std::make_unique<tcontrolsvr::SpdlogAlerter>();
 
         // --- Admin audit + chat-ban registry + event registry -----
         tcontrolsvr::SpdlogAdminAuditLogger audit;
@@ -174,6 +192,8 @@ int main(int argc, char** argv)
         svr_cfg.chat_bans  = &chat_bans;
         svr_cfg.events     = &events;
         svr_cfg.event_repo = event_repo.get();
+        svr_cfg.patch_meta = patch_meta.get();
+        svr_cfg.alerter    = alerter.get();
         svr_cfg.auto_start = cfg.auto_start;
         tcontrolsvr::ControlServer server(io, svr_cfg);
         spdlog::info("control server listening on 0.0.0.0:{}", server.Port());

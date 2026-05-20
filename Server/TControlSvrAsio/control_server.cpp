@@ -70,6 +70,8 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.chat_bans  = m_cfg.chat_bans;
     ctx.events     = m_cfg.events;
     ctx.event_repo = m_cfg.event_repo;
+    ctx.patch_meta = m_cfg.patch_meta;
+    ctx.alerter    = m_cfg.alerter;
     ctx.io         = &m_io;
     ctx.auto_start = &m_auto_start;
 
@@ -150,6 +152,9 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
                         st->peak_time_unix, st->stop_count,
                         st->latest_stop_unix, 0);
                 }
+                // Legacy: fire SMS alert on the 60s-timeout branch.
+                if (m_cfg.alerter)
+                    m_cfg.alerter->Notify(svc.type_id, svc.service_id, 3);
             }
         }
     }

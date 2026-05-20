@@ -410,4 +410,67 @@ boost::asio::awaitable<void> SendRawForward(
     co_await sess->SendPacket(wId, body);
 }
 
+// --- F5: patch metadata + castle ----------------------------------
+
+boost::asio::awaitable<void> SendPreVersionTableAck(
+    const std::shared_ptr<ControlSession>& sess,
+    const std::vector<PreVersionAckRow>& rows)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body,
+        static_cast<std::uint32_t>(rows.size()));
+    for (const auto& r : rows)
+    {
+        wire::WritePOD<std::uint32_t>(body, r.beta_ver);
+        wire::WriteString(body, r.path);
+        wire::WriteString(body, r.name);
+        wire::WritePOD<std::uint32_t>(body, r.size);
+    }
+    co_await sess->SendPacket(ToUint16(MessageId::CT_PREVERSIONTABLE_ACK),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendCastleInfoReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t manager_id)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, manager_id);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CASTLEINFO_REQ),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendCastleGuildChangeReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint16_t castle_id,
+    std::uint32_t def_guild_id,
+    std::uint32_t atk_guild_id,
+    std::uint32_t manager_id,
+    std::int64_t  time_unix)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint16_t>(body, castle_id);
+    wire::WritePOD<std::uint32_t>(body, def_guild_id);
+    wire::WritePOD<std::uint32_t>(body, atk_guild_id);
+    wire::WritePOD<std::uint32_t>(body, manager_id);
+    wire::WritePOD<std::int64_t >(body, time_unix);
+    co_await sess->SendPacket(ToUint16(MessageId::CT_CASTLEGUILDCHG_REQ),
+                              std::move(body));
+}
+
+boost::asio::awaitable<void> SendBattleStatusReq(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  battle_type,
+    std::uint8_t  status,
+    std::uint32_t seconds)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t >(body, battle_type);
+    wire::WritePOD<std::uint8_t >(body, status);
+    wire::WritePOD<std::uint32_t>(body, 0);          // reserved
+    wire::WritePOD<std::uint32_t>(body, seconds);
+    co_await sess->SendPacket(ToUint16(MessageId::SM_BATTLESTATUS_REQ),
+                              std::move(body));
+}
+
 } // namespace tcontrolsvr::senders

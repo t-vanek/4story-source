@@ -41,14 +41,17 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/handlers/handlers_service.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_admin.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_event.cpp
+    ${TCONTROL_ASIO_SRC}/handlers/handlers_patch.cpp
     ${TCONTROL_ASIO_SRC}/db/schema_validator.cpp
     ${TCONTROL_ASIO_SRC}/services/chat_ban_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/event_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/fake_operator_auth_service.cpp
     ${TCONTROL_ASIO_SRC}/services/operator_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/peer_registry.cpp
+    ${TCONTROL_ASIO_SRC}/services/soci_alerter.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_event_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_operator_auth_service.cpp
+    ${TCONTROL_ASIO_SRC}/services/soci_patch_metadata_service.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_service_inventory.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_user_protected_service.cpp
     ${TCONTROL_ASIO_SRC}/services/spdlog_admin_audit_logger.cpp
@@ -120,3 +123,12 @@ target_link_libraries(test_tcontrolsvr_asio_event_scheduler PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_event_scheduler
     COMMAND test_tcontrolsvr_asio_event_scheduler)
+
+# F5 wire test: patch metadata SP wiring (CT_UPDATEPATCH_REQ +
+# CT_PREVERSIONTABLE/UPDATE_REQ) + authority gate on those handlers.
+add_executable(test_tcontrolsvr_asio_patch_metadata
+    ${TCONTROL_ASIO_SRC}/tests/test_patch_metadata.cpp)
+target_link_libraries(test_tcontrolsvr_asio_patch_metadata PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_patch_metadata
+    COMMAND test_tcontrolsvr_asio_patch_metadata)

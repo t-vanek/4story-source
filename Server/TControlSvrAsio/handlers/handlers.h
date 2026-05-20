@@ -19,11 +19,13 @@
 #include "../operator_session.h"
 #include "../peer_session.h"
 #include "../services/admin_audit_logger.h"
+#include "../services/alerter.h"
 #include "../services/chat_ban_repository.h"
 #include "../services/event_registry.h"
 #include "../services/event_repository.h"
 #include "../services/operator_auth_service.h"
 #include "../services/operator_registry.h"
+#include "../services/patch_metadata_service.h"
 #include "../services/peer_registry.h"
 #include "../services/service_controller.h"
 #include "../services/service_inventory.h"
@@ -56,6 +58,8 @@ struct HandlerContext
     ChatBanRepository*       chat_bans    = nullptr;
     EventRegistry*           events       = nullptr;
     IEventRepository*        event_repo   = nullptr;
+    IPatchMetadataService*   patch_meta   = nullptr;
+    IAlerter*                alerter      = nullptr;
     boost::asio::io_context* io           = nullptr;
 
     // Mirror of legacy CTControlSvrModule::m_bAutoStart — whether
@@ -242,6 +246,51 @@ boost::asio::awaitable<void> ForwardRawToType(
     std::vector<std::byte> body,
     std::uint8_t target_type,
     bool single_target,
+    const HandlerContext& ctx);
+
+// --- F5: patch metadata + castle ----------------------------------
+
+boost::asio::awaitable<void> OnUpdatePatchReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPreVersionTableReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPreVersionUpdateReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCastleInfoReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCastleGuildChgReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCastleEnableReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Castle / item / monspawn ACKs forwarded from a peer back to the
+// originating operator. Each body starts with DWORD manager_id —
+// the rest of the body is repacked verbatim onto the operator
+// session.
+boost::asio::awaitable<void> OnPeerCastleInfoAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+boost::asio::awaitable<void> OnPeerCastleGuildChgAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
     const HandlerContext& ctx);
 
 } // namespace handlers

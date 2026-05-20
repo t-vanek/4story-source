@@ -366,6 +366,12 @@ RunPeerLoop(std::shared_ptr<PeerSession> peer, HandlerContext ctx)
             case MessageId::CT_CHATBAN_ACK:
                 co_await OnPeerChatBanAck(peer, std::move(pkt.body), ctx);
                 break;
+            case MessageId::CT_CASTLEINFO_ACK:
+                co_await OnPeerCastleInfoAck(peer, std::move(pkt.body), ctx);
+                break;
+            case MessageId::CT_CASTLEGUILDCHG_ACK:
+                co_await OnPeerCastleGuildChgAck(peer, std::move(pkt.body), ctx);
+                break;
             default:
                 spdlog::debug("peer_loop: unhandled CT_* id=0x{:04X} from "
                               "svc_id={:08x}", pkt.wId, peer->ServiceId());

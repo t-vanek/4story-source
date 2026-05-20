@@ -280,6 +280,26 @@ Dispatch(std::shared_ptr<OperatorSession> op,
         co_await ForwardRawToType(std::move(op), wId, std::move(body),
             svr_type::kWorldSvr, /*single_target=*/false, ctx);
         break;
+
+    // --- F5: patch metadata + castle ----------------------------
+    case MessageId::CT_UPDATEPATCH_REQ:
+        co_await OnUpdatePatchReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PREVERSIONTABLE_REQ:
+        co_await OnPreVersionTableReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PREVERSIONUPDATE_REQ:
+        co_await OnPreVersionUpdateReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASTLEINFO_REQ:
+        co_await OnCastleInfoReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASTLEGUILDCHG_REQ:
+        co_await OnCastleGuildChgReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASTLEENABLE_REQ:
+        co_await OnCastleEnableReq(std::move(op), std::move(body), ctx);
+        break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap
         // so the bring-up notes can surface what TController.exe

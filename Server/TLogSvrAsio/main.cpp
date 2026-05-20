@@ -1,8 +1,10 @@
 #include "config.h"
+#include "db/schema_validator.h"
 #include "log_server.h"
 #include "services/log_sink.h"
 
 #include "fourstory/db/session_pool.h"
+#include "fourstory/ops/health_endpoint.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -54,6 +56,7 @@ int main(int argc, char** argv)
 
         std::unique_ptr<fourstory::db::SessionPool> pool;
         std::unique_ptr<tlogsvr::ILogSink>           sink;
+        tlogsvr::SociLogSink*                        soci_sink = nullptr;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -61,8 +64,24 @@ int main(int argc, char** argv)
             const auto backend = fourstory::db::ParseBackend(cfg.database.backend);
             pool = std::make_unique<fourstory::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
-            sink = std::make_unique<tlogsvr::SociLogSink>(*pool, cfg.target_table);
-            spdlog::info("log_sink: SOCI → {}.{}", cfg.database.backend, cfg.target_table);
+            // Fail-fast on missing LT_* columns before we bind the UDP
+            // socket (F5 in SQL_AUDIT). Datagrams that arrive after a
+            // misconfigured target_table would otherwise silently drop
+            // at INSERT time with no visibility.
+            tlogsvr::db::ValidateAuditSchema(*pool, cfg.target_table);
+            tlogsvr::SociLogSink::Options sink_opts;
+            sink_opts.max_retry_queue  = cfg.retry.max_queue;
+            sink_opts.drain_interval   = cfg.retry.drain_interval;
+            sink_opts.drain_batch_size = cfg.retry.drain_batch_size;
+            auto owning = std::make_unique<tlogsvr::SociLogSink>(
+                *pool, cfg.target_table, sink_opts);
+            soci_sink = owning.get();
+            sink = std::move(owning);
+            soci_sink->StartDrainLoop(io);
+            spdlog::info("log_sink: SOCI → {}.{} (retry_queue={} drain={}s)",
+                cfg.database.backend, cfg.target_table,
+                cfg.retry.max_queue,
+                static_cast<long long>(cfg.retry.drain_interval.count()));
         }
         else
         {
@@ -80,9 +99,46 @@ int main(int argc, char** argv)
             cfg.bind_address, server.Port());
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
 
+        // Optional /healthz endpoint on a separate port. Matches the
+        // wiring in TLoginSvrAsio + TPatchSvrAsio — silently warn if
+        // the port is in use rather than aborting the UDP listener.
+        std::unique_ptr<fourstory::ops::HealthEndpoint> health;
+        if (cfg.health_port != 0)
+        {
+            try
+            {
+                health = std::make_unique<fourstory::ops::HealthEndpoint>(
+                    io, cfg.health_port);
+                spdlog::info("health endpoint listening on 0.0.0.0:{}",
+                    health->Port());
+                boost::asio::co_spawn(io, health->Run(),
+                    boost::asio::detached);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("health endpoint failed to bind on port {}: {}",
+                    cfg.health_port, ex.what());
+            }
+        }
+
         io.run();
-        spdlog::info("totals: received={} drops_bad_format={}",
-            server.PacketsReceived(), server.DropsBadFormat());
+        if (soci_sink != nullptr)
+        {
+            spdlog::info(
+                "totals: received={} drops_bad_format={} "
+                "inserted={} enqueued={} drained={} dropped_queue_full={} "
+                "queue_depth_at_shutdown={}",
+                server.PacketsReceived(), server.DropsBadFormat(),
+                soci_sink->Inserts(), soci_sink->EnqueuedOnError(),
+                soci_sink->DrainedAfterRetry(),
+                soci_sink->DroppedQueueFull(),
+                soci_sink->QueueDepth());
+        }
+        else
+        {
+            spdlog::info("totals: received={} drops_bad_format={}",
+                server.PacketsReceived(), server.DropsBadFormat());
+        }
     }
     catch (const std::exception& ex)
     {

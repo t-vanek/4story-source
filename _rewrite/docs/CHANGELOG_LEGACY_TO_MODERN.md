@@ -125,15 +125,21 @@ SOCI produkční impl a `Fake*` test impl:
 ## 4. TLogSvr → TLogSvrAsio
 
 **Legacy:** `Server/TLogSvr/` — 17 souborů, 3 908 LOC, ATL/UDP/ODBC, MFC dialog GUI.
-**Nový:** `Server/TLogSvrAsio/` — 7 souborů, 605 LOC, UDP-only headless služba.
-**Stav:** UDP `_UDPPACKET` ingest + SOCI INSERT do `TLOG_AUDIT` (commit `60dccf7`).
+**Nový:** `Server/TLogSvrAsio/` — 13 souborů (4 prod TUs + 3 testy + schema + db validator + retry queue), UDP-only headless služba.
+**Stav:** Funkčně 1:1 s legacy DB writem — UDP `_UDPPACKET` ingest, SOCI INSERT do `TLOG_AUDIT`, schema validator, dialect-aware blob, RAM retry buffer + drain coroutine pro výpadky DB. Pokrýt unit + SOCI testy.
 
 | Vlastnost | Legacy | Nový |
 |---|---|---|
 | UI | MFC dialog | Headless, log do spdlog |
 | Wire | Custom `_UDPPACKET` UDP frame | Bit-for-bit kompatibilní — čte stejný frame, který TLoginSvrAsio emituje přes `UdpAuditLogger` |
-| Storage | ODBC INSERT do legacy TLOG tabulek | SOCI INSERT do `TLOG_AUDIT` (additivní migrace `schema/tlog-audit.sql`) |
+| Storage | ODBC INSERT do legacy date-partitioned `ITEMLOGTL{yyyymmdd}` tabulek | SOCI INSERT do jedné `TLOG_AUDIT` tabulky s indexem na `LT_LOGDATE` (additivní migrace `schema/tlog-audit.sql`) |
+| Schema check | ❌ žádný | ✅ `tlogsvr::db::ValidateAuditSchema` boot-time fail-fast na chybějící LT_* sloupce + identifier whitelist na `target_table` |
 | Krypto pro reg klíče | `RegCrypt.cpp` (Win32 CryptoAPI) | Není potřeba — config přes TOML |
+| DB-down chování | RAM requeue (`m_listReadCompleted`) + `WorkTickProc` reconnect každých 30 s; bounded `MAX_IO_CONTEXT=1000` | `RetryQueue` (cap 1000 default) + drain coroutine (30 s tick default); FIFO ordering preserved, queue depth + drop counts logované na shutdown |
+| Vlákna | Win32 IOCP + dedikované listen/read/work-tick thready | Jedna Boost.Asio coroutine + drain timer; SOCI session pool pro DB |
+| Crash dump | `TMiniDump` (Win32-only) | Není portováno — OS-level core dumps stačí |
+| Service install/uninstall | `-I` / `-U` flagy → SCM Win32 service | Daemon spravovaný systemd / docker / atd. mimo binárku |
+| `LP_CHAT` packet | Definovaný, ale neimplementovaný (`Packet_Nothing`) | Stejné — datagramy s `command != LP_LOG` se dropí + countují |
 
 ---
 

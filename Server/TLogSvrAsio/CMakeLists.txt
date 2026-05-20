@@ -27,7 +27,9 @@ endif()
 add_library(tlogsvr_asio_core STATIC
     ${TLOGSVR_ASIO_SRC}/log_server.cpp
     ${TLOGSVR_ASIO_SRC}/config.cpp
-    ${TLOGSVR_ASIO_SRC}/services/log_sink.cpp)
+    ${TLOGSVR_ASIO_SRC}/db/schema_validator.cpp
+    ${TLOGSVR_ASIO_SRC}/services/log_sink.cpp
+    ${TLOGSVR_ASIO_SRC}/services/retry_queue.cpp)
 
 target_include_directories(tlogsvr_asio_core PUBLIC
     ${TLOGSVR_ASIO_SRC})
@@ -49,3 +51,38 @@ set_target_properties(tlogsvr_asio_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_executable(tlogsvr_asio ${TLOGSVR_ASIO_SRC}/main.cpp)
 target_link_libraries(tlogsvr_asio PRIVATE tlogsvr_asio_core)
+
+# ----- Tests --------------------------------------------------------
+#
+# Pure-unit: wire codec for the legacy _UDPPACKET / _LOG_DATA_ frame.
+# Builds frames byte-for-byte the way UdpAuditLogger emits them and
+# round-trips them through DecodeLogDatagram. No DB or network. Runs
+# anywhere we can build the binary.
+add_executable(test_tlogsvr_asio_log_decoder
+    ${TLOGSVR_ASIO_SRC}/tests/test_log_decoder.cpp)
+target_link_libraries(test_tlogsvr_asio_log_decoder PRIVATE
+    tlogsvr_asio_core)
+add_test(NAME tlogsvr_asio_log_decoder
+    COMMAND test_tlogsvr_asio_log_decoder)
+
+# Pure-unit: bounded retry queue semantics — exercises PushBack /
+# PushFront / PopFront / capacity limit / FIFO ordering directly,
+# no SOCI or io_context. Threading sanity (concurrent PushBack from
+# N producers) covered too.
+add_executable(test_tlogsvr_asio_retry_queue
+    ${TLOGSVR_ASIO_SRC}/tests/test_retry_queue.cpp)
+target_link_libraries(test_tlogsvr_asio_retry_queue PRIVATE
+    tlogsvr_asio_core)
+add_test(NAME tlogsvr_asio_retry_queue
+    COMMAND test_tlogsvr_asio_retry_queue)
+
+# Integration: ValidateAuditSchema + SociLogSink against a live MSSQL
+# database. Skips when TLOGSVR_TEST_MSSQL_CONN is not in the
+# environment, matching the convention the TLogin/TPatch SOCI tests
+# use so CI shards without a DB still go green.
+add_executable(test_tlogsvr_asio_soci_log_sink
+    ${TLOGSVR_ASIO_SRC}/tests/test_soci_log_sink.cpp)
+target_link_libraries(test_tlogsvr_asio_soci_log_sink PRIVATE
+    tlogsvr_asio_core)
+add_test(NAME tlogsvr_asio_soci_log_sink
+    COMMAND test_tlogsvr_asio_soci_log_sink)

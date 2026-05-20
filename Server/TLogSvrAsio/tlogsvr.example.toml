@@ -1,0 +1,85 @@
+# tlogsvr.toml — TLogSvrAsio configuration.
+# Pass via `tlogsvr_asio --config /path/to/this/file`.
+# All sections + keys are optional; defaults below match the shipped
+# legacy server's hardcoded UDP port (2000) so a missing config still
+# gives you a working binary that prints decoded records through
+# spdlog (StdoutLogSink fallback) even without a database.
+
+[server]
+# UDP bind address. Default 0.0.0.0 accepts datagrams from any
+# interface — fine inside a private VLAN. Pin to a specific NIC if
+# the host is dual-homed onto an untrusted segment.
+bind = "0.0.0.0"
+
+# Legacy UDP collector port. Matches the peer port TLoginSvr's
+# UdpSocket / UdpAuditLogger emits to. Changing this requires
+# updating every emitting server's config in lockstep.
+port = 2000
+
+# Insert target. Default matches schema/tlog-audit.sql. Override to
+# a different table when you partition or move logs to a dedicated
+# audit DB. The boot-time schema validator inlines this name into
+# its INFORMATION_SCHEMA probe, so it MUST be a plain SQL identifier
+# ([A-Za-z_][A-Za-z0-9_]{0,127}) — anything else is refused at start.
+target_table = "TLOG_AUDIT"
+
+[log]
+# spdlog level. One of: trace | debug | info | warn | error | critical | off
+level = "info"
+
+[health]
+# Optional /healthz HTTP endpoint on a separate port. Returns
+#   {"status":"ok","uptime_seconds":N,"version":"5.0"}
+# Useful for k8s liveness/readiness probes and load-balancer health
+# checks. Set 0 to disable entirely.
+port = 8800
+
+[retry]
+# In-RAM retry buffer for transient DB outages. Mirrors the legacy
+# `m_listReadCompleted` requeue behavior in
+# Server/TLogSvr/CUdpSocket.cpp::ReadPacket: records that fail to
+# INSERT (DB connection dropped, pool saturated, …) sit in this
+# queue, and a drain coroutine retries them on a periodic tick.
+#
+# The cap matches the legacy bounded IO pool
+# (MAX_IO_CONTEXT = 1000 in Server/TLogSvr/StdAfx.h). New datagrams
+# that would push the queue past the cap are dropped on the receive
+# side and counted in the shutdown-totals log line. Set to 0 to
+# disable queueing entirely — failed records are then dropped on
+# first INSERT error.
+max_queue = 1000
+
+# How often the drain coroutine wakes up to try flushing pending
+# records back to the DB. Legacy `WorkTickProc` reconnect tick =
+# 30 s; matching that default. Smaller intervals shorten recovery
+# latency after a transient outage at the cost of a steadier wakeup
+# rhythm on the io_context.
+drain_interval_secs = 30
+
+# Per-tick cap on the number of records the drain coroutine
+# attempts to flush in one pass. Keeps a maxed-out 1000-record
+# backlog from monopolizing the io_context on a single timer fire.
+drain_batch_size = 64
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+# Audit pool. Production deploys typically point this at a dedicated
+# audit DB (separate from the live game DB) so log-retention policies
+# don't touch player data. Apply schema/tlog-audit.sql once before
+# first start; the boot-time validator refuses to open the listener
+# if any LT_* column on `target_table` is missing.
+#
+# Leaving [database] empty keeps the binary in dev mode — the
+# StdoutLogSink prints each decoded record through spdlog and no
+# database connection is opened.
+[database]
+# backend: one of  odbc | postgresql | sqlite3
+# Production uses ODBC against SQL Server; the SOCI connection
+# string follows the standard ODBC driver syntax. Note: the audit
+# INSERT uses MSSQL-specific VARBINARY conversion — PostgreSQL is
+# accepted by the dialect branch in services/log_sink.cpp but the
+# schema/ DDL itself is MSSQL-only.
+# backend = "odbc"
+# connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+# pool_size = 4

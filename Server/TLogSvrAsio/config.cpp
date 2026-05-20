@@ -66,9 +66,42 @@ AppConfig LoadConfig(const std::string& path)
         if (auto l = (*log)["level"].value<std::string>())
             cfg.log_level = ParseLogLevel(*l);
     }
-    spdlog::info("loaded config from '{}' — udp_port={} table='{}' db={}",
+    if (auto health = tbl["health"].as_table())
+    {
+        if (auto p = (*health)["port"].value<std::int64_t>())
+        {
+            if (*p < 0 || *p > 65535)
+                throw std::runtime_error("health.port out of range");
+            cfg.health_port = static_cast<std::uint16_t>(*p);
+        }
+    }
+    if (auto retry = tbl["retry"].as_table())
+    {
+        if (auto m = (*retry)["max_queue"].value<std::int64_t>())
+        {
+            if (*m < 0 || *m > 1'000'000)
+                throw std::runtime_error("retry.max_queue out of range (0..1000000)");
+            cfg.retry.max_queue = static_cast<std::size_t>(*m);
+        }
+        if (auto s = (*retry)["drain_interval_secs"].value<std::int64_t>())
+        {
+            if (*s < 1 || *s > 3600)
+                throw std::runtime_error("retry.drain_interval_secs out of range (1..3600)");
+            cfg.retry.drain_interval = std::chrono::seconds(*s);
+        }
+        if (auto b = (*retry)["drain_batch_size"].value<std::int64_t>())
+        {
+            if (*b < 1 || *b > 10'000)
+                throw std::runtime_error("retry.drain_batch_size out of range (1..10000)");
+            cfg.retry.drain_batch_size = static_cast<std::size_t>(*b);
+        }
+    }
+    spdlog::info("loaded config from '{}' — udp_port={} table='{}' db={} "
+                 "health={} retry_queue={}/{}s",
         path, cfg.port, cfg.target_table,
-        cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend);
+        cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend,
+        cfg.health_port, cfg.retry.max_queue,
+        static_cast<long long>(cfg.retry.drain_interval.count()));
     return cfg;
 }
 

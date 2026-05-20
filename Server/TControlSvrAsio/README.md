@@ -10,7 +10,35 @@ The plan, handler-by-handler, lives in
 [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](../../_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md).
 This README only covers what F1 ships and how to bring it up.
 
-## Status — F1 scaffold + F2 peer infra + F3 admin operations
+## Status — F1 → F5 complete + round-2 audit fixes applied
+
+Round-2 audit (2026-05-20) caught real wire-parity gaps and missing
+handlers that F1–F5 had overlooked. All findings are now closed
+except for the architectural SOCI-on-io_context concern (see
+"Known concerns" below); the wire matches legacy byte-for-byte and
+every previously-missing handler is wired in dispatch.
+
+### Round-2 fixes
+
+| Severity | Issue | Fix | Test |
+|---|---|---|---|
+| 🔴 Wire breaker | CHATBANLIST / EVENTLIST / CASHITEMLIST / PREVERSIONTABLE count was DWORD; legacy uses WORD | `senders.cpp` writes uint16 | `test_wire_parity` |
+| 🔴 Wire breaker | CHATBANLIST_ACK row order wrong | Reordered to legacy: id, target, created, minutes, reason, op | `test_wire_parity` |
+| 🔴 Truncated | CT_EVENTUPDATE_REQ shipped only `kind+value` | Appends full EventInfo via `event_codec::Write` | `test_wire_parity` |
+| 🟠 Missing | CT_ITEMFIND_REQ / CT_ITEMSTATE_REQ / CT_MONACTION_REQ / CT_SERVICEDATACLEAR_REQ / CT_PLATFORM_REQ | Wired in `handlers_extra.cpp` | `test_wire_parity` |
+| 🟠 Missing | CT_SERVICECHANGE_REQ (peer → control) | Wired in `RunPeerLoop` | smoke |
+| 🟠 Missing | 9 peer→operator ACK route-backs (ITEMFIND/STATE/MONSPAWNFIND/EVENTQUARTER*/TOURNAMENT/RPSGAME/CMGIFT*) | Wired in `RunPeerLoop` via `OnPeerAckRouteBack` and the two specialized strip-paths | smoke |
+| 🟠 Missing | Post-dial event push (`SendEventToNewConnect`) | Restored in `OnNewConnectReq` for Login/Map/World peers | smoke |
+
+### Production hardening (post-audit)
+
+| Component | Status | Notes |
+|---|---|---|
+| `LoginRateLimiter` on CT_OPLOGIN_REQ / CT_STLOGIN_REQ | ✅ | Token-bucket from `fourstory::ops`. Tripped peers receive the same generic reject ack as a wrong password — attackers can't distinguish rate-limit from invalid creds. Tunable via `[login_rate]` TOML (`burst=0` disables). |
+| `RegistryRefresher` for SOCI inventory | ✅ | Re-reads TMACHINE / TGROUP / TSVRTYPE / TSERVER / TIPADDR every `[inventory] refresh_seconds`; `PeerRegistry.Rebind` picks up new services + drops removed ones. 0 disables (legacy load-once behavior). |
+| `CT_SERVICEUPLOAD*` graceful stub | ✅ | Plan §6: returns `bRet=2` instead of dropping silently, so GUI shows an error tile. |
+| SOCI integration suite | ✅ | `test_soci_repositories` exercises all five SOCI repos; skips when no `TCONTROLSVR_TEST_{PG,MSSQL}_CONN` env var is set. |
+| `fourstory::db::CoOffload` thread-pool offload helper | ✅ | Header in `Lib/Own/FourStoryCommon/fourstory/db/co_offload.h`. Wraps a sync SOCI call in `co_await asio::post(pool, …)` + resumes on the original executor; exceptions propagate via the canonical `void(exception_ptr, R)` completion signature. Wired into CT_OPLOGIN_REQ / CT_STLOGIN_REQ / CT_USERPROTECTED_REQ as the hot-path proof-of-concept; other call sites opt in by writing `co_await fourstory::db::CoOffload(*ctx.db_pool, [&] { … })`. Worker pool size via `[database] worker_threads` (0 = legacy in-line behavior). |
 
 | Area | F1 | F2 | F3 | F4 | F5 | F6 |
 |------|----|----|----|----|----|----|
@@ -35,9 +63,50 @@ This README only covers what F1 ships and how to bring it up.
 | Chat-ban: N-wave aggregator + list + delete | | | ✅ | | | |
 | `IAdminAuditLogger` interface + spdlog impl (shared "audit" channel) | | | ✅ | | | |
 | `CT_MONSPAWNFIND_REQ` map broadcast | | | ✅ | | | |
-| Event scheduler + manager | | | | ✅ | | |
-| Patch metadata + castle + ops polish | | | | | ✅ | |
-| End-to-end legacy `TController.exe` smoke test | | | | | | ✅ |
+| `IEventRepository` + `EventRegistry` + overlap validation | | | | ✅ | | |
+| Event CRUD handlers (CHANGE / DEL / LIST / MSG / UPDATE) | | | | ✅ | | |
+| Cash-shop handlers (CASHITEMSALE / CASHSHOPSTOP / CASHITEMLIST) | | | | ✅ | | |
+| 1Hz `EventSchedulerLoop` — daily / term + alarms + auto-delete | | | | ✅ | | |
+| Raw passthrough forwarders (EVENTQUARTER / TOURNAMENT / HELP / RPS / CMGIFT) | | | | ✅ | | |
+| `IPatchMetadataService` + SOCI impl (TUpdateVersion / TBetaToVer / …) | | | | | ✅ | |
+| `CT_UPDATEPATCH_REQ` / `CT_PREVERSIONTABLE_REQ` / `CT_PREVERSIONUPDATE_REQ` | | | | | ✅ | |
+| Castle handlers (INFO / GUILDCHG / ENABLE) + peer-ack routing | | | | | ✅ | |
+| `IAlerter` (SOCI: `OPTool_SMSEmergency` / spdlog default) fired on offline peer | | | | | ✅ | |
+| Service-upload no-op stubs (`CT_SERVICEUPLOAD*`) | | | | | ⏸ | (intentional: legacy UNC-share anti-pattern) |
+| End-to-end legacy `TController.exe` smoke test | | | | | | ⏸ |
+
+## Handler coverage
+
+After round-2 fixes the dispatcher wires **63 / 65** legacy CT_* handlers.
+The two intentional skips are documented in
+`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md` §6 (CT_SERVICEUPLOAD* UNC
+file-share path) and are not in the legacy dispatch table either
+(`CT_INSTALLVERSION_*`, `CT_ACCOUNTINPUT_*`, `CT_SERVICECLOSE_*`,
+`CT_DISCONNECT_*`, `CT_LOCALGUILDCHANGE_*`, `CT_LOCALINIT_*` — dead
+code in legacy too).
+
+## Known concerns
+
+* **SOCI thread-pool offload is opt-in per call site.** The
+  `fourstory::db::CoOffload` helper bridges sync SOCI calls onto a
+  `boost::asio::thread_pool` worker so the io_context stays
+  responsive. CT_OPLOGIN_REQ / CT_STLOGIN_REQ / CT_USERPROTECTED_REQ
+  are wired through it (hot operator-facing DB paths). The remaining
+  SOCI call sites — `SociServiceInventory::Reload` (boot + 30s
+  refresher), `SociEventRepository::*`, `SociPatchMetadataService::*`,
+  `SociAlerter::Notify` — still execute in-line on the io_context.
+  For the control server's low DB rate (~10 operators, ~10 peers,
+  ~1Hz monitoring) that's acceptable, but production deploys with
+  high-latency DB links should opt them in by wrapping the call
+  sites with `co_await fourstory::db::CoOffload(*ctx.db_pool, …)`.
+  The helper is in `Lib/Own/FourStoryCommon/fourstory/db/co_offload.h`
+  and is reusable across every Asio server.
+* **PDH platform counters are not collected.** Per the
+  modernization plan §3.3, `CT_PLATFORM_REQ` is wire-preserved but
+  the peer-side data is expected to be zero-filled; operators
+  observe machine health via `/metrics` instead. The control-server
+  handler forwards whatever the peer sent — if the peer ships
+  zeros, the GUI's platform tile shows zeros.
 
 The 6-phase plan estimates 23 working days end-to-end.
 

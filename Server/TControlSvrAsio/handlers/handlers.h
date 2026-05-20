@@ -19,16 +19,23 @@
 #include "../operator_session.h"
 #include "../peer_session.h"
 #include "../services/admin_audit_logger.h"
+#include "../services/alerter.h"
 #include "../services/chat_ban_repository.h"
+#include "../services/event_registry.h"
+#include "../services/event_repository.h"
 #include "../services/operator_auth_service.h"
 #include "../services/operator_registry.h"
+#include "../services/patch_metadata_service.h"
 #include "../services/peer_registry.h"
 #include "../services/service_controller.h"
 #include "../services/service_inventory.h"
 #include "../services/user_protected_service.h"
 
+#include "fourstory/ops/rate_limiter.h"
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -52,7 +59,17 @@ struct HandlerContext
     IAdminAuditLogger*       audit        = nullptr;
     IUserProtectedService*   user_ban     = nullptr;
     ChatBanRepository*       chat_bans    = nullptr;
+    EventRegistry*           events       = nullptr;
+    IEventRepository*        event_repo   = nullptr;
+    IPatchMetadataService*   patch_meta   = nullptr;
+    IAlerter*                alerter      = nullptr;
+    fourstory::ops::LoginRateLimiter* login_rate = nullptr;
     boost::asio::io_context* io           = nullptr;
+    // Worker pool for synchronous SOCI calls. nullptr → handlers
+    // fall back to invoking the repos directly on the io_context
+    // thread (which blocks the reactor but works for low-rate
+    // workloads). Wired by main when [database] is configured.
+    boost::asio::thread_pool* db_pool     = nullptr;
 
     // Mirror of legacy CTControlSvrModule::m_bAutoStart — whether
     // the cluster scheduler auto-restarts a crashed daemon. Mutated
@@ -183,6 +200,196 @@ boost::asio::awaitable<void> OnChatBanListDelReq(
     const HandlerContext& ctx);
 
 boost::asio::awaitable<void> OnMonSpawnFindReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// --- F4: event manager ------------------------------------------------
+
+boost::asio::awaitable<void> OnEventListReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnEventChangeReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnEventDelReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnEventUpdateReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnEventMsgReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCashItemSaleReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCashShopStopReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCashItemListReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Generic forward — used by EVENTQUARTER*, TOURNAMENTEVENT,
+// HELPMESSAGE, RPSGAME*, CMGIFT* handlers that just shuttle the
+// packet to a peer World/Map of a given group + type.
+boost::asio::awaitable<void> ForwardRawToType(
+    std::shared_ptr<OperatorSession> op,
+    std::uint16_t wId,
+    std::vector<std::byte> body,
+    std::uint8_t target_type,
+    bool single_target,
+    const HandlerContext& ctx);
+
+// --- F5: patch metadata + castle ----------------------------------
+
+boost::asio::awaitable<void> OnUpdatePatchReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPreVersionTableReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPreVersionUpdateReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCastleInfoReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCastleGuildChgReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnCastleEnableReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Castle / item / monspawn ACKs forwarded from a peer back to the
+// originating operator. Each body starts with DWORD manager_id —
+// the rest of the body is repacked verbatim onto the operator
+// session.
+boost::asio::awaitable<void> OnPeerCastleInfoAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+boost::asio::awaitable<void> OnPeerCastleGuildChgAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// --- Round-2 audit: item / mon / platform / service-data-clear /
+// service-change inbound from peer + missing operator-side handlers.
+
+boost::asio::awaitable<void> OnItemFindReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnItemStateReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnMonActionReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPlatformReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnServiceDataClearReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Peer inbound — CT_SERVICECHANGE_REQ from a peer broadcasts the
+// new status to every operator + optionally fires the SMS alerter.
+boost::asio::awaitable<void> OnPeerServiceChangeReq(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Peer inbound — strip the manager_id prefix and forward the rest
+// of the body verbatim to the operator. Covers ITEMFIND_ACK,
+// ITEMSTATE_ACK, MONSPAWNFIND_ACK, EVENTQUARTERLIST_ACK,
+// EVENTQUARTERUPDATE_ACK, TOURNAMENTEVENT_ACK, RPSGAMEDATA_ACK,
+// CMGIFT_ACK, CMGIFTLIST_ACK. Each has its own dispatch entry but
+// they share the same body shape.
+boost::asio::awaitable<void> OnPeerAckRouteBack(
+    std::shared_ptr<PeerSession> peer,
+    std::uint16_t out_id,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// CT_ITEMFIND_ACK is special: peer sends { WORD count, DWORD
+// manager_id, items }; the operator wants { WORD count, items }
+// — manager_id is stripped from the middle, not the head.
+boost::asio::awaitable<void> OnPeerItemFindAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// CT_MONSPAWNFIND_ACK is special: peer sends { DWORD manager_id,
+// WORD map_id, WORD spawn_id, BYTE count, [items] }; operator
+// wants { WORD map_id, WORD spawn_id, BYTE count, [items] }.
+boost::asio::awaitable<void> OnPeerMonSpawnFindAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// CT_CASHITEMSALE_ACK — peer acknowledges a cash-sale state
+// change. Legacy is observer-only (just verifies wValue and noops).
+boost::asio::awaitable<void> OnPeerCashItemSaleAck(
+    std::shared_ptr<PeerSession> peer,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// CT_SERVICEUPLOAD* — operator wants to push a binary onto a peer
+// machine via UNC share. Intentionally not implemented (see
+// _rewrite/docs/CONTROL_SERVER_PORT_PLAN.md §6 — UNC-share
+// fileshare is Windows-only + a security anti-pattern, replaced
+// by CI/CD pipelines). The handler replies with the legacy
+// failure code so the GUI shows an error instead of dropping the
+// packet silently.
+boost::asio::awaitable<void> OnServiceUploadStartReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnServiceUploadReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnServiceUploadEndReq(
     std::shared_ptr<OperatorSession> op,
     std::vector<std::byte> body,
     const HandlerContext& ctx);

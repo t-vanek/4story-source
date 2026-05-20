@@ -59,6 +59,30 @@ AppConfig LoadConfig(const std::string& path)
         if (auto a = (*srv)["auto_start"].value<std::int64_t>())
             cfg.auto_start = Byte(*a, "server.auto_start");
     }
+    if (auto rl = tbl["login_rate"].as_table())
+    {
+        if (auto v = (*rl)["burst"].value<std::int64_t>())
+        {
+            if (*v < 0 || *v > 0xFFFFFFFFLL)
+                throw std::runtime_error("login_rate.burst out of range");
+            cfg.login_rate_burst = static_cast<std::uint32_t>(*v);
+        }
+        if (auto v = (*rl)["refill_seconds"].value<std::int64_t>())
+        {
+            if (*v < 0 || *v > 0xFFFFFFFFLL)
+                throw std::runtime_error("login_rate.refill_seconds out of range");
+            cfg.login_rate_refill_seconds = static_cast<std::uint32_t>(*v);
+        }
+    }
+    if (auto inv = tbl["inventory"].as_table())
+    {
+        if (auto v = (*inv)["refresh_seconds"].value<std::int64_t>())
+        {
+            if (*v < 0 || *v > 0xFFFFFFFFLL)
+                throw std::runtime_error("inventory.refresh_seconds out of range");
+            cfg.inventory_refresh_seconds = static_cast<std::uint32_t>(*v);
+        }
+    }
     if (auto db = tbl["database"].as_table())
     {
         if (auto b = (*db)["backend"].value<std::string>())
@@ -70,6 +94,12 @@ AppConfig LoadConfig(const std::string& path)
             if (*s < 1 || *s > 256)
                 throw std::runtime_error("database.pool_size out of range");
             cfg.database.pool_size = static_cast<std::size_t>(*s);
+        }
+        if (auto s = (*db)["worker_threads"].value<std::int64_t>())
+        {
+            if (*s < 0 || *s > 256)
+                throw std::runtime_error("database.worker_threads out of range");
+            cfg.database.worker_threads = static_cast<std::size_t>(*s);
         }
     }
     if (auto h = tbl["health"].as_table())

@@ -22,6 +22,8 @@
 #include "../services/fake_service_inventory.h"
 #include "../handlers/handlers.h"
 
+#include "fourstory/ops/rate_limiter.h"
+
 #include "MessageId.h"
 
 #include <boost/asio/buffer.hpp>
@@ -177,6 +179,61 @@ void TestWireRoundTrip()
     t.join();
 }
 
+void TestLoginRateLimiterRejects()
+{
+    // burst=2 + refill_interval=1h → the third attempt within the
+    // hour gets rate-limited regardless of credentials. Verifies
+    // the throttle short-circuits before the auth service runs.
+    boost::asio::io_context io;
+    FakeOperatorAuthService auth;
+    auth.AddOperator("gm_alpha", "secret", 3);
+    FakeServiceInventory inv;
+
+    fourstory::ops::RateLimitConfig rl{};
+    rl.burst           = 2;
+    rl.refill_interval = std::chrono::seconds(3600);
+    fourstory::ops::LoginRateLimiter limiter(rl);
+
+    ControlServerConfig svr_cfg{};
+    svr_cfg.port       = 0;
+    svr_cfg.auth       = &auth;
+    svr_cfg.inventory  = &inv;
+    svr_cfg.login_rate = &limiter;
+    ControlServer server(io, svr_cfg);
+    boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
+    std::thread t([&io] { io.run(); });
+
+    boost::asio::io_context client_io;
+    boost::asio::ip::tcp::socket sock(client_io);
+    sock.connect({boost::asio::ip::make_address_v4("127.0.0.1"),
+                  server.Port()});
+
+    // Attempt 1: bad credentials, consumes one token, returns 1.
+    SendFramed(sock, ToUint16(MessageId::CT_OPLOGIN_REQ),
+               BuildOpLoginBody("nobody", "wrong"));
+    auto a1 = RecvFramed(sock);
+    EXPECT(a1.wId == ToUint16(MessageId::CT_OPLOGIN_ACK));
+    EXPECT(static_cast<std::uint8_t>(a1.body[0]) == 1);
+
+    // Attempt 2: still has a token, returns 1 again.
+    SendFramed(sock, ToUint16(MessageId::CT_OPLOGIN_REQ),
+               BuildOpLoginBody("nobody", "wrong"));
+    auto a2 = RecvFramed(sock);
+    EXPECT(static_cast<std::uint8_t>(a2.body[0]) == 1);
+
+    // Attempt 3: bucket depleted, even valid credentials are
+    // rejected with the same generic ack so an attacker cannot
+    // distinguish rate-limit from invalid creds.
+    SendFramed(sock, ToUint16(MessageId::CT_OPLOGIN_REQ),
+               BuildOpLoginBody("gm_alpha", "secret"));
+    auto a3 = RecvFramed(sock);
+    EXPECT(static_cast<std::uint8_t>(a3.body[0]) == 1);
+
+    sock.close();
+    io.stop();
+    t.join();
+}
+
 void TestAuthorityOneLoopbackGate()
 {
     // CI hosts always see 127.0.0.1 on the wire test, which means the
@@ -206,6 +263,7 @@ void TestAuthorityOneLoopbackGate()
 int main()
 {
     TestWireRoundTrip();
+    TestLoginRateLimiterRejects();
     TestAuthorityOneLoopbackGate();
     if (g_fails)
     {

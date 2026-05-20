@@ -2,7 +2,10 @@
 
 #include "../senders.h"
 #include "../wire_codec.h"
+#include "../services/svr_type.h"
 #include "MessageId.h"
+
+#include "fourstory/db/co_offload.h"
 
 #include <spdlog/spdlog.h>
 
@@ -41,6 +44,17 @@ OnOpLoginReq(std::shared_ptr<OperatorSession> op,
     const auto& remote_ip = op->Wire()->RemoteIPv4();
     spdlog::info("CT_OPLOGIN_REQ id='{}' ip={}", user_id, remote_ip);
 
+    // Brute-force throttle on the IP. Token bucket; tripped peers
+    // get the same generic-reject ack as a wrong password so
+    // attackers can't distinguish "rate-limited" from "invalid".
+    if (ctx.login_rate && !ctx.login_rate->Allow(remote_ip))
+    {
+        spdlog::warn("CT_OPLOGIN_REQ id='{}' ip={} rate-limited", user_id,
+            remote_ip);
+        co_await senders::SendOpLoginAck(op->Wire(), 1, 0, 0);
+        co_return;
+    }
+
     if (!ctx.auth)
     {
         // No auth service wired — reject loudly.
@@ -49,7 +63,23 @@ OnOpLoginReq(std::shared_ptr<OperatorSession> op,
         co_return;
     }
 
-    auto result = ctx.auth->Authenticate(user_id, password);
+    // SOCI auth blocks until the SP returns. If a db_pool is wired
+    // (production path), offload the call to a worker thread so the
+    // io_context stays responsive for other operators + peer
+    // monitoring. Without a pool (test / fake-auth path) we just
+    // run inline.
+    OperatorAuthResult result;
+    if (ctx.db_pool)
+    {
+        result = co_await fourstory::db::CoOffload(*ctx.db_pool,
+            [&ctx, &user_id, &password] {
+                return ctx.auth->Authenticate(user_id, password);
+            });
+    }
+    else
+    {
+        result = ctx.auth->Authenticate(user_id, password);
+    }
     if (!result.ok || !AuthorityOneFromLoopback(result, remote_ip))
     {
         spdlog::info("CT_OPLOGIN_REQ id='{}' rejected", user_id);
@@ -110,13 +140,32 @@ OnStLoginReq(std::shared_ptr<OperatorSession> op,
         op->Wire()->Close();
         co_return;
     }
-    spdlog::info("CT_STLOGIN_REQ id='{}' ip={}", user_id, op->Wire()->RemoteIPv4());
+    const auto& st_remote_ip = op->Wire()->RemoteIPv4();
+    spdlog::info("CT_STLOGIN_REQ id='{}' ip={}", user_id, st_remote_ip);
+    if (ctx.login_rate && !ctx.login_rate->Allow(st_remote_ip))
+    {
+        spdlog::warn("CT_STLOGIN_REQ id='{}' ip={} rate-limited",
+            user_id, st_remote_ip);
+        co_await senders::SendStLoginAck(op->Wire(), 1, 0);
+        co_return;
+    }
     if (!ctx.auth)
     {
         co_await senders::SendStLoginAck(op->Wire(), 1, 0);
         co_return;
     }
-    auto result = ctx.auth->Authenticate(user_id, password);
+    OperatorAuthResult result;
+    if (ctx.db_pool)
+    {
+        result = co_await fourstory::db::CoOffload(*ctx.db_pool,
+            [&ctx, &user_id, &password] {
+                return ctx.auth->Authenticate(user_id, password);
+            });
+    }
+    else
+    {
+        result = ctx.auth->Authenticate(user_id, password);
+    }
     if (!result.ok)
     {
         co_await senders::SendStLoginAck(op->Wire(), 1, 0);
@@ -221,6 +270,113 @@ Dispatch(std::shared_ptr<OperatorSession> op,
         break;
     case MessageId::CT_MONSPAWNFIND_REQ:
         co_await OnMonSpawnFindReq(std::move(op), std::move(body), ctx);
+        break;
+
+    // --- F4: event manager ---------------------------------------
+    case MessageId::CT_EVENTLIST_REQ:
+        co_await OnEventListReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_EVENTCHANGE_REQ:
+        co_await OnEventChangeReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_EVENTDEL_REQ:
+        co_await OnEventDelReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_EVENTUPDATE_REQ:
+        co_await OnEventUpdateReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_EVENTMSG_REQ:
+        co_await OnEventMsgReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASHITEMSALE_REQ:
+        co_await OnCashItemSaleReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASHSHOPSTOP_REQ:
+        co_await OnCashShopStopReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASHITEMLIST_REQ:
+        co_await OnCashItemListReq(std::move(op), std::move(body), ctx);
+        break;
+
+    // F4 raw passthrough forwarders — quartal events, tournament,
+    // help message, RPS game, CM gift. Each routes to a single
+    // World server in the targeted group (legacy parity).
+    case MessageId::CT_EVENTQUARTERLIST_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/true, ctx);
+        break;
+    case MessageId::CT_EVENTQUARTERUPDATE_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+    case MessageId::CT_TOURNAMENTEVENT_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+    case MessageId::CT_HELPMESSAGE_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+    case MessageId::CT_RPSGAMEDATA_REQ:
+    case MessageId::CT_RPSGAMECHANGE_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+    case MessageId::CT_CMGIFT_REQ:
+    case MessageId::CT_CMGIFTLIST_REQ:
+    case MessageId::CT_CMGIFTCHARTUPDATE_REQ:
+        co_await ForwardRawToType(std::move(op), wId, std::move(body),
+            svr_type::kWorldSvr, /*single_target=*/false, ctx);
+        break;
+
+    // --- F5: patch metadata + castle ----------------------------
+    case MessageId::CT_UPDATEPATCH_REQ:
+        co_await OnUpdatePatchReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PREVERSIONTABLE_REQ:
+        co_await OnPreVersionTableReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PREVERSIONUPDATE_REQ:
+        co_await OnPreVersionUpdateReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASTLEINFO_REQ:
+        co_await OnCastleInfoReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASTLEGUILDCHG_REQ:
+        co_await OnCastleGuildChgReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_CASTLEENABLE_REQ:
+        co_await OnCastleEnableReq(std::move(op), std::move(body), ctx);
+        break;
+
+    // --- Round-2 audit: missing operator-side handlers -----------
+    case MessageId::CT_ITEMFIND_REQ:
+        co_await OnItemFindReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_ITEMSTATE_REQ:
+        co_await OnItemStateReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_MONACTION_REQ:
+        co_await OnMonActionReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICEDATACLEAR_REQ:
+        co_await OnServiceDataClearReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PLATFORM_REQ:
+        co_await OnPlatformReq(std::move(op), std::move(body), ctx);
+        break;
+
+    // Disabled-feature stubs (CT_SERVICEUPLOAD* — UNC-share upload
+    // path, plan §6 out-of-scope). The GUI gets an explicit failure
+    // ack instead of a silent drop.
+    case MessageId::CT_SERVICEUPLOADSTART_REQ:
+        co_await OnServiceUploadStartReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICEUPLOAD_REQ:
+        co_await OnServiceUploadReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICEUPLOADEND_REQ:
+        co_await OnServiceUploadEndReq(std::move(op), std::move(body), ctx);
         break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap

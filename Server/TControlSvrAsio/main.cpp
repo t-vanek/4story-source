@@ -5,30 +5,44 @@
 
 #include "config.h"
 #include "control_server.h"
+#include "event_scheduler.h"
 #include "peer_dialer.h"
 #include "db/schema_validator.h"
+#include "services/alerter.h"
 #include "services/chat_ban_repository.h"
 #include "services/disabled_service_controller.h"
+#include "services/event_registry.h"
+#include "services/event_repository.h"
+#include "services/fake_event_repository.h"
 #include "services/fake_operator_auth_service.h"
+#include "services/fake_patch_metadata_service.h"
 #include "services/fake_service_inventory.h"
 #include "services/fake_user_protected_service.h"
 #include "services/operator_auth_service.h"
+#include "services/patch_metadata_service.h"
 #include "services/peer_registry.h"
 #include "services/service_inventory.h"
+#include "services/soci_alerter.h"
+#include "services/soci_event_repository.h"
 #include "services/soci_operator_auth_service.h"
+#include "services/soci_patch_metadata_service.h"
 #include "services/soci_service_inventory.h"
 #include "services/soci_user_protected_service.h"
 #include "services/spdlog_admin_audit_logger.h"
+#include "services/spdlog_alerter.h"
 #include "services/user_protected_service.h"
 
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/admin_shell.h"
 #include "fourstory/ops/health_endpoint.h"
+#include "fourstory/ops/rate_limiter.h"
+#include "fourstory/ops/registry_refresher.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -90,9 +104,13 @@ int main(int argc, char** argv)
         // is present. Fall back to the in-memory fakes otherwise (F1
         // bring-up path).
         std::unique_ptr<fourstory::db::SessionPool>           pool;
+        std::unique_ptr<boost::asio::thread_pool>             db_pool;
         std::unique_ptr<tcontrolsvr::IOperatorAuthService>    auth;
         std::unique_ptr<tcontrolsvr::IServiceInventory>       inventory_ptr;
         std::unique_ptr<tcontrolsvr::IUserProtectedService>   user_ban;
+        std::unique_ptr<tcontrolsvr::IEventRepository>        event_repo;
+        std::unique_ptr<tcontrolsvr::IPatchMetadataService>   patch_meta;
+        std::unique_ptr<tcontrolsvr::IAlerter>                alerter;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -103,6 +121,24 @@ int main(int argc, char** argv)
                 fourstory::db::ParseBackend(cfg.database.backend);
             pool = std::make_unique<fourstory::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
+
+            // Worker pool for synchronous SOCI calls. Sized off
+            // cfg.database.worker_threads; 0 disables (legacy
+            // F1–F5 behavior of running SOCI in-line on the
+            // io_context). Production deploys with non-trivial DB
+            // latency should keep this at 2+.
+            if (cfg.database.worker_threads > 0)
+            {
+                db_pool = std::make_unique<boost::asio::thread_pool>(
+                    cfg.database.worker_threads);
+                spdlog::info("db worker pool: {} threads",
+                    cfg.database.worker_threads);
+            }
+            else
+            {
+                spdlog::info("db worker pool: disabled "
+                             "(SOCI calls run on io_context thread)");
+            }
 
             // Fail-fast on missing inventory tables before we accept
             // operator traffic. Optional tables (TEVENTCHART etc.)
@@ -116,6 +152,15 @@ int main(int argc, char** argv)
             auth = std::make_unique<tcontrolsvr::SociOperatorAuthService>(*pool);
             user_ban =
                 std::make_unique<tcontrolsvr::SociUserProtectedService>(*pool);
+            event_repo =
+                std::make_unique<tcontrolsvr::SociEventRepository>(*pool);
+            patch_meta =
+                std::make_unique<tcontrolsvr::SociPatchMetadataService>(*pool);
+            // F5: SMS alerter via OPTool_SMSEmergency. Wired only
+            // when the DB is configured — otherwise the spdlog
+            // default catches the offline-peer event in logs.
+            alerter =
+                std::make_unique<tcontrolsvr::SociAlerter>(*pool);
             spdlog::info("auth + inventory: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
         }
@@ -138,16 +183,41 @@ int main(int argc, char** argv)
                 fake_inv->AddType({t.id, 0, t.name});
             inventory_ptr = std::move(fake_inv);
             user_ban = std::make_unique<tcontrolsvr::FakeUserProtectedService>();
+            event_repo = std::make_unique<tcontrolsvr::FakeEventRepository>();
+            patch_meta = std::make_unique<tcontrolsvr::FakePatchMetadataService>();
         }
+        if (!alerter)
+            alerter = std::make_unique<tcontrolsvr::SpdlogAlerter>();
 
-        // --- Admin audit + chat-ban registry -----------------------
+        // --- Admin audit + chat-ban registry + event registry -----
         tcontrolsvr::SpdlogAdminAuditLogger audit;
         tcontrolsvr::ChatBanRepository      chat_bans;
+        tcontrolsvr::EventRegistry          events;
+        if (event_repo) events.LoadFrom(event_repo->LoadAll());
+        spdlog::info("event_registry: loaded {} events", events.Size());
 
         // --- Peer infra --------------------------------------------
         tcontrolsvr::PeerRegistry peers(*inventory_ptr);
         auto controller = MakeServiceController();
         tcontrolsvr::PeerDialer dialer(io, peers, *inventory_ptr);
+
+        // Per-IP login throttle. burst=0 disables.
+        std::unique_ptr<fourstory::ops::LoginRateLimiter> login_rate;
+        if (cfg.login_rate_burst > 0)
+        {
+            fourstory::ops::RateLimitConfig rl{};
+            rl.burst           = cfg.login_rate_burst;
+            rl.refill_interval = std::chrono::seconds(
+                cfg.login_rate_refill_seconds);
+            login_rate =
+                std::make_unique<fourstory::ops::LoginRateLimiter>(rl);
+            spdlog::info("login rate limit: burst={} refill={}s",
+                cfg.login_rate_burst, cfg.login_rate_refill_seconds);
+        }
+        else
+        {
+            spdlog::info("login rate limit: disabled");
+        }
 
         // --- Server ------------------------------------------------
         tcontrolsvr::ControlServerConfig svr_cfg{};
@@ -160,6 +230,12 @@ int main(int argc, char** argv)
         svr_cfg.audit      = &audit;
         svr_cfg.user_ban   = user_ban.get();
         svr_cfg.chat_bans  = &chat_bans;
+        svr_cfg.events     = &events;
+        svr_cfg.event_repo = event_repo.get();
+        svr_cfg.patch_meta = patch_meta.get();
+        svr_cfg.alerter    = alerter.get();
+        svr_cfg.login_rate = login_rate.get();
+        svr_cfg.db_pool    = db_pool.get();
         svr_cfg.auto_start = cfg.auto_start;
         tcontrolsvr::ControlServer server(io, svr_cfg);
         spdlog::info("control server listening on 0.0.0.0:{}", server.Port());
@@ -169,6 +245,44 @@ int main(int argc, char** argv)
         boost::asio::co_spawn(io,
             server.PeerKeepaliveLoop(),
             boost::asio::detached);
+
+        // 1Hz event scheduler — daily / term events, alarms,
+        // auto-delete for one-shot lottery / gifttime kinds.
+        tcontrolsvr::EventSchedulerLoop event_loop(io, events, peers,
+            event_repo.get());
+        boost::asio::co_spawn(io, event_loop.Run(),
+            boost::asio::detached);
+
+        // Optional inventory refresher: re-reads TMACHINE / TGROUP /
+        // TSVRTYPE / TSERVER / TIPADDR every N seconds so the
+        // operator GUI sees topology edits without a daemon restart.
+        // Only wired when SOCI is configured *and* the period is
+        // > 0; the SOCI snapshot is the source of truth, so rebinding
+        // PeerRegistry afterwards picks up new services + drops
+        // removed ones.
+        std::shared_ptr<fourstory::ops::RegistryRefresher> refresher;
+        if (auto* soci_inv =
+                dynamic_cast<tcontrolsvr::SociServiceInventory*>(
+                    inventory_ptr.get());
+            soci_inv != nullptr && cfg.inventory_refresh_seconds > 0)
+        {
+            refresher = fourstory::ops::RegistryRefresher::Make(io,
+                std::chrono::seconds(cfg.inventory_refresh_seconds));
+            refresher->AddHook([soci_inv, &peers] {
+                try
+                {
+                    soci_inv->Reload();
+                    peers.Rebind(*soci_inv);
+                }
+                catch (const std::exception& ex)
+                {
+                    spdlog::warn("inventory refresh failed: {}", ex.what());
+                }
+            });
+            refresher->Start();
+            spdlog::info("inventory refresher: every {}s",
+                cfg.inventory_refresh_seconds);
+        }
 
         std::unique_ptr<fourstory::ops::HealthEndpoint> health;
         if (cfg.health_port != 0)
@@ -211,6 +325,15 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        // Graceful shutdown of the worker pool: wait for any
+        // in-flight SOCI call to finish before returning so a SOCI
+        // session lease isn't dropped mid-query.
+        if (db_pool)
+        {
+            db_pool->stop();
+            db_pool->join();
+        }
     }
     catch (const std::exception& ex)
     {

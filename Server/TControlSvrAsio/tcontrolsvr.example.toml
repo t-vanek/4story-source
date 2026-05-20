@@ -10,13 +10,18 @@
 port       = 12000   # operator + peer TCP listener
 auto_start = 0       # initial value of the auto-restart flag
 
-# Uncomment when F2 lands and you want the SOCI inventory loader
-# wired in. Until then the database string is ignored (the binary
-# logs a warning at startup).
+# When [database] is set the SOCI repos load the inventory + auth
+# from TGLOBAL_RAGEZONE instead of from the in-memory fakes below.
+# `worker_threads` controls a boost::asio::thread_pool that handlers
+# offload SOCI calls onto via `fourstory::db::CoOffload` — keeps
+# the io_context responsive for other operators + the 1Hz peer
+# monitor while a DB query is in flight. Set worker_threads=0 to
+# run SOCI in-line on the io_context (legacy F1–F5 behavior).
 # [database]
 # backend           = "mssql"
 # connection_string = "DSN=4story;UID=sa;PWD=…"
 # pool_size         = 4
+# worker_threads    = 2
 
 [health]
 port = 18086
@@ -24,6 +29,21 @@ port = 18086
 [admin]
 bind = "127.0.0.1"
 port = 18186
+
+# Per-IP rate limit on CT_OPLOGIN_REQ / CT_STLOGIN_REQ. Token bucket
+# — `burst` attempts allowed in quick succession, then one refill
+# every `refill_seconds`. Defensive hardening against credential-
+# stuffing from a single peer. Set burst=0 to disable.
+[login_rate]
+burst          = 5
+refill_seconds = 10
+
+# Live inventory refresh — re-reads TMACHINE / TGROUP / TSVRTYPE /
+# TSERVER / TIPADDR every N seconds so topology edits flow into the
+# operator GUI without a daemon restart. Only meaningful when
+# [database] is configured. 0 = load once at boot (legacy behavior).
+[inventory]
+refresh_seconds = 30
 
 [log]
 level = "info"

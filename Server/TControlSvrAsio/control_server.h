@@ -10,15 +10,22 @@
 #include "peer_session.h"
 #include "handlers/handlers.h"
 #include "services/admin_audit_logger.h"
+#include "services/alerter.h"
 #include "services/chat_ban_repository.h"
+#include "services/event_registry.h"
+#include "services/event_repository.h"
 #include "services/operator_registry.h"
+#include "services/patch_metadata_service.h"
 #include "services/peer_registry.h"
 #include "services/service_controller.h"
 #include "services/user_protected_service.h"
 
+#include "fourstory/ops/rate_limiter.h"
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -38,6 +45,14 @@ struct ControlServerConfig
     IAdminAuditLogger*     audit       = nullptr;
     IUserProtectedService* user_ban    = nullptr;
     ChatBanRepository*     chat_bans   = nullptr;
+    EventRegistry*         events      = nullptr;
+    IEventRepository*      event_repo  = nullptr;
+    IPatchMetadataService* patch_meta  = nullptr;
+    IAlerter*              alerter     = nullptr;
+    fourstory::ops::LoginRateLimiter* login_rate = nullptr;
+    // Worker pool for synchronous SOCI calls. nullptr → fall back
+    // to in-line execution on the io_context thread.
+    boost::asio::thread_pool* db_pool = nullptr;
     std::uint8_t           auto_start  = 0;
 };
 

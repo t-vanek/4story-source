@@ -10,6 +10,7 @@
 set(FOURSTORY_COMMON_HEADERS
     fourstory/db/session_pool.h
     fourstory/db/schema_validator.h
+    fourstory/db/co_offload.h
     fourstory/audit/audit_logger.h
     fourstory/audit/spdlog_audit_logger.h
     fourstory/audit/udp_audit_logger.h

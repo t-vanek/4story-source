@@ -94,7 +94,8 @@ Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
 │   ├── TLogSvr/                    # legacy audit log collector (unmodified)
 │   ├── TLogSvrAsio/                # emulator audit UDP collector
 │   ├── TWorldSvr/                  # legacy world server (reference)
-│   └── TControlSvr/                # legacy control server (reference)
+│   ├── TControlSvr/                # legacy control server (reference, unmodified)
+│   └── TControlSvrAsio/            # emulator control / orchestration server
 ├── _rewrite/docs/                  # plan + analysis documents
 └── tools/                          # dev scripts
 ```
@@ -105,6 +106,7 @@ mapping, configuration schema, and bring-up notes:
 * [`Server/TLoginSvrAsio/README.md`](Server/TLoginSvrAsio/README.md)
 * [`Server/TPatchSvrAsio/README.md`](Server/TPatchSvrAsio/README.md)
 * [`Server/TLogSvrAsio/README.md`](Server/TLogSvrAsio/README.md)
+* [`Server/TControlSvrAsio/README.md`](Server/TControlSvrAsio/README.md)
 * [`Lib/Own/FourStoryCommon/README.md`](Lib/Own/FourStoryCommon/README.md)
 
 ## Build
@@ -123,9 +125,10 @@ and toml++ (≈30 min). Subsequent configures are incremental.
 
 Targets produced under `build/bin/Release/`:
 
-* `tloginsvr_asio.exe` — login + lobby + char flow
-* `tpatchsvr_asio.exe` — patch metadata
-* `tlogsvr_asio.exe`   — audit UDP collector
+* `tloginsvr_asio.exe`   — login + lobby + char flow
+* `tpatchsvr_asio.exe`   — patch metadata
+* `tlogsvr_asio.exe`     — audit UDP collector
+* `tcontrolsvr_asio.exe` — control / orchestration daemon
 
 ### Linux (GCC/Clang + distro packages)
 
@@ -177,10 +180,19 @@ ctest --test-dir build -C Release --output-on-failure
 
 Near-term (cluster edge):
 
-* **Control server (`TControlSvr` → `TControlSvrAsio`)** — port the
-  inter-server routing/orchestration daemon onto the shared
-  `FourStoryCommon` infra. Design captured in
-  `_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`.
+* **Control server (`TControlSvr` → `TControlSvrAsio`)** — **landed**
+  through phases F1–F5 of `_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`:
+  operator login, peer dial + monitoring, admin operations + audit,
+  event scheduler, patch metadata + castle. The legacy
+  `TController.exe` GUI client connects unchanged; the
+  `IServiceController` interface is wired with both a disabled-by-
+  default fallback and a Windows SCM impl (Linux build links the
+  SCM impl as a no-op stub). See
+  `Server/TControlSvrAsio/README.md` for the full status matrix.
+* **End-to-end legacy `TController.exe` smoke test** — open: stand
+  the modernized daemon up against a copy of `TGLOBAL_RAGEZONE` and
+  walk the GUI through login → service list → event manage to
+  confirm wire parity in a real bring-up.
 * **Operator tooling** — round out the admin shell (account lookup,
   ban/unban, session kick) and expose a minimal HTTP health/metrics
   endpoint so the cluster is observable without RDP.

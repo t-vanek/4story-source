@@ -42,6 +42,13 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_map.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_world.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_combat.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_items.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_chat.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_npc.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_party.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_quest.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_inventory_service.cpp
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp
@@ -202,6 +209,123 @@ target_link_libraries(test_tmapsvr_asio_dm_loadchar_req_spec PRIVATE
 add_test(NAME tmapsvr_asio_dm_loadchar_req_spec
     COMMAND test_tmapsvr_asio_dm_loadchar_req_spec)
 fourstory_deploy_ossl_legacy(test_tmapsvr_asio_dm_loadchar_req_spec)
+
+# F5 Part 2 — LocalLootRegistry spec (pure-unit).
+add_executable(test_tmapsvr_asio_loot_registry_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_loot_registry_spec.cpp)
+target_include_directories(test_tmapsvr_asio_loot_registry_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_loot_registry_spec
+    COMMAND test_tmapsvr_asio_loot_registry_spec)
+
+# F7 — LocalQuestEngine spec (pure-unit).
+add_executable(test_tmapsvr_asio_quest_engine_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_quest_engine_spec.cpp)
+target_include_directories(test_tmapsvr_asio_quest_engine_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_quest_engine_spec
+    COMMAND test_tmapsvr_asio_quest_engine_spec)
+
+# F6 Part 2 — NpcService spec (pure-unit).
+add_executable(test_tmapsvr_asio_npc_service_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_npc_service_spec.cpp)
+target_include_directories(test_tmapsvr_asio_npc_service_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_npc_service_spec
+    COMMAND test_tmapsvr_asio_npc_service_spec)
+
+# F6 Part 2 — PartyService spec (pure-unit).
+add_executable(test_tmapsvr_asio_party_service_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_party_service_spec.cpp)
+target_include_directories(test_tmapsvr_asio_party_service_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_party_service_spec
+    COMMAND test_tmapsvr_asio_party_service_spec)
+
+# F6 Part 1 — CS_CHAT_REQ spec.
+add_executable(test_tmapsvr_asio_cs_chat_req_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_cs_chat_req_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_cs_chat_req_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_cs_chat_req_spec
+    COMMAND test_tmapsvr_asio_cs_chat_req_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_cs_chat_req_spec)
+
+# F5 — FakeInventoryService spec (pure-unit).
+add_executable(test_tmapsvr_asio_inventory_service_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_inventory_service_spec.cpp)
+target_include_directories(test_tmapsvr_asio_inventory_service_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_inventory_service_spec
+    COMMAND test_tmapsvr_asio_inventory_service_spec)
+
+# F4 Part 4 — CS_REVIVAL_REQ characterization spec.
+add_executable(test_tmapsvr_asio_cs_revival_req_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_cs_revival_req_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_cs_revival_req_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_cs_revival_req_spec
+    COMMAND test_tmapsvr_asio_cs_revival_req_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_cs_revival_req_spec)
+
+# F4 Part 3 — LocalPlayerHpRegistry spec (pure-unit).
+add_executable(test_tmapsvr_asio_player_hp_registry_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_player_hp_registry_spec.cpp)
+target_include_directories(test_tmapsvr_asio_player_hp_registry_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_player_hp_registry_spec
+    COMMAND test_tmapsvr_asio_player_hp_registry_spec)
+
+# F4 Part 3 — CS_DEFEND_REQ characterization spec.
+add_executable(test_tmapsvr_asio_cs_defend_req_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_cs_defend_req_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_cs_defend_req_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_cs_defend_req_spec
+    COMMAND test_tmapsvr_asio_cs_defend_req_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_cs_defend_req_spec)
+
+# F4b — HardcodedLevelChart spec (pure-unit, no Asio).
+add_executable(test_tmapsvr_asio_level_chart_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_level_chart_spec.cpp)
+target_include_directories(test_tmapsvr_asio_level_chart_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_level_chart_spec
+    COMMAND test_tmapsvr_asio_level_chart_spec)
+
+# F4b — LocalSpawnManager spec (needs io_context).
+add_executable(test_tmapsvr_asio_spawn_manager_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_spawn_manager_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_spawn_manager_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_spawn_manager_spec
+    COMMAND test_tmapsvr_asio_spawn_manager_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_spawn_manager_spec)
+
+# F4 — LocalMonsterRegistry spec (pure-unit).
+add_executable(test_tmapsvr_asio_monster_state_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_monster_state_spec.cpp)
+target_include_directories(test_tmapsvr_asio_monster_state_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_monster_state_spec
+    COMMAND test_tmapsvr_asio_monster_state_spec)
+
+# F4 — CS_ACTION_REQ characterization spec.
+add_executable(test_tmapsvr_asio_cs_action_req_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_cs_action_req_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_cs_action_req_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_cs_action_req_spec
+    COMMAND test_tmapsvr_asio_cs_action_req_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_cs_action_req_spec)
 
 # F3 — CS_MOVE_REQ characterization spec (pure-unit, no wire sockets).
 add_executable(test_tmapsvr_asio_cs_move_req_spec

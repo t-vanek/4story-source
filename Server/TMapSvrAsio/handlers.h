@@ -22,6 +22,14 @@
 #include "services/world_client.h"
 #include "services/session_registry.h"
 #include "map_state.h"
+#include "monster_state.h"
+#include "level_chart.h"
+#include "player_hp_registry.h"
+#include "inventory_service.h"
+#include "loot_registry.h"
+#include "npc_service.h"
+#include "party_service.h"
+#include "quest_engine.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -80,6 +88,33 @@ struct HandlerContext
     // OnConReadyReq look up neighbour sessions to send CS_ENTER_ACK
     // and CS_MOVE_ACK. Null = log only (no actual sends).
     ISessionRegistry*                 session_registry  = nullptr;
+
+    // F4: live monster registry.
+    IMonsterRegistry*                 monster_registry  = nullptr;
+
+    // F4: level chart for HP/exp/damage formulas.
+    ILevelChart*                      level_chart       = nullptr;
+
+    // F4: spawn manager — receives OnMonsterDied for respawn scheduling.
+    class ISpawnManager*              spawn_manager     = nullptr;
+
+    // F4 Part 3: server-side player vitals for monster damage.
+    IPlayerHpRegistry*                player_hp         = nullptr;
+
+    // F5: live item inventory.
+    IInventoryService*                inventory_svc     = nullptr;
+
+    // F5 Part 2: monster loot store.
+    ILootRegistry*                    loot_registry     = nullptr;
+
+    // F6: NPC shop + dialogue data.
+    INpcService*                      npc_svc           = nullptr;
+
+    // F6: party state (standalone — no TWorldSvr).
+    IPartyService*                    party_svc         = nullptr;
+
+    // F7: quest engine.
+    IQuestEngine*                     quest_engine      = nullptr;
 };
 
 // Per-session state. F1 carries the player id assigned on
@@ -109,6 +144,11 @@ struct MapSessionState
     // F3: true after OnConReadyReq calls map_state->EnterMap.
     // Gates OnMoveReq and LeaveMap cleanup in HandleConnection.
     bool in_world = false;
+
+    // F4 Part 4: set when player_hp->ApplyHpDelta reduces HP to 0.
+    // Gates movement, attack, and skill use while dead. Cleared by
+    // OnRevivalReq after revival is broadcast.
+    bool is_dead = false;
 };
 
 // Top-level dispatch. Logs + drops unknown ids; future phases extend
@@ -151,6 +191,122 @@ boost::asio::awaitable<void> OnConReadyReq(
 // broadcasts CS_MOVE_ACK / CS_ENTER_ACK / CS_LEAVE_ACK via session_registry.
 // Source: CSHandler.cpp:439-485.
 boost::asio::awaitable<void> OnMoveReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F5: inventory slot move + equip/unequip. Broadcasts CS_EQUIP_ACK to AOI.
+// Source: CSHandler.cpp:1782.
+boost::asio::awaitable<void> OnMoveItemReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F5: consume an item (potion heal stub). Source: CSHandler.cpp:9092.
+boost::asio::awaitable<void> OnItemUseReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F5 Part 2: pick up item from monster loot.
+// Source: CSHandler.cpp:6874.
+boost::asio::awaitable<void> OnMonItemTakeReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: near/shout chat. Broadcasts CS_CHAT_ACK to AOI neighbours.
+// Source: CSHandler.cpp:5206.
+boost::asio::awaitable<void> OnChatReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: open NPC dialogue. Source: CSHandler.cpp:3506.
+boost::asio::awaitable<void> OnNpcTalkReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: NPC shop item list. Source: CSHandler.cpp:6192.
+boost::asio::awaitable<void> OnNpcItemListReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: buy item from NPC shop. Source: CSHandler.cpp:6247.
+boost::asio::awaitable<void> OnItemBuyReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: invite player to party. Source: CSHandler.cpp:3419.
+boost::asio::awaitable<void> OnPartyAddReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: accept party invite. Source: CSHandler.cpp:3451.
+boost::asio::awaitable<void> OnPartyJoinReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F7: accept (exec) a quest from NPC. Source: CSHandler.cpp:3535.
+boost::asio::awaitable<void> OnQuestExecReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F7: abandon an active quest. Source: CSHandler.cpp:3590.
+boost::asio::awaitable<void> OnQuestDropReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F4 Part 4: client requests revival after death.
+// Parses pos + revival type, restores HP, broadcasts CS_REVIVAL_ACK.
+// Source: CSHandler.cpp:1067.
+boost::asio::awaitable<void> OnRevivalReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F4 Part 3: client reports an incoming attack result.
+// Server validates, broadcasts CS_DEFEND_ACK + CS_HPMP_ACK.
+// Source: CSHandler.cpp:1485.
+boost::asio::awaitable<void> OnDefendReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F4: basic action (attack, use item on target, etc.).
+// CS_ACTION_ACK + CS_HPMP_ACK broadcast; damage calc stub.
+// Source: CSHandler.cpp:1248.
+boost::asio::awaitable<void> OnActionReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F4: skill cast. F4 Part 1 parses and logs only; full skill execution
+// (CS_SKILLUSE_ACK + CS_DEFEND_REQ) is F4 Part 2.
+// Source: CSHandler.cpp:2459.
+boost::asio::awaitable<void> OnSkillUseReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     MapSessionState&                     state,
     const tnetlib::DecodedPacket&        packet,

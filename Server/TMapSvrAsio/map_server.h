@@ -15,6 +15,14 @@
 #include "services/world_client.h"
 #include "services/session_registry.h"
 #include "map_state.h"
+#include "monster_state.h"
+#include "level_chart.h"
+#include "player_hp_registry.h"
+#include "inventory_service.h"
+#include "loot_registry.h"
+#include "npc_service.h"
+#include "party_service.h"
+#include "quest_engine.h"
 
 #include "fourstory/ops/rate_limiter.h"
 
@@ -63,6 +71,35 @@ struct MapServerConfig
     // F3: session lookup for AOI broadcasts.
     // Non-null enables CS_ENTER_ACK / CS_MOVE_ACK sends to neighbours.
     ISessionRegistry*                   session_registry = nullptr;
+
+    // F4: live monster registry.
+    IMonsterRegistry*                   monster_registry = nullptr;
+
+    // F4: level chart for HP/exp/damage formulas.
+    ILevelChart*                        level_chart      = nullptr;
+
+    // F4: spawn manager — timer-based monster lifecycle + roam AI.
+    // If non-null, Start() is called by MapServer after the listener
+    // is ready. Null = no monster spawning.
+    class ISpawnManager*                spawn_manager    = nullptr;
+
+    // F4 Part 3: server-side player HP/MP tracking for monster damage.
+    IPlayerHpRegistry*                  player_hp        = nullptr;
+
+    // F5: live item inventory service.
+    IInventoryService*                  inventory_svc    = nullptr;
+
+    // F5 Part 2: monster loot store.
+    ILootRegistry*                      loot_registry    = nullptr;
+
+    // F6: NPC service.
+    INpcService*                        npc_svc          = nullptr;
+
+    // F6: party service (standalone).
+    IPartyService*                      party_svc        = nullptr;
+
+    // F7: quest engine.
+    IQuestEngine*                       quest_engine     = nullptr;
 };
 
 class MapServer

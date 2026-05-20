@@ -12,6 +12,8 @@
 
 #include "handlers.h"
 #include "handlers_map.h"
+#include "handlers_combat.h"
+#include "handlers_quest.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -334,6 +336,15 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
     if (ctx.session_registry)
         ctx.session_registry->Register(state.char_id, sess);
 
+    // F4 Part 3: register player vitals for server-side monster damage
+    if (ctx.player_hp && state.snapshot)
+    {
+        const auto& snap = *state.snapshot;
+        ctx.player_hp->Register(state.char_id,
+            snap.hp, snap.hp,  // max_hp placeholder until TLEVELCHART (F4b)
+            snap.mp, snap.mp);
+    }
+
     if (ctx.map_state)
     {
         const auto presence = MakePresenceFromState(state);
@@ -371,6 +382,28 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
             state.user_id, state.snapshot->name);
     }
 
+    // F4: send CS_ADDMON_ACK for each monster in AOI
+    if (ctx.monster_registry)
+    {
+        const auto mon_ids = ctx.monster_registry->GetNeighborIds(
+            state.snapshot->position.pos_x,
+            state.snapshot->position.pos_z);
+        for (std::uint32_t mid : mon_ids)
+        {
+            if (const auto* mon = ctx.monster_registry->Get(mid))
+                co_await SendAddMonAck(sess, *mon, false);
+        }
+    }
+
+    // F7: sync quest state on world entry
+    if (ctx.quest_engine)
+    {
+        const auto active    = ctx.quest_engine->GetActiveQuests(state.char_id);
+        const auto completed = ctx.quest_engine->GetCompletedQuestIds(state.char_id);
+        co_await SendQuestListAck(sess, active);
+        co_await SendQuestListCompleteAck(sess, completed);
+    }
+
     co_await SendCharInfoAck(sess, *state.snapshot);
 }
 
@@ -389,7 +422,7 @@ OnMoveReq(std::shared_ptr<tnetlib::AsioSession> sess,
           const tnetlib::DecodedPacket&        packet,
           const HandlerContext&                ctx)
 {
-    if (!state.connected || !state.snapshot) co_return;
+    if (!state.connected || !state.snapshot || state.is_dead) co_return;
 
     wire::Reader r(packet.body.data(), packet.body.size());
     std::uint32_t map_id  = 0;

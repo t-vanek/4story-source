@@ -23,7 +23,11 @@
 //   * Lib/Own/TProtocol/include/NetCode.h:319-328 — CN_* enum
 
 #include "handlers.h"
+#include "handlers_combat.h"
+#include "handlers_items.h"
 #include "wire_codec.h"
+
+// F6: chat + NPC + party (defined in handlers_chat/npc/party.cpp)
 
 #include <spdlog/spdlog.h>
 
@@ -594,6 +598,51 @@ Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_MOVE_REQ:
         co_await OnMoveReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_ACTION_REQ:
+        co_await OnActionReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_DEFEND_REQ:
+        co_await OnDefendReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_REVIVAL_REQ:
+        co_await OnRevivalReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_MOVEITEM_REQ:
+        co_await OnMoveItemReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_ITEMUSE_REQ:
+        co_await OnItemUseReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_MONITEMTAKE_REQ:
+        co_await OnMonItemTakeReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_CHAT_REQ:
+        co_await OnChatReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_NPCTALK_REQ:
+        co_await OnNpcTalkReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_NPCITEMLIST_REQ:
+        co_await OnNpcItemListReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_ITEMBUY_REQ:
+        co_await OnItemBuyReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_PARTYADD_REQ:
+        co_await OnPartyAddReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_PARTYJOIN_REQ:
+        co_await OnPartyJoinReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_QUESTEXEC_REQ:
+        co_await OnQuestExecReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_QUESTDROP_REQ:
+        co_await OnQuestDropReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_SKILLUSE_REQ:
+        co_await OnSkillUseReq(std::move(sess), state, packet, ctx);
         break;
     case MessageId::CS_TERMINATE_REQ:
         co_await OnTerminateReq(std::move(sess), state, packet, ctx);

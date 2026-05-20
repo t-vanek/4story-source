@@ -280,4 +280,65 @@ struct MaintainSkill
     std::uint32_t remain_tick = 0;  // ms until expiry
 };
 
+// Monster template row — loaded once at boot from TMONSTERCHART,
+// shared read-only across all instances of that monster type.
+// Trivially copyable; no pointers.
+//
+// Source: Server/TMapSvr/TMapType.h:1579-1635  (tagTMONSTER)
+struct MonsterTemplate
+{
+    std::uint16_t id             = 0;   // m_wID  template id
+    std::uint8_t  char_class     = 0;   // m_bClass
+    std::uint16_t kind           = 0;   // m_wKind
+    std::uint8_t  level          = 0;   // m_bLevel
+    std::uint8_t  race           = 0;   // m_bRace
+    std::uint8_t  effect         = 0;   // m_bEffect (visual FX)
+    std::uint8_t  roam_prob      = 0;   // m_bRoamProb  (0–100%)
+    std::uint8_t  roam_range     = 0;   // m_bRange
+    std::uint16_t exp            = 0;   // m_wExp
+    std::uint16_t chase_range    = 0;   // m_wChaseRange
+    std::uint8_t  can_select     = 0;   // m_bCanSelect
+    std::uint8_t  can_attack     = 0;   // m_bCanAttack
+    std::uint8_t  is_special     = 0;   // m_bIsSpecial
+    std::uint8_t  country        = 0;   // faction
+    float         size           = 1.0f;// m_fSize model scale
+};
+
+// Spawn-point row — loaded from TMONSTERSPAWNCHART. One row drives
+// m_bCount simultaneous monster instances inside m_bRange radius.
+// Trivially copyable.
+//
+// Source: Server/TMapSvr/TMapType.h:1647-1695  (tagTMONSPAWN)
+struct MonsterSpawn
+{
+    std::uint16_t id            = 0;   // m_wID
+    std::uint16_t template_id   = 0;   // which monster template to spawn
+    std::uint16_t map_id        = 0;   // m_wMapID
+    std::uint32_t region        = 0;   // m_dwRegion
+    float         pos_x         = 0.0f;
+    float         pos_y         = 0.0f;
+    float         pos_z         = 0.0f;
+    std::uint16_t dir           = 0;
+    std::uint8_t  country       = 0;
+    std::uint8_t  count         = 1;   // m_bCount  instances to maintain
+    std::uint8_t  range         = 0;   // m_bRange  radius around pos
+    std::uint16_t party_id      = 0;   // m_wPartyID group id
+    std::uint32_t delay_ms      = 5000;// m_dwDelay respawn delay
+    std::uint8_t  roam_type     = 0;   // m_bRoamType
+};
+
+// Per-target aggro entry — maps (char_id or mon_id) → hate value.
+// Used in CTMonster::m_mapAggro to select the highest-hate target.
+// Trivially copyable; no pointers.
+//
+// Source: Server/TMapSvr/TMapType.h:1247-1271  (tagAGGRO)
+struct Aggro
+{
+    std::uint8_t  obj_type = 0;   // m_bObjType  OT_PC / OT_MON / …
+    std::uint32_t obj_id   = 0;   // m_dwObjID
+    std::uint32_t host_id  = 0;   // m_dwHostID  (owner/summoner)
+    std::uint32_t value    = 0;   // m_dwAggro   hate value
+    std::uint8_t  country  = 0;   // m_bCountry
+};
+
 } // namespace tmapsvr::legacy

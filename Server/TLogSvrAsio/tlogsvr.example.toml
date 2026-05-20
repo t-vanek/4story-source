@@ -1,0 +1,58 @@
+# tlogsvr.toml — TLogSvrAsio configuration.
+# Pass via `tlogsvr_asio --config /path/to/this/file`.
+# All sections + keys are optional; defaults below match the shipped
+# legacy server's hardcoded UDP port (2000) so a missing config still
+# gives you a working binary that prints decoded records through
+# spdlog (StdoutLogSink fallback) even without a database.
+
+[server]
+# UDP bind address. Default 0.0.0.0 accepts datagrams from any
+# interface — fine inside a private VLAN. Pin to a specific NIC if
+# the host is dual-homed onto an untrusted segment.
+bind = "0.0.0.0"
+
+# Legacy UDP collector port. Matches the peer port TLoginSvr's
+# UdpSocket / UdpAuditLogger emits to. Changing this requires
+# updating every emitting server's config in lockstep.
+port = 2000
+
+# Insert target. Default matches schema/tlog-audit.sql. Override to
+# a different table when you partition or move logs to a dedicated
+# audit DB. The boot-time schema validator inlines this name into
+# its INFORMATION_SCHEMA probe, so it MUST be a plain SQL identifier
+# ([A-Za-z_][A-Za-z0-9_]{0,127}) — anything else is refused at start.
+target_table = "TLOG_AUDIT"
+
+[log]
+# spdlog level. One of: trace | debug | info | warn | error | critical | off
+level = "info"
+
+[health]
+# Optional /healthz HTTP endpoint on a separate port. Returns
+#   {"status":"ok","uptime_seconds":N,"version":"5.0"}
+# Useful for k8s liveness/readiness probes and load-balancer health
+# checks. Set 0 to disable entirely.
+port = 8800
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+# Audit pool. Production deploys typically point this at a dedicated
+# audit DB (separate from the live game DB) so log-retention policies
+# don't touch player data. Apply schema/tlog-audit.sql once before
+# first start; the boot-time validator refuses to open the listener
+# if any LT_* column on `target_table` is missing.
+#
+# Leaving [database] empty keeps the binary in dev mode — the
+# StdoutLogSink prints each decoded record through spdlog and no
+# database connection is opened.
+[database]
+# backend: one of  odbc | postgresql | sqlite3
+# Production uses ODBC against SQL Server; the SOCI connection
+# string follows the standard ODBC driver syntax. Note: the audit
+# INSERT uses MSSQL-specific VARBINARY conversion — PostgreSQL is
+# accepted by the dialect branch in services/log_sink.cpp but the
+# schema/ DDL itself is MSSQL-only.
+# backend = "odbc"
+# connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+# pool_size = 4

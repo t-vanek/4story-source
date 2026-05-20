@@ -11,10 +11,25 @@
 #include <boost/asio/ip/udp.hpp>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
 namespace tlogsvr {
+
+// Decode one received datagram into a LogRecord. Exposed for unit
+// tests; the receive loop calls this on every async_receive_from
+// completion. Returns false (and leaves `out` partially populated)
+// on malformed input — caller must increment the drop counter and
+// not forward `out` to the sink.
+//
+// Bad-format reasons covered:
+//   * datagram shorter than UdpPacket + LogData prefix
+//   * UdpPacket.command != LP_LOG
+//   * UdpPacket.size declares more bytes than were received
+//   * trailing blob would exceed LogData.logPayload (512 bytes)
+bool DecodeLogDatagram(const std::byte* data, std::size_t len,
+                       LogRecord& out);
 
 struct LogServerConfig
 {

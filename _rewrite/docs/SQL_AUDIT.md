@@ -198,7 +198,15 @@ straight to handling traffic; a missing `TVERSION` or misnamed
 (`tpatchsvr::db::ValidateGlobalSchema`), wired in
 `main.cpp:71` between pool creation and repository hand-off.
 `TUSER_INTERFACE` treated as optional (warning, not abort).
-TLogSvrAsio validator still pending.
+✅ log-server validator shipped — see
+`Server/TLogSvrAsio/db/schema_validator.cpp`
+(`tlogsvr::db::ValidateAuditSchema`), wired in
+`Server/TLogSvrAsio/main.cpp` between pool creation and the UDP
+socket bind. Checks every `LT_*` column the `SociLogSink` INSERT
+binds; refuses to start on any miss with a message listing each
+missing entry plus a pointer to `schema/tlog-audit.sql`. The
+configured `target_table` is identifier-checked before any SQL
+is built so a malformed TOML value can't reach the DB.
 
 ### F6. `TLOG_AUDIT.LT_LOG` binding fragility (TRIVIAL)
 
@@ -211,6 +219,14 @@ doesn't. Not currently a bug because `TLOG_AUDIT` is MSSQL-only by
 design, but if anyone tries to run the log server against PG (e.g.
 for dev) it explodes. Worth either adding the dialect branch or
 documenting the MSSQL-only constraint in the header.
+
+**Status (2026-05-20):** ✅ resolved — `SociLogSink::Write` now
+branches on `m_pool.GetBackend()`: ODBC keeps the
+`CONVERT(VARBINARY(512), :blob)` cast, PostgreSQL emits
+`CAST(:blob AS bytea)`, and SQLite passes the bind through verbatim
+(any column accepts arbitrary bytes). Schema DDL is still MSSQL-only;
+running against PG additionally needs a hand-written `TLOG_AUDIT`
+table with `LT_LOG BYTEA`.
 
 ## Issues NOT found
 

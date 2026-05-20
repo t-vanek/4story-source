@@ -66,9 +66,19 @@ AppConfig LoadConfig(const std::string& path)
         if (auto l = (*log)["level"].value<std::string>())
             cfg.log_level = ParseLogLevel(*l);
     }
-    spdlog::info("loaded config from '{}' — udp_port={} table='{}' db={}",
+    if (auto health = tbl["health"].as_table())
+    {
+        if (auto p = (*health)["port"].value<std::int64_t>())
+        {
+            if (*p < 0 || *p > 65535)
+                throw std::runtime_error("health.port out of range");
+            cfg.health_port = static_cast<std::uint16_t>(*p);
+        }
+    }
+    spdlog::info("loaded config from '{}' — udp_port={} table='{}' db={} health={}",
         path, cfg.port, cfg.target_table,
-        cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend);
+        cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend,
+        cfg.health_port);
     return cfg;
 }
 

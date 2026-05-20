@@ -21,6 +21,26 @@ void SociLogSink::Write(const LogRecord& rec)
     soci::session& sql = *lease;
     try
     {
+        // LT_LOG binding (F6 in SQL_AUDIT) — VARCHAR→binary conversion
+        // differs by backend. ODBC/MSSQL needs CONVERT(VARBINARY(512), …);
+        // PostgreSQL accepts the bind directly into bytea / interprets
+        // an explicit `::bytea` cast when binding std::string. SQLite
+        // takes the std::string verbatim as a BLOB.
+        const char* blob_expr = ":blob";
+        switch (m_pool.GetBackend())
+        {
+            case fourstory::db::Backend::Odbc:
+                blob_expr = "CONVERT(VARBINARY(512), :blob)";
+                break;
+            case fourstory::db::Backend::PostgreSQL:
+                blob_expr = "CAST(:blob AS bytea)";
+                break;
+            case fourstory::db::Backend::Sqlite3:
+                // SQLite stores arbitrary bytes in any column; let SOCI
+                // bind through unmodified.
+                blob_expr = ":blob";
+                break;
+        }
         // Build INSERT — column list is the modern TLOG_AUDIT schema
         // (see schema/tlog-audit.sql). Table name is interpolated as
         // a constant from config (no user input), parameters all
@@ -35,10 +55,8 @@ void SociLogSink::Write(const LogRecord& rec)
             " LT_FMT, LT_LOG) "
             "VALUES (:ts, :sid, :ip, :act, :mid, :x, :y, :z, "
             " :k1, :k2, :k3, :k4, :k5, :k6, :k7, :k8, :k9, :k10, :k11, "
-            " :s1, :s2, :s3, :s4, :s5, :s6, :s7, :fmt, "
-            // ODBC binds std::string as VARCHAR; LT_LOG is VARBINARY.
-            // CONVERT lets MSSQL do the typed cast server-side.
-            " CONVERT(VARBINARY(512), :blob))";
+            " :s1, :s2, :s3, :s4, :s5, :s6, :s7, :fmt, " +
+            std::string(blob_expr) + ")";
 
         const int sid = static_cast<int>(rec.server_id);
         const int act = static_cast<int>(rec.action);

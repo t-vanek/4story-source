@@ -32,6 +32,11 @@ struct AppConfig
     // log retention policies don't touch player data.
     DbConfig       database;
 
+    // Optional /healthz HTTP endpoint port (k8s liveness/readiness +
+    // LB health checks). 0 disables. Matches the [health] block in
+    // tloginsvr / tpatchsvr config.
+    std::uint16_t  health_port = 0;
+
     spdlog::level::level_enum log_level = spdlog::level::info;
 };
 

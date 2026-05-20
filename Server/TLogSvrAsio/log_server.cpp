@@ -101,6 +101,10 @@ std::string ReadFixedString(const char* p, std::size_t cap)
     return std::string(p, static_cast<std::size_t>(n));
 }
 
+constexpr std::size_t kUdpOverhead   = offsetof(UdpPacket, payload);
+constexpr std::size_t kLogPrefixSize = offsetof(LogData, logPayload);
+constexpr std::size_t kLogPayloadCap = 512;
+
 std::string FormatTimestamp(const DbTimestamp& ts)
 {
     // MSSQL DATETIME accepts "YYYY-MM-DD HH:MM:SS"; if fields are
@@ -125,24 +129,24 @@ std::string FormatTimestamp(const DbTimestamp& ts)
     return os.str();
 }
 
-bool DecodeRecord(const std::byte* data, std::size_t len, LogRecord& out)
+} // namespace
+
+bool DecodeLogDatagram(const std::byte* data, std::size_t len, LogRecord& out)
 {
     // The wire-faithful sender (UdpAuditLogger) trims the datagram to
     // exactly udp_overhead + log_prefix [+ optional blob], not the
     // full 1064-byte sizeof(UdpPacket). Decode against the declared
     // pkt.size, not the static struct size.
-    constexpr std::size_t udp_overhead = offsetof(UdpPacket, payload);
-    constexpr std::size_t log_prefix   = offsetof(LogData, logPayload);
-    if (len < udp_overhead + log_prefix) return false;
+    if (len < kUdpOverhead + kLogPrefixSize) return false;
 
     UdpPacket pkt{};
-    std::memcpy(&pkt, data, udp_overhead);
+    std::memcpy(&pkt, data, kUdpOverhead);
     if (pkt.command != LP_LOG) return false;
-    if (pkt.size < udp_overhead + log_prefix) return false;
+    if (pkt.size < kUdpOverhead + kLogPrefixSize) return false;
     if (pkt.size > len) return false;  // declared larger than received
 
     LogData ld{};
-    std::memcpy(&ld, data + udp_overhead, log_prefix);
+    std::memcpy(&ld, data + kUdpOverhead, kLogPrefixSize);
     out.timestamp_iso = FormatTimestamp(ld.timestamp);
     out.server_id     = ld.serverId;
     out.client_ip     = ReadFixedString(ld.clientIp, sizeof(ld.clientIp));
@@ -156,19 +160,19 @@ bool DecodeRecord(const std::byte* data, std::size_t len, LogRecord& out)
         out.search_str[i] = ReadFixedString(ld.searchKeyStr[i],
                                             sizeof(ld.searchKeyStr[i]));
     out.format        = ld.format;
+    out.payload.clear();
     // Payload tail — only the bytes actually transmitted past the prefix.
-    const std::size_t total_payload = pkt.size - udp_overhead;
-    const std::size_t blob_len = (total_payload > log_prefix)
-        ? (total_payload - log_prefix) : 0;
-    if (blob_len > 0 && blob_len <= sizeof(ld.logPayload))
+    const std::size_t total_payload = pkt.size - kUdpOverhead;
+    const std::size_t blob_len = (total_payload > kLogPrefixSize)
+        ? (total_payload - kLogPrefixSize) : 0;
+    if (blob_len > kLogPayloadCap) return false;
+    if (blob_len > 0)
     {
-        const std::byte* blob_start = data + udp_overhead + log_prefix;
+        const std::byte* blob_start = data + kUdpOverhead + kLogPrefixSize;
         out.payload.assign(blob_start, blob_start + blob_len);
     }
     return true;
 }
-
-} // namespace
 
 LogServer::LogServer(boost::asio::io_context& io, LogServerConfig config)
     : m_io(io)
@@ -200,7 +204,7 @@ LogServer::Run()
 
         m_received.fetch_add(1);
         LogRecord rec{};
-        if (!DecodeRecord(buf.data(), n, rec))
+        if (!DecodeLogDatagram(buf.data(), n, rec))
         {
             m_drops_format.fetch_add(1);
             spdlog::debug("log_server: dropped {} bytes from {} (bad format)",

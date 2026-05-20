@@ -25,6 +25,21 @@ port = 18086
 bind = "127.0.0.1"
 port = 18186
 
+# Per-IP rate limit on CT_OPLOGIN_REQ / CT_STLOGIN_REQ. Token bucket
+# — `burst` attempts allowed in quick succession, then one refill
+# every `refill_seconds`. Defensive hardening against credential-
+# stuffing from a single peer. Set burst=0 to disable.
+[login_rate]
+burst          = 5
+refill_seconds = 10
+
+# Live inventory refresh — re-reads TMACHINE / TGROUP / TSVRTYPE /
+# TSERVER / TIPADDR every N seconds so topology edits flow into the
+# operator GUI without a daemon restart. Only meaningful when
+# [database] is configured. 0 = load once at boot (legacy behavior).
+[inventory]
+refresh_seconds = 30
+
 [log]
 level = "info"
 

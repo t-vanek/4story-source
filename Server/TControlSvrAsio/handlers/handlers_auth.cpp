@@ -42,6 +42,17 @@ OnOpLoginReq(std::shared_ptr<OperatorSession> op,
     const auto& remote_ip = op->Wire()->RemoteIPv4();
     spdlog::info("CT_OPLOGIN_REQ id='{}' ip={}", user_id, remote_ip);
 
+    // Brute-force throttle on the IP. Token bucket; tripped peers
+    // get the same generic-reject ack as a wrong password so
+    // attackers can't distinguish "rate-limited" from "invalid".
+    if (ctx.login_rate && !ctx.login_rate->Allow(remote_ip))
+    {
+        spdlog::warn("CT_OPLOGIN_REQ id='{}' ip={} rate-limited", user_id,
+            remote_ip);
+        co_await senders::SendOpLoginAck(op->Wire(), 1, 0, 0);
+        co_return;
+    }
+
     if (!ctx.auth)
     {
         // No auth service wired — reject loudly.
@@ -111,7 +122,15 @@ OnStLoginReq(std::shared_ptr<OperatorSession> op,
         op->Wire()->Close();
         co_return;
     }
-    spdlog::info("CT_STLOGIN_REQ id='{}' ip={}", user_id, op->Wire()->RemoteIPv4());
+    const auto& st_remote_ip = op->Wire()->RemoteIPv4();
+    spdlog::info("CT_STLOGIN_REQ id='{}' ip={}", user_id, st_remote_ip);
+    if (ctx.login_rate && !ctx.login_rate->Allow(st_remote_ip))
+    {
+        spdlog::warn("CT_STLOGIN_REQ id='{}' ip={} rate-limited",
+            user_id, st_remote_ip);
+        co_await senders::SendStLoginAck(op->Wire(), 1, 0);
+        co_return;
+    }
     if (!ctx.auth)
     {
         co_await senders::SendStLoginAck(op->Wire(), 1, 0);

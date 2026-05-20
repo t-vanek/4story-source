@@ -61,6 +61,20 @@ struct AppConfig
     // can flip this at runtime via CT_SERVICEAUTOSTART_REQ.
     std::uint8_t   auto_start = 0;
 
+    // Per-IP rate limit on CT_OPLOGIN_REQ. Token bucket — `burst`
+    // attempts allowed in quick succession, then one refill every
+    // `refill_seconds`. Hardening against brute-force; the legacy
+    // server had no such limit. Set burst=0 to disable.
+    std::uint32_t  login_rate_burst          = 5;
+    std::uint32_t  login_rate_refill_seconds = 10;
+
+    // Live inventory refresh period. Re-reads TMACHINE / TGROUP /
+    // TSVRTYPE / TSERVER / TIPADDR every N seconds so the operator
+    // GUI sees topology changes without a daemon restart. 0
+    // disables the refresher (legacy behavior — load once at boot).
+    // Only meaningful when [database] is configured.
+    std::uint32_t  inventory_refresh_seconds = 0;
+
     // F1 seeds — populated only when [fake] tables are present.
     std::vector<FakeOperatorSeed>  fake_operators;
     FakeInventorySeed              fake_inventory;

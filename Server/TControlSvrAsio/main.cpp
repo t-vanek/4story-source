@@ -35,6 +35,8 @@
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/admin_shell.h"
 #include "fourstory/ops/health_endpoint.h"
+#include "fourstory/ops/rate_limiter.h"
+#include "fourstory/ops/registry_refresher.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -179,6 +181,24 @@ int main(int argc, char** argv)
         auto controller = MakeServiceController();
         tcontrolsvr::PeerDialer dialer(io, peers, *inventory_ptr);
 
+        // Per-IP login throttle. burst=0 disables.
+        std::unique_ptr<fourstory::ops::LoginRateLimiter> login_rate;
+        if (cfg.login_rate_burst > 0)
+        {
+            fourstory::ops::RateLimitConfig rl{};
+            rl.burst           = cfg.login_rate_burst;
+            rl.refill_interval = std::chrono::seconds(
+                cfg.login_rate_refill_seconds);
+            login_rate =
+                std::make_unique<fourstory::ops::LoginRateLimiter>(rl);
+            spdlog::info("login rate limit: burst={} refill={}s",
+                cfg.login_rate_burst, cfg.login_rate_refill_seconds);
+        }
+        else
+        {
+            spdlog::info("login rate limit: disabled");
+        }
+
         // --- Server ------------------------------------------------
         tcontrolsvr::ControlServerConfig svr_cfg{};
         svr_cfg.port       = cfg.port;
@@ -194,6 +214,7 @@ int main(int argc, char** argv)
         svr_cfg.event_repo = event_repo.get();
         svr_cfg.patch_meta = patch_meta.get();
         svr_cfg.alerter    = alerter.get();
+        svr_cfg.login_rate = login_rate.get();
         svr_cfg.auto_start = cfg.auto_start;
         tcontrolsvr::ControlServer server(io, svr_cfg);
         spdlog::info("control server listening on 0.0.0.0:{}", server.Port());
@@ -210,6 +231,37 @@ int main(int argc, char** argv)
             event_repo.get());
         boost::asio::co_spawn(io, event_loop.Run(),
             boost::asio::detached);
+
+        // Optional inventory refresher: re-reads TMACHINE / TGROUP /
+        // TSVRTYPE / TSERVER / TIPADDR every N seconds so the
+        // operator GUI sees topology edits without a daemon restart.
+        // Only wired when SOCI is configured *and* the period is
+        // > 0; the SOCI snapshot is the source of truth, so rebinding
+        // PeerRegistry afterwards picks up new services + drops
+        // removed ones.
+        std::shared_ptr<fourstory::ops::RegistryRefresher> refresher;
+        if (auto* soci_inv =
+                dynamic_cast<tcontrolsvr::SociServiceInventory*>(
+                    inventory_ptr.get());
+            soci_inv != nullptr && cfg.inventory_refresh_seconds > 0)
+        {
+            refresher = fourstory::ops::RegistryRefresher::Make(io,
+                std::chrono::seconds(cfg.inventory_refresh_seconds));
+            refresher->AddHook([soci_inv, &peers] {
+                try
+                {
+                    soci_inv->Reload();
+                    peers.Rebind(*soci_inv);
+                }
+                catch (const std::exception& ex)
+                {
+                    spdlog::warn("inventory refresh failed: {}", ex.what());
+                }
+            });
+            refresher->Start();
+            spdlog::info("inventory refresher: every {}s",
+                cfg.inventory_refresh_seconds);
+        }
 
         std::unique_ptr<fourstory::ops::HealthEndpoint> health;
         if (cfg.health_port != 0)

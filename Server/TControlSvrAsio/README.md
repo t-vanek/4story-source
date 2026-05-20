@@ -30,6 +30,15 @@ every previously-missing handler is wired in dispatch.
 | 🟠 Missing | 9 peer→operator ACK route-backs (ITEMFIND/STATE/MONSPAWNFIND/EVENTQUARTER*/TOURNAMENT/RPSGAME/CMGIFT*) | Wired in `RunPeerLoop` via `OnPeerAckRouteBack` and the two specialized strip-paths | smoke |
 | 🟠 Missing | Post-dial event push (`SendEventToNewConnect`) | Restored in `OnNewConnectReq` for Login/Map/World peers | smoke |
 
+### Production hardening (post-audit)
+
+| Component | Status | Notes |
+|---|---|---|
+| `LoginRateLimiter` on CT_OPLOGIN_REQ / CT_STLOGIN_REQ | ✅ | Token-bucket from `fourstory::ops`. Tripped peers receive the same generic reject ack as a wrong password — attackers can't distinguish rate-limit from invalid creds. Tunable via `[login_rate]` TOML (`burst=0` disables). |
+| `RegistryRefresher` for SOCI inventory | ✅ | Re-reads TMACHINE / TGROUP / TSVRTYPE / TSERVER / TIPADDR every `[inventory] refresh_seconds`; `PeerRegistry.Rebind` picks up new services + drops removed ones. 0 disables (legacy load-once behavior). |
+| `CT_SERVICEUPLOAD*` graceful stub | ✅ | Plan §6: returns `bRet=2` instead of dropping silently, so GUI shows an error tile. |
+| SOCI integration suite | ✅ | `test_soci_repositories` exercises all five SOCI repos; skips when no `TCONTROLSVR_TEST_{PG,MSSQL}_CONN` env var is set. |
+
 | Area | F1 | F2 | F3 | F4 | F5 | F6 |
 |------|----|----|----|----|----|----|
 | Accept loop + ControlSession framing | ✅ | | | | | |

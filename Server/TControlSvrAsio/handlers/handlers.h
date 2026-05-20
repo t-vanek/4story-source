@@ -31,6 +31,8 @@
 #include "../services/service_inventory.h"
 #include "../services/user_protected_service.h"
 
+#include "fourstory/ops/rate_limiter.h"
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 
@@ -60,6 +62,7 @@ struct HandlerContext
     IEventRepository*        event_repo   = nullptr;
     IPatchMetadataService*   patch_meta   = nullptr;
     IAlerter*                alerter      = nullptr;
+    fourstory::ops::LoginRateLimiter* login_rate = nullptr;
     boost::asio::io_context* io           = nullptr;
 
     // Mirror of legacy CTControlSvrModule::m_bAutoStart — whether

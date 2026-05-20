@@ -20,6 +20,8 @@
 #include "services/service_controller.h"
 #include "services/user_protected_service.h"
 
+#include "fourstory/ops/rate_limiter.h"
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -46,6 +48,7 @@ struct ControlServerConfig
     IEventRepository*      event_repo  = nullptr;
     IPatchMetadataService* patch_meta  = nullptr;
     IAlerter*              alerter     = nullptr;
+    fourstory::ops::LoginRateLimiter* login_rate = nullptr;
     std::uint8_t           auto_start  = 0;
 };
 

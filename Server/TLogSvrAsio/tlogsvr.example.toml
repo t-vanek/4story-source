@@ -34,6 +34,33 @@ level = "info"
 # checks. Set 0 to disable entirely.
 port = 8800
 
+[retry]
+# In-RAM retry buffer for transient DB outages. Mirrors the legacy
+# `m_listReadCompleted` requeue behavior in
+# Server/TLogSvr/CUdpSocket.cpp::ReadPacket: records that fail to
+# INSERT (DB connection dropped, pool saturated, …) sit in this
+# queue, and a drain coroutine retries them on a periodic tick.
+#
+# The cap matches the legacy bounded IO pool
+# (MAX_IO_CONTEXT = 1000 in Server/TLogSvr/StdAfx.h). New datagrams
+# that would push the queue past the cap are dropped on the receive
+# side and counted in the shutdown-totals log line. Set to 0 to
+# disable queueing entirely — failed records are then dropped on
+# first INSERT error.
+max_queue = 1000
+
+# How often the drain coroutine wakes up to try flushing pending
+# records back to the DB. Legacy `WorkTickProc` reconnect tick =
+# 30 s; matching that default. Smaller intervals shorten recovery
+# latency after a transient outage at the cost of a steadier wakeup
+# rhythm on the io_context.
+drain_interval_secs = 30
+
+# Per-tick cap on the number of records the drain coroutine
+# attempts to flush in one pass. Keeps a maxed-out 1000-record
+# backlog from monopolizing the io_context on a single timer fire.
+drain_batch_size = 64
+
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------

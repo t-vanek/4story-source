@@ -56,6 +56,7 @@ int main(int argc, char** argv)
 
         std::unique_ptr<fourstory::db::SessionPool> pool;
         std::unique_ptr<tlogsvr::ILogSink>           sink;
+        tlogsvr::SociLogSink*                        soci_sink = nullptr;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -68,8 +69,19 @@ int main(int argc, char** argv)
             // misconfigured target_table would otherwise silently drop
             // at INSERT time with no visibility.
             tlogsvr::db::ValidateAuditSchema(*pool, cfg.target_table);
-            sink = std::make_unique<tlogsvr::SociLogSink>(*pool, cfg.target_table);
-            spdlog::info("log_sink: SOCI → {}.{}", cfg.database.backend, cfg.target_table);
+            tlogsvr::SociLogSink::Options sink_opts;
+            sink_opts.max_retry_queue  = cfg.retry.max_queue;
+            sink_opts.drain_interval   = cfg.retry.drain_interval;
+            sink_opts.drain_batch_size = cfg.retry.drain_batch_size;
+            auto owning = std::make_unique<tlogsvr::SociLogSink>(
+                *pool, cfg.target_table, sink_opts);
+            soci_sink = owning.get();
+            sink = std::move(owning);
+            soci_sink->StartDrainLoop(io);
+            spdlog::info("log_sink: SOCI → {}.{} (retry_queue={} drain={}s)",
+                cfg.database.backend, cfg.target_table,
+                cfg.retry.max_queue,
+                static_cast<long long>(cfg.retry.drain_interval.count()));
         }
         else
         {
@@ -110,8 +122,23 @@ int main(int argc, char** argv)
         }
 
         io.run();
-        spdlog::info("totals: received={} drops_bad_format={}",
-            server.PacketsReceived(), server.DropsBadFormat());
+        if (soci_sink != nullptr)
+        {
+            spdlog::info(
+                "totals: received={} drops_bad_format={} "
+                "inserted={} enqueued={} drained={} dropped_queue_full={} "
+                "queue_depth_at_shutdown={}",
+                server.PacketsReceived(), server.DropsBadFormat(),
+                soci_sink->Inserts(), soci_sink->EnqueuedOnError(),
+                soci_sink->DrainedAfterRetry(),
+                soci_sink->DroppedQueueFull(),
+                soci_sink->QueueDepth());
+        }
+        else
+        {
+            spdlog::info("totals: received={} drops_bad_format={}",
+                server.PacketsReceived(), server.DropsBadFormat());
+        }
     }
     catch (const std::exception& ex)
     {

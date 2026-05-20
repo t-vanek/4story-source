@@ -116,7 +116,9 @@ void TestSinkRoundTrip(fourstory::db::SessionPool& pool)
         DeleteTestRows(*lease);
     }
 
-    tlogsvr::SociLogSink sink(pool, "TLOG_AUDIT");
+    tlogsvr::SociLogSink::Options opts;
+    opts.max_retry_queue = 16;
+    tlogsvr::SociLogSink sink(pool, "TLOG_AUDIT", opts);
 
     tlogsvr::LogRecord rec{};
     rec.timestamp_iso = "2026-05-20 14:07:42";
@@ -163,6 +165,41 @@ void TestSinkRoundTrip(fourstory::db::SessionPool& pool)
 
         DeleteTestRows(sql);
     }
+    Check(sink.Inserts() >= 1, "Inserts() counter incremented");
+    Check(sink.DroppedQueueFull() == 0,
+        "no drops on the happy path");
+}
+
+// Bogus target_table → every INSERT throws (table does not exist),
+// records pile up in the retry queue. The schema validator would
+// catch this at boot, but bypassing the validator (as this test does)
+// exercises the same fault mode as a DB that drops connectivity
+// mid-flight: a thrown soci_error per Write().
+void TestSinkBuffersOnInsertFailure(fourstory::db::SessionPool& pool)
+{
+    std::printf("[soci_log_sink — failed INSERTs land in retry queue]\n");
+
+    tlogsvr::SociLogSink::Options opts;
+    opts.max_retry_queue = 4;  // small so we hit the cap quickly
+    tlogsvr::SociLogSink sink(pool, "TLOG_AUDIT_BOGUS_DOES_NOT_EXIST", opts);
+
+    for (int i = 0; i < 7; ++i)
+    {
+        tlogsvr::LogRecord rec{};
+        rec.timestamp_iso = "2026-05-20 14:07:42";
+        rec.client_ip     = TestClientIp();
+        rec.action        = 0x0100 + i;
+        sink.Write(rec);
+    }
+
+    Check(sink.Inserts() == 0,
+        "no INSERT counted (table doesn't exist)");
+    Check(sink.QueueDepth() == 4,
+        "queue depth pinned at cap (max_retry_queue=4)");
+    Check(sink.EnqueuedOnError() == 4,
+        "4 records accepted into the queue");
+    Check(sink.DroppedQueueFull() == 3,
+        "remaining 3 attempts dropped on cap (7 sent - 4 accepted = 3)");
 }
 
 } // namespace
@@ -187,6 +224,7 @@ int main()
         TestValidatorRejectsMissingTable(pool);
         TestValidatorRefusesUnsafeIdentifier(pool);
         TestSinkRoundTrip(pool);
+        TestSinkBuffersOnInsertFailure(pool);
     }
     catch (const std::exception& ex)
     {

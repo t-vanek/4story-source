@@ -1,8 +1,27 @@
 # TControlSvr — analýza legacy a plán portu
 
-Datum: 2026-05-19
-Branch: `claude/redesign-control-server-kKk0k`
-Status: **návrh — k odsouhlasení**, žádný kód ještě nenapsán.
+Datum: 2026-05-19 (návrh) → 2026-05-20 (F1–F5 implementováno)
+Branch: `claude/migrate-tcontrolsvr-keEAs`
+Status: **F1–F5 hotové a otestované**, F6 (smoke proti živé DB + legacy GUI) zbývá.
+
+## Stav implementace (2026-05-20)
+
+| Fáze | Status | Commit | Test |
+|---|---|---|---|
+| **F1** Scaffold + operator login | ✅ | `feat(tcontrolsvr_asio): F1 scaffold` | `test_operator_login` |
+| **F2** Peer dial + monitoring + Windows SCM | ✅ | `feat(tcontrolsvr_asio): F2` | `test_peer_monitor` |
+| **F3** Admin forwarders + authority gate + audit | ✅ | `feat(tcontrolsvr_asio): F3` | `test_admin_forwarders` |
+| **F4** Event manager + 1Hz scheduler | ✅ | `feat(tcontrolsvr_asio): F4` | `test_event_scheduler` |
+| **F5** Patch metadata + castle + alerter | ✅ | `feat(tcontrolsvr_asio): F5` | `test_patch_metadata` |
+| **F6** End-to-end smoke vs. legacy `TController.exe` + live DB | ⏸ | — | manual |
+
+Naimplementováno: ~52 z 65 CT_\* handlerů. Vědomě vynechané:
+`CT_SERVICEUPLOAD*` (UNC-share anti-pattern, mimo scope),
+`CT_INSTALLVERSION_*` (dead code v legacy), `CT_ACCOUNTINPUT_*`
+(dead code), `CT_PLATFORM_REQ/_ACK` (PDH counters Windows-only — wire
+zachován, body 0). Detail v `Server/TControlSvrAsio/README.md`.
+
+---
 
 Tento dokument analyzuje `Server/TControlSvr/` (Win32/ATL/IOCP/ODBC, ~7 285
 LOC, 23 souborů) a navrhuje rozsah a tvar modernizované varianty

@@ -106,8 +106,16 @@ void ValidateGlobalSchema(fourstory::db::SessionPool& pool)
             {"dwBetaVer","szPath","szName","dwSize"}))
     {
         spdlog::warn("schema_validator (control_global): TPREVERSION "
-                     "not deployed — CT_PREVERSIONTABLE/UPDATE will be "
-                     "stubbed when those handlers land in F5.");
+                     "not deployed — CT_PREVERSIONTABLE/UPDATE will "
+                     "return empty / silently no-op until the table "
+                     "is added.");
+    }
+    if (!TableHasColumns(*lease, "TVERSION",
+            {"dwVersion","szPath","szName","dwSize","dwBetaVer"}))
+    {
+        spdlog::warn("schema_validator (control_global): TVERSION "
+                     "not deployed — CT_UPDATEPATCH_REQ will fail "
+                     "silently at the SP layer.");
     }
 }
 

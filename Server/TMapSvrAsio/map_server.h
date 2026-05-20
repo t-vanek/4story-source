@@ -17,6 +17,7 @@
 #include "map_state.h"
 #include "monster_state.h"
 #include "level_chart.h"
+#include "player_hp_registry.h"
 
 #include "fourstory/ops/rate_limiter.h"
 
@@ -76,6 +77,9 @@ struct MapServerConfig
     // If non-null, Start() is called by MapServer after the listener
     // is ready. Null = no monster spawning.
     class ISpawnManager*                spawn_manager    = nullptr;
+
+    // F4 Part 3: server-side player HP/MP tracking for monster damage.
+    IPlayerHpRegistry*                  player_hp        = nullptr;
 };
 
 class MapServer

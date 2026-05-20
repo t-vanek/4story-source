@@ -269,4 +269,206 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> /*sess*/,
     // data chart (TSKILLCHART) and stat-based damage formulas.
 }
 
+// ---------------------------------------------------------------------------
+// CS_DEFEND_ACK serializer
+// ---------------------------------------------------------------------------
+//
+// Wire order: CSSender.cpp:1262-1294 — SendCS_DEFEND_ACK
+// F4 Part 3: skill damage map always sent as count=0 (full calc F4 Part 4).
+
+boost::asio::awaitable<void>
+SendDefendAck(std::shared_ptr<tnetlib::AsioSession> sess,
+              const DefendAckParams&               p)
+{
+    std::vector<std::byte> body;
+    body.reserve(72);
+
+    wire::WritePOD<std::uint32_t>(body, p.attack_id);
+    wire::WritePOD<std::uint32_t>(body, p.target_id);
+    wire::WritePOD<std::uint8_t> (body, p.attack_type);
+    wire::WritePOD<std::uint8_t> (body, p.target_type);
+    wire::WritePOD<std::uint32_t>(body, p.host_id);
+    wire::WritePOD<std::uint8_t> (body, p.host_type);
+    wire::WritePOD<std::uint32_t>(body, p.act_id);
+    wire::WritePOD<std::uint32_t>(body, p.ani_id);
+    wire::WritePOD<std::uint8_t> (body, 0u);  // bIsMaintain
+    wire::WritePOD<std::uint32_t>(body, 0u);  // dwMaintainTick
+    wire::WritePOD<std::uint8_t> (body, p.hit);
+    wire::WritePOD<std::uint8_t> (body, p.atk_hit);
+    wire::WritePOD<std::uint16_t>(body, p.attack_level);
+    wire::WritePOD<std::uint8_t> (body, p.attacker_level);
+    wire::WritePOD<std::uint32_t>(body, p.pys_min);
+    wire::WritePOD<std::uint32_t>(body, p.pys_max);
+    wire::WritePOD<std::uint32_t>(body, p.mg_min);
+    wire::WritePOD<std::uint32_t>(body, p.mg_max);
+    wire::WritePOD<std::uint8_t> (body, p.can_select);
+    wire::WritePOD<std::uint8_t> (body, 0u);  // bCancelCharge
+    wire::WritePOD<std::uint8_t> (body, p.attack_country);
+    wire::WritePOD<std::uint8_t> (body, p.attack_aid);
+    wire::WritePOD<std::uint16_t>(body, p.skill_id);
+    wire::WritePOD<std::uint8_t> (body, p.skill_level);
+    wire::WritePOD<std::uint16_t>(body, 0u);  // wBackSkillID
+    wire::WritePOD<std::uint8_t> (body, p.perform);
+    wire::WritePOD<float>        (body, p.atk_pos_x);
+    wire::WritePOD<float>        (body, p.atk_pos_y);
+    wire::WritePOD<float>        (body, p.atk_pos_z);
+    wire::WritePOD<float>        (body, p.def_pos_x);
+    wire::WritePOD<float>        (body, p.def_pos_y);
+    wire::WritePOD<float>        (body, p.def_pos_z);
+    wire::WritePOD<std::uint8_t> (body, 0u);  // skill damage map count = 0
+
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CS_DEFEND_ACK),
+        std::span<const std::byte>(body.data(), body.size()));
+}
+
+// ---------------------------------------------------------------------------
+// CS_MONATTACK_ACK serializer
+// ---------------------------------------------------------------------------
+//
+// Monster broadcasts its attack intent. Wire: CSSender.cpp:1208.
+
+boost::asio::awaitable<void>
+SendMonAttackAck(std::shared_ptr<tnetlib::AsioSession> sess,
+                 std::uint32_t attacker_id,
+                 std::uint32_t target_id,
+                 std::uint8_t  attacker_type,
+                 std::uint8_t  target_type,
+                 std::uint16_t skill_id)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, attacker_id);
+    wire::WritePOD<std::uint32_t>(body, target_id);
+    wire::WritePOD<std::uint8_t> (body, attacker_type);
+    wire::WritePOD<std::uint8_t> (body, target_type);
+    wire::WritePOD<std::uint16_t>(body, skill_id);
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CS_MONATTACK_ACK),
+        std::span<const std::byte>(body.data(), body.size()));
+}
+
+// ---------------------------------------------------------------------------
+// CS_DEFEND_REQ handler
+// ---------------------------------------------------------------------------
+//
+// Wire body (33 fields, 65+ bytes):
+//   DWORD dwHostID, dwAttackID, dwTargetID, BYTE bAttackType, bTargetType,
+//   WORD wAttackPartyID, DWORD dwActID, dwAniID, BYTE bChannel,
+//   WORD wMapID, BYTE bAttackerLevel, DWORD ×4 damage, WORD ×2 trans,
+//   BYTE ×6 flags, WORD wAttackLevel, BYTE bCP, WORD wSkillID, BYTE bSkillLevel,
+//   FLOAT ×3 atk pos, FLOAT ×3 def pos, DWORD dwRemainTick
+//
+// F4 Part 3: validates that attacker and target exist, then broadcasts
+// CS_DEFEND_ACK to AOI. Full anti-cheat damage capping is F4 Part 4.
+//
+// Source: CSHandler.cpp:1485-1518
+
+boost::asio::awaitable<void>
+OnDefendReq(std::shared_ptr<tnetlib::AsioSession> sess,
+            MapSessionState&                     state,
+            const tnetlib::DecodedPacket&        packet,
+            const HandlerContext&                ctx)
+{
+    if (!state.connected || !state.snapshot) co_return;
+
+    wire::Reader r(packet.body.data(), packet.body.size());
+    std::uint32_t host_id = 0, attack_id = 0, target_id = 0;
+    std::uint8_t  attack_type = 0, target_type = 0;
+    std::uint16_t attack_party_id = 0;
+    std::uint32_t act_id = 0, ani_id = 0;
+    std::uint8_t  channel = 0;
+    std::uint16_t map_id = 0;
+    std::uint8_t  attacker_level = 0;
+    std::uint32_t pys_min = 0, pys_max = 0, mg_min = 0, mg_max = 0;
+    std::uint16_t trans_hp = 0, trans_mp = 0;
+    std::uint8_t  curse_prob = 0, equip_special = 0, can_select = 0;
+    std::uint8_t  atk_country = 0, atk_aid = 0;
+    std::uint16_t attack_level = 0;
+    std::uint8_t  cp = 0;
+    std::uint16_t skill_id = 0;
+    std::uint8_t  skill_level = 0;
+    float         atk_px = 0, atk_py = 0, atk_pz = 0;
+    float         def_px = 0, def_py = 0, def_pz = 0;
+    std::uint32_t remain_tick = 0;
+
+    if (!r.Read(host_id)     || !r.Read(attack_id)    || !r.Read(target_id) ||
+        !r.Read(attack_type) || !r.Read(target_type)  ||
+        !r.Read(attack_party_id) || !r.Read(act_id)   || !r.Read(ani_id) ||
+        !r.Read(channel)     || !r.Read(map_id)       || !r.Read(attacker_level) ||
+        !r.Read(pys_min)     || !r.Read(pys_max)      ||
+        !r.Read(mg_min)      || !r.Read(mg_max)       ||
+        !r.Read(trans_hp)    || !r.Read(trans_mp)     ||
+        !r.Read(curse_prob)  || !r.Read(equip_special) || !r.Read(can_select) ||
+        !r.Read(atk_country) || !r.Read(atk_aid)      ||
+        !r.Read(attack_level)|| !r.Read(cp)            ||
+        !r.Read(skill_id)    || !r.Read(skill_level)   ||
+        !r.Read(atk_px)      || !r.Read(atk_py)        || !r.Read(atk_pz) ||
+        !r.Read(def_px)      || !r.Read(def_py)        || !r.Read(def_pz) ||
+        !r.Read(remain_tick))
+    {
+        spdlog::warn("CS_DEFEND_REQ malformed uid={}", state.user_id);
+        co_return;
+    }
+
+    spdlog::debug("CS_DEFEND_REQ uid={} attacker={} target={} skill={}",
+        state.user_id, attack_id, target_id, skill_id);
+
+    // Build defend ACK from parsed fields
+    DefendAckParams dp{};
+    dp.attack_id      = attack_id;
+    dp.target_id      = target_id;
+    dp.attack_type    = attack_type;
+    dp.target_type    = target_type;
+    dp.host_id        = host_id;
+    dp.act_id         = act_id;
+    dp.ani_id         = ani_id;
+    dp.hit            = 1;
+    dp.atk_hit        = 1;
+    dp.attack_level   = attack_level;
+    dp.attacker_level = attacker_level;
+    dp.pys_min        = pys_min;
+    dp.pys_max        = pys_max;
+    dp.mg_min         = mg_min;
+    dp.mg_max         = mg_max;
+    dp.can_select     = can_select;
+    dp.attack_country = atk_country;
+    dp.attack_aid     = atk_aid;
+    dp.skill_id       = skill_id;
+    dp.skill_level    = skill_level;
+    dp.perform        = 1;
+    dp.atk_pos_x = atk_px; dp.atk_pos_y = atk_py; dp.atk_pos_z = atk_pz;
+    dp.def_pos_x = def_px; dp.def_pos_y = def_py; dp.def_pos_z = def_pz;
+
+    // Broadcast CS_DEFEND_ACK to all AOI players (attacker's AOI)
+    if (ctx.session_registry && ctx.map_state && state.snapshot)
+    {
+        const auto aoi = ctx.map_state->GetNeighborIds(
+            state.snapshot->position.pos_x,
+            state.snapshot->position.pos_z);
+        for (std::uint32_t pid : aoi)
+        {
+            auto nbr = ctx.session_registry->Get(pid);
+            if (nbr) co_await SendDefendAck(nbr, dp);
+        }
+    }
+    co_await SendDefendAck(sess, dp);
+
+    // Apply damage to target if it is a player (OT_PC = 1)
+    constexpr std::uint8_t OT_PC = 1;
+    if (target_type == OT_PC && ctx.player_hp)
+    {
+        const std::int64_t dmg = static_cast<std::int64_t>(pys_max);
+        const std::uint32_t new_hp =
+            ctx.player_hp->ApplyHpDelta(target_id, -dmg);
+        const auto* v = ctx.player_hp->Get(target_id);
+        if (v && ctx.session_registry && ctx.map_state)
+        {
+            auto target_sess = ctx.session_registry->Get(target_id);
+            if (target_sess)
+                co_await SendHpMpAck(target_sess, target_id, OT_PC,
+                    v->max_hp, new_hp, v->max_mp, v->mp);
+        }
+    }
+}
+
 } // namespace tmapsvr

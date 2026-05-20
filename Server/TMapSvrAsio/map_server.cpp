@@ -30,6 +30,7 @@ MapServer::MapServer(boost::asio::io_context& io, MapServerConfig cfg)
     m_ctx.monster_registry   = m_cfg.monster_registry;
     m_ctx.level_chart        = m_cfg.level_chart;
     m_ctx.spawn_manager      = m_cfg.spawn_manager;
+    m_ctx.player_hp          = m_cfg.player_hp;
     m_ctx.live_session_count = [this]() -> std::uint32_t {
         return LiveSessions();
     };
@@ -197,6 +198,8 @@ MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
         }
         if (m_cfg.session_registry)
             m_cfg.session_registry->Unregister(state.char_id);
+        if (m_cfg.player_hp)
+            m_cfg.player_hp->Unregister(state.char_id);
     }
 
     // F2b: cancel any pending world-client registration.

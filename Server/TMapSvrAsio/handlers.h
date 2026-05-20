@@ -24,6 +24,7 @@
 #include "map_state.h"
 #include "monster_state.h"
 #include "level_chart.h"
+#include "player_hp_registry.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -87,13 +88,13 @@ struct HandlerContext
     IMonsterRegistry*                 monster_registry  = nullptr;
 
     // F4: level chart for HP/exp/damage formulas.
-    // Null → CalcBaseDamage stub used instead.
     ILevelChart*                      level_chart       = nullptr;
 
     // F4: spawn manager — receives OnMonsterDied for respawn scheduling.
-    // Null → dead monsters stay dead (no respawn).
-    // ISpawnManager forward-declared to avoid including spawn_manager.h here.
     class ISpawnManager*              spawn_manager     = nullptr;
+
+    // F4 Part 3: server-side player vitals for monster damage.
+    IPlayerHpRegistry*                player_hp         = nullptr;
 };
 
 // Per-session state. F1 carries the player id assigned on
@@ -165,6 +166,15 @@ boost::asio::awaitable<void> OnConReadyReq(
 // broadcasts CS_MOVE_ACK / CS_ENTER_ACK / CS_LEAVE_ACK via session_registry.
 // Source: CSHandler.cpp:439-485.
 boost::asio::awaitable<void> OnMoveReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F4 Part 3: client reports an incoming attack result.
+// Server validates, broadcasts CS_DEFEND_ACK + CS_HPMP_ACK.
+// Source: CSHandler.cpp:1485.
+boost::asio::awaitable<void> OnDefendReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     MapSessionState&                     state,
     const tnetlib::DecodedPacket&        packet,

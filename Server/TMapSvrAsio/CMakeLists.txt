@@ -204,6 +204,24 @@ add_test(NAME tmapsvr_asio_dm_loadchar_req_spec
     COMMAND test_tmapsvr_asio_dm_loadchar_req_spec)
 fourstory_deploy_ossl_legacy(test_tmapsvr_asio_dm_loadchar_req_spec)
 
+# F4 Part 3 — LocalPlayerHpRegistry spec (pure-unit).
+add_executable(test_tmapsvr_asio_player_hp_registry_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_player_hp_registry_spec.cpp)
+target_include_directories(test_tmapsvr_asio_player_hp_registry_spec
+    PRIVATE ${TMAPSVR_ASIO_SRC}
+            ${CMAKE_SOURCE_DIR}/Lib/Own/TNetLib/TNetLib)
+add_test(NAME tmapsvr_asio_player_hp_registry_spec
+    COMMAND test_tmapsvr_asio_player_hp_registry_spec)
+
+# F4 Part 3 — CS_DEFEND_REQ characterization spec.
+add_executable(test_tmapsvr_asio_cs_defend_req_spec
+    ${TMAPSVR_ASIO_SRC}/tests/test_cs_defend_req_spec.cpp)
+target_link_libraries(test_tmapsvr_asio_cs_defend_req_spec PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_cs_defend_req_spec
+    COMMAND test_tmapsvr_asio_cs_defend_req_spec)
+fourstory_deploy_ossl_legacy(test_tmapsvr_asio_cs_defend_req_spec)
+
 # F4b — HardcodedLevelChart spec (pure-unit, no Asio).
 add_executable(test_tmapsvr_asio_level_chart_spec
     ${TMAPSVR_ASIO_SRC}/tests/test_level_chart_spec.cpp)

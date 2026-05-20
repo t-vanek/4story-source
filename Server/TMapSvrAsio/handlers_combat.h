@@ -54,4 +54,53 @@ boost::asio::awaitable<void> SendHpMpAck(
     std::uint32_t max_mp,
     std::uint32_t mp);
 
+// Send CS_DEFEND_ACK — broadcasts the outcome of one attack to all
+// receivers in AOI. Contains full combat result (hit, damage, positions).
+// Source: CSSender.cpp:1262 — SendCS_DEFEND_ACK
+//
+// F4 Part 3: dynamic skill-damage map is always sent as count=0
+// (stub until full skill-calc lands in F4 Part 4).
+struct DefendAckParams
+{
+    std::uint32_t attack_id      = 0;
+    std::uint32_t target_id      = 0;
+    std::uint8_t  attack_type    = 0;
+    std::uint8_t  target_type    = 0;
+    std::uint32_t host_id        = 0;
+    std::uint8_t  host_type      = 0;
+    std::uint32_t act_id         = 0;
+    std::uint32_t ani_id         = 0;
+    std::uint8_t  hit            = 1;   // 1 = hit
+    std::uint8_t  atk_hit        = 1;
+    std::uint16_t attack_level   = 0;
+    std::uint8_t  attacker_level = 0;
+    std::uint32_t pys_min        = 0;
+    std::uint32_t pys_max        = 0;
+    std::uint32_t mg_min         = 0;
+    std::uint32_t mg_max         = 0;
+    std::uint8_t  can_select     = 1;
+    std::uint8_t  attack_country = 0;
+    std::uint8_t  attack_aid     = 0;
+    std::uint16_t skill_id       = 0;
+    std::uint8_t  skill_level    = 0;
+    std::uint8_t  perform        = 1;   // 1 = success
+    float         atk_pos_x      = 0.0f, atk_pos_y = 0.0f, atk_pos_z = 0.0f;
+    float         def_pos_x      = 0.0f, def_pos_y = 0.0f, def_pos_z = 0.0f;
+};
+
+boost::asio::awaitable<void> SendDefendAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    const DefendAckParams&               p);
+
+// Send CS_MONATTACK_ACK — monster is attacking with a skill.
+// Simple 5-field broadcast; clients render the attack animation.
+// Source: CSSender.cpp:1208 — SendCS_MONATTACK_ACK
+boost::asio::awaitable<void> SendMonAttackAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::uint32_t attacker_id,
+    std::uint32_t target_id,
+    std::uint8_t  attacker_type,   // OT_MON = 2
+    std::uint8_t  target_type,     // OT_PC = 1
+    std::uint16_t skill_id);
+
 } // namespace tmapsvr

@@ -22,6 +22,7 @@
 #include "map_state.h"
 #include "services/session_registry.h"
 #include "level_chart.h"
+#include "player_hp_registry.h"
 #include "legacy_port/types.h"
 #include "handlers_combat.h"
 #include "handlers_map.h"
@@ -74,12 +75,14 @@ public:
                       IMonsterRegistry&        monsters,
                       IMapState&               map_state,
                       ISessionRegistry&        sessions,
-                      ILevelChart&             level_chart)
+                      ILevelChart&             level_chart,
+                      IPlayerHpRegistry*       player_hp = nullptr)
         : m_io(io)
         , m_monsters(monsters)
         , m_map_state(map_state)
         , m_sessions(sessions)
         , m_level_chart(level_chart)
+        , m_player_hp(player_hp)
     {}
 
     void AddSpawnPoint(const legacy::MonsterSpawn& spawn,
@@ -217,10 +220,11 @@ private:
     {
         constexpr int ROAM_INTERVAL_MIN_S = 3;
         constexpr int ROAM_INTERVAL_MAX_S = 7;
+        constexpr float ATTACK_RANGE      = 96.0f;  // ~1.5 cells
+        constexpr float MELEE_DAMAGE_BASE = 30.0f;
 
         while (true)
         {
-            // Random pause between steps
             const int sec = ROAM_INTERVAL_MIN_S +
                 (std::rand() % (ROAM_INTERVAL_MAX_S - ROAM_INTERVAL_MIN_S + 1));
             boost::asio::steady_timer t(m_io);
@@ -229,33 +233,81 @@ private:
             co_await t.async_wait(
                 boost::asio::redirect_error(
                     boost::asio::use_awaitable, ec));
-            if (ec) co_return;  // io stopped
+            if (ec) co_return;
 
-            // Monster gone? (died or despawned)
             auto* mon = m_monsters.GetMutable(instance_id);
             if (!mon || mon->IsDead()) co_return;
 
-            // Pick a random target position within range of origin
-            const float r = range > 0 ? range : static_cast<float>(CELL_SIZE);
-            const float new_x = origin_x + RandomJitter(r);
-            const float new_z = origin_z + RandomJitter(r);
-
-            const float old_x = mon->pos_x, old_z = mon->pos_z;
-            mon->pos_x = new_x;
-            mon->pos_z = new_z;
-            mon->action = 2;  // RUN
-
-            // Broadcast move to AOI players
-            const auto pids = m_map_state.GetNeighborIds(new_x, new_z);
-            for (std::uint32_t pid : pids)
+            // F4 Part 3: aggro — scan AOI for nearest player
+            std::uint32_t aggro_pid = 0;
+            float min_dist2 = 1e9f;
+            const auto nearby_pids = m_map_state.GetNeighborIds(mon->pos_x, mon->pos_z);
+            for (std::uint32_t pid : nearby_pids)
             {
-                auto sess = m_sessions.Get(pid);
-                if (!sess) continue;
-                co_await SendMoveAck(sess, instance_id,
-                    new_x, mon->pos_y, new_z,
-                    0, mon->dir, 0, 0, mon->action, 1.5f);
+                const auto* pp = m_map_state.GetPresence(pid);
+                if (!pp) continue;
+                const float dx = pp->pos_x - mon->pos_x;
+                const float dz = pp->pos_z - mon->pos_z;
+                const float d2 = dx * dx + dz * dz;
+                if (d2 < min_dist2) { min_dist2 = d2; aggro_pid = pid; }
             }
-            (void)old_x; (void)old_z;
+
+            if (aggro_pid != 0 && min_dist2 <= ATTACK_RANGE * ATTACK_RANGE)
+            {
+                // In attack range — broadcast CS_MONATTACK_ACK + deal damage
+                constexpr std::uint8_t OT_MON = 2, OT_PC = 1;
+                for (std::uint32_t pid : nearby_pids)
+                {
+                    auto sess = m_sessions.Get(pid);
+                    if (sess)
+                        co_await SendMonAttackAck(sess,
+                            instance_id, aggro_pid, OT_MON, OT_PC, 0);
+                }
+
+                if (m_player_hp)
+                {
+                    const std::int64_t dmg =
+                        static_cast<std::int64_t>(mon->level) * 3 +
+                        static_cast<std::int64_t>(MELEE_DAMAGE_BASE);
+                    const std::uint32_t new_hp =
+                        m_player_hp->ApplyHpDelta(aggro_pid, -dmg);
+                    const auto* pv = m_player_hp->Get(aggro_pid);
+                    if (pv)
+                    {
+                        auto target_sess = m_sessions.Get(aggro_pid);
+                        if (target_sess)
+                            co_await SendHpMpAck(target_sess, aggro_pid, OT_PC,
+                                pv->max_hp, new_hp, pv->max_mp, pv->mp);
+                    }
+                }
+                // Move toward target (chase)
+                if (const auto* pp = m_map_state.GetPresence(aggro_pid))
+                {
+                    mon->pos_x = pp->pos_x - (pp->pos_x - mon->pos_x) * 0.3f;
+                    mon->pos_z = pp->pos_z - (pp->pos_z - mon->pos_z) * 0.3f;
+                    mon->action = 2;
+                }
+            }
+            else
+            {
+                // Roam: random position within range of origin
+                const float r = range > 0 ? range : static_cast<float>(CELL_SIZE);
+                const float new_x = origin_x + RandomJitter(r);
+                const float new_z = origin_z + RandomJitter(r);
+                mon->pos_x = new_x;
+                mon->pos_z = new_z;
+                mon->action = 2;
+
+                // Broadcast move
+                for (std::uint32_t pid : nearby_pids)
+                {
+                    auto sess = m_sessions.Get(pid);
+                    if (sess)
+                        co_await SendMoveAck(sess, instance_id,
+                            new_x, mon->pos_y, new_z,
+                            0, mon->dir, 0, 0, mon->action, 1.5f);
+                }
+            }
         }
     }
 
@@ -277,6 +329,7 @@ private:
     IMapState&                                      m_map_state;
     ISessionRegistry&                               m_sessions;
     ILevelChart&                                    m_level_chart;
+    IPlayerHpRegistry*                             m_player_hp;
     std::vector<SpawnEntry>                         m_spawn_entries;
     std::unordered_map<std::uint32_t, std::size_t>  m_instance_to_spawn;
 };

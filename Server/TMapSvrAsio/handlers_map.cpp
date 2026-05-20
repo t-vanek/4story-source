@@ -335,6 +335,15 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
     if (ctx.session_registry)
         ctx.session_registry->Register(state.char_id, sess);
 
+    // F4 Part 3: register player vitals for server-side monster damage
+    if (ctx.player_hp && state.snapshot)
+    {
+        const auto& snap = *state.snapshot;
+        ctx.player_hp->Register(state.char_id,
+            snap.hp, snap.hp,  // max_hp placeholder until TLEVELCHART (F4b)
+            snap.mp, snap.mp);
+    }
+
     if (ctx.map_state)
     {
         const auto presence = MakePresenceFromState(state);

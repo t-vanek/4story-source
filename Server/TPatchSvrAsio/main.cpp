@@ -3,9 +3,11 @@
 #include "config.h"
 #include "patch_server.h"
 #include "services/patch_repository.h"
+#include "db/schema_validator.h"
 
 // Reuse Login server's pool wrapper.
 #include "fourstory/db/session_pool.h"
+#include "fourstory/ops/health_endpoint.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -65,6 +67,11 @@ int main(int argc, char** argv)
             const auto backend = fourstory::db::ParseBackend(cfg.database.backend);
             pool = std::make_unique<fourstory::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
+            // Fail-fast on missing patch-metadata columns before we
+            // accept traffic (F5 in SQL_AUDIT). Optional UI table
+            // logs a warning rather than aborting — see validator
+            // notes.
+            tpatchsvr::db::ValidateGlobalSchema(*pool);
             repo = std::make_unique<tpatchsvr::PatchRepository>(*pool);
             spdlog::info("patch_repo: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
@@ -85,6 +92,28 @@ int main(int argc, char** argv)
         tpatchsvr::PatchServer server(io, srv_cfg);
         spdlog::info("patch server listening on 0.0.0.0:{}", server.Port());
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
+
+        // Optional /healthz endpoint on a separate port. Matches the
+        // wiring in TLoginSvrAsio — silently warn if the port is in
+        // use rather than aborting the main listener.
+        std::unique_ptr<fourstory::ops::HealthEndpoint> health;
+        if (cfg.health_port != 0)
+        {
+            try
+            {
+                health = std::make_unique<fourstory::ops::HealthEndpoint>(
+                    io, cfg.health_port);
+                spdlog::info("health endpoint listening on 0.0.0.0:{}",
+                    health->Port());
+                boost::asio::co_spawn(io, health->Run(),
+                    boost::asio::detached);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("health endpoint failed to bind on port {}: {}",
+                    cfg.health_port, ex.what());
+            }
+        }
 
         io.run();
     }

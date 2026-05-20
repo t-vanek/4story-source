@@ -6,6 +6,9 @@ modernized server (`Server/TPatchSvrAsio/`) was already documented as
 semantics and the wire serialization for divergences the handler
 catalogue alone doesn't surface.
 
+Round 2 (2026-05-20) closes the remaining P-5 / P-6 gaps and adds
+the boot-time schema validator that SQL_AUDIT.md called for as F5.
+
 ## Summary
 
 | ID | Severity | Area | Status |
@@ -14,11 +17,10 @@ catalogue alone doesn't surface.
 | P-2 | HIGH | `ListPrePatchesSince` off-by-one (`>=` vs `>`) | ✅ fixed |
 | P-3 | HIGH | `ListInterfaceFiles` queries non-existent `TINTERFACECHART` (real table is `TUSER_INTERFACE` + version subquery) | ✅ fixed |
 | P-4 | HIGH | `MinBetaVersion` uses `MIN(dwBetaVer)` instead of calling `TMinBetaVer` SP | ✅ fixed |
-| P-5 | MEDIUM | `MarkPreVersionComplete` is a no-op (legacy SP `TPreCompleteAdd` not deployed) | documented |
-| P-6 | LOW | Stale-client sweep on `CT_SERVICEMONITOR_ACK` not ported | documented |
+| P-5 | MEDIUM | `MarkPreVersionComplete` is a no-op (legacy SP `TPreCompleteAdd` not deployed) | ✅ fixed |
+| P-6 | LOW | Stale-client sweep on `CT_SERVICEMONITOR_ACK` not ported | ✅ fixed |
 
-The 4 HIGH-severity items were observable wire bugs against any live
-DB. P-5/P-6 are documented but unfixed for the reasons below.
+All audit items closed.
 
 ## Verified non-gaps
 
@@ -118,28 +120,37 @@ Fixed by calling the SP via a `DECLARE @v INT; EXEC TMinBetaVer
 @dwMinVer = @v OUTPUT; SELECT @v` wrapper — captures the OUT param
 in a local and returns it as a single-column rowset SOCI can bind.
 
-## P-5 — MarkPreVersionComplete no-op (documented, not fixed)
+## P-5 — MarkPreVersionComplete inline promotion (fixed)
 
 Legacy calls `{CALL TPreCompleteAdd(?)}` from `OnCT_PREPATCHCOMPLETE_
-REQ`. The SP is **not deployed** on the restored DB (`sys.objects`
-returns no row for `TPreCompleteAdd`). Modern correctly observes
-this — it just logs the request and closes the session.
-
-Operators promoting a pre-version row into TVERSION today do it by
-hand:
+REQ`. The SP is not deployed on the restored RageZone DB. Round-2
+fix inlines the documented operator promote-pre-version sequence
+directly inside `PatchRepository::MarkPreVersionComplete`, wrapped
+in a `soci::transaction` so a mid-promote crash can't leave half
+the files promoted:
 
 ```sql
-INSERT INTO TVERSION (dwVersion, szPath, szName, dwSize, dwBetaVer)
-SELECT  dwBetaVer, szPath, szName, dwSize, dwBetaVer
-FROM TPREVERSION WHERE dwBetaVer = <ver>;
-DELETE FROM TPREVERSION WHERE dwBetaVer = <ver>;
+BEGIN TRAN;
+MERGE INTO TVERSION AS T
+USING (SELECT dwBetaVer, szPath, szName, dwSize
+       FROM TPREVERSION WHERE dwBetaVer = @b) AS S
+ON  T.szPath = S.szPath AND T.szName = S.szName
+WHEN MATCHED THEN UPDATE SET T.dwVersion = S.dwBetaVer,
+                             T.dwSize    = S.dwSize,
+                             T.dwBetaVer = S.dwBetaVer
+WHEN NOT MATCHED THEN INSERT (...) VALUES (S.dwBetaVer, ...);
+
+DELETE FROM TPREVERSION WHERE dwBetaVer = @b;
+COMMIT;
 ```
 
-If the SP is ever shipped, swap the no-op block in
-`PatchRepository::MarkPreVersionComplete` for the equivalent `EXEC
-TPreCompleteAdd :v` call.
+For deploys that *want* the SP (so legacy `TPatchSvr.exe` binaries
+can still call it), the same body now ships in
+`Server/TPatchSvrAsio/schema/patch-tables.sql` as
+`dbo.TPreCompleteAdd`. Modern doesn't depend on the SP existing —
+both paths are independently complete.
 
-## P-6 — Stale-client sweep (documented, not fixed)
+## P-6 — Stale-client sweep (fixed)
 
 Legacy `OnCT_SERVICEMONITOR_ACK` walks the session map every monitor
 heartbeat and closes any SESSION_CLIENT whose `m_dwTick` (= time the
@@ -153,11 +164,16 @@ for(it=m_mapTSESSION.begin(); it!=m_mapTSESSION.end(); it++)
     CloseSession((*it).second);
 ```
 
-This reaps client connections that opened the TCP socket but never
-completed the patch handshake. Modern relies on Boost.Asio's own
-read-timeout + EOF detection; in practice a half-open connection
-disappears as soon as the OS-level keepalive fires, but the explicit
-60-second cap is more aggressive.
+Round-2 port:
 
-Worth porting when we add operational metrics — until then leave it
-unported and document so future work doesn't re-discover the gap.
+* `PatchSession` now records `connected_at` (steady_clock) in its
+  ctor and exposes `IsServerPeer()` / `MarkAsServerPeer()` for the
+  SESSION_SERVER promotion legacy does on the first
+  `CT_SERVICEMONITOR_ACK`.
+* `PatchServer` maintains a `weak_ptr` registry of live sessions
+  (mutex-guarded), and `SweepStaleClients(60s)` closes every
+  non-server peer whose `connected_at` is older than the cap.
+* `OnServiceMonitor` calls the sweep on each heartbeat (matches
+  legacy semantics exactly), and a periodic 60-second timer
+  (`StaleClientSweepLoop`) runs as a belt-and-suspenders safety net
+  for deploys where no TControlSvr peer is connected.

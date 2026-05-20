@@ -1,9 +1,11 @@
 #include "handlers.h"
+#include "patch_server.h"
 
 #include "MessageId.h"
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <cstring>
 
 namespace tpatchsvr::handlers {
@@ -66,6 +68,12 @@ OnServiceMonitor(std::shared_ptr<PatchSession> session,
     std::uint32_t tick = 0;
     std::memcpy(&tick, body.data() + 8, 4);
 
+    // Legacy flips m_bSessionType to SESSION_SERVER on the first
+    // SERVICEMONITOR_ACK so the stale-client sweep skips this peer.
+    // Mirror that here — the sweep above (and the periodic loop in
+    // PatchServer) consult IsServerPeer() to decide.
+    session->MarkAsServerPeer();
+
     std::vector<std::byte> reply;
     reply.reserve(8 + 4 * 4);
     WritePOD<std::int64_t>(reply, 0);        // padding INT64 (legacy quirk)
@@ -78,6 +86,17 @@ OnServiceMonitor(std::shared_ptr<PatchSession> session,
     co_await session->SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CT_SERVICEMONITOR_REQ),
         std::move(reply));
+
+    // Legacy fires the stale-client sweep on every monitor
+    // heartbeat (P-6). Replicate the 60-second cap.
+    if (ctx.server)
+    {
+        const auto closed =
+            ctx.server->SweepStaleClients(std::chrono::seconds(60));
+        if (closed > 0)
+            spdlog::info("CT_SERVICEMONITOR sweep closed {} stale "
+                         "client session(s)", closed);
+    }
 }
 
 boost::asio::awaitable<void>

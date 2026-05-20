@@ -13,6 +13,8 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -70,10 +72,30 @@ public:
 
     const std::string& RemoteIPv4() const { return m_remote_ipv4; }
 
+    // Wall-clock arrival of this session — used by the patch-server
+    // stale-client sweep (legacy m_dwTick semantics, P-6 in the
+    // audit). Captured in the ctor and never updated.
+    std::chrono::steady_clock::time_point ConnectedAt() const
+    {
+        return m_connected_at;
+    }
+
+    // Flipped to true when CT_SERVICEMONITOR_ACK arrives — marks the
+    // session as a server-side peer (TControlSvr/health checker)
+    // rather than a patching client. Legacy uses `m_bSessionType =
+    // SESSION_SERVER` for the same purpose; the sweep exempts these.
+    bool IsServerPeer() const  { return m_server_peer.load(); }
+    void MarkAsServerPeer()    { m_server_peer.store(true); }
+
+    bool IsOpen() const        { return m_socket.is_open(); }
+
 private:
     boost::asio::ip::tcp::socket m_socket;
     std::string                  m_remote_ipv4;
     std::vector<std::byte>       m_send_scratch;
+    std::chrono::steady_clock::time_point m_connected_at{
+        std::chrono::steady_clock::now() };
+    std::atomic<bool>            m_server_peer{ false };
 };
 
 } // namespace tpatchsvr

@@ -66,7 +66,7 @@ Legend:
 | `TSPAWNPOSCHART` | **—** | **—** | — | — | ✓ | — | soci_map | — |
 | `TVERSION` | **—** | **—** | — | — | ✓ | — | patch_repository | — |
 | `TPREVERSION` | **—** | **—** | — | — | ✓ | — | patch_repository | — |
-| `TINTERFACECHART` | **—** | **—** | — | — | **—** | — | patch_repository (optional) | — |
+| `TUSER_INTERFACE` | **—** | **—** | — | — | ✓ | — | patch_repository (optional) | — |
 | `TLOG_AUDIT` | — | — | — | ✓ | — | — | — | log_sink |
 
 ## Stored procedures referenced in comments (not invoked)
@@ -133,7 +133,7 @@ created by any DDL the modern stack ships:
 | `TSVRCHART` (VIEW) | `soci_map_server_locator.cpp:118` | yes (via FindServerForChar) |
 | `TVERSION` | `patch_repository.cpp:24,120` | yes (error log) |
 | `TPREVERSION` | `patch_repository.cpp:58,120` | yes (error log) |
-| `TINTERFACECHART` | `patch_repository.cpp:89` | yes (debug log) |
+| `TUSER_INTERFACE` | `patch_repository.cpp:89` | yes (debug log) |
 
 Code defensively swallows the resulting `relation does not exist`,
 so these don't crash a dev run — but it also means CI never
@@ -143,9 +143,10 @@ once someone points the modern stack at the legacy prod DB.
 
 **Fix:** add DDL for these to `postgres-dev.sql` (or a sibling
 fixture file) and mirror to MSSQL. Even stub tables with a single
-row are enough to cover the happy paths. `TINTERFACECHART` is
-likely region-specific and may not exist in legacy CSV — verify
-before shipping a DDL guess.
+row are enough to cover the happy paths. The patch-server tables
+(`TVERSION` / `TPREVERSION` / `TUSER_INTERFACE` plus `TMinBetaVer`
+and `TPreCompleteAdd` SPs) ship as
+`Server/TPatchSvrAsio/schema/patch-tables.sql` since 2026-05-20.
 
 ### F3. Schema validator inconsistency: optional vs required (MEDIUM)
 
@@ -191,6 +192,13 @@ straight to handling traffic; a missing `TVERSION` or misnamed
 **Fix:** add a thin validator for each — `TPatchSvrAsio` checks
 `TVERSION + TPREVERSION` (treat `TINTERFACECHART` as optional);
 `TLogSvrAsio` checks the configured audit table name resolves.
+
+**Status (2026-05-20):** ✅ patch validator shipped — see
+`Server/TPatchSvrAsio/db/schema_validator.cpp`
+(`tpatchsvr::db::ValidateGlobalSchema`), wired in
+`main.cpp:71` between pool creation and repository hand-off.
+`TUSER_INTERFACE` treated as optional (warning, not abort).
+TLogSvrAsio validator still pending.
 
 ### F6. `TLOG_AUDIT.LT_LOG` binding fragility (TRIVIAL)
 

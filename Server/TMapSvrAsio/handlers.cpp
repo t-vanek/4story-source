@@ -27,6 +27,9 @@
 #include "handlers_items.h"
 #include "wire_codec.h"
 
+// F6: chat
+// OnChatReq defined in handlers_chat.cpp — declared in handlers.h
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -611,6 +614,12 @@ Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_ITEMUSE_REQ:
         co_await OnItemUseReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_MONITEMTAKE_REQ:
+        co_await OnMonItemTakeReq(std::move(sess), state, packet, ctx);
+        break;
+    case MessageId::CS_CHAT_REQ:
+        co_await OnChatReq(std::move(sess), state, packet, ctx);
         break;
     case MessageId::CS_SKILLUSE_REQ:
         co_await OnSkillUseReq(std::move(sess), state, packet, ctx);

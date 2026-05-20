@@ -26,6 +26,7 @@
 #include "level_chart.h"
 #include "player_hp_registry.h"
 #include "inventory_service.h"
+#include "loot_registry.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -99,6 +100,9 @@ struct HandlerContext
 
     // F5: live item inventory.
     IInventoryService*                inventory_svc     = nullptr;
+
+    // F5 Part 2: monster loot store.
+    ILootRegistry*                    loot_registry     = nullptr;
 };
 
 // Per-session state. F1 carries the player id assigned on
@@ -190,6 +194,22 @@ boost::asio::awaitable<void> OnMoveItemReq(
 
 // F5: consume an item (potion heal stub). Source: CSHandler.cpp:9092.
 boost::asio::awaitable<void> OnItemUseReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F5 Part 2: pick up item from monster loot.
+// Source: CSHandler.cpp:6874.
+boost::asio::awaitable<void> OnMonItemTakeReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
+// F6: near/shout chat. Broadcasts CS_CHAT_ACK to AOI neighbours.
+// Source: CSHandler.cpp:5206.
+boost::asio::awaitable<void> OnChatReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     MapSessionState&                     state,
     const tnetlib::DecodedPacket&        packet,

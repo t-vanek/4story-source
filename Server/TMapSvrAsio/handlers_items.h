@@ -85,4 +85,12 @@ boost::asio::awaitable<void> SendItemUseAck(
     std::uint8_t                          item_kind      = 0,
     std::uint32_t                         expire_tick    = 0);
 
+// F5 Part 2: pick up item from monster loot.
+// Source: CSHandler.cpp:6874.
+boost::asio::awaitable<void> OnMonItemTakeReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    MapSessionState&                     state,
+    const tnetlib::DecodedPacket&        packet,
+    const HandlerContext&                ctx);
+
 } // namespace tmapsvr

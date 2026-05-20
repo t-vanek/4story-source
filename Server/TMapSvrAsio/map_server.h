@@ -19,6 +19,7 @@
 #include "level_chart.h"
 #include "player_hp_registry.h"
 #include "inventory_service.h"
+#include "loot_registry.h"
 
 #include "fourstory/ops/rate_limiter.h"
 
@@ -84,6 +85,9 @@ struct MapServerConfig
 
     // F5: live item inventory service.
     IInventoryService*                  inventory_svc    = nullptr;
+
+    // F5 Part 2: monster loot store.
+    ILootRegistry*                      loot_registry    = nullptr;
 };
 
 class MapServer

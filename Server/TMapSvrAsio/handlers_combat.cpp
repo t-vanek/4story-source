@@ -16,6 +16,7 @@
 #include "handlers_combat.h"
 #include "handlers.h"
 #include "spawn_manager.h"
+#include "loot_registry.h"
 #include "services/session_registry.h"
 #include "wire_codec.h"
 
@@ -214,6 +215,11 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
                 if (nbr) co_await SendDelMonAck(nbr, obj_id, 0u);
             }
             co_await SendDelMonAck(sess, obj_id, 0u);
+
+            // Generate loot before removing from registry
+            if (ctx.loot_registry)
+                ctx.loot_registry->SetLoot(obj_id,
+                    GenerateStubLoot(mon->level));
 
             ctx.monster_registry->Remove(obj_id);
 

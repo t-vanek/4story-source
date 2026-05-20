@@ -18,6 +18,7 @@
 #include "handlers_items.h"
 #include "handlers.h"
 #include "handlers_combat.h"  // SendHpMpAck
+#include "loot_registry.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -354,6 +355,99 @@ OnItemUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
 
     co_await SendItemUseAck(sess, ItemUseResult::Success,
         delay_group_id, 0, 0);
+}
+
+// ---------------------------------------------------------------------------
+// SendMonItemListAck — show loot list to client
+// ---------------------------------------------------------------------------
+//
+// Wire: BYTE bRet, BYTE bUpdate, DWORD dwMonID,
+//       DWORD gold, DWORD silver, DWORD copper,
+//       BYTE bItemCount, [SerializeItem × count]
+// Source: CSSender.cpp:2991
+
+static boost::asio::awaitable<void>
+SendMonItemListAck(std::shared_ptr<tnetlib::AsioSession> sess,
+                   std::uint32_t                         mon_id,
+                   const MonsterLoot&                   loot)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint8_t> (body, 0u);   // bRet = 0 (success)
+    wire::WritePOD<std::uint8_t> (body, 1u);   // bUpdate
+    wire::WritePOD<std::uint32_t>(body, mon_id);
+    wire::WritePOD<std::uint32_t>(body, loot.gold);
+    wire::WritePOD<std::uint32_t>(body, loot.silver);
+    wire::WritePOD<std::uint32_t>(body, loot.copper);
+    const auto cnt = static_cast<std::uint8_t>(loot.items.size());
+    wire::WritePOD<std::uint8_t>(body, cnt);
+    for (const auto& item : loot.items)
+        SerializeItem(body, item, true);
+
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CS_MONITEMLIST_ACK),
+        std::span<const std::byte>(body.data(), body.size()));
+}
+
+// ---------------------------------------------------------------------------
+// OnMonItemTakeReq — pick up one item from monster loot
+// ---------------------------------------------------------------------------
+//
+// Wire: DWORD dwMonID, BYTE bItemID, BYTE bInvenID, BYTE bSlotID
+// Source: CSHandler.cpp:6874
+
+boost::asio::awaitable<void>
+OnMonItemTakeReq(std::shared_ptr<tnetlib::AsioSession> sess,
+                 MapSessionState&                     state,
+                 const tnetlib::DecodedPacket&        packet,
+                 const HandlerContext&                ctx)
+{
+    if (!state.connected || !state.snapshot || state.is_dead) co_return;
+
+    wire::Reader r(packet.body.data(), packet.body.size());
+    std::uint32_t mon_id  = 0;
+    std::uint8_t  item_id = 0, inven_id = 0, slot_id = 0;
+    if (!r.Read(mon_id) || !r.Read(item_id) ||
+        !r.Read(inven_id) || !r.Read(slot_id))
+    {
+        spdlog::warn("CS_MONITEMTAKE_REQ malformed uid={}", state.user_id);
+        co_return;
+    }
+
+    // Result: 1 byte success/fail
+    // CS_MONITEMTAKE_ACK wire: BYTE bResult
+    auto SendTakeAck = [&](std::uint8_t result) -> boost::asio::awaitable<void> {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, result);
+        co_await sess->SendPacket(
+            ToUint16(MessageId::CS_MONITEMTAKE_ACK),
+            std::span<const std::byte>(b.data(), b.size()));
+    };
+
+    if (!ctx.loot_registry)
+    {
+        co_await SendTakeAck(1u);  // fail
+        co_return;
+    }
+
+    auto taken = ctx.loot_registry->TakeItem(mon_id, item_id);
+    if (!taken)
+    {
+        co_await SendTakeAck(1u);  // item already taken
+        co_return;
+    }
+
+    // Add item to player inventory
+    if (ctx.inventory_svc)
+    {
+        taken->inven_type = inven_id;
+        taken->inven_id   = slot_id;
+        ctx.inventory_svc->AddItem(state.char_id, *taken);
+        co_await SendAddItemAck(sess, inven_id, *taken);
+    }
+
+    co_await SendTakeAck(0u);  // success
+    spdlog::debug("OnMonItemTakeReq: uid={} took item_id={} from mon={}",
+        state.user_id, taken->item_id, mon_id);
 }
 
 } // namespace tmapsvr

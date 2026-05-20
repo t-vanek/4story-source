@@ -23,7 +23,7 @@ static library and is now also consumed by `TPatchSvrAsio` and
 | Wire codec (RC4 + XOR + framing) | ✅ RFC 6229 + symmetry tests |
 | Asio reactor + session lifecycle | ✅ coroutines, RAII, pre-auth idle watchdog |
 | Two-pool DB layer (TGLOBAL + TGAME) | ✅ SOCI ODBC against MSSQL |
-| Schema validator on startup | ✅ 40 TGLOBAL + 23 TGAME columns checked, fail-fast |
+| Schema validator on startup | ✅ 50 TGLOBAL + 23 TGAME columns checked, fail-fast |
 | Auth flow (LOGIN, AGREEMENT) | ✅ TLogin SP parity — IP banlist, TUSERPROTECTED, bLocked-kick, TUSERINFOTABLE agreement, **BCrypt-only** (run `tloginsvr_bcrypt_migrate` once on legacy DBs) |
 | Char flow (LIST, CREATE, DELETE) | ✅ TCHARTABLE + TITEMTABLE equipped + TGUILDTABLE fame, guild block + level-5 split, password verify, BR/BOW notify |
 | Map locator (START + lobby lists) | ✅ TFindServerID port (TSVRCHART + TCHANNELCHART + TSPAWNPOSCHART fallback), BR/BOW shard override, live TCURRENTUSER counts |
@@ -104,7 +104,8 @@ Real legacy split — the new server respects it:
   `TUSERINFOTABLE`, `TUSERPROTECTED`, `TCURRENTUSER`, `TLOG`,
   `IPBLACKLIST_game`, `TSERVER`, `TIPADDR`, `TGROUP`, `TCHANNEL`,
   `TALLCHARTABLE`, `TVETERANCHART`, `TRESERVEDNAME`, `TKEEPINGNAME`,
-  `TTESTLOGINUSER`, `TSECURECODE`.
+  `TTESTLOGINUSER`, `TSECURECODE`, `TUSEREMAIL`, `TUSERTRUSTEDIP`
+  (2FA — apply `schema/2fa-tables.sql` if missing).
 
 * **TGAME** (`tloginsvr.toml [database.world]`) — per-world chars,
   items, guilds, shard tables. Tables: `TCHARTABLE`, `TITEMTABLE`,
@@ -118,7 +119,7 @@ Schemas:
 * `schema/dev-account.sql` — seeds `dev` / `dev123` (BCrypt hash,
   agreement set) against a real `TGLOBAL_RAGEZONE`
 
-The startup `schema_validator` (`db/schema_validator.cpp`) confirms 40
+The startup `schema_validator` (`db/schema_validator.cpp`) confirms 50
 TGLOBAL + 23 TGAME columns before the listener opens. Fail-fast on
 schema drift.
 
@@ -128,9 +129,20 @@ Single TOML file. Empty `[database]` keeps the binary in dev / no-DB
 mode. Setting `[database]` + `[database.world]` flips into production
 mode (SOCI services, schema validator, audit log).
 
+**Production deploys MUST set `[server] control_server_ip`** —
+without it the CT_* dispatch would accept event-registry pokes from
+any peer. The binary refuses to start unless either `control_server_ip`
+is pinned or `control_server_gate_open = true` is explicitly opted in
+(dev / in-process tests only).
+
 ```toml
 [server]
 port = 4816                          # legacy TSERVER row for bType=TLOGIN_GSP
+# nation = "us"                      # us|germany|taiwan|japan|korea|russia
+control_server_ip = "10.0.0.5"       # REQUIRED in prod — peer IP of TControlSvr;
+                                     # CT_* messages from anyone else are dropped
+# control_server_gate_open = false   # opt-in to "accept CT_* from anyone" (dev/test only)
+# max_connections = 4096             # soft cap on concurrent TCP sessions; 0 disables
 # accepted_versions = [0x2918]       # client wVersion whitelist; default = legacy single value
 # test_handlers_enabled = false      # CS_TESTLOGIN_REQ / CS_TESTVERSION_REQ gate
 
@@ -152,15 +164,25 @@ port = 0                             # admin TCP shell; 0 disables. Never expose
 # host = "192.168.1.5"               # legacy TLogSvr collector — sends wire-faithful _UDPPACKET
 # port = 2000
 
+[smtp]                               # 2FA mail relay; leave empty for log-only fallback
+# host = "127.0.0.1"                 # plain SMTP via Boost.Asio; no STARTTLS — front with Postfix for TLS
+# port = 25
+# from_address = "noreply@example.com"
+# from_display = "4Story Login"
+# username = ""                      # AUTH LOGIN; leave both empty for anonymous submission
+# password = ""
+
 [database]                           # TGLOBAL — accounts, sessions, server registry
 backend = "odbc"
 connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
 pool_size = 8
+# acquire_timeout_secs = 30          # bounds Acquire() wait when pool is saturated; 0 = wait forever
 
 [database.world]                     # TGAME — per-world chars/items/guilds
 backend = "odbc"
 connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGAME_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
 pool_size = 8
+# acquire_timeout_secs = 30
 ```
 
 Full annotated schema with all keys: `tloginsvr.example.toml`.
@@ -170,6 +192,8 @@ Full annotated schema with all keys: `tloginsvr.example.toml`.
 | Feature | Where |
 |---|---|
 | **Pre-auth idle timeout** | `LoginServer::HandleConnection` watchdog (60s default, configurable) |
+| **Max connections cap** | `[server] max_connections` (default 4096) — drops new accepts past the cap so pre-auth floods can't exhaust memory |
+| **Control-server peer gate** | `[server] control_server_ip` — CT_* dispatch (event registry, service monitor) accepts packets only from the pinned peer IP; binary refuses to start without this in production mode |
 | **Rate limiting per peer IP** | `LoginRateLimiter` token bucket, 5 attempts / 10s refill default |
 | **Schema validator on startup** | `db/schema_validator.cpp` — fail-fast on missing tables/columns |
 | **Structured audit log** | `SpdlogAuditLogger` — emits `event=login outcome=… uid=… ip=… key=…` |
@@ -177,7 +201,7 @@ Full annotated schema with all keys: `tloginsvr.example.toml`.
 | **Admin TCP shell** | `AdminShell` — `status`, `kick`, `ban-ip`, `log-level`, `quit` (localhost bind only) |
 | **Periodic cache refresh** | `RegistryRefresher` — 30s tick reloads `TVETERANCHART` |
 | **Health endpoint** | `/healthz` HTTP JSON (uptime + status) for k8s probes |
-| **Graceful shutdown** | SIGINT/SIGTERM + `SM_QUITSERVICE_REQ` both trigger `io.stop()` |
+| **Graceful shutdown** | SIGINT/SIGTERM + `SM_QUITSERVICE_REQ` both trigger `io.stop()`; pre-stop sweep terminates every live session row (`TCURRENTUSER` + `TLOG.timeLOGOUT`) so the next boot doesn't have to reap stale `LR_DUPLICATE` rows |
 | **BCrypt-only auth (hard cutover)** | Plaintext/SHA1-hex `TACCOUNT_PW.szPasswd` rows are rejected as `LR_INVALIDPASSWD`. One-shot offline `tloginsvr_bcrypt_migrate` (in `Server/TLoginSvrAsio/tools/`) rehashes legacy rows. Idempotent — already-bcrypt rows are skipped. |
 
 ## Build
@@ -208,9 +232,13 @@ cmake -B build -S . && cmake --build build --target tloginsvr_asio
 ctest --output-on-failure
 ```
 
-10 ctest targets — wire codec, handler dispatch, per-service business
-logic against the test fakes. SOCI integration suites skip automatically
-when `TLOGINSVR_TEST_MSSQL_CONN` env var is unset (so CI without a DB
+17 ctest targets — wire codec (RC4 secret length, handshake), per-
+handler dispatch (auth flow, char flow, start flow, duplicate kick,
+control gate, shutdown sweep, site_code parse), per-service unit tests
+(charname validator, event registry, session terminator), and SOCI
+integration suites (auth, char, map, session terminator, end-to-end
+codec + auth wire roundtrip). The SOCI suites skip automatically when
+`TLOGINSVR_TEST_MSSQL_CONN` env var is unset (so CI without a DB
 passes). With env set:
 
 ```sh
@@ -235,7 +263,7 @@ build\bin\Release\tloginsvr_asio.exe --config tloginsvr.toml
 Expected startup log:
 
 ```
-schema_validator (global) OK (40 columns checked)
+schema_validator (global) OK (50 columns checked)
 schema_validator (world)  OK (23 columns checked)
 char_service: refreshed N veteran-chart row(s)
 registry_refresher: tick every 30s (1 hook(s))

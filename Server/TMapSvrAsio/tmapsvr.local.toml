@@ -1,0 +1,33 @@
+# tmapsvr.local.toml — dev config against restored MSSQL.
+# Used by `tmapsvr_asio --config tmapsvr.local.toml`.
+
+[server]
+port = 5815
+max_connections = 100
+
+[crypto]
+disable = true
+
+[mode]
+type = "pve"
+
+[world]
+host = "127.0.0.1"
+port = 0
+
+[log]
+level = "debug"
+
+[health]
+port = 8916
+
+[metrics]
+port = 8917
+
+[database]
+backend = "odbc"
+# TGAME_RAGEZONE holds all char/game tables. TCURRENTUSER is pulled in
+# via a synonym created in TGAME_RAGEZONE pointing to TGLOBAL_RAGEZONE.
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGAME_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+pool_size = 4
+worker_threads = 4

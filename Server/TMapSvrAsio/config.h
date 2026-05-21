@@ -89,6 +89,17 @@ struct AdminConfig
     std::string    secret;            // empty = no auth (bind protects)
 };
 
+// TControlSvr cluster coordinates — optional, used by CT_* control handlers
+// to authorize inbound control traffic and identify this map node.
+struct ClusterConfig
+{
+    std::string    control_host;   // TControlSvr host (empty = gate open)
+    std::uint16_t  control_port = 0;
+    std::uint8_t   group_id     = 0;   // world/group this map belongs to
+    std::uint8_t   server_id    = 0;   // map server id within the group
+    std::string    reported_addr;      // address reported to World on connect
+};
+
 struct AppConfig
 {
     // Listener configuration consumed by MapServer. Holds port,
@@ -115,6 +126,9 @@ struct AppConfig
 
     // T6 admin TCP shell.
     AdminConfig     admin;
+
+    // TControlSvr cluster coordinates (optional).
+    ClusterConfig   cluster;
 
     // Health endpoint port. 0 disables.
     std::uint16_t  health_port = 8916;

@@ -171,6 +171,9 @@ ctest --test-dir build -C Release --output-on-failure
   what's intentionally not emulated (and why)
 * [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md)
   — design notes for the upcoming control-server port
+* [`_rewrite/docs/PEER_PROTOCOL_PLAN.md`](_rewrite/docs/PEER_PROTOCOL_PLAN.md)
+  — three-phase plan for peer-link TLS, access/refresh tokens, and
+  gRPC migration
 * [`_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md`](_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md)
   — behavioral diff between the shipped server and the emulator
 * [`_rewrite/docs/CLIENT_BUILD_NOTES.md`](_rewrite/docs/CLIENT_BUILD_NOTES.md)

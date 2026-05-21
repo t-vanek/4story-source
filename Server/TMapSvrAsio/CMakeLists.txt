@@ -100,8 +100,10 @@ endif()
 # the MapServer / handlers / services layer. Split from the executable
 # so unit tests can link against the core without dragging in main().
 add_library(tmapsvr_asio_core STATIC
+    ${TMAPSVR_ASIO_SRC}/audit/audit_log.cpp
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/map_server.cpp
+    ${TMAPSVR_ASIO_SRC}/ops/metrics.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_world.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/dispatch.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/session.cpp

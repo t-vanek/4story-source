@@ -12,9 +12,11 @@
 // in CMakeLists.txt for the documented TODOs that the consolidation
 // pass picks up.
 
+#include "audit/audit_log.h"
 #include "config.h"
 #include "handlers_world.h"
 #include "map_server.h"
+#include "ops/metrics.h"
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
 #include "services/companion_service.h"
@@ -157,8 +159,17 @@ int main(int argc, char** argv)
 
         // T3: UDP audit sink (TLogSvrAsio collector). Empty host /
         // port=0 disables the peer; events still go to spdlog. T4
-        // observability will start emitting structured events here.
-        tmapsvr::UdpLogPeer audit_peer(io, cfg.audit.host, cfg.audit.port);
+        // observability builds the structured audit log on top.
+        tmapsvr::UdpLogPeer    log_peer(io, cfg.audit.host, cfg.audit.port);
+
+        // T4: structured audit emitter (mirrors to spdlog + sends
+        // POD events to the UDP log peer when configured).
+        tmapsvr::audit::AuditLog audit_log(&log_peer);
+
+        // T4: metrics registry — counters + latency per handler /
+        // per DB query. Snapshots will feed a /metrics endpoint in
+        // a follow-up commit.
+        tmapsvr::ops::Metrics    metrics;
 
         // char_id → AsioSession map. Lives for the io.run() duration,
         // bound at CS_CONNECT_REQ success, unbound by the MapServer
@@ -188,7 +199,9 @@ int main(int argc, char** argv)
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;
         ctx.companion_service = companion_service.get();
-        ctx.audit             = &audit_peer;
+        ctx.log_peer          = &log_peer;
+        ctx.audit             = &audit_log;
+        ctx.metrics           = &metrics;
         ctx.mode              = cfg.mode;
 
         // Optional World peer — only spun up when [world] port is set

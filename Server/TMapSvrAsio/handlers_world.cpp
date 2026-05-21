@@ -1,5 +1,6 @@
 #include "handlers_world.h"
 
+#include "services/inventory_service.h"
 #include "services/player_service.h"
 #include "services/world_client.h"
 #include "wire_codec.h"
@@ -9,6 +10,7 @@
 #include <spdlog/spdlog.h>
 
 #include <utility>
+#include <vector>
 
 namespace tmapsvr {
 
@@ -45,7 +47,8 @@ std::vector<std::byte> EncodeLoadCharAckError(std::uint32_t dwCharID,
 // services come online (F9 items, F11 skills, F12 quests, …).
 std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
                                                 std::uint32_t dwKEY,
-                                                const CharSnapshot& s)
+                                                const CharSnapshot& s,
+                                                const std::vector<InventoryRow>& inven)
 {
     std::vector<std::byte> body;
     body.reserve(256);
@@ -102,13 +105,28 @@ std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
     wire::WritePOD<std::uint16_t>(body, 0);     // WORD(0)
     wire::WritePOD<std::uint8_t> (body, 1);     // BYTE(TRUE)
 
-    // The legacy ack continues with secure code / aid table / PC
-    // bang / post info / inventory / cabinet / skill / quest / equip
-    // / friend / craft / mail / chapter sections. F8 ships none of
-    // them — each lands with its owning phase, in wire order, on top
-    // of this snapshot. Senders that depend on those sections will
-    // observe a short body and either fall back to defaults or
-    // refuse the load until the phase is complete.
+    // F9 inventory section (legacy SSHandler.cpp:3540): WORD count
+    // followed by one record per row. Each record carries:
+    //   BYTE  bInvenID    slot id
+    //   WORD  wItemID     item template id
+    //   INT64 dEndTime    expiry tick (0 = permanent)
+    //   BYTE  bELD        legacy ELD flag
+    wire::WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(inven.size()));
+    for (const auto& r : inven)
+    {
+        wire::WritePOD<std::uint8_t> (body, r.bInvenID);
+        wire::WritePOD<std::uint16_t>(body, r.wItemID);
+        wire::WritePOD<std::int64_t> (body, r.dEndTime);
+        wire::WritePOD<std::uint8_t> (body, r.bELD);
+    }
+
+    // The legacy ack continues with cabinet / skill / quest / equip
+    // / friend / craft / mail / chapter sections. F9 ships only
+    // through inventory — each remaining section lands with its
+    // owning phase, in wire order, on top of this body. Senders that
+    // depend on later sections will observe a short body and either
+    // fall back to defaults or refuse the load until the phase is
+    // complete.
 
     return body;
 }
@@ -164,15 +182,26 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
+    // Inventory is optional — without a service we ship an empty
+    // section (count = 0) so the body still has the F9 wire shape.
+    // Legacy treats "0 inventory rows" as `m_bLoadCharError = TRUE`
+    // and refuses the load; we keep that contract documented in
+    // services/inventory_service.h and let the world handle the
+    // empty-roster decision per its policy.
+    std::vector<InventoryRow> inven;
+    if (ctx.inventory_service)
+        inven = ctx.inventory_service->LoadInventory(dwCharID);
+
     spdlog::info("DM_LOADCHAR_REQ char={} user={} name='{}' lvl={} class={} "
-                 "map={} pos=({:.1f},{:.1f},{:.1f}) — F8 snapshot encoded "
-                 "(no inventory / skills / quests yet)",
+                 "map={} pos=({:.1f},{:.1f},{:.1f}) inven={} row(s) — "
+                 "F9 snapshot encoded (no skills / quests yet)",
         dwCharID, dwUserID, snap->szNAME, snap->bLevel, snap->bClass,
-        snap->wMapID, snap->fPosX, snap->fPosY, snap->fPosZ);
+        snap->wMapID, snap->fPosX, snap->fPosY, snap->fPosZ,
+        inven.size());
 
     co_await ctx.world_client->SendPacket(
         static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
-        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap));
+        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap, inven));
 }
 
 boost::asio::awaitable<void>

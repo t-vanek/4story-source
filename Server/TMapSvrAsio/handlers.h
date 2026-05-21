@@ -27,17 +27,19 @@ class IWorldClient;
 class ISessionRegistry;
 class IChannelPresence;
 class IPlayerService;
+class IInventoryService;
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; main() keeps the lifetimes.
 struct HandlerContext
 {
-    IMapSessionValidator*  validator       = nullptr;
-    IWorldClient*          world_client    = nullptr;
-    ISessionRegistry*      session_reg     = nullptr;
-    IChannelPresence*      presence        = nullptr;
-    IPlayerService*        player_service  = nullptr;
-    std::uint8_t           expected_group  = 0;     // [server] / world group id
+    IMapSessionValidator*  validator         = nullptr;
+    IWorldClient*          world_client      = nullptr;
+    ISessionRegistry*      session_reg       = nullptr;
+    IChannelPresence*      presence          = nullptr;
+    IPlayerService*        player_service    = nullptr;
+    IInventoryService*     inventory_service = nullptr;
+    std::uint8_t           expected_group    = 0;     // [server] / world group id
     // Future phases will add: IMapState, ISpawnManager, … each
     // owned by main() and pointed at here.
 };

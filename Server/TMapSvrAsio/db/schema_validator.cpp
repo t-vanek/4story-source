@@ -90,4 +90,20 @@ void ValidateCharSchema(fourstory::db::SessionPool& pool)
     });
 }
 
+void ValidateInventorySchema(fourstory::db::SessionPool& pool)
+{
+    auto lease = pool.Acquire();
+
+    // TINVENTABLE columns the F9 inventory service SELECTs.
+    // dwCharID is the WHERE filter; the other four match the wire
+    // layout the inventory section of DM_LOADCHAR_ACK emits.
+    fourstory::db::CheckColumns(*lease, "map_inventory", {
+        { "TINVENTABLE", "dwCharID" },
+        { "TINVENTABLE", "bInvenID" },
+        { "TINVENTABLE", "wItemID" },
+        { "TINVENTABLE", "dEndTime" },
+        { "TINVENTABLE", "bELD" },
+    });
+}
+
 } // namespace tmapsvr::db

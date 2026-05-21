@@ -24,4 +24,10 @@ void ValidateUserSchema(fourstory::db::SessionPool& pool);
 // quests / …) will add their tables to a sibling validator each.
 void ValidateCharSchema(fourstory::db::SessionPool& pool);
 
+// TINVENTABLE column check — F9 inventory section of
+// DM_LOADCHAR_ACK. Independent of TCHARTABLE so an operator with a
+// fresh server can ship without TINVENTABLE deployed and have the F8
+// snapshot still return; the ack just carries an empty inventory.
+void ValidateInventorySchema(fourstory::db::SessionPool& pool);
+
 } // namespace tmapsvr::db

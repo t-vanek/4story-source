@@ -1,20 +1,21 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F8: player service. SOCI-backed LoadChar reads TCHARTABLE and
-// hands the snapshot to handlers_world::OnDMLoadCharReq, which now
-// emits a DM_LOADCHAR_ACK success body (TCHARTABLE-derived fields +
-// sentinel trio). Trailing sub-sections (inventory, skills, quests,
-// …) are intentionally absent — each lands in the phase that owns
-// the corresponding data.
+// Phase F9: inventory service. The F8 player snapshot now grows an
+// inventory section appended to the DM_LOADCHAR_ACK success body.
+// SOCI reads TINVENTABLE rows per char; without the service or the
+// table, the section ships as count=0 (legacy treats this as the
+// load-error path).
 
 #include "config.h"
 #include "handlers_world.h"
 #include "map_server.h"
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
+#include "services/inventory_service.h"
 #include "services/player_service.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
+#include "services/soci_inventory_service.h"
 #include "services/soci_player_service.h"
 #include "services/soci_session_validator.h"
 #include "services/world_client.h"
@@ -40,7 +41,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F8 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F9 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -82,6 +83,7 @@ int main(int argc, char** argv)
         std::unique_ptr<fourstory::db::SessionPool>     pool;
         std::unique_ptr<tmapsvr::IMapSessionValidator>  validator;
         std::unique_ptr<tmapsvr::IPlayerService>        player_service;
+        std::unique_ptr<tmapsvr::IInventoryService>     inventory_service;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -91,10 +93,13 @@ int main(int argc, char** argv)
                 backend, cfg.database.connection_string, cfg.database.pool_size);
             tmapsvr::db::ValidateUserSchema(*pool);
             tmapsvr::db::ValidateCharSchema(*pool);
-            validator      = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
-            player_service = std::make_unique<tmapsvr::SociPlayerService>(*pool);
-            spdlog::info("schema: TCURRENTUSER + TCHARTABLE columns OK ({}) — "
-                         "session validator + player service ready",
+            tmapsvr::db::ValidateInventorySchema(*pool);
+            validator         = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
+            player_service    = std::make_unique<tmapsvr::SociPlayerService>(*pool);
+            inventory_service = std::make_unique<tmapsvr::SociInventoryService>(*pool);
+            spdlog::info("schema: TCURRENTUSER + TCHARTABLE + TINVENTABLE columns "
+                         "OK ({}) — session validator + player service + "
+                         "inventory service ready",
                 fourstory::db::BackendName(backend));
         }
         else
@@ -119,10 +124,11 @@ int main(int argc, char** argv)
         // lambda can capture it by reference (the context's pointer
         // fields are filled in below as each service comes online).
         tmapsvr::HandlerContext ctx{};
-        ctx.validator       = validator.get();
-        ctx.session_reg     = &session_reg;
-        ctx.presence        = &presence;
-        ctx.player_service  = player_service.get();
+        ctx.validator         = validator.get();
+        ctx.session_reg       = &session_reg;
+        ctx.presence          = &presence;
+        ctx.player_service    = player_service.get();
+        ctx.inventory_service = inventory_service.get();
 
         // Optional World peer — only spun up when [world] port is set
         // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
@@ -180,7 +186,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F8 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F9 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

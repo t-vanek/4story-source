@@ -22,7 +22,7 @@ namespace tpatchsvr {
 struct PatchServerConfig
 {
     std::uint16_t      port = 3715;
-    PatchRepository*   repo = nullptr;        // non-owning
+    IPatchRepository*  repo = nullptr;        // non-owning
     std::string        ftp_url;
     std::string        pre_ftp_url;
     std::string        login_host;

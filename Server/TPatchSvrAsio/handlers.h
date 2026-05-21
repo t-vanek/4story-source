@@ -23,7 +23,7 @@ namespace tpatchsvr::handlers {
 
 struct ServerContext
 {
-    PatchRepository*  repo = nullptr;
+    IPatchRepository* repo = nullptr;
     std::string       ftp_url;
     std::string       pre_ftp_url;
     std::string       login_host;   // dotted IPv4 advertised to client

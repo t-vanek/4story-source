@@ -35,6 +35,7 @@ class IMonsterChart;
 class ISpawnChart;
 class IMonsterRegistry;
 class ICompanionService;
+enum class Mode : std::uint8_t;
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; main() keeps the lifetimes.
@@ -53,7 +54,8 @@ struct HandlerContext
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;
     ICompanionService*     companion_service = nullptr;
-    std::uint8_t           expected_group    = 0;     // [server] / world group id
+    Mode                   mode              = Mode{0};   // PvE default
+    std::uint8_t           expected_group    = 0;         // [server] / world group id
 };
 
 // Top-level dispatcher. Looks up the wId in a switch, calls the
@@ -123,6 +125,21 @@ boost::asio::awaitable<void> OnPartyJoinReq(
     const HandlerContext&                 ctx);
 
 boost::asio::awaitable<void> OnPartyDelReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnRegisterBowReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnCancelBowQueueReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnCashBowRespawnReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);

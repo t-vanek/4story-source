@@ -1,9 +1,10 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F15: per-char companion roster. TCOMPANIONTABLE loaded on
-// demand by SociCompanionService; DM_LOADCHAR_ACK gets a companion
-// section after F12's quests. Summon / dismiss / level-up handlers
-// land with the consolidation pass.
+// Phase F16: BR/Bow run-time mode handlers. Three new dispatch
+// entries (CS_REGISTERBOW_REQ, CS_CANCELBOWQUEUE_REQ,
+// CS_CASHBOWRESPAWN_REQ) gate on ctx.mode and decode the empty body
+// stubs. The MW_ADDTOBOWQUEUE_REQ relay + medal-deduction +
+// Revival call wait for the bow/br consolidation pass.
 
 #include "config.h"
 #include "handlers_world.h"
@@ -53,7 +54,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F15 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F16 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -174,6 +175,7 @@ int main(int argc, char** argv)
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;
         ctx.companion_service = companion_service.get();
+        ctx.mode              = cfg.mode;
 
         // Optional World peer — only spun up when [world] port is set
         // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
@@ -231,7 +233,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F15 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F16 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

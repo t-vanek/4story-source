@@ -10,6 +10,7 @@
 // into the same shape later.
 
 #include "asio_session.h"
+#include "handlers.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -31,6 +32,12 @@ struct MapServerConfig
     // tloginsvr::LoginServerConfig::rc4_secret_key.
     std::vector<std::byte>  rc4_secret_key;
     std::uint32_t           max_connections = 8000;
+
+    // Per-packet handler context — owns no state, just non-owning
+    // pointers to services (validator, …) main built. Copied into
+    // MapServer at construction; the caller's struct lifetime must
+    // dominate the io_context's run().
+    HandlerContext          handlers;
 };
 
 class MapServer

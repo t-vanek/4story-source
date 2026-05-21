@@ -7,21 +7,29 @@
 #
 # Layout
 # ------
-#   main.cpp          F3 scaffold entry point (listener + AsioSession).
+#   main.cpp          F4 entry point (config + pool + validator +
+#                     listener).
 #   config.h/cpp      TOML loader — port, mode, [crypto], [database],
 #                     [world].
 #   tmapsvr.example.toml  Documented defaults.
 #   map_server.h/cpp  Accept loop, per-connection coroutine, RC4 toggle.
+#   handlers.h/cpp    Per-packet dispatch + handler entry points
+#                     (currently: CS_CONNECT_REQ).
+#   wire_codec.h      POD reader/writer for legacy CPacket body
+#                     layout — shared with handlers + tests.
+#   services/         Service interfaces and impls (session validator,
+#                     player loader, world client, …). One header
+#                     per interface + paired soci_/fake_ impls.
 #   db/               Per-server schema validators (boot-time fail-fast).
 #   legacy_src/       Verbatim copy of Server/TMapSvr/, reference only,
 #                     not compiled.
 #
 # Phase plan (see PR #23 design doc): F1 main scaffold (done), F2
-# config + schema validator (done), F3 MapServer accept loop (this
-# commit), F4 handshake, F5 World peer, F6 movement, F7 channels+AOI,
-# F8 combat, F9 items, F10 NPCs, F11 skills, F12 quests,
-# F13 monsters/AI, F14 party+chat, F15 companions, F16 BR/Bow run-time
-# mode, F17 control+audit.
+# config + schema validator (done), F3 MapServer accept loop (done),
+# F4 first handler — CS_CONNECT_REQ + session validator (this commit),
+# F5 World peer, F6 movement, F7 channels+AOI, F8 combat, F9 items,
+# F10 NPCs, F11 skills, F12 quests, F13 monsters/AI, F14 party+chat,
+# F15 companions, F16 BR/Bow run-time mode, F17 control+audit.
 
 set(TMAPSVR_ASIO_SRC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -51,6 +59,8 @@ endif()
 add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/map_server.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp)
 
 target_include_directories(tmapsvr_asio_core PUBLIC

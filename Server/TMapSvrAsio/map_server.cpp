@@ -119,14 +119,33 @@ void MapServer::Unregister(tnetlib::AsioSession* raw)
 boost::asio::awaitable<void>
 MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> session)
 {
-    // F3 stub dispatch: log every received packet ID and drop it.
-    // F4 will replace this lambda with the real switch over
-    // MessageId values (CS_CONNECT_REQ, CS_VERIFYSESSION_REQ, …).
+    // The PacketHandler runs synchronously — the AsioSession wire loop
+    // wants to keep reading the next frame while a handler is in
+    // flight. Copy the body out of the recv buffer (the span is only
+    // valid for the duration of this callback) and co_spawn the
+    // awaitable dispatch detached so SendPacket calls don't block the
+    // read loop.
     co_await session->RunPackets(
-        [](const tnetlib::DecodedPacket& pkt) {
-            spdlog::debug("map_server: rx wId=0x{:04X} seq={} body={} bytes "
-                          "(unhandled — F3 stub)",
-                pkt.wId, pkt.dwNumber, pkt.body.size());
+        [this, session](const tnetlib::DecodedPacket& pkt) {
+            std::vector<std::byte> body(pkt.body.begin(), pkt.body.end());
+            const auto wId = pkt.wId;
+            boost::asio::co_spawn(
+                m_io,
+                Dispatch(session, wId, std::move(body), m_cfg.handlers),
+                [session](std::exception_ptr ep) {
+                    if (!ep) return;
+                    try { std::rethrow_exception(ep); }
+                    catch (const std::exception& ex) {
+                        spdlog::error("map_server: dispatch coroutine threw "
+                                      "(peer={}): {}",
+                            session->RemoteIPv4(), ex.what());
+                    }
+                    catch (...) {
+                        spdlog::error("map_server: dispatch coroutine threw "
+                                      "unknown (peer={})",
+                            session->RemoteIPv4());
+                    }
+                });
         });
 }
 

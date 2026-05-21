@@ -1,15 +1,20 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F3: MapServer accept loop. Loads config, opens an optional
-// SOCI pool against TUSER, boots the schema check, spins up the
-// MapServer (TCP listener with AsioSession-per-connection + RC4
-// inbound when configured), and idles on signals. Per-packet handler
-// dispatch is still a stub — F4 wires in the real CS_*/MW_*/DM_*
-// handlers.
+// Phase F4: first real handler (CS_CONNECT_REQ → CS_CONNECT_ACK).
+// Boot sequence: load config → set log level → install signals →
+// (optional) open SOCI pool + run schema validator + build the
+// SOCI session validator → instantiate MapServer with the validator
+// in its HandlerContext → co_spawn accept loop → io.run().
+//
+// Without a [database] section main() still comes up, but the
+// dispatch path refuses CS_CONNECT_REQ with INTERNAL — F4 needs
+// the validator to clear the handshake.
 
 #include "config.h"
 #include "map_server.h"
 #include "db/schema_validator.h"
+#include "services/session_validator.h"
+#include "services/soci_session_validator.h"
 
 #include "fourstory/db/session_pool.h"
 
@@ -32,7 +37,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F3 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F4 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -67,11 +72,11 @@ int main(int argc, char** argv)
             io.stop();
         });
 
-        // Optional SOCI pool — when the operator hasn't configured a
-        // database (dev runs, smoke tests) we skip it. The listener
-        // still comes up; F4 handshake will refuse traffic for lack
-        // of a session lookup path.
-        std::unique_ptr<fourstory::db::SessionPool> pool;
+        // Optional SOCI pool — without one, no session validator is
+        // wired in and CS_CONNECT_REQ is refused. The listener still
+        // comes up so dev runs can netcat-poke the wire codec.
+        std::unique_ptr<fourstory::db::SessionPool>     pool;
+        std::unique_ptr<tmapsvr::IMapSessionValidator>  validator;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -80,24 +85,26 @@ int main(int argc, char** argv)
             pool = std::make_unique<fourstory::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
             tmapsvr::db::ValidateUserSchema(*pool);
-            spdlog::info("schema: TCURRENTUSER columns OK ({})",
+            validator = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
+            spdlog::info("schema: TCURRENTUSER columns OK ({}) — session "
+                         "validator ready",
                 fourstory::db::BackendName(backend));
         }
         else
         {
-            spdlog::warn("no [database] configured — handshake/load paths "
-                         "will fail when F4 lands");
+            spdlog::warn("no [database] configured — CS_CONNECT_REQ will "
+                         "refuse with INTERNAL");
         }
 
-        // MapServer takes a moved-from copy of cfg.server (port, RC4
-        // key, max_connections). Capture the log fields before the
-        // move so we don't read moved-from state. The MapServer
-        // instance lives in this stack frame for the duration of
-        // io.run().
+        // Wire the validator pointer into the MapServer's handler
+        // context. Pointer is non-owning; the unique_ptr above keeps
+        // the storage alive for the io.run() lifetime.
+        cfg.server.handlers.validator = validator.get();
+
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F3 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F4 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

@@ -19,6 +19,7 @@
 #include "services/channel_presence.h"
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
+#include "services/log_peer.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/npc_service.h"
@@ -154,6 +155,11 @@ int main(int argc, char** argv)
         // consolidation). F13 boots it empty.
         tmapsvr::InMemoryMonsterRegistry monster_reg;
 
+        // T3: UDP audit sink (TLogSvrAsio collector). Empty host /
+        // port=0 disables the peer; events still go to spdlog. T4
+        // observability will start emitting structured events here.
+        tmapsvr::UdpLogPeer audit_peer(io, cfg.audit.host, cfg.audit.port);
+
         // char_id → AsioSession map. Lives for the io.run() duration,
         // bound at CS_CONNECT_REQ success, unbound by the MapServer
         // per-connection teardown. Consulted by handlers_world to
@@ -182,6 +188,7 @@ int main(int argc, char** argv)
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;
         ctx.companion_service = companion_service.get();
+        ctx.audit             = &audit_peer;
         ctx.mode              = cfg.mode;
 
         // Optional World peer — only spun up when [world] port is set

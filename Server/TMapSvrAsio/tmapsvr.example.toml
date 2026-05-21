@@ -44,6 +44,15 @@ type = "pve"
 host = "127.0.0.1"
 port = 0
 
+[audit]
+# TLogSvrAsio audit UDP shim — structured events (login, char load,
+# handler latency, …) go here. Connectionless / fire-and-forget;
+# dropping a packet under load is acceptable for observability.
+# Empty host or port = 0 disables the peer; events stay in the local
+# spdlog file.
+host = ""
+port = 0
+
 [health]
 # Optional /healthz HTTP endpoint on a separate port. Set to 0 to
 # disable. Used by k8s liveness/readiness probes and external

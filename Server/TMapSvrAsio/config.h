@@ -50,6 +50,16 @@ struct WorldPeerConfig
     std::uint16_t  port = 0;     // 0 = unconfigured, world peer disabled
 };
 
+// TLogSvrAsio audit-shim address — UDP fire-and-forget sink for
+// structured events. Empty host or port=0 disables the peer;
+// events stay in the local spdlog file. T4 observability will start
+// emitting actual events through this peer.
+struct AuditPeerConfig
+{
+    std::string    host;          // empty → disabled
+    std::uint16_t  port = 0;
+};
+
 struct AppConfig
 {
     // Listener configuration consumed by MapServer. Holds port,
@@ -64,6 +74,9 @@ struct AppConfig
 
     // TWorldSvr peer (F5+).
     WorldPeerConfig world;
+
+    // TLogSvrAsio audit UDP shim (T3+).
+    AuditPeerConfig audit;
 
     // Health endpoint port. 0 disables.
     std::uint16_t  health_port = 8916;

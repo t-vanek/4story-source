@@ -135,6 +135,11 @@ AppConfig LoadConfig(const std::string& path)
         if (auto h = (*w)["host"].value<std::string>())  cfg.world.host = *h;
         if (auto p = (*w)["port"].value<std::int64_t>()) cfg.world.port = RequirePort(*p, "world.port");
     }
+    if (auto a = tbl["audit"].as_table())
+    {
+        if (auto h = (*a)["host"].value<std::string>())  cfg.audit.host = *h;
+        if (auto p = (*a)["port"].value<std::int64_t>()) cfg.audit.port = RequirePort(*p, "audit.port");
+    }
     if (auto h = tbl["health"].as_table())
     {
         if (auto p = (*h)["port"].value<std::int64_t>())

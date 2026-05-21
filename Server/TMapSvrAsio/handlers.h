@@ -35,6 +35,7 @@ class IMonsterChart;
 class ISpawnChart;
 class IMonsterRegistry;
 class ICompanionService;
+class ILogPeer;
 enum class Mode : std::uint8_t;
 
 // Per-session context handed to every handler. Pointers are
@@ -54,6 +55,7 @@ struct HandlerContext
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;
     ICompanionService*     companion_service = nullptr;
+    ILogPeer*              audit             = nullptr;   // T3+ UDP audit sink
     Mode                   mode              = Mode{0};   // PvE default
     std::uint8_t           expected_group    = 0;         // [server] / world group id
 };

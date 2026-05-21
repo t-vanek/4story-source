@@ -1,6 +1,7 @@
 #include "world_client.h"
 
 #include <boost/asio/co_spawn.hpp>
+#include <boost/asio/connect.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/redirect_error.hpp>

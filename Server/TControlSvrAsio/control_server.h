@@ -17,6 +17,7 @@
 #include "services/operator_registry.h"
 #include "services/patch_metadata_service.h"
 #include "services/peer_registry.h"
+#include "services/peer_repository.h"
 #include "services/service_controller.h"
 #include "services/user_protected_service.h"
 
@@ -49,6 +50,7 @@ struct ControlServerConfig
     IEventRepository*      event_repo  = nullptr;
     IPatchMetadataService* patch_meta  = nullptr;
     IAlerter*              alerter     = nullptr;
+    IPeerRepository*       peer_repo   = nullptr;
     fourstory::ops::LoginRateLimiter* login_rate = nullptr;
     // Worker pool for synchronous SOCI calls. nullptr → fall back
     // to in-line execution on the io_context thread.

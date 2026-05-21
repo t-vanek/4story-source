@@ -39,10 +39,10 @@ const char* EventKindName(EventKind k);
 //   corr  : monotonic correlation id (assigned at handler entry)
 struct EventHeader
 {
-    std::uint16_t  kind  = 0;
-    std::uint16_t  size  = 0;
-    std::uint64_t  ts_ms = 0;
-    std::uint32_t  corr  = 0;
+    std::uint64_t  ts_ms = 0;   // wall-clock ms since epoch — first to avoid padding
+    std::uint32_t  corr  = 0;   // monotonic correlation id
+    std::uint16_t  kind  = 0;   // EventKind tag
+    std::uint16_t  size  = 0;   // total bytes of this event including header
 };
 static_assert(sizeof(EventHeader) == 16,
               "EventHeader layout drift would break decoders");

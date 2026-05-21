@@ -22,7 +22,11 @@ std::tm UnixToTm(std::int64_t unix_seconds)
 {
     std::time_t t = static_cast<std::time_t>(unix_seconds);
     std::tm out{};
+#ifdef _WIN32
+    localtime_s(&out, &t);
+#else
     localtime_r(&t, &out);
+#endif
     return out;
 }
 

@@ -57,6 +57,8 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/services/soci_event_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_operator_auth_service.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_patch_metadata_service.cpp
+    ${TCONTROL_ASIO_SRC}/services/soci_admin_audit_logger.cpp
+    ${TCONTROL_ASIO_SRC}/services/soci_peer_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_service_inventory.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_user_protected_service.cpp
     ${TCONTROL_ASIO_SRC}/services/spdlog_admin_audit_logger.cpp

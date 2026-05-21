@@ -350,7 +350,7 @@ int main(int argc, char** argv)
 
         io.run();
 
-        if (peer_client) peer_client->Stop();
+
     }
     catch (const std::exception& ex)
     {

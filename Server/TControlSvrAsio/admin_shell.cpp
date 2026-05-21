@@ -300,8 +300,7 @@ AdminShell::RunRegistryStream(
                     std::lock_guard<std::mutex> lk(sh->mtx);
                     sh->queue.push_back(std::move(line));
                 }
-                boost::system::error_code ig;
-                sh->wakeup.cancel(ig);
+                sh->wakeup.cancel();
             });
         });
 

@@ -103,7 +103,9 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/audit/audit_log.cpp
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/map_server.cpp
+    ${TMAPSVR_ASIO_SRC}/ops/admin_shell.cpp
     ${TMAPSVR_ASIO_SRC}/ops/metrics.cpp
+    ${TMAPSVR_ASIO_SRC}/ops/metrics_endpoint.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_world.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/dispatch.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/session.cpp

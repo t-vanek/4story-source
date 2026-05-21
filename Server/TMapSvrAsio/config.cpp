@@ -164,6 +164,17 @@ AppConfig LoadConfig(const std::string& path)
             cfg.shutdown.drain_ms = static_cast<std::uint32_t>(*d);
         }
     }
+    if (auto ad = tbl["admin"].as_table())
+    {
+        if (auto b = (*ad)["bind"].value<std::string>())   cfg.admin.bind   = *b;
+        if (auto p = (*ad)["port"].value<std::int64_t>())  cfg.admin.port   = RequirePort(*p, "admin.port");
+        if (auto s = (*ad)["secret"].value<std::string>()) cfg.admin.secret = *s;
+    }
+    if (auto m = tbl["metrics"].as_table())
+    {
+        if (auto p = (*m)["port"].value<std::int64_t>())
+            cfg.metrics_port = RequirePort(*p, "metrics.port");
+    }
     if (auto h = tbl["health"].as_table())
     {
         if (auto p = (*h)["port"].value<std::int64_t>())

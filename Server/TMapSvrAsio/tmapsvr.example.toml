@@ -67,6 +67,22 @@ refill_per_s = 0
 # io.stop() so in-flight handlers and outbound peer sends finish.
 drain_ms = 2000
 
+[admin]
+# T6 admin TCP shell. Text protocol, newline-delimited commands
+# (help / status / kick / broadcast / peer-status / quit). Bind on
+# localhost by default; tunnel via SSH for remote access rather
+# than exposing the port. Optional secret enforces "auth <secret>"
+# as the first line before any other command. Port = 0 disables.
+bind   = "127.0.0.1"
+port   = 0
+secret = ""
+
+[metrics]
+# T6 Prometheus /metrics endpoint. Bind on loopback; set port = 0
+# to disable. The scraper (prometheus or a node-exporter sidecar)
+# is expected to run alongside the server.
+port = 8917
+
 [health]
 # Optional /healthz HTTP endpoint on a separate port. Set to 0 to
 # disable. Used by k8s liveness/readiness probes and external

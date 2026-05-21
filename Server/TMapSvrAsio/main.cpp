@@ -16,7 +16,9 @@
 #include "config.h"
 #include "handlers_world.h"
 #include "map_server.h"
+#include "ops/admin_shell.h"
 #include "ops/metrics.h"
+#include "ops/metrics_endpoint.h"
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
 #include "services/companion_service.h"
@@ -316,6 +318,33 @@ int main(int argc, char** argv)
                 spdlog::warn("health endpoint failed to bind on port {}: {}",
                     cfg.health_port, ex.what());
             }
+        }
+
+        // T6: Prometheus /metrics endpoint. Loopback only; separate
+        // from /healthz so a slow scrape doesn't degrade the
+        // liveness probe.
+        std::unique_ptr<tmapsvr::ops::MetricsEndpoint> metrics_ep;
+        if (cfg.metrics_port != 0)
+        {
+            metrics_ep = std::make_unique<tmapsvr::ops::MetricsEndpoint>(
+                io, cfg.metrics_port, metrics);
+            if (metrics_ep->Port() != 0)
+                boost::asio::co_spawn(io, metrics_ep->Run(),
+                    boost::asio::detached);
+        }
+
+        // T6: admin TCP shell. Disabled by default (port=0 in the
+        // example TOML); operators enable per deployment.
+        std::unique_ptr<tmapsvr::ops::AdminShell> admin;
+        if (cfg.admin.port != 0)
+        {
+            tmapsvr::ops::AdminShellConfig admin_cfg{
+                cfg.admin.bind, cfg.admin.port, cfg.admin.secret};
+            admin = std::make_unique<tmapsvr::ops::AdminShell>(
+                io, std::move(admin_cfg), ctx);
+            if (admin->Port() != 0)
+                boost::asio::co_spawn(io, admin->Run(),
+                    boost::asio::detached);
         }
 
         io.run();

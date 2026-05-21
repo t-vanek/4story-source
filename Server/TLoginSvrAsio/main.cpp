@@ -26,13 +26,13 @@
 //      every account hitting LR_DUPLICATE after a crash).
 //   5. Wire SIGINT/SIGTERM + SM_QUITSERVICE_REQ → graceful shutdown
 //      (snapshot the registry, terminate each live session, io.stop).
-//   6. co_spawn LoginServer::Run, the admin shell, the health endpoint;
-//      hand control to io.run().
+//   6. co_spawn LoginServer::Run + the health endpoint; hand control
+//      to io.run(). Admin shell intentionally NOT spawned here — the
+//      cluster's single operator entry point is TControlSvrAsio.
 //
 // Legacy parity: Server/TLoginSvr/TLoginSvr.cpp (WinMain) +
 // CTLoginSvrModule::OnEnter / OnLeave for the boot/shutdown chain.
 
-#include "fourstory/ops/admin_shell.h"
 #include "config.h"
 #include "fourstory/ops/health_endpoint.h"
 #include "login_server.h"
@@ -365,30 +365,12 @@ int main(int argc, char** argv)
             cfg.server.rc4_secret_key.empty() ? "disabled" : "enabled");
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
 
-        // Optional admin TCP shell — opt-in via [admin] port > 0.
-        if (cfg.admin_port != 0)
-        {
-            try
-            {
-                auto* reg_raw = registry.get();
-                auto admin = std::make_shared<fourstory::ops::AdminShell>(
-                    io, cfg.admin_bind, cfg.admin_port,
-                    [reg_raw]() -> std::size_t {
-                        return reg_raw ? reg_raw->Count() : std::size_t{0};
-                    },
-                    std::chrono::steady_clock::now());
-                spdlog::info("admin shell listening on {}:{}",
-                    cfg.admin_bind, admin->Port());
-                boost::asio::co_spawn(io, admin->Run(), boost::asio::detached);
-                static std::shared_ptr<fourstory::ops::AdminShell> s_admin;
-                s_admin = std::move(admin);
-            }
-            catch (const std::exception& ex)
-            {
-                spdlog::warn("admin shell failed to bind on {}:{} — {}",
-                    cfg.admin_bind, cfg.admin_port, ex.what());
-            }
-        }
+        // No per-server admin shell. Operator commands (status, kick,
+        // ban, log-level) enter the cluster via TControlSvrAsio's
+        // AdminShell and reach this server through the peer-forwarder
+        // pipeline. Centralizing avoids the legacy footgun where each
+        // daemon exposed its own localhost shell with diverging
+        // command sets.
 
         // Optional health endpoint on a separate port.
         if (cfg.health_port != 0)

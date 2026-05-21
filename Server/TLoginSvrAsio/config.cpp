@@ -229,19 +229,11 @@ AppConfig LoadConfig(const std::string& path)
         }
     }
 
-    // [admin] — opt-in TCP shell.
-    if (auto admin = tbl["admin"].as_table())
-    {
-        if (auto h = (*admin)["bind"].value<std::string>())
-            cfg.admin_bind = *h;
-        if (auto p = (*admin)["port"].value<std::int64_t>())
-        {
-            if (*p < 0 || *p > 65535)
-                throw std::runtime_error("admin.port out of range: "
-                    + std::to_string(*p));
-            cfg.admin_port = static_cast<std::uint16_t>(*p);
-        }
-    }
+    // [admin] is intentionally NOT parsed here — the single operator
+    // entry point for the cluster is TControlSvrAsio's AdminShell.
+    // A stray [admin] section in a config file is silently ignored
+    // (toml++ unused-key behavior); we accept that over hard-failing
+    // because operators routinely copy old configs across deploys.
 
     // [smtp] — outbound mail relay for 2FA security codes.
     if (auto smtp = tbl["smtp"].as_table())

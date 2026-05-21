@@ -398,6 +398,13 @@ AdminShell::Dispatch(const std::string& line)
             "  subscribe registry            stream registry events as key=value lines\n"
             "                                (registered/heartbeat/deregistered/expired) —\n"
             "                                close the connection to exit\n"
+            "  cluster start <type>          SCM Start every peer of <type> (login|log|patch|map|world)\n"
+            "  cluster stop <type>           SCM Stop every peer of <type>\n"
+            "  cluster restart <sid> [timeout=120]\n"
+            "                                Stop, wait for lease expiry, then Start\n"
+            "  cluster wait-healthy [timeout=60]\n"
+            "                                block until every static service has a live\n"
+            "                                registration; reply lists missing services on timeout\n"
             "  log-level <level>             local spdlog level\n"
             "  quit                          close the admin connection";
     }
@@ -421,6 +428,12 @@ AdminShell::Dispatch(const std::string& line)
         std::string rest;
         std::getline(in, rest);
         co_return co_await CmdRoute(rest);
+    }
+    if (cmd == "cluster")
+    {
+        std::string rest;
+        std::getline(in, rest);
+        co_return co_await CmdCluster(rest);
     }
     if (cmd == "kick")
     {
@@ -771,6 +784,157 @@ AdminShell::CmdRoute(const std::string& rest)
         co_return "usage: route broadcast <type|group> ...";
     }
     co_return "usage: route <service|type|broadcast> ...";
+}
+
+namespace {
+// Map a human-readable type tag to the service-type byte the registry
+// + handlers use. Same numbering as services/svr_type.h.
+bool ParseTypeName(const std::string& s, std::uint8_t& out)
+{
+    if      (s == "login") { out = 1; return true; }
+    else if (s == "log")   { out = 2; return true; }
+    else if (s == "patch") { out = 3; return true; }
+    else if (s == "map")   { out = 4; return true; }
+    else if (s == "world") { out = 5; return true; }
+    std::uint8_t n = 0;
+    if (ParseU8(s, n)) { out = n; return true; }
+    return false;
+}
+} // namespace
+
+boost::asio::awaitable<std::string>
+AdminShell::CmdCluster(const std::string& rest)
+{
+    std::istringstream in(rest);
+    std::string sub;
+    in >> sub;
+
+    if (sub == "start" || sub == "stop")
+    {
+        std::string type_s;
+        in >> type_s;
+        std::uint8_t type_id = 0;
+        if (!ParseTypeName(type_s, type_id))
+            co_return "usage: cluster " + sub +
+                " <type>  (login|log|patch|map|world or 0..255)";
+        std::size_t ok = 0, tried = 0, unsupported = 0;
+        for (const auto& svc : m_peers.Services())
+        {
+            if (svc.type_id != type_id) continue;
+            ++tried;
+            const auto rc = sub == "start"
+                ? co_await m_controller.Start(svc)
+                : co_await m_controller.Stop(svc);
+            if (rc == ControlResult::Ok)            ++ok;
+            else if (rc == ControlResult::NotSupported) ++unsupported;
+        }
+        if (m_audit)
+            m_audit->LogAdminAction("admin-shell",
+                "cluster_" + sub, type_s);
+        std::ostringstream os;
+        os << "cluster " << sub << " " << type_s
+           << " → ok=" << ok << "/" << tried;
+        if (unsupported > 0)
+            os << " unsupported=" << unsupported;
+        co_return os.str();
+    }
+    if (sub == "restart")
+    {
+        std::string sid_s, timeout_s;
+        in >> sid_s >> timeout_s;
+        std::uint32_t sid = 0;
+        if (!ParseU32(sid_s, sid))
+            co_return "usage: cluster restart <sid> [timeout=120]";
+        std::uint32_t timeout_sec = 120;
+        if (!timeout_s.empty() && !ParseU32(timeout_s, timeout_sec))
+            co_return "usage: cluster restart <sid> [timeout=120]";
+
+        const auto* svc = m_peers.FindService(sid);
+        if (!svc)
+            co_return "service_id " + std::to_string(sid) + " not found";
+
+        const auto stop_rc = co_await m_controller.Stop(*svc);
+        if (stop_rc == ControlResult::NotSupported)
+            co_return "cluster restart: SCM not-supported "
+                      "(DisabledServiceController) — no-op";
+        if (stop_rc != ControlResult::Ok)
+            co_return "cluster restart: Stop failed — aborting";
+
+        // Wait for the registry entry to drop. Either the peer's
+        // own DEREGISTER beats the lease-expiry sweep, or the sweep
+        // reaps it after ~90s. Either way, FindRegistration() ==
+        // nullptr is our "peer is fully down" signal.
+        auto exec = co_await boost::asio::this_coro::executor;
+        boost::asio::steady_timer poll(exec);
+        const auto deadline = std::chrono::steady_clock::now()
+            + std::chrono::seconds(timeout_sec);
+        while (m_peers.FindRegistration(sid) != nullptr)
+        {
+            if (std::chrono::steady_clock::now() >= deadline)
+                co_return "cluster restart: timed out waiting for "
+                          "peer to deregister";
+            poll.expires_after(std::chrono::milliseconds(250));
+            boost::system::error_code ec;
+            co_await poll.async_wait(boost::asio::redirect_error(
+                boost::asio::use_awaitable, ec));
+        }
+
+        const auto start_rc = co_await m_controller.Start(*svc);
+        if (m_audit)
+            m_audit->LogAdminAction("admin-shell", "cluster_restart",
+                svc->name);
+        co_return std::string("cluster restart '") + svc->name +
+            "' → stop=ok start=" + ResultName(start_rc);
+    }
+    if (sub == "wait-healthy")
+    {
+        std::string timeout_s;
+        in >> timeout_s;
+        std::uint32_t timeout_sec = 60;
+        if (!timeout_s.empty() && !ParseU32(timeout_s, timeout_sec))
+            co_return "usage: cluster wait-healthy [timeout=60]";
+
+        auto missing_ids = [&]() {
+            std::vector<std::uint32_t> ms;
+            for (const auto& svc : m_peers.Services())
+                if (m_peers.FindRegistration(svc.service_id) == nullptr)
+                    ms.push_back(svc.service_id);
+            return ms;
+        };
+
+        auto exec = co_await boost::asio::this_coro::executor;
+        boost::asio::steady_timer poll(exec);
+        const auto deadline = std::chrono::steady_clock::now()
+            + std::chrono::seconds(timeout_sec);
+        while (true)
+        {
+            const auto ms = missing_ids();
+            if (ms.empty())
+            {
+                if (m_audit)
+                    m_audit->LogAdminAction("admin-shell",
+                        "cluster_wait_healthy", "ok");
+                co_return "cluster wait-healthy → all services registered ("
+                    + std::to_string(m_peers.Services().size())
+                    + " total)";
+            }
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                std::ostringstream os;
+                os << "cluster wait-healthy → timeout, missing:";
+                for (auto id : ms)
+                {
+                    os << " 0x" << std::hex << id << std::dec;
+                }
+                co_return os.str();
+            }
+            poll.expires_after(std::chrono::milliseconds(250));
+            boost::system::error_code ec;
+            co_await poll.async_wait(boost::asio::redirect_error(
+                boost::asio::use_awaitable, ec));
+        }
+    }
+    co_return "usage: cluster <start|stop|restart|wait-healthy> ...";
 }
 
 std::string AdminShell::CmdLogLevel(const std::string& lvl)

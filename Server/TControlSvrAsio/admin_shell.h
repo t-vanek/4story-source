@@ -92,6 +92,7 @@ private:
     boost::asio::awaitable<std::string>  CmdServiceStart(std::uint32_t sid);
     boost::asio::awaitable<std::string>  CmdServiceStop(std::uint32_t sid);
     boost::asio::awaitable<std::string>  CmdRoute(const std::string& rest);
+    boost::asio::awaitable<std::string>  CmdCluster(const std::string& rest);
     std::string                          CmdLogLevel(const std::string& lvl);
 
     boost::asio::ip::tcp::acceptor   m_acceptor;

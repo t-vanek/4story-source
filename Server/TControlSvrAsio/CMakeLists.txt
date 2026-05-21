@@ -184,6 +184,17 @@ target_link_libraries(test_tcontrolsvr_asio_peer_registry PRIVATE
 add_test(NAME tcontrolsvr_asio_peer_registry
     COMMAND test_tcontrolsvr_asio_peer_registry)
 
+# Cluster orchestration (F6) — drives `cluster start`, `cluster stop`,
+# `cluster restart`, `cluster wait-healthy` against a counting fake
+# controller + a real PeerRegistry mutated from helper threads (to
+# simulate peers registering / deregistering during the operation).
+add_executable(test_tcontrolsvr_asio_admin_shell_cluster
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_shell_cluster.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_shell_cluster PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_shell_cluster
+    COMMAND test_tcontrolsvr_asio_admin_shell_cluster)
+
 # Admin-shell streaming subscription (F5) — drives `subscribe
 # registry` over a real loopback connection, triggers Register /
 # Heartbeat / Deregister / ExpireStale on PeerRegistry from the test

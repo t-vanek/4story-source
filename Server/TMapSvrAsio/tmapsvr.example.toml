@@ -1,0 +1,54 @@
+# tmapsvr.toml — TMapSvrAsio configuration.
+# Pass via `tmapsvr_asio --config /path/to/this/file`.
+# All sections + keys are optional; defaults below match the legacy
+# TMapSvr.exe so a missing config still gives a working binary.
+
+[server]
+# TCP port the game client connects to. 5815 = DEF_MAPPORT (legacy
+# TServer row bType=3).
+port = 5815
+
+[mode]
+# Game-mode selector — replaces the legacy BR_COMPILE_MODE /
+# BOW_COMPILE_MODE preprocessor flags with a run-time switch so the
+# same binary serves any mode.
+#   pve   normal PvE/PvP gameplay (default)
+#   bow   Battle of Worlds match — TBowSettings constants apply
+#   br    Battle Royale match    — BRSettings constants apply
+type = "pve"
+
+[world]
+# TWorldSvr peer this map talks to. Wired up starting in phase F5
+# (services/world_client.cpp) — port = 0 disables the outbound link
+# until then, so a F2-era boot doesn't pollute the log with retry
+# messages.
+host = "127.0.0.1"
+port = 0
+
+[health]
+# Optional /healthz HTTP endpoint on a separate port. Set to 0 to
+# disable. Used by k8s liveness/readiness probes and external
+# load-balancer health checks.
+port = 8916
+
+[log]
+# spdlog level. One of: trace | debug | info | warn | error | critical | off
+level = "info"
+
+[database]
+# TUSER pool — TCURRENTUSER holds the session token TLoginSvrAsio
+# wrote at login; the map server reads it back to validate the
+# CS_VERIFYSESSION_REQ handshake in F4. TCHARTABLE (char load/save)
+# also lives in TUSER and gets validated when F5 lands.
+#
+# backend: one of  odbc | postgresql | sqlite3
+# Production uses ODBC against SQL Server; the SOCI connection
+# string follows the standard ODBC driver syntax.
+backend = "odbc"
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TUSER_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+pool_size = 4
+# Off-loop SOCI worker pool. 0 disables (run queries on the
+# io_context thread — fine for low-load dev). Production should
+# keep this >= 2 so the hot lookup paths in F4 / F5 don't stall
+# the accept loop.
+worker_threads = 4

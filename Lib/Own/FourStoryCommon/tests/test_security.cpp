@@ -136,6 +136,23 @@ int main()
         fcfg.future_window = std::chrono::seconds(-1);
         const auto fwerr = fcfg.Validate();
         assert(fwerr.find("future_window") != std::string::npos);
+
+        // peer_tls_enabled requires cert/key/CA + valid min_version.
+        SecurityConfig tcfg;
+        tcfg.peer_tls_enabled = true;
+        const auto ca_missing = tcfg.Validate();
+        assert(ca_missing.find("peer_tls_ca_cert") != std::string::npos);
+        tcfg.peer_tls_ca_cert = "/tmp/ca.crt";
+        const auto cert_missing = tcfg.Validate();
+        assert(cert_missing.find("peer_tls_peer_cert") != std::string::npos);
+        tcfg.peer_tls_peer_cert = "/tmp/peer.crt";
+        const auto key_missing = tcfg.Validate();
+        assert(key_missing.find("peer_tls_peer_key") != std::string::npos);
+        tcfg.peer_tls_peer_key = "/tmp/peer.key";
+        assert(tcfg.Validate().empty());
+        tcfg.peer_tls_min_version = "1.0";
+        const auto bad_ver = tcfg.Validate();
+        assert(bad_ver.find("peer_tls_min_version") != std::string::npos);
     }
 
     // ── Asymmetric timestamp window ─────────────────────────────────

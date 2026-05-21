@@ -47,6 +47,16 @@ inline SecurityConfig LoadFromToml(const toml::table& tbl)
         cfg.db_trust_store = *b;
     if (auto b = tbl["audit_failed_attempts"].value<bool>())
         cfg.audit_failed_attempts = *b;
+    if (auto b = tbl["peer_tls_enabled"].value<bool>())
+        cfg.peer_tls_enabled = *b;
+    if (auto s = tbl["peer_tls_ca_cert"].value<std::string>())
+        cfg.peer_tls_ca_cert = *s;
+    if (auto s = tbl["peer_tls_peer_cert"].value<std::string>())
+        cfg.peer_tls_peer_cert = *s;
+    if (auto s = tbl["peer_tls_peer_key"].value<std::string>())
+        cfg.peer_tls_peer_key = *s;
+    if (auto s = tbl["peer_tls_min_version"].value<std::string>())
+        cfg.peer_tls_min_version = *s;
 
     return cfg;
 }

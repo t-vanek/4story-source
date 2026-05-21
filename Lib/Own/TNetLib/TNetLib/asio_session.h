@@ -138,6 +138,9 @@ public:
     // writes to stderr; pass nullptr to mute; pass a custom function
     // (e.g. spdlog wrapper) to integrate with the host application's
     // logging. Set once at startup before any sessions exist.
+    //
+    // Shared with TlsAsioSession — one SetErrorLogger() call covers
+    // both transports.
     using ErrorLogger = void (*)(std::string_view);
     static void SetErrorLogger(ErrorLogger logger) noexcept;
 

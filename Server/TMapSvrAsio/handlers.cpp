@@ -1,5 +1,6 @@
 #include "handlers.h"
 
+#include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/world_client.h"
 #include "wire_codec.h"
@@ -155,6 +156,14 @@ OnConnectReq(std::shared_ptr<tnetlib::AsioSession> sess,
     spdlog::info("CS_CONNECT_REQ uid={} key={} char={} ch={} ver={} -> {}",
         dwUserID, dwKEY, dwID, bChannel, wVersion,
         ConnectResultName(result));
+
+    // Register the session under its char id BEFORE the ack flushes
+    // so a fast world reply (DM_LOADCHAR_REQ on this same char) can
+    // resolve back to this socket. Bind overwrites any stale entry —
+    // the legacy m_mapPLAYER had the same "last-write-wins" behavior
+    // when a duplicate connect raced an outstanding session.
+    if (result == ConnectResult::Ok && ctx.session_reg)
+        ctx.session_reg->Bind(dwID, sess);
 
     co_await sess->SendPacket(
         static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK),

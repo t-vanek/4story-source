@@ -24,6 +24,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string>
@@ -51,9 +52,20 @@ public:
 class AsioWorldClient final : public IWorldClient
 {
 public:
+    // Per-packet callback fired for each inbound frame from the world
+    // peer. Called synchronously from the read loop; the callback is
+    // expected to copy the body and co_spawn its own dispatch
+    // coroutine (the body span is only valid during the call). main()
+    // builds the lambda that captures the HandlerContext and routes
+    // to handlers_world::DispatchWorld.
+    using InboundHandler =
+        std::function<void(std::uint16_t wId,
+                           std::span<const std::byte> body)>;
+
     AsioWorldClient(boost::asio::io_context& io,
                     std::string host,
                     std::uint16_t port,
+                    InboundHandler on_packet = nullptr,
                     std::chrono::milliseconds backoff_initial = std::chrono::seconds(1),
                     std::chrono::milliseconds backoff_max     = std::chrono::seconds(30));
 
@@ -76,6 +88,7 @@ private:
     boost::asio::io_context&    m_io;
     std::string                 m_host;
     std::uint16_t               m_port;
+    InboundHandler              m_on_packet;
     std::chrono::milliseconds   m_backoff_initial;
     std::chrono::milliseconds   m_backoff_max;
 

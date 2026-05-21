@@ -1,5 +1,7 @@
 #include "map_server.h"
 
+#include "services/session_registry.h"
+
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/redirect_error.hpp>
@@ -89,6 +91,12 @@ MapServer::Run()
                 }
                 m_active_connections.fetch_sub(1, std::memory_order_relaxed);
                 Unregister(sess.get());
+                // Clean the char_id → session map so a future
+                // DM_LOADCHAR_REQ for this char doesn't resolve to a
+                // dead socket. Walks the registry once — see
+                // session_registry.h.
+                if (m_cfg.handlers.session_reg)
+                    m_cfg.handlers.session_reg->UnbindIfMatches(sess.get());
             });
     }
 }

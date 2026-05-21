@@ -14,11 +14,13 @@ namespace tmapsvr {
 AsioWorldClient::AsioWorldClient(boost::asio::io_context& io,
                                  std::string host,
                                  std::uint16_t port,
+                                 InboundHandler on_packet,
                                  std::chrono::milliseconds backoff_initial,
                                  std::chrono::milliseconds backoff_max)
     : m_io(io)
     , m_host(std::move(host))
     , m_port(port)
+    , m_on_packet(std::move(on_packet))
     , m_backoff_initial(backoff_initial)
     , m_backoff_max(backoff_max)
 {
@@ -88,14 +90,22 @@ AsioWorldClient::Run()
         m_session = sess;
         backoff   = m_backoff_initial;
 
-        // F5 inbound handler stub: log + drop. F5.1 (or F6) will plug
-        // in the real DM_LOADCHAR_REQ / MW_CONRESULT_REQ dispatch via
-        // a handlers_world.cpp file mirroring handlers.cpp.
+        // Inbound dispatch — if the caller supplied a handler (F6+
+        // wires handlers_world::DispatchWorld here via main()), invoke
+        // it with the decoded body. Without a handler we log + drop,
+        // which is what F5 did before this commit.
         co_await sess->RunPackets(
             [this](const tnetlib::DecodedPacket& pkt) {
-                spdlog::debug("world_client: rx wId=0x{:04X} seq={} body={} bytes "
-                              "(no handler yet — F5 stub)",
-                    pkt.wId, pkt.dwNumber, pkt.body.size());
+                if (m_on_packet)
+                {
+                    m_on_packet(pkt.wId, pkt.body);
+                }
+                else
+                {
+                    spdlog::debug("world_client: rx wId=0x{:04X} seq={} body={} bytes "
+                                  "(no inbound handler installed)",
+                        pkt.wId, pkt.dwNumber, pkt.body.size());
+                }
             });
 
         spdlog::info("world_client: disconnected from {}:{} — reconnecting",

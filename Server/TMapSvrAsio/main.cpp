@@ -1,14 +1,18 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F5: World peer wired into the boot sequence. After the F4
-// session validator comes online, an AsioWorldClient connects out to
-// the configured TWorldSvr and stays connected with exponential
-// backoff if the link drops. Its pointer goes into HandlerContext so
-// OnConnectReq can fire MW_ADDCHAR_ACK after a clean handshake.
+// Phase F6: inbound world dispatch + session registry. The world
+// peer's read loop now routes each DecodedPacket through
+// handlers_world::DispatchWorld (currently just DM_LOADCHAR_REQ as a
+// stub that replies with INTERNAL — the real char load arrives with
+// the F8 player service). char_id → AsioSession mapping lives in
+// InMemorySessionRegistry; CS_CONNECT_REQ binds on success and the
+// MapServer's per-connection teardown unbinds on disconnect.
 
 #include "config.h"
+#include "handlers_world.h"
 #include "map_server.h"
 #include "db/schema_validator.h"
+#include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/soci_session_validator.h"
 #include "services/world_client.h"
@@ -34,7 +38,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F5 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F6 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -93,6 +97,19 @@ int main(int argc, char** argv)
                          "refuse with INTERNAL");
         }
 
+        // char_id → AsioSession map. Lives for the io.run() duration,
+        // bound at CS_CONNECT_REQ success, unbound by the MapServer
+        // per-connection teardown. Consulted by handlers_world to
+        // route DM_/MW_ inbound traffic back to the right client.
+        tmapsvr::InMemorySessionRegistry session_reg;
+
+        // Build the HandlerContext now so the world inbound dispatch
+        // lambda can capture it by reference (the context's pointer
+        // fields are filled in below as each service comes online).
+        tmapsvr::HandlerContext ctx{};
+        ctx.validator    = validator.get();
+        ctx.session_reg  = &session_reg;
+
         // Optional World peer — only spun up when [world] port is set
         // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
         // handshake gets logged as deferred and never sent (no buffer
@@ -101,8 +118,35 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::AsioWorldClient> world_client;
         if (cfg.world.port != 0)
         {
+            // Inbound dispatch — synchronous callback fired from the
+            // world's read loop; copy the body (the span is only
+            // valid during the callback) and co_spawn the awaitable
+            // DispatchWorld detached so SendPacket calls don't block
+            // the read.
+            auto on_world_packet =
+                [&io, &ctx](std::uint16_t wId,
+                            std::span<const std::byte> body)
+                {
+                    std::vector<std::byte> owned(body.begin(), body.end());
+                    boost::asio::co_spawn(
+                        io,
+                        tmapsvr::DispatchWorld(wId, std::move(owned), ctx),
+                        [wId](std::exception_ptr ep) {
+                            if (!ep) return;
+                            try { std::rethrow_exception(ep); }
+                            catch (const std::exception& ex) {
+                                spdlog::error("world dispatch threw (wId=0x{:04X}): {}",
+                                    wId, ex.what());
+                            }
+                            catch (...) {
+                                spdlog::error("world dispatch threw unknown (wId=0x{:04X})",
+                                    wId);
+                            }
+                        });
+                };
             world_client = std::make_unique<tmapsvr::AsioWorldClient>(
-                io, cfg.world.host, cfg.world.port);
+                io, cfg.world.host, cfg.world.port,
+                std::move(on_world_packet));
             boost::asio::co_spawn(io, world_client->Run(), boost::asio::detached);
             spdlog::info("world_client: dialing {}:{} (background)",
                 cfg.world.host, cfg.world.port);
@@ -113,16 +157,16 @@ int main(int argc, char** argv)
                          "future DM_/MW_ traffic will be skipped");
         }
 
-        // Wire service pointers into the MapServer's handler context.
-        // Pointers are non-owning; the unique_ptrs above keep the
-        // storage alive for the io.run() lifetime.
-        cfg.server.handlers.validator    = validator.get();
-        cfg.server.handlers.world_client = world_client.get();
+        // Now that the world client (if any) is built we can fill the
+        // last pointer; assigning before construction would have
+        // captured a nullptr by reference into the dispatch lambda.
+        ctx.world_client = world_client.get();
+        cfg.server.handlers = ctx;
 
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F5 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F6 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

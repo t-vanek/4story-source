@@ -3,6 +3,7 @@
 #include "log_server.h"
 #include "services/log_sink.h"
 
+#include "fourstory/cluster/peer_client.h"
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/health_endpoint.h"
 
@@ -23,6 +24,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+
 
 namespace {
 void Usage()
@@ -211,6 +213,10 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        // Send DEREGISTER so TControl doesn't have to wait for the
+        // 90s lease-expiry sweep.
+        if (peer_client) peer_client->Stop();
 
         // Wait for any in-flight pool work (SOCI INSERTs) to finish
         // so a record posted just before io.stop() doesn't disappear.

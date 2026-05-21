@@ -9,6 +9,8 @@
 
 #include "map_server.h"
 
+#include "fourstory/cluster/peer_client.h"
+
 #include <spdlog/common.h>
 
 #include <cstdint>

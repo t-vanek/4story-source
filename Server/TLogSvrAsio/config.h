@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fourstory/cluster/peer_client.h"
+
 #include <spdlog/common.h>
 
 #include <chrono>

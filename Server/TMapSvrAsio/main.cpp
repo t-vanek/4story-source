@@ -45,6 +45,7 @@
 #include "services/spawn_chart.h"
 #include "services/world_client.h"
 
+#include "fourstory/cluster/peer_client.h"
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/health_endpoint.h"
 
@@ -348,6 +349,8 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        if (peer_client) peer_client->Stop();
     }
     catch (const std::exception& ex)
     {

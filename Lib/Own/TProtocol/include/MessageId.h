@@ -895,6 +895,19 @@ enum class MessageId : std::uint16_t {
     CT_CMGIFTLIST_ACK = 0x9381,  // CTProtocol.h:263
     CT_CMGIFTCHARTUPDATE_REQ = 0x9382,  // CTProtocol.h:264
 
+    // === Modern peer registry (TControlSvrAsio extension, no legacy peer) ===
+    // Foundation for the cluster control plane: peer game servers
+    // (TLogin/TLog/TPatch/TMap/TWorld) self-register with TControl on
+    // startup, then keep their lease alive with a periodic heartbeat.
+    // Allocated outside the legacy 0x93xx range (highest legacy ID is
+    // 0x9382) to make it obvious these are not part of the 4Story
+    // client wire surface.
+    CT_PEER_REGISTER_REQ    = 0x9F00,  // peer → control: announce presence
+    CT_PEER_REGISTER_ACK    = 0x9F01,  // control → peer: accepted / rejected + lease
+    CT_PEER_HEARTBEAT_REQ   = 0x9F02,  // peer → control: periodic liveness
+    CT_PEER_HEARTBEAT_ACK   = 0x9F03,  // control → peer: lease confirm / re-register hint
+    CT_PEER_DEREGISTER_REQ  = 0x9F04,  // peer → control: graceful shutdown
+
     // === CT_PATCH ===
     CT_PATCH_REQ = 0x4202,  // CTProtocol.h:273
     CT_PATCH_ACK = 0x4203,  // CTProtocol.h:274

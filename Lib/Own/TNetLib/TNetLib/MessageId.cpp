@@ -1543,6 +1543,11 @@ std::string_view NameOf(MessageId id) noexcept
         case MessageId::CT_CMGIFTLIST_REQ: return "CT_CMGIFTLIST_REQ";
         case MessageId::CT_CMGIFTLIST_ACK: return "CT_CMGIFTLIST_ACK";
         case MessageId::CT_CMGIFTCHARTUPDATE_REQ: return "CT_CMGIFTCHARTUPDATE_REQ";
+        case MessageId::CT_PEER_REGISTER_REQ:   return "CT_PEER_REGISTER_REQ";
+        case MessageId::CT_PEER_REGISTER_ACK:   return "CT_PEER_REGISTER_ACK";
+        case MessageId::CT_PEER_HEARTBEAT_REQ:  return "CT_PEER_HEARTBEAT_REQ";
+        case MessageId::CT_PEER_HEARTBEAT_ACK:  return "CT_PEER_HEARTBEAT_ACK";
+        case MessageId::CT_PEER_DEREGISTER_REQ: return "CT_PEER_DEREGISTER_REQ";
         case MessageId::MW_APEXDATA_REQ: return "MW_APEXDATA_REQ";
         case MessageId::MW_APEXDATA_ACK: return "MW_APEXDATA_ACK";
         case MessageId::MW_APEXSTART_ACK: return "MW_APEXSTART_ACK";

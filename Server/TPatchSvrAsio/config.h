@@ -4,6 +4,8 @@
 // shape but with patch-specific knobs (FTP root URL, login peer
 // address that gets advertised in the PATCH_ACK responses).
 
+#include "fourstory/cluster/peer_client.h"
+
 #include <spdlog/common.h>
 
 #include <cstdint>
@@ -45,6 +47,10 @@ struct AppConfig
 
     // Health endpoint port. 0 disables.
     std::uint16_t  health_port = 8915;
+
+    // Cluster self-registration; empty control_host disables.
+    // Service type byte is fixed at 3 (svr_type::kPatchSvr).
+    fourstory::cluster::ClusterConfig cluster;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

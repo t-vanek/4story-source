@@ -13,6 +13,8 @@
 
 #include "login_server.h"
 
+#include "fourstory/cluster/peer_client.h"
+
 #include <spdlog/common.h>
 
 #include <cstdint>
@@ -113,6 +115,10 @@ struct AppConfig
 
     // SMTP relay for 2FA mail. Empty host → log-only fallback.
     SmtpConfig                   smtp;
+
+    // Cluster self-registration with TControlSvrAsio; empty
+    // control_host disables. Service type byte 1 (svr_type::kLoginSvr).
+    fourstory::cluster::ClusterConfig cluster;
 };
 
 // Load + parse the TOML config at `path`. Throws std::runtime_error

@@ -262,6 +262,35 @@ boost::asio::awaitable<void> SendCashShopStopReq(
     const std::shared_ptr<ControlSession>& sess,
     std::uint8_t type);
 
+// --- Modern peer registry (CT_PEER_*) -------------------------------
+//
+// CT_PEER_REGISTER_ACK = {
+//   BYTE accepted (0/1), DWORD reason_code, QWORD lease_epoch,
+//   DWORD heartbeat_interval_sec
+// }
+// accepted=0 → reason_code carries a hint (1=service_id unknown,
+//              2=schema mismatch, 99=other). lease_epoch is 0 on
+// rejection, non-zero on success. The peer must echo lease_epoch on
+// every subsequent heartbeat or the control side bumps it as a stale
+// peer.
+boost::asio::awaitable<void> SendPeerRegisterAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  accepted,
+    std::uint32_t reason_code,
+    std::uint64_t lease_epoch,
+    std::uint32_t heartbeat_interval_sec);
+
+// CT_PEER_HEARTBEAT_ACK = {
+//   BYTE accepted (0/1), QWORD lease_epoch
+// }
+// accepted=0 + lease_epoch=0 → the peer's lease lapsed (sweep ran
+// while a heartbeat was in flight, or epoch mismatch). The peer
+// re-issues CT_PEER_REGISTER_REQ on rejection.
+boost::asio::awaitable<void> SendPeerHeartbeatAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  accepted,
+    std::uint64_t lease_epoch);
+
 // Raw passthrough — packet body verbatim, repacked with the given
 // wId. Used by EVENTQUARTER*, TOURNAMENTEVENT, HELPMESSAGE,
 // RPSGAME*, CMGIFT* forwarders.

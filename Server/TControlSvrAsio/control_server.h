@@ -83,6 +83,16 @@ public:
         std::chrono::milliseconds offline_after = std::chrono::seconds(60),
         std::chrono::milliseconds tick = std::chrono::seconds(1));
 
+    // Lease expiry sweep for modern peer self-registration. Peers send
+    // CT_PEER_HEARTBEAT_REQ every ~30s (kHeartbeatIntervalSec in
+    // handlers_registry.cpp); this loop drops registry entries whose
+    // last heartbeat is older than `max_age`. Default 90s = three
+    // missed heartbeats — long enough that one dropped UDP packet on
+    // a flaky link doesn't reap a healthy peer.
+    boost::asio::awaitable<void> RegistryLeaseExpiryLoop(
+        std::chrono::seconds max_age = std::chrono::seconds(90),
+        std::chrono::seconds tick    = std::chrono::seconds(15));
+
 private:
     boost::asio::awaitable<void> HandleConnection(
         std::shared_ptr<ControlSession> sess);

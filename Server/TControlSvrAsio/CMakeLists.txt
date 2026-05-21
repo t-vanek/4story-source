@@ -30,11 +30,13 @@ endif()
 # Sources kept in one library so tests can link against the exact
 # same TUs without rebuilding.
 add_library(tcontrolsvr_asio_core STATIC
+    ${TCONTROL_ASIO_SRC}/admin_shell.cpp
     ${TCONTROL_ASIO_SRC}/config.cpp
     ${TCONTROL_ASIO_SRC}/control_session.cpp
     ${TCONTROL_ASIO_SRC}/control_server.cpp
     ${TCONTROL_ASIO_SRC}/event_codec.cpp
     ${TCONTROL_ASIO_SRC}/event_scheduler.cpp
+    ${TCONTROL_ASIO_SRC}/message_router.cpp
     ${TCONTROL_ASIO_SRC}/peer_dialer.cpp
     ${TCONTROL_ASIO_SRC}/senders.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_auth.cpp
@@ -43,12 +45,14 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/handlers/handlers_event.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_extra.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_patch.cpp
+    ${TCONTROL_ASIO_SRC}/handlers/handlers_registry.cpp
     ${TCONTROL_ASIO_SRC}/db/schema_validator.cpp
     ${TCONTROL_ASIO_SRC}/services/chat_ban_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/event_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/fake_operator_auth_service.cpp
     ${TCONTROL_ASIO_SRC}/services/operator_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/peer_registry.cpp
+    ${TCONTROL_ASIO_SRC}/services/registry_event_bus.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_alerter.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_event_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_operator_auth_service.cpp
@@ -157,6 +161,86 @@ target_link_libraries(test_tcontrolsvr_asio_soci_repositories PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_soci_repositories
     COMMAND test_tcontrolsvr_asio_soci_repositories)
+
+# AdminShell test — drives every command through DispatchForTest
+# against fake audit + controller + a real PeerRegistry, plus loopback
+# peer sockets for the fan-out commands so the test reads the actual
+# CT_USERKICKOUT_ACK / CT_ANNOUNCEMENT_ACK bytes off the wire.
+add_executable(test_tcontrolsvr_asio_admin_shell
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_shell.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_shell PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_shell
+    COMMAND test_tcontrolsvr_asio_admin_shell)
+
+# Peer self-registration (F1 of the cluster control plane): unit
+# coverage of PeerRegistry's lease semantics + wire coverage of the
+# CT_PEER_REGISTER / HEARTBEAT / DEREGISTER handlers against a
+# loopback OperatorSession. No DB.
+add_executable(test_tcontrolsvr_asio_peer_registry
+    ${TCONTROL_ASIO_SRC}/tests/test_peer_registry.cpp)
+target_link_libraries(test_tcontrolsvr_asio_peer_registry PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_peer_registry
+    COMMAND test_tcontrolsvr_asio_peer_registry)
+
+# Cluster orchestration (F6) — drives `cluster start`, `cluster stop`,
+# `cluster restart`, `cluster wait-healthy` against a counting fake
+# controller + a real PeerRegistry mutated from helper threads (to
+# simulate peers registering / deregistering during the operation).
+add_executable(test_tcontrolsvr_asio_admin_shell_cluster
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_shell_cluster.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_shell_cluster PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_shell_cluster
+    COMMAND test_tcontrolsvr_asio_admin_shell_cluster)
+
+# Admin-shell streaming subscription (F5) — drives `subscribe
+# registry` over a real loopback connection, triggers Register /
+# Heartbeat / Deregister / ExpireStale on PeerRegistry from the test
+# thread, and asserts the matching registry.* lines arrive on the
+# client side via the event bus + writer coroutine.
+add_executable(test_tcontrolsvr_asio_admin_shell_stream
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_shell_stream.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_shell_stream PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_shell_stream
+    COMMAND test_tcontrolsvr_asio_admin_shell_stream)
+
+# Admin-shell gateway commands (F4) — drives the new `route` +
+# `peer <sid>` commands through DispatchForTest with loopback peer
+# sockets behind the registry, then reads bytes off the wire to verify
+# the gateway is byte-for-byte routing operator CLI input through the
+# F3 MessageRouter to the right destination(s).
+add_executable(test_tcontrolsvr_asio_admin_shell_route
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_shell_route.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_shell_route PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_shell_route
+    COMMAND test_tcontrolsvr_asio_admin_shell_route)
+
+# MessageRouter routing primitives — covers all four routing methods
+# (SendToService, SendToType round-robin, BroadcastToGroupType,
+# BroadcastToType) against loopback peer sockets. Verifies the right
+# peers received the right bytes and that offline / closed peers are
+# skipped without breaking round-robin.
+add_executable(test_tcontrolsvr_asio_message_router
+    ${TCONTROL_ASIO_SRC}/tests/test_message_router.cpp)
+target_link_libraries(test_tcontrolsvr_asio_message_router PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_message_router
+    COMMAND test_tcontrolsvr_asio_message_router)
+
+# PeerClient integration test — drives the outbound-side client
+# (fourstory::cluster::PeerClient) against a TCP stub that role-plays
+# TControl's CT_PEER_* wire endpoint. Verifies REGISTER + HEARTBEAT
+# + DEREGISTER round-trips and the rejection/reconnect paths.
+add_executable(test_tcontrolsvr_asio_peer_client
+    ${TCONTROL_ASIO_SRC}/tests/test_peer_client.cpp)
+target_link_libraries(test_tcontrolsvr_asio_peer_client PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_peer_client
+    COMMAND test_tcontrolsvr_asio_peer_client)
 
 # CoOffload helper test — verifies the lambda runs on a worker
 # thread, the coroutine resumes on the io_context, and exceptions

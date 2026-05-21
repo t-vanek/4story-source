@@ -24,10 +24,12 @@
 #include "services/patch_metadata_service.h"
 #include "services/peer_registry.h"
 #include "services/service_inventory.h"
+#include "services/soci_admin_audit_logger.h"
 #include "services/soci_alerter.h"
 #include "services/soci_event_repository.h"
 #include "services/soci_operator_auth_service.h"
 #include "services/soci_patch_metadata_service.h"
+#include "services/soci_peer_repository.h"
 #include "services/soci_service_inventory.h"
 #include "services/soci_user_protected_service.h"
 #include "services/spdlog_admin_audit_logger.h"
@@ -113,6 +115,8 @@ int main(int argc, char** argv)
         std::unique_ptr<tcontrolsvr::IEventRepository>        event_repo;
         std::unique_ptr<tcontrolsvr::IPatchMetadataService>   patch_meta;
         std::unique_ptr<tcontrolsvr::IAlerter>                alerter;
+        std::unique_ptr<tcontrolsvr::IPeerRepository>         peer_repo;
+        std::unique_ptr<tcontrolsvr::IAdminAuditLogger>       audit_owned;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -163,6 +167,20 @@ int main(int argc, char** argv)
             // default catches the offline-peer event in logs.
             alerter =
                 std::make_unique<tcontrolsvr::SociAlerter>(*pool);
+
+            // Peer registry persistence — TPEER_REGISTRY / TPEER_STATUS_LOG
+            // / TPEER_METRICS. Purge old rows on startup (30d status log, 7d
+            // metrics), then restore prior registrations so PeerRegistry is
+            // warm without waiting for every peer to re-register.
+            auto soci_peer_repo =
+                std::make_unique<tcontrolsvr::SociPeerRepository>(*pool);
+            soci_peer_repo->PurgeOldRows(30, 7);
+            peer_repo = std::move(soci_peer_repo);
+
+            // Dual-sink audit logger: spdlog + TOP_AUDIT_LOG in DB.
+            audit_owned =
+                std::make_unique<tcontrolsvr::SociAdminAuditLogger>(*pool);
+
             spdlog::info("auth + inventory: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
         }
@@ -192,7 +210,12 @@ int main(int argc, char** argv)
             alerter = std::make_unique<tcontrolsvr::SpdlogAlerter>();
 
         // --- Admin audit + chat-ban registry + event registry -----
-        tcontrolsvr::SpdlogAdminAuditLogger audit;
+        // When DB is configured, audit_owned is a SociAdminAuditLogger
+        // (dual-sink: spdlog + TOP_AUDIT_LOG). Fallback: stack-allocated
+        // SpdlogAdminAuditLogger for dev/no-DB runs.
+        tcontrolsvr::SpdlogAdminAuditLogger spdlog_audit_fallback;
+        tcontrolsvr::IAdminAuditLogger& audit =
+            audit_owned ? *audit_owned : spdlog_audit_fallback;
         tcontrolsvr::ChatBanRepository      chat_bans;
         tcontrolsvr::EventRegistry          events;
         if (event_repo) events.LoadFrom(event_repo->LoadAll());
@@ -200,6 +223,16 @@ int main(int argc, char** argv)
 
         // --- Peer infra --------------------------------------------
         tcontrolsvr::PeerRegistry peers(*inventory_ptr);
+
+        // Restore peer registrations saved before the last restart.
+        // Entries expire naturally if the peer doesn't heartbeat within
+        // the lease window — no special cleanup needed here.
+        if (peer_repo)
+        {
+            for (auto& entry : peer_repo->LoadAll())
+                peers.Register(entry);
+        }
+
         auto controller = MakeServiceController();
         tcontrolsvr::PeerDialer dialer(io, peers, *inventory_ptr);
 
@@ -235,6 +268,7 @@ int main(int argc, char** argv)
         svr_cfg.events     = &events;
         svr_cfg.event_repo = event_repo.get();
         svr_cfg.patch_meta = patch_meta.get();
+        svr_cfg.peer_repo  = peer_repo.get();
         svr_cfg.alerter    = alerter.get();
         svr_cfg.login_rate = login_rate.get();
         svr_cfg.db_pool    = db_pool.get();

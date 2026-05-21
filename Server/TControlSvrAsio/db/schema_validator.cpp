@@ -117,6 +117,38 @@ void ValidateGlobalSchema(fourstory::db::SessionPool& pool)
                      "not deployed — CT_UPDATEPATCH_REQ will fail "
                      "silently at the SP layer.");
     }
+
+    // Dynamic peer state tables — warn when absent so devs can boot
+    // against a minimal DB that hasn't run the peer DDL migration yet.
+    // TControlSvr runs fine without them; peer state stays in-memory only.
+    if (!TableHasColumns(*lease, "TPEER_REGISTRY",
+            {"bGroupID","bServerID","bType","szReportedAddr",
+             "wReportedPort","szVersion","dwPID","dtStartTime",
+             "dwCurUsers","dwMaxUsers","llLeaseEpoch",
+             "dtRegisteredAt","dtHeartbeatAt"}))
+    {
+        spdlog::warn("schema_validator (control_global): TPEER_REGISTRY "
+                     "not deployed — peer registrations stay in-memory only "
+                     "(lost on restart). Run the peer DDL migration to persist.");
+    }
+    if (!TableHasColumns(*lease, "TPEER_STATUS_LOG",
+            {"bGroupID","bServerID","bOldStatus","bNewStatus","dtChangedAt"}))
+    {
+        spdlog::warn("schema_validator (control_global): TPEER_STATUS_LOG "
+                     "not deployed — status-change history unavailable.");
+    }
+    if (!TableHasColumns(*lease, "TPEER_METRICS",
+            {"bGroupID","bServerID","dwSession","dwUser","dtSampledAt"}))
+    {
+        spdlog::warn("schema_validator (control_global): TPEER_METRICS "
+                     "not deployed — per-peer metrics history unavailable.");
+    }
+    if (!TableHasColumns(*lease, "TOP_AUDIT_LOG",
+            {"szOperatorID","szAction","dtActionAt"}))
+    {
+        spdlog::warn("schema_validator (control_global): TOP_AUDIT_LOG "
+                     "not deployed — operator audit log stays in spdlog only.");
+    }
 }
 
 } // namespace tcontrolsvr::db

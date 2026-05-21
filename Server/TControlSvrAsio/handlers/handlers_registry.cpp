@@ -37,7 +37,11 @@
 #include "../wire_codec.h"
 #include "../peer_session.h"
 #include "../services/peer_registry.h"
+#include "../services/peer_repository.h"
 #include "MessageId.h"
+
+#include "fourstory/db/co_offload.h"
+
 
 #include <spdlog/spdlog.h>
 
@@ -114,6 +118,26 @@ OnPeerRegisterReq(std::shared_ptr<OperatorSession> op,
     entry.start_unix    = static_cast<std::int64_t>(start_unix);
     const auto epoch = ctx.peers->Register(entry);
 
+    // Persist registration to TPEER_REGISTRY + log status transition
+    // so TControlSvr can recover after a restart.
+    if (ctx.peer_repo)
+    {
+        const RegistryEntry entry_snap = entry;
+        const auto* svc_snap = ctx.peers->FindService(service_id);
+        const std::uint8_t type_id = svc_snap
+            ? static_cast<std::uint8_t>((service_id >> 8) & 0xFF) : 0;
+        const std::uint8_t group_id  = static_cast<std::uint8_t>((service_id >> 16) & 0xFF);
+        const std::uint8_t server_id = static_cast<std::uint8_t>(service_id & 0xFF);
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool, [&] {
+            ctx.peer_repo->Upsert(entry_snap);
+            ctx.peer_repo->InsertStatusLog(
+                group_id, server_id, type_id,
+                ServiceStatus::Unknown, ServiceStatus::Running,
+                "peer_register");
+        });
+    }
+
+
     // Attach the inbound socket to the connection table so admin
     // forwarders (kick / announcement) can find the peer immediately
     // after registration. The PeerSession reuses the OperatorSession's
@@ -171,6 +195,17 @@ OnPeerHeartbeatReq(std::shared_ptr<OperatorSession> op,
         co_await senders::SendPeerHeartbeatAck(op->Wire(), 0, 0);
         co_return;
     }
+    // Persist heartbeat to TPEER_REGISTRY (fire-and-forget offload).
+    if (ctx.peer_repo)
+    {
+        const std::uint32_t sid = service_id;
+        const std::uint64_t ep  = current;
+        const std::uint32_t cu  = cur_users;
+        const std::uint32_t mu  = max_users;
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool, [&] {
+            ctx.peer_repo->UpdateHeartbeat(sid, ep, cu, mu);
+        });
+    }
     // Mirror the heartbeat into RuntimeStatus so SERVICEMONITOR
     // consumers (operator GUI, admin shell `peers`) see the latest
     // user counts even before a CT_SERVICEMONITOR_REQ arrives.
@@ -202,6 +237,20 @@ OnPeerDeregisterReq(std::shared_ptr<OperatorSession> /*op*/,
         ctx.peers->ClearConnection(service_id);
         spdlog::info("peer deregistered: service_id={:#x} lease={}",
             service_id, lease_epoch);
+        if (ctx.peer_repo)
+        {
+            const std::uint32_t sid = service_id;
+            const std::uint8_t group_id  = static_cast<std::uint8_t>((sid >> 16) & 0xFF);
+            const std::uint8_t type_id   = static_cast<std::uint8_t>((sid >>  8) & 0xFF);
+            const std::uint8_t server_id = static_cast<std::uint8_t>( sid        & 0xFF);
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool, [&] {
+                ctx.peer_repo->Delete(sid);
+                ctx.peer_repo->InsertStatusLog(
+                    group_id, server_id, type_id,
+                    ServiceStatus::Running, ServiceStatus::Stopped,
+                    "peer_deregister");
+            });
+        }
     }
     else
     {

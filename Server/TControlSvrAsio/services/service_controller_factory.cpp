@@ -14,9 +14,12 @@ namespace {
 
 #if defined(_WIN32)
 constexpr const char* kPlatformDefault = "windows";
-#elif defined(__linux__) || defined(__unix__)
+#elif defined(__linux__)
 constexpr const char* kPlatformDefault = "systemd";
 #else
+// macOS, BSDs, illumos, etc. — no built-in service-manager backend.
+// Operators can still force "systemd" or "windows" explicitly; the
+// factory will warn + fall back to disabled.
 constexpr const char* kPlatformDefault = "disabled";
 #endif
 
@@ -39,7 +42,7 @@ MakeWindows(const ServiceControllerFactoryConfig& cfg)
 std::unique_ptr<IServiceController>
 MakeSystemd(const ServiceControllerFactoryConfig& cfg)
 {
-#if defined(__linux__) || defined(__unix__)
+#if defined(__linux__)
     SystemdServiceController::Options o;
     o.service_name_template = cfg.service_name_template;
     o.overrides             = cfg.overrides;

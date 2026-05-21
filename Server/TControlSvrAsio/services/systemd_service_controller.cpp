@@ -13,7 +13,7 @@
 #include <sstream>
 #include <utility>
 
-#ifdef __unix__
+#ifdef __linux__
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -63,7 +63,7 @@ ServiceStatus MapSystemctlActive(const std::string& state)
 
 } // namespace
 
-#ifdef __unix__
+#ifdef __linux__
 
 SystemctlResult RunSystemctlDefault(
     const std::string& systemctl_path,
@@ -101,11 +101,13 @@ SystemctlResult RunSystemctlDefault(
 
 #else
 
-// On non-Unix targets the default runner is a stub returning a
-// "would have run" sentinel so the surface still compiles. The
-// production factory short-circuits before constructing
-// SystemdServiceController on non-Linux platforms, but keeping the
-// symbol around lets the unit tests link uniformly.
+// On non-Linux targets (Windows, macOS, BSDs, …) the default runner
+// is a stub returning a "would have run" sentinel so the symbol
+// exists and the binary links uniformly. The production factory
+// short-circuits before constructing SystemdServiceController on
+// non-Linux platforms — operators get the DisabledServiceController
+// fallback instead. Tests inject a SystemctlRunner directly and
+// never go through this stub.
 SystemctlResult RunSystemctlDefault(
     const std::string& /*systemctl_path*/,
     const std::vector<std::string>& /*argv*/)

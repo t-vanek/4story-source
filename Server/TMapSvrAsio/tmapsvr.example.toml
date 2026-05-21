@@ -1,48 +1,112 @@
-# tmapsvr.example.toml — annotated TMapSvrAsio config.
-#
-# Copy this file to `tmapsvr.toml` next to the binary (or pass via
-# `--config <path>`) and edit the values for your deployment.
+# tmapsvr.toml — TMapSvrAsio configuration.
+# Pass via `tmapsvr_asio --config /path/to/this/file`.
+# All sections + keys are optional; defaults below match the legacy
+# TMapSvr.exe so a missing config still gives a working binary.
 
 [server]
-# Legacy TMapSvr port (TSERVER row for bType=TMAP=4). Multiple Map
-# shards on one host need distinct ports.
+# TCP port the game client connects to. 5815 = DEF_MAPPORT (legacy
+# TServer row bType=3).
 port = 5815
-
-# Soft cap on concurrent player sessions. New accepts past the cap
-# are dropped immediately. 0 disables the cap.
+# Hard cap on concurrent live sessions. Each AsioSession holds a
+# decoded packet buffer + crypto state — sized for the legacy 8K
+# default. Lower for dev / lab; raise carefully (kernel fd budget,
+# RAM).
 max_connections = 8000
 
-# Idle window (seconds) before CS_CONNECT_REQ; connections that don't
-# complete the handshake within this are closed. 0 disables.
-pre_auth_timeout_seconds = 30
+[crypto]
+# Hex-encoded RC4 secret key for client ↔ map encryption. Server-side
+# convention (matches CSession::Decrypt path): we run RC4 on inbound
+# only — outbound stays XOR. The hex string is decoded byte-for-byte,
+# operator must include any trailing NUL byte the legacy default
+# requires.
+#
+# Leave commented (or set disable = true) to run plain-wire — useful
+# for smoke tests with netcat / packet replay tooling.
+# rc4_secret_hex = "0102030405060708090a0b0c0d0e0f00"
+disable = true
 
-# Wire-version gate. The legacy ProtocolBase.h::TVERSION value is
-# 0x2918; older builds can be added during a client rollout.
-accepted_versions = [0x2918]
+[mode]
+# Game-mode selector — replaces the legacy BR_COMPILE_MODE /
+# BOW_COMPILE_MODE preprocessor flags with a run-time switch so the
+# same binary serves any mode.
+#   pve   normal PvE/PvP gameplay (default)
+#   bow   Battle of Worlds match — TBowSettings constants apply
+#   br    Battle Royale match    — BRSettings constants apply
+type = "pve"
 
-# Per-IP token bucket on inbound CS_CONNECT_REQ. burst=0 disables.
-[connect_rate]
-burst          = 10
-refill_seconds = 5
+[world]
+# TWorldSvr peer this map talks to. The map↔world link carries MW_/DM_/
+# SS_ traffic (char registration on connect, party/chat relay, item
+# routing) — required for the F5+ char registration flow. Setting port
+# = 0 disables the outbound link entirely; CS_CONNECT_REQ still works
+# but MW_ADDCHAR_ACK is dropped with a log line. Production deploys
+# must point this at the running TWorldSvr.
+host = "127.0.0.1"
+port = 0
 
-# [database] — empty / unset uses the in-memory accept-all validator
-# (dev / smoke mode). F2+ swaps in a SOCI-backed validator that reads
-# TCURRENTUSER, which means a real TLoginSvr peer must mint the dwKEY
-# row before the client can connect.
-# [database]
-# backend           = "odbc"
-# connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
-# pool_size         = 8
-# worker_threads    = 4
+[audit]
+# TLogSvrAsio audit UDP shim — structured events (login, char load,
+# handler latency, …) go here. Connectionless / fire-and-forget;
+# dropping a packet under load is acceptable for observability.
+# Empty host or port = 0 disables the peer; events stay in the local
+# spdlog file.
+host = ""
+port = 0
 
-# Ops endpoints — match the other Asio servers so an operator can hit
-# /healthz and the admin shell with the same shape everywhere.
-[health]
-port = 18095
+[rate_limit]
+# T5 per-session token bucket. burst = bucket capacity (max consecutive
+# messages); refill_per_s = tokens regenerated per second. Both zero
+# (default) disables the limiter — every message dispatches. Set both
+# to e.g. burst=20, refill_per_s=10 for "20 burst, 10 sustained / sec".
+burst = 0
+refill_per_s = 0
+
+[shutdown]
+# T5 graceful shutdown drain window. On SIGINT/SIGTERM the listener
+# stops accepting immediately; we then sleep this many ms before
+# io.stop() so in-flight handlers and outbound peer sends finish.
+drain_ms = 2000
 
 [admin]
-bind = "127.0.0.1"
-port = 18195
+# T6 admin TCP shell. Text protocol, newline-delimited commands
+# (help / status / kick / broadcast / peer-status / quit). Bind on
+# localhost by default; tunnel via SSH for remote access rather
+# than exposing the port. Optional secret enforces "auth <secret>"
+# as the first line before any other command. Port = 0 disables.
+bind   = "127.0.0.1"
+port   = 0
+secret = ""
+
+[metrics]
+# T6 Prometheus /metrics endpoint. Bind on loopback; set port = 0
+# to disable. The scraper (prometheus or a node-exporter sidecar)
+# is expected to run alongside the server.
+port = 8917
+
+[health]
+# Optional /healthz HTTP endpoint on a separate port. Set to 0 to
+# disable. Used by k8s liveness/readiness probes and external
+# load-balancer health checks.
+port = 8916
 
 [log]
+# spdlog level. One of: trace | debug | info | warn | error | critical | off
 level = "info"
+
+[database]
+# TUSER pool — TCURRENTUSER holds the session token TLoginSvrAsio
+# wrote at login; the map server reads it back to validate the
+# CS_VERIFYSESSION_REQ handshake in F4. TCHARTABLE (char load/save)
+# also lives in TUSER and gets validated when F5 lands.
+#
+# backend: one of  odbc | postgresql | sqlite3
+# Production uses ODBC against SQL Server; the SOCI connection
+# string follows the standard ODBC driver syntax.
+backend = "odbc"
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TUSER_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+pool_size = 4
+# Off-loop SOCI worker pool. 0 disables (run queries on the
+# io_context thread — fine for low-load dev). Production should
+# keep this >= 2 so the hot lookup paths in F4 / F5 don't stall
+# the accept loop.
+worker_threads = 4

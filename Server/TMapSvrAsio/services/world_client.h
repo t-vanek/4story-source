@@ -1,40 +1,37 @@
 #pragma once
 
-// IWorldClient — abstract outbound connection to TWorldSvr.
+// AsioWorldClient — persistent outbound TCP link to TWorldSvr.
 //
-// Normal cluster sequence (DM_LOADCHAR happens BEFORE CS_CONNECT_REQ):
+// The legacy CTMapSvrModule held a single `CSession m_world` that was
+// connected once at boot and reused for every map↔world packet (mostly
+// MW_/DM_/SS_ family). This is the modern equivalent: a coroutine that
+// connects, reads inbound packets, and on disconnect schedules a
+// reconnect with exponential backoff (1s → 30s). The mode is
+// server-to-server so the wire codec runs plain (no RC4 layer; just
+// the XOR header + body codec that AsioSession applies by default).
 //
-//   WorldSvr → MapSvr: DM_LOADCHAR_REQ  (MapSvr loads char from DB)
-//   MapSvr → WorldSvr: DM_LOADCHAR_ACK  (full char record)
-//   [char snapshot stored in pre-load cache]
-//   Client  → MapSvr: CS_CONNECT_REQ
-//   MapSvr → WorldSvr: MW_ADDCHAR_ACK   (client IP/port/uid)
-//   [snapshot taken from cache → CS_CHARINFO_ACK sent on CONREADY]
-//
-// Race sequence (CS_CONNECT_REQ before DM_LOADCHAR):
-//   Client  → MapSvr: CS_CONNECT_REQ
-//   MapSvr: RegisterPendingSession(char_id, sess, state_weak)
-//   MapSvr → WorldSvr: MW_ADDCHAR_ACK
-//   WorldSvr → MapSvr: DM_LOADCHAR_REQ → ACK
-//   WorldSvr → MapSvr: MW_CONRESULT_REQ (connection approval)
-//   AsioWorldClient: routes CS_CHARINFO_ACK to pending client session
-//
-// Source: Server/TMapSvr/SSSender.cpp — SendMW_ADDCHAR_ACK
-//         Server/TMapSvr/SSHandler.cpp — OnDM_LOADCHAR_REQ
-//         Server/TMapSvr/SSHandler.cpp:1332 — OnMW_CONRESULT_REQ
+// Thread safety (T3): SendPacket dispatches to an internal strand so
+// concurrent calls from multiple handler coroutines / threads are
+// serialized correctly even when the io_context runs across multiple
+// threads. The strand wraps the io_context's executor; a multi-thread
+// io.run() pool is now safe to use without the send-side race that
+// the F5 commit documented as a TODO.
 
 #include "asio_session.h"
 
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <string>
-#include <unordered_map>
-#include <vector>
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/strand.hpp>
 
-// Forward declarations
-namespace tmapsvr::legacy { struct CharSnapshot; }
-namespace tmapsvr         { struct MapSessionState; }
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <span>
+#include <string>
+#include <vector>
 
 namespace tmapsvr {
 
@@ -43,127 +40,71 @@ class IWorldClient
 public:
     virtual ~IWorldClient() = default;
 
-    // ── Sending to WorldSvr ──────────────────────────────────────────
+    // Fire-and-forget packet send. Returns true if the bytes were
+    // handed off to the AsioSession (does NOT wait for ACK on the
+    // wire); false when the session is currently disconnected (caller
+    // can choose to retry / buffer / drop).
+    virtual boost::asio::awaitable<bool>
+        SendPacket(std::uint16_t wId, std::vector<std::byte> body) = 0;
 
-    // Send MW_ADDCHAR_ACK — notifies WorldSvr that a client connected.
-    // client_ip_raw: IPv4 in host byte order.
-    // Wire: dwCharID, dwKEY, dwIPAddr, wPort, dwUserID
-    // Source: SSSender.cpp:SendMW_ADDCHAR_ACK
-    virtual void SendMwAddCharAck(
-        std::uint32_t char_id,
-        std::uint32_t dw_key,
-        std::uint32_t client_ip_raw,
-        std::uint16_t client_port,
-        std::uint32_t user_id) = 0;
-
-    // Send DM_LOADCHAR_ACK in response to DM_LOADCHAR_REQ.
-    // snap == nullptr → CN_NOCHAR.
-    virtual void SendDmLoadCharAck(
-        std::uint32_t               char_id,
-        std::uint32_t               dw_key,
-        const legacy::CharSnapshot* snap) = 0;
-
-    // ── Pending session registry (race path) ─────────────────────────
-
-    // Register a client session waiting for MW_CONRESULT_REQ so
-    // CS_CHARINFO_ACK can be routed back. Called when pre-load cache
-    // misses on CS_CONNECT_REQ (race: client connected before
-    // DM_LOADCHAR round-trip completed).
-    virtual void RegisterPendingSession(
-        std::uint32_t                         char_id,
-        std::shared_ptr<tnetlib::AsioSession> sess,
-        std::weak_ptr<MapSessionState>        state_weak) = 0;
-
-    // Remove pending entry on session close (prevents routing to
-    // expired weak_ptr).
-    virtual void CancelPendingSession(std::uint32_t char_id) = 0;
-
-    // ── Pre-loaded snapshot cache (normal path) ───────────────────────
-
-    // Store a snapshot after DM_LOADCHAR_REQ is handled (before the
-    // client connects in the normal sequence).
-    virtual void StorePreloadedChar(legacy::CharSnapshot snap) = 0;
-
-    // Take the pre-loaded snapshot for char_id. Validates user_id +
-    // dw_key. Returns nullopt if not cached or credentials mismatch.
-    // Removes the entry from the cache on success.
-    virtual std::optional<legacy::CharSnapshot>
-        TakePreloadedChar(std::uint32_t char_id,
-                          std::uint32_t user_id,
-                          std::uint32_t dw_key) = 0;
-
-    // Returns true if the underlying TCP connection to WorldSvr is live.
+    // Lifecycle gate — handlers use this to decide whether to even
+    // attempt SendPacket (no buffering yet in F5).
     virtual bool IsConnected() const = 0;
 };
 
-// ---------------------------------------------------------------------------
-// FakeWorldClient — in-memory stub for unit tests.
-// ---------------------------------------------------------------------------
-//
-// Header-only: no CharSnapshot / MapSessionState definition needed in
-// the methods below (only pointers / weak_ptr / nullopt used).
-// FakeWorldClient does NOT send CS_CHARINFO_ACK on SimulateConResult
-// because the full sess+state wiring isn't set up in pure-unit tests;
-// tests verify snapshot delivery instead.
-
-class FakeWorldClient : public IWorldClient
+class AsioWorldClient final : public IWorldClient
 {
 public:
-    struct AddCharAckCall { std::uint32_t char_id, dw_key, client_ip_raw, user_id; std::uint16_t client_port; };
-    struct LoadCharAckCall { std::uint32_t char_id, dw_key; bool success; };
-    struct PendingEntry    { std::shared_ptr<tnetlib::AsioSession> sess; std::weak_ptr<MapSessionState> state_weak; };
+    // Per-packet callback fired for each inbound frame from the world
+    // peer. Called synchronously from the read loop; the callback is
+    // expected to copy the body and co_spawn its own dispatch
+    // coroutine (the body span is only valid during the call). main()
+    // builds the lambda that captures the HandlerContext and routes
+    // to handlers_world::DispatchWorld.
+    using InboundHandler =
+        std::function<void(std::uint16_t wId,
+                           std::span<const std::byte> body)>;
 
-    const std::vector<AddCharAckCall>&  AddCharAckCalls()  const { return m_add_char; }
-    const std::vector<LoadCharAckCall>& LoadCharAckCalls() const { return m_load_char; }
-    bool HasPendingSession(std::uint32_t char_id)          const { return m_pending.count(char_id) > 0; }
-    bool HasPreloaded(std::uint32_t char_id)               const { return m_preloaded.count(char_id) > 0; }
+    AsioWorldClient(boost::asio::io_context& io,
+                    std::string host,
+                    std::uint16_t port,
+                    InboundHandler on_packet = nullptr,
+                    std::chrono::milliseconds backoff_initial = std::chrono::seconds(1),
+                    std::chrono::milliseconds backoff_max     = std::chrono::seconds(30));
 
-    void SendMwAddCharAck(std::uint32_t char_id, std::uint32_t dw_key,
-                          std::uint32_t ip, std::uint16_t port,
-                          std::uint32_t user_id) override
-    {
-        m_add_char.push_back({ char_id, dw_key, ip, user_id, port });
-    }
+    // Main coroutine. Loops connect → read → on disconnect, sleep +
+    // retry with doubling backoff. Returns only when the io_context
+    // stops (clean shutdown).
+    boost::asio::awaitable<void> Run();
 
-    void SendDmLoadCharAck(std::uint32_t char_id, std::uint32_t dw_key,
-                           const legacy::CharSnapshot* snap) override
-    {
-        m_load_char.push_back({ char_id, dw_key, snap != nullptr });
-    }
+    boost::asio::awaitable<bool>
+        SendPacket(std::uint16_t wId, std::vector<std::byte> body) override;
 
-    void RegisterPendingSession(std::uint32_t char_id,
-                                std::shared_ptr<tnetlib::AsioSession> sess,
-                                std::weak_ptr<MapSessionState> state_weak) override
-    {
-        m_pending[char_id] = { std::move(sess), state_weak };
-    }
-
-    void CancelPendingSession(std::uint32_t char_id) override
-    {
-        m_pending.erase(char_id);
-    }
-
-    void StorePreloadedChar(legacy::CharSnapshot snap) override;
-
-    std::optional<legacy::CharSnapshot>
-        TakePreloadedChar(std::uint32_t char_id,
-                          std::uint32_t user_id,
-                          std::uint32_t dw_key) override;
-
-    bool IsConnected() const override { return m_connected; }
-    void SetConnected(bool v)          { m_connected = v; }
-
-    // Test helper: simulate MW_CONRESULT_REQ delivering snapshot to
-    // a registered pending session.
-    void SimulateConResult(std::uint32_t char_id,
-                           legacy::CharSnapshot snap);
+    bool IsConnected() const override;
 
 private:
-    std::vector<AddCharAckCall>                               m_add_char;
-    std::vector<LoadCharAckCall>                              m_load_char;
-    std::unordered_map<std::uint32_t, PendingEntry>           m_pending;
-    std::unordered_map<std::uint32_t, legacy::CharSnapshot>   m_preloaded;
-    bool                                                       m_connected = true;
+    // One connect attempt with the configured timeout. Returns a
+    // fresh AsioSession on success, nullptr on failure.
+    boost::asio::awaitable<std::shared_ptr<tnetlib::AsioSession>>
+        DialOnce();
+
+    boost::asio::io_context&    m_io;
+    // Strand wrapping the io_context's executor — used by SendPacket
+    // to serialize concurrent outbound calls. The read loop runs on
+    // its own coroutine (no strand) so inbound dispatch isn't blocked
+    // by outbound traffic. Same pattern as the strand-based send
+    // queues in other Asio servers.
+    boost::asio::strand<boost::asio::any_io_executor> m_send_strand;
+    std::string                 m_host;
+    std::uint16_t               m_port;
+    InboundHandler              m_on_packet;
+    std::chrono::milliseconds   m_backoff_initial;
+    std::chrono::milliseconds   m_backoff_max;
+
+    // Active session, or nullptr when disconnected. shared_ptr so the
+    // read loop and SendPacket callers can hold weak refs across
+    // co_awaits without resurrecting a dead socket.
+    std::shared_ptr<tnetlib::AsioSession> m_session;
 };
 
 } // namespace tmapsvr

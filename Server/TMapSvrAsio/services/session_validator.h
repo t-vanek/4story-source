@@ -1,40 +1,37 @@
 #pragma once
 
-// IMapSessionValidator — the token-of-trust check the map server runs
-// on CS_CONNECT_REQ. Legacy CTMapSvrModule::OnCS_CONNECT_REQ
-// (CSHandler.cpp:249) called the SP `TCheckMapChar(dwUserID, dwCharID,
-// dwKEY)` against TGLOBAL_RAGEZONE.TCURRENTUSER. The SP is commented
-// out in the shipped source ("/*DEFINE_QUERY(&m_db, CSPCheckMapChar)*/")
-// — production deploys rely on the lock-free TCURRENTUSER row that
-// TLoginSvr writes on CS_START_REQ as the cross-server handshake.
+// Map session validator — looks up the TCURRENTUSER row TLoginSvrAsio
+// wrote at login. The handshake handler in handlers.cpp uses it to
+// verify the (dwUserID, dwKEY) pair the client sends in
+// CS_CONNECT_REQ matches what's actually pending in the session table.
 //
-// Modern path: inline parameterized query against TCURRENTUSER (no SP)
-// — `SELECT 1 FROM TCURRENTUSER WHERE dwUserID=:u AND dwCharID=:c AND
-// dwKEY=:k`. Returns true iff the row exists. SOCI impl arrives in
-// F2; F1 wires the interface + a fake that accepts every key.
+// Two implementations:
+//   SociMapSessionValidator    production — SOCI query against TUSER
+//   FakeMapSessionValidator    tests + dev — in-memory std::map
+//
+// Both share the IMapSessionValidator interface so the handler doesn't
+// know which one it's talking to. The same pattern is used by the
+// other Asio servers' service layers.
+
+#include "domain/session.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace tmapsvr {
-
-struct MapSessionLookup
-{
-    std::uint32_t user_id  = 0;
-    std::uint32_t char_id  = 0;
-    std::uint32_t dw_key   = 0;
-    std::uint8_t  channel  = 0;
-};
 
 class IMapSessionValidator
 {
 public:
     virtual ~IMapSessionValidator() = default;
 
-    // Returns true iff `lookup` matches a live TCURRENTUSER row that
-    // was minted by TLoginSvr on the player's CS_START_REQ. False on
-    // any of: row absent, dwKEY mismatch, DB error (treated as deny —
-    // legacy convention).
-    virtual bool Validate(const MapSessionLookup& lookup) = 0;
+    // Look up the session row for (user_id, key). Returns an empty
+    // optional when no row matches — handler treats that as "session
+    // token rejected". A populated optional means "row found", but
+    // the handler still validates the channel / lock fields against
+    // the claims the client sent in the packet body.
+    virtual std::optional<MapSessionInfo>
+        LookupSession(std::uint32_t user_id, std::uint32_t key) = 0;
 };
 
 } // namespace tmapsvr

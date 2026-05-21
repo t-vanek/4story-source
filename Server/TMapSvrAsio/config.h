@@ -1,71 +1,140 @@
 #pragma once
 
-// TMapSvrAsio TOML configuration. F1 ships the structural shape (port,
-// DB, ops endpoints, log level). Gameplay handlers + interface wiring
-// arrive in later phases — see Server/TMapSvrAsio/README.md for the
-// phased plan.
+// TMapSvrAsio TOML configuration. Same shape as TPatchSvrAsio /
+// TLoginSvrAsio — TOML sections [server], [crypto], [mode], [database],
+// [world], [health], [log], plus map-server-specific [mode] (run-time
+// PvE / Bow / BR switch, replacing legacy BR/BOW_COMPILE_MODE compile
+// flags) and [world] (the TWorldSvr peer this map talks to, wired up
+// starting in phase F5).
+
+#include "map_server.h"
+
+#include "fourstory/cluster/peer_client.h"
 
 #include <spdlog/common.h>
 
 #include <cstdint>
 #include <cstddef>
 #include <string>
-#include <vector>
 
 namespace tmapsvr {
 
+// Run-time game-mode selector. Replaces legacy BR_COMPILE_MODE /
+// BOW_COMPILE_MODE preprocessor gates: now a single binary serves any
+// mode, picked at boot from [mode] type.
+enum class Mode : std::uint8_t {
+    PvE = 0,
+    Bow = 1,
+    Br  = 2,
+};
+
+const char* ModeName(Mode m);
+
+// SOCI DB connection. The map server reads TCURRENTUSER (session
+// validation against the token TLoginSvrAsio wrote at login) and
+// TCHARTABLE (char load/save) — for F2 we only validate the first;
+// char-table validation lands with the F5 player service.
 struct DbConfig
 {
-    std::string  backend;            // "odbc" | "postgresql" | …
-    std::string  connection_string;  // dialect-specific
-    std::size_t  pool_size = 8;
+    std::string  backend;
+    std::string  connection_string;
+    std::size_t  pool_size = 4;
+    // Worker threads for off-loop SOCI calls. 0 disables (in-line on
+    // the io_context thread, fine for low-load dev runs).
     std::size_t  worker_threads = 4;
+};
+
+// TWorldSvr peer address. Populated for forward compatibility — the
+// outbound link is implemented in F5 (services/world_client.cpp).
+struct WorldPeerConfig
+{
+    std::string    host = "127.0.0.1";
+    std::uint16_t  port = 0;     // 0 = unconfigured, world peer disabled
+};
+
+// TLogSvrAsio audit-shim address — UDP fire-and-forget sink for
+// structured events. Empty host or port=0 disables the peer;
+// events stay in the local spdlog file. T4 observability will start
+// emitting actual events through this peer.
+struct AuditPeerConfig
+{
+    std::string    host;          // empty → disabled
+    std::uint16_t  port = 0;
+};
+
+// T5 rate limiter — token bucket per session.
+//   burst:        max consecutive messages without throttling
+//   refill_per_s: tokens regenerated per second
+// Both zero ⇒ limiter disabled (every TryAcquire passes).
+struct RateLimitConfig
+{
+    std::uint32_t  burst         = 0;   // disabled by default
+    std::uint32_t  refill_per_s  = 0;
+};
+
+// T5 graceful shutdown — on SIGINT/SIGTERM the accept loop stops
+// immediately, then we sleep for this many milliseconds to let
+// in-flight handlers + outbound peer sends drain before io.stop().
+struct ShutdownConfig
+{
+    std::uint32_t  drain_ms = 2000;
+};
+
+// T6 admin TCP shell. Bind defaults to localhost. Secret is
+// optional; bind+secret is the production posture.
+struct AdminConfig
+{
+    std::string    bind   = "127.0.0.1";
+    std::uint16_t  port   = 0;       // 0 = disabled
+    std::string    secret;            // empty = no auth (bind protects)
+};
+
+// TControlSvr cluster coordinates — optional, used by CT_* control handlers
+// to authorize inbound control traffic and identify this map node.
+struct ClusterConfig
+{
+    std::string    control_host;   // TControlSvr host (empty = gate open)
+    std::uint16_t  control_port = 0;
+    std::uint8_t   group_id     = 0;   // world/group this map belongs to
+    std::uint8_t   server_id    = 0;   // map server id within the group
+    std::string    reported_addr;      // address reported to World on connect
 };
 
 struct AppConfig
 {
-    // TCP listener for the legacy game client. Legacy default is 5815
-    // (per TSERVER row for bType=TMAP=4). Configurable so a single host
-    // can run multiple Map instances on adjacent ports.
-    std::uint16_t  port = 5815;
+    // Listener configuration consumed by MapServer. Holds port,
+    // max_connections, and the RC4 key shared with the legacy client.
+    MapServerConfig server;
 
-    // RC4 secret key for the inbound client wire (same legacy convention
-    // as TLoginSvrAsio: client→server is RC4+XOR, server→client is
-    // XOR-only). Empty disables RC4 — useful for tests where the peer
-    // is another modernized binary, not a legacy game client.
-    std::vector<std::byte> rc4_secret_key;
+    // Game mode (replaces legacy compile-time flags).
+    Mode           mode = Mode::PvE;
 
-    // Wire-version gate (CS_CONNECT_REQ.wVersion). Defaults to the
-    // single legacy ProtocolBase.h::TVERSION value. Operators can
-    // extend the list to support a rolling client rollout.
-    std::vector<std::uint16_t> accepted_versions = { 0x2918 };
-
+    // TUSER DB (TCURRENTUSER for the F4 handshake; TCHARTABLE for F5+).
     DbConfig       database;
 
-    // Ops endpoints — match the TLoginSvrAsio shape so an operator can
-    // hit /healthz on the same port everywhere.
-    std::uint16_t  health_port = 18095;
-    std::uint16_t  admin_port  = 18195;
-    std::string    admin_bind  = "127.0.0.1";
+    // TWorldSvr peer (F5+).
+    WorldPeerConfig world;
 
-    // Per-IP rate limit on CS_CONNECT_REQ. Defends against
-    // half-open-session floods in the map handshake (legacy server has
-    // no rate limit on this path either). burst=0 disables.
-    std::uint32_t  connect_rate_burst          = 10;
-    std::uint32_t  connect_rate_refill_seconds = 5;
+    // TLogSvrAsio audit UDP shim (T3+).
+    AuditPeerConfig audit;
 
-    // Pre-auth idle timeout — drop connections that haven't sent a
-    // valid CS_CONNECT_REQ within this window. 0 disables. 30s
-    // is generous for a real client (CS_CONNECT_REQ is the first
-    // packet after the TCP handshake completes); hostile to half-
-    // open SYN-floods.
-    std::uint32_t  pre_auth_timeout_seconds = 30;
+    // T5 rate limiter (per-session token bucket).
+    RateLimitConfig rate_limit;
 
-    // Soft cap on concurrent live sessions. New accepts past the cap
-    // are dropped immediately. 0 = no cap (legacy behavior). MMO map
-    // hosts can hold a few thousand chars; the default is generous so
-    // a single misconfigured shard doesn't OOM the host.
-    std::uint32_t  max_connections = 8000;
+    // T5 graceful shutdown timing.
+    ShutdownConfig  shutdown;
+
+    // T6 admin TCP shell.
+    AdminConfig     admin;
+
+    // TControlSvr cluster coordinates (optional).
+    ClusterConfig   cluster;
+
+    // Health endpoint port. 0 disables.
+    std::uint16_t  health_port = 8916;
+
+    // T6 metrics endpoint port (Prometheus text format). 0 disables.
+    std::uint16_t  metrics_port = 8917;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

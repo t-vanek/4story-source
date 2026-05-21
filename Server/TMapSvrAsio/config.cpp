@@ -3,10 +3,22 @@
 #include <toml++/toml.hpp>
 #include <spdlog/spdlog.h>
 
+#include <cstddef>
 #include <filesystem>
 #include <stdexcept>
+#include <string_view>
 
 namespace tmapsvr {
+
+const char* ModeName(Mode m)
+{
+    switch (m) {
+        case Mode::PvE: return "pve";
+        case Mode::Bow: return "bow";
+        case Mode::Br:  return "br";
+    }
+    return "?";
+}
 
 namespace {
 
@@ -22,31 +34,40 @@ spdlog::level::level_enum ParseLogLevel(std::string_view s)
     throw std::runtime_error("invalid log level: " + std::string(s));
 }
 
-std::uint16_t Port(std::int64_t v, const char* key)
+Mode ParseMode(std::string_view s)
+{
+    if (s == "pve") return Mode::PvE;
+    if (s == "bow") return Mode::Bow;
+    if (s == "br")  return Mode::Br;
+    throw std::runtime_error("invalid mode (expected pve|bow|br): "
+                             + std::string(s));
+}
+
+std::uint16_t RequirePort(std::int64_t v, const char* key)
 {
     if (v < 0 || v > 65535)
         throw std::runtime_error(std::string(key) + " out of range");
     return static_cast<std::uint16_t>(v);
 }
 
-// Legacy default RC4 secret — identical to TLoginSvrAsio. The literal
-// includes the two CP1252 curly quotes (0x92, 0x94) plus the trailing
-// NUL byte; legacy Session.cpp hashes secret_len+1 bytes so the NUL
-// participates in the MD5 → RC4 key derivation, and any consumer
-// missing the NUL desyncs the keystream.
-const std::vector<std::byte>& DefaultLegacySecret()
+// Decode an even-length hex string into raw bytes. Matches the helper
+// in TLoginSvrAsio/config.cpp — operator-supplied bytes are passed
+// through verbatim with no implicit NUL append.
+std::vector<std::byte> ParseHexBytes(std::string_view hex)
 {
-    static const std::vector<std::byte> bytes = []
-    {
-        constexpr unsigned char kRaw[] =
-            "A5$$8AFS13A1::-11#!..'\x92" "19716AC&\x94" "/D1;;1#";
-        std::vector<std::byte> out;
-        out.reserve(sizeof(kRaw));   // includes trailing NUL
-        for (std::size_t i = 0; i < sizeof(kRaw); ++i)
-            out.push_back(static_cast<std::byte>(kRaw[i]));
-        return out;
-    }();
-    return bytes;
+    if (hex.size() % 2 != 0)
+        throw std::runtime_error("hex string must have even length");
+    auto nibble = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+        if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+        throw std::runtime_error(std::string("invalid hex char: ") + c);
+    };
+    std::vector<std::byte> out;
+    out.reserve(hex.size() / 2);
+    for (std::size_t i = 0; i < hex.size(); i += 2)
+        out.push_back(static_cast<std::byte>((nibble(hex[i]) << 4) | nibble(hex[i + 1])));
+    return out;
 }
 
 } // namespace
@@ -54,8 +75,6 @@ const std::vector<std::byte>& DefaultLegacySecret()
 AppConfig LoadConfig(const std::string& path)
 {
     AppConfig cfg;
-    cfg.rc4_secret_key = DefaultLegacySecret();
-
     if (path.empty() || !std::filesystem::exists(path))
     {
         spdlog::info("no config file at '{}'; using defaults", path);
@@ -63,8 +82,7 @@ AppConfig LoadConfig(const std::string& path)
     }
     toml::table tbl;
     try { tbl = toml::parse_file(path); }
-    catch (const toml::parse_error& ex)
-    {
+    catch (const toml::parse_error& ex) {
         const auto d = ex.description();
         throw std::runtime_error("TOML parse error in '" + path + "': "
             + std::string(d.data(), d.size()));
@@ -73,53 +91,32 @@ AppConfig LoadConfig(const std::string& path)
     if (auto srv = tbl["server"].as_table())
     {
         if (auto p = (*srv)["port"].value<std::int64_t>())
-            cfg.port = Port(*p, "server.port");
+            cfg.server.port = RequirePort(*p, "server.port");
         if (auto m = (*srv)["max_connections"].value<std::int64_t>())
         {
-            if (*m < 0 || *m > 0xFFFFFFFFLL)
+            if (*m < 1 || *m > 100000)
                 throw std::runtime_error("server.max_connections out of range");
-            cfg.max_connections = static_cast<std::uint32_t>(*m);
-        }
-        if (auto t = (*srv)["pre_auth_timeout_seconds"].value<std::int64_t>())
-        {
-            if (*t < 0 || *t > 0xFFFFFFFFLL)
-                throw std::runtime_error("server.pre_auth_timeout_seconds out of range");
-            cfg.pre_auth_timeout_seconds = static_cast<std::uint32_t>(*t);
-        }
-        if (auto versions = (*srv)["accepted_versions"].as_array())
-        {
-            cfg.accepted_versions.clear();
-            for (const auto& el : *versions)
-            {
-                const auto v = el.value<std::int64_t>();
-                if (!v) continue;
-                if (*v < 0 || *v > 0xFFFF)
-                    throw std::runtime_error("server.accepted_versions entry out of range");
-                cfg.accepted_versions.push_back(static_cast<std::uint16_t>(*v));
-            }
+            cfg.server.max_connections = static_cast<std::uint32_t>(*m);
         }
     }
-    if (auto rl = tbl["connect_rate"].as_table())
+    if (auto crypto = tbl["crypto"].as_table())
     {
-        if (auto v = (*rl)["burst"].value<std::int64_t>())
+        if (auto hex = (*crypto)["rc4_secret_hex"].value<std::string>())
+            cfg.server.rc4_secret_key = ParseHexBytes(*hex);
+        if (auto disable = (*crypto)["disable"].value<bool>())
         {
-            if (*v < 0 || *v > 0xFFFFFFFFLL)
-                throw std::runtime_error("connect_rate.burst out of range");
-            cfg.connect_rate_burst = static_cast<std::uint32_t>(*v);
+            if (*disable) cfg.server.rc4_secret_key.clear();
         }
-        if (auto v = (*rl)["refill_seconds"].value<std::int64_t>())
-        {
-            if (*v < 0 || *v > 0xFFFFFFFFLL)
-                throw std::runtime_error("connect_rate.refill_seconds out of range");
-            cfg.connect_rate_refill_seconds = static_cast<std::uint32_t>(*v);
-        }
+    }
+    if (auto m = tbl["mode"].as_table())
+    {
+        if (auto t = (*m)["type"].value<std::string>())
+            cfg.mode = ParseMode(*t);
     }
     if (auto db = tbl["database"].as_table())
     {
-        if (auto b = (*db)["backend"].value<std::string>())
-            cfg.database.backend = *b;
-        if (auto c = (*db)["connection_string"].value<std::string>())
-            cfg.database.connection_string = *c;
+        if (auto b = (*db)["backend"].value<std::string>())           cfg.database.backend = *b;
+        if (auto c = (*db)["connection_string"].value<std::string>()) cfg.database.connection_string = *c;
         if (auto s = (*db)["pool_size"].value<std::int64_t>())
         {
             if (*s < 1 || *s > 256)
@@ -133,28 +130,87 @@ AppConfig LoadConfig(const std::string& path)
             cfg.database.worker_threads = static_cast<std::size_t>(*s);
         }
     }
+    if (auto w = tbl["world"].as_table())
+    {
+        if (auto h = (*w)["host"].value<std::string>())  cfg.world.host = *h;
+        if (auto p = (*w)["port"].value<std::int64_t>()) cfg.world.port = RequirePort(*p, "world.port");
+    }
+    if (auto a = tbl["audit"].as_table())
+    {
+        if (auto h = (*a)["host"].value<std::string>())  cfg.audit.host = *h;
+        if (auto p = (*a)["port"].value<std::int64_t>()) cfg.audit.port = RequirePort(*p, "audit.port");
+    }
+    if (auto rl = tbl["rate_limit"].as_table())
+    {
+        if (auto b = (*rl)["burst"].value<std::int64_t>())
+        {
+            if (*b < 0 || *b > 100000)
+                throw std::runtime_error("rate_limit.burst out of range");
+            cfg.rate_limit.burst = static_cast<std::uint32_t>(*b);
+        }
+        if (auto r = (*rl)["refill_per_s"].value<std::int64_t>())
+        {
+            if (*r < 0 || *r > 100000)
+                throw std::runtime_error("rate_limit.refill_per_s out of range");
+            cfg.rate_limit.refill_per_s = static_cast<std::uint32_t>(*r);
+        }
+    }
+    if (auto sd = tbl["shutdown"].as_table())
+    {
+        if (auto d = (*sd)["drain_ms"].value<std::int64_t>())
+        {
+            if (*d < 0 || *d > 60000)
+                throw std::runtime_error("shutdown.drain_ms out of range");
+            cfg.shutdown.drain_ms = static_cast<std::uint32_t>(*d);
+        }
+    }
+    if (auto ad = tbl["admin"].as_table())
+    {
+        if (auto b = (*ad)["bind"].value<std::string>())   cfg.admin.bind   = *b;
+        if (auto p = (*ad)["port"].value<std::int64_t>())  cfg.admin.port   = RequirePort(*p, "admin.port");
+        if (auto s = (*ad)["secret"].value<std::string>()) cfg.admin.secret = *s;
+    }
+    if (auto m = tbl["metrics"].as_table())
+    {
+        if (auto p = (*m)["port"].value<std::int64_t>())
+            cfg.metrics_port = RequirePort(*p, "metrics.port");
+    }
     if (auto h = tbl["health"].as_table())
     {
         if (auto p = (*h)["port"].value<std::int64_t>())
-            cfg.health_port = Port(*p, "health.port");
-    }
-    if (auto a = tbl["admin"].as_table())
-    {
-        if (auto p = (*a)["port"].value<std::int64_t>())
-            cfg.admin_port = Port(*p, "admin.port");
-        if (auto b = (*a)["bind"].value<std::string>())
-            cfg.admin_bind = *b;
+            cfg.health_port = RequirePort(*p, "health.port");
     }
     if (auto log = tbl["log"].as_table())
     {
         if (auto lvl = (*log)["level"].value<std::string>())
             cfg.log_level = ParseLogLevel(*lvl);
     }
-
-    spdlog::info("loaded config from '{}' — port={} db={} max_conn={}",
-        path, cfg.port,
-        cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend,
-        cfg.max_connections);
+    if (auto c = tbl["cluster"].as_table())
+    {
+        if (auto h = (*c)["control_host"].value<std::string>())
+            cfg.cluster.control_host = *h;
+        if (auto p = (*c)["control_port"].value<std::int64_t>())
+            cfg.cluster.control_port = RequirePort(*p, "cluster.control_port");
+        if (auto g = (*c)["group_id"].value<std::int64_t>())
+        {
+            if (*g < 0 || *g > 255)
+                throw std::runtime_error("cluster.group_id out of range (0..255)");
+            cfg.cluster.group_id = static_cast<std::uint8_t>(*g);
+        }
+        if (auto s = (*c)["server_id"].value<std::int64_t>())
+        {
+            if (*s < 0 || *s > 255)
+                throw std::runtime_error("cluster.server_id out of range (0..255)");
+            cfg.cluster.server_id = static_cast<std::uint8_t>(*s);
+        }
+        if (auto a = (*c)["reported_addr"].value<std::string>())
+            cfg.cluster.reported_addr = *a;
+    }
+    spdlog::info("loaded config from '{}' — port={} mode={} crypto={} world={}:{} db={}",
+        path, cfg.server.port, ModeName(cfg.mode),
+        cfg.server.rc4_secret_key.empty() ? "off" : "on",
+        cfg.world.host, cfg.world.port,
+        cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend);
     return cfg;
 }
 

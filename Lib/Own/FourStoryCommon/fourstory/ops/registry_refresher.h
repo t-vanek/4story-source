@@ -30,6 +30,13 @@ class RegistryRefresher
 {
 public:
     using RefreshFn = std::function<void()>;
+    // Coroutine hook — Loop awaits the returned awaitable instead of
+    // calling the function synchronously. Lets hooks that touch SOCI
+    // wrap their blocking calls in fourstory::db::CoOffloadIf so the
+    // io_context isn't frozen during a slow DB roundtrip. Mixed sync
+    // + coroutine hooks are supported on the same refresher.
+    using CoroutineRefreshFn =
+        std::function<boost::asio::awaitable<void>()>;
 
     // `period` of 0 disables the timer (no-op). Typical production
     // value is 30s — matches the legacy update tick.
@@ -39,6 +46,10 @@ public:
 
     // Add a refresh hook. Must be wired before Start().
     void AddHook(RefreshFn fn);
+
+    // Add an awaitable hook — Loop will co_await it each tick. Same
+    // wiring rule as AddHook: register before Start().
+    void AddCoroutineHook(CoroutineRefreshFn fn);
 
     // Begin the timer loop. No-op when period is 0.
     void Start();
@@ -53,9 +64,10 @@ private:
 
     boost::asio::awaitable<void> Loop();
 
-    boost::asio::io_context&       m_io;
-    std::chrono::seconds           m_period;
-    std::vector<RefreshFn>         m_hooks;
+    boost::asio::io_context&            m_io;
+    std::chrono::seconds                m_period;
+    std::vector<RefreshFn>              m_hooks;
+    std::vector<CoroutineRefreshFn>     m_coro_hooks;
 
     struct Impl;
     std::unique_ptr<Impl> m_impl;

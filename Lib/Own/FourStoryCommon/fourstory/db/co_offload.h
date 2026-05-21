@@ -89,6 +89,22 @@ CoOffload(boost::asio::thread_pool& pool, F&& func)
         boost::asio::use_awaitable);
 }
 
+// Optional-pool variant. When `pool` is null, runs `func` inline
+// on the calling coroutine's executor (legacy in-line behavior).
+// When non-null, defers to CoOffload. Lets call sites stay
+// pool-agnostic — `co_await CoOffloadIf(ctx.db_pool, [&]{…})`
+// works whether the pool is wired or not.
+template <class F>
+boost::asio::awaitable<std::invoke_result_t<std::decay_t<F>>>
+CoOffloadIf(boost::asio::thread_pool* pool, F&& func)
+{
+    if (pool != nullptr)
+    {
+        co_return co_await CoOffload(*pool, std::forward<F>(func));
+    }
+    co_return func();
+}
+
 // Void-returning specialization. Same exception propagation
 // contract; just no result value.
 template <class F>
@@ -118,6 +134,20 @@ CoOffloadVoid(boost::asio::thread_pool& pool, F&& func)
                 });
         },
         boost::asio::use_awaitable);
+}
+
+// Void optional-pool variant.
+template <class F>
+boost::asio::awaitable<void>
+CoOffloadVoidIf(boost::asio::thread_pool* pool, F&& func)
+{
+    if (pool != nullptr)
+    {
+        co_await CoOffloadVoid(*pool, std::forward<F>(func));
+        co_return;
+    }
+    func();
+    co_return;
 }
 
 } // namespace fourstory::db

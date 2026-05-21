@@ -1,11 +1,13 @@
 #include "soci_session_validator.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
 
-#include <cstdint>
+#include <string>
 
 namespace tmapsvr {
 
@@ -14,56 +16,54 @@ SociMapSessionValidator::SociMapSessionValidator(fourstory::db::SessionPool& poo
 {
 }
 
-bool SociMapSessionValidator::Validate(const MapSessionLookup& lookup)
+std::optional<MapSessionInfo>
+SociMapSessionValidator::LookupSession(std::uint32_t user_id, std::uint32_t key)
 {
-    // Legacy CSHandler.cpp:305-313 (`CSPCheckMapChar`):
-    //   IF EXISTS(SELECT 1 FROM TCURRENTUSER
-    //             WHERE dwUserID = @user AND dwCharID = @char
-    //               AND dwKEY  = @key)  RETURN 0;   -- success
-    //   ELSE                                        RETURN 1;   -- fail
-    //
-    // Inlined verbatim. The result column count is the cheap form —
-    // we don't care about any of the row's other columns, only that
-    // the (uid, cid, key) triple is present.
-    auto lease = m_pool.Acquire();
-    soci::session& sql = *lease;
-
-    const int    uid = static_cast<int>(lookup.user_id);
-    const int    cid = static_cast<int>(lookup.char_id);
-    const long long key64 = static_cast<long long>(lookup.dw_key);
-
-    int hits = 0;
+    // Row is keyed by (dwUserID, dwKEY) — TLoginSvrAsio writes both
+    // values when it hands off the session to a map server, and only
+    // one row per user is current. The columns selected here are the
+    // ones tmapsvr::db::ValidateUserSchema requires.
     try
     {
-        soci::statement st = (sql.prepare <<
-            "SELECT COUNT(*) FROM \"TCURRENTUSER\" "
-            "WHERE \"dwUserID\" = :u "
-            "  AND \"dwCharID\" = :c "
-            "  AND \"dwKEY\"    = :k",
-            soci::use(uid),
-            soci::use(cid),
-            soci::use(key64),
-            soci::into(hits));
-        st.execute(true);
+        auto lease = m_pool.Acquire();
+        auto& sql  = *lease;
+
+        std::int32_t row_user_id   = 0;
+        std::int32_t row_key       = 0;
+        std::int32_t row_group     = 0;
+        std::int32_t row_channel   = 0;
+        std::string  row_login_ip;
+        std::int32_t row_locked    = 0;
+        soci::indicator ind        = soci::i_null;
+
+        sql << queries::SessionByUserKey,
+            soci::use(static_cast<std::int32_t>(user_id), "uid"),
+            soci::use(static_cast<std::int32_t>(key),     "key"),
+            soci::into(row_user_id),
+            soci::into(row_key),
+            soci::into(row_group),
+            soci::into(row_channel),
+            soci::into(row_login_ip, ind),
+            soci::into(row_locked);
+
+        if (!sql.got_data())
+            return std::nullopt;
+
+        MapSessionInfo info;
+        info.dwUserID  = db::Narrow32(row_user_id);
+        info.dwKEY     = db::Narrow32(row_key);
+        info.bGroupID  = db::Narrow8 (row_group);
+        info.bChannel  = db::Narrow8 (row_channel);
+        info.szLoginIP = db::SafeString(row_login_ip, ind);
+        info.bLocked   = row_locked != 0;
+        return info;
     }
     catch (const std::exception& ex)
     {
-        // Treat as deny — legacy CSHandler.cpp:316 (`bRet = TRUE`)
-        // does the same on `query->Call()` failure. Logging at warn
-        // surfaces real DB outages without spamming on every probe
-        // (the row-missing case below logs at info).
-        spdlog::warn("session_validator: TCURRENTUSER probe uid={} char={} "
-                     "DB error: {} — denying", uid, cid, ex.what());
-        return false;
+        spdlog::error("soci_session_validator: lookup uid={} threw: {}",
+            user_id, ex.what());
+        return std::nullopt;
     }
-    const bool ok = hits > 0;
-    if (!ok)
-    {
-        spdlog::info("session_validator: no TCURRENTUSER row uid={} char={} "
-                     "key=0x{:08x} — denying", uid, cid,
-                     static_cast<std::uint32_t>(lookup.dw_key));
-    }
-    return ok;
 }
 
 } // namespace tmapsvr

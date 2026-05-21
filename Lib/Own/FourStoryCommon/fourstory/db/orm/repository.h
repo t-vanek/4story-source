@@ -1,0 +1,189 @@
+#pragma once
+
+// Repository<T> — generic CRUD on top of EntityMapping<T> + SOCI.
+//
+// Requires a specialized EntityMapping<T> (see entity_mapping.h).
+// Methods are synchronous (call from a worker thread or wrap with
+// fourstory::db::CoOffloadIf if on the io_context).
+//
+// Example:
+//   auto lease = pool.Acquire();
+//   Repository<Account> repo(*lease);
+//
+//   auto acc  = repo.FindById(1234);        // std::optional<Account>
+//   auto list = repo.Where("bLocked = 1");  // std::vector<Account>
+//   repo.Insert(new_acc);
+//   repo.Update(existing_acc);
+//   repo.Delete(1234);
+//   std::size_t n = repo.Count();
+
+#include "entity_mapping.h"
+
+#include <soci/soci.h>
+#include <spdlog/spdlog.h>
+
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace fourstory::db::orm {
+
+template<typename T>
+class Repository
+{
+    using Map = EntityMapping<T>;
+
+public:
+    explicit Repository(soci::session& sql) : m_sql(sql) {}
+
+    // ── Queries ──────────────────────────────────────────────────────
+
+    // Find by primary key.
+    template<typename PkType>
+    std::optional<T> FindById(PkType pk)
+    {
+        try
+        {
+            soci::rowset<soci::row> rs =
+                (m_sql.prepare << Map::SelectByIdSql(),
+                 soci::use(pk, "pk"));
+            for (const auto& row : rs)
+                return Map::FromRow(row);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::error("Repository<{}>::FindById: {}",
+                Map::Table, ex.what());
+        }
+        return std::nullopt;
+    }
+
+    // All rows, optionally filtered.
+    // `where` is appended as-is after "WHERE " — use named SOCI params
+    // and pass them in `bind`. For complex queries, prefer SpCall or raw SQL.
+    std::vector<T> All()
+    {
+        return Query(Map::SelectAllSql());
+    }
+
+    std::vector<T> Where(const std::string& where_clause)
+    {
+        return Query(Map::SelectAllSql() + " WHERE " + where_clause);
+    }
+
+    std::size_t Count()
+    {
+        std::size_t n = 0;
+        try
+        {
+            m_sql << "SELECT COUNT(*) FROM " + std::string(Map::Table),
+                soci::into(n);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::error("Repository<{}>::Count: {}", Map::Table, ex.what());
+        }
+        return n;
+    }
+
+    // ── Mutations ─────────────────────────────────────────────────────
+
+    void Insert(const T& entity)
+    {
+        try
+        {
+            soci::statement st(m_sql);
+            st.alloc();
+            st.prepare(Map::InsertSql());
+            Map::BindInsert(st, entity);
+            st.define_and_bind();
+            st.execute(true);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::error("Repository<{}>::Insert: {}", Map::Table, ex.what());
+            throw;
+        }
+    }
+
+    void Update(const T& entity)
+    {
+        try
+        {
+            soci::statement st(m_sql);
+            st.alloc();
+            st.prepare(Map::UpdateSql());
+            Map::BindUpdate(st, entity);
+            st.define_and_bind();
+            st.execute(true);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::error("Repository<{}>::Update: {}", Map::Table, ex.what());
+            throw;
+        }
+    }
+
+    template<typename PkType>
+    void Delete(PkType pk)
+    {
+        try
+        {
+            m_sql << Map::DeleteSql(), soci::use(pk, "pk");
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::error("Repository<{}>::Delete: {}", Map::Table, ex.what());
+            throw;
+        }
+    }
+
+    // ── Upsert (INSERT or UPDATE if pk exists) ───────────────────────
+    // Simple check-then-act; fine for low-contention paths. For high
+    // concurrency, use a database-native MERGE or the server's own SP.
+    void Upsert(const T& entity)
+    {
+        auto pk = Map::GetPk(entity);
+        auto existing = FindById(pk);
+        if (existing)
+            Update(entity);
+        else
+            Insert(entity);
+    }
+
+    // ── Raw SQL ───────────────────────────────────────────────────────
+    // Escape hatch when the query doesn't fit the generic CRUD shape.
+    std::vector<T> RawSelect(const std::string& sql)
+    {
+        return Query(sql);
+    }
+
+    // Execute a raw statement (INSERT / UPDATE / DELETE / EXEC).
+    void RawExecute(const std::string& sql)
+    {
+        m_sql << sql;
+    }
+
+private:
+    std::vector<T> Query(const std::string& sql)
+    {
+        std::vector<T> out;
+        try
+        {
+            soci::rowset<soci::row> rs = (m_sql.prepare << sql);
+            for (const auto& row : rs)
+                out.push_back(Map::FromRow(row));
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::error("Repository<{}>::Query: {} sql={}",
+                Map::Table, ex.what(), sql);
+        }
+        return out;
+    }
+
+    soci::session& m_sql;
+};
+
+} // namespace fourstory::db::orm

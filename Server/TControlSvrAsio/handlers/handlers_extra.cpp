@@ -34,6 +34,8 @@
 #include "../wire_codec.h"
 #include "../services/authority_gate.h"
 #include "../services/svr_type.h"
+
+#include "fourstory/db/co_offload.h"
 #include "MessageId.h"
 
 #include <spdlog/spdlog.h>
@@ -261,7 +263,12 @@ OnPeerServiceChangeReq(std::shared_ptr<PeerSession> /*peer*/,
         }
     }
     if (sms_type != 0 && ctx.alerter)
-        ctx.alerter->Notify(svr_type_val, service_id, sms_type);
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [al = ctx.alerter, svr_type_val, service_id, sms_type] {
+                al->Notify(svr_type_val, service_id, sms_type);
+            });
+    }
 }
 
 boost::asio::awaitable<void>

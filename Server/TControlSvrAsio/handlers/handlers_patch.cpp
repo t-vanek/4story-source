@@ -21,6 +21,8 @@
 #include "../services/svr_type.h"
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 namespace tcontrolsvr::handlers {
@@ -61,7 +63,11 @@ OnUpdatePatchReq(std::shared_ptr<OperatorSession> op,
             !r.Read(size))
             break;
         row.size = size;
-        if (ctx.patch_meta) ctx.patch_meta->UpdatePatch(row, 0);
+        if (ctx.patch_meta)
+        {
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [pm = ctx.patch_meta, &row] { pm->UpdatePatch(row, 0); });
+        }
         if (ctx.audit)
             ctx.audit->LogAdminAction(op->UserId(), "update_patch",
                 row.path + "/" + row.name);
@@ -84,7 +90,9 @@ OnPreVersionTableReq(std::shared_ptr<OperatorSession> op,
     std::vector<senders::PreVersionAckRow> rows;
     if (ctx.patch_meta)
     {
-        for (const auto& r : ctx.patch_meta->ListPreVersions())
+        auto pre = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [pm = ctx.patch_meta] { return pm->ListPreVersions(); });
+        for (const auto& r : pre)
             rows.push_back({r.beta_ver, r.path, r.name, r.size});
     }
     co_await senders::SendPreVersionTableAck(op->Wire(), rows);
@@ -114,7 +122,8 @@ OnPreVersionUpdateReq(std::shared_ptr<OperatorSession> op,
     {
         std::uint32_t beta = 0;
         if (!r.Read(beta)) break;
-        ctx.patch_meta->BetaToVersion(beta);
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [pm = ctx.patch_meta, beta] { pm->BetaToVersion(beta); });
     }
 
     // Phase 2 — delete betas.
@@ -123,7 +132,8 @@ OnPreVersionUpdateReq(std::shared_ptr<OperatorSession> op,
     {
         std::uint32_t beta = 0;
         if (!r.Read(beta)) break;
-        ctx.patch_meta->DeletePreVersion(beta);
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [pm = ctx.patch_meta, beta] { pm->DeletePreVersion(beta); });
     }
 
     // Phase 3 — insert new pre.
@@ -136,12 +146,16 @@ OnPreVersionUpdateReq(std::shared_ptr<OperatorSession> op,
             !r.Read(size))
             break;
         row.size = size;
-        ctx.patch_meta->UpdatePrePatch(row);
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [pm = ctx.patch_meta, &row] { pm->UpdatePrePatch(row); });
     }
 
     // Reply with the refreshed PreVersion table.
+    auto pre = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+        [pm = ctx.patch_meta] { return pm->ListPreVersions(); });
     std::vector<senders::PreVersionAckRow> rows;
-    for (const auto& pr : ctx.patch_meta->ListPreVersions())
+    rows.reserve(pre.size());
+    for (const auto& pr : pre)
         rows.push_back({pr.beta_ver, pr.path, pr.name, pr.size});
     co_await senders::SendPreVersionTableAck(op->Wire(), rows);
 }

@@ -1,17 +1,16 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F14: party + chat handlers. Four CS_ message ids land in the
-// dispatch switch (CS_CHAT_REQ, CS_PARTYADD_REQ, CS_PARTYJOIN_REQ,
-// CS_PARTYDEL_REQ); each decodes the legacy wire and logs the
-// intent. The real routing (broadcast to channel, world relay,
-// anti-spoof checks, ban timer) lands with the chat / party
-// consolidation pass.
+// Phase F15: per-char companion roster. TCOMPANIONTABLE loaded on
+// demand by SociCompanionService; DM_LOADCHAR_ACK gets a companion
+// section after F12's quests. Summon / dismiss / level-up handlers
+// land with the consolidation pass.
 
 #include "config.h"
 #include "handlers_world.h"
 #include "map_server.h"
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
+#include "services/companion_service.h"
 #include "services/inventory_service.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
@@ -21,6 +20,7 @@
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/skill_service.h"
+#include "services/soci_companion_service.h"
 #include "services/soci_inventory_service.h"
 #include "services/soci_monster_chart.h"
 #include "services/soci_npc_service.h"
@@ -53,7 +53,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F14 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F15 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -101,6 +101,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::IQuestService>         quest_service;
         std::unique_ptr<tmapsvr::IMonsterChart>         monster_chart;
         std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
+        std::unique_ptr<tmapsvr::ICompanionService>     companion_service;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -115,6 +116,7 @@ int main(int argc, char** argv)
             tmapsvr::db::ValidateSkillSchema(*pool);
             tmapsvr::db::ValidateQuestSchema(*pool);
             tmapsvr::db::ValidateMonsterSchema(*pool);
+            tmapsvr::db::ValidateCompanionSchema(*pool);
             validator         = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
             player_service    = std::make_unique<tmapsvr::SociPlayerService>(*pool);
             inventory_service = std::make_unique<tmapsvr::SociInventoryService>(*pool);
@@ -123,6 +125,7 @@ int main(int argc, char** argv)
             quest_service     = std::make_unique<tmapsvr::SociQuestService>(*pool);
             monster_chart     = std::make_unique<tmapsvr::SociMonsterChart>(*pool);
             spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
+            companion_service = std::make_unique<tmapsvr::SociCompanionService>(*pool);
             spdlog::info("schema OK ({}) — services ready: {} NPC, {} monster "
                          "template(s), {} spawn point(s)",
                 fourstory::db::BackendName(backend),
@@ -170,6 +173,7 @@ int main(int argc, char** argv)
         ctx.monster_chart     = monster_chart.get();
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;
+        ctx.companion_service = companion_service.get();
 
         // Optional World peer — only spun up when [world] port is set
         // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
@@ -227,7 +231,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F14 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F15 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

@@ -50,4 +50,7 @@ void ValidateQuestSchema(fourstory::db::SessionPool& pool);
 // template + spawn-point charts (loaded once at boot).
 void ValidateMonsterSchema(fourstory::db::SessionPool& pool);
 
+// TCOMPANIONTABLE column check — F15 per-char companion roster.
+void ValidateCompanionSchema(fourstory::db::SessionPool& pool);
+
 } // namespace tmapsvr::db

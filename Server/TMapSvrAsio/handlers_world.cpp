@@ -1,5 +1,6 @@
 #include "handlers_world.h"
 
+#include "services/companion_service.h"
 #include "services/inventory_service.h"
 #include "services/player_service.h"
 #include "services/quest_service.h"
@@ -52,7 +53,8 @@ std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
                                                 const CharSnapshot& s,
                                                 const std::vector<InventoryRow>& inven,
                                                 const std::vector<SkillRow>& skills,
-                                                const std::vector<QuestProgressRow>& quests)
+                                                const std::vector<QuestProgressRow>& quests,
+                                                const std::vector<CompanionRow>& companions)
 {
     std::vector<std::byte> body;
     body.reserve(256);
@@ -157,9 +159,41 @@ std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
         }
     }
 
+    // F15 companion section: WORD count + one record per row.
+    //   BYTE  bSlot
+    //   DWORD dwMonID
+    //   BYTE  bLevel
+    //   string strName
+    //   DWORD dwExp
+    //   WORD  wLife
+    //   BYTE  bStatusPoints
+    //   BYTE  bEffect
+    //   WORD  wSTR / wDEX / wCON / wINT / wWIS / wMEN
+    //   WORD  wBonusID
+    wire::WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(companions.size()));
+    for (const auto& c : companions)
+    {
+        wire::WritePOD<std::uint8_t> (body, c.bSlot);
+        wire::WritePOD<std::uint32_t>(body, c.dwMonID);
+        wire::WritePOD<std::uint8_t> (body, c.bLevel);
+        wire::WriteString            (body, c.strName);
+        wire::WritePOD<std::uint32_t>(body, c.dwExp);
+        wire::WritePOD<std::uint16_t>(body, c.wLife);
+        wire::WritePOD<std::uint8_t> (body, c.bStatusPoints);
+        wire::WritePOD<std::uint8_t> (body, c.bEffect);
+        wire::WritePOD<std::uint16_t>(body, c.wSTR);
+        wire::WritePOD<std::uint16_t>(body, c.wDEX);
+        wire::WritePOD<std::uint16_t>(body, c.wCON);
+        wire::WritePOD<std::uint16_t>(body, c.wINT);
+        wire::WritePOD<std::uint16_t>(body, c.wWIS);
+        wire::WritePOD<std::uint16_t>(body, c.wMEN);
+        wire::WritePOD<std::uint16_t>(body, c.wBonusID);
+    }
+
     // The legacy ack continues with cabinet / equip / friend / craft
-    // / mail / chapter sections. Each remaining section lands with
-    // its owning phase, in wire order, on top of this body.
+    // / mail / chapter / recall-mon / pet sections. Each remaining
+    // section lands with its owning phase, in wire order, on top of
+    // this body.
 
     return body;
 }
@@ -231,16 +265,21 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
     if (ctx.quest_service)
         quests = ctx.quest_service->LoadProgress(dwCharID);
 
+    std::vector<CompanionRow> companions;
+    if (ctx.companion_service)
+        companions = ctx.companion_service->LoadCompanions(dwCharID);
+
     spdlog::info("DM_LOADCHAR_REQ char={} user={} name='{}' lvl={} class={} "
                  "map={} pos=({:.1f},{:.1f},{:.1f}) inven={} skills={} "
-                 "quests={} — F12 snapshot encoded",
+                 "quests={} companions={} — F15 snapshot encoded",
         dwCharID, dwUserID, snap->szNAME, snap->bLevel, snap->bClass,
         snap->wMapID, snap->fPosX, snap->fPosY, snap->fPosZ,
-        inven.size(), skills.size(), quests.size());
+        inven.size(), skills.size(), quests.size(), companions.size());
 
     co_await ctx.world_client->SendPacket(
         static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
-        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap, inven, skills, quests));
+        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap, inven, skills,
+                                 quests, companions));
 }
 
 boost::asio::awaitable<void>

@@ -34,6 +34,7 @@ class IQuestService;
 class IMonsterChart;
 class ISpawnChart;
 class IMonsterRegistry;
+class ICompanionService;
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; main() keeps the lifetimes.
@@ -51,6 +52,7 @@ struct HandlerContext
     IMonsterChart*         monster_chart     = nullptr;
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;
+    ICompanionService*     companion_service = nullptr;
     std::uint8_t           expected_group    = 0;     // [server] / world group id
 };
 

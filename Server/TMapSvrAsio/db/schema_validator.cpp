@@ -214,4 +214,31 @@ void ValidateMonsterSchema(fourstory::db::SessionPool& pool)
     });
 }
 
+void ValidateCompanionSchema(fourstory::db::SessionPool& pool)
+{
+    auto lease = pool.Acquire();
+
+    // TCOMPANIONTABLE — per-char companion roster. The 15 columns
+    // below match what the F15 soci impl SELECTs + the wire layout
+    // of the companion section appended to DM_LOADCHAR_ACK.
+    fourstory::db::CheckColumns(*lease, "map_companion", {
+        { "TCOMPANIONTABLE", "dwCharID" },
+        { "TCOMPANIONTABLE", "bSlot" },
+        { "TCOMPANIONTABLE", "dwMonID" },
+        { "TCOMPANIONTABLE", "bLevel" },
+        { "TCOMPANIONTABLE", "strName" },
+        { "TCOMPANIONTABLE", "dwExp" },
+        { "TCOMPANIONTABLE", "wLife" },
+        { "TCOMPANIONTABLE", "bStatusPoints" },
+        { "TCOMPANIONTABLE", "bEffect" },
+        { "TCOMPANIONTABLE", "wSTR" },
+        { "TCOMPANIONTABLE", "wDEX" },
+        { "TCOMPANIONTABLE", "wCON" },
+        { "TCOMPANIONTABLE", "wINT" },
+        { "TCOMPANIONTABLE", "wWIS" },
+        { "TCOMPANIONTABLE", "wMEN" },
+        { "TCOMPANIONTABLE", "wBonusID" },
+    });
+}
+
 } // namespace tmapsvr::db

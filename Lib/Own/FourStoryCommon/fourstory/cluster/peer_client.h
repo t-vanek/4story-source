@@ -46,6 +46,24 @@
 
 namespace fourstory::cluster {
 
+// TOML-friendly slice of PeerClientOptions. Every peer server parses
+// a `[cluster]` section into one of these; `MakePeerClientOptions`
+// below fills in the per-binary bits (type byte, service name, port)
+// and hands back a fully-configured PeerClientOptions.
+struct ClusterConfig
+{
+    std::string   control_host;
+    std::uint16_t control_port = 0;
+    // service_id = (group<<16) | (type<<8) | server.  The type byte
+    // is per-binary (each server hardcodes its own type), the
+    // operator picks group + server to match the TSERVER row.
+    std::uint8_t  group_id  = 1;
+    std::uint8_t  server_id = 1;
+    // Peer's externally-reachable IPv4. Falls back to the server's
+    // listener bind address when empty.
+    std::string   reported_addr;
+};
+
 struct PeerClientOptions
 {
     // Where TControlSvrAsio is listening for the CT_* protocol.
@@ -97,6 +115,18 @@ public:
     bool IsRegistered() const { return m_registered.load(); }
     std::uint64_t LeaseEpoch() const { return m_lease_epoch.load(); }
 
+    // Compute the synthetic service_id used in the registry. Pure
+    // helper exposed so tests can recompute it without going through
+    // a full PeerClient construction.
+    static std::uint32_t MakeServiceId(std::uint8_t group_id,
+                                       std::uint8_t type_id,
+                                       std::uint8_t server_id)
+    {
+        return (static_cast<std::uint32_t>(group_id) << 16) |
+               (static_cast<std::uint32_t>(type_id)  <<  8) |
+                static_cast<std::uint32_t>(server_id);
+    }
+
 private:
     boost::asio::awaitable<bool> ConnectAndRegister();
     boost::asio::awaitable<void> HeartbeatLoop();
@@ -114,5 +144,32 @@ private:
     std::atomic<std::uint32_t>      m_heartbeat_interval_sec{30};
     std::atomic<bool>               m_stop{false};
 };
+
+// One-liner used by every peer server's main.cpp to translate a
+// parsed TOML [cluster] block into a registry-ready options bag.
+// Centralized so the byte-fiddling (group/type/server composition,
+// reported_addr fallback, service-name format) stays consistent
+// across all five binaries.
+inline PeerClientOptions
+MakePeerClientOptions(const ClusterConfig& cfg,
+                      std::uint8_t  type_id,
+                      const std::string& name_prefix,
+                      const std::string& listener_bind,
+                      std::uint16_t      listener_port,
+                      const std::string& version)
+{
+    PeerClientOptions o;
+    o.control_host  = cfg.control_host;
+    o.control_port  = cfg.control_port;
+    o.service_id    = PeerClient::MakeServiceId(cfg.group_id, type_id,
+                                                cfg.server_id);
+    o.reported_name = name_prefix + "-" + std::to_string(cfg.group_id)
+                    + "-" + std::to_string(cfg.server_id);
+    o.reported_addr = cfg.reported_addr.empty() ? listener_bind
+                                                : cfg.reported_addr;
+    o.reported_port = listener_port;
+    o.version       = version;
+    return o;
+}
 
 } // namespace fourstory::cluster

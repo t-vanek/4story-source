@@ -39,6 +39,7 @@
 #include "services/spawn_chart.h"
 #include "services/world_client.h"
 
+#include "fourstory/cluster/peer_client.h"
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/health_endpoint.h"
 
@@ -270,7 +271,26 @@ int main(int argc, char** argv)
             }
         }
 
+        // Cluster self-registration. Empty control_host = standalone.
+        // Service type byte 4 = svr_type::kMapSvr in TControlSvrAsio.
+        std::shared_ptr<fourstory::cluster::PeerClient> peer_client;
+        if (!cfg.cluster.control_host.empty() && cfg.cluster.control_port != 0)
+        {
+            auto opts = fourstory::cluster::MakePeerClientOptions(
+                cfg.cluster, /*type_id=*/4, "tmapsvr",
+                "0.0.0.0", cfg.server.port, "5.0.0");
+            spdlog::info("cluster: registering with control {}:{} "
+                         "as service_id={:#x}",
+                opts.control_host, opts.control_port, opts.service_id);
+            peer_client = std::make_shared<fourstory::cluster::PeerClient>(
+                io, std::move(opts));
+            boost::asio::co_spawn(io, peer_client->Run(),
+                boost::asio::detached);
+        }
+
         io.run();
+
+        if (peer_client) peer_client->Stop();
     }
     catch (const std::exception& ex)
     {

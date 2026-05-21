@@ -11,8 +11,17 @@
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <cstring>
 #include <utility>
+
+#ifdef _WIN32
+#include <process.h>
+#define FOURSTORY_GETPID() _getpid()
+#else
+#include <unistd.h>
+#define FOURSTORY_GETPID() getpid()
+#endif
 
 namespace fourstory::cluster {
 
@@ -96,7 +105,17 @@ private:
 
 PeerClient::PeerClient(boost::asio::io_context& io, PeerClientOptions opts)
     : m_io(io), m_opts(std::move(opts)), m_socket(io)
-{}
+{
+    // Auto-fill platform identifiers when the caller leaves them
+    // at default — saves every peer server from duplicating the
+    // getpid() / now() ceremony.
+    if (m_opts.pid == 0)
+        m_opts.pid = static_cast<std::uint32_t>(FOURSTORY_GETPID());
+    if (m_opts.start_unix == 0)
+        m_opts.start_unix =
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+}
 
 void PeerClient::Stop()
 {

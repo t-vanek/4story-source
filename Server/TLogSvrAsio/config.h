@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fourstory/cluster/peer_client.h"
+
 #include <spdlog/common.h>
 
 #include <chrono>
@@ -67,6 +69,10 @@ struct AppConfig
     // LB health checks). 0 disables. Matches the [health] block in
     // tloginsvr / tpatchsvr config.
     std::uint16_t  health_port = 0;
+
+    // Cluster self-registration; empty control_host disables.
+    // Service type byte is fixed at 2 (svr_type::kLogSvr).
+    fourstory::cluster::ClusterConfig cluster;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

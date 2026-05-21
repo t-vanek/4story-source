@@ -92,6 +92,31 @@ AppConfig LoadConfig(const std::string& path)
         if (auto lvl = (*log)["level"].value<std::string>())
             cfg.log_level = ParseLogLevel(*lvl);
     }
+    if (auto c = tbl["cluster"].as_table())
+    {
+        if (auto h = (*c)["control_host"].value<std::string>())
+            cfg.cluster.control_host = *h;
+        if (auto p = (*c)["control_port"].value<std::int64_t>())
+        {
+            if (*p < 0 || *p > 65535)
+                throw std::runtime_error("cluster.control_port out of range");
+            cfg.cluster.control_port = static_cast<std::uint16_t>(*p);
+        }
+        if (auto g = (*c)["group_id"].value<std::int64_t>())
+        {
+            if (*g < 0 || *g > 255)
+                throw std::runtime_error("cluster.group_id out of range (0..255)");
+            cfg.cluster.group_id = static_cast<std::uint8_t>(*g);
+        }
+        if (auto s = (*c)["server_id"].value<std::int64_t>())
+        {
+            if (*s < 0 || *s > 255)
+                throw std::runtime_error("cluster.server_id out of range (0..255)");
+            cfg.cluster.server_id = static_cast<std::uint8_t>(*s);
+        }
+        if (auto a = (*c)["reported_addr"].value<std::string>())
+            cfg.cluster.reported_addr = *a;
+    }
     spdlog::info("loaded config from '{}' — port={} ftp='{}' login={}:{} db={}",
         path, cfg.port, cfg.ftp_url, cfg.login_host, cfg.login_port,
         cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend);

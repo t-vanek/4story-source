@@ -52,6 +52,7 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/services/fake_operator_auth_service.cpp
     ${TCONTROL_ASIO_SRC}/services/operator_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/peer_registry.cpp
+    ${TCONTROL_ASIO_SRC}/services/registry_event_bus.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_alerter.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_event_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_operator_auth_service.cpp
@@ -182,6 +183,18 @@ target_link_libraries(test_tcontrolsvr_asio_peer_registry PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_peer_registry
     COMMAND test_tcontrolsvr_asio_peer_registry)
+
+# Admin-shell streaming subscription (F5) — drives `subscribe
+# registry` over a real loopback connection, triggers Register /
+# Heartbeat / Deregister / ExpireStale on PeerRegistry from the test
+# thread, and asserts the matching registry.* lines arrive on the
+# client side via the event bus + writer coroutine.
+add_executable(test_tcontrolsvr_asio_admin_shell_stream
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_shell_stream.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_shell_stream PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_shell_stream
+    COMMAND test_tcontrolsvr_asio_admin_shell_stream)
 
 # Admin-shell gateway commands (F4) — drives the new `route` +
 # `peer <sid>` commands through DispatchForTest with loopback peer

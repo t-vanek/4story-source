@@ -10,14 +10,21 @@
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/redirect_error.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/streambuf.hpp>
+#include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/write.hpp>
 
 #include <spdlog/spdlog.h>
 
+#include <atomic>
+#include <deque>
+#include <memory>
+#include <mutex>
 #include <sstream>
 #include <utility>
 
@@ -125,6 +132,29 @@ bool ParseU16(const std::string& s, std::uint16_t& out)
     return true;
 }
 
+// Format a registry event as a single key=value line terminated
+// with '\n'. Grep-friendly and matches the existing audit-log shape.
+std::string FormatRegistryEvent(const RegistryEvent& ev)
+{
+    std::ostringstream os;
+    os << "registry." << RegistryEventKindName(ev.kind)
+       << " sid=0x" << std::hex << ev.service_id << std::dec
+       << " lease=" << ev.lease_epoch;
+    if (!ev.reported_name.empty())
+        os << " name=" << ev.reported_name;
+    if (ev.kind == RegistryEventKind::Registered)
+    {
+        os << " addr=" << ev.reported_addr << ":" << ev.reported_port
+           << " version=" << ev.version;
+    }
+    if (ev.kind == RegistryEventKind::Heartbeat)
+    {
+        os << " users=" << ev.cur_users << "/" << ev.max_users;
+    }
+    os << "\n";
+    return os.str();
+}
+
 // Hex-string → byte vector. Accepts even-length strings of [0-9a-fA-F].
 // Returns false on malformed input (odd length or non-hex char).
 bool ParseHexBody(const std::string& s, std::vector<std::byte>& out)
@@ -219,12 +249,118 @@ AdminShell::HandleSession(std::shared_ptr<boost::asio::ip::tcp::socket> sock)
             continue;
         }
         if (line == "quit" || line == "exit") break;
+        if (line == "subscribe registry")
+        {
+            // Hand the socket over to the streaming loop. Returns
+            // when the client closes the connection.
+            co_await RunRegistryStream(sock);
+            break;
+        }
 
         const std::string reply = (co_await Dispatch(line)) + "\n> ";
         co_await async_write(*sock, buffer(reply),
             redirect_error(use_awaitable, ec));
         if (ec) break;
     }
+}
+
+boost::asio::awaitable<void>
+AdminShell::RunRegistryStream(
+    std::shared_ptr<boost::asio::ip::tcp::socket> sock)
+{
+    using namespace boost::asio;
+    auto exec = co_await this_coro::executor;
+
+    // Per-session shared state. Lives via shared_ptr because a stale
+    // event post() can outlive the coroutine by one io_context tick —
+    // the shutdown flag tells the post handler not to touch the
+    // timer once we've unsubscribed and started tearing down.
+    struct Shared
+    {
+        std::deque<std::string>     queue;
+        std::mutex                  mtx;
+        steady_timer                wakeup;
+        std::atomic<bool>           shutdown{false};
+        explicit Shared(any_io_executor e) : wakeup(e) {}
+    };
+    auto sh = std::make_shared<Shared>(exec);
+    sh->wakeup.expires_at(std::chrono::steady_clock::time_point::max());
+
+    // Subscribe. The callback runs on the publisher's thread (almost
+    // always the io_context thread). We format on the publisher side
+    // — cheap — then post the result onto our executor so the writer
+    // can drain it in coroutine context without touching the queue
+    // mutex from arbitrary threads.
+    const auto token = m_peers.Events().Subscribe(
+        [sh, exec](const RegistryEvent& ev) {
+            auto line = FormatRegistryEvent(ev);
+            post(exec, [sh, line = std::move(line)]() mutable {
+                if (sh->shutdown.load()) return;
+                {
+                    std::lock_guard<std::mutex> lk(sh->mtx);
+                    sh->queue.push_back(std::move(line));
+                }
+                boost::system::error_code ig;
+                sh->wakeup.cancel(ig);
+            });
+        });
+
+    // Banner so the operator sees the stream is live before any
+    // peer-driven event arrives.
+    {
+        const std::string banner =
+            "# subscribed: registry — close connection to exit\n";
+        boost::system::error_code ec;
+        co_await async_write(*sock, buffer(banner),
+            redirect_error(use_awaitable, ec));
+        if (ec)
+        {
+            sh->shutdown.store(true);
+            m_peers.Events().Unsubscribe(token);
+            co_return;
+        }
+    }
+
+    while (sock->is_open())
+    {
+        // Drain whatever's queued. Snapshot under lock; write under
+        // no lock so a publisher posting concurrently isn't blocked
+        // on the socket write.
+        std::deque<std::string> drained;
+        {
+            std::lock_guard<std::mutex> lk(sh->mtx);
+            drained.swap(sh->queue);
+        }
+        bool dead = false;
+        for (auto& line : drained)
+        {
+            boost::system::error_code ec;
+            co_await async_write(*sock, buffer(line),
+                redirect_error(use_awaitable, ec));
+            if (ec) { dead = true; break; }
+        }
+        if (dead) break;
+
+        // Wait for the next event or a 30s keepalive tick. The
+        // keepalive is what tells us the client went away — without
+        // it we could sit idle for hours not noticing a dead socket.
+        sh->wakeup.expires_after(std::chrono::seconds(30));
+        boost::system::error_code ec;
+        co_await sh->wakeup.async_wait(
+            redirect_error(use_awaitable, ec));
+        // ec == operation_aborted is the canceled-by-publisher path;
+        // empty ec means the 30s tick fired with no events.
+        if (!ec)
+        {
+            const std::string ping = "# alive\n";
+            co_await async_write(*sock, buffer(ping),
+                redirect_error(use_awaitable, ec));
+            if (ec) break;
+        }
+    }
+
+    sh->shutdown.store(true);
+    m_peers.Events().Unsubscribe(token);
 }
 
 boost::asio::awaitable<std::string>
@@ -259,6 +395,9 @@ AdminShell::Dispatch(const std::string& line)
             "  route broadcast type <type> <wId> [hex-body]\n"
             "  route broadcast group <group> <type> <wId> [hex-body]\n"
             "                                send raw CT_* frames to peers\n"
+            "  subscribe registry            stream registry events as key=value lines\n"
+            "                                (registered/heartbeat/deregistered/expired) —\n"
+            "                                close the connection to exit\n"
             "  log-level <level>             local spdlog level\n"
             "  quit                          close the admin connection";
     }

@@ -106,7 +106,19 @@ std::uint64_t PeerRegistry::Register(const RegistryEntry& proposed)
     entry.registered_at   = now;
     entry.last_heartbeat_at = now;
     m_registry[proposed.service_id] = std::move(entry);
-    return m_registry[proposed.service_id].lease_epoch;
+    const auto& stored = m_registry[proposed.service_id];
+    RegistryEvent ev{};
+    ev.kind            = RegistryEventKind::Registered;
+    ev.service_id      = stored.service_id;
+    ev.reported_name   = stored.reported_name;
+    ev.reported_addr   = stored.reported_addr;
+    ev.reported_port   = stored.reported_port;
+    ev.version         = stored.version;
+    ev.lease_epoch     = stored.lease_epoch;
+    ev.cur_users       = stored.cur_users;
+    ev.max_users       = stored.max_users;
+    m_events.Publish(ev);
+    return stored.lease_epoch;
 }
 
 std::uint64_t PeerRegistry::Heartbeat(std::uint32_t service_id,
@@ -120,6 +132,14 @@ std::uint64_t PeerRegistry::Heartbeat(std::uint32_t service_id,
     it->second.last_heartbeat_at = std::chrono::steady_clock::now();
     it->second.cur_users = cur_users;
     it->second.max_users = max_users;
+    RegistryEvent ev{};
+    ev.kind          = RegistryEventKind::Heartbeat;
+    ev.service_id    = it->second.service_id;
+    ev.reported_name = it->second.reported_name;
+    ev.lease_epoch   = it->second.lease_epoch;
+    ev.cur_users     = cur_users;
+    ev.max_users     = max_users;
+    m_events.Publish(ev);
     return it->second.lease_epoch;
 }
 
@@ -129,7 +149,13 @@ bool PeerRegistry::Deregister(std::uint32_t service_id,
     auto it = m_registry.find(service_id);
     if (it == m_registry.end() || it->second.lease_epoch != lease_epoch)
         return false;
+    RegistryEvent ev{};
+    ev.kind          = RegistryEventKind::Deregistered;
+    ev.service_id    = it->second.service_id;
+    ev.reported_name = it->second.reported_name;
+    ev.lease_epoch   = it->second.lease_epoch;
     m_registry.erase(it);
+    m_events.Publish(ev);
     return true;
 }
 
@@ -142,7 +168,13 @@ PeerRegistry::ExpireStale(std::chrono::steady_clock::duration max_age)
     {
         if (it->second.last_heartbeat_at < cutoff)
         {
+            RegistryEvent ev{};
+            ev.kind          = RegistryEventKind::Expired;
+            ev.service_id    = it->second.service_id;
+            ev.reported_name = it->second.reported_name;
+            ev.lease_epoch   = it->second.lease_epoch;
             it = m_registry.erase(it);
+            m_events.Publish(ev);
             ++expired;
         }
         else ++it;

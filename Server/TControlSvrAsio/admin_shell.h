@@ -71,6 +71,12 @@ private:
     boost::asio::awaitable<void> HandleSession(
         std::shared_ptr<boost::asio::ip::tcp::socket> sock);
 
+    // Long-lived streaming session for `subscribe registry`. Replaces
+    // the normal command loop on the same socket — the client writes
+    // nothing further, lines flow downstream until the socket closes.
+    boost::asio::awaitable<void> RunRegistryStream(
+        std::shared_ptr<boost::asio::ip::tcp::socket> sock);
+
     boost::asio::awaitable<std::string> Dispatch(const std::string& line);
 
     // Sub-handlers — each returns the reply string. Async ones (status,

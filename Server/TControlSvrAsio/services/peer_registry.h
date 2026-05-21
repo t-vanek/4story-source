@@ -12,6 +12,7 @@
 // because they must survive the peer reconnecting — legacy keeps
 // them on TSVRTEMP for the same reason.
 
+#include "registry_event_bus.h"
 #include "service_inventory.h"
 #include "service_controller.h"
 
@@ -120,6 +121,12 @@ public:
 
     const RegistryEntry* FindRegistration(std::uint32_t service_id) const;
 
+    // Live event stream — subscribers see every Register/Heartbeat/
+    // Deregister/Expire transition without polling. Used by the
+    // admin shell `subscribe registry` command.
+    RegistryEventBus& Events()       { return m_events; }
+    const RegistryEventBus& Events() const { return m_events; }
+
 private:
     std::vector<ServiceInstance> m_services;
     std::unordered_map<std::uint32_t, std::size_t>          m_idx;
@@ -127,6 +134,7 @@ private:
     std::unordered_map<std::uint32_t, std::shared_ptr<PeerSession>> m_conn;
     std::unordered_map<std::uint32_t, RegistryEntry>        m_registry;
     std::uint64_t                                           m_next_epoch = 1;
+    RegistryEventBus                                        m_events;
 };
 
 } // namespace tcontrolsvr

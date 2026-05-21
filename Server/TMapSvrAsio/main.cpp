@@ -1,11 +1,11 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F13: monster chart + spawn chart + monster registry. Two
-// new SOCI loaders read TMONSTERCHART / TMONSPAWNCHART at boot; the
-// in-memory monster registry exposes Insert / Remove / ListInMap so
-// later phases can plug in the SpawnManager + AI tick that actually
-// brings monsters to life. F13 itself doesn't spawn anything — it
-// just makes the data structures available to subsequent phases.
+// Phase F14: party + chat handlers. Four CS_ message ids land in the
+// dispatch switch (CS_CHAT_REQ, CS_PARTYADD_REQ, CS_PARTYJOIN_REQ,
+// CS_PARTYDEL_REQ); each decodes the legacy wire and logs the
+// intent. The real routing (broadcast to channel, world relay,
+// anti-spoof checks, ban timer) lands with the chat / party
+// consolidation pass.
 
 #include "config.h"
 #include "handlers_world.h"
@@ -53,7 +53,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F13 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F14 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -227,7 +227,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F13 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F14 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

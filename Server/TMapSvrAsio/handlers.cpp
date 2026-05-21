@@ -522,6 +522,126 @@ OnQuestDropReq(std::shared_ptr<tnetlib::AsioSession> sess,
     co_return;
 }
 
+namespace {
+
+// Helper used by F14 chat/party stubs: look up the sender's char id
+// for log lines. Returns 0 when the session hasn't bound a char yet
+// (which normally means the request arrived before CS_CONNECT_REQ
+// cleared — the real handlers will reject in that case once policy
+// gates land).
+std::uint32_t SenderCharId(const std::shared_ptr<tnetlib::AsioSession>& sess,
+                           const HandlerContext& ctx)
+{
+    if (!ctx.session_reg) return 0;
+    const auto found = ctx.session_reg->FindCharIdBySession(sess.get());
+    return found ? *found : 0;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnChatReq(std::shared_ptr<tnetlib::AsioSession> sess,
+          std::vector<std::byte>                body,
+          const HandlerContext&                 ctx)
+{
+    // CS_CHAT_REQ body (legacy CSHandler.cpp:5206):
+    //   string  strSender
+    //   BYTE    bGroup
+    //   DWORD   dwTarget
+    //   string  strName
+    //   string  strTalk
+    // F14 decodes + logs. Real routing (CHAT_NORMAL → broadcast to
+    // channel via presence, CHAT_PARTY → world relay, CHAT_WHISPER
+    // → direct DM, anti-spoof check sender == player name, ban
+    // timer enforcement) lands with the chat consolidation pass.
+    wire::Reader r(body.data(), body.size());
+    std::string sender, target_name, talk;
+    std::uint8_t  bGroup  = 0;
+    std::uint32_t dwTarget = 0;
+    if (!r.ReadString(sender) || !r.Read(bGroup) || !r.Read(dwTarget) ||
+        !r.ReadString(target_name) || !r.ReadString(talk))
+    {
+        spdlog::warn("CS_CHAT_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+    spdlog::info("CS_CHAT_REQ char={} group={} target={}/{} talk='{}' — "
+                 "F14 stub (broadcast / world relay lands with chat "
+                 "consolidation)",
+        SenderCharId(sess, ctx), bGroup, dwTarget, target_name, talk);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnPartyAddReq(std::shared_ptr<tnetlib::AsioSession> sess,
+              std::vector<std::byte>                body,
+              const HandlerContext&                 ctx)
+{
+    // CS_PARTYADD_REQ body (legacy CSHandler.cpp:3419):
+    //   string strTarget
+    //   BYTE   bObtainType
+    // Routes through MW_PARTYADD_ACK on the world peer (legacy
+    // SSSender.cpp); the world owns party state. F14 decodes + logs;
+    // the MW_ encoder + world relay land with the party
+    // consolidation pass.
+    wire::Reader r(body.data(), body.size());
+    std::string target;
+    std::uint8_t bObtainType = 0;
+    if (!r.ReadString(target) || !r.Read(bObtainType))
+    {
+        spdlog::warn("CS_PARTYADD_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+    spdlog::info("CS_PARTYADD_REQ char={} target='{}' obtainType={} — F14 stub",
+        SenderCharId(sess, ctx), target, bObtainType);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnPartyJoinReq(std::shared_ptr<tnetlib::AsioSession> sess,
+               std::vector<std::byte>                body,
+               const HandlerContext&                 ctx)
+{
+    // CS_PARTYJOIN_REQ body (legacy CSHandler.cpp:3451):
+    //   string strOrigin
+    //   BYTE   bObtainType
+    //   BYTE   bResponse
+    wire::Reader r(body.data(), body.size());
+    std::string origin;
+    std::uint8_t bObtainType = 0, bResponse = 0;
+    if (!r.ReadString(origin) || !r.Read(bObtainType) || !r.Read(bResponse))
+    {
+        spdlog::warn("CS_PARTYJOIN_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+    spdlog::info("CS_PARTYJOIN_REQ char={} origin='{}' obtainType={} "
+                 "response={} — F14 stub",
+        SenderCharId(sess, ctx), origin, bObtainType, bResponse);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnPartyDelReq(std::shared_ptr<tnetlib::AsioSession> sess,
+              std::vector<std::byte>                body,
+              const HandlerContext&                 ctx)
+{
+    // CS_PARTYDEL_REQ body (legacy CSHandler.cpp:3483):
+    //   DWORD dwMemberID
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwMemberID = 0;
+    if (!r.Read(dwMemberID))
+    {
+        spdlog::warn("CS_PARTYDEL_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+    spdlog::info("CS_PARTYDEL_REQ char={} member={} — F14 stub",
+        SenderCharId(sess, ctx), dwMemberID);
+    co_return;
+}
+
 boost::asio::awaitable<void>
 Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
          std::uint16_t                         wId,
@@ -554,6 +674,18 @@ Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_QUESTDROP_REQ:
         co_await OnQuestDropReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_CHAT_REQ:
+        co_await OnChatReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_PARTYADD_REQ:
+        co_await OnPartyAddReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_PARTYJOIN_REQ:
+        co_await OnPartyJoinReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_PARTYDEL_REQ:
+        co_await OnPartyDelReq(sess, std::move(body), ctx);
         break;
 
     default:

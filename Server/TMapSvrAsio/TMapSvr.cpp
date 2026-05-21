@@ -10124,7 +10124,7 @@ void CTMapSvrModule::PvPEvent(BYTE bEvent, void * pObject, DWORD dwTargetID)
 			}
 			
 #ifdef BR_COMPILE_MODE
-			pAttack->IncrementBonusPoints(BR_KILLER_BP_REWARD);
+			pAttack->IncrementBonusPoints(::tmapsvr::br::KillerBpReward);
 			pAttack->SendCS_BOWKILLNOTIFY_ACK();
 
 			MAPBRTEAM::iterator itTeam = m_mapBRTEAM.find(pAttack->m_dwTeamID);
@@ -10147,8 +10147,8 @@ void CTMapSvrModule::PvPEvent(BYTE bEvent, void * pObject, DWORD dwTargetID)
 #if defined (BOW_COMPILE_MODE) && !defined (BR_COMPILE_MODE)  
 			if (vParty.empty())
 			{
-				pAttack->IncrementBonusPoints(KILLER_BP_REWARD);
-				pAttack->m_dwPoints += KILLER_SP_REWARD;
+				pAttack->IncrementBonusPoints(::tmapsvr::bow::KillerBpReward);
+				pAttack->m_dwPoints += ::tmapsvr::bow::KillerSpReward;
 
 				pAttack->SendCS_BOWKILLNOTIFY_ACK();
 				return;
@@ -10161,8 +10161,8 @@ void CTMapSvrModule::PvPEvent(BYTE bEvent, void * pObject, DWORD dwTargetID)
 
 				if (pAttack->m_dwID == pPlayer->m_dwID)
 				{
-					pPlayer->IncrementBonusPoints(KILLER_BP_REWARD);
-					pPlayer->m_dwPoints += KILLER_SP_REWARD;
+					pPlayer->IncrementBonusPoints(::tmapsvr::bow::KillerBpReward);
+					pPlayer->m_dwPoints += ::tmapsvr::bow::KillerSpReward;
 
 					pPlayer->SendCS_BOWKILLNOTIFY_ACK();
 					continue;
@@ -10170,8 +10170,8 @@ void CTMapSvrModule::PvPEvent(BYTE bEvent, void * pObject, DWORD dwTargetID)
 
 				if (pPlayer->m_bMain && pPlayer->m_dwID != pAttack->m_dwID)
 				{
-					pPlayer->IncrementBonusPoints(PARTY_BP_REWARD);
-					pPlayer->m_dwPoints += PARTY_SP_REWARD;
+					pPlayer->IncrementBonusPoints(::tmapsvr::bow::PartyBpReward);
+					pPlayer->m_dwPoints += ::tmapsvr::bow::PartySpReward;
 
 					pPlayer->SendCS_BOWKILLNOTIFY_ACK(pAttack->m_strNAME);
 				}
@@ -12516,7 +12516,7 @@ void CTMapSvrModule::ReceiveBOWTitle()
 	DEFINE_QUERY(&m_db, CSPGiveTitle)
 	{
 		query->m_dwCharID = dwCharID;
-		query->m_wTitleID = BOW_FIRST_PLACE_TITLE_ID;
+		query->m_wTitleID = ::tmapsvr::bow::FirstPlaceTitleId;
 		query->Call();
 	}
 	UNDEFINE_QUERY()
@@ -12648,7 +12648,7 @@ void CTMapSvrModule::ReceiveBRTitle()
 	DEFINE_QUERY(&m_db, CSPGiveTitle)
 	{
 		query->m_dwCharID = dwCharID;
-		query->m_wTitleID = BR_FIRST_PLACE_TITLE_ID;
+		query->m_wTitleID = ::tmapsvr::br::FirstPlaceTitleId;
 		query->Call();
 	}
 	UNDEFINE_QUERY()
@@ -12662,7 +12662,7 @@ void CTMapSvrModule::ReceiveBRTitle()
 			DEFINE_QUERY(&m_db, CSPGiveBRTeamReward)
 			{
 				query->m_dwCharID = (*itPlayer).second->m_dwCharID;
-				query->m_wItemID = BR_WINNING_TEAM_REWARD;
+				query->m_wItemID = ::tmapsvr::br::WinningTeamReward;
 				query->Call();
 			}
 			UNDEFINE_QUERY()

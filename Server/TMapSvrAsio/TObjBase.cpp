@@ -2430,7 +2430,7 @@ void CTObjBase::OnDie( DWORD dwAttackID, BYTE bObjectType, WORD wTempMonID)
 				if (pAttack)
 				{
 					pAttack->m_wKills++;
-					if (pAttack->m_wKills % BR_KILLS_TO_LIFE == 0)
+					if (pAttack->m_wKills % ::tmapsvr::br::KillsToLife == 0)
 						pAttack->m_bLife++;
 
 					LPBRTEAM pAttackTeam = _AtlModule.GetBRTeam(dwAttackID);

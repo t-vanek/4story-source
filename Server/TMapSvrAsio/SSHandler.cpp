@@ -128,7 +128,7 @@ DWORD CTMapSvrModule::OnSM_TIMER_REQ(LPPACKETBUF pBUF)
 
 	for (MAPDWORD::iterator itLeft = m_mapLeftPlayer.begin(); itLeft != m_mapLeftPlayer.end();)
 	{
-		if ((*itLeft).second > BR_MAX_NOT_INGAME_DURATION)
+		if ((*itLeft).second > ::tmapsvr::br::MaxNotIngameDurationMs)
 		{
 			DeleteBRPlayer((*itLeft).first);
 			itLeft = m_mapLeftPlayer.erase(itLeft);
@@ -5743,7 +5743,7 @@ DWORD CTMapSvrModule::OnDM_LOADCHAR_ACK( LPPACKETBUF pBUF)
 	}
 	else
 	{
-		MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(BOW_FAILSAFE_SPAWNID);
+		MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(::tmapsvr::bow::FailsafeSpawnId);
 		if (finder != m_mapTSPAWNPOS.end())
 		{
 			if(pPlayer->m_pMAP)
@@ -5941,7 +5941,7 @@ DWORD CTMapSvrModule::OnDM_LOADCHAR_ACK( LPPACKETBUF pBUF)
 	}
 	else
 	{
-		MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(BOW_FAILSAFE_SPAWNID);
+		MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(::tmapsvr::bow::FailsafeSpawnId);
 		if (finder != m_mapTSPAWNPOS.end())
 		{
 			if(pPlayer->m_pMAP)
@@ -19286,29 +19286,29 @@ DWORD CTMapSvrModule::OnMW_BOWCOMMANDEXEC_REQ(LPPACKETBUF pBUF)
 	{
 	case BOW_START:
 		for (BYTE i = TCONTRY_D; i <= TCONTRY_C; ++i)
-			AddMonSpawn(pBOWMAP, BOW_GUARD_SPAWNID + i, MONSPAWN_SUSPEND);
+			AddMonSpawn(pBOWMAP, ::tmapsvr::bow::GuardSpawnId + i, MONSPAWN_SUSPEND);
 	case BOW_SPAWN_STATUES:
 		for (BYTE i = TCONTRY_D; i <= TCONTRY_C; ++i)
-			AddMonSpawn(pBOWMAP, BOW_DEFUGEL_STATUE + i, MONSPAWN_DELETE);
+			AddMonSpawn(pBOWMAP, ::tmapsvr::bow::DefugelStatue + i, MONSPAWN_DELETE);
 	case BOW_OPENGATES:
 		{
 			BOWNotify("The Battle of the Worlds has started.");
-			ChangeSwitch(pBOWMAP, BOW_SWITCH_ID, SWC_OPEN);
+			ChangeSwitch(pBOWMAP, ::tmapsvr::bow::SwitchId, SWC_OPEN);
 		}
 		break;
 	case BOW_END:
 		{
 			ReceiveBOWTitle();
 			for (BYTE i = TCONTRY_D; i <= TCONTRY_C; ++i)
-				DelMonSpawn(pBOWMAP, BOW_GUARD_SPAWNID + i);
+				DelMonSpawn(pBOWMAP, ::tmapsvr::bow::GuardSpawnId + i);
 		}
 	case BOW_DESPAWN_STATUES:
 		for (BYTE i = TCONTRY_D; i <= TCONTRY_C; ++i)
-			DelMonSpawn(pBOWMAP, BOW_DEFUGEL_STATUE + i);
+			DelMonSpawn(pBOWMAP, ::tmapsvr::bow::DefugelStatue + i);
 	case BOW_CLOSEGATES:
 		{
 			BOWNotify("The Battle of the Worlds has ended.");
-			ChangeSwitch(pBOWMAP, BOW_SWITCH_ID, SWC_CLOSE);
+			ChangeSwitch(pBOWMAP, ::tmapsvr::bow::SwitchId, SWC_CLOSE);
 		}
 		break;
 	default:
@@ -19338,13 +19338,13 @@ DWORD CTMapSvrModule::OnMW_ENDBOWWAR_REQ(LPPACKETBUF pBUF)
 		CTPlayer* pPlayer = FindPlayer(dwCharID, dwKEY);
 		if (pPlayer)
 		{
-			if (pPlayer->m_dwPoints > MIN_SP_TO_GET_REWARD)
+			if (pPlayer->m_dwPoints > ::tmapsvr::bow::MinSpToGetReward)
 			{
 				DEFINE_QUERY(&m_db, CSPGiveBOWReward);
 				{
 					BYTE bWinner = bWinCountry == TCONTRY_D || bWinCountry == TCONTRY_C ? pPlayer->m_bCountry == bWinCountry ? TRUE : FALSE : 2;
 					query->m_dwCharID = pPlayer->m_dwID;
-					query->m_wItemID = BOW_REWARD_ITEM_ID;
+					query->m_wItemID = ::tmapsvr::bow::RewardItemId;
 					query->m_wSP = (WORD) pPlayer->m_dwPoints;
 					query->m_bWinCountry = bWinner;
 					query->m_bRank = GetRankID(pPlayer->m_dwRankPoint);
@@ -19357,7 +19357,7 @@ DWORD CTMapSvrModule::OnMW_ENDBOWWAR_REQ(LPPACKETBUF pBUF)
 
 			pPlayer->ReleaseForBOW(FALSE);
 
-			MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(BOW_FAILSAFE_SPAWNID);
+			MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(::tmapsvr::bow::FailsafeSpawnId);
 			if (finder != m_mapTSPAWNPOS.end())
 			{
 				LPTSPAWNPOS pPOS = (*finder).second;
@@ -19372,16 +19372,16 @@ DWORD CTMapSvrModule::OnMW_ENDBOWWAR_REQ(LPPACKETBUF pBUF)
 			else
 				pPlayer = (*itSaved).second;
 
-			if (m_dwTick - pPlayer->m_dwSaveTick < BOW_REWARD_MAX_LOGOUT_MIN * 60 * 1000)
+			if (m_dwTick - pPlayer->m_dwSaveTick < ::tmapsvr::bow::RewardMaxLogoutMin * 60 * 1000)
 				continue;
 
-			if (pPlayer->m_dwPoints > MIN_SP_TO_GET_REWARD)
+			if (pPlayer->m_dwPoints > ::tmapsvr::bow::MinSpToGetReward)
 			{
 				DEFINE_QUERY(&m_db, CSPGiveBOWReward);
 				{
 					BYTE bWinner = bWinCountry == TCONTRY_D || bWinCountry == TCONTRY_C ? pPlayer->m_bCountry == bWinCountry ? TRUE : FALSE : 2;
 					query->m_dwCharID = dwCharID;
-					query->m_wItemID = BOW_REWARD_ITEM_ID;
+					query->m_wItemID = ::tmapsvr::bow::RewardItemId;
 					query->m_wSP = (WORD) pPlayer->m_dwPoints;
 					query->m_bWinCountry = bWinner;
 					query->m_bRank = GetRankID(pPlayer->m_dwRankPoint);
@@ -19419,13 +19419,13 @@ DWORD CTMapSvrModule::OnMW_RELEASESINGLEBOWPLAYER_REQ(LPPACKETBUF pBUF)
 			delete (*itSaved).second;
 			m_mapSAVEDPLAYER.erase(dwCharID);
 		}
-		if (pPlayer->m_dwPoints > MIN_SP_TO_GET_REWARD)
+		if (pPlayer->m_dwPoints > ::tmapsvr::bow::MinSpToGetReward)
 		{
 			DEFINE_QUERY(&m_db, CSPGiveBOWReward);
 			{
 				BYTE bWinner = bWinCountry == TCONTRY_D || bWinCountry == TCONTRY_C ? pPlayer->m_bCountry == bWinCountry ? TRUE : FALSE : 2;
 				query->m_dwCharID = pPlayer->m_dwID;
-				query->m_wItemID = BOW_REWARD_ITEM_ID;
+				query->m_wItemID = ::tmapsvr::bow::RewardItemId;
 				query->m_wSP = (WORD) pPlayer->m_dwPoints;
 				query->m_bWinCountry = bWinner;
 				query->m_bRank = GetRankID(pPlayer->m_dwRankPoint);
@@ -19438,7 +19438,7 @@ DWORD CTMapSvrModule::OnMW_RELEASESINGLEBOWPLAYER_REQ(LPPACKETBUF pBUF)
 
 		pPlayer->ReleaseForBOW(FALSE);
 
-		MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(BOW_FAILSAFE_SPAWNID);
+		MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(::tmapsvr::bow::FailsafeSpawnId);
 		if (finder != m_mapTSPAWNPOS.end())
 		{
 			LPTSPAWNPOS pPOS = (*finder).second;
@@ -19711,7 +19711,7 @@ DWORD CTMapSvrModule::OnMW_ADDBRTEAMS_ACK(LPPACKETBUF pBUF)
 			pPLAYER->m_dwKEY = dwKEY;
 			pPLAYER->m_bClass = bClass;
 			pPLAYER->m_strNAME = strNAME;
-			pPLAYER->m_bLife = BR_MAX_LIFES;
+			pPLAYER->m_bLife = ::tmapsvr::br::MaxLifes;
 			pPLAYER->m_bDead = FALSE;
 			pPLAYER->m_wKills = 0;
 			pPLAYER->m_bSupplyIndex = 0;
@@ -19802,7 +19802,7 @@ DWORD CTMapSvrModule::OnMW_ENDBRWAR_REQ(LPPACKETBUF pBUF)
 					{
 						BYTE bWinner = CalcWinningTeam() == pPlayer->m_dwTeamID;
 						query->m_dwCharID = pPlayer->m_dwID;
-						query->m_wItemID = BOW_REWARD_ITEM_ID;
+						query->m_wItemID = ::tmapsvr::bow::RewardItemId;
 						query->m_wKills = pBRPLAYER->m_wKills;
 						query->m_wBonus = pBRPLAYER->m_wBonus;
 						query->m_bClass = pPlayer->m_bClass;
@@ -19815,7 +19815,7 @@ DWORD CTMapSvrModule::OnMW_ENDBRWAR_REQ(LPPACKETBUF pBUF)
 
 				pPlayer->ReleaseForBOW(FALSE);
 
-				MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(BOW_FAILSAFE_SPAWNID);
+				MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(::tmapsvr::bow::FailsafeSpawnId);
 				if (finder != m_mapTSPAWNPOS.end())
 				{
 					LPTSPAWNPOS pPOS = (*finder).second;
@@ -19830,7 +19830,7 @@ DWORD CTMapSvrModule::OnMW_ENDBRWAR_REQ(LPPACKETBUF pBUF)
 				else
 					pPlayer = (*itSaved).second;
 
-				if (m_dwTick - pPlayer->m_dwSaveTick < BOW_REWARD_MAX_LOGOUT_MIN * 60 * 1000)
+				if (m_dwTick - pPlayer->m_dwSaveTick < ::tmapsvr::bow::RewardMaxLogoutMin * 60 * 1000)
 					continue;
 
 				LPBRPLAYER pBRPLAYER = GetBRPlayerByTeamID(pPlayer->m_dwTeamID, pPlayer->m_dwID);
@@ -19840,7 +19840,7 @@ DWORD CTMapSvrModule::OnMW_ENDBRWAR_REQ(LPPACKETBUF pBUF)
 					{
 						BYTE bWinner = CalcWinningTeam() == pPlayer->m_dwTeamID;
 						query->m_dwCharID = pPlayer->m_dwID;
-						query->m_wItemID = BOW_REWARD_ITEM_ID;
+						query->m_wItemID = ::tmapsvr::bow::RewardItemId;
 						query->m_wKills = pBRPLAYER->m_wKills;
 						query->m_wBonus = pBRPLAYER->m_wBonus;
 						query->m_bClass = pPlayer->m_bClass;
@@ -19885,7 +19885,7 @@ DWORD CTMapSvrModule::OnMW_RELEASESINGLEBRPLAYER_REQ(LPPACKETBUF pBUF)
 			{
 				BYTE bWinner = CalcWinningTeam() == pPlayer->m_dwTeamID;
 				query->m_dwCharID = pPlayer->m_dwID;
-				query->m_wItemID = BOW_REWARD_ITEM_ID;
+				query->m_wItemID = ::tmapsvr::bow::RewardItemId;
 				query->m_wKills = pBRPLAYER->m_wKills;
 				query->m_wBonus = pBRPLAYER->m_wBonus;
 				query->m_bClass = pPlayer->m_bClass;
@@ -19910,7 +19910,7 @@ DWORD CTMapSvrModule::OnMW_RELEASESINGLEBRPLAYER_REQ(LPPACKETBUF pBUF)
 
 		pPlayer->ReleaseForBOW(FALSE);
 
-		MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(BOW_FAILSAFE_SPAWNID);
+		MAPTSPAWNPOS::iterator finder = m_mapTSPAWNPOS.find(::tmapsvr::bow::FailsafeSpawnId);
 		if (finder != m_mapTSPAWNPOS.end())
 		{
 			LPTSPAWNPOS pPOS = (*finder).second;

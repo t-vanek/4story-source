@@ -1017,7 +1017,7 @@ void CTPlayer::OnTimer(DWORD dwTick)
 	if (dwTick - m_dwBPTick > 10000)
 	{
 		m_dwBPTick = dwTick;
-		IncrementBonusPoints(BOW_BP_PER_10SEC);
+		IncrementBonusPoints(::tmapsvr::bow::BpPer10Sec);
 	}
 #endif
 }
@@ -1033,7 +1033,7 @@ void CTPlayer::IncrementBonusPoints(WORD wBPlus)
 	m_dwTotalPoints += wBPlus;
 	dwEarnedBB += wBPlus;
 
-	if (dwEarnedBB >= BOW_BP_BASE) {
+	if (dwEarnedBB >= ::tmapsvr::bow::BpBase) {
 		dwEarnedBB = 0;
 		m_dwPoints++;
 	}
@@ -7212,7 +7212,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 						CTItem* pNewItem = new CTItem();
 						WORD wItemID = 0;
 						WORD wMoggItemID = 0;
-						BYTE bLevel = BOW_ITEM_MIN_LEVEL;
+						BYTE bLevel = ::tmapsvr::bow::ItemMinLevel;
 						BYTE bGem = GEM0;
 
 						BYTE bColor = 0;
@@ -7264,7 +7264,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 
 							wItemID = (*it).second->m_wItemID;
 							wMoggItemID = (*it).second->m_wMoggItemID;
-							bLevel = (*it).second->m_bLevel > BOW_ITEM_MIN_LEVEL ? (*it).second->m_bLevel : BOW_ITEM_MIN_LEVEL;
+							bLevel = (*it).second->m_bLevel > ::tmapsvr::bow::ItemMinLevel ? (*it).second->m_bLevel : ::tmapsvr::bow::ItemMinLevel;
 							bGem = (*it).second->m_bGem;
 
 							bColor = (*it).second->m_bGradeEffect;
@@ -7289,7 +7289,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 #ifdef BR_COMPILE_MODE
 						pNewItem->m_bGradeEffect = bColor;
 #else
-						pNewItem->m_bGradeEffect = bCountry == TCONTRY_C ? CRAXION_EQUIP_EFFECT : DEFUGEL_EQUIP_EFFECT;
+						pNewItem->m_bGradeEffect = bCountry == TCONTRY_C ? ::tmapsvr::bow::CraxionEquipEffect : ::tmapsvr::bow::DefugelEquipEffect;
 #endif
 #endif
 						pNewItem->m_wMoggItemID = !wMoggItemID ? wItemID : wMoggItemID;
@@ -7360,7 +7360,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 														pNewItem->m_mapTMAGIC.insert(MAPTMAGIC::value_type((*itMag).first, pMAGIC));
 													}
 
-													pNewItem->m_bLevel = pItem->m_bLevel > BOW_ITEM_MIN_LEVEL ? pItem->m_bLevel : BOW_ITEM_MIN_LEVEL;
+													pNewItem->m_bLevel = pItem->m_bLevel > ::tmapsvr::bow::ItemMinLevel ? pItem->m_bLevel : ::tmapsvr::bow::ItemMinLevel;
 													pNewItem->m_bGem = pItem->m_bGem;
 
 												}
@@ -7400,7 +7400,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 
 
 
-				pACCESSORIES[Index]->m_bGradeEffect = bCountry == TCONTRY_D ? DEFUGEL_EQUIP_EFFECT : CRAXION_EQUIP_EFFECT;
+				pACCESSORIES[Index]->m_bGradeEffect = bCountry == TCONTRY_D ? ::tmapsvr::bow::DefugelEquipEffect : ::tmapsvr::bow::CraxionEquipEffect;
 #endif
 		}
 	}
@@ -7426,7 +7426,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 			pACCESSORIES[Index]->m_dlID = _AtlModule.GenItemID();
 			pACCESSORIES[Index]->m_wItemID = wItemID;
 			pACCESSORIES[Index]->m_bCount = 1;
-			pACCESSORIES[Index]->m_bLevel = pITEM->m_bCanGrade ? BOW_ITEM_MIN_LEVEL : 0;
+			pACCESSORIES[Index]->m_bLevel = pITEM->m_bCanGrade ? ::tmapsvr::bow::ItemMinLevel : 0;
 			pACCESSORIES[Index]->m_bGem = 0;
 
 			pACCESSORIES[Index]->m_bInven = INVEN_EQUIP;
@@ -7446,14 +7446,14 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 
 	ReleaseForBOW(bSaved);
 	if (!m_dwBB && !bSaved)
-		IncrementBonusPoints(BOW_BP_BASE);
+		IncrementBonusPoints(::tmapsvr::bow::BpBase);
 
 	CTInven* pBOWInven = new CTInven();
 	pBOWInven->m_bInvenID = INVEN_BATTLE;
 	pBOWInven->m_dEndTime = NULL;
-	pBOWInven->m_pTITEM = _AtlModule.FindTItem(BOW_INVENTORY_ID);
+	pBOWInven->m_pTITEM = _AtlModule.FindTItem(::tmapsvr::bow::InventoryId);
 	pBOWInven->m_bELD = FALSE;
-	pBOWInven->m_wItemID = BOW_INVENTORY_ID;
+	pBOWInven->m_wItemID = ::tmapsvr::bow::InventoryId;
 
 	m_mapTINVEN.insert(MAPTINVEN::value_type(INVEN_BATTLE, pBOWInven));
 	SendCS_INVENADD_ACK(

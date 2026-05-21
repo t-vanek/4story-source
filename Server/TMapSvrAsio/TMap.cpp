@@ -1009,9 +1009,9 @@ void CTMap::EnterMAP( CTMonster *pMON)
 	if( pMON->m_bType == OT_MON )
 	{
 #if defined (BOW_COMPILE_MODE) && !defined(BR_COMPILE_MODE)
-		if (pMON->m_pSPAWN->m_pSPAWN->m_wID == BOW_DEFUGEL_STATUE)
+		if (pMON->m_pSPAWN->m_pSPAWN->m_wID == ::tmapsvr::bow::DefugelStatue)
 			_AtlModule.BOWNotify("The Valorian Divine Statue has been restored.");
-		else if (pMON->m_pSPAWN->m_pSPAWN->m_wID == BOW_CRAXION_STATUE)
+		else if (pMON->m_pSPAWN->m_pSPAWN->m_wID == ::tmapsvr::bow::CraxionStatue)
 			_AtlModule.BOWNotify("The Derion Divine Statue has been restored.");
 #endif
 

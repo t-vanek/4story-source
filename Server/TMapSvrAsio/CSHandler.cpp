@@ -19712,7 +19712,7 @@ DWORD CTMapSvrModule::OnCS_CASHBOWRESPAWN_REQ(LPPACKETBUF pBUF)
 	if (pPlayer->m_dwHP)
 		return EC_NOERROR;
 
-	DWORD dwPrice = BOW_RESPAWN_MEDAL_BASE + (pPlayer->m_bDeaths * BOW_RESPAWN_MEDAL_ADDER);
+	DWORD dwPrice = ::tmapsvr::bow::RespawnMedalBase + (pPlayer->m_bDeaths * ::tmapsvr::bow::RespawnMedalAdder);
 	if (pPlayer->m_dwMedals < dwPrice)
 		return EC_NOERROR;
 
@@ -19756,7 +19756,7 @@ DWORD CTMapSvrModule::OnCS_EXCHANGEBOWBP_REQ(LPPACKETBUF pBUF)
 	query->Call();
 	UNDEFINE_QUERY();
 
-	pPlayer->m_dwBB += dwMedals * MEDAL_BP_RATE;
+	pPlayer->m_dwBB += dwMedals * ::tmapsvr::bow::MedalBpRate;
 
 	pPlayer->SendCS_UPDATEBONUSPOINT_ACK(pPlayer->m_dwBB);
 	pPlayer->SendCS_UPDATEMEDALS_REQ(pPlayer->m_dwMedals);

@@ -563,8 +563,8 @@ void CTMonster::OnDie( DWORD dwAttackID , BYTE bObjectType, WORD wTempMonID )
 				{
 					if(vParty[i]->m_bMain)
 					{
-						vParty[i]->IncrementBonusPoints(STATUE_BP_REWARD);
-						vParty[i]->m_dwPoints += STATUE_SP_REWARD;
+						vParty[i]->IncrementBonusPoints(::tmapsvr::bow::StatueBpReward);
+						vParty[i]->m_dwPoints += ::tmapsvr::bow::StatueSpReward;
 					}
 				}
 
@@ -578,16 +578,16 @@ void CTMonster::OnDie( DWORD dwAttackID , BYTE bObjectType, WORD wTempMonID )
 				CTPlayer * pOwner = FindHost(m_dwKeeperID);
 				if(pOwner && pOwner->m_bMain)
 				{
-					pOwner->IncrementBonusPoints(STATUE_BP_REWARD);
-					pOwner->m_dwPoints += STATUE_SP_REWARD;
+					pOwner->IncrementBonusPoints(::tmapsvr::bow::StatueBpReward);
+					pOwner->m_dwPoints += ::tmapsvr::bow::StatueSpReward;
 				}
 			}
 			break;
 		}
 
-	if (m_pSPAWN->m_pSPAWN->m_wID == BOW_DEFUGEL_STATUE)
+	if (m_pSPAWN->m_pSPAWN->m_wID == ::tmapsvr::bow::DefugelStatue)
 		_AtlModule.SendMW_BOWPOINTSUPDATE_REQ(TCONTRY_C);
-	else if (m_pSPAWN->m_pSPAWN->m_wID == BOW_CRAXION_STATUE)
+	else if (m_pSPAWN->m_pSPAWN->m_wID == ::tmapsvr::bow::CraxionStatue)
 		_AtlModule.SendMW_BOWPOINTSUPDATE_REQ(TCONTRY_D);
 
 	OnEvent( AT_DEAD, 0, dwAttackID, 0, 0);

@@ -1984,7 +1984,7 @@ void CTPlayer::SendCS_QUESTLIST_POSSIBLE_ACK(LPMAPMAPDWORD mapNpcQuest)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-// ±ÊµÂ
+// Í∏∏Îìú
 void CTPlayer::SendCS_GUILDESTABLISH_ACK(BYTE bResult, DWORD dwID, CString strName)
 {
 	CPacket *pMSG = new CPacket();
@@ -2623,7 +2623,7 @@ void CTPlayer::SendCS_CHAT_ACK(BYTE bGroup,
 							   CString strName,
 							   CString strTalk)
 {
-	// ¬˜¥‹∏Ò∑œ ∞ÀªÁ
+	// Ï∞®Îã®Î™©Î°ù Í≤ÄÏÇ¨
 	if(!CheckProtected(dwSenderID, PROTECTED_CHAT))
 			return;
 
@@ -3840,7 +3840,7 @@ void CTPlayer::SendCS_CHAPTERMSG_ACK( DWORD dwQuestID )
 	Say(pMsg);
 }
 /////////////////////////////////////////////////////////////////
-// «ˆΩ¬∑Ê ∞¯¡ˆªÁ«◊
+// ÌòÑÏäπÎ£° Í≥µÏßÄÏÇ¨Ìï≠
 void CTPlayer::SendCS_ANNOUNCEMENTCHAT_ACK(CString strAnnounce)
 {
     CPacket *pMsg = new CPacket();
@@ -5084,20 +5084,20 @@ void CTPlayer::SendCS_SYSTEMMSG_ACK(BYTE bType,
 	case SM_MISSION_NORMAL:
 	case SM_MISSION_START:
 		(*pMSG)
-			<< wLocalID;	//»¶ºˆ.¬¶ºˆ πÃº«
+			<< wLocalID;	//ÌôÄÏàò.ÏßùÏàò ÎØ∏ÏÖò
 		break;
 	case SM_BATTLE_BOSSDIE:
 		(*pMSG)
 			<< strMsg1
 			<< strMsg2
-			<< wLocalID; //¡°∑… ±π∞°
+			<< wLocalID; //Ï†êÎ†π Íµ≠Í∞Ä
 		break;
 	case SM_MISSION_TIMEOUT:
 	case SM_MISSION_BOSSDIE:
 		(*pMSG)
 			<< strMsg1
-			<< wLocalID //¡°∑…±π∞°
-			<< dwSecond; //∏ æ∆¿Ãµ
+			<< wLocalID //Ï†êÎ†πÍµ≠Í∞Ä
+			<< dwSecond; //ÎßµÏïÑÏù¥Îîî
 		break;
 	case SM_SKYGARDEN_END:
 		(*pMSG)
@@ -5129,7 +5129,7 @@ void CTPlayer::SendCS_SYSTEMMSG_ACK(BYTE bType,
 	case SM_MISSION_END_ALARM:
 	case SM_MISSION_PEACE:
 		(*pMSG)
-			<< wLocalID	//»¶ºˆ.¬¶ºˆ πÃº«
+			<< wLocalID	//ÌôÄÏàò.ÏßùÏàò ÎØ∏ÏÖò
             << dwSecond;
 		break;
 	case SM_DUAL_WIN:

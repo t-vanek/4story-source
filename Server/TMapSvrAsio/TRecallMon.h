@@ -16,7 +16,7 @@ public:
 
 
 	WORD m_wCompanionID;
-	DWORD m_dwMaxHP;		//ºÐ½Å
+	DWORD m_dwMaxHP;		//ë¶„ì‹ 
 	DWORD m_dwMaxMP;
 	BYTE m_bAtkLevel;
 	BYTE m_bAtkSkillLevel;

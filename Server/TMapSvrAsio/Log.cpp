@@ -1,80 +1,80 @@
-#include "StdAfx.h"
-
 #include "Log.h"
 
-CLog::CLog(LPTSTR szName)
+#include <chrono>
+#include <ctime>
+#include <iterator>
+#include <utility>
+
+#include <fmt/format.h>
+#include <spdlog/logger.h>
+#include <spdlog/sinks/basic_file_sink.h>
+
+namespace tmapsvr {
+
+namespace {
+
+std::string TimestampForFilename()
 {
-	if (szName)
-		m_name = szName;
-	else
-		m_name = _T("Unnamed");
+    using clock = std::chrono::system_clock;
+    const auto now = clock::to_time_t(clock::now());
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &now);
+#else
+    localtime_r(&now, &tm);
+#endif
+    return fmt::format("{:04}-{:02}-{:02}_{:02}-{:02}-{:02}",
+        tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+        tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 
-CLog::~CLog()
+} // namespace
+
+Log::Log(std::string name)
+    : m_name(name.empty() ? std::string{"Unnamed"} : std::move(name))
 {
-	if (m_pFile)
-	{
-		fclose(m_pFile);
-		m_pFile = NULL;
-	}
 }
 
-BOOL CLog::Open()
+Log::~Log() = default;
+
+bool Log::Open(const std::filesystem::path& directory)
 {
-	CString strFileName;
-
-	time_t t = time(NULL);
-	tm* tm = localtime(&t);
-
-	strFileName.Format(_T("C:\\logs\\%d-%d-%d %d-%d-%d %s.log"), 
-		tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, 
-		tm->tm_hour, tm->tm_min, tm->tm_sec, (LPCTSTR)m_name);
-
-	m_pFile = fopen((LPCTSTR)strFileName, "a");
-
-	return m_pFile != NULL;
+    try {
+        std::filesystem::create_directories(directory);
+        const auto path = directory / fmt::format("{}_{}.log", TimestampForFilename(), m_name);
+        auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path.string(), /*truncate*/ false);
+        m_logger = std::make_shared<spdlog::logger>(m_name, std::move(sink));
+        m_logger->set_pattern("%v");
+        m_logger->flush_on(spdlog::level::info);
+        return true;
+    } catch (const spdlog::spdlog_ex&) {
+        m_logger.reset();
+        return false;
+    }
 }
 
-void CLog::WriteMessage(CString message)
+void Log::WriteMessage(std::string_view message)
 {
-	if (m_pFile)
-	{
-		fputs((LPCTSTR)message, m_pFile);
-		fputs(_T("\r\n"), m_pFile);
-		fflush(m_pFile);
-	}
+    if (m_logger) {
+        m_logger->info("{}", message);
+    }
 }
 
-void CLog::WritePacket(CPacket* pPacket)
+void Log::WritePacket(std::uint16_t id, std::span<const std::uint8_t> bytes)
 {
-	if (m_pFile && pPacket)
-	{
-		if (pPacket->m_pHeader)
-		{
-			CString output;
+    if (!m_logger) return;
 
-			output.Format(_T("PACKET %hx SIZE=%d\r\n"), pPacket->m_pHeader->m_wID, pPacket->m_pHeader->m_wSize);
-			fputs((LPCTSTR)output, m_pFile);
+    m_logger->info("PACKET {:x} SIZE={}", id, bytes.size());
 
-			WORD wSize = pPacket->m_pHeader->m_wSize;
-			LPBYTE pBuffer = pPacket->GetBuffer();
-
-			for (WORD i = 0; i < wSize; i++)
-			{
-				output.Format(_T("%02X"), pBuffer[i]);
-				fputs((LPCTSTR)output, m_pFile);
-
-				if (i != 0 && i % 128 == 0)
-					fputs(_T("\r\n"), m_pFile);
-			}
-
-			fputs(_T("\r\n"), m_pFile);
-
-		}
-		else
-			fputs(_T("PACKET HEADER NULL\r\n"), m_pFile);
-
-		fflush(m_pFile);
-	}
+    std::string hex;
+    hex.reserve(bytes.size() * 2 + bytes.size() / 128);
+    for (std::size_t i = 0; i < bytes.size(); ++i) {
+        fmt::format_to(std::back_inserter(hex), "{:02X}", bytes[i]);
+        if (i != 0 && i % 128 == 0) {
+            hex.push_back('\n');
+        }
+    }
+    m_logger->info("{}", hex);
 }
 
+} // namespace tmapsvr

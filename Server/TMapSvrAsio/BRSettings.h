@@ -1,14 +1,23 @@
 #pragma once
+
+#include <cstdint>
+
 #ifdef BR_COMPILE_MODE
-#define BR_MAX_LIFES						 (BYTE)  5
-#define BR_MAX_NOT_INGAME_DURATION			 (DWORD) 5 * 60 * 1000
 
-#define BR_KILLER_BP_REWARD                  (BYTE) 150
-#define BR_PARTY_BP_REWARD                   (BYTE) 50
+namespace tmapsvr::br {
 
-#define BR_FIRST_PLACE_TITLE_ID              (WORD) 160
+inline constexpr std::uint8_t  MaxLifes               = 5;
+inline constexpr std::uint32_t MaxNotIngameDurationMs = 5 * 60 * 1000;
 
-#define BR_KILLS_TO_LIFE					 (BYTE) 8
+inline constexpr std::uint8_t  KillerBpReward = 150;
+inline constexpr std::uint8_t  PartyBpReward  = 50;
 
-#define BR_WINNING_TEAM_REWARD               (WORD) 10000
-#endif
+inline constexpr std::uint16_t FirstPlaceTitleId = 160;
+
+inline constexpr std::uint8_t  KillsToLife = 8;
+
+inline constexpr std::uint16_t WinningTeamReward = 10000;
+
+} // namespace tmapsvr::br
+
+#endif // BR_COMPILE_MODE

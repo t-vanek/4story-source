@@ -1017,7 +1017,7 @@ void CTPlayer::OnTimer(DWORD dwTick)
 	if (dwTick - m_dwBPTick > 10000)
 	{
 		m_dwBPTick = dwTick;
-		IncrementBonusPoints(BOW_BP_PER_10SEC);
+		IncrementBonusPoints(::tmapsvr::bow::BpPer10Sec);
 	}
 #endif
 }
@@ -1033,7 +1033,7 @@ void CTPlayer::IncrementBonusPoints(WORD wBPlus)
 	m_dwTotalPoints += wBPlus;
 	dwEarnedBB += wBPlus;
 
-	if (dwEarnedBB >= BOW_BP_BASE) {
+	if (dwEarnedBB >= ::tmapsvr::bow::BpBase) {
 		dwEarnedBB = 0;
 		m_dwPoints++;
 	}
@@ -2688,7 +2688,7 @@ BYTE CTPlayer::OnQuestComplete( LPMAPTSKILLTEMP pSKILLTEMP,
 							CTSkill * pSkill = new CTSkill();
 							pSkill->m_pTSKILL = (*itTEMP).second;
 
-							//½ºÅ³ ¹ö¸±¶§ m_vRemainSkill¿¡¼­ ÇØ´ç ½ºÅ³ ²À »¬°Í
+							//ìŠ¤í‚¬ ë²„ë¦´ë•Œ m_vRemainSkillì—ì„œ í•´ë‹¹ ìŠ¤í‚¬ ê¼­ ëº„ê²ƒ
 							m_mapTSKILL.insert(MAPTSKILL::value_type((*itTEMP).second->m_wID, pSkill));
 							RemainSkill( pSkill, 0);
 							SendCS_SKILLBUY_ACK(
@@ -3036,9 +3036,9 @@ DWORD CTPlayer::GetPossibleQuestID( CQuest * pQuest )
 				MAPQUEST::iterator finder = m_mapQUEST.find( (*it).second->m_dwQuestID );
 
 				if( finder == m_mapQUEST.end() )
-					return (*it).second->m_dwQuestID;				// ÇÏÀ§ Äù½ºÆ® ¼öÇà °¡´É
+					return (*it).second->m_dwQuestID;				// í•˜ìœ„ í€˜ìŠ¤íŠ¸ ìˆ˜í–‰ ê°€ëŠ¥
 				else
-					return GetPossibleQuestID( (*finder).second );	// ÇÏÀ§ Äù½ºÆ® È®ÀÎ
+					return GetPossibleQuestID( (*finder).second );	// í•˜ìœ„ í€˜ìŠ¤íŠ¸ í™•ì¸
 			}
 
 
@@ -3054,7 +3054,7 @@ DWORD CTPlayer::GetPossibleQuestID( CQuest * pQuest )
 		}
 	}
 
-	return 0;	// Äù½ºÆ® ÁøÇàÁß
+	return 0;	// í€˜ìŠ¤íŠ¸ ì§„í–‰ì¤‘
 }
 BYTE CTPlayer::IsEnoughSkillPoint(CTSkillTemp * pSkill)
 {
@@ -4552,7 +4552,7 @@ void CTPlayer::InitializeSkill(CTSkill * pSkill)
 
 			while(pSkill->m_bLevel)
 			{
-				// ±âº»ÀûÀ¸·Î ÁÖ´Â ½ºÅ³
+				// ê¸°ë³¸ì ìœ¼ë¡œ ì£¼ëŠ” ìŠ¤í‚¬
 				if((*it).second->m_pTSKILL->m_bStartLevel == 0 &&
 					(*it).second->m_bLevel == 1)
 					break;
@@ -4708,7 +4708,7 @@ void CTPlayer::CheckSoulHP()
 		{
 			CTPlayer *pChar = vPLAYERS.back();
 
-			// ÇÇÀü¼Û
+			// í”¼ì „ì†¡
 			if(pChar->m_bMain &&
 				pChar->m_dwSoulmate == m_dwID &&
 				!pChar->m_dwSoulSilence &&
@@ -4809,10 +4809,10 @@ WORD CTPlayer::DurationDec(BYTE bSlot, BYTE bDel)
 	CTInven * pInven = FindTInven(INVEN_EQUIP);
 	switch(bSlot)
 	{
-	case 1://¿ø°Å¸®¹«±â
+	case 1://ì›ê±°ë¦¬ë¬´ê¸°
 		pItem1 = pInven->FindTItem(ES_LONGWEAPON);
 		break;
-	case 2://¹æÆÐ Á¦¿Ü ÁÖ.º¸Á¶¹«±â
+	case 2://ë°©íŒ¨ ì œì™¸ ì£¼.ë³´ì¡°ë¬´ê¸°
 		pItem1 = pInven->FindTItem(ES_PRMWEAPON);
 		if(pItem1 && pItem1->m_pTITEM->m_bType == IT_SHIELD)
 			pItem1 = NULL;
@@ -4820,7 +4820,7 @@ WORD CTPlayer::DurationDec(BYTE bSlot, BYTE bDel)
 		if(pItem2 && pItem2->m_pTITEM->m_bType == IT_SHIELD)
 			pItem2 = NULL;
 		break;
-	case 3://¹æ¾î±¸
+	case 3://ë°©ì–´êµ¬
 		bDef = rand() % 6;
 		switch(bDef)
 		{
@@ -4844,7 +4844,7 @@ WORD CTPlayer::DurationDec(BYTE bSlot, BYTE bDel)
 			break;
 		}
 		break;
-	case 4://¹æÆÐ
+	case 4://ë°©íŒ¨
 		pItem1 = pInven->FindTItem(ES_SNDWEAPON);
 		if(pItem1 && pItem1->m_pTITEM->m_bType != IT_SHIELD)
 			pItem1 = NULL;
@@ -7212,7 +7212,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 						CTItem* pNewItem = new CTItem();
 						WORD wItemID = 0;
 						WORD wMoggItemID = 0;
-						BYTE bLevel = BOW_ITEM_MIN_LEVEL;
+						BYTE bLevel = ::tmapsvr::bow::ItemMinLevel;
 						BYTE bGem = GEM0;
 
 						BYTE bColor = 0;
@@ -7264,7 +7264,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 
 							wItemID = (*it).second->m_wItemID;
 							wMoggItemID = (*it).second->m_wMoggItemID;
-							bLevel = (*it).second->m_bLevel > BOW_ITEM_MIN_LEVEL ? (*it).second->m_bLevel : BOW_ITEM_MIN_LEVEL;
+							bLevel = (*it).second->m_bLevel > ::tmapsvr::bow::ItemMinLevel ? (*it).second->m_bLevel : ::tmapsvr::bow::ItemMinLevel;
 							bGem = (*it).second->m_bGem;
 
 							bColor = (*it).second->m_bGradeEffect;
@@ -7289,7 +7289,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 #ifdef BR_COMPILE_MODE
 						pNewItem->m_bGradeEffect = bColor;
 #else
-						pNewItem->m_bGradeEffect = bCountry == TCONTRY_C ? CRAXION_EQUIP_EFFECT : DEFUGEL_EQUIP_EFFECT;
+						pNewItem->m_bGradeEffect = bCountry == TCONTRY_C ? ::tmapsvr::bow::CraxionEquipEffect : ::tmapsvr::bow::DefugelEquipEffect;
 #endif
 #endif
 						pNewItem->m_wMoggItemID = !wMoggItemID ? wItemID : wMoggItemID;
@@ -7360,7 +7360,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 														pNewItem->m_mapTMAGIC.insert(MAPTMAGIC::value_type((*itMag).first, pMAGIC));
 													}
 
-													pNewItem->m_bLevel = pItem->m_bLevel > BOW_ITEM_MIN_LEVEL ? pItem->m_bLevel : BOW_ITEM_MIN_LEVEL;
+													pNewItem->m_bLevel = pItem->m_bLevel > ::tmapsvr::bow::ItemMinLevel ? pItem->m_bLevel : ::tmapsvr::bow::ItemMinLevel;
 													pNewItem->m_bGem = pItem->m_bGem;
 
 												}
@@ -7400,7 +7400,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 
 
 
-				pACCESSORIES[Index]->m_bGradeEffect = bCountry == TCONTRY_D ? DEFUGEL_EQUIP_EFFECT : CRAXION_EQUIP_EFFECT;
+				pACCESSORIES[Index]->m_bGradeEffect = bCountry == TCONTRY_D ? ::tmapsvr::bow::DefugelEquipEffect : ::tmapsvr::bow::CraxionEquipEffect;
 #endif
 		}
 	}
@@ -7426,7 +7426,7 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 			pACCESSORIES[Index]->m_dlID = _AtlModule.GenItemID();
 			pACCESSORIES[Index]->m_wItemID = wItemID;
 			pACCESSORIES[Index]->m_bCount = 1;
-			pACCESSORIES[Index]->m_bLevel = pITEM->m_bCanGrade ? BOW_ITEM_MIN_LEVEL : 0;
+			pACCESSORIES[Index]->m_bLevel = pITEM->m_bCanGrade ? ::tmapsvr::bow::ItemMinLevel : 0;
 			pACCESSORIES[Index]->m_bGem = 0;
 
 			pACCESSORIES[Index]->m_bInven = INVEN_EQUIP;
@@ -7446,14 +7446,14 @@ void CTPlayer::ReplaceBOWEquipment(BOOL bSaved)
 
 	ReleaseForBOW(bSaved);
 	if (!m_dwBB && !bSaved)
-		IncrementBonusPoints(BOW_BP_BASE);
+		IncrementBonusPoints(::tmapsvr::bow::BpBase);
 
 	CTInven* pBOWInven = new CTInven();
 	pBOWInven->m_bInvenID = INVEN_BATTLE;
 	pBOWInven->m_dEndTime = NULL;
-	pBOWInven->m_pTITEM = _AtlModule.FindTItem(BOW_INVENTORY_ID);
+	pBOWInven->m_pTITEM = _AtlModule.FindTItem(::tmapsvr::bow::InventoryId);
 	pBOWInven->m_bELD = FALSE;
-	pBOWInven->m_wItemID = BOW_INVENTORY_ID;
+	pBOWInven->m_wItemID = ::tmapsvr::bow::InventoryId;
 
 	m_mapTINVEN.insert(MAPTINVEN::value_type(INVEN_BATTLE, pBOWInven));
 	SendCS_INVENADD_ACK(

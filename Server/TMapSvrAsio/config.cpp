@@ -3,6 +3,7 @@
 #include <toml++/toml.hpp>
 #include <spdlog/spdlog.h>
 
+#include <cstddef>
 #include <filesystem>
 #include <stdexcept>
 #include <string_view>
@@ -49,6 +50,26 @@ std::uint16_t RequirePort(std::int64_t v, const char* key)
     return static_cast<std::uint16_t>(v);
 }
 
+// Decode an even-length hex string into raw bytes. Matches the helper
+// in TLoginSvrAsio/config.cpp — operator-supplied bytes are passed
+// through verbatim with no implicit NUL append.
+std::vector<std::byte> ParseHexBytes(std::string_view hex)
+{
+    if (hex.size() % 2 != 0)
+        throw std::runtime_error("hex string must have even length");
+    auto nibble = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+        if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+        throw std::runtime_error(std::string("invalid hex char: ") + c);
+    };
+    std::vector<std::byte> out;
+    out.reserve(hex.size() / 2);
+    for (std::size_t i = 0; i < hex.size(); i += 2)
+        out.push_back(static_cast<std::byte>((nibble(hex[i]) << 4) | nibble(hex[i + 1])));
+    return out;
+}
+
 } // namespace
 
 AppConfig LoadConfig(const std::string& path)
@@ -70,7 +91,22 @@ AppConfig LoadConfig(const std::string& path)
     if (auto srv = tbl["server"].as_table())
     {
         if (auto p = (*srv)["port"].value<std::int64_t>())
-            cfg.port = RequirePort(*p, "server.port");
+            cfg.server.port = RequirePort(*p, "server.port");
+        if (auto m = (*srv)["max_connections"].value<std::int64_t>())
+        {
+            if (*m < 1 || *m > 100000)
+                throw std::runtime_error("server.max_connections out of range");
+            cfg.server.max_connections = static_cast<std::uint32_t>(*m);
+        }
+    }
+    if (auto crypto = tbl["crypto"].as_table())
+    {
+        if (auto hex = (*crypto)["rc4_secret_hex"].value<std::string>())
+            cfg.server.rc4_secret_key = ParseHexBytes(*hex);
+        if (auto disable = (*crypto)["disable"].value<bool>())
+        {
+            if (*disable) cfg.server.rc4_secret_key.clear();
+        }
     }
     if (auto m = tbl["mode"].as_table())
     {
@@ -109,8 +145,9 @@ AppConfig LoadConfig(const std::string& path)
         if (auto lvl = (*log)["level"].value<std::string>())
             cfg.log_level = ParseLogLevel(*lvl);
     }
-    spdlog::info("loaded config from '{}' — port={} mode={} world={}:{} db={}",
-        path, cfg.port, ModeName(cfg.mode),
+    spdlog::info("loaded config from '{}' — port={} mode={} crypto={} world={}:{} db={}",
+        path, cfg.server.port, ModeName(cfg.mode),
+        cfg.server.rc4_secret_key.empty() ? "off" : "on",
         cfg.world.host, cfg.world.port,
         cfg.database.connection_string.empty() ? "(none)" : cfg.database.backend);
     return cfg;

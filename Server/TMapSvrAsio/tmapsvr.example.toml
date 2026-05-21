@@ -7,6 +7,23 @@
 # TCP port the game client connects to. 5815 = DEF_MAPPORT (legacy
 # TServer row bType=3).
 port = 5815
+# Hard cap on concurrent live sessions. Each AsioSession holds a
+# decoded packet buffer + crypto state — sized for the legacy 8K
+# default. Lower for dev / lab; raise carefully (kernel fd budget,
+# RAM).
+max_connections = 8000
+
+[crypto]
+# Hex-encoded RC4 secret key for client ↔ map encryption. Server-side
+# convention (matches CSession::Decrypt path): we run RC4 on inbound
+# only — outbound stays XOR. The hex string is decoded byte-for-byte,
+# operator must include any trailing NUL byte the legacy default
+# requires.
+#
+# Leave commented (or set disable = true) to run plain-wire — useful
+# for smoke tests with netcat / packet replay tooling.
+# rc4_secret_hex = "0102030405060708090a0b0c0d0e0f00"
+disable = true
 
 [mode]
 # Game-mode selector — replaces the legacy BR_COMPILE_MODE /
@@ -20,7 +37,7 @@ type = "pve"
 [world]
 # TWorldSvr peer this map talks to. Wired up starting in phase F5
 # (services/world_client.cpp) — port = 0 disables the outbound link
-# until then, so a F2-era boot doesn't pollute the log with retry
+# until then, so a F3-era boot doesn't pollute the log with retry
 # messages.
 host = "127.0.0.1"
 port = 0

@@ -7,16 +7,18 @@
 #
 # Layout
 # ------
-#   main.cpp          F2 scaffold entry point (config + schema check).
-#   config.h/cpp      TOML loader — port, mode, [database], [world].
+#   main.cpp          F3 scaffold entry point (listener + AsioSession).
+#   config.h/cpp      TOML loader — port, mode, [crypto], [database],
+#                     [world].
 #   tmapsvr.example.toml  Documented defaults.
+#   map_server.h/cpp  Accept loop, per-connection coroutine, RC4 toggle.
 #   db/               Per-server schema validators (boot-time fail-fast).
 #   legacy_src/       Verbatim copy of Server/TMapSvr/, reference only,
 #                     not compiled.
 #
 # Phase plan (see PR #23 design doc): F1 main scaffold (done), F2
-# config + schema validator (this commit), F3 MapServer accept loop,
-# F4 handshake, F5 World peer, F6 movement, F7 channels+AOI,
+# config + schema validator (done), F3 MapServer accept loop (this
+# commit), F4 handshake, F5 World peer, F6 movement, F7 channels+AOI,
 # F8 combat, F9 items, F10 NPCs, F11 skills, F12 quests,
 # F13 monsters/AI, F14 party+chat, F15 companions, F16 BR/Bow run-time
 # mode, F17 control+audit.
@@ -48,13 +50,17 @@ endif()
 # so unit tests can link against the core without dragging in main().
 add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/config.cpp
+    ${TMAPSVR_ASIO_SRC}/map_server.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp)
 
 target_include_directories(tmapsvr_asio_core PUBLIC
     ${TMAPSVR_ASIO_SRC})
 
+# tnetlib_portable carries AsioSession (RC4+XOR+sequence wire codec)
+# and the MessageId enum the F4+ handlers dispatch on.
 target_link_libraries(tmapsvr_asio_core PUBLIC
     fourstory_common
+    tnetlib_portable
     ${TMAPSVR_SOCI_LIBS})
 
 if(TARGET Boost::system)

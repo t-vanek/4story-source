@@ -1,11 +1,13 @@
 #pragma once
 
 // TMapSvrAsio TOML configuration. Same shape as TPatchSvrAsio /
-// TLoginSvrAsio — TOML sections [server], [database], [health],
-// [log], plus map-server-specific [mode] (run-time PvE / Bow / BR
-// switch, replacing the legacy BR_COMPILE_MODE / BOW_COMPILE_MODE
-// compile flags) and [world] (the TWorldSvr peer this map talks to,
-// wired up starting in phase F5).
+// TLoginSvrAsio — TOML sections [server], [crypto], [mode], [database],
+// [world], [health], [log], plus map-server-specific [mode] (run-time
+// PvE / Bow / BR switch, replacing legacy BR/BOW_COMPILE_MODE compile
+// flags) and [world] (the TWorldSvr peer this map talks to, wired up
+// starting in phase F5).
+
+#include "map_server.h"
 
 #include <spdlog/common.h>
 
@@ -50,8 +52,9 @@ struct WorldPeerConfig
 
 struct AppConfig
 {
-    // TCP listener — 5815 is the legacy DEF_MAPPORT.
-    std::uint16_t  port = 5815;
+    // Listener configuration consumed by MapServer. Holds port,
+    // max_connections, and the RC4 key shared with the legacy client.
+    MapServerConfig server;
 
     // Game mode (replaces legacy compile-time flags).
     Mode           mode = Mode::PvE;

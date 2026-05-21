@@ -1,5 +1,7 @@
 #include "soci_npc_service.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -21,10 +23,7 @@ SociNpcService::SociNpcService(fourstory::db::SessionPool& pool)
     std::string  row_name;
     soci::indicator name_ind = soci::i_null;
 
-    soci::statement st = (sql.prepare <<
-        "SELECT wID, szName, bType, bCountryID, wLocalID, bCondition, "
-        "  bDiscountRate, bAddProb, wItemID, wMapID, fPosX, fPosY, fPosZ "
-        "FROM TNPCCHART",
+    soci::statement st = (sql.prepare << queries::AllNpcs,
         soci::into(row_id),
         soci::into(row_name, name_ind),
         soci::into(row_type),
@@ -43,19 +42,19 @@ SociNpcService::SociNpcService(fourstory::db::SessionPool& pool)
     while (st.fetch())
     {
         NpcRow r;
-        r.wID           = static_cast<std::uint16_t>(row_id);
-        r.szName        = (name_ind == soci::i_ok) ? row_name : std::string{};
-        r.bType         = static_cast<std::uint8_t> (row_type);
-        r.bCountryID    = static_cast<std::uint8_t> (row_country);
-        r.wLocalID      = static_cast<std::uint16_t>(row_local);
-        r.bCondition    = static_cast<std::uint8_t> (row_condition);
-        r.bDiscountRate = static_cast<std::uint8_t> (row_disc);
-        r.bAddProb      = static_cast<std::uint8_t> (row_addprob);
-        r.wItemID       = static_cast<std::uint16_t>(row_item);
-        r.wMapID        = static_cast<std::uint16_t>(row_map);
-        r.fPosX         = static_cast<float>(row_x);
-        r.fPosY         = static_cast<float>(row_y);
-        r.fPosZ         = static_cast<float>(row_z);
+        r.wID           = db::Narrow16(row_id);
+        r.szName        = db::SafeString(row_name, name_ind);
+        r.bType         = db::Narrow8 (row_type);
+        r.bCountryID    = db::Narrow8 (row_country);
+        r.wLocalID      = db::Narrow16(row_local);
+        r.bCondition    = db::Narrow8 (row_condition);
+        r.bDiscountRate = db::Narrow8 (row_disc);
+        r.bAddProb      = db::Narrow8 (row_addprob);
+        r.wItemID       = db::Narrow16(row_item);
+        r.wMapID        = db::Narrow16(row_map);
+        r.fPosX         = db::NarrowF(row_x);
+        r.fPosY         = db::NarrowF(row_y);
+        r.fPosZ         = db::NarrowF(row_z);
         m_rows[r.wID] = std::move(r);
     }
 

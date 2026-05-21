@@ -1,5 +1,7 @@
 #include "soci_player_service.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -8,17 +10,6 @@
 #include <string>
 
 namespace tmapsvr {
-
-namespace {
-
-// Helper: ODBC sometimes hands back tinyint columns as int32 even
-// when bound to a smaller integer. Forcing the SELECT into int32
-// receivers and narrowing on copy avoids the SOCI "type mismatch"
-// throws we'd otherwise hit on certain SQL Server drivers.
-template <class T>
-T NarrowCast(std::int32_t v) { return static_cast<T>(v); }
-
-} // namespace
 
 SociPlayerService::SociPlayerService(fourstory::db::SessionPool& pool)
     : m_pool(pool)
@@ -33,11 +24,11 @@ SociPlayerService::LoadChar(std::uint32_t char_id)
         auto lease = m_pool.Acquire();
         auto& sql  = *lease;
 
-        // SELECT the columns the F8 wire encoding needs. Column names
-        // and order match legacy CTBLChar (SSHandler.cpp:3329). The
-        // receivers are int32 / std::string / double; we narrow on
-        // copy below. Float positions go through `double` because
-        // ODBC's REAL → float bind path is fragile on some drivers.
+        // Receivers are int32 / std::string / double; we narrow on
+        // copy below via db::Narrow* helpers. Float positions go
+        // through `double` because ODBC's REAL → float bind path is
+        // fragile on some drivers. Column order matches
+        // queries::CharByCharId exactly.
         std::int32_t row_char_id = 0;
         std::string  row_name;
         std::int32_t row_start_act = 0, row_real_sex = 0, row_class = 0,
@@ -59,15 +50,7 @@ SociPlayerService::LoadChar(std::uint32_t char_id)
 
         soci::indicator name_ind = soci::i_null;
 
-        sql <<
-            "SELECT dwCharID, szNAME, bStartAct, bRealSex, bClass, bLevel, "
-            "  bRace, bCountry, bOriCountry, bSex, bHair, bFace, bBody, "
-            "  bPants, bHand, bFoot, bHelmetHide, dwGold, dwSilver, dwCooper, "
-            "  dwEXP, dwHP, dwMP, wSkillPoint, dwRegion, bGuildLeave, "
-            "  dwGuildLeaveTime, wMapID, wSpawnID, wLastSpawnID, "
-            "  dwLastDestination, wTemptedMon, bAftermath, fPosX, fPosY, "
-            "  fPosZ, wDIR, bStatLevel, bStatPoint, dwStatExp "
-            "FROM TCHARTABLE WHERE dwCharID = :cid AND bDelete = 0",
+        sql << queries::CharByCharId,
             soci::use(static_cast<std::int32_t>(char_id), "cid"),
             soci::into(row_char_id),
             soci::into(row_name, name_ind),
@@ -98,46 +81,46 @@ SociPlayerService::LoadChar(std::uint32_t char_id)
             return std::nullopt;
 
         CharSnapshot s;
-        s.dwCharID         = static_cast<std::uint32_t>(row_char_id);
-        s.szNAME           = (name_ind == soci::i_ok) ? row_name : std::string{};
-        s.bStartAct        = NarrowCast<std::uint8_t> (row_start_act);
-        s.bRealSex         = NarrowCast<std::uint8_t> (row_real_sex);
-        s.bClass           = NarrowCast<std::uint8_t> (row_class);
-        s.bLevel           = NarrowCast<std::uint8_t> (row_level);
-        s.bRace            = NarrowCast<std::uint8_t> (row_race);
-        s.bCountry         = NarrowCast<std::uint8_t> (row_country);
-        s.bOriCountry      = NarrowCast<std::uint8_t> (row_ori_country);
-        s.bSex             = NarrowCast<std::uint8_t> (row_sex);
-        s.bHair            = NarrowCast<std::uint8_t> (row_hair);
-        s.bFace            = NarrowCast<std::uint8_t> (row_face);
-        s.bBody            = NarrowCast<std::uint8_t> (row_body);
-        s.bPants           = NarrowCast<std::uint8_t> (row_pants);
-        s.bHand            = NarrowCast<std::uint8_t> (row_hand);
-        s.bFoot            = NarrowCast<std::uint8_t> (row_foot);
-        s.bHelmetHide      = NarrowCast<std::uint8_t> (row_helmet_hide);
-        s.dwGold           = static_cast<std::uint32_t>(row_gold);
-        s.dwSilver         = static_cast<std::uint32_t>(row_silver);
-        s.dwCooper         = static_cast<std::uint32_t>(row_cooper);
-        s.dwEXP            = static_cast<std::uint32_t>(row_exp);
-        s.dwHP             = static_cast<std::uint32_t>(row_hp);
-        s.dwMP             = static_cast<std::uint32_t>(row_mp);
-        s.wSkillPoint      = NarrowCast<std::uint16_t>(row_skill_point);
-        s.dwRegion         = static_cast<std::uint32_t>(row_region);
-        s.bGuildLeave      = NarrowCast<std::uint8_t> (row_guild_leave);
-        s.dwGuildLeaveTime = static_cast<std::uint32_t>(row_guild_leave_time);
-        s.wMapID           = NarrowCast<std::uint16_t>(row_map);
-        s.wSpawnID         = NarrowCast<std::uint16_t>(row_spawn);
-        s.wLastSpawnID     = NarrowCast<std::uint16_t>(row_last_spawn);
-        s.dwLastDestination= static_cast<std::uint32_t>(row_last_dest);
-        s.wTemptedMon      = NarrowCast<std::uint16_t>(row_tempted_mon);
-        s.bAftermath       = NarrowCast<std::uint8_t> (row_aftermath);
-        s.fPosX            = static_cast<float>(row_pos_x);
-        s.fPosY            = static_cast<float>(row_pos_y);
-        s.fPosZ            = static_cast<float>(row_pos_z);
-        s.wDIR             = NarrowCast<std::uint16_t>(row_dir);
-        s.bStatLevel       = NarrowCast<std::uint8_t> (row_stat_level);
-        s.bStatPoint       = NarrowCast<std::uint8_t> (row_stat_point);
-        s.dwStatExp        = static_cast<std::uint32_t>(row_stat_exp);
+        s.dwCharID         = db::Narrow32(row_char_id);
+        s.szNAME           = db::SafeString(row_name, name_ind);
+        s.bStartAct        = db::Narrow8 (row_start_act);
+        s.bRealSex         = db::Narrow8 (row_real_sex);
+        s.bClass           = db::Narrow8 (row_class);
+        s.bLevel           = db::Narrow8 (row_level);
+        s.bRace            = db::Narrow8 (row_race);
+        s.bCountry         = db::Narrow8 (row_country);
+        s.bOriCountry      = db::Narrow8 (row_ori_country);
+        s.bSex             = db::Narrow8 (row_sex);
+        s.bHair            = db::Narrow8 (row_hair);
+        s.bFace            = db::Narrow8 (row_face);
+        s.bBody            = db::Narrow8 (row_body);
+        s.bPants           = db::Narrow8 (row_pants);
+        s.bHand            = db::Narrow8 (row_hand);
+        s.bFoot            = db::Narrow8 (row_foot);
+        s.bHelmetHide      = db::Narrow8 (row_helmet_hide);
+        s.dwGold           = db::Narrow32(row_gold);
+        s.dwSilver         = db::Narrow32(row_silver);
+        s.dwCooper         = db::Narrow32(row_cooper);
+        s.dwEXP            = db::Narrow32(row_exp);
+        s.dwHP             = db::Narrow32(row_hp);
+        s.dwMP             = db::Narrow32(row_mp);
+        s.wSkillPoint      = db::Narrow16(row_skill_point);
+        s.dwRegion         = db::Narrow32(row_region);
+        s.bGuildLeave      = db::Narrow8 (row_guild_leave);
+        s.dwGuildLeaveTime = db::Narrow32(row_guild_leave_time);
+        s.wMapID           = db::Narrow16(row_map);
+        s.wSpawnID         = db::Narrow16(row_spawn);
+        s.wLastSpawnID     = db::Narrow16(row_last_spawn);
+        s.dwLastDestination= db::Narrow32(row_last_dest);
+        s.wTemptedMon      = db::Narrow16(row_tempted_mon);
+        s.bAftermath       = db::Narrow8 (row_aftermath);
+        s.fPosX            = db::NarrowF(row_pos_x);
+        s.fPosY            = db::NarrowF(row_pos_y);
+        s.fPosZ            = db::NarrowF(row_pos_z);
+        s.wDIR             = db::Narrow16(row_dir);
+        s.bStatLevel       = db::Narrow8 (row_stat_level);
+        s.bStatPoint       = db::Narrow8 (row_stat_point);
+        s.dwStatExp        = db::Narrow32(row_stat_exp);
         return s;
     }
     catch (const std::exception& ex)

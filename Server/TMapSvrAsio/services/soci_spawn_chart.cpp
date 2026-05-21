@@ -1,5 +1,7 @@
 #include "soci_spawn_chart.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -17,10 +19,7 @@ SociSpawnChart::SociSpawnChart(fourstory::db::SessionPool& pool)
                  row_area = 0, row_link = 0, row_prob = 0, row_roam = 0;
     double       row_x = 0.0, row_y = 0.0, row_z = 0.0;
 
-    soci::statement st = (sql.prepare <<
-        "SELECT wID, wGroup, wLocalID, wMapID, fPosX, fPosY, fPosZ, "
-        "  wDir, bCountry, bCount, bRange, bArea, bLink, bProb, bRoamType "
-        "FROM TMONSPAWNCHART",
+    soci::statement st = (sql.prepare << queries::AllSpawns,
         soci::into(row_id),      soci::into(row_group),
         soci::into(row_local),   soci::into(row_map),
         soci::into(row_x),       soci::into(row_y),
@@ -34,21 +33,21 @@ SociSpawnChart::SociSpawnChart(fourstory::db::SessionPool& pool)
     while (st.fetch())
     {
         SpawnPoint p;
-        p.wID       = static_cast<std::uint16_t>(row_id);
-        p.wGroup    = static_cast<std::uint16_t>(row_group);
-        p.wLocalID  = static_cast<std::uint16_t>(row_local);
-        p.wMapID    = static_cast<std::uint16_t>(row_map);
-        p.fPosX     = static_cast<float>(row_x);
-        p.fPosY     = static_cast<float>(row_y);
-        p.fPosZ     = static_cast<float>(row_z);
-        p.wDir      = static_cast<std::uint16_t>(row_dir);
-        p.bCountry  = static_cast<std::uint8_t> (row_country);
-        p.bCount    = static_cast<std::uint8_t> (row_count);
-        p.bRange    = static_cast<std::uint8_t> (row_range);
-        p.bArea     = static_cast<std::uint8_t> (row_area);
-        p.bLink     = static_cast<std::uint8_t> (row_link);
-        p.bProb     = static_cast<std::uint8_t> (row_prob);
-        p.bRoamType = static_cast<std::uint8_t> (row_roam);
+        p.wID       = db::Narrow16(row_id);
+        p.wGroup    = db::Narrow16(row_group);
+        p.wLocalID  = db::Narrow16(row_local);
+        p.wMapID    = db::Narrow16(row_map);
+        p.fPosX     = db::NarrowF(row_x);
+        p.fPosY     = db::NarrowF(row_y);
+        p.fPosZ     = db::NarrowF(row_z);
+        p.wDir      = db::Narrow16(row_dir);
+        p.bCountry  = db::Narrow8 (row_country);
+        p.bCount    = db::Narrow8 (row_count);
+        p.bRange    = db::Narrow8 (row_range);
+        p.bArea     = db::Narrow8 (row_area);
+        p.bLink     = db::Narrow8 (row_link);
+        p.bProb     = db::Narrow8 (row_prob);
+        p.bRoamType = db::Narrow8 (row_roam);
         m_rows.push_back(p);
     }
 

@@ -1,5 +1,7 @@
 #include "soci_companion_service.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -30,11 +32,7 @@ SociCompanionService::LoadCompanions(std::uint32_t char_id)
         std::string  row_name;
         soci::indicator name_ind = soci::i_null;
 
-        soci::statement st = (sql.prepare <<
-            "SELECT bSlot, dwMonID, bLevel, strName, dwExp, wLife, "
-            "  bStatusPoints, bEffect, wSTR, wDEX, wCON, wINT, wWIS, "
-            "  wMEN, wBonusID "
-            "FROM TCOMPANIONTABLE WHERE dwCharID = :cid",
+        soci::statement st = (sql.prepare << queries::CompanionsByCharId,
             soci::use(static_cast<std::int32_t>(char_id), "cid"),
             soci::into(row_slot), soci::into(row_mon),
             soci::into(row_level), soci::into(row_name, name_ind),
@@ -48,21 +46,21 @@ SociCompanionService::LoadCompanions(std::uint32_t char_id)
         while (st.fetch())
         {
             CompanionRow c;
-            c.bSlot         = static_cast<std::uint8_t> (row_slot);
-            c.dwMonID       = static_cast<std::uint32_t>(row_mon);
-            c.bLevel        = static_cast<std::uint8_t> (row_level);
-            c.strName       = (name_ind == soci::i_ok) ? row_name : std::string{};
-            c.dwExp         = static_cast<std::uint32_t>(row_exp);
-            c.wLife         = static_cast<std::uint16_t>(row_life);
-            c.bStatusPoints = static_cast<std::uint8_t> (row_status_points);
-            c.bEffect       = static_cast<std::uint8_t> (row_effect);
-            c.wSTR          = static_cast<std::uint16_t>(row_str);
-            c.wDEX          = static_cast<std::uint16_t>(row_dex);
-            c.wCON          = static_cast<std::uint16_t>(row_con);
-            c.wINT          = static_cast<std::uint16_t>(row_int);
-            c.wWIS          = static_cast<std::uint16_t>(row_wis);
-            c.wMEN          = static_cast<std::uint16_t>(row_men);
-            c.wBonusID      = static_cast<std::uint16_t>(row_bonus);
+            c.bSlot         = db::Narrow8 (row_slot);
+            c.dwMonID       = db::Narrow32(row_mon);
+            c.bLevel        = db::Narrow8 (row_level);
+            c.strName       = db::SafeString(row_name, name_ind);
+            c.dwExp         = db::Narrow32(row_exp);
+            c.wLife         = db::Narrow16(row_life);
+            c.bStatusPoints = db::Narrow8 (row_status_points);
+            c.bEffect       = db::Narrow8 (row_effect);
+            c.wSTR          = db::Narrow16(row_str);
+            c.wDEX          = db::Narrow16(row_dex);
+            c.wCON          = db::Narrow16(row_con);
+            c.wINT          = db::Narrow16(row_int);
+            c.wWIS          = db::Narrow16(row_wis);
+            c.wMEN          = db::Narrow16(row_men);
+            c.wBonusID      = db::Narrow16(row_bonus);
             out.push_back(std::move(c));
         }
     }

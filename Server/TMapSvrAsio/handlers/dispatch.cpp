@@ -1,0 +1,104 @@
+// Central dispatch — switch over MessageId to the matching OnXxx
+// coroutine. Handler implementations live in sibling files:
+//
+//   session.cpp   CONNECT_REQ, CONREADY_REQ
+//   movement.cpp  MOVE_REQ
+//   npc.cpp       NPCTALK_REQ
+//   skill.cpp     SKILLUSE_REQ
+//   quest.cpp     QUESTEXEC_REQ, QUESTDROP_REQ
+//   social.cpp    CHAT_REQ, PARTY{ADD,JOIN,DEL}_REQ
+//   bow.cpp       REGISTERBOW_REQ, CANCELBOWQUEUE_REQ, CASHBOWRESPAWN_REQ
+//   control.cpp   CT_{ANNOUNCEMENT,USERKICKOUT,SERVICEMONITOR,
+//                     SERVICEDATACLEAR}_ACK, CT_CTRLSVR_REQ
+
+#include "handlers.h"
+
+#include "MessageId.h"
+
+#include <spdlog/spdlog.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <utility>
+#include <vector>
+
+namespace tmapsvr {
+
+boost::asio::awaitable<void>
+Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
+         std::uint16_t                         wId,
+         std::vector<std::byte>                body,
+         const HandlerContext&                 ctx)
+{
+    using tnetlib::protocol::MessageId;
+    using tnetlib::protocol::ToMessageId;
+
+    const auto id = ToMessageId(wId);
+    switch (id)
+    {
+    case MessageId::CS_CONNECT_REQ:
+        co_await OnConnectReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_CONREADY_REQ:
+        co_await OnConReadyReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_MOVE_REQ:
+        co_await OnMoveReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_NPCTALK_REQ:
+        co_await OnNpcTalkReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_SKILLUSE_REQ:
+        co_await OnSkillUseReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_QUESTEXEC_REQ:
+        co_await OnQuestExecReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_QUESTDROP_REQ:
+        co_await OnQuestDropReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_CHAT_REQ:
+        co_await OnChatReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_PARTYADD_REQ:
+        co_await OnPartyAddReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_PARTYJOIN_REQ:
+        co_await OnPartyJoinReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_PARTYDEL_REQ:
+        co_await OnPartyDelReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_REGISTERBOW_REQ:
+        co_await OnRegisterBowReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_CANCELBOWQUEUE_REQ:
+        co_await OnCancelBowQueueReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_CASHBOWRESPAWN_REQ:
+        co_await OnCashBowRespawnReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CT_ANNOUNCEMENT_ACK:
+        co_await OnCtAnnouncementAck(sess, std::move(body), ctx);
+        break;
+    case MessageId::CT_USERKICKOUT_ACK:
+        co_await OnCtUserKickoutAck(sess, std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICEMONITOR_ACK:
+        co_await OnCtServiceMonitorAck(sess, std::move(body), ctx);
+        break;
+    case MessageId::CT_SERVICEDATACLEAR_ACK:
+        co_await OnCtServiceDataClearAck(sess, std::move(body), ctx);
+        break;
+    case MessageId::CT_CTRLSVR_REQ:
+        co_await OnCtCtrlSvrReq(sess, std::move(body), ctx);
+        break;
+
+    default:
+        spdlog::debug("map_server: unhandled wId=0x{:04X} body={} bytes",
+            wId, body.size());
+        break;
+    }
+}
+
+} // namespace tmapsvr

@@ -1,5 +1,7 @@
 #include "soci_session_validator.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -34,8 +36,7 @@ SociMapSessionValidator::LookupSession(std::uint32_t user_id, std::uint32_t key)
         std::int32_t row_locked    = 0;
         soci::indicator ind        = soci::i_null;
 
-        sql << "SELECT dwUserID, dwKEY, bGroupID, bChannel, szLoginIP, bLocked "
-               "FROM TCURRENTUSER WHERE dwUserID = :uid AND dwKEY = :key",
+        sql << queries::SessionByUserKey,
             soci::use(static_cast<std::int32_t>(user_id), "uid"),
             soci::use(static_cast<std::int32_t>(key),     "key"),
             soci::into(row_user_id),
@@ -49,21 +50,16 @@ SociMapSessionValidator::LookupSession(std::uint32_t user_id, std::uint32_t key)
             return std::nullopt;
 
         MapSessionInfo info;
-        info.dwUserID  = static_cast<std::uint32_t>(row_user_id);
-        info.dwKEY     = static_cast<std::uint32_t>(row_key);
-        info.bGroupID  = static_cast<std::uint8_t>(row_group);
-        info.bChannel  = static_cast<std::uint8_t>(row_channel);
-        info.szLoginIP = (ind == soci::i_ok) ? row_login_ip : std::string{};
+        info.dwUserID  = db::Narrow32(row_user_id);
+        info.dwKEY     = db::Narrow32(row_key);
+        info.bGroupID  = db::Narrow8 (row_group);
+        info.bChannel  = db::Narrow8 (row_channel);
+        info.szLoginIP = db::SafeString(row_login_ip, ind);
         info.bLocked   = row_locked != 0;
         return info;
     }
     catch (const std::exception& ex)
     {
-        // SOCI throws on driver / connection trouble. Treat as
-        // "lookup failed" so the handler refuses the session rather
-        // than crashing the io_context. The boot-time schema check
-        // already proved the columns exist; runtime failures here
-        // are typically transient (network blip, pool exhaustion).
         spdlog::error("soci_session_validator: lookup uid={} threw: {}",
             user_id, ex.what());
         return std::nullopt;

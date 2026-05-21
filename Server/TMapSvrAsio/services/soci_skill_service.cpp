@@ -1,5 +1,7 @@
 #include "soci_skill_service.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -22,9 +24,7 @@ SociSkillService::LoadSkills(std::uint32_t char_id)
         auto& sql  = *lease;
 
         std::int32_t row_skill_id = 0, row_level = 0, row_remain = 0;
-        soci::statement st = (sql.prepare <<
-            "SELECT wSkillID, bLevel, dwRemainTick "
-            "FROM TSKILLTABLE WHERE dwCharID = :cid",
+        soci::statement st = (sql.prepare << queries::SkillsByCharId,
             soci::use(static_cast<std::int32_t>(char_id), "cid"),
             soci::into(row_skill_id),
             soci::into(row_level),
@@ -34,9 +34,9 @@ SociSkillService::LoadSkills(std::uint32_t char_id)
         while (st.fetch())
         {
             SkillRow r;
-            r.wSkillID     = static_cast<std::uint16_t>(row_skill_id);
-            r.bLevel       = static_cast<std::uint8_t> (row_level);
-            r.dwRemainTick = static_cast<std::uint32_t>(row_remain);
+            r.wSkillID     = db::Narrow16(row_skill_id);
+            r.bLevel       = db::Narrow8 (row_level);
+            r.dwRemainTick = db::Narrow32(row_remain);
             out.push_back(r);
         }
     }

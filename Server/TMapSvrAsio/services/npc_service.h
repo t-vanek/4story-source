@@ -15,31 +15,12 @@
 // Modeled on the legacy CTMapSvrModule::m_mapTNpc + FindTNpc in
 // legacy_src/TMapSvrModule.h:82,481.
 
+#include "domain/npc.h"
+
 #include <cstdint>
 #include <optional>
-#include <string>
 
 namespace tmapsvr {
-
-// Subset of TNPCCHART columns the F10 dispatcher reads. Later
-// phases (F12 quests, shops) will use bType / wItemID /
-// bDiscountRate / etc.
-struct NpcRow
-{
-    std::uint16_t  wID            = 0;
-    std::string    szName;
-    std::uint8_t   bType          = 0;     // shop / quest / gate / …
-    std::uint8_t   bCountryID     = 0;
-    std::uint16_t  wLocalID       = 0;     // occupation-zone id (country control)
-    std::uint8_t   bCondition     = 0;     // shop discount-condition flag
-    std::uint8_t   bDiscountRate  = 0;
-    std::uint8_t   bAddProb       = 0;
-    std::uint16_t  wItemID        = 0;
-    std::uint16_t  wMapID         = 0;
-    float          fPosX          = 0.f;
-    float          fPosY          = 0.f;
-    float          fPosZ          = 0.f;
-};
 
 class INpcService
 {

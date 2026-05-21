@@ -17,6 +17,8 @@
 
 #include "handlers.h"
 
+#include "audit/audit_log.h"
+#include "audit/event.h"
 #include "services/channel_presence.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
@@ -174,6 +176,22 @@ OnConnectReq(std::shared_ptr<tnetlib::AsioSession> sess,
     spdlog::info("CS_CONNECT_REQ uid={} key={} char={} ch={} ver={} -> {}",
         dwUserID, dwKEY, dwID, bChannel, wVersion,
         ConnectResultName(result));
+
+    // T4 audit: structured login event for the operations dashboard.
+    // Always emitted (success and failure) so security tooling can
+    // alert on InvalidChar / Internal spikes.
+    if (ctx.audit)
+    {
+        audit::LoginAttemptEvent ev{};
+        ev.hdr.corr = ctx.audit->NextCorrelation();
+        ev.user_id  = dwUserID;
+        ev.key      = dwKEY;
+        ev.char_id  = dwID;
+        ev.channel  = bChannel;
+        ev.result   = static_cast<std::uint8_t>(result);
+        ev.version  = wVersion;
+        ctx.audit->Emit(ev);
+    }
 
     // Register the session under its char id BEFORE the ack flushes
     // so a fast world reply (DM_LOADCHAR_REQ on this same char) can

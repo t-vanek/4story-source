@@ -1,10 +1,18 @@
-// Unit test for fourstory::db::CoOffload. Verifies:
+// Unit test for fourstory::db::CoOffload + the optional-pool wrappers.
+// Verifies:
 //   1. The lambda runs on a worker thread (not the io_context).
 //   2. The coroutine resumes on the original executor with the
 //      return value.
 //   3. Exceptions thrown inside the lambda propagate back to the
 //      caller.
 //   4. CoOffloadVoid path works for void-returning callables.
+//   5. CoOffloadIf  (R-returning, nullable pool):
+//        a. null pool  → callable runs inline, return value preserved
+//        b. valid pool → callable runs on worker thread
+//        c. null pool + throw → exception propagates
+//   6. CoOffloadVoidIf:
+//        a. null pool  → callable runs inline
+//        b. valid pool → callable runs on worker thread
 
 #include "fourstory/db/co_offload.h"
 
@@ -126,6 +134,110 @@ void TestVoidVariant()
     EXPECT(resumed.load());
 }
 
+// ---- CoOffloadIf / CoOffloadVoidIf coverage ----------------------
+
+void TestCoOffloadIfNullPoolInline()
+{
+    boost::asio::io_context io;
+    const auto io_thread_id = std::this_thread::get_id();
+    std::thread::id ran_on_thread{};
+    int result = -1;
+
+    boost::asio::co_spawn(io, [&]() -> boost::asio::awaitable<void> {
+        result = co_await fourstory::db::CoOffloadIf(nullptr,
+            [&io_thread_id, &ran_on_thread] {
+                ran_on_thread = std::this_thread::get_id();
+                return 42;
+            });
+    }, boost::asio::detached);
+
+    io.run();
+    EXPECT(result == 42);
+    // Null pool MUST run inline — on the same thread as io.run().
+    EXPECT(ran_on_thread == io_thread_id);
+}
+
+void TestCoOffloadIfWithPoolOffloads()
+{
+    boost::asio::io_context io;
+    boost::asio::thread_pool pool(2);
+    const auto io_thread_id = std::this_thread::get_id();
+    std::thread::id ran_on_thread{};
+    int result = -1;
+
+    boost::asio::co_spawn(io, [&]() -> boost::asio::awaitable<void> {
+        result = co_await fourstory::db::CoOffloadIf(&pool,
+            [&ran_on_thread] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                ran_on_thread = std::this_thread::get_id();
+                return 7;
+            });
+    }, boost::asio::detached);
+
+    io.run();
+    pool.stop();
+    pool.join();
+    EXPECT(result == 7);
+    // Valid pool MUST hop to a worker thread.
+    EXPECT(ran_on_thread != io_thread_id);
+}
+
+void TestCoOffloadIfNullPoolPropagatesException()
+{
+    boost::asio::io_context io;
+    bool caught = false;
+
+    boost::asio::co_spawn(io, [&]() -> boost::asio::awaitable<void> {
+        try {
+            co_await fourstory::db::CoOffloadIf(nullptr,
+                []() -> int { throw std::runtime_error("boom"); });
+        } catch (const std::runtime_error&) {
+            caught = true;
+        }
+    }, boost::asio::detached);
+
+    io.run();
+    EXPECT(caught);
+}
+
+void TestCoOffloadVoidIfNullPoolInline()
+{
+    boost::asio::io_context io;
+    const auto io_thread_id = std::this_thread::get_id();
+    std::thread::id ran_on_thread{};
+
+    boost::asio::co_spawn(io, [&]() -> boost::asio::awaitable<void> {
+        co_await fourstory::db::CoOffloadVoidIf(nullptr,
+            [&ran_on_thread] {
+                ran_on_thread = std::this_thread::get_id();
+            });
+    }, boost::asio::detached);
+
+    io.run();
+    EXPECT(ran_on_thread == io_thread_id);
+}
+
+void TestCoOffloadVoidIfWithPoolOffloads()
+{
+    boost::asio::io_context io;
+    boost::asio::thread_pool pool(2);
+    const auto io_thread_id = std::this_thread::get_id();
+    std::thread::id ran_on_thread{};
+
+    boost::asio::co_spawn(io, [&]() -> boost::asio::awaitable<void> {
+        co_await fourstory::db::CoOffloadVoidIf(&pool,
+            [&ran_on_thread] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                ran_on_thread = std::this_thread::get_id();
+            });
+    }, boost::asio::detached);
+
+    io.run();
+    pool.stop();
+    pool.join();
+    EXPECT(ran_on_thread != io_thread_id);
+}
+
 } // namespace
 
 int main()
@@ -134,6 +246,11 @@ int main()
     TestLambdaRunsOnWorkerThread();
     TestExceptionPropagates();
     TestVoidVariant();
+    TestCoOffloadIfNullPoolInline();
+    TestCoOffloadIfWithPoolOffloads();
+    TestCoOffloadIfNullPoolPropagatesException();
+    TestCoOffloadVoidIfNullPoolInline();
+    TestCoOffloadVoidIfWithPoolOffloads();
     if (g_fails) { std::fprintf(stderr, "%d failure(s)\n", g_fails); return 1; }
     std::printf("ok\n");
     return 0;

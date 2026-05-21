@@ -13,24 +13,12 @@
 // know which one it's talking to. The same pattern is used by the
 // other Asio servers' service layers.
 
+#include "domain/session.h"
+
 #include <cstdint>
 #include <optional>
-#include <string>
 
 namespace tmapsvr {
-
-// Subset of TCURRENTUSER columns the F4 handshake reads back. Added to
-// here as later phases need more (eg. char-bound load in F5 will need
-// more identifying fields off this row).
-struct MapSessionInfo
-{
-    std::uint32_t  dwUserID  = 0;
-    std::uint32_t  dwKEY     = 0;
-    std::uint8_t   bGroupID  = 0;
-    std::uint8_t   bChannel  = 0;
-    std::string    szLoginIP;
-    bool           bLocked   = false;
-};
 
 class IMapSessionValidator
 {

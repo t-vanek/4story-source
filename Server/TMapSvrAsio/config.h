@@ -52,6 +52,43 @@ struct WorldPeerConfig
     std::uint16_t  port = 0;     // 0 = unconfigured, world peer disabled
 };
 
+// TLogSvrAsio audit-shim address — UDP fire-and-forget sink for
+// structured events. Empty host or port=0 disables the peer;
+// events stay in the local spdlog file. T4 observability will start
+// emitting actual events through this peer.
+struct AuditPeerConfig
+{
+    std::string    host;          // empty → disabled
+    std::uint16_t  port = 0;
+};
+
+// T5 rate limiter — token bucket per session.
+//   burst:        max consecutive messages without throttling
+//   refill_per_s: tokens regenerated per second
+// Both zero ⇒ limiter disabled (every TryAcquire passes).
+struct RateLimitConfig
+{
+    std::uint32_t  burst         = 0;   // disabled by default
+    std::uint32_t  refill_per_s  = 0;
+};
+
+// T5 graceful shutdown — on SIGINT/SIGTERM the accept loop stops
+// immediately, then we sleep for this many milliseconds to let
+// in-flight handlers + outbound peer sends drain before io.stop().
+struct ShutdownConfig
+{
+    std::uint32_t  drain_ms = 2000;
+};
+
+// T6 admin TCP shell. Bind defaults to localhost. Secret is
+// optional; bind+secret is the production posture.
+struct AdminConfig
+{
+    std::string    bind   = "127.0.0.1";
+    std::uint16_t  port   = 0;       // 0 = disabled
+    std::string    secret;            // empty = no auth (bind protects)
+};
+
 struct AppConfig
 {
     // Listener configuration consumed by MapServer. Holds port,
@@ -67,12 +104,23 @@ struct AppConfig
     // TWorldSvr peer (F5+).
     WorldPeerConfig world;
 
+    // TLogSvrAsio audit UDP shim (T3+).
+    AuditPeerConfig audit;
+
+    // T5 rate limiter (per-session token bucket).
+    RateLimitConfig rate_limit;
+
+    // T5 graceful shutdown timing.
+    ShutdownConfig  shutdown;
+
+    // T6 admin TCP shell.
+    AdminConfig     admin;
+
     // Health endpoint port. 0 disables.
     std::uint16_t  health_port = 8916;
 
-    // Cluster self-registration; empty control_host disables.
-    // Service type byte 4 (svr_type::kMapSvr).
-    fourstory::cluster::ClusterConfig cluster;
+    // T6 metrics endpoint port (Prometheus text format). 0 disables.
+    std::uint16_t  metrics_port = 8917;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

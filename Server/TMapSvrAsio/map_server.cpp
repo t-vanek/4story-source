@@ -1,16 +1,20 @@
 #include "map_server.h"
 
 #include "services/channel_presence.h"
+#include "services/rate_limiter.h"
 #include "services/session_registry.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/redirect_error.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <exception>
 #include <utility>
 
@@ -75,6 +79,41 @@ MapServer::Run()
         Register(sess);
         m_active_connections.fetch_add(1, std::memory_order_relaxed);
 
+        // T5 pre-auth watchdog. Spawn a timer that closes the socket
+        // if the session hasn't completed CS_CONNECT_REQ within the
+        // configured grace window. A bound session (in session_reg)
+        // means auth cleared; absent means stuck or malicious.
+        if (m_cfg.pre_auth_timeout_seconds > 0 &&
+            m_cfg.handlers.session_reg)
+        {
+            const auto deadline = std::chrono::seconds(
+                m_cfg.pre_auth_timeout_seconds);
+            const auto* reg = m_cfg.handlers.session_reg;
+            boost::asio::co_spawn(
+                m_io,
+                [sess, deadline, reg, &io = m_io]()
+                    -> boost::asio::awaitable<void>
+                {
+                    boost::asio::steady_timer t(io);
+                    t.expires_after(deadline);
+                    boost::system::error_code ec;
+                    co_await t.async_wait(
+                        boost::asio::redirect_error(
+                            boost::asio::use_awaitable, ec));
+                    if (ec) co_return; // cancelled / executor stopping
+                    if (!sess->Socket().is_open()) co_return;
+                    if (reg->FindCharIdBySession(sess.get()))
+                        co_return; // already authenticated
+                    spdlog::warn("map_server: pre-auth watchdog closing "
+                                 "session (peer={} no CS_CONNECT_REQ within "
+                                 "{}s)",
+                        sess->RemoteIPv4(),
+                        static_cast<long long>(deadline.count()));
+                    sess->Close();
+                },
+                boost::asio::detached);
+        }
+
         // Absorb any exception that escapes the per-connection coroutine
         // so co_spawn's detached-rethrow doesn't terminate the whole
         // io_context.
@@ -103,8 +142,19 @@ MapServer::Run()
                 // dead socket.
                 if (m_cfg.handlers.presence)
                     m_cfg.handlers.presence->UnbindIfMatches(sess.get());
+                // T5: free the rate-limiter bucket so the map doesn't
+                // grow without bound across connection churn.
+                if (m_cfg.handlers.rate_limiter)
+                    m_cfg.handlers.rate_limiter->Remove(
+                        reinterpret_cast<std::uint64_t>(sess.get()));
             });
     }
+}
+
+void MapServer::StopAccepting()
+{
+    boost::system::error_code ignored;
+    m_acceptor.close(ignored);
 }
 
 void MapServer::Register(std::shared_ptr<tnetlib::AsioSession> session)

@@ -1,5 +1,7 @@
 #include "handlers_world.h"
 
+#include "audit/audit_log.h"
+#include "audit/event.h"
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
 #include "services/player_service.h"
@@ -12,6 +14,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <utility>
 #include <vector>
 
@@ -205,6 +208,25 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
 {
     using tnetlib::protocol::MessageId;
 
+    const auto t0 = std::chrono::steady_clock::now();
+    auto emit_audit = [&ctx, &t0](std::uint32_t char_id,
+                                  std::uint32_t key,
+                                  std::uint32_t user_id,
+                                  std::uint8_t  result)
+    {
+        if (!ctx.audit) return;
+        const auto elapsed = std::chrono::steady_clock::now() - t0;
+        audit::CharLoadEvent ev{};
+        ev.hdr.corr  = ctx.audit->NextCorrelation();
+        ev.char_id   = char_id;
+        ev.key       = key;
+        ev.user_id   = user_id;
+        ev.latency_us = static_cast<std::uint32_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count());
+        ev.result    = result;
+        ctx.audit->Emit(ev);
+    };
+
     // Wire layout from legacy SSHandler.cpp:3311 (12 bytes):
     //   DWORD dwCharID
     //   DWORD dwKEY
@@ -222,6 +244,7 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
     {
         spdlog::warn("DM_LOADCHAR_REQ: world peer not connected — ack "
                      "dropped (char={})", dwCharID);
+        emit_audit(dwCharID, dwKEY, dwUserID, CnInternal);
         co_return;
     }
 
@@ -235,6 +258,7 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_await ctx.world_client->SendPacket(
             static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
             EncodeLoadCharAckError(dwCharID, dwKEY, CnInternal));
+        emit_audit(dwCharID, dwKEY, dwUserID, CnInternal);
         co_return;
     }
 
@@ -246,6 +270,7 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_await ctx.world_client->SendPacket(
             static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
             EncodeLoadCharAckError(dwCharID, dwKEY, CnNoChar));
+        emit_audit(dwCharID, dwKEY, dwUserID, CnNoChar);
         co_return;
     }
 
@@ -280,6 +305,8 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
         EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap, inven, skills,
                                  quests, companions));
+
+    emit_audit(dwCharID, dwKEY, dwUserID, CnSuccess);
 }
 
 boost::asio::awaitable<void>

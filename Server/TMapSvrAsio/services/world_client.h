@@ -10,16 +10,19 @@
 // server-to-server so the wire codec runs plain (no RC4 layer; just
 // the XOR header + body codec that AsioSession applies by default).
 //
-// Thread safety: assumes a single-threaded io_context (the default
-// in main.cpp), so SendPacket calls from multiple handler coroutines
-// don't race because the executor only ever runs one at a time. A
-// production multi-threaded io_context would need a send strand or
-// queue — left as a TODO for the relevant phase.
+// Thread safety (T3): SendPacket dispatches to an internal strand so
+// concurrent calls from multiple handler coroutines / threads are
+// serialized correctly even when the io_context runs across multiple
+// threads. The strand wraps the io_context's executor; a multi-thread
+// io.run() pool is now safe to use without the send-side race that
+// the F5 commit documented as a TODO.
 
 #include "asio_session.h"
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/strand.hpp>
 
 #include <chrono>
 #include <cstddef>
@@ -86,6 +89,12 @@ private:
         DialOnce();
 
     boost::asio::io_context&    m_io;
+    // Strand wrapping the io_context's executor — used by SendPacket
+    // to serialize concurrent outbound calls. The read loop runs on
+    // its own coroutine (no strand) so inbound dispatch isn't blocked
+    // by outbound traffic. Same pattern as the strand-based send
+    // queues in other Asio servers.
+    boost::asio::strand<boost::asio::any_io_executor> m_send_strand;
     std::string                 m_host;
     std::uint16_t               m_port;
     InboundHandler              m_on_packet;

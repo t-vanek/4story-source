@@ -11,6 +11,8 @@
 // in the consolidation pass — pulling it forward would couple F13 to
 // the combat / damage layer that's still TODO from F11.
 
+#include "domain/monster.h"
+
 #include <cstdint>
 #include <mutex>
 #include <optional>
@@ -18,19 +20,6 @@
 #include <vector>
 
 namespace tmapsvr {
-
-struct MonsterInstance
-{
-    std::uint32_t  dwInstanceID  = 0;    // unique runtime id
-    std::uint16_t  wTemplateID   = 0;    // → TMONSTERCHART.wID
-    std::uint16_t  wSpawnID      = 0;    // → TMONSPAWNCHART.wID
-    std::uint16_t  wMapID        = 0;
-    std::uint8_t   bChannel      = 0;
-    float          fPosX         = 0.f;
-    float          fPosY         = 0.f;
-    float          fPosZ         = 0.f;
-    std::uint32_t  dwHP          = 0;    // 0 = dead, will be reaped
-};
 
 class IMonsterRegistry
 {

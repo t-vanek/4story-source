@@ -118,6 +118,15 @@ public:
     // owns the executor.
     void Close();
 
+    // Optional sink for non-fatal protocol errors that would otherwise
+    // silently terminate the read/write loop — RC4 transform failure,
+    // checksum mismatch, sequence drift, oversized SendPacket. Default
+    // writes to stderr; pass nullptr to mute; pass a custom function
+    // (e.g. spdlog wrapper) to integrate with the host application's
+    // logging. Set once at startup before any sessions exist.
+    using ErrorLogger = void (*)(std::string_view);
+    static void SetErrorLogger(ErrorLogger logger) noexcept;
+
     // Enable RC4-over-entire-packet on the RECV side. After each inbound
     // packet is fully read (header + body), the entire buffer is
     // RC4-decrypted with a key derived from MD5(`secret_key`) — matching

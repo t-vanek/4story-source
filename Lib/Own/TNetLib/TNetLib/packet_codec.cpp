@@ -3,6 +3,7 @@
 
 #include "packet_codec.h"
 
+#include <cassert>
 #include <cstring>
 
 namespace tnetlib {
@@ -38,8 +39,14 @@ inline void Write8(std::byte* p, std::uint8_t v) noexcept
 // what the legacy code did via `(LPBYTE)&key`[i] on a little-endian
 // host; spelling it out makes the codec portable to big-endian hosts
 // (even though no shipped server target is BE).
+//
+// Caller MUST pass i in [0, 8). i >= 8 would shift by 64+ bits which
+// is undefined behavior on the underlying uint64. All in-tree callers
+// are the body tail loops (i < body_len % 8, capped at 7); the assert
+// guards future misuse.
 inline std::uint8_t KeyByteLE(std::int64_t key, std::size_t i) noexcept
 {
+    assert(i < sizeof(std::int64_t));
     return static_cast<std::uint8_t>(
         (static_cast<std::uint64_t>(key) >> (i * 8)) & 0xFFu);
 }

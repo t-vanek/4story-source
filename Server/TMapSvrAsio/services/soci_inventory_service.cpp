@@ -1,5 +1,7 @@
 #include "soci_inventory_service.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -29,9 +31,7 @@ SociInventoryService::LoadInventory(std::uint32_t char_id)
         std::int32_t row_inven_id = 0, row_item_id = 0, row_eld = 0;
         std::int64_t row_end_time = 0;
 
-        soci::statement st = (sql.prepare <<
-            "SELECT bInvenID, wItemID, dEndTime, bELD "
-            "FROM TINVENTABLE WHERE dwCharID = :cid",
+        soci::statement st = (sql.prepare << queries::InventoryByCharId,
             soci::use(static_cast<std::int32_t>(char_id), "cid"),
             soci::into(row_inven_id),
             soci::into(row_item_id),
@@ -42,10 +42,10 @@ SociInventoryService::LoadInventory(std::uint32_t char_id)
         while (st.fetch())
         {
             InventoryRow r;
-            r.bInvenID = static_cast<std::uint8_t> (row_inven_id);
-            r.wItemID  = static_cast<std::uint16_t>(row_item_id);
+            r.bInvenID = db::Narrow8 (row_inven_id);
+            r.wItemID  = db::Narrow16(row_item_id);
             r.dEndTime = row_end_time;
-            r.bELD     = static_cast<std::uint8_t> (row_eld);
+            r.bELD     = db::Narrow8 (row_eld);
             out.push_back(r);
         }
     }

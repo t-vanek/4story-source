@@ -1,5 +1,7 @@
 #include "soci_monster_chart.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -22,12 +24,7 @@ SociMonsterChart::SociMonsterChart(fourstory::db::SessionPool& pool)
     std::string  row_name;
     soci::indicator name_ind = soci::i_null;
 
-    soci::statement st = (sql.prepare <<
-        "SELECT wID, szName, bRace, bClass, wKind, bLevel, bAIType, "
-        "  bRange, wChaseRange, bRoamProb, bMoneyProb, dwMinMoney, "
-        "  dwMaxMoney, bItemProb, bDropCount, wExp, bIsSelf, "
-        "  bRecallType, bCanSelect "
-        "FROM TMONSTERCHART",
+    soci::statement st = (sql.prepare << queries::AllMonsters,
         soci::into(row_id),       soci::into(row_name, name_ind),
         soci::into(row_race),     soci::into(row_class),
         soci::into(row_kind),     soci::into(row_level),
@@ -43,25 +40,25 @@ SociMonsterChart::SociMonsterChart(fourstory::db::SessionPool& pool)
     while (st.fetch())
     {
         MonsterTemplate t;
-        t.wID         = static_cast<std::uint16_t>(row_id);
-        t.szName      = (name_ind == soci::i_ok) ? row_name : std::string{};
-        t.bRace       = static_cast<std::uint8_t> (row_race);
-        t.bClass      = static_cast<std::uint8_t> (row_class);
-        t.wKind       = static_cast<std::uint16_t>(row_kind);
-        t.bLevel      = static_cast<std::uint8_t> (row_level);
-        t.bAIType     = static_cast<std::uint8_t> (row_ai);
-        t.bRange      = static_cast<std::uint8_t> (row_range);
-        t.wChaseRange = static_cast<std::uint16_t>(row_chase);
-        t.bRoamProb   = static_cast<std::uint8_t> (row_roam);
-        t.bMoneyProb  = static_cast<std::uint8_t> (row_money_prob);
-        t.dwMinMoney  = static_cast<std::uint32_t>(row_min_money);
-        t.dwMaxMoney  = static_cast<std::uint32_t>(row_max_money);
-        t.bItemProb   = static_cast<std::uint8_t> (row_item_prob);
-        t.bDropCount  = static_cast<std::uint8_t> (row_drop_count);
-        t.wExp        = static_cast<std::uint16_t>(row_exp);
-        t.bIsSelf     = static_cast<std::uint8_t> (row_self);
-        t.bRecallType = static_cast<std::uint8_t> (row_recall);
-        t.bCanSelect  = static_cast<std::uint8_t> (row_select);
+        t.wID         = db::Narrow16(row_id);
+        t.szName      = db::SafeString(row_name, name_ind);
+        t.bRace       = db::Narrow8 (row_race);
+        t.bClass      = db::Narrow8 (row_class);
+        t.wKind       = db::Narrow16(row_kind);
+        t.bLevel      = db::Narrow8 (row_level);
+        t.bAIType     = db::Narrow8 (row_ai);
+        t.bRange      = db::Narrow8 (row_range);
+        t.wChaseRange = db::Narrow16(row_chase);
+        t.bRoamProb   = db::Narrow8 (row_roam);
+        t.bMoneyProb  = db::Narrow8 (row_money_prob);
+        t.dwMinMoney  = db::Narrow32(row_min_money);
+        t.dwMaxMoney  = db::Narrow32(row_max_money);
+        t.bItemProb   = db::Narrow8 (row_item_prob);
+        t.bDropCount  = db::Narrow8 (row_drop_count);
+        t.wExp        = db::Narrow16(row_exp);
+        t.bIsSelf     = db::Narrow8 (row_self);
+        t.bRecallType = db::Narrow8 (row_recall);
+        t.bCanSelect  = db::Narrow8 (row_select);
         m_rows[t.wID] = std::move(t);
     }
 

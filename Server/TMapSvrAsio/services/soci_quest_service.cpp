@@ -1,5 +1,7 @@
 #include "soci_quest_service.h"
 
+#include "db/queries.h"
+#include "db/row_helpers.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -27,9 +29,7 @@ SociQuestService::LoadProgress(std::uint32_t char_id)
         std::unordered_map<std::uint32_t, std::size_t> by_quest;
         {
             std::int32_t row_qid = 0, row_tick = 0, row_cc = 0, row_tc = 0;
-            soci::statement st = (sql.prepare <<
-                "SELECT dwQuestID, dwTick, bCompleteCount, bTriggerCount "
-                "FROM TQUESTTABLE WHERE dwCharID = :cid",
+            soci::statement st = (sql.prepare << queries::QuestsByCharId,
                 soci::use(static_cast<std::int32_t>(char_id), "cid"),
                 soci::into(row_qid), soci::into(row_tick),
                 soci::into(row_cc),  soci::into(row_tc));
@@ -38,10 +38,10 @@ SociQuestService::LoadProgress(std::uint32_t char_id)
             while (st.fetch())
             {
                 QuestProgressRow q;
-                q.dwQuestID      = static_cast<std::uint32_t>(row_qid);
-                q.dwTick         = static_cast<std::uint32_t>(row_tick);
-                q.bCompleteCount = static_cast<std::uint8_t> (row_cc);
-                q.bTriggerCount  = static_cast<std::uint8_t> (row_tc);
+                q.dwQuestID      = db::Narrow32(row_qid);
+                q.dwTick         = db::Narrow32(row_tick);
+                q.bCompleteCount = db::Narrow8 (row_cc);
+                q.bTriggerCount  = db::Narrow8 (row_tc);
                 by_quest[q.dwQuestID] = out.size();
                 out.push_back(std::move(q));
             }
@@ -54,9 +54,7 @@ SociQuestService::LoadProgress(std::uint32_t char_id)
         // into the parent row collected in pass 1.
         {
             std::int32_t row_qid = 0, row_tid = 0, row_type = 0, row_count = 0;
-            soci::statement st = (sql.prepare <<
-                "SELECT dwQuestID, dwTermID, bTermType, bCount "
-                "FROM TQUESTTERMTABLE WHERE dwCharID = :cid",
+            soci::statement st = (sql.prepare << queries::QuestTermsByCharId,
                 soci::use(static_cast<std::int32_t>(char_id), "cid"),
                 soci::into(row_qid),
                 soci::into(row_tid),
@@ -66,13 +64,13 @@ SociQuestService::LoadProgress(std::uint32_t char_id)
 
             while (st.fetch())
             {
-                const auto qid = static_cast<std::uint32_t>(row_qid);
+                const auto qid = db::Narrow32(row_qid);
                 const auto it  = by_quest.find(qid);
                 if (it == by_quest.end()) continue; // orphan term row
                 QuestTermRow t;
-                t.dwTermID  = static_cast<std::uint32_t>(row_tid);
-                t.bTermType = static_cast<std::uint8_t> (row_type);
-                t.bCount    = static_cast<std::uint8_t> (row_count);
+                t.dwTermID  = db::Narrow32(row_tid);
+                t.bTermType = db::Narrow8 (row_type);
+                t.bCount    = db::Narrow8 (row_count);
                 out[it->second].terms.push_back(t);
             }
         }

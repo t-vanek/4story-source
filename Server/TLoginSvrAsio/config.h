@@ -105,12 +105,11 @@ struct AppConfig
     // 0 disables.
     std::uint16_t                health_port = 8815;
 
-    // Admin TCP shell. Line-based command interface; opt-in via TOML
-    // (port = 0 → disabled). Defaults to bind 127.0.0.1 — operators
-    // who want remote access should tunnel via SSH, not expose the
-    // shell to the open internet.
-    std::string                  admin_bind = "127.0.0.1";
-    std::uint16_t                admin_port = 0;
+    // Admin TCP shell intentionally NOT exposed here. The single
+    // operator entry point for the cluster is TControlSvrAsio's
+    // AdminShell — operator commands (status, kick, ban, log-level)
+    // reach this server via TControl's peer-forwarder pipeline, not
+    // via a per-server localhost shell. See ADR / TControl README.
 
     // SMTP relay for 2FA mail. Empty host → log-only fallback.
     SmtpConfig                   smtp;

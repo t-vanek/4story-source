@@ -10,13 +10,19 @@ client (RC4 + XOR codec, RFC 6229 verified).
 ## Status — production complete (minus anticheat)
 
 Every legacy `CTLoginSvrModule` handler is ported, every operational
-piece (audit log, schema validator, rate limit, admin shell, 2FA) is
-wired, and the binary runs end-to-end against the restored MSSQL
-databases (`TGLOBAL_RAGEZONE` + `TGAME_RAGEZONE`). Shared infrastructure
-(SOCI pool, audit, SMTP, admin shell, health, rate limit, registry
-refresher) was lifted into the [`fourstory_common`](../../Lib/Own/FourStoryCommon/README.md)
+piece (audit log, schema validator, rate limit, 2FA) is wired, and the
+binary runs end-to-end against the restored MSSQL databases
+(`TGLOBAL_RAGEZONE` + `TGAME_RAGEZONE`). Shared infrastructure (SOCI
+pool, audit, SMTP, health, rate limit, registry refresher) was lifted
+into the [`fourstory_common`](../../Lib/Own/FourStoryCommon/README.md)
 static library and is now also consumed by `TPatchSvrAsio` and
 `TLogSvrAsio`.
+
+Operator admin access is **centralized in `TControlSvrAsio`** — this
+binary intentionally does NOT expose a local admin shell. Status,
+kick, ban, log-level, and service control commands enter the cluster
+through `TControlSvrAsio`'s `AdminShell` and reach this server via
+the peer-forwarder pipeline (`CT_*` control protocol).
 
 | Area | State |
 |---|---|
@@ -31,7 +37,7 @@ static library and is now also consumed by `TPatchSvrAsio` and
 | Control protocol (CT_*) | ✅ SERVICEMONITOR/SERVICEDATACLEAR/CTRLSVR/EVENTUPDATE/EVENTMSG + event registry |
 | Debug handlers (TESTLOGIN/TESTVERSION) | ✅ gated `test_handlers_enabled` |
 | Graceful shutdown (SM_QUITSERVICE_REQ) | ✅ wire-protocol triggers `io.stop()` |
-| Operational hardening | ✅ rate limit, pre-auth timeout, audit log, admin shell |
+| Operational hardening | ✅ rate limit, pre-auth timeout, audit log (admin shell centralized in TControl) |
 | HWID anticheat | 🚫 out of scope by design |
 
 ## Ported wire handlers (15/15 — 100%)
@@ -88,9 +94,11 @@ explicitly constructs production variants when a connection string is
 configured.
 
 Shared plumbing (`SpdlogAuditLogger`, `UdpAuditLogger`,
-`SpdlogSmtpClient`, `LoginRateLimiter`, `AdminShell`, `HealthEndpoint`,
+`SpdlogSmtpClient`, `LoginRateLimiter`, `HealthEndpoint`,
 `RegistryRefresher`) lives in
-[`fourstory_common`](../../Lib/Own/FourStoryCommon/README.md) — login-
+[`fourstory_common`](../../Lib/Own/FourStoryCommon/README.md). The
+`AdminShell` class also lives there but is intentionally wired only
+by `TControlSvrAsio` — login-
 specific interfaces (`IAuthService`, `ICharService`,
 `IConnectionRegistry`, `IMapServerLocator`, `ISessionTerminator`) stay
 in this server's `services/`.
@@ -156,9 +164,9 @@ level = "info"                       # trace|debug|info|warn|error|critical|off
 [health]
 port = 8815                          # /healthz HTTP endpoint; 0 disables
 
-[admin]
-bind = "127.0.0.1"
-port = 0                             # admin TCP shell; 0 disables. Never expose to the open internet.
+# [admin] is intentionally absent — operator commands enter the
+# cluster via TControlSvrAsio. A stray [admin] key here is silently
+# ignored by the parser so old configs don't hard-fail.
 
 [audit.udp]
 # host = "192.168.1.5"               # legacy TLogSvr collector — sends wire-faithful _UDPPACKET
@@ -198,7 +206,7 @@ Full annotated schema with all keys: `tloginsvr.example.toml`.
 | **Schema validator on startup** | `db/schema_validator.cpp` — fail-fast on missing tables/columns |
 | **Structured audit log** | `SpdlogAuditLogger` — emits `event=login outcome=… uid=… ip=… key=…` |
 | **Legacy UDP audit shim** | `UdpAuditLogger` (decorator) — wire-faithful `_UDPPACKET` to TLogSvr |
-| **Admin TCP shell** | `AdminShell` — `status`, `kick`, `ban-ip`, `log-level`, `quit` (localhost bind only) |
+| **Admin TCP shell** | Centralized in TControlSvrAsio — operator commands reach this server via the `CT_*` peer-forwarder pipeline (not exposed locally) |
 | **Periodic cache refresh** | `RegistryRefresher` — 30s tick reloads `TVETERANCHART` |
 | **Health endpoint** | `/healthz` HTTP JSON (uptime + status) for k8s probes |
 | **Graceful shutdown** | SIGINT/SIGTERM + `SM_QUITSERVICE_REQ` both trigger `io.stop()`; pre-stop sweep terminates every live session row (`TCURRENTUSER` + `TLOG.timeLOGOUT`) so the next boot doesn't have to reap stale `LR_DUPLICATE` rows |
@@ -281,7 +289,7 @@ Then point a legacy client at `localhost:4816` and log in as
 |---|---|
 | `HwidManagerSvr` (HWID anticheat) | Out of scope by user request; not wired into auth flow in legacy build anyway |
 | `m_qCheckPoint` HotSend queue | Trigger path commented out in legacy build (`m_hExecFile == INVALID_HANDLE_VALUE`) |
-| `CDebugSocket` outbound client | Replaced by inbound `AdminShell` |
+| `CDebugSocket` outbound client | Per-server admin access centralized in `TControlSvrAsio` (CT_* peer protocol) |
 | `CSmtp` / `jwsmtp` direct linkage | Replaced by `ISmtpClient` interface (`SpdlogSmtpClient` log-only or `AsioSmtpClient` for real SMTP) |
 | `base64.cpp` / `md5.cpp` | Replaced by OpenSSL EVP + libbcrypt |
 | Win32 IOCP | Replaced by Boost.Asio coroutines |
@@ -304,7 +312,6 @@ Boost.Asio io_context
 │       └── LoginServer::Dispatch — 20 case statements →
 │           handlers::On* coroutines
 ├── HealthEndpoint (port 8815) — /healthz
-├── AdminShell (127.0.0.1:N) — line-based admin commands
 ├── RegistryRefresher — 30s veteran-chart reload
 └── signal_set (SIGINT/SIGTERM) → io.stop()
 
@@ -355,7 +362,7 @@ maps back to; `git log` from `37044bf..HEAD` walks the chain.
 |---|---|---|
 | **A** | Wire codec + handler scaffolding | ✅ |
 | **B** | SOCI services + real DB | ✅ |
-| **C** | Production hardening (audit, rate limit, schema validator, admin shell, 2FA, per-char routing, …) | ✅ |
+| **C** | Production hardening (audit, rate limit, schema validator, 2FA, per-char routing, …) | ✅ (admin shell de-scoped — see TControlSvrAsio) |
 | **D.1** | Sibling-server modernization — patch + log + shared lib | ✅ `TPatchSvrAsio` + `TLogSvrAsio` + `fourstory_common` |
 | **D.2** | Sibling-server modernization — control | ⏸ legacy `TControlSvr` retained for now |
 | **E** | World/Map modernization | only if a concrete driver (cross-platform, security, vendor pressure) shows up |

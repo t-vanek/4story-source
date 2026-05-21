@@ -75,6 +75,7 @@ private:
     // start, stop) co_await IServiceController; the rest are sync.
     std::string                          CmdStatus()  const;
     std::string                          CmdPeers()   const;
+    std::string                          CmdRegistry() const;
     std::string                          CmdKick(std::uint32_t uid,
                                                   const std::string& user);
     std::string                          CmdAnnounce(const std::string& msg);

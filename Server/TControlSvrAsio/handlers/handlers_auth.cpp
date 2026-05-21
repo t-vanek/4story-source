@@ -364,6 +364,17 @@ Dispatch(std::shared_ptr<OperatorSession> op,
     case MessageId::CT_SERVICEUPLOADEND_REQ:
         co_await OnServiceUploadEndReq(std::move(op), std::move(body), ctx);
         break;
+
+    // --- Modern peer self-registration (CT_PEER_*) ---------------
+    case MessageId::CT_PEER_REGISTER_REQ:
+        co_await OnPeerRegisterReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PEER_HEARTBEAT_REQ:
+        co_await OnPeerHeartbeatReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PEER_DEREGISTER_REQ:
+        co_await OnPeerDeregisterReq(std::move(op), std::move(body), ctx);
+        break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap
         // so the bring-up notes can surface what TController.exe

@@ -185,6 +185,7 @@ AdminShell::Dispatch(const std::string& line)
             "  help                          show this list\n"
             "  status                        operators + peers + uptime\n"
             "  peers                         service inventory + dial state\n"
+            "  registry                      live peer self-registrations + heartbeats\n"
             "  kick <user>                   broadcast UserKickout to all map peers\n"
             "  announce <message...>         broadcast announcement\n"
             "  service status <service_id>   query peer service status (SCM)\n"
@@ -197,6 +198,8 @@ AdminShell::Dispatch(const std::string& line)
         co_return CmdStatus();
     if (cmd == "peers")
         co_return CmdPeers();
+    if (cmd == "registry")
+        co_return CmdRegistry();
     if (cmd == "kick")
     {
         std::string user;
@@ -284,6 +287,36 @@ std::string AdminShell::CmdPeers() const
         for (std::size_t i = std::string(StatusName(svc_status)).size();
              i < 14; ++i) os << ' ';
         os << " " << (live ? "online" : "offline");
+    }
+    return os.str();
+}
+
+std::string AdminShell::CmdRegistry() const
+{
+    const auto entries = m_peers.Registry();
+    if (entries.empty())
+        return "(no peers registered)";
+    std::ostringstream os;
+    os << "service_id  name                  addr                  "
+          "version          lease  age_s  users";
+    const auto now = std::chrono::steady_clock::now();
+    for (const auto& e : entries)
+    {
+        const auto age = std::chrono::duration_cast<std::chrono::seconds>(
+            now - e.last_heartbeat_at).count();
+        os << "\n"
+           << e.service_id << "    "
+           << e.reported_name;
+        for (std::size_t i = e.reported_name.size(); i < 22; ++i) os << ' ';
+        std::ostringstream addr;
+        addr << e.reported_addr << ":" << e.reported_port;
+        os << addr.str();
+        for (std::size_t i = addr.str().size(); i < 22; ++i) os << ' ';
+        os << e.version;
+        for (std::size_t i = e.version.size(); i < 17; ++i) os << ' ';
+        os << e.lease_epoch << "      "
+           << age << "s     "
+           << e.cur_users << "/" << e.max_users;
     }
     return os.str();
 }

@@ -44,6 +44,7 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/handlers/handlers_event.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_extra.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_patch.cpp
+    ${TCONTROL_ASIO_SRC}/handlers/handlers_registry.cpp
     ${TCONTROL_ASIO_SRC}/db/schema_validator.cpp
     ${TCONTROL_ASIO_SRC}/services/chat_ban_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/event_registry.cpp
@@ -169,6 +170,17 @@ target_link_libraries(test_tcontrolsvr_asio_admin_shell PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_admin_shell
     COMMAND test_tcontrolsvr_asio_admin_shell)
+
+# Peer self-registration (F1 of the cluster control plane): unit
+# coverage of PeerRegistry's lease semantics + wire coverage of the
+# CT_PEER_REGISTER / HEARTBEAT / DEREGISTER handlers against a
+# loopback OperatorSession. No DB.
+add_executable(test_tcontrolsvr_asio_peer_registry
+    ${TCONTROL_ASIO_SRC}/tests/test_peer_registry.cpp)
+target_link_libraries(test_tcontrolsvr_asio_peer_registry PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_peer_registry
+    COMMAND test_tcontrolsvr_asio_peer_registry)
 
 # CoOffload helper test — verifies the lambda runs on a worker
 # thread, the coroutine resumes on the io_context, and exceptions

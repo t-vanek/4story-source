@@ -394,5 +394,22 @@ boost::asio::awaitable<void> OnServiceUploadEndReq(
     std::vector<std::byte> body,
     const HandlerContext& ctx);
 
+// --- Modern peer self-registration (CT_PEER_*, foundation for the
+// cluster control plane). See handlers_registry.cpp.
+boost::asio::awaitable<void> OnPeerRegisterReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPeerHeartbeatReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPeerDeregisterReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
 } // namespace handlers
 } // namespace tcontrolsvr

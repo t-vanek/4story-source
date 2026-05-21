@@ -246,6 +246,13 @@ int main(int argc, char** argv)
             server.PeerKeepaliveLoop(),
             boost::asio::detached);
 
+        // Lease expiry sweep for modern peer self-registration.
+        // Drops registry entries whose last heartbeat is older than
+        // ~3 heartbeat intervals (90s default).
+        boost::asio::co_spawn(io,
+            server.RegistryLeaseExpiryLoop(),
+            boost::asio::detached);
+
         // 1Hz event scheduler — daily / term events, alarms,
         // auto-delete for one-shot lottery / gifttime kinds.
         tcontrolsvr::EventSchedulerLoop event_loop(io, events, peers,

@@ -19,4 +19,9 @@ namespace tmapsvr::db {
 // Throws fourstory::db::SchemaError when a required column is missing.
 void ValidateUserSchema(fourstory::db::SessionPool& pool);
 
+// TCHARTABLE column check — the columns the F8 player service SELECTs
+// when handling DM_LOADCHAR_REQ. Later phases (items / skills /
+// quests / …) will add their tables to a sibling validator each.
+void ValidateCharSchema(fourstory::db::SessionPool& pool);
+
 } // namespace tmapsvr::db

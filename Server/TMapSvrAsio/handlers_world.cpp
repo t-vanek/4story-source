@@ -1,5 +1,6 @@
 #include "handlers_world.h"
 
+#include "services/player_service.h"
 #include "services/world_client.h"
 #include "wire_codec.h"
 
@@ -13,15 +14,16 @@ namespace tmapsvr {
 
 namespace {
 
-// CN_-style result codes for DM_LOADCHAR_ACK error paths. Same values
-// as the CS_CONNECT_ACK enum (internal-only constants — legacy header
-// not yet recovered; safe to keep them aligned).
+// CN_-style result codes for DM_LOADCHAR_ACK. Internal-only constants
+// — legacy header not yet recovered. Values match what other
+// handlers in this tree use.
+constexpr std::uint8_t CnSuccess  = 0;
 constexpr std::uint8_t CnInternal = 3;
+constexpr std::uint8_t CnNoChar   = 6;
 
 // DM_LOADCHAR_ACK error body — 9 bytes (dwCharID + dwKEY + result).
-// Mirrors the error path in legacy SSHandler.cpp:3379 where the char
-// row is missing or the DB query fails. The success path carries the
-// full character snapshot and lands with the F8 player service.
+// Mirrors the error path in legacy SSHandler.cpp:3379 / 3392 where
+// the char row is missing or the DB query fails.
 std::vector<std::byte> EncodeLoadCharAckError(std::uint32_t dwCharID,
                                               std::uint32_t dwKEY,
                                               std::uint8_t  result)
@@ -31,6 +33,83 @@ std::vector<std::byte> EncodeLoadCharAckError(std::uint32_t dwCharID,
     wire::WritePOD<std::uint32_t>(body, dwCharID);
     wire::WritePOD<std::uint32_t>(body, dwKEY);
     wire::WritePOD<std::uint8_t> (body, result);
+    return body;
+}
+
+// DM_LOADCHAR_ACK success body — TCHARTABLE-derived snapshot plus the
+// sentinel trio (TRand(600000) / WORD(0) / BYTE(TRUE)) that legacy
+// SSHandler.cpp:3445 appends right after the snapshot fields. The
+// trailing sub-sections (secure code, aid table, PC bang, post info,
+// inventory, cabinet, skills, quests, …) are documented as zero /
+// empty here and will be filled in by their owning phases as those
+// services come online (F9 items, F11 skills, F12 quests, …).
+std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
+                                                std::uint32_t dwKEY,
+                                                const CharSnapshot& s)
+{
+    std::vector<std::byte> body;
+    body.reserve(256);
+
+    wire::WritePOD<std::uint32_t>(body, dwCharID);
+    wire::WritePOD<std::uint32_t>(body, dwKEY);
+    wire::WritePOD<std::uint8_t> (body, CnSuccess);
+
+    wire::WriteString            (body, s.szNAME);
+    wire::WritePOD<std::uint8_t> (body, s.bStartAct);
+    wire::WritePOD<std::uint8_t> (body, s.bRealSex);
+    wire::WritePOD<std::uint8_t> (body, s.bClass);
+    wire::WritePOD<std::uint8_t> (body, s.bLevel);
+    wire::WritePOD<std::uint8_t> (body, s.bRace);
+    wire::WritePOD<std::uint8_t> (body, s.bCountry);
+    wire::WritePOD<std::uint8_t> (body, s.bOriCountry);
+    wire::WritePOD<std::uint8_t> (body, s.bSex);
+    wire::WritePOD<std::uint8_t> (body, s.bHair);
+    wire::WritePOD<std::uint8_t> (body, s.bFace);
+    wire::WritePOD<std::uint8_t> (body, s.bBody);
+    wire::WritePOD<std::uint8_t> (body, s.bPants);
+    wire::WritePOD<std::uint8_t> (body, s.bHand);
+    wire::WritePOD<std::uint8_t> (body, s.bFoot);
+    wire::WritePOD<std::uint8_t> (body, s.bHelmetHide);
+    wire::WritePOD<std::uint32_t>(body, s.dwGold);
+    wire::WritePOD<std::uint32_t>(body, s.dwSilver);
+    wire::WritePOD<std::uint32_t>(body, s.dwCooper);
+    wire::WritePOD<std::uint32_t>(body, s.dwEXP);
+    wire::WritePOD<std::uint32_t>(body, s.dwHP);
+    wire::WritePOD<std::uint32_t>(body, s.dwMP);
+    wire::WritePOD<std::uint16_t>(body, s.wSkillPoint);
+    wire::WritePOD<std::uint32_t>(body, s.dwRegion);
+    wire::WritePOD<std::uint8_t> (body, s.bGuildLeave);
+    wire::WritePOD<std::uint32_t>(body, s.dwGuildLeaveTime);
+    wire::WritePOD<std::uint16_t>(body, s.wMapID);
+    wire::WritePOD<std::uint16_t>(body, s.wSpawnID);
+    wire::WritePOD<std::uint16_t>(body, s.wLastSpawnID);
+    wire::WritePOD<std::uint32_t>(body, s.dwLastDestination);
+    wire::WritePOD<std::uint16_t>(body, s.wTemptedMon);
+    wire::WritePOD<std::uint8_t> (body, s.bAftermath);
+    wire::WritePOD<float>        (body, s.fPosX);
+    wire::WritePOD<float>        (body, s.fPosY);
+    wire::WritePOD<float>        (body, s.fPosZ);
+    wire::WritePOD<std::uint16_t>(body, s.wDIR);
+    wire::WritePOD<std::uint8_t> (body, s.bStatLevel);
+    wire::WritePOD<std::uint8_t> (body, s.bStatPoint);
+    wire::WritePOD<std::uint32_t>(body, s.dwStatExp);
+
+    // Sentinel trio from legacy SSHandler.cpp:3445. TRand(600000) is
+    // a per-load anti-replay value; we ship a fixed sentinel until
+    // the gameplay logic that actually consumes it lands (BR/Bow
+    // round timing in F16). WORD(0) and BYTE(TRUE) are constants.
+    wire::WritePOD<std::uint32_t>(body, 0u);    // TRand placeholder
+    wire::WritePOD<std::uint16_t>(body, 0);     // WORD(0)
+    wire::WritePOD<std::uint8_t> (body, 1);     // BYTE(TRUE)
+
+    // The legacy ack continues with secure code / aid table / PC
+    // bang / post info / inventory / cabinet / skill / quest / equip
+    // / friend / craft / mail / chapter sections. F8 ships none of
+    // them — each lands with its owning phase, in wire order, on top
+    // of this snapshot. Senders that depend on those sections will
+    // observe a short body and either fall back to defaults or
+    // refuse the load until the phase is complete.
+
     return body;
 }
 
@@ -54,25 +133,46 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
-    spdlog::info("DM_LOADCHAR_REQ: char={} key={} user={} — F6 stub (player "
-                 "load service lands in F8); replying with INTERNAL",
-        dwCharID, dwKEY, dwUserID);
-
-    // F6 always replies with the error variant so the world knows
-    // not to wait. F8 replaces this branch with the real DB-backed
-    // snapshot load + DM_LOADCHAR_ACK success encoding (~70 fields
-    // off TCHARTABLE per legacy CTBLChar query at SSHandler.cpp:3329).
-    if (ctx.world_client && ctx.world_client->IsConnected())
-    {
-        co_await ctx.world_client->SendPacket(
-            static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
-            EncodeLoadCharAckError(dwCharID, dwKEY, CnInternal));
-    }
-    else
+    if (!ctx.world_client || !ctx.world_client->IsConnected())
     {
         spdlog::warn("DM_LOADCHAR_REQ: world peer not connected — ack "
                      "dropped (char={})", dwCharID);
+        co_return;
     }
+
+    // F8 success path: player service configured + char row exists.
+    // Falls through to the error variants when either condition
+    // isn't met, matching legacy CN_INTERNAL / CN_NOCHAR semantics.
+    if (!ctx.player_service)
+    {
+        spdlog::warn("DM_LOADCHAR_REQ char={}: no player service "
+                     "configured — ack INTERNAL", dwCharID);
+        co_await ctx.world_client->SendPacket(
+            static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
+            EncodeLoadCharAckError(dwCharID, dwKEY, CnInternal));
+        co_return;
+    }
+
+    const auto snap = ctx.player_service->LoadChar(dwCharID);
+    if (!snap)
+    {
+        spdlog::info("DM_LOADCHAR_REQ char={} user={}: no row — ack NOCHAR",
+            dwCharID, dwUserID);
+        co_await ctx.world_client->SendPacket(
+            static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
+            EncodeLoadCharAckError(dwCharID, dwKEY, CnNoChar));
+        co_return;
+    }
+
+    spdlog::info("DM_LOADCHAR_REQ char={} user={} name='{}' lvl={} class={} "
+                 "map={} pos=({:.1f},{:.1f},{:.1f}) — F8 snapshot encoded "
+                 "(no inventory / skills / quests yet)",
+        dwCharID, dwUserID, snap->szNAME, snap->bLevel, snap->bClass,
+        snap->wMapID, snap->fPosX, snap->fPosY, snap->fPosZ);
+
+    co_await ctx.world_client->SendPacket(
+        static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
+        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap));
 }
 
 boost::asio::awaitable<void>

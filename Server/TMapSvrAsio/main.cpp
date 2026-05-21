@@ -1,20 +1,21 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F7: movement + flat-list AOI broadcast. The handler dispatch
-// now covers CS_CONREADY_REQ (stub — full enter-map flood lands with
-// F8) and CS_MOVE_REQ (decodes 26-byte position update, persists to
-// the per-channel presence map, broadcasts a 27-byte CS_MOVE_ACK to
-// every other session on the same channel). The MapServer teardown
-// hook now unbinds both the session registry and presence map so
-// dropped sockets don't leak entries or attract broadcasts.
+// Phase F8: player service. SOCI-backed LoadChar reads TCHARTABLE and
+// hands the snapshot to handlers_world::OnDMLoadCharReq, which now
+// emits a DM_LOADCHAR_ACK success body (TCHARTABLE-derived fields +
+// sentinel trio). Trailing sub-sections (inventory, skills, quests,
+// …) are intentionally absent — each lands in the phase that owns
+// the corresponding data.
 
 #include "config.h"
 #include "handlers_world.h"
 #include "map_server.h"
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
+#include "services/player_service.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
+#include "services/soci_player_service.h"
 #include "services/soci_session_validator.h"
 #include "services/world_client.h"
 
@@ -39,7 +40,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F7 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F8 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -74,11 +75,13 @@ int main(int argc, char** argv)
             io.stop();
         });
 
-        // Optional SOCI pool — without one, no session validator is
-        // wired in and CS_CONNECT_REQ is refused. The listener still
-        // comes up so dev runs can netcat-poke the wire codec.
+        // Optional SOCI pool — without one, no validators / services
+        // come up. The listener still binds so dev runs can netcat-
+        // poke the wire codec, but every handler that needs DB data
+        // refuses with INTERNAL.
         std::unique_ptr<fourstory::db::SessionPool>     pool;
         std::unique_ptr<tmapsvr::IMapSessionValidator>  validator;
+        std::unique_ptr<tmapsvr::IPlayerService>        player_service;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -87,15 +90,17 @@ int main(int argc, char** argv)
             pool = std::make_unique<fourstory::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
             tmapsvr::db::ValidateUserSchema(*pool);
-            validator = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
-            spdlog::info("schema: TCURRENTUSER columns OK ({}) — session "
-                         "validator ready",
+            tmapsvr::db::ValidateCharSchema(*pool);
+            validator      = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
+            player_service = std::make_unique<tmapsvr::SociPlayerService>(*pool);
+            spdlog::info("schema: TCURRENTUSER + TCHARTABLE columns OK ({}) — "
+                         "session validator + player service ready",
                 fourstory::db::BackendName(backend));
         }
         else
         {
-            spdlog::warn("no [database] configured — CS_CONNECT_REQ will "
-                         "refuse with INTERNAL");
+            spdlog::warn("no [database] configured — CS_CONNECT_REQ and "
+                         "DM_LOADCHAR_REQ will refuse with INTERNAL");
         }
 
         // char_id → AsioSession map. Lives for the io.run() duration,
@@ -114,9 +119,10 @@ int main(int argc, char** argv)
         // lambda can capture it by reference (the context's pointer
         // fields are filled in below as each service comes online).
         tmapsvr::HandlerContext ctx{};
-        ctx.validator    = validator.get();
-        ctx.session_reg  = &session_reg;
-        ctx.presence     = &presence;
+        ctx.validator       = validator.get();
+        ctx.session_reg     = &session_reg;
+        ctx.presence        = &presence;
+        ctx.player_service  = player_service.get();
 
         // Optional World peer — only spun up when [world] port is set
         // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
@@ -174,7 +180,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F7 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F8 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

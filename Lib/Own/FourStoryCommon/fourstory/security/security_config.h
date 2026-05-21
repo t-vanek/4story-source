@@ -15,6 +15,7 @@
 //   master_key_env = "FOURSTORY_PEER_KEY"      # env var holding hex secret
 //   master_key_hex = ""                         # inline fallback (dev only)
 //   nonce_window_seconds = 30
+//   future_window_seconds = 3
 //   handshake_timeout_seconds = 5
 //   audit_failed_attempts = true
 
@@ -44,9 +45,21 @@ struct SecurityConfig
     std::string               master_key_env       = "FOURSTORY_PEER_KEY";
     std::string               master_key_hex;
 
-    // Token freshness window. Allow ±window seconds clock skew between
-    // peers. Default 30 s matches the heartbeat cadence.
+    // Token freshness window — PAST direction. A token whose timestamp
+    // is more than `nonce_window` seconds behind our clock is rejected
+    // as expired. Default 30 s matches the heartbeat cadence and the
+    // nonce-cache retention.
     std::chrono::seconds      nonce_window         = std::chrono::seconds(30);
+
+    // Token freshness window — FUTURE direction. A token whose
+    // timestamp is more than `future_window` seconds AHEAD of our
+    // clock is rejected as expired. Asymmetric on purpose: a token
+    // in the future stays "fresh" once our clock catches up to it,
+    // which extends an attacker's replay window beyond nonce_window.
+    // Default 3 s assumes ntpd-synced peers; bump only if you have a
+    // deliberate clock-skew arrangement that you can't fix at the OS
+    // level (rarely the right answer).
+    std::chrono::seconds      future_window        = std::chrono::seconds(3);
 
     // Maximum time the handshake itself may take before the socket is
     // closed. Defense against slowloris-style attacks where a client

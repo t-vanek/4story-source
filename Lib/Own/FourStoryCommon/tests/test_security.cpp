@@ -126,6 +126,74 @@ int main()
         cfg.ip_allowlist = {"10.0.0.0/33"};
         const auto err = cfg.Validate();
         assert(err.find("ip_allowlist") != std::string::npos);
+
+        // future_window must accept 0 (mandates exact clock sync) but
+        // not negative.
+        SecurityConfig fcfg;
+        fcfg.master_key_hex = "deadbeef";
+        fcfg.future_window = std::chrono::seconds(0);
+        assert(fcfg.Validate().empty());
+        fcfg.future_window = std::chrono::seconds(-1);
+        const auto fwerr = fcfg.Validate();
+        assert(fwerr.find("future_window") != std::string::npos);
+    }
+
+    // ── Asymmetric timestamp window ─────────────────────────────────
+    // Verifies CheckToken's freshness check rejects future-skewed
+    // tokens with the tight `future_window` bound and past-skewed
+    // tokens with the wider `nonce_window` bound. peer_auth_required
+    // is on, so we exercise the freshness branch; trust map is empty
+    // (no DB), so accepted tokens fall through to UnknownPeer — that's
+    // the signal that freshness passed.
+    {
+        SecurityConfig cfg;
+        cfg.peer_auth_required = true;
+        cfg.master_key_hex     = "00112233445566778899aabbccddeeff";
+        cfg.nonce_window       = std::chrono::seconds(30);
+        cfg.future_window      = std::chrono::seconds(3);
+        cfg.audit_failed_attempts = false;  // no DB → would crash on log
+        assert(cfg.Validate().empty());
+
+        PeerSecurityGate gate(cfg, nullptr);
+        const std::uint64_t now = 1'700'000'000ULL;
+
+        auto mk = [](std::uint64_t ts) {
+            PeerAuthToken t{};
+            t.timestamp = ts;
+            t.nonce     = 1;
+            t.peer_type = 4;
+            t.group_id  = 1;
+            t.server_id = 2;
+            return t;
+        };
+
+        // Future +2s — inside future_window → freshness OK → UnknownPeer.
+        {
+            const auto r = gate.CheckToken(mk(now + 2), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::UnknownPeer);
+        }
+        // Future +10s — outside future_window → Expired.
+        {
+            const auto r = gate.CheckToken(mk(now + 10), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::Expired);
+            assert(r.reason.find("future_window") != std::string::npos ||
+                   r.reason.find("+3s") != std::string::npos);
+        }
+        // Past -20s — inside nonce_window → freshness OK → UnknownPeer.
+        {
+            const auto r = gate.CheckToken(mk(now - 20), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::UnknownPeer);
+        }
+        // Past -100s — outside nonce_window → Expired.
+        {
+            const auto r = gate.CheckToken(mk(now - 100), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::Expired);
+        }
+        // Exact `now` — trivially fresh.
+        {
+            const auto r = gate.CheckToken(mk(now), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::UnknownPeer);
+        }
     }
 
     std::printf("test_security: all assertions passed\n");

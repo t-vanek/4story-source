@@ -44,6 +44,8 @@ std::string SecurityConfig::Validate() const
     }
     if (nonce_window.count() <= 0)
         return "[security] nonce_window_seconds must be > 0";
+    if (future_window.count() < 0)
+        return "[security] future_window_seconds must be >= 0";
     if (handshake_timeout.count() <= 0)
         return "[security] handshake_timeout_seconds must be > 0";
     return {};

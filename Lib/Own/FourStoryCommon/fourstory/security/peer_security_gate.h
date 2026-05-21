@@ -18,8 +18,10 @@
 //   4. Audit all denied outcomes via the repository's TPEER_AUTH_LOG
 //      table; allowed connections only count successes in dwOkCount.
 //
-// Thread safety: the trust map is rebuilt under a mutex on
-// LoadTrustStore(); CheckToken takes a shared read lock for lookup.
+// Thread safety: the trust map is rebuilt under a unique lock on
+// LoadTrustStore(); CheckToken takes a shared lock for lookup so the
+// hot path (every inbound peer packet's pre-dispatch check) doesn't
+// contend with itself across threads.
 
 #include "ip_allowlist.h"
 #include "peer_auth_repository.h"
@@ -34,6 +36,7 @@
 #include <cstdint>
 #include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -86,7 +89,7 @@ public:
                 te.secret = Hmac::HexToBytes(r.secret_hex);
                 next.emplace(Key(r.group_id, r.server_id), std::move(te));
             }
-            std::lock_guard<std::mutex> lk(m_mtx);
+            std::unique_lock<std::shared_mutex> lk(m_mtx);
             m_trust = std::move(next);
             spdlog::info("peer_security_gate: trust store loaded — "
                          "{} enabled peer(s)", m_trust.size());
@@ -130,13 +133,24 @@ public:
             return res;
         }
 
-        // Freshness window check (timestamp ± nonce_window seconds).
-        const auto window = static_cast<std::uint64_t>(m_cfg.nonce_window.count());
-        if (tok.timestamp + window < now_unix ||
-            tok.timestamp > now_unix + window)
+        // Freshness window check — asymmetric on purpose.
+        //   * past-direction tolerance  = nonce_window   (e.g. 30 s)
+        //   * future-direction tolerance = future_window (e.g. 3  s)
+        // A token in the future stays "fresh" once our clock catches
+        // up, extending an attacker's replay opportunity beyond the
+        // nonce-cache retention. Past-direction tolerance can stay
+        // generous (normal network/heartbeat slack).
+        const auto past_window   = static_cast<std::uint64_t>(
+            m_cfg.nonce_window.count());
+        const auto future_window = static_cast<std::uint64_t>(
+            m_cfg.future_window.count());
+        if (tok.timestamp + past_window < now_unix ||
+            tok.timestamp > now_unix + future_window)
         {
             res.outcome = PeerAuthOutcome::Expired;
-            res.reason  = "timestamp outside ±" + std::to_string(window) + "s";
+            res.reason  = "timestamp outside [-" +
+                          std::to_string(past_window) + "s, +" +
+                          std::to_string(future_window) + "s]";
             AuditDeny(tok, remote_ip, res);
             return res;
         }
@@ -144,7 +158,7 @@ public:
         // Identity lookup. Composite key (group, server).
         std::optional<TrustEntry> entry;
         {
-            std::lock_guard<std::mutex> lk(m_mtx);
+            std::shared_lock<std::shared_mutex> lk(m_mtx);
             const auto it = m_trust.find(Key(tok.group_id, tok.server_id));
             if (it != m_trust.end()) entry = it->second;
         }
@@ -222,7 +236,7 @@ public:
     bool                  Enforcing() const { return m_cfg.peer_auth_required; }
     std::size_t           TrustCount() const
     {
-        std::lock_guard<std::mutex> lk(m_mtx);
+        std::shared_lock<std::shared_mutex> lk(m_mtx);
         return m_trust.size();
     }
 
@@ -278,7 +292,7 @@ private:
     std::unique_ptr<PeerAuthRepository>                     m_repo;
     NonceCache                                              m_nonce_cache;
     std::vector<std::uint8_t>                               m_master_key;
-    mutable std::mutex                                      m_mtx;
+    mutable std::shared_mutex                               m_mtx;
     std::unordered_map<std::uint64_t, TrustEntry>           m_trust;
 };
 

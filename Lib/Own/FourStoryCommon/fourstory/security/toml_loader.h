@@ -39,6 +39,8 @@ inline SecurityConfig LoadFromToml(const toml::table& tbl)
         cfg.master_key_hex = *s;
     if (auto n = tbl["nonce_window_seconds"].value<std::int64_t>())
         cfg.nonce_window = std::chrono::seconds(*n);
+    if (auto n = tbl["future_window_seconds"].value<std::int64_t>())
+        cfg.future_window = std::chrono::seconds(*n);
     if (auto n = tbl["handshake_timeout_seconds"].value<std::int64_t>())
         cfg.handshake_timeout = std::chrono::seconds(*n);
     if (auto b = tbl["db_trust_store"].value<bool>())

@@ -38,10 +38,10 @@
 # MW_ADDCHAR_ACK outbound (done), F6 inbound world dispatch + session
 # registry (done), F7 movement + flat AOI broadcast (done), F8 player
 # service + DM_LOADCHAR_ACK success body (done), F9 inventory service +
-# inventory section appended (this commit; cabinet / skills / quests
-# / equip / friends / craft / mail / chapter sections still TODO),
-# F10 NPCs, F11 skills, F12 quests, F13 monsters/AI, F14 party+chat,
-# F15 companions, F16 BR/Bow run-time mode, F17 control+audit.
+# inventory section appended (done), F10 NPC chart + CS_NPCTALK_REQ
+# handler (this commit), F11 skills, F12 quests, F13 monsters/AI,
+# F14 party+chat, F15 companions, F16 BR/Bow run-time mode,
+# F17 control+audit.
 
 set(TMAPSVR_ASIO_SRC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -75,6 +75,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers_world.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_inventory_service.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_npc_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_player_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp)

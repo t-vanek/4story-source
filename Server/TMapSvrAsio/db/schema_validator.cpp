@@ -106,4 +106,28 @@ void ValidateInventorySchema(fourstory::db::SessionPool& pool)
     });
 }
 
+void ValidateNpcSchema(fourstory::db::SessionPool& pool)
+{
+    auto lease = pool.Acquire();
+
+    // TNPCCHART columns the F10 NPC service SELECTs on boot.
+    // Column names match the 2019 schema dump under
+    // _rewrite/docs/schema.old-dump-2019/TGAME_RAGEZONE.tables.csv.
+    fourstory::db::CheckColumns(*lease, "map_npc", {
+        { "TNPCCHART", "wID" },
+        { "TNPCCHART", "szName" },
+        { "TNPCCHART", "bType" },
+        { "TNPCCHART", "bCountryID" },
+        { "TNPCCHART", "wLocalID" },
+        { "TNPCCHART", "bCondition" },
+        { "TNPCCHART", "bDiscountRate" },
+        { "TNPCCHART", "bAddProb" },
+        { "TNPCCHART", "wItemID" },
+        { "TNPCCHART", "wMapID" },
+        { "TNPCCHART", "fPosX" },
+        { "TNPCCHART", "fPosY" },
+        { "TNPCCHART", "fPosZ" },
+    });
+}
+
 } // namespace tmapsvr::db

@@ -1,10 +1,10 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F9: inventory service. The F8 player snapshot now grows an
-// inventory section appended to the DM_LOADCHAR_ACK success body.
-// SOCI reads TINVENTABLE rows per char; without the service or the
-// table, the section ships as count=0 (legacy treats this as the
-// load-error path).
+// Phase F10: NPC service. TNPCCHART is loaded once at boot into an
+// in-memory map keyed by wID; OnNpcTalkReq (CS_NPCTALK_REQ) consults
+// it to find a matching NPC and replies with CS_NPCTALK_ACK. The
+// quest-trigger check that selects dwQuestID from QTT_TALK rows is
+// F12 work — we ship 0 for now (default chat / shop window).
 
 #include "config.h"
 #include "handlers_world.h"
@@ -12,10 +12,12 @@
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
 #include "services/inventory_service.h"
+#include "services/npc_service.h"
 #include "services/player_service.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/soci_inventory_service.h"
+#include "services/soci_npc_service.h"
 #include "services/soci_player_service.h"
 #include "services/soci_session_validator.h"
 #include "services/world_client.h"
@@ -41,7 +43,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F9 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F10 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -84,6 +86,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::IMapSessionValidator>  validator;
         std::unique_ptr<tmapsvr::IPlayerService>        player_service;
         std::unique_ptr<tmapsvr::IInventoryService>     inventory_service;
+        std::unique_ptr<tmapsvr::INpcService>           npc_service;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -94,18 +97,23 @@ int main(int argc, char** argv)
             tmapsvr::db::ValidateUserSchema(*pool);
             tmapsvr::db::ValidateCharSchema(*pool);
             tmapsvr::db::ValidateInventorySchema(*pool);
+            tmapsvr::db::ValidateNpcSchema(*pool);
             validator         = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
             player_service    = std::make_unique<tmapsvr::SociPlayerService>(*pool);
             inventory_service = std::make_unique<tmapsvr::SociInventoryService>(*pool);
-            spdlog::info("schema: TCURRENTUSER + TCHARTABLE + TINVENTABLE columns "
-                         "OK ({}) — session validator + player service + "
-                         "inventory service ready",
-                fourstory::db::BackendName(backend));
+            npc_service       = std::make_unique<tmapsvr::SociNpcService>(*pool);
+            spdlog::info("schema: TCURRENTUSER + TCHARTABLE + TINVENTABLE + "
+                         "TNPCCHART columns OK ({}) — session validator + "
+                         "player service + inventory service + npc service "
+                         "({} NPC row(s)) ready",
+                fourstory::db::BackendName(backend),
+                npc_service->Size());
         }
         else
         {
             spdlog::warn("no [database] configured — CS_CONNECT_REQ and "
-                         "DM_LOADCHAR_REQ will refuse with INTERNAL");
+                         "DM_LOADCHAR_REQ will refuse with INTERNAL, "
+                         "CS_NPCTALK_REQ will silently drop");
         }
 
         // char_id → AsioSession map. Lives for the io.run() duration,
@@ -129,6 +137,7 @@ int main(int argc, char** argv)
         ctx.presence          = &presence;
         ctx.player_service    = player_service.get();
         ctx.inventory_service = inventory_service.get();
+        ctx.npc_service       = npc_service.get();
 
         // Optional World peer — only spun up when [world] port is set
         // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
@@ -186,7 +195,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F9 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F10 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

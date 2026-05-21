@@ -30,4 +30,10 @@ void ValidateCharSchema(fourstory::db::SessionPool& pool);
 // snapshot still return; the ack just carries an empty inventory.
 void ValidateInventorySchema(fourstory::db::SessionPool& pool);
 
+// TNPCCHART column check — F10 NPC chart loaded once at boot.
+// Independent of the per-char tables so a deploy without TNPCCHART
+// still answers CS_CONNECT_REQ / DM_LOADCHAR_REQ; only
+// CS_NPCTALK_REQ degrades to "no NPCs in world".
+void ValidateNpcSchema(fourstory::db::SessionPool& pool);
+
 } // namespace tmapsvr::db

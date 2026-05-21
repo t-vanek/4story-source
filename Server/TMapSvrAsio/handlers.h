@@ -28,6 +28,7 @@ class ISessionRegistry;
 class IChannelPresence;
 class IPlayerService;
 class IInventoryService;
+class INpcService;
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; main() keeps the lifetimes.
@@ -39,6 +40,7 @@ struct HandlerContext
     IChannelPresence*      presence          = nullptr;
     IPlayerService*        player_service    = nullptr;
     IInventoryService*     inventory_service = nullptr;
+    INpcService*           npc_service       = nullptr;
     std::uint8_t           expected_group    = 0;     // [server] / world group id
     // Future phases will add: IMapState, ISpawnManager, … each
     // owned by main() and pointed at here.
@@ -71,6 +73,11 @@ boost::asio::awaitable<void> OnConReadyReq(
     const HandlerContext&                 ctx);
 
 boost::asio::awaitable<void> OnMoveReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnNpcTalkReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);

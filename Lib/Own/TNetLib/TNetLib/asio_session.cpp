@@ -12,6 +12,10 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 
+#include <algorithm>
+#include <atomic>
+#include <cstdarg>
+#include <cstdio>
 #include <utility>
 
 namespace tnetlib {
@@ -21,7 +25,35 @@ namespace {
 // rarely exceed a few KB on this wire protocol; this just bounds
 // per-recv memory.
 constexpr std::size_t kRecvChunkBytes = 4096;
+
+void DefaultErrorLogger(std::string_view msg) noexcept
+{
+    std::fprintf(stderr, "[tnetlib] %.*s\n",
+                 static_cast<int>(msg.size()), msg.data());
+}
+
+std::atomic<AsioSession::ErrorLogger> g_error_logger{&DefaultErrorLogger};
+
+void LogProto(const char* fmt, ...) noexcept
+{
+    auto* fn = g_error_logger.load(std::memory_order_relaxed);
+    if (fn == nullptr) return;
+    char buf[256];
+    std::va_list ap;
+    va_start(ap, fmt);
+    const int n = std::vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    if (n <= 0) return;
+    const std::size_t len = std::min(static_cast<std::size_t>(n),
+                                     sizeof(buf) - 1);
+    fn(std::string_view(buf, len));
+}
 } // namespace
+
+void AsioSession::SetErrorLogger(ErrorLogger logger) noexcept
+{
+    g_error_logger.store(logger, std::memory_order_relaxed);
+}
 
 // ===== AsioSession ==========================================================
 
@@ -140,6 +172,9 @@ AsioSession::RunPackets(PacketHandler on_packet)
                     reinterpret_cast<const unsigned char*>(m_rc4_inbound_key.data()),
                     m_rc4_inbound_key.size()))
             {
+                LogProto("recv: RC4 transform failed (ip=%s, wSize=%u)",
+                         m_remote_ipv4.c_str(),
+                         static_cast<unsigned>(m_packet_buffer.size()));
                 break;
             }
             hdr->wSize = saved_wsize;
@@ -156,12 +191,25 @@ AsioSession::RunPackets(PacketHandler on_packet)
         // each side counts every packet (incl. failures) — see the
         // step-A audit notes. Mismatch terminates the session.
         if (hdr->dwNumber != m_recv_sequence)
+        {
+            LogProto("recv: sequence mismatch (ip=%s, got=%u, want=%u, wId=0x%04X)",
+                     m_remote_ipv4.c_str(),
+                     hdr->dwNumber, m_recv_sequence,
+                     static_cast<unsigned>(hdr->wId));
             break;
+        }
 
         // Step 6 — decrypt body + verify checksum.
         std::byte* body_ptr = m_packet_buffer.data() + kPacketHeaderSize;
         if (!DecryptBody(body_ptr, body_len, key, hdr->llChecksum))
+        {
+            LogProto("recv: checksum mismatch (ip=%s, wId=0x%04X, dwNumber=%u, body=%u)",
+                     m_remote_ipv4.c_str(),
+                     static_cast<unsigned>(hdr->wId),
+                     hdr->dwNumber,
+                     static_cast<unsigned>(body_len));
             break;
+        }
 
         // Step 7 — dispatch.
         if (on_packet)
@@ -183,9 +231,17 @@ AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
         co_return;
 
     // Reject sends that would overflow the 16-bit wSize. The codec's
-    // contract is wSize < kMaxPacketSize (see packet_codec.h).
-    if (body.size() + kPacketHeaderSize >= kMaxPacketSize)
+    // contract is wSize < kMaxPacketSize (see packet_codec.h). Written
+    // as a subtraction so the addition can never wrap on size_t.
+    if (body.size() >= kMaxPacketSize - kPacketHeaderSize)
+    {
+        LogProto("send: oversized body (ip=%s, wId=0x%04X, body=%zu, max=%zu)",
+                 m_remote_ipv4.c_str(),
+                 static_cast<unsigned>(wId),
+                 body.size(),
+                 static_cast<std::size_t>(kMaxPacketSize - kPacketHeaderSize));
         co_return;
+    }
 
     // Build the frame in m_send_buffer so the async_write sees one
     // contiguous chunk (no scatter/gather needed).
@@ -218,6 +274,9 @@ AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
                 reinterpret_cast<const unsigned char*>(m_rc4_outbound_key.data()),
                 m_rc4_outbound_key.size()))
         {
+            LogProto("send: RC4 transform failed (ip=%s, wId=0x%04X)",
+                     m_remote_ipv4.c_str(),
+                     static_cast<unsigned>(wId));
             co_return;
         }
         hdr->wSize = saved_wsize;

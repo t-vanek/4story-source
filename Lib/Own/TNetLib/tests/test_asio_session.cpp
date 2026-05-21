@@ -17,11 +17,13 @@
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -365,16 +367,188 @@ void TestPacketRoundtripWithRC4()
     if (io_thread.joinable()) io_thread.join();
 }
 
+// Verifies that the ErrorLogger callback is invoked when RunPackets
+// rejects a malformed packet, instead of silently terminating the loop
+// (previous behaviour). Sends a 24-byte garbage frame with a valid
+// wSize so framing accepts it; the decrypted header will then have a
+// dwNumber that doesn't match the expected sequence (=1), tripping the
+// "sequence mismatch" branch. The custom sink captures the message so
+// the test can confirm both that it fires and what it says.
+std::mutex g_log_mtx;
+std::vector<std::string> g_log_captured;
+
+void TestErrorLoggerOnMalformedPacket()
+{
+    std::printf("[error logger fires on protocol error]\n");
+
+    g_log_captured.clear();
+    tnetlib::AsioSession::SetErrorLogger([](std::string_view msg) {
+        std::lock_guard<std::mutex> lk(g_log_mtx);
+        g_log_captured.emplace_back(msg);
+    });
+
+    asio::io_context io;
+    tnetlib::AsioListener listener(io.get_executor(), 0);
+    const std::uint16_t port = listener.Port();
+    Check(port != 0, "listener bound to ephemeral port");
+
+    asio::co_spawn(io,
+        listener.Run([&io](tcp::socket socket) {
+            auto sess = std::make_shared<tnetlib::AsioSession>(
+                std::move(socket), tnetlib::PeerType::Client);
+            asio::co_spawn(io,
+                [sess]() -> asio::awaitable<void> {
+                    co_await sess->RunPackets(
+                        [](const tnetlib::DecodedPacket&){});
+                },
+                asio::detached);
+        }),
+        asio::detached);
+
+    std::thread io_thread([&io] { io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket client(client_io);
+    client.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+    Check(client.is_open(), "client connected");
+
+    // 16-byte header + 8-byte body = 24 total. wSize is plaintext on the
+    // wire and must be in [16, kMaxPacketSize); set it correctly so the
+    // framer reads the body. Everything else is zero — XOR decrypt with
+    // the per-sequence key will yield a dwNumber != 1, hitting the
+    // sequence-mismatch path.
+    std::array<std::uint8_t, 24> frame{};
+    frame[0] = 24; // wSize low byte
+    frame[1] = 0;  // wSize high byte
+    asio::write(client, asio::buffer(frame));
+
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(2);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        {
+            std::lock_guard<std::mutex> lk(g_log_mtx);
+            if (!g_log_captured.empty()) break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    {
+        std::lock_guard<std::mutex> lk(g_log_mtx);
+        Check(!g_log_captured.empty(), "logger captured at least one message");
+        if (!g_log_captured.empty())
+        {
+            const auto& msg = g_log_captured.front();
+            const bool starts = msg.rfind("recv:", 0) == 0;
+            Check(starts, "captured message is a 'recv:' diagnostic");
+        }
+    }
+
+    // Restore default sink so later tests don't pollute the capture
+    // vector (and so a follow-up suite invocation starts fresh).
+    tnetlib::AsioSession::SetErrorLogger(nullptr);
+
+    boost::system::error_code ec;
+    client.shutdown(tcp::socket::shutdown_both, ec);
+    client.close(ec);
+    io.stop();
+    if (io_thread.joinable()) io_thread.join();
+}
+
+// Verifies that SendPacket refuses oversized payloads instead of
+// emitting a malformed wire frame. With the logger sink active we also
+// see the diagnostic that explains why the send was dropped.
+void TestSendPacketRejectsOversizedBody()
+{
+    std::printf("[SendPacket rejects oversized body]\n");
+
+    g_log_captured.clear();
+    tnetlib::AsioSession::SetErrorLogger([](std::string_view msg) {
+        std::lock_guard<std::mutex> lk(g_log_mtx);
+        g_log_captured.emplace_back(msg);
+    });
+
+    asio::io_context io;
+    tnetlib::AsioListener listener(io.get_executor(), 0);
+    const std::uint16_t port = listener.Port();
+
+    asio::co_spawn(io,
+        listener.Run([](tcp::socket socket) {
+            // Accept and drop — we only care about the SendPacket
+            // outcome on the client side.
+            (void)socket;
+        }),
+        asio::detached);
+
+    std::thread io_thread([&io] { io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket client_sock(client_io);
+    client_sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+    auto client_sess = std::make_shared<tnetlib::AsioSession>(
+        std::move(client_sock), tnetlib::PeerType::Server);
+
+    // Body just over the codec limit. kMaxPacketSize is 0xFFFF; subtract
+    // the 16-byte header to get the largest accepted body, then add one.
+    std::vector<std::byte> too_big(
+        static_cast<std::size_t>(0xFFFF) - 16, std::byte{0});
+    asio::co_spawn(client_io,
+        [client_sess, &too_big]() -> asio::awaitable<void> {
+            co_await client_sess->SendPacket(0x9999,
+                std::span<const std::byte>(too_big.data(), too_big.size()));
+        },
+        asio::detached);
+
+    std::thread client_thread([&client_io] { client_io.run(); });
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(1);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        {
+            std::lock_guard<std::mutex> lk(g_log_mtx);
+            if (!g_log_captured.empty()) break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    {
+        std::lock_guard<std::mutex> lk(g_log_mtx);
+        Check(!g_log_captured.empty(),
+              "logger captured oversize-body diagnostic");
+        if (!g_log_captured.empty())
+        {
+            const bool is_send = g_log_captured.front().rfind("send:", 0) == 0;
+            Check(is_send, "captured message is a 'send:' diagnostic");
+        }
+    }
+
+    tnetlib::AsioSession::SetErrorLogger(nullptr);
+    client_sess->Close();
+    client_io.stop();
+    if (client_thread.joinable()) client_thread.join();
+    io.stop();
+    if (io_thread.joinable()) io_thread.join();
+}
+
 } // namespace
 
 int main()
 {
     std::printf("=== tnetlib AsioSession tests ===\n");
+    // Mute the default stderr sink for the rest of the suite — happy-path
+    // tests don't expect any diagnostics, and the dedicated logger tests
+    // install their own sink anyway. Individual tests restore the default
+    // (nullptr) on the way out.
+    tnetlib::AsioSession::SetErrorLogger(nullptr);
     try
     {
         TestEchoRoundtrip();
         TestPacketRoundtrip();
         TestPacketRoundtripWithRC4();
+        TestErrorLoggerOnMalformedPacket();
+        TestSendPacketRejectsOversizedBody();
     }
     catch (const std::exception& ex)
     {

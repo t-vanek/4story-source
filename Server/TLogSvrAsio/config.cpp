@@ -81,6 +81,17 @@ AppConfig LoadConfig(const std::string& path)
             cfg.health_port = static_cast<std::uint16_t>(*p);
         }
     }
+    if (auto bp = tbl["backpressure"].as_table())
+    {
+        if (auto s = (*bp)["sample_interval_secs"].value<std::int64_t>())
+        {
+            if (*s < 0 || *s > 3600)
+                throw std::runtime_error("backpressure.sample_interval_secs out of range (0..3600)");
+            cfg.backpressure.sample_interval = std::chrono::seconds(*s);
+        }
+        if (auto a = (*bp)["always_log"].value<bool>())
+            cfg.backpressure.always_log = *a;
+    }
     if (auto retry = tbl["retry"].as_table())
     {
         if (auto m = (*retry)["max_queue"].value<std::int64_t>())

@@ -160,10 +160,22 @@ add_test(NAME tcontrolsvr_asio_soci_repositories
 
 # CoOffload helper test — verifies the lambda runs on a worker
 # thread, the coroutine resumes on the io_context, and exceptions
-# propagate. Pure logic, no DB.
+# propagate. Pure logic, no DB. Also covers the CoOffloadIf /
+# CoOffloadVoidIf optional-pool variants the handlers use.
 add_executable(test_tcontrolsvr_asio_co_offload
     ${TCONTROL_ASIO_SRC}/tests/test_co_offload.cpp)
 target_link_libraries(test_tcontrolsvr_asio_co_offload PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_co_offload
     COMMAND test_tcontrolsvr_asio_co_offload)
+
+# RegistryRefresher coroutine-hook test — verifies the new
+# AddCoroutineHook path the inventory-refresh tick uses (sync hooks,
+# coroutine hooks, both together, exception isolation). Pure timer
+# loop, no DB.
+add_executable(test_tcontrolsvr_asio_registry_refresher
+    ${TCONTROL_ASIO_SRC}/tests/test_registry_refresher.cpp)
+target_link_libraries(test_tcontrolsvr_asio_registry_refresher PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_registry_refresher
+    COMMAND test_tcontrolsvr_asio_registry_refresher)

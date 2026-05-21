@@ -32,6 +32,7 @@
 #include "services/spdlog_alerter.h"
 #include "services/user_protected_service.h"
 
+#include "fourstory/db/co_offload.h"
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/admin_shell.h"
 #include "fourstory/ops/health_endpoint.h"
@@ -268,20 +269,33 @@ int main(int argc, char** argv)
         {
             refresher = fourstory::ops::RegistryRefresher::Make(io,
                 std::chrono::seconds(cfg.inventory_refresh_seconds));
-            refresher->AddHook([soci_inv, &peers] {
-                try
+            // Offload the SOCI reload onto the worker pool so the
+            // io_context isn't blocked during a slow DB roundtrip;
+            // the Rebind step is pure in-memory and stays inline
+            // after the coroutine resumes. Falls back to inline
+            // execution when db_pool is null (legacy in-line
+            // behaviour for dev runs without a worker pool).
+            auto* db_pool_ptr = db_pool.get();
+            refresher->AddCoroutineHook(
+                [soci_inv, &peers, db_pool_ptr]()
+                    -> boost::asio::awaitable<void>
                 {
-                    soci_inv->Reload();
-                    peers.Rebind(*soci_inv);
-                }
-                catch (const std::exception& ex)
-                {
-                    spdlog::warn("inventory refresh failed: {}", ex.what());
-                }
-            });
+                    try
+                    {
+                        co_await fourstory::db::CoOffloadVoidIf(
+                            db_pool_ptr, [soci_inv] { soci_inv->Reload(); });
+                        peers.Rebind(*soci_inv);
+                    }
+                    catch (const std::exception& ex)
+                    {
+                        spdlog::warn("inventory refresh failed: {}",
+                            ex.what());
+                    }
+                });
             refresher->Start();
-            spdlog::info("inventory refresher: every {}s",
-                cfg.inventory_refresh_seconds);
+            spdlog::info("inventory refresher: every {}s (offloaded={})",
+                cfg.inventory_refresh_seconds,
+                db_pool_ptr ? "yes" : "no");
         }
 
         std::unique_ptr<fourstory::ops::HealthEndpoint> health;

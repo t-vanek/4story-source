@@ -41,6 +41,23 @@ struct RetryConfig
     std::size_t                drain_batch_size    = 64;
 };
 
+// Periodic backpressure visibility — without this the server runs
+// silently and operators only see the cumulative drop counts at
+// shutdown. With it, a runtime spike (DB outage, queue saturation,
+// malformed-input flood) shows up in spdlog within one sample
+// window.
+struct BackpressureConfig
+{
+    // Sampling cadence. 0 disables the watchdog entirely.
+    std::chrono::seconds sample_interval{60};
+
+    // Emit a warn-level log line every interval, regardless of
+    // delta. When false (default), the warn log only fires when
+    // deltas are non-zero; the periodic snapshot still goes out at
+    // info level so operators can grep for "backpressure:".
+    bool                 always_log = false;
+};
+
 struct AppConfig
 {
     // UDP listening port. Legacy default was 2000 (UdpSocket peer port
@@ -67,6 +84,9 @@ struct AppConfig
     // LB health checks). 0 disables. Matches the [health] block in
     // tloginsvr / tpatchsvr config.
     std::uint16_t  health_port = 0;
+
+    // Backpressure watchdog — see struct comment.
+    BackpressureConfig backpressure;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

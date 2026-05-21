@@ -6,14 +6,19 @@
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/health_endpoint.h"
 
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/redirect_error.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/thread_pool.hpp>
+#include <boost/asio/use_awaitable.hpp>
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -25,6 +30,62 @@ void Usage()
     std::printf(
         "tlogsvr_asio — modernized 4Story audit log collector\n"
         "Usage: tlogsvr_asio [--config FILE]\n");
+}
+
+// Periodic visibility into queue depth + drop counters. Without
+// this loop the server only emits cumulative totals at shutdown, so
+// a runtime queue saturation surfaces too late to act on.
+boost::asio::awaitable<void>
+BackpressureMonitor(boost::asio::io_context&           io,
+                    const tlogsvr::LogServer&          server,
+                    const tlogsvr::SociLogSink*        sink,
+                    std::chrono::seconds               interval,
+                    bool                               always_log)
+{
+    boost::asio::steady_timer timer(io);
+    std::uint64_t prev_drops_format = 0;
+    std::uint64_t prev_drops_queue  = sink ? sink->DroppedQueueFull() : 0;
+
+    while (true)
+    {
+        timer.expires_after(interval);
+        boost::system::error_code ec;
+        co_await timer.async_wait(
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if (ec) co_return; // executor stopping
+
+        const auto cur_drops_format = server.DropsBadFormat();
+        const auto cur_drops_queue  = sink ? sink->DroppedQueueFull() : 0;
+        const auto delta_format     = cur_drops_format - prev_drops_format;
+        const auto delta_queue      = cur_drops_queue  - prev_drops_queue;
+        const auto queue_depth      = sink ? sink->QueueDepth() : 0;
+
+        if (delta_format > 0 || delta_queue > 0)
+        {
+            spdlog::warn(
+                "backpressure: drops_bad_format=+{} drops_queue_full=+{} "
+                "queue_depth={} (totals format={} queue={})",
+                delta_format, delta_queue, queue_depth,
+                cur_drops_format, cur_drops_queue);
+        }
+        else if (always_log)
+        {
+            spdlog::warn(
+                "backpressure: nominal (drops_bad_format=0 "
+                "drops_queue_full=0 queue_depth={})",
+                queue_depth);
+        }
+        else
+        {
+            spdlog::info(
+                "backpressure: nominal (queue_depth={} totals format={} "
+                "queue={})",
+                queue_depth, cur_drops_format, cur_drops_queue);
+        }
+
+        prev_drops_format = cur_drops_format;
+        prev_drops_queue  = cur_drops_queue;
+    }
 }
 } // namespace
 
@@ -135,6 +196,18 @@ int main(int argc, char** argv)
                 spdlog::warn("health endpoint failed to bind on port {}: {}",
                     cfg.health_port, ex.what());
             }
+        }
+
+        if (cfg.backpressure.sample_interval.count() > 0)
+        {
+            spdlog::info("backpressure monitor: every {}s (always_log={})",
+                static_cast<long long>(cfg.backpressure.sample_interval.count()),
+                cfg.backpressure.always_log);
+            boost::asio::co_spawn(io,
+                BackpressureMonitor(io, server, soci_sink,
+                    cfg.backpressure.sample_interval,
+                    cfg.backpressure.always_log),
+                boost::asio::detached);
         }
 
         io.run();

@@ -140,6 +140,30 @@ AppConfig LoadConfig(const std::string& path)
         if (auto h = (*a)["host"].value<std::string>())  cfg.audit.host = *h;
         if (auto p = (*a)["port"].value<std::int64_t>()) cfg.audit.port = RequirePort(*p, "audit.port");
     }
+    if (auto rl = tbl["rate_limit"].as_table())
+    {
+        if (auto b = (*rl)["burst"].value<std::int64_t>())
+        {
+            if (*b < 0 || *b > 100000)
+                throw std::runtime_error("rate_limit.burst out of range");
+            cfg.rate_limit.burst = static_cast<std::uint32_t>(*b);
+        }
+        if (auto r = (*rl)["refill_per_s"].value<std::int64_t>())
+        {
+            if (*r < 0 || *r > 100000)
+                throw std::runtime_error("rate_limit.refill_per_s out of range");
+            cfg.rate_limit.refill_per_s = static_cast<std::uint32_t>(*r);
+        }
+    }
+    if (auto sd = tbl["shutdown"].as_table())
+    {
+        if (auto d = (*sd)["drain_ms"].value<std::int64_t>())
+        {
+            if (*d < 0 || *d > 60000)
+                throw std::runtime_error("shutdown.drain_ms out of range");
+            cfg.shutdown.drain_ms = static_cast<std::uint32_t>(*d);
+        }
+    }
     if (auto h = tbl["health"].as_table())
     {
         if (auto p = (*h)["port"].value<std::int64_t>())

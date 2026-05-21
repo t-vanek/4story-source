@@ -36,6 +36,7 @@ class ISpawnChart;
 class IMonsterRegistry;
 class ICompanionService;
 class ILogPeer;
+class IRateLimiter;
 enum class Mode : std::uint8_t;
 
 namespace audit { class IAuditLog; }
@@ -61,6 +62,7 @@ struct HandlerContext
     ILogPeer*              log_peer          = nullptr;   // T3 UDP transport
     audit::IAuditLog*      audit             = nullptr;   // T4 structured audit
     ops::IMetrics*         metrics           = nullptr;   // T4 counters/latency
+    IRateLimiter*          rate_limiter      = nullptr;   // T5 per-session gate
     Mode                   mode              = Mode{0};   // PvE default
     std::uint8_t           expected_group    = 0;         // [server] / world group id
 };

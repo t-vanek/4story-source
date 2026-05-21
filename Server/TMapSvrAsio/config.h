@@ -60,6 +60,24 @@ struct AuditPeerConfig
     std::uint16_t  port = 0;
 };
 
+// T5 rate limiter — token bucket per session.
+//   burst:        max consecutive messages without throttling
+//   refill_per_s: tokens regenerated per second
+// Both zero ⇒ limiter disabled (every TryAcquire passes).
+struct RateLimitConfig
+{
+    std::uint32_t  burst         = 0;   // disabled by default
+    std::uint32_t  refill_per_s  = 0;
+};
+
+// T5 graceful shutdown — on SIGINT/SIGTERM the accept loop stops
+// immediately, then we sleep for this many milliseconds to let
+// in-flight handlers + outbound peer sends drain before io.stop().
+struct ShutdownConfig
+{
+    std::uint32_t  drain_ms = 2000;
+};
+
 struct AppConfig
 {
     // Listener configuration consumed by MapServer. Holds port,
@@ -77,6 +95,12 @@ struct AppConfig
 
     // TLogSvrAsio audit UDP shim (T3+).
     AuditPeerConfig audit;
+
+    // T5 rate limiter (per-session token bucket).
+    RateLimitConfig rate_limit;
+
+    // T5 graceful shutdown timing.
+    ShutdownConfig  shutdown;
 
     // Health endpoint port. 0 disables.
     std::uint16_t  health_port = 8916;

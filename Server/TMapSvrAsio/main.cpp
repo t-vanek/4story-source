@@ -25,6 +25,7 @@
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/npc_service.h"
+#include "services/rate_limiter.h"
 #include "services/player_service.h"
 #include "services/quest_service.h"
 #include "services/session_registry.h"
@@ -93,10 +94,29 @@ int main(int argc, char** argv)
 
         boost::asio::io_context io;
 
+        // T5: shutdown sequence is wired below — accept loop close,
+        // drain window, then io.stop(). The signal handler captures
+        // a pointer to the MapServer that we can't construct yet;
+        // declared here and filled in once the server is built.
+        tmapsvr::MapServer* server_ptr = nullptr;
+        const auto drain = std::chrono::milliseconds(cfg.shutdown.drain_ms);
+
         boost::asio::signal_set signals(io, SIGINT, SIGTERM);
-        signals.async_wait([&io](auto, int sig) {
-            spdlog::info("received signal {}, shutting down", sig);
-            io.stop();
+        signals.async_wait([&io, &server_ptr, drain](auto, int sig) {
+            spdlog::info("received signal {}, beginning graceful shutdown "
+                         "(drain {}ms)",
+                sig, static_cast<long long>(drain.count()));
+            if (server_ptr) server_ptr->StopAccepting();
+
+            // Sleep drain ms via a steady_timer so in-flight handlers
+            // and outbound peer sends have a chance to finish before
+            // io.stop() yanks the executor.
+            auto t = std::make_shared<boost::asio::steady_timer>(io);
+            t->expires_after(drain);
+            t->async_wait([&io, t](auto) {
+                spdlog::info("graceful shutdown drain elapsed — stopping io_context");
+                io.stop();
+            });
         });
 
         // Optional SOCI pool — without one, no validators / services
@@ -171,6 +191,12 @@ int main(int argc, char** argv)
         // a follow-up commit.
         tmapsvr::ops::Metrics    metrics;
 
+        // T5: per-session rate limiter. Default config (burst=0,
+        // refill=0) disables the gate so dev runs aren't affected;
+        // production sets sensible values in [rate_limit].
+        tmapsvr::TokenBucketLimiter rate_limiter(
+            cfg.rate_limit.burst, cfg.rate_limit.refill_per_s);
+
         // char_id → AsioSession map. Lives for the io.run() duration,
         // bound at CS_CONNECT_REQ success, unbound by the MapServer
         // per-connection teardown. Consulted by handlers_world to
@@ -202,6 +228,7 @@ int main(int argc, char** argv)
         ctx.log_peer          = &log_peer;
         ctx.audit             = &audit_log;
         ctx.metrics           = &metrics;
+        ctx.rate_limiter      = &rate_limiter;
         ctx.mode              = cfg.mode;
 
         // Optional World peer — only spun up when [world] port is set
@@ -260,6 +287,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
+        server_ptr = &server;   // wire up the signal handler's pointer
         spdlog::info("tmapsvr_asio: F17 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,

@@ -22,6 +22,7 @@
 #include "audit/audit_log.h"
 #include "audit/event.h"
 #include "ops/metrics.h"
+#include "services/rate_limiter.h"
 
 #include "MessageId.h"
 
@@ -105,6 +106,32 @@ Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
          const HandlerContext&                 ctx)
 {
     const auto body_size = static_cast<std::uint32_t>(body.size());
+
+    // T5 rate-limit gate. Key by raw session pointer so pre-auth +
+    // post-auth share one bucket per connection. Limiter returns
+    // true immediately when burst/refill are zero (default config)
+    // so the gate has zero cost when disabled.
+    if (ctx.rate_limiter)
+    {
+        const auto key = reinterpret_cast<std::uint64_t>(sess.get());
+        if (!ctx.rate_limiter->TryAcquire(key))
+        {
+            if (ctx.metrics) ctx.metrics->HandlerErrors(wId).Add();
+            if (ctx.audit)
+            {
+                audit::HandlerInvokeEvent ev{};
+                ev.hdr.corr   = ctx.audit->NextCorrelation();
+                ev.wId        = wId;
+                ev.body_size  = body_size;
+                ev.latency_us = 0;
+                ev.ok         = 0;   // rate-limited = failed dispatch
+                ctx.audit->Emit(ev);
+            }
+            spdlog::warn("dispatch: wId=0x{:04X} rate-limited (peer={})",
+                wId, sess->RemoteIPv4());
+            co_return;
+        }
+    }
 
     if (ctx.metrics) ctx.metrics->HandlerCalls(wId).Add();
 

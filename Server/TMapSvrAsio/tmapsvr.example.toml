@@ -53,6 +53,20 @@ port = 0
 host = ""
 port = 0
 
+[rate_limit]
+# T5 per-session token bucket. burst = bucket capacity (max consecutive
+# messages); refill_per_s = tokens regenerated per second. Both zero
+# (default) disables the limiter — every message dispatches. Set both
+# to e.g. burst=20, refill_per_s=10 for "20 burst, 10 sustained / sec".
+burst = 0
+refill_per_s = 0
+
+[shutdown]
+# T5 graceful shutdown drain window. On SIGINT/SIGTERM the listener
+# stops accepting immediately; we then sleep this many ms before
+# io.stop() so in-flight handlers and outbound peer sends finish.
+drain_ms = 2000
+
 [health]
 # Optional /healthz HTTP endpoint on a separate port. Set to 0 to
 # disable. Used by k8s liveness/readiness probes and external

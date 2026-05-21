@@ -116,6 +116,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/control.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp
     ${TMAPSVR_ASIO_SRC}/services/log_peer.cpp
+    ${TMAPSVR_ASIO_SRC}/services/rate_limiter.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_companion_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_inventory_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_monster_chart.cpp

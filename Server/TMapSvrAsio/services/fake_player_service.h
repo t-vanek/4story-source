@@ -29,6 +29,12 @@ public:
         return it->second;
     }
 
+    void SaveChar(const CharSnapshot& snap) override
+    {
+        // Update in-memory store so test assertions can observe the save.
+        m_rows[snap.dwCharID] = snap;
+    }
+
 private:
     std::unordered_map<std::uint32_t, CharSnapshot> m_rows;
 };

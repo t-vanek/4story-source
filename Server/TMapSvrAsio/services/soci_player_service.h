@@ -21,6 +21,8 @@ public:
     std::optional<CharSnapshot>
         LoadChar(std::uint32_t char_id) override;
 
+    void SaveChar(const CharSnapshot& snap) override;
+
 private:
     fourstory::db::SessionPool& m_pool;
 };

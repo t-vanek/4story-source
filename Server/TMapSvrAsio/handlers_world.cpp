@@ -2,6 +2,7 @@
 
 #include "audit/audit_log.h"
 #include "audit/event.h"
+#include "services/char_state_store.h"
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
 #include "services/player_service.h"
@@ -293,6 +294,10 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
     std::vector<CompanionRow> companions;
     if (ctx.companion_service)
         companions = ctx.companion_service->LoadCompanions(dwCharID);
+
+    // Store the live snapshot so the teardown hook can SaveChar on disconnect.
+    if (ctx.char_state)
+        ctx.char_state->Store(dwCharID, *snap);
 
     spdlog::info("DM_LOADCHAR_REQ char={} user={} name='{}' lvl={} class={} "
                  "map={} pos=({:.1f},{:.1f},{:.1f}) inven={} skills={} "

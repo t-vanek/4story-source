@@ -36,6 +36,7 @@ namespace tcontrolsvr {
 class PeerRegistry;
 class IServiceController;
 class IAdminAuditLogger;
+class MessageRouter;
 
 // Returns the count of live operator sessions for the `status` line.
 // Wired in main.cpp to ControlServer::LiveOperators(); tests pass a
@@ -52,6 +53,7 @@ public:
                PeerRegistry& peers,
                IServiceController& controller,
                IAdminAuditLogger* audit,
+               MessageRouter* router,
                std::chrono::steady_clock::time_point started_at);
 
     boost::asio::awaitable<void> Run();
@@ -76,12 +78,14 @@ private:
     std::string                          CmdStatus()  const;
     std::string                          CmdPeers()   const;
     std::string                          CmdRegistry() const;
+    std::string                          CmdPeer(std::uint32_t sid) const;
     std::string                          CmdKick(std::uint32_t uid,
                                                   const std::string& user);
     std::string                          CmdAnnounce(const std::string& msg);
     boost::asio::awaitable<std::string>  CmdServiceStatus(std::uint32_t sid);
     boost::asio::awaitable<std::string>  CmdServiceStart(std::uint32_t sid);
     boost::asio::awaitable<std::string>  CmdServiceStop(std::uint32_t sid);
+    boost::asio::awaitable<std::string>  CmdRoute(const std::string& rest);
     std::string                          CmdLogLevel(const std::string& lvl);
 
     boost::asio::ip::tcp::acceptor   m_acceptor;
@@ -90,6 +94,7 @@ private:
     PeerRegistry&                    m_peers;
     IServiceController&              m_controller;
     IAdminAuditLogger*               m_audit;
+    MessageRouter*                   m_router;
     std::chrono::steady_clock::time_point m_started_at;
 };
 

@@ -224,7 +224,8 @@ void TestHelpAndUnknown()
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0,
         [] { return std::size_t{3}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto help = RunOne(io, shell->DispatchForTest("help"));
     CheckContains(help, "peers", "help mentions peers");
@@ -248,7 +249,8 @@ void TestStatus()
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0,
         [] { return std::size_t{7}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto reply = RunOne(io, shell->DispatchForTest("status"));
     CheckContains(reply, "operators=7", "operator count surfaced");
@@ -268,7 +270,8 @@ void TestPeersListing()
     FakeAdminAudit audit;
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0, [] { return std::size_t{0}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto reply = RunOne(io, shell->DispatchForTest("peers"));
     CheckContains(reply, "login-1", "login-1 in listing");
@@ -297,7 +300,8 @@ void TestKickBroadcastsToMapPeers()
 
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0, [] { return std::size_t{0}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto reply = RunOne(io,
         shell->DispatchForTest("kick villainplayer"));
@@ -334,7 +338,8 @@ void TestKickWithNoMapPeersAudits()
     FakeAdminAudit audit;
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0, [] { return std::size_t{0}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto reply = RunOne(io, shell->DispatchForTest("kick lonelytarget"));
     CheckContains(reply, "0 map peer(s)", "fanout = 0");
@@ -364,7 +369,8 @@ void TestAnnounceFansOutToMapAndWorld()
 
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0, [] { return std::size_t{0}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto reply = RunOne(io,
         shell->DispatchForTest("announce server going down in 5 minutes"));
@@ -407,7 +413,8 @@ void TestServiceStatusKnown()
     FakeAdminAudit audit;
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0, [] { return std::size_t{0}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto reply = RunOne(io, shell->DispatchForTest("service status 42"));
     CheckContains(reply, "live=running",
@@ -426,7 +433,8 @@ void TestServiceStatusUnknown()
     FakeAdminAudit audit;
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0, [] { return std::size_t{0}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto reply = RunOne(io, shell->DispatchForTest("service status 999"));
     CheckContains(reply, "999 not found", "unknown sid surfaces clear error");
@@ -447,7 +455,8 @@ void TestServiceStartAndStopAudits()
     FakeAdminAudit audit;
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0, [] { return std::size_t{0}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto reply_start =
         RunOne(io, shell->DispatchForTest("service start 7"));
@@ -480,7 +489,8 @@ void TestLogLevel()
     FakeAdminAudit audit;
     auto shell = std::make_shared<AdminShell>(
         io, "127.0.0.1", 0, [] { return std::size_t{0}; },
-        peers, ctrl, &audit, std::chrono::steady_clock::now());
+        peers, ctrl, &audit, /*router=*/nullptr,
+        std::chrono::steady_clock::now());
 
     const auto good = RunOne(io, shell->DispatchForTest("log-level debug"));
     CheckContains(good, "log level → debug", "valid level accepted");

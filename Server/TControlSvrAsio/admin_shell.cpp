@@ -1,5 +1,6 @@
 #include "admin_shell.h"
 
+#include "message_router.h"
 #include "peer_session.h"
 #include "senders.h"
 #include "services/admin_audit_logger.h"
@@ -88,6 +89,65 @@ const char* ResultName(ControlResult r)
     return "unknown";
 }
 
+// Parse a u32 from "0x..." (hex) or plain decimal. Returns false on
+// malformed input — the command handler converts that into a usage
+// reply rather than crashing.
+bool ParseU32(const std::string& s, std::uint32_t& out)
+{
+    if (s.empty()) return false;
+    try
+    {
+        std::size_t consumed = 0;
+        if (s.size() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
+            out = static_cast<std::uint32_t>(
+                std::stoul(s.substr(2), &consumed, 16));
+        else
+            out = static_cast<std::uint32_t>(
+                std::stoul(s, &consumed, 10));
+        return consumed > 0;
+    }
+    catch (...) { return false; }
+}
+
+bool ParseU8(const std::string& s, std::uint8_t& out)
+{
+    std::uint32_t v = 0;
+    if (!ParseU32(s, v) || v > 255) return false;
+    out = static_cast<std::uint8_t>(v);
+    return true;
+}
+
+bool ParseU16(const std::string& s, std::uint16_t& out)
+{
+    std::uint32_t v = 0;
+    if (!ParseU32(s, v) || v > 0xFFFF) return false;
+    out = static_cast<std::uint16_t>(v);
+    return true;
+}
+
+// Hex-string → byte vector. Accepts even-length strings of [0-9a-fA-F].
+// Returns false on malformed input (odd length or non-hex char).
+bool ParseHexBody(const std::string& s, std::vector<std::byte>& out)
+{
+    out.clear();
+    if (s.size() % 2 != 0) return false;
+    out.reserve(s.size() / 2);
+    auto nibble = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
+    for (std::size_t i = 0; i < s.size(); i += 2)
+    {
+        const int hi = nibble(s[i]);
+        const int lo = nibble(s[i + 1]);
+        if (hi < 0 || lo < 0) return false;
+        out.push_back(static_cast<std::byte>((hi << 4) | lo));
+    }
+    return true;
+}
+
 } // namespace
 
 AdminShell::AdminShell(boost::asio::io_context& io,
@@ -97,6 +157,7 @@ AdminShell::AdminShell(boost::asio::io_context& io,
                       PeerRegistry& peers,
                       IServiceController& controller,
                       IAdminAuditLogger* audit,
+                      MessageRouter* router,
                       std::chrono::steady_clock::time_point started_at)
     : m_acceptor(io)
     , m_port(port)
@@ -104,6 +165,7 @@ AdminShell::AdminShell(boost::asio::io_context& io,
     , m_peers(peers)
     , m_controller(controller)
     , m_audit(audit)
+    , m_router(router)
     , m_started_at(started_at)
 {
     using boost::asio::ip::tcp;
@@ -185,12 +247,18 @@ AdminShell::Dispatch(const std::string& line)
             "  help                          show this list\n"
             "  status                        operators + peers + uptime\n"
             "  peers                         service inventory + dial state\n"
+            "  peer <service_id>             one-service detail (static + runtime + registry)\n"
             "  registry                      live peer self-registrations + heartbeats\n"
             "  kick <user>                   broadcast UserKickout to all map peers\n"
             "  announce <message...>         broadcast announcement\n"
             "  service status <service_id>   query peer service status (SCM)\n"
             "  service start  <service_id>   SCM start on peer machine\n"
             "  service stop   <service_id>   SCM stop  on peer machine\n"
+            "  route service <sid> <wId> [hex-body]\n"
+            "  route type <group> <type> <wId> [hex-body]\n"
+            "  route broadcast type <type> <wId> [hex-body]\n"
+            "  route broadcast group <group> <type> <wId> [hex-body]\n"
+            "                                send raw CT_* frames to peers\n"
             "  log-level <level>             local spdlog level\n"
             "  quit                          close the admin connection";
     }
@@ -200,6 +268,21 @@ AdminShell::Dispatch(const std::string& line)
         co_return CmdPeers();
     if (cmd == "registry")
         co_return CmdRegistry();
+    if (cmd == "peer")
+    {
+        std::string sid_s;
+        in >> sid_s;
+        std::uint32_t sid = 0;
+        if (!ParseU32(sid_s, sid))
+            co_return "usage: peer <service_id>  (decimal or 0x-hex)";
+        co_return CmdPeer(sid);
+    }
+    if (cmd == "route")
+    {
+        std::string rest;
+        std::getline(in, rest);
+        co_return co_await CmdRoute(rest);
+    }
     if (cmd == "kick")
     {
         std::string user;
@@ -405,6 +488,150 @@ AdminShell::CmdServiceStop(std::uint32_t sid)
         m_audit->LogAdminAction("admin-shell", "service_stop", svc->name);
     co_return std::string("service stop '") + svc->name + "' → "
         + ResultName(rc);
+}
+
+std::string AdminShell::CmdPeer(std::uint32_t sid) const
+{
+    const auto* svc  = m_peers.FindService(sid);
+    const auto* st   = m_peers.Status(sid);
+    const auto* reg  = m_peers.FindRegistration(sid);
+    auto        conn = m_peers.Connection(sid);
+    if (!svc && !reg)
+        return "service_id " + std::to_string(sid) + " not found "
+               "(neither in static inventory nor dynamic registry)";
+    std::ostringstream os;
+    os << "service_id=" << sid;
+    if (svc)
+    {
+        os << "\nstatic:    name='" << svc->name
+           << "' type=" << TypeName(svc->type_id)
+           << " group=" << static_cast<int>(svc->group_id)
+           << " server=" << static_cast<int>(svc->server_id)
+           << " port=" << svc->port;
+    }
+    if (st)
+    {
+        os << "\nruntime:   status=" << StatusName(st->status)
+           << " cur_users=" << st->cur_users
+           << " max_users=" << st->max_users
+           << " stop_count=" << st->stop_count;
+    }
+    if (reg)
+    {
+        const auto age = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - reg->last_heartbeat_at).count();
+        os << "\nregistry:  reported='" << reg->reported_name
+           << "' addr=" << reg->reported_addr << ":" << reg->reported_port
+           << " version=" << reg->version
+           << " lease=" << reg->lease_epoch
+           << " hb_age=" << age << "s"
+           << " pid=" << reg->pid;
+    }
+    const bool live = conn && conn->Wire() && conn->Wire()->IsOpen();
+    os << "\nconn:      " << (live ? "online" : "offline");
+    return os.str();
+}
+
+boost::asio::awaitable<std::string>
+AdminShell::CmdRoute(const std::string& rest)
+{
+    if (!m_router)
+        co_return "route: MessageRouter unavailable";
+
+    std::istringstream in(rest);
+    std::string sub;
+    in >> sub;
+
+    auto need_router_or_usage =
+        [](const std::string& usage) { return usage; };
+
+    if (sub == "service")
+    {
+        std::string sid_s, wid_s, body_s;
+        in >> sid_s >> wid_s >> body_s;
+        std::uint32_t sid = 0;
+        std::uint16_t wid = 0;
+        std::vector<std::byte> body;
+        if (!ParseU32(sid_s, sid) || !ParseU16(wid_s, wid))
+            co_return "usage: route service <sid> <wId> [hex-body]";
+        if (!body_s.empty() && !ParseHexBody(body_s, body))
+            co_return "route service: malformed hex body";
+        const bool ok = co_await m_router->SendToService(sid, wid,
+            std::move(body));
+        if (m_audit)
+            m_audit->LogAdminAction("admin-shell", "route_service",
+                std::to_string(sid));
+        co_return ok
+            ? "route service " + std::to_string(sid) + " → ok"
+            : "route service " + std::to_string(sid) + " → offline / unknown";
+    }
+    if (sub == "type")
+    {
+        std::string g_s, t_s, wid_s, body_s;
+        in >> g_s >> t_s >> wid_s >> body_s;
+        std::uint8_t  g = 0, t = 0;
+        std::uint16_t wid = 0;
+        std::vector<std::byte> body;
+        if (!ParseU8(g_s, g) || !ParseU8(t_s, t) || !ParseU16(wid_s, wid))
+            co_return "usage: route type <group> <type> <wId> [hex-body]";
+        if (!body_s.empty() && !ParseHexBody(body_s, body))
+            co_return "route type: malformed hex body";
+        const auto sid = co_await m_router->SendToType(g, t, wid,
+            std::move(body));
+        if (m_audit)
+            m_audit->LogAdminAction("admin-shell", "route_type",
+                std::to_string(g) + "/" + std::to_string(t));
+        co_return sid == 0
+            ? "route type → no live peers in bucket"
+            : "route type → service_id " + std::to_string(sid);
+    }
+    if (sub == "broadcast")
+    {
+        std::string scope;
+        in >> scope;
+        if (scope == "type")
+        {
+            std::string t_s, wid_s, body_s;
+            in >> t_s >> wid_s >> body_s;
+            std::uint8_t  t = 0;
+            std::uint16_t wid = 0;
+            std::vector<std::byte> body;
+            if (!ParseU8(t_s, t) || !ParseU16(wid_s, wid))
+                co_return "usage: route broadcast type <type> <wId> [hex-body]";
+            if (!body_s.empty() && !ParseHexBody(body_s, body))
+                co_return "route broadcast type: malformed hex body";
+            const auto fanout = co_await m_router->BroadcastToType(t, wid,
+                std::move(body));
+            if (m_audit)
+                m_audit->LogAdminAction("admin-shell", "route_broadcast_type",
+                    std::to_string(t));
+            co_return "route broadcast type → " + std::to_string(fanout)
+                + " peer(s)";
+        }
+        if (scope == "group")
+        {
+            std::string g_s, t_s, wid_s, body_s;
+            in >> g_s >> t_s >> wid_s >> body_s;
+            std::uint8_t  g = 0, t = 0;
+            std::uint16_t wid = 0;
+            std::vector<std::byte> body;
+            if (!ParseU8(g_s, g) || !ParseU8(t_s, t) || !ParseU16(wid_s, wid))
+                co_return "usage: route broadcast group <group> <type> "
+                          "<wId> [hex-body]";
+            if (!body_s.empty() && !ParseHexBody(body_s, body))
+                co_return "route broadcast group: malformed hex body";
+            const auto fanout = co_await m_router->BroadcastToGroupType(g, t,
+                wid, std::move(body));
+            if (m_audit)
+                m_audit->LogAdminAction("admin-shell",
+                    "route_broadcast_group",
+                    std::to_string(g) + "/" + std::to_string(t));
+            co_return "route broadcast group → " + std::to_string(fanout)
+                + " peer(s)";
+        }
+        co_return "usage: route broadcast <type|group> ...";
+    }
+    co_return "usage: route <service|type|broadcast> ...";
 }
 
 std::string AdminShell::CmdLogLevel(const std::string& lvl)

@@ -183,6 +183,18 @@ target_link_libraries(test_tcontrolsvr_asio_peer_registry PRIVATE
 add_test(NAME tcontrolsvr_asio_peer_registry
     COMMAND test_tcontrolsvr_asio_peer_registry)
 
+# Admin-shell gateway commands (F4) — drives the new `route` +
+# `peer <sid>` commands through DispatchForTest with loopback peer
+# sockets behind the registry, then reads bytes off the wire to verify
+# the gateway is byte-for-byte routing operator CLI input through the
+# F3 MessageRouter to the right destination(s).
+add_executable(test_tcontrolsvr_asio_admin_shell_route
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_shell_route.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_shell_route PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_shell_route
+    COMMAND test_tcontrolsvr_asio_admin_shell_route)
+
 # MessageRouter routing primitives — covers all four routing methods
 # (SendToService, SendToType round-robin, BroadcastToGroupType,
 # BroadcastToType) against loopback peer sockets. Verifies the right

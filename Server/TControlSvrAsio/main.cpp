@@ -6,6 +6,7 @@
 #include "admin_shell.h"
 #include "config.h"
 #include "control_server.h"
+#include "message_router.h"
 #include "event_scheduler.h"
 #include "peer_dialer.h"
 #include "db/schema_validator.h"
@@ -311,10 +312,11 @@ int main(int argc, char** argv)
         }
 
         // The cluster's single operator entry point. Cross-server
-        // commands (`peers`, `kick`, `announce`, `service start/stop`)
-        // route through PeerRegistry + IServiceController so the
-        // existing CT_* forwarder pipeline handles fan-out — no new
-        // wire surface needed.
+        // commands (`peers`, `kick`, `announce`, `service start/stop`,
+        // `route`) route through PeerRegistry + MessageRouter +
+        // IServiceController so the existing CT_* forwarder pipeline
+        // handles fan-out — no new wire surface needed.
+        tcontrolsvr::MessageRouter router(peers);
         std::shared_ptr<tcontrolsvr::AdminShell> admin;
         if (cfg.admin_port != 0)
         {
@@ -323,7 +325,7 @@ int main(int argc, char** argv)
                 admin = std::make_shared<tcontrolsvr::AdminShell>(
                     io, cfg.admin_bind, cfg.admin_port,
                     [&server] { return server.LiveOperators(); },
-                    peers, *controller, &audit,
+                    peers, *controller, &audit, &router,
                     std::chrono::steady_clock::now());
                 spdlog::info("admin shell listening on {}:{}",
                     cfg.admin_bind, admin->Port());

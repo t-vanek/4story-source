@@ -16,26 +16,12 @@
 // that evaluates triggers / awards rewards lands in a later phase
 // alongside CS_QUESTEXEC_REQ's actual side-effects.
 
+#include "domain/quest.h"
+
 #include <cstdint>
 #include <vector>
 
 namespace tmapsvr {
-
-struct QuestTermRow
-{
-    std::uint32_t  dwTermID    = 0;
-    std::uint8_t   bTermType   = 0;
-    std::uint8_t   bCount      = 0;
-};
-
-struct QuestProgressRow
-{
-    std::uint32_t              dwQuestID       = 0;
-    std::uint32_t              dwTick          = 0;     // accept timestamp
-    std::uint8_t               bCompleteCount  = 0;     // how many times completed (repeatables)
-    std::uint8_t               bTriggerCount   = 0;     // how many times trigger fired
-    std::vector<QuestTermRow>  terms;
-};
 
 class IQuestService
 {

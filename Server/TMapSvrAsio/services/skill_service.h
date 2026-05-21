@@ -11,17 +11,12 @@
 // damage / cooldown logic in a later phase, since that's the only
 // path that needs the template fields.
 
+#include "domain/skill.h"
+
 #include <cstdint>
 #include <vector>
 
 namespace tmapsvr {
-
-struct SkillRow
-{
-    std::uint16_t  wSkillID     = 0;
-    std::uint8_t   bLevel       = 0;
-    std::uint32_t  dwRemainTick = 0;   // cooldown tick remaining (0 = ready)
-};
 
 class ISkillService
 {

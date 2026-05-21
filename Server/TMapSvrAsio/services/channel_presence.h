@@ -16,6 +16,7 @@
 // map off the io_context thread.
 
 #include "asio_session.h"
+#include "domain/position.h"
 
 #include <cstdint>
 #include <functional>
@@ -27,13 +28,6 @@
 #include <vector>
 
 namespace tmapsvr {
-
-struct Position
-{
-    float x = 0.f;
-    float y = 0.f;
-    float z = 0.f;
-};
 
 struct ChannelPresenceEntry
 {

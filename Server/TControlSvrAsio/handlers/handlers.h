@@ -27,6 +27,7 @@
 #include "../services/operator_registry.h"
 #include "../services/patch_metadata_service.h"
 #include "../services/peer_registry.h"
+#include "../services/peer_repository.h"
 #include "../services/service_controller.h"
 #include "../services/service_inventory.h"
 #include "../services/user_protected_service.h"
@@ -75,6 +76,10 @@ struct HandlerContext
     // the cluster scheduler auto-restarts a crashed daemon. Mutated
     // by CT_SERVICEAUTOSTART_REQ broadcast.
     std::uint8_t*          auto_start = nullptr;
+
+    // Persistent peer state repository (TPEER_REGISTRY, TPEER_STATUS_LOG,
+    // TPEER_METRICS, TOP_AUDIT_LOG). nullptr when no DB is configured.
+    IPeerRepository*       peer_repo  = nullptr;
 };
 
 namespace handlers {
@@ -390,6 +395,23 @@ boost::asio::awaitable<void> OnServiceUploadReq(
     const HandlerContext& ctx);
 
 boost::asio::awaitable<void> OnServiceUploadEndReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// --- Modern peer self-registration (CT_PEER_*, foundation for the
+// cluster control plane). See handlers_registry.cpp.
+boost::asio::awaitable<void> OnPeerRegisterReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPeerHeartbeatReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+boost::asio::awaitable<void> OnPeerDeregisterReq(
     std::shared_ptr<OperatorSession> op,
     std::vector<std::byte> body,
     const HandlerContext& ctx);

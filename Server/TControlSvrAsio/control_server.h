@@ -17,6 +17,7 @@
 #include "services/operator_registry.h"
 #include "services/patch_metadata_service.h"
 #include "services/peer_registry.h"
+#include "services/peer_repository.h"
 #include "services/service_controller.h"
 #include "services/user_protected_service.h"
 
@@ -49,6 +50,7 @@ struct ControlServerConfig
     IEventRepository*      event_repo  = nullptr;
     IPatchMetadataService* patch_meta  = nullptr;
     IAlerter*              alerter     = nullptr;
+    IPeerRepository*       peer_repo   = nullptr;
     fourstory::ops::LoginRateLimiter* login_rate = nullptr;
     // Worker pool for synchronous SOCI calls. nullptr → fall back
     // to in-line execution on the io_context thread.
@@ -82,6 +84,16 @@ public:
     boost::asio::awaitable<void> PeerKeepaliveLoop(
         std::chrono::milliseconds offline_after = std::chrono::seconds(60),
         std::chrono::milliseconds tick = std::chrono::seconds(1));
+
+    // Lease expiry sweep for modern peer self-registration. Peers send
+    // CT_PEER_HEARTBEAT_REQ every ~30s (kHeartbeatIntervalSec in
+    // handlers_registry.cpp); this loop drops registry entries whose
+    // last heartbeat is older than `max_age`. Default 90s = three
+    // missed heartbeats — long enough that one dropped UDP packet on
+    // a flaky link doesn't reap a healthy peer.
+    boost::asio::awaitable<void> RegistryLeaseExpiryLoop(
+        std::chrono::seconds max_age = std::chrono::seconds(90),
+        std::chrono::seconds tick    = std::chrono::seconds(15));
 
 private:
     boost::asio::awaitable<void> HandleConnection(

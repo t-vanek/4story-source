@@ -572,4 +572,34 @@ boost::asio::awaitable<void> SendServiceUploadStartAck(
         ToUint16(MessageId::CT_SERVICEUPLOADSTART_ACK), std::move(body));
 }
 
+boost::asio::awaitable<void> SendPeerRegisterAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  accepted,
+    std::uint32_t reason_code,
+    std::uint64_t lease_epoch,
+    std::uint32_t heartbeat_interval_sec)
+{
+    std::vector<std::byte> body;
+    body.reserve(1 + 4 + 8 + 4);
+    wire::WritePOD<std::uint8_t >(body, accepted);
+    wire::WritePOD<std::uint32_t>(body, reason_code);
+    wire::WritePOD<std::uint64_t>(body, lease_epoch);
+    wire::WritePOD<std::uint32_t>(body, heartbeat_interval_sec);
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CT_PEER_REGISTER_ACK), std::move(body));
+}
+
+boost::asio::awaitable<void> SendPeerHeartbeatAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint8_t  accepted,
+    std::uint64_t lease_epoch)
+{
+    std::vector<std::byte> body;
+    body.reserve(1 + 8);
+    wire::WritePOD<std::uint8_t >(body, accepted);
+    wire::WritePOD<std::uint64_t>(body, lease_epoch);
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CT_PEER_HEARTBEAT_ACK), std::move(body));
+}
+
 } // namespace tcontrolsvr::senders

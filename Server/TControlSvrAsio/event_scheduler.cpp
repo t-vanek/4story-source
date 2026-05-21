@@ -21,7 +21,11 @@ std::uint32_t DayMinutes(std::int64_t unix_seconds)
 {
     std::time_t t = static_cast<std::time_t>(unix_seconds);
     std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
     localtime_r(&t, &tm);
+#endif
     return static_cast<std::uint32_t>(tm.tm_hour * 60 + tm.tm_min + 1440);
 }
 

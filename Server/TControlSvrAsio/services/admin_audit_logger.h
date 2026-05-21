@@ -89,6 +89,18 @@ public:
     virtual void LogAuthorityDenied(const std::string& operator_id,
                                     std::uint8_t actual_authority,
                                     const std::string& requested_action) = 0;
+
+    // Generic structured record with full session context (authority,
+    // remote IP). Called by handlers that have access to the
+    // OperatorSession; provides richer DB rows than the specialized
+    // methods above. Default impl is a no-op — SociAdminAuditLogger
+    // overrides it to persist to TOP_AUDIT_LOG.
+    virtual void LogRaw(const std::string& /*operator_id*/,
+                        std::uint8_t       /*authority*/,
+                        const std::string& /*remote_ip*/,
+                        const std::string& /*action*/,
+                        const std::string& /*target*/,
+                        const std::string& /*detail*/ = {}) {}
 };
 
 } // namespace tcontrolsvr

@@ -68,18 +68,11 @@ OnOpLoginReq(std::shared_ptr<OperatorSession> op,
     // io_context stays responsive for other operators + peer
     // monitoring. Without a pool (test / fake-auth path) we just
     // run inline.
-    OperatorAuthResult result;
-    if (ctx.db_pool)
-    {
-        result = co_await fourstory::db::CoOffload(*ctx.db_pool,
+    OperatorAuthResult result =
+        co_await fourstory::db::CoOffloadIf(ctx.db_pool,
             [&ctx, &user_id, &password] {
                 return ctx.auth->Authenticate(user_id, password);
             });
-    }
-    else
-    {
-        result = ctx.auth->Authenticate(user_id, password);
-    }
     if (!result.ok || !AuthorityOneFromLoopback(result, remote_ip))
     {
         spdlog::info("CT_OPLOGIN_REQ id='{}' rejected", user_id);
@@ -154,18 +147,11 @@ OnStLoginReq(std::shared_ptr<OperatorSession> op,
         co_await senders::SendStLoginAck(op->Wire(), 1, 0);
         co_return;
     }
-    OperatorAuthResult result;
-    if (ctx.db_pool)
-    {
-        result = co_await fourstory::db::CoOffload(*ctx.db_pool,
+    OperatorAuthResult result =
+        co_await fourstory::db::CoOffloadIf(ctx.db_pool,
             [&ctx, &user_id, &password] {
                 return ctx.auth->Authenticate(user_id, password);
             });
-    }
-    else
-    {
-        result = ctx.auth->Authenticate(user_id, password);
-    }
     if (!result.ok)
     {
         co_await senders::SendStLoginAck(op->Wire(), 1, 0);
@@ -377,6 +363,17 @@ Dispatch(std::shared_ptr<OperatorSession> op,
         break;
     case MessageId::CT_SERVICEUPLOADEND_REQ:
         co_await OnServiceUploadEndReq(std::move(op), std::move(body), ctx);
+        break;
+
+    // --- Modern peer self-registration (CT_PEER_*) ---------------
+    case MessageId::CT_PEER_REGISTER_REQ:
+        co_await OnPeerRegisterReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PEER_HEARTBEAT_REQ:
+        co_await OnPeerHeartbeatReq(std::move(op), std::move(body), ctx);
+        break;
+    case MessageId::CT_PEER_DEREGISTER_REQ:
+        co_await OnPeerDeregisterReq(std::move(op), std::move(body), ctx);
         break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap

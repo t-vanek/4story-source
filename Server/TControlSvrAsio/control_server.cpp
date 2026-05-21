@@ -72,6 +72,7 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.event_repo = m_cfg.event_repo;
     ctx.patch_meta = m_cfg.patch_meta;
     ctx.alerter    = m_cfg.alerter;
+    ctx.peer_repo  = m_cfg.peer_repo;
     ctx.login_rate = m_cfg.login_rate;
     ctx.db_pool    = m_cfg.db_pool;
     ctx.io         = &m_io;
@@ -159,6 +160,28 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
                     m_cfg.alerter->Notify(svc.type_id, svc.service_id, 3);
             }
         }
+    }
+}
+
+boost::asio::awaitable<void>
+ControlServer::RegistryLeaseExpiryLoop(std::chrono::seconds max_age,
+                                       std::chrono::seconds tick)
+{
+    if (!m_cfg.peers) co_return;
+    boost::asio::steady_timer timer(m_io);
+    while (m_acceptor.is_open())
+    {
+        timer.expires_after(tick);
+        boost::system::error_code ec;
+        co_await timer.async_wait(
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if (ec || !m_acceptor.is_open()) break;
+
+        const auto expired = m_cfg.peers->ExpireStale(max_age);
+        if (expired > 0)
+            spdlog::warn("registry: expired {} stale lease(s) "
+                         "(no heartbeat within {}s)",
+                expired, static_cast<long long>(max_age.count()));
     }
 }
 

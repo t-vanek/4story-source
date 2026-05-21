@@ -19,6 +19,8 @@
 #include "../senders.h"
 #include "../wire_codec.h"
 #include "../services/authority_gate.h"
+
+#include "fourstory/db/co_offload.h"
 #include "MessageId.h"
 
 #include <spdlog/spdlog.h>
@@ -154,7 +156,17 @@ OnEventChangeReq(std::shared_ptr<OperatorSession> op,
 
     std::uint8_t rc = event_result::kFail;
     if (ctx.event_repo)
-        rc = ctx.event_repo->Persist(ev, op_byte, BuildValueBlob(ev));
+    {
+        // Offload the SOCI write onto db_pool when configured so a
+        // slow event-table update doesn't freeze the control session
+        // mid-handler. Falls back to inline execution when db_pool
+        // is null (legacy semantics for dev / smoke tests).
+        const auto blob = BuildValueBlob(ev);
+        rc = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo = ctx.event_repo, &ev, op_byte, &blob] {
+                return repo->Persist(ev, op_byte, blob);
+            });
+    }
     else
         rc = event_result::kSuccess;  // no-repo deploys still mutate memory
 
@@ -210,7 +222,12 @@ OnEventDelReq(std::shared_ptr<OperatorSession> op,
     EventInfo del = *ev;  // copy for repo call (Persist needs the row)
     std::uint8_t rc = event_result::kFail;
     if (ctx.event_repo)
-        rc = ctx.event_repo->Persist(del, event_op::kDel, "");
+    {
+        rc = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo = ctx.event_repo, &del] {
+                return repo->Persist(del, event_op::kDel, "");
+            });
+    }
     else
         rc = event_result::kSuccess;
     if (rc == event_result::kSuccess) ctx.events->Erase(index);
@@ -296,7 +313,11 @@ OnCashItemListReq(std::shared_ptr<OperatorSession> op,
 {
     if (!op->LoggedIn()) co_return;
     std::vector<CashItem> items;
-    if (ctx.event_repo) items = ctx.event_repo->ListCashItems();
+    if (ctx.event_repo)
+    {
+        items = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo = ctx.event_repo] { return repo->ListCashItems(); });
+    }
     co_await senders::SendCashItemListAck(op->Wire(), items);
 }
 

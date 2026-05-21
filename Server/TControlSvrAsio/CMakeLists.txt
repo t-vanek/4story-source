@@ -36,6 +36,7 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/control_server.cpp
     ${TCONTROL_ASIO_SRC}/event_codec.cpp
     ${TCONTROL_ASIO_SRC}/event_scheduler.cpp
+    ${TCONTROL_ASIO_SRC}/message_router.cpp
     ${TCONTROL_ASIO_SRC}/peer_dialer.cpp
     ${TCONTROL_ASIO_SRC}/senders.cpp
     ${TCONTROL_ASIO_SRC}/handlers/handlers_auth.cpp
@@ -181,6 +182,18 @@ target_link_libraries(test_tcontrolsvr_asio_peer_registry PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_peer_registry
     COMMAND test_tcontrolsvr_asio_peer_registry)
+
+# MessageRouter routing primitives — covers all four routing methods
+# (SendToService, SendToType round-robin, BroadcastToGroupType,
+# BroadcastToType) against loopback peer sockets. Verifies the right
+# peers received the right bytes and that offline / closed peers are
+# skipped without breaking round-robin.
+add_executable(test_tcontrolsvr_asio_message_router
+    ${TCONTROL_ASIO_SRC}/tests/test_message_router.cpp)
+target_link_libraries(test_tcontrolsvr_asio_message_router PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_message_router
+    COMMAND test_tcontrolsvr_asio_message_router)
 
 # PeerClient integration test — drives the outbound-side client
 # (fourstory::cluster::PeerClient) against a TCP stub that role-plays

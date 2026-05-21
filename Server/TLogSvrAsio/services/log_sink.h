@@ -136,6 +136,15 @@ private:
     // treated as transient.
     bool TryInsert(const LogRecord& rec);
 
+    // Bulk INSERT for the drain path. Builds a single multi-row
+    // `INSERT … VALUES (…), (…), …` statement with dialect-aware BLOB
+    // literal encoding (MSSQL `0xHEX`, PG `'\xHEX'::bytea`, SQLite
+    // `X'HEX'`). On a hot drain after DB outage, 64 records → 1 wire
+    // round-trip instead of 64. Caller treats `false` / exceptions
+    // the same way as TryInsert — push the whole batch back to the
+    // queue head and wait for the next tick. Empty batch returns true.
+    bool TryBulkInsert(const std::vector<LogRecord>& batch);
+
     fourstory::db::SessionPool&  m_pool;
     std::string                  m_table;
     Options                      m_opts;

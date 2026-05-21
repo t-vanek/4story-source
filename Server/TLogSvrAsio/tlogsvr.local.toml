@@ -1,0 +1,25 @@
+# Dev config for TLogSvrAsio with security + bulk drain enabled.
+
+port = 2000
+bind_address = "0.0.0.0"
+target_table = "TLOG_AUDIT"
+
+[database]
+backend = "odbc"
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+worker_threads = 1
+
+[retry]
+max_queue = 1000
+drain_interval_seconds = 5
+drain_batch_size = 64
+
+[health]
+port = 0
+
+[log]
+level = "info"
+
+[security]
+ip_allowlist = ["127.0.0.1/32", "10.0.0.0/8"]
+ip_allowlist_enforce = false

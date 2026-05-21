@@ -14,6 +14,7 @@ set(FOURSTORY_COMMON_HEADERS
     fourstory/db/orm/sp_call.h
     fourstory/db/orm/entity_mapping.h
     fourstory/db/orm/repository.h
+    fourstory/db/orm/bulk_insert.h
     fourstory/db/orm/transaction.h
     fourstory/db/orm/db_context.h
     fourstory/db/orm/examples.h

@@ -1,5 +1,7 @@
 #include "world_client.h"
 
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/redirect_error.hpp>
 #include <boost/asio/steady_timer.hpp>
@@ -18,6 +20,7 @@ AsioWorldClient::AsioWorldClient(boost::asio::io_context& io,
                                  std::chrono::milliseconds backoff_initial,
                                  std::chrono::milliseconds backoff_max)
     : m_io(io)
+    , m_send_strand(boost::asio::make_strand(io.get_executor()))
     , m_host(std::move(host))
     , m_port(port)
     , m_on_packet(std::move(on_packet))
@@ -125,6 +128,16 @@ AsioWorldClient::Run()
 boost::asio::awaitable<bool>
 AsioWorldClient::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 {
+    // Hop to the send strand so concurrent SendPacket calls from
+    // multiple handler coroutines (potentially on multiple threads)
+    // serialize correctly. AsioSession::SendPacket is documented as
+    // not-thread-safe; the strand makes it so. Dispatch returns
+    // synchronously when we're already on the strand (single-thread
+    // io.run()), so the cost is one queue hop in the multi-thread
+    // case and zero in the common case.
+    co_await boost::asio::dispatch(m_send_strand,
+        boost::asio::use_awaitable);
+
     if (!IsConnected())
     {
         spdlog::warn("world_client: SendPacket wId=0x{:04X} dropped — "
@@ -132,11 +145,11 @@ AsioWorldClient::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
             wId);
         co_return false;
     }
-    // Move the body into the send so the AsioSession's outbound
-    // scratch can fold it without an extra copy. SendPacket itself
-    // is not thread-safe — see header note on single-threaded
-    // io_context assumption.
-    co_await m_session->SendPacket(
+    // Capture the session locally so a disconnect mid-send doesn't
+    // null the member out from under us. m_session is a shared_ptr
+    // exactly so we can do this.
+    auto sess = m_session;
+    co_await sess->SendPacket(
         wId, std::span<const std::byte>(body.data(), body.size()));
     co_return true;
 }

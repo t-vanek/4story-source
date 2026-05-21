@@ -44,6 +44,45 @@ type = "pve"
 host = "127.0.0.1"
 port = 0
 
+[audit]
+# TLogSvrAsio audit UDP shim — structured events (login, char load,
+# handler latency, …) go here. Connectionless / fire-and-forget;
+# dropping a packet under load is acceptable for observability.
+# Empty host or port = 0 disables the peer; events stay in the local
+# spdlog file.
+host = ""
+port = 0
+
+[rate_limit]
+# T5 per-session token bucket. burst = bucket capacity (max consecutive
+# messages); refill_per_s = tokens regenerated per second. Both zero
+# (default) disables the limiter — every message dispatches. Set both
+# to e.g. burst=20, refill_per_s=10 for "20 burst, 10 sustained / sec".
+burst = 0
+refill_per_s = 0
+
+[shutdown]
+# T5 graceful shutdown drain window. On SIGINT/SIGTERM the listener
+# stops accepting immediately; we then sleep this many ms before
+# io.stop() so in-flight handlers and outbound peer sends finish.
+drain_ms = 2000
+
+[admin]
+# T6 admin TCP shell. Text protocol, newline-delimited commands
+# (help / status / kick / broadcast / peer-status / quit). Bind on
+# localhost by default; tunnel via SSH for remote access rather
+# than exposing the port. Optional secret enforces "auth <secret>"
+# as the first line before any other command. Port = 0 disables.
+bind   = "127.0.0.1"
+port   = 0
+secret = ""
+
+[metrics]
+# T6 Prometheus /metrics endpoint. Bind on loopback; set port = 0
+# to disable. The scraper (prometheus or a node-exporter sidecar)
+# is expected to run alongside the server.
+port = 8917
+
 [health]
 # Optional /healthz HTTP endpoint on a separate port. Set to 0 to
 # disable. Used by k8s liveness/readiness probes and external

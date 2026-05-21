@@ -33,6 +33,11 @@ struct MapServerConfig
     std::vector<std::byte>  rc4_secret_key;
     std::uint32_t           max_connections = 8000;
 
+    // T5 pre-auth watchdog. After this many seconds, sessions that
+    // haven't yet completed CS_CONNECT_REQ (= not bound in
+    // session_reg) get their socket closed. Zero disables.
+    std::uint32_t           pre_auth_timeout_seconds = 30;
+
     // Per-packet handler context — owns no state, just non-owning
     // pointers to services (validator, …) main built. Copied into
     // MapServer at construction; the caller's struct lifetime must
@@ -46,6 +51,12 @@ public:
     MapServer(boost::asio::io_context& io, MapServerConfig config);
 
     boost::asio::awaitable<void> Run();
+
+    // T5 graceful shutdown — closes the acceptor so the Run() loop
+    // exits after the current async_accept returns. Existing
+    // per-connection coroutines keep running until they finish or
+    // hit the drain timeout from main().
+    void StopAccepting();
 
     std::uint16_t Port() const { return m_port; }
 

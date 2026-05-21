@@ -12,16 +12,22 @@
 // in CMakeLists.txt for the documented TODOs that the consolidation
 // pass picks up.
 
+#include "audit/audit_log.h"
 #include "config.h"
 #include "handlers_world.h"
 #include "map_server.h"
+#include "ops/admin_shell.h"
+#include "ops/metrics.h"
+#include "ops/metrics_endpoint.h"
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
+#include "services/log_peer.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/npc_service.h"
+#include "services/rate_limiter.h"
 #include "services/player_service.h"
 #include "services/quest_service.h"
 #include "services/session_registry.h"
@@ -90,10 +96,29 @@ int main(int argc, char** argv)
 
         boost::asio::io_context io;
 
+        // T5: shutdown sequence is wired below — accept loop close,
+        // drain window, then io.stop(). The signal handler captures
+        // a pointer to the MapServer that we can't construct yet;
+        // declared here and filled in once the server is built.
+        tmapsvr::MapServer* server_ptr = nullptr;
+        const auto drain = std::chrono::milliseconds(cfg.shutdown.drain_ms);
+
         boost::asio::signal_set signals(io, SIGINT, SIGTERM);
-        signals.async_wait([&io](auto, int sig) {
-            spdlog::info("received signal {}, shutting down", sig);
-            io.stop();
+        signals.async_wait([&io, &server_ptr, drain](auto, int sig) {
+            spdlog::info("received signal {}, beginning graceful shutdown "
+                         "(drain {}ms)",
+                sig, static_cast<long long>(drain.count()));
+            if (server_ptr) server_ptr->StopAccepting();
+
+            // Sleep drain ms via a steady_timer so in-flight handlers
+            // and outbound peer sends have a chance to finish before
+            // io.stop() yanks the executor.
+            auto t = std::make_shared<boost::asio::steady_timer>(io);
+            t->expires_after(drain);
+            t->async_wait([&io, t](auto) {
+                spdlog::info("graceful shutdown drain elapsed — stopping io_context");
+                io.stop();
+            });
         });
 
         // Optional SOCI pool — without one, no validators / services
@@ -154,6 +179,26 @@ int main(int argc, char** argv)
         // consolidation). F13 boots it empty.
         tmapsvr::InMemoryMonsterRegistry monster_reg;
 
+        // T3: UDP audit sink (TLogSvrAsio collector). Empty host /
+        // port=0 disables the peer; events still go to spdlog. T4
+        // observability builds the structured audit log on top.
+        tmapsvr::UdpLogPeer    log_peer(io, cfg.audit.host, cfg.audit.port);
+
+        // T4: structured audit emitter (mirrors to spdlog + sends
+        // POD events to the UDP log peer when configured).
+        tmapsvr::audit::AuditLog audit_log(&log_peer);
+
+        // T4: metrics registry — counters + latency per handler /
+        // per DB query. Snapshots will feed a /metrics endpoint in
+        // a follow-up commit.
+        tmapsvr::ops::Metrics    metrics;
+
+        // T5: per-session rate limiter. Default config (burst=0,
+        // refill=0) disables the gate so dev runs aren't affected;
+        // production sets sensible values in [rate_limit].
+        tmapsvr::TokenBucketLimiter rate_limiter(
+            cfg.rate_limit.burst, cfg.rate_limit.refill_per_s);
+
         // char_id → AsioSession map. Lives for the io.run() duration,
         // bound at CS_CONNECT_REQ success, unbound by the MapServer
         // per-connection teardown. Consulted by handlers_world to
@@ -182,6 +227,10 @@ int main(int argc, char** argv)
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;
         ctx.companion_service = companion_service.get();
+        ctx.log_peer          = &log_peer;
+        ctx.audit             = &audit_log;
+        ctx.metrics           = &metrics;
+        ctx.rate_limiter      = &rate_limiter;
         ctx.mode              = cfg.mode;
 
         // Optional World peer — only spun up when [world] port is set
@@ -240,6 +289,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
+        server_ptr = &server;   // wire up the signal handler's pointer
         spdlog::info("tmapsvr_asio: F17 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
@@ -268,6 +318,33 @@ int main(int argc, char** argv)
                 spdlog::warn("health endpoint failed to bind on port {}: {}",
                     cfg.health_port, ex.what());
             }
+        }
+
+        // T6: Prometheus /metrics endpoint. Loopback only; separate
+        // from /healthz so a slow scrape doesn't degrade the
+        // liveness probe.
+        std::unique_ptr<tmapsvr::ops::MetricsEndpoint> metrics_ep;
+        if (cfg.metrics_port != 0)
+        {
+            metrics_ep = std::make_unique<tmapsvr::ops::MetricsEndpoint>(
+                io, cfg.metrics_port, metrics);
+            if (metrics_ep->Port() != 0)
+                boost::asio::co_spawn(io, metrics_ep->Run(),
+                    boost::asio::detached);
+        }
+
+        // T6: admin TCP shell. Disabled by default (port=0 in the
+        // example TOML); operators enable per deployment.
+        std::unique_ptr<tmapsvr::ops::AdminShell> admin;
+        if (cfg.admin.port != 0)
+        {
+            tmapsvr::ops::AdminShellConfig admin_cfg{
+                cfg.admin.bind, cfg.admin.port, cfg.admin.secret};
+            admin = std::make_unique<tmapsvr::ops::AdminShell>(
+                io, std::move(admin_cfg), ctx);
+            if (admin->Port() != 0)
+                boost::asio::co_spawn(io, admin->Run(),
+                    boost::asio::detached);
         }
 
         io.run();

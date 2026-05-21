@@ -35,7 +35,12 @@ class IMonsterChart;
 class ISpawnChart;
 class IMonsterRegistry;
 class ICompanionService;
+class ILogPeer;
+class IRateLimiter;
 enum class Mode : std::uint8_t;
+
+namespace audit { class IAuditLog; }
+namespace ops   { class IMetrics;  }
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; main() keeps the lifetimes.
@@ -54,6 +59,10 @@ struct HandlerContext
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;
     ICompanionService*     companion_service = nullptr;
+    ILogPeer*              log_peer          = nullptr;   // T3 UDP transport
+    audit::IAuditLog*      audit             = nullptr;   // T4 structured audit
+    ops::IMetrics*         metrics           = nullptr;   // T4 counters/latency
+    IRateLimiter*          rate_limiter      = nullptr;   // T5 per-session gate
     Mode                   mode              = Mode{0};   // PvE default
     std::uint8_t           expected_group    = 0;         // [server] / world group id
 };

@@ -9,18 +9,12 @@
 // per inventory slot, in TINVENTABLE order (matches legacy SSHandler
 // .cpp:3540).
 
+#include "domain/inventory.h"
+
 #include <cstdint>
 #include <vector>
 
 namespace tmapsvr {
-
-struct InventoryRow
-{
-    std::uint8_t   bInvenID  = 0;  // slot id (1..N for tabs, 254 = EQUIP, 255 = tab marker)
-    std::uint16_t  wItemID   = 0;  // item template id
-    std::int64_t   dEndTime  = 0;  // expiry tick (0 = permanent)
-    std::uint8_t   bELD      = 0;  // "ease lord drop" flag — legacy gameplay field
-};
 
 class IInventoryService
 {

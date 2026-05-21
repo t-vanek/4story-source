@@ -236,7 +236,44 @@ All packet IDs (`wMsgID`) are defined in `Lib/Own/TProtocol/include/*.h` as `#de
 #define CT_PATCH       (0x4201)      // Patch Server ↔ Client
 #define RW_RELAY       (0x9999)      // Relay/World ↔ World coordination
 #define CS_CUSTOM      (0x3312)      // Custom/extension messages
+
+// Modern additions (post-modernization), NOT in legacy:
+#define CT_PEER        (0x9F00)      // Peer self-registration extension
+                                     // (TControlSvrAsio only — TPeer/Asio
+                                     // servers self-register here)
 ```
+
+### CT_PEER namespace (modern, no legacy peer)
+
+Foundation for the modern cluster control plane. Peer game servers
+(TLogin / TLog / TPatch / TMap) dial TControlSvrAsio on startup and
+announce themselves; TControl issues a lease epoch; the peer keeps
+it alive with a 30 s heartbeat; the lease-expiry sweep reaps anything
+that misses ~3 windows.
+
+Allocated outside the legacy 0x93xx range (highest legacy CT_\* id is
+0x9382) to make it obvious these are not part of the 4Story client
+wire surface. Wire framing reuses the existing CPacket header (8-byte
+`WORD wSize | WORD wID | DWORD dwChkSum` + XOR-fold checksum + body),
+so the same `ControlSession` codec drives them.
+
+| ID | Name | Direction | Body |
+|---|---|---|---|
+| 0x9F00 | `CT_PEER_REGISTER_REQ`    | peer → control | `DWORD sid, CString name, CString addr, WORD port, CString version, DWORD pid, QWORD start_unix` |
+| 0x9F01 | `CT_PEER_REGISTER_ACK`    | control → peer | `BYTE accepted, DWORD reason, QWORD lease_epoch, DWORD heartbeat_interval_sec` |
+| 0x9F02 | `CT_PEER_HEARTBEAT_REQ`   | peer → control | `DWORD sid, QWORD lease_epoch, DWORD cur_users, DWORD max_users` |
+| 0x9F03 | `CT_PEER_HEARTBEAT_ACK`   | control → peer | `BYTE accepted, QWORD lease_epoch` |
+| 0x9F04 | `CT_PEER_DEREGISTER_REQ`  | peer → control | `DWORD sid, QWORD lease_epoch` |
+
+Implementation:
+* Server side — `Server/TControlSvrAsio/handlers/handlers_registry.cpp`
+* Client side — `Lib/Own/FourStoryCommon/src/cluster/peer_client.cpp`
+
+**Known security gap**: the handlers accept any caller that can
+speak the framing. No IP allowlist, no PSK, no HMAC, no mTLS today.
+See `CONTROL_SERVER_PORT_PLAN.md` §"Security gap" for the planned
+fix (IP allowlist from TIPADDR + per-service PSK + HMAC-SHA256
+trailer on every peer-side frame).
 
 ### Totals (extracted by `extract-packet-ids.ps1`, output `packet-ids.csv`)
 

@@ -1,6 +1,17 @@
 # `Lib/` inventory — what's ported, what's relevant, what's skipped
 
-Date: 2026-05-17. Question: do we have everything from `Lib/` covered in the .NET rewrite?
+Date: 2026-05-17 (initial — written during the abandoned C# rewrite) →
+note added 2026-05-21 after the C++20 reboot landed.
+
+> **Note 2026-05-21:** the C# / .NET direction was abandoned (commit
+> `0511bd3`). The current modernization is **C++20 + Boost.Asio**.
+> The "ported as X" / "EF Core" / ".g.cs" notes below describe the
+> earlier .NET work; the live C++ port keeps `TNetLib`, `TProtocol`,
+> and `HwidLib` in-tree under `Lib/Own/` and adds a new shared lib
+> `Lib/Own/FourStoryCommon/` for SOCI pool + audit + smtp + health
+> + rate limiter + registry refresher + `fourstory::cluster::PeerClient`.
+> See `Lib/Own/FourStoryCommon/README.md` for the C++ layout and
+> `_rewrite/docs/MODERNIZATION_PLAN.md` for current progress.
 
 ## Short answer
 

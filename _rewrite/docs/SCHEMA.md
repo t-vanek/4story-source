@@ -144,6 +144,50 @@ The original architecture **does substantial business logic in stored procedures
   ```
 - **Triggers** in TGLOBAL — 3 of them, inspect `schema/TGLOBAL_RAGEZONE.triggers.sql` to determine if they encode business rules we need to port.
 
+## Modern additions (post-modernization)
+
+These tables are NOT in the legacy schema — they back capabilities the
+modernized servers added on top of the original DB. All are opt-in
+via TOML config; legacy deployments that don't enable the feature
+don't need the table.
+
+### `TPEER_REGISTRY` (TGLOBAL, opt-in)
+
+Durable snapshot of the dynamic peer registry maintained by
+TControlSvrAsio's modern `CT_PEER_*` protocol. Apply
+`Server/TControlSvrAsio/schema/tcontrol-peer-registry.sql` once per
+TGLOBAL database before enabling `[registry.persistence] enabled =
+true` in `tcontrolsvr.toml`. The table is independent of `TSERVER`
+(no FK): `TSERVER` is the static topology, `TPEER_REGISTRY` is the
+live "which provisioned services are actually running" view.
+
+| Column | Type | Notes |
+|---|---|---|
+| `dwServiceID`       | INT NOT NULL PK | Synthetic `(group<<16) \| (type<<8) \| server` |
+| `szReportedName`    | VARCHAR(64) | Peer's self-reported service name |
+| `szReportedAddr`    | VARCHAR(45) | Peer's externally-reachable IPv4 (IPv6 max length reserved) |
+| `wReportedPort`     | INT | Peer's listener port |
+| `szVersion`         | VARCHAR(64) | Build / git rev string |
+| `dwPid`             | INT | Peer's process id |
+| `qwStartUnix`       | BIGINT | Peer's own boot wall-clock (unix seconds) |
+| `dwCurUsers`        | INT DEFAULT 0 | Latest heartbeat user count |
+| `dwMaxUsers`        | INT DEFAULT 0 | Latest heartbeat user cap |
+| `qwLeaseEpoch`      | BIGINT | Bumps on every re-register |
+| `tRegisteredUnix`   | BIGINT | Initial registration time |
+| `tLastHeartbeatUnix`| BIGINT | Last successful heartbeat time |
+
+Secondary index `IX_TPEER_REGISTRY_LastHeartbeat` on
+`tLastHeartbeatUnix` for the expiry-sweep predicate.
+
+### `TLOG_AUDIT` (TGLOBAL, opt-in)
+
+Production audit sink for TLogSvrAsio. Apply
+`Server/TLogSvrAsio/schema/tlog-audit.sql`. Single table with the
+legacy `LT_*` column names so existing log-mining tooling keeps
+working. Schema validator (`tlogsvr::db::ValidateAuditSchema`)
+fail-fasts on missing columns at boot.
+
 ---
 
-*Last updated: 2026-05-17. Phase 0 complete with real DB data.*
+*Last updated: 2026-05-21. Phase 0 complete with real DB data; modern
+additions (`TPEER_REGISTRY`, `TLOG_AUDIT`) documented above.*

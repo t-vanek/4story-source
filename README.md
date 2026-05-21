@@ -180,22 +180,37 @@ ctest --test-dir build -C Release --output-on-failure
 
 Near-term (cluster edge):
 
-* **Control server (`TControlSvr` → `TControlSvrAsio`)** — **landed**
-  through phases F1–F5 of `_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`:
-  operator login, peer dial + monitoring, admin operations + audit,
-  event scheduler, patch metadata + castle. The legacy
-  `TController.exe` GUI client connects unchanged; the
-  `IServiceController` interface is wired with both a disabled-by-
-  default fallback and a Windows SCM impl (Linux build links the
-  SCM impl as a no-op stub). See
-  `Server/TControlSvrAsio/README.md` for the full status matrix.
+* **Control server (`TControlSvr` → `TControlSvrAsio`)** — **shipped**.
+  Phases F1–F6 of `_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md` are all
+  landed: operator login, peer dial + monitoring, admin operations +
+  audit, event scheduler, patch metadata + castle, cluster control
+  plane. The legacy `TController.exe` GUI client connects unchanged.
+* **Cluster control plane** — **shipped**. A small foundation layered
+  on top of the legacy CT_* protocol that gives every peer server
+  (TLogin / TLog / TPatch / TMap) a unified surface for self-
+  registration, routing, streaming events, and lifecycle commands.
+  See `_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md` §F1–F6 + the
+  TControlSvrAsio README for the wire format + admin-shell command
+  reference. Known gap: peer registrations are not yet authenticated
+  (no IP allowlist + no PSK / HMAC) — wire is open on the operator
+  LAN by default; closing this is the next concrete task on the
+  control-server backlog.
+* **Service controller (`IServiceController`)** — **shipped, universal**.
+  Real Win32 SCM (`OpenSCManager` / `StartService` / `ControlService`)
+  on Windows and `systemctl` shell-out on Linux. Factory picks the
+  right backend at boot from `[cluster.scm] backend = "auto"`.
+  macOS / BSDs fall through to a `disabled` stub. The `cluster
+  start/stop/restart/wait-healthy` admin-shell commands are no
+  longer no-ops on either production target.
 * **End-to-end legacy `TController.exe` smoke test** — open: stand
   the modernized daemon up against a copy of `TGLOBAL_RAGEZONE` and
   walk the GUI through login → service list → event manage to
   confirm wire parity in a real bring-up.
-* **Operator tooling** — round out the admin shell (account lookup,
-  ban/unban, session kick) and expose a minimal HTTP health/metrics
-  endpoint so the cluster is observable without RDP.
+* **Operator tooling** — admin shell now ships `peers` / `registry` /
+  `peer <sid>` / `kick` / `announce` / `route` / `subscribe registry`
+  / `service status|start|stop` / `cluster start|stop|restart|wait-
+  healthy` / `log-level`. Operator no longer needs RDP for routine
+  cluster ops.
 
 Mid-term (gameplay surface):
 

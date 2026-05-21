@@ -36,6 +36,14 @@ The `ftp_url`, `pre_ftp_url`, and login-server `host:port` come from the
 TOML and are advertised back to the client inside the patch acks (just
 as legacy `TPatchSvrModule` does from its registry config).
 
+## Cluster self-registration
+
+When the operator wires `[cluster]` in the TOML the binary dials
+TControlSvrAsio on startup and announces itself via the modern
+`CT_PEER_REGISTER_REQ` flow (`fourstory::cluster::PeerClient`).
+Service type byte is fixed at 3 (`kPatchSvr`); `control_host`
+empty disables registration (standalone, legacy behavior).
+
 ## Database
 
 Single connection pool against **TGLOBAL** — patch metadata lives there:

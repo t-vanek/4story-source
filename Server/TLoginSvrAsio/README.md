@@ -168,6 +168,13 @@ port = 8815                          # /healthz HTTP endpoint; 0 disables
 # cluster via TControlSvrAsio. A stray [admin] key here is silently
 # ignored by the parser so old configs don't hard-fail.
 
+[cluster]                            # Optional — self-register with TControl
+# control_host = "10.0.0.1"          # leave empty for standalone (legacy)
+# control_port = 12000
+# group_id     = 1                   # match the TSERVER row in TGLOBAL
+# server_id    = 1
+# reported_addr = "10.0.0.5"         # peer's externally-reachable IPv4
+
 [audit.udp]
 # host = "192.168.1.5"               # legacy TLogSvr collector — sends wire-faithful _UDPPACKET
 # port = 2000

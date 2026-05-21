@@ -21,6 +21,7 @@ designed to consume.
 | Schema validator | ✅ `tlogsvr::db::ValidateAuditSchema` boot-time fail-fast on missing LT_* columns |
 | Drop counters | ✅ `packets_received` + `drops_bad_format` via spdlog |
 | `/healthz` endpoint | ✅ optional `[health]` block in TOML; reuses `fourstory::ops::HealthEndpoint` |
+| Cluster self-registration | ✅ optional `[cluster]` block — wires `fourstory::cluster::PeerClient` to TControlSvrAsio with service type byte 2 (`kLogSvr`). Empty `control_host` = standalone (legacy behavior) |
 | DB-outage retry buffer | ✅ bounded in-RAM `RetryQueue` + drain coroutine; mirrors legacy `m_listReadCompleted` requeue + `WorkTickProc` reconnect |
 | Graceful shutdown | ✅ SIGINT/SIGTERM → `io.stop()`; queue depth at shutdown logged as warning |
 | Tests | ✅ pure-unit decoder + retry queue tests + SOCI integration test (skips without DB env var) |

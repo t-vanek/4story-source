@@ -10,7 +10,16 @@ The plan, handler-by-handler, lives in
 [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](../../_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md).
 This README only covers what F1 ships and how to bring it up.
 
-## Status — F1 → F5 complete + round-2 audit fixes applied
+## Status — F1 → F6 + cluster control plane shipped
+
+F1-F5 ported every legacy CT_\* handler (round-2 audit closed all
+wire-parity gaps). F6 added the universal `IServiceController`
+backends (Win32 SCM + systemd via `systemctl`), persistent peer
+registry (`TPEER_REGISTRY`), and a periodic SCM status
+reconciliation loop. On top of the legacy protocol the server now
+also runs a modern **cluster control plane** (registry + routing +
+streaming events + orchestration) — see the section after the
+F1–F6 table.
 
 Round-2 audit (2026-05-20) caught real wire-parity gaps and missing
 handlers that F1–F5 had overlooked. All findings are now closed
@@ -73,7 +82,80 @@ every previously-missing handler is wired in dispatch.
 | Castle handlers (INFO / GUILDCHG / ENABLE) + peer-ack routing | | | | | ✅ | |
 | `IAlerter` (SOCI: `OPTool_SMSEmergency` / spdlog default) fired on offline peer | | | | | ✅ | |
 | Service-upload no-op stubs (`CT_SERVICEUPLOAD*`) | | | | | ⏸ | (intentional: legacy UNC-share anti-pattern) |
+| Real `IServiceController` backends (Win32 SCM + systemd) | | | | | | ✅ |
+| `cluster start/stop/restart/wait-healthy` admin shell commands | | | | | | ✅ |
 | End-to-end legacy `TController.exe` smoke test | | | | | | ⏸ |
+
+## Cluster control plane (post-F6)
+
+A small foundation layered on top of the legacy CT_\* protocol that
+gives every peer server (TLogin / TLog / TPatch / TMap) a unified
+surface for self-registration, routing, streaming events, and
+lifecycle commands. Each block is its own commit on the branch +
+its own test executable:
+
+| Block | What it adds | Wire / surface |
+|---|---|---|
+| **Registry** (F1, server side) | Peers self-register on startup + keep a lease alive with a 30s heartbeat. Lease-expiry sweep reaps anything that misses ~3 windows. | `CT_PEER_REGISTER_REQ` / `_ACK` / `_HEARTBEAT_REQ` / `_ACK` / `_DEREGISTER_REQ` at message-id range `0x9F00–0x9F04` (outside the legacy `0x93xx` range so it's obvious these are not part of the 4Story client wire) |
+| **Communication** (PeerClient lib) | Outbound counterpart of the registry handlers. Lives in `Lib/Own/FourStoryCommon/fourstory/cluster/peer_client.{h,cpp}`. Each peer server links it + `co_spawn`s `Run()` from its main. Reconnect loop with exponential backoff; graceful `DEREGISTER` on `Stop()`. | Library + `[cluster]` TOML block on every peer server |
+| **Routing** (`MessageRouter`) | Single typed surface for "send this frame to that peer / that type / those groups", replacing inline `for (auto& peer : peers.FindByType(...))` open-codings. `SendToService` / `SendToType` (round-robin) / `BroadcastToGroupType` / `BroadcastToType`. | C++ API only — internal abstraction |
+| **Gateway** (admin-shell `route` + `peer <sid>`) | Operator CLI that drives `MessageRouter` from outside: `route service <sid> <wId> [hex-body]`, `route type <group> <type> <wId> [hex-body]`, `route broadcast …`. `peer <sid>` unifies static inventory + runtime status + registry entry in one view. Every routing command emits an `IAdminAuditLogger` record. | Admin shell only — no new wire surface |
+| **Stream** (`subscribe registry`) | Long-lived TCP subscription: operator opens the admin-shell connection, sends `subscribe registry`, and gets a key=value line per registry transition until the socket closes. Format `registry.<kind> sid=0x… lease=… name=… …`. Lives over an `in-process RegistryEventBus`. | Admin shell, line-based push |
+| **Orchestration** (`cluster …`) | Cluster-wide lifecycle commands: `cluster start <type>` + `cluster stop <type>` broadcast SCM Start/Stop across every matching peer; `cluster restart <sid> [timeout]` Stop → wait-for-deregister → Start; `cluster wait-healthy [timeout]` blocks until every static service has a live registration. | Admin shell, drives `IServiceController` + `PeerRegistry` |
+
+### Universal service controller (`IServiceController`)
+
+| Platform | Backend | Real Start/Stop |
+|---|---|---|
+| Windows (`_WIN32`) | `WindowsScmServiceController` — `OpenSCManager`/`StartService`/`ControlService`/`QueryServiceStatus` | ✅ |
+| Linux (`__linux__`) | `SystemdServiceController` — `systemctl start/stop/is-active` shell-out via popen, captured stdout, CoOffload-wrapped so the blocking call doesn't reach the io_context | ✅ |
+| macOS / BSDs / other | `DisabledServiceController` fallback | ❌ no-op |
+
+Factory at `services/service_controller_factory.h`. `[cluster.scm]
+backend = "auto"` picks the platform default; explicit `"windows"`
+or `"systemd"` on the wrong platform falls back to `disabled` with
+a warn line. Unknown backend throws at boot so operator typos don't
+surface later as silent no-ops. Per-service name overrides live in
+`[cluster.scm.overrides] 0x010101 = "4Story_Login_World1"`.
+
+### Persistent registry (`TPEER_REGISTRY`)
+
+Opt-in via `[registry.persistence] enabled = true`. When enabled,
+every `Register`/`Heartbeat`/`Deregister`/`Expire` transition
+writes through to the configured TGLOBAL table (`TPEER_REGISTRY` by
+default), and TControl boot reloads the snapshot before accepting
+peer connections. After a TControl restart the cluster picture is
+immediately accurate instead of going through a ~90 s "all peers
+missing" window. DDL ships at
+[`schema/tcontrol-peer-registry.sql`](schema/tcontrol-peer-registry.sql);
+apply once per TGLOBAL database before enabling. Writes are posted
+onto the worker pool — io_context never sees DB latency.
+
+### SCM status reconciliation loop
+
+`[cluster.scm] status_reconcile_interval_secs = 30` drives a
+coroutine that walks the static inventory every interval and calls
+`IServiceController::QueryStatus` on each service. When the live
+read differs from the cached `RuntimeStatus.status`, the cache
+updates AND a `ScmStatusChanged` event publishes onto the event
+bus. The `subscribe registry` stream picks it up as
+`registry.scm-status sid=0x… prev=stopped status=running …`, so
+operators tailing the stream see status transitions live (without
+re-polling `peers`). `interval = 0` disables the loop.
+
+### Security note — peer authentication is **not yet implemented**
+
+Today's `CT_PEER_REGISTER_REQ` handler accepts any caller that can
+speak the wire framing. There is no IP allowlist, no PSK, no HMAC,
+and no mTLS. An attacker with network access to TControl's CT_\*
+port can register as any `service_id` in the inventory, hijack
+admin-forwarder broadcasts, and spoof status. This is a regression
+from legacy's `control_server_ip` IP-pinning on peer CT_\* traffic.
+The deployment assumption today is "operator LAN, no hostile
+clients on that segment." Closing this is the next concrete task
+on the control-server backlog; the planned design is IP allowlist
+(from TIPADDR) + per-service PSK + HMAC-SHA256 trailer on every
+peer-side CT_PEER_\* frame.
 
 ## Handler coverage
 
@@ -110,7 +192,7 @@ code in legacy too).
 
 The 6-phase plan estimates 23 working days end-to-end.
 
-## What the F1+F2 binary does
+## What the F1–F6 binary does
 
 1. Loads TOML config (default `tcontrolsvr.toml` next to the binary).
 2. **Auth + inventory**: when `[database]` is configured, opens a
@@ -148,11 +230,22 @@ The 6-phase plan estimates 23 working days end-to-end.
      sockets, and emits zero-filled SERVICEDATA so the GUI tile
      transitions to "stopped".
 5. Exposes `/healthz` on a separate port and a localhost admin shell
-   (`telnet 127.0.0.1 18186`) for ops introspection.
-
-The remaining ~45 CT_\* handlers (admin operations, castle, event
-manager, patch metadata, file upload) log a warning and drop the
-packet. F3..F5 fill them in.
+   (`telnet 127.0.0.1 18186`) for ops introspection. The shell is the
+   single operator entry point for the cluster — it covers `peers`,
+   `registry`, `peer <sid>`, `kick`, `announce`, `route service|type|
+   broadcast`, `subscribe registry`, `service status|start|stop`,
+   `cluster start|stop|restart|wait-healthy`, and `log-level`. Run
+   `help` after connect for the full reference.
+6. **Cluster control plane** (post-F6, see the section above):
+   - Accepts modern `CT_PEER_REGISTER_REQ` / `_HEARTBEAT_REQ` /
+     `_DEREGISTER_REQ` from peer servers + drives the lease-expiry
+     sweep every 15 s
+   - `ScmStatusReconciliationLoop` polls `IServiceController::
+     QueryStatus` every 30 s + publishes `ScmStatusChanged` events
+     to the bus
+   - When `[registry.persistence] enabled = true` and `[database]`
+     is configured, writes through every registry mutation to
+     `TPEER_REGISTRY` and reloads the snapshot at boot
 
 ### Wire compatibility
 
@@ -205,21 +298,42 @@ Server/TControlSvrAsio/
 ├── README.md
 ├── tcontrolsvr.example.toml
 ├── main.cpp                       — CLI, signal handling, service wire-up
-├── config.{h,cpp}                 — TOML loader
+├── config.{h,cpp}                 — TOML loader (server, db, cluster.scm,
+│                                    registry.persistence, …)
 ├── control_session.{h,cpp}        — 8-byte CPacket framing
 ├── control_server.{h,cpp}         — accept loop + per-session dispatch
-│                                    + 1Hz peer-keepalive loop
+│                                    + PeerKeepaliveLoop (1 Hz)
+│                                    + RegistryLeaseExpiryLoop (15 s)
+│                                    + ScmStatusReconciliationLoop (30 s)
 ├── peer_dialer.{h,cpp}            — outbound connect with timeout
+├── admin_shell.{h,cpp}            — single operator entry point: peers /
+│                                    registry / peer / kick / announce /
+│                                    route / subscribe / service /
+│                                    cluster / log-level
+├── message_router.{h,cpp}         — typed routing primitives on top of
+│                                    PeerRegistry (single / round-robin /
+│                                    group-broadcast / type-broadcast)
 ├── operator_session.h             — CTManager equivalent (login state)
 ├── peer_session.h                 — CTServer equivalent
 ├── senders.{h,cpp}                — CT_*_ACK / CT_*_REQ wire builders
+│                                    (legacy + modern CT_PEER_*)
 ├── wire_codec.h                   — POD + length-prefixed-string helpers
+├── schema/
+│   └── tcontrol-peer-registry.sql — TPEER_REGISTRY DDL (modern, opt-in)
 ├── handlers/
 │   ├── handlers.h                 — HandlerContext + Dispatch + RunPeerLoop
 │   ├── handlers_auth.cpp          — OPLOGIN / STLOGIN / SERVICEAUTOSTART
-│   └── handlers_service.cpp       — SERVICESTAT / SERVICECONTROL /
-│                                    NEWCONNECT / RECONNECT /
-│                                    SERVICEMONITOR + RunPeerLoop
+│   ├── handlers_service.cpp       — SERVICESTAT / SERVICECONTROL /
+│   │                                NEWCONNECT / RECONNECT /
+│   │                                SERVICEMONITOR + RunPeerLoop
+│   ├── handlers_admin.cpp         — F3 admin forwarders
+│   ├── handlers_event.cpp         — F4 event manager
+│   ├── handlers_patch.cpp         — F5 patch metadata + castle
+│   ├── handlers_extra.cpp         — round-2 ITEMFIND / MONACTION /
+│   │                                SERVICEDATACLEAR / PLATFORM /
+│   │                                SERVICEUPLOAD*
+│   └── handlers_registry.cpp      — modern CT_PEER_REGISTER /
+│                                    HEARTBEAT / DEREGISTER
 ├── db/
 │   └── schema_validator.{h,cpp}   — boot-time fail-fast on TGLOBAL_RAGEZONE
 ├── services/
@@ -230,14 +344,52 @@ Server/TControlSvrAsio/
 │   ├── fake_service_inventory.h
 │   ├── soci_service_inventory.{h,cpp} — TMACHINE/TGROUP/TSVRTYPE/TSERVER/TIPADDR
 │   ├── peer_registry.{h,cpp}      — service_id → PeerSession + RuntimeStatus
+│   │                                + dynamic RegistryEntry + Hydrate
 │   ├── operator_registry.{h,cpp}  — by-id + by-seq tracking, dup-kick
-│   ├── service_controller.h       — IServiceController interface
+│   ├── service_controller.{h,cpp} — IServiceController interface + enum
+│   │                                helpers (ServiceStatusName)
 │   ├── disabled_service_controller.h — default (NotSupported)
-│   └── windows_scm_service_controller.{h,cpp} — Win32 SCM impl
-│                                    (Linux build returns NotSupported)
+│   ├── windows_scm_service_controller.{h,cpp} — Win32 SCM impl
+│   ├── systemd_service_controller.{h,cpp} — systemctl shell-out impl
+│   ├── service_controller_factory.{h,cpp} — auto / windows / systemd /
+│   │                                disabled selection
+│   ├── scm_name_resolver.{h,cpp}  — shared template + overrides
+│   ├── registry_event_bus.{h,cpp} — in-process pub/sub for registry
+│   │                                transitions (subscribe registry)
+│   ├── registry_persistence.h     — IRegistryPersistence interface +
+│   │                                Noop default
+│   ├── soci_registry_persistence.{h,cpp} — TPEER_REGISTRY upsert/touch/
+│   │                                remove/load via SOCI
+│   ├── admin_audit_logger.h       — IAdminAuditLogger interface
+│   ├── spdlog_admin_audit_logger.{h,cpp}
+│   ├── soci_event_repository.{h,cpp}
+│   ├── soci_patch_metadata_service.{h,cpp}
+│   ├── soci_user_protected_service.{h,cpp}
+│   └── soci_alerter.{h,cpp}       — OPTool_SMSEmergency
 └── tests/
-    ├── test_operator_login.cpp    — F1 wire round-trip
-    └── test_peer_monitor.cpp      — F2 peer dial + SERVICEMONITOR fan-out
+    ├── test_operator_login.cpp           — F1 wire round-trip
+    ├── test_peer_monitor.cpp             — F2 peer dial + SERVICEMONITOR
+    ├── test_admin_forwarders.cpp         — F3 KICK/BAN/CHATBAN
+    ├── test_event_scheduler.cpp          — F4 StepScheduler state machine
+    ├── test_patch_metadata.cpp           — F5 patch SP wiring
+    ├── test_wire_parity.cpp              — round-2 count-width + order fixes
+    ├── test_soci_repositories.cpp        — env-gated SOCI integration
+    ├── test_co_offload.cpp               — CoOffload helper
+    ├── test_registry_refresher.cpp       — RegistryRefresher coroutine hook
+    ├── test_peer_registry.cpp            — F1 registry handlers + lease
+    ├── test_peer_client.cpp              — PeerClient register/heartbeat/
+    │                                       deregister + reconnect
+    ├── test_message_router.cpp           — single / round-robin / broadcast
+    ├── test_admin_shell.cpp              — admin shell command parsing
+    ├── test_admin_shell_route.cpp        — gateway route / peer commands
+    ├── test_admin_shell_stream.cpp       — subscribe registry streaming
+    ├── test_admin_shell_cluster.cpp      — cluster start/stop/restart/
+    │                                       wait-healthy
+    ├── test_service_controller.cpp       — factory + systemd runner stub
+    ├── test_registry_persistence.cpp     — FakePersistence wiring +
+    │                                       Hydrate epoch advance
+    └── test_scm_status_reconcile.cpp     — ReconcileScmStatusOnce
+                                            transitions + events
 ```
 
 ## Design decisions captured in F1

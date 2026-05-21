@@ -15,10 +15,19 @@
 #   tmapsvr.example.toml  Documented defaults.
 #   map_server.h/cpp  Accept loop, per-connection coroutine, RC4 toggle,
 #                     session-registry + presence teardown.
-#   handlers.h/cpp    Client-packet dispatch — CS_CONNECT_REQ
-#                     (validator + presence bind + MW_ADDCHAR_ACK),
-#                     CS_CONREADY_REQ (stub), CS_MOVE_REQ (position
-#                     update + flat broadcast to channel).
+#   handlers.h        Common types (HandlerContext) + handler
+#                     declarations for all CS_* / CT_* messages.
+#   handlers/         Per-area implementation files (T1 split):
+#                       common.h     SenderCharId helper (hdr-only)
+#                       dispatch.cpp central switch over MessageId
+#                       session.cpp  CONNECT_REQ, CONREADY_REQ
+#                       movement.cpp MOVE_REQ + AOI broadcast
+#                       npc.cpp      NPCTALK_REQ
+#                       skill.cpp    SKILLUSE_REQ
+#                       quest.cpp    QUESTEXEC_REQ, QUESTDROP_REQ
+#                       social.cpp   CHAT_REQ + 3× PARTY*_REQ
+#                       bow.cpp      3× Bow/BR mode handlers
+#                       control.cpp  5× CT_* control stubs
 #   handlers_world.h/cpp
 #                     Inbound world dispatch (DM_LOADCHAR_REQ stub —
 #                     full char load lands with the F8 player service).
@@ -93,8 +102,16 @@ endif()
 add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/config.cpp
     ${TMAPSVR_ASIO_SRC}/map_server.cpp
-    ${TMAPSVR_ASIO_SRC}/handlers.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_world.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/dispatch.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/session.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/movement.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/npc.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/quest.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/social.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/bow.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/control.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_companion_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_inventory_service.cpp

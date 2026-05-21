@@ -32,22 +32,38 @@
 #   legacy_src/       Verbatim copy of Server/TMapSvr/, reference only,
 #                     not compiled.
 #
-# Phase plan (see PR #23 design doc): F1 main scaffold (done), F2
-# config + schema validator (done), F3 MapServer accept loop (done),
-# F4 CS_CONNECT_REQ + session validator (done), F5 World peer +
-# MW_ADDCHAR_ACK outbound (done), F6 inbound world dispatch + session
-# registry (done), F7 movement + flat AOI broadcast (done), F8 player
-# service + DM_LOADCHAR_ACK success body (done), F9 inventory service +
-# inventory section appended (done), F10 NPC chart + CS_NPCTALK_REQ
-# handler (done), F11 per-char skill list + skill section
-# (this commit; CS_SKILLUSE_REQ decode only, no damage calc), F12
-# quests, F13 monsters/AI, F14 party+chat, F15 companions, F16 BR/Bow
-# run-time mode, F17 control+audit.
+# Phase plan: F1 main scaffold (done), F2 config + schema validator
+# (done), F3 MapServer accept loop (done), F4 CS_CONNECT_REQ +
+# session validator (done), F5 World peer + MW_ADDCHAR_ACK (done),
+# F6 inbound world dispatch + session registry (done), F7 movement
+# + flat AOI broadcast (done), F8 player service + DM_LOADCHAR_ACK
+# (done), F9 inventory service + section (done), F10 NPC chart +
+# CS_NPCTALK_REQ (done), F11 per-char skill list + section (done),
+# F12 per-char quest progress + section (done), F13 monster +
+# spawn charts + monster registry (done), F14 chat + party decode
+# stubs (done), F15 companion service + section (done), F16 BR/Bow
+# run-time mode handlers (done), F17 CT_* control stubs + /healthz
+# (this commit — closes the scaffolding sweep).
 #
-# Audit: each phase ships scaffolding + minimal impl; TODOs documented
-# in commit messages. Final consolidation pass after F17 fills the
-# documented gaps (version/checksum checks, speed-hack, ghost-mode,
-# remaining DM_LOADCHAR_ACK sub-sections, damage calc, etc.).
+# Consolidation TODO inventory (post-F17):
+#   F4 — wVersion check + llChecksum verification (legacy formula)
+#   F5 — WorldClient send queue / strand for multi-thread io
+#   F7 — speed-hack check, ghost-mode handling, CS_CONREADY enter-
+#        map flood
+#   F8 — trailing DM_LOADCHAR_ACK sections (secure code, aid table,
+#        PC bang, post info, cabinet, equip, friends, mail, chapter,
+#        pet, recall-mon)
+#   F10 — country / disguise gate, shop / CS_NPCITEMLIST_REQ flow
+#   F11 — skill-template chart (TSKILLCHART) + damage calculation +
+#         CS_SKILLUSE_ACK broadcast
+#   F12 — quest-engine evaluation (18+ trigger types) + reward award
+#   F13 — SpawnManager + AI tick (timer-driven monster lifecycle)
+#   F14 — chat broadcast + party world-relay encoders
+#   F15 — TPETTABLE / TRECALLMONTABLE sections + summon handlers
+#   F16 — MW_ADDTOBOWQUEUE relay + medal accounting + Revival call
+#   F17 — peer-IP auth gate for CT_*, UDP audit shim to TLogSvr,
+#         admin TCP shell, CT_ANNOUNCEMENT broadcast, CT_USERKICKOUT
+#         session close, stale-client sweep on CT_SERVICEMONITOR_ACK
 
 set(TMAPSVR_ASIO_SRC ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -1,10 +1,16 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F16: BR/Bow run-time mode handlers. Three new dispatch
-// entries (CS_REGISTERBOW_REQ, CS_CANCELBOWQUEUE_REQ,
-// CS_CASHBOWRESPAWN_REQ) gate on ctx.mode and decode the empty body
-// stubs. The MW_ADDTOBOWQUEUE_REQ relay + medal-deduction +
-// Revival call wait for the bow/br consolidation pass.
+// Phase F17: control protocol + ops endpoints. Five CT_* ids land
+// in dispatch as stubs (announce, kickout, service monitor + data
+// clear, control-server handshake). Optional /healthz HTTP endpoint
+// spawns alongside the listener when [health].port is set in TOML —
+// k8s liveness probes and load balancers hit it. UDP audit shim +
+// admin TCP shell wait for the consolidation pass.
+//
+// This commit closes the F1-F17 scaffolding sweep — all major data
+// loaders, services, and dispatch slots exist. See the audit blurb
+// in CMakeLists.txt for the documented TODOs that the consolidation
+// pass picks up.
 
 #include "config.h"
 #include "handlers_world.h"
@@ -34,6 +40,7 @@
 #include "services/world_client.h"
 
 #include "fourstory/db/session_pool.h"
+#include "fourstory/ops/health_endpoint.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -54,7 +61,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F16 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F17 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -233,11 +240,35 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F16 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F17 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
+
+        // Optional /healthz HTTP endpoint on a separate port. Same
+        // pattern as TPatchSvrAsio / TLoginSvrAsio — warn rather
+        // than abort if the port is already taken (dev environments
+        // commonly clash on these), so the main listener can still
+        // come up.
+        std::unique_ptr<fourstory::ops::HealthEndpoint> health;
+        if (cfg.health_port != 0)
+        {
+            try
+            {
+                health = std::make_unique<fourstory::ops::HealthEndpoint>(
+                    io, cfg.health_port);
+                spdlog::info("health endpoint listening on 0.0.0.0:{}",
+                    health->Port());
+                boost::asio::co_spawn(io, health->Run(),
+                    boost::asio::detached);
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("health endpoint failed to bind on port {}: {}",
+                    cfg.health_port, ex.what());
+            }
+        }
 
         io.run();
     }

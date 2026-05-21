@@ -144,4 +144,33 @@ boost::asio::awaitable<void> OnCashBowRespawnReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+// CT_* — operator control protocol from TControlSvrAsio. Routed
+// through the same dispatch switch as CS_*; auth gating (peer IP
+// against the configured control server) lands with the
+// consolidation pass.
+boost::asio::awaitable<void> OnCtAnnouncementAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnCtUserKickoutAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnCtServiceMonitorAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnCtServiceDataClearAck(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnCtCtrlSvrReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
 } // namespace tmapsvr

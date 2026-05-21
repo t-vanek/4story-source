@@ -130,4 +130,19 @@ void ValidateNpcSchema(fourstory::db::SessionPool& pool)
     });
 }
 
+void ValidateSkillSchema(fourstory::db::SessionPool& pool)
+{
+    auto lease = pool.Acquire();
+
+    // TSKILLTABLE — F11 per-char learned skill list. Four columns;
+    // dwCharID is the WHERE filter, the other three encode onto the
+    // wire.
+    fourstory::db::CheckColumns(*lease, "map_skill", {
+        { "TSKILLTABLE", "dwCharID" },
+        { "TSKILLTABLE", "wSkillID" },
+        { "TSKILLTABLE", "bLevel" },
+        { "TSKILLTABLE", "dwRemainTick" },
+    });
+}
+
 } // namespace tmapsvr::db

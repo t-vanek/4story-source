@@ -36,4 +36,10 @@ void ValidateInventorySchema(fourstory::db::SessionPool& pool);
 // CS_NPCTALK_REQ degrades to "no NPCs in world".
 void ValidateNpcSchema(fourstory::db::SessionPool& pool);
 
+// TSKILLTABLE column check — F11 per-char learned skill list.
+// Independent of the chart side; an operator can ship without
+// TSKILLTABLE deployed and the F8 char load still returns with an
+// empty skill section.
+void ValidateSkillSchema(fourstory::db::SessionPool& pool);
+
 } // namespace tmapsvr::db

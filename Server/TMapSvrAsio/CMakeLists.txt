@@ -39,9 +39,15 @@
 # registry (done), F7 movement + flat AOI broadcast (done), F8 player
 # service + DM_LOADCHAR_ACK success body (done), F9 inventory service +
 # inventory section appended (done), F10 NPC chart + CS_NPCTALK_REQ
-# handler (this commit), F11 skills, F12 quests, F13 monsters/AI,
-# F14 party+chat, F15 companions, F16 BR/Bow run-time mode,
-# F17 control+audit.
+# handler (done), F11 per-char skill list + skill section
+# (this commit; CS_SKILLUSE_REQ decode only, no damage calc), F12
+# quests, F13 monsters/AI, F14 party+chat, F15 companions, F16 BR/Bow
+# run-time mode, F17 control+audit.
+#
+# Audit: each phase ships scaffolding + minimal impl; TODOs documented
+# in commit messages. Final consolidation pass after F17 fills the
+# documented gaps (version/checksum checks, speed-hack, ghost-mode,
+# remaining DM_LOADCHAR_ACK sub-sections, damage calc, etc.).
 
 set(TMAPSVR_ASIO_SRC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -77,6 +83,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_inventory_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_npc_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_player_service.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp)
 

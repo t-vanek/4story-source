@@ -2,6 +2,7 @@
 
 #include "services/inventory_service.h"
 #include "services/player_service.h"
+#include "services/skill_service.h"
 #include "services/world_client.h"
 #include "wire_codec.h"
 
@@ -48,7 +49,8 @@ std::vector<std::byte> EncodeLoadCharAckError(std::uint32_t dwCharID,
 std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
                                                 std::uint32_t dwKEY,
                                                 const CharSnapshot& s,
-                                                const std::vector<InventoryRow>& inven)
+                                                const std::vector<InventoryRow>& inven,
+                                                const std::vector<SkillRow>& skills)
 {
     std::vector<std::byte> body;
     body.reserve(256);
@@ -120,13 +122,23 @@ std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
         wire::WritePOD<std::uint8_t> (body, r.bELD);
     }
 
-    // The legacy ack continues with cabinet / skill / quest / equip
-    // / friend / craft / mail / chapter sections. F9 ships only
-    // through inventory — each remaining section lands with its
-    // owning phase, in wire order, on top of this body. Senders that
-    // depend on later sections will observe a short body and either
-    // fall back to defaults or refuse the load until the phase is
-    // complete.
+    // F11 skill section: WORD count + one record per learned skill.
+    //   WORD  wSkillID
+    //   BYTE  bLevel
+    //   DWORD dwRemainTick    cooldown remaining (0 = ready)
+    wire::WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(skills.size()));
+    for (const auto& r : skills)
+    {
+        wire::WritePOD<std::uint16_t>(body, r.wSkillID);
+        wire::WritePOD<std::uint8_t> (body, r.bLevel);
+        wire::WritePOD<std::uint32_t>(body, r.dwRemainTick);
+    }
+
+    // The legacy ack continues with cabinet / quest / equip / friend
+    // / craft / mail / chapter sections. Each remaining section
+    // lands with its owning phase, in wire order, on top of this
+    // body. Senders that depend on later sections observe a short
+    // body and fall back to defaults or refuse the load.
 
     return body;
 }
@@ -182,26 +194,28 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
-    // Inventory is optional — without a service we ship an empty
-    // section (count = 0) so the body still has the F9 wire shape.
-    // Legacy treats "0 inventory rows" as `m_bLoadCharError = TRUE`
-    // and refuses the load; we keep that contract documented in
-    // services/inventory_service.h and let the world handle the
-    // empty-roster decision per its policy.
+    // Optional sections — without their services we ship empty
+    // sub-bodies (count = 0) so the wire shape stays well-defined
+    // through F11. Legacy treats "0 inventory rows" as the load-
+    // error path; we keep that contract documented per service.
     std::vector<InventoryRow> inven;
     if (ctx.inventory_service)
         inven = ctx.inventory_service->LoadInventory(dwCharID);
 
+    std::vector<SkillRow> skills;
+    if (ctx.skill_service)
+        skills = ctx.skill_service->LoadSkills(dwCharID);
+
     spdlog::info("DM_LOADCHAR_REQ char={} user={} name='{}' lvl={} class={} "
-                 "map={} pos=({:.1f},{:.1f},{:.1f}) inven={} row(s) — "
-                 "F9 snapshot encoded (no skills / quests yet)",
+                 "map={} pos=({:.1f},{:.1f},{:.1f}) inven={} skills={} — "
+                 "F11 snapshot encoded (no quests yet)",
         dwCharID, dwUserID, snap->szNAME, snap->bLevel, snap->bClass,
         snap->wMapID, snap->fPosX, snap->fPosY, snap->fPosZ,
-        inven.size());
+        inven.size(), skills.size());
 
     co_await ctx.world_client->SendPacket(
         static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
-        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap, inven));
+        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap, inven, skills));
 }
 
 boost::asio::awaitable<void>

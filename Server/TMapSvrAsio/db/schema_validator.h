@@ -42,4 +42,8 @@ void ValidateNpcSchema(fourstory::db::SessionPool& pool);
 // empty skill section.
 void ValidateSkillSchema(fourstory::db::SessionPool& pool);
 
+// TQUESTTABLE + TQUESTTERMTABLE column check — F12 per-char quest
+// progress. Two-table validator since the encoder reads both.
+void ValidateQuestSchema(fourstory::db::SessionPool& pool);
+
 } // namespace tmapsvr::db

@@ -2,6 +2,7 @@
 
 #include "services/inventory_service.h"
 #include "services/player_service.h"
+#include "services/quest_service.h"
 #include "services/skill_service.h"
 #include "services/world_client.h"
 #include "wire_codec.h"
@@ -50,7 +51,8 @@ std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
                                                 std::uint32_t dwKEY,
                                                 const CharSnapshot& s,
                                                 const std::vector<InventoryRow>& inven,
-                                                const std::vector<SkillRow>& skills)
+                                                const std::vector<SkillRow>& skills,
+                                                const std::vector<QuestProgressRow>& quests)
 {
     std::vector<std::byte> body;
     body.reserve(256);
@@ -134,11 +136,30 @@ std::vector<std::byte> EncodeLoadCharAckSuccess(std::uint32_t dwCharID,
         wire::WritePOD<std::uint32_t>(body, r.dwRemainTick);
     }
 
-    // The legacy ack continues with cabinet / quest / equip / friend
-    // / craft / mail / chapter sections. Each remaining section
-    // lands with its owning phase, in wire order, on top of this
-    // body. Senders that depend on later sections observe a short
-    // body and fall back to defaults or refuse the load.
+    // F12 quest section: WORD count + one record per accepted quest.
+    // Each record carries the TQUESTTABLE fields followed by a
+    // nested WORD count + N TQUESTTERMTABLE term-progress rows. The
+    // legacy encoder streams the same pair of counts inline (see
+    // SSHandler.cpp around line 3700).
+    wire::WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(quests.size()));
+    for (const auto& q : quests)
+    {
+        wire::WritePOD<std::uint32_t>(body, q.dwQuestID);
+        wire::WritePOD<std::uint32_t>(body, q.dwTick);
+        wire::WritePOD<std::uint8_t> (body, q.bCompleteCount);
+        wire::WritePOD<std::uint8_t> (body, q.bTriggerCount);
+        wire::WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(q.terms.size()));
+        for (const auto& t : q.terms)
+        {
+            wire::WritePOD<std::uint32_t>(body, t.dwTermID);
+            wire::WritePOD<std::uint8_t> (body, t.bTermType);
+            wire::WritePOD<std::uint8_t> (body, t.bCount);
+        }
+    }
+
+    // The legacy ack continues with cabinet / equip / friend / craft
+    // / mail / chapter sections. Each remaining section lands with
+    // its owning phase, in wire order, on top of this body.
 
     return body;
 }
@@ -206,16 +227,20 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
     if (ctx.skill_service)
         skills = ctx.skill_service->LoadSkills(dwCharID);
 
+    std::vector<QuestProgressRow> quests;
+    if (ctx.quest_service)
+        quests = ctx.quest_service->LoadProgress(dwCharID);
+
     spdlog::info("DM_LOADCHAR_REQ char={} user={} name='{}' lvl={} class={} "
-                 "map={} pos=({:.1f},{:.1f},{:.1f}) inven={} skills={} — "
-                 "F11 snapshot encoded (no quests yet)",
+                 "map={} pos=({:.1f},{:.1f},{:.1f}) inven={} skills={} "
+                 "quests={} — F12 snapshot encoded",
         dwCharID, dwUserID, snap->szNAME, snap->bLevel, snap->bClass,
         snap->wMapID, snap->fPosX, snap->fPosY, snap->fPosZ,
-        inven.size(), skills.size());
+        inven.size(), skills.size(), quests.size());
 
     co_await ctx.world_client->SendPacket(
         static_cast<std::uint16_t>(MessageId::DM_LOADCHAR_ACK),
-        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap, inven, skills));
+        EncodeLoadCharAckSuccess(dwCharID, dwKEY, *snap, inven, skills, quests));
 }
 
 boost::asio::awaitable<void>

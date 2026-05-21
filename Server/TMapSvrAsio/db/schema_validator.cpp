@@ -145,4 +145,26 @@ void ValidateSkillSchema(fourstory::db::SessionPool& pool)
     });
 }
 
+void ValidateQuestSchema(fourstory::db::SessionPool& pool)
+{
+    auto lease = pool.Acquire();
+
+    // TQUESTTABLE — one row per accepted quest.
+    // TQUESTTERMTABLE — N term-progress rows per quest. The F12
+    // quest service joins them in code (no SQL JOIN) so both tables
+    // need their columns intact.
+    fourstory::db::CheckColumns(*lease, "map_quest", {
+        { "TQUESTTABLE",     "dwCharID" },
+        { "TQUESTTABLE",     "dwQuestID" },
+        { "TQUESTTABLE",     "dwTick" },
+        { "TQUESTTABLE",     "bCompleteCount" },
+        { "TQUESTTABLE",     "bTriggerCount" },
+        { "TQUESTTERMTABLE", "dwCharID" },
+        { "TQUESTTERMTABLE", "dwQuestID" },
+        { "TQUESTTERMTABLE", "dwTermID" },
+        { "TQUESTTERMTABLE", "bTermType" },
+        { "TQUESTTERMTABLE", "bCount" },
+    });
+}
+
 } // namespace tmapsvr::db

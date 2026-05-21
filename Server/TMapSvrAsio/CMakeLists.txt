@@ -83,6 +83,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_inventory_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_npc_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_player_service.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_quest_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp)

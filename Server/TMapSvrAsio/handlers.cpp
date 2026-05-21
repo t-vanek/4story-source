@@ -459,6 +459,70 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
 }
 
 boost::asio::awaitable<void>
+OnQuestExecReq(std::shared_ptr<tnetlib::AsioSession> sess,
+               std::vector<std::byte>                body,
+               const HandlerContext&                 ctx)
+{
+    // CS_QUESTEXEC_REQ body (legacy CSHandler.cpp:3536):
+    //   DWORD dwQuestID
+    //   BYTE  bRewardType
+    //   DWORD dwRewardID
+    // F12 decodes + logs. The real engine — quest template lookup,
+    // term-state advance, reward award, MW_/DM_ broadcasts — needs
+    // the QuestEngine layer that lives over the F11 skill /
+    // template / item charts; lands after the scaffolding sweep.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwQuestID = 0, dwRewardID = 0;
+    std::uint8_t  bRewardType = 0;
+    if (!r.Read(dwQuestID) || !r.Read(bRewardType) || !r.Read(dwRewardID))
+    {
+        spdlog::warn("CS_QUESTEXEC_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    std::uint32_t cid = 0;
+    if (ctx.session_reg)
+        if (const auto found = ctx.session_reg->FindCharIdBySession(sess.get()))
+            cid = *found;
+
+    spdlog::info("CS_QUESTEXEC_REQ char={} quest={} rewardType={} reward={} "
+                 "— F12 stub (quest engine evaluation lands after "
+                 "scaffolding sweep)",
+        cid, dwQuestID, bRewardType, dwRewardID);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnQuestDropReq(std::shared_ptr<tnetlib::AsioSession> sess,
+               std::vector<std::byte>                body,
+               const HandlerContext&                 ctx)
+{
+    // CS_QUESTDROP_REQ body (legacy CSHandler.cpp:3590):
+    //   DWORD dwQuestID
+    // F12 decodes + logs. The real DropQuest path (rewrite term
+    // rows + emit CS_QUESTCOMPLETE_ACK(QR_DROP) + audit log) lands
+    // with the engine.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwQuestID = 0;
+    if (!r.Read(dwQuestID))
+    {
+        spdlog::warn("CS_QUESTDROP_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    std::uint32_t cid = 0;
+    if (ctx.session_reg)
+        if (const auto found = ctx.session_reg->FindCharIdBySession(sess.get()))
+            cid = *found;
+
+    spdlog::info("CS_QUESTDROP_REQ char={} quest={} — F12 stub",
+        cid, dwQuestID);
+    co_return;
+}
+
+boost::asio::awaitable<void>
 Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
          std::uint16_t                         wId,
          std::vector<std::byte>                body,
@@ -484,6 +548,12 @@ Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_SKILLUSE_REQ:
         co_await OnSkillUseReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_QUESTEXEC_REQ:
+        co_await OnQuestExecReq(sess, std::move(body), ctx);
+        break;
+    case MessageId::CS_QUESTDROP_REQ:
+        co_await OnQuestDropReq(sess, std::move(body), ctx);
         break;
 
     default:

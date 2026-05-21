@@ -30,6 +30,7 @@ class IPlayerService;
 class IInventoryService;
 class INpcService;
 class ISkillService;
+class IQuestService;
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; main() keeps the lifetimes.
@@ -43,6 +44,7 @@ struct HandlerContext
     IInventoryService*     inventory_service = nullptr;
     INpcService*           npc_service       = nullptr;
     ISkillService*         skill_service     = nullptr;
+    IQuestService*         quest_service     = nullptr;
     std::uint8_t           expected_group    = 0;     // [server] / world group id
     // Future phases will add: IMapState, ISpawnManager, … each
     // owned by main() and pointed at here.
@@ -85,6 +87,16 @@ boost::asio::awaitable<void> OnNpcTalkReq(
     const HandlerContext&                 ctx);
 
 boost::asio::awaitable<void> OnSkillUseReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnQuestExecReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnQuestDropReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);

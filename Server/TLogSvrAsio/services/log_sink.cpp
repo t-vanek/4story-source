@@ -156,6 +156,125 @@ bool SociLogSink::TryInsert(const LogRecord& rec)
 }
 
 namespace {
+
+// Standard SQL single-quote escape — '  →  ''.
+std::string EscapeSqlString(std::string_view s)
+{
+    std::string out;
+    out.reserve(s.size() + 4);
+    for (char c : s)
+    {
+        if (c == '\'') out += "''";
+        else           out += c;
+    }
+    return out;
+}
+
+// Hex-encode a binary payload for dialect-specific embedded literal.
+std::string ToHex(const std::vector<std::byte>& payload)
+{
+    static const char k_hex[] = "0123456789abcdef";
+    std::string out;
+    out.reserve(payload.size() * 2);
+    for (auto b : payload)
+    {
+        const auto v = static_cast<std::uint8_t>(b);
+        out.push_back(k_hex[(v >> 4) & 0xF]);
+        out.push_back(k_hex[v & 0xF]);
+    }
+    return out;
+}
+
+// Dialect-specific binary literal:
+//   MSSQL  : 0xDEADBEEF
+//   PG     : '\xDEADBEEF'::bytea
+//   SQLite : X'DEADBEEF'
+// Empty payload → SQL NULL keyword (no quotes).
+std::string EncodeBlobLiteral(const std::vector<std::byte>& payload,
+                               fourstory::db::Backend backend)
+{
+    if (payload.empty()) return "NULL";
+    const auto hex = ToHex(payload);
+    switch (backend)
+    {
+        case fourstory::db::Backend::Odbc:
+            return "0x" + hex;
+        case fourstory::db::Backend::PostgreSQL:
+            return "'\\x" + hex + "'::bytea";
+        case fourstory::db::Backend::Sqlite3:
+            return "X'" + hex + "'";
+    }
+    return "NULL";
+}
+
+// One "(v1, v2, ...)" row for the bulk VALUES list. Order matches the
+// INSERT column list in TryBulkInsert below.
+void AppendRow(std::string& sql,
+               const LogRecord& r,
+               fourstory::db::Backend backend)
+{
+    sql += '(';
+    sql += "'"; sql += EscapeSqlString(r.timestamp_iso); sql += "', ";
+    sql += std::to_string(static_cast<int>(r.server_id)); sql += ", ";
+    sql += "'"; sql += EscapeSqlString(r.client_ip); sql += "', ";
+    sql += std::to_string(static_cast<int>(r.action)); sql += ", ";
+    sql += std::to_string(static_cast<int>(r.map_id)); sql += ", ";
+    sql += std::to_string(r.pos_x); sql += ", ";
+    sql += std::to_string(r.pos_y); sql += ", ";
+    sql += std::to_string(r.pos_z); sql += ", ";
+    for (int i = 0; i < 11; ++i)
+    {
+        sql += std::to_string(r.search_int[i]); sql += ", ";
+    }
+    for (int i = 0; i < 7; ++i)
+    {
+        sql += "'"; sql += EscapeSqlString(r.search_str[i]); sql += "', ";
+    }
+    sql += std::to_string(static_cast<int>(r.format)); sql += ", ";
+    sql += EncodeBlobLiteral(r.payload, backend);
+    sql += ')';
+}
+
+} // namespace
+
+bool SociLogSink::TryBulkInsert(const std::vector<LogRecord>& batch)
+{
+    if (batch.empty()) return true;
+
+    // For very large batches we'd split per dialect parameter limits;
+    // SociLogSink's drain_batch_size caps at 64 by default, well under
+    // any backend's per-statement limit even with embedded literals.
+    const auto backend = m_pool.GetBackend();
+
+    std::string sql;
+    sql.reserve(256 + batch.size() * 512);
+    sql += "INSERT INTO \"";
+    sql += m_table;
+    sql += "\" ("
+        "LT_LOGDATE, LT_SERVERID, LT_CLIENTIP, LT_ACTION, LT_MAPID, "
+        "LT_X, LT_Y, LT_Z, "
+        "LT_DWKEY1, LT_DWKEY2, LT_DWKEY3, LT_DWKEY4, LT_DWKEY5, "
+        "LT_DWKEY6, LT_DWKEY7, LT_DWKEY8, LT_DWKEY9, LT_DWKEY10, LT_DWKEY11, "
+        "LT_KEY1, LT_KEY2, LT_KEY3, LT_KEY4, LT_KEY5, LT_KEY6, LT_KEY7, "
+        "LT_FMT, LT_LOG) VALUES ";
+    for (std::size_t i = 0; i < batch.size(); ++i)
+    {
+        if (i > 0) sql += ", ";
+        AppendRow(sql, batch[i], backend);
+    }
+
+    auto lease = m_pool.Acquire();
+    soci::session& s = *lease;
+    // One round-trip for the whole batch. Wrapped in transaction so a
+    // partial failure doesn't leave half the batch persisted (caller
+    // pushes the entire batch back to the queue head on exception).
+    soci::transaction tx(s);
+    s << sql;
+    tx.commit();
+    return true;
+}
+
+namespace {
 // Body of the SOCI-INSERT-then-fall-back-to-queue logic. Shared
 // between the in-line path and the worker-pool path so behavior
 // stays identical regardless of which thread runs it.
@@ -243,36 +362,54 @@ void SociLogSink::StartDrainLoop(boost::asio::io_context& io)
 
                 if (m_queue->Empty()) continue;
 
-                // Flush up to `drain_batch_size` records on this tick.
-                // Stop early on the first failure — the DB is still
-                // unavailable, no point spinning through the whole
-                // backlog only to push it all back.
-                std::size_t drained_this_tick = 0;
+                // Drain in bulk: pop up to drain_batch_size records,
+                // attempt one multi-row INSERT. On any failure (DB
+                // still down, schema drift, etc.) push the ENTIRE
+                // batch back to the queue head in original order and
+                // wait for the next tick. Single round-trip per tick
+                // when healthy → 50× fewer DB calls during recovery
+                // after a DB outage compared to the per-row path.
+                std::vector<LogRecord> batch;
+                batch.reserve(m_opts.drain_batch_size);
                 for (std::size_t i = 0; i < m_opts.drain_batch_size; ++i)
                 {
                     LogRecord rec{};
                     if (!m_queue->PopFront(rec)) break;
-                    try
-                    {
-                        if (TryInsert(rec))
-                        {
-                            m_drained.fetch_add(1);
-                            ++drained_this_tick;
-                            continue;
-                        }
-                    }
-                    catch (const std::exception&)
-                    {
-                        // DB still bad — push back to head, abort the
-                        // batch, wait for the next tick.
-                    }
-                    m_queue->PushFront(std::move(rec));
-                    break;
+                    batch.push_back(std::move(rec));
+                }
+                if (batch.empty()) continue;
+
+                std::size_t drained_this_tick = 0;
+                bool bulk_ok = false;
+                try
+                {
+                    bulk_ok = TryBulkInsert(batch);
+                }
+                catch (const std::exception& ex)
+                {
+                    spdlog::warn("log_sink: bulk drain INSERT failed "
+                                 "(batch={}) — will retry next tick: {}",
+                        batch.size(), ex.what());
+                    bulk_ok = false;
+                }
+
+                if (bulk_ok)
+                {
+                    drained_this_tick = batch.size();
+                    m_drained.fetch_add(batch.size());
+                }
+                else
+                {
+                    // Push back to the head in REVERSE order so the
+                    // original FIFO sequence is preserved (last popped
+                    // = first to push-front, etc.).
+                    for (auto it = batch.rbegin(); it != batch.rend(); ++it)
+                        m_queue->PushFront(std::move(*it));
                 }
 
                 if (drained_this_tick > 0)
                 {
-                    spdlog::info("log_sink: drained {} record(s); "
+                    spdlog::info("log_sink: bulk drained {} record(s); "
                                  "queue_depth={} remaining",
                         drained_this_tick, m_queue->Size());
                 }

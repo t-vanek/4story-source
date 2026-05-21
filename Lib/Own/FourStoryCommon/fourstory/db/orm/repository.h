@@ -152,6 +152,69 @@ public:
             Insert(entity);
     }
 
+    // ── Bulk operations (opt-in for cíleně chosen hot paths) ──────────
+    //
+    // These wrap N single-row statements in a single soci::transaction
+    // — one COMMIT instead of N round-trips for the commit phase.
+    // Typical speedup: 3-5× over the equivalent loop without a
+    // transaction. NOT true multi-row VALUES bulk; for that path (40+×
+    // speedup) write the INSERT directly via RawExecute() with a
+    // pre-built `INSERT … VALUES (…), (…), …` string.
+    //
+    // When to use:
+    //   ✓ TLogSvr drain loop popping N records off the retry queue
+    //   ✓ SaveInventory dumping a full 32-slot inventory on logout
+    //   ✓ CreateChar's batch of starter items
+    //   ✓ Any operator command that touches a bounded N rows at once
+    //
+    // When NOT to use:
+    //   ✗ Single-row CRUD — the transaction overhead is not worth it
+    //   ✗ Reads — already set-based via Where() / RawSelect()
+    //   ✗ Cross-table writes — Transaction(ctx.Session()) directly
+    //     so the txn spans multiple statements / tables
+    //
+    // batch_size bounds how many rows per transaction; rows beyond the
+    // batch land in a fresh transaction. Default 500 — keeps any one
+    // commit's WAL / log volume manageable on a busy DB.
+    void InsertAll(const std::vector<T>& rows, std::size_t batch_size = 500)
+    {
+        BatchedMutation(rows, batch_size,
+            [this](const T& e) { Insert(e); }, "InsertAll");
+    }
+
+    void UpdateAll(const std::vector<T>& rows, std::size_t batch_size = 500)
+    {
+        BatchedMutation(rows, batch_size,
+            [this](const T& e) { Update(e); }, "UpdateAll");
+    }
+
+    // DeleteAll by primary-key list. Single statement per row inside
+    // a transaction; for very large deletes prefer a single
+    // `RawExecute("DELETE FROM Table WHERE pk IN (...)")` instead.
+    template<typename PkType>
+    void DeleteAll(const std::vector<PkType>& pks, std::size_t batch_size = 500)
+    {
+        if (pks.empty()) return;
+        for (std::size_t i = 0; i < pks.size(); i += batch_size)
+        {
+            const std::size_t end = std::min(i + batch_size, pks.size());
+            soci::transaction tx(m_sql);
+            try
+            {
+                for (std::size_t j = i; j < end; ++j)
+                    Delete(pks[j]);
+                tx.commit();
+            }
+            catch (const std::exception& ex)
+            {
+                try { tx.rollback(); } catch (...) {}
+                spdlog::error("Repository<{}>::DeleteAll batch [{},{}): {}",
+                    Map::Table, i, end, ex.what());
+                throw;
+            }
+        }
+    }
+
     // ── Raw SQL ───────────────────────────────────────────────────────
     // Escape hatch when the query doesn't fit the generic CRUD shape.
     std::vector<T> RawSelect(const std::string& sql)
@@ -181,6 +244,37 @@ private:
                 Map::Table, ex.what(), sql);
         }
         return out;
+    }
+
+    // Shared implementation of InsertAll / UpdateAll — chunks rows into
+    // batches, wraps each batch in a single transaction, propagates the
+    // first exception after rolling back the in-flight batch.
+    template<typename PerRowFn>
+    void BatchedMutation(const std::vector<T>& rows,
+                         std::size_t batch_size,
+                         PerRowFn&& per_row,
+                         const char* op_name)
+    {
+        if (rows.empty()) return;
+        if (batch_size == 0) batch_size = rows.size();
+        for (std::size_t i = 0; i < rows.size(); i += batch_size)
+        {
+            const std::size_t end = std::min(i + batch_size, rows.size());
+            soci::transaction tx(m_sql);
+            try
+            {
+                for (std::size_t j = i; j < end; ++j)
+                    per_row(rows[j]);
+                tx.commit();
+            }
+            catch (const std::exception& ex)
+            {
+                try { tx.rollback(); } catch (...) {}
+                spdlog::error("Repository<{}>::{} batch [{},{}): {}",
+                    Map::Table, op_name, i, end, ex.what());
+                throw;
+            }
+        }
     }
 
     soci::session& m_sql;

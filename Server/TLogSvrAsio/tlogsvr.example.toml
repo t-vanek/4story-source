@@ -34,6 +34,22 @@ level = "info"
 # checks. Set 0 to disable entirely.
 port = 8800
 
+[backpressure]
+# Periodic visibility into queue depth + drop counters. Without this
+# watchdog the server only emits the cumulative totals at shutdown,
+# so a runtime queue saturation (DB outage, slow ODBC link, malformed
+# input flood) shows up too late to act on.
+#
+# sample_interval_secs = 0 disables the watchdog. Default 60 prints
+# an info-level snapshot every minute and a warn-level line whenever
+# either drop counter advanced in the last window.
+#
+# Set always_log = true to also emit a warn line every interval
+# regardless of delta (useful for monitoring tooling that alerts on
+# warn-level patterns rather than diffing).
+sample_interval_secs = 60
+always_log = false
+
 [retry]
 # In-RAM retry buffer for transient DB outages. Mirrors the legacy
 # `m_listReadCompleted` requeue behavior in

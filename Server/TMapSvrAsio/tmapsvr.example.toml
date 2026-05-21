@@ -35,10 +35,12 @@ disable = true
 type = "pve"
 
 [world]
-# TWorldSvr peer this map talks to. Wired up starting in phase F5
-# (services/world_client.cpp) — port = 0 disables the outbound link
-# until then, so a F3-era boot doesn't pollute the log with retry
-# messages.
+# TWorldSvr peer this map talks to. The map↔world link carries MW_/DM_/
+# SS_ traffic (char registration on connect, party/chat relay, item
+# routing) — required for the F5+ char registration flow. Setting port
+# = 0 disables the outbound link entirely; CS_CONNECT_REQ still works
+# but MW_ADDCHAR_ACK is dropped with a log line. Production deploys
+# must point this at the running TWorldSvr.
 host = "127.0.0.1"
 port = 0
 

@@ -1,0 +1,134 @@
+#include "world_client.h"
+
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/redirect_error.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/use_awaitable.hpp>
+
+#include <spdlog/spdlog.h>
+
+#include <utility>
+
+namespace tmapsvr {
+
+AsioWorldClient::AsioWorldClient(boost::asio::io_context& io,
+                                 std::string host,
+                                 std::uint16_t port,
+                                 std::chrono::milliseconds backoff_initial,
+                                 std::chrono::milliseconds backoff_max)
+    : m_io(io)
+    , m_host(std::move(host))
+    , m_port(port)
+    , m_backoff_initial(backoff_initial)
+    , m_backoff_max(backoff_max)
+{
+}
+
+bool AsioWorldClient::IsConnected() const
+{
+    return m_session && m_session->Socket().is_open();
+}
+
+boost::asio::awaitable<std::shared_ptr<tnetlib::AsioSession>>
+AsioWorldClient::DialOnce()
+{
+    using boost::asio::ip::tcp;
+
+    tcp::resolver resolver(m_io);
+    boost::system::error_code ec;
+    auto endpoints = co_await resolver.async_resolve(
+        m_host, std::to_string(m_port),
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec)
+    {
+        spdlog::warn("world_client: resolve {}:{} failed: {}",
+            m_host, m_port, ec.message());
+        co_return nullptr;
+    }
+
+    tcp::socket sock(m_io);
+    co_await boost::asio::async_connect(sock, endpoints,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec)
+    {
+        spdlog::warn("world_client: connect {}:{} failed: {}",
+            m_host, m_port, ec.message());
+        co_return nullptr;
+    }
+
+    // Server-to-server peer — no RC4, AsioSession's default XOR
+    // header/body codec is enough.
+    co_return std::make_shared<tnetlib::AsioSession>(
+        std::move(sock), tnetlib::PeerType::Server);
+}
+
+boost::asio::awaitable<void>
+AsioWorldClient::Run()
+{
+    auto backoff = m_backoff_initial;
+    boost::asio::steady_timer timer(m_io);
+
+    while (true)
+    {
+        auto sess = co_await DialOnce();
+        if (!sess)
+        {
+            spdlog::info("world_client: backing off {}ms before retry",
+                static_cast<long long>(backoff.count()));
+            timer.expires_after(backoff);
+            boost::system::error_code ec;
+            co_await timer.async_wait(
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+            if (ec) co_return; // executor stopping
+            backoff = std::min(backoff * 2, m_backoff_max);
+            continue;
+        }
+
+        spdlog::info("world_client: connected to {}:{}", m_host, m_port);
+        m_session = sess;
+        backoff   = m_backoff_initial;
+
+        // F5 inbound handler stub: log + drop. F5.1 (or F6) will plug
+        // in the real DM_LOADCHAR_REQ / MW_CONRESULT_REQ dispatch via
+        // a handlers_world.cpp file mirroring handlers.cpp.
+        co_await sess->RunPackets(
+            [this](const tnetlib::DecodedPacket& pkt) {
+                spdlog::debug("world_client: rx wId=0x{:04X} seq={} body={} bytes "
+                              "(no handler yet — F5 stub)",
+                    pkt.wId, pkt.dwNumber, pkt.body.size());
+            });
+
+        spdlog::info("world_client: disconnected from {}:{} — reconnecting",
+            m_host, m_port);
+        m_session.reset();
+
+        // Brief pause before the next dial so a flapping peer doesn't
+        // burn a CPU on tight reconnect spin.
+        timer.expires_after(m_backoff_initial);
+        boost::system::error_code ec;
+        co_await timer.async_wait(
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if (ec) co_return;
+    }
+}
+
+boost::asio::awaitable<bool>
+AsioWorldClient::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
+{
+    if (!IsConnected())
+    {
+        spdlog::warn("world_client: SendPacket wId=0x{:04X} dropped — "
+                     "world peer not connected",
+            wId);
+        co_return false;
+    }
+    // Move the body into the send so the AsioSession's outbound
+    // scratch can fold it without an extra copy. SendPacket itself
+    // is not thread-safe — see header note on single-threaded
+    // io_context assumption.
+    co_await m_session->SendPacket(
+        wId, std::span<const std::byte>(body.data(), body.size()));
+    co_return true;
+}
+
+} // namespace tmapsvr

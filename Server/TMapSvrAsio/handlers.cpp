@@ -1,6 +1,7 @@
 #include "handlers.h"
 
 #include "services/session_validator.h"
+#include "services/world_client.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -47,13 +48,33 @@ const char* ConnectResultName(ConnectResult r)
 // CS_CONNECT_ACK body — single result byte followed by an empty
 // vServerID vector (length 0). Mirrors CTPlayer::SendCS_CONNECT_ACK
 // in CSSender.cpp:78. The vServerID list is populated by the World
-// peer in later phases (F5+); F4 always sends an empty list.
+// peer in later phases; F4/F5 always send an empty list.
 std::vector<std::byte> EncodeConnectAck(ConnectResult r)
 {
     std::vector<std::byte> body;
     body.reserve(2);
     wire::WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(r));
     wire::WritePOD<std::uint8_t>(body, 0); // vServerID.size()
+    return body;
+}
+
+// MW_ADDCHAR_ACK body — 18 bytes, mirrors
+// CTMapSvrModule::SendMW_ADDCHAR_ACK in SSSender.cpp:237. Sent on the
+// map↔world peer after a CS_CONNECT_REQ clears so the World server
+// knows where to route DM_* traffic for this character.
+std::vector<std::byte> EncodeAddCharAck(std::uint32_t dwCharID,
+                                        std::uint32_t dwKEY,
+                                        std::uint32_t dwIPAddr,
+                                        std::uint16_t wPort,
+                                        std::uint32_t dwUserID)
+{
+    std::vector<std::byte> body;
+    body.reserve(18);
+    wire::WritePOD<std::uint32_t>(body, dwCharID);
+    wire::WritePOD<std::uint32_t>(body, dwKEY);
+    wire::WritePOD<std::uint32_t>(body, dwIPAddr);
+    wire::WritePOD<std::uint16_t>(body, wPort);
+    wire::WritePOD<std::uint32_t>(body, dwUserID);
     return body;
 }
 
@@ -138,6 +159,36 @@ OnConnectReq(std::shared_ptr<tnetlib::AsioSession> sess,
     co_await sess->SendPacket(
         static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK),
         EncodeConnectAck(result));
+
+    // On success, announce the new char to the World peer so it can
+    // route MW_/DM_ traffic our way. Mirrors the legacy
+    // CSHandler.cpp::OnCS_CONNECT_REQ tail-call into
+    // SendMW_ADDCHAR_ACK (SSSender.cpp:237). The send is fire-and-
+    // forget — IsConnected gate prevents queueing into a dead peer
+    // (F5 doesn't buffer; F5+ phases may add a retry queue).
+    if (result == ConnectResult::Ok && ctx.world_client &&
+        ctx.world_client->IsConnected())
+    {
+        const bool sent = co_await ctx.world_client->SendPacket(
+            static_cast<std::uint16_t>(MessageId::MW_ADDCHAR_ACK),
+            EncodeAddCharAck(dwID, dwKEY, dwIPAddr, wPort, dwUserID));
+        if (!sent)
+            spdlog::warn("MW_ADDCHAR_ACK uid={} char={}: world send returned "
+                         "false (peer dropped between IsConnected and send)",
+                dwUserID, dwID);
+    }
+    else if (result == ConnectResult::Ok && !ctx.world_client)
+    {
+        spdlog::debug("MW_ADDCHAR_ACK uid={} char={}: world peer not "
+                      "configured — char registration skipped",
+            dwUserID, dwID);
+    }
+    else if (result == ConnectResult::Ok)
+    {
+        spdlog::warn("MW_ADDCHAR_ACK uid={} char={}: world peer disconnected "
+                     "— char registration deferred",
+            dwUserID, dwID);
+    }
 }
 
 boost::asio::awaitable<void>

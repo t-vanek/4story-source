@@ -1,20 +1,17 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F4: first real handler (CS_CONNECT_REQ → CS_CONNECT_ACK).
-// Boot sequence: load config → set log level → install signals →
-// (optional) open SOCI pool + run schema validator + build the
-// SOCI session validator → instantiate MapServer with the validator
-// in its HandlerContext → co_spawn accept loop → io.run().
-//
-// Without a [database] section main() still comes up, but the
-// dispatch path refuses CS_CONNECT_REQ with INTERNAL — F4 needs
-// the validator to clear the handshake.
+// Phase F5: World peer wired into the boot sequence. After the F4
+// session validator comes online, an AsioWorldClient connects out to
+// the configured TWorldSvr and stays connected with exponential
+// backoff if the link drops. Its pointer goes into HandlerContext so
+// OnConnectReq can fire MW_ADDCHAR_ACK after a clean handshake.
 
 #include "config.h"
 #include "map_server.h"
 #include "db/schema_validator.h"
 #include "services/session_validator.h"
 #include "services/soci_session_validator.h"
+#include "services/world_client.h"
 
 #include "fourstory/db/session_pool.h"
 
@@ -37,7 +34,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F4 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F5 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -96,15 +93,36 @@ int main(int argc, char** argv)
                          "refuse with INTERNAL");
         }
 
-        // Wire the validator pointer into the MapServer's handler
-        // context. Pointer is non-owning; the unique_ptr above keeps
-        // the storage alive for the io.run() lifetime.
-        cfg.server.handlers.validator = validator.get();
+        // Optional World peer — only spun up when [world] port is set
+        // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
+        // handshake gets logged as deferred and never sent (no buffer
+        // in F5). Dev runs that only need to exercise the local
+        // dispatch can leave [world].port = 0.
+        std::unique_ptr<tmapsvr::AsioWorldClient> world_client;
+        if (cfg.world.port != 0)
+        {
+            world_client = std::make_unique<tmapsvr::AsioWorldClient>(
+                io, cfg.world.host, cfg.world.port);
+            boost::asio::co_spawn(io, world_client->Run(), boost::asio::detached);
+            spdlog::info("world_client: dialing {}:{} (background)",
+                cfg.world.host, cfg.world.port);
+        }
+        else
+        {
+            spdlog::warn("no [world] port configured — MW_ADDCHAR_ACK and "
+                         "future DM_/MW_ traffic will be skipped");
+        }
+
+        // Wire service pointers into the MapServer's handler context.
+        // Pointers are non-owning; the unique_ptrs above keep the
+        // storage alive for the io.run() lifetime.
+        cfg.server.handlers.validator    = validator.get();
+        cfg.server.handlers.world_client = world_client.get();
 
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F4 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F5 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

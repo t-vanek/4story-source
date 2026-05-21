@@ -23,14 +23,16 @@
 namespace tmapsvr {
 
 class IMapSessionValidator;
+class IWorldClient;
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; the MapServer keeps the lifetimes.
 struct HandlerContext
 {
     IMapSessionValidator*  validator      = nullptr;
+    IWorldClient*          world_client   = nullptr;
     std::uint8_t           expected_group = 0;     // [server] / world group id
-    // Future phases will add: IPlayerService, IWorldClient,
+    // Future phases will add: IPlayerService, ISessionRegistry,
     // IMapState, ISpawnManager, … each owned by main() and pointed
     // at here.
 };

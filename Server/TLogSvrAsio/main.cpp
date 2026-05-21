@@ -1,7 +1,12 @@
 #include "config.h"
 #include "db/schema_validator.h"
 #include "log_server.h"
+#include "services/audit_query_repository.h"
 #include "services/log_sink.h"
+#include "services/mapper_profiles.h"
+
+#include "fourstory/mapper/mapper.h"
+#include "fourstory/security/peer_security_gate.h"
 
 #include "fourstory/cluster/peer_client.h"
 #include "fourstory/db/session_pool.h"
@@ -111,6 +116,19 @@ int main(int argc, char** argv)
         auto cfg = tlogsvr::LoadConfig(config_path);
         spdlog::set_level(cfg.log_level);
 
+        // Register fourstory::mapper profiles (LogRecord ↔ LogAuditEntry).
+        {
+            using namespace fourstory::mapper;
+            auto& reg = MapperRegistry::Get();
+            if (!reg.Applied())
+            {
+                reg.Register<tlogsvr::LogMappingProfile>();
+                reg.ApplyAll();
+                spdlog::info("mapper: {} profile(s) configured",
+                    reg.Count());
+            }
+        }
+
         boost::asio::io_context io;
         boost::asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&io](auto, int sig) {
@@ -161,6 +179,46 @@ int main(int argc, char** argv)
                 cfg.database.backend, cfg.target_table,
                 cfg.retry.max_queue,
                 static_cast<long long>(cfg.retry.drain_interval.count()));
+
+            // AuditQueryRepository — read-side counterpart to SociLogSink.
+            // Boot-time sanity log: report total row count + the latest
+            // 3 entries so operators see whether the audit pipeline is
+            // healthy when the daemon starts. Reuses the SOCI ORM
+            // (Repository<LogAuditEntry>) so the read path validates
+            // the schema mapping before any new INSERT lands.
+            try
+            {
+                tlogsvr::AuditQueryRepository repo(*pool);
+                const auto total  = repo.Count();
+                const auto latest = repo.LatestN(3);
+                spdlog::info("audit_query_repo: TLOG_AUDIT total={} rows; "
+                             "showing {} most recent:",
+                    total, latest.size());
+                // Project read-side rows back into LogRecord (write-shape)
+                // via fourstory::mapper. This is the same conversion a
+                // replay / dry-run tool would do — read N rows, feed
+                // them through Adapt() into the wire shape, then through
+                // SociLogSink again. Validates the round-trip mapping
+                // at every server boot.
+                const auto as_records =
+                    fourstory::mapper::AdaptAll<tlogsvr::LogRecord>(latest);
+                for (std::size_t i = 0; i < latest.size(); ++i)
+                {
+                    const auto& e = latest[i];
+                    const auto& r = as_records[i];
+                    spdlog::info("  id={} date='{}' srv={} ip={} action=0x{:04X} "
+                                 "uid={} name='{}' (roundtrip: action=0x{:04X} "
+                                 "uid={})",
+                        e.log_id, e.log_date, e.server_id, e.client_ip,
+                        e.action, e.search_int_0, e.search_str_0,
+                        r.action, r.search_int[0]);
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("audit_query_repo: startup probe skipped: {}",
+                    ex.what());
+            }
         }
         else
         {
@@ -168,10 +226,24 @@ int main(int argc, char** argv)
             spdlog::warn("log_sink: stdout (no [database] configured)");
         }
 
+        // Server-to-server security gate (UDP source-IP allowlist).
+        // TLogSvr accepts traffic only from other cluster servers, so
+        // a per-datagram CheckIp is appropriate.
+        auto security_gate =
+            std::make_unique<fourstory::security::PeerSecurityGate>(
+                cfg.security, pool.get());
+        if (pool && cfg.security.db_trust_store)
+            security_gate->LoadTrustStore();
+        spdlog::info("security: ip_allowlist={} enforce={} trust_store={}",
+            cfg.security.ip_allowlist.size(),
+            cfg.security.ip_allowlist_enforce,
+            security_gate->TrustCount());
+
         tlogsvr::LogServerConfig srv_cfg{
             .bind_address = cfg.bind_address,
             .port         = cfg.port,
             .sink         = sink.get(),
+            .security     = security_gate.get(),
         };
         tlogsvr::LogServer server(io, srv_cfg);
         spdlog::info("log server listening UDP {}:{}",
@@ -213,10 +285,6 @@ int main(int argc, char** argv)
         }
 
         io.run();
-
-        // Send DEREGISTER so TControl doesn't have to wait for the
-        // 90s lease-expiry sweep.
-        if (peer_client) peer_client->Stop();
 
         // Wait for any in-flight pool work (SOCI INSERTs) to finish
         // so a record posted just before io.stop() doesn't disappear.

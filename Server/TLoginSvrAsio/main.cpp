@@ -36,11 +36,13 @@
 #include "config.h"
 #include "fourstory/cluster/peer_client.h"
 #include "fourstory/ops/health_endpoint.h"
+#include "fourstory/security/peer_security_gate.h"
 #include "login_server.h"
 #include "db/schema_validator.h"
 #include "fourstory/db/session_pool.h"
 #include "services/local_connection_registry.h"
 #include "services/local_event_registry.h"
+#include "services/mapper_profiles.h"
 #include "fourstory/ops/rate_limiter.h"
 #include "fourstory/ops/registry_refresher.h"
 #include "services/soci_auth_service.h"
@@ -105,6 +107,21 @@ int main(int argc, char** argv)
     {
         auto cfg = tloginsvr::LoadConfig(config_path);
         spdlog::set_level(cfg.log_level);
+
+        // Register fourstory::mapper profiles. Configured TypeMaps are
+        // accessible via Adapt<T>(src) anywhere in the server after
+        // ApplyAll() completes. Re-registering is a no-op (idempotent).
+        {
+            using namespace fourstory::mapper;
+            auto& reg = MapperRegistry::Get();
+            if (!reg.Applied())
+            {
+                reg.Register<tloginsvr::services::LoginMappingProfile>();
+                reg.ApplyAll();
+                spdlog::info("mapper: {} profile(s) configured",
+                    reg.Count());
+            }
+        }
 
         // Refuse to start with the CT_* gate fully open unless the
         // operator explicitly opted in. Production deploys MUST pin
@@ -359,6 +376,27 @@ int main(int argc, char** argv)
             cfg.server.audit_logger = audit.get();
             spdlog::info("services: in-memory (no [database] configured)");
         }
+
+        // Server-to-server security gate. Loaded with TPEER_AUTH so the
+        // CT_* control plane can verify HMAC tokens (handshake-level
+        // integration is per-handler; the gate object is reused across
+        // CT_OPLOGIN / CT_SERVICEMONITOR / SM_QUITSERVICE paths). Game
+        // client traffic on CS_* bypasses the gate (own RC4+dwKEY crypto).
+        std::unique_ptr<fourstory::security::PeerSecurityGate> security_gate;
+        if (global_pool)
+            security_gate = std::make_unique<fourstory::security::PeerSecurityGate>(
+                cfg.security, global_pool.get());
+        else
+            security_gate = std::make_unique<fourstory::security::PeerSecurityGate>(
+                cfg.security, nullptr);
+        if (global_pool && cfg.security.db_trust_store)
+            security_gate->LoadTrustStore();
+        spdlog::info("security: ip_allowlist={} enforce={} peer_auth={} "
+                     "trust_store={}",
+            cfg.security.ip_allowlist.size(),
+            cfg.security.ip_allowlist_enforce,
+            cfg.security.peer_auth_required,
+            security_gate->TrustCount());
 
         tloginsvr::LoginServer server(io, cfg.server);
         spdlog::info("login server listening on 0.0.0.0:{} (RC4: {})",

@@ -1,6 +1,7 @@
 #include "soci_user_protected_service.h"
 
-#include <soci/soci.h>
+#include "fourstory/db/orm/sp_call.h"
+
 #include <spdlog/spdlog.h>
 
 namespace tcontrolsvr {
@@ -18,26 +19,22 @@ SociUserProtectedService::AddBan(const std::string& user_id,
                                  std::uint8_t permanent,
                                  const std::string& operator_id)
 {
+    using fourstory::db::orm::SpCall;
     try
     {
         auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-
-        int nret = 0;
-        int duration = static_cast<int>(duration_days);
-        int perm     = static_cast<int>(permanent);
-        soci::statement st = (sql.prepare <<
-            "{ ? = CALL TUserProtectedAdd(?, ?, ?, ?, ?) }",
-            soci::into(nret),
-            soci::use(user_id),
-            soci::use(duration),
-            soci::use(reason),
-            soci::use(perm),
-            soci::use(operator_id));
-        st.execute(true);
-        if (nret < 0 || nret > 255)
-            return 0;
-        return static_cast<std::uint8_t>(nret);
+        auto r = SpCall("TUserProtectedAdd")
+            .In("szUserID",    user_id)
+            .In("dwDuration",  static_cast<int>(duration_days))
+            .In("szReason",    reason)
+            .In("bPermanent",  static_cast<int>(permanent))
+            .In("szOperator",  operator_id)
+            .WithReturn()
+            .Execute(*lease);
+        if (!r.Ok()) return 0;
+        const auto ret = r.ReturnCode();
+        if (ret < 0 || ret > 255) return 0;
+        return static_cast<std::uint8_t>(ret);
     }
     catch (const std::exception& ex)
     {

@@ -2,6 +2,8 @@
 
 #include "fourstory/cluster/peer_client.h"
 
+#include "fourstory/security/security_config.h"
+
 #include <spdlog/common.h>
 
 #include <chrono>
@@ -60,6 +62,18 @@ struct BackpressureConfig
     bool                 always_log = false;
 };
 
+// TControlSvr cluster coordinates — optional, identifies this log node
+// when registering with the control plane. All fields optional;
+// defaults leave the peer disabled.
+struct ClusterConfig
+{
+    std::string    control_host;
+    std::uint16_t  control_port = 0;
+    std::uint8_t   group_id     = 0;
+    std::uint8_t   server_id    = 0;
+    std::string    reported_addr;
+};
+
 struct AppConfig
 {
     // UDP listening port. Legacy default was 2000 (UdpSocket peer port
@@ -89,6 +103,14 @@ struct AppConfig
 
     // Backpressure watchdog — see struct comment.
     BackpressureConfig backpressure;
+
+    // TControlSvr cluster registration (optional).
+    ClusterConfig  cluster;
+
+    // Server-to-server security — IP allowlist gates every UDP
+    // datagram source. TLogSvr is write-only and only accepts traffic
+    // from other cluster servers, so the gate applies uniformly.
+    fourstory::security::SecurityConfig security;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

@@ -47,6 +47,27 @@ PatchServer::Run()
         tcp::socket sock = co_await m_acceptor.async_accept(
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec) break;
+
+        // Server-to-server IP allowlist enforcement. TPatchSvr only
+        // talks to TControl + the operator GUI tunnel — game clients
+        // never touch this port. Reject non-cluster IPs immediately.
+        if (m_cfg.security != nullptr)
+        {
+            boost::system::error_code pec;
+            const auto ep = sock.remote_endpoint(pec);
+            const std::string ip =
+                pec ? std::string{"?"} : ep.address().to_string();
+            const auto check = m_cfg.security->CheckIp(ip);
+            if (!check.allowed())
+            {
+                spdlog::warn("patch_server: rejected accept from {} ({})",
+                    ip, fourstory::security::OutcomeName(check.outcome));
+                boost::system::error_code ig;
+                sock.close(ig);
+                continue;
+            }
+        }
+
         auto sess = std::make_shared<PatchSession>(std::move(sock));
         Register(sess);
         boost::asio::co_spawn(m_io,

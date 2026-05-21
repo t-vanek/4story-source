@@ -5,6 +5,8 @@
 // table for the in-memory FakeOperatorAuth / FakeServiceInventory.
 // SOCI-backed loads land in F2.
 
+#include "fourstory/security/security_config.h"
+
 #include <spdlog/common.h>
 
 #include <cstdint>
@@ -85,6 +87,10 @@ struct AppConfig
     // F1 seeds — populated only when [fake] tables are present.
     std::vector<FakeOperatorSeed>  fake_operators;
     FakeInventorySeed              fake_inventory;
+
+    // Server-to-server security gate. Applies to the operator listener
+    // + the CT_PEER_REGISTER channel.
+    fourstory::security::SecurityConfig security;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

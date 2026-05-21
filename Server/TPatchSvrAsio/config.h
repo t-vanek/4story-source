@@ -5,6 +5,7 @@
 // address that gets advertised in the PATCH_ACK responses).
 
 #include "fourstory/cluster/peer_client.h"
+#include "fourstory/security/security_config.h"
 
 #include <spdlog/common.h>
 
@@ -51,6 +52,10 @@ struct AppConfig
     // Cluster self-registration; empty control_host disables.
     // Service type byte is fixed at 3 (svr_type::kPatchSvr).
     fourstory::cluster::ClusterConfig cluster;
+
+    // Server-to-server security (IP allowlist + HMAC peer auth).
+    // All TPatchSvr traffic is S2S so the gate applies to every accept.
+    fourstory::security::SecurityConfig security;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

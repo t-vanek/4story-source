@@ -6,6 +6,8 @@
 
 #include "services/log_sink.h"
 
+#include "fourstory/security/peer_security_gate.h"
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/udp.hpp>
@@ -36,6 +38,10 @@ struct LogServerConfig
     std::string    bind_address = "0.0.0.0";
     std::uint16_t  port = 2000;
     ILogSink*      sink = nullptr;          // non-owning
+    // Optional source-IP gate. When non-null, every received datagram's
+    // source IP is checked via CheckIp(); non-allowlisted packets are
+    // dropped before they reach DecodeLogDatagram + the sink.
+    fourstory::security::PeerSecurityGate* security = nullptr;
 };
 
 class LogServer
@@ -48,14 +54,17 @@ public:
     std::uint16_t Port() const { return m_port; }
     std::uint64_t PacketsReceived() const { return m_received.load(); }
     std::uint64_t DropsBadFormat() const  { return m_drops_format.load(); }
+    std::uint64_t DropsIpDenied()  const  { return m_drops_ip.load(); }
 
 private:
     boost::asio::io_context&        m_io;
     boost::asio::ip::udp::socket    m_socket;
     std::uint16_t                   m_port;
     ILogSink*                       m_sink;
+    fourstory::security::PeerSecurityGate* m_security;
     std::atomic<std::uint64_t>      m_received{0};
     std::atomic<std::uint64_t>      m_drops_format{0};
+    std::atomic<std::uint64_t>      m_drops_ip{0};
 };
 
 } // namespace tlogsvr

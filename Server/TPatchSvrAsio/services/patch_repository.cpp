@@ -1,5 +1,7 @@
 #include "patch_repository.h"
 
+#include "fourstory/db/orm/sp_call.h"
+
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
 
@@ -125,26 +127,19 @@ PatchRepository::ListInterfaceFiles(std::uint8_t option)
 
 std::uint32_t PatchRepository::MinBetaVersion()
 {
+    using fourstory::db::orm::SpCall;
     auto lease = m_pool.Acquire();
-    soci::session& sql = *lease;
     try
     {
-        // Legacy CSPMinBetaVer calls the deployed `TMinBetaVer` SP
-        // (operator-configured cutoff, returned via the SP's @dwMinVer
-        // OUTPUT parameter). The previous heuristic `MIN(dwBetaVer)`
-        // on TPREVERSION returned the lowest existing pre-version,
-        // which has nothing to do with the cutoff — fixed in the
-        // round-1 audit. The exec wrapper here uses a T-SQL local
-        // variable to capture the OUT param and SELECT it back as a
-        // single-column rowset SOCI can bind into. Falls back to 0
-        // on any error (SP missing, ODBC quirk, etc.) so the wire
-        // path stays compatible with deploys that haven't shipped
-        // the SP.
-        int min_ver = 0;
-        sql << "DECLARE @v INT; EXEC \"TMinBetaVer\" @dwMinVer = @v OUTPUT; "
-               "SELECT @v",
-            soci::into(min_ver);
-        return static_cast<std::uint32_t>(min_ver);
+        // Legacy CSPMinBetaVer wraps `TMinBetaVer` — operator-configured
+        // cutoff via @dwMinVer OUT param. Falls back to 0 on any error
+        // (SP missing, ODBC quirk) so the wire path stays compatible
+        // with deploys that haven't shipped the SP.
+        auto r = SpCall("TMinBetaVer")
+            .Out<int>("dwMinVer")
+            .Execute(*lease);
+        if (!r.Ok()) return 0;
+        return static_cast<std::uint32_t>(r.Out<int>("dwMinVer"));
     }
     catch (const std::exception& ex)
     {

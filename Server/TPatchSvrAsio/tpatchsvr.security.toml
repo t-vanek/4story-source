@@ -1,0 +1,27 @@
+# Demo config for TPatchSvr with security enabled.
+# Run: tpatchsvr_asio --config Server/TPatchSvrAsio/tpatchsvr.security.toml
+
+port = 3715
+ftp_url = "ftp://patch.local"
+login_host = "127.0.0.1"
+login_port = 4816
+
+[database]
+backend = "odbc"
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+pool_size = 2
+
+[health]
+port = 0
+
+[log]
+level = "info"
+
+[security]
+ip_allowlist = ["10.0.0.0/8", "127.0.0.1/32"]
+ip_allowlist_enforce = true
+peer_auth_required = false   # set true once TPEER_AUTH rows + master key are deployed
+master_key_env = "FOURSTORY_PEER_KEY"
+nonce_window_seconds = 30
+db_trust_store = true
+audit_failed_attempts = true

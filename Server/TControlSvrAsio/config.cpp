@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "fourstory/security/toml_loader.h"
+
 #include <toml++/toml.hpp>
 #include <spdlog/spdlog.h>
 
@@ -157,6 +159,11 @@ AppConfig LoadConfig(const std::string& path)
     LoadIdNameArray("groups",   cfg.fake_inventory.groups);
     LoadIdNameArray("machines", cfg.fake_inventory.machines);
     LoadIdNameArray("types",    cfg.fake_inventory.types);
+
+    if (auto sec = tbl["security"].as_table())
+        cfg.security = fourstory::security::LoadFromToml(*sec);
+    if (auto err = cfg.security.Validate(); !err.empty())
+        throw std::runtime_error(err);
 
     spdlog::info("loaded config from '{}' — port={} db={} fake_ops={} "
                  "fake_groups={} fake_machines={} fake_types={}",

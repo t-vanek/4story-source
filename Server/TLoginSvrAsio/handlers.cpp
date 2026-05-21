@@ -33,6 +33,9 @@
 #include "handlers.h"
 #include "nation.h"
 #include "services/charname_validator.h"
+#include "services/mapper_profiles.h"
+
+#include "fourstory/mapper/mapper.h"
 
 #include "MessageId.h"
 
@@ -819,8 +822,20 @@ OnCharListReq(std::shared_ptr<tnetlib::AsioSession> session,
         }
     }
 
+    // Per-char debug audit: CharacterInfo → CharLobbySummary via the
+    // registered MapperProfile. Keeps the structured-log shape uniform
+    // with the create / delete paths.
+    const auto summaries =
+        fourstory::mapper::AdaptAll<services::CharLobbySummary>(chars);
     spdlog::info("CS_CHARLIST_REQ user={} group={} → CS_CHARLIST_ACK ({} chars)",
-        userId, groupId, chars.size());
+        userId, groupId, summaries.size());
+    for (const auto& s : summaries)
+    {
+        spdlog::debug("  char_id={} name='{}' lvl={} class={} country={} fame={}",
+            s.char_id, s.name, static_cast<int>(s.level),
+            static_cast<int>(s.char_class), static_cast<int>(s.country),
+            s.fame);
+    }
     co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CHARLIST_ACK),
         std::span<const std::byte>(p.bytes.data(), p.bytes.size()));
@@ -1058,15 +1073,26 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
     p.U8(result.remaining_slots);
     p.U8(result.starting_level);
 
-    spdlog::info("CS_CREATECHAR_REQ user={} name='{}' slot={} → {}",
-        req.user_id, req.name, req.slot,
-        static_cast<std::uint8_t>(result.status));
+    // Build a unified CharLobbySummary via the registered MapperProfile.
+    // Source is the create request (request-side fields); after the SP
+    // returns we patch in the assigned char_id so audit lines carry the
+    // resolved id, not zero.
+    auto summary = fourstory::mapper::Adapt<services::CharLobbySummary>(req);
+    summary.char_id = result.char_id;
+
+    spdlog::info("CS_CREATECHAR_REQ user={} group={} name='{}' slot={} "
+                 "class={} country={} → status={} char_id={}",
+        req.user_id, req.group_id, summary.name, req.slot,
+        static_cast<int>(summary.char_class),
+        static_cast<int>(summary.country),
+        static_cast<std::uint8_t>(result.status),
+        summary.char_id);
 
     if (audit_logger != nullptr)
     {
         audit_logger->LogCharCreate(
             ToCreateOutcome(result.status),
-            req.user_id, req.group_id, req.name, result.char_id);
+            req.user_id, req.group_id, summary.name, summary.char_id);
     }
 
     co_await sref.SendPacket(

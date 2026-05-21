@@ -2,8 +2,12 @@
 
 #include "config.h"
 #include "patch_server.h"
+#include "services/mapper_profiles.h"
 #include "services/patch_repository.h"
 #include "db/schema_validator.h"
+
+#include "fourstory/mapper/mapper.h"
+#include "fourstory/security/peer_security_gate.h"
 
 // Reuse Login server's pool wrapper.
 #include "fourstory/cluster/peer_client.h"
@@ -52,6 +56,19 @@ int main(int argc, char** argv)
         auto cfg = tpatchsvr::LoadConfig(config_path);
         spdlog::set_level(cfg.log_level);
 
+        // Register fourstory::mapper profiles — PatchFile → PatchManifestEntry.
+        {
+            using namespace fourstory::mapper;
+            auto& reg = MapperRegistry::Get();
+            if (!reg.Applied())
+            {
+                reg.Register<tpatchsvr::PatchMappingProfile>();
+                reg.ApplyAll();
+                spdlog::info("mapper: {} profile(s) configured",
+                    reg.Count());
+            }
+        }
+
         boost::asio::io_context io;
 
         boost::asio::signal_set signals(io, SIGINT, SIGTERM);
@@ -88,11 +105,52 @@ int main(int argc, char** argv)
             }
             spdlog::info("patch_repo: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
+
+            // Boot-time inventory log via Mapper — gives operators a
+            // quick "what's published" view from the daemon log without
+            // needing a separate SELECT. Skips silently if the table
+            // is empty or query fails (graceful degradation).
+            try
+            {
+                const auto files = repo->ListPatchesSince(0);
+                const auto entries =
+                    fourstory::mapper::AdaptAll<tpatchsvr::PatchManifestEntry>(files);
+                spdlog::info("patch_repo: {} TVERSION row(s) at boot",
+                    entries.size());
+                for (std::size_t i = 0; i < entries.size() && i < 5; ++i)
+                {
+                    const auto& e = entries[i];
+                    spdlog::info("  ver={} beta={} slug='{}' size={} B",
+                        e.version, e.beta_ver, e.slug, e.size);
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                spdlog::warn("patch_repo: inventory probe skipped: {}",
+                    ex.what());
+            }
         }
         else
         {
             spdlog::warn("no [database] configured — all queries return empty");
         }
+
+        // Server-to-server security gate. Constructed regardless of
+        // ip_allowlist_enforce so admin tooling has a handle; CheckIp
+        // becomes a no-op when the allowlist is empty + enforce=false.
+        // When [security].db_trust_store=true and a DB pool exists, we
+        // also load TPEER_AUTH (used by HMAC handshake verification).
+        auto security_gate =
+            std::make_unique<fourstory::security::PeerSecurityGate>(
+                cfg.security, pool.get());
+        if (pool && cfg.security.db_trust_store)
+            security_gate->LoadTrustStore();
+        spdlog::info("security: ip_allowlist={} enforce={} peer_auth={} "
+                     "trust_store={} entries",
+            cfg.security.ip_allowlist.size(),
+            cfg.security.ip_allowlist_enforce,
+            cfg.security.peer_auth_required,
+            security_gate->TrustCount());
 
         tpatchsvr::PatchServerConfig srv_cfg{};
         srv_cfg.port        = cfg.port;
@@ -102,6 +160,7 @@ int main(int argc, char** argv)
         srv_cfg.login_host  = cfg.login_host;
         srv_cfg.login_port  = cfg.login_port;
         srv_cfg.db_pool     = db_pool.get();
+        srv_cfg.security    = security_gate.get();
 
         tpatchsvr::PatchServer server(io, srv_cfg);
         spdlog::info("patch server listening on 0.0.0.0:{}", server.Port());

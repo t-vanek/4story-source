@@ -7,28 +7,27 @@
 #
 # Layout
 # ------
-#   main.cpp          F6 entry point (config + pool + validator +
-#                     session registry + world client w/ inbound
-#                     dispatch + listener).
+#   main.cpp          F7 entry point (config + pool + validator +
+#                     session registry + channel presence + world
+#                     client w/ inbound dispatch + listener).
 #   config.h/cpp      TOML loader — port, mode, [crypto], [database],
 #                     [world].
 #   tmapsvr.example.toml  Documented defaults.
 #   map_server.h/cpp  Accept loop, per-connection coroutine, RC4 toggle,
-#                     session-registry teardown.
-#   handlers.h/cpp    Per-packet dispatch for client packets
-#                     (CS_CONNECT_REQ → CS_CONNECT_ACK +
-#                     MW_ADDCHAR_ACK to the World peer; binds the
-#                     session by char id on success).
+#                     session-registry + presence teardown.
+#   handlers.h/cpp    Client-packet dispatch — CS_CONNECT_REQ
+#                     (validator + presence bind + MW_ADDCHAR_ACK),
+#                     CS_CONREADY_REQ (stub), CS_MOVE_REQ (position
+#                     update + flat broadcast to channel).
 #   handlers_world.h/cpp
-#                     Per-packet dispatch for inbound world packets
-#                     (DM_LOADCHAR_REQ stub — full char load lands
-#                     with the F8 player service).
+#                     Inbound world dispatch (DM_LOADCHAR_REQ stub —
+#                     full char load lands with the F8 player service).
 #   wire_codec.h      POD reader/writer for legacy CPacket body
 #                     layout — shared with handlers + tests.
-#   services/         Service interfaces and impls (session validator,
-#                     session registry, world client, player loader, …).
-#                     One header per interface + paired soci_/fake_
-#                     impls.
+#   services/         Service interfaces + impls (session validator,
+#                     session registry, channel presence, world client,
+#                     player loader, …). One header per interface +
+#                     paired soci_/fake_/in_memory_ impls.
 #   db/               Per-server schema validators (boot-time fail-fast).
 #   legacy_src/       Verbatim copy of Server/TMapSvr/, reference only,
 #                     not compiled.
@@ -37,9 +36,8 @@
 # config + schema validator (done), F3 MapServer accept loop (done),
 # F4 CS_CONNECT_REQ + session validator (done), F5 World peer +
 # MW_ADDCHAR_ACK outbound (done), F6 inbound world dispatch + session
-# registry (this commit; the movement / AOI work originally planned
-# for F6 lands in F7 because it depends on this plumbing), F7
-# movement + AOI, F8 player load service, F9 items, F10 NPCs,
+# registry (done), F7 movement + flat AOI broadcast (this commit),
+# F8 player load service + char snapshot reply, F9 items, F10 NPCs,
 # F11 skills, F12 quests, F13 monsters/AI, F14 party+chat,
 # F15 companions, F16 BR/Bow run-time mode, F17 control+audit.
 

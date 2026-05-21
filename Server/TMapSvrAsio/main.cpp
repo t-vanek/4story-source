@@ -1,17 +1,18 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F6: inbound world dispatch + session registry. The world
-// peer's read loop now routes each DecodedPacket through
-// handlers_world::DispatchWorld (currently just DM_LOADCHAR_REQ as a
-// stub that replies with INTERNAL — the real char load arrives with
-// the F8 player service). char_id → AsioSession mapping lives in
-// InMemorySessionRegistry; CS_CONNECT_REQ binds on success and the
-// MapServer's per-connection teardown unbinds on disconnect.
+// Phase F7: movement + flat-list AOI broadcast. The handler dispatch
+// now covers CS_CONREADY_REQ (stub — full enter-map flood lands with
+// F8) and CS_MOVE_REQ (decodes 26-byte position update, persists to
+// the per-channel presence map, broadcasts a 27-byte CS_MOVE_ACK to
+// every other session on the same channel). The MapServer teardown
+// hook now unbinds both the session registry and presence map so
+// dropped sockets don't leak entries or attract broadcasts.
 
 #include "config.h"
 #include "handlers_world.h"
 #include "map_server.h"
 #include "db/schema_validator.h"
+#include "services/channel_presence.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/soci_session_validator.h"
@@ -38,7 +39,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F6 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F7 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -103,12 +104,19 @@ int main(int argc, char** argv)
         // route DM_/MW_ inbound traffic back to the right client.
         tmapsvr::InMemorySessionRegistry session_reg;
 
+        // Per-channel presence (char_id → channel + position + session).
+        // Driven by the same handshake / teardown pair as session_reg.
+        // CS_MOVE_REQ updates position and broadcasts to other
+        // channel members.
+        tmapsvr::InMemoryChannelPresence presence;
+
         // Build the HandlerContext now so the world inbound dispatch
         // lambda can capture it by reference (the context's pointer
         // fields are filled in below as each service comes online).
         tmapsvr::HandlerContext ctx{};
         ctx.validator    = validator.get();
         ctx.session_reg  = &session_reg;
+        ctx.presence     = &presence;
 
         // Optional World peer — only spun up when [world] port is set
         // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
@@ -166,7 +174,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F6 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F7 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

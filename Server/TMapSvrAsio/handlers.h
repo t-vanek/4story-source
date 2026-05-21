@@ -25,15 +25,17 @@ namespace tmapsvr {
 class IMapSessionValidator;
 class IWorldClient;
 class ISessionRegistry;
+class IChannelPresence;
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; main() keeps the lifetimes.
 struct HandlerContext
 {
-    IMapSessionValidator*  validator      = nullptr;
-    IWorldClient*          world_client   = nullptr;
-    ISessionRegistry*      session_reg    = nullptr;
-    std::uint8_t           expected_group = 0;     // [server] / world group id
+    IMapSessionValidator*  validator       = nullptr;
+    IWorldClient*          world_client    = nullptr;
+    ISessionRegistry*      session_reg     = nullptr;
+    IChannelPresence*      presence        = nullptr;
+    std::uint8_t           expected_group  = 0;     // [server] / world group id
     // Future phases will add: IPlayerService, IMapState,
     // ISpawnManager, … each owned by main() and pointed at here.
 };
@@ -55,6 +57,16 @@ boost::asio::awaitable<void> Dispatch(
 // the decoded body — they own the copy if they need to outlive the
 // dispatch call.
 boost::asio::awaitable<void> OnConnectReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnConReadyReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnMoveReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);

@@ -1,5 +1,6 @@
 #include "map_server.h"
 
+#include "services/channel_presence.h"
 #include "services/session_registry.h"
 
 #include <boost/asio/co_spawn.hpp>
@@ -97,6 +98,11 @@ MapServer::Run()
                 // session_registry.h.
                 if (m_cfg.handlers.session_reg)
                     m_cfg.handlers.session_reg->UnbindIfMatches(sess.get());
+                // Drop from the per-channel presence map too so a
+                // CS_MOVE_REQ broadcast doesn't try to fan out to a
+                // dead socket.
+                if (m_cfg.handlers.presence)
+                    m_cfg.handlers.presence->UnbindIfMatches(sess.get());
             });
     }
 }

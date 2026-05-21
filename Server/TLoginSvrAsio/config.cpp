@@ -22,6 +22,8 @@
 
 #include "config.h"
 
+#include "fourstory/security/toml_loader.h"
+
 #include <toml++/toml.hpp>
 #include <spdlog/spdlog.h>
 
@@ -338,6 +340,11 @@ AppConfig LoadConfig(const std::string& path)
         if (auto a = (*c)["reported_addr"].value<std::string>())
             cfg.cluster.reported_addr = *a;
     }
+
+    if (auto sec = tbl["security"].as_table())
+        cfg.security = fourstory::security::LoadFromToml(*sec);
+    if (auto err = cfg.security.Validate(); !err.empty())
+        throw std::runtime_error(err);
 
     spdlog::info("loaded config from '{}' — server.port={} nation={} health.port={} rc4={} "
                  "db_global={} db_world={} log_level={}",

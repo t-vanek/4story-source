@@ -14,6 +14,7 @@
 #include "login_server.h"
 
 #include "fourstory/cluster/peer_client.h"
+#include "fourstory/security/security_config.h"
 
 #include <spdlog/common.h>
 
@@ -99,6 +100,12 @@ struct AppConfig
     // sink only).
     std::string                  audit_udp_host;
     std::uint16_t                audit_udp_port = 0;
+
+    // Server-to-server security gate. Applied to CT_* handler dispatch
+    // (tightens the legacy single-IP control_server_ip whitelist into
+    // a CIDR-aware multi-host posture). Client game traffic (CS_*)
+    // bypasses the gate — its own RC4+dwKEY session crypto applies.
+    fourstory::security::SecurityConfig security;
 
     spdlog::level::level_enum    log_level = spdlog::level::info;
 

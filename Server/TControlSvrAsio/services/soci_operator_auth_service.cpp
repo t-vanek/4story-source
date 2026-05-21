@@ -1,6 +1,7 @@
 #include "soci_operator_auth_service.h"
 
-#include <soci/soci.h>
+#include "fourstory/db/orm/sp_call.h"
+
 #include <spdlog/spdlog.h>
 
 namespace tcontrolsvr {
@@ -14,25 +15,25 @@ OperatorAuthResult
 SociOperatorAuthService::Authenticate(const std::string& user_id,
                                       const std::string& password)
 {
+    using fourstory::db::orm::SpCall;
+
     OperatorAuthResult res{};
     try
     {
+        // Legacy contract: TOPLogin's EXEC return code is the operator's
+        // bAuthority value (0 = reject, 1 = MANAGER_ALL, 2 = SERVICE, …).
+        // We capture it via WithReturn() — no OUT parameters needed.
         auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
+        auto r = SpCall("TOPLogin")
+            .In("szUserID", user_id)
+            .In("szPasswd", password)
+            .WithReturn()
+            .Execute(*lease);
 
-        // ODBC call shape mirrors the legacy CSPOPLogin escape
-        // sequence: `{ ? = CALL TOPLogin(?, ?) }`. SOCI's prepared
-        // statement layer accepts the same string verbatim for
-        // ODBC; the leading `?` is the SP return code (= bAuthority
-        // for TOPLogin).
-        int authority = 0;
-        soci::statement st = (sql.prepare <<
-            "{ ? = CALL TOPLogin(?, ?) }",
-            soci::into(authority),
-            soci::use(user_id),
-            soci::use(password));
-        st.execute(true);
+        if (!r.Ok())
+            return res;
 
+        const auto authority = r.ReturnCode();
         if (authority < 0 || authority > 255)
         {
             spdlog::warn("soci_operator_auth: TOPLogin returned out-of-range "

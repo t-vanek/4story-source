@@ -39,6 +39,28 @@ ControlServer::Run()
         tcp::socket sock = co_await m_acceptor.async_accept(
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec) break;
+
+        // Server-to-server IP allowlist enforcement. Operators connect
+        // through the same listener as peer-register traffic, so the
+        // gate applies uniformly. CT_OPLOGIN's per-IP token bucket
+        // (login_rate) runs separately on top.
+        if (m_cfg.security != nullptr)
+        {
+            boost::system::error_code pec;
+            const auto ep = sock.remote_endpoint(pec);
+            const std::string ip =
+                pec ? std::string{"?"} : ep.address().to_string();
+            const auto check = m_cfg.security->CheckIp(ip);
+            if (!check.allowed())
+            {
+                spdlog::warn("control_svr: rejected accept from {} ({})",
+                    ip, fourstory::security::OutcomeName(check.outcome));
+                boost::system::error_code ig;
+                sock.close(ig);
+                continue;
+            }
+        }
+
         auto sess = std::make_shared<ControlSession>(std::move(sock));
         spdlog::info("control_svr: accept from {}", sess->RemoteIPv4());
         boost::asio::co_spawn(m_io,

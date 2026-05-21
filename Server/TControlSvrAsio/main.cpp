@@ -22,6 +22,7 @@
 #include "services/fake_user_protected_service.h"
 #include "services/operator_auth_service.h"
 #include "services/patch_metadata_service.h"
+#include "services/mapper_profiles.h"
 #include "services/peer_registry.h"
 #include "services/service_inventory.h"
 #include "services/soci_admin_audit_logger.h"
@@ -47,6 +48,8 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/thread_pool.hpp>
+
+#include "fourstory/mapper/mapper.h"
 
 #include <spdlog/spdlog.h>
 
@@ -93,6 +96,20 @@ int main(int argc, char** argv)
     {
         auto cfg = tcontrolsvr::LoadConfig(config_path);
         spdlog::set_level(cfg.log_level);
+
+        // Register fourstory::mapper profiles so handlers / admin shell
+        // can flow RegistryEntry / ServiceInstance through Adapt<PeerStatusDto>().
+        {
+            using namespace fourstory::mapper;
+            auto& reg = MapperRegistry::Get();
+            if (!reg.Applied())
+            {
+                reg.Register<tcontrolsvr::ControlMappingProfile>();
+                reg.ApplyAll();
+                spdlog::info("mapper: {} profile(s) configured",
+                    reg.Count());
+            }
+        }
 
         boost::asio::io_context io;
 
@@ -229,8 +246,28 @@ int main(int argc, char** argv)
         // the lease window — no special cleanup needed here.
         if (peer_repo)
         {
-            for (auto& entry : peer_repo->LoadAll())
+            const auto loaded = peer_repo->LoadAll();
+            for (const auto& entry : loaded)
                 peers.Register(entry);
+
+            // Project recovered registrations through the Mapper into
+            // the compact admin DTO so boot logs use the same shape
+            // operators see in the admin shell `peers` command.
+            const auto dtos =
+                fourstory::mapper::AdaptAll<tcontrolsvr::PeerStatusDto>(loaded);
+            spdlog::info("peer_repo: recovered {} registration(s) from DB",
+                dtos.size());
+            for (const auto& d : dtos)
+            {
+                spdlog::info("  service_id=0x{:06X} group={} type={} server={} "
+                             "name='{}' addr={}:{} version='{}' users={}/{} "
+                             "lease={}",
+                    d.service_id, static_cast<int>(d.group_id),
+                    static_cast<int>(d.type_id),
+                    static_cast<int>(d.server_id),
+                    d.reported_name, d.reported_addr, d.reported_port,
+                    d.version, d.cur_users, d.max_users, d.lease_epoch);
+            }
         }
 
         auto controller = MakeServiceController();
@@ -270,6 +307,22 @@ int main(int argc, char** argv)
         svr_cfg.patch_meta = patch_meta.get();
         svr_cfg.peer_repo  = peer_repo.get();
         svr_cfg.alerter    = alerter.get();
+
+        // Server-to-server security gate. Wired before the listener
+        // spawns so every accept() is filtered.
+        auto security_gate =
+            std::make_unique<fourstory::security::PeerSecurityGate>(
+                cfg.security, pool.get());
+        if (pool && cfg.security.db_trust_store)
+            security_gate->LoadTrustStore();
+        spdlog::info("security: ip_allowlist={} enforce={} peer_auth={} "
+                     "trust_store={}",
+            cfg.security.ip_allowlist.size(),
+            cfg.security.ip_allowlist_enforce,
+            cfg.security.peer_auth_required,
+            security_gate->TrustCount());
+        svr_cfg.security   = security_gate.get();
+
         svr_cfg.login_rate = login_rate.get();
         svr_cfg.db_pool    = db_pool.get();
         svr_cfg.auto_start = cfg.auto_start;

@@ -1,6 +1,7 @@
 #include "soci_alerter.h"
 
-#include <soci/soci.h>
+#include "fourstory/db/orm/sp_call.h"
+
 #include <spdlog/spdlog.h>
 
 namespace tcontrolsvr {
@@ -14,17 +15,15 @@ void SociAlerter::Notify(std::uint8_t svr_type,
                          std::uint32_t svr_id,
                          std::uint8_t svr_status)
 {
+    using fourstory::db::orm::SpCall;
     try
     {
         auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        int t = svr_type;
-        int id = static_cast<int>(svr_id);
-        int s = svr_status;
-        soci::statement st = (sql.prepare <<
-            "{ CALL OPTool_SMSEmergency(?, ?, ?) }",
-            soci::use(t), soci::use(id), soci::use(s));
-        st.execute(true);
+        SpCall("OPTool_SMSEmergency")
+            .In("bSvrType",   static_cast<int>(svr_type))
+            .In("dwSvrID",    static_cast<int>(svr_id))
+            .In("bSvrStatus", static_cast<int>(svr_status))
+            .Execute(*lease);
         spdlog::info("alerter: fired OPTool_SMSEmergency type={} "
                      "id={:08x} status={}", svr_type, svr_id, svr_status);
     }

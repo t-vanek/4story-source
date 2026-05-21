@@ -1,5 +1,7 @@
 #include "soci_event_repository.h"
 
+#include "fourstory/db/orm/sp_call.h"
+
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
 
@@ -118,39 +120,38 @@ SociEventRepository::Persist(const EventInfo& ev,
                              std::uint8_t op,
                              const std::string& value_blob)
 {
+    using fourstory::db::orm::SpCall;
     try
     {
         auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
 
-        int nret = 0;
-        int idx       = static_cast<int>(ev.index);
-        int kind      = ev.kind;
-        int op_int    = op;
-        int group_id  = ev.group_id;
-        int svr_type  = ev.server_type;
-        int svr_id    = ev.server_id;
-        std::tm start_tm = UnixToTm(ev.start_unix);
-        std::tm end_tm   = UnixToTm(ev.end_unix);
-        int value     = ev.value;
-        int map_id    = ev.map_id;
-        int sa        = static_cast<int>(ev.start_alarm);
-        int ea        = static_cast<int>(ev.end_alarm);
-        int pt        = ev.part_time;
-        std::string mid_msg;  // legacy always passes empty middle msg
+        const std::tm start_tm = UnixToTm(ev.start_unix);
+        const std::tm end_tm   = UnixToTm(ev.end_unix);
 
-        soci::statement st = (sql.prepare <<
-            "{ ? = CALL TEventUpdate(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-            "                         ?, ?, ?, ?, ?, ?) }",
-            soci::into(nret),
-            soci::use(idx),       soci::use(kind),       soci::use(op_int),
-            soci::use(ev.title),  soci::use(group_id),   soci::use(svr_type),
-            soci::use(svr_id),    soci::use(start_tm),   soci::use(end_tm),
-            soci::use(value),     soci::use(map_id),     soci::use(sa),
-            soci::use(ea),        soci::use(pt),
-            soci::use(ev.start_msg), soci::use(mid_msg), soci::use(ev.end_msg),
-            soci::use(value_blob));
-        st.execute(true);
+        auto r = SpCall("TEventUpdate")
+            .In("dwIndex",      static_cast<int>(ev.index))
+            .In("bID",          static_cast<int>(ev.kind))
+            .In("bOp",          static_cast<int>(op))
+            .In("szTitle",      ev.title)
+            .In("bGroupID",     static_cast<int>(ev.group_id))
+            .In("bSvrType",     static_cast<int>(ev.server_type))
+            .In("bSvrID",       static_cast<int>(ev.server_id))
+            .In("dStartDate",   start_tm)
+            .In("dEndDate",     end_tm)
+            .In("wValue",       static_cast<int>(ev.value))
+            .In("wMapID",       static_cast<int>(ev.map_id))
+            .In("dwStartAlarm", static_cast<int>(ev.start_alarm))
+            .In("dwEndAlarm",   static_cast<int>(ev.end_alarm))
+            .In("bPartTime",    static_cast<int>(ev.part_time))
+            .In("szStartMsg",   ev.start_msg)
+            .In("szMidMsg",     std::string{})  // legacy always empty
+            .In("szEndMsg",     ev.end_msg)
+            .In("szValue",      value_blob)
+            .WithReturn()
+            .Execute(*lease);
+
+        if (!r.Ok()) return event_result::kFail;
+        const auto nret = r.ReturnCode();
         if (nret < 0 || nret > 255) return 0xFF;
         return static_cast<std::uint8_t>(nret);
     }

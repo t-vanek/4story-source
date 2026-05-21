@@ -22,6 +22,8 @@
 
 #include "soci_session_terminator.h"
 #include "fourstory/db/session_pool.h"
+#include "fourstory/db/orm/db_context.h"
+#include "fourstory/db/orm/examples.h"
 
 #include <soci/soci.h>
 
@@ -167,27 +169,52 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
 
 int SociSessionTerminator::ClearStaleSessions()
 {
-    auto lease = m_pool.Acquire();
-    soci::session& sql = *lease;
+    // Read-side via fourstory::db::orm — cheap COUNT(*) path first,
+    // then full SELECT only when the operator wants per-row detail
+    // (debug log level). On a crash recovery with thousands of stale
+    // rows this avoids pulling the whole set just to log a summary.
+    using fourstory::db::orm::DbContext;
+    using fourstory::db::orm::examples::CurrentUser;
 
     try
     {
+        DbContext ctx(m_pool);
+        auto repo = ctx.Set<CurrentUser>();
+
         // Mirror legacy CSPClearLoginUser (`TClearLoginCurrentUser` SP):
         //   DELETE TCURRENTUSER WHERE dwCharID = 0
         // Only wipe sessions that never made it past character select.
         // Rows with dwCharID != 0 represent users already handed off to
-        // a map server; wiping them desynchronises global session state
-        // from the live world-server in-memory state and breaks
-        // cross-instance duplicate-kick (LR_DUPLICATE) on the next login.
-        int before = 0;
-        sql << "SELECT COUNT(*) FROM \"TCURRENTUSER\" WHERE \"dwCharID\" = 0",
-            soci::into(before);
-        if (before == 0) return 0;
+        // a map server; wiping them desynchronises global session state.
+        //
+        // Step 1 — cheap COUNT to short-circuit when there's nothing to do.
+        int stale_count = 0;
+        ctx.Session() <<
+            "SELECT COUNT(*) FROM TCURRENTUSER WHERE dwCharID = 0",
+            soci::into(stale_count);
+        if (stale_count == 0) return 0;
 
-        sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwCharID\" = 0";
+        // Step 2 — only fetch the full rows when debug logging is on.
+        // Skips a potentially large SELECT in normal operation.
+        if (spdlog::should_log(spdlog::level::debug))
+        {
+            for (const auto& s : repo.Where("dwCharID = 0"))
+            {
+                spdlog::debug("session.ClearStaleSessions stale uid={} ip={} "
+                              "group={} channel={}",
+                    s.dwUserID, s.szLoginIP,
+                    static_cast<int>(s.bGroupID),
+                    static_cast<int>(s.bChannel));
+            }
+        }
+
+        // Step 3 — bulk delete via RawExecute (set-based, one statement).
+        repo.RawExecute(
+            "DELETE FROM TCURRENTUSER WHERE dwCharID = 0");
+
         spdlog::info("session.ClearStaleSessions wiped {} pre-handoff "
-            "TCURRENTUSER row(s)", before);
-        return before;
+            "TCURRENTUSER row(s)", stale_count);
+        return stale_count;
     }
     catch (const std::exception& ex)
     {

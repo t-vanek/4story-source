@@ -22,6 +22,7 @@
 #include "services/user_protected_service.h"
 
 #include "fourstory/ops/rate_limiter.h"
+#include "fourstory/security/peer_security_gate.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -51,6 +52,7 @@ struct ControlServerConfig
     IPatchMetadataService* patch_meta  = nullptr;
     IAlerter*              alerter     = nullptr;
     IPeerRepository*       peer_repo   = nullptr;
+    fourstory::security::PeerSecurityGate* security = nullptr;
     fourstory::ops::LoginRateLimiter* login_rate = nullptr;
     // Worker pool for synchronous SOCI calls. nullptr → fall back
     // to in-line execution on the io_context thread.

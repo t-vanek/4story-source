@@ -3,6 +3,8 @@
 #include "patch_session.h"
 #include "services/patch_repository.h"
 
+#include "fourstory/security/peer_security_gate.h"
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -31,6 +33,10 @@ struct PatchServerConfig
     // MarkPreVersionComplete (txn write path) is the primary
     // beneficiary; reads are best-effort.
     boost::asio::thread_pool* db_pool = nullptr;
+
+    // Server-to-server security gate. nullptr → no gating (legacy
+    // posture); non-null → CheckIp() runs on every accept().
+    fourstory::security::PeerSecurityGate* security = nullptr;
 };
 
 class PatchServer

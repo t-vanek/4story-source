@@ -179,6 +179,7 @@ LogServer::LogServer(boost::asio::io_context& io, LogServerConfig config)
     , m_socket(io)
     , m_port(config.port)
     , m_sink(config.sink)
+    , m_security(config.security)
 {
     using boost::asio::ip::udp;
     udp::endpoint ep(boost::asio::ip::make_address(config.bind_address),
@@ -203,6 +204,23 @@ LogServer::Run()
         if (ec) break;
 
         m_received.fetch_add(1);
+
+        // Source-IP allowlist enforcement. Drop packets from non-cluster
+        // IPs before parsing — defense against malformed-input floods
+        // from unknown senders. Audit log is written by the gate.
+        if (m_security != nullptr)
+        {
+            const auto ip = sender.address().to_string();
+            const auto check = m_security->CheckIp(ip);
+            if (!check.allowed())
+            {
+                m_drops_ip.fetch_add(1);
+                spdlog::debug("log_server: ip-denied datagram from {} ({})",
+                    ip, fourstory::security::OutcomeName(check.outcome));
+                continue;
+            }
+        }
+
         LogRecord rec{};
         if (!DecodeLogDatagram(buf.data(), n, rec))
         {

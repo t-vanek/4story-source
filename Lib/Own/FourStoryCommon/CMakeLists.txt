@@ -11,6 +11,24 @@ set(FOURSTORY_COMMON_HEADERS
     fourstory/db/session_pool.h
     fourstory/db/schema_validator.h
     fourstory/db/co_offload.h
+    fourstory/db/orm/sp_call.h
+    fourstory/db/orm/entity_mapping.h
+    fourstory/db/orm/repository.h
+    fourstory/db/orm/transaction.h
+    fourstory/db/orm/db_context.h
+    fourstory/db/orm/examples.h
+    fourstory/mapper/mapper.h
+    fourstory/mapper/convert.h
+    fourstory/mapper/type_map.h
+    fourstory/mapper/mapper_config.h
+    fourstory/mapper/profile.h
+    fourstory/security/ip_allowlist.h
+    fourstory/security/hmac.h
+    fourstory/security/peer_auth_token.h
+    fourstory/security/peer_auth_repository.h
+    fourstory/security/security_config.h
+    fourstory/security/peer_security_gate.h
+    fourstory/security/toml_loader.h
     fourstory/audit/audit_logger.h
     fourstory/audit/spdlog_audit_logger.h
     fourstory/audit/udp_audit_logger.h
@@ -26,6 +44,9 @@ set(FOURSTORY_COMMON_HEADERS
 set(FOURSTORY_COMMON_SOURCES
     src/db/session_pool.cpp
     src/db/schema_validator.cpp
+    src/db/orm/sp_call.cpp
+    src/security/hmac.cpp
+    src/security/security_config.cpp
     src/audit/spdlog_audit_logger.cpp
     src/audit/udp_audit_logger.cpp
     src/smtp/spdlog_smtp_client.cpp
@@ -41,6 +62,19 @@ add_library(fourstory_common STATIC
     ${FOURSTORY_COMMON_SOURCES}
 )
 
+# Smoke test for the mapper framework — header-only, runs at `ctest`.
+if(BUILD_TESTING)
+    add_executable(test_fourstory_mapper
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_mapper.cpp)
+    target_link_libraries(test_fourstory_mapper PRIVATE fourstory_common)
+    add_test(NAME fourstory_mapper COMMAND test_fourstory_mapper)
+
+    add_executable(test_fourstory_security
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_security.cpp)
+    target_link_libraries(test_fourstory_security PRIVATE fourstory_common)
+    add_test(NAME fourstory_security COMMAND test_fourstory_security)
+endif()
+
 target_include_directories(fourstory_common
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -55,11 +89,20 @@ if(NOT Boost_FOUND)
 endif()
 find_package(spdlog QUIET)
 find_package(SOCI CONFIG QUIET)
+find_package(OpenSSL QUIET)
 
 target_link_libraries(fourstory_common
     PUBLIC
         Boost::system
 )
+
+if(OpenSSL_FOUND OR OPENSSL_FOUND)
+    target_link_libraries(fourstory_common
+        PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+else()
+    # Distro fallback
+    target_link_libraries(fourstory_common PUBLIC ssl crypto)
+endif()
 
 if(spdlog_FOUND)
     target_link_libraries(fourstory_common PUBLIC spdlog::spdlog)

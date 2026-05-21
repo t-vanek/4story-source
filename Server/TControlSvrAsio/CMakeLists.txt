@@ -30,6 +30,7 @@ endif()
 # Sources kept in one library so tests can link against the exact
 # same TUs without rebuilding.
 add_library(tcontrolsvr_asio_core STATIC
+    ${TCONTROL_ASIO_SRC}/admin_shell.cpp
     ${TCONTROL_ASIO_SRC}/config.cpp
     ${TCONTROL_ASIO_SRC}/control_session.cpp
     ${TCONTROL_ASIO_SRC}/control_server.cpp
@@ -157,6 +158,17 @@ target_link_libraries(test_tcontrolsvr_asio_soci_repositories PRIVATE
     tcontrolsvr_asio_core)
 add_test(NAME tcontrolsvr_asio_soci_repositories
     COMMAND test_tcontrolsvr_asio_soci_repositories)
+
+# AdminShell test — drives every command through DispatchForTest
+# against fake audit + controller + a real PeerRegistry, plus loopback
+# peer sockets for the fan-out commands so the test reads the actual
+# CT_USERKICKOUT_ACK / CT_ANNOUNCEMENT_ACK bytes off the wire.
+add_executable(test_tcontrolsvr_asio_admin_shell
+    ${TCONTROL_ASIO_SRC}/tests/test_admin_shell.cpp)
+target_link_libraries(test_tcontrolsvr_asio_admin_shell PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_admin_shell
+    COMMAND test_tcontrolsvr_asio_admin_shell)
 
 # CoOffload helper test — verifies the lambda runs on a worker
 # thread, the coroutine resumes on the io_context, and exceptions

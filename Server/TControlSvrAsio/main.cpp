@@ -3,6 +3,7 @@
 // inventory + auth, peer dialer, peer registry, monitoring timers,
 // and the schema validator.
 
+#include "admin_shell.h"
 #include "config.h"
 #include "control_server.h"
 #include "event_scheduler.h"
@@ -33,7 +34,6 @@
 #include "services/user_protected_service.h"
 
 #include "fourstory/db/session_pool.h"
-#include "fourstory/ops/admin_shell.h"
 #include "fourstory/ops/health_endpoint.h"
 #include "fourstory/ops/rate_limiter.h"
 #include "fourstory/ops/registry_refresher.h"
@@ -303,14 +303,20 @@ int main(int argc, char** argv)
             }
         }
 
-        std::shared_ptr<fourstory::ops::AdminShell> admin;
+        // The cluster's single operator entry point. Cross-server
+        // commands (`peers`, `kick`, `announce`, `service start/stop`)
+        // route through PeerRegistry + IServiceController so the
+        // existing CT_* forwarder pipeline handles fan-out — no new
+        // wire surface needed.
+        std::shared_ptr<tcontrolsvr::AdminShell> admin;
         if (cfg.admin_port != 0)
         {
             try
             {
-                admin = std::make_shared<fourstory::ops::AdminShell>(
+                admin = std::make_shared<tcontrolsvr::AdminShell>(
                     io, cfg.admin_bind, cfg.admin_port,
                     [&server] { return server.LiveOperators(); },
+                    peers, *controller, &audit,
                     std::chrono::steady_clock::now());
                 spdlog::info("admin shell listening on {}:{}",
                     cfg.admin_bind, admin->Port());

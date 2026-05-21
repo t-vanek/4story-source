@@ -46,4 +46,8 @@ void ValidateSkillSchema(fourstory::db::SessionPool& pool);
 // progress. Two-table validator since the encoder reads both.
 void ValidateQuestSchema(fourstory::db::SessionPool& pool);
 
+// TMONSTERCHART + TMONSPAWNCHART column check — F13 monster
+// template + spawn-point charts (loaded once at boot).
+void ValidateMonsterSchema(fourstory::db::SessionPool& pool);
+
 } // namespace tmapsvr::db

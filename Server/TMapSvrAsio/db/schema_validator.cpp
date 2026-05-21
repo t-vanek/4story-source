@@ -167,4 +167,51 @@ void ValidateQuestSchema(fourstory::db::SessionPool& pool)
     });
 }
 
+void ValidateMonsterSchema(fourstory::db::SessionPool& pool)
+{
+    auto lease = pool.Acquire();
+
+    // TMONSTERCHART — template per monster wID.
+    // TMONSPAWNCHART — spawn point per wID.
+    // F13 SELECTs the columns listed below; combat-table columns
+    // (attack power, defense, magic, animations) get added when the
+    // combat consolidation pass needs them.
+    fourstory::db::CheckColumns(*lease, "map_monster", {
+        { "TMONSTERCHART",  "wID" },
+        { "TMONSTERCHART",  "szName" },
+        { "TMONSTERCHART",  "bRace" },
+        { "TMONSTERCHART",  "bClass" },
+        { "TMONSTERCHART",  "wKind" },
+        { "TMONSTERCHART",  "bLevel" },
+        { "TMONSTERCHART",  "bAIType" },
+        { "TMONSTERCHART",  "bRange" },
+        { "TMONSTERCHART",  "wChaseRange" },
+        { "TMONSTERCHART",  "bRoamProb" },
+        { "TMONSTERCHART",  "bMoneyProb" },
+        { "TMONSTERCHART",  "dwMinMoney" },
+        { "TMONSTERCHART",  "dwMaxMoney" },
+        { "TMONSTERCHART",  "bItemProb" },
+        { "TMONSTERCHART",  "bDropCount" },
+        { "TMONSTERCHART",  "wExp" },
+        { "TMONSTERCHART",  "bIsSelf" },
+        { "TMONSTERCHART",  "bRecallType" },
+        { "TMONSTERCHART",  "bCanSelect" },
+        { "TMONSPAWNCHART", "wID" },
+        { "TMONSPAWNCHART", "wGroup" },
+        { "TMONSPAWNCHART", "wLocalID" },
+        { "TMONSPAWNCHART", "wMapID" },
+        { "TMONSPAWNCHART", "fPosX" },
+        { "TMONSPAWNCHART", "fPosY" },
+        { "TMONSPAWNCHART", "fPosZ" },
+        { "TMONSPAWNCHART", "wDir" },
+        { "TMONSPAWNCHART", "bCountry" },
+        { "TMONSPAWNCHART", "bCount" },
+        { "TMONSPAWNCHART", "bRange" },
+        { "TMONSPAWNCHART", "bArea" },
+        { "TMONSPAWNCHART", "bLink" },
+        { "TMONSPAWNCHART", "bProb" },
+        { "TMONSPAWNCHART", "bRoamType" },
+    });
+}
+
 } // namespace tmapsvr::db

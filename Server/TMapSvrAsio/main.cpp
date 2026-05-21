@@ -1,9 +1,11 @@
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F12: per-char quest progress. TQUESTTABLE + TQUESTTERMTABLE
-// joined in code; DM_LOADCHAR_ACK gains a quest section after F11's
-// skills. CS_QUESTEXEC_REQ / CS_QUESTDROP_REQ decode + log; the real
-// quest-engine evaluation lands with the post-scaffolding sweep.
+// Phase F13: monster chart + spawn chart + monster registry. Two
+// new SOCI loaders read TMONSTERCHART / TMONSPAWNCHART at boot; the
+// in-memory monster registry exposes Insert / Remove / ListInMap so
+// later phases can plug in the SpawnManager + AI tick that actually
+// brings monsters to life. F13 itself doesn't spawn anything — it
+// just makes the data structures available to subsequent phases.
 
 #include "config.h"
 #include "handlers_world.h"
@@ -11,6 +13,8 @@
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
 #include "services/inventory_service.h"
+#include "services/monster_chart.h"
+#include "services/monster_registry.h"
 #include "services/npc_service.h"
 #include "services/player_service.h"
 #include "services/quest_service.h"
@@ -18,11 +22,14 @@
 #include "services/session_validator.h"
 #include "services/skill_service.h"
 #include "services/soci_inventory_service.h"
+#include "services/soci_monster_chart.h"
 #include "services/soci_npc_service.h"
 #include "services/soci_player_service.h"
 #include "services/soci_quest_service.h"
 #include "services/soci_session_validator.h"
 #include "services/soci_skill_service.h"
+#include "services/soci_spawn_chart.h"
+#include "services/spawn_chart.h"
 #include "services/world_client.h"
 
 #include "fourstory/db/session_pool.h"
@@ -46,7 +53,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tmapsvr_asio — modernized 4Story map server (phase F12 scaffold)\n"
+        "tmapsvr_asio — modernized 4Story map server (phase F13 scaffold)\n"
         "Usage: tmapsvr_asio [--config FILE] [--help]\n"
         "  --config FILE   TOML config (default: tmapsvr.toml)\n");
 }
@@ -92,6 +99,8 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::INpcService>           npc_service;
         std::unique_ptr<tmapsvr::ISkillService>         skill_service;
         std::unique_ptr<tmapsvr::IQuestService>         quest_service;
+        std::unique_ptr<tmapsvr::IMonsterChart>         monster_chart;
+        std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -105,26 +114,34 @@ int main(int argc, char** argv)
             tmapsvr::db::ValidateNpcSchema(*pool);
             tmapsvr::db::ValidateSkillSchema(*pool);
             tmapsvr::db::ValidateQuestSchema(*pool);
+            tmapsvr::db::ValidateMonsterSchema(*pool);
             validator         = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
             player_service    = std::make_unique<tmapsvr::SociPlayerService>(*pool);
             inventory_service = std::make_unique<tmapsvr::SociInventoryService>(*pool);
             npc_service       = std::make_unique<tmapsvr::SociNpcService>(*pool);
             skill_service     = std::make_unique<tmapsvr::SociSkillService>(*pool);
             quest_service     = std::make_unique<tmapsvr::SociQuestService>(*pool);
-            spdlog::info("schema: TCURRENTUSER + TCHARTABLE + TINVENTABLE + "
-                         "TNPCCHART + TSKILLTABLE + TQUESTTABLE + "
-                         "TQUESTTERMTABLE columns OK ({}) — all per-char + "
-                         "chart services ready ({} NPC row(s))",
+            monster_chart     = std::make_unique<tmapsvr::SociMonsterChart>(*pool);
+            spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
+            spdlog::info("schema OK ({}) — services ready: {} NPC, {} monster "
+                         "template(s), {} spawn point(s)",
                 fourstory::db::BackendName(backend),
-                npc_service->Size());
+                npc_service->Size(),
+                monster_chart->Size(),
+                spawn_chart->Size());
         }
         else
         {
             spdlog::warn("no [database] configured — CS_CONNECT_REQ and "
                          "DM_LOADCHAR_REQ will refuse with INTERNAL, "
                          "CS_NPCTALK_REQ / CS_SKILLUSE_REQ / CS_QUEST*_REQ "
-                         "will silently drop");
+                         "will silently drop, monster registry stays empty");
         }
+
+        // In-memory monster registry — populated by the SpawnManager
+        // once the AI / spawn-timer loop lands (post-scaffolding
+        // consolidation). F13 boots it empty.
+        tmapsvr::InMemoryMonsterRegistry monster_reg;
 
         // char_id → AsioSession map. Lives for the io.run() duration,
         // bound at CS_CONNECT_REQ success, unbound by the MapServer
@@ -150,6 +167,9 @@ int main(int argc, char** argv)
         ctx.npc_service       = npc_service.get();
         ctx.skill_service     = skill_service.get();
         ctx.quest_service     = quest_service.get();
+        ctx.monster_chart     = monster_chart.get();
+        ctx.spawn_chart       = spawn_chart.get();
+        ctx.monster_registry  = &monster_reg;
 
         // Optional World peer — only spun up when [world] port is set
         // in the TOML. Without it, MW_ADDCHAR_ACK after a clean
@@ -207,7 +227,7 @@ int main(int argc, char** argv)
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
         tmapsvr::MapServer server(io, std::move(cfg.server));
-        spdlog::info("tmapsvr_asio: F12 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
+        spdlog::info("tmapsvr_asio: F13 listener on 0.0.0.0:{} (mode={}, crypto={}) — "
                      "send SIGINT/SIGTERM to exit",
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");

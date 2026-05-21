@@ -31,6 +31,9 @@ class IInventoryService;
 class INpcService;
 class ISkillService;
 class IQuestService;
+class IMonsterChart;
+class ISpawnChart;
+class IMonsterRegistry;
 
 // Per-session context handed to every handler. Pointers are
 // non-owning; main() keeps the lifetimes.
@@ -45,9 +48,10 @@ struct HandlerContext
     INpcService*           npc_service       = nullptr;
     ISkillService*         skill_service     = nullptr;
     IQuestService*         quest_service     = nullptr;
+    IMonsterChart*         monster_chart     = nullptr;
+    ISpawnChart*           spawn_chart       = nullptr;
+    IMonsterRegistry*      monster_registry  = nullptr;
     std::uint8_t           expected_group    = 0;     // [server] / world group id
-    // Future phases will add: IMapState, ISpawnManager, … each
-    // owned by main() and pointed at here.
 };
 
 // Top-level dispatcher. Looks up the wId in a switch, calls the

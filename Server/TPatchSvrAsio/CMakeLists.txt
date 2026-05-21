@@ -69,6 +69,19 @@ target_link_libraries(test_tpatchsvr_asio_stale_sweep PRIVATE
 add_test(NAME tpatchsvr_asio_stale_sweep
     COMMAND test_tpatchsvr_asio_stale_sweep)
 
+# Wire-level handler tests: drives each CT_* handler against a
+# FakePatchRepository on a loopback PatchSession, captures the emitted
+# bytes off the wire, and asserts on the full ACK shape (header +
+# body layout, field order, count widths, IP byte order, /interface
+# suffix, checksum-mismatch session drop). Pure unit — no DB, runs
+# everywhere.
+add_executable(test_tpatchsvr_asio_handlers_wire
+    ${TPATCHSVR_ASIO_SRC}/tests/test_handlers_wire.cpp)
+target_link_libraries(test_tpatchsvr_asio_handlers_wire PRIVATE
+    tpatchsvr_asio_core)
+add_test(NAME tpatchsvr_asio_handlers_wire
+    COMMAND test_tpatchsvr_asio_handlers_wire)
+
 # Integration: PatchRepository + schema validator against a live DB.
 # Skips when neither TPATCHSVR_TEST_PG_CONN nor TPATCHSVR_TEST_MSSQL_CONN
 # is in the environment. Covers all four round-1 audit fixes

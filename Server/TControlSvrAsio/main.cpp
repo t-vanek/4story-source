@@ -13,6 +13,7 @@
 #include "services/alerter.h"
 #include "services/chat_ban_repository.h"
 #include "services/disabled_service_controller.h"
+#include "services/service_controller_factory.h"
 #include "services/event_registry.h"
 #include "services/event_repository.h"
 #include "services/fake_event_repository.h"
@@ -60,14 +61,6 @@ void Usage()
     std::printf(
         "tcontrolsvr_asio — modernized 4Story control / orchestration server\n"
         "Usage: tcontrolsvr_asio [--config FILE]\n");
-}
-
-// Pick the controller backend. F2 ships only the disabled default
-// on Linux; the Windows SCM impl is gated behind FOURSTORY_HAS_WIN32
-// (see services/windows_scm_service_controller.h once added).
-std::unique_ptr<tcontrolsvr::IServiceController> MakeServiceController()
-{
-    return std::make_unique<tcontrolsvr::DisabledServiceController>();
 }
 
 } // namespace
@@ -200,7 +193,14 @@ int main(int argc, char** argv)
 
         // --- Peer infra --------------------------------------------
         tcontrolsvr::PeerRegistry peers(*inventory_ptr);
-        auto controller = MakeServiceController();
+        tcontrolsvr::ServiceControllerFactoryConfig scm_cfg;
+        scm_cfg.backend               = cfg.scm.backend;
+        scm_cfg.service_name_template = cfg.scm.service_name_template;
+        scm_cfg.overrides             = cfg.scm.overrides;
+        scm_cfg.systemd_user_scope    = cfg.scm.systemd_user_scope;
+        scm_cfg.systemctl_path        = cfg.scm.systemctl_path;
+        scm_cfg.worker_pool           = db_pool.get();
+        auto controller = tcontrolsvr::MakeServiceController(scm_cfg);
         tcontrolsvr::PeerDialer dialer(io, peers, *inventory_ptr);
 
         // Per-IP login throttle. burst=0 disables.

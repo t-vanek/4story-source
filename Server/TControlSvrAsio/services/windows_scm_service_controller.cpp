@@ -9,6 +9,7 @@
 // per-status mapping exactly.
 
 #include "windows_scm_service_controller.h"
+#include "scm_name_resolver.h"
 #include "service_inventory.h"
 
 #include <spdlog/spdlog.h>
@@ -24,39 +25,8 @@
 
 namespace tcontrolsvr {
 
-namespace {
-
-std::string Render(const std::string& tmpl, const ServiceInstance& svc)
-{
-    std::string out;
-    out.reserve(tmpl.size() + 8);
-    for (std::size_t i = 0; i < tmpl.size(); )
-    {
-        if (tmpl[i] == '{')
-        {
-            const auto close = tmpl.find('}', i);
-            if (close == std::string::npos) { out.push_back(tmpl[i++]); continue; }
-            const auto key = tmpl.substr(i + 1, close - i - 1);
-            if      (key == "type_name") out += svc.name;
-            else if (key == "type")      out += std::to_string(svc.type_id);
-            else if (key == "group")     out += std::to_string(svc.group_id);
-            else if (key == "server")    out += std::to_string(svc.server_id);
-            else if (key == "machine")   out += std::to_string(svc.machine_id);
-            i = close + 1;
-        }
-        else
-        {
-            out.push_back(tmpl[i++]);
-        }
-    }
-    return out;
-}
-
-} // namespace
-
-WindowsScmServiceController::WindowsScmServiceController(
-    std::string service_name_template)
-    : m_template(std::move(service_name_template))
+WindowsScmServiceController::WindowsScmServiceController(Options opts)
+    : m_opts(std::move(opts))
 {
 }
 
@@ -129,7 +99,8 @@ bool OpenForAccess(const ServiceInstance& inst,
 boost::asio::awaitable<ServiceStatus>
 WindowsScmServiceController::QueryStatus(const ServiceInstance& svc)
 {
-    const std::string name = Render(m_template, svc);
+    const std::string name = ResolveScmName(
+        svc, m_opts.service_name_template, m_opts.overrides);
     ScmHandles h;
     if (!OpenForAccess(svc, name, SERVICE_QUERY_STATUS, h))
     {
@@ -152,7 +123,8 @@ WindowsScmServiceController::QueryStatus(const ServiceInstance& svc)
 boost::asio::awaitable<ControlResult>
 WindowsScmServiceController::Start(const ServiceInstance& svc)
 {
-    const std::string name = Render(m_template, svc);
+    const std::string name = ResolveScmName(
+        svc, m_opts.service_name_template, m_opts.overrides);
     ScmHandles h;
     if (!OpenForAccess(svc, name, SERVICE_START | SERVICE_QUERY_STATUS, h))
     {
@@ -176,7 +148,8 @@ WindowsScmServiceController::Start(const ServiceInstance& svc)
 boost::asio::awaitable<ControlResult>
 WindowsScmServiceController::Stop(const ServiceInstance& svc)
 {
-    const std::string name = Render(m_template, svc);
+    const std::string name = ResolveScmName(
+        svc, m_opts.service_name_template, m_opts.overrides);
     ScmHandles h;
     if (!OpenForAccess(svc, name, SERVICE_STOP | SERVICE_QUERY_STATUS, h))
     {

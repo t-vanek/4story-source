@@ -19,20 +19,29 @@
 
 #include "service_controller.h"
 
+#include <cstdint>
 #include <string>
+#include <unordered_map>
 
 namespace tcontrolsvr {
 
 class WindowsScmServiceController final : public IServiceController
 {
 public:
-    // `service_name_template` controls how a ServiceInstance is
-    // mapped to its SCM display name. The token `{type}-{group}-{id}`
-    // is replaced per-instance — e.g. a MapSvr in world 1 with
-    // server id 3 becomes "MapSvr-1-3" by default, matching the
-    // legacy installer's `m_szServiceName` convention.
-    explicit WindowsScmServiceController(
-        std::string service_name_template = "{type_name}-{group}-{server}");
+    struct Options
+    {
+        // Template grammar: {type_name}-{group}-{server}-{type}-{machine}
+        // — see scm_name_resolver.h. Default mirrors the legacy
+        // installer's `m_szServiceName` convention.
+        std::string service_name_template = "{type_name}-{group}-{server}";
+
+        // Per-service overrides for deploys where the SCM service
+        // name doesn't follow the template (legacy hand-installed
+        // services, etc.). Keyed by ServiceInstance::service_id.
+        std::unordered_map<std::uint32_t, std::string> overrides;
+    };
+
+    explicit WindowsScmServiceController(Options opts = {});
 
     boost::asio::awaitable<ServiceStatus>
         QueryStatus(const ServiceInstance& svc) override;
@@ -44,7 +53,7 @@ public:
         Stop(const ServiceInstance& svc) override;
 
 private:
-    std::string m_template;
+    Options m_opts;
 };
 
 } // namespace tcontrolsvr

@@ -53,6 +53,9 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/services/operator_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/peer_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/registry_event_bus.cpp
+    ${TCONTROL_ASIO_SRC}/services/scm_name_resolver.cpp
+    ${TCONTROL_ASIO_SRC}/services/service_controller_factory.cpp
+    ${TCONTROL_ASIO_SRC}/services/systemd_service_controller.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_alerter.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_event_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_operator_auth_service.cpp
@@ -188,6 +191,19 @@ add_test(NAME tcontrolsvr_asio_peer_registry
 # `cluster restart`, `cluster wait-healthy` against a counting fake
 # controller + a real PeerRegistry mutated from helper threads (to
 # simulate peers registering / deregistering during the operation).
+# Service-controller factory + systemd-runner stub coverage.
+# Verifies name-template rendering, override priority, factory backend
+# selection (incl. fallback when an explicit backend is forced on the
+# wrong platform), and SystemdServiceController's mapping of
+# `systemctl is-active` / start / stop exit codes to ControlResult /
+# ServiceStatus via an injected SystemctlRunner.
+add_executable(test_tcontrolsvr_asio_service_controller
+    ${TCONTROL_ASIO_SRC}/tests/test_service_controller.cpp)
+target_link_libraries(test_tcontrolsvr_asio_service_controller PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_service_controller
+    COMMAND test_tcontrolsvr_asio_service_controller)
+
 add_executable(test_tcontrolsvr_asio_admin_shell_cluster
     ${TCONTROL_ASIO_SRC}/tests/test_admin_shell_cluster.cpp)
 target_link_libraries(test_tcontrolsvr_asio_admin_shell_cluster PRIVATE

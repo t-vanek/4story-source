@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tcontrolsvr {
@@ -85,6 +86,21 @@ struct AppConfig
     // F1 seeds — populated only when [fake] tables are present.
     std::vector<FakeOperatorSeed>  fake_operators;
     FakeInventorySeed              fake_inventory;
+
+    // [cluster.scm] — picks the IServiceController backend used by
+    // `cluster start/stop/restart` admin shell commands. See
+    // services/service_controller_factory.h for the selection
+    // rules. Default "auto" picks the platform-native backend
+    // (windows on _WIN32, systemd on __linux__, otherwise disabled).
+    struct ScmConfig
+    {
+        std::string  backend              = "auto";
+        std::string  service_name_template= "{type_name}-{group}-{server}";
+        bool         systemd_user_scope   = false;
+        std::string  systemctl_path       = "systemctl";
+        std::unordered_map<std::uint32_t, std::string> overrides;
+    };
+    ScmConfig scm;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

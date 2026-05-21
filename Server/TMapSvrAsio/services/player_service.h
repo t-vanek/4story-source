@@ -29,6 +29,12 @@ public:
     // the optional and the configured pool's health independently.
     virtual std::optional<CharSnapshot>
         LoadChar(std::uint32_t char_id) = 0;
+
+    // Persist the live snapshot back to TCHARTABLE + TALLCHARTABLE.
+    // Called by the MapServer teardown hook on every authenticated
+    // disconnect. Mirrors the combined effect of TMapSvr's char-save
+    // path and legacy TLogout's TALLCHARTABLE update.
+    virtual void SaveChar(const CharSnapshot& snap) = 0;
 };
 
 } // namespace tmapsvr

@@ -1,8 +1,12 @@
 #include "map_server.h"
 
 #include "services/channel_presence.h"
+#include "services/char_state_store.h"
+#include "services/player_service.h"
 #include "services/rate_limiter.h"
 #include "services/session_registry.h"
+
+#include "fourstory/db/co_offload.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -131,6 +135,62 @@ MapServer::Run()
                 }
                 m_active_connections.fetch_sub(1, std::memory_order_relaxed);
                 Unregister(sess.get());
+
+                // --- SaveChar on disconnect ---------------------------------
+                // Resolve char_id BEFORE unbinding from the registries.
+                // Pull the latest position from ChannelPresence (updated
+                // by every CS_MOVE_REQ) and merge it into the stored
+                // snapshot so the saved position reflects the player's
+                // last known location, not the load-time position.
+                std::optional<std::uint32_t> char_id;
+                if (m_cfg.handlers.session_reg)
+                    char_id = m_cfg.handlers.session_reg
+                                  ->FindCharIdBySession(sess.get());
+
+                if (char_id && m_cfg.handlers.char_state
+                            && m_cfg.handlers.player_service)
+                {
+                    // Merge last-known position from presence map.
+                    if (m_cfg.handlers.presence)
+                    {
+                        const auto entry =
+                            m_cfg.handlers.presence->FindEntry(*char_id);
+                        if (entry)
+                        {
+                            m_cfg.handlers.char_state->Update(
+                                *char_id,
+                                [&entry](CharSnapshot& s) {
+                                    s.fPosX  = entry->pos.x;
+                                    s.fPosY  = entry->pos.y;
+                                    s.fPosZ  = entry->pos.z;
+                                    s.wMapID = entry->map_id;
+                                });
+                        }
+                    }
+
+                    auto snap = m_cfg.handlers.char_state->Get(*char_id);
+                    if (snap)
+                    {
+                        // Remove from state store now; SaveChar is async.
+                        m_cfg.handlers.char_state->Remove(*char_id);
+
+                        auto* player  = m_cfg.handlers.player_service;
+                        auto* db_pool = m_cfg.handlers.db_pool;
+                        auto  s       = std::move(*snap);
+                        boost::asio::co_spawn(
+                            m_io,
+                            [player, db_pool, s]()
+                                -> boost::asio::awaitable<void>
+                            {
+                                co_await fourstory::db::CoOffloadVoidIf(
+                                    db_pool,
+                                    [player, &s] { player->SaveChar(s); });
+                            },
+                            boost::asio::detached);
+                    }
+                }
+                // -----------------------------------------------------------
+
                 // Clean the char_id → session map so a future
                 // DM_LOADCHAR_REQ for this char doesn't resolve to a
                 // dead socket. Walks the registry once — see

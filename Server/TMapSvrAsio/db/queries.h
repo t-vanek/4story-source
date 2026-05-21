@@ -80,4 +80,51 @@ inline constexpr const char* CompanionsByCharId =
     "  wMEN, wBonusID "
     "FROM TCOMPANIONTABLE WHERE dwCharID = :cid";
 
+// TCHARTABLE — save all gameplay-mutable fields back on disconnect.
+// Appearance fields (szNAME, bHair, bFace, …) are included so a single
+// UPDATE covers salon-style handlers when they land; writing the same
+// value back is a no-op from the DB's perspective.
+// bDelete is intentionally excluded — we never want to un-delete via
+// a normal save path.
+inline constexpr const char* SaveCharTchart =
+    "UPDATE TCHARTABLE SET "
+    "  szNAME           = :name,"
+    "  bHair            = :hair,   bFace    = :face,"
+    "  bBody            = :body,   bPants   = :pants,"
+    "  bHand            = :hand,   bFoot    = :foot,"
+    "  bHelmetHide      = :helmet_hide,"
+    "  bSex             = :sex,    bRealSex = :real_sex,"
+    "  bCountry         = :country, bOriCountry = :ori_country,"
+    "  bClass           = :class_,  bRace   = :race,"
+    "  bLevel           = :level,  dwEXP    = :exp,"
+    "  dwHP             = :hp,     dwMP     = :mp,"
+    "  dwGold           = :gold,   dwSilver = :silver, dwCooper = :cooper,"
+    "  wSkillPoint      = :sp,"
+    "  dwRegion         = :region,"
+    "  bGuildLeave      = :guild_leave, dwGuildLeaveTime = :guild_leave_time,"
+    "  wMapID           = :map,    wSpawnID = :spawn,"
+    "  wLastSpawnID     = :last_spawn,"
+    "  dwLastDestination= :last_dest,"
+    "  wTemptedMon      = :tempted_mon,"
+    "  bAftermath       = :aftermath,"
+    "  bStartAct        = :start_act,"
+    "  fPosX            = :px,     fPosY    = :py, fPosZ = :pz,"
+    "  wDIR             = :dir,"
+    "  bStatLevel       = :stat_level, bStatPoint = :stat_point,"
+    "  dwStatExp        = :stat_exp "
+    "WHERE dwCharID = :cid AND bDelete = 0";
+
+// TALLCHARTABLE — sync level/exp and compute playtime via DB-side
+// DATEDIFF so we don't need to track login time in C++.
+// dLoginDate was stamped by TEnterServer (or the equivalent) when the
+// char entered; DATEDIFF(second, dLoginDate, GETDATE()) gives the
+// elapsed session seconds.
+inline constexpr const char* SaveCharTallchart =
+    "UPDATE TALLCHARTABLE SET "
+    "  bLevel       = :level,"
+    "  dwEXP        = :exp,"
+    "  dLogoutDate  = GETDATE(),"
+    "  dwPlayTime   = dwPlayTime + DATEDIFF(second, dLoginDate, GETDATE()) "
+    "WHERE dwCharID = :cid";
+
 } // namespace tmapsvr::queries

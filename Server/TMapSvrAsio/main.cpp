@@ -21,6 +21,7 @@
 #include "ops/metrics_endpoint.h"
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
+#include "services/char_state_store.h"
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
 #include "services/log_peer.h"
@@ -53,6 +54,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -127,6 +129,7 @@ int main(int argc, char** argv)
         // poke the wire codec, but every handler that needs DB data
         // refuses with INTERNAL.
         std::unique_ptr<fourstory::db::SessionPool>     pool;
+        std::unique_ptr<boost::asio::thread_pool>       db_thread_pool;
         std::unique_ptr<tmapsvr::IMapSessionValidator>  validator;
         std::unique_ptr<tmapsvr::IPlayerService>        player_service;
         std::unique_ptr<tmapsvr::IInventoryService>     inventory_service;
@@ -143,6 +146,9 @@ int main(int argc, char** argv)
             const auto backend = fourstory::db::ParseBackend(cfg.database.backend);
             pool = std::make_unique<fourstory::db::SessionPool>(
                 backend, cfg.database.connection_string, cfg.database.pool_size);
+            if (cfg.database.worker_threads > 0)
+                db_thread_pool = std::make_unique<boost::asio::thread_pool>(
+                    cfg.database.worker_threads);
             tmapsvr::db::ValidateUserSchema(*pool);
             tmapsvr::db::ValidateCharSchema(*pool);
             tmapsvr::db::ValidateInventorySchema(*pool);
@@ -212,6 +218,10 @@ int main(int argc, char** argv)
         // channel members.
         tmapsvr::InMemoryChannelPresence presence;
 
+        // Live char snapshot store — populated on DM_LOADCHAR_REQ,
+        // read by the MapServer teardown hook to call SaveChar.
+        tmapsvr::InMemoryCharStateStore char_state;
+
         // Build the HandlerContext now so the world inbound dispatch
         // lambda can capture it by reference (the context's pointer
         // fields are filled in below as each service comes online).
@@ -228,6 +238,8 @@ int main(int argc, char** argv)
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;
         ctx.companion_service = companion_service.get();
+        ctx.char_state        = &char_state;
+        ctx.db_pool           = db_thread_pool.get();
         ctx.log_peer          = &log_peer;
         ctx.audit             = &audit_log;
         ctx.metrics           = &metrics;
@@ -349,6 +361,14 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        // Wait for any in-flight SaveChar calls to complete before
+        // the pool is destroyed (same pattern as TControlSvrAsio).
+        if (db_thread_pool)
+        {
+            db_thread_pool->stop();
+            db_thread_pool->join();
+        }
 
 
     }

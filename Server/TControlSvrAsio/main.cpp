@@ -13,7 +13,9 @@
 #include "services/alerter.h"
 #include "services/chat_ban_repository.h"
 #include "services/disabled_service_controller.h"
+#include "services/registry_persistence.h"
 #include "services/service_controller_factory.h"
+#include "services/soci_registry_persistence.h"
 #include "services/event_registry.h"
 #include "services/event_repository.h"
 #include "services/fake_event_repository.h"
@@ -193,6 +195,44 @@ int main(int argc, char** argv)
 
         // --- Peer infra --------------------------------------------
         tcontrolsvr::PeerRegistry peers(*inventory_ptr);
+
+        // Optional durable snapshot of the dynamic registry. When
+        // enabled, the SOCI impl writes through every mutator to
+        // TPEER_REGISTRY and we reload at boot below. When disabled
+        // (default), the Noop instance keeps PeerRegistry's mutator
+        // call sites null-guard-free without any DB traffic.
+        std::unique_ptr<tcontrolsvr::IRegistryPersistence> persistence;
+        if (cfg.registry_persistence.enabled && pool)
+        {
+            tcontrolsvr::SociRegistryPersistence::Options pop;
+            pop.table_name  = cfg.registry_persistence.table_name;
+            pop.worker_pool = db_pool.get();
+            persistence = std::make_unique<tcontrolsvr::SociRegistryPersistence>(
+                *pool, std::move(pop));
+            // Reload the snapshot BEFORE setting the persistence
+            // pointer — Hydrate() is a read-only operation that
+            // wouldn't write back anyway, but the no-callback path
+            // is the contract we documented.
+            const auto snapshot = persistence->LoadAll();
+            peers.Hydrate(snapshot);
+            // Drop entries the operator hasn't heard from in the
+            // sweep window so the cluster picture is immediately
+            // accurate (no false "running" rows for peers that were
+            // already stale when TControl crashed).
+            const auto reaped = peers.ExpireStale(std::chrono::seconds(90));
+            spdlog::info("registry.persistence: hydrated {} entries, "
+                         "reaped {} stale on boot",
+                snapshot.size(), reaped);
+        }
+        else
+        {
+            persistence = std::make_unique<tcontrolsvr::NoopRegistryPersistence>();
+            if (cfg.registry_persistence.enabled && !pool)
+                spdlog::warn("registry.persistence: enabled=true but no "
+                             "[database] configured — using Noop");
+        }
+        peers.SetPersistence(persistence.get());
+
         tcontrolsvr::ServiceControllerFactoryConfig scm_cfg;
         scm_cfg.backend               = cfg.scm.backend;
         scm_cfg.service_name_template = cfg.scm.service_name_template;

@@ -26,6 +26,7 @@
 namespace tcontrolsvr {
 
 class PeerSession;
+class IRegistryPersistence;
 
 struct RuntimeStatus
 {
@@ -57,6 +58,11 @@ struct RegistryEntry
     std::uint32_t  cur_users        = 0;   // latest heartbeat
     std::uint32_t  max_users        = 0;
     std::uint64_t  lease_epoch      = 0;   // bumps on re-register
+    // In-RAM steady-clock view used by the expiry sweep + admin
+    // shell age display. When the registry is hydrated from
+    // persistence at boot, these are synthesized from stored unix
+    // timestamps so "now - last_heartbeat_at" still yields the
+    // peer's actual heartbeat age.
     std::chrono::steady_clock::time_point registered_at{};
     std::chrono::steady_clock::time_point last_heartbeat_at{};
 };
@@ -127,6 +133,22 @@ public:
     RegistryEventBus& Events()       { return m_events; }
     const RegistryEventBus& Events() const { return m_events; }
 
+    // Optional persistence sink. When wired (default Noop instance),
+    // every Register/Heartbeat/Deregister/Expire propagates to
+    // durable storage so TControl restart can resume the registry
+    // from a snapshot rather than a 90s blank window.
+    void SetPersistence(IRegistryPersistence* persistence)
+    { m_persistence = persistence; }
+
+    // Boot reload — populates m_registry from the persistence
+    // snapshot, advances the lease-epoch counter past every stored
+    // epoch (so future Register calls don't collide with resurrected
+    // entries), and publishes one Registered event per loaded row
+    // so streaming subscribers see the hydrated state. Does NOT run
+    // ExpireStale — main.cpp does that immediately after Hydrate so
+    // peers that were already stale at restart get cleaned up.
+    void Hydrate(const std::vector<RegistryEntry>& entries);
+
 private:
     std::vector<ServiceInstance> m_services;
     std::unordered_map<std::uint32_t, std::size_t>          m_idx;
@@ -135,6 +157,7 @@ private:
     std::unordered_map<std::uint32_t, RegistryEntry>        m_registry;
     std::uint64_t                                           m_next_epoch = 1;
     RegistryEventBus                                        m_events;
+    IRegistryPersistence*                                   m_persistence = nullptr;
 };
 
 } // namespace tcontrolsvr

@@ -158,6 +158,14 @@ AppConfig LoadConfig(const std::string& path)
     LoadIdNameArray("machines", cfg.fake_inventory.machines);
     LoadIdNameArray("types",    cfg.fake_inventory.types);
 
+    if (auto rp = tbl["registry"]["persistence"].as_table())
+    {
+        if (auto v = (*rp)["enabled"].value<bool>())
+            cfg.registry_persistence.enabled = *v;
+        if (auto v = (*rp)["table_name"].value<std::string>())
+            cfg.registry_persistence.table_name = *v;
+    }
+
     if (auto scm = tbl["cluster"]["scm"].as_table())
     {
         if (auto v = (*scm)["backend"].value<std::string>())

@@ -60,6 +60,7 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/services/soci_event_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_operator_auth_service.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_patch_metadata_service.cpp
+    ${TCONTROL_ASIO_SRC}/services/soci_registry_persistence.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_service_inventory.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_user_protected_service.cpp
     ${TCONTROL_ASIO_SRC}/services/spdlog_admin_audit_logger.cpp
@@ -191,6 +192,19 @@ add_test(NAME tcontrolsvr_asio_peer_registry
 # `cluster restart`, `cluster wait-healthy` against a counting fake
 # controller + a real PeerRegistry mutated from helper threads (to
 # simulate peers registering / deregistering during the operation).
+# Registry persistence wiring — drives Register/Heartbeat/
+# Deregister/ExpireStale through a FakeRegistryPersistence that
+# records every Upsert/Touch/Remove call, asserting that mutators
+# propagate the right snapshot. Hydrate() repopulates the in-RAM
+# map AND advances the lease-epoch counter past every stored lease
+# so future Register calls can't collide.
+add_executable(test_tcontrolsvr_asio_registry_persistence
+    ${TCONTROL_ASIO_SRC}/tests/test_registry_persistence.cpp)
+target_link_libraries(test_tcontrolsvr_asio_registry_persistence PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_registry_persistence
+    COMMAND test_tcontrolsvr_asio_registry_persistence)
+
 # Service-controller factory + systemd-runner stub coverage.
 # Verifies name-template rendering, override priority, factory backend
 # selection (incl. fallback when an explicit backend is forced on the

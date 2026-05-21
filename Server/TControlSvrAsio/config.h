@@ -102,6 +102,19 @@ struct AppConfig
     };
     ScmConfig scm;
 
+    // [registry.persistence] — durable snapshot of the dynamic peer
+    // registry. When enabled, every Register/Heartbeat/Deregister/
+    // Expire transition writes through to TGLOBAL.TPEER_REGISTRY,
+    // and TControl boot reloads the snapshot before accepting peer
+    // connections. See schema/tcontrol-peer-registry.sql for the
+    // DDL and services/registry_persistence.h for the contract.
+    struct RegistryPersistenceConfig
+    {
+        bool         enabled    = false;
+        std::string  table_name = "TPEER_REGISTRY";
+    };
+    RegistryPersistenceConfig registry_persistence;
+
     spdlog::level::level_enum log_level = spdlog::level::info;
 };
 

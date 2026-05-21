@@ -1,7 +1,19 @@
 #include "peer_registry.h"
+
 #include "../peer_session.h"
+#include "registry_persistence.h"
+
+#include <chrono>
 
 namespace tcontrolsvr {
+
+namespace {
+std::int64_t NowUnix()
+{
+    return std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
+} // namespace
 
 PeerRegistry::PeerRegistry(const IServiceInventory& inventory)
 {
@@ -107,6 +119,7 @@ std::uint64_t PeerRegistry::Register(const RegistryEntry& proposed)
     entry.last_heartbeat_at = now;
     m_registry[proposed.service_id] = std::move(entry);
     const auto& stored = m_registry[proposed.service_id];
+    if (m_persistence) m_persistence->Upsert(stored);
     RegistryEvent ev{};
     ev.kind            = RegistryEventKind::Registered;
     ev.service_id      = stored.service_id;
@@ -132,6 +145,9 @@ std::uint64_t PeerRegistry::Heartbeat(std::uint32_t service_id,
     it->second.last_heartbeat_at = std::chrono::steady_clock::now();
     it->second.cur_users = cur_users;
     it->second.max_users = max_users;
+    if (m_persistence)
+        m_persistence->Touch(service_id, lease_epoch, cur_users, max_users,
+                             NowUnix());
     RegistryEvent ev{};
     ev.kind          = RegistryEventKind::Heartbeat;
     ev.service_id    = it->second.service_id;
@@ -155,6 +171,7 @@ bool PeerRegistry::Deregister(std::uint32_t service_id,
     ev.reported_name = it->second.reported_name;
     ev.lease_epoch   = it->second.lease_epoch;
     m_registry.erase(it);
+    if (m_persistence) m_persistence->Remove(service_id);
     m_events.Publish(ev);
     return true;
 }
@@ -173,7 +190,9 @@ PeerRegistry::ExpireStale(std::chrono::steady_clock::duration max_age)
             ev.service_id    = it->second.service_id;
             ev.reported_name = it->second.reported_name;
             ev.lease_epoch   = it->second.lease_epoch;
+            const auto sid = it->second.service_id;
             it = m_registry.erase(it);
+            if (m_persistence) m_persistence->Remove(sid);
             m_events.Publish(ev);
             ++expired;
         }
@@ -196,6 +215,33 @@ PeerRegistry::FindRegistration(std::uint32_t service_id) const
     auto it = m_registry.find(service_id);
     if (it == m_registry.end()) return nullptr;
     return &it->second;
+}
+
+void PeerRegistry::Hydrate(const std::vector<RegistryEntry>& entries)
+{
+    // Replay each persisted entry into the in-RAM map + advance the
+    // epoch counter past every stored lease. Do NOT call m_persistence
+    // here — we're reading from it, not writing back, and the
+    // persistence layer is already consistent. DO publish events so
+    // any subscriber that came up before main called Hydrate (only
+    // really main itself for now) sees the hydrated state.
+    for (const auto& e : entries)
+    {
+        m_registry[e.service_id] = e;
+        if (e.lease_epoch >= m_next_epoch)
+            m_next_epoch = e.lease_epoch + 1;
+        RegistryEvent ev{};
+        ev.kind          = RegistryEventKind::Registered;
+        ev.service_id    = e.service_id;
+        ev.reported_name = e.reported_name;
+        ev.reported_addr = e.reported_addr;
+        ev.reported_port = e.reported_port;
+        ev.version       = e.version;
+        ev.lease_epoch   = e.lease_epoch;
+        ev.cur_users     = e.cur_users;
+        ev.max_users     = e.max_users;
+        m_events.Publish(ev);
+    }
 }
 
 } // namespace tcontrolsvr

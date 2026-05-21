@@ -110,7 +110,7 @@ BYTE CTNpc::AddAuction(DWORD dwAuctionID, LPTAUCTION pAuction)
 	else
 		return FALSE;
 
-	// Á÷¾÷ ¼¼ºÐÈ­
+	// ì§ì—… ì„¸ë¶„í™”
 	BYTE bType  = AUCTIONTREE1(pAuction->m_dwCode);
 	BYTE bClass = AUCTIONTREE2(pAuction->m_dwCode);
 	BYTE bKind  = AUCTIONTREE3(pAuction->m_dwCode);
@@ -154,7 +154,7 @@ void CTNpc::DelAuction(DWORD dwAuctionID,DWORD dwCode)
 	if(!dwAuctionID)
 		return;
 
-	// Á÷¾÷ ¼¼ºÐÈ­
+	// ì§ì—… ì„¸ë¶„í™”
 	BYTE bType  = AUCTIONTREE1(dwCode);
 	BYTE bClass = AUCTIONTREE2(dwCode);
 	BYTE bKind  = AUCTIONTREE3(dwCode);

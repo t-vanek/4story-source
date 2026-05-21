@@ -992,7 +992,7 @@ void CTMap::EnterMAP( CTMonster *pMON)
 		if( pMON->m_bType == OT_RECALL)
 			((CTRecallMon *) pMON)->m_bMain = (*finder).second->IsMainCell(pMON->m_bChannel);
 		else if( pMON->m_bType == OT_COMPANION )
-			((CTCompanion *) pMON)->m_bMain = (*finder).second->IsMainCell(pMON->m_bChannel); //chápu
+			((CTCompanion *) pMON)->m_bMain = (*finder).second->IsMainCell(pMON->m_bChannel); //chpu
 
 		(*finder).second->AddMonster(pMON);
 

@@ -54,7 +54,7 @@ void CTSpolecnikMon::OnDie( DWORD dwAttackID, BYTE bObjectType, WORD wTempMonID)
 	CTPlayer *pHOST = FindHost(m_dwHostID);
 	if(m_pMAP && pHOST)
 	{
-		// ¸»L¸±â ÇRÁ¦
+		// ë§Lë¦´ Rì œ
 		if(pHOST->m_dwRiding == m_dwID)
 			pHOST->PetRiding(0);
 

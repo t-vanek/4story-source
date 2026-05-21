@@ -66,7 +66,7 @@ void CTRecallMon::OnDie( DWORD dwAttackID, BYTE bObjectType, WORD wTempMonID)
 	CTPlayer *pHOST = FindHost(m_dwHostID);
 	if(m_pMAP && pHOST)
 	{
-		// ¸»Å¸±â ÇØÁ¦
+		// ë§íƒ€ê¸° í•´ì œ
 		if(pHOST->m_dwRiding == m_dwID)
 			pHOST->PetRiding(0);
 

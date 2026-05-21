@@ -13,7 +13,7 @@ public:
 	DWORD m_dwDieTick;
 	BYTE m_bHit;
 
-	DWORD m_dwMaxHP;		//s–?L
+	DWORD m_dwMaxHP;		//s?L
 	DWORD m_dwMaxMP;
 	BYTE m_bAtkLevel;
 	BYTE m_bAtkSkillLevel;

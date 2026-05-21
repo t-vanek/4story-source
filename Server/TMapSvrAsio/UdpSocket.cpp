@@ -232,24 +232,24 @@ void CUdpSocket::LogItemBuy(DWORD pAction, CTPlayer *pPlayer, CTNpc * pNpc, CTIt
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 	
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
 		pLogItem->wItemID		=	pItem->m_wItemID;			//	Item Index
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 		/*MAPTMAGIC::iterator itTMAGIC;
@@ -345,24 +345,24 @@ void CUdpSocket::LogItemByNPC(DWORD pAction, CTPlayer *pPlayer, CTNpc * pNpc, CT
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 	
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
 		pLogItem->wItemID		=	pItem->m_wItemID;			//	Item Index
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 		MAPTMAGIC::iterator itTMAGIC;
@@ -458,24 +458,24 @@ void CUdpSocket::LogItemByMonster(DWORD pAction, CTPlayer *pPlayer, CTMonster *p
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 		
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º	    
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±	    
 
 		int	nOrder = 0;
 
@@ -562,23 +562,23 @@ void CUdpSocket::LogItemByMonster(DWORD pAction, CTPlayer *pPlayer, int pMonTemp
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 		
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º	    
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±	    
 
 		int	nOrder = 0;
 		MAPTMAGIC::iterator itTMAGIC;
@@ -666,23 +666,23 @@ void CUdpSocket::LogItemUpgrade(DWORD pAction, CTPlayer *pPlayer, CTItem *pItem,
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 		pLogItem->wItemID		=	pItem->m_wItemID;			//	Item Index
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 
@@ -770,24 +770,24 @@ void CUdpSocket::LogItemTrade(DWORD pAction, CTPlayer *pPlayer, CTItem *pItem, C
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 		
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 
@@ -932,24 +932,24 @@ void CUdpSocket::LogItemByStore(DWORD pAction, CTPlayer *pPlayer, CString pTarge
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 		
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 		MAPTMAGIC::iterator itTMAGIC;
@@ -1085,8 +1085,8 @@ void CUdpSocket::LogSkillAct(DWORD pAction, CTPlayer *pPlayer, CTSkill *pSkill, 
 	
 	pLogSkill->dwCharID		=	pPlayer->m_dwID;				//	Character ID
 	lstrcpy(pLogSkill->szName,	pPlayer->m_strNAME	);			//	Character Name
-	pLogSkill->wSkill		=	pSkill->GetID();				//	½ºÅ³ ID
-	pLogSkill->bLevel		=	pSkill->m_bLevel;				//	½ºÅ³ Level
+	pLogSkill->wSkill		=	pSkill->GetID();				//	ìŠ¤í‚¬ ID
+	pLogSkill->bLevel		=	pSkill->m_bLevel;				//	ìŠ¤í‚¬ Level
 
 	SendDMLog( LogData );*/
 }
@@ -1456,24 +1456,24 @@ void CUdpSocket::LogCabinet(DWORD pAction, CTPlayer *pPlayer, BYTE bCabinetID, C
 		_LPLOG_ITEM_ pLogItem	= (_LPLOG_ITEM_)LogData.szLog;
 		
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 
@@ -1679,11 +1679,11 @@ void CUdpSocket::LogGuildDutyPeer(DWORD pAction, CTPlayer *pPlayer,DWORD pTarget
 			switch(pData)
 			{
 			case 0	:	lstrcpy(LogData.szKey[5],	"-"			);	break;
-			case 1	:	lstrcpy(LogData.szKey[5],	"³²ÀÛ"		);	break;
-			case 2	:	lstrcpy(LogData.szKey[5],	"ÀÚÀÛ"		);	break;
-			case 3	:	lstrcpy(LogData.szKey[5],	"¹éÀÛ"		);	break;
-			case 4	:	lstrcpy(LogData.szKey[5],	"ÈÄÀÛ"		);	break;
-			case 5	:	lstrcpy(LogData.szKey[5],	"°øÀÛ"		);	break;
+			case 1	:	lstrcpy(LogData.szKey[5],	"ë‚¨ì‘"		);	break;
+			case 2	:	lstrcpy(LogData.szKey[5],	"ìì‘"		);	break;
+			case 3	:	lstrcpy(LogData.szKey[5],	"ë°±ì‘"		);	break;
+			case 4	:	lstrcpy(LogData.szKey[5],	"í›„ì‘"		);	break;
+			case 5	:	lstrcpy(LogData.szKey[5],	"ê³µì‘"		);	break;
 			}
 		}
 		break;
@@ -1886,24 +1886,24 @@ void CUdpSocket::LogGuildCabinet(DWORD pAction, CTPlayer *pPlayer, DWORD pGuildI
 		_LPLOG_ITEM_ pLogItem	= (_LPLOG_ITEM_)LogData.szLog;
 
 		pLogItem->dlID			=	pItem->m_dlID;				//	Unique Number
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 
@@ -1995,24 +1995,24 @@ void CUdpSocket::LogCashItem(DWORD pAction, CTPlayer *pPlayer,  DWORD pTargetID,
 
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 		
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 		MAPTMAGIC::iterator itTMAGIC;
@@ -2250,24 +2250,24 @@ void CUdpSocket::LogAuctionReg(DWORD pAction, CTPlayer *pPlayer,DWORD dwAuctionI
 
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 		
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 		MAPTMAGIC::iterator itTMAGIC;
@@ -2353,24 +2353,24 @@ void CUdpSocket::LogAuctionBid(DWORD pAction, CTPlayer *pPlayer,DWORD dwAuctionI
 
 		_LPLOG_ITEM_ pLogItem = (_LPLOG_ITEM_)LogData.szLog;
 		
-		pLogItem->bInven		=	pItem->m_bInven;			//	ÀÎº¥ À§Ä¡
-		pLogItem->bItemID		=	pItem->m_bItemID;			//	ÀÎº¥ ¹øÈ£
+		pLogItem->bInven		=	pItem->m_bInven;			//	ì¸ë²¤ ìœ„ì¹˜
+		pLogItem->bItemID		=	pItem->m_bItemID;			//	ì¸ë²¤ ë²ˆí˜¸
 
-		pLogItem->wItemID		=	pItem->m_wItemID;			//	¾ÆÀÌÅÛ INDEX
+		pLogItem->wItemID		=	pItem->m_wItemID;			//	ì•„ì´í…œ INDEX
 
 		//
-		//	Game Part¿¡ ¾÷¹« Áö¿ø ¿äÃ»
-		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	¾ÆÀÌÅÛ ¸í
+		//	Game Partì— ì—…ë¬´ ì§€ì› ìš”ì²­
+		//	lstrcpy( pLogItem->szItemName, pItem->m_pTITEM-> )	//	ì•„ì´í…œ ëª…
 
-		pLogItem->bLevel		=	pItem->m_bLevel;			//	¾÷±×·¹ÀÌÆ® ·¹º§
+		pLogItem->bLevel		=	pItem->m_bLevel;			//	ì—…ê·¸ë ˆì´íŠ¸ ë ˆë²¨
 		pLogItem->bCount		=	pItem->m_bCount;				
 
-		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ºÀÀÎ ¾ÆÀÌÅÛ È®ÀÎ¿ë
-		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ÃÖ´ë ³»±¸µµ
-		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	ÇöÀç ³»±¸µµ	
-		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	Á¦·Â È½¼ö
+		pLogItem->bGLevel		=	pItem->m_bGLevel;			//	ë´‰ì¸ ì•„ì´í…œ í™•ì¸ìš©
+		pLogItem->dwDuraMax		=	pItem->m_dwDuraMax;			//	ìµœëŒ€ ë‚´êµ¬ë„
+		pLogItem->dwDuraCur		=	pItem->m_dwDuraCur;			//	í˜„ì¬ ë‚´êµ¬ë„	
+		pLogItem->bRefineCur	=	pItem->m_bRefineCur;		//	ì œë ¥ íšŸìˆ˜
 
-		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	¾ÆÀÌÅÛ °­È­ ¼Ó¼º
+		pLogItem->bGradeEffect	=	pItem->m_bGradeEffect;		//	ì•„ì´í…œ ê°•í™” ì†ì„±
 
 		int	nOrder = 0;
 		MAPTMAGIC::iterator itTMAGIC;

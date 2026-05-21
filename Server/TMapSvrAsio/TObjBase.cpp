@@ -1433,7 +1433,7 @@ int CTObjBase::CalcAbilityValue( DWORD &dwValue, BYTE bExec, CTSkill * pInstance
 	DWORD dwCalcValue = max(0, int(dwValue) + nIncreaseValue);
 
 	if(nIncreaseValue)
-		nIncreaseValue += ApplyEffectionBuff(dwCalcValue); //∏∂π˝»ø∞˙ ¡ı∆¯
+		nIncreaseValue += ApplyEffectionBuff(dwCalcValue); //ÎßàÎ≤ïÌö®Í≥º Ï¶ùÌè≠
 
 	int nInc = 0;
 	for(size_t i=0; i < m_vRemainSkill.size(); i++)
@@ -2508,7 +2508,7 @@ BYTE CTObjBase::UpdateSkill(CTSkillTemp * pTemp, WORD wSkillID, BYTE bLevel)
 				pTemp->m_wID,
 				bLevel);
 
-			//Ω∫≈≥ πˆ∏±∂ß m_vRemainSkillø°º≠ «ÿ¥Á Ω∫≈≥ ≤¿ ª¨∞Õ
+			//Ïä§ÌÇ¨ Î≤ÑÎ¶¥Îïå m_vRemainSkillÏóêÏÑú Ìï¥Îãπ Ïä§ÌÇ¨ Íº≠ Î∫ÑÍ≤É
 			RemainSkill( pSkill, 0);
 		}
 
@@ -2684,7 +2684,7 @@ void CTObjBase::EraseMaintainSkill(CTSkill * pSkill, DWORD index)
 	{
 		if(!bCanAttack && CheckAttack())
 		{
-			// µµ∏¡ Ω∫≈≥ «ÿ¡¶
+			// ÎèÑÎßù Ïä§ÌÇ¨ Ìï¥Ï†ú
 			CTMonster * pMon = (CTMonster *)this;
 
 			if(pMon->m_dwTargetID)
@@ -3306,7 +3306,7 @@ BYTE CTObjBase::PerformSkill(DWORD dwAttack,
 							{
 								for( WORD ms=31; ms<=34; ms++)
 								{
-									//±‚∫ªΩ∫≈≥
+									//Í∏∞Î≥∏Ïä§ÌÇ¨
 									CTSkill * pMy = FindTSkill(ms);
 									if(pMy && IsEquipSkillItem(pMy))
 										vSkill.push_back(ms);
@@ -3801,14 +3801,14 @@ BYTE CTObjBase::PerformSkill(DWORD dwAttack,
 							TRUE);
 					}
 					break;
-				case SDT_RUNAWAY: // µµ∏¡
+				case SDT_RUNAWAY: // ÎèÑÎßù
 					if(m_bType == OT_MON)
 					{
 						CTMonster * pMon = (CTMonster *)this;
 						pMon->OnEvent( AT_HELP, 0, 0, 0, 0);
 					}
 					break;
-				case SDT_CHANGETARGET: // ≈∏∞Ÿ∫Ø∞Ê
+				case SDT_CHANGETARGET: // ÌÉÄÍ≤üÎ≥ÄÍ≤Ω
 					{
 						if(m_bType != OT_MON)
 							return PERFORM_FAIL;
@@ -3830,7 +3830,7 @@ BYTE CTObjBase::PerformSkill(DWORD dwAttack,
 							pMon->OnEvent(AT_DEFEND, 0, aggro.m_dwHostID, aggro.m_dwObjID, aggro.m_bObjType);
 					}
 					break;
-				case SDT_LEAD: // ¿Ø¿Œ
+				case SDT_LEAD: // Ïú†Ïù∏
 					{
 						if(m_bType != OT_MON)
 							return PERFORM_FAIL;
@@ -3841,7 +3841,7 @@ BYTE CTObjBase::PerformSkill(DWORD dwAttack,
 							pMon->OnEvent(AT_DEFEND, 0, dwAttack, dwAttack, OT_PC);
 					}
 					break;
-				case SDT_TEMPT: // º“»Ø¿Ø»§
+				case SDT_TEMPT: // ÏÜåÌôòÏú†Ìòπ
 					{
 						if(m_bType != OT_MON)
 							return PERFORM_FAIL;
@@ -4118,7 +4118,7 @@ BYTE CTObjBase::HaveMask()
 	return FALSE;
 }
 ///////////////////////////////////////////////////////////////////////
-// ∫Ø¿Â
+// Î≥ÄÏû•
 BYTE CTObjBase::HaveDisguiseBuff()
 {
 	for(DWORD i=0; i<m_vMaintainSkill.size(); i++)

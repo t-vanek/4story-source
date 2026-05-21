@@ -17,6 +17,7 @@ set(FOURSTORY_COMMON_HEADERS
     fourstory/smtp/smtp_client.h
     fourstory/smtp/spdlog_smtp_client.h
     fourstory/smtp/asio_smtp_client.h
+    fourstory/cluster/peer_client.h
     fourstory/ops/health_endpoint.h
     fourstory/ops/rate_limiter.h
     fourstory/ops/registry_refresher.h
@@ -29,6 +30,7 @@ set(FOURSTORY_COMMON_SOURCES
     src/audit/udp_audit_logger.cpp
     src/smtp/spdlog_smtp_client.cpp
     src/smtp/asio_smtp_client.cpp
+    src/cluster/peer_client.cpp
     src/ops/health_endpoint.cpp
     src/ops/rate_limiter.cpp
     src/ops/registry_refresher.cpp

@@ -182,6 +182,17 @@ target_link_libraries(test_tcontrolsvr_asio_peer_registry PRIVATE
 add_test(NAME tcontrolsvr_asio_peer_registry
     COMMAND test_tcontrolsvr_asio_peer_registry)
 
+# PeerClient integration test — drives the outbound-side client
+# (fourstory::cluster::PeerClient) against a TCP stub that role-plays
+# TControl's CT_PEER_* wire endpoint. Verifies REGISTER + HEARTBEAT
+# + DEREGISTER round-trips and the rejection/reconnect paths.
+add_executable(test_tcontrolsvr_asio_peer_client
+    ${TCONTROL_ASIO_SRC}/tests/test_peer_client.cpp)
+target_link_libraries(test_tcontrolsvr_asio_peer_client PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_peer_client
+    COMMAND test_tcontrolsvr_asio_peer_client)
+
 # CoOffload helper test — verifies the lambda runs on a worker
 # thread, the coroutine resumes on the io_context, and exceptions
 # propagate. Pure logic, no DB.

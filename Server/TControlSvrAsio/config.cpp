@@ -176,6 +176,14 @@ AppConfig LoadConfig(const std::string& path)
             cfg.scm.systemd_user_scope = *v;
         if (auto v = (*scm)["systemctl_path"].value<std::string>())
             cfg.scm.systemctl_path = *v;
+        if (auto v = (*scm)["status_reconcile_interval_secs"].value<std::int64_t>())
+        {
+            if (*v < 0 || *v > 3600)
+                throw std::runtime_error(
+                    "cluster.scm.status_reconcile_interval_secs out of range (0..3600)");
+            cfg.scm.status_reconcile_interval_secs =
+                static_cast<std::uint32_t>(*v);
+        }
         if (auto ov = (*scm)["overrides"].as_table())
         {
             for (const auto& [k, v] : *ov)

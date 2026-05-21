@@ -184,4 +184,57 @@ ControlServer::RegistryLeaseExpiryLoop(std::chrono::seconds max_age,
     }
 }
 
+boost::asio::awaitable<std::size_t>
+ControlServer::ReconcileScmStatusOnce()
+{
+    if (!m_cfg.peers || !m_cfg.controller) co_return std::size_t{0};
+    std::size_t transitions = 0;
+    for (const auto& svc : m_cfg.peers->Services())
+    {
+        const auto live = co_await m_cfg.controller->QueryStatus(svc);
+        auto* st = m_cfg.peers->Status(svc.service_id);
+        if (!st) continue;
+        const auto prev = st->status;
+        if (prev == live) continue;
+
+        st->status = live;
+        ++transitions;
+        spdlog::info("scm.reconcile: svc_id={:#x} '{}' {} → {}",
+            svc.service_id, svc.name,
+            ServiceStatusName(prev), ServiceStatusName(live));
+
+        RegistryEvent ev{};
+        ev.kind                = RegistryEventKind::ScmStatusChanged;
+        ev.service_id          = svc.service_id;
+        ev.reported_name       = svc.name;
+        ev.service_status_prev = prev;
+        ev.service_status      = live;
+        // Best-effort fill of lease_epoch from the dynamic registry —
+        // streams that join lease + status together get a coherent
+        // line. Missing registration → 0, which is the documented
+        // "no live lease" value.
+        if (const auto* reg = m_cfg.peers->FindRegistration(svc.service_id))
+            ev.lease_epoch = reg->lease_epoch;
+        m_cfg.peers->Events().Publish(ev);
+    }
+    co_return transitions;
+}
+
+boost::asio::awaitable<void>
+ControlServer::ScmStatusReconciliationLoop(std::chrono::seconds interval)
+{
+    if (!m_cfg.peers || !m_cfg.controller) co_return;
+    if (interval.count() <= 0) co_return;   // disabled by config
+    boost::asio::steady_timer timer(m_io);
+    while (m_acceptor.is_open())
+    {
+        timer.expires_after(interval);
+        boost::system::error_code ec;
+        co_await timer.async_wait(
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if (ec || !m_acceptor.is_open()) break;
+        (void)co_await ReconcileScmStatusOnce();
+    }
+}
+
 } // namespace tcontrolsvr

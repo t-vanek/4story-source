@@ -54,22 +54,8 @@ spdlog::level::level_enum ParseLevel(const std::string& s)
     return spdlog::level::n_levels;
 }
 
-const char* StatusName(ServiceStatus s)
-{
-    switch (s)
-    {
-        case ServiceStatus::Stopped:         return "stopped";
-        case ServiceStatus::StartPending:    return "start-pending";
-        case ServiceStatus::StopPending:     return "stop-pending";
-        case ServiceStatus::Running:         return "running";
-        case ServiceStatus::ContinuePending: return "continue-pending";
-        case ServiceStatus::PausePending:    return "pause-pending";
-        case ServiceStatus::Paused:          return "paused";
-        case ServiceStatus::NotInstalled:    return "not-installed";
-        case ServiceStatus::Unknown:
-        default:                             return "unknown";
-    }
-}
+// Local alias kept short for the existing call sites in this file.
+inline const char* StatusName(ServiceStatus s) { return ServiceStatusName(s); }
 
 const char* TypeName(std::uint8_t type_id)
 {
@@ -150,6 +136,11 @@ std::string FormatRegistryEvent(const RegistryEvent& ev)
     if (ev.kind == RegistryEventKind::Heartbeat)
     {
         os << " users=" << ev.cur_users << "/" << ev.max_users;
+    }
+    if (ev.kind == RegistryEventKind::ScmStatusChanged)
+    {
+        os << " prev=" << StatusName(ev.service_status_prev)
+           << " status=" << StatusName(ev.service_status);
     }
     os << "\n";
     return os.str();

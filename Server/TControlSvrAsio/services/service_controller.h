@@ -50,6 +50,11 @@ enum class ControlResult
     NotSupported,    // default impl returns this — operator GUI shows it as a no-op
 };
 
+// Human-readable name for a ServiceStatus value. Used by the admin
+// shell + the registry-event formatter; promoted here so both
+// callers share the same enum→string mapping and can't drift.
+const char* ServiceStatusName(ServiceStatus s);
+
 class IServiceController
 {
 public:

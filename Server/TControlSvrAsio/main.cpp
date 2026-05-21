@@ -295,6 +295,20 @@ int main(int argc, char** argv)
             server.RegistryLeaseExpiryLoop(),
             boost::asio::detached);
 
+        // Periodic SCM status reconciliation — publishes
+        // ScmStatusChanged events whenever the live controller
+        // reading diverges from the cached RuntimeStatus.status.
+        // Disabled when the operator sets the interval to 0.
+        if (cfg.scm.status_reconcile_interval_secs > 0)
+        {
+            boost::asio::co_spawn(io,
+                server.ScmStatusReconciliationLoop(std::chrono::seconds(
+                    cfg.scm.status_reconcile_interval_secs)),
+                boost::asio::detached);
+            spdlog::info("scm.reconcile: interval = {}s",
+                cfg.scm.status_reconcile_interval_secs);
+        }
+
         // 1Hz event scheduler — daily / term events, alarms,
         // auto-delete for one-shot lottery / gifttime kinds.
         tcontrolsvr::EventSchedulerLoop event_loop(io, events, peers,

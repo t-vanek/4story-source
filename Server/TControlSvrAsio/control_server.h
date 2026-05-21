@@ -93,6 +93,20 @@ public:
         std::chrono::seconds max_age = std::chrono::seconds(90),
         std::chrono::seconds tick    = std::chrono::seconds(15));
 
+    // Periodic SCM status reconciliation. Walks the static inventory,
+    // calls IServiceController::QueryStatus on each service, and
+    // publishes a ScmStatusChanged event whenever the live status
+    // diverges from the cached one in PeerRegistry::Status. Default
+    // 30s matches the peer heartbeat cadence — operators see the
+    // GUI's status column refresh roughly once per heartbeat window
+    // without TControl having to wait on a wire round-trip.
+    boost::asio::awaitable<void> ScmStatusReconciliationLoop(
+        std::chrono::seconds interval = std::chrono::seconds(30));
+
+    // Single-tick variant exposed for tests. Iterates every service
+    // once + returns the count of status transitions observed.
+    boost::asio::awaitable<std::size_t> ReconcileScmStatusOnce();
+
 private:
     boost::asio::awaitable<void> HandleConnection(
         std::shared_ptr<ControlSession> sess);

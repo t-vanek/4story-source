@@ -54,6 +54,7 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/services/peer_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/registry_event_bus.cpp
     ${TCONTROL_ASIO_SRC}/services/scm_name_resolver.cpp
+    ${TCONTROL_ASIO_SRC}/services/service_controller.cpp
     ${TCONTROL_ASIO_SRC}/services/service_controller_factory.cpp
     ${TCONTROL_ASIO_SRC}/services/systemd_service_controller.cpp
     ${TCONTROL_ASIO_SRC}/services/soci_alerter.cpp
@@ -192,6 +193,18 @@ add_test(NAME tcontrolsvr_asio_peer_registry
 # `cluster restart`, `cluster wait-healthy` against a counting fake
 # controller + a real PeerRegistry mutated from helper threads (to
 # simulate peers registering / deregistering during the operation).
+# SCM status reconciliation loop — exercises ControlServer::
+# ReconcileScmStatusOnce against a programmable FakeController.
+# Verifies cache update + ScmStatusChanged publish, no-op when state
+# matches, multi-service iteration, prev/new pair on flip, second-
+# tick idempotence.
+add_executable(test_tcontrolsvr_asio_scm_status_reconcile
+    ${TCONTROL_ASIO_SRC}/tests/test_scm_status_reconcile.cpp)
+target_link_libraries(test_tcontrolsvr_asio_scm_status_reconcile PRIVATE
+    tcontrolsvr_asio_core)
+add_test(NAME tcontrolsvr_asio_scm_status_reconcile
+    COMMAND test_tcontrolsvr_asio_scm_status_reconcile)
+
 # Registry persistence wiring — drives Register/Heartbeat/
 # Deregister/ExpireStale through a FakeRegistryPersistence that
 # records every Upsert/Touch/Remove call, asserting that mutators

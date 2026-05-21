@@ -99,6 +99,14 @@ struct AppConfig
         bool         systemd_user_scope   = false;
         std::string  systemctl_path       = "systemctl";
         std::unordered_map<std::uint32_t, std::string> overrides;
+
+        // Periodic status reconciliation interval. 0 disables the
+        // loop. Default 30s matches the peer heartbeat cadence so
+        // operators see status transitions roughly within one
+        // heartbeat window even when the controller backend is
+        // "disabled" (which short-circuits the reconcile call to a
+        // Unknown read — harmless).
+        std::uint32_t status_reconcile_interval_secs = 30;
     };
     ScmConfig scm;
 

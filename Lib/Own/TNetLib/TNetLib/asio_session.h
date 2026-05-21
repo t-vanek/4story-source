@@ -24,7 +24,9 @@
 // Phase 3 will retire CSession entirely once every server has migrated.
 
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/experimental/channel.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -98,21 +100,33 @@ public:
     // Byte-level send.
     boost::asio::awaitable<void> Send(std::span<const std::byte> bytes);
 
-    // Packet-level send: assigns the next outbound sequence number,
-    // builds a 16-byte header + `body` payload in an internal scratch
-    // buffer, encrypts body + header per the wire codec, async_writes
-    // the whole frame.
+    // Packet-level send. Enqueues the payload onto an internal
+    // bounded channel; a dedicated drain coroutine (spawned the first
+    // time Run/RunPackets starts) pulls items off the channel and
+    // performs the actual frame build + encrypt + async_write
+    // serially. As a result:
     //
-    // THREAD-SAFETY: NOT thread-safe. Two coroutines calling SendPacket
-    // concurrently on the same AsioSession will interleave their
-    // sequence-number assignments and async_writes — both fatal for
-    // the wire codec (sequence-number mismatch on the receiver, and
-    // async_write is documented as not safe to call concurrently on
-    // the same socket). Caller must serialize through a strand, a
-    // single coroutine, or an explicit send queue. Phase-3 server
-    // migration will add an internal send queue here.
+    //   * SendPacket is safe to call from multiple coroutines /
+    //     threads concurrently. Sequence numbers and the socket write
+    //     stream stay in order.
+    //   * Backpressure: when the channel is full (default capacity
+    //     SetSendQueueCapacity, configurable per process), additional
+    //     SendPacket awaits suspend until the drain frees a slot.
+    //   * Close() drops outstanding queued packets; in-flight writes
+    //     finish or fail according to socket state.
+    //
+    // Note: the drain isn't started until Run() or RunPackets() runs,
+    // so a SendPacket issued before the session is being read will
+    // block on the channel until then. Tests that only exercise the
+    // send path can short-circuit by also spawning the read loop.
     boost::asio::awaitable<void> SendPacket(std::uint16_t wId,
                                             std::span<const std::byte> body);
+
+    // Maximum number of pending SendPacket payloads queued per
+    // session. Default 256. Set once at process startup, before any
+    // sessions are constructed — existing sessions keep the capacity
+    // they were built with.
+    static void SetSendQueueCapacity(std::size_t n) noexcept;
 
     // Close the socket. Idempotent. Safe to call from any thread that
     // owns the executor.
@@ -165,16 +179,39 @@ public:
     const std::string& RemoteIPv4() const { return m_remote_ipv4; }
 
 private:
+    struct PendingSend
+    {
+        std::uint16_t           wId;
+        std::vector<std::byte>  body;
+    };
+    using SendChannel = boost::asio::experimental::channel<
+        void(boost::system::error_code, PendingSend)>;
+
+    // Pre-encrypt + write half of SendPacket — runs only on the drain
+    // coroutine so the socket and sequence number are owned by a single
+    // logical thread of execution.
+    boost::asio::awaitable<void> DoSendPacket(std::uint16_t wId,
+                                              std::span<const std::byte> body);
+
+    // Pulls from m_send_chan and forwards to DoSendPacket. Started
+    // lazily by Run() / RunPackets(); exits when the channel is closed
+    // (Close()) or the socket is no longer open.
+    boost::asio::awaitable<void> DrainSendQueue();
+
+    void StartDrainIfNeeded();
+
     boost::asio::ip::tcp::socket m_socket;
     PeerType                     m_type;
     std::vector<std::byte>       m_recv_buffer;     // byte-level Run scratch
     std::vector<std::byte>       m_packet_buffer;   // RunPackets header+body scratch
-    std::vector<std::byte>       m_send_buffer;     // SendPacket scratch
+    std::vector<std::byte>       m_send_buffer;     // serialize scratch, drain-owned
     std::uint32_t                m_recv_sequence = 0;
     std::uint32_t                m_send_sequence = 0;
     std::vector<std::byte>       m_rc4_inbound_key;   // empty = no RC4 on recv
     std::vector<std::byte>       m_rc4_outbound_key;  // empty = no RC4 on send
     std::string                  m_remote_ipv4;       // captured at ctor, empty if not connected
+    SendChannel                  m_send_chan;         // MPSC: many producers, drain consumer
+    std::atomic<bool>            m_drain_started{false};
 };
 
 // Accept loop. Binds to `port` on all interfaces (INADDR_ANY) and

@@ -67,38 +67,59 @@ ControlServer::Run()
 
         if (m_cfg.ssl_ctx != nullptr)
         {
-            // Hybrid first-byte detection for backward-compat with
+            // Hybrid first-bytes detection for backward-compat with
             // legacy TController.exe (which speaks plain TCP).
-            // TLS ClientHello always starts with 0x16 (Handshake
-            // content type); the legacy operator protocol's first
-            // byte is wSize's low byte and is never 0x16 in practice
-            // — the legacy CT_OPLOGIN frame is at minimum 18 bytes,
-            // so wSize >= 18 and wSize is small (< 0x1000), the low
-            // byte is the size mod 256 which never lands on 0x16 for
-            // any defined CT_* opcode. If it ever does for a future
-            // opcode, that opcode's frame layout has to grow past
-            // 0x1600 bytes before this confuses us.
             //
-            // We MSG_PEEK one byte so the TLS handshake (or the
-            // legacy framer) still sees the original byte stream
-            // unchanged.
-            std::array<unsigned char, 1> peek{};
+            // A TLS record always starts with three predictable
+            // bytes: ContentType (0x16 = Handshake), ProtocolVersion
+            // major (0x03 for TLS 1.x), ProtocolVersion minor
+            // (0x01..0x04 for TLS 1.0..1.3). The first byte alone
+            // (0x16) is NOT enough — the legacy CT_* frame layout
+            // is "WORD wSize | WORD wID | DWORD dwChkSum | body",
+            // and any wSize whose low byte is 0x16 (e.g. wSize=22
+            // for a small CT_OPLOGIN_REQ, or 278, 534, 790, ...)
+            // would collide with the TLS sentinel and get
+            // misrouted into the TLS handshake path. Checking the
+            // version bytes too brings the false-positive rate
+            // down to "wSize must end in 0x16 AND the high byte
+            // is 0x03 AND the next byte is 0x01..0x04", which is
+            // 4 / 65536 of all sizes — vanishingly small and not
+            // hit by any in-tree CT_* frame.
+            //
+            // MSG_PEEK leaves the byte stream untouched so the
+            // selected branch (TLS handshake or legacy framer)
+            // still sees the original bytes.
+            // Single MSG_PEEK for the 3-byte signature. The kernel
+            // may return fewer bytes if not all three are buffered
+            // yet (slow-loris client, unusual TCP fragmentation) —
+            // we treat partial reads as "drop the connection" and
+            // let the peer retry. In real-world TCP a TLS
+            // ClientHello fits comfortably in a single segment and
+            // arrives whole, so this isn't hit by legitimate
+            // clients; it does cut off a slow-drip attacker before
+            // they can ride the framer ambiguity.
+            std::array<unsigned char, 3> peek{};
             boost::system::error_code peek_ec;
             const auto peeked = co_await sock.async_receive(
                 boost::asio::buffer(peek),
                 tcp::socket::message_peek,
                 boost::asio::redirect_error(
                     boost::asio::use_awaitable, peek_ec));
-            if (peek_ec || peeked == 0)
+            if (peek_ec || peeked < peek.size())
             {
-                spdlog::debug("control_svr: peek failed from {} — closing",
-                    sock.remote_endpoint(peek_ec).address().to_string());
+                spdlog::debug("control_svr: short/failed peek from {} "
+                              "(got={}) — closing",
+                    sock.remote_endpoint(peek_ec).address().to_string(),
+                    peeked);
                 boost::system::error_code ig;
                 sock.close(ig);
                 continue;
             }
 
-            const bool looks_like_tls = (peek[0] == 0x16);
+            const bool looks_like_tls =
+                peek[0] == 0x16 &&
+                peek[1] == 0x03 &&
+                peek[2] >= 0x01 && peek[2] <= 0x04;
             if (looks_like_tls)
             {
                 // Server-side TLS — wrap and handshake. Same path as

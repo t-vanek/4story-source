@@ -48,6 +48,13 @@ struct AppConfig
     // Health endpoint shape mirrors the four shipped Asio daemons.
     std::uint16_t health_port = 18087;
 
+    // W3a-19 wanted-board expiry sweep period in seconds. Set to 0
+    // to disable the sweep entirely (production should keep this
+    // on; 0 is only useful in tests). Default 300s = 5 minutes,
+    // tighter than the 14-day entry lifetime so a stale entry
+    // never lingers more than a sweep tick past its end_time.
+    std::uint32_t wanted_sweep_period_sec = 300;
+
     spdlog::level::level_enum log_level = spdlog::level::info;
 };
 

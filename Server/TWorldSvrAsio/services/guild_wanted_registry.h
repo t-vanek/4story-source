@@ -104,6 +104,19 @@ public:
         std::uint32_t guild_id) const;
     std::uint32_t FindAppByChar(std::uint32_t char_id) const;
 
+    // --- W3a-19 periodic expiry sweep ----------------------------
+    //
+    // Remove every entry whose `end_time` is strictly less than
+    // `now_unix`. Returns the list of removed guild_ids so the
+    // caller can persist `DeleteWanted` for each one. Applicant
+    // entries owned by the removed wanted are dropped too, along
+    // with their reverse-index pointers in `m_app_by_char`.
+    //
+    // Single write-lock — callers should batch this per tick, not
+    // per entry. Designed for `RegistryRefresher` integration via
+    // SweepExpiredWanted (services/guild_wanted_sweep.h).
+    std::vector<std::uint32_t> PruneExpired(std::int64_t now_unix);
+
 private:
     mutable std::shared_mutex                              m_mtx;
     std::unordered_map<std::uint32_t, TGuildWanted>        m_entries;

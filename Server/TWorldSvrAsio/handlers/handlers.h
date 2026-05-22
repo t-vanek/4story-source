@@ -13,6 +13,8 @@
 
 #include "../world_session.h"
 #include "../services/char_registry.h"
+#include "../services/guild_registry.h"
+#include "../services/guild_repository.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -26,24 +28,32 @@ namespace tworldsvr {
 
 struct HandlerContext
 {
-    boost::asio::io_context*  io      = nullptr;
+    boost::asio::io_context*  io         = nullptr;
 
     // Worker pool for synchronous SOCI calls. Wired in W2 when
     // [database] is configured. Guild/friend/soulmate handlers in
     // W3+ offload their DB roundtrips here via fourstory::db::
     // CoOffloadIf. nullptr → handlers run SOCI in-line (test
     // fallback; not OK in production).
-    boost::asio::thread_pool* db_pool = nullptr;
+    boost::asio::thread_pool* db_pool    = nullptr;
 
     // Cluster-wide char index. Owned by main; non-null in W2+.
     // Per-char actor model — see Server/TWorldSvrAsio/services/
     // char_registry.h for the locking contract.
-    CharRegistry*             chars   = nullptr;
+    CharRegistry*             chars      = nullptr;
 
-    // W3a fields land here:
-    //   IGuildRepository*  guild_repo = nullptr;
-    //   GuildRegistry*     guilds     = nullptr;
-    // W3b:
+    // Cluster-wide guild index — same 16-shard partitioning as
+    // CharRegistry. W3a-1 ships the read path (LoadAll + Find);
+    // W3a-2 adds the mutating handlers (member-add / kickout /
+    // duty change / disband).
+    GuildRegistry*            guilds     = nullptr;
+
+    // Pluggable guild persistence backend. Concrete impls:
+    //   SociGuildRepository  — production (TGUILDTABLE)
+    //   FakeGuildRepository  — tests
+    IGuildRepository*         guild_repo = nullptr;
+
+    // W3b fields land here:
     //   PartyRegistry*     parties    = nullptr;
     //   CorpsRegistry*     corps      = nullptr;
 };
@@ -82,6 +92,31 @@ boost::asio::awaitable<void> OnAddCharAck(
 // member-offline broadcast, party leave, soulmate notify) land
 // in W3+.
 boost::asio::awaitable<void> OnCloseCharAck(
+    std::shared_ptr<WorldSession> sess,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3a-1: guild lifecycle (read-only path) ------------------------
+//
+// Inbound from a map server's DB worker: the map persisted a new
+// guild row (TGUILDTABLE INSERT in legacy CSPGuildEstablish) and
+// is reporting it to World. World registers the guild in the
+// cluster index and re-links the founding char as chief member.
+//
+// Body layout (matches Server/TWorldSvr/SSHandler.cpp:8943):
+//   DWORD dwCharID, DWORD dwKEY, DWORD dwGuildID,
+//   STRING szName, DWORD dwFame, DWORD dwFameColor,
+//   BYTE bMaxCabinet, BYTE bGPoint, BYTE bLevel,
+//   DWORD dwChief, DWORD dwExp, DWORD dwGI, BYTE bStatus,
+//   DWORD dwGold, DWORD dwSilver, DWORD dwCooper,
+//   BYTE bDisorg, DWORD dwTime, __time64_t timeEstablish,
+//   DWORD dwPvPTotalPoint, DWORD dwPvPUseablePoint,
+//   WORD wCabinetCount, [<wCabinetCount> cabinet items omitted in
+//   W3a-1 — parsed-and-discarded].
+//
+// W3a-2 will wire the SendMW_GUILDESTABLISH_REQ reply back to the
+// originating map server; W3a-1 leaves that as a TODO log line.
+boost::asio::awaitable<void> OnGuildLoadAck(
     std::shared_ptr<WorldSession> sess,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

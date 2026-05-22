@@ -14,7 +14,11 @@
 // See Server/TWorldSvrAsio/README.md for the phase plan.
 
 #include "config.h"
+#include "db/schema_validator.h"
 #include "services/char_registry.h"
+#include "services/fake_guild_repository.h"
+#include "services/guild_registry.h"
+#include "services/soci_guild_repository.h"
 #include "world_server.h"
 
 #include "fourstory/db/session_pool.h"
@@ -70,16 +74,18 @@ int main(int argc, char** argv)
             io.stop();
         });
 
-        // --- DB infrastructure (W2) -------------------------------
+        // --- DB infrastructure (W2 + W3a-1) -----------------------
         //
         // Pool sizing follows TLoginSvrAsio / TControlSvrAsio: N
         // SOCI sessions + a worker thread_pool that handlers offload
         // synchronous SOCI calls onto via fourstory::db::CoOffloadIf.
         // Both are nullable — no [database] section keeps the boot
-        // path light for dev runs (just the in-memory char registry,
-        // no DB roundtrips).
+        // path light for dev runs (the in-memory registries + the
+        // fake guild repo cover every code path that doesn't actually
+        // need persistence).
         std::unique_ptr<fourstory::db::SessionPool>      db_pool_owner;
         std::unique_ptr<boost::asio::thread_pool>        worker_pool;
+        std::unique_ptr<tworldsvr::IGuildRepository>     guild_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -106,24 +112,47 @@ int main(int argc, char** argv)
             }
             spdlog::info("db: {} pool_size={} ready",
                 fourstory::db::BackendName(backend), cfg.database.pool_size);
+
+            // Fail-fast on missing TGUILD* columns before the
+            // listener accepts traffic.
+            tworldsvr::db::ValidateWorldSchema(*db_pool_owner);
+            guild_repo = std::make_unique<tworldsvr::SociGuildRepository>(
+                *db_pool_owner);
         }
         else
         {
-            spdlog::info("no [database] — char registry is the only "
-                         "persistence layer (legacy parity for W2)");
+            spdlog::info("no [database] — registries are the only "
+                         "persistence layer; using FakeGuildRepository");
+            guild_repo = std::make_unique<tworldsvr::FakeGuildRepository>();
         }
 
-        // --- Char registry (W2 — closes the in-memory half of W-2) -
+        // --- Char + guild registries ------------------------------
         //
-        // Per-shard locking + per-char actor model. Stays alive for
-        // the entire process lifetime; sessions hold raw pointers
-        // through HandlerContext.
-        tworldsvr::CharRegistry chars;
+        // Both use the same 16-shard partitioning + per-entry mutex
+        // model. The char half closes W-2's in-memory bottleneck;
+        // the guild half closes the m_mapTGuild bottleneck the same
+        // way. Both live for the process lifetime.
+        tworldsvr::CharRegistry  chars;
+        tworldsvr::GuildRegistry guilds;
+
+        // Warm the guild cache from the backing store. Empty for
+        // the no-DB / fake repo path; a real DB returns every
+        // non-disbanded TGUILDTABLE row.
+        if (guild_repo)
+        {
+            const auto preloaded = guild_repo->LoadAll();
+            for (auto& g : preloaded)
+                guilds.Insert(g);
+            spdlog::info("guild registry: {} guild(s) preloaded",
+                guilds.Size());
+        }
 
         tworldsvr::HandlerContext ctx{};
-        ctx.io      = &io;
-        ctx.db_pool = worker_pool.get();
-        ctx.chars   = &chars;
+        ctx.io         = &io;
+        ctx.db_pool    = worker_pool.get();
+        ctx.chars      = &chars;
+        ctx.guilds     = &guilds;
+        ctx.guild_repo = guild_repo.get();
 
         tworldsvr::WorldServerConfig svr_cfg{};
         svr_cfg.port            = cfg.port;

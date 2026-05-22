@@ -89,4 +89,11 @@ constexpr std::int64_t kGuildWantedPeriodSec = 60LL * 60 * 24 * 14;
 constexpr std::uint8_t kVolunteerKindMember  = 0;
 constexpr std::uint8_t kVolunteerKindTactics = 1;
 
+// Max guild-name length in bytes — matches the legacy MAX_NAME
+// ceiling (50 bytes for the ANSI build the original server runs).
+// The legacy validator at SSHandler.cpp:3056 just compares
+// `GetLength() > MAX_NAME` and drops the request on overflow;
+// we mirror that as a kGuildNameError reply.
+constexpr std::size_t kGuildMaxNameLen = 50;
+
 } // namespace tworldsvr::guild

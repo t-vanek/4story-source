@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-17 leave + kickout DB fan-in
+## Status — W3a-18 guild establishment (create new guild)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -34,13 +34,96 @@ that the four shipped Asio daemons already use.
 | W3a-14 | DB-side fan-in cohort: 5 thin handlers (OnDM_GUILDDUTY/PEER/CONTRIBUTION/LEVEL/POINTREWARD_REQ) + 2 new repo methods (UpdateLevel, LogPointReward) + 6 mut-handler test scenarios | ✅ |
 | W3a-15 | Fame + article DB fan-in (OnDM_GUILDFAME_REQ + OnDM_GUILDARTICLEADD/DEL/UPDATE_REQ) — 4 handlers reusing existing repo methods | ✅ |
 | W3a-16 | Wanted/volunteering DB fan-in (OnDM_GUILDWANTEDADD/DEL_REQ + OnDM_GUILDVOLUNTEERING/INGDEL_REQ) — 4 handlers + GuildWantedRegistry defensive mirror + bType filter on the volunteering pair | ✅ |
-| **W3a-17** | Leave/kickout DB fan-in (OnDM_GUILDLEAVE_REQ + OnDM_GUILDKICKOUT_REQ) — 2 handlers + shared ScrubMembershipInMemory helper completes the W3a-4c MEMBERADD pair | ✅ |
-| W3a-18+ | Tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
+| W3a-17 | Leave/kickout DB fan-in (OnDM_GUILDLEAVE_REQ + OnDM_GUILDKICKOUT_REQ) — 2 handlers + shared ScrubMembershipInMemory helper completes the W3a-4c MEMBERADD pair | ✅ |
+| **W3a-18** | Guild establishment: OnMW_GUILDESTABLISH_ACK creates new guilds in one coroutine (vs. legacy 4-hop map↔world↔DB roundtrip) + IGuildRepository::CreateGuild | ✅ |
+| W3a-19+ | Tactics subsystem (~17) + PvP record / Cabinet item codec + vestigial DM_*_ACK no-ops | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-18 — what landed
+
+The "create new guild" gameplay flow — the handler player
+clients fire when a chief-eligible char opens the guild-create
+UI. Fills the last major gap in the guild lifecycle (load /
+establish / disorganize / extinction now all have handlers).
+
+Legacy splits this across 4 packets because the DB lives in a
+separate process: `map → MW_GUILDESTABLISH_ACK → world →
+DM_GUILDESTABLISH_REQ → DB → DM_GUILDESTABLISH_ACK → world →
+MW_GUILDESTABLISH_REQ → map`. Our SOCI-direct architecture
+collapses it into a single coroutine — validate, persist,
+build registry state, reply. (The corresponding
+`OnDM_GUILDESTABLISH_*` legacy handlers are vestigial in our
+arch and stay deferred.)
+
+Handler — `OnGuildEstablishAck` (wID `MW_GUILDESTABLISH_ACK`)
+- Wire: `{char_id, key, guild_name}`.
+- Gates (in order):
+  - char missing / key mismatch → silent drop (legacy parity)
+  - char already in a guild → `kHaveGuild` reply with empty
+    meta + `bEstablish=1`
+  - name empty or > `kGuildMaxNameLen` (50 bytes) → `kFail`
+  - `repo->CreateGuild` returns nullopt (dup name or DB
+    failure) → `kAlreadyGuildName`
+  - registry insert race → `kEstablishErr`
+- On success: builds `TGuild` with `level=1`, country copied
+  from chief's TChar, chief added as the first
+  `TGuildMember` with `kDutyChief`. `TChar.guild_id`
+  back-pointer wired. `repo->AddMember` queued for the chief
+  membership row. Replies `kSuccess` + new guild_id +
+  `bEstablish=1`.
+
+Repo — new `IGuildRepository::CreateGuild`
+- Signature: `(name, chief_id, country, establish_time_unix)
+  → optional<uint32_t>`. Returns the freshly-assigned guild_id
+  on success, nullopt on dup-name / other failure.
+- Fake impl: scans m_guilds for an existing matching name
+  (nullopt if found), otherwise picks `max(id) + 1` and
+  inserts a fresh TGuild. Records a `Call::kCreateGuild`
+  entry with `guild_id = new_id, a = chief_id, b = country`.
+- SOCI impl: single transaction. SELECT COUNT on szName for
+  the dup check, COALESCE(MAX(dwID), 0) + 1 for the next id
+  (portable — production schemas with IDENTITY get the same
+  effective result), then INSERT. Falls back to nullopt on
+  any SQL exception.
+
+Constants
+- `services/guild_constants.h` gains `kGuildMaxNameLen = 50`
+  (matches legacy MAX_NAME for the ANSI build the original
+  server runs).
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 35-37:
+  - 35: fresh char (Foxtrot, char 600) creates "FoxtrotGuild"
+    end-to-end → registry has the new guild + chief member +
+    back-pointer; repo records both CreateGuild and AddMember
+    calls
+  - 36: char already in a guild (Bob, char 200, chief of
+    guild 8) tries to create another → `kHaveGuild` reply
+  - 37: char Golf (700) tries to create with the same name
+    "FoxtrotGuild" → `kAlreadyGuildName` reply; char stays
+    guild-less
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-19+
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+- PvP record listing (`CTBLGuildPvPointReward` TOP 50)
+- Cabinet item codec
+- Scheduler-driven wanted-entry expiry sweep
+- `OnDM_GUILDUPDATE_REQ` (variable-length alliance/enemy CSV
+  columns — non-trivial wire codec)
+- Vestigial DM_*_ACK no-op handlers
+  (`OnDM_GUILDESTABLISH_ACK`,
+  `OnDM_GUILDDISORGANIZATION_ACK`,
+  `OnDM_GUILDEXTINCTION_ACK`) — accept and drop for wire
+  compatibility with a hybrid legacy DB server, no real work
+  needed since our SOCI-direct arch doesn't have a separate
+  DB process to ACK from
 
 ### W3a-17 — what landed
 

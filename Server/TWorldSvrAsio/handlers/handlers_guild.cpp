@@ -1884,6 +1884,178 @@ OnGuildKickoutReq(std::shared_ptr<PeerSession> peer,
         ip, guild_id, char_id, did_work);
 }
 
+// --- W3a-18 guild establishment ------------------------------------
+//
+// "Create new guild" — the gameplay handler player clients fire
+// from the guild-create UI. Legacy splits this across 4 packets
+// because the DB lives in a separate process; our SOCI-direct
+// arch collapses it into a single coroutine.
+
+boost::asio::awaitable<void>
+OnGuildEstablishAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildEstablishAck[{}]: char/guild registry not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   guild_name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(guild_name))
+    {
+        spdlog::warn("OnGuildEstablishAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar)
+    {
+        spdlog::info("OnGuildEstablishAck[{}]: char_id={} not registered "
+                     "— dropped", ip, char_id);
+        co_return;
+    }
+
+    std::uint32_t actual_key  = 0, current_guild = 0;
+    std::string   char_name;
+    std::uint8_t  country = 0, level = 0, klass = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key    = tchar->key;
+        current_guild = tchar->guild_id;
+        char_name     = tchar->name;
+        country       = tchar->country;
+        level         = tchar->level;
+        klass         = tchar->klass;
+    }
+    if (actual_key != key)
+    {
+        spdlog::warn("OnGuildEstablishAck[{}]: char_id={} key mismatch — "
+                     "dropped", ip, char_id);
+        co_return;
+    }
+
+    // Gate 1: char must not already belong to a guild. Legacy
+    // SSHandler.cpp:3043 fires kHaveGuild with bEstablish=1 (so
+    // the client knows this came from the create path, not a
+    // load reconfirm).
+    if (current_guild != 0)
+    {
+        co_await senders::SendMwGuildEstablishReq(peer, char_id, key,
+            guild::kHaveGuild, /*guild_id=*/0, guild_name,
+            /*establish=*/1);
+        spdlog::info("OnGuildEstablishAck[{}]: char_id={} already in "
+                     "guild_id={} — replied kHaveGuild",
+            ip, char_id, current_guild);
+        co_return;
+    }
+
+    // Gate 2: name length cap. Legacy at SSHandler.cpp:3056 just
+    // drops silently; we surface kFail so the client UI can show
+    // a generic "name too long" message instead of hanging.
+    if (guild_name.empty() ||
+        guild_name.size() > guild::kGuildMaxNameLen)
+    {
+        co_await senders::SendMwGuildEstablishReq(peer, char_id, key,
+            guild::kFail, /*guild_id=*/0, guild_name,
+            /*establish=*/1);
+        spdlog::info("OnGuildEstablishAck[{}]: char_id={} name length={} "
+                     "out of bounds — replied kFail",
+            ip, char_id, guild_name.size());
+        co_return;
+    }
+
+    // Persist + assign id. Note CoOffloadIf (non-void) returns
+    // the optional<uint32_t> back through the coroutine.
+    const std::int64_t establish_time =
+        static_cast<std::int64_t>(std::time(nullptr));
+    std::optional<std::uint32_t> new_id;
+    if (ctx.guild_repo)
+    {
+        new_id = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_name, char_id, country,
+             establish_time] {
+                return repo->CreateGuild(guild_name, char_id, country,
+                    establish_time);
+            });
+    }
+    if (!new_id)
+    {
+        // DB rejected (duplicate name or other failure). Legacy
+        // CSPGuildEstablish returns bRet=2 for dup-name; we can't
+        // distinguish without a richer return type so we send the
+        // safer kAlreadyGuildName (more informative than kFail).
+        co_await senders::SendMwGuildEstablishReq(peer, char_id, key,
+            guild::kAlreadyGuildName, /*guild_id=*/0, guild_name,
+            /*establish=*/1);
+        spdlog::info("OnGuildEstablishAck[{}]: char_id={} name='{}' "
+                     "create rejected (likely dup or no repo) — replied "
+                     "kAlreadyGuildName", ip, char_id, guild_name);
+        co_return;
+    }
+
+    // Build in-memory state. Insert into the registry then add the
+    // chief as the first member under the new guild's lock.
+    auto guild = std::make_shared<TGuild>();
+    guild->id             = *new_id;
+    guild->name           = guild_name;
+    guild->chief_char_id  = char_id;
+    guild->chief_name     = char_name;
+    guild->country        = country;
+    guild->level          = 1;
+    guild->establish_time = establish_time;
+    {
+        TGuildMember m;
+        m.char_id  = char_id;
+        m.guild_id = *new_id;
+        m.duty     = guild::kDutyChief;
+        m.name     = char_name;
+        m.level    = level;
+        m.klass    = klass;
+        guild->members.push_back(std::move(m));
+    }
+    if (!ctx.guilds->Insert(guild))
+    {
+        // Lost an insert race against another coroutine that
+        // beat us to the same id. Extremely unlikely given the
+        // DB just gave us a fresh id, but treat as kEstablishErr.
+        spdlog::warn("OnGuildEstablishAck[{}]: lost registry insert "
+                     "race for new guild_id={}", ip, *new_id);
+        co_await senders::SendMwGuildEstablishReq(peer, char_id, key,
+            guild::kEstablishErr, *new_id, guild_name, /*establish=*/1);
+        co_return;
+    }
+
+    // Link the chief's back-pointer + persist the chief
+    // membership row. The TGUILDTABLE row already exists from
+    // CreateGuild; AddMember adds the corresponding
+    // TGUILDMEMBERTABLE row for the chief.
+    {
+        std::lock_guard g(tchar->lock);
+        tchar->guild_id = *new_id;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, new_id, level] {
+                repo->AddMember(char_id, *new_id, level,
+                    guild::kDutyChief);
+            });
+    }
+
+    co_await senders::SendMwGuildEstablishReq(peer, char_id, key,
+        guild::kSuccess, *new_id, guild_name, /*establish=*/1);
+    spdlog::info("OnGuildEstablishAck[{}]: char_id={} created guild_id={} "
+                 "name='{}' country={}",
+        ip, char_id, *new_id, guild_name, country);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

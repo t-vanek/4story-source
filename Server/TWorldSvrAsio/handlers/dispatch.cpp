@@ -212,7 +212,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildKickoutReq(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W3a-18+ picks up tactics subsystem, cabinet item codec,
+    // ---- W3a-18: guild establishment ---------------------------
+    case MessageId::MW_GUILDESTABLISH_ACK:
+        co_await OnGuildEstablishAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-19+ picks up tactics subsystem, cabinet item codec,
     // PvP record listing. … see README §4.
 
     default:

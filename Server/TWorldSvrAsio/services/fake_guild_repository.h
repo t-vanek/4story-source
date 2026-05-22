@@ -67,6 +67,11 @@ public:
                         const std::string& recipient_name,
                         std::uint32_t total_point,
                         std::uint32_t useable_point) override;
+    std::optional<std::uint32_t> CreateGuild(const std::string& name,
+                                              std::uint32_t chief_id,
+                                              std::uint8_t  country,
+                                              std::int64_t  establish_time_unix)
+        override;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -79,7 +84,8 @@ public:
                           kAddArticle, kDelArticle, kUpdateArticle,
                           kDeleteGuild, kAddWanted, kDeleteWanted,
                           kAddVolunteerApp, kDelVolunteerApp,
-                          kUpdatePvPoints, kUpdateLevel, kLogPointReward };
+                          kUpdatePvPoints, kUpdateLevel, kLogPointReward,
+                          kCreateGuild };
         Kind          kind;
         std::uint32_t guild_id = 0;
         std::uint32_t char_id  = 0;

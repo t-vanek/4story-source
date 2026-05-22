@@ -177,6 +177,26 @@ public:
                                 std::uint32_t useable_point,
                                 std::uint32_t month_point) = 0;
 
+    // --- W3a-18 guild establishment ------------------------------
+
+    // Insert a fresh TGUILDTABLE row + assign a new guild_id.
+    // Returns the new id on success, nullopt when the name is
+    // already taken (legacy CSPGuildEstablish returns bRet=2 for
+    // that case; we just collapse it to a None). Mirrors the SP
+    // signature at SSHandler.cpp:3068 / DBAccess.h:1633 — name +
+    // chief_id + establish_time, with output result + id.
+    //
+    // The new guild starts at level 1, country = chief's country
+    // (caller passes it explicitly since chars live in a separate
+    // registry), and no members other than the chief (caller adds
+    // that via AddMember in the same coroutine — same legacy
+    // pattern at SSHandler.cpp:3143).
+    virtual std::optional<std::uint32_t>
+    CreateGuild(const std::string& name,
+                std::uint32_t      chief_id,
+                std::uint8_t       country,
+                std::int64_t       establish_time_unix) = 0;
+
     // --- W3a-14 DB-side fan-in updates ---------------------------
 
     // Update TGUILDTABLE.bLevel for one guild. Mirrors CSPGuildLevel

@@ -55,6 +55,12 @@ AppConfig LoadConfig(const std::string& path)
                 throw std::runtime_error("server.max_connections out of range");
             cfg.max_connections = static_cast<std::uint32_t>(*m);
         }
+        if (auto n = (*srv)["nation"].value<std::int64_t>())
+        {
+            if (*n < 0 || *n > 255)
+                throw std::runtime_error("server.nation out of range (0..255)");
+            cfg.nation = static_cast<std::uint8_t>(*n);
+        }
     }
     if (auto db = tbl["database"].as_table())
     {

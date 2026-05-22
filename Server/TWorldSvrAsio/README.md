@@ -9,22 +9,50 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-1 guild infrastructure
+## Status — W3a-2 peer session + relay handshake
 
 | Phase | Scope | Status |
 |---|---|---|
 | W1 | Scaffold + transport + dispatch stub | ✅ |
 | W2 | CharRegistry (partitioned) + SessionPool + worker thread_pool + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
-| **W3a-1** | GuildRegistry + IGuildRepository (SOCI + Fake) + schema validator + DM_GUILDLOAD_ACK | ✅ |
-| W3a-2 | PeerSession + SSSender (~30 senders) + 30 more guild handlers (Establish / Update / Disorg / Member add+leave+duty) | ⏸ |
-| W3a-3 | Remaining ~45 guild handlers (tactics / volunteers / articles / cabinet / fame / contribution / PvP point) | ⏸ |
+| W3a-1 | GuildRegistry + IGuildRepository (SOCI + Fake) + schema validator + DM_GUILDLOAD_ACK | ✅ |
+| **W3a-2** | PeerSession + PeerRegistry + first SSSender batch (RW_RELAYSVR_ACK + MW_GUILDESTABLISH_REQ) + OnRW_RELAYSVR_REQ + MW_ADDCHAR_ACK gains real server_id + OnGuildLoadAck fires its reply | ✅ |
+| W3a-3 | OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ + ~25 mutating guild handlers (Establish / Update / Disorg / Member add+leave+duty / Kickout) + remaining ~50 guild handlers in follow-up batches | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-### W3a-1 — what's done, what's deferred
+### W3a-2 — what landed
+
+PeerSession wraps every accepted WorldSession so handlers see
+map-server identity (wID + nation flag) without going through
+PeerRegistry on every packet. PeerRegistry indexes the live
+peers by wID; OnRelaysvrReq registers the peer on RW_RELAYSVR_REQ
+and WorldServer's HandleConnection exit-path unregisters cleanly.
+The dispatch signature changes to `shared_ptr<PeerSession>` —
+all char/guild handlers updated.
+
+The first batch of SSSender lands under `senders/senders_*.cpp`:
+* `SendRwRelaysvrAck` — reply to RW_RELAYSVR_REQ (nation + empty
+  operator/msg lists; full lists arrive in W5 castle-war).
+* `SendMwGuildEstablishReq` — completes the OnGuildLoadAck round
+  trip (was a TODO in W3a-1; now actually fires the ACK back to
+  the originating map server).
+
+OnAddCharAck now stamps the real `server_id` (LOBYTE of peer wID)
+on the inserted `TCharCon` — closes a W2 TODO. OnGuildLoadAck
+now sends its long-pending MW_GUILDESTABLISH_REQ reply, completing
+the legacy `SSHandler.cpp:9019` round-trip.
+
+New tests: `test_peer_registry` (6 scenarios — empty, Register,
+sentinel rejection, duplicate retains original, idempotent
+Unregister, Snapshot) and `test_relay_handlers` (5 wire scenarios
+— register+ACK with nation echo, sentinel reject, duplicate-wID
+on a second socket keeps original entry, disconnect unregisters).
+
+### W3a-1 — what was done
 
 The 76 guild handlers split into three PRs because the W3a-1
 **infrastructure** alone (registry + repo + schema validator + 1
@@ -64,27 +92,26 @@ wiring without infrastructure churn.
   (4 wire scenarios + framer-survives-truncated-body), and
   `test_fake_guild_repo` (deep-copy isolation + nullopt on miss).
 
-**Deferred to W3a-2 (each gated on a piece that doesn't exist yet):**
-* **PeerSession wrapper** — every handler that needs to know which
-  map server is on the other end. RW_RELAYSVR_REQ sets the wID;
-  PeerRegistry indexes the live peers. `OnGuildLoadAck`'s
-  `SendMW_GUILDESTABLISH_REQ` reply blocks on this.
-* **SSSender layer** — the 4046 LOC counterpart to
-  `Server/TWorldSvr/SSSender.cpp`. ~30 senders ship with W3a-2
-  (`SendMW_GUILDESTABLISH_REQ` / `_INFO_ACK` / `_MEMBERLIST_ACK`
-  / `_DISORGANIZATION_ACK` / etc.).
-* **Cabinet item parser** — `OnGuildLoadAck` currently skips
-  `wCabinetCount` items because the legacy `CreateItem` consumes
-  a multi-field struct (Lib/Own/TProtocol). W3a-2 lands the item
-  codec and the `TGuildItem` storage.
-* **Guild-level table** (`FindGuildLevel(bLevel)` → max members,
-  cabinet size, etc.) — a separate small table-cache PR;
-  unrelated to handler porting.
-
-**Deferred to W3a-3:**
-* The remaining ~45 guild handlers (tactics members, alliance,
-  volunteers, articles board, PvP record, fame contribution,
-  point rewards).
+**Deferred to W3a-3 (each gated on a piece that doesn't exist yet):**
+* **OnRW_ENTERCHAR_REQ** — needs `CharRegistry::FindByName`
+  (secondary name index) + the per-char `country` / `name` fields
+  that arrive with the W2 OnMW_CHANGECHARBASE_ACK port.
+* **OnRW_RELAYCONNECT_REQ** — needs `PeerRegistry::Find` (already
+  shipped in W3a-2) plus `SendMW_RELAYCONNECT_REQ` (one-line
+  sender, lands with the next batch).
+* **Cabinet item codec** — OnGuildLoadAck still skips items.
+  The legacy `Lib/Own/TProtocol/ITEM` struct is non-trivial; W3a-3
+  ports both the codec and the storage container.
+* **Guild-level table cache** (`FindGuildLevel(bLevel)`) — a small
+  separate read-only table; lands with the first mutating handler
+  that needs it (probably `MW_GUILDLEAVE_ACK`).
+* **~25 mutating guild handlers** — Establish / Update / Disorg /
+  Member add+leave+duty / Kickout / Fame / Contribution / Peer.
+  Each adds 1–2 senders to the sender table.
+* **Cluster-wide RELAYCONNECT broadcast** — when a relay registers,
+  legacy fans an MW_RELAYCONNECT_REQ to every other peer. Drops
+  in once the broadcast helper lands (it's also needed by the
+  W3a-3 announcement/chat-broadcast handlers).
 
 ### W2 — what's done, what's deferred
 
@@ -173,6 +200,8 @@ Server/TWorldSvrAsio/
 │                                     max_connections gate
 ├── world_session.{h,cpp}           — CPacket framing per peer
 │                                     (plain TCP, no RC4 on SS link)
+├── peer_session.h                  — wraps WorldSession with wID +
+│                                     nation (per-map-server identity)
 ├── db/
 │   ├── schema_validator.h          — boot-time TGUILD* column check
 │   └── schema_validator.cpp        — required + optional probes
@@ -184,14 +213,22 @@ Server/TWorldSvrAsio/
 │   ├── guild_repository.h          — IGuildRepository interface
 │   ├── fake_guild_repository.{h,cpp}
 │   │                               — in-memory test impl w/ seed
-│   └── soci_guild_repository.{h,cpp}
-│                                   — SOCI impl, batched LoadAll
+│   ├── soci_guild_repository.{h,cpp}
+│   │                               — SOCI impl, batched LoadAll
+│   └── peer_registry.{h,cpp}       — by-wID hash index of live
+│                                     PeerSession objects
 ├── handlers/
 │   ├── handlers.h                  — HandlerContext + decls
 │   ├── dispatch.cpp                — switch on wID, drops unknown
 │   ├── handlers_char.cpp           — MW_ADDCHAR_ACK +
 │   │                                 MW_CLOSECHAR_ACK
-│   └── handlers_guild.cpp          — DM_GUILDLOAD_ACK (W3a-1)
+│   ├── handlers_guild.cpp          — DM_GUILDLOAD_ACK
+│   └── handlers_relay.cpp          — RW_RELAYSVR_REQ (W3a-2)
+├── senders/
+│   ├── senders.h                   — outbound packet builders;
+│   │                                 family-file split inside
+│   ├── senders_relay.cpp           — SendRwRelaysvrAck
+│   └── senders_guild.cpp           — SendMwGuildEstablishReq
 ├── wire_codec.h                    — POD reader/writer + length-
 │                                     prefixed string (CPacket layout)
 └── tests/
@@ -203,15 +240,20 @@ Server/TWorldSvrAsio/
     │                                 concurrent insert)
     ├── test_guild_handlers.cpp     — 4 wire scenarios + framer-
     │                                 survives-truncated-body
-    └── test_fake_guild_repository.cpp
-                                    — deep-copy isolation + nullopt
+    ├── test_fake_guild_repository.cpp
+    │                               — deep-copy isolation + nullopt
+    ├── test_peer_registry.cpp      — 6 scenarios for Register /
+    │                                 Find / Unregister (W3a-2)
+    └── test_relay_handlers.cpp     — 5 wire scenarios for
+                                      RW_RELAYSVR_REQ / ACK (W3a-2)
 ```
 
-W3a-2 adds `peer_session.h`, `peer_registry.{h,cpp}`, the first
-~30 SSSender functions (`senders/senders_guild.{h,cpp}`), and ~30
+W3a-3 lands OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ + ~25
 mutating guild handlers (Establish / Update / Disorg / Member
-add+leave+duty / Kickout). W3a-3 fills tactics / volunteers /
-articles / cabinet / fame / contribution.
+add+leave+duty / Kickout / Fame / Peer / Contribution) plus the
+cabinet item codec and the guild-level table cache. The remaining
+~50 guild handlers (tactics / volunteers / articles / pvp record /
+point reward) ship in W3a-4.
 
 ## 2. Build
 

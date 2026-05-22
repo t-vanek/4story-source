@@ -39,10 +39,14 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/dispatch.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_char.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_guild.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
-    ${TWORLD_ASIO_SRC}/services/soci_guild_repository.cpp)
+    ${TWORLD_ASIO_SRC}/services/soci_guild_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/peer_registry.cpp)
 
 target_include_directories(tworldsvr_asio_core PUBLIC
     ${TWORLD_ASIO_SRC})
@@ -128,3 +132,24 @@ target_link_libraries(test_tworldsvr_asio_fake_guild_repo PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_fake_guild_repo
     COMMAND test_tworldsvr_asio_fake_guild_repo)
+
+# W3a-2 unit test: PeerRegistry lifecycle (Register / Find /
+# Unregister, duplicate rejection, Snapshot). Pure logic.
+add_executable(test_tworldsvr_asio_peer_registry
+    ${TWORLD_ASIO_SRC}/tests/test_peer_registry.cpp)
+target_link_libraries(test_tworldsvr_asio_peer_registry PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_peer_registry
+    COMMAND test_tworldsvr_asio_peer_registry)
+
+# W3a-2 wire test: drives RW_RELAYSVR_REQ over loopback, asserts
+# (a) PeerRegistry gains an entry under the sent wID, (b) the
+# RW_RELAYSVR_ACK reply carries the configured nation byte and the
+# empty operator + msg lists. Verifies the full Wire → PeerSession
+# → Registry path that W3a-3 handlers depend on.
+add_executable(test_tworldsvr_asio_relay_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_relay_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_relay_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_relay_handlers
+    COMMAND test_tworldsvr_asio_relay_handlers)

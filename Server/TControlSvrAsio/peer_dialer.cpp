@@ -7,6 +7,8 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/redirect_error.hpp>
+#include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
@@ -83,7 +85,48 @@ PeerDialer::Dial(const ServiceInstance& svc)
         co_return res;
     }
 
-    auto wire = std::make_shared<ControlSession>(std::move(sock));
+    // Drive the client-side TLS handshake before publishing the
+    // session. The remote ControlServer is configured for hybrid
+    // detection (PR #46), so its accept loop will see our 0x16
+    // ClientHello and route into the TLS code path.
+    std::shared_ptr<ControlSession> wire;
+    if (m_ssl_ctx != nullptr)
+    {
+        ControlSession::TlsStream stream(std::move(sock), *m_ssl_ctx);
+        boost::system::error_code tls_ec;
+        co_await stream.async_handshake(
+            boost::asio::ssl::stream_base::client,
+            boost::asio::redirect_error(
+                boost::asio::use_awaitable, tls_ec));
+        if (tls_ec)
+        {
+            res.failure_reason = "TLS handshake failed: " + tls_ec.message();
+            spdlog::warn("peer_dialer: dial svc_id={:08x} ({}:{}) — {}",
+                svc.service_id, host, svc.port, res.failure_reason);
+            boost::system::error_code ig;
+            stream.next_layer().close(ig);
+            co_return res;
+        }
+        wire = std::make_shared<ControlSession>(std::move(stream));
+
+        // Outbound CN sanity — ControlSvr expects to talk to a peer
+        // whose cert CN matches an operator-configured identity. We
+        // can't consult TPEER_AUTH from here (no security gate
+        // injected into PeerDialer), so we only log the captured CN
+        // for operator forensics. A future Phase B token model can
+        // bind the dial to the issued access token's scope and make
+        // this a hard check.
+        if (!wire->PeerCommonName().empty())
+        {
+            spdlog::info("peer_dialer: TLS peer CN='{}' on svc_id={:08x}",
+                wire->PeerCommonName(), svc.service_id);
+        }
+    }
+    else
+    {
+        wire = std::make_shared<ControlSession>(std::move(sock));
+    }
+
     auto peer = std::make_shared<PeerSession>(wire, svc);
     m_registry.SetConnection(svc.service_id, peer);
 

@@ -35,7 +35,9 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/config.cpp
     ${TWORLD_ASIO_SRC}/world_session.cpp
     ${TWORLD_ASIO_SRC}/world_server.cpp
-    ${TWORLD_ASIO_SRC}/handlers/dispatch.cpp)
+    ${TWORLD_ASIO_SRC}/handlers/dispatch.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_char.cpp
+    ${TWORLD_ASIO_SRC}/services/char_registry.cpp)
 
 target_include_directories(tworldsvr_asio_core PUBLIC
     ${TWORLD_ASIO_SRC})
@@ -72,3 +74,24 @@ target_link_libraries(test_tworldsvr_asio_dispatch PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_dispatch
     COMMAND test_tworldsvr_asio_dispatch)
+
+# W2 unit test: CharRegistry partitioning + per-char actor model.
+# Exercises Insert / Find / Remove + concurrent inserts across
+# threads + the active-user index. Pure logic — no asio, no DB.
+add_executable(test_tworldsvr_asio_char_registry
+    ${TWORLD_ASIO_SRC}/tests/test_char_registry.cpp)
+target_link_libraries(test_tworldsvr_asio_char_registry PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_char_registry
+    COMMAND test_tworldsvr_asio_char_registry)
+
+# W2 wire test: drives MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK frames
+# through the dispatcher over a loopback session, asserts the
+# CharRegistry state after each. Verifies the binding from
+# wire → handler → registry mutation is correct.
+add_executable(test_tworldsvr_asio_char_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_char_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_char_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_char_handlers
+    COMMAND test_tworldsvr_asio_char_handlers)

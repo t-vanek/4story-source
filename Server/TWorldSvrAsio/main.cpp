@@ -1,25 +1,30 @@
 // Entry point for the modernized TWorldSvrAsio binary.
 //
-// W1 ships the scaffold:
-//   - TOML config (server port, max_connections, health port, log level)
-//   - io_context + signal_set graceful-shutdown
-//   - WorldServer accept loop on plain TCP (no RC4 on SS link)
-//   - Empty HandlerContext — dispatch logs + drops every packet
-//   - HealthEndpoint on the configured port
+// W2 (this revision) adds:
+//   - SessionPool + DB worker thread_pool when [database] is set
+//     (used by W3+ guild / friend / soulmate SOCI handlers)
+//   - CharRegistry — the partitioned in-memory char index that
+//     replaces the legacy `m_mapTCHAR` single-lock map. Closes
+//     the in-memory half of PATCH_README §6 W-2.
+//   - First batch of char-lifecycle handlers
+//     (MW_ADDCHAR_ACK, MW_CLOSECHAR_ACK)
 //
-// W2 layers on the SOCI [database] config, the char persistence
-// repository, and the first batch of CHAR / USER / OnRW handlers.
-// See Server/TWorldSvrAsio/README.md for the full phasing.
+// W3+ layers on guild / party / corps services + the peer dialer
+// that lets handlers send replies back to the right map server.
+// See Server/TWorldSvrAsio/README.md for the phase plan.
 
 #include "config.h"
+#include "services/char_registry.h"
 #include "world_server.h"
 
+#include "fourstory/db/session_pool.h"
 #include "fourstory/ops/health_endpoint.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -32,7 +37,7 @@ namespace {
 void Usage()
 {
     std::printf(
-        "tworldsvr_asio — modernized 4Story cluster coordinator (W1 scaffold)\n"
+        "tworldsvr_asio — modernized 4Story cluster coordinator (W2)\n"
         "Usage: tworldsvr_asio [--config FILE]\n");
 }
 } // namespace
@@ -65,12 +70,60 @@ int main(int argc, char** argv)
             io.stop();
         });
 
-        // W1 ships an empty HandlerContext — the io_context is the
-        // only wire that handlers can reach back through (none do
-        // yet). W2 fills char_repo / chars; W3 fills guild / party /
-        // corps; … see README.md.
+        // --- DB infrastructure (W2) -------------------------------
+        //
+        // Pool sizing follows TLoginSvrAsio / TControlSvrAsio: N
+        // SOCI sessions + a worker thread_pool that handlers offload
+        // synchronous SOCI calls onto via fourstory::db::CoOffloadIf.
+        // Both are nullable — no [database] section keeps the boot
+        // path light for dev runs (just the in-memory char registry,
+        // no DB roundtrips).
+        std::unique_ptr<fourstory::db::SessionPool>      db_pool_owner;
+        std::unique_ptr<boost::asio::thread_pool>        worker_pool;
+
+        if (!cfg.database.connection_string.empty())
+        {
+            if (cfg.database.backend.empty())
+                throw std::runtime_error(
+                    "database.connection_string set but database.backend empty");
+            const auto backend =
+                fourstory::db::ParseBackend(cfg.database.backend);
+            db_pool_owner = std::make_unique<fourstory::db::SessionPool>(
+                backend, cfg.database.connection_string,
+                cfg.database.pool_size);
+
+            if (cfg.database.worker_threads > 0)
+            {
+                worker_pool = std::make_unique<boost::asio::thread_pool>(
+                    cfg.database.worker_threads);
+                spdlog::info("db worker pool: {} threads",
+                    cfg.database.worker_threads);
+            }
+            else
+            {
+                spdlog::info("db worker pool: disabled "
+                             "(SOCI runs in-line on io_context — dev only)");
+            }
+            spdlog::info("db: {} pool_size={} ready",
+                fourstory::db::BackendName(backend), cfg.database.pool_size);
+        }
+        else
+        {
+            spdlog::info("no [database] — char registry is the only "
+                         "persistence layer (legacy parity for W2)");
+        }
+
+        // --- Char registry (W2 — closes the in-memory half of W-2) -
+        //
+        // Per-shard locking + per-char actor model. Stays alive for
+        // the entire process lifetime; sessions hold raw pointers
+        // through HandlerContext.
+        tworldsvr::CharRegistry chars;
+
         tworldsvr::HandlerContext ctx{};
-        ctx.io = &io;
+        ctx.io      = &io;
+        ctx.db_pool = worker_pool.get();
+        ctx.chars   = &chars;
 
         tworldsvr::WorldServerConfig svr_cfg{};
         svr_cfg.port            = cfg.port;
@@ -102,6 +155,15 @@ int main(int argc, char** argv)
         }
 
         io.run();
+
+        // Drain in-flight SOCI work before tearing the pool down so
+        // a query doesn't keep a session reference alive past the
+        // pool's destructor.
+        if (worker_pool)
+        {
+            worker_pool->stop();
+            worker_pool->join();
+        }
     }
     catch (const std::exception& ex)
     {

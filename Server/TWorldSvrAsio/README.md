@@ -9,18 +9,75 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W1 scaffold
+## Status — W2 char registry
 
 | Phase | Scope | Status |
 |---|---|---|
-| **W1** | Scaffold + transport + dispatch stub | ✅ |
-| W2 | Char persistence (CHAR + USER + OnRW + ADDCHAR / CHANGECHARBASE / ACTIVECHARUPDATE / CHECKCONNECT) + SociCharRepository | ⏸ |
-| W3a | Guild — 76 handlers, own PR | ⏸ |
+| W1 | Scaffold + transport + dispatch stub | ✅ |
+| **W2** | CharRegistry (partitioned) + SessionPool + worker thread_pool + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
+| W3a | Guild — 76 handlers, own PR (needs CharRegistry from W2 + SOCI infrastructure + peer-session abstraction) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W2 — what's done, what's deferred
+
+A grep of the legacy code showed that **TWorldSvr does NOT load
+characters from the database** — it's a cluster-wide in-memory
+index of chars that map servers have already loaded. The legacy
+`DBAccess.h` has 78 `CSP*` stored-procedure wrappers but none of
+them are char-load (the char-load CSPs live in TLoginSvr +
+TMapSvr). So "char persistence" in TWorld really means **char
+registry** — the in-memory `m_mapTCHAR` + `m_mapACTIVEUSER` —
+which is exactly the global-lock target named in PATCH_README §6
+W-2.
+
+**Done in W2:**
+* `services/char_registry.{h,cpp}` — 16-shard hash map with
+  per-shard `std::shared_mutex` (fast read path under the W3
+  guild lookups) + per-char `std::mutex` for field-level mutation
+  ("per-char actor model" from W-2). Active-user index is a
+  separate sharded set.
+* DB infrastructure in `main.cpp` — when `[database]` is set, a
+  `fourstory::db::SessionPool` + `boost::asio::thread_pool` come
+  up. W2 doesn't issue any queries; W3a is the first phase that
+  exercises this.
+* `handlers/handlers_char.cpp` — `OnAddCharAck` (MW_ADDCHAR_ACK)
+  inserts into the registry, marks user active, and handles the
+  "additional connection" branch (TCharCon push). `OnCloseCharAck`
+  (MW_CLOSECHAR_ACK) removes the entry, deactivates the user
+  when no other char of theirs is online.
+* Tests: `test_char_registry` (6 scenarios — insert/find/remove,
+  duplicate-insert rejection, snapshot consistency, active-user
+  index, concurrent inserts × 16k chars, shared_ptr lifetime),
+  `test_char_handlers` (5 wire scenarios — happy path, additional
+  connection, wrong key, close + user deactivation, stale close).
+
+**Deferred to W3+ (each gated on a piece that doesn't exist yet):**
+* **Peer-server registry** — `OnAddCharAck` records
+  `TCharCon::server_id = 0` because the WorldSession doesn't yet
+  carry the map-server's `wID`. W3 introduces a `PeerSession`
+  wrapper (parallel to `Server/TControlSvrAsio/peer_session.h`)
+  that knows which map server is on the other end.
+* **`SendMW_ENTERSVR_REQ`** — the ACK back to the map server
+  saying "yes, the char is registered". Requires a sender layer
+  (TWorldSvr's `SSSender.cpp` counterpart) which is 4046 LOC; the
+  first batch lands with the W3a guild work because the guild
+  acks need it too.
+* **`SendMW_INVALIDCHAR_REQ`** — fired on wrong-key collision
+  ("possible session hijack" branch in the legacy module). Same
+  blocker as ENTERSVR_REQ.
+* **Cross-map `MW_DELCHAR_REQ` cleanup** — when CLOSECHAR_ACK
+  arrives for an unknown char (stale close), the legacy server
+  fires DELCHAR back to the map so the map cleans up its half.
+  W2 logs it and skips; the map server's own close-loop converges
+  the state without our reply.
+* **Guild/party/BR/BoW side-effects on ADDCHAR_ACK** — the
+  legacy module touches `m_pBOWModule`, `m_pBRModule`, and looks
+  up guild membership when a char enters. Each of those modules
+  is its own W3+/W6 PR.
 
 The W2..W7 split was sized against a real `grep` of
 `Server/TWorldSvr/SSHandler.cpp` (287 unique handlers across 4
@@ -45,27 +102,39 @@ Server/TWorldSvrAsio/
 ├── CMakeLists.txt                  — wired into root CMakeLists.txt
 ├── README.md                       — this file
 ├── tworldsvr.example.toml          — annotated reference TOML
-├── main.cpp                        — boot, signal handling, HandlerContext
+├── main.cpp                        — boot, signals, SessionPool +
+│                                     worker pool + CharRegistry
 ├── config.{h,cpp}                  — toml++ → AppConfig POD
 ├── world_server.{h,cpp}            — accept loop on DEF_WORLDPORT,
 │                                     max_connections gate
 ├── world_session.{h,cpp}           — CPacket framing per peer
 │                                     (plain TCP, no RC4 on SS link)
+├── services/
+│   ├── char_registry.h             — 16-shard partitioned char
+│   │                                 index + active-user set
+│   └── char_registry.cpp           — Insert / Find / Remove +
+│                                     concurrent shard locking
 ├── handlers/
-│   ├── handlers.h                  — HandlerContext + Dispatch decl
-│   └── dispatch.cpp                — W1: logs + drops every wID
-├── wire_codec.h                    — POD reader/writer + length-prefixed
-│                                     string (matches CPacket layout)
+│   ├── handlers.h                  — HandlerContext + decls
+│   ├── dispatch.cpp                — switch on wID, drops unknown
+│   └── handlers_char.cpp           — MW_ADDCHAR_ACK +
+│                                     MW_CLOSECHAR_ACK
+├── wire_codec.h                    — POD reader/writer + length-
+│                                     prefixed string (CPacket layout)
 └── tests/
-    └── test_dispatch.cpp           — known wID + unknown wID + checksum
-                                      mismatch on one loopback socket
+    ├── test_dispatch.cpp           — wire framing + checksum
+    ├── test_char_registry.cpp      — 6 scenarios (incl. 16k-char
+    │                                 concurrent insert)
+    └── test_char_handlers.cpp      — 5 wire scenarios for ADD/CLOSE
 ```
 
-W2 lands `db/schema_validator.cpp`, `services/char_registry.{h,cpp}`,
-`services/soci_char_repository.{h,cpp}`, and the per-family
-`handlers/handlers_char.cpp`. The dispatch.cpp switch grows one
-case per ported handler; the family-file split keeps the switch
-flat (parallel to `Server/TControlSvrAsio/handlers/handlers_*.cpp`).
+W3a adds `services/guild_registry.{h,cpp}`,
+`services/guild_repository.h`, `services/soci_guild_repository.{h,cpp}`,
+`db/schema_validator.{h,cpp}` (TGUILD + TGUILDMEMBER columns),
+`handlers/handlers_guild.cpp` (76 handlers), and a peer-session
+wrapper (`peer_session.h` parallel to TControlSvrAsio's). The
+W2 char registry stays put — W3a guild handlers look chars up
+through it, never duplicate state.
 
 ## 2. Build
 
@@ -121,11 +190,11 @@ so realistic effort per phase is **2× the handler count** (handler
 
 From PATCH_README §6:
 
-| ID | Severity | Patch | Lands in |
+| ID | Severity | Patch | Status |
 |---|---|---|---|
-| W-1 | 🟡 | Async DB + per-shard write queue (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | W2 (introduces `db_pool`) + each subsequent SOCI repo |
-| W-2 | 🟡 | Partition the global `m_mapTCHAR` / `m_mapTGuild` locks (per-char actor model, per-guild grain) | W2 (char registry) + W3a (guild registry) |
-| W-3 | ❌ | TWorldSvrAsio binary doesn't exist yet | **✅ W1 — closed by this scaffold** |
+| W-1 | 🟡 | Async DB + per-shard write queue (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | 🟡 W2 wires `SessionPool` + `boost::asio::thread_pool`; no queries issued yet (W3a guild is the first consumer) |
+| W-2 | 🟡 | Partition the global `m_mapTCHAR` / `m_mapTGuild` locks (per-char actor model, per-guild grain) | 🟡 **char half done in W2** (16-shard registry + per-char mutex). Guild half lands in W3a. |
+| W-3 | ✅ | TWorldSvrAsio binary doesn't exist yet | ✅ closed by W1 scaffold |
 
 Other related concerns from `_rewrite/docs/MODERNIZATION_PLAN.md`:
 

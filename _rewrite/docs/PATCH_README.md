@@ -186,9 +186,9 @@ constraint.
 
 | ID | Severity | Patch | Status |
 |---|---|---|---|
-| W-1 | 🟡 | Async DB + per-shard write queue with connection pool (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | ❌ planned (W2) |
-| W-2 | 🟡 | Global maps (`m_mapTCHAR`, `m_mapTGuild`) under one lock — partition (per-guild grain, per-char actor model) | ❌ planned (W2 char / W3a guild) |
-| W-3 | ✅ | TWorldSvrAsio binary exists — W1 ships the scaffold (TOML config, accept loop, packet framing, dispatch stub). See [`Server/TWorldSvrAsio/README.md`](../../Server/TWorldSvrAsio/README.md) for the W2..W7 phasing. | ✅ |
+| W-1 | 🟡 | Async DB + per-shard write queue with connection pool (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | 🟡 **infrastructure landed in W2** (SessionPool + boost::asio::thread_pool wired in `main.cpp`); first SOCI consumer arrives with W3a guild. |
+| W-2 | 🟡 | Global maps (`m_mapTCHAR`, `m_mapTGuild`) under one lock — partition (per-guild grain, per-char actor model) | 🟡 **char half done in W2** — 16-shard `CharRegistry` + per-char mutex (services/char_registry.h). Guild half lands in W3a. |
+| W-3 | ✅ | TWorldSvrAsio binary exists — W1 ships the scaffold, W2 adds char registry + first 2 handlers. See [`Server/TWorldSvrAsio/README.md`](../../Server/TWorldSvrAsio/README.md) for the W3..W7 phasing. | ✅ |
 
 ---
 

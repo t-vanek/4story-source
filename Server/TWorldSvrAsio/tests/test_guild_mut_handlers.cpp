@@ -20,6 +20,7 @@
 #include "../services/fake_guild_repository.h"
 #include "../services/guild_constants.h"
 #include "../services/guild_registry.h"
+#include "../services/guild_wanted_registry.h"
 #include "../services/peer_registry.h"
 #include "../wire_codec.h"
 #include "../world_server.h"
@@ -269,14 +270,16 @@ int main()
     tworldsvr::CharRegistry  chars;
     tworldsvr::GuildRegistry guilds;
     tworldsvr::PeerRegistry  peers;
+    tworldsvr::GuildWantedRegistry guild_wanted;
     tworldsvr::FakeGuildRepository fake_repo;
     tworldsvr::HandlerContext ctx{};
-    ctx.io         = &io;
-    ctx.chars      = &chars;
-    ctx.guilds     = &guilds;
-    ctx.peers      = &peers;
-    ctx.guild_repo = &fake_repo;
-    ctx.nation     = 0;
+    ctx.io           = &io;
+    ctx.chars        = &chars;
+    ctx.guilds       = &guilds;
+    ctx.peers        = &peers;
+    ctx.guild_wanted = &guild_wanted;
+    ctx.guild_repo   = &fake_repo;
+    ctx.nation       = 0;
 
     tworldsvr::WorldServerConfig svr_cfg{};
     svr_cfg.port = 0;
@@ -1201,6 +1204,188 @@ int main()
         EXPECT(saw_upd);
     }
 
+    // --- Scenario 27: DM_GUILDWANTEDADD_REQ (W3a-16 fan-in) -------
+    //
+    // WANTED ADD fan-in: looks up guild_id=8 in the registry to
+    // pick country + name, computes end_time = now + 14 days,
+    // mirrors into GuildWantedRegistry + persists via repo.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 10);     // min_level
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 50);     // max_level
+        tworldsvr::wire::WriteString(body, "DB-pushed posting");
+        tworldsvr::wire::WriteString(body, "Looking for raiders");
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDWANTEDADD_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kAddWanted
+                && c.guild_id == 8)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_add = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kAddWanted
+                && c.guild_id == 8)
+            { saw_add = true; break; }
+        }
+        EXPECT(saw_add);
+        // Registry should have the entry.
+        EXPECT(guild_wanted.Find(8).has_value());
+    }
+
+    // --- Scenario 28: DM_GUILDWANTEDDEL_REQ (W3a-16 fan-in) -------
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDWANTEDDEL_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        if (!guild_wanted.Find(8).has_value()) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        EXPECT(!guild_wanted.Find(8).has_value());
+        bool saw_del = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kDeleteWanted
+                && c.guild_id == 8)
+            { saw_del = true; break; }
+        }
+        EXPECT(saw_del);
+    }
+
+    // --- Scenario 29: DM_GUILDVOLUNTEERING_REQ (W3a-16 fan-in) ----
+    //
+    // VOLUNTEERING ADD fan-in needs a wanted entry to attach
+    // the applicant to. Re-add guild 8's wanted, then push the
+    // applicant via DM. Then verify the app landed in the
+    // registry + persistence call ran. bType=kMember (=0) here;
+    // bType=kTactics path is exercised by scenario 30.
+    {
+        // Recreate wanted entry first.
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 1);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 99);
+        tworldsvr::wire::WriteString(body, "Recruiting again");
+        tworldsvr::wire::WriteString(body, "All welcome");
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDWANTEDADD_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        if (guild_wanted.Find(8).has_value()) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    EXPECT(guild_wanted.Find(8).has_value());
+    // Push volunteering for char 400 (Carol — added in scenario 14).
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kVolunteerKindMember);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 400); // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);   // wanted_id
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDVOLUNTEERING_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kAddVolunteerApp
+                && c.char_id == 400 && c.guild_id == 8)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_add_app = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kAddVolunteerApp
+                && c.char_id == 400 && c.guild_id == 8)
+            { saw_add_app = true; break; }
+        }
+        EXPECT(saw_add_app);
+        // Note: Carol (char 400) joined guild 8 in scenario 14, so
+        // the registry's AddApp gate may reject (already in a guild
+        // → kHaveGuild equivalent). The handler logs that
+        // divergence but still persists — that's the DB-authoritative
+        // contract. Either way, the persistence call ran.
+    }
+
+    // --- Scenario 30: DM_GUILDVOLUNTEERING_REQ kTactics dropped ---
+    //
+    // Tactics applicants get logged + dropped (subsystem ports
+    // later). No persistence call should land for this type.
+    const auto pre_calls = fake_repo.Calls().size();
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kVolunteerKindTactics);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 401);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDVOLUNTEERING_REQ),
+            body);
+    }
+    std::this_thread::sleep_for(80ms);
+    EXPECT(fake_repo.Calls().size() == pre_calls);
+
+    // --- Scenario 31: DM_GUILDVOLUNTEERINGDEL_REQ (W3a-16 fan-in) -
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kVolunteerKindMember);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 400); // char_id
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDVOLUNTEERINGDEL_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kDelVolunteerApp
+                && c.char_id == 400)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_del_app = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kDelVolunteerApp
+                && c.char_id == 400)
+            { saw_del_app = true; break; }
+        }
+        EXPECT(saw_del_app);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1210,7 +1395,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (26 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (31 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

@@ -79,4 +79,14 @@ constexpr std::uint8_t kMaxGuildArticleCount = 100;
 // scheduler work.
 constexpr std::int64_t kGuildWantedPeriodSec = 60LL * 60 * 24 * 14;
 
+// Volunteer-application kind discriminator. The legacy
+// TGUILDVOLUNTEERTABLE row carries a `bType` column with two
+// values: GUILDAPP_MEMBER for ordinary guild applicants (the
+// W3a-12 flow), GUILDAPP_TACTICS for tactics-alliance
+// applicants (the deferred W3a-* tactics subsystem). The
+// constants aren't exported from a legacy header — the source
+// just uses raw 0/1 throughout — so we name them here.
+constexpr std::uint8_t kVolunteerKindMember  = 0;
+constexpr std::uint8_t kVolunteerKindTactics = 1;
+
 } // namespace tworldsvr::guild

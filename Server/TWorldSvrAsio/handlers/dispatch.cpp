@@ -186,7 +186,25 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-16+ picks up wanted/volunteering DB fan-in, tactics
+    // ---- W3a-16: wanted/volunteering DB fan-in -----------------
+    case MessageId::DM_GUILDWANTEDADD_REQ:
+        co_await OnGuildWantedAddReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDWANTEDDEL_REQ:
+        co_await OnGuildWantedDelReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDVOLUNTEERING_REQ:
+        co_await OnGuildVolunteeringReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDVOLUNTEERINGDEL_REQ:
+        co_await OnGuildVolunteeringDelReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-17+ picks up leave/kickout DB fan-in, tactics
     // subsystem, cabinet item codec. … see README §4.
 
     default:

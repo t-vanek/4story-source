@@ -303,6 +303,42 @@ boost::asio::awaitable<void> OnGuildArticleUpdateReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-16: wanted/volunteer DB fan-in (handlers_guild.cpp) ------
+//
+// WANTED ADD/DEL + VOLUNTEERING ADD/DEL extending the W3a-14/15
+// DB-side fan-in cohort. All 4 do a defensive in-memory mirror
+// to GuildWantedRegistry — keeping it stale would cause the next
+// player-driven LIST or "already applied" hint to show wrong
+// data. The VOLUNTEERING pair filters on bType: kMember (=0)
+// flows through to the registry, kTactics (=1) gets dropped
+// with a deferred-log (tactics subsystem ships in W3a-* later).
+//
+// Bypasses AddApp's validation gates because the DB is
+// authoritative for fan-in — if our local registry would reject
+// the row (already-applied / wanted-expired / level-mismatch),
+// we still persist + log the divergence. The next full reload
+// reconciles.
+
+boost::asio::awaitable<void> OnGuildWantedAddReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildWantedDelReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildVolunteeringReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildVolunteeringDelReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

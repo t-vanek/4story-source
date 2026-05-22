@@ -1556,6 +1556,226 @@ OnGuildArticleUpdateReq(std::shared_ptr<PeerSession> peer,
         ip, guild_id, article_id, title.size(), body_text.size());
 }
 
+// --- W3a-16 wanted/volunteering DB fan-in -------------------------
+//
+// Mirrors W3a-14/15 plumbing into the recruitment subsystem
+// (GuildWantedRegistry). All 4 do a defensive in-memory mirror —
+// the registry feeds the next LIST handler + the "already
+// applied" indicator. The VOLUNTEERING pair filters on bType:
+// kMember flows through, kTactics gets dropped with a
+// deferred-log (tactics subsystem ships later).
+
+boost::asio::awaitable<void>
+OnGuildWantedAddReq(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id  = 0;
+    std::uint8_t  min_level = 0, max_level = 0;
+    std::string   title, text;
+    if (!r.Read(guild_id) || !r.Read(min_level) || !r.Read(max_level) ||
+        !r.ReadString(title) || !r.ReadString(text))
+    {
+        spdlog::warn("OnGuildWantedAddReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    // Match the player path's end_time computation
+    // (OnGuildWantedAddAck) so cross-server entries expire on
+    // the same clock the local board uses.
+    const std::int64_t end_time =
+        static_cast<std::int64_t>(std::time(nullptr)) +
+        guild::kGuildWantedPeriodSec;
+
+    if (ctx.guild_wanted && ctx.guilds)
+    {
+        if (auto guild = ctx.guilds->Find(guild_id))
+        {
+            std::string guild_name;
+            std::uint8_t country = 0;
+            {
+                std::lock_guard gl(guild->lock);
+                guild_name = guild->name;
+                country    = guild->country;
+            }
+            TGuildWanted entry;
+            entry.guild_id  = guild_id;
+            entry.country   = country;
+            entry.min_level = min_level;
+            entry.max_level = max_level;
+            entry.end_time  = end_time;
+            entry.name      = guild_name;
+            entry.title     = title;
+            entry.text      = text;
+            ctx.guild_wanted->AddOrUpdate(entry);
+        }
+        else
+        {
+            spdlog::info("OnGuildWantedAddReq[{}]: guild_id={} not in "
+                         "registry (DB write only)", ip, guild_id);
+        }
+    }
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, min_level, max_level, title,
+             text, end_time] {
+                repo->AddWanted(guild_id, min_level, max_level, title, text,
+                    end_time);
+            });
+    }
+
+    spdlog::info("OnGuildWantedAddReq[{}]: guild_id={} levels {}-{} "
+                 "end_time={}", ip, guild_id, min_level, max_level,
+        end_time);
+}
+
+boost::asio::awaitable<void>
+OnGuildWantedDelReq(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0;
+    if (!r.Read(guild_id))
+    {
+        spdlog::warn("OnGuildWantedDelReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    if (ctx.guild_wanted)
+        ctx.guild_wanted->Remove(guild_id);
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id] {
+                repo->DeleteWanted(guild_id);
+            });
+    }
+
+    spdlog::info("OnGuildWantedDelReq[{}]: guild_id={}", ip, guild_id);
+}
+
+boost::asio::awaitable<void>
+OnGuildVolunteeringReq(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  type      = 0;
+    std::uint32_t char_id   = 0;
+    std::uint32_t wanted_id = 0;
+    if (!r.Read(type) || !r.Read(char_id) || !r.Read(wanted_id))
+    {
+        spdlog::warn("OnGuildVolunteeringReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    if (type != guild::kVolunteerKindMember)
+    {
+        spdlog::info("OnGuildVolunteeringReq[{}]: type={} (tactics) "
+                     "deferred — drop", ip, type);
+        co_return;
+    }
+
+    // Defensive in-memory mirror. Bypass AddApp's validation
+    // gates by snapshotting the applicant's char fields + always
+    // upserting. If the registry rejects the row (e.g.,
+    // wanted-entry expired locally), we still persist via repo.
+    if (ctx.guild_wanted && ctx.chars)
+    {
+        if (auto tchar = ctx.chars->Find(char_id))
+        {
+            std::uint8_t country = 0, level = 0, klass = 0;
+            std::string  name;
+            {
+                std::lock_guard g(tchar->lock);
+                country = tchar->country;
+                level   = tchar->level;
+                klass   = tchar->klass;
+                name    = tchar->name;
+            }
+            TGuildWantedApp app;
+            app.char_id   = char_id;
+            app.wanted_id = wanted_id;
+            app.level     = level;
+            app.klass     = klass;
+            app.name      = name;
+            const auto result = ctx.guild_wanted->AddApp(app, country);
+            if (result != guild::kSuccess)
+            {
+                spdlog::info("OnGuildVolunteeringReq[{}]: registry AddApp "
+                             "returned result={} for char_id={} wanted_id={} "
+                             "— DB-authoritative path persists anyway",
+                    ip, result, char_id, wanted_id);
+            }
+        }
+        else
+        {
+            spdlog::info("OnGuildVolunteeringReq[{}]: char_id={} not in "
+                         "registry (DB write only)", ip, char_id);
+        }
+    }
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, wanted_id] {
+                repo->AddVolunteerApp(char_id, wanted_id);
+            });
+    }
+
+    spdlog::info("OnGuildVolunteeringReq[{}]: char_id={} wanted_id={}",
+        ip, char_id, wanted_id);
+}
+
+boost::asio::awaitable<void>
+OnGuildVolunteeringDelReq(std::shared_ptr<PeerSession> peer,
+                          std::vector<std::byte>       body,
+                          const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  type    = 0;
+    std::uint32_t char_id = 0;
+    if (!r.Read(type) || !r.Read(char_id))
+    {
+        spdlog::warn("OnGuildVolunteeringDelReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    if (type != guild::kVolunteerKindMember)
+    {
+        spdlog::info("OnGuildVolunteeringDelReq[{}]: type={} (tactics) "
+                     "deferred — drop", ip, type);
+        co_return;
+    }
+
+    if (ctx.guild_wanted)
+        ctx.guild_wanted->DelApp(char_id);
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id] {
+                repo->DelVolunteerApp(char_id);
+            });
+    }
+
+    spdlog::info("OnGuildVolunteeringDelReq[{}]: char_id={}",
+        ip, char_id);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

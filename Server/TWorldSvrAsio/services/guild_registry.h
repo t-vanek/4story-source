@@ -112,6 +112,18 @@ struct TGuild
     std::uint32_t pvp_useable_point = 0;
     std::uint8_t  country           = 0;    // copied from chief on load
 
+    // W3a-9 fields exposed by SendMW_GUILDINFO_REQ. Most stay
+    // zero until their owning subsystem ports:
+    //   pvp_month_point — resets monthly (W5+ scheduler)
+    //   rank_total / rank_month — guild ranking system (W5+)
+    //   stat_level / stat_point / stat_exp — guild stats subsystem
+    std::uint32_t pvp_month_point = 0;
+    std::uint32_t rank_total      = 0;
+    std::uint32_t rank_month      = 0;
+    std::uint8_t  stat_level      = 0;
+    std::uint8_t  stat_point      = 0;
+    std::uint32_t stat_exp        = 0;
+
     // Members — keyed by char_id. Linear lookups are fine; a typical
     // guild has < 200 members and FindMember is the hot path on
     // chat / member-join. The legacy module uses a map_string-

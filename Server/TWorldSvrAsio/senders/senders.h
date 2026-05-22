@@ -23,6 +23,7 @@
 
 #include <boost/asio/awaitable.hpp>
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -211,6 +212,56 @@ boost::asio::awaitable<void> SendMwGuildFameReq(
     std::uint32_t                originator_char_id,
     std::uint32_t                fame,
     std::uint32_t                fame_color);
+
+// --- W3a-9 single guild info refresh ------------------------------
+
+// MW_GUILDINFO_REQ — large composite reply with the requester's
+// guild summary. Sent when a client opens the guild info pane.
+// Fields are mostly TGuild meta + the 2 vice-chief names
+// (NAME_NULL-padded to always emit 2 strings) + the requester's
+// own duty/peer.
+//
+// Wire layout (SSSender.cpp:1015 — densest sender in the family).
+struct GuildInfoPayload
+{
+    std::uint32_t guild_id            = 0;
+    std::string   name;
+    std::int64_t  establish_time      = 0;
+    std::uint16_t member_count        = 0;
+    std::uint16_t max_member          = 0;
+    std::string   chief_name;
+    std::uint8_t  chief_peer          = 0;
+    std::array<std::string, 2> vice_chief_names;   // empty → NAME_NULL
+    std::uint8_t  level               = 0;
+    std::uint32_t fame                = 0;
+    std::uint32_t fame_color          = 0;
+    std::uint32_t gi                  = 0;
+    std::uint32_t exp                 = 0;
+    std::uint32_t level_exp           = 0;
+    std::uint8_t  guild_points        = 0;
+    std::uint8_t  status              = 0;
+    std::uint32_t gold                = 0;
+    std::uint32_t silver              = 0;
+    std::uint32_t cooper              = 0;
+    std::uint8_t  requester_duty      = 0;
+    std::uint8_t  requester_peer      = 0;
+    std::string   article_title;
+    std::uint32_t pvp_total_point     = 0;
+    std::uint32_t pvp_useable_point   = 0;
+    std::uint32_t pvp_month_point     = 0;
+    std::uint32_t rank_total          = 0;
+    std::uint32_t rank_month          = 0;
+    std::uint8_t  stat_level          = 0;
+    std::uint8_t  stat_point          = 0;
+    std::uint32_t stat_exp            = 0;
+};
+
+boost::asio::awaitable<void> SendMwGuildInfoReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    const GuildInfoPayload*      payload);  // nullptr on error branch
 
 // --- W3a-8 article board ------------------------------------------
 

@@ -32,6 +32,68 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
+### W3a-9 — what landed
+
+Single-guild info refresh — the densest sender + handler in the
+guild family. One handler (OnGuildInfoAck), one big composite
+sender (SendMwGuildInfoReq with 27 wire fields plus 2 vice-chief
+slot strings padded to NAME_NULL).
+
+While writing this, found the legacy `NotifyAddGuildMember`
+(TWorldSvr.cpp:5099) only fans out to the new member + chief —
+not to *all* existing members as the W3a-7 README's "deferred
+TODO" implied. Our W3a-6 implementation already matches that
+shape, so the deferred item was a phantom. Removed from the
+backlog.
+
+Adds (state)
+- `services/guild_registry.h` — TGuild gains six fields for
+  the info-pane payload (all default-zero until owning
+  subsystems port):
+    pvp_month_point   — monthly PvP point reset (W5+)
+    rank_total        — guild ranking (W5+)
+    rank_month        — monthly ranking
+    stat_level        — guild stats subsystem
+    stat_point        — stats subsystem
+    stat_exp          — stats subsystem
+
+Adds (sender)
+- `senders/senders.h` + `senders_guild.cpp`
+  - `GuildInfoPayload` POD struct — 30 fields, including a
+    `std::array<std::string, 2>` for vice-chief slot names
+    (legacy emits 2 slots always; empty strings = NAME_NULL).
+  - `SendMwGuildInfoReq(peer, char_id, key, result, payload)`
+    — 27 wire fields on success (header + payload), 9-byte
+    error reply. Pulls max_member + level_exp from the
+    W3a-4d guild_levels cache. Matches SSSender.cpp:1015
+    field-for-field including the vice-chief padding loop.
+  - `<array>` added to senders.h includes for the fixed-2
+    vice-chief slot.
+
+Adds (handler)
+- `handlers/handlers_guild.cpp`
+  - `OnGuildInfoAck` (MW_GUILDINFO_ACK, wID=0x903A)
+  - Legacy SSHandler.cpp:3866 port. Builds the payload under
+    guild.lock (snapshot + release), then runs the
+    guild_levels lookup outside the lock. Fail paths:
+    - No guild_id on the requesting char → kNotFound.
+    - Guild not in registry (unloaded) → kNotFound.
+    - Chief not in members (corrupt state) → kNotFound.
+  - Collects up to 2 vice-chief names by iterating members;
+    the sender pads slots 0..1 with empty strings as needed.
+  - Most-recent article title is `guild->articles.back().title`
+    (legacy keeps a separate m_strArticleTitle field; we
+    derive on read since the article vector is the source
+    of truth).
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-10+
+- Tactics / volunteers / PvP record / point reward (~15)
+- Cabinet item codec (Lib/Own/TProtocol/ITEM struct port)
+- DM_GUILDEXTINCTION delete flow (paired with W3a-4b disorg
+  — triggers via the disorg countdown timer in W7+).
+
 ### W3a-8 — what landed
 
 Guild bulletin board: members post short articles to a shared

@@ -186,9 +186,9 @@ constraint.
 
 | ID | Severity | Patch | Status |
 |---|---|---|---|
-| W-1 | 🟡 | Async DB + per-shard write queue with connection pool (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | ❌ planned |
-| W-2 | 🟡 | Global maps (`m_mapTCHAR`, `m_mapTGuild`) under one lock — partition (per-guild grain, per-char actor model) | ❌ planned |
-| W-3 | ❌ | TWorldSvrAsio binary doesn't exist yet | ❌ |
+| W-1 | 🟡 | Async DB + per-shard write queue with connection pool (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | ❌ planned (W2) |
+| W-2 | 🟡 | Global maps (`m_mapTCHAR`, `m_mapTGuild`) under one lock — partition (per-guild grain, per-char actor model) | ❌ planned (W2 char / W3a guild) |
+| W-3 | ✅ | TWorldSvrAsio binary exists — W1 ships the scaffold (TOML config, accept loop, packet framing, dispatch stub). See [`Server/TWorldSvrAsio/README.md`](../../Server/TWorldSvrAsio/README.md) for the W2..W7 phasing. | ✅ |
 
 ---
 

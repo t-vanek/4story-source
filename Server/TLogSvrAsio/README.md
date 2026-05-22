@@ -7,6 +7,10 @@ the existing legacy ingestors — the modernized `TLoginSvrAsio` emits
 the same struct (via `UdpAuditLogger`) that the original `TLogSvr` was
 designed to consume.
 
+> Cluster context: [main README](../../README.md#overall-progress) ·
+> patch catalog vs legacy Araz sources:
+> [`_rewrite/docs/PATCH_README.md` §3](../../_rewrite/docs/PATCH_README.md#3-tlogsvr--tlogsvrasio)
+
 ## Status — feature-complete vs legacy
 
 | Area | State |

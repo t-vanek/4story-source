@@ -18,6 +18,7 @@
 #include "services/char_registry.h"
 #include "services/fake_guild_repository.h"
 #include "services/guild_registry.h"
+#include "services/peer_registry.h"
 #include "services/soci_guild_repository.h"
 #include "world_server.h"
 
@@ -134,6 +135,7 @@ int main(int argc, char** argv)
         // way. Both live for the process lifetime.
         tworldsvr::CharRegistry  chars;
         tworldsvr::GuildRegistry guilds;
+        tworldsvr::PeerRegistry  peers;
 
         // Warm the guild cache from the backing store. Empty for
         // the no-DB / fake repo path; a real DB returns every
@@ -152,7 +154,9 @@ int main(int argc, char** argv)
         ctx.db_pool    = worker_pool.get();
         ctx.chars      = &chars;
         ctx.guilds     = &guilds;
+        ctx.peers      = &peers;
         ctx.guild_repo = guild_repo.get();
+        ctx.nation     = cfg.nation;
 
         tworldsvr::WorldServerConfig svr_cfg{};
         svr_cfg.port            = cfg.port;

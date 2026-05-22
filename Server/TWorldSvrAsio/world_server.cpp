@@ -1,5 +1,8 @@
 #include "world_server.h"
 
+#include "peer_session.h"
+#include "services/peer_registry.h"
+
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/redirect_error.hpp>
@@ -35,9 +38,6 @@ WorldServer::Run()
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec) break;
 
-        // Hard cap before the session shared_ptr exists. Refusing
-        // early keeps the pre-auth surface narrow and matches
-        // TLoginSvrAsio's gate.
         if (m_cfg.max_connections > 0 &&
             m_live.load() >= m_cfg.max_connections)
         {
@@ -50,33 +50,34 @@ WorldServer::Run()
             continue;
         }
 
-        auto sess = std::make_shared<WorldSession>(std::move(sock));
-        spdlog::info("world_server: accept from {}", sess->RemoteIPv4());
+        auto wire = std::make_shared<WorldSession>(std::move(sock));
+        auto peer = std::make_shared<PeerSession>(wire);
+        spdlog::info("world_server: accept from {}", wire->RemoteIPv4());
         boost::asio::co_spawn(m_io,
-            HandleConnection(std::move(sess)),
+            HandleConnection(std::move(peer)),
             boost::asio::detached);
     }
 }
 
 boost::asio::awaitable<void>
-WorldServer::Drive(std::shared_ptr<WorldSession> sess)
+WorldServer::Drive(std::shared_ptr<PeerSession> peer)
 {
-    co_await HandleConnection(std::move(sess));
+    co_await HandleConnection(std::move(peer));
 }
 
 boost::asio::awaitable<void>
-WorldServer::HandleConnection(std::shared_ptr<WorldSession> sess)
+WorldServer::HandleConnection(std::shared_ptr<PeerSession> peer)
 {
     m_live.fetch_add(1);
-    const std::string ip = sess->RemoteIPv4();
+    const std::string ip = peer->Wire()->RemoteIPv4();
     try
     {
         const auto ctx = m_cfg.ctx;
-        co_await sess->Run(
-            [ctx](std::shared_ptr<WorldSession> s, DecodedPacket pkt)
-                -> boost::asio::awaitable<void>
+        co_await peer->Wire()->Run(
+            [peer, ctx](std::shared_ptr<WorldSession> /*s*/,
+                        DecodedPacket pkt) -> boost::asio::awaitable<void>
             {
-                co_await handlers::Dispatch(std::move(s), pkt.wId,
+                co_await handlers::Dispatch(peer, pkt.wId,
                                             std::move(pkt.body), ctx);
             });
     }
@@ -85,6 +86,18 @@ WorldServer::HandleConnection(std::shared_ptr<WorldSession> sess)
         spdlog::warn("world_server[{}]: session terminated by exception: {}",
             ip, ex.what());
     }
+
+    // Drop the peer from PeerRegistry on exit. Safe to call with
+    // wID=0 (Unregister returns nullptr without touching state) so
+    // sessions that never made it past RW_RELAYSVR_REQ are cheap to
+    // tear down.
+    if (m_cfg.ctx.peers && peer->Wid() != 0)
+    {
+        if (m_cfg.ctx.peers->Unregister(peer->Wid()))
+            spdlog::info("world_server: wID={} unregistered from peer registry",
+                peer->Wid());
+    }
+
     m_live.fetch_sub(1);
     spdlog::info("world_server: peer {} disconnected", ip);
 }

@@ -36,6 +36,13 @@ struct AppConfig
     // 0 = unlimited (not recommended in production).
     std::uint32_t max_connections = 256;
 
+    // Cluster-nation flag advertised to every peer in
+    // RW_RELAYSVR_ACK. Mirrors legacy CTWorldSvrModule::m_bNation.
+    // Values match NetCode.h: TCONTRY_A=0, TCONTRY_B=1, TCONTRY_N=2
+    // (neutral). Operators set this once at deploy time to match
+    // the regional shard's identity.
+    std::uint8_t  nation = 0;
+
     DbConfig      database;
 
     // Health endpoint shape mirrors the four shipped Asio daemons.

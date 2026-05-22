@@ -1,12 +1,14 @@
 #pragma once
 
 // WorldServer — accept loop + per-session coroutine wiring. W1
-// accepts plain-TCP SS connections, gates on max_connections, and
-// drives each peer through the dispatch stub. Per-peer state
-// (svr_id, role, channels) and the outbound peer dialer arrive in
-// W2+ once the per-feature handlers exist.
+// shipped the accept gate; W2 added the HandlerContext for the
+// char registry; **W3a-2** rewraps each accepted WorldSession in a
+// PeerSession so handlers can see map-server identity (wID +
+// nation) once RW_RELAYSVR_REQ has run, and so PeerRegistry can
+// drop the entry cleanly on disconnect.
 
 #include "handlers/handlers.h"
+#include "peer_session.h"
 #include "world_session.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -21,8 +23,8 @@ namespace tworldsvr {
 
 struct WorldServerConfig
 {
-    std::uint16_t port            = 0;
-    std::uint32_t max_connections = 256;
+    std::uint16_t  port            = 0;
+    std::uint32_t  max_connections = 256;
     HandlerContext ctx{};
 };
 
@@ -35,16 +37,15 @@ public:
 
     std::uint16_t Port() const { return m_port; }
 
-    // Test hook — drive a single pre-built session through the
-    // dispatch loop without going through the acceptor. Useful for
-    // tests that frame packets in-memory and want to skip TCP.
-    boost::asio::awaitable<void> Drive(std::shared_ptr<WorldSession> sess);
+    // Test hook — drive a pre-built peer session through the
+    // dispatch loop without going through the acceptor.
+    boost::asio::awaitable<void> Drive(std::shared_ptr<PeerSession> peer);
 
     std::uint32_t LiveConnections() const { return m_live.load(); }
 
 private:
     boost::asio::awaitable<void> HandleConnection(
-        std::shared_ptr<WorldSession> sess);
+        std::shared_ptr<PeerSession> peer);
 
     boost::asio::io_context&        m_io;
     boost::asio::ip::tcp::acceptor  m_acceptor;

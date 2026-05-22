@@ -17,6 +17,7 @@
 
 #include "../peer_session.h"
 #include "../services/char_registry.h"
+#include "../services/guild_level_cache.h"
 #include "../services/guild_registry.h"
 #include "../services/guild_repository.h"
 #include "../services/peer_registry.h"
@@ -48,6 +49,12 @@ struct HandlerContext
     PeerRegistry*             peers      = nullptr;
 
     IGuildRepository*         guild_repo = nullptr;
+
+    // W3a-4d: TGUILDCHART mirror loaded at boot. Handlers consult
+    // it for per-level caps (member cap, cabinet slots, peerage
+    // slot limits). Read-only after main wires it; nullptr means
+    // "not loaded" (dev path without [database] + no fake seed).
+    const GuildLevelCache*    guild_levels = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to

@@ -16,9 +16,12 @@
 #include "config.h"
 #include "db/schema_validator.h"
 #include "services/char_registry.h"
+#include "services/fake_guild_level_repository.h"
 #include "services/fake_guild_repository.h"
+#include "services/guild_level_cache.h"
 #include "services/guild_registry.h"
 #include "services/peer_registry.h"
+#include "services/soci_guild_level_repository.h"
 #include "services/soci_guild_repository.h"
 #include "world_server.h"
 
@@ -87,6 +90,7 @@ int main(int argc, char** argv)
         std::unique_ptr<fourstory::db::SessionPool>      db_pool_owner;
         std::unique_ptr<boost::asio::thread_pool>        worker_pool;
         std::unique_ptr<tworldsvr::IGuildRepository>     guild_repo;
+        std::unique_ptr<tworldsvr::IGuildLevelRepository> guild_level_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -119,12 +123,18 @@ int main(int argc, char** argv)
             tworldsvr::db::ValidateWorldSchema(*db_pool_owner);
             guild_repo = std::make_unique<tworldsvr::SociGuildRepository>(
                 *db_pool_owner);
+            guild_level_repo =
+                std::make_unique<tworldsvr::SociGuildLevelRepository>(
+                    *db_pool_owner);
         }
         else
         {
             spdlog::info("no [database] — registries are the only "
-                         "persistence layer; using FakeGuildRepository");
+                         "persistence layer; using FakeGuildRepository "
+                         "+ FakeGuildLevelRepository (empty TGUILDCHART)");
             guild_repo = std::make_unique<tworldsvr::FakeGuildRepository>();
+            guild_level_repo =
+                std::make_unique<tworldsvr::FakeGuildLevelRepository>();
         }
 
         // --- Char + guild registries ------------------------------
@@ -136,6 +146,19 @@ int main(int argc, char** argv)
         tworldsvr::CharRegistry  chars;
         tworldsvr::GuildRegistry guilds;
         tworldsvr::PeerRegistry  peers;
+        tworldsvr::GuildLevelCache guild_levels;
+
+        // Warm the guild-level chart from the backing store. Empty
+        // on the FakeGuildLevelRepository path; SOCI returns every
+        // TGUILDCHART row in production. Handlers consult Find()
+        // for per-level caps (CheckPeerage gate, AddMember cap,
+        // cabinet slot count). nullptr-tolerant.
+        if (guild_level_repo)
+        {
+            guild_levels.LoadFrom(guild_level_repo->LoadAll());
+            spdlog::info("guild_levels: {} chart row(s) cached",
+                guild_levels.Size());
+        }
 
         // Warm the guild cache from the backing store. Empty for
         // the no-DB / fake repo path; a real DB returns every
@@ -150,13 +173,14 @@ int main(int argc, char** argv)
         }
 
         tworldsvr::HandlerContext ctx{};
-        ctx.io         = &io;
-        ctx.db_pool    = worker_pool.get();
-        ctx.chars      = &chars;
-        ctx.guilds     = &guilds;
-        ctx.peers      = &peers;
-        ctx.guild_repo = guild_repo.get();
-        ctx.nation     = cfg.nation;
+        ctx.io           = &io;
+        ctx.db_pool      = worker_pool.get();
+        ctx.chars        = &chars;
+        ctx.guilds       = &guilds;
+        ctx.peers        = &peers;
+        ctx.guild_repo   = guild_repo.get();
+        ctx.guild_levels = &guild_levels;
+        ctx.nation       = cfg.nation;
 
         tworldsvr::WorldServerConfig svr_cfg{};
         svr_cfg.port            = cfg.port;

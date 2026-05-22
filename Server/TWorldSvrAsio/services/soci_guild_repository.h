@@ -31,6 +31,12 @@ public:
     bool UpdateFame(std::uint32_t guild_id, std::uint32_t fame,
                     std::uint32_t fame_color) override;
     bool RemoveMember(std::uint32_t char_id, std::uint32_t guild_id) override;
+    bool AddMember(std::uint32_t char_id, std::uint32_t guild_id,
+                   std::uint8_t level, std::uint8_t duty) override;
+    bool IncrementContribution(std::uint32_t char_id, std::uint32_t guild_id,
+                               std::uint32_t exp, std::uint32_t gold,
+                               std::uint32_t silver, std::uint32_t cooper,
+                               std::uint32_t pvp_point) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

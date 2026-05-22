@@ -48,7 +48,7 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildLoadAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // ---- W3a-4 / W3a-4b: guild mutating handlers ------------------
+    // ---- W3a-4 / W3a-4b / W3a-4c: guild mutating handlers ---------
     case MessageId::MW_GUILDLEAVE_ACK:
         co_await OnGuildLeaveAck(std::move(peer), std::move(body), ctx);
         co_return;
@@ -62,10 +62,19 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_GUILDFAME_ACK:
         co_await OnGuildFameAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_GUILDKICKOUT_ACK:
+        co_await OnGuildKickoutAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDCONTRIBUTION_ACK:
+        co_await OnGuildContributionAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDMEMBERADD_REQ:
+        co_await OnGuildMemberAddReq(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3a-4c continues the mutating guild batch (Establish ACK /
-    // Member add / Kickout / Peer / Contribution / Article /
-    // Cabinet). W3b party + corps. … see README §4.
+    // W3a-4d wires CoOffloadIf for SOCI writes; W3a-5 picks up
+    // Peer / Invite / Article / Cabinet handlers. … see README §4.
 
     default:
         break;

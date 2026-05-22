@@ -66,7 +66,8 @@ bool FakeGuildRepository::SetDisorg(std::uint32_t guild_id,
                                      std::uint32_t time_unix)
 {
     std::lock_guard lock(m_mtx);
-    m_calls.push_back({Call::Kind::kSetDisorg, guild_id, 0, disorg, time_unix});
+    m_calls.push_back({Call::Kind::kSetDisorg, guild_id, 0, disorg,
+                       time_unix, 0, 0, 0});
     auto it = m_guilds.find(guild_id);
     if (it == m_guilds.end()) return false;
     std::lock_guard g(it->second->lock);
@@ -81,7 +82,7 @@ bool FakeGuildRepository::UpdateMemberDuty(std::uint32_t char_id,
 {
     std::lock_guard lock(m_mtx);
     m_calls.push_back({Call::Kind::kUpdateMemberDuty, guild_id, char_id,
-                       new_duty, 0});
+                       new_duty, 0, 0, 0, 0});
     auto it = m_guilds.find(guild_id);
     if (it == m_guilds.end()) return false;
     std::lock_guard g(it->second->lock);
@@ -98,7 +99,8 @@ bool FakeGuildRepository::UpdateFame(std::uint32_t guild_id,
                                       std::uint32_t fame_color)
 {
     std::lock_guard lock(m_mtx);
-    m_calls.push_back({Call::Kind::kUpdateFame, guild_id, 0, fame, fame_color});
+    m_calls.push_back({Call::Kind::kUpdateFame, guild_id, 0, fame,
+                       fame_color, 0, 0, 0});
     auto it = m_guilds.find(guild_id);
     if (it == m_guilds.end()) return false;
     std::lock_guard g(it->second->lock);
@@ -111,11 +113,60 @@ bool FakeGuildRepository::RemoveMember(std::uint32_t char_id,
                                         std::uint32_t guild_id)
 {
     std::lock_guard lock(m_mtx);
-    m_calls.push_back({Call::Kind::kRemoveMember, guild_id, char_id, 0, 0});
+    m_calls.push_back({Call::Kind::kRemoveMember, guild_id, char_id,
+                       0, 0, 0, 0, 0});
     auto it = m_guilds.find(guild_id);
     if (it == m_guilds.end()) return false;
     std::lock_guard g(it->second->lock);
     return it->second->RemoveMember(char_id);
+}
+
+bool FakeGuildRepository::AddMember(std::uint32_t char_id,
+                                     std::uint32_t guild_id,
+                                     std::uint8_t  level,
+                                     std::uint8_t  duty)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kAddMember, guild_id, char_id,
+                       level, duty, 0, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    // No-op if already a member (legacy CSPGuildMemberAdd has UPSERT
+    // semantics via primary-key conflict; the fake mirrors that).
+    if (it->second->FindMember(char_id) != nullptr) return true;
+    TGuildMember m;
+    m.char_id  = char_id;
+    m.guild_id = guild_id;
+    m.level    = level;
+    m.duty     = duty;
+    it->second->members.push_back(std::move(m));
+    return true;
+}
+
+bool FakeGuildRepository::IncrementContribution(std::uint32_t char_id,
+                                                 std::uint32_t guild_id,
+                                                 std::uint32_t exp,
+                                                 std::uint32_t gold,
+                                                 std::uint32_t silver,
+                                                 std::uint32_t cooper,
+                                                 std::uint32_t pvp_point)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kIncrementContribution, guild_id,
+                       char_id, exp, gold, silver, cooper, pvp_point});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    it->second->exp   += exp;
+    it->second->gold  += gold;
+    it->second->silver += silver;
+    it->second->cooper += cooper;
+    it->second->pvp_total_point   += pvp_point;
+    it->second->pvp_useable_point += pvp_point;
+    if (auto* m = it->second->FindMember(char_id))
+        m->service += exp;   // legacy: dwService accumulates EXP
+    return true;
 }
 
 std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const

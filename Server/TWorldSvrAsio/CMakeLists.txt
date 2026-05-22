@@ -44,6 +44,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_guild_repository.cpp

@@ -123,4 +123,31 @@ SendMwGuildFameReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwGuildContributionReq(std::shared_ptr<PeerSession> peer,
+                           std::uint32_t                char_id,
+                           std::uint32_t                key,
+                           std::uint8_t                 result,
+                           std::uint32_t                exp,
+                           std::uint32_t                gold,
+                           std::uint32_t                silver,
+                           std::uint32_t                cooper,
+                           std::uint32_t                pvp_point)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint32_t>(body, exp);
+    WritePOD<std::uint32_t>(body, gold);
+    WritePOD<std::uint32_t>(body, silver);
+    WritePOD<std::uint32_t>(body, cooper);
+    WritePOD<std::uint32_t>(body, pvp_point);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDCONTRIBUTION_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

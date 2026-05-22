@@ -221,6 +221,97 @@ bool SociGuildRepository::RemoveMember(std::uint32_t char_id,
     }
 }
 
+bool SociGuildRepository::AddMember(std::uint32_t char_id,
+                                     std::uint32_t guild_id,
+                                     std::uint8_t  level,
+                                     std::uint8_t  duty)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        // Mirror CSPGuildMemberAdd. Legacy uses MERGE / UPDATE-or-
+        // INSERT semantics via the SP — we replicate by trying
+        // INSERT first and falling back to UPDATE on PK conflict.
+        // The bPeer column defaults to 0 (GUILD_PEER_NONE);
+        // dwService starts at 0 too.
+        try
+        {
+            sql << "INSERT INTO \"TGUILDMEMBERTABLE\" "
+                   "(\"dwCharID\", \"dwGuildID\", \"bDuty\", \"bPeer\", "
+                   " \"dwService\") "
+                   "VALUES (:c, :g, :d, 0, 0)",
+                soci::use(static_cast<int>(char_id)),
+                soci::use(static_cast<int>(guild_id)),
+                soci::use(static_cast<int>(duty));
+        }
+        catch (const std::exception&)
+        {
+            sql << "UPDATE \"TGUILDMEMBERTABLE\" SET "
+                   "\"dwGuildID\" = :g, \"bDuty\" = :d "
+                   "WHERE \"dwCharID\" = :c",
+                soci::use(static_cast<int>(guild_id)),
+                soci::use(static_cast<int>(duty)),
+                soci::use(static_cast<int>(char_id));
+        }
+        (void)level;  // bLevel lives on TCHARTABLE; legacy CSP
+                      // updates a cached column we don't persist.
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::AddMember({}, {}, …) failed: {}",
+            char_id, guild_id, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
+                                                 std::uint32_t guild_id,
+                                                 std::uint32_t exp,
+                                                 std::uint32_t gold,
+                                                 std::uint32_t silver,
+                                                 std::uint32_t cooper,
+                                                 std::uint32_t pvp_point)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        // Guild totals delta (mirror CSPGuildContribution's
+        // arithmetic side).
+        sql << "UPDATE \"TGUILDTABLE\" SET "
+               "\"dwGold\" = \"dwGold\" + :gold, "
+               "\"dwSilver\" = \"dwSilver\" + :silver, "
+               "\"dwCooper\" = \"dwCooper\" + :cooper, "
+               "\"dwExp\" = \"dwExp\" + :exp, "
+               "\"dwPvPTotalPoint\" = \"dwPvPTotalPoint\" + :pvp, "
+               "\"dwPvPUseablePoint\" = \"dwPvPUseablePoint\" + :pvp "
+               "WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(gold)),
+            soci::use(static_cast<int>(silver)),
+            soci::use(static_cast<int>(cooper)),
+            soci::use(static_cast<int>(exp)),
+            soci::use(static_cast<int>(pvp_point)),
+            soci::use(static_cast<int>(guild_id));
+        // Member service score delta (dwService accumulates EXP
+        // contribution, mirroring legacy GainEXP path).
+        sql << "UPDATE \"TGUILDMEMBERTABLE\" SET "
+               "\"dwService\" = \"dwService\" + :exp "
+               "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
+            soci::use(static_cast<int>(exp)),
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::IncrementContribution({}, {}) "
+                      "failed: {}", char_id, guild_id, ex.what());
+        return false;
+    }
+}
+
 std::optional<std::shared_ptr<TGuild>>
 SociGuildRepository::FindById(std::uint32_t guild_id)
 {

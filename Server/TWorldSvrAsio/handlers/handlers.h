@@ -135,6 +135,46 @@ boost::asio::awaitable<void> OnGuildFameAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-4c: more guild mutating handlers (handlers_guild.cpp) ----
+
+// Inbound from a map server: chief kicked a member by name.
+// World removes the member, clears their TChar.guild_id, replies
+// to the requester AND to the kicked char's main peer with
+// MW_GUILDLEAVE_REQ(reason=kLeaveKick). Persistence via
+// IGuildRepository::RemoveMember.
+//
+// Wire layout (SSHandler.cpp:3340):
+//   DWORD dwCharID, DWORD dwKey, STRING strTarget
+boost::asio::awaitable<void> OnGuildKickoutAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from a map server: a member earned exp / gold / silver /
+// cooper / pvp points for the guild. World validates (guild not
+// max-level if exp>0, not disorg, not in tactics guild), applies
+// the delta to TGuild totals + member's service score, replies
+// with the success result code.
+//
+// Wire layout (SSHandler.cpp:4021):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwExp, DWORD dwGold,
+//   DWORD dwSilver, DWORD dwCooper, DWORD dwPvPoint
+boost::asio::awaitable<void> OnGuildContributionAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from a map server's DB worker: persist a new guild
+// member row. Pure DB write — the in-memory insert happens on
+// the OnMW_GUILDINVITEANSWER_ACK side (W3a-5+). No reply.
+//
+// Wire layout (SSHandler.cpp:3317):
+//   DWORD dwGuildID, DWORD dwCharID, BYTE bLevel, BYTE bDuty
+boost::asio::awaitable<void> OnGuildMemberAddReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-2: RW relay handshake (handlers_relay.cpp) ----------------
 //
 // First packet a map server sends after TCP connect. Carries the

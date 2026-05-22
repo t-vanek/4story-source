@@ -9,24 +9,111 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-4b guild write API + Disorg / Duty / Fame handlers
+## Status — W3a-4c broadcast helper + Kickout / Contribution / MemberAdd
 
 | Phase | Scope | Status |
 |---|---|---|
 | W1 | Scaffold + transport + dispatch stub | ✅ |
 | W2 | CharRegistry (partitioned) + SessionPool + worker thread_pool + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
-| W3a-1 | GuildRegistry + IGuildRepository (SOCI + Fake) + schema validator + DM_GUILDLOAD_ACK | ✅ |
-| W3a-2 | PeerSession + PeerRegistry + first SSSender batch + OnRW_RELAYSVR_REQ + MW_ADDCHAR_ACK gains real server_id + OnGuildLoadAck fires its reply | ✅ |
-| W3a-3 | CharRegistry name index + TChar identity fields + OnMW_CHANGECHARBASE_ACK + OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ + cluster RELAYCONNECT broadcast | ✅ |
-| W3a-4 | TChar.guild_id back-pointer + TGuild::FindMember/RemoveMember + OnMW_GUILDLEAVE_ACK + SendMW_GUILDLEAVE_REQ + OnEnterCharReq resolves real guild fields | ✅ |
-| **W3a-4b** | `services/guild_constants.h` (single source of GUILD_* truth) + IGuildRepository write API (SetDisorg / UpdateMemberDuty / UpdateFame / RemoveMember) + Fake+Soci impls + OnGuildDisorganizationReq + OnGuildDutyAck + OnGuildFameAck (with cross-peer broadcast) + 4 new senders + 2 wire-incompatibility bugs from earlier sessions fixed | ✅ |
-| W3a-4c | Cross-peer broadcast helpers (DM_FRIENDERASE, RW_CHANGENAME, MW_GUILDPEER) + ~20 remaining mutating guild handlers (Establish ACK / Member add / Invite answer / Kickout / Peer / Contribution / Article / Cabinet) + CoOffloadIf wiring for SOCI calls + cabinet item codec + guild-level table cache | ⏸ |
-| W3a-5+ | Tactics / volunteers / articles board / PvP record / point reward (~30 handlers) | ⏸ |
+| W3a-1 | GuildRegistry + IGuildRepository read API + schema validator + DM_GUILDLOAD_ACK | ✅ |
+| W3a-2 | PeerSession + PeerRegistry + first SSSender batch + OnRW_RELAYSVR_REQ + OnGuildLoadAck fires its reply | ✅ |
+| W3a-3 | CharRegistry name index + TChar identity fields + OnMW_CHANGECHARBASE_ACK + OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ | ✅ |
+| W3a-4 | TChar.guild_id back-pointer + TGuild::FindMember/RemoveMember + OnMW_GUILDLEAVE_ACK | ✅ |
+| W3a-4b | `services/guild_constants.h` + IGuildRepository write API (SetDisorg / UpdateMemberDuty / UpdateFame / RemoveMember) + OnGuildDisorganizationReq + OnGuildDutyAck + OnGuildFameAck (broadcast) | ✅ |
+| **W3a-4c** | `services/guild_broadcast.h` (BroadcastToGuildMembers reusable helper) + IGuildRepository::AddMember / IncrementContribution + OnMW_GUILDKICKOUT_ACK (2-peer broadcast) + OnMW_GUILDCONTRIBUTION_ACK + OnDM_GUILDMEMBERADD_REQ (pure DB) + SendMwGuildContributionReq + OnGuildFameAck refactored to use the new helper | ✅ |
+| W3a-4d | Wire all SOCI writes through `fourstory::db::CoOffloadIf` (per W-1 from PATCH_README) + guild-level table cache | ⏸ |
+| W3a-5+ | OnMW_GUILDPEER_ACK + remaining guild handlers (Invite answer / Establish ACK / Articles board / Cabinet / Tactics / Volunteers / PvP record / Point reward / Cabinet item codec) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-4c — what landed
+
+Three more mutating-guild handlers + the reusable broadcast
+helper that handlers can compose into multi-peer fan-outs
+without rewriting the LOBYTE-of-wID lookup every time.
+
+* `services/guild_broadcast.{h,cpp}` — `BroadcastToGuildMembers`
+  walks a list of member char_ids, finds each TChar, resolves
+  `main_server_id` → PeerSession, and `co_await`s a caller-
+  supplied `GuildPacketBuilder` per recipient. Returns the
+  number of recipients actually reached. Used by
+  `OnGuildFameAck` (broadcast new fame to every online member)
+  and `OnGuildKickoutAck` (1-element broadcast to the kicked
+  char's main peer). Future Article / Peer / Announcement
+  handlers ride the same path.
+* `services/guild_repository.h` — write API gains `AddMember`
+  and `IncrementContribution`. Mirrors CSPGuildMemberAdd +
+  CSPGuildContribution.
+* `services/fake_guild_repository.{h,cpp}` — impls plus
+  `Call::Kind::{kAddMember, kIncrementContribution}` records
+  so tests assert "the right CSP fired with the right args".
+  The `Call` struct grew from 5 → 8 fields (`c/d/e` cover the
+  contribution's silver/cooper/pvp); existing W3a-4b
+  push_back call sites updated to zero-fill the new fields.
+* `services/soci_guild_repository.cpp`
+  - `AddMember`: INSERT into TGUILDMEMBERTABLE, fall back to
+    UPDATE on PK conflict (legacy CSPGuildMemberAdd has
+    upsert semantics via the SP). `bLevel` is documented as
+    unused — legacy stores it on TCHARTABLE, not the member
+    row.
+  - `IncrementContribution`: two UPDATEs — one against
+    TGUILDTABLE for the totals delta (gold/silver/cooper/exp/
+    pvp_total_point/pvp_useable_point), one against
+    TGUILDMEMBERTABLE for the member's `dwService`.
+* `handlers/handlers_guild.cpp`
+  - `OnGuildKickoutAck` (MW_GUILDKICKOUT_ACK, wID=0x903B):
+    enforces the "officer kick only by chief" gate from
+    SSHandler.cpp:3364, removes the target from the guild +
+    clears their `TChar.guild_id`, persists via
+    `RemoveMember`, then double-broadcasts MW_GUILDLEAVE_REQ
+    (reason=kLeaveKick) — one reply to the requesting peer,
+    one routed to the kicked char's main peer via
+    `BroadcastToGuildMembers` (single-element list).
+  - `OnGuildContributionAck` (MW_GUILDCONTRIBUTION_ACK,
+    wID=0x90D8): validates not-disorg, rejects exp on
+    max-level guild with `kFail`+zeros (legacy
+    SSHandler.cpp:4052-4058), bumps guild totals + member
+    service score in-memory, persists via
+    `IncrementContribution`, replies with
+    MW_GUILDCONTRIBUTION_REQ.
+  - `OnGuildMemberAddReq` (DM_GUILDMEMBERADD_REQ, wID=0x58D8):
+    pure DB write via `AddMember` — no reply. Legacy fires
+    CSPGuildMemberAdd from the BatchThread without an ACK
+    path; in-memory member insertion happens on the
+    OnMW_GUILDINVITEANSWER_ACK side (W3a-5+).
+  - `OnGuildFameAck` refactored from an inline member-loop to
+    a single `BroadcastToGuildMembers` call.
+* `senders/senders.h` + `senders_guild.cpp`
+  - `SendMwGuildContributionReq` (8-field reply).
+* Dispatcher routes the 3 new wIDs.
+
+Test changes
+- `test_guild_mut_handlers` extended 9 → 12 scenarios:
+  cancel-disorg + KICKOUT producing 2 MW_GUILDLEAVE_REQ
+  replies (chief + kicked target) with `kLeaveKick`
+  reasons; CONTRIBUTION applying deltas + reply + repo call
+  recorded; DM_MEMBERADD persisting + no reply + framer
+  stays alive.
+
+Deferred to W3a-4d (focused infrastructure PR)
+- Wire all SOCI writes through
+  `fourstory::db::CoOffloadIf(ctx.db_pool, …)` so DB I/O
+  doesn't block the io_context thread (closes the W-1
+  remaining work from PATCH_README §6).
+- Guild-level table cache (`FindGuildLevel(bLevel)`) — the
+  legacy `m_pTLEVEL` lookup that backs `CheckPeerage` and
+  `MAX_GUILD_LEVEL` gates. Needed before OnMW_GUILDPEER_ACK
+  can ship its full validation.
+
+Deferred to W3a-5+
+- OnMW_GUILDPEER_ACK (peerage change with CheckPeerage gate)
+- OnMW_GUILDINVITE / INVITEANSWER (in-memory member-add side)
+- OnMW_GUILDARTICLE* (guild board)
+- OnMW_GUILDCABINET* (guild storage) + cabinet item codec
+- Tactics / volunteers / PvP record / point reward (~20)
 
 ### W3a-4b — what landed
 

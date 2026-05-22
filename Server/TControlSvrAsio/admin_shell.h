@@ -84,6 +84,8 @@ private:
     std::string                          CmdStatus()  const;
     std::string                          CmdPeers()   const;
     std::string                          CmdRegistry() const;
+    std::string                          CmdDiscover(std::uint8_t group_id,
+                                                    std::uint8_t type_id) const;
     std::string                          CmdPeer(std::uint32_t sid) const;
     std::string                          CmdKick(std::uint32_t uid,
                                                   const std::string& user);

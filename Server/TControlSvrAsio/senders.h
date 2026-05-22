@@ -291,6 +291,28 @@ boost::asio::awaitable<void> SendPeerHeartbeatAck(
     std::uint8_t  accepted,
     std::uint64_t lease_epoch);
 
+// CT_PEER_DISCOVER_ACK = {
+//   DWORD reason_code, WORD count,
+//   [ DWORD service_id, CString reported_name, CString reported_addr,
+//     WORD reported_port ] * count
+// }
+// reason_code: 0 = ok (count may be 0 when no peer of that type is
+// registered yet); 2 = malformed request; 4 = discovery disabled by
+// config; 99 = internal. Returned entries are a point-in-time
+// snapshot — the peer must tolerate them going stale before the next
+// dial attempt.
+struct DiscoveredPeer
+{
+    std::uint32_t  service_id;
+    std::string    reported_name;
+    std::string    reported_addr;
+    std::uint16_t  reported_port;
+};
+boost::asio::awaitable<void> SendPeerDiscoverAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t reason_code,
+    const std::vector<DiscoveredPeer>& peers);
+
 // Raw passthrough — packet body verbatim, repacked with the given
 // wId. Used by EVENTQUARTER*, TOURNAMENTEVENT, HELPMESSAGE,
 // RPSGAME*, CMGIFT* forwarders.

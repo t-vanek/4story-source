@@ -375,6 +375,9 @@ Dispatch(std::shared_ptr<OperatorSession> op,
     case MessageId::CT_PEER_DEREGISTER_REQ:
         co_await OnPeerDeregisterReq(std::move(op), std::move(body), ctx);
         break;
+    case MessageId::CT_PEER_DISCOVER_REQ:
+        co_await OnPeerDiscoverReq(std::move(op), std::move(body), ctx);
+        break;
     default:
         // F3+ wires the rest of the 65 handlers. For now log the gap
         // so the bring-up notes can surface what TController.exe

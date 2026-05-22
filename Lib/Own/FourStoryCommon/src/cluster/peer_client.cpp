@@ -40,6 +40,8 @@ constexpr std::uint16_t kPeerRegisterAck    = 0x9F01;
 constexpr std::uint16_t kPeerHeartbeatReq   = 0x9F02;
 constexpr std::uint16_t kPeerHeartbeatAck   = 0x9F03;
 constexpr std::uint16_t kPeerDeregisterReq  = 0x9F04;
+constexpr std::uint16_t kPeerDiscoverReq    = 0x9F05;
+constexpr std::uint16_t kPeerDiscoverAck    = 0x9F06;
 
 constexpr std::uint16_t kPacketHeaderSize = 8;
 
@@ -97,6 +99,21 @@ public:
         if (m_off + sizeof(T) > m_size) return false;
         std::memcpy(&v, m_data + m_off, sizeof(T));
         m_off += sizeof(T);
+        return true;
+    }
+    bool ReadString(std::string& out)
+    {
+        out.clear();
+        std::int32_t len = 0;
+        if (!Read(len)) return false;
+        if (len < 0) return false;
+        if (m_off + static_cast<std::size_t>(len) > m_size) return false;
+        if (len > 0)
+        {
+            out.assign(reinterpret_cast<const char*>(m_data + m_off),
+                       static_cast<std::size_t>(len));
+            m_off += static_cast<std::size_t>(len);
+        }
         return true;
     }
 private:
@@ -413,6 +430,170 @@ boost::asio::awaitable<void> PeerClient::Run()
     }
     boost::system::error_code ec;
     UnderlyingTcp().close(ec);
+}
+
+// Discovery — run a transient request/reply against TControlSvr on a
+// fresh socket. Kept separate from the registration socket (Run's
+// state machine) so an in-flight Discover call can't race the
+// heartbeat read loop, and so a Discover failure mid-call doesn't
+// take down the lease.
+//
+// Transport mirrors ConnectAndRegister: TCP (or TLS when ssl_ctx is
+// set), 8-byte header + body framing, same checksum. No registration
+// is performed on this socket — the discover endpoint is a read-only
+// lookup and intentionally not lease-gated.
+boost::asio::awaitable<std::vector<PeerClient::DiscoveredPeer>>
+PeerClient::Discover(std::uint8_t group_id, std::uint8_t type_id)
+{
+    using boost::asio::ip::tcp;
+    std::vector<DiscoveredPeer> empty;
+
+    // Build the transport on a stack-local variant so this call is
+    // independent of m_socket (which Run() is actively reading from).
+    SocketVariant transport = MakeInitialSocket(m_io, m_opts.ssl_ctx);
+    auto& tcp_sock = std::holds_alternative<TlsStream>(transport)
+        ? std::get<TlsStream>(transport).next_layer()
+        : std::get<PlainSocket>(transport);
+
+    boost::system::error_code ec;
+    tcp::resolver resolver(m_io);
+    auto endpoints = co_await resolver.async_resolve(
+        m_opts.control_host, std::to_string(m_opts.control_port),
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec) { spdlog::warn("peer_client/discover: resolve failed — {}",
+        ec.message()); co_return empty; }
+
+    co_await boost::asio::async_connect(tcp_sock, endpoints,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec) { spdlog::warn("peer_client/discover: connect failed — {}",
+        ec.message()); co_return empty; }
+
+    if (auto* tls = std::get_if<TlsStream>(&transport))
+    {
+        co_await tls->async_handshake(
+            boost::asio::ssl::stream_base::client,
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if (ec) { spdlog::warn("peer_client/discover: TLS failed — {}",
+            ec.message()); co_return empty; }
+    }
+
+    // Build CT_PEER_DISCOVER_REQ body: BYTE group, BYTE type.
+    std::vector<std::byte> body;
+    body.reserve(2);
+    WritePOD<std::uint8_t>(body, group_id);
+    WritePOD<std::uint8_t>(body, type_id);
+
+    // Send through whichever variant arm is active.
+    const auto send_frame = [&](std::vector<std::byte> b)
+        -> boost::asio::awaitable<bool>
+    {
+        const std::size_t total = kPacketHeaderSize + b.size();
+        std::vector<std::byte> frame(total);
+        PacketHeader hdr{};
+        hdr.wSize    = static_cast<std::uint16_t>(total);
+        hdr.wID      = kPeerDiscoverReq;
+        hdr.dwChkSum = FoldChecksum(b.data(), b.size());
+        std::memcpy(frame.data(), &hdr, sizeof(hdr));
+        if (!b.empty())
+            std::memcpy(frame.data() + sizeof(hdr), b.data(), b.size());
+        boost::system::error_code wec;
+        if (auto* tls = std::get_if<TlsStream>(&transport))
+        {
+            co_await boost::asio::async_write(*tls,
+                boost::asio::buffer(frame.data(), total),
+                boost::asio::redirect_error(boost::asio::use_awaitable, wec));
+        }
+        else
+        {
+            co_await boost::asio::async_write(std::get<PlainSocket>(transport),
+                boost::asio::buffer(frame.data(), total),
+                boost::asio::redirect_error(boost::asio::use_awaitable, wec));
+        }
+        co_return !wec;
+    };
+
+    if (!co_await send_frame(std::move(body)))
+    {
+        spdlog::warn("peer_client/discover: send failed");
+        co_return empty;
+    }
+
+    // Read reply header + body.
+    PacketHeader hdr{};
+    const auto read_into = [&](void* dst, std::size_t n)
+        -> boost::asio::awaitable<bool>
+    {
+        boost::system::error_code rec;
+        if (auto* tls = std::get_if<TlsStream>(&transport))
+        {
+            co_await boost::asio::async_read(*tls,
+                boost::asio::buffer(dst, n),
+                boost::asio::redirect_error(boost::asio::use_awaitable, rec));
+        }
+        else
+        {
+            co_await boost::asio::async_read(std::get<PlainSocket>(transport),
+                boost::asio::buffer(dst, n),
+                boost::asio::redirect_error(boost::asio::use_awaitable, rec));
+        }
+        co_return !rec;
+    };
+
+    if (!co_await read_into(&hdr, sizeof(hdr)))
+    {
+        spdlog::warn("peer_client/discover: header read failed");
+        co_return empty;
+    }
+    if (hdr.wID != kPeerDiscoverAck || hdr.wSize < sizeof(hdr))
+    {
+        spdlog::warn("peer_client/discover: unexpected reply wID={:#x} "
+                     "size={}", hdr.wID, hdr.wSize);
+        co_return empty;
+    }
+    const std::size_t body_size = hdr.wSize - sizeof(hdr);
+    std::vector<std::byte> reply(body_size);
+    if (body_size > 0 && !co_await read_into(reply.data(), body_size))
+    {
+        spdlog::warn("peer_client/discover: body read failed");
+        co_return empty;
+    }
+    if (body_size > 0 && FoldChecksum(reply.data(), body_size) != hdr.dwChkSum)
+    {
+        spdlog::warn("peer_client/discover: checksum mismatch");
+        co_return empty;
+    }
+
+    BodyReader r(reply.data(), reply.size());
+    std::uint32_t reason = 0;
+    std::uint16_t count  = 0;
+    if (!r.Read(reason) || !r.Read(count))
+    {
+        spdlog::warn("peer_client/discover: malformed reply preamble");
+        co_return empty;
+    }
+    if (reason != 0)
+    {
+        spdlog::warn("peer_client/discover: control rejected — reason={}",
+            reason);
+        co_return empty;
+    }
+
+    std::vector<DiscoveredPeer> out;
+    out.reserve(count);
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        DiscoveredPeer p{};
+        if (!r.Read(p.service_id)        ||
+            !r.ReadString(p.reported_name) ||
+            !r.ReadString(p.reported_addr) ||
+            !r.Read(p.reported_port))
+        {
+            spdlog::warn("peer_client/discover: malformed entry at i={}", i);
+            co_return empty;
+        }
+        out.push_back(std::move(p));
+    }
+    co_return out;
 }
 
 } // namespace fourstory::cluster

@@ -46,6 +46,7 @@
 #include <memory>
 #include <string>
 #include <variant>
+#include <vector>
 
 namespace fourstory::cluster {
 
@@ -127,6 +128,31 @@ public:
 
     bool IsRegistered() const { return m_registered.load(); }
     std::uint64_t LeaseEpoch() const { return m_lease_epoch.load(); }
+
+    // Discovery mode — ask the control server for the live address
+    // of sibling peers of (group_id, type_id). Opens a transient TCP
+    // (or TLS) connection separate from the registration socket so
+    // the heartbeat loop isn't interrupted by an interleaved
+    // request/reply on the same stream. group_id=0 means "any group".
+    //
+    // On the wire: sends CT_PEER_DISCOVER_REQ, reads CT_PEER_DISCOVER_ACK,
+    // closes the socket. Returns an empty vector when:
+    //   * the network round-trip failed,
+    //   * control responded with a non-zero reason_code (discovery
+    //     disabled, malformed, internal), or
+    //   * no peer of that type is currently registered.
+    // The caller can't distinguish these cases by the return value —
+    // detail goes to spdlog. Callers that need the failure mode for
+    // retry decisions should not use this helper.
+    struct DiscoveredPeer
+    {
+        std::uint32_t  service_id;
+        std::string    reported_name;
+        std::string    reported_addr;
+        std::uint16_t  reported_port;
+    };
+    boost::asio::awaitable<std::vector<DiscoveredPeer>>
+        Discover(std::uint8_t group_id, std::uint8_t type_id);
 
     // Compute the synthetic service_id used in the registry. Pure
     // helper exposed so tests can recompute it without going through

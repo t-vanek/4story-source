@@ -60,6 +60,12 @@ struct ControlServerConfig
     boost::asio::thread_pool* db_pool = nullptr;
     std::uint8_t           auto_start  = 0;
 
+    // Discovery mode flag — when false, OnPeerDiscoverReq replies
+    // reason_code=4 (discovery disabled) so peers know to fall back
+    // to their static TOML peer list instead of treating the empty
+    // response as "no live peers".
+    bool                   discovery_enabled = true;
+
     // Optional server-side TLS context. When non-null, the accept
     // loop drives a server-side TLS handshake before constructing
     // the ControlSession. Caller owns the lifetime (typically a
@@ -120,6 +126,7 @@ private:
     ControlServerConfig             m_cfg;
     OperatorRegistry                m_operators;
     std::uint8_t                    m_auto_start = 0;
+    bool                            m_discovery_enabled = true;
 };
 
 } // namespace tcontrolsvr

@@ -92,6 +92,15 @@ public:
     std::vector<std::shared_ptr<PeerSession>>
         FindByType(std::uint8_t group_id, std::uint8_t type_id) const;
 
+    // Discovery query — return every live registration whose service
+    // matches (group_id, type_id). group_id == 0 means "any group"
+    // (covers single-cluster deployments where peers don't care which
+    // world a sibling lives in). Skips static-inventory rows that
+    // never received a CT_PEER_REGISTER_REQ — the caller only wants
+    // peers it can actually dial right now.
+    std::vector<RegistryEntry>
+        FindLiveByType(std::uint8_t group_id, std::uint8_t type_id) const;
+
     // --- Dynamic registry (peer self-registration, CT_PEER_*) -------
     //
     // Register / Heartbeat / Deregister return the lease epoch the

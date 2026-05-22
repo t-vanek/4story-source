@@ -55,6 +55,7 @@ namespace {
 constexpr std::uint32_t kRejectUnknownService = 1;
 constexpr std::uint32_t kRejectMalformed      = 2;
 constexpr std::uint32_t kRejectCnMismatch     = 3;
+constexpr std::uint32_t kRejectDiscoveryOff   = 4;
 constexpr std::uint32_t kRejectInternal       = 99;
 
 // Fixed cadence the control side asks every peer to use. 30s matches
@@ -319,6 +320,70 @@ OnPeerDeregisterReq(std::shared_ptr<OperatorSession> /*op*/,
                      "service_id={:#x} lease={}", service_id, lease_epoch);
     }
     co_return;
+}
+
+// CT_PEER_DISCOVER_REQ body: BYTE group_id, BYTE type_id
+//
+// Read-only — returns every live registration whose static service
+// matches (group_id, type_id), so an aux server can dial siblings
+// without any peer addresses hardcoded in TOML. group_id=0 is a
+// wildcard ("any group") for single-cluster deployments.
+//
+// Intentionally not gated by service_id / TLS CN — discovery is just
+// a lookup against state the peer would otherwise read out-of-band
+// from a config file. The transport-level TLS handshake (configured
+// via [security] tls_*) already determines who can connect to the
+// listener at all; we don't double-gate here.
+boost::asio::awaitable<void>
+OnPeerDiscoverReq(std::shared_ptr<OperatorSession> op,
+                  std::vector<std::byte> body,
+                  const HandlerContext& ctx)
+{
+    if (!ctx.peers)
+    {
+        spdlog::error("CT_PEER_DISCOVER_REQ: peers registry unavailable");
+        co_await senders::SendPeerDiscoverAck(op->Wire(),
+            kRejectInternal, {});
+        co_return;
+    }
+
+    // Treat nullptr discovery_enabled as "on" — tests and old configs
+    // skip wiring the flag, and the historical behaviour is to answer
+    // every lookup.
+    if (ctx.discovery_enabled != nullptr && !*ctx.discovery_enabled)
+    {
+        co_await senders::SendPeerDiscoverAck(op->Wire(),
+            kRejectDiscoveryOff, {});
+        co_return;
+    }
+
+    wire::Reader r(body);
+    std::uint8_t group_id = 0;
+    std::uint8_t type_id  = 0;
+    if (!r.Read(group_id) || !r.Read(type_id))
+    {
+        spdlog::warn("CT_PEER_DISCOVER_REQ: malformed body ({} bytes)",
+            body.size());
+        co_await senders::SendPeerDiscoverAck(op->Wire(),
+            kRejectMalformed, {});
+        co_return;
+    }
+
+    const auto live = ctx.peers->FindLiveByType(group_id, type_id);
+    std::vector<senders::DiscoveredPeer> out;
+    out.reserve(live.size());
+    for (const auto& e : live)
+    {
+        out.push_back({
+            e.service_id,
+            e.reported_name,
+            e.reported_addr,
+            e.reported_port,
+        });
+    }
+    spdlog::info("discover: group={} type={} → {} peer(s)",
+        group_id, type_id, out.size());
+    co_await senders::SendPeerDiscoverAck(op->Wire(), 0, out);
 }
 
 } // namespace tcontrolsvr::handlers

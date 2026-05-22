@@ -384,6 +384,8 @@ AdminShell::Dispatch(const std::string& line)
             "  peers                         service inventory + dial state\n"
             "  peer <service_id>             one-service detail (static + runtime + registry)\n"
             "  registry                      live peer self-registrations + heartbeats\n"
+            "  discover <group> <type>       list live peers of (group,type) — same data\n"
+            "                                CT_PEER_DISCOVER_REQ returns; group=0 = any\n"
             "  kick <user>                   broadcast UserKickout to all map peers\n"
             "  announce <message...>         broadcast announcement\n"
             "  service status <service_id>   query peer service status (SCM)\n"
@@ -413,6 +415,20 @@ AdminShell::Dispatch(const std::string& line)
         co_return CmdPeers();
     if (cmd == "registry")
         co_return CmdRegistry();
+    if (cmd == "discover")
+    {
+        std::string group_s, type_s;
+        in >> group_s >> type_s;
+        std::uint32_t group = 0, type = 0;
+        if (!ParseU32(group_s, group) || !ParseU32(type_s, type) ||
+            group > 0xFF || type > 0xFF)
+        {
+            co_return "usage: discover <group> <type>  "
+                      "(group=0 means any; type is 1..5)";
+        }
+        co_return CmdDiscover(static_cast<std::uint8_t>(group),
+                              static_cast<std::uint8_t>(type));
+    }
     if (cmd == "peer")
     {
         std::string sid_s;
@@ -551,6 +567,28 @@ std::string AdminShell::CmdRegistry() const
         os << e.lease_epoch << "      "
            << age << "s     "
            << e.cur_users << "/" << e.max_users;
+    }
+    return os.str();
+}
+
+std::string AdminShell::CmdDiscover(std::uint8_t group_id,
+                                    std::uint8_t type_id) const
+{
+    const auto live = m_peers.FindLiveByType(group_id, type_id);
+    if (live.empty())
+    {
+        std::ostringstream os;
+        os << "(no live peers of group=" << static_cast<int>(group_id)
+           << " type="  << static_cast<int>(type_id) << ")";
+        return os.str();
+    }
+    std::ostringstream os;
+    os << "service_id  name                  addr";
+    for (const auto& e : live)
+    {
+        os << "\n" << e.service_id << "    " << e.reported_name;
+        for (std::size_t i = e.reported_name.size(); i < 22; ++i) os << ' ';
+        os << e.reported_addr << ":" << e.reported_port;
     }
     return os.str();
 }

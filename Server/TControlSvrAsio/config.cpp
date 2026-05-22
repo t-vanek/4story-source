@@ -61,6 +61,11 @@ AppConfig LoadConfig(const std::string& path)
         if (auto a = (*srv)["auto_start"].value<std::int64_t>())
             cfg.auto_start = Byte(*a, "server.auto_start");
     }
+    if (auto d = tbl["discovery"].as_table())
+    {
+        if (auto e = (*d)["enabled"].value<bool>())
+            cfg.discovery_enabled = *e;
+    }
     if (auto rl = tbl["login_rate"].as_table())
     {
         if (auto v = (*rl)["burst"].value<std::int64_t>())

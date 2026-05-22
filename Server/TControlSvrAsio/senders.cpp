@@ -602,4 +602,25 @@ boost::asio::awaitable<void> SendPeerHeartbeatAck(
         ToUint16(MessageId::CT_PEER_HEARTBEAT_ACK), std::move(body));
 }
 
+boost::asio::awaitable<void> SendPeerDiscoverAck(
+    const std::shared_ptr<ControlSession>& sess,
+    std::uint32_t reason_code,
+    const std::vector<DiscoveredPeer>& peers)
+{
+    std::vector<std::byte> body;
+    body.reserve(4 + 2 + peers.size() * (4 + 4 + 4 + 2 + 16));
+    wire::WritePOD<std::uint32_t>(body, reason_code);
+    wire::WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(peers.size()));
+    for (const auto& p : peers)
+    {
+        wire::WritePOD<std::uint32_t>(body, p.service_id);
+        wire::WriteString(body, p.reported_name);
+        wire::WriteString(body, p.reported_addr);
+        wire::WritePOD<std::uint16_t>(body, p.reported_port);
+    }
+    co_await sess->SendPacket(
+        ToUint16(MessageId::CT_PEER_DISCOVER_ACK), std::move(body));
+}
+
 } // namespace tcontrolsvr::senders

@@ -96,6 +96,22 @@ PeerRegistry::FindByType(std::uint8_t group_id, std::uint8_t type_id) const
     return out;
 }
 
+std::vector<RegistryEntry>
+PeerRegistry::FindLiveByType(std::uint8_t group_id,
+                             std::uint8_t type_id) const
+{
+    std::vector<RegistryEntry> out;
+    for (const auto& [sid, entry] : m_registry)
+    {
+        const auto* svc = FindService(sid);
+        if (svc == nullptr) continue;
+        if (svc->type_id != type_id) continue;
+        if (group_id != 0 && svc->group_id != group_id) continue;
+        out.push_back(entry);
+    }
+    return out;
+}
+
 // --- Dynamic registry -------------------------------------------------
 
 std::uint64_t PeerRegistry::Register(const RegistryEntry& proposed)

@@ -95,6 +95,24 @@ asio::ssl::context MakeServerCtx()
     return ctx;
 }
 
+// Client context that presents wild_client.crt — CN=wild-generic,
+// SAN=DNS:*.cluster.local (wildcard).
+asio::ssl::context MakeWildClientCtx()
+{
+    asio::ssl::context ctx(asio::ssl::context::tls_client);
+    ctx.set_options(
+        asio::ssl::context::default_workarounds |
+        asio::ssl::context::no_sslv2 |
+        asio::ssl::context::no_sslv3);
+    ctx.use_certificate_file(CertPath("wild_client.crt"),
+                              asio::ssl::context::pem);
+    ctx.use_private_key_file(CertPath("wild_client.key"),
+                              asio::ssl::context::pem);
+    ctx.load_verify_file(CertPath("ca.crt"));
+    ctx.set_verify_mode(asio::ssl::verify_peer);
+    return ctx;
+}
+
 // Client context that presents san_client.crt — CN=tnetlib-generic,
 // SAN=tnetlib-san-client / tnetlib-san-alias.
 asio::ssl::context MakeSanClientCtx()
@@ -168,9 +186,12 @@ RegisterAck ParseRegisterAck(const std::vector<std::byte>& body)
     return a;
 }
 
+enum class ClientCertKind { San, Wild };
+
 RegisterAck DriveSanRegister(asio::ssl::context& server_ctx,
                               fourstory::security::PeerSecurityGate* gate,
-                              std::uint32_t service_id)
+                              std::uint32_t service_id,
+                              ClientCertKind kind = ClientCertKind::San)
 {
     asio::io_context io;
     FakeOperatorAuthService auth;
@@ -196,7 +217,8 @@ RegisterAck DriveSanRegister(asio::ssl::context& server_ctx,
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     asio::io_context client_io;
-    auto client_ctx = MakeSanClientCtx();
+    auto client_ctx = (kind == ClientCertKind::Wild)
+        ? MakeWildClientCtx() : MakeSanClientCtx();
     asio::ssl::stream<tcp::socket> stream(client_io, client_ctx);
     stream.next_layer().connect(
         tcp::endpoint(asio::ip::address_v4::loopback(), server.Port()));
@@ -278,6 +300,41 @@ void TestCnFallbackStillWorks()
           "REGISTER_ACK accepted=1 on CN match (SAN path didn't override)");
 }
 
+void TestWildcardSanMatchesSingleLabel()
+{
+    std::printf("[wildcard SAN matches single-label hostname]\n");
+    fourstory::security::SecurityConfig cfg;
+    fourstory::security::PeerSecurityGate gate(cfg, nullptr);
+    // wild_client.crt has SAN=DNS:*.cluster.local. Expected name
+    // "tlogin-eu-1.cluster.local" matches via RFC 6125 wildcard
+    // expansion.
+    gate.InjectTrustForTest(1, 2, 3, "tlogin-eu-1.cluster.local");
+
+    auto server_ctx = MakeServerCtx();
+    const std::uint32_t service_id = (1u << 16) | (3u << 8) | 2u;
+    auto ack = DriveSanRegister(server_ctx, &gate, service_id,
+                                 ClientCertKind::Wild);
+    Check(ack.accepted == 1,
+          "REGISTER_ACK accepted=1 on wildcard SAN match");
+}
+
+void TestWildcardSanRejectsDeepName()
+{
+    std::printf("[wildcard SAN rejects multi-label expansion]\n");
+    fourstory::security::SecurityConfig cfg;
+    fourstory::security::PeerSecurityGate gate(cfg, nullptr);
+    // Multi-label name — RFC 6125 wildcard covers only ONE label,
+    // so "deep.tlogin.cluster.local" must not match "*.cluster.local".
+    gate.InjectTrustForTest(1, 2, 3, "deep.tlogin.cluster.local");
+
+    auto server_ctx = MakeServerCtx();
+    const std::uint32_t service_id = (1u << 16) | (3u << 8) | 2u;
+    auto ack = DriveSanRegister(server_ctx, &gate, service_id,
+                                 ClientCertKind::Wild);
+    Check(ack.accepted == 0,
+          "REGISTER_ACK accepted=0 on multi-label vs wildcard");
+}
+
 } // namespace
 
 int main()
@@ -289,6 +346,8 @@ int main()
         TestSanAliasMatch();
         TestNoSanOrCnMatch();
         TestCnFallbackStillWorks();
+        TestWildcardSanMatchesSingleLabel();
+        TestWildcardSanRejectsDeepName();
     }
     catch (const std::exception& ex)
     {

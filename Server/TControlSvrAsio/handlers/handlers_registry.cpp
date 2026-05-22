@@ -41,6 +41,7 @@
 #include "MessageId.h"
 
 #include "fourstory/db/co_offload.h"
+#include "fourstory/security/hostname_match.h"
 
 
 #include <spdlog/spdlog.h>
@@ -136,11 +137,24 @@ OnPeerRegisterReq(std::shared_ptr<OperatorSession> op,
             ctx.security->LookupPeerName(group_id, server_id);
         if (expected.has_value())
         {
-            const bool cn_matches = (peer_cn == *expected);
+            // Identity match policy: literal compare against CN +
+            // every SAN entry, plus RFC 6125 wildcard expansion on
+            // the SAN side (operators sometimes issue one
+            // "*.cluster.local" cert per machine instead of one
+            // cert per peer). CN gets literal-only comparison
+            // because CN-as-identity is deprecated and wildcards
+            // there are easy to misuse.
+            const bool cn_matches =
+                fourstory::security::detail::EqualIgnoreCase(
+                    peer_cn, *expected);
             bool san_matches = false;
             for (const auto& san : peer_sans)
             {
-                if (san == *expected) { san_matches = true; break; }
+                if (fourstory::security::HostnameMatch(san, *expected))
+                {
+                    san_matches = true;
+                    break;
+                }
             }
             if (!cn_matches && !san_matches)
             {

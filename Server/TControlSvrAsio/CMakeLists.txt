@@ -285,6 +285,19 @@ if(EXISTS ${CONTROL_TLS_CERT_DIR}/ca.crt)
         PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
     add_test(NAME tcontrolsvr_asio_register_cn
         COMMAND test_tcontrolsvr_asio_register_cn)
+
+    # SAN matching — modern PKI path (RFC 5280 §4.2.1.6). Exercises
+    # the SubjectAltName extraction + identity-match branch in
+    # OnPeerRegisterReq using the san_client.crt fixture (CN
+    # differs from any SAN entry).
+    add_executable(test_tcontrolsvr_asio_register_san
+        ${TCONTROL_ASIO_SRC}/tests/test_register_san_validation.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_register_san
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_register_san
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_register_san
+        COMMAND test_tcontrolsvr_asio_register_san)
 endif()
 
 # CoOffload helper test — verifies the lambda runs on a worker

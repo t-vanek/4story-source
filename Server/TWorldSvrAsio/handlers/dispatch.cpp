@@ -204,8 +204,16 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-17+ picks up leave/kickout DB fan-in, tactics
-    // subsystem, cabinet item codec. … see README §4.
+    // ---- W3a-17: leave/kickout DB fan-in -----------------------
+    case MessageId::DM_GUILDLEAVE_REQ:
+        co_await OnGuildLeaveReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_GUILDKICKOUT_REQ:
+        co_await OnGuildKickoutReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W3a-18+ picks up tactics subsystem, cabinet item codec,
+    // PvP record listing. … see README §4.
 
     default:
         break;

@@ -1776,6 +1776,114 @@ OnGuildVolunteeringDelReq(std::shared_ptr<PeerSession> peer,
         ip, char_id);
 }
 
+// --- W3a-17 leave/kickout DB fan-in --------------------------------
+//
+// Both handlers do the same in-memory cleanup: find the guild,
+// drop the member from guild->members, clear TChar.guild_id.
+// They differ only in wire layout (LEAVE carries bLeave + dwTime
+// as extra audit fields) and in semantics (the bLeave code lets
+// us log "self-leave vs. forced removal" but we don't persist it
+// separately — the modern repo has no leave-log table yet).
+
+namespace {
+
+// Shared in-memory cleanup for the W3a-17 LEAVE + KICKOUT fan-in.
+// Returns true if anything was actually removed (caller's log
+// distinguishes "did real work" from "drop from stale broker").
+bool ScrubMembershipInMemory(const HandlerContext& ctx,
+                             std::uint32_t         guild_id,
+                             std::uint32_t         char_id)
+{
+    bool did_work = false;
+    if (ctx.guilds)
+    {
+        if (auto guild = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(guild->lock);
+            if (guild->RemoveMember(char_id)) did_work = true;
+        }
+    }
+    if (ctx.chars)
+    {
+        if (auto tchar = ctx.chars->Find(char_id))
+        {
+            std::lock_guard g(tchar->lock);
+            // Clear the back-pointer unconditionally — if it was
+            // already 0 that's fine (idempotent), and if it
+            // pointed at a different guild_id we still want to
+            // clear it (DB is authoritative and just told us this
+            // char isn't in any guild any more).
+            if (tchar->guild_id != 0) did_work = true;
+            tchar->guild_id = 0;
+        }
+    }
+    return did_work;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildLeaveReq(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte>       body,
+                const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, char_id = 0, leave_time = 0;
+    std::uint8_t  leave_kind = 0;
+    if (!r.Read(guild_id) || !r.Read(char_id) || !r.Read(leave_kind) ||
+        !r.Read(leave_time))
+    {
+        spdlog::warn("OnGuildLeaveReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    const bool did_work = ScrubMembershipInMemory(ctx, guild_id, char_id);
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, guild_id] {
+                repo->RemoveMember(char_id, guild_id);
+            });
+    }
+
+    spdlog::info("OnGuildLeaveReq[{}]: guild_id={} char_id={} "
+                 "leave_kind={} leave_time={} (in_mem_work={})",
+        ip, guild_id, char_id, leave_kind, leave_time, did_work);
+}
+
+boost::asio::awaitable<void>
+OnGuildKickoutReq(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, char_id = 0;
+    if (!r.Read(guild_id) || !r.Read(char_id))
+    {
+        spdlog::warn("OnGuildKickoutReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    const bool did_work = ScrubMembershipInMemory(ctx, guild_id, char_id);
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, guild_id] {
+                repo->RemoveMember(char_id, guild_id);
+            });
+    }
+
+    spdlog::info("OnGuildKickoutReq[{}]: guild_id={} char_id={} "
+                 "(in_mem_work={})",
+        ip, guild_id, char_id, did_work);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

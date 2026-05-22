@@ -1386,6 +1386,183 @@ int main()
         EXPECT(saw_del_app);
     }
 
+    // --- Scenario 32: DM_GUILDLEAVE_REQ (W3a-17 fan-in) ------------
+    //
+    // Carol (char 400) is in guild 8 from scenario 14. DB tells
+    // us she's leaving; we should drop her from guild->members,
+    // clear her TChar.guild_id back-pointer, and persist via
+    // repo->RemoveMember. No wire reply.
+    {
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->FindMember(400) != nullptr);  // pre-state
+        }
+        auto c = chars.Find(400);
+        EXPECT(c != nullptr);
+        if (c) { std::lock_guard cg(c->lock); EXPECT(c->guild_id == 8); }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);          // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 400);        // char_id
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kLeaveSelf);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1700002000); // leave_time
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDLEAVE_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool gone = false;
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            gone = (g->FindMember(400) == nullptr);
+        }
+        if (gone) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->FindMember(400) == nullptr);
+        }
+        if (auto c = chars.Find(400))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->guild_id == 0);
+        }
+        bool saw_remove = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kRemoveMember
+                && c.char_id == 400 && c.guild_id == 8)
+            { saw_remove = true; break; }
+        }
+        EXPECT(saw_remove);
+    }
+
+    // --- Scenario 33: DM_GUILDKICKOUT_REQ (W3a-17 fan-in) ----------
+    //
+    // Seed a fresh char (500 "Echo") into guild 8 manually, then
+    // exercise the kickout fan-in. Same cleanup as LEAVE but no
+    // leave_kind/leave_time on the wire. Earlier scenarios kicked
+    // Bravo2 (10) and just left Carol (32), so we need a fresh
+    // member for this scenario.
+    SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
+        AddCharBody(500, 0xECC00500));
+    SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
+        NameBody(500, 0xECC00500, "Echo"));
+    for (int i = 0; i < 50; ++i)
+    {
+        if (chars.FindByName("Echo")) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            tworldsvr::TGuildMember m;
+            m.char_id  = 500;
+            m.guild_id = 8;
+            m.duty     = tworldsvr::guild::kDutyNone;
+            m.name     = "Echo";
+            g->members.push_back(std::move(m));
+        }
+        auto echo = chars.Find(500);
+        if (echo) { std::lock_guard cg(echo->lock); echo->guild_id = 8; }
+    }
+    {
+        auto g = guilds.Find(8);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->FindMember(500) != nullptr);  // pre-state
+        }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);    // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 500);  // char_id
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDKICKOUT_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool gone = false;
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            gone = (g->FindMember(500) == nullptr);
+        }
+        if (gone) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->FindMember(500) == nullptr);
+        }
+        if (auto c = chars.Find(500))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->guild_id == 0);
+        }
+        bool saw_kickout = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kRemoveMember
+                && c.char_id == 500 && c.guild_id == 8)
+            { saw_kickout = true; break; }
+        }
+        EXPECT(saw_kickout);
+    }
+
+    // --- Scenario 34: DM_GUILDLEAVE_REQ idempotent on stale row ----
+    //
+    // Re-send the LEAVE for Carol after she's already gone.
+    // Handler should treat it as a benign no-op (no crash, repo
+    // still gets called because DB-authoritative).
+    const auto pre_remove_count = [&]{
+        std::size_t n = 0;
+        for (const auto& c : fake_repo.Calls())
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kRemoveMember
+                && c.char_id == 400 && c.guild_id == 8) ++n;
+        return n;
+    }();
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 400);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kLeaveSelf);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1700003000);
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDLEAVE_REQ), body);
+    }
+    std::this_thread::sleep_for(80ms);
+    {
+        std::size_t post = 0;
+        for (const auto& c : fake_repo.Calls())
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kRemoveMember
+                && c.char_id == 400 && c.guild_id == 8) ++post;
+        EXPECT(post == pre_remove_count + 1);  // repo got called again
+        // Char 400 should still have no guild (was already cleared).
+        if (auto c = chars.Find(400))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->guild_id == 0);
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1395,7 +1572,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (31 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (34 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

@@ -151,6 +151,61 @@ SendMwGuildContributionReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwGuildInfoReq(std::shared_ptr<PeerSession> peer,
+                   std::uint32_t                char_id,
+                   std::uint32_t                key,
+                   std::uint8_t                 result,
+                   const GuildInfoPayload*      payload)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    // Legacy SSSender.cpp:1030 — only emit payload on success.
+    if (result == 0 /*kSuccess*/ && payload != nullptr)
+    {
+        WritePOD<std::uint32_t>(body, payload->guild_id);
+        WriteString(body, payload->name);
+        WritePOD<std::int64_t>(body, payload->establish_time);
+        WritePOD<std::uint16_t>(body, payload->member_count);
+        WritePOD<std::uint16_t>(body, payload->max_member);
+        WriteString(body, payload->chief_name);
+        WritePOD<std::uint8_t>(body, payload->chief_peer);
+        // Vice-chief slots: always emit 2 entries even when fewer
+        // exist (NAME_NULL = empty string per legacy parity).
+        for (const auto& name : payload->vice_chief_names)
+            WriteString(body, name);
+        WritePOD<std::uint8_t>(body, payload->level);
+        WritePOD<std::uint32_t>(body, payload->fame);
+        WritePOD<std::uint32_t>(body, payload->fame_color);
+        WritePOD<std::uint32_t>(body, payload->gi);
+        WritePOD<std::uint32_t>(body, payload->exp);
+        WritePOD<std::uint32_t>(body, payload->level_exp);
+        WritePOD<std::uint8_t>(body, payload->guild_points);
+        WritePOD<std::uint8_t>(body, payload->status);
+        WritePOD<std::uint32_t>(body, payload->gold);
+        WritePOD<std::uint32_t>(body, payload->silver);
+        WritePOD<std::uint32_t>(body, payload->cooper);
+        WritePOD<std::uint8_t>(body, payload->requester_duty);
+        WritePOD<std::uint8_t>(body, payload->requester_peer);
+        WriteString(body, payload->article_title);
+        WritePOD<std::uint32_t>(body, payload->pvp_total_point);
+        WritePOD<std::uint32_t>(body, payload->pvp_useable_point);
+        WritePOD<std::uint32_t>(body, payload->pvp_month_point);
+        WritePOD<std::uint32_t>(body, payload->rank_total);
+        WritePOD<std::uint32_t>(body, payload->rank_month);
+        WritePOD<std::uint8_t>(body, payload->stat_level);
+        WritePOD<std::uint8_t>(body, payload->stat_point);
+        WritePOD<std::uint32_t>(body, payload->stat_exp);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDINFO_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwGuildArticleListReq(std::shared_ptr<PeerSession>           peer,
                           std::uint32_t                          char_id,
                           std::uint32_t                          key,

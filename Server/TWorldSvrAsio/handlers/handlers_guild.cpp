@@ -1091,6 +1091,137 @@ OnGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
                  "persisted", ip, guild_id, max_cabinet);
 }
 
+// --- W3a-9 single guild info refresh ------------------------------
+
+boost::asio::awaitable<void>
+OnGuildInfoAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildInfoAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildInfoAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t guild_id = 0, actual_key = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+    if (guild_id == 0)
+    {
+        co_await senders::SendMwGuildInfoReq(peer, char_id, key,
+            guild::kNotFound, nullptr);
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        co_await senders::SendMwGuildInfoReq(peer, char_id, key,
+            guild::kNotFound, nullptr);
+        co_return;
+    }
+
+    senders::GuildInfoPayload p;
+    p.guild_id = guild_id;
+    {
+        std::lock_guard gl(guild->lock);
+        p.name              = guild->name;
+        p.establish_time    = guild->establish_time;
+        p.member_count      = static_cast<std::uint16_t>(guild->members.size());
+        p.level             = guild->level;
+        p.fame              = guild->fame;
+        p.fame_color        = guild->fame_color;
+        p.gi                = guild->gi;
+        p.exp               = guild->exp;
+        p.guild_points      = guild->guild_points;
+        p.status            = guild->status;
+        p.gold              = guild->gold;
+        p.silver            = guild->silver;
+        p.cooper            = guild->cooper;
+        p.pvp_total_point   = guild->pvp_total_point;
+        p.pvp_useable_point = guild->pvp_useable_point;
+        p.pvp_month_point   = guild->pvp_month_point;
+        p.rank_total        = guild->rank_total;
+        p.rank_month        = guild->rank_month;
+        p.stat_level        = guild->stat_level;
+        p.stat_point        = guild->stat_point;
+        p.stat_exp          = guild->stat_exp;
+
+        // Chief — legacy refuses kNotFound if no chief exists.
+        const TGuildMember* chief = guild->FindMember(guild->chief_char_id);
+        if (chief)
+        {
+            p.chief_name = chief->name;
+            p.chief_peer = chief->peer;
+        }
+
+        // Requester's duty/peer.
+        if (const TGuildMember* m = guild->FindMember(char_id))
+        {
+            p.requester_duty = m->duty;
+            p.requester_peer = m->peer;
+        }
+        // else (legacy tactics-member path) — leaves both at 0,
+        // matches legacy SSHandler.cpp:3894 default fall-through.
+
+        // Vice-chief slots: collect up to 2; the sender pads with
+        // empty strings (legacy NAME_NULL) to always emit 2.
+        std::size_t vc = 0;
+        for (const auto& m : guild->members)
+        {
+            if (vc >= p.vice_chief_names.size()) break;
+            if (m.duty == guild::kDutyViceChief)
+                p.vice_chief_names[vc++] = m.name;
+        }
+
+        // Most-recent article title — legacy m_strArticleTitle.
+        if (!guild->articles.empty())
+            p.article_title = guild->articles.back().title;
+    }
+
+    // Max member + level exp cap from the guild_levels cache.
+    if (ctx.guild_levels)
+    {
+        if (const auto* lvl = ctx.guild_levels->Find(p.level))
+        {
+            p.max_member = lvl->max_count;
+            p.level_exp  = lvl->exp;
+        }
+    }
+
+    if (p.chief_name.empty())
+    {
+        co_await senders::SendMwGuildInfoReq(peer, char_id, key,
+            guild::kNotFound, nullptr);
+        co_return;
+    }
+
+    co_await senders::SendMwGuildInfoReq(peer, char_id, key,
+        guild::kSuccess, &p);
+    spdlog::info("OnGuildInfoAck[{}]: char_id={} guild_id={} info → "
+                 "level={} fame={} members={}/{} pvp={}",
+        ip, char_id, guild_id, p.level, p.fame, p.member_count,
+        p.max_member, p.pvp_total_point);
+}
+
 // --- W3a-8 article board ------------------------------------------
 
 namespace {

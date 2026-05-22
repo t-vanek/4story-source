@@ -107,8 +107,11 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildArticleUpdateAck(std::move(peer), std::move(body),
             ctx);
         co_return;
+    case MessageId::MW_GUILDINFO_ACK:
+        co_await OnGuildInfoAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3a-9+ picks up Tactics / Volunteers / PvP record / Point
+    // W3a-10+ picks up Tactics / Volunteers / PvP record / Point
     // reward / Cabinet item codec. … see README §4.
 
     default:

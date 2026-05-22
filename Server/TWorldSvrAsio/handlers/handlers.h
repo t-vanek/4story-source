@@ -212,6 +212,21 @@ boost::asio::awaitable<void> OnGuildMemberListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-9: single guild info refresh (handlers_guild.cpp) --------
+
+// Inbound from a map server: client opened the guild info pane.
+// World assembles the canonical guild summary (chief + vice-chief
+// slots + fame/exp/gold + per-level exp cap + article title +
+// PvP totals) + the requester's own duty/peer, replies with
+// MW_GUILDINFO_REQ.
+//
+// Wire layout (SSHandler.cpp:3866):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildInfoAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-8: guild articles board (handlers_guild.cpp) -------------
 
 // Client opened the guild board → respond with the full list of

@@ -70,6 +70,13 @@ struct AppConfig
     // can flip this at runtime via CT_SERVICEAUTOSTART_REQ.
     std::uint8_t   auto_start = 0;
 
+    // Discovery mode — when true (default), CT_PEER_DISCOVER_REQ
+    // answers with the live registry slice for (group_id, type_id)
+    // so aux servers can find siblings without static TOML entries.
+    // Flip to false to force every peer back onto its configured
+    // peer list (useful when debugging a flapping registry).
+    bool           discovery_enabled = true;
+
     // Per-IP rate limit on CT_OPLOGIN_REQ. Token bucket — `burst`
     // attempts allowed in quick succession, then one refill every
     // `refill_seconds`. Hardening against brute-force; the legacy

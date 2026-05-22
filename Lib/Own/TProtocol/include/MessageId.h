@@ -908,6 +908,13 @@ enum class MessageId : std::uint16_t {
     CT_PEER_HEARTBEAT_ACK   = 0x9F03,  // control → peer: lease confirm / re-register hint
     CT_PEER_DEREGISTER_REQ  = 0x9F04,  // peer → control: graceful shutdown
 
+    // Discovery mode — peer asks control for the live address:port of
+    // sibling services so auxiliary servers don't need every peer's
+    // address hardcoded in their TOML. Read-only query over the same
+    // CT_PEER wire; no lease required.
+    CT_PEER_DISCOVER_REQ    = 0x9F05,  // peer → control: list live peers of (group,type)
+    CT_PEER_DISCOVER_ACK    = 0x9F06,  // control → peer: reason + [service_id,name,addr,port]
+
     // === CT_PATCH ===
     CT_PATCH_REQ = 0x4202,  // CTProtocol.h:273
     CT_PATCH_ACK = 0x4203,  // CTProtocol.h:274

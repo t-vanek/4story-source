@@ -10,6 +10,14 @@
 port       = 12000   # operator + peer TCP listener
 auto_start = 0       # initial value of the auto-restart flag
 
+# Discovery mode — when enabled, aux servers (TLogin/TPatch/TLog/TMap)
+# can ask the control server for the live address:port of sibling
+# peers via CT_PEER_DISCOVER_REQ, instead of carrying every peer's
+# address in their own TOML. Set false to force peers back onto their
+# static peer lists (useful while debugging a flapping registry).
+[discovery]
+enabled = true
+
 # When [database] is set the SOCI repos load the inventory + auth
 # from TGLOBAL_RAGEZONE instead of from the in-memory fakes below.
 # `worker_threads` controls a boost::asio::thread_pool that handlers

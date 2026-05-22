@@ -21,6 +21,7 @@ ControlServer::ControlServer(boost::asio::io_context& io,
     , m_port(cfg.port)
     , m_cfg(std::move(cfg))
     , m_auto_start(m_cfg.auto_start)
+    , m_discovery_enabled(m_cfg.discovery_enabled)
 {
     using boost::asio::ip::tcp;
     tcp::endpoint ep(tcp::v4(), m_port);
@@ -201,6 +202,7 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.db_pool    = m_cfg.db_pool;
     ctx.io         = &m_io;
     ctx.auto_start = &m_auto_start;
+    ctx.discovery_enabled = &m_discovery_enabled;
 
     co_await sess->Run(
         [this, op, ctx](std::shared_ptr<ControlSession> /*s*/,

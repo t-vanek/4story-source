@@ -445,6 +445,128 @@ void TestHeartbeatReqRejectsStaleLease()
     Check(lease    == 0, "no lease echoed");
 }
 
+void TestDiscoverReqListsLivePeers()
+{
+    std::printf("[wire — CT_PEER_DISCOVER_REQ lists live peers of (group,type)]\n");
+    LoopbackPair rig;
+    FakeServiceInventory inv;
+    // Three Map services in two groups; one is not registered yet so
+    // discovery should skip it.
+    inv.AddService(MakeService(0x010404, 4, "map-A1"));
+    inv.AddService(MakeService(0x010405, 4, "map-A2"));
+    inv.AddService(MakeService(0x020404, 4, "map-B1"));
+    PeerRegistry peers(inv);
+    // Hand-roll registrations so we can assert addr/port in the reply.
+    RegistryEntry r1{}; r1.service_id = 0x010404;
+    r1.reported_name = "map-A1"; r1.reported_addr = "10.0.0.1"; r1.reported_port = 7001;
+    RegistryEntry r2{}; r2.service_id = 0x020404;
+    r2.reported_name = "map-B1"; r2.reported_addr = "10.0.0.2"; r2.reported_port = 7002;
+    peers.Register(r1);
+    peers.Register(r2);
+    // 0x010405 intentionally not Register()'d.
+
+    HandlerContext ctx{};
+    ctx.peers = &peers;
+
+    auto wire = std::make_shared<ControlSession>(std::move(rig.server));
+    auto op = std::make_shared<OperatorSession>(wire);
+
+    // group=0 (any), type=4 → expect both r1 and r2.
+    std::vector<std::byte> body;
+    PushPOD<std::uint8_t>(body, 0);
+    PushPOD<std::uint8_t>(body, 4);
+
+    asio::co_spawn(rig.io,
+        tcontrolsvr::handlers::OnPeerDiscoverReq(op, body, ctx),
+        asio::detached);
+    std::thread runner([&] { rig.io.run(); });
+    const auto pkt = ReadOnePacket(rig.client);
+    runner.join();
+
+    Check(pkt.wId == tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::CT_PEER_DISCOVER_ACK),
+        "wID == CT_PEER_DISCOVER_ACK");
+
+    // Body: DWORD reason, WORD count, then per-entry.
+    std::uint32_t reason = 0;
+    std::uint16_t count  = 0;
+    std::memcpy(&reason, pkt.body.data(),     4);
+    std::memcpy(&count,  pkt.body.data() + 4, 2);
+    Check(reason == 0, "reason_code=0");
+    Check(count  == 2, "two live peers returned");
+
+    // Spot-check the first entry's header — leave full string parsing
+    // to the integration round-trip in peer_client tests.
+    std::uint32_t sid_a = 0;
+    std::memcpy(&sid_a, pkt.body.data() + 6, 4);
+    Check(sid_a == 0x010404 || sid_a == 0x020404,
+        "first entry is one of the registered services");
+}
+
+void TestDiscoverReqDisabledByFlag()
+{
+    std::printf("[wire — CT_PEER_DISCOVER_REQ honours discovery_enabled=false]\n");
+    LoopbackPair rig;
+    FakeServiceInventory inv;
+    inv.AddService(MakeService(0x010404, 4, "map-A1"));
+    PeerRegistry peers(inv);
+    RegistryEntry r1{}; r1.service_id = 0x010404;
+    r1.reported_name = "map-A1"; r1.reported_addr = "10.0.0.1"; r1.reported_port = 7001;
+    peers.Register(r1);
+
+    bool discovery_off = false;
+    HandlerContext ctx{};
+    ctx.peers = &peers;
+    ctx.discovery_enabled = &discovery_off;
+
+    auto wire = std::make_shared<ControlSession>(std::move(rig.server));
+    auto op = std::make_shared<OperatorSession>(wire);
+
+    std::vector<std::byte> body;
+    PushPOD<std::uint8_t>(body, 1);
+    PushPOD<std::uint8_t>(body, 4);
+
+    asio::co_spawn(rig.io,
+        tcontrolsvr::handlers::OnPeerDiscoverReq(op, body, ctx),
+        asio::detached);
+    std::thread runner([&] { rig.io.run(); });
+    const auto pkt = ReadOnePacket(rig.client);
+    runner.join();
+
+    std::uint32_t reason = 0;
+    std::uint16_t count  = 0;
+    std::memcpy(&reason, pkt.body.data(),     4);
+    std::memcpy(&count,  pkt.body.data() + 4, 2);
+    Check(reason == 4, "reason_code=4 (discovery disabled)");
+    Check(count  == 0, "no entries returned when disabled");
+}
+
+void TestDiscoverReqMalformedBody()
+{
+    std::printf("[wire — CT_PEER_DISCOVER_REQ malformed body is rejected]\n");
+    LoopbackPair rig;
+    FakeServiceInventory inv;
+    PeerRegistry peers(inv);
+    HandlerContext ctx{};
+    ctx.peers = &peers;
+
+    auto wire = std::make_shared<ControlSession>(std::move(rig.server));
+    auto op = std::make_shared<OperatorSession>(wire);
+
+    std::vector<std::byte> body;  // empty — too short for group + type
+
+    asio::co_spawn(rig.io,
+        tcontrolsvr::handlers::OnPeerDiscoverReq(op, body, ctx),
+        asio::detached);
+    std::thread runner([&] { rig.io.run(); });
+    const auto pkt = ReadOnePacket(rig.client);
+    runner.join();
+
+    std::uint32_t reason = 0;
+    std::memcpy(&reason, pkt.body.data(), 4);
+    Check(reason == 2, "reason_code=2 (malformed)");
+}
+
 void TestDeregisterReqClearsConnection()
 {
     std::printf("[wire — CT_PEER_DEREGISTER_REQ wipes entry + connection]\n");
@@ -506,6 +628,9 @@ int main()
         TestHeartbeatReqAcceptsCurrentLease();
         TestHeartbeatReqRejectsStaleLease();
         TestDeregisterReqClearsConnection();
+        TestDiscoverReqListsLivePeers();
+        TestDiscoverReqDisabledByFlag();
+        TestDiscoverReqMalformedBody();
     }
     catch (const std::exception& ex)
     {

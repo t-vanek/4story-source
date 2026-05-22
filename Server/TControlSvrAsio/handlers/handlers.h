@@ -78,6 +78,14 @@ struct HandlerContext
     // by CT_SERVICEAUTOSTART_REQ broadcast.
     std::uint8_t*          auto_start = nullptr;
 
+    // Discovery mode feature flag (`[discovery] enabled` in TOML).
+    // When false, CT_PEER_DISCOVER_REQ replies with reason_code=4 so
+    // peers can fall back to their static TOML peer addresses without
+    // ambiguity about "did the cluster forget me?" vs. "is discovery
+    // off?". Defaults to true (discovery on) when nullptr — covers
+    // test contexts that don't wire a config.
+    bool*                  discovery_enabled = nullptr;
+
     // Persistent peer state repository (TPEER_REGISTRY, TPEER_STATUS_LOG,
     // TPEER_METRICS, TOP_AUDIT_LOG). nullptr when no DB is configured.
     IPeerRepository*       peer_repo  = nullptr;
@@ -421,6 +429,13 @@ boost::asio::awaitable<void> OnPeerHeartbeatReq(
     const HandlerContext& ctx);
 
 boost::asio::awaitable<void> OnPeerDeregisterReq(
+    std::shared_ptr<OperatorSession> op,
+    std::vector<std::byte> body,
+    const HandlerContext& ctx);
+
+// Discovery mode — list live peers of (group_id, type_id). Read-only
+// query, no lease required, no DB writes. See handlers_registry.cpp.
+boost::asio::awaitable<void> OnPeerDiscoverReq(
     std::shared_ptr<OperatorSession> op,
     std::vector<std::byte> body,
     const HandlerContext& ctx);

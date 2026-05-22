@@ -327,6 +327,9 @@ int main(int argc, char** argv)
         svr_cfg.login_rate = login_rate.get();
         svr_cfg.db_pool    = db_pool.get();
         svr_cfg.auto_start = cfg.auto_start;
+        svr_cfg.discovery_enabled = cfg.discovery_enabled;
+        spdlog::info("discovery: {}",
+            cfg.discovery_enabled ? "enabled" : "disabled");
 
         // Server-side TLS for the peer-listener path. When enabled,
         // peers (TLoginSvr/TPatchSvr/TLogSvr/TMapSvr) must connect

@@ -27,7 +27,13 @@ Dispatch(std::shared_ptr<WorldSession> sess,
         co_await OnCloseCharAck(std::move(sess), std::move(body), ctx);
         co_return;
 
-    // W3a fills GUILD_*, W3b PARTY_/CORPS_, … see README §4.
+    // ---- W3a-1: guild load (handlers_guild.cpp) -------------------
+    case MessageId::DM_GUILDLOAD_ACK:
+        co_await OnGuildLoadAck(std::move(sess), std::move(body), ctx);
+        co_return;
+
+    // W3a-2/-3 fill the remaining 75 GUILD handlers, W3b PARTY_/CORPS_,
+    // … see README §4.
 
     default:
         break;

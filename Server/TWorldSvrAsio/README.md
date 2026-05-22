@@ -9,18 +9,82 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W2 char registry
+## Status — W3a-1 guild infrastructure
 
 | Phase | Scope | Status |
 |---|---|---|
 | W1 | Scaffold + transport + dispatch stub | ✅ |
-| **W2** | CharRegistry (partitioned) + SessionPool + worker thread_pool + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
-| W3a | Guild — 76 handlers, own PR (needs CharRegistry from W2 + SOCI infrastructure + peer-session abstraction) | ⏸ |
+| W2 | CharRegistry (partitioned) + SessionPool + worker thread_pool + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
+| **W3a-1** | GuildRegistry + IGuildRepository (SOCI + Fake) + schema validator + DM_GUILDLOAD_ACK | ✅ |
+| W3a-2 | PeerSession + SSSender (~30 senders) + 30 more guild handlers (Establish / Update / Disorg / Member add+leave+duty) | ⏸ |
+| W3a-3 | Remaining ~45 guild handlers (tactics / volunteers / articles / cabinet / fame / contribution / PvP point) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-1 — what's done, what's deferred
+
+The 76 guild handlers split into three PRs because the W3a-1
+**infrastructure** alone (registry + repo + schema validator + 1
+handler) needs to land first so W3a-2/-3 can focus on handler
+wiring without infrastructure churn.
+
+**Done in W3a-1:**
+* `services/guild_registry.{h,cpp}` — same 16-shard partitioning
+  as CharRegistry; `TGuild` POD with the fields OnGuildLoadAck
+  and (W3a-2) OnGuildInfoAck read. Per-guild mutex for the
+  actor-model writes guild handlers need.
+* `services/guild_repository.h` — `IGuildRepository` interface
+  with the read path (`LoadAll`, `FindById`). The write path
+  (`Save`, `Disorg`, member CRUD) lands in W3a-2 alongside the
+  matching handlers.
+* `services/soci_guild_repository.{h,cpp}` — SOCI implementation
+  against `TGUILDTABLE` + `TGUILDMEMBERTABLE`. Two batched
+  queries on boot warmup (one for guilds, one for all members
+  joined back in-memory by `dwGuildID`) — beats per-guild
+  fan-out at the legacy population sizes.
+* `services/fake_guild_repository.{h,cpp}` — in-memory test impl
+  with `AddGuild` seed API; deep-copies on `LoadAll` /
+  `FindById` so test mutation doesn't bleed into the seed.
+* `db/schema_validator.{h,cpp}` — fail-fast on missing
+  `TGUILDTABLE` / `TGUILDMEMBERTABLE` columns. Optional warns
+  for `TGUILDARTICLETABLE`, `TGUILDCABINETTABLE`,
+  `TGUILDTACTICSTABLE` (the tables W3a-2/-3 will demand).
+* `main.cpp` wires the guild registry, runs the schema validator
+  when `[database]` is set, and warms the cache from
+  `IGuildRepository::LoadAll`.
+* `handlers/handlers_guild.cpp` — `OnGuildLoadAck` (DM_GUILDLOAD_ACK,
+  wID=0x58FA). Parses the 21-field guild row + chief char back-link
+  + cabinet count (items themselves are W3a-2 — discarded for now).
+  Inserts a `TGuild` into the registry with the founder as the
+  first member; gates on char-registered + key-match.
+* Tests: `test_guild_registry` (5 scenarios), `test_guild_handlers`
+  (4 wire scenarios + framer-survives-truncated-body), and
+  `test_fake_guild_repo` (deep-copy isolation + nullopt on miss).
+
+**Deferred to W3a-2 (each gated on a piece that doesn't exist yet):**
+* **PeerSession wrapper** — every handler that needs to know which
+  map server is on the other end. RW_RELAYSVR_REQ sets the wID;
+  PeerRegistry indexes the live peers. `OnGuildLoadAck`'s
+  `SendMW_GUILDESTABLISH_REQ` reply blocks on this.
+* **SSSender layer** — the 4046 LOC counterpart to
+  `Server/TWorldSvr/SSSender.cpp`. ~30 senders ship with W3a-2
+  (`SendMW_GUILDESTABLISH_REQ` / `_INFO_ACK` / `_MEMBERLIST_ACK`
+  / `_DISORGANIZATION_ACK` / etc.).
+* **Cabinet item parser** — `OnGuildLoadAck` currently skips
+  `wCabinetCount` items because the legacy `CreateItem` consumes
+  a multi-field struct (Lib/Own/TProtocol). W3a-2 lands the item
+  codec and the `TGuildItem` storage.
+* **Guild-level table** (`FindGuildLevel(bLevel)` → max members,
+  cabinet size, etc.) — a separate small table-cache PR;
+  unrelated to handler porting.
+
+**Deferred to W3a-3:**
+* The remaining ~45 guild handlers (tactics members, alliance,
+  volunteers, articles board, PvP record, fame contribution,
+  point rewards).
 
 ### W2 — what's done, what's deferred
 
@@ -109,32 +173,45 @@ Server/TWorldSvrAsio/
 │                                     max_connections gate
 ├── world_session.{h,cpp}           — CPacket framing per peer
 │                                     (plain TCP, no RC4 on SS link)
+├── db/
+│   ├── schema_validator.h          — boot-time TGUILD* column check
+│   └── schema_validator.cpp        — required + optional probes
 ├── services/
-│   ├── char_registry.h             — 16-shard partitioned char
+│   ├── char_registry.{h,cpp}       — 16-shard partitioned char
 │   │                                 index + active-user set
-│   └── char_registry.cpp           — Insert / Find / Remove +
-│                                     concurrent shard locking
+│   ├── guild_registry.{h,cpp}      — 16-shard partitioned guild
+│   │                                 index, per-guild mutex
+│   ├── guild_repository.h          — IGuildRepository interface
+│   ├── fake_guild_repository.{h,cpp}
+│   │                               — in-memory test impl w/ seed
+│   └── soci_guild_repository.{h,cpp}
+│                                   — SOCI impl, batched LoadAll
 ├── handlers/
 │   ├── handlers.h                  — HandlerContext + decls
 │   ├── dispatch.cpp                — switch on wID, drops unknown
-│   └── handlers_char.cpp           — MW_ADDCHAR_ACK +
-│                                     MW_CLOSECHAR_ACK
+│   ├── handlers_char.cpp           — MW_ADDCHAR_ACK +
+│   │                                 MW_CLOSECHAR_ACK
+│   └── handlers_guild.cpp          — DM_GUILDLOAD_ACK (W3a-1)
 ├── wire_codec.h                    — POD reader/writer + length-
 │                                     prefixed string (CPacket layout)
 └── tests/
     ├── test_dispatch.cpp           — wire framing + checksum
     ├── test_char_registry.cpp      — 6 scenarios (incl. 16k-char
     │                                 concurrent insert)
-    └── test_char_handlers.cpp      — 5 wire scenarios for ADD/CLOSE
+    ├── test_char_handlers.cpp      — 5 wire scenarios for ADD/CLOSE
+    ├── test_guild_registry.cpp     — 5 scenarios (incl. 16k-guild
+    │                                 concurrent insert)
+    ├── test_guild_handlers.cpp     — 4 wire scenarios + framer-
+    │                                 survives-truncated-body
+    └── test_fake_guild_repository.cpp
+                                    — deep-copy isolation + nullopt
 ```
 
-W3a adds `services/guild_registry.{h,cpp}`,
-`services/guild_repository.h`, `services/soci_guild_repository.{h,cpp}`,
-`db/schema_validator.{h,cpp}` (TGUILD + TGUILDMEMBER columns),
-`handlers/handlers_guild.cpp` (76 handlers), and a peer-session
-wrapper (`peer_session.h` parallel to TControlSvrAsio's). The
-W2 char registry stays put — W3a guild handlers look chars up
-through it, never duplicate state.
+W3a-2 adds `peer_session.h`, `peer_registry.{h,cpp}`, the first
+~30 SSSender functions (`senders/senders_guild.{h,cpp}`), and ~30
+mutating guild handlers (Establish / Update / Disorg / Member
+add+leave+duty / Kickout). W3a-3 fills tactics / volunteers /
+articles / cabinet / fame / contribution.
 
 ## 2. Build
 
@@ -192,8 +269,8 @@ From PATCH_README §6:
 
 | ID | Severity | Patch | Status |
 |---|---|---|---|
-| W-1 | 🟡 | Async DB + per-shard write queue (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | 🟡 W2 wires `SessionPool` + `boost::asio::thread_pool`; no queries issued yet (W3a guild is the first consumer) |
-| W-2 | 🟡 | Partition the global `m_mapTCHAR` / `m_mapTGuild` locks (per-char actor model, per-guild grain) | 🟡 **char half done in W2** (16-shard registry + per-char mutex). Guild half lands in W3a. |
+| W-1 | 🟡 | Async DB + per-shard write queue (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | 🟡 W2 wired `SessionPool` + `boost::asio::thread_pool`; **W3a-1 ships the first SOCI consumer** (`SociGuildRepository::LoadAll` at boot). Per-shard write queue arrives in W3a-2 with mutating guild handlers. |
+| W-2 | 🟡 | Partition the global `m_mapTCHAR` / `m_mapTGuild` locks (per-char actor model, per-guild grain) | ✅ **W3a-1 closes the in-memory half.** Char (W2) + guild (W3a-1) both run on 16-shard registries with per-entry mutex. The DB-side per-shard write queue is the remaining piece (W3a-2). |
 | W-3 | ✅ | TWorldSvrAsio binary doesn't exist yet | ✅ closed by W1 scaffold |
 
 Other related concerns from `_rewrite/docs/MODERNIZATION_PLAN.md`:

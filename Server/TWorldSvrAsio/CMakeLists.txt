@@ -35,9 +35,14 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/config.cpp
     ${TWORLD_ASIO_SRC}/world_session.cpp
     ${TWORLD_ASIO_SRC}/world_server.cpp
+    ${TWORLD_ASIO_SRC}/db/schema_validator.cpp
     ${TWORLD_ASIO_SRC}/handlers/dispatch.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_char.cpp
-    ${TWORLD_ASIO_SRC}/services/char_registry.cpp)
+    ${TWORLD_ASIO_SRC}/handlers/handlers_guild.cpp
+    ${TWORLD_ASIO_SRC}/services/char_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_guild_repository.cpp)
 
 target_include_directories(tworldsvr_asio_core PUBLIC
     ${TWORLD_ASIO_SRC})
@@ -95,3 +100,31 @@ target_link_libraries(test_tworldsvr_asio_char_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_char_handlers
     COMMAND test_tworldsvr_asio_char_handlers)
+
+# W3a-1 unit test: GuildRegistry partition / lifecycle. Pure
+# logic, no asio. Mirrors test_char_registry's coverage.
+add_executable(test_tworldsvr_asio_guild_registry
+    ${TWORLD_ASIO_SRC}/tests/test_guild_registry.cpp)
+target_link_libraries(test_tworldsvr_asio_guild_registry PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_guild_registry
+    COMMAND test_tworldsvr_asio_guild_registry)
+
+# W3a-1 wire test: drives DM_GUILDLOAD_ACK across a loopback
+# session and checks the GuildRegistry insert + idempotent
+# rejection of duplicate guild_id + char-not-in-registry drop.
+add_executable(test_tworldsvr_asio_guild_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_guild_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_guild_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_guild_handlers
+    COMMAND test_tworldsvr_asio_guild_handlers)
+
+# W3a-1 fake-repo behavior: AddGuild seeds, LoadAll round-trips,
+# FindById returns nullopt for misses. Pure logic.
+add_executable(test_tworldsvr_asio_fake_guild_repo
+    ${TWORLD_ASIO_SRC}/tests/test_fake_guild_repository.cpp)
+target_link_libraries(test_tworldsvr_asio_fake_guild_repo PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_fake_guild_repo
+    COMMAND test_tworldsvr_asio_fake_guild_repo)

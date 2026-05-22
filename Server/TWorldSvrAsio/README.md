@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-3 RW lookup + char base + name index
+## Status — W3a-4 guild back-pointer + first mutating handler
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -17,14 +17,59 @@ that the four shipped Asio daemons already use.
 | W2 | CharRegistry (partitioned) + SessionPool + worker thread_pool + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
 | W3a-1 | GuildRegistry + IGuildRepository (SOCI + Fake) + schema validator + DM_GUILDLOAD_ACK | ✅ |
 | W3a-2 | PeerSession + PeerRegistry + first SSSender batch (RW_RELAYSVR_ACK + MW_GUILDESTABLISH_REQ) + OnRW_RELAYSVR_REQ + MW_ADDCHAR_ACK gains real server_id + OnGuildLoadAck fires its reply | ✅ |
-| **W3a-3** | CharRegistry name index + TChar identity fields (name/country/aid_country/class/level/race/sex/face/hair/map_id/pos) + OnMW_CHANGECHARBASE_ACK + OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ + PeerRegistry::SnapshotExcept + cluster RELAYCONNECT broadcast | ✅ |
-| W3a-4 | ~25 mutating guild handlers (Establish ACK from DM / Update / Disorg / Member add+leave+duty / Kickout / Fame / Peer / Contribution) + cabinet item codec + guild-level table cache + name-rename fan-out (RW_CHANGENAME_ACK + friend/soulmate notify) | ⏸ |
+| W3a-3 | CharRegistry name index + TChar identity fields (name/country/aid_country/class/level/race/sex/face/hair/map_id/pos) + OnMW_CHANGECHARBASE_ACK + OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ + PeerRegistry::SnapshotExcept + cluster RELAYCONNECT broadcast | ✅ |
+| **W3a-4** | TChar.guild_id back-pointer + TGuild::FindMember/RemoveMember + OnMW_GUILDLEAVE_ACK + SendMW_GUILDLEAVE_REQ + OnEnterCharReq now resolves guild_id/chief/duty from the registry | ✅ |
+| W3a-4b | ~24 more mutating guild handlers (Establish ACK / Disorg / Member add / Kickout / Duty / Fame / Peer / Contribution / Article / Cabinet) + IGuildRepository write API (Save/Disorg/MemberCRUD) + cabinet item codec + guild-level table cache + name-rename fan-out (RW_CHANGENAME_ACK + friend/soulmate notify) | ⏸ |
 | W3a-5+ | Remaining guild handlers (tactics / volunteers / articles / pvp record / point reward) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-4 — what landed
+
+The first mutating-guild handler — `OnMW_GUILDLEAVE_ACK` —
+exercises the full stack the remaining ~24 guild handlers will
+use: locate the char's guild via the new `TChar.guild_id`
+back-pointer, mutate `TGuild.members` under the per-guild lock,
+clear the back-pointer atomically with the member removal, and
+fire the matching MW sender back to the originating peer.
+
+* **TChar.guild_id** — back-pointer matching legacy
+  `pTCHAR->m_pGuild->m_dwID`. 0 = no guild. The registry-owned
+  `TGuild` holds the strong reference; this is a non-owning id
+  so there's no shared_ptr cycle between TChar and TGuild.
+* **TGuild::FindMember / RemoveMember** — in-place helpers that
+  expect `TGuild.lock` to be held by the caller. Linear over
+  `members` (typical size < 200); a name-keyed secondary index
+  arrives in W3a-4b once benchmarks justify it.
+* **OnGuildLoadAck update** — sets `TChar.guild_id = guild_id`
+  on the founder when the guild is inserted, closing a W3a-1
+  TODO. The char→guild link now survives across handler calls
+  without requiring a `FindByName` scan.
+* **OnEnterCharReq update** — now resolves the requesting
+  char's guild fields (`guild_id`, `guild_chief`, `duty`) from
+  the `GuildRegistry` instead of always returning zeros. Disorg
+  guilds short-circuit to `guild_id=0` (legacy parity). Stale
+  back-pointers (guild unloaded but `TChar.guild_id` still set)
+  log a warning and reply with zeros — defensive, since W3a-4b
+  may add a Disorg sweep that clears these on the next pass.
+* **OnGuildLeaveAck** (MW_GUILDLEAVE_ACK, wID=0x9034) — full
+  port of the legacy `SSHandler.cpp:3571` semantics: char +
+  key validation, member removal under the guild lock,
+  `TChar.guild_id = 0`, `MW_GUILDLEAVE_REQ` reply with
+  `GUILD_LEAVE_SELF`. The legacy `SendDM_GUILDLEAVE_REQ` DB
+  persistence + cross-peer broadcast defer to W3a-4b once the
+  `IGuildRepository::RemoveMember` write API lands.
+* **SendMwGuildLeaveReq** — second sender in the MW-guild
+  family (after SendMwGuildEstablishReq from W3a-2). Wire
+  layout matches `SSSender.cpp` exactly.
+
+New test: `test_guild_mut_handlers` — 4 wire scenarios across a
+real loopback peer: load → leave → ENTERCHAR after leave returns
+zero. Verifies the `TChar.guild_id` ↔ `TGuild.members` invariant
+is preserved across mutation.
 
 ### W3a-3 — what landed
 

@@ -43,4 +43,25 @@ SendMwRelayconnectReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwGuildLeaveReq(std::shared_ptr<PeerSession> peer,
+                    std::uint32_t                char_id,
+                    std::uint32_t                key,
+                    const std::string&           name,
+                    std::uint8_t                 leave_reason,
+                    std::uint32_t                time_unix)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WriteString(body, name);
+    WritePOD<std::uint8_t>(body, leave_reason);
+    WritePOD<std::uint32_t>(body, time_unix);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDLEAVE_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

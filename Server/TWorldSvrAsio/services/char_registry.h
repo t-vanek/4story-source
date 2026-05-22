@@ -104,6 +104,15 @@ struct TChar
     float         pos_x       = 0.0f;
     float         pos_y       = 0.0f;
     float         pos_z       = 0.0f;
+
+    // W3a-4 guild back-pointer. Legacy holds `CTGuild* m_pGuild`;
+    // we keep a `guild_id` (0 = no guild) and look the TGuild up
+    // through GuildRegistry on demand. This avoids cycles in
+    // shared_ptr ownership (registry owns TGuild + TChar, neither
+    // holds strong refs to the other) and keeps the per-char
+    // lock free of TGuild's lock. The matching W3a-4 tactics
+    // back-pointer lands together with the guild-tactics handlers.
+    std::uint32_t guild_id    = 0;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

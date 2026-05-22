@@ -121,6 +121,7 @@ OnEnterCharReq(std::shared_ptr<PeerSession>  peer,
     std::uint8_t  reply_country     = 0;
     std::uint8_t  reply_aid_country = 0;
     std::uint16_t reply_map_id      = 0;
+    std::uint32_t reply_guild_id    = 0;
     std::string   reply_name        = strName;
     if (tchar)
     {
@@ -132,6 +133,7 @@ OnEnterCharReq(std::shared_ptr<PeerSession>  peer,
             reply_aid_country = tchar->aid_country;
             reply_map_id      = tchar->map_id;
             reply_name        = tchar->name;
+            reply_guild_id    = tchar->guild_id;
         }
     }
     if (!ok)
@@ -149,19 +151,52 @@ OnEnterCharReq(std::shared_ptr<PeerSession>  peer,
         co_return;
     }
 
-    // Guild / party / corps / tactics state is zero-default in
-    // W3a-3 — those registries either don't have member back-
-    // pointers yet (guild) or don't exist at all (party / corps
-    // arrive in W3b). The W3a-4 batch will fill these in once the
-    // guild-member back-pointer + party/corps registries land.
+    // W3a-4: resolve guild fields from the GuildRegistry. Legacy
+    // pulls these from pChar->m_pGuild + pChar->m_pGuild->FindMember.
+    // The chief id is on the guild itself; the requesting char's
+    // duty comes from their member row. Disorganised guilds return
+    // zeros (legacy parity — relay treats disorg as "no guild").
+    std::uint32_t reply_guild_chief = 0;
+    std::uint8_t  reply_duty        = 0;
+    if (reply_guild_id != 0 && ctx.guilds)
+    {
+        if (auto g = ctx.guilds->Find(reply_guild_id))
+        {
+            std::lock_guard gl(g->lock);
+            if (!g->disorg)
+            {
+                reply_guild_chief = g->chief_char_id;
+                if (const auto* member = g->FindMember(char_id))
+                    reply_duty = member->duty;
+            }
+            else
+            {
+                reply_guild_id = 0;
+            }
+        }
+        else
+        {
+            // Stale guild_id on the char — the guild was unloaded.
+            // Treat as "no guild" but log so ops can see it.
+            spdlog::warn("OnEnterCharReq[{}]: char_id={} carried "
+                         "stale guild_id={} (guild not in registry)",
+                ip, char_id, reply_guild_id);
+            reply_guild_id = 0;
+        }
+    }
+
+    // Party / corps / tactics state is still zero-default — those
+    // registries don't exist yet (W3b party / corps, W3a-4b+
+    // tactics).
     spdlog::info("OnEnterCharReq[{}]: char_id={} name='{}' country={} "
-                 "map={} — replying bResult=1 (guild/party state "
-                 "zero-default in W3a-3)",
-        ip, char_id, reply_name, reply_country, reply_map_id);
+                 "guild_id={} guild_chief={} duty={} map={} — "
+                 "replying bResult=1",
+        ip, char_id, reply_name, reply_country, reply_guild_id,
+        reply_guild_chief, reply_duty, reply_map_id);
     co_await senders::SendRwEntercharAck(
         peer, char_id, reply_name, /*result=*/1,
         reply_country, reply_aid_country,
-        /*guild_id=*/0, /*guild_chief=*/0, /*duty=*/0,
+        reply_guild_id, reply_guild_chief, reply_duty,
         /*party_id=*/0, /*party_chief_id=*/0,
         /*corps_id=*/0, /*general_id=*/0,
         /*tactics_id=*/0, /*tactics_chief=*/0,

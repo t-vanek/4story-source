@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/guild_constants.h"
 #include "../wire_codec.h"
 
 #include "MessageId.h"
@@ -14,14 +15,11 @@ namespace tworldsvr::handlers {
 
 namespace {
 
-constexpr std::uint8_t kGuildDutyChief = 1;   // GUILD_DUTY_CHIEF
-constexpr std::uint8_t kGuildPeerNone  = 0;   // GUILD_PEER_NONE
-
 bool SkipCabinet(wire::Reader&, std::uint16_t count, const std::string& ip)
 {
     if (count == 0) return true;
     spdlog::info("OnGuildLoadAck[{}]: cabinet wCount={} — skipping items "
-                 "(W3a-3 will parse them)", ip, count);
+                 "(W3a-4b will parse them)", ip, count);
     return true;
 }
 
@@ -126,8 +124,8 @@ OnGuildLoadAck(std::shared_ptr<PeerSession>  peer,
     TGuildMember chief;
     chief.char_id  = char_id;
     chief.guild_id = guild_id;
-    chief.duty     = kGuildDutyChief;
-    chief.peer     = kGuildPeerNone;
+    chief.duty     = guild::kDutyChief;
+    chief.peer     = 0;                       // GUILD_PEER_NONE
     chief.name     = char_name;
 
     // Capture the values we need for the reply before the move into
@@ -160,10 +158,10 @@ OnGuildLoadAck(std::shared_ptr<PeerSession>  peer,
 
     // W3a-2: complete the legacy round-trip by ACKing the map server
     // that the guild is now world-side registered. Result code
-    // kGuildSuccess + bEstablish=0 (this is a load, not a create).
+    // kSuccess + bEstablish=0 (this is a load, not a create).
     // Legacy: SSHandler.cpp:9019.
     co_await senders::SendMwGuildEstablishReq(
-        peer, char_id, key, senders::kGuildSuccess, guild_id,
+        peer, char_id, key, guild::kSuccess, guild_id,
         reply_name, /*establish=*/0);
 }
 
@@ -281,17 +279,333 @@ OnGuildLeaveAck(std::shared_ptr<PeerSession>  peer,
     // close enough for the 1-second-granularity guild log.
     const std::uint32_t now = static_cast<std::uint32_t>(std::time(nullptr));
     co_await senders::SendMwGuildLeaveReq(peer, char_id, key, char_name,
-        senders::kGuildLeaveSelf, now);
+        guild::kLeaveSelf, now);
 
-    // TODO W3a-4b (DB write): SendDM_GUILDLEAVE_REQ to persist
-    // the leave to TGUILDMEMBERTABLE via IGuildRepository::
-    // RemoveMember. Currently the registry update is in-memory
-    // only — the legacy SOCI write happens later via WorkThread →
-    // BatchThread fan-out.
-    // TODO W3a-4b (broadcast): notify other peers so the chat
+    // W3a-4b: persist the leave to TGUILDMEMBERTABLE. The repo
+    // call runs synchronously on the io_context thread for now;
+    // when the W-1 worker pool gets exercised by guild handlers,
+    // wrap this in fourstory::db::CoOffloadIf(ctx.db_pool, ...).
+    if (ctx.guild_repo && guild_id != 0)
+        ctx.guild_repo->RemoveMember(char_id, guild_id);
+
+    // TODO W3a-4c (broadcast): notify other peers so the chat
     // window updates on every map server, not just the one this
     // request came in on.
     co_return;
+}
+
+// --- W3a-4b mutating guild handlers ---------------------------------
+
+boost::asio::awaitable<void>
+OnGuildDisorganizationReq(std::shared_ptr<PeerSession> peer,
+                          std::vector<std::byte>       body,
+                          const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildDisorganizationReq[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, guild_id = 0;
+    std::uint8_t  disorg = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(guild_id) ||
+        !r.Read(disorg))
+    {
+        spdlog::warn("OnGuildDisorganizationReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    // Legacy SSHandler.cpp:3216 — dwTime is m_timeCurrent on
+    // start-disband, 0 on cancel. The cancel branch zeroes the
+    // disorg countdown so the periodic GUILDEXTINCTION sweep
+    // (W3a-5+) won't reap the guild.
+    const std::uint32_t now =
+        static_cast<std::uint32_t>(std::time(nullptr));
+    const std::uint32_t time_unix = disorg ? now : 0;
+
+    // Persist first (legacy fires the CSP synchronously from the
+    // DM_ handler then forwards the ACK); fall through to the
+    // in-memory mutation either way so the cluster state stays
+    // consistent with the legacy WorkThread → BatchThread fan-out
+    // semantics — the registry is the operator-visible truth and
+    // the DB write is best-effort.
+    if (ctx.guild_repo)
+        ctx.guild_repo->SetDisorg(guild_id, disorg, time_unix);
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (guild)
+    {
+        std::lock_guard g(guild->lock);
+        guild->disorg      = disorg;
+        guild->disorg_time = time_unix;
+    }
+    else
+    {
+        spdlog::warn("OnGuildDisorganizationReq[{}]: guild_id={} not in "
+                     "registry (DB write happened but no in-memory flip)",
+            ip, guild_id);
+    }
+
+    spdlog::info("OnGuildDisorganizationReq[{}]: char_id={} guild_id={} "
+                 "disorg={} time={}", ip, char_id, guild_id, disorg,
+        time_unix);
+
+    co_await senders::SendMwGuildDisorganizationReq(peer, char_id, key,
+        disorg);
+
+    // TODO W3a-5+: SM_GUILDDISORGANIZATION_REQ → cluster-wide
+    // disorg-countdown sweeper that fires GUILDEXTINCTION when
+    // the countdown elapses. Lives in the timer-thread family.
+}
+
+boost::asio::awaitable<void>
+OnGuildDutyAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildDutyAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   target_name;
+    std::uint8_t  new_duty = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name) ||
+        !r.Read(new_duty))
+    {
+        spdlog::warn("OnGuildDutyAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    // Validate requesting char + their guild (legacy gates at
+    // SSHandler.cpp:3423-3431).
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester)
+    {
+        spdlog::info("OnGuildDutyAck[{}]: char_id={} not in registry",
+            ip, char_id);
+        co_return;
+    }
+    std::uint32_t guild_id = 0;
+    std::uint32_t actual_key = 0;
+    {
+        std::lock_guard g(requester->lock);
+        actual_key = requester->key;
+        guild_id   = requester->guild_id;
+    }
+    if (actual_key != key || guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    // Locate the target by name. The legacy code uses TGuild::
+    // FindMember(name); we don't index members by name within
+    // TGuild (members vector is small — linear scan under the
+    // guild lock is fine).
+    std::uint32_t target_char_id = 0;
+    std::uint8_t  old_duty       = 0;
+    bool          gate_failed    = false;
+    {
+        std::lock_guard g(guild->lock);
+        if (guild->disorg) { co_return; }
+        TGuildMember* tgt = nullptr;
+        for (auto& m : guild->members)
+        {
+            if (m.name == target_name) { tgt = &m; break; }
+        }
+        if (!tgt) co_return;
+        if (tgt->duty == new_duty ||
+            tgt->char_id == char_id)
+        {
+            // Same duty / promoting self → silent drop (legacy
+            // parity SSHandler.cpp:3435-3438).
+            co_return;
+        }
+
+        // Vice-chief cap: legacy refuses if there'd be 2 vice-chiefs.
+        if (new_duty == guild::kDutyViceChief)
+        {
+            std::size_t vice = 0;
+            for (const auto& m : guild->members)
+                if (m.duty == guild::kDutyViceChief) ++vice;
+            if (vice >= 2) { gate_failed = true; co_return; }
+        }
+
+        old_duty = tgt->duty;
+        // Chief promotion: the current chief drops to kDutyNone
+        // before the target takes over (legacy Designate at line
+        // 3459). The target's duty assignment happens just below.
+        if (new_duty == guild::kDutyChief)
+        {
+            if (auto* current_chief = guild->FindMember(char_id))
+                current_chief->duty = guild::kDutyNone;
+        }
+        tgt->duty      = new_duty;
+        target_char_id = tgt->char_id;
+    }
+
+    if (gate_failed) co_return;
+
+    // Persist (best-effort, legacy WorkThread → BatchThread).
+    if (ctx.guild_repo)
+    {
+        ctx.guild_repo->UpdateMemberDuty(target_char_id, guild_id, new_duty);
+        if (new_duty == guild::kDutyChief)
+            ctx.guild_repo->UpdateMemberDuty(char_id, guild_id,
+                guild::kDutyNone);
+    }
+
+    // Notify the requesting peer.
+    co_await senders::SendMwGuildDutyReq(peer, char_id, key, target_name,
+        new_duty);
+
+    spdlog::info("OnGuildDutyAck[{}]: char_id={} promoted target='{}' "
+                 "(char_id={}) {} → {} in guild_id={}",
+        ip, char_id, target_name, target_char_id, old_duty, new_duty,
+        guild_id);
+
+    // TODO W3a-4c: route MW_GUILDDUTY_REQ to the target's own main
+    // map peer too so a target who's online elsewhere sees the
+    // change immediately. Same pattern as the W3a-4b fame
+    // broadcast below.
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnGuildFameAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnGuildFameAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, fame = 0, fame_color = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(fame) ||
+        !r.Read(fame_color))
+    {
+        spdlog::warn("OnGuildFameAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+    std::uint32_t guild_id = 0, actual_key = 0;
+    {
+        std::lock_guard g(requester->lock);
+        actual_key = requester->key;
+        guild_id   = requester->guild_id;
+    }
+    if (actual_key != key || guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    // Snapshot the values we need (members + PvP point budget +
+    // current fame) under the guild lock. Releasing before the
+    // SendPacket broadcast keeps the lock-hold window tight.
+    std::vector<std::uint32_t> member_char_ids;
+    std::uint32_t old_fame = 0, old_fame_color = 0;
+    bool          insufficient_points = false;
+    bool          unchanged           = false;
+    {
+        std::lock_guard g(guild->lock);
+        if (guild->disorg) co_return;
+        if (guild->pvp_useable_point < guild::kPvPointCostFameChange)
+        {
+            insufficient_points = true;
+        }
+        else if (guild->fame == fame && guild->fame_color == fame_color)
+        {
+            unchanged = true;
+        }
+        else
+        {
+            old_fame       = guild->fame;
+            old_fame_color = guild->fame_color;
+            guild->pvp_useable_point -= guild::kPvPointCostFameChange;
+            guild->fame       = fame;
+            guild->fame_color = fame_color;
+            member_char_ids.reserve(guild->members.size());
+            for (const auto& m : guild->members)
+                member_char_ids.push_back(m.char_id);
+        }
+    }
+
+    if (insufficient_points)
+    {
+        co_await senders::SendMwGuildFameReq(peer, char_id, key,
+            guild::kNoPoint, char_id, fame, fame_color);
+        spdlog::info("OnGuildFameAck[{}]: char_id={} guild_id={} "
+                     "kNoPoint (need={} pts)", ip, char_id, guild_id,
+            guild::kPvPointCostFameChange);
+        co_return;
+    }
+    if (unchanged)
+    {
+        spdlog::debug("OnGuildFameAck[{}]: char_id={} guild_id={} fame "
+                      "unchanged (drop)", ip, char_id, guild_id);
+        co_return;
+    }
+
+    // Persist new fame + the PvP-point deduction. (W3a-4c will
+    // add a dedicated UpdatePvPoint repo call; for now we rely
+    // on the fame UPDATE landing and accept that the PvP budget
+    // delta is in-memory only until then.)
+    if (ctx.guild_repo)
+        ctx.guild_repo->UpdateFame(guild_id, fame, fame_color);
+
+    // Broadcast to every online member. Each lookup: TChar by
+    // char_id → main_server_id → peer by LOBYTE(wID). Mirrors
+    // legacy SSHandler.cpp:4391-4405.
+    std::size_t broadcasted = 0;
+    for (auto mcid : member_char_ids)
+    {
+        auto tchar = ctx.chars->Find(mcid);
+        if (!tchar) continue;
+        std::uint8_t  msi   = 0;
+        std::uint32_t mkey  = 0;
+        {
+            std::lock_guard g(tchar->lock);
+            msi  = tchar->main_server_id;
+            mkey = tchar->key;
+        }
+        if (msi == 0) continue;
+
+        std::shared_ptr<PeerSession> target_peer;
+        for (auto& p : ctx.peers->Snapshot())
+        {
+            if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
+            {
+                target_peer = std::move(p);
+                break;
+            }
+        }
+        if (!target_peer) continue;
+        co_await senders::SendMwGuildFameReq(target_peer, mcid, mkey,
+            guild::kSuccess, char_id, fame, fame_color);
+        ++broadcasted;
+    }
+    spdlog::info("OnGuildFameAck[{}]: char_id={} guild_id={} fame "
+                 "{}→{} broadcast to {}/{} members",
+        ip, char_id, guild_id, old_fame, fame, broadcasted,
+        member_char_ids.size());
+    (void)old_fame_color;
 }
 
 } // namespace tworldsvr::handlers

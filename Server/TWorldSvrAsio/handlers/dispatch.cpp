@@ -48,14 +48,24 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildLoadAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // ---- W3a-4: guild member CRUD (handlers_guild.cpp) ------------
+    // ---- W3a-4 / W3a-4b: guild mutating handlers ------------------
     case MessageId::MW_GUILDLEAVE_ACK:
         co_await OnGuildLeaveAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::DM_GUILDDISORGANIZATION_REQ:
+        co_await OnGuildDisorganizationReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_GUILDDUTY_ACK:
+        co_await OnGuildDutyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDFAME_ACK:
+        co_await OnGuildFameAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3a-4b continues the mutating guild batch (Establish ACK /
-    // Disorg / Member add / Kickout / Duty / Fame / Peer /
-    // Contribution). W3b party + corps. … see README §4.
+    // W3a-4c continues the mutating guild batch (Establish ACK /
+    // Member add / Kickout / Peer / Contribution / Article /
+    // Cabinet). W3b party + corps. … see README §4.
 
     default:
         break;

@@ -24,6 +24,14 @@ public:
     std::optional<std::shared_ptr<TGuild>> FindById(
         std::uint32_t guild_id) override;
 
+    bool SetDisorg(std::uint32_t guild_id, std::uint8_t disorg,
+                   std::uint32_t time_unix) override;
+    bool UpdateMemberDuty(std::uint32_t char_id, std::uint32_t guild_id,
+                          std::uint8_t new_duty) override;
+    bool UpdateFame(std::uint32_t guild_id, std::uint32_t fame,
+                    std::uint32_t fame_color) override;
+    bool RemoveMember(std::uint32_t char_id, std::uint32_t guild_id) override;
+
 private:
     fourstory::db::SessionPool& m_pool;
 };

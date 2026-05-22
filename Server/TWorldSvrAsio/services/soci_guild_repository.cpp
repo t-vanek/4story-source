@@ -131,6 +131,96 @@ std::vector<std::shared_ptr<TGuild>> SociGuildRepository::LoadAll()
     return out;
 }
 
+bool SociGuildRepository::SetDisorg(std::uint32_t guild_id,
+                                     std::uint8_t  disorg,
+                                     std::uint32_t time_unix)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDTABLE\" SET \"bDisorg\" = :d, "
+               "\"dwTime\" = :t WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(disorg)),
+            soci::use(static_cast<int>(time_unix)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::SetDisorg({}, {}) failed: {}",
+            guild_id, disorg, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::UpdateMemberDuty(std::uint32_t char_id,
+                                            std::uint32_t guild_id,
+                                            std::uint8_t  new_duty)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDMEMBERTABLE\" SET \"bDuty\" = :d "
+               "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
+            soci::use(static_cast<int>(new_duty)),
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::UpdateMemberDuty({}, {}, {}) "
+                      "failed: {}", char_id, guild_id, new_duty, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::UpdateFame(std::uint32_t guild_id,
+                                      std::uint32_t fame,
+                                      std::uint32_t fame_color)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDTABLE\" SET \"dwFame\" = :f, "
+               "\"dwFameColor\" = :c WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(fame)),
+            soci::use(static_cast<int>(fame_color)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::UpdateFame({}, {}, {}) "
+                      "failed: {}", guild_id, fame, fame_color, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::RemoveMember(std::uint32_t char_id,
+                                        std::uint32_t guild_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "DELETE FROM \"TGUILDMEMBERTABLE\" "
+               "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::RemoveMember({}, {}) failed: {}",
+            char_id, guild_id, ex.what());
+        return false;
+    }
+}
+
 std::optional<std::shared_ptr<TGuild>>
 SociGuildRepository::FindById(std::uint32_t guild_id)
 {

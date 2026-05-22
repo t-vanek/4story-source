@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-05-22:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ██░░░░░░░░░░░░░░░░░░   16%   (W3a-4 — guild back-pointer + first mutating handler, 8 handlers)
+TWorldSvr         ██░░░░░░░░░░░░░░░░░░   17%   (W3a-4b — guild write API + 3 more mutating handlers, 11 handlers)
 ─────────────────────────────────────────
 Cluster total     ███░░░░░░░░░░░░░░░░░  ~18%   (LOC-weighted, see below)
 ```
@@ -36,7 +36,7 @@ Cluster total     ███░░░░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~5 500 | 8/287 (+ GUILDLEAVE_ACK) + 5 senders | 🟡 W3a-1 (TGUILD*) | 🟡 **W3a-4 — guild back-pointer + first mutating handler** |
+| **TWorldSvrAsio** | 38 851 | ~6 200 | 11/287 (+ DISORG/DUTY/FAME) + 8 senders + write repo API | 🟡 W3a-1 (TGUILD*) | 🟡 **W3a-4b — guild write API + 3 mutating handlers** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
 LOC weighting: `(24 213 complete + ~6 700 scaffolded) / 175 906 legacy ≈ 17 %`.

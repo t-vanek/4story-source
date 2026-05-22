@@ -187,7 +187,7 @@ int main()
             if (!g->members.empty())
             {
                 EXPECT(g->members[0].char_id == 42);
-                EXPECT(g->members[0].duty == 1); // GUILD_DUTY_CHIEF
+                EXPECT(g->members[0].duty == 2); // GUILD_DUTY_CHIEF (NetCode.h:1983)
             }
         }
         EXPECT(guilds.Size() == 1);

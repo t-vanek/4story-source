@@ -73,11 +73,12 @@ boost::asio::awaitable<void> SendMwGuildEstablishReq(
     const std::string&           name,
     std::uint8_t                 establish);
 
-// Result codes for SendMwGuildEstablishReq.bRet. Mirrors the
-// legacy GUILD_* constants from NetCode.h. Only the values
-// referenced by W3a-2 handlers are duplicated here; W3a-3 will
-// pull the full enum once the matching handler ports demand them.
-constexpr std::uint8_t kGuildSuccess = 0;
+// Result codes for SendMwGuildEstablishReq.bRet and the rest of
+// the MW_GUILD* family live in services/guild_constants.h —
+// include that instead. The pre-W3a-4b versions of this header
+// carried ad-hoc constants (kGuildSuccess, kGuildLeaveSelf) that
+// silently mismatched the legacy enum values; the shared header
+// is the single source of truth now.
 
 // --- RW family — W3a-3 batch ---------------------------------------
 
@@ -157,10 +158,62 @@ boost::asio::awaitable<void> SendMwGuildLeaveReq(
     std::uint8_t                 leave_reason,
     std::uint32_t                time_unix);
 
-// Reason codes for SendMwGuildLeaveReq.bLeave. Mirrors NetCode.h
-// GUILD_LEAVE_* values. Only the W3a-4 batch's reason is duplicated
-// here; the kickout / disorg reasons land with their matching
-// handlers in W3a-4b.
-constexpr std::uint8_t kGuildLeaveSelf = 1;   // GUILD_LEAVE_SELF
+// MW_GUILDDISORGANIZATION_REQ — sent back to the requesting map
+// after the in-memory disorg flag has been flipped + persisted.
+//
+// Wire layout (SSSender.cpp:863):
+//   DWORD dwCharID
+//   DWORD dwKey
+//   BYTE  bDisorg     -- 1 = disbanding, 0 = cancelled
+boost::asio::awaitable<void> SendMwGuildDisorganizationReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 disorg);
+
+// MW_GUILDDUTY_REQ — sent back after world records a member's
+// duty change. Broadcast to the requesting peer AND to the
+// target member's own map peer if they're online elsewhere.
+//
+// Wire layout (SSSender.cpp:938):
+//   DWORD  dwCharID
+//   DWORD  dwKey
+//   STRING strTarget  -- the renamed member's name (legacy ships
+//                        the target string even though dwCharID
+//                        carries the id — clients rely on it)
+//   BYTE   bDuty      -- new duty (GUILD_DUTY_*)
+boost::asio::awaitable<void> SendMwGuildDutyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           target_name,
+    std::uint8_t                 duty);
+
+// MW_GUILDFAME_REQ — fame change reply. Broadcast to every
+// online guild member's main map peer. The bResult byte tells
+// the client whether the change took (GUILD_SUCCESS) or the
+// guild ran out of PvP points (GUILD_NOPOINT).
+//
+// Wire layout (SSSender.cpp:1223):
+//   DWORD dwCharID    -- the recipient (varies per broadcast)
+//   DWORD dwKey
+//   BYTE  bResult     -- GUILD_SUCCESS / GUILD_NOPOINT
+//   DWORD dwID        -- the requester's char_id (constant across
+//                        the broadcast — lets clients identify
+//                        who triggered the change)
+//   DWORD dwFame
+//   DWORD dwFameColor
+boost::asio::awaitable<void> SendMwGuildFameReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                originator_char_id,
+    std::uint32_t                fame,
+    std::uint32_t                fame_color);
+
+// Reason codes for SendMwGuildLeaveReq.bLeave (kLeaveSelf /
+// kLeaveKick / kLeaveDisorganization) live in
+// services/guild_constants.h alongside the rest of GUILD_*.
 
 } // namespace tworldsvr::senders

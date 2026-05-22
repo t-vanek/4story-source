@@ -153,6 +153,17 @@ public:
     // CSPGuildWantedDel.
     virtual bool DeleteWanted(std::uint32_t guild_id) = 0;
 
+    // --- W3a-12 volunteer applications ---------------------------
+
+    // Insert an applicant row into TGUILDVOLUNTEERTABLE. Mirrors
+    // CSPGuildVolunteerAdd (legacy uses a single SP keyed by
+    // (bType=GUILDAPP_MEMBER, dwCharID, dwID)).
+    virtual bool AddVolunteerApp(std::uint32_t char_id,
+                                 std::uint32_t wanted_id) = 0;
+
+    // Delete the applicant row for one char.
+    virtual bool DelVolunteerApp(std::uint32_t char_id) = 0;
+
     // --- W3a-10 guild lifecycle (extinction) ---------------------
 
     // Delete the guild row + sweep the children. Mirrors

@@ -130,10 +130,25 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildWantedListAck(std::move(peer), std::move(body),
             ctx);
         co_return;
+    case MessageId::MW_GUILDVOLUNTEERING_ACK:
+        co_await OnGuildVolunteeringAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_GUILDVOLUNTEERINGDEL_ACK:
+        co_await OnGuildVolunteeringDelAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDVOLUNTEERLIST_ACK:
+        co_await OnGuildVolunteerListAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_GUILDVOLUNTEERREPLY_ACK:
+        co_await OnGuildVolunteerReplyAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
 
-    // W3a-12+ picks up volunteer/applicant flow + tactics
-    // subsystem + PvP record / point reward / cabinet codec.
-    // … see README §4.
+    // W3a-13+ picks up tactics subsystem + PvP record / point
+    // reward / cabinet codec. … see README §4.
 
     default:
         break;

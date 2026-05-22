@@ -27,6 +27,18 @@ bool SkipCabinet(wire::Reader&, std::uint16_t count, const std::string& ip)
     return true;
 }
 
+// File-scope helper struct used by multiple W3a-* handler blocks
+// (W3a-8 articles + W3a-12 volunteer reply). Locking the
+// requester's guild + validating gates is the same pattern
+// across blocks; keeping the type definition in the top
+// anonymous namespace lets each block's forward-declared
+// ResolveRequesterGuild use it without redefinition.
+struct GuildHandle
+{
+    std::shared_ptr<TGuild> guild;
+    std::uint32_t           guild_id = 0;
+};
+
 } // namespace
 
 boost::asio::awaitable<void>
@@ -1091,6 +1103,396 @@ OnGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
                  "persisted", ip, guild_id, max_cabinet);
 }
 
+// --- W3a-12 volunteer / applicant flow ----------------------------
+
+namespace {
+
+// Forward declarations of helpers defined further down in the
+// file (W3a-8 `ResolveRequesterGuild` + W3a-11 `SendWantedList`).
+// Used by the W3a-12 handler block which sits between W3a-5 and
+// W3a-11 in this file. Keeping the W3a-* sections in numerical
+// order matters for code-review navigation; forward decls let us
+// do that without reordering established blocks. The
+// `GuildHandle` return type lives in the top-of-file anonymous
+// namespace so it's complete at this point of the TU.
+GuildHandle ResolveRequesterGuild(const HandlerContext& ctx,
+                                   std::uint32_t char_id,
+                                   std::uint32_t key);
+boost::asio::awaitable<void>
+SendWantedList(std::shared_ptr<PeerSession> peer,
+               const HandlerContext&        ctx,
+               std::uint32_t                char_id,
+               std::uint32_t                key,
+               std::uint8_t                 country);
+
+// Build the chief-facing applicant list. Each row refreshes
+// `region` from the live TChar (legacy SSSender.cpp:1349-1357
+// reads region off pTarget->m_dwRegion at LIST time so the chief
+// sees where applicants currently are).
+//
+// TChar.region isn't part of the W3a-3 identity-fields snapshot
+// (lands with the W5+ castle-war work); for now we emit 0 and
+// document the gap.
+std::vector<senders::GuildVolunteerRow>
+BuildVolunteerRows(const std::vector<TGuildWantedApp>& apps,
+                   const CharRegistry&                 chars)
+{
+    std::vector<senders::GuildVolunteerRow> rows;
+    rows.reserve(apps.size());
+    for (const auto& a : apps)
+    {
+        senders::GuildVolunteerRow r;
+        r.char_id = a.char_id;
+        r.name    = a.name;
+        r.level   = a.level;
+        r.klass   = a.klass;
+        r.region  = a.region;
+        // Refresh region from the live char when online; the
+        // applicant's cached level/klass stay (they're the values
+        // the applicant submitted, not necessarily the current
+        // ones).
+        if (auto tchar = chars.Find(a.char_id))
+        {
+            // TODO W5+: tchar->region — once region tracking ships
+            (void)tchar;
+        }
+        rows.push_back(std::move(r));
+    }
+    return rows;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildVolunteeringAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guild_wanted)
+    {
+        spdlog::warn("OnGuildVolunteeringAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, wanted_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(wanted_id))
+    {
+        spdlog::warn("OnGuildVolunteeringAck[{}]: short body", ip);
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, current_guild = 0;
+    std::uint8_t  country = 0, level = 0, klass = 0;
+    std::string   name;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key    = tchar->key;
+        current_guild = tchar->guild_id;
+        country       = tchar->country;
+        level         = tchar->level;
+        klass         = tchar->klass;
+        name          = tchar->name;
+    }
+    if (actual_key != key) co_return;
+
+    // Legacy gate (SSHandler.cpp:4562): a char already in a guild
+    // can't apply elsewhere. Silent drop (no error reply).
+    if (current_guild != 0) co_return;
+
+    TGuildWantedApp app;
+    app.char_id   = char_id;
+    app.wanted_id = wanted_id;
+    app.level     = level;
+    app.klass     = klass;
+    app.name      = name;
+    const std::uint8_t result =
+        ctx.guild_wanted->AddApp(app, country);
+
+    co_await senders::SendMwGuildVolunteeringReq(peer, char_id, key,
+        result);
+
+    if (result == guild::kSuccess)
+    {
+        if (ctx.guild_repo)
+        {
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.guild_repo, char_id, wanted_id] {
+                    repo->AddVolunteerApp(char_id, wanted_id);
+                });
+        }
+        // Legacy chases the ACK with a fresh wanted-board refresh
+        // so the player's "already applied" indicator updates.
+        co_await SendWantedList(peer, ctx, char_id, key, country);
+    }
+
+    spdlog::info("OnGuildVolunteeringAck[{}]: char_id={} → wanted_id={} "
+                 "result={}", ip, char_id, wanted_id, result);
+}
+
+boost::asio::awaitable<void>
+OnGuildVolunteeringDelAck(std::shared_ptr<PeerSession> peer,
+                          std::vector<std::byte>       body,
+                          const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guild_wanted)
+    {
+        spdlog::warn("OnGuildVolunteeringDelAck[{}]: registries not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildVolunteeringDelAck[{}]: short body", ip);
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0;
+    std::uint8_t  country    = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        country    = tchar->country;
+    }
+    if (actual_key != key) co_return;
+
+    const bool removed = ctx.guild_wanted->DelApp(char_id);
+    co_await senders::SendMwGuildVolunteeringDelReq(peer, char_id, key,
+        removed ? guild::kSuccess : guild::kFail);
+
+    if (removed)
+    {
+        if (ctx.guild_repo)
+        {
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.guild_repo, char_id] {
+                    repo->DelVolunteerApp(char_id);
+                });
+        }
+        co_await SendWantedList(peer, ctx, char_id, key, country);
+    }
+    spdlog::info("OnGuildVolunteeringDelAck[{}]: char_id={} removed={}",
+        ip, char_id, removed);
+}
+
+boost::asio::awaitable<void>
+OnGuildVolunteerListAck(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guild_wanted)
+    {
+        spdlog::warn("OnGuildVolunteerListAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildVolunteerListAck[{}]: short body", ip);
+        co_return;
+    }
+
+    auto h = ResolveRequesterGuild(ctx, char_id, key);
+    if (!h.guild) co_return;
+
+    auto apps = ctx.guild_wanted->SnapshotAppsFor(h.guild_id);
+    auto rows = BuildVolunteerRows(apps, *ctx.chars);
+
+    co_await senders::SendMwGuildVolunteerListReq(peer, char_id, key, rows);
+    spdlog::info("OnGuildVolunteerListAck[{}]: char_id={} guild_id={} "
+                 "→ {} applicants", ip, char_id, h.guild_id, rows.size());
+}
+
+boost::asio::awaitable<void>
+OnGuildVolunteerReplyAck(std::shared_ptr<PeerSession> peer,
+                         std::vector<std::byte>       body,
+                         const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers || !ctx.guild_wanted)
+    {
+        spdlog::warn("OnGuildVolunteerReplyAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, target_id = 0;
+    std::uint8_t  reply = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(target_id) ||
+        !r.Read(reply))
+    {
+        spdlog::warn("OnGuildVolunteerReplyAck[{}]: short body", ip);
+        co_return;
+    }
+
+    auto h = ResolveRequesterGuild(ctx, char_id, key);
+    if (!h.guild) co_return;
+
+    if (reply == 0)
+    {
+        // Rejection: just delete the application + refresh chief's
+        // applicant list. No reply to the rejected char (legacy
+        // parity SSHandler.cpp:4651-4652).
+        ctx.guild_wanted->DelApp(target_id);
+        if (ctx.guild_repo)
+        {
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.guild_repo, target_id] {
+                    repo->DelVolunteerApp(target_id);
+                });
+        }
+        auto apps = ctx.guild_wanted->SnapshotAppsFor(h.guild_id);
+        co_await senders::SendMwGuildVolunteerListReq(peer, char_id, key,
+            BuildVolunteerRows(apps, *ctx.chars));
+        spdlog::info("OnGuildVolunteerReplyAck[{}]: char_id={} rejected "
+                     "target={} guild_id={}", ip, char_id, target_id,
+            h.guild_id);
+        co_return;
+    }
+
+    // Accept path — promote applicant to member. Mirrors the
+    // OnGuildInviteAnswerAck YES branch (W3a-6/W3a-7). Re-validate
+    // every gate since state may have changed during the dialog:
+    // applicant joined another guild, guild filled up, guild
+    // disorged.
+
+    auto applicant_char = ctx.chars->Find(target_id);
+    std::string   applicant_name;
+    std::uint32_t applicant_key = 0;
+    std::uint32_t applicant_guild = 0;
+    std::uint8_t  applicant_msi = 0;
+    std::uint8_t  applicant_level = 0;
+    if (applicant_char)
+    {
+        std::lock_guard g(applicant_char->lock);
+        applicant_name  = applicant_char->name;
+        applicant_key   = applicant_char->key;
+        applicant_guild = applicant_char->guild_id;
+        applicant_msi   = applicant_char->main_server_id;
+        applicant_level = applicant_char->level;
+    }
+
+    std::uint32_t fame = 0, fame_color = 0;
+    std::string   guild_name;
+    std::uint8_t  max_member = 0;
+    bool collide_full = false, collide_have = false, collide_disorg = false;
+    {
+        std::lock_guard gl(h.guild->lock);
+        collide_disorg = (h.guild->disorg != 0);
+        if (!collide_disorg)
+        {
+            fame       = h.guild->fame;
+            fame_color = h.guild->fame_color;
+            guild_name = h.guild->name;
+            if (ctx.guild_levels)
+                if (const auto* lvl = ctx.guild_levels->Find(h.guild->level))
+                    max_member = lvl->max_count;
+            if (applicant_guild != 0) collide_have = true;
+            else if (max_member > 0 &&
+                     h.guild->members.size() >= max_member) collide_full = true;
+            else
+            {
+                TGuildMember m;
+                m.char_id  = target_id;
+                m.guild_id = h.guild_id;
+                m.duty     = guild::kDutyNone;
+                m.name     = applicant_name;
+                m.level    = applicant_level;
+                h.guild->members.push_back(std::move(m));
+            }
+        }
+    }
+
+    if (collide_disorg || collide_have || collide_full)
+    {
+        // Accept failed — fire VOLUNTEERREPLY_REQ to the chief
+        // with the right failure code so their UI explains why.
+        const std::uint8_t fail =
+            collide_disorg ? guild::kNotFound
+          : collide_have   ? guild::kHaveGuild
+          :                  guild::kMemberFull;
+        co_await senders::SendMwGuildVolunteerReplyReq(peer, char_id, key,
+            fail);
+        spdlog::info("OnGuildVolunteerReplyAck[{}]: char_id={} accept "
+                     "target={} failed result={}", ip, char_id, target_id,
+            fail);
+        co_return;
+    }
+
+    // Mirror the legacy ApplyGuildApp tail: clear app + set
+    // back-pointer + AddMember persist + JOIN_REQ broadcast to
+    // new member + chief (same as InviteAnswer YES path).
+    ctx.guild_wanted->DelApp(target_id);
+    if (applicant_char)
+    {
+        std::lock_guard g(applicant_char->lock);
+        applicant_char->guild_id = h.guild_id;
+    }
+
+    if (ctx.guild_repo)
+    {
+        const std::uint32_t guild_id = h.guild_id;
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, target_id] {
+                repo->DelVolunteerApp(target_id);
+            });
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, target_id, guild_id, applicant_level] {
+                repo->AddMember(target_id, guild_id, applicant_level,
+                    guild::kDutyNone);
+            });
+    }
+
+    // Notify the new member's main map peer (if online).
+    if (applicant_msi != 0)
+    {
+        std::shared_ptr<PeerSession> applicant_peer;
+        for (auto& p : ctx.peers->Snapshot())
+        {
+            if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == applicant_msi)
+            {
+                applicant_peer = std::move(p);
+                break;
+            }
+        }
+        if (applicant_peer)
+        {
+            co_await senders::SendMwGuildJoinReq(applicant_peer, target_id,
+                applicant_key, guild::kJoinSuccess, h.guild_id, fame,
+                fame_color, guild_name, target_id, applicant_name, 0);
+        }
+    }
+    // Chief sees it too.
+    co_await senders::SendMwGuildJoinReq(peer, char_id, key,
+        guild::kJoinSuccess, h.guild_id, fame, fame_color, guild_name,
+        target_id, applicant_name, 0);
+
+    // Refresh chief's applicant list (now missing the accepted
+    // entry).
+    auto apps = ctx.guild_wanted->SnapshotAppsFor(h.guild_id);
+    co_await senders::SendMwGuildVolunteerListReq(peer, char_id, key,
+        BuildVolunteerRows(apps, *ctx.chars));
+
+    spdlog::info("OnGuildVolunteerReplyAck[{}]: char_id={} accepted "
+                 "target={} ('{}') into guild_id={}",
+        ip, char_id, target_id, applicant_name, h.guild_id);
+}
+
 // --- W3a-11 guild wanted board ------------------------------------
 
 namespace {
@@ -1693,12 +2095,9 @@ BuildArticleRows(const TGuild& guild)
 // Resolve the requester's guild + return the locked snapshot the
 // article handlers need. Returns (nullptr, 0) when any of the
 // legacy gates (char missing, key mismatch, no guild) fail.
-struct GuildHandle
-{
-    std::shared_ptr<TGuild> guild;
-    std::uint32_t           guild_id = 0;
-};
-
+// `GuildHandle` itself is defined in the top-of-file anonymous
+// namespace so other handler blocks (W3a-12) can use it via
+// forward-declared `ResolveRequesterGuild`.
 GuildHandle ResolveRequesterGuild(const HandlerContext& ctx,
                                    std::uint32_t char_id,
                                    std::uint32_t key)

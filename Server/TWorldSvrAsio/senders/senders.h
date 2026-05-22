@@ -268,6 +268,52 @@ boost::asio::awaitable<void> SendMwGuildWantedListReq(
     std::uint32_t                        key,
     const std::vector<GuildWantedRow>&   entries);
 
+// --- W3a-12 volunteer / applicant flow ----------------------------
+
+// MW_GUILDVOLUNTEERING_REQ — player applied to a wanted entry.
+// 3-byte result reply.
+boost::asio::awaitable<void> SendMwGuildVolunteeringReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_GUILDVOLUNTEERINGDEL_REQ — player canceled their app.
+// 3-byte result reply.
+boost::asio::awaitable<void> SendMwGuildVolunteeringDelReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_GUILDVOLUNTEERLIST_REQ — chief browses applicants for their
+// guild's wanted entry. Variable-length tail (DWORD count + 5
+// fields per applicant).
+struct GuildVolunteerRow
+{
+    std::uint32_t char_id = 0;
+    std::string   name;
+    std::uint8_t  level   = 0;
+    std::uint8_t  klass   = 0;
+    std::uint32_t region  = 0;
+};
+
+boost::asio::awaitable<void> SendMwGuildVolunteerListReq(
+    std::shared_ptr<PeerSession>             peer,
+    std::uint32_t                            char_id,
+    std::uint32_t                            key,
+    const std::vector<GuildVolunteerRow>&    applicants);
+
+// MW_GUILDVOLUNTEERREPLY_REQ — sent to the chief on failed
+// accept (e.g. applicant joined another guild meanwhile). Legacy
+// only fires this on errors; the success path uses the standard
+// MW_GUILDJOIN_REQ broadcast from the invite flow.
+boost::asio::awaitable<void> SendMwGuildVolunteerReplyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
 // --- W3a-9 single guild info refresh ------------------------------
 
 // MW_GUILDINFO_REQ — large composite reply with the requester's

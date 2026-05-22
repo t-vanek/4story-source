@@ -478,6 +478,53 @@ bool SociGuildRepository::DeleteWanted(std::uint32_t guild_id)
     }
 }
 
+bool SociGuildRepository::AddVolunteerApp(std::uint32_t char_id,
+                                           std::uint32_t wanted_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        // bType column is GUILDAPP_MEMBER (legacy enum constant
+        // for "applying to join as a regular member"). Tactics
+        // applications use a different bType in W3a-13+; we just
+        // hardcode the member value here.
+        constexpr int kAppTypeMember = 0;
+        sql << "DELETE FROM \"TGUILDVOLUNTEERTABLE\" WHERE \"dwCharID\" = :c",
+            soci::use(static_cast<int>(char_id));
+        sql << "INSERT INTO \"TGUILDVOLUNTEERTABLE\" (\"dwCharID\", "
+               "\"bType\", \"dwID\") VALUES (:c, :t, :w)",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(kAppTypeMember),
+            soci::use(static_cast<int>(wanted_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::AddVolunteerApp({}, {}) "
+                      "failed: {}", char_id, wanted_id, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::DelVolunteerApp(std::uint32_t char_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "DELETE FROM \"TGUILDVOLUNTEERTABLE\" WHERE \"dwCharID\" = :c",
+            soci::use(static_cast<int>(char_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::DelVolunteerApp({}) failed: {}",
+            char_id, ex.what());
+        return false;
+    }
+}
+
 bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
                                                  std::uint32_t guild_id,
                                                  std::uint32_t exp,

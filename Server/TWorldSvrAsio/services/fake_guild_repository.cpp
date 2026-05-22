@@ -276,6 +276,23 @@ bool FakeGuildRepository::DeleteWanted(std::uint32_t guild_id)
     return true;
 }
 
+bool FakeGuildRepository::AddVolunteerApp(std::uint32_t char_id,
+                                           std::uint32_t wanted_id)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kAddVolunteerApp, wanted_id, char_id,
+                       0, 0, 0, 0, 0});
+    return true;
+}
+
+bool FakeGuildRepository::DelVolunteerApp(std::uint32_t char_id)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kDelVolunteerApp, 0, char_id, 0, 0,
+                       0, 0, 0});
+    return true;
+}
+
 std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
 {
     std::lock_guard lock(m_mtx);

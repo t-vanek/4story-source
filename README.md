@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-05-22:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ███░░░░░░░░░░░░░░░░░   28%   (W3a-11 — guild wanted board, 29 handlers)
+TWorldSvr         ███░░░░░░░░░░░░░░░░░   29%   (W3a-12 — volunteer/applicant flow, 33 handlers)
 ─────────────────────────────────────────
 Cluster total     ███░░░░░░░░░░░░░░░░░  ~18%   (LOC-weighted, see below)
 ```
@@ -36,7 +36,7 @@ Cluster total     ███░░░░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~13 500 | 29/287 + guild wanted board (CRUD + 14-day expiry + country filter) | 🟡 W3a-1+W3a-4d+W3a-8+W3a-11 (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE + TGUILDWANTEDTABLE) | 🟡 **W3a-11 — guild wanted board** |
+| **TWorldSvrAsio** | 38 851 | ~14 600 | 33/287 + volunteer/applicant flow (5-gate validation + REPLY accept→member promotion) | 🟡 W3a-* (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE + TGUILDWANTEDTABLE + TGUILDVOLUNTEERTABLE) | 🟡 **W3a-12 — volunteer flow** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
 LOC weighting: `(24 213 complete + ~6 700 scaffolded) / 175 906 legacy ≈ 17 %`.

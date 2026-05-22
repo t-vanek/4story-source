@@ -56,6 +56,9 @@ public:
                    const std::string& text,
                    std::int64_t end_time_unix) override;
     bool DeleteWanted(std::uint32_t guild_id) override;
+    bool AddVolunteerApp(std::uint32_t char_id,
+                         std::uint32_t wanted_id) override;
+    bool DelVolunteerApp(std::uint32_t char_id) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

@@ -24,8 +24,11 @@ that the four shipped Asio daemons already use.
 | W3a-4d | CoOffloadVoidIf wiring (closes W-1) + GuildLevelCache mirror of TGUILDCHART | ✅ |
 | W3a-5 | `services/guild_peerage.h` (CheckPeerage gate using guild_levels) + UpdateMemberPeer + UpdateMaxCabinet + OnMW_GUILDPEER_ACK + OnDM_GUILDCABINETMAX_REQ | ✅ |
 | W3a-6 | Guild invite flow: INVITE + INVITEANSWER + JOIN_REQ 10-field sender | ✅ |
-| **W3a-7** | TGuildMember gains castle/camp/connected_date_unix fields + SendMwGuildMemberListReq (variable-length 13-field-per-member tail) + OnMW_GUILDMEMBERLIST_ACK with online/region/level live-fetch from CharRegistry + W3a-6 wire bug fix (kSuccess→kJoinSuccess on JOIN_REQ replies per NetCode.h:451) | ✅ |
-| W3a-8+ | NotifyAddGuildMember broadcast to existing members + Articles board + Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
+| W3a-7 | TGuildMember castle/camp/connected_date_unix + variable-length MEMBERLIST sender + OnMW_GUILDMEMBERLIST_ACK + W3a-6 JOIN_REQ wire-bug fix | ✅ |
+| W3a-8 | Articles board (LIST/ADD/DEL/UPDATE) + TGuildArticle storage + caps | ✅ |
+| W3a-9 | TGuild gains 6 fields + GuildInfoPayload (30-field POD) + SendMwGuildInfoReq + OnMW_GUILDINFO_ACK | ✅ |
+| **W3a-10** | IGuildRepository::DeleteGuild + OnMW_GUILDMONEYRECOVER_ACK + OnDM_GUILDEXTINCTION_REQ (cluster fan-out + explicit-cascade DELETEs) | ✅ |
+| W3a-11+ | Tactics / Volunteers / Wanted / PvP record / Point reward / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |

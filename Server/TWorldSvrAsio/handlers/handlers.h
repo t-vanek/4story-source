@@ -218,6 +218,54 @@ boost::asio::awaitable<void> OnGuildMemberListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
+
+// Player applies to a wanted-board entry. World runs the 5
+// legacy gates (already-applied / wanted-missing / country /
+// expired / level-out-of-range) via
+// GuildWantedRegistry::AddApp, then persists + replies +
+// refreshes the wanted board for the requester.
+//
+// Wire layout (SSHandler.cpp:4547):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwWantedID
+boost::asio::awaitable<void> OnGuildVolunteeringAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Player cancels their pending application.
+//
+// Wire layout (SSHandler.cpp:4586):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildVolunteeringDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Chief lists applicants pending against their guild's wanted
+// entry.
+//
+// Wire layout (SSHandler.cpp:4614):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildVolunteerListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Chief accepts (bReply=1) or rejects (bReply=0) an applicant.
+// Reject just deletes the application; accept promotes the
+// applicant to a guild member (same path as OnGuildInviteAnswerAck
+// YES branch, including the dual JOIN_REQ kJoinSuccess broadcast
+// + AddMember persistence). Reply with VOLUNTEERREPLY_REQ only
+// on accept-failure (legacy parity); list refresh either way.
+//
+// Wire layout (SSHandler.cpp:4629):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwTarget, BYTE bReply
+boost::asio::awaitable<void> OnGuildVolunteerReplyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-11: guild wanted board (handlers_guild.cpp) --------------
 
 // Chief posts a "we are recruiting" entry. World validates caps

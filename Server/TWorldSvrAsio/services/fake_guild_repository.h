@@ -56,6 +56,9 @@ public:
                    const std::string& text,
                    std::int64_t end_time_unix) override;
     bool DeleteWanted(std::uint32_t guild_id) override;
+    bool AddVolunteerApp(std::uint32_t char_id,
+                         std::uint32_t wanted_id) override;
+    bool DelVolunteerApp(std::uint32_t char_id) override;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -66,7 +69,8 @@ public:
                           kRemoveMember, kAddMember, kIncrementContribution,
                           kUpdateMemberPeer, kUpdateMaxCabinet,
                           kAddArticle, kDelArticle, kUpdateArticle,
-                          kDeleteGuild, kAddWanted, kDeleteWanted };
+                          kDeleteGuild, kAddWanted, kDeleteWanted,
+                          kAddVolunteerApp, kDelVolunteerApp };
         Kind          kind;
         std::uint32_t guild_id = 0;
         std::uint32_t char_id  = 0;

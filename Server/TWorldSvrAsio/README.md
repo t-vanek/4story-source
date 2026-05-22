@@ -28,13 +28,106 @@ that the four shipped Asio daemons already use.
 | W3a-8 | Articles board (LIST/ADD/DEL/UPDATE) + TGuildArticle storage + caps | ✅ |
 | W3a-9 | TGuild gains 6 fields + GuildInfoPayload (30-field POD) + SendMwGuildInfoReq + OnMW_GUILDINFO_ACK | ✅ |
 | W3a-10 | IGuildRepository::DeleteGuild + OnMW_GUILDMONEYRECOVER_ACK + OnDM_GUILDEXTINCTION_REQ | ✅ |
-| **W3a-11** | GuildWantedRegistry + IGuildRepository::AddWanted / DeleteWanted + OnMW_GUILDWANTEDADD/DEL/LIST_ACK + 3 senders (variable-length LIST + 2 result replies) + 14-day expiry constant | ✅ |
-| W3a-12+ | Volunteer / applicant subsystem + Tactics / PvP record / Point reward / Cabinet item codec | ⏸ |
+| W3a-11 | GuildWantedRegistry + AddWanted/DeleteWanted + OnMW_GUILDWANTEDADD/DEL/LIST_ACK + 3 senders + 14-day expiry | ✅ |
+| **W3a-12** | TGuildWantedApp + GuildWantedRegistry::AddApp/DelApp/SnapshotAppsFor/FindAppByChar (with 5 legacy validation gates) + IGuildRepository::AddVolunteerApp/DelVolunteerApp + 4 handlers (VOLUNTEERING/DEL/LIST/REPLY) + 4 senders + accept-path member promotion via OnGuildInviteAnswer YES-branch parity | ✅ |
+| W3a-13+ | Tactics subsystem (~7) + PvP record / Point reward / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-12 — what landed
+
+The volunteer/applicant complement to W3a-11's wanted board:
+players apply to a guild's recruitment posting, chiefs browse +
+accept/reject applicants. Four handlers, four senders, the
+applicant-tracking extension to GuildWantedRegistry, and the
+guild-member promotion path lifted from W3a-6 invite YES-branch.
+
+Adds (state)
+- services/guild_wanted_registry.h
+  - `TGuildWantedApp` POD (char_id, wanted_id, region, level,
+    klass, name).
+  - `TGuildWanted` gains `applicants` vector — populated by
+    `OnGuildVolunteeringAck`; cleared on entry removal or
+    member acceptance.
+- services/guild_wanted_registry.{h,cpp}
+  - `AddApp`: 5 legacy gates (already-applied-same /
+    already-applied-elsewhere / no-such-wanted / country
+    mismatch / wanted expired / level out of range);
+    returns one of `kSame` / `kAlreadyApply` / `kFail` /
+    `kWantedEnd` / `kMismatchLevel` / `kSuccess`.
+  - `DelApp`: removes by char_id from both the per-entry
+    applicant list and the reverse-index map.
+  - `SnapshotAppsFor(guild_id)`: copy out applicant list
+    under shared lock (chief's VOLUNTEERLIST path).
+  - `FindAppByChar`: O(1) "which wanted did this char apply
+    to?" — drives future "already_applied" hints in the
+    wanted board.
+  - Internal `m_app_by_char` reverse index keeps `DelApp` +
+    `FindAppByChar` off the per-entry scan.
+
+Adds (repo)
+- services/guild_repository.h: `AddVolunteerApp` /
+  `DelVolunteerApp`.
+- services/fake_guild_repository.{h,cpp}: impls + Call::Kind
+  ::{kAddVolunteerApp, kDelVolunteerApp}.
+- services/soci_guild_repository.{h,cpp}:
+  - AddVolunteerApp: DELETE-then-INSERT against
+    TGUILDVOLUNTEERTABLE (portable upsert; bType column
+    hardcoded to GUILDAPP_MEMBER = 0).
+  - DelVolunteerApp: single DELETE WHERE dwCharID.
+
+Adds (senders)
+- senders/senders.h + senders_guild.cpp
+  - `GuildVolunteerRow` POD (5 fields per applicant).
+  - SendMwGuildVolunteeringReq / DelReq / ReplyReq — 3-byte
+    result replies.
+  - SendMwGuildVolunteerListReq — variable-length DWORD count
+    + per-row tuple matching SSSender.cpp:1336.
+
+Adds (handlers)
+- handlers/handlers_guild.cpp (W3a-12 block inserted
+  between W3a-5 and W3a-11; forward-declares the
+  ResolveRequesterGuild + SendWantedList helpers that live
+  in the W3a-8 + W3a-11 blocks downstream)
+  - GuildHandle struct lifted to file-scope anonymous
+    namespace so multiple W3a-* blocks share the type via
+    forward decl.
+  - `OnGuildVolunteeringAck` (MW_GUILDVOLUNTEERING_ACK,
+    wID=0x90EA): legacy SSHandler.cpp:4547 port. Player
+    must not be in a guild; AddApp gates the 5 conditions;
+    persist on success + wanted-board refresh.
+  - `OnGuildVolunteeringDelAck` (MW_GUILDVOLUNTEERINGDEL_ACK,
+    wID=0x90EC): DelApp + persist + wanted-board refresh.
+  - `OnGuildVolunteerListAck` (MW_GUILDVOLUNTEERLIST_ACK,
+    wID=0x90EE): chief lists their guild's applicants;
+    SnapshotAppsFor → reply.
+  - `OnGuildVolunteerReplyAck` (MW_GUILDVOLUNTEERREPLY_ACK,
+    wID=0x90F0): legacy SSHandler.cpp:4629 port.
+    - Reject (bReply=0): DelApp + persist + applicant-list
+      refresh; no reply to rejected char (legacy parity).
+    - Accept (bReply=1): re-validate gates (state may have
+      changed during dialog), AddMember under guild.lock,
+      set TChar.guild_id, persist via CoOffloadVoidIf
+      (DelVolunteerApp + AddMember), fire dual JOIN_REQ
+      (kJoinSuccess) to new member + chief. Mirror of the
+      W3a-6 invite YES-branch — a future refactor could
+      extract the shared "promote into guild" path; for now
+      it's a documented duplication.
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-13+
+- Tactics subsystem (~7 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side wanted/volunteer
+- PvP record / point reward (~3)
+- Cabinet item codec
+- Scheduler-driven wanted-entry expiry sweep
+- Refactor: shared "promote into guild" helper to dedupe
+  W3a-6 InviteAnswer YES-branch + W3a-12 VolunteerReply
+  accept-path
 
 ### W3a-11 — what landed
 

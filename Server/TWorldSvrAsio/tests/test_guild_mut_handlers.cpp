@@ -803,6 +803,255 @@ int main()
         // Send a known-good packet to confirm framer survives.
     }
 
+    // --- Scenario 17: DM_GUILDPVPOINT_REQ (W3a-13) ------------------
+    //
+    // DB pushes new PvP-point counters for guild 8. Handler
+    // updates in-memory + persists via UpdatePvPoints. No reply.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 12345); // total
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 6789);  // useable
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1000);  // month
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDPVPOINT_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdatePvPoints
+                && c.guild_id == 8 && c.a == 12345 && c.b == 6789
+                && c.c == 1000)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_pvp_call = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdatePvPoints
+                && c.guild_id == 8 && c.a == 12345 && c.b == 6789
+                && c.c == 1000)
+            { saw_pvp_call = true; break; }
+        }
+        EXPECT(saw_pvp_call);
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->pvp_total_point   == 12345);
+            EXPECT(g->pvp_useable_point == 6789);
+            EXPECT(g->pvp_month_point   == 1000);
+        }
+    }
+
+    // --- Scenario 18: DM_GUILDDUTY_REQ (W3a-14 fan-in) -------------
+    //
+    // DB-side duty update (e.g. admin tool). Handler calls
+    // repo->UpdateMemberDuty — no in-memory change here
+    // because the DB is authoritative for this fan-in path.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 201);  // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);    // guild_id
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kDutyChief);
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDDUTY_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        std::size_t hits = 0;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateMemberDuty
+                && c.char_id == 201 && c.guild_id == 8
+                && c.a == tworldsvr::guild::kDutyChief)
+            { ++hits; }
+        }
+        if (hits > 0) { saw = true; }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_duty_fanin = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateMemberDuty
+                && c.char_id == 201 && c.guild_id == 8
+                && c.a == tworldsvr::guild::kDutyChief)
+            { saw_duty_fanin = true; break; }
+        }
+        EXPECT(saw_duty_fanin);
+    }
+
+    // --- Scenario 19: DM_GUILDPEER_REQ (W3a-14 fan-in) -------------
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 201);  // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);    // guild_id
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 3);     // peer
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDPEER_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateMemberPeer
+                && c.char_id == 201 && c.guild_id == 8 && c.a == 3)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_peer_fanin = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateMemberPeer
+                && c.char_id == 201 && c.guild_id == 8 && c.a == 3)
+            { saw_peer_fanin = true; break; }
+        }
+        EXPECT(saw_peer_fanin);
+    }
+
+    // --- Scenario 20: DM_GUILDCONTRIBUTION_REQ (W3a-14 fan-in) -----
+    //
+    // 6-field wire (no pvp_point). Repo gets called with
+    // pvp_point=0 since the legacy CSP signature ignores it.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);    // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 201);  // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 500);  // exp
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 100);  // gold
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 50);   // silver
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 25);   // cooper
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDCONTRIBUTION_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kIncrementContribution
+                && c.char_id == 201 && c.guild_id == 8
+                && c.a == 500 && c.b == 100 && c.c == 50 && c.d == 25
+                && c.e == 0)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_contrib_fanin = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kIncrementContribution
+                && c.char_id == 201 && c.guild_id == 8
+                && c.a == 500 && c.b == 100 && c.c == 50 && c.d == 25
+                && c.e == 0)
+            { saw_contrib_fanin = true; break; }
+        }
+        EXPECT(saw_contrib_fanin);
+    }
+
+    // --- Scenario 21: DM_GUILDLEVEL_REQ (W3a-14 fan-in) ------------
+    //
+    // Level fan-in defensively updates in-memory TGuild.level
+    // because the peerage gate's member-cap derives from it.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);   // guild_id
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 5);    // level
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDLEVEL_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            if (g->level == 5) break;
+        }
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->level == 5);
+        }
+        bool saw_level_fanin = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateLevel
+                && c.guild_id == 8 && c.a == 5)
+            { saw_level_fanin = true; break; }
+        }
+        EXPECT(saw_level_fanin);
+    }
+
+    // --- Scenario 22: DM_GUILDPOINTREWARD_REQ (W3a-14 fan-in) ------
+    //
+    // Logs a single PvP-point grant + updates running totals.
+    // String "Bravo2" carried in the wire body — fake repo drops
+    // it from the Call record (numeric fields verified below).
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 250);   // point
+        tworldsvr::wire::WriteString(body, "Bravo2");          // recipient
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 99999); // total
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8888);  // useable
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDPOINTREWARD_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kLogPointReward
+                && c.guild_id == 8 && c.a == 250 && c.b == 99999
+                && c.c == 8888)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_reward_log = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kLogPointReward
+                && c.guild_id == 8 && c.a == 250 && c.b == 99999
+                && c.c == 8888)
+            { saw_reward_log = true; break; }
+        }
+        EXPECT(saw_reward_log);
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->pvp_total_point   == 99999);
+            EXPECT(g->pvp_useable_point == 8888);
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -812,7 +1061,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (15 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (22 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

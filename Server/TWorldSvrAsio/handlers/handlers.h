@@ -234,6 +234,43 @@ boost::asio::awaitable<void> OnGuildPvPointReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-14: DB-side fan-in handlers (handlers_guild.cpp) ---------
+//
+// All five run when the DB server pushes a state change back to
+// the world (admin tool, cross-server sync, scheduled job). Each
+// is a thin "read wire fields → repo call" wrapper around an
+// existing IGuildRepository method. No in-memory mutation: the
+// authoritative state lives on the DB side; world's in-memory
+// caches refresh via the next ACTIVECHARUPDATE / GUILDLOAD round.
+// (DM_GUILDLEVEL_REQ defensively updates the registry's level
+// field because it affects member-cap arithmetic for the
+// peerage gate — keeping that stale would cascade silently.)
+
+boost::asio::awaitable<void> OnGuildDutyReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildPeerReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildContributionReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildLevelReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildPointRewardReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

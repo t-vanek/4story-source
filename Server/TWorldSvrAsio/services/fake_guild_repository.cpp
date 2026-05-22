@@ -310,6 +310,38 @@ bool FakeGuildRepository::UpdatePvPoints(std::uint32_t guild_id,
     return true;
 }
 
+bool FakeGuildRepository::UpdateLevel(std::uint32_t guild_id,
+                                      std::uint8_t  level)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kUpdateLevel, guild_id, 0, level, 0, 0,
+                       0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    it->second->level = level;
+    return true;
+}
+
+bool FakeGuildRepository::LogPointReward(std::uint32_t      guild_id,
+                                         std::uint32_t      point,
+                                         const std::string& /*recipient_name*/,
+                                         std::uint32_t      total_point,
+                                         std::uint32_t      useable_point)
+{
+    std::lock_guard lock(m_mtx);
+    // Recipient name dropped from Call record — same pattern as
+    // AddArticle. Tests can verify numeric fields + arrival order.
+    m_calls.push_back({Call::Kind::kLogPointReward, guild_id, 0, point,
+                       total_point, useable_point, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    it->second->pvp_total_point   = total_point;
+    it->second->pvp_useable_point = useable_point;
+    return true;
+}
+
 std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
 {
     std::lock_guard lock(m_mtx);

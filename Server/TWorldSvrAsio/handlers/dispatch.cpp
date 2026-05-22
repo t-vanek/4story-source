@@ -150,7 +150,26 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildPvPointReq(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W3a-14+ picks up tactics subsystem + cabinet item codec.
+    // ---- W3a-14: DB-side fan-in --------------------------------
+    case MessageId::DM_GUILDDUTY_REQ:
+        co_await OnGuildDutyReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_GUILDPEER_REQ:
+        co_await OnGuildPeerReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_GUILDCONTRIBUTION_REQ:
+        co_await OnGuildContributionReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDLEVEL_REQ:
+        co_await OnGuildLevelReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_GUILDPOINTREWARD_REQ:
+        co_await OnGuildPointRewardReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-15+ picks up tactics subsystem + cabinet item codec.
     // … see README §4.
 
     default:

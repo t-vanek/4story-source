@@ -1249,6 +1249,182 @@ OnGuildPvPointReq(std::shared_ptr<PeerSession> peer,
         month_point);
 }
 
+// --- W3a-14 DB-side fan-in handlers -------------------------------
+//
+// Five thin wrappers around existing IGuildRepository methods +
+// two new ones (UpdateLevel / LogPointReward). Each receives a
+// DB-pushed state change and persists via CoOffloadVoidIf. None
+// of them reply on the wire; the DB is authoritative for the
+// fields they touch. OnGuildLevelReq defensively updates
+// TGuild.level in the registry too — keeping that stale would
+// silently break the peerage-gate cap arithmetic.
+
+boost::asio::awaitable<void>
+OnGuildDutyReq(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, guild_id = 0;
+    std::uint8_t  duty    = 0;
+    if (!r.Read(char_id) || !r.Read(guild_id) || !r.Read(duty))
+    {
+        spdlog::warn("OnGuildDutyReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, guild_id, duty] {
+                repo->UpdateMemberDuty(char_id, guild_id, duty);
+            });
+    }
+    spdlog::info("OnGuildDutyReq[{}]: char_id={} guild_id={} duty={}",
+        ip, char_id, guild_id, duty);
+}
+
+boost::asio::awaitable<void>
+OnGuildPeerReq(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, guild_id = 0;
+    std::uint8_t  peerage = 0;
+    if (!r.Read(char_id) || !r.Read(guild_id) || !r.Read(peerage))
+    {
+        spdlog::warn("OnGuildPeerReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, guild_id, peerage] {
+                repo->UpdateMemberPeer(char_id, guild_id, peerage);
+            });
+    }
+    spdlog::info("OnGuildPeerReq[{}]: char_id={} guild_id={} peer={}",
+        ip, char_id, guild_id, peerage);
+}
+
+boost::asio::awaitable<void>
+OnGuildContributionReq(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, char_id = 0;
+    std::uint32_t exp = 0, gold = 0, silver = 0, cooper = 0;
+    if (!r.Read(guild_id) || !r.Read(char_id) || !r.Read(exp) ||
+        !r.Read(gold) || !r.Read(silver) || !r.Read(cooper))
+    {
+        spdlog::warn("OnGuildContributionReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    // Legacy wire CSPGuildContribution carries 6 fields (no
+    // pvp_point). The repo signature gained a pvp_point param
+    // for forward parity with W3a-13's castle-war flow, so we
+    // pass 0 here — the DB SP ignores it for this path.
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, guild_id, exp, gold, silver,
+             cooper] {
+                repo->IncrementContribution(char_id, guild_id, exp, gold,
+                    silver, cooper, /*pvp_point=*/0);
+            });
+    }
+    spdlog::info("OnGuildContributionReq[{}]: guild_id={} char_id={} "
+                 "exp={} gold={} silver={} cooper={}",
+        ip, guild_id, char_id, exp, gold, silver, cooper);
+}
+
+boost::asio::awaitable<void>
+OnGuildLevelReq(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte>       body,
+                const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0;
+    std::uint8_t  level    = 0;
+    if (!r.Read(guild_id) || !r.Read(level))
+    {
+        spdlog::warn("OnGuildLevelReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    // The level field affects the peerage gate's member cap
+    // (GuildLevelCache::Find(level)->max_count). A stale cache
+    // would silently mis-gate kickout/peerage decisions, so
+    // refresh in-memory too — same pattern as OnGuildPvPointReq.
+    if (ctx.guilds)
+    {
+        if (auto guild = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(guild->lock);
+            guild->level = level;
+        }
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, level] {
+                repo->UpdateLevel(guild_id, level);
+            });
+    }
+    spdlog::info("OnGuildLevelReq[{}]: guild_id={} level={}",
+        ip, guild_id, level);
+}
+
+boost::asio::awaitable<void>
+OnGuildPointRewardReq(std::shared_ptr<PeerSession> peer,
+                      std::vector<std::byte>       body,
+                      const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, point = 0, total = 0, useable = 0;
+    std::string   recipient;
+    if (!r.Read(guild_id) || !r.Read(point) || !r.ReadString(recipient) ||
+        !r.Read(total) || !r.Read(useable))
+    {
+        spdlog::warn("OnGuildPointRewardReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    // Mirror W3a-13's defensive in-memory update for the
+    // total/useable fields — they shadow the canonical DB row
+    // and OnGuildInfoAck reads them straight from the registry.
+    if (ctx.guilds)
+    {
+        if (auto guild = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(guild->lock);
+            guild->pvp_total_point   = total;
+            guild->pvp_useable_point = useable;
+        }
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, point, recipient, total,
+             useable] {
+                repo->LogPointReward(guild_id, point, recipient, total,
+                    useable);
+            });
+    }
+    spdlog::info("OnGuildPointRewardReq[{}]: guild_id={} +{} pts to '{}' "
+                 "(total={}, useable={})",
+        ip, guild_id, point, recipient, total, useable);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

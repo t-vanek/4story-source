@@ -39,13 +39,41 @@ std::uint32_t ComputeChecksum(const std::byte* body, std::size_t len)
     return FoldChecksum(body, len);
 }
 
-ControlSession::ControlSession(boost::asio::ip::tcp::socket sock)
-    : m_socket(std::move(sock))
+ControlSession::ControlSession(PlainSocket sock)
+    : m_socket(std::in_place_type<PlainSocket>, std::move(sock))
 {
     boost::system::error_code ec;
-    auto ep = m_socket.remote_endpoint(ec);
+    auto ep = UnderlyingTcp().remote_endpoint(ec);
     if (!ec && ep.address().is_v4())
         m_remote_ipv4 = ep.address().to_v4().to_string();
+}
+
+ControlSession::ControlSession(TlsStream stream)
+    : m_socket(std::in_place_type<TlsStream>, std::move(stream))
+{
+    boost::system::error_code ec;
+    auto ep = UnderlyingTcp().remote_endpoint(ec);
+    if (!ec && ep.address().is_v4())
+        m_remote_ipv4 = ep.address().to_v4().to_string();
+}
+
+ControlSession::PlainSocket& ControlSession::UnderlyingTcp()
+{
+    if (auto* tls = std::get_if<TlsStream>(&m_socket))
+        return tls->next_layer();
+    return std::get<PlainSocket>(m_socket);
+}
+
+const ControlSession::PlainSocket& ControlSession::UnderlyingTcp() const
+{
+    if (auto* tls = std::get_if<TlsStream>(&m_socket))
+        return tls->next_layer();
+    return std::get<PlainSocket>(m_socket);
+}
+
+bool ControlSession::IsOpen() const
+{
+    return UnderlyingTcp().is_open();
 }
 
 void ControlSession::TouchRecv()
@@ -58,13 +86,32 @@ boost::asio::awaitable<void>
 ControlSession::Run(PacketHandler on_packet)
 {
     using namespace boost::asio;
-    while (m_socket.is_open())
+
+    // Dispatch a single async_read through whichever variant arm is
+    // active. boost::asio::async_read accepts any AsyncReadStream;
+    // the variant only exists so connect/close target the raw layer.
+    auto read_into = [&](void* dst, std::size_t n,
+                          boost::system::error_code& ec)
+        -> boost::asio::awaitable<bool> {
+        if (auto* tls = std::get_if<TlsStream>(&m_socket))
+        {
+            co_await async_read(*tls, buffer(dst, n),
+                redirect_error(use_awaitable, ec));
+        }
+        else
+        {
+            co_await async_read(std::get<PlainSocket>(m_socket),
+                buffer(dst, n),
+                redirect_error(use_awaitable, ec));
+        }
+        co_return !ec;
+    };
+
+    while (UnderlyingTcp().is_open())
     {
         PacketHeader hdr{};
         boost::system::error_code ec;
-        co_await async_read(m_socket, buffer(&hdr, sizeof(hdr)),
-            redirect_error(use_awaitable, ec));
-        if (ec) break;
+        if (!co_await read_into(&hdr, sizeof(hdr), ec)) break;
         if (hdr.wSize < kPacketHeaderSize || hdr.wSize > kMaxPacketSize)
         {
             spdlog::warn("control_session[{}]: framing error wSize={} — closing",
@@ -75,9 +122,7 @@ ControlSession::Run(PacketHandler on_packet)
         std::vector<std::byte> body(body_size);
         if (body_size > 0)
         {
-            co_await async_read(m_socket, buffer(body.data(), body_size),
-                redirect_error(use_awaitable, ec));
-            if (ec) break;
+            if (!co_await read_into(body.data(), body_size, ec)) break;
         }
         const std::uint32_t expected = ComputeChecksum(body.data(), body_size);
         if (expected != hdr.dwChkSum)
@@ -96,7 +141,7 @@ ControlSession::Run(PacketHandler on_packet)
 boost::asio::awaitable<void>
 ControlSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 {
-    if (!m_socket.is_open()) co_return;
+    if (!IsOpen()) co_return;
     const std::size_t total = kPacketHeaderSize + body.size();
     if (total > kMaxPacketSize)
     {
@@ -114,9 +159,20 @@ ControlSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
         std::memcpy(m_send_scratch.data() + sizeof(hdr),
                     body.data(), body.size());
     boost::system::error_code ec;
-    co_await boost::asio::async_write(m_socket,
-        boost::asio::buffer(m_send_scratch.data(), total),
-        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    // Dispatch the write through the active variant arm.
+    if (auto* tls = std::get_if<TlsStream>(&m_socket))
+    {
+        co_await boost::asio::async_write(*tls,
+            boost::asio::buffer(m_send_scratch.data(), total),
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    }
+    else
+    {
+        co_await boost::asio::async_write(
+            std::get<PlainSocket>(m_socket),
+            boost::asio::buffer(m_send_scratch.data(), total),
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    }
     if (ec)
         spdlog::debug("control_session[{}]: send wID=0x{:04X} failed: {}",
             m_remote_ipv4, wId, ec.message());
@@ -125,8 +181,9 @@ ControlSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 void ControlSession::Close()
 {
     boost::system::error_code ec;
-    m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-    m_socket.close(ec);
+    auto& sock = UnderlyingTcp();
+    sock.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    sock.close(ec);
 }
 
 } // namespace tcontrolsvr

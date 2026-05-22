@@ -27,6 +27,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/context.hpp>
 #include <boost/asio/thread_pool.hpp>
 
 #include <cstdint>
@@ -58,6 +59,18 @@ struct ControlServerConfig
     // to in-line execution on the io_context thread.
     boost::asio::thread_pool* db_pool = nullptr;
     std::uint8_t           auto_start  = 0;
+
+    // Optional server-side TLS context. When non-null, the accept
+    // loop drives a server-side TLS handshake before constructing
+    // the ControlSession. Caller owns the lifetime (typically a
+    // std::optional<ssl::context> on the main.cpp stack, built once
+    // via fourstory::security::PeerTlsContextBuilder::BuildServerContext).
+    //
+    // Phase A.1 limitation: when set, the legacy operator binary
+    // (TController.exe) cannot connect to this listener because it
+    // speaks plain TCP. A hybrid first-byte-detection accept loop
+    // is planned for Phase A.2 to restore operator compatibility.
+    boost::asio::ssl::context* ssl_ctx = nullptr;
 };
 
 class ControlServer

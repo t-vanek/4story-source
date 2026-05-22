@@ -6,6 +6,7 @@
 #include "admin_shell.h"
 #include "config.h"
 #include "control_server.h"
+#include "fourstory/security/peer_tls_context.h"
 #include "message_router.h"
 #include "event_scheduler.h"
 #include "peer_dialer.h"
@@ -326,6 +327,25 @@ int main(int argc, char** argv)
         svr_cfg.login_rate = login_rate.get();
         svr_cfg.db_pool    = db_pool.get();
         svr_cfg.auto_start = cfg.auto_start;
+
+        // Server-side TLS for the peer-listener path. When enabled,
+        // peers (TLoginSvr/TPatchSvr/TLogSvr/TMapSvr) must connect
+        // over mutual TLS; the legacy TController.exe operator
+        // binary cannot use this listener until the hybrid first-byte
+        // detection lands in Phase A.2.
+        std::optional<boost::asio::ssl::context> server_tls_ctx;
+        if (cfg.security.peer_tls_enabled)
+        {
+            server_tls_ctx.emplace(
+                fourstory::security::PeerTlsContextBuilder
+                    ::BuildServerContext(cfg.security));
+            svr_cfg.ssl_ctx = &*server_tls_ctx;
+            spdlog::info("control_svr: peer transport = TLS "
+                         "(ca={}, min_version={})",
+                cfg.security.peer_tls_ca_cert,
+                cfg.security.peer_tls_min_version);
+        }
+
         tcontrolsvr::ControlServer server(io, svr_cfg);
         spdlog::info("control server listening on 0.0.0.0:{}", server.Port());
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);

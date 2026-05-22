@@ -6,6 +6,10 @@ endpoint, admin shell). The legacy daemon ships ~7 285 LOC of
 ATL/IOCP/PDH/Win32-SCM code; the rewrite distils the protocol surface
 into ~65 CT_\* handlers around a single `boost::asio::io_context`.
 
+> Cluster context: [main README](../../README.md#overall-progress) ·
+> patch catalog vs legacy Araz sources:
+> [`_rewrite/docs/PATCH_README.md` §4](../../_rewrite/docs/PATCH_README.md#4-tcontrolsvr--tcontrolsvrasio)
+
 The plan, handler-by-handler, lives in
 [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](../../_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md).
 This README only covers what F1 ships and how to bring it up.

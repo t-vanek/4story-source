@@ -2,8 +2,14 @@
 
 Static library (`fourstory_common`) consolidating the SOCI pool, audit
 plumbing, SMTP plumbing, admin shell, health endpoint, rate limiter,
-and registry refresher used by `TLoginSvrAsio`, `TPatchSvrAsio`, and
-`TLogSvrAsio`. Pulled out so each server doesn't carry its own copy.
+and registry refresher used by `TLoginSvrAsio`, `TPatchSvrAsio`,
+`TLogSvrAsio`, and `TControlSvrAsio`. Pulled out so each server
+doesn't carry its own copy.
+
+> Cluster context: [main README](../../../README.md#overall-progress) ·
+> patch catalog vs legacy Araz sources:
+> [`_rewrite/docs/PATCH_README.md` §0](../../../_rewrite/docs/PATCH_README.md#0-cross-cutting)
+> (the `fourstory_common` static lib itself is X-14)
 
 ## Layout
 

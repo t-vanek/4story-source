@@ -6,6 +6,10 @@ to `TControlSvr`. Server-server protocol only — the client downloads
 the actual patch payloads over FTP using the URL we hand back in
 `CT_PATCH_ACK`.
 
+> Cluster context: [main README](../../README.md#overall-progress) ·
+> patch catalog vs legacy Araz sources:
+> [`_rewrite/docs/PATCH_README.md` §2](../../_rewrite/docs/PATCH_README.md#2-tpatchsvr--tpatchsvrasio)
+
 ## Status — all 9 `CT_*` handlers ported
 
 Wire-format byte-for-byte compatible with the legacy server. Codec is

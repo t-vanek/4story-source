@@ -7,6 +7,10 @@ legacy `TLoginSvr.exe` is untouched and can be A/B-compared during the
 cutover. Wire-format byte-for-byte compatible with the shipped legacy
 client (RC4 + XOR codec, RFC 6229 verified).
 
+> Cluster context: [main README](../../README.md#overall-progress) ·
+> patch catalog vs legacy Araz sources:
+> [`_rewrite/docs/PATCH_README.md` §1](../../_rewrite/docs/PATCH_README.md#1-tloginsvr--tloginsvrasio)
+
 ## Status — production complete (minus anticheat)
 
 Every legacy `CTLoginSvrModule` handler is ported, every operational

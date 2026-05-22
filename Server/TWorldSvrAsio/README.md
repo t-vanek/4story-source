@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-5 peerage gate + cabinet expansion
+## Status — W3a-13 promote-helper refactor + PvP point persistence
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -29,13 +29,89 @@ that the four shipped Asio daemons already use.
 | W3a-9 | TGuild gains 6 fields + GuildInfoPayload (30-field POD) + SendMwGuildInfoReq + OnMW_GUILDINFO_ACK | ✅ |
 | W3a-10 | IGuildRepository::DeleteGuild + OnMW_GUILDMONEYRECOVER_ACK + OnDM_GUILDEXTINCTION_REQ | ✅ |
 | W3a-11 | GuildWantedRegistry + AddWanted/DeleteWanted + OnMW_GUILDWANTEDADD/DEL/LIST_ACK + 3 senders + 14-day expiry | ✅ |
-| **W3a-12** | TGuildWantedApp + GuildWantedRegistry::AddApp/DelApp/SnapshotAppsFor/FindAppByChar (with 5 legacy validation gates) + IGuildRepository::AddVolunteerApp/DelVolunteerApp + 4 handlers (VOLUNTEERING/DEL/LIST/REPLY) + 4 senders + accept-path member promotion via OnGuildInviteAnswer YES-branch parity | ✅ |
-| W3a-13+ | Tactics subsystem (~7) + PvP record / Point reward / Cabinet item codec | ⏸ |
+| W3a-12 | TGuildWantedApp + GuildWantedRegistry::AddApp/DelApp/SnapshotAppsFor/FindAppByChar (with 5 legacy validation gates) + IGuildRepository::AddVolunteerApp/DelVolunteerApp + 4 handlers (VOLUNTEERING/DEL/LIST/REPLY) + 4 senders + accept-path member promotion via OnGuildInviteAnswer YES-branch parity | ✅ |
+| **W3a-13** | `TryPromoteIntoGuild` helper (dedupes W3a-6 InviteAnswer YES + W3a-12 VolunteerReply accept) + IGuildRepository::UpdatePvPoints + OnDM_GUILDPVPOINT_REQ | ✅ |
+| W3a-14+ | Tactics subsystem (~7) + PvP record / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-13 — what landed
+
+Two unrelated cleanups bundled into a single small patch:
+
+1. **Promote-into-guild helper.** The W3a-6 InviteAnswer YES branch
+   and the W3a-12 VolunteerReply accept branch ran the same
+   ~60 LOC sequence: snapshot guild meta under `guild.lock`,
+   re-validate disorg / have-guild / full gates, push into
+   `guild->members`, set `TChar.guild_id`, persist via
+   `repo->AddMember`. The duplication was flagged as a deferred
+   refactor in W3a-12. W3a-13 lifts it to `TryPromoteIntoGuild`
+   in the new W3a-13 anon namespace at the top of
+   `handlers_guild.cpp`. Both call sites now reduce to a single
+   `co_await TryPromoteIntoGuild(...)` plus result-code
+   dispatch — failure replies and JOIN_REQ broadcasts stay at
+   the call sites because the reply targets and packet types
+   differ (dual JOIN_REQ for invite, single VOLUNTEERREPLY_REQ
+   for volunteer reject).
+
+2. **`OnDM_GUILDPVPOINT_REQ` (wID=0x5915).** Legacy
+   SSHandler.cpp:10405 — the DB server pushes new PvP point
+   counters (total / useable / month) for a guild after a
+   castle-war point reward run. Handler updates the in-memory
+   `TGuild.pvp_*_point` fields under `guild.lock` and persists
+   via `IGuildRepository::UpdatePvPoints` (single UPDATE
+   `TGUILDTABLE` SET dwPvPTotalPoint / dwPvPUseablePoint /
+   dwPvPMonthPoint). If the guild isn't in the registry the
+   write still hits the DB (legacy parity — same call path used
+   by `CTGuildPvPointReward` to backfill guilds that are
+   currently offline).
+
+Adds
+- handlers/handlers_guild.cpp: W3a-13 anon namespace at the
+  top of the file with `PromotionResult` struct and
+  `TryPromoteIntoGuild` helper coroutine + new
+  `OnGuildPvPointReq` handler. Call sites at
+  `OnGuildInviteAnswerAck` (W3a-6) and `OnGuildVolunteerReplyAck`
+  (W3a-12) shrunk by ~60 LOC each.
+- handlers/handlers.h: `OnGuildPvPointReq` declaration.
+- handlers/dispatch.cpp: `DM_GUILDPVPOINT_REQ` case routes
+  to the new handler.
+- services/guild_repository.h: `UpdatePvPoints` virtual.
+- services/fake_guild_repository.{h,cpp}:
+  `Call::Kind::kUpdatePvPoints` + impl mutates in-memory
+  TGuild fields.
+- services/soci_guild_repository.{h,cpp}: SOCI impl runs a
+  single UPDATE.
+
+Helper contract notes
+- The helper takes the guild lock once, snapshots meta + runs
+  the validation gates + does the member push in a single
+  critical region. Both call sites still snapshot their own
+  char fields (key / name / msi / level) under `char->lock`
+  beforehand — char locks never overlap with the guild lock.
+- Failure return values are the wire result codes
+  (`kNotFound` / `kHaveGuild` / `kMemberFull`) so call sites
+  can forward them directly to clients. `max_member` is only
+  populated on `kMemberFull` (used by `SendJoinError` for the
+  cap-reached toast).
+- Persistence happens inside the helper via
+  `CoOffloadVoidIf` — call sites no longer queue their own
+  `AddMember` call. The W3a-12 path still queues its own
+  `DelVolunteerApp` afterward (that's the volunteer-flow
+  cleanup, not the promotion).
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-14+
+- Tactics subsystem (~7 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side wanted/volunteer
+- Cabinet item codec
+- Scheduler-driven wanted-entry expiry sweep
+- PvP point reward listing (CTBLGuildPvPointReward — TOP 50
+  query, not a request/reply handler)
 
 ### W3a-12 — what landed
 
@@ -113,9 +189,8 @@ Adds (handlers)
       set TChar.guild_id, persist via CoOffloadVoidIf
       (DelVolunteerApp + AddMember), fire dual JOIN_REQ
       (kJoinSuccess) to new member + chief. Mirror of the
-      W3a-6 invite YES-branch — a future refactor could
-      extract the shared "promote into guild" path; for now
-      it's a documented duplication.
+      W3a-6 invite YES-branch — the shared promotion path
+      was extracted to `TryPromoteIntoGuild` in W3a-13.
 
 Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
 
@@ -125,9 +200,6 @@ Deferred to W3a-13+
 - PvP record / point reward (~3)
 - Cabinet item codec
 - Scheduler-driven wanted-entry expiry sweep
-- Refactor: shared "promote into guild" helper to dedupe
-  W3a-6 InviteAnswer YES-branch + W3a-12 VolunteerReply
-  accept-path
 
 ### W3a-11 — what landed
 

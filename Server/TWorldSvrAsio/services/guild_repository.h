@@ -164,6 +164,19 @@ public:
     // Delete the applicant row for one char.
     virtual bool DelVolunteerApp(std::uint32_t char_id) = 0;
 
+    // --- W3a-13 PvP point persistence ----------------------------
+
+    // Update TGUILDTABLE.dwPvPTotalPoint + dwPvPUseablePoint +
+    // dwPvPMonthPoint. Mirrors CSPSaveGuildPvPoint
+    // (SSHandler.cpp:10405). Called from OnGuildPvPointReq when
+    // a map server's PvP outcome fan-out changes a guild's PvP
+    // bank — separate from IncrementContribution which only
+    // touches the additive money/exp deltas.
+    virtual bool UpdatePvPoints(std::uint32_t guild_id,
+                                std::uint32_t total_point,
+                                std::uint32_t useable_point,
+                                std::uint32_t month_point) = 0;
+
     // --- W3a-10 guild lifecycle (extinction) ---------------------
 
     // Delete the guild row + sweep the children. Mirrors

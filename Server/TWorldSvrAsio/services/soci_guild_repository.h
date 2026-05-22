@@ -59,6 +59,9 @@ public:
     bool AddVolunteerApp(std::uint32_t char_id,
                          std::uint32_t wanted_id) override;
     bool DelVolunteerApp(std::uint32_t char_id) override;
+    bool UpdatePvPoints(std::uint32_t guild_id, std::uint32_t total_point,
+                        std::uint32_t useable_point,
+                        std::uint32_t month_point) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

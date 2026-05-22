@@ -525,6 +525,32 @@ bool SociGuildRepository::DelVolunteerApp(std::uint32_t char_id)
     }
 }
 
+bool SociGuildRepository::UpdatePvPoints(std::uint32_t guild_id,
+                                          std::uint32_t total_point,
+                                          std::uint32_t useable_point,
+                                          std::uint32_t month_point)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDTABLE\" SET \"dwPvPTotalPoint\" = :t, "
+               "\"dwPvPUseablePoint\" = :u, \"dwPvPMonthPoint\" = :m "
+               "WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(total_point)),
+            soci::use(static_cast<int>(useable_point)),
+            soci::use(static_cast<int>(month_point)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::UpdatePvPoints({}) failed: {}",
+            guild_id, ex.what());
+        return false;
+    }
+}
+
 bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
                                                  std::uint32_t guild_id,
                                                  std::uint32_t exp,

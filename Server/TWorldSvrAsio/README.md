@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-14 DB-side fan-in cohort
+## Status — W3a-15 fame + article DB fan-in
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -31,13 +31,67 @@ that the four shipped Asio daemons already use.
 | W3a-11 | GuildWantedRegistry + AddWanted/DeleteWanted + OnMW_GUILDWANTEDADD/DEL/LIST_ACK + 3 senders + 14-day expiry | ✅ |
 | W3a-12 | TGuildWantedApp + GuildWantedRegistry::AddApp/DelApp/SnapshotAppsFor/FindAppByChar (with 5 legacy validation gates) + IGuildRepository::AddVolunteerApp/DelVolunteerApp + 4 handlers (VOLUNTEERING/DEL/LIST/REPLY) + 4 senders + accept-path member promotion via OnGuildInviteAnswer YES-branch parity | ✅ |
 | W3a-13 | `TryPromoteIntoGuild` helper (dedupes W3a-6 InviteAnswer YES + W3a-12 VolunteerReply accept) + IGuildRepository::UpdatePvPoints + OnDM_GUILDPVPOINT_REQ | ✅ |
-| **W3a-14** | DB-side fan-in cohort: 5 thin handlers (OnDM_GUILDDUTY/PEER/CONTRIBUTION/LEVEL/POINTREWARD_REQ) + 2 new repo methods (UpdateLevel, LogPointReward) + 6 mut-handler test scenarios | ✅ |
-| W3a-15+ | Tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
+| W3a-14 | DB-side fan-in cohort: 5 thin handlers (OnDM_GUILDDUTY/PEER/CONTRIBUTION/LEVEL/POINTREWARD_REQ) + 2 new repo methods (UpdateLevel, LogPointReward) + 6 mut-handler test scenarios | ✅ |
+| **W3a-15** | Fame + article DB fan-in (OnDM_GUILDFAME_REQ + OnDM_GUILDARTICLEADD/DEL/UPDATE_REQ) — 4 handlers reusing existing repo methods | ✅ |
+| W3a-16+ | Wanted/volunteering DB fan-in + leave/kickout fan-in + tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-15 — what landed
+
+Four more DB-side fan-in handlers extending the W3a-14 cohort.
+All wrap existing `IGuildRepository` methods (no new ones
+needed). No wire replies — DB is authoritative for these
+fields.
+
+- `OnDM_GUILDFAME_REQ` (wID=0x58DB) → `repo->UpdateFame`.
+  Defensively mirrors fame + fame_color into the registry
+  because they're broadcast in `GuildInfoAck` and the
+  Establish-broadcast tail — keeping them stale would
+  cause subtle UI drift on the next refresh.
+- `OnDM_GUILDARTICLEADD_REQ` (wID=0x58D9) →
+  `repo->AddArticle`. **No** in-memory mirror:
+  `TGuild.articles` is owned by the `article_index` counter
+  incremented on `OnGuildArticleAddAck` (the player-action
+  path). DB-pushed `article_id` chooses its own value
+  that might collide with the local counter — we let the
+  next `OnGuildArticleListAck` refresh reconcile. Same
+  behavior as legacy SSHandler.cpp:4201.
+- `OnDM_GUILDARTICLEDEL_REQ` (wID=0x58DA) →
+  `repo->DelArticle`. No in-memory mirror, same rationale.
+- `OnDM_GUILDARTICLEUPDATE_REQ` (wID=0x58E7) →
+  `repo->UpdateArticle`. No in-memory mirror.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` gains scenarios 23-26
+  covering the 4 new handlers end-to-end through dispatch.
+
+Why so small
+- Each handler is 15-20 LOC: read wire → CoOffloadVoidIf →
+  log. The interesting work was the FAME vs. ARTICLES
+  decision split — fame needs the defensive mirror, articles
+  shouldn't have one. The legacy SSHandler.cpp counterparts
+  (lines 4201/4264/4323/4412) are equally tiny.
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-16+
+- DB fan-in: `OnDM_GUILDWANTEDADD/DEL_REQ` +
+  `OnDM_GUILDVOLUNTEERING/INGDEL_REQ` (~4 handlers; need
+  defensive in-memory updates to `GuildWantedRegistry`)
+- DB fan-in: `OnDM_GUILDLEAVE_REQ` + `OnDM_GUILDKICKOUT_REQ`
+  (~2 handlers; need defensive in-memory cleanup of
+  `guild->members` + `TChar.guild_id` back-pointer)
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+- PvP record listing (`CTBLGuildPvPointReward` TOP 50)
+- Cabinet item codec
+- Scheduler-driven wanted-entry expiry sweep
+- `OnDM_GUILDUPDATE_REQ` (variable-length alliance/enemy CSV
+  columns — non-trivial wire codec)
 
 ### W3a-14 — what landed
 

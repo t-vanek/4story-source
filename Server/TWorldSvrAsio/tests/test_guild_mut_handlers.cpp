@@ -1052,6 +1052,155 @@ int main()
         }
     }
 
+    // --- Scenario 23: DM_GUILDFAME_REQ (W3a-15 fan-in) -------------
+    //
+    // FAME fan-in mirrors fame/fame_color into the registry
+    // because they're broadcast in GuildInfo / Establish.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);      // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 77777);  // fame
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0x123456);// color
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDFAME_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            if (g->fame == 77777) break;
+        }
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->fame       == 77777);
+            EXPECT(g->fame_color == 0x123456);
+        }
+        bool saw_fame_fanin = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateFame
+                && c.guild_id == 8 && c.a == 77777 && c.b == 0x123456)
+            { saw_fame_fanin = true; break; }
+        }
+        EXPECT(saw_fame_fanin);
+    }
+
+    // --- Scenario 24: DM_GUILDARTICLEADD_REQ (W3a-15 fan-in) -------
+    //
+    // Article fan-in is repo-only: in-memory TGuild.articles
+    // is owned by the article_index counter on the MW_*_ACK path
+    // and the DB-pushed id might collide. Defer to the next
+    // OnGuildArticleListAck refresh — same as legacy parity.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 999);   // article_id
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 1);      // duty
+        tworldsvr::wire::WriteString(body, "Bravo2");          // writer
+        tworldsvr::wire::WriteString(body, "DB-pushed title"); // title
+        tworldsvr::wire::WriteString(body, "Body text");       // body
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1700001000); // time
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDARTICLEADD_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kAddArticle
+                && c.guild_id == 8 && c.char_id == 999)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_add = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kAddArticle
+                && c.guild_id == 8 && c.char_id == 999)
+            { saw_add = true; break; }
+        }
+        EXPECT(saw_add);
+    }
+
+    // --- Scenario 25: DM_GUILDARTICLEDEL_REQ (W3a-15 fan-in) -------
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 999);   // article_id
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDARTICLEDEL_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kDelArticle
+                && c.guild_id == 8 && c.char_id == 999)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_del = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kDelArticle
+                && c.guild_id == 8 && c.char_id == 999)
+            { saw_del = true; break; }
+        }
+        EXPECT(saw_del);
+    }
+
+    // --- Scenario 26: DM_GUILDARTICLEUPDATE_REQ (W3a-15 fan-in) ----
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);   // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1000);// article_id
+        tworldsvr::wire::WriteString(body, "Edited title");  // title
+        tworldsvr::wire::WriteString(body, "Edited body");   // body
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDARTICLEUPDATE_REQ),
+            body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        bool saw = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateArticle
+                && c.guild_id == 8 && c.char_id == 1000)
+            { saw = true; break; }
+        }
+        if (saw) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        bool saw_upd = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateArticle
+                && c.guild_id == 8 && c.char_id == 1000)
+            { saw_upd = true; break; }
+        }
+        EXPECT(saw_upd);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1061,7 +1210,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (22 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (26 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

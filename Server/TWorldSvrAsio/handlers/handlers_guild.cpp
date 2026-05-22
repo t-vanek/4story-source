@@ -1425,6 +1425,137 @@ OnGuildPointRewardReq(std::shared_ptr<PeerSession> peer,
         ip, guild_id, point, recipient, total, useable);
 }
 
+// --- W3a-15 fame + article DB fan-in ------------------------------
+//
+// FAME mirrors the new values into the registry because they're
+// read by GuildInfoAck / Establish broadcasts. The article
+// handlers skip the in-memory mirror: TGuild.articles is owned
+// by the article_index counter (incremented on
+// OnGuildArticleAddAck), and DB-pushed rows arrive with an
+// article_id chosen DB-side that could collide. We defer to
+// the next OnGuildArticleListAck refresh — same behavior the
+// legacy SSHandler.cpp:4201/4264/4323 exhibits.
+
+boost::asio::awaitable<void>
+OnGuildFameReq(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, fame = 0, fame_color = 0;
+    if (!r.Read(guild_id) || !r.Read(fame) || !r.Read(fame_color))
+    {
+        spdlog::warn("OnGuildFameReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    if (ctx.guilds)
+    {
+        if (auto guild = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(guild->lock);
+            guild->fame       = fame;
+            guild->fame_color = fame_color;
+        }
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, fame, fame_color] {
+                repo->UpdateFame(guild_id, fame, fame_color);
+            });
+    }
+    spdlog::info("OnGuildFameReq[{}]: guild_id={} fame={} color=0x{:06X}",
+        ip, guild_id, fame, fame_color);
+}
+
+boost::asio::awaitable<void>
+OnGuildArticleAddReq(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, article_id = 0, time_unix = 0;
+    std::uint8_t  duty     = 0;
+    std::string   writer, title, body_text;
+    if (!r.Read(guild_id) || !r.Read(article_id) || !r.Read(duty) ||
+        !r.ReadString(writer) || !r.ReadString(title) ||
+        !r.ReadString(body_text) || !r.Read(time_unix))
+    {
+        spdlog::warn("OnGuildArticleAddReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, article_id, duty, writer,
+             title, body_text, time_unix] {
+                repo->AddArticle(guild_id, article_id, duty, writer, title,
+                    body_text, time_unix);
+            });
+    }
+    spdlog::info("OnGuildArticleAddReq[{}]: guild_id={} article_id={} "
+                 "writer='{}' title_len={} body_len={}",
+        ip, guild_id, article_id, writer, title.size(), body_text.size());
+}
+
+boost::asio::awaitable<void>
+OnGuildArticleDelReq(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, article_id = 0;
+    if (!r.Read(guild_id) || !r.Read(article_id))
+    {
+        spdlog::warn("OnGuildArticleDelReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, article_id] {
+                repo->DelArticle(guild_id, article_id);
+            });
+    }
+    spdlog::info("OnGuildArticleDelReq[{}]: guild_id={} article_id={}",
+        ip, guild_id, article_id);
+}
+
+boost::asio::awaitable<void>
+OnGuildArticleUpdateReq(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, article_id = 0;
+    std::string   title, body_text;
+    if (!r.Read(guild_id) || !r.Read(article_id) ||
+        !r.ReadString(title) || !r.ReadString(body_text))
+    {
+        spdlog::warn("OnGuildArticleUpdateReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, article_id, title,
+             body_text] {
+                repo->UpdateArticle(guild_id, article_id, title, body_text);
+            });
+    }
+    spdlog::info("OnGuildArticleUpdateReq[{}]: guild_id={} article_id={} "
+                 "title_len={} body_len={}",
+        ip, guild_id, article_id, title.size(), body_text.size());
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

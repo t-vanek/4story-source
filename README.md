@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-05-22:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ████░░░░░░░░░░░░░░░░   34%   (W3a-14 — DB-side fan-in cohort, 39 handlers)
+TWorldSvr         ████░░░░░░░░░░░░░░░░   37%   (W3a-15 — fame + article DB fan-in, 43 handlers)
 ─────────────────────────────────────────
 Cluster total     ███░░░░░░░░░░░░░░░░░  ~18%   (LOC-weighted, see below)
 ```
@@ -36,7 +36,7 @@ Cluster total     ███░░░░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~14 900 | 39/287 + DB-side fan-in cohort closing the bidirectional loop for duty/peer/contribution/level/point-reward | 🟡 W3a-* (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE + TGUILDWANTEDTABLE + TGUILDVOLUNTEERTABLE + TGUILDPVPOINTREWARDTABLE) | 🟡 **W3a-14 — DB fan-in** |
+| **TWorldSvrAsio** | 38 851 | ~15 100 | 43/287 + DB-side fan-in extending to fame + article board ops | 🟡 W3a-* (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE + TGUILDWANTEDTABLE + TGUILDVOLUNTEERTABLE + TGUILDPVPOINTREWARDTABLE) | 🟡 **W3a-15 — fame + article fan-in** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
 LOC weighting: `(24 213 complete + ~6 700 scaffolded) / 175 906 legacy ≈ 17 %`.

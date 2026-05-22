@@ -6,6 +6,8 @@
 
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
@@ -282,12 +284,18 @@ OnGuildLeaveAck(std::shared_ptr<PeerSession>  peer,
     co_await senders::SendMwGuildLeaveReq(peer, char_id, key, char_name,
         guild::kLeaveSelf, now);
 
-    // W3a-4b: persist the leave to TGUILDMEMBERTABLE. The repo
-    // call runs synchronously on the io_context thread for now;
-    // when the W-1 worker pool gets exercised by guild handlers,
-    // wrap this in fourstory::db::CoOffloadIf(ctx.db_pool, ...).
+    // W3a-4d: persist the leave to TGUILDMEMBERTABLE off the
+    // io_context thread. Closes the remaining W-1 work from
+    // PATCH_README §6 — when ctx.db_pool is non-null the SOCI
+    // DELETE runs on a worker; when null (dev / test runs) the
+    // lambda runs in-line on the current coroutine thread.
     if (ctx.guild_repo && guild_id != 0)
-        ctx.guild_repo->RemoveMember(char_id, guild_id);
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, guild_id] {
+                repo->RemoveMember(char_id, guild_id);
+            });
+    }
 
     // TODO W3a-4c (broadcast): notify other peers so the chat
     // window updates on every map server, not just the one this
@@ -334,9 +342,14 @@ OnGuildDisorganizationReq(std::shared_ptr<PeerSession> peer,
     // in-memory mutation either way so the cluster state stays
     // consistent with the legacy WorkThread → BatchThread fan-out
     // semantics — the registry is the operator-visible truth and
-    // the DB write is best-effort.
+    // the DB write is best-effort. W3a-4d offloads to db_pool.
     if (ctx.guild_repo)
-        ctx.guild_repo->SetDisorg(guild_id, disorg, time_unix);
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, disorg, time_unix] {
+                repo->SetDisorg(guild_id, disorg, time_unix);
+            });
+    }
 
     auto guild = ctx.guilds->Find(guild_id);
     if (guild)
@@ -458,12 +471,21 @@ OnGuildDutyAck(std::shared_ptr<PeerSession> peer,
     if (gate_failed) co_return;
 
     // Persist (best-effort, legacy WorkThread → BatchThread).
+    // W3a-4d: offloaded to db_pool so the SOCI UPDATE doesn't
+    // hold the io_context. For chief promotion we do both writes
+    // back-to-back on the worker — two roundtrips are still
+    // cheaper than blocking the reactor.
     if (ctx.guild_repo)
     {
-        ctx.guild_repo->UpdateMemberDuty(target_char_id, guild_id, new_duty);
-        if (new_duty == guild::kDutyChief)
-            ctx.guild_repo->UpdateMemberDuty(char_id, guild_id,
-                guild::kDutyNone);
+        const bool is_chief = (new_duty == guild::kDutyChief);
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, target_char_id, guild_id, new_duty,
+             char_id, is_chief] {
+                repo->UpdateMemberDuty(target_char_id, guild_id, new_duty);
+                if (is_chief)
+                    repo->UpdateMemberDuty(char_id, guild_id,
+                        guild::kDutyNone);
+            });
     }
 
     // Notify the requesting peer.
@@ -564,12 +586,18 @@ OnGuildFameAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Persist new fame + the PvP-point deduction. (W3a-4c will
-    // add a dedicated UpdatePvPoint repo call; for now we rely
-    // on the fame UPDATE landing and accept that the PvP budget
-    // delta is in-memory only until then.)
+    // Persist new fame + the PvP-point deduction. (A dedicated
+    // UpdatePvPoint repo call lands with the W3a-5+ PvP-record
+    // handlers; for now we rely on the fame UPDATE landing and
+    // accept that the PvP budget delta is in-memory only until
+    // then.) W3a-4d offloads the UPDATE.
     if (ctx.guild_repo)
-        ctx.guild_repo->UpdateFame(guild_id, fame, fame_color);
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, fame, fame_color] {
+                repo->UpdateFame(guild_id, fame, fame_color);
+            });
+    }
 
     // Broadcast to every online member via the W3a-4c helper.
     // Mirrors legacy SSHandler.cpp:4391-4405.
@@ -676,10 +704,15 @@ OnGuildKickoutAck(std::shared_ptr<PeerSession> peer,
     }
 
     // Persist the kickout. Legacy fires CSPGuildKickout from the
-    // BatchThread; we hit the repo synchronously (W3a-4d will wrap
-    // in CoOffloadIf).
+    // BatchThread; W3a-4d wraps in CoOffloadVoidIf so the SOCI
+    // DELETE runs on a worker thread when db_pool is configured.
     if (ctx.guild_repo)
-        ctx.guild_repo->RemoveMember(target_char_id, guild_id);
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, target_char_id, guild_id] {
+                repo->RemoveMember(target_char_id, guild_id);
+            });
+    }
 
     // Two MW replies — one to the requesting peer (chief got
     // confirmation), one to the kicked char's main map peer if
@@ -793,8 +826,14 @@ OnGuildContributionAck(std::shared_ptr<PeerSession> peer,
     }
 
     if (ctx.guild_repo)
-        ctx.guild_repo->IncrementContribution(char_id, guild_id, exp, gold,
-            silver, cooper, pvp_point);
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, guild_id, exp, gold, silver,
+             cooper, pvp_point] {
+                repo->IncrementContribution(char_id, guild_id, exp, gold,
+                    silver, cooper, pvp_point);
+            });
+    }
 
     co_await senders::SendMwGuildContributionReq(peer, char_id, key,
         guild::kSuccess, exp, gold, silver, cooper, pvp_point);
@@ -825,10 +864,15 @@ OnGuildMemberAddReq(std::shared_ptr<PeerSession> peer,
     // Pure DB persistence — the in-memory member-add happens on
     // the OnMW_GUILDINVITEANSWER_ACK side (W3a-5+). Legacy fires
     // CSPGuildMemberAdd from the BatchThread and never replies;
-    // we mirror that. The matching invite-answer handler is the
-    // one that touches GuildRegistry::members + TChar.guild_id.
+    // W3a-4d wraps the call in CoOffloadVoidIf so the INSERT
+    // runs on the worker pool.
     if (ctx.guild_repo)
-        ctx.guild_repo->AddMember(char_id, guild_id, level, duty);
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, guild_id, level, duty] {
+                repo->AddMember(char_id, guild_id, level, duty);
+            });
+    }
 
     spdlog::info("OnGuildMemberAddReq[{}]: persisted guild_id={} "
                  "char_id={} level={} duty={}", ip, guild_id, char_id,

@@ -87,6 +87,21 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
         { "TGUILDMEMBERTABLE", "dwService" },
     });
 
+    // W3a-4d additions: TGUILDCHART (guild-level cap table).
+    // Loaded once at boot into GuildLevelCache; handlers consult
+    // it for per-level member / cabinet / peerage limits. Missing
+    // table = empty cache → CheckPeerage falls back to "always
+    // allow" (legacy refuses without the chart; we relax for dev
+    // setups so a missing migration doesn't brick the binary).
+    fourstory::db::CheckColumns(*lease, "world", {
+        { "TGUILDCHART", "bLevel" },
+        { "TGUILDCHART", "dwEXP" },
+        { "TGUILDCHART", "bMaxCnt" },
+        { "TGUILDCHART", "bCabinetCnt" },
+        { "TGUILDCHART", "bPeer1" },
+        { "TGUILDCHART", "bPeer5" },
+    });
+
     // Optional — these power handler families that ship later
     // (W3a-2 articles / cabinet, W3a-3 tactics, W5 castle, …).
     // Missing them just downgrades those handlers to no-ops; the

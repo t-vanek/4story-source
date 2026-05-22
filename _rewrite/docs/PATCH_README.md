@@ -186,7 +186,7 @@ constraint.
 
 | ID | Severity | Patch | Status |
 |---|---|---|---|
-| W-1 | 🟡 | Async DB + per-shard write queue with connection pool (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | 🟡 W2 wired `SessionPool` + `boost::asio::thread_pool`; **W3a-1 lands the first SOCI consumer** (`SociGuildRepository::LoadAll` at boot + schema validator for TGUILDTABLE/TGUILDMEMBERTABLE). Per-shard write queue lands in W3a-2 with mutating handlers. |
+| W-1 | ✅ | Async DB + per-shard write queue with connection pool (legacy `m_hDB` is a single DB thread serving all TMapSvr instances) | ✅ **closed in W3a-4d.** Every SOCI write in `handlers/handlers_guild.cpp` is wrapped in `fourstory::db::CoOffloadVoidIf(ctx.db_pool, …)`; the io_context coroutine suspends across the DB roundtrip instead of blocking the reactor. SessionPool sized via `[database].pool_size`; worker depth via `[database].worker_threads`. |
 | W-2 | ✅ | Global maps (`m_mapTCHAR`, `m_mapTGuild`) under one lock — partition (per-guild grain, per-char actor model) | ✅ **closed in-memory** — 16-shard `CharRegistry` (W2) + 16-shard `GuildRegistry` (W3a-1), both with per-entry mutex (per-char / per-guild actor model). Files: `services/char_registry.h`, `services/guild_registry.h`. |
 | W-3 | ✅ | TWorldSvrAsio binary exists — W1 ships the scaffold, W2 adds char registry, W3a-1 adds guild infrastructure + first SOCI consumer + 3 handlers (MW_ADDCHAR_ACK, MW_CLOSECHAR_ACK, DM_GUILDLOAD_ACK). See [`Server/TWorldSvrAsio/README.md`](../../Server/TWorldSvrAsio/README.md) for the W3a-2..W7 phasing. | ✅ |
 

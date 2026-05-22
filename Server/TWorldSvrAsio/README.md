@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-4c broadcast helper + Kickout / Contribution / MemberAdd
+## Status — W3a-4d CoOffloadIf wiring + guild-level table cache
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -20,14 +20,87 @@ that the four shipped Asio daemons already use.
 | W3a-3 | CharRegistry name index + TChar identity fields + OnMW_CHANGECHARBASE_ACK + OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ | ✅ |
 | W3a-4 | TChar.guild_id back-pointer + TGuild::FindMember/RemoveMember + OnMW_GUILDLEAVE_ACK | ✅ |
 | W3a-4b | `services/guild_constants.h` + IGuildRepository write API (SetDisorg / UpdateMemberDuty / UpdateFame / RemoveMember) + OnGuildDisorganizationReq + OnGuildDutyAck + OnGuildFameAck (broadcast) | ✅ |
-| **W3a-4c** | `services/guild_broadcast.h` (BroadcastToGuildMembers reusable helper) + IGuildRepository::AddMember / IncrementContribution + OnMW_GUILDKICKOUT_ACK (2-peer broadcast) + OnMW_GUILDCONTRIBUTION_ACK + OnDM_GUILDMEMBERADD_REQ (pure DB) + SendMwGuildContributionReq + OnGuildFameAck refactored to use the new helper | ✅ |
-| W3a-4d | Wire all SOCI writes through `fourstory::db::CoOffloadIf` (per W-1 from PATCH_README) + guild-level table cache | ⏸ |
-| W3a-5+ | OnMW_GUILDPEER_ACK + remaining guild handlers (Invite answer / Establish ACK / Articles board / Cabinet / Tactics / Volunteers / PvP record / Point reward / Cabinet item codec) | ⏸ |
+| W3a-4c | `services/guild_broadcast.h` (BroadcastToGuildMembers helper) + IGuildRepository::AddMember / IncrementContribution + OnMW_GUILDKICKOUT_ACK + OnMW_GUILDCONTRIBUTION_ACK + OnDM_GUILDMEMBERADD_REQ | ✅ |
+| **W3a-4d** | All SOCI writes wrapped in `fourstory::db::CoOffloadVoidIf(ctx.db_pool, …)` — closes the last W-1 work from PATCH_README §6 + `GuildLevelCache` mirror of TGUILDCHART (10-row immutable lookup) + `SociGuildLevelRepository` + `FakeGuildLevelRepository` + schema_validator extension + HandlerContext.guild_levels | ✅ |
+| W3a-5+ | OnMW_GUILDPEER_ACK (needs guild-level cache — now available) + Invite / Article / Cabinet / Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-4d — what landed
+
+Pure infrastructure PR. **Closes the last remaining item on
+PATCH_README §6 W-1** (async DB + per-shard write queue): every
+SOCI write the guild handlers issue now runs on the
+`fourstory::db::thread_pool` worker — the io_context coroutine
+suspends across the DB roundtrip instead of blocking the reactor.
+Also introduces `GuildLevelCache` so the W3a-5+ peerage / member-
+cap gates have the legacy `m_pTLEVEL` lookup they need.
+
+* `services/guild_level_cache.{h,cpp}` — small read-only mirror
+  of `TGUILDCHART` (10 rows max, indexed by `bLevel`). `LoadFrom`
+  drops out-of-range rows with a debug log; `Find(level)` is a
+  lock-free direct-index lookup (the table is immutable post-load).
+  Mirrors `tagTGUILDLEVEL` field-for-field including the 5-slot
+  `bPeer[]` array.
+* `services/guild_level_repository.h` — `IGuildLevelRepository`
+  read-only interface. The chart is operator-tuned + offline-
+  reloaded, so no write API.
+* `services/fake_guild_level_repository.{h,cpp}` — in-memory
+  impl with `AddRow` seed API. Used by tests + the no-DB dev
+  path.
+* `services/soci_guild_level_repository.{h,cpp}` — SOCI
+  `SELECT * FROM TGUILDCHART` once at boot.
+* `db/schema_validator.cpp` — required-column check for
+  TGUILDCHART (bLevel / dwEXP / bMaxCnt / bCabinetCnt /
+  bPeer1 / bPeer5). Missing chart aborts boot when `[database]`
+  is configured.
+* `main.cpp` — instantiates GuildLevelCache, calls
+  `LoadFrom(guild_level_repo->LoadAll())` before the listener
+  spawns, wires `ctx.guild_levels`.
+* `handlers/handlers.h` — HandlerContext gains
+  `const GuildLevelCache* guild_levels`.
+
+**CoOffloadVoidIf wiring** — every `ctx.guild_repo->*` write
+call in `handlers/handlers_guild.cpp` now reads:
+
+```cpp
+co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+    [repo = ctx.guild_repo, ...] {
+        repo->XxxYyy(...);
+    });
+```
+
+Covered handlers: `OnGuildLeaveAck` (RemoveMember),
+`OnGuildDisorganizationReq` (SetDisorg), `OnGuildDutyAck`
+(UpdateMemberDuty × 1 or 2 for chief promotion),
+`OnGuildFameAck` (UpdateFame), `OnGuildKickoutAck`
+(RemoveMember), `OnGuildContributionAck`
+(IncrementContribution), `OnGuildMemberAddReq` (AddMember).
+
+When `ctx.db_pool == nullptr` (no `[database]` configured + no
+`worker_threads` set) the lambda runs in-line on the current
+coroutine thread — `CoOffloadVoidIf` is the nullptr-tolerant
+overload. Tests rely on this fall-through.
+
+Build verified: cmake + ctest -R tworldsvr_asio (13/13 passed)
+on GCC 13.3 Ubuntu noble. The existing wire tests pass
+unchanged — the offload is observationally transparent.
+
+Test added
+- `test_guild_level_cache` — 4 scenarios: empty cache, LoadFrom
+  filters out-of-range rows (level 0 + level > kMaxGuildLevel
+  dropped), second LoadFrom replaces, FakeGuildLevelRepository
+  round-trips.
+
+Deferred to W3a-5+ (now unblocked by this PR)
+- OnMW_GUILDPEER_ACK with full `CheckPeerage` validation
+  (reads `guild_levels->Find(level)->peer_slots[bPeer-1]`)
+- OnDM_GUILDCABINETMAX_REQ (reads `cabinet_count`)
+- Member-cap gate on the W3a-5 OnMW_GUILDINVITEANSWER_ACK path
+  (reads `max_count`)
 
 ### W3a-4c — what landed
 

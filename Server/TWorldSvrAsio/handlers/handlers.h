@@ -366,6 +366,29 @@ boost::asio::awaitable<void> OnGuildKickoutReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-18: guild establishment (handlers_guild.cpp) -------------
+//
+// The "create new guild" gameplay flow. Legacy splits this across
+// 4 packets: map → MW_GUILDESTABLISH_ACK → world → DM_GUILDESTABLISH_REQ
+// → DB → DM_GUILDESTABLISH_ACK → world → MW_GUILDESTABLISH_REQ →
+// map. Our SOCI-direct architecture collapses it into a single
+// coroutine: validate, repo->CreateGuild (returns new id),
+// build TGuild in registry, persist chief membership, reply.
+//
+// Wire layout (SSHandler.cpp:3027):
+//   DWORD dwCharID, DWORD dwKEY, STRING strGuildName
+//
+// Failure modes mirror legacy:
+//   - char missing / key mismatch → silent drop
+//   - char already in a guild  → bRet = kHaveGuild
+//   - name length > kGuildMaxNameLen → bRet = kFail
+//   - duplicate name (DB side) → bRet = kAlreadyGuildName
+//   - other DB failure → bRet = kEstablishErr
+boost::asio::awaitable<void> OnGuildEstablishAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

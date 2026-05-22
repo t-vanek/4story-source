@@ -348,4 +348,38 @@ std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
     return m_calls;
 }
 
+std::optional<std::uint32_t>
+FakeGuildRepository::CreateGuild(const std::string& name,
+                                  std::uint32_t      chief_id,
+                                  std::uint8_t       country,
+                                  std::int64_t       establish_time_unix)
+{
+    std::lock_guard lock(m_mtx);
+    // Duplicate-name check — the legacy SP returns bRet=2 for
+    // this; we collapse to nullopt.
+    for (const auto& [id, g] : m_guilds)
+    {
+        std::lock_guard gl(g->lock);
+        if (g->name == name) return std::nullopt;
+    }
+    // Pick the next free guild_id (max + 1, starting at 1).
+    std::uint32_t new_id = 1;
+    for (const auto& [id, g] : m_guilds)
+        if (id >= new_id) new_id = id + 1;
+
+    auto g            = std::make_shared<TGuild>();
+    g->id             = new_id;
+    g->name           = name;
+    g->chief_char_id  = chief_id;
+    g->country        = country;
+    g->level          = 1;
+    g->establish_time = establish_time_unix;
+    m_guilds.emplace(new_id, g);
+
+    // Record the call. Fields: a=chief_id, b=country.
+    m_calls.push_back({Call::Kind::kCreateGuild, new_id, 0, chief_id,
+                       country, 0, 0, 0});
+    return new_id;
+}
+
 } // namespace tworldsvr

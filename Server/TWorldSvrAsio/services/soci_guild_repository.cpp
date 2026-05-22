@@ -684,4 +684,57 @@ SociGuildRepository::FindById(std::uint32_t guild_id)
     }
 }
 
+std::optional<std::uint32_t>
+SociGuildRepository::CreateGuild(const std::string& name,
+                                  std::uint32_t      chief_id,
+                                  std::uint8_t       country,
+                                  std::int64_t       establish_time_unix)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        soci::transaction tr(sql);
+
+        // Reject duplicate names — legacy CSPGuildEstablish
+        // returns bRet=2 for this. The check + INSERT live in
+        // one transaction so a concurrent attempt with the same
+        // name still fails the UNIQUE constraint at INSERT time
+        // (defensive both ways).
+        int existing = 0;
+        sql << "SELECT COUNT(*) FROM \"TGUILDTABLE\" "
+               "WHERE \"szName\" = :n",
+            soci::use(name), soci::into(existing);
+        if (existing != 0) return std::nullopt;
+
+        // Portable next-id: SELECT MAX(dwID)+1. Production
+        // schemas use IDENTITY but our portable migration may
+        // not, so we compute it client-side under the same
+        // transaction. The legacy SP relies on the SP body to
+        // pick the id too — semantically equivalent.
+        int next_id = 0;
+        sql << "SELECT COALESCE(MAX(\"dwID\"), 0) + 1 "
+               "FROM \"TGUILDTABLE\"",
+            soci::into(next_id);
+
+        sql << "INSERT INTO \"TGUILDTABLE\" "
+               "(\"dwID\", \"szName\", \"dwChief\", \"bCountry\", "
+               " \"bLevel\", \"timeEstablish\") "
+               "VALUES (:i, :n, :c, :y, 1, :t)",
+            soci::use(next_id),
+            soci::use(name),
+            soci::use(static_cast<int>(chief_id)),
+            soci::use(static_cast<int>(country)),
+            soci::use(static_cast<long long>(establish_time_unix));
+        tr.commit();
+        return static_cast<std::uint32_t>(next_id);
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::CreateGuild('{}', chief={}) "
+                      "failed: {}", name, chief_id, ex.what());
+        return std::nullopt;
+    }
+}
+
 } // namespace tworldsvr

@@ -1563,6 +1563,161 @@ int main()
         }
     }
 
+    // --- Scenario 35: MW_GUILDESTABLISH_ACK creates a new guild ----
+    //
+    // Add a fresh char (char 600 "Foxtrot") not in any guild, then
+    // send MW_GUILDESTABLISH_ACK with a unique name. Expect:
+    //   - repo->CreateGuild call (Call::kCreateGuild)
+    //   - new guild lands in registry with chief = char 600
+    //   - char 600's guild_id back-pointer set
+    //   - MW_GUILDESTABLISH_REQ reply with kSuccess + bEstablish=1
+    SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
+        AddCharBody(600, 0xF0F0F0F0));
+    SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
+        NameBody(600, 0xF0F0F0F0, "Foxtrot"));
+    for (int i = 0; i < 50; ++i)
+    {
+        if (chars.FindByName("Foxtrot")) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 600);   // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xF0F0F0F0); // key
+        tworldsvr::wire::WriteString(body, "FoxtrotGuild");
+        SendFramed(peer1, ToUint16(MessageId::MW_GUILDESTABLISH_ACK),
+            body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDESTABLISH_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, gid = 0;
+        std::uint8_t  result = 0, establish = 0;
+        std::string   name;
+        EXPECT(rr.Read(cid));          EXPECT(cid == 600);
+        EXPECT(rr.Read(key));          EXPECT(key == 0xF0F0F0F0);
+        EXPECT(rr.Read(result));       EXPECT(result == tworldsvr::guild::kSuccess);
+        EXPECT(rr.Read(gid));          EXPECT(gid != 0);
+        EXPECT(rr.ReadString(name));   EXPECT(name == "FoxtrotGuild");
+        EXPECT(rr.Read(establish));    EXPECT(establish == 1);
+    }
+    {
+        // Find the new guild by name (id is auto-assigned).
+        std::uint32_t new_gid = 0;
+        for (std::uint32_t probe = 1; probe < 1000 && new_gid == 0; ++probe)
+        {
+            if (auto g = guilds.Find(probe))
+            {
+                std::lock_guard gl(g->lock);
+                if (g->name == "FoxtrotGuild") new_gid = probe;
+            }
+        }
+        EXPECT(new_gid != 0);
+        if (auto g = guilds.Find(new_gid))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->chief_char_id == 600);
+            EXPECT(g->level         == 1);
+            EXPECT(g->members.size() == 1);
+            EXPECT(g->members[0].char_id == 600);
+            EXPECT(g->members[0].duty    == tworldsvr::guild::kDutyChief);
+        }
+        if (auto c = chars.Find(600))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->guild_id == new_gid);
+        }
+        bool saw_create = false, saw_add_member = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kCreateGuild
+                && c.guild_id == new_gid && c.a == 600)
+            { saw_create = true; }
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kAddMember
+                && c.guild_id == new_gid && c.char_id == 600
+                && c.b == tworldsvr::guild::kDutyChief)
+            { saw_add_member = true; }
+        }
+        EXPECT(saw_create);
+        EXPECT(saw_add_member);
+    }
+
+    // --- Scenario 36: ESTABLISH rejected when char already in guild ---
+    //
+    // char 200 (Bob) is the chief of guild 8 from scenario 5+. Try
+    // to create another guild → kHaveGuild reply, no new guild.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WriteString(body, "SecondGuildBob");
+        SendFramed(peer1, ToUint16(MessageId::MW_GUILDESTABLISH_ACK),
+            body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDESTABLISH_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, gid = 0;
+        std::uint8_t  result = 0, establish = 0;
+        std::string   name;
+        EXPECT(rr.Read(cid));        EXPECT(cid == 200);
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(result));     EXPECT(result == tworldsvr::guild::kHaveGuild);
+        EXPECT(rr.Read(gid));        EXPECT(gid == 0);   // empty meta on failure
+        EXPECT(rr.ReadString(name));
+        EXPECT(rr.Read(establish));  EXPECT(establish == 1);
+    }
+
+    // --- Scenario 37: ESTABLISH rejected on duplicate name --------
+    //
+    // Add char 700 not in any guild, then try to create with
+    // "FoxtrotGuild" which already exists from scenario 35. Fake
+    // repo's CreateGuild scans by name and returns nullopt.
+    SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
+        AddCharBody(700, 0xA1B2C3D4));
+    SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
+        NameBody(700, 0xA1B2C3D4, "Golf"));
+    for (int i = 0; i < 50; ++i)
+    {
+        if (chars.FindByName("Golf")) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 700);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xA1B2C3D4);
+        tworldsvr::wire::WriteString(body, "FoxtrotGuild");   // dup
+        SendFramed(peer1, ToUint16(MessageId::MW_GUILDESTABLISH_ACK),
+            body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDESTABLISH_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, gid = 0;
+        std::uint8_t  result = 0, establish = 0;
+        std::string   name;
+        EXPECT(rr.Read(cid));        EXPECT(cid == 700);
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(result));
+        EXPECT(result == tworldsvr::guild::kAlreadyGuildName);
+        EXPECT(rr.Read(gid));        EXPECT(gid == 0);
+        EXPECT(rr.ReadString(name));
+        EXPECT(rr.Read(establish));  EXPECT(establish == 1);
+    }
+    {
+        // Char 700 should remain guild-less after the rejection.
+        if (auto c = chars.Find(700))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->guild_id == 0);
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1572,7 +1727,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (34 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (37 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

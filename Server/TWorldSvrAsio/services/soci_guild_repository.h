@@ -67,6 +67,11 @@ public:
                         const std::string& recipient_name,
                         std::uint32_t total_point,
                         std::uint32_t useable_point) override;
+    std::optional<std::uint32_t> CreateGuild(const std::string& name,
+                                              std::uint32_t chief_id,
+                                              std::uint8_t  country,
+                                              std::int64_t  establish_time_unix)
+        override;
 
 private:
     fourstory::db::SessionPool& m_pool;

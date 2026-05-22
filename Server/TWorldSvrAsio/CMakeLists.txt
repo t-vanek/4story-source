@@ -48,6 +48,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
     ${TWORLD_ASIO_SRC}/services/guild_peerage.cpp
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_level_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_guild_level_repository.cpp

@@ -51,6 +51,11 @@ public:
                        const std::string& title,
                        const std::string& body) override;
     bool DeleteGuild(std::uint32_t guild_id) override;
+    bool AddWanted(std::uint32_t guild_id, std::uint8_t min_level,
+                   std::uint8_t max_level, const std::string& title,
+                   const std::string& text,
+                   std::int64_t end_time_unix) override;
+    bool DeleteWanted(std::uint32_t guild_id) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

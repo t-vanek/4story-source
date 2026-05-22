@@ -396,10 +396,18 @@ bool SociGuildRepository::DeleteGuild(std::uint32_t guild_id)
     {
         auto lease = m_pool.Acquire();
         soci::session& sql = *lease;
-        // Cascade-delete the related rows ourselves — the legacy
-        // CSPGuildDelete relies on FK CASCADE which not every
-        // deployed schema has. Explicit DELETEs make the behavior
-        // independent of FK configuration.
+        // Legacy CSPGuildDelete is a single-statement SP that
+        // assumes the production schema has FK CASCADE on the
+        // guild children (TGUILDMEMBERTABLE.dwGuildID,
+        // TGUILDARTICLETABLE.dwGuildID — cascading delete on the
+        // parent TGUILDTABLE row sweeps both).
+        //
+        // We issue explicit DELETEs in dependency order instead
+        // so dev / test schemas that omit the FK CASCADE clause
+        // (PostgreSQL deploys, schema-light fixtures) still get
+        // the children swept. On the production schema this is
+        // two extra round-trips on a cold path — negligible vs.
+        // the safety win on misconfigured deploys.
         sql << "DELETE FROM \"TGUILDARTICLETABLE\" WHERE \"dwGuildID\" = :g",
             soci::use(static_cast<int>(guild_id));
         sql << "DELETE FROM \"TGUILDMEMBERTABLE\" WHERE \"dwGuildID\" = :g",
@@ -411,6 +419,60 @@ bool SociGuildRepository::DeleteGuild(std::uint32_t guild_id)
     catch (const std::exception& ex)
     {
         spdlog::error("SociGuildRepository::DeleteGuild({}) failed: {}",
+            guild_id, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::AddWanted(std::uint32_t      guild_id,
+                                     std::uint8_t       min_level,
+                                     std::uint8_t       max_level,
+                                     const std::string& title,
+                                     const std::string& text,
+                                     std::int64_t       end_time_unix)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        // Upsert: legacy CSPGuildWantedAdd is a single SP that
+        // handles "row exists → UPDATE; missing → INSERT" on the
+        // DB side. We emit the same shape via DELETE + INSERT to
+        // stay portable across backends without MERGE syntax.
+        sql << "DELETE FROM \"TGUILDWANTEDTABLE\" WHERE \"dwGuildID\" = :g",
+            soci::use(static_cast<int>(guild_id));
+        sql << "INSERT INTO \"TGUILDWANTEDTABLE\" (\"dwGuildID\", "
+               "\"bMinLevel\", \"bMaxLevel\", \"szTitle\", \"szText\", "
+               "\"dEndTime\") VALUES (:g, :mn, :mx, :t, :x, :e)",
+            soci::use(static_cast<int>(guild_id)),
+            soci::use(static_cast<int>(min_level)),
+            soci::use(static_cast<int>(max_level)),
+            soci::use(title),
+            soci::use(text),
+            soci::use(static_cast<int>(end_time_unix));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::AddWanted({}) failed: {}",
+            guild_id, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::DeleteWanted(std::uint32_t guild_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "DELETE FROM \"TGUILDWANTEDTABLE\" WHERE \"dwGuildID\" = :g",
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::DeleteWanted({}) failed: {}",
             guild_id, ex.what());
         return false;
     }

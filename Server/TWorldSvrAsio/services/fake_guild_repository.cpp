@@ -253,6 +253,29 @@ bool FakeGuildRepository::DeleteGuild(std::uint32_t guild_id)
     return true;
 }
 
+bool FakeGuildRepository::AddWanted(std::uint32_t      guild_id,
+                                     std::uint8_t       min_level,
+                                     std::uint8_t       max_level,
+                                     const std::string& title,
+                                     const std::string& text,
+                                     std::int64_t       end_time_unix)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kAddWanted, guild_id, 0,
+                       min_level, max_level,
+                       static_cast<std::uint32_t>(end_time_unix), 0, 0});
+    (void)title; (void)text;
+    return true;
+}
+
+bool FakeGuildRepository::DeleteWanted(std::uint32_t guild_id)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kDeleteWanted, guild_id, 0, 0, 0,
+                       0, 0, 0});
+    return true;
+}
+
 std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
 {
     std::lock_guard lock(m_mtx);

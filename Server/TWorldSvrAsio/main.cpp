@@ -20,6 +20,7 @@
 #include "services/fake_guild_repository.h"
 #include "services/guild_level_cache.h"
 #include "services/guild_registry.h"
+#include "services/guild_wanted_registry.h"
 #include "services/peer_registry.h"
 #include "services/soci_guild_level_repository.h"
 #include "services/soci_guild_repository.h"
@@ -146,7 +147,8 @@ int main(int argc, char** argv)
         tworldsvr::CharRegistry  chars;
         tworldsvr::GuildRegistry guilds;
         tworldsvr::PeerRegistry  peers;
-        tworldsvr::GuildLevelCache guild_levels;
+        tworldsvr::GuildLevelCache    guild_levels;
+        tworldsvr::GuildWantedRegistry guild_wanted;
 
         // Warm the guild-level chart from the backing store. Empty
         // on the FakeGuildLevelRepository path; SOCI returns every
@@ -180,6 +182,7 @@ int main(int argc, char** argv)
         ctx.peers        = &peers;
         ctx.guild_repo   = guild_repo.get();
         ctx.guild_levels = &guild_levels;
+        ctx.guild_wanted = &guild_wanted;
         ctx.nation       = cfg.nation;
 
         tworldsvr::WorldServerConfig svr_cfg{};

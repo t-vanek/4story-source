@@ -24,13 +24,92 @@ that the four shipped Asio daemons already use.
 | W3a-4d | CoOffloadVoidIf wiring (closes W-1) + GuildLevelCache mirror of TGUILDCHART | ✅ |
 | W3a-5 | `services/guild_peerage.h` (CheckPeerage gate using guild_levels) + UpdateMemberPeer + UpdateMaxCabinet + OnMW_GUILDPEER_ACK + OnDM_GUILDCABINETMAX_REQ | ✅ |
 | W3a-6 | Guild invite flow: INVITE + INVITEANSWER + JOIN_REQ 10-field sender | ✅ |
-| **W3a-7** | TGuildMember gains castle/camp/connected_date_unix fields + SendMwGuildMemberListReq (variable-length 13-field-per-member tail) + OnMW_GUILDMEMBERLIST_ACK with online/region/level live-fetch from CharRegistry + W3a-6 wire bug fix (kSuccess→kJoinSuccess on JOIN_REQ replies per NetCode.h:451) | ✅ |
-| W3a-8+ | NotifyAddGuildMember broadcast to existing members + Articles board + Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
+| W3a-7 | TGuildMember castle/camp/connected_date_unix + variable-length MEMBERLIST sender + OnMW_GUILDMEMBERLIST_ACK + W3a-6 JOIN_REQ wire-bug fix | ✅ |
+| W3a-8 | Articles board (LIST/ADD/DEL/UPDATE) + TGuildArticle storage + caps | ✅ |
+| W3a-9 | TGuild gains 6 fields + GuildInfoPayload (30-field POD) + SendMwGuildInfoReq + OnMW_GUILDINFO_ACK | ✅ |
+| W3a-10 | IGuildRepository::DeleteGuild + OnMW_GUILDMONEYRECOVER_ACK + OnDM_GUILDEXTINCTION_REQ | ✅ |
+| **W3a-11** | GuildWantedRegistry + IGuildRepository::AddWanted / DeleteWanted + OnMW_GUILDWANTEDADD/DEL/LIST_ACK + 3 senders (variable-length LIST + 2 result replies) + 14-day expiry constant | ✅ |
+| W3a-12+ | Volunteer / applicant subsystem + Tactics / PvP record / Point reward / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-11 — what landed
+
+Guild recruitment board: chiefs post a "we are recruiting"
+entry, players browse the list filtered by country, chiefs
+delete or re-post (upsert) at will. Entries auto-expire after
+14 days. Three handlers (ADD / DEL / LIST), three senders, one
+new registry + one new repository write API pair.
+
+Adds (state)
+- services/guild_wanted_registry.{h,cpp}
+  - TGuildWanted POD (guild_id, country, min/max_level,
+    end_time, name, title, text).
+  - GuildWantedRegistry: shared_mutex + unordered_map keyed
+    by guild_id. Single map shared across all guilds because
+    the cardinality is low (~1k entries at peak in legacy)
+    and the LIST handler always scans cross-country anyway.
+  - AddOrUpdate (upsert; second post overwrites the first
+    per legacy semantics), Remove (by guild_id), Find,
+    SnapshotByCountry (LIST handler's input), Size.
+
+Adds (constants)
+- services/guild_constants.h — kGuildWantedPeriodSec =
+  14 days (TWorldType.h::GUILDWANTED_PERIOD).
+
+Adds (repo)
+- services/guild_repository.h — AddWanted / DeleteWanted.
+- services/fake_guild_repository.{h,cpp} — impls + Call::
+  Kind::{kAddWanted, kDeleteWanted}.
+- services/soci_guild_repository.{h,cpp}:
+  - AddWanted: DELETE-then-INSERT against TGUILDWANTEDTABLE
+    (portable upsert without backend-specific MERGE syntax).
+  - DeleteWanted: single DELETE WHERE dwGuildID.
+
+Adds (senders)
+- senders/senders.h + senders_guild.cpp
+  - GuildWantedRow POD (8 fields per entry).
+  - SendMwGuildWantedAddReq / DelReq — 3-byte result replies.
+  - SendMwGuildWantedListReq — variable-length DWORD count
+    + per-row tuple. Matches legacy SSSender.cpp:1269.
+
+Adds (handlers)
+- handlers/handlers_guild.cpp
+  - Private BuildWantedRows + SendWantedList helpers shared
+    by ADD/DEL/LIST. The "already_applied" byte stays 0
+    until the volunteer/applicant subsystem ports (W3a-12+).
+  - OnGuildWantedAddAck (MW_GUILDWANTEDADD_ACK, wID=0x90E4):
+    legacy SSHandler.cpp:4432 port. Title/text caps +
+    not-disorg + member-of-guild gates. Upsert into
+    GuildWantedRegistry, persist via CoOffloadVoidIf, ACK
+    + LIST refresh.
+  - OnGuildWantedDelAck (MW_GUILDWANTEDDEL_ACK, wID=0x90E6):
+    Remove from registry; ACK + LIST refresh.
+  - OnGuildWantedListAck (MW_GUILDWANTEDLIST_ACK,
+    wID=0x90E8): pure read — SnapshotByCountry → reply. The
+    legacy SM_EVENTEXPIRED_ACK fan-out for entries past
+    end_time + DAY_ONE is a TODO (W3a-12+ scheduler).
+
+Plumbing
+- handlers/handlers.h: HandlerContext gains
+  `GuildWantedRegistry* guild_wanted`.
+- main.cpp: instantiates GuildWantedRegistry, wires into ctx.
+- CMakeLists: adds guild_wanted_registry.cpp.
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-12+
+- Volunteer / applicant subsystem (~8 handlers):
+  GUILDVOLUNTEERING_ACK + GUILDVOLUNTEERINGDEL_ACK
+  + GUILDVOLUNTEERLIST_ACK + GUILDVOLUNTEERREPLY_ACK +
+  matching DM_REQ persistence
+- Tactics subsystem (~7 handlers)
+- PvP record / point reward (~3)
+- Cabinet item codec
+- Scheduler-driven wanted-entry expiry sweep
 
 ### W3a-10 — what landed
 
@@ -46,11 +125,14 @@ Adds (repo)
 - services/fake_guild_repository.{h,cpp} — impl + Call::Kind
   ::kDeleteGuild record so tests can assert on the persistence
   side.
-- services/soci_guild_repository.{h,cpp} — explicit cascade:
-  DELETEs TGUILDARTICLETABLE + TGUILDMEMBERTABLE +
-  TGUILDTABLE in dependency order. Legacy CSPGuildDelete
-  relies on schema FK CASCADE which not every deploy has —
-  explicit DELETEs keep the behavior independent.
+- services/soci_guild_repository.{h,cpp} — explicit DELETEs in
+  dependency order: TGUILDARTICLETABLE + TGUILDMEMBERTABLE +
+  TGUILDTABLE. Legacy CSPGuildDelete is a single DELETE on
+  TGUILDTABLE that assumes the production schema has FK
+  CASCADE on the children. Our explicit version sweeps the
+  children regardless, so dev / test schemas without the FK
+  cascade clause stay consistent. Production schemas pay two
+  extra cold-path round-trips — negligible vs. the safety win.
 
 Adds (handlers)
 - handlers/handlers_guild.cpp

@@ -1091,6 +1091,115 @@ OnGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
                  "persisted", ip, guild_id, max_cabinet);
 }
 
+// --- W3a-7 member list refresh ------------------------------------
+
+boost::asio::awaitable<void>
+OnGuildMemberListAck(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildMemberListAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildMemberListAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t guild_id = 0, actual_key = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+
+    if (guild_id == 0)
+    {
+        // Legacy SSHandler.cpp:3849 → SendMW_GUILDMEMBERLIST_REQ
+        // with kNotFound + null guild → no payload tail.
+        co_await senders::SendMwGuildMemberListReq(peer, char_id, key,
+            guild::kNotFound, 0, std::string{}, {});
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        co_await senders::SendMwGuildMemberListReq(peer, char_id, key,
+            guild::kNotFound, 0, std::string{}, {});
+        co_return;
+    }
+
+    // Build the row snapshot under guild.lock — we copy out
+    // before doing any CharRegistry lookups so we don't hold the
+    // guild lock across multiple shared_mutex acquisitions.
+    std::vector<senders::GuildMemberListRow> rows;
+    std::string guild_name;
+    {
+        std::lock_guard gl(guild->lock);
+        guild_name = guild->name;
+        rows.reserve(guild->members.size());
+        for (const auto& m : guild->members)
+        {
+            senders::GuildMemberListRow row;
+            row.char_id             = m.char_id;
+            row.name                = m.name;
+            row.level               = m.level;
+            row.klass               = m.klass;
+            row.duty                = m.duty;
+            row.peer                = m.peer;
+            row.online              = 0;   // filled below
+            row.region              = 0;   // filled below
+            row.castle              = m.castle;
+            row.camp                = m.camp;
+            row.tactics             = m.tactics;
+            row.war_country         = m.war_country;
+            row.connected_date_unix = m.connected_date_unix;
+            rows.push_back(std::move(row));
+        }
+    }
+
+    // Per-row online + region lookup. Each TChar fetch goes
+    // through CharRegistry's shared_mutex — bounded by O(N
+    // members), typical guild < 200, so this is cheap.
+    for (auto& row : rows)
+    {
+        if (auto online_char = ctx.chars->Find(row.char_id))
+        {
+            row.online = 1;
+            // Legacy reads pChar->m_dwRegion; TChar doesn't carry
+            // region in W3a-7 (it'll land with the world-area
+            // handlers in W5+ castle work). Stay at zero for now;
+            // clients render that as "unknown location" which is
+            // acceptable until the matching state ships.
+            //
+            // The legacy also overrides the cached member level
+            // with pChar->m_bLevel when online — refresh from the
+            // live TChar so level-up isn't stale.
+            std::lock_guard g(online_char->lock);
+            if (online_char->level != 0) row.level = online_char->level;
+        }
+    }
+
+    co_await senders::SendMwGuildMemberListReq(peer, char_id, key,
+        guild::kSuccess, guild_id, guild_name, rows);
+
+    spdlog::info("OnGuildMemberListAck[{}]: char_id={} guild_id={} "
+                 "members={} → MEMBERLIST_REQ",
+        ip, char_id, guild_id, rows.size());
+}
+
 // --- W3a-6 invite flow --------------------------------------------
 
 namespace {
@@ -1430,16 +1539,18 @@ OnGuildInviteAnswerAck(std::shared_ptr<PeerSession> peer,
 
     // Two GUILDJOIN_REQ replies — one to each side. Both carry
     // the full guild meta so each client can render the join
-    // notification. Legacy SSHandler.cpp:3741 calls
-    // NotifyAddGuildMember which fans out the new member to every
-    // existing member's map peer — deferred to W3a-7+ since it
-    // needs the GUILDMEMBERADD or GUILDINFO sender (different
-    // wire surface).
+    // notification. Legacy SSHandler.cpp:5109 fires
+    // SendMW_GUILDJOIN_REQ with GUILD_JOIN_SUCCESS (=15), not the
+    // generic GUILD_SUCCESS (=0). W3a-6 used kSuccess here; that
+    // was a silent wire bug — round-trip tests never caught it
+    // because both sides just echoed the byte. Fixed to
+    // kJoinSuccess so real legacy clients see the right result
+    // code on the join notification.
     co_await senders::SendMwGuildJoinReq(peer, char_id, key,
-        guild::kSuccess, inviter_guild_id, fame, fame_color, guild_name,
+        guild::kJoinSuccess, inviter_guild_id, fame, fame_color, guild_name,
         char_id, invited_name, /*max_member=*/0);
     co_await senders::SendMwGuildJoinReq(inviter_peer, inviter_id,
-        inviter_key, guild::kSuccess, inviter_guild_id, fame, fame_color,
+        inviter_key, guild::kJoinSuccess, inviter_guild_id, fame, fame_color,
         guild_name, char_id, invited_name, /*max_member=*/0);
 
     spdlog::info("OnGuildInviteAnswerAck[{}]: char_id={} ('{}') joined "

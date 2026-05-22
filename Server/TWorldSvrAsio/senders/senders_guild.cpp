@@ -151,6 +151,52 @@ SendMwGuildContributionReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwGuildMemberListReq(std::shared_ptr<PeerSession>           peer,
+                         std::uint32_t                          char_id,
+                         std::uint32_t                          key,
+                         std::uint8_t                           result,
+                         std::uint32_t                          guild_id,
+                         const std::string&                     guild_name,
+                         const std::vector<GuildMemberListRow>& members)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    // Legacy SSSender.cpp:984 — only emit the guild meta on the
+    // success branch; error replies are 9 bytes total (header +
+    // 1-byte result + nothing else after the wKey field).
+    if (result == 0 /*kSuccess*/)
+    {
+        WritePOD<std::uint32_t>(body, guild_id);
+        WriteString(body, guild_name);
+        WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(
+            members.size()));
+        for (const auto& m : members)
+        {
+            WritePOD<std::uint32_t>(body, m.char_id);
+            WriteString(body, m.name);
+            WritePOD<std::uint8_t>(body, m.level);
+            WritePOD<std::uint8_t>(body, m.klass);
+            WritePOD<std::uint8_t>(body, m.duty);
+            WritePOD<std::uint8_t>(body, m.peer);
+            WritePOD<std::uint8_t>(body, m.online);
+            WritePOD<std::uint32_t>(body, m.region);
+            WritePOD<std::uint16_t>(body, m.castle);
+            WritePOD<std::uint8_t>(body, m.camp);
+            WritePOD<std::uint32_t>(body, m.tactics);
+            WritePOD<std::uint8_t>(body, m.war_country);
+            WritePOD<std::int64_t>(body, m.connected_date_unix);
+        }
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDMEMBERLIST_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwGuildInviteReq(std::shared_ptr<PeerSession> peer,
                      std::uint32_t                target_char_id,
                      std::uint32_t                target_key,

@@ -49,6 +49,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/guild_peerage.cpp
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_level_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_guild_level_repository.cpp
@@ -220,3 +221,14 @@ target_link_libraries(test_tworldsvr_asio_guild_peerage PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_guild_peerage
     COMMAND test_tworldsvr_asio_guild_peerage)
+
+# W3a-19 unit test: GuildWantedRegistry::PruneExpired +
+# SweepExpiredWanted coroutine. Verifies the periodic prune
+# only drops entries past end_time, cleans the applicant
+# reverse index, and persists the deletions via the repo.
+add_executable(test_tworldsvr_asio_guild_wanted_sweep
+    ${TWORLD_ASIO_SRC}/tests/test_guild_wanted_sweep.cpp)
+target_link_libraries(test_tworldsvr_asio_guild_wanted_sweep PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_guild_wanted_sweep
+    COMMAND test_tworldsvr_asio_guild_wanted_sweep)

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-18 guild establishment (create new guild)
+## Status — W3a-19 wanted-board expiry sweep
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -35,13 +35,76 @@ that the four shipped Asio daemons already use.
 | W3a-15 | Fame + article DB fan-in (OnDM_GUILDFAME_REQ + OnDM_GUILDARTICLEADD/DEL/UPDATE_REQ) — 4 handlers reusing existing repo methods | ✅ |
 | W3a-16 | Wanted/volunteering DB fan-in (OnDM_GUILDWANTEDADD/DEL_REQ + OnDM_GUILDVOLUNTEERING/INGDEL_REQ) — 4 handlers + GuildWantedRegistry defensive mirror + bType filter on the volunteering pair | ✅ |
 | W3a-17 | Leave/kickout DB fan-in (OnDM_GUILDLEAVE_REQ + OnDM_GUILDKICKOUT_REQ) — 2 handlers + shared ScrubMembershipInMemory helper completes the W3a-4c MEMBERADD pair | ✅ |
-| **W3a-18** | Guild establishment: OnMW_GUILDESTABLISH_ACK creates new guilds in one coroutine (vs. legacy 4-hop map↔world↔DB roundtrip) + IGuildRepository::CreateGuild | ✅ |
-| W3a-19+ | Tactics subsystem (~17) + PvP record / Cabinet item codec + vestigial DM_*_ACK no-ops | ⏸ |
+| W3a-18 | Guild establishment: OnMW_GUILDESTABLISH_ACK creates new guilds in one coroutine (vs. legacy 4-hop map↔world↔DB roundtrip) + IGuildRepository::CreateGuild | ✅ |
+| **W3a-19** | Wanted-board periodic expiry sweep: GuildWantedRegistry::PruneExpired + SweepExpiredWanted coroutine wired into RegistryRefresher (closes W3a-11 TODO) | ✅ |
+| W3a-20+ | Tactics subsystem (~17) + PvP record / Cabinet item codec + vestigial DM_*_ACK no-ops | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-19 — what landed
+
+Closes the W3a-11 TODO `// scheduler: SM_EVENTEXPIRED_ACK fan-out
+for entries whose end_time + DAY_ONE elapsed`. Until now the
+LIST handler returned every entry in the registry and let the
+client filter on `end_time`; a stale entry with an expired
+end_time would still leak into responses and (more importantly)
+linger in the registry forever, taking memory + blocking new
+posts from the same guild via the AddOrUpdate one-per-guild
+rule.
+
+Component split
+- `GuildWantedRegistry::PruneExpired(now_unix)` — the surgical
+  in-memory prune. Walks `m_entries` under unique_lock,
+  removes anything where `end_time < now_unix`, drops the
+  pruned entries' applicant reverse-index pointers from
+  `m_app_by_char` (so freed char_ids can re-apply to a
+  different wanted without tripping the `kAlreadyApply`
+  gate). Returns the list of removed guild_ids.
+- `services/guild_wanted_sweep.{h,cpp}` — `SweepExpiredWanted`
+  coroutine. Samples `std::time(nullptr)`, calls
+  `PruneExpired`, queues one `repo->DeleteWanted` per pruned
+  id via `CoOffloadVoidIf`, logs a one-line summary.
+  `nullptr`-tolerant on both `repo` and `db_pool` (defensive;
+  production wires both).
+- `main.cpp` wiring — when `cfg.wanted_sweep_period_sec != 0`
+  spins a `fourstory::ops::RegistryRefresher` with the sweep
+  registered as a coroutine hook. Stops cleanly on shutdown.
+
+Config
+- `[guild] wanted_sweep_period_sec = N` in the TOML config.
+  Default 300s (5 min) — tighter than the 14-day entry
+  lifetime so a stale entry never lingers more than one sweep
+  tick past expiry. `0` disables (test-only).
+
+Tests
+- `tests/test_guild_wanted_sweep.cpp` — new dedicated unit
+  test (5 scenarios):
+  - PruneExpired only removes entries past `end_time`
+  - PruneExpired drops pruned entries' applicant reverse
+    index — a freed char can re-apply to a surviving wanted
+  - SweepExpiredWanted persists one `DeleteWanted` per pruned
+    id
+  - SweepExpiredWanted with null repo still does the
+    in-memory prune
+  - No-op when nothing's expired (no repo calls)
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed,
++1 new dedicated sweep test).
+
+Deferred to W3a-20+
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+- PvP record listing (`CTBLGuildPvPointReward` TOP 50)
+- Cabinet item codec
+- `OnDM_GUILDUPDATE_REQ` (variable-length alliance/enemy CSV
+  columns — non-trivial wire codec)
+- Vestigial DM_*_ACK no-op handlers
+  (`OnDM_GUILDESTABLISH_ACK`,
+  `OnDM_GUILDDISORGANIZATION_ACK`,
+  `OnDM_GUILDEXTINCTION_ACK`)
 
 ### W3a-18 — what landed
 

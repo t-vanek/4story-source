@@ -84,6 +84,16 @@ AppConfig LoadConfig(const std::string& path)
         if (auto p = (*h)["port"].value<std::int64_t>())
             cfg.health_port = Port(*p, "health.port");
     }
+    if (auto g = tbl["guild"].as_table())
+    {
+        if (auto v = (*g)["wanted_sweep_period_sec"].value<std::int64_t>())
+        {
+            if (*v < 0)
+                throw std::runtime_error(
+                    "guild.wanted_sweep_period_sec must be >= 0");
+            cfg.wanted_sweep_period_sec = static_cast<std::uint32_t>(*v);
+        }
+    }
     if (auto lg = tbl["log"].as_table())
     {
         if (auto s = (*lg)["level"].value<std::string>())

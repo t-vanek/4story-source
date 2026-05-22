@@ -116,4 +116,29 @@ GuildWantedRegistry::FindAppByChar(std::uint32_t char_id) const
     return it == m_app_by_char.end() ? 0u : it->second;
 }
 
+std::vector<std::uint32_t>
+GuildWantedRegistry::PruneExpired(std::int64_t now_unix)
+{
+    std::vector<std::uint32_t> removed;
+    std::unique_lock lock(m_mtx);
+    for (auto it = m_entries.begin(); it != m_entries.end(); )
+    {
+        if (it->second.end_time < now_unix)
+        {
+            // Drop applicants' reverse-index pointers so the
+            // free char_ids can re-apply to a different wanted
+            // without tripping the kAlreadyApply gate.
+            for (const auto& app : it->second.applicants)
+                m_app_by_char.erase(app.char_id);
+            removed.push_back(it->first);
+            it = m_entries.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    return removed;
+}
+
 } // namespace tworldsvr

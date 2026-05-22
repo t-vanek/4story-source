@@ -21,6 +21,7 @@
 #include "services/guild_level_cache.h"
 #include "services/guild_registry.h"
 #include "services/guild_wanted_registry.h"
+#include "services/guild_wanted_sweep.h"
 #include "services/peer_registry.h"
 #include "services/soci_guild_level_repository.h"
 #include "services/soci_guild_repository.h"
@@ -28,6 +29,7 @@
 
 #include "fourstory/db/session_pool.h"
 #include "fourstory/ops/health_endpoint.h"
+#include "fourstory/ops/registry_refresher.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -214,7 +216,32 @@ int main(int argc, char** argv)
             }
         }
 
+        // W3a-19: periodic wanted-board expiry sweep. Closes the
+        // legacy SM_EVENTEXPIRED_ACK fan-out path
+        // (TWorldSvr.cpp:5280) without the SP/timer service
+        // dependency — the prune runs in-process on a RegistryRefresher
+        // tick. period_sec=0 disables (test-only).
+        std::shared_ptr<fourstory::ops::RegistryRefresher> wanted_sweeper;
+        if (cfg.wanted_sweep_period_sec != 0)
+        {
+            wanted_sweeper = fourstory::ops::RegistryRefresher::Make(
+                io, std::chrono::seconds(cfg.wanted_sweep_period_sec));
+            wanted_sweeper->AddCoroutineHook(
+                [&guild_wanted, guild_repo_ptr = guild_repo.get(),
+                 db_pool = worker_pool.get()]()
+                    -> boost::asio::awaitable<void> {
+                    co_await tworldsvr::SweepExpiredWanted(
+                        guild_wanted, guild_repo_ptr, db_pool);
+                });
+            wanted_sweeper->Start();
+            spdlog::info("wanted-board expiry sweep enabled "
+                         "(period={}s)",
+                cfg.wanted_sweep_period_sec);
+        }
+
         io.run();
+
+        if (wanted_sweeper) wanted_sweeper->Stop();
 
         // Drain in-flight SOCI work before tearing the pool down so
         // a query doesn't keep a session reference alive past the

@@ -18,6 +18,7 @@
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl/context.hpp>
 
 #include <chrono>
 #include <memory>
@@ -45,6 +46,13 @@ public:
         , m_timeout(connect_timeout)
     {}
 
+    // Wire a client-side TLS context for outbound peer dials. When
+    // set, Dial() wraps the socket in ssl::stream and drives a
+    // client-side handshake before publishing the PeerSession.
+    // Caller owns the context's lifetime (typically a
+    // std::optional<ssl::context> in main.cpp). null = plain TCP.
+    void SetTlsContext(boost::asio::ssl::context* ctx) { m_ssl_ctx = ctx; }
+
     // Dial the service's machine first private address + service
     // port. Returns a PeerSession on success (already registered
     // with PeerRegistry). On failure returns a result with an empty
@@ -56,6 +64,7 @@ private:
     PeerRegistry&               m_registry;
     const IServiceInventory&    m_inventory;
     std::chrono::milliseconds   m_timeout;
+    boost::asio::ssl::context*  m_ssl_ctx = nullptr;
 };
 
 } // namespace tcontrolsvr

@@ -37,6 +37,7 @@
 #include "fourstory/cluster/peer_client.h"
 #include "fourstory/ops/health_endpoint.h"
 #include "fourstory/security/peer_security_gate.h"
+#include "fourstory/security/peer_tls_context.h"
 #include "login_server.h"
 #include "db/schema_validator.h"
 #include "fourstory/db/session_pool.h"
@@ -431,12 +432,30 @@ int main(int argc, char** argv)
 
         // Cluster self-registration. Empty control_host = standalone.
         // Service type byte 1 = svr_type::kLoginSvr in TControlSvrAsio.
+        //
+        // TLS: when [security].peer_tls_enabled = true, build an
+        // ssl::context from the same SecurityConfig and hand it to
+        // the PeerClient via opts.ssl_ctx. The context must outlive
+        // peer_client, so it lives in this scope (right next to the
+        // PeerClient shared_ptr).
+        std::optional<boost::asio::ssl::context> peer_tls_ctx;
         std::shared_ptr<fourstory::cluster::PeerClient> peer_client;
         if (!cfg.cluster.control_host.empty() && cfg.cluster.control_port != 0)
         {
             auto opts = fourstory::cluster::MakePeerClientOptions(
                 cfg.cluster, /*type_id=*/1, "tloginsvr",
                 "0.0.0.0", cfg.server.port, "5.0.0");
+            if (cfg.security.peer_tls_enabled)
+            {
+                peer_tls_ctx.emplace(
+                    fourstory::security::PeerTlsContextBuilder
+                        ::BuildClientContext(cfg.security));
+                opts.ssl_ctx = &*peer_tls_ctx;
+                spdlog::info("cluster: peer transport = TLS "
+                             "(ca={}, min_version={})",
+                    cfg.security.peer_tls_ca_cert,
+                    cfg.security.peer_tls_min_version);
+            }
             spdlog::info("cluster: registering with control {}:{} "
                          "as service_id={:#x}",
                 opts.control_host, opts.control_port, opts.service_id);

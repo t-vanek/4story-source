@@ -36,6 +36,8 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/stream.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -43,6 +45,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <variant>
 
 namespace fourstory::cluster {
 
@@ -87,6 +90,16 @@ struct PeerClientOptions
     // on the cap.
     std::chrono::seconds initial_backoff{1};
     std::chrono::seconds max_backoff{30};
+
+    // Optional TLS: when non-null, the PeerClient wraps its socket
+    // in boost::asio::ssl::stream<tcp::socket> and drives a client-
+    // side TLS handshake after the TCP connect, before the
+    // CT_PEER_REGISTER_REQ goes out. Caller owns the context (built
+    // via fourstory::security::PeerTlsContextBuilder::BuildClientContext)
+    // and must keep it alive for the PeerClient's lifetime.
+    //
+    // null = plain TCP (current behaviour, default).
+    boost::asio::ssl::context* ssl_ctx = nullptr;
 };
 
 // Callback to fetch the live cur_users / max_users counts for the
@@ -135,9 +148,35 @@ private:
     boost::asio::awaitable<bool> RecvOneFrame(std::uint16_t expected_wId,
                                               std::vector<std::byte>& out_body);
 
+    using PlainSocket = boost::asio::ip::tcp::socket;
+    using TlsStream   = boost::asio::ssl::stream<PlainSocket>;
+
+    // Either-or transport: m_socket holds a plain tcp::socket
+    // (m_opts.ssl_ctx == nullptr) or a TLS stream wrapping one
+    // (m_opts.ssl_ctx != nullptr). Re-emplaced on every reconnect so
+    // a torn-down socket can be replaced without juggling state in
+    // the variant boundary.
+    using SocketVariant = std::variant<PlainSocket, TlsStream>;
+
+    // Helpers that pick the right async path based on which arm of
+    // the variant is active. Read / write go through the active arm
+    // directly (Boost.Asio's async_read / async_write accept any
+    // AsyncStream); connect / close / cancel operate on the
+    // underlying tcp::socket via next_layer() for the TLS arm.
+    PlainSocket& UnderlyingTcp();
+
+    // Build the SocketVariant in its initial (disconnected) state.
+    // Called once from the ctor and again on every reconnect so the
+    // active variant arm matches the configured transport. ssl_ctx is
+    // the same pointer stored in m_opts (just passed explicitly here
+    // because the helper is also called during member init).
+    static SocketVariant
+    MakeInitialSocket(boost::asio::io_context& io,
+                      boost::asio::ssl::context* ssl_ctx);
+
     boost::asio::io_context&        m_io;
     PeerClientOptions               m_opts;
-    boost::asio::ip::tcp::socket    m_socket;
+    SocketVariant                   m_socket;
     UserCountsFn                    m_user_counts;
     std::atomic<bool>               m_registered{false};
     std::atomic<std::uint64_t>      m_lease_epoch{0};

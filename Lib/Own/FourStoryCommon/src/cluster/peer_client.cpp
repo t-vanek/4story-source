@@ -5,9 +5,13 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/redirect_error.hpp>
+#include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/write.hpp>
+
+#include <variant>
 
 #include <spdlog/spdlog.h>
 
@@ -104,7 +108,9 @@ private:
 } // namespace
 
 PeerClient::PeerClient(boost::asio::io_context& io, PeerClientOptions opts)
-    : m_io(io), m_opts(std::move(opts)), m_socket(io)
+    : m_io(io)
+    , m_opts(std::move(opts))
+    , m_socket(MakeInitialSocket(m_io, m_opts.ssl_ctx))
 {
     // Auto-fill platform identifiers when the caller leaves them
     // at default — saves every peer server from duplicating the
@@ -117,12 +123,34 @@ PeerClient::PeerClient(boost::asio::io_context& io, PeerClientOptions opts)
                 std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
+// Static helper used by the ctor's initializer list. The variant's
+// default constructor would pick the PlainSocket alternative; that's
+// fine when TLS is off, but we want the TLS arm constructed up-front
+// when ssl_ctx is non-null so a SendOneFrame called before the first
+// ConnectAndRegister attempt hits the correct codepath.
+PeerClient::SocketVariant
+PeerClient::MakeInitialSocket(boost::asio::io_context& io,
+                              boost::asio::ssl::context* ctx)
+{
+    if (ctx != nullptr)
+        return SocketVariant(std::in_place_type<TlsStream>, io, *ctx);
+    return SocketVariant(std::in_place_type<PlainSocket>, io);
+}
+
+PeerClient::PlainSocket& PeerClient::UnderlyingTcp()
+{
+    if (auto* tls = std::get_if<TlsStream>(&m_socket))
+        return tls->next_layer();
+    return std::get<PlainSocket>(m_socket);
+}
+
 void PeerClient::Stop()
 {
     m_stop.store(true);
     boost::system::error_code ec;
-    m_socket.cancel(ec);
-    m_socket.close(ec);
+    auto& sock = UnderlyingTcp();
+    sock.cancel(ec);
+    sock.close(ec);
 }
 
 boost::asio::awaitable<bool>
@@ -137,10 +165,24 @@ PeerClient::SendOneFrame(std::uint16_t wId, std::vector<std::byte> body)
     std::memcpy(frame.data(), &hdr, sizeof(hdr));
     if (!body.empty())
         std::memcpy(frame.data() + sizeof(hdr), body.data(), body.size());
+
     boost::system::error_code ec;
-    co_await boost::asio::async_write(m_socket,
-        boost::asio::buffer(frame.data(), total),
-        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    // Dispatch the write through whichever variant arm is active.
+    // Boost.Asio's async_write picks up either AsyncStream just fine;
+    // the variant only exists so the lifetime + connect/close paths
+    // can target the underlying tcp::socket explicitly.
+    if (auto* tls = std::get_if<TlsStream>(&m_socket))
+    {
+        co_await boost::asio::async_write(*tls,
+            boost::asio::buffer(frame.data(), total),
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    }
+    else
+    {
+        co_await boost::asio::async_write(std::get<PlainSocket>(m_socket),
+            boost::asio::buffer(frame.data(), total),
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    }
     co_return !ec;
 }
 
@@ -150,19 +192,30 @@ PeerClient::RecvOneFrame(std::uint16_t expected_wId,
 {
     PacketHeader hdr{};
     boost::system::error_code ec;
-    co_await boost::asio::async_read(m_socket,
-        boost::asio::buffer(&hdr, sizeof(hdr)),
-        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-    if (ec) co_return false;
+
+    auto read_into = [&](void* dst, std::size_t n) -> boost::asio::awaitable<bool> {
+        if (auto* tls = std::get_if<TlsStream>(&m_socket))
+        {
+            co_await boost::asio::async_read(*tls,
+                boost::asio::buffer(dst, n),
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        }
+        else
+        {
+            co_await boost::asio::async_read(std::get<PlainSocket>(m_socket),
+                boost::asio::buffer(dst, n),
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        }
+        co_return !ec;
+    };
+
+    if (!co_await read_into(&hdr, sizeof(hdr))) co_return false;
     if (hdr.wSize < sizeof(hdr)) co_return false;
     const std::size_t body_size = hdr.wSize - sizeof(hdr);
     out_body.assign(body_size, std::byte{});
     if (body_size > 0)
     {
-        co_await boost::asio::async_read(m_socket,
-            boost::asio::buffer(out_body.data(), body_size),
-            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-        if (ec) co_return false;
+        if (!co_await read_into(out_body.data(), body_size)) co_return false;
         const auto expected_chk = FoldChecksum(out_body.data(), body_size);
         if (expected_chk != hdr.dwChkSum) co_return false;
     }
@@ -175,8 +228,10 @@ boost::asio::awaitable<bool> PeerClient::ConnectAndRegister()
     boost::system::error_code ec;
 
     // Fresh socket each attempt — the previous one may have been
-    // closed by Stop() or by a heartbeat failure.
-    m_socket = tcp::socket(m_io);
+    // closed by Stop() or by a heartbeat failure. Re-emplace into
+    // the variant so the active arm matches m_opts.ssl_ctx.
+    m_socket = MakeInitialSocket(m_io, m_opts.ssl_ctx);
+
     tcp::resolver resolver(m_io);
     auto endpoints = co_await resolver.async_resolve(
         m_opts.control_host, std::to_string(m_opts.control_port),
@@ -187,13 +242,33 @@ boost::asio::awaitable<bool> PeerClient::ConnectAndRegister()
             m_opts.control_host, m_opts.control_port, ec.message());
         co_return false;
     }
-    co_await boost::asio::async_connect(m_socket, endpoints,
+    co_await boost::asio::async_connect(UnderlyingTcp(), endpoints,
         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
     if (ec)
     {
         spdlog::warn("peer_client: connect {}:{} failed — {}",
             m_opts.control_host, m_opts.control_port, ec.message());
         co_return false;
+    }
+
+    // Mutual TLS handshake if configured. Done before the registry
+    // protocol so the very first byte on the wire is already inside
+    // the encrypted channel.
+    if (auto* tls = std::get_if<TlsStream>(&m_socket))
+    {
+        co_await tls->async_handshake(
+            boost::asio::ssl::stream_base::client,
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if (ec)
+        {
+            spdlog::warn("peer_client: TLS handshake to {}:{} failed — {}",
+                m_opts.control_host, m_opts.control_port, ec.message());
+            boost::system::error_code close_ec;
+            UnderlyingTcp().close(close_ec);
+            co_return false;
+        }
+        spdlog::info("peer_client: TLS handshake to {}:{} succeeded",
+            m_opts.control_host, m_opts.control_port);
     }
 
     // Build CT_PEER_REGISTER_REQ body. Layout MUST match
@@ -310,9 +385,10 @@ boost::asio::awaitable<void> PeerClient::Run()
         if (m_stop.load()) break;
 
         // Either ConnectAndRegister failed or HeartbeatLoop fell out.
-        // Close the socket (idempotent) and sleep before retrying.
+        // Close the underlying socket (idempotent); the variant arm
+        // will be re-emplaced on the next ConnectAndRegister.
         boost::system::error_code ec;
-        m_socket.close(ec);
+        UnderlyingTcp().close(ec);
 
         spdlog::info("peer_client: retrying in {}s",
             static_cast<long long>(backoff.count()));
@@ -336,7 +412,7 @@ boost::asio::awaitable<void> PeerClient::Run()
         m_registered.store(false);
     }
     boost::system::error_code ec;
-    m_socket.close(ec);
+    UnderlyingTcp().close(ec);
 }
 
 } // namespace fourstory::cluster

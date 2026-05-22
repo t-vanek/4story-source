@@ -227,6 +227,68 @@ void TestHybridAcceptTlsAndPlainOnSameListener()
     if (io_thread.joinable()) io_thread.join();
 }
 
+// Regression test for the 0x16 first-byte collision. A legacy CT_OPLOGIN
+// frame whose wSize equals 0x0016 / 0x0116 / 0x0216 / ... has a low
+// byte of 0x16 — same as the TLS Handshake content type. The original
+// peek-1-byte detection misrouted such frames into the TLS handshake
+// path; the peek-3-bytes signature ((0x16, 0x03, 0x01..0x04)) gets it
+// right because plain CT frames never carry that 3-byte prefix.
+//
+// We construct a CT_OPLOGIN_REQ with id+pw lengths chosen to make
+// wSize = 22 = 0x0016. The byte stream then starts with 0x16, 0x00,
+// ... — first byte matches TLS but the version bytes don't, so the
+// hybrid path correctly falls through to the plain branch and the
+// handler chain runs normally.
+void TestHybridRejectsCollisionFrameAsPlain()
+{
+    std::printf("[CT frame with wSize=0x0016 stays on plain path]\n");
+
+    asio::io_context io;
+    auto server_ssl_ctx = MakeServerCtx();
+
+    FakeOperatorAuthService auth;
+    auth.AddOperator("ab", "cdef", 3);  // id+pw = 2+4 = 6 bytes
+    FakeServiceInventory inv;
+
+    ControlServerConfig svr_cfg{};
+    svr_cfg.port    = 0;
+    svr_cfg.auth    = &auth;
+    svr_cfg.inventory = &inv;
+    svr_cfg.ssl_ctx = &server_ssl_ctx;
+    ControlServer server(io, svr_cfg);
+    asio::co_spawn(io, server.Run(), asio::detached);
+    std::thread io_thread([&io] { io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket sock(client_io);
+    sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(),
+                                server.Port()));
+
+    // CT_OPLOGIN_REQ body = WString("ab") + WString("cdef")
+    //   = (4 + 2) + (4 + 4) = 14 bytes
+    // wSize = 8-byte header + 14 = 22 = 0x0016
+    // First wire byte = wSize low byte = 0x16 (collision with TLS).
+    auto body = BuildOpLoginBody("ab", "cdef");
+    WriteFramed(sock, ToUint16(MessageId::CT_OPLOGIN_REQ), body);
+
+    // The pre-fix code path would have tried to run TLS on this
+    // socket and closed it after handshake failed. With the new
+    // 3-byte signature, the server stays on the plain path and the
+    // OPLOGIN handler responds normally.
+    auto ack = ReadFramed(sock);
+    Check(ack.wId == ToUint16(MessageId::CT_OPLOGIN_ACK),
+          "0x16-low-byte plain frame got CT_OPLOGIN_ACK "
+          "(not misrouted to TLS)");
+    Check(ack.body.size() >= 2 &&
+          static_cast<std::uint8_t>(ack.body[0]) == 0,
+          "operator login succeeded on the collision-shape frame");
+
+    sock.close();
+    io.stop();
+    if (io_thread.joinable()) io_thread.join();
+}
+
 } // namespace
 
 int main()
@@ -235,6 +297,7 @@ int main()
     try
     {
         TestHybridAcceptTlsAndPlainOnSameListener();
+        TestHybridRejectsCollisionFrameAsPlain();
     }
     catch (const std::exception& ex)
     {

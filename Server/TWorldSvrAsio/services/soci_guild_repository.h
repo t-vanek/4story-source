@@ -41,6 +41,15 @@ public:
                           std::uint8_t new_peer) override;
     bool UpdateMaxCabinet(std::uint32_t guild_id,
                           std::uint8_t max_cabinet) override;
+    bool AddArticle(std::uint32_t guild_id, std::uint32_t article_id,
+                    std::uint8_t duty, const std::string& writer,
+                    const std::string& title, const std::string& body,
+                    std::uint32_t time_unix) override;
+    bool DelArticle(std::uint32_t guild_id,
+                    std::uint32_t article_id) override;
+    bool UpdateArticle(std::uint32_t guild_id, std::uint32_t article_id,
+                       const std::string& title,
+                       const std::string& body) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

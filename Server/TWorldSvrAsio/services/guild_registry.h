@@ -59,6 +59,24 @@ struct TGuildMember
     std::int64_t  connected_date_unix = 0;  // m_dlConnectedDate
 };
 
+// One entry of the guild articles board (legacy MAPTGUILDARTICLE
+// / TGUILDARTICLETABLE row). The article ID is monotonically-
+// increasing per-guild (TGuild.article_index counter), not a DB
+// primary key — clients reference articles by id within their
+// own guild, so collisions across guilds are fine.
+struct TGuildArticle
+{
+    std::uint32_t id    = 0;          // m_dwID
+    std::uint8_t  duty  = 0;          // m_bDuty — writer's duty at post time
+    std::string   writer;             // m_strWritter — writer's name
+    std::string   title;              // m_strTitle
+    std::string   body;               // m_strArticle
+    std::uint32_t time_unix = 0;      // m_strDate ← legacy stores formatted
+                                      //   "YYYY-MM-DD" string; we keep the
+                                      //   raw epoch and let the client
+                                      //   format on read.
+};
+
 // One row of TGUILDTABLE plus the in-memory caches the runtime
 // touches. Mirrors `class CTGuild` (Server/TWorldSvr/TGuild.h);
 // W3a-1 ships only the fields OnGuildLoadAck and a future
@@ -139,6 +157,15 @@ struct TGuild
         }
         return false;
     }
+
+    // --- W3a-8 article board state -----------------------------
+    //
+    // article_index is a strictly-monotonic counter that
+    // AddArticle bumps before returning the new ID. Mirrors the
+    // legacy `m_dwArticleIndex` field. Persisted across guild
+    // unloads because deleted IDs aren't reused.
+    std::uint32_t              article_index = 0;
+    std::vector<TGuildArticle> articles;
 };
 
 class GuildRegistry

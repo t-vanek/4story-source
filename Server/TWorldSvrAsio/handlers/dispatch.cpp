@@ -91,9 +91,25 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildMemberListAck(std::move(peer), std::move(body),
             ctx);
         co_return;
+    case MessageId::MW_GUILDARTICLELIST_ACK:
+        co_await OnGuildArticleListAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_GUILDARTICLEADD_ACK:
+        co_await OnGuildArticleAddAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_GUILDARTICLEDEL_ACK:
+        co_await OnGuildArticleDelAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_GUILDARTICLEUPDATE_ACK:
+        co_await OnGuildArticleUpdateAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
 
-    // W3a-8+ picks up Articles / Tactics / Volunteers / PvP
-    // record / Point reward / Article board. … see README §4.
+    // W3a-9+ picks up Tactics / Volunteers / PvP record / Point
+    // reward / Cabinet item codec. … see README §4.
 
     default:
         break;

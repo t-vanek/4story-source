@@ -212,6 +212,62 @@ boost::asio::awaitable<void> SendMwGuildFameReq(
     std::uint32_t                fame,
     std::uint32_t                fame_color);
 
+// --- W3a-8 article board ------------------------------------------
+
+// MW_GUILDARTICLELIST_REQ — variable-length reply with the guild
+// articles roster. Sent on explicit OnGuildArticleListAck and on
+// every successful add / del / update (legacy ADD/DEL/UPDATE
+// handlers all chase the ACK with a LIST refresh so the chief's
+// UI re-renders).
+//
+// Wire layout (SSSender.cpp:1134):
+//   DWORD dwCharID
+//   DWORD dwKEY
+//   BYTE  article_count          -- 0..MAX_GUILD_ARTICLE_COUNT
+//   × article_count:
+//     DWORD  dwID
+//     BYTE   bDuty                -- writer's duty at post time
+//     STRING strWriter
+//     STRING strTitle
+//     STRING strArticle
+//     STRING strDate              -- "YYYY-MM-DD" formatted
+struct GuildArticleRow
+{
+    std::uint32_t id    = 0;
+    std::uint8_t  duty  = 0;
+    std::string   writer;
+    std::string   title;
+    std::string   body;
+    std::string   date;        // pre-formatted yyyy-mm-dd
+};
+
+boost::asio::awaitable<void> SendMwGuildArticleListReq(
+    std::shared_ptr<PeerSession>           peer,
+    std::uint32_t                          char_id,
+    std::uint32_t                          key,
+    const std::vector<GuildArticleRow>&    articles);
+
+// MW_GUILDARTICLEADD_REQ — 3-byte ack with kSuccess / kFail.
+boost::asio::awaitable<void> SendMwGuildArticleAddReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_GUILDARTICLEDEL_REQ — same shape.
+boost::asio::awaitable<void> SendMwGuildArticleDelReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_GUILDARTICLEUPDATE_REQ — same shape.
+boost::asio::awaitable<void> SendMwGuildArticleUpdateReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
 // MW_GUILDMEMBERLIST_REQ — variable-length reply with the full
 // guild member roster. Used by MEMBERLIST refresh (client opens
 // the guild window) and by future broadcast paths that need to

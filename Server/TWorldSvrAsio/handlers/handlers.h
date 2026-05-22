@@ -212,6 +212,47 @@ boost::asio::awaitable<void> OnGuildMemberListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-8: guild articles board (handlers_guild.cpp) -------------
+
+// Client opened the guild board → respond with the full list of
+// articles.
+//
+// Wire layout (SSHandler.cpp:4132):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildArticleListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Member posts a new article. Caps: title ≤ 256, body ≤ 2048,
+// guild articles ≤ 100. Persist + return ACK + LIST refresh.
+//
+// Wire layout (SSHandler.cpp:4154):
+//   DWORD dwCharID, DWORD dwKey, STRING strTitle, STRING strArticle
+boost::asio::awaitable<void> OnGuildArticleAddAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Member deletes an article by ID.
+//
+// Wire layout (SSHandler.cpp:4233):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwArticleID
+boost::asio::awaitable<void> OnGuildArticleDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Member updates an article's title + body by ID.
+//
+// Wire layout (SSHandler.cpp:4281):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwArticleID,
+//   STRING strTitle, STRING strArticle
+boost::asio::awaitable<void> OnGuildArticleUpdateAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-6: guild invite flow (handlers_guild.cpp) ----------------
 
 // Inbound from a map server: chief sent an invite to a target by

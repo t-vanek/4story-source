@@ -9,12 +9,14 @@
 #include "fourstory/security/hmac.h"
 #include "fourstory/security/peer_auth_token.h"
 #include "fourstory/security/peer_security_gate.h"
+#include "fourstory/security/peer_tls_context.h"
 #include "fourstory/security/security_config.h"
 
 #include <cassert>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 
 int main()
@@ -210,6 +212,53 @@ int main()
         {
             const auto r = gate.CheckToken(mk(now), "10.0.0.5", now);
             assert(r.outcome == PeerAuthOutcome::UnknownPeer);
+        }
+    }
+
+    // ── PeerTlsContextBuilder ───────────────────────────────────────
+    // Disabled config must throw (the helper isn't a no-op — callers
+    // should guard on peer_tls_enabled themselves).
+    {
+        SecurityConfig cfg;
+        cfg.peer_tls_enabled = false;
+        bool threw = false;
+        try { (void)PeerTlsContextBuilder::BuildServerContext(cfg); }
+        catch (const std::runtime_error&) { threw = true; }
+        assert(threw && "BuildServerContext must throw when disabled");
+        (void)threw;  // silence -Wunused-but-set-variable on release builds
+    }
+    // Missing fields → throws with the offending field in the message.
+    {
+        SecurityConfig cfg;
+        cfg.peer_tls_enabled = true;
+        cfg.peer_tls_peer_cert = "/tmp/x";
+        cfg.peer_tls_peer_key  = "/tmp/y";
+        try {
+            PeerTlsContextBuilder::BuildServerContext(cfg);
+            assert(false && "expected throw on missing CA");
+        }
+        catch (const std::runtime_error& ex) {
+            const std::string what(ex.what());
+            assert(what.find("peer_tls_ca_cert") != std::string::npos);
+        }
+    }
+    // Nonexistent cert file → throws with file path in message.
+    {
+        SecurityConfig cfg;
+        cfg.peer_tls_enabled = true;
+        cfg.peer_tls_ca_cert   = "/tmp/4story-test-does-not-exist-ca.pem";
+        cfg.peer_tls_peer_cert = "/tmp/4story-test-does-not-exist-peer.pem";
+        cfg.peer_tls_peer_key  = "/tmp/4story-test-does-not-exist-key.pem";
+        try {
+            PeerTlsContextBuilder::BuildClientContext(cfg);
+            assert(false && "expected throw on missing file");
+        }
+        catch (const std::runtime_error& ex) {
+            const std::string what(ex.what());
+            // The first file checked is the peer cert (cert chain is
+            // loaded before key + CA). Expect that path to appear in
+            // the error message.
+            assert(what.find("4story-test-does-not-exist") != std::string::npos);
         }
     }
 

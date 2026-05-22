@@ -340,6 +340,201 @@ void TestTlsHandshakeFailsWithoutClientCert()
     if (io_thread.joinable()) io_thread.join();
 }
 
+// Negative test: client presents a valid-looking cert, but signed by
+// a different CA the server doesn't trust. The server's verify_peer
+// chain should reject during handshake.
+void TestTlsHandshakeRejectsUntrustedCA()
+{
+    std::printf("[TLS handshake rejects cert from untrusted CA]\n");
+
+    asio::io_context io;
+    auto server_ctx = MakeServerCtx();
+
+    // Rogue client context — presents rogue_client.crt signed by a
+    // CA the server has never heard of.
+    asio::ssl::context rogue_ctx(asio::ssl::context::tls_client);
+    rogue_ctx.set_options(
+        asio::ssl::context::default_workarounds |
+        asio::ssl::context::no_sslv2 |
+        asio::ssl::context::no_sslv3);
+    rogue_ctx.use_certificate_file(CertPath("rogue_client.crt"),
+                                    asio::ssl::context::pem);
+    rogue_ctx.use_private_key_file(CertPath("rogue_client.key"),
+                                    asio::ssl::context::pem);
+    // Rogue trusts its own CA so it sees the server cert as valid;
+    // the rejection must come from the SERVER side.
+    rogue_ctx.load_verify_file(CertPath("rogue_ca.crt"));
+    rogue_ctx.set_verify_mode(asio::ssl::verify_none);
+
+    tcp::acceptor acceptor(io, tcp::endpoint(tcp::v4(), 0));
+    const std::uint16_t port = acceptor.local_endpoint().port();
+
+    std::atomic<bool> server_hs_result{true};
+    std::atomic<bool> server_done{false};
+    asio::co_spawn(io,
+        [&]() -> asio::awaitable<void> {
+            boost::system::error_code ec;
+            auto sock = co_await acceptor.async_accept(
+                asio::redirect_error(asio::use_awaitable, ec));
+            if (ec) { server_done.store(true); co_return; }
+            auto sess = std::make_shared<tnetlib::TlsAsioSession>(
+                std::move(sock), server_ctx);
+            const bool ok = co_await sess->Handshake(
+                tnetlib::TlsRole::Server);
+            server_hs_result.store(ok);
+            server_done.store(true);
+        },
+        asio::detached);
+
+    std::thread io_thread([&io] { io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket client_sock(client_io);
+    client_sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+
+    auto client_sess = std::make_shared<tnetlib::TlsAsioSession>(
+        std::move(client_sock), rogue_ctx);
+
+    std::atomic<bool> client_done{false};
+    asio::co_spawn(client_io,
+        [client_sess, &client_done]() -> asio::awaitable<void> {
+            (void)co_await client_sess->Handshake(tnetlib::TlsRole::Client);
+            client_done.store(true);
+        },
+        asio::detached);
+
+    std::thread client_thread([&client_io] { client_io.run(); });
+
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(3);
+    while ((!server_done.load() || !client_done.load()) &&
+           std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    Check(!server_hs_result.load(),
+          "server rejected handshake with untrusted-CA client cert");
+
+    client_sess->Close();
+    client_io.stop();
+    if (client_thread.joinable()) client_thread.join();
+    io.stop();
+    if (io_thread.joinable()) io_thread.join();
+}
+
+// Stress test for the TLS variant: same shape as the plain-AsioSession
+// concurrent-send test, but over TLS. Verifies the per-session send
+// queue works through ssl::stream too (the drain coroutine pulls off
+// the channel and writes to the TLS stream serially).
+void TestTlsConcurrentSendPacket()
+{
+    std::printf("[TLS concurrent SendPacket serializes via send queue]\n");
+
+    constexpr int kProducers     = 4;
+    constexpr int kPacketsPerOne = 25;
+    constexpr int kTotal         = kProducers * kPacketsPerOne;
+
+    asio::io_context io;
+    auto server_ctx = MakeServerCtx();
+    auto client_ctx = MakeClientCtx();
+
+    tcp::acceptor acceptor(io, tcp::endpoint(tcp::v4(), 0));
+    const std::uint16_t port = acceptor.local_endpoint().port();
+
+    std::atomic<int> server_received{0};
+    std::vector<std::uint16_t> server_wids;
+    std::mutex server_wids_mtx;
+
+    asio::co_spawn(io,
+        [&]() -> asio::awaitable<void> {
+            boost::system::error_code ec;
+            auto sock = co_await acceptor.async_accept(
+                asio::redirect_error(asio::use_awaitable, ec));
+            if (ec) co_return;
+            auto sess = std::make_shared<tnetlib::TlsAsioSession>(
+                std::move(sock), server_ctx);
+            const bool hs = co_await sess->Handshake(
+                tnetlib::TlsRole::Server);
+            if (!hs) co_return;
+            co_await sess->RunPackets(
+                [&](const tnetlib::DecodedPacket& pkt) {
+                    {
+                        std::lock_guard<std::mutex> lk(server_wids_mtx);
+                        server_wids.push_back(pkt.wId);
+                    }
+                    server_received.fetch_add(1);
+                });
+        },
+        asio::detached);
+
+    std::thread io_thread([&io] { io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket client_sock(client_io);
+    client_sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+    auto client_sess = std::make_shared<tnetlib::TlsAsioSession>(
+        std::move(client_sock), client_ctx);
+
+    std::atomic<bool> hs_done{false};
+    asio::co_spawn(client_io,
+        [client_sess, &hs_done]() -> asio::awaitable<void> {
+            (void)co_await client_sess->Handshake(tnetlib::TlsRole::Client);
+            hs_done.store(true);
+        },
+        asio::detached);
+
+    // Kick the read loop so the client-side drain spawns.
+    asio::co_spawn(client_io,
+        [client_sess, &hs_done]() -> asio::awaitable<void> {
+            while (!hs_done.load())
+                co_await asio::post(asio::use_awaitable);
+            co_await client_sess->RunPackets(
+                [](const tnetlib::DecodedPacket&){});
+        },
+        asio::detached);
+
+    for (int pid = 0; pid < kProducers; ++pid)
+    {
+        asio::co_spawn(client_io,
+            [client_sess, pid, &hs_done]() -> asio::awaitable<void> {
+                while (!hs_done.load())
+                    co_await asio::post(asio::use_awaitable);
+                std::vector<std::byte> payload(8, std::byte{0xCD});
+                for (int i = 0; i < kPacketsPerOne; ++i)
+                {
+                    const std::uint16_t wId =
+                        static_cast<std::uint16_t>(pid * 1000 + i);
+                    co_await client_sess->SendPacket(wId,
+                        std::span<const std::byte>(payload.data(),
+                                                    payload.size()));
+                }
+            },
+            asio::detached);
+    }
+
+    std::thread client_thread([&client_io] { client_io.run(); });
+
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(5);
+    while (server_received.load() < kTotal &&
+           std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    Check(server_received.load() == kTotal,
+          "server received every TLS packet (no sequence/checksum fail)");
+
+    client_sess->Close();
+    client_io.stop();
+    if (client_thread.joinable()) client_thread.join();
+    io.stop();
+    if (io_thread.joinable()) io_thread.join();
+}
+
 } // namespace
 
 int main()
@@ -352,6 +547,8 @@ int main()
     {
         TestTlsPacketRoundtrip();
         TestTlsHandshakeFailsWithoutClientCert();
+        TestTlsHandshakeRejectsUntrustedCA();
+        TestTlsConcurrentSendPacket();
     }
     catch (const std::exception& ex)
     {

@@ -16,7 +16,7 @@ cd "$out"
 
 # Idempotent: skip if files already exist (CMake re-runs configure on
 # every cache touch; we don't want to regenerate on each one).
-if [[ -f ca.crt && -f server.crt && -f client.crt ]]; then
+if [[ -f ca.crt && -f server.crt && -f client.crt && -f rogue_ca.crt && -f rogue_client.crt ]]; then
     exit 0
 fi
 
@@ -47,7 +47,25 @@ openssl x509 -req -in client.csr \
     -out client.crt -days 365 \
     2>/dev/null
 
-# Drop intermediate artefacts.
-rm -f server.csr client.csr ca.srl
+# Rogue CA — a SECOND, unrelated CA. Used to mint a "rogue" client cert
+# that the trusted CA never signed; the TLS test asserts that a session
+# presenting this cert is rejected during handshake.
+openssl req -x509 -newkey rsa:2048 -nodes \
+    -keyout rogue_ca.key -out rogue_ca.crt \
+    -days 730 \
+    -subj "/CN=tnetlib-rogue-ca" \
+    2>/dev/null
 
-chmod 600 ca.key server.key client.key
+openssl req -newkey rsa:2048 -nodes \
+    -keyout rogue_client.key -out rogue_client.csr \
+    -subj "/CN=tnetlib-rogue-client" \
+    2>/dev/null
+openssl x509 -req -in rogue_client.csr \
+    -CA rogue_ca.crt -CAkey rogue_ca.key -CAcreateserial \
+    -out rogue_client.crt -days 365 \
+    2>/dev/null
+
+# Drop intermediate artefacts.
+rm -f server.csr client.csr rogue_client.csr ca.srl rogue_ca.srl
+
+chmod 600 ca.key server.key client.key rogue_ca.key rogue_client.key

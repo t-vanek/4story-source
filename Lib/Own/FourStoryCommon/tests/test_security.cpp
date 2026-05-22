@@ -7,6 +7,7 @@
 
 #include "fourstory/security/ip_allowlist.h"
 #include "fourstory/security/hmac.h"
+#include "fourstory/security/hostname_match.h"
 #include "fourstory/security/peer_auth_token.h"
 #include "fourstory/security/peer_security_gate.h"
 #include "fourstory/security/peer_tls_context.h"
@@ -260,6 +261,35 @@ int main()
             // the error message.
             assert(what.find("4story-test-does-not-exist") != std::string::npos);
         }
+    }
+
+    // ── HostnameMatch (RFC 6125) ────────────────────────────────────
+    {
+        using fourstory::security::HostnameMatch;
+        // Literal exact match.
+        assert(HostnameMatch("peer.cluster.local", "peer.cluster.local"));
+        assert(!HostnameMatch("peer.cluster.local", "other.cluster.local"));
+        // Case-insensitive (RFC 1035).
+        assert(HostnameMatch("PEER.cluster.local", "peer.CLUSTER.local"));
+        // Single-label wildcard, matches one label.
+        assert(HostnameMatch("*.cluster.local", "tlogin.cluster.local"));
+        assert(HostnameMatch("*.cluster.local", "tpatch-eu-1.cluster.local"));
+        // Wildcard does NOT match multi-label (covers only one label).
+        assert(!HostnameMatch("*.cluster.local",
+                               "deep.tlogin.cluster.local"));
+        // Wildcard rejected at TLD (too broad).
+        assert(!HostnameMatch("*.com", "anything.com"));
+        // Partial wildcards not supported.
+        assert(!HostnameMatch("tl*.cluster.local", "tlogin.cluster.local"));
+        assert(!HostnameMatch("*foo.cluster.local",
+                               "foofoo.cluster.local"));
+        // Empty inputs → no match.
+        assert(!HostnameMatch("", "peer.cluster.local"));
+        assert(!HostnameMatch("*.cluster.local", ""));
+        // Empty first label on name → no match.
+        assert(!HostnameMatch("*.cluster.local", ".cluster.local"));
+        // Wildcard pattern without any dot → reject.
+        assert(!HostnameMatch("*", "peer"));
     }
 
     std::printf("test_security: all assertions passed\n");

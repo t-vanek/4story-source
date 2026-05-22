@@ -17,7 +17,7 @@ cd "$out"
 # Idempotent: skip if files already exist (CMake re-runs configure on
 # every cache touch; we don't want to regenerate on each one).
 if [[ -f ca.crt && -f server.crt && -f client.crt && -f rogue_ca.crt && \
-      -f rogue_client.crt && -f san_client.crt ]]; then
+      -f rogue_client.crt && -f san_client.crt && -f wild_client.crt ]]; then
     exit 0
 fi
 
@@ -83,9 +83,25 @@ openssl x509 -req -in san_client.csr \
     -extfile san_ext.cnf \
     2>/dev/null
 
+# Wildcard SAN client — cert with one DNS SAN entry that uses a
+# wildcard label ("*.cluster.local"). Exercises the RFC 6125
+# HostnameMatch path on the server side.
+cat > wild_ext.cnf <<'EOF'
+subjectAltName = DNS:*.cluster.local
+EOF
+openssl req -newkey rsa:2048 -nodes \
+    -keyout wild_client.key -out wild_client.csr \
+    -subj "/CN=wild-generic" \
+    2>/dev/null
+openssl x509 -req -in wild_client.csr \
+    -CA ca.crt -CAkey ca.key -CAcreateserial \
+    -out wild_client.crt -days 365 \
+    -extfile wild_ext.cnf \
+    2>/dev/null
+
 # Drop intermediate artefacts.
 rm -f server.csr client.csr rogue_client.csr san_client.csr san_ext.cnf \
-      ca.srl rogue_ca.srl
+      wild_client.csr wild_ext.cnf ca.srl rogue_ca.srl
 
 chmod 600 ca.key server.key client.key rogue_ca.key rogue_client.key \
-          san_client.key
+          san_client.key wild_client.key

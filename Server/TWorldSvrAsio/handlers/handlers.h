@@ -271,6 +271,38 @@ boost::asio::awaitable<void> OnGuildPointRewardReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-15: fame + article DB fan-in (handlers_guild.cpp) --------
+//
+// FAME + 3 ARTICLE handlers extending the W3a-14 DB-side fan-in
+// cohort. FAME defensively mirrors fame/fame_color into the
+// registry (read by GuildInfoAck + Establish broadcasts).
+// Article handlers skip the in-memory mirror — TGuild.articles is
+// owned by the article_index counter incremented on
+// OnGuildArticleAddAck; DB-pushed article rows arrive with an
+// article_id chosen DB-side that might collide with the local
+// counter, so we defer to the next OnGuildArticleListAck refresh
+// (same behavior as legacy SSHandler.cpp:4201/4264/4323).
+
+boost::asio::awaitable<void> OnGuildFameReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildArticleAddReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildArticleDelReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildArticleUpdateReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

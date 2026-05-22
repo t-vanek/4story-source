@@ -169,8 +169,25 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-15+ picks up tactics subsystem + cabinet item codec.
-    // … see README §4.
+    // ---- W3a-15: fame + article DB fan-in ----------------------
+    case MessageId::DM_GUILDFAME_REQ:
+        co_await OnGuildFameReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_GUILDARTICLEADD_REQ:
+        co_await OnGuildArticleAddReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDARTICLEDEL_REQ:
+        co_await OnGuildArticleDelReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDARTICLEUPDATE_REQ:
+        co_await OnGuildArticleUpdateReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-16+ picks up wanted/volunteering DB fan-in, tactics
+    // subsystem, cabinet item codec. … see README §4.
 
     default:
         break;

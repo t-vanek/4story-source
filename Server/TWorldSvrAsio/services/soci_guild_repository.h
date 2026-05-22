@@ -62,6 +62,11 @@ public:
     bool UpdatePvPoints(std::uint32_t guild_id, std::uint32_t total_point,
                         std::uint32_t useable_point,
                         std::uint32_t month_point) override;
+    bool UpdateLevel(std::uint32_t guild_id, std::uint8_t level) override;
+    bool LogPointReward(std::uint32_t guild_id, std::uint32_t point,
+                        const std::string& recipient_name,
+                        std::uint32_t total_point,
+                        std::uint32_t useable_point) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

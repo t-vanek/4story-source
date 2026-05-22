@@ -127,6 +127,14 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                      "deployed — tactics-alliance handlers (W3a-3) will "
                      "be stubbed.");
     }
+    if (!TableHasColumns(*lease, "TGUILDPVPOINTREWARDTABLE",
+            {"dwGuildID","szName","dwPoint","dlDate"}))
+    {
+        spdlog::warn("schema_validator (world): TGUILDPVPOINTREWARDTABLE "
+                     "not deployed — DM_GUILDPOINTREWARD_REQ (W3a-14) "
+                     "will log a SOCI error and drop the row; the "
+                     "TGUILDTABLE running totals still get updated.");
+    }
 }
 
 } // namespace tworldsvr::db

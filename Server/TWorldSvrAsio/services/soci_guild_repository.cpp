@@ -551,6 +551,60 @@ bool SociGuildRepository::UpdatePvPoints(std::uint32_t guild_id,
     }
 }
 
+bool SociGuildRepository::UpdateLevel(std::uint32_t guild_id,
+                                      std::uint8_t  level)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDTABLE\" SET \"bLevel\" = :l "
+               "WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(level)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::UpdateLevel({}, {}) failed: {}",
+            guild_id, level, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::LogPointReward(std::uint32_t      guild_id,
+                                         std::uint32_t      point,
+                                         const std::string& recipient_name,
+                                         std::uint32_t      total_point,
+                                         std::uint32_t      useable_point)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        soci::transaction tr(sql);
+        sql << "INSERT INTO \"TGUILDPVPOINTREWARDTABLE\" "
+               "(\"dwGuildID\", \"szName\", \"dwPoint\", \"dlDate\") "
+               "VALUES (:g, :n, :p, CURRENT_TIMESTAMP)",
+            soci::use(static_cast<int>(guild_id)),
+            soci::use(recipient_name),
+            soci::use(static_cast<int>(point));
+        sql << "UPDATE \"TGUILDTABLE\" SET \"dwPvPTotalPoint\" = :t, "
+               "\"dwPvPUseablePoint\" = :u WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(total_point)),
+            soci::use(static_cast<int>(useable_point)),
+            soci::use(static_cast<int>(guild_id));
+        tr.commit();
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::LogPointReward({}) failed: {}",
+            guild_id, ex.what());
+        return false;
+    }
+}
+
 bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
                                                  std::uint32_t guild_id,
                                                  std::uint32_t exp,

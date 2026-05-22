@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-13 promote-helper refactor + PvP point persistence
+## Status — W3a-14 DB-side fan-in cohort
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -30,13 +30,83 @@ that the four shipped Asio daemons already use.
 | W3a-10 | IGuildRepository::DeleteGuild + OnMW_GUILDMONEYRECOVER_ACK + OnDM_GUILDEXTINCTION_REQ | ✅ |
 | W3a-11 | GuildWantedRegistry + AddWanted/DeleteWanted + OnMW_GUILDWANTEDADD/DEL/LIST_ACK + 3 senders + 14-day expiry | ✅ |
 | W3a-12 | TGuildWantedApp + GuildWantedRegistry::AddApp/DelApp/SnapshotAppsFor/FindAppByChar (with 5 legacy validation gates) + IGuildRepository::AddVolunteerApp/DelVolunteerApp + 4 handlers (VOLUNTEERING/DEL/LIST/REPLY) + 4 senders + accept-path member promotion via OnGuildInviteAnswer YES-branch parity | ✅ |
-| **W3a-13** | `TryPromoteIntoGuild` helper (dedupes W3a-6 InviteAnswer YES + W3a-12 VolunteerReply accept) + IGuildRepository::UpdatePvPoints + OnDM_GUILDPVPOINT_REQ | ✅ |
-| W3a-14+ | Tactics subsystem (~7) + PvP record / Cabinet item codec | ⏸ |
+| W3a-13 | `TryPromoteIntoGuild` helper (dedupes W3a-6 InviteAnswer YES + W3a-12 VolunteerReply accept) + IGuildRepository::UpdatePvPoints + OnDM_GUILDPVPOINT_REQ | ✅ |
+| **W3a-14** | DB-side fan-in cohort: 5 thin handlers (OnDM_GUILDDUTY/PEER/CONTRIBUTION/LEVEL/POINTREWARD_REQ) + 2 new repo methods (UpdateLevel, LogPointReward) + 6 mut-handler test scenarios | ✅ |
+| W3a-15+ | Tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-14 — what landed
+
+The "DB-side fan-in" cohort. Five new handlers covering the
+DB→World direction of guild state updates. Each is a thin
+wrapper around an existing (or newly-added)
+`IGuildRepository` method — none of them reply on the wire
+because the DB is authoritative for the fields they touch.
+
+Handlers
+- `OnDM_GUILDDUTY_REQ` (wID=0x58D6) → `repo->UpdateMemberDuty`
+- `OnDM_GUILDPEER_REQ` (wID=0x58D7) → `repo->UpdateMemberPeer`
+- `OnDM_GUILDCONTRIBUTION_REQ` (wID=0x58DD) →
+  `repo->IncrementContribution`. The legacy wire carries 6 fields
+  (no pvp_point); the repo signature gained that 7th param in
+  W3a-13 for forward parity with the castle-war flow, so the
+  fan-in path passes `pvp_point=0`.
+- `OnDM_GUILDLEVEL_REQ` (wID=0x58DC) → new
+  `repo->UpdateLevel`. Defensively updates in-memory
+  `TGuild.level` too — the peerage-gate member cap derives from
+  `GuildLevelCache::Find(level)->max_count`, so keeping that
+  stale would silently mis-gate kickout / peerage decisions.
+- `OnDM_GUILDPOINTREWARD_REQ` (wID=0x5916) → new
+  `repo->LogPointReward`. Legacy `CSPSaveGuildPointReward`
+  is a single SP that fans out to INSERT into
+  `TGUILDPVPOINTREWARDTABLE` + UPDATE TGUILDTABLE total/useable.
+  SOCI impl wraps both in one transaction. Also defensively
+  mirrors total/useable into the registry (same pattern as
+  W3a-13 `UpdatePvPoints`).
+
+Repo additions
+- `IGuildRepository::UpdateLevel(guild_id, level)` — single
+  `UPDATE TGUILDTABLE SET bLevel`.
+- `IGuildRepository::LogPointReward(guild_id, point, name,
+  total, useable)` — INSERT + UPDATE in one SOCI transaction.
+- `Call::Kind::{kUpdateLevel, kLogPointReward}` on the fake.
+  The recipient_name string is dropped from the Call record
+  (same pattern as `kAddArticle`); tests verify numeric fields
+  + arrival order.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` gains scenarios 17-22:
+  scenario 17 covers W3a-13 (`DM_GUILDPVPOINT_REQ` round-trip
+  through dispatch), scenarios 18-22 cover the five W3a-14
+  handlers. All exercise the full
+  socket→dispatch→handler→repo→registry path.
+
+Why these are tiny
+- Each handler is 10-20 LOC: read wire → CoOffloadVoidIf →
+  log. They're "DB fan-in" plumbing that closes the
+  bidirectional loop for state we already write outbound via
+  the MW_* handlers. The legacy SSHandler.cpp counterparts
+  (lines 3480, 3551, 4069, 4103, 10429) are equally tiny;
+  the work was identifying which existing repo methods to
+  reuse vs. add new ones.
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-15+
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+  parity with the W3a-11/12 guild-wanted/volunteer flows
+- PvP record listing (`CTBLGuildPvPointReward` TOP 50)
+- Cabinet item codec
+- Scheduler-driven wanted-entry expiry sweep
+- `OnDM_GUILDLEAVE_REQ` + `OnDM_GUILDKICKOUT_REQ` +
+  `OnDM_GUILDUPDATE_REQ` fan-ins (the leave/kickout pair
+  needs the leave-log SP wired separately from RemoveMember;
+  UPDATE has variable-length alliance/enemy CSV columns)
 
 ### W3a-13 — what landed
 

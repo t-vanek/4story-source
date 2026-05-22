@@ -177,6 +177,26 @@ public:
                                 std::uint32_t useable_point,
                                 std::uint32_t month_point) = 0;
 
+    // --- W3a-14 DB-side fan-in updates ---------------------------
+
+    // Update TGUILDTABLE.bLevel for one guild. Mirrors CSPGuildLevel
+    // (SSHandler.cpp:4069). The level cap is enforced upstream by
+    // TGuild::CheckLevel (see TGuild.cpp:280) — repo is write-only.
+    virtual bool UpdateLevel(std::uint32_t guild_id,
+                             std::uint8_t  level) = 0;
+
+    // Log a single PvP point reward grant + update the guild's
+    // running totals. Mirrors CSPSaveGuildPointReward
+    // (SSHandler.cpp:10429). Legacy SP fans out as INSERT into
+    // TGUILDPVPOINTREWARDTABLE + UPDATE TGUILDTABLE.dwPvPTotalPoint
+    // / dwPvPUseablePoint. SOCI impl does both inside a single
+    // session transaction.
+    virtual bool LogPointReward(std::uint32_t      guild_id,
+                                std::uint32_t      point,
+                                const std::string& recipient_name,
+                                std::uint32_t      total_point,
+                                std::uint32_t      useable_point) = 0;
+
     // --- W3a-10 guild lifecycle (extinction) ---------------------
 
     // Delete the guild row + sweep the children. Mirrors

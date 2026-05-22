@@ -46,11 +46,14 @@ Adds (repo)
 - services/fake_guild_repository.{h,cpp} — impl + Call::Kind
   ::kDeleteGuild record so tests can assert on the persistence
   side.
-- services/soci_guild_repository.{h,cpp} — explicit cascade:
-  DELETEs TGUILDARTICLETABLE + TGUILDMEMBERTABLE +
-  TGUILDTABLE in dependency order. Legacy CSPGuildDelete
-  relies on schema FK CASCADE which not every deploy has —
-  explicit DELETEs keep the behavior independent.
+- services/soci_guild_repository.{h,cpp} — explicit DELETEs in
+  dependency order: TGUILDARTICLETABLE + TGUILDMEMBERTABLE +
+  TGUILDTABLE. Legacy CSPGuildDelete is a single DELETE on
+  TGUILDTABLE that assumes the production schema has FK
+  CASCADE on the children. Our explicit version sweeps the
+  children regardless, so dev / test schemas without the FK
+  cascade clause stay consistent. Production schemas pay two
+  extra cold-path round-trips — negligible vs. the safety win.
 
 Adds (handlers)
 - handlers/handlers_guild.cpp

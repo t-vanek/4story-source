@@ -396,10 +396,18 @@ bool SociGuildRepository::DeleteGuild(std::uint32_t guild_id)
     {
         auto lease = m_pool.Acquire();
         soci::session& sql = *lease;
-        // Cascade-delete the related rows ourselves — the legacy
-        // CSPGuildDelete relies on FK CASCADE which not every
-        // deployed schema has. Explicit DELETEs make the behavior
-        // independent of FK configuration.
+        // Legacy CSPGuildDelete is a single-statement SP that
+        // assumes the production schema has FK CASCADE on the
+        // guild children (TGUILDMEMBERTABLE.dwGuildID,
+        // TGUILDARTICLETABLE.dwGuildID — cascading delete on the
+        // parent TGUILDTABLE row sweeps both).
+        //
+        // We issue explicit DELETEs in dependency order instead
+        // so dev / test schemas that omit the FK CASCADE clause
+        // (PostgreSQL deploys, schema-light fixtures) still get
+        // the children swept. On the production schema this is
+        // two extra round-trips on a cold path — negligible vs.
+        // the safety win on misconfigured deploys.
         sql << "DELETE FROM \"TGUILDARTICLETABLE\" WHERE \"dwGuildID\" = :g",
             soci::use(static_cast<int>(guild_id));
         sql << "DELETE FROM \"TGUILDMEMBERTABLE\" WHERE \"dwGuildID\" = :g",

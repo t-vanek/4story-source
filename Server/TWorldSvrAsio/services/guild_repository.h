@@ -138,11 +138,13 @@ public:
 
     // --- W3a-10 guild lifecycle (extinction) ---------------------
 
-    // Delete the guild row + cascade (TGUILDTABLE + TGUILDMEMBERTABLE
-    // + TGUILDARTICLETABLE for this guild_id). Mirrors CSPGuildDelete
-    // (SSHandler.cpp:3290) — the legacy SP cascades the delete via
-    // FK on the DB side; the SOCI impl issues the DELETEs explicitly
-    // since legacy schemas often lack the FK cascade.
+    // Delete the guild row + sweep the children. Mirrors
+    // CSPGuildDelete (SSHandler.cpp:3290) — the legacy SP is a
+    // single DELETE on TGUILDTABLE that assumes the production
+    // schema has FK CASCADE on TGUILDMEMBERTABLE +
+    // TGUILDARTICLETABLE. The SOCI impl issues explicit DELETEs
+    // in dependency order so dev / test schemas without the FK
+    // CASCADE clause still cleanup the children.
     virtual bool DeleteGuild(std::uint32_t guild_id) = 0;
 };
 

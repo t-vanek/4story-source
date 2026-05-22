@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-15 fame + article DB fan-in
+## Status — W3a-16 wanted + volunteering DB fan-in
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -32,13 +32,80 @@ that the four shipped Asio daemons already use.
 | W3a-12 | TGuildWantedApp + GuildWantedRegistry::AddApp/DelApp/SnapshotAppsFor/FindAppByChar (with 5 legacy validation gates) + IGuildRepository::AddVolunteerApp/DelVolunteerApp + 4 handlers (VOLUNTEERING/DEL/LIST/REPLY) + 4 senders + accept-path member promotion via OnGuildInviteAnswer YES-branch parity | ✅ |
 | W3a-13 | `TryPromoteIntoGuild` helper (dedupes W3a-6 InviteAnswer YES + W3a-12 VolunteerReply accept) + IGuildRepository::UpdatePvPoints + OnDM_GUILDPVPOINT_REQ | ✅ |
 | W3a-14 | DB-side fan-in cohort: 5 thin handlers (OnDM_GUILDDUTY/PEER/CONTRIBUTION/LEVEL/POINTREWARD_REQ) + 2 new repo methods (UpdateLevel, LogPointReward) + 6 mut-handler test scenarios | ✅ |
-| **W3a-15** | Fame + article DB fan-in (OnDM_GUILDFAME_REQ + OnDM_GUILDARTICLEADD/DEL/UPDATE_REQ) — 4 handlers reusing existing repo methods | ✅ |
-| W3a-16+ | Wanted/volunteering DB fan-in + leave/kickout fan-in + tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
+| W3a-15 | Fame + article DB fan-in (OnDM_GUILDFAME_REQ + OnDM_GUILDARTICLEADD/DEL/UPDATE_REQ) — 4 handlers reusing existing repo methods | ✅ |
+| **W3a-16** | Wanted/volunteering DB fan-in (OnDM_GUILDWANTEDADD/DEL_REQ + OnDM_GUILDVOLUNTEERING/INGDEL_REQ) — 4 handlers + GuildWantedRegistry defensive mirror + bType filter on the volunteering pair | ✅ |
+| W3a-17+ | Leave/kickout DB fan-in + tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-16 — what landed
+
+Four more DB-side fan-in handlers extending the W3a-14/15
+cohort into the recruitment subsystem. All wrap existing
+`IGuildRepository` methods (no new ones needed). Defensive
+in-memory mirror to `GuildWantedRegistry` keeps the next
+LIST handler + "already applied" indicator coherent.
+
+- `OnDM_GUILDWANTEDADD_REQ` (wID=0x5927) → `repo->AddWanted`.
+  Mirror path looks up guild_id in the registry to pick
+  country + name (legacy parity — both fields come from the
+  guild row, not the wire). Computes `end_time = now +
+  kGuildWantedPeriodSec` matching the player path's
+  `OnGuildWantedAddAck` clock so cross-server entries expire
+  together.
+- `OnDM_GUILDWANTEDDEL_REQ` (wID=0x5928) → `repo->DeleteWanted`.
+  Mirror path calls `GuildWantedRegistry::Remove(guild_id)`.
+- `OnDM_GUILDVOLUNTEERING_REQ` (wID=0x5929) →
+  `repo->AddVolunteerApp`. Wire prefix `bType` filters the
+  applicant kind: `kVolunteerKindMember` (=0) flows through,
+  `kVolunteerKindTactics` (=1) gets logged + dropped (the
+  tactics subsystem ships in a later W3a-* phase). The mirror
+  path bypasses `AddApp`'s validation gates — the DB is
+  authoritative for fan-in, so if our local registry would
+  reject the row (already-applied / wanted-expired /
+  level-mismatch) we still persist + log the divergence. Next
+  full reload reconciles.
+- `OnDM_GUILDVOLUNTEERINGDEL_REQ` (wID=0x592A) →
+  `repo->DelVolunteerApp`. Same `bType` filter. Mirror path
+  calls `GuildWantedRegistry::DelApp(char_id)` (idempotent).
+
+Constants
+- `services/guild_constants.h` gains
+  `kVolunteerKindMember = 0` + `kVolunteerKindTactics = 1`.
+  Legacy uses raw 0/1 without an exported enum; we name them
+  so the bType-filter branch reads clearly.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` test fixture gains a
+  `GuildWantedRegistry` member (previously only the player-path
+  scenarios for W3a-11/12 needed it via a different test file).
+- Scenarios 27-31:
+  - 27: WANTED ADD fan-in lands in registry + repo
+  - 28: WANTED DEL clears the registry entry
+  - 29: VOLUNTEERING ADD (kMember) persists; note the
+    in-memory AddApp may reject if applicant char is already
+    in a guild — handler logs and continues (DB-authoritative)
+  - 30: VOLUNTEERING ADD (kTactics) gets dropped, no
+    persistence call lands
+  - 31: VOLUNTEERINGDEL (kMember) clears + persists
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-17+
+- DB fan-in: `OnDM_GUILDLEAVE_REQ` + `OnDM_GUILDKICKOUT_REQ`
+  (~2 handlers; need defensive in-memory cleanup of
+  `guild->members` + `TChar.guild_id` back-pointer + the
+  W3a-4c leave/kickout broadcast tail)
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+- PvP record listing (`CTBLGuildPvPointReward` TOP 50)
+- Cabinet item codec
+- Scheduler-driven wanted-entry expiry sweep
+- `OnDM_GUILDUPDATE_REQ` (variable-length alliance/enemy CSV
+  columns — non-trivial wire codec)
 
 ### W3a-15 — what landed
 

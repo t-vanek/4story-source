@@ -259,6 +259,18 @@ if(EXISTS ${CONTROL_TLS_CERT_DIR}/ca.crt)
         PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
     add_test(NAME tcontrolsvr_asio_control_session_tls
         COMMAND test_tcontrolsvr_asio_control_session_tls)
+
+    # Hybrid first-byte detection — TLS clients (0x16 ClientHello) and
+    # legacy plain-TCP operators on the SAME listener. Exercises the
+    # Phase A.2 peek branch in ControlServer::Run().
+    add_executable(test_tcontrolsvr_asio_hybrid
+        ${TCONTROL_ASIO_SRC}/tests/test_control_server_hybrid.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_hybrid
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_hybrid
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_hybrid
+        COMMAND test_tcontrolsvr_asio_hybrid)
 endif()
 
 # CoOffload helper test — verifies the lambda runs on a worker

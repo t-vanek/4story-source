@@ -45,4 +45,15 @@ std::vector<std::shared_ptr<PeerSession>> PeerRegistry::Snapshot() const
     return out;
 }
 
+std::vector<std::shared_ptr<PeerSession>>
+PeerRegistry::SnapshotExcept(std::uint16_t except_wid) const
+{
+    std::vector<std::shared_ptr<PeerSession>> out;
+    std::shared_lock lock(m_mtx);
+    out.reserve(m_peers.size());
+    for (const auto& [wid, p] : m_peers)
+        if (wid != except_wid) out.push_back(p);
+    return out;
+}
+
 } // namespace tworldsvr

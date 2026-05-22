@@ -99,5 +99,46 @@ boost::asio::awaitable<void> OnRelaysvrReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-3: char base update + relay lookup (handlers_*.cpp) -------
+
+// Inbound from a map server: a char's base attributes changed
+// (face, hair, race, sex, country, name). World propagates the
+// change cluster-wide. W3a-3 ports the simple field branches plus
+// the name-index update (FACE / HAIR / RACE / SEX / COUNTRY /
+// AIDCOUNTRY / NAME). Friend / soulmate / guild app side-effects
+// on the NAME branch defer to W3a-4 / W4 (they need the matching
+// registries).
+//
+// Wire layout (SSHandler.cpp:9705):
+//   DWORD dwCharID, DWORD dwKey, BYTE bType, BYTE bValue,
+//   WORD wTitleID, STRING strName
+boost::asio::awaitable<void> OnChangeCharBaseAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from the relay map server (legacy RWHandler.cpp:30):
+// "I have a client trying to enter as <name, dwCharID> — what's
+// its cluster state?". World answers with RW_ENTERCHAR_ACK
+// carrying the char's identity + guild/party/corps/tactics ids +
+// last known map + unit position.
+//
+// Wire layout: DWORD dwCharID, STRING strName
+boost::asio::awaitable<void> OnEnterCharReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from the relay map server (RWHandler.cpp:113): "please
+// open a relay channel for this char on its main map". World
+// routes to the char's main_server_id and forwards
+// MW_RELAYCONNECT_REQ with bRelayOn=1.
+//
+// Wire layout: DWORD dwCharID
+boost::asio::awaitable<void> OnRelayConnectReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

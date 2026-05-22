@@ -91,6 +91,22 @@ public:
     // CN-matching perspective.
     const std::string& PeerCommonName() const { return m_peer_cn; }
 
+    // SubjectAltName DNS entries from the peer certificate. RFC 5280
+    // §4.2.1.6 deprecates CN-as-identity in favor of SAN. Modern PKI
+    // tools (cert-manager, step-ca, ACME) populate SAN by default
+    // and may leave CN empty. Identity-matching handlers should
+    // accept a name match against either PeerCommonName() or any
+    // entry in this list.
+    //
+    // Only the DNS-type subAltName entries are captured (the IP-type
+    // entries are not used by this project's identity scheme).
+    // Returns empty vector for non-TLS sessions or certs without
+    // a SAN extension.
+    const std::vector<std::string>& PeerSubjectAltNames() const
+    {
+        return m_peer_sans;
+    }
+
     std::chrono::steady_clock::time_point ConnectedAt() const
     {
         return m_connected_at;
@@ -117,6 +133,7 @@ private:
     SocketVariant                         m_socket;
     std::string                           m_remote_ipv4;
     std::string                           m_peer_cn;
+    std::vector<std::string>              m_peer_sans;
     std::vector<std::byte>                m_send_scratch;
     std::chrono::steady_clock::time_point m_connected_at{
         std::chrono::steady_clock::now()};

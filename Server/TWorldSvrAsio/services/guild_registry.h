@@ -93,6 +93,44 @@ struct TGuild
     // FindMember(name) do a linear scan. W3a-3 will add a name
     // index once benchmarks demand it.
     std::vector<TGuildMember> members;
+
+    // --- W3a-4 in-place member helpers --------------------------
+    //
+    // Each one expects the caller to hold `lock` already. The
+    // returned pointer is into `members` and is invalidated by
+    // any subsequent erase/push_back, so callers must finish
+    // reading before mutating the vector.
+
+    TGuildMember* FindMember(std::uint32_t char_id_to_find)
+    {
+        for (auto& m : members)
+            if (m.char_id == char_id_to_find) return &m;
+        return nullptr;
+    }
+    const TGuildMember* FindMember(std::uint32_t char_id_to_find) const
+    {
+        for (const auto& m : members)
+            if (m.char_id == char_id_to_find) return &m;
+        return nullptr;
+    }
+
+    // Remove the member with the matching char_id. Returns true if
+    // a member was removed, false if char_id wasn't a member. Does
+    // NOT touch any TChar back-pointers — caller must clear
+    // TChar.guild_id separately so the actor-model invariant
+    // "TChar.guild_id is consistent with TGuild membership" holds.
+    bool RemoveMember(std::uint32_t char_id_to_remove)
+    {
+        for (auto it = members.begin(); it != members.end(); ++it)
+        {
+            if (it->char_id == char_id_to_remove)
+            {
+                members.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 class GuildRegistry

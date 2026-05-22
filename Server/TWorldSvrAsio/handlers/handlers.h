@@ -84,6 +84,19 @@ boost::asio::awaitable<void> OnGuildLoadAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// W3a-4: char chose to leave their guild. Map server already
+// confirmed locally; world removes the member from the guild's
+// in-memory member list, clears TChar.guild_id, and pings the
+// originating peer with MW_GUILDLEAVE_REQ so it can forward the
+// confirmation back to the client. Persistence to TGUILDMEMBERTABLE
+// follows in W3a-4b once the IGuildRepository write API ships.
+//
+// Wire layout (SSHandler.cpp:3571): DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildLeaveAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-2: RW relay handshake (handlers_relay.cpp) ----------------
 //
 // First packet a map server sends after TCP connect. Carries the

@@ -186,3 +186,12 @@ target_link_libraries(test_tworldsvr_asio_rw_lookup_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_rw_lookup_handlers
     COMMAND test_tworldsvr_asio_rw_lookup_handlers)
+
+# W3a-4 wire test: MW_GUILDLEAVE_ACK + TChar.guild_id back-pointer
+# invariant + the side-effect on a subsequent OnEnterCharReq.
+add_executable(test_tworldsvr_asio_guild_mut_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_guild_mut_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_guild_mut_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_guild_mut_handlers
+    COMMAND test_tworldsvr_asio_guild_mut_handlers)

@@ -138,4 +138,29 @@ boost::asio::awaitable<void> SendMwRelayconnectReq(
     std::uint32_t                char_id,
     std::uint8_t                 relay_on);
 
+// MW_GUILDLEAVE_REQ — sent back to the originating map server
+// after world removes a member from a guild. The map server
+// forwards the confirmation down to the client + broadcasts the
+// member-offline event to other guild members.
+//
+// Wire layout (SSHandler.cpp:3600 SendMW_GUILDLEAVE_REQ):
+//   DWORD  dwCharID
+//   DWORD  dwKey
+//   STRING strName     -- the leaving char's name
+//   BYTE   bLeave      -- reason (GUILD_LEAVE_SELF / KICKOUT / DISORG)
+//   DWORD  dwTime      -- m_timeCurrent (Unix sec) when the leave landed
+boost::asio::awaitable<void> SendMwGuildLeaveReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           name,
+    std::uint8_t                 leave_reason,
+    std::uint32_t                time_unix);
+
+// Reason codes for SendMwGuildLeaveReq.bLeave. Mirrors NetCode.h
+// GUILD_LEAVE_* values. Only the W3a-4 batch's reason is duplicated
+// here; the kickout / disorg reasons land with their matching
+// handlers in W3a-4b.
+constexpr std::uint8_t kGuildLeaveSelf = 1;   // GUILD_LEAVE_SELF
+
 } // namespace tworldsvr::senders

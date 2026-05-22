@@ -1091,6 +1091,264 @@ OnGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
                  "persisted", ip, guild_id, max_cabinet);
 }
 
+// --- W3a-11 guild wanted board ------------------------------------
+
+namespace {
+
+// Build wanted-list rows snapshot from the registry filtered by
+// country. Used by both the explicit LIST handler and by the
+// add/del handlers' refresh tail. `applicant_char_id` is the
+// requester's id — we'd set already_applied=1 for any row whose
+// guild_id matches the requester's pending application, but the
+// applicant subsystem ships in W3a-12+, so the flag is always 0
+// for now.
+std::vector<senders::GuildWantedRow>
+BuildWantedRows(const GuildWantedRegistry& reg,
+                std::uint8_t               country,
+                std::uint32_t              /*applicant_char_id*/)
+{
+    auto entries = reg.SnapshotByCountry(country);
+    std::vector<senders::GuildWantedRow> rows;
+    rows.reserve(entries.size());
+    for (const auto& w : entries)
+    {
+        senders::GuildWantedRow r;
+        r.guild_id        = w.guild_id;
+        r.name            = w.name;
+        r.title           = w.title;
+        r.text            = w.text;
+        r.min_level       = w.min_level;
+        r.max_level       = w.max_level;
+        r.end_time_unix   = w.end_time;
+        r.already_applied = 0;   // TODO W3a-12+: applicant lookup
+        rows.push_back(std::move(r));
+    }
+    return rows;
+}
+
+boost::asio::awaitable<void>
+SendWantedList(std::shared_ptr<PeerSession> peer,
+               const HandlerContext&        ctx,
+               std::uint32_t                char_id,
+               std::uint32_t                key,
+               std::uint8_t                 country)
+{
+    if (!ctx.guild_wanted)
+    {
+        co_await senders::SendMwGuildWantedListReq(peer, char_id, key, {});
+        co_return;
+    }
+    auto rows = BuildWantedRows(*ctx.guild_wanted, country, char_id);
+    co_await senders::SendMwGuildWantedListReq(peer, char_id, key, rows);
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildWantedAddAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.guild_wanted)
+    {
+        spdlog::warn("OnGuildWantedAddAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, legacy_id = 0;
+    std::string   title, text;
+    std::uint8_t  min_level = 0, max_level = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(legacy_id) ||
+        !r.ReadString(title) || !r.ReadString(text) ||
+        !r.Read(min_level) || !r.Read(max_level))
+    {
+        spdlog::warn("OnGuildWantedAddAck[{}]: short body", ip);
+        co_return;
+    }
+    (void)legacy_id;   // unused after schema migration; kept for wire compat
+
+    // Caps + empty-title gate (legacy SSHandler.cpp:4453-4458 —
+    // silent-drop on overflow / empty title; the client UI
+    // shouldn't have let this through).
+    if (title.empty() || title.size() > guild::kMaxBoardTitle ||
+        text.size() > guild::kMaxBoardText)
+        co_return;
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t guild_id = 0, actual_key = 0;
+    std::uint8_t  char_country = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key   = tchar->key;
+        guild_id     = tchar->guild_id;
+        char_country = tchar->country;
+    }
+    if (actual_key != key || guild_id == 0)
+    {
+        co_await senders::SendMwGuildWantedAddReq(peer, char_id, key,
+            guild::kFail);
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        co_await senders::SendMwGuildWantedAddReq(peer, char_id, key,
+            guild::kFail);
+        co_return;
+    }
+    std::string guild_name;
+    bool        is_disorg = false;
+    {
+        std::lock_guard gl(guild->lock);
+        is_disorg  = (guild->disorg != 0);
+        guild_name = guild->name;
+    }
+    if (is_disorg)
+    {
+        co_await senders::SendMwGuildWantedAddReq(peer, char_id, key,
+            guild::kFail);
+        co_return;
+    }
+
+    const std::int64_t now =
+        static_cast<std::int64_t>(std::time(nullptr));
+    const std::int64_t end_time = now + guild::kGuildWantedPeriodSec;
+
+    TGuildWanted entry;
+    entry.guild_id  = guild_id;
+    entry.country   = char_country;
+    entry.min_level = min_level;
+    entry.max_level = max_level;
+    entry.end_time  = end_time;
+    entry.name      = guild_name;
+    entry.title     = title;
+    entry.text      = text;
+    ctx.guild_wanted->AddOrUpdate(entry);
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, min_level, max_level,
+             title, text, end_time] {
+                repo->AddWanted(guild_id, min_level, max_level, title,
+                    text, end_time);
+            });
+    }
+
+    co_await senders::SendMwGuildWantedAddReq(peer, char_id, key,
+        guild::kSuccess);
+    co_await SendWantedList(peer, ctx, char_id, key, char_country);
+
+    spdlog::info("OnGuildWantedAddAck[{}]: char_id={} guild_id={} "
+                 "country={} levels {}–{}", ip, char_id, guild_id,
+        char_country, min_level, max_level);
+}
+
+boost::asio::awaitable<void>
+OnGuildWantedDelAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guild_wanted)
+    {
+        spdlog::warn("OnGuildWantedDelAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, legacy_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(legacy_id))
+    {
+        spdlog::warn("OnGuildWantedDelAck[{}]: short body", ip);
+        co_return;
+    }
+    (void)legacy_id;
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t guild_id = 0, actual_key = 0;
+    std::uint8_t  char_country = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key   = tchar->key;
+        guild_id     = tchar->guild_id;
+        char_country = tchar->country;
+    }
+    if (actual_key != key || guild_id == 0)
+    {
+        co_await senders::SendMwGuildWantedDelReq(peer, char_id, key,
+            guild::kFail);
+        co_return;
+    }
+
+    const bool removed = ctx.guild_wanted->Remove(guild_id);
+    if (!removed)
+    {
+        co_await senders::SendMwGuildWantedDelReq(peer, char_id, key,
+            guild::kFail);
+        co_return;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id] {
+                repo->DeleteWanted(guild_id);
+            });
+    }
+    co_await senders::SendMwGuildWantedDelReq(peer, char_id, key,
+        guild::kSuccess);
+    co_await SendWantedList(peer, ctx, char_id, key, char_country);
+
+    spdlog::info("OnGuildWantedDelAck[{}]: char_id={} guild_id={} removed",
+        ip, char_id, guild_id);
+}
+
+boost::asio::awaitable<void>
+OnGuildWantedListAck(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guild_wanted)
+    {
+        spdlog::warn("OnGuildWantedListAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildWantedListAck[{}]: short body", ip);
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0;
+    std::uint8_t  char_country = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key   = tchar->key;
+        char_country = tchar->country;
+    }
+    if (actual_key != key) co_return;
+
+    // TODO W3a-12+ scheduler: SM_EVENTEXPIRED_ACK fan-out for
+    // entries whose end_time + DAY_ONE elapsed. Until the timer
+    // sweeps land we just hand out everything in the registry
+    // and let the client filter on end_time.
+
+    co_await SendWantedList(peer, ctx, char_id, key, char_country);
+    spdlog::info("OnGuildWantedListAck[{}]: char_id={} country={} list",
+        ip, char_id, char_country);
+}
+
 // --- W3a-10 money recover + guild extinction ----------------------
 
 boost::asio::awaitable<void>

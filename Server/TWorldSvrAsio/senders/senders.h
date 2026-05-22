@@ -213,6 +213,61 @@ boost::asio::awaitable<void> SendMwGuildFameReq(
     std::uint32_t                fame,
     std::uint32_t                fame_color);
 
+// --- W3a-11 guild wanted board ------------------------------------
+
+// MW_GUILDWANTEDADD_REQ — 3-byte result reply after a chief
+// posts a wanted entry. Mirrors SSSender.cpp:1242.
+boost::asio::awaitable<void> SendMwGuildWantedAddReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_GUILDWANTEDDEL_REQ — 3-byte result reply for the delete
+// branch. Mirrors SSSender.cpp:1256.
+boost::asio::awaitable<void> SendMwGuildWantedDelReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_GUILDWANTEDLIST_REQ — variable-length list of wanted
+// entries filtered by country. The `applied` byte per row marks
+// whether the requesting char has an applicant record for that
+// guild — always false in W3a-11 (volunteer/applicant subsystem
+// arrives in W3a-12+).
+//
+// Wire layout (SSSender.cpp:1269 — DWORD count + 8 fields per row):
+//   DWORD  dwCharID
+//   DWORD  dwKey
+//   DWORD  entry_count
+//   × entry_count:
+//     DWORD  dwGuildID
+//     STRING strName
+//     STRING strTitle
+//     STRING strText
+//     BYTE   bMinLevel
+//     BYTE   bMaxLevel
+//     INT64  end_time_unix
+//     BYTE   already_applied
+struct GuildWantedRow
+{
+    std::uint32_t guild_id        = 0;
+    std::string   name;
+    std::string   title;
+    std::string   text;
+    std::uint8_t  min_level       = 0;
+    std::uint8_t  max_level       = 0;
+    std::int64_t  end_time_unix   = 0;
+    std::uint8_t  already_applied = 0;
+};
+
+boost::asio::awaitable<void> SendMwGuildWantedListReq(
+    std::shared_ptr<PeerSession>         peer,
+    std::uint32_t                        char_id,
+    std::uint32_t                        key,
+    const std::vector<GuildWantedRow>&   entries);
+
 // --- W3a-9 single guild info refresh ------------------------------
 
 // MW_GUILDINFO_REQ — large composite reply with the requester's

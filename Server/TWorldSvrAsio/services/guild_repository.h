@@ -136,6 +136,23 @@ public:
                                const std::string& title,
                                const std::string& body) = 0;
 
+    // --- W3a-11 guild wanted board --------------------------------
+
+    // Upsert into TGUILDWANTEDTABLE (legacy CSPGuildWantedAdd
+    // creates a new row or updates the existing one for this
+    // guild). The end_time field is computed by the handler
+    // (now + kGuildWantedPeriodSec) — repo just persists.
+    virtual bool AddWanted(std::uint32_t      guild_id,
+                           std::uint8_t       min_level,
+                           std::uint8_t       max_level,
+                           const std::string& title,
+                           const std::string& text,
+                           std::int64_t       end_time_unix) = 0;
+
+    // Delete the wanted row for one guild. Mirrors
+    // CSPGuildWantedDel.
+    virtual bool DeleteWanted(std::uint32_t guild_id) = 0;
+
     // --- W3a-10 guild lifecycle (extinction) ---------------------
 
     // Delete the guild row + sweep the children. Mirrors

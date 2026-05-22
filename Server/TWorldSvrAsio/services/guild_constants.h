@@ -71,4 +71,12 @@ constexpr std::size_t  kMaxBoardTitle        = 256;
 constexpr std::size_t  kMaxBoardText         = 2048;
 constexpr std::uint8_t kMaxGuildArticleCount = 100;
 
+// GUILDWANTED_PERIOD from TWorldType.h: how long a "we are
+// recruiting" entry stays in the wanted-board before expiring.
+// 14 days = 1 209 600 seconds. The legacy timer-thread sweeps
+// expired entries via SM_EVENTEXPIRED_ACK fan-out; the modern
+// equivalent (a periodic prune coroutine) lands with the W7+
+// scheduler work.
+constexpr std::int64_t kGuildWantedPeriodSec = 60LL * 60 * 24 * 14;
+
 } // namespace tworldsvr::guild

@@ -20,6 +20,7 @@
 #include "../services/guild_level_cache.h"
 #include "../services/guild_registry.h"
 #include "../services/guild_repository.h"
+#include "../services/guild_wanted_registry.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -55,6 +56,11 @@ struct HandlerContext
     // slot limits). Read-only after main wires it; nullptr means
     // "not loaded" (dev path without [database] + no fake seed).
     const GuildLevelCache*    guild_levels = nullptr;
+
+    // W3a-11: cluster-wide list of "we are recruiting" postings.
+    // One entry per guild, filtered cross-country on read. Owned
+    // by main; non-null in W3a-11+ deploys.
+    GuildWantedRegistry*      guild_wanted = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -208,6 +214,44 @@ boost::asio::awaitable<void> OnGuildPeerAck(
 // Wire layout (SSHandler.cpp:3830):
 //   DWORD dwCharID, DWORD dwKey
 boost::asio::awaitable<void> OnGuildMemberListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3a-11: guild wanted board (handlers_guild.cpp) --------------
+
+// Chief posts a "we are recruiting" entry. World validates caps
+// + member-of-guild gate + not-disorg gate + writes the entry
+// to GuildWantedRegistry (upserts on second post from the same
+// chief) + persists via IGuildRepository::AddWanted + replies
+// MW_GUILDWANTEDADD_REQ + a fresh LIST refresh.
+//
+// Wire layout (SSHandler.cpp:4432):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwID (unused after legacy
+//   schema migration; kept for wire compat),
+//   STRING strTitle, STRING strText, BYTE bMinLevel, BYTE bMaxLevel
+boost::asio::awaitable<void> OnGuildWantedAddAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Chief removes their guild's wanted entry.
+//
+// Wire layout (SSHandler.cpp:4483):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwID (unused — see above)
+boost::asio::awaitable<void> OnGuildWantedDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Player opens the recruitment board → server replies with every
+// wanted entry filtered by the player's country. Includes the
+// "I already applied here" flag derived from a per-char
+// applicant record (W3a-12+ — for now always false).
+//
+// Wire layout (SSHandler.cpp:4515):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildWantedListAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

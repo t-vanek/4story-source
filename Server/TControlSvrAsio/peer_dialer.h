@@ -16,6 +16,8 @@
 #include "services/peer_registry.h"
 #include "services/service_inventory.h"
 
+#include "fourstory/security/peer_security_gate.h"
+
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
@@ -53,6 +55,17 @@ public:
     // std::optional<ssl::context> in main.cpp). null = plain TCP.
     void SetTlsContext(boost::asio::ssl::context* ctx) { m_ssl_ctx = ctx; }
 
+    // Wire the cluster security gate so the dialer can enforce that
+    // the peer cert's CN / SAN matches the operator-configured
+    // peer_name for the target identity. When null, the dialer
+    // only logs the captured CN — matching what PR #49 shipped.
+    // When set, an identity mismatch closes the session with a
+    // descriptive failure_reason instead of publishing it.
+    void SetSecurityGate(fourstory::security::PeerSecurityGate* gate)
+    {
+        m_security = gate;
+    }
+
     // Dial the service's machine first private address + service
     // port. Returns a PeerSession on success (already registered
     // with PeerRegistry). On failure returns a result with an empty
@@ -64,7 +77,8 @@ private:
     PeerRegistry&               m_registry;
     const IServiceInventory&    m_inventory;
     std::chrono::milliseconds   m_timeout;
-    boost::asio::ssl::context*  m_ssl_ctx = nullptr;
+    boost::asio::ssl::context*  m_ssl_ctx  = nullptr;
+    fourstory::security::PeerSecurityGate* m_security = nullptr;
 };
 
 } // namespace tcontrolsvr

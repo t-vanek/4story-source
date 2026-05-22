@@ -191,6 +191,49 @@ std::vector<std::byte> FameBody(std::uint32_t char_id,
     return b;
 }
 
+std::vector<std::byte> KickoutBody(std::uint32_t char_id,
+                                    std::uint32_t key,
+                                    const std::string& target_name)
+{
+    std::vector<std::byte> b;
+    tworldsvr::wire::WritePOD(b, char_id);
+    tworldsvr::wire::WritePOD(b, key);
+    tworldsvr::wire::WriteString(b, target_name);
+    return b;
+}
+
+std::vector<std::byte> ContributionBody(std::uint32_t char_id,
+                                         std::uint32_t key,
+                                         std::uint32_t exp,
+                                         std::uint32_t gold,
+                                         std::uint32_t silver,
+                                         std::uint32_t cooper,
+                                         std::uint32_t pvp_point)
+{
+    std::vector<std::byte> b;
+    tworldsvr::wire::WritePOD(b, char_id);
+    tworldsvr::wire::WritePOD(b, key);
+    tworldsvr::wire::WritePOD(b, exp);
+    tworldsvr::wire::WritePOD(b, gold);
+    tworldsvr::wire::WritePOD(b, silver);
+    tworldsvr::wire::WritePOD(b, cooper);
+    tworldsvr::wire::WritePOD(b, pvp_point);
+    return b;
+}
+
+std::vector<std::byte> MemberAddBody(std::uint32_t guild_id,
+                                      std::uint32_t char_id,
+                                      std::uint8_t  level,
+                                      std::uint8_t  duty)
+{
+    std::vector<std::byte> b;
+    tworldsvr::wire::WritePOD(b, guild_id);
+    tworldsvr::wire::WritePOD(b, char_id);
+    tworldsvr::wire::WritePOD(b, level);
+    tworldsvr::wire::WritePOD(b, duty);
+    return b;
+}
+
 std::vector<std::byte> EntercharBody(std::uint32_t char_id,
                                       const std::string& name)
 {
@@ -487,6 +530,109 @@ int main()
         EXPECT(w == ToUint16(MessageId::RW_ENTERCHAR_ACK));
     }
 
+    // --- Scenario 10: Cancel disorg + KICKOUT ------------------------
+    //
+    // Re-enable the guild (legacy lets the chief cancel disorg by
+    // sending bDisorg=0), then exercise OnGuildKickoutAck. After
+    // the kick, Bravo2's guild_id should be 0 and the guild's
+    // members vector should contain only the chief.
+    SendFramed(peer1, ToUint16(MessageId::DM_GUILDDISORGANIZATION_REQ),
+        DisorgBody(200, 0xBEEF1111, 8, /*disorg=*/ 0));
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDDISORGANIZATION_REQ)); }
+
+    SendFramed(peer1, ToUint16(MessageId::MW_GUILDKICKOUT_ACK),
+        KickoutBody(200, 0xBEEF1111, "Bravo2"));
+    // Two GUILDLEAVE_REQ replies expected: one to the chief
+    // (peer1) about the kick, one to Bravo2's main peer
+    // (also peer1 since both share wID 0x42).
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDLEAVE_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0, key = 0; std::string name;
+        std::uint8_t reason = 0;
+        EXPECT(r.Read(cid));        EXPECT(cid == 200);
+        EXPECT(r.Read(key));
+        EXPECT(r.ReadString(name)); EXPECT(name == "Bravo2");
+        EXPECT(r.Read(reason));     EXPECT(reason == tworldsvr::guild::kLeaveKick);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDLEAVE_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0, key = 0; std::string name;
+        std::uint8_t reason = 0;
+        EXPECT(r.Read(cid));        EXPECT(cid == 201);   // Bravo2 himself
+        EXPECT(r.Read(key));
+        EXPECT(r.ReadString(name));
+        EXPECT(r.Read(reason));     EXPECT(reason == tworldsvr::guild::kLeaveKick);
+    }
+    {
+        auto g = guilds.Find(8);
+        if (g) { std::lock_guard gl(g->lock); EXPECT(g->members.size() == 1); }
+        auto bravo = chars.Find(201);
+        if (bravo) { std::lock_guard cg(bravo->lock); EXPECT(bravo->guild_id == 0); }
+    }
+
+    // --- Scenario 11: CONTRIBUTION applies deltas --------------------
+    //
+    // Chief contributes 100 exp + 500 gold + 2000 pvp_point. Guild
+    // gold goes 9999 → 10499, member service score 0 → 100.
+    SendFramed(peer1, ToUint16(MessageId::MW_GUILDCONTRIBUTION_ACK),
+        ContributionBody(200, 0xBEEF1111, /*exp*/100, /*gold*/500,
+            /*silver*/0, /*cooper*/0, /*pvp*/2000));
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDCONTRIBUTION_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0, key = 0, exp = 0, gold = 0, silver = 0,
+                       cooper = 0, pvp = 0;
+        std::uint8_t result = 0;
+        EXPECT(r.Read(cid));    EXPECT(cid == 200);
+        EXPECT(r.Read(key));
+        EXPECT(r.Read(result)); EXPECT(result == tworldsvr::guild::kSuccess);
+        EXPECT(r.Read(exp));    EXPECT(exp == 100);
+        EXPECT(r.Read(gold));   EXPECT(gold == 500);
+        EXPECT(r.Read(silver));
+        EXPECT(r.Read(cooper));
+        EXPECT(r.Read(pvp));    EXPECT(pvp == 2000);
+    }
+    {
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->gold == 9999 + 500);
+            EXPECT(g->exp  == 50000 + 100);
+            const auto* chief = g->FindMember(200);
+            EXPECT(chief && chief->service == 100);
+        }
+    }
+
+    // --- Scenario 12: DM_GUILDMEMBERADD_REQ persists, no reply -------
+    //
+    // Pure DB write — confirm the fake repo recorded the call,
+    // then send a follow-up RW_ENTERCHAR_REQ to prove the framer
+    // stayed alive (no reply between sends).
+    SendFramed(peer1, ToUint16(MessageId::DM_GUILDMEMBERADD_REQ),
+        MemberAddBody(8, /*char*/ 333, /*level*/ 5,
+            tworldsvr::guild::kDutyNone));
+    SendFramed(peer1, ToUint16(MessageId::RW_ENTERCHAR_REQ),
+        EntercharBody(200, "Bob"));
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::RW_ENTERCHAR_ACK)); }
+    {
+        bool saw_add = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind::kAddMember
+                && c.guild_id == 8 && c.char_id == 333 && c.a == 5
+                && c.b == tworldsvr::guild::kDutyNone)
+            { saw_add = true; break; }
+        }
+        EXPECT(saw_add);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -496,7 +642,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (9 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (12 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

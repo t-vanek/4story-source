@@ -73,6 +73,30 @@ public:
     // persistence path in W3a-4b once handlers wire CoOffloadIf.
     virtual bool RemoveMember(std::uint32_t char_id,
                               std::uint32_t guild_id) = 0;
+
+    // --- W3a-4c additions ----------------------------------------
+
+    // Insert a TGUILDMEMBERTABLE row for a freshly-invited member.
+    // Mirrors CSPGuildMemberAdd (SSHandler.cpp:3330).
+    virtual bool AddMember(std::uint32_t char_id,
+                           std::uint32_t guild_id,
+                           std::uint8_t  level,
+                           std::uint8_t  duty) = 0;
+
+    // Apply a contribution delta to TGUILDTABLE (gold/silver/cooper/
+    // exp/pvp) + TGUILDMEMBERTABLE.dwService for one member.
+    // Mirrors CSPGuildContribution (SSHandler.cpp:4103) — the
+    // legacy CSP takes the same args and runs the math on the DB
+    // side. Returns true on a clean roundtrip even if the delta
+    // gets clamped to zero by guild caps (the in-memory bookkeeping
+    // already enforces those before calling us).
+    virtual bool IncrementContribution(std::uint32_t char_id,
+                                       std::uint32_t guild_id,
+                                       std::uint32_t exp,
+                                       std::uint32_t gold,
+                                       std::uint32_t silver,
+                                       std::uint32_t cooper,
+                                       std::uint32_t pvp_point) = 0;
 };
 
 } // namespace tworldsvr

@@ -212,6 +212,31 @@ boost::asio::awaitable<void> SendMwGuildFameReq(
     std::uint32_t                fame,
     std::uint32_t                fame_color);
 
+// MW_GUILDCONTRIBUTION_REQ — reply after a member contributes
+// gold/silver/cooper/exp/pvp to the guild. The bResult byte
+// surfaces failure modes (guild full level + 0 exp, member not
+// found, etc.).
+//
+// Wire layout (SSSender.cpp:1111):
+//   DWORD dwCharID
+//   DWORD dwKey
+//   BYTE  bResult
+//   DWORD dwExp
+//   DWORD dwGold
+//   DWORD dwSilver
+//   DWORD dwCooper
+//   DWORD dwPvPoint
+boost::asio::awaitable<void> SendMwGuildContributionReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                exp,
+    std::uint32_t                gold,
+    std::uint32_t                silver,
+    std::uint32_t                cooper,
+    std::uint32_t                pvp_point);
+
 // Reason codes for SendMwGuildLeaveReq.bLeave (kLeaveSelf /
 // kLeaveKick / kLeaveDisorganization) live in
 // services/guild_constants.h alongside the rest of GUILD_*.

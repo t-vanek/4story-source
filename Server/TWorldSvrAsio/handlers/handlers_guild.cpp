@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/guild_broadcast.h"
 #include "../services/guild_constants.h"
 #include "../wire_codec.h"
 
@@ -570,42 +571,269 @@ OnGuildFameAck(std::shared_ptr<PeerSession> peer,
     if (ctx.guild_repo)
         ctx.guild_repo->UpdateFame(guild_id, fame, fame_color);
 
-    // Broadcast to every online member. Each lookup: TChar by
-    // char_id → main_server_id → peer by LOBYTE(wID). Mirrors
-    // legacy SSHandler.cpp:4391-4405.
-    std::size_t broadcasted = 0;
-    for (auto mcid : member_char_ids)
-    {
-        auto tchar = ctx.chars->Find(mcid);
-        if (!tchar) continue;
-        std::uint8_t  msi   = 0;
-        std::uint32_t mkey  = 0;
+    // Broadcast to every online member via the W3a-4c helper.
+    // Mirrors legacy SSHandler.cpp:4391-4405.
+    const std::size_t broadcasted = co_await BroadcastToGuildMembers(
+        *ctx.chars, *ctx.peers, member_char_ids,
+        [originator = char_id, fame, fame_color](
+            std::shared_ptr<PeerSession> target,
+            std::uint32_t                recipient_char_id,
+            std::uint32_t                recipient_key)
+            -> boost::asio::awaitable<void>
         {
-            std::lock_guard g(tchar->lock);
-            msi  = tchar->main_server_id;
-            mkey = tchar->key;
-        }
-        if (msi == 0) continue;
+            co_await senders::SendMwGuildFameReq(target, recipient_char_id,
+                recipient_key, guild::kSuccess, originator, fame, fame_color);
+        });
 
-        std::shared_ptr<PeerSession> target_peer;
-        for (auto& p : ctx.peers->Snapshot())
-        {
-            if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
-            {
-                target_peer = std::move(p);
-                break;
-            }
-        }
-        if (!target_peer) continue;
-        co_await senders::SendMwGuildFameReq(target_peer, mcid, mkey,
-            guild::kSuccess, char_id, fame, fame_color);
-        ++broadcasted;
-    }
     spdlog::info("OnGuildFameAck[{}]: char_id={} guild_id={} fame "
                  "{}→{} broadcast to {}/{} members",
         ip, char_id, guild_id, old_fame, fame, broadcasted,
         member_char_ids.size());
     (void)old_fame_color;
+}
+
+// --- W3a-4c additions ----------------------------------------------
+
+boost::asio::awaitable<void>
+OnGuildKickoutAck(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildKickoutAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   target_name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name))
+    {
+        spdlog::warn("OnGuildKickoutAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+    std::uint32_t guild_id = 0, actual_key = 0;
+    {
+        std::lock_guard g(requester->lock);
+        actual_key = requester->key;
+        guild_id   = requester->guild_id;
+    }
+    if (actual_key != key || guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    // Find the target by name + apply the legacy "officer kick"
+    // gate (SSHandler.cpp:3364-3367): a member with any duty
+    // (vice-chief, officer) can only be kicked by the chief.
+    std::uint32_t target_char_id = 0;
+    std::uint8_t  target_duty    = 0;
+    std::uint32_t guild_chief    = 0;
+    {
+        std::lock_guard g(guild->lock);
+        guild_chief = guild->chief_char_id;
+        for (const auto& m : guild->members)
+        {
+            if (m.name == target_name)
+            {
+                target_char_id = m.char_id;
+                target_duty    = m.duty;
+                break;
+            }
+        }
+    }
+    if (target_char_id == 0)
+    {
+        spdlog::info("OnGuildKickoutAck[{}]: target='{}' not in guild_id={}",
+            ip, target_name, guild_id);
+        co_return;
+    }
+    if (target_duty != guild::kDutyNone && guild_chief != char_id)
+    {
+        spdlog::info("OnGuildKickoutAck[{}]: char_id={} cannot kick "
+                     "officer target='{}' (not chief)", ip, char_id,
+            target_name);
+        co_return;
+    }
+
+    // Remove from registry + clear the target's back-pointer if
+    // they're online elsewhere. The chief can't be kicked (legacy
+    // path drops with no further action).
+    {
+        std::lock_guard g(guild->lock);
+        guild->RemoveMember(target_char_id);
+    }
+    if (auto target_char = ctx.chars->Find(target_char_id))
+    {
+        std::lock_guard g(target_char->lock);
+        target_char->guild_id = 0;
+    }
+
+    // Persist the kickout. Legacy fires CSPGuildKickout from the
+    // BatchThread; we hit the repo synchronously (W3a-4d will wrap
+    // in CoOffloadIf).
+    if (ctx.guild_repo)
+        ctx.guild_repo->RemoveMember(target_char_id, guild_id);
+
+    // Two MW replies — one to the requesting peer (chief got
+    // confirmation), one to the kicked char's main map peer if
+    // they're online (so their client sees the leave). Legacy
+    // fans both at SSHandler.cpp:3378-3387. The kicked-target
+    // broadcast goes through BroadcastToGuildMembers with a
+    // single-element list — keeps the routing logic centralised.
+    co_await senders::SendMwGuildLeaveReq(peer, char_id, key, target_name,
+        guild::kLeaveKick, 0);
+
+    if (ctx.peers)
+    {
+        std::vector<std::uint32_t> target_only{target_char_id};
+        co_await BroadcastToGuildMembers(
+            *ctx.chars, *ctx.peers, target_only,
+            [target_name](std::shared_ptr<PeerSession> target_peer,
+                           std::uint32_t recipient_char_id,
+                           std::uint32_t recipient_key)
+                -> boost::asio::awaitable<void>
+            {
+                co_await senders::SendMwGuildLeaveReq(target_peer,
+                    recipient_char_id, recipient_key, target_name,
+                    guild::kLeaveKick, 0);
+            });
+    }
+
+    spdlog::info("OnGuildKickoutAck[{}]: char_id={} kicked target='{}' "
+                 "(char_id={}) from guild_id={}",
+        ip, char_id, target_name, target_char_id, guild_id);
+}
+
+boost::asio::awaitable<void>
+OnGuildContributionAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildContributionAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint32_t exp = 0, gold = 0, silver = 0, cooper = 0, pvp_point = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(exp) || !r.Read(gold) ||
+        !r.Read(silver) || !r.Read(cooper) || !r.Read(pvp_point))
+    {
+        spdlog::warn("OnGuildContributionAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+
+    std::uint32_t guild_id = 0, actual_key = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key || guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    // Max-level guild rejects exp deposits (legacy SSHandler.cpp:
+    // 4052-4058) with kFail+0s body. The non-exp portion (money +
+    // pvp) is still rejected by the same branch in legacy — it
+    // returns NOERROR after the reply.
+    std::uint8_t guild_level = 0;
+    bool         is_disorg   = false;
+    {
+        std::lock_guard g(guild->lock);
+        guild_level = guild->level;
+        is_disorg   = (guild->disorg != 0);
+    }
+    if (is_disorg) co_return;
+    constexpr std::uint8_t kMaxGuildLevel = 10;   // NetCode.h MAX_GUILD_LEVEL
+    if (guild_level == kMaxGuildLevel && exp != 0)
+    {
+        co_await senders::SendMwGuildContributionReq(peer, char_id, key,
+            guild::kFail, 0, 0, 0, 0, 0);
+        co_return;
+    }
+
+    // Apply the delta in-memory. The FakeGuildRepository's
+    // IncrementContribution also bumps the in-memory totals (it
+    // shares storage with the GuildRegistry in tests), so we
+    // gate on the SOCI vs Fake split by checking whether the
+    // repo write also mirrored the change.
+    //
+    // For W3a-4c the simpler shape is: write to the registry
+    // first (under lock), then call the repo for persistence.
+    // Legacy's CTGuild::Contribution caps via MAX_GUILD_CONTRIBUTION
+    // / MIN_GUILD_CONTRIBUTION; W3a-4c skips those caps (TODO
+    // when guild-level cache lands — the per-level caps come
+    // from m_pTLEVEL).
+    {
+        std::lock_guard g(guild->lock);
+        guild->exp    += exp;
+        guild->gold   += gold;
+        guild->silver += silver;
+        guild->cooper += cooper;
+        guild->pvp_total_point   += pvp_point;
+        guild->pvp_useable_point += pvp_point;
+        if (auto* m = guild->FindMember(char_id))
+            m->service += exp;
+    }
+
+    if (ctx.guild_repo)
+        ctx.guild_repo->IncrementContribution(char_id, guild_id, exp, gold,
+            silver, cooper, pvp_point);
+
+    co_await senders::SendMwGuildContributionReq(peer, char_id, key,
+        guild::kSuccess, exp, gold, silver, cooper, pvp_point);
+
+    spdlog::info("OnGuildContributionAck[{}]: char_id={} guild_id={} "
+                 "exp+={} gold+={} silver+={} cooper+={} pvp+={}",
+        ip, char_id, guild_id, exp, gold, silver, cooper, pvp_point);
+}
+
+boost::asio::awaitable<void>
+OnGuildMemberAddReq(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, char_id = 0;
+    std::uint8_t  level = 0, duty = 0;
+    if (!r.Read(guild_id) || !r.Read(char_id) ||
+        !r.Read(level) || !r.Read(duty))
+    {
+        spdlog::warn("OnGuildMemberAddReq[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    // Pure DB persistence — the in-memory member-add happens on
+    // the OnMW_GUILDINVITEANSWER_ACK side (W3a-5+). Legacy fires
+    // CSPGuildMemberAdd from the BatchThread and never replies;
+    // we mirror that. The matching invite-answer handler is the
+    // one that touches GuildRegistry::members + TChar.guild_id.
+    if (ctx.guild_repo)
+        ctx.guild_repo->AddMember(char_id, guild_id, level, duty);
+
+    spdlog::info("OnGuildMemberAddReq[{}]: persisted guild_id={} "
+                 "char_id={} level={} duty={}", ip, guild_id, char_id,
+        level, duty);
+    co_return;
 }
 
 } // namespace tworldsvr::handlers

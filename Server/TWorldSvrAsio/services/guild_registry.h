@@ -49,6 +49,14 @@ struct TGuildMember
     std::uint8_t  klass     = 0;   // m_bClass
     std::uint32_t tactics   = 0;   // m_dwTactics — tactics-guild id
     std::uint8_t  war_country = 0; // m_bWarCountry
+
+    // W3a-7 — TGUILDMEMBERLIST_REQ exposes these to the client UI.
+    // Castle / camp track the W5+ castle-war system; the connected
+    // date is Unix-epoch seconds from TGUILDMEMBERTABLE. All three
+    // stay default-zero until their owning subsystem ports.
+    std::uint16_t castle             = 0;   // m_wCastle
+    std::uint8_t  camp               = 0;   // m_bCamp
+    std::int64_t  connected_date_unix = 0;  // m_dlConnectedDate
 };
 
 // One row of TGUILDTABLE plus the in-memory caches the runtime

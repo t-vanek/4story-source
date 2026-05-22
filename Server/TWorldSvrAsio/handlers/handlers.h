@@ -197,6 +197,21 @@ boost::asio::awaitable<void> OnGuildPeerAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-7: member list refresh (handlers_guild.cpp) --------------
+
+// Inbound from a map server: client opened the guild window and
+// the map asks world for the canonical member list. World finds
+// the requester's guild, builds a snapshot with one row per
+// member (online bool + region pulled from the CharRegistry),
+// and replies MW_GUILDMEMBERLIST_REQ.
+//
+// Wire layout (SSHandler.cpp:3830):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildMemberListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-6: guild invite flow (handlers_guild.cpp) ----------------
 
 // Inbound from a map server: chief sent an invite to a target by

@@ -87,10 +87,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildInviteAnswerAck(std::move(peer), std::move(body),
             ctx);
         co_return;
+    case MessageId::MW_GUILDMEMBERLIST_ACK:
+        co_await OnGuildMemberListAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
 
-    // W3a-7+ picks up Articles / Tactics / Volunteers / PvP
-    // record / Point reward + the post-join NotifyAddGuildMember
-    // broadcast. … see README §4.
+    // W3a-8+ picks up Articles / Tactics / Volunteers / PvP
+    // record / Point reward / Article board. … see README §4.
 
     default:
         break;

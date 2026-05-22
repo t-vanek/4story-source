@@ -23,13 +23,76 @@ that the four shipped Asio daemons already use.
 | W3a-4c | guild_broadcast.h + OnMW_GUILDKICKOUT_ACK + OnMW_GUILDCONTRIBUTION_ACK + OnDM_GUILDMEMBERADD_REQ | ✅ |
 | W3a-4d | CoOffloadVoidIf wiring (closes W-1) + GuildLevelCache mirror of TGUILDCHART | ✅ |
 | W3a-5 | `services/guild_peerage.h` (CheckPeerage gate using guild_levels) + UpdateMemberPeer + UpdateMaxCabinet + OnMW_GUILDPEER_ACK + OnDM_GUILDCABINETMAX_REQ | ✅ |
-| **W3a-6** | Guild invite flow: SendMwGuildInviteReq + SendMwGuildJoinReq (10-field, longest sender to date) + OnMW_GUILDINVITE_ACK (chief sends invite to target's main map peer with country / member-cap / target-has-guild gates) + OnMW_GUILDINVITEANSWER_ACK (target accepts → in-memory member-add + TChar.guild_id + repo persist + dual JOIN_REQ reply; target declines → JOIN_REQ to chief only) | ✅ |
-| W3a-7+ | NotifyAddGuildMember broadcast (announce new member to all existing members) + Articles board + Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
+| W3a-6 | Guild invite flow: INVITE + INVITEANSWER + JOIN_REQ 10-field sender | ✅ |
+| **W3a-7** | TGuildMember gains castle/camp/connected_date_unix fields + SendMwGuildMemberListReq (variable-length 13-field-per-member tail) + OnMW_GUILDMEMBERLIST_ACK with online/region/level live-fetch from CharRegistry + W3a-6 wire bug fix (kSuccess→kJoinSuccess on JOIN_REQ replies per NetCode.h:451) | ✅ |
+| W3a-8+ | NotifyAddGuildMember broadcast to existing members + Articles board + Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-7 — what landed
+
+Guild member-list refresh handler plus a silent wire-bug fix
+from W3a-6 the round-trip test didn't catch.
+
+**Wire-bug fix** — `OnGuildInviteAnswerAck`'s YES path used
+`kSuccess` (=0) as the result byte on the dual MW_GUILDJOIN_REQ
+reply. The legacy `NotifyAddGuildMember` (TWorldSvr.cpp:5109)
+sends `GUILD_JOIN_SUCCESS` (=15, NetCode.h:451) — a different
+enum entry. Round-trip tests echoed the byte and passed; a real
+legacy client would render the wrong notification ("regular ack"
+vs. "you joined the guild"). Fixed to `kJoinSuccess` on both
+replies.
+
+Adds (extension to TGuildMember)
+- `services/guild_registry.h` — `TGuildMember` gains three
+  fields: `castle` (m_wCastle), `camp` (m_bCamp), and
+  `connected_date_unix` (m_dlConnectedDate). All default-zero
+  until the owning subsystems port (castle = W5+, connected_
+  date = TGUILDMEMBERTABLE column read on member load).
+
+Adds (sender)
+- `senders/senders.h` + `senders_guild.cpp`
+  - `GuildMemberListRow` POD — 13 fields, one per member entry
+    in the tail.
+  - `SendMwGuildMemberListReq(peer, char_id, key, result,
+                              guild_id, guild_name, members)`
+    — header + variable-length tail. The error branch (result
+    != kSuccess) emits only the 9-byte header (matching legacy
+    SSSender.cpp:984: only fills the tail when pGuild != null).
+
+Adds (handler)
+- `handlers/handlers_guild.cpp`
+  - `OnGuildMemberListAck` (MW_GUILDMEMBERLIST_ACK, wID=0x903D)
+  - Legacy SSHandler.cpp:3830 port. Snapshots the member list
+    under guild.lock (copy out + release), then walks each row
+    fetching the live TChar via CharRegistry — sets `online=1`
+    + uses the live TChar.level instead of the cached
+    member.level (legacy SSSender.cpp:1000 prefers the live
+    value over the stale cache). Reply ID matches legacy
+    MW_GUILDMEMBERLIST_REQ.
+
+Test changes
+- `test_guild_mut_handlers` extended 14 → 15 scenarios:
+  * MEMBERLIST refresh returns chief + Carol with the
+    expected 13 fields + chief's duty = kDutyChief = 2 (W3a-5
+    bug-fix value).
+  * Carol's reply in scenario 14 now asserts `kJoinSuccess`
+    (15) instead of `kSuccess` (0) — locks in the W3a-7
+    wire-bug fix.
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-8+
+- `NotifyAddGuildMember`-style fan-out to *all* existing
+  guild members on join (not just chief + new member). Now
+  unblocked by the broadcast helper from W3a-4c.
+- Articles board (5+ handlers): add / del / update / list /
+  notify
+- Tactics / volunteers / PvP record / point reward (~15)
+- Cabinet item codec (Lib/Own/TProtocol/ITEM struct port)
 
 ### W3a-6 — what landed
 

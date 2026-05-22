@@ -212,6 +212,65 @@ boost::asio::awaitable<void> SendMwGuildFameReq(
     std::uint32_t                fame,
     std::uint32_t                fame_color);
 
+// MW_GUILDMEMBERLIST_REQ — variable-length reply with the full
+// guild member roster. Used by MEMBERLIST refresh (client opens
+// the guild window) and by future broadcast paths that need to
+// re-sync member state cluster-wide.
+//
+// Wire layout (SSSender.cpp:972) — the only sender with a
+// variable-length tail:
+//
+//   DWORD  dwCharID
+//   DWORD  dwKEY
+//   BYTE   bRet         -- kSuccess / kNotFound
+//   [if bRet == kSuccess:]
+//     DWORD dwGuildID
+//     STRING strName    -- guild name
+//     WORD  member_count
+//     × member_count:
+//       DWORD dwID
+//       STRING strName  -- member name
+//       BYTE  bLevel
+//       BYTE  bClass
+//       BYTE  bDuty
+//       BYTE  bPeer
+//       BYTE  online_bool
+//       DWORD dwRegion  -- 0 when offline
+//       WORD  wCastle
+//       BYTE  bCamp
+//       DWORD dwTactics
+//       BYTE  bWarCountry
+//       INT64 dlConnectedDate
+//
+// The `online_bool` byte is computed by the world side based on
+// CharRegistry::Find(member.char_id) → non-null. dwRegion is
+// pulled from the TChar (zero when the member is offline).
+struct GuildMemberListRow
+{
+    std::uint32_t char_id      = 0;
+    std::string   name;
+    std::uint8_t  level        = 0;
+    std::uint8_t  klass        = 0;
+    std::uint8_t  duty         = 0;
+    std::uint8_t  peer         = 0;
+    std::uint8_t  online       = 0;
+    std::uint32_t region       = 0;
+    std::uint16_t castle       = 0;
+    std::uint8_t  camp         = 0;
+    std::uint32_t tactics      = 0;
+    std::uint8_t  war_country  = 0;
+    std::int64_t  connected_date_unix = 0;
+};
+
+boost::asio::awaitable<void> SendMwGuildMemberListReq(
+    std::shared_ptr<PeerSession>           peer,
+    std::uint32_t                          char_id,
+    std::uint32_t                          key,
+    std::uint8_t                           result,
+    std::uint32_t                          guild_id,
+    const std::string&                     guild_name,
+    const std::vector<GuildMemberListRow>& members);
+
 // MW_GUILDINVITE_REQ — forwarded to the target's main map peer
 // when a chief invites them by name. The target's client pops a
 // "join guild?" dialog with the inviter's name.

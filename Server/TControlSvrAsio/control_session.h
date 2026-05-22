@@ -83,6 +83,14 @@ public:
 
     const std::string& RemoteIPv4() const { return m_remote_ipv4; }
 
+    // Peer Common Name extracted from the peer certificate at TLS
+    // handshake time. Empty string for plain-TCP sessions (no cert)
+    // and for TLS sessions where the peer cert is absent or had no
+    // CN attribute. Handlers should treat the empty case as "not
+    // TLS authenticated" — equivalent to a plain connection from a
+    // CN-matching perspective.
+    const std::string& PeerCommonName() const { return m_peer_cn; }
+
     std::chrono::steady_clock::time_point ConnectedAt() const
     {
         return m_connected_at;
@@ -108,6 +116,7 @@ private:
     using SocketVariant = std::variant<PlainSocket, TlsStream>;
     SocketVariant                         m_socket;
     std::string                           m_remote_ipv4;
+    std::string                           m_peer_cn;
     std::vector<std::byte>                m_send_scratch;
     std::chrono::steady_clock::time_point m_connected_at{
         std::chrono::steady_clock::now()};

@@ -240,6 +240,44 @@ public:
         return m_trust.size();
     }
 
+    // Test-only hook: insert a trust entry into the in-memory map
+    // without going through the repository. Used by handler tests
+    // that don't carry a real DB but still need LookupPeerName to
+    // return a known value. NOT for production code paths —
+    // LoadTrustStore() is the authoritative loader.
+    void InjectTrustForTest(std::uint8_t group_id,
+                             std::uint8_t server_id,
+                             std::uint8_t type_id,
+                             std::string  peer_name)
+    {
+        std::unique_lock<std::shared_mutex> lk(m_mtx);
+        TrustEntry te;
+        te.row.group_id  = group_id;
+        te.row.server_id = server_id;
+        te.row.type_id   = type_id;
+        te.row.peer_name = std::move(peer_name);
+        te.row.enabled   = 1;
+        m_trust[Key(group_id, server_id)] = std::move(te);
+    }
+
+    // Look up the operator-configured peer name for a given identity.
+    // Used by post-handshake CN validation: handlers can compare the
+    // certificate's CN against the expected peer_name. Returns the
+    // empty optional when no trust entry exists for the identity (the
+    // caller usually treats that as "no opinion" and lets other checks
+    // run).
+    //
+    // Lock-friendly: read-only lookup against the shared trust map,
+    // takes the shared lock for the duration of the find().
+    std::optional<std::string>
+    LookupPeerName(std::uint8_t group_id, std::uint8_t server_id) const
+    {
+        std::shared_lock<std::shared_mutex> lk(m_mtx);
+        const auto it = m_trust.find(Key(group_id, server_id));
+        if (it == m_trust.end()) return std::nullopt;
+        return it->second.row.peer_name;
+    }
+
 private:
     struct TrustEntry
     {

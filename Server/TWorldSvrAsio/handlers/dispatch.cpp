@@ -146,9 +146,12 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildVolunteerReplyAck(std::move(peer), std::move(body),
             ctx);
         co_return;
+    case MessageId::DM_GUILDPVPOINT_REQ:
+        co_await OnGuildPvPointReq(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3a-13+ picks up tactics subsystem + PvP record / point
-    // reward / cabinet codec. … see README §4.
+    // W3a-14+ picks up tactics subsystem + cabinet item codec.
+    // … see README §4.
 
     default:
         break;

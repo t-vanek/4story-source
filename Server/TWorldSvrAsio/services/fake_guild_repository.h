@@ -59,6 +59,9 @@ public:
     bool AddVolunteerApp(std::uint32_t char_id,
                          std::uint32_t wanted_id) override;
     bool DelVolunteerApp(std::uint32_t char_id) override;
+    bool UpdatePvPoints(std::uint32_t guild_id, std::uint32_t total_point,
+                        std::uint32_t useable_point,
+                        std::uint32_t month_point) override;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -70,7 +73,8 @@ public:
                           kUpdateMemberPeer, kUpdateMaxCabinet,
                           kAddArticle, kDelArticle, kUpdateArticle,
                           kDeleteGuild, kAddWanted, kDeleteWanted,
-                          kAddVolunteerApp, kDelVolunteerApp };
+                          kAddVolunteerApp, kDelVolunteerApp,
+                          kUpdatePvPoints };
         Kind          kind;
         std::uint32_t guild_id = 0;
         std::uint32_t char_id  = 0;

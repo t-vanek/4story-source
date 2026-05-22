@@ -1103,6 +1103,152 @@ OnGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
                  "persisted", ip, guild_id, max_cabinet);
 }
 
+// --- W3a-13 PvP point persistence + promote-into-guild helper -----
+
+namespace {
+
+// Shared promotion path used by the W3a-6 InviteAnswer YES branch
+// and the W3a-12 VolunteerReply accept branch. Both did the same
+// thing: validate target isn't in a guild, validate guild not
+// disorg and not full, atomically add member + set
+// TChar.guild_id under guild.lock, persist via CoOffloadVoidIf.
+// The dual JOIN_REQ broadcast stays at the call site because
+// the chief peer differs between paths.
+struct PromotionResult
+{
+    std::uint8_t  result      = 0; // kSuccess / kNotFound / kHaveGuild /
+                                   //   kMemberFull
+    std::string   guild_name;
+    std::uint32_t fame        = 0;
+    std::uint32_t fame_color  = 0;
+    std::uint8_t  max_member  = 0; // populated on kMemberFull
+};
+
+boost::asio::awaitable<PromotionResult>
+TryPromoteIntoGuild(const HandlerContext&     ctx,
+                    std::shared_ptr<TGuild>   guild,
+                    std::uint32_t             guild_id,
+                    std::shared_ptr<TChar>    target_char,
+                    std::uint32_t             target_char_id,
+                    const std::string&        target_name,
+                    std::uint8_t              target_level)
+{
+    PromotionResult out;
+
+    // Snapshot target's current guild state outside the guild
+    // lock to keep the actor-model invariant (char.lock first,
+    // guild.lock second never both held simultaneously).
+    std::uint32_t target_guild = 0;
+    {
+        std::lock_guard g(target_char->lock);
+        target_guild = target_char->guild_id;
+    }
+
+    bool collide_disorg = false, collide_have = false,
+         collide_full   = false;
+    {
+        std::lock_guard gl(guild->lock);
+        collide_disorg = (guild->disorg != 0);
+        if (!collide_disorg)
+        {
+            out.guild_name = guild->name;
+            out.fame       = guild->fame;
+            out.fame_color = guild->fame_color;
+            if (ctx.guild_levels)
+                if (const auto* lvl = ctx.guild_levels->Find(guild->level))
+                    out.max_member = lvl->max_count;
+            if (target_guild != 0) collide_have = true;
+            else if (out.max_member > 0 &&
+                     guild->members.size() >= out.max_member)
+                collide_full = true;
+            else
+            {
+                TGuildMember m;
+                m.char_id  = target_char_id;
+                m.guild_id = guild_id;
+                m.duty     = guild::kDutyNone;
+                m.name     = target_name;
+                m.level    = target_level;
+                guild->members.push_back(std::move(m));
+            }
+        }
+    }
+
+    if (collide_disorg) { out.result = guild::kNotFound;   co_return out; }
+    if (collide_have)   { out.result = guild::kHaveGuild;  co_return out; }
+    if (collide_full)   { out.result = guild::kMemberFull; co_return out; }
+
+    // Atomic mutation succeeded — link the back-pointer + persist.
+    {
+        std::lock_guard g(target_char->lock);
+        target_char->guild_id = guild_id;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, target_char_id, guild_id, target_level] {
+                repo->AddMember(target_char_id, guild_id, target_level,
+                    guild::kDutyNone);
+            });
+    }
+    out.result = guild::kSuccess;
+    co_return out;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildPvPointReq(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.guilds)
+    {
+        spdlog::warn("OnGuildPvPointReq[{}]: guild registry not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0;
+    std::uint32_t total_point = 0, useable_point = 0, month_point = 0;
+    if (!r.Read(guild_id)      || !r.Read(total_point) ||
+        !r.Read(useable_point) || !r.Read(month_point))
+    {
+        spdlog::warn("OnGuildPvPointReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    if (auto guild = ctx.guilds->Find(guild_id))
+    {
+        std::lock_guard gl(guild->lock);
+        guild->pvp_total_point   = total_point;
+        guild->pvp_useable_point = useable_point;
+        guild->pvp_month_point   = month_point;
+    }
+    else
+    {
+        spdlog::info("OnGuildPvPointReq[{}]: guild_id={} not in registry "
+                     "(DB write only)", ip, guild_id);
+    }
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, total_point, useable_point,
+             month_point] {
+                repo->UpdatePvPoints(guild_id, total_point, useable_point,
+                    month_point);
+            });
+    }
+
+    spdlog::info("OnGuildPvPointReq[{}]: guild_id={} total={} useable={} "
+                 "month={}", ip, guild_id, total_point, useable_point,
+        month_point);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {
@@ -1114,7 +1260,9 @@ namespace {
 // order matters for code-review navigation; forward decls let us
 // do that without reordering established blocks. The
 // `GuildHandle` return type lives in the top-of-file anonymous
-// namespace so it's complete at this point of the TU.
+// namespace so it's complete at this point of the TU. The
+// `PromotionResult` type + TryPromoteIntoGuild come from the
+// W3a-13 anon namespace block immediately above this one.
 GuildHandle ResolveRequesterGuild(const HandlerContext& ctx,
                                    std::uint32_t char_id,
                                    std::uint32_t key);
@@ -1374,7 +1522,6 @@ OnGuildVolunteerReplyAck(std::shared_ptr<PeerSession> peer,
     auto applicant_char = ctx.chars->Find(target_id);
     std::string   applicant_name;
     std::uint32_t applicant_key = 0;
-    std::uint32_t applicant_guild = 0;
     std::uint8_t  applicant_msi = 0;
     std::uint8_t  applicant_level = 0;
     if (applicant_char)
@@ -1382,79 +1529,35 @@ OnGuildVolunteerReplyAck(std::shared_ptr<PeerSession> peer,
         std::lock_guard g(applicant_char->lock);
         applicant_name  = applicant_char->name;
         applicant_key   = applicant_char->key;
-        applicant_guild = applicant_char->guild_id;
         applicant_msi   = applicant_char->main_server_id;
         applicant_level = applicant_char->level;
     }
 
-    std::uint32_t fame = 0, fame_color = 0;
-    std::string   guild_name;
-    std::uint8_t  max_member = 0;
-    bool collide_full = false, collide_have = false, collide_disorg = false;
-    {
-        std::lock_guard gl(h.guild->lock);
-        collide_disorg = (h.guild->disorg != 0);
-        if (!collide_disorg)
-        {
-            fame       = h.guild->fame;
-            fame_color = h.guild->fame_color;
-            guild_name = h.guild->name;
-            if (ctx.guild_levels)
-                if (const auto* lvl = ctx.guild_levels->Find(h.guild->level))
-                    max_member = lvl->max_count;
-            if (applicant_guild != 0) collide_have = true;
-            else if (max_member > 0 &&
-                     h.guild->members.size() >= max_member) collide_full = true;
-            else
-            {
-                TGuildMember m;
-                m.char_id  = target_id;
-                m.guild_id = h.guild_id;
-                m.duty     = guild::kDutyNone;
-                m.name     = applicant_name;
-                m.level    = applicant_level;
-                h.guild->members.push_back(std::move(m));
-            }
-        }
-    }
+    // W3a-13: shared promotion path via TryPromoteIntoGuild.
+    auto pr = co_await TryPromoteIntoGuild(ctx, h.guild, h.guild_id,
+        applicant_char, target_id, applicant_name, applicant_level);
 
-    if (collide_disorg || collide_have || collide_full)
+    if (pr.result != guild::kSuccess)
     {
         // Accept failed — fire VOLUNTEERREPLY_REQ to the chief
         // with the right failure code so their UI explains why.
-        const std::uint8_t fail =
-            collide_disorg ? guild::kNotFound
-          : collide_have   ? guild::kHaveGuild
-          :                  guild::kMemberFull;
         co_await senders::SendMwGuildVolunteerReplyReq(peer, char_id, key,
-            fail);
+            pr.result);
         spdlog::info("OnGuildVolunteerReplyAck[{}]: char_id={} accept "
                      "target={} failed result={}", ip, char_id, target_id,
-            fail);
+            pr.result);
         co_return;
     }
 
-    // Mirror the legacy ApplyGuildApp tail: clear app + set
-    // back-pointer + AddMember persist + JOIN_REQ broadcast to
-    // new member + chief (same as InviteAnswer YES path).
+    // Mirror the legacy ApplyGuildApp tail: clear app +
+    // JOIN_REQ broadcast to new member + chief (the helper
+    // already wired the back-pointer + AddMember persist).
     ctx.guild_wanted->DelApp(target_id);
-    if (applicant_char)
-    {
-        std::lock_guard g(applicant_char->lock);
-        applicant_char->guild_id = h.guild_id;
-    }
-
     if (ctx.guild_repo)
     {
-        const std::uint32_t guild_id = h.guild_id;
         co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
             [repo = ctx.guild_repo, target_id] {
                 repo->DelVolunteerApp(target_id);
-            });
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.guild_repo, target_id, guild_id, applicant_level] {
-                repo->AddMember(target_id, guild_id, applicant_level,
-                    guild::kDutyNone);
             });
     }
 
@@ -1473,14 +1576,14 @@ OnGuildVolunteerReplyAck(std::shared_ptr<PeerSession> peer,
         if (applicant_peer)
         {
             co_await senders::SendMwGuildJoinReq(applicant_peer, target_id,
-                applicant_key, guild::kJoinSuccess, h.guild_id, fame,
-                fame_color, guild_name, target_id, applicant_name, 0);
+                applicant_key, guild::kJoinSuccess, h.guild_id, pr.fame,
+                pr.fame_color, pr.guild_name, target_id, applicant_name, 0);
         }
     }
     // Chief sees it too.
     co_await senders::SendMwGuildJoinReq(peer, char_id, key,
-        guild::kJoinSuccess, h.guild_id, fame, fame_color, guild_name,
-        target_id, applicant_name, 0);
+        guild::kJoinSuccess, h.guild_id, pr.fame, pr.fame_color,
+        pr.guild_name, target_id, applicant_name, 0);
 
     // Refresh chief's applicant list (now missing the accepted
     // entry).
@@ -2642,12 +2745,10 @@ OnGuildInviteAnswerAck(std::shared_ptr<PeerSession> peer,
     if (!invited) co_return;
     std::uint32_t invited_key = 0;
     std::string   invited_name;
-    std::uint32_t invited_guild = 0;
     {
         std::lock_guard g(invited->lock);
-        invited_key   = invited->key;
-        invited_name  = invited->name;
-        invited_guild = invited->guild_id;
+        invited_key  = invited->key;
+        invited_name = invited->name;
     }
     if (invited_key != key) co_return;
 
@@ -2713,84 +2814,36 @@ OnGuildInviteAnswerAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Snapshot guild meta + run the in-memory member-add under
-    // guild.lock. We also fix up the target's TChar.guild_id
-    // back-pointer inside the same critical region — keeping
-    // the registry coherent matters more than spinning on the
-    // char lock here.
-    std::string  guild_name;
-    std::uint32_t fame = 0, fame_color = 0;
-    std::uint32_t chief_id = 0;
-    std::uint8_t max_member = 0;
-    bool collide_full     = false;
-    bool collide_have     = false;
-    bool collide_disorg   = false;
+    std::uint8_t invited_level = 0;
     {
-        std::lock_guard gl(guild->lock);
-        collide_disorg = (guild->disorg != 0);
-        if (!collide_disorg)
-        {
-            guild_name = guild->name;
-            fame       = guild->fame;
-            fame_color = guild->fame_color;
-            chief_id   = guild->chief_char_id;
-            if (ctx.guild_levels)
-                if (const auto* lvl = ctx.guild_levels->Find(guild->level))
-                    max_member = lvl->max_count;
-            if (invited_guild != 0)              collide_have = true;
-            else if (max_member > 0 &&
-                     guild->members.size() >= max_member) collide_full = true;
-            else
-            {
-                TGuildMember m;
-                m.char_id  = char_id;
-                m.guild_id = inviter_guild_id;
-                m.duty     = guild::kDutyNone;
-                m.peer     = 0;
-                m.name     = invited_name;
-                guild->members.push_back(std::move(m));
-            }
-        }
+        std::lock_guard g(invited->lock);
+        invited_level = invited->level;
     }
-    if (collide_disorg)
+
+    // W3a-13: shared promotion path — validates disorg/have/full
+    // gates, atomically adds member + sets TChar.guild_id, then
+    // persists via AddMember. The JOIN_REQ broadcast stays here
+    // because the dual reply targets differ between paths.
+    auto pr = co_await TryPromoteIntoGuild(ctx, guild, inviter_guild_id,
+        invited, char_id, invited_name, invited_level);
+
+    if (pr.result == guild::kNotFound)
     {
         co_await SendJoinError(peer,         char_id, key,         guild::kNotFound);
         co_await SendJoinError(inviter_peer, inviter_id, inviter_key, guild::kNotFound);
         co_return;
     }
-    if (collide_have)
+    if (pr.result == guild::kHaveGuild)
     {
         co_await SendJoinError(peer,         char_id, key,         guild::kHaveGuild);
         co_await SendJoinError(inviter_peer, inviter_id, inviter_key, guild::kHaveGuild);
         co_return;
     }
-    if (collide_full)
+    if (pr.result == guild::kMemberFull)
     {
-        co_await SendJoinError(peer,         char_id, key,         guild::kMemberFull, max_member);
-        co_await SendJoinError(inviter_peer, inviter_id, inviter_key, guild::kMemberFull, max_member);
+        co_await SendJoinError(peer,         char_id, key,         guild::kMemberFull, pr.max_member);
+        co_await SendJoinError(inviter_peer, inviter_id, inviter_key, guild::kMemberFull, pr.max_member);
         co_return;
-    }
-
-    // Wire the invited char to their new guild.
-    {
-        std::lock_guard g(invited->lock);
-        invited->guild_id = inviter_guild_id;
-    }
-
-    // Persist via the W3a-4c IGuildRepository::AddMember.
-    if (ctx.guild_repo)
-    {
-        std::uint8_t invited_level = 0;
-        {
-            std::lock_guard g(invited->lock);
-            invited_level = invited->level;
-        }
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.guild_repo, char_id, inviter_guild_id,
-             invited_level] {
-                repo->AddMember(char_id, inviter_guild_id, invited_level,
-                    guild::kDutyNone);
-            });
     }
 
     // Two GUILDJOIN_REQ replies — one to each side. Both carry
@@ -2803,15 +2856,16 @@ OnGuildInviteAnswerAck(std::shared_ptr<PeerSession> peer,
     // kJoinSuccess so real legacy clients see the right result
     // code on the join notification.
     co_await senders::SendMwGuildJoinReq(peer, char_id, key,
-        guild::kJoinSuccess, inviter_guild_id, fame, fame_color, guild_name,
-        char_id, invited_name, /*max_member=*/0);
+        guild::kJoinSuccess, inviter_guild_id, pr.fame, pr.fame_color,
+        pr.guild_name, char_id, invited_name, /*max_member=*/0);
     co_await senders::SendMwGuildJoinReq(inviter_peer, inviter_id,
-        inviter_key, guild::kJoinSuccess, inviter_guild_id, fame, fame_color,
-        guild_name, char_id, invited_name, /*max_member=*/0);
+        inviter_key, guild::kJoinSuccess, inviter_guild_id, pr.fame,
+        pr.fame_color, pr.guild_name, char_id, invited_name,
+        /*max_member=*/0);
 
     spdlog::info("OnGuildInviteAnswerAck[{}]: char_id={} ('{}') joined "
-                 "guild_id={} '{}' (chief={})",
-        ip, char_id, invited_name, inviter_guild_id, guild_name, chief_id);
+                 "guild_id={} '{}'",
+        ip, char_id, invited_name, inviter_guild_id, pr.guild_name);
 }
 
 } // namespace tworldsvr::handlers

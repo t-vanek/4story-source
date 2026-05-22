@@ -218,6 +218,22 @@ boost::asio::awaitable<void> OnGuildMemberListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-13: PvP point persistence (handlers_guild.cpp) -----------
+
+// Inbound from a map server's DB worker: PvP outcome on the map
+// side changed a guild's PvP bank (total + useable + month).
+// World mirrors the new values into the registry + persists via
+// IGuildRepository::UpdatePvPoints. No reply (clients see the
+// new values via the next OnGuildInfoAck refresh).
+//
+// Wire layout (SSHandler.cpp:10405):
+//   DWORD dwGuildID, DWORD dwTotalPoint, DWORD dwUseablePoint,
+//   DWORD dwMonthPoint
+boost::asio::awaitable<void> OnGuildPvPointReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

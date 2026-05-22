@@ -293,6 +293,23 @@ bool FakeGuildRepository::DelVolunteerApp(std::uint32_t char_id)
     return true;
 }
 
+bool FakeGuildRepository::UpdatePvPoints(std::uint32_t guild_id,
+                                          std::uint32_t total_point,
+                                          std::uint32_t useable_point,
+                                          std::uint32_t month_point)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kUpdatePvPoints, guild_id, 0,
+                       total_point, useable_point, month_point, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    it->second->pvp_total_point   = total_point;
+    it->second->pvp_useable_point = useable_point;
+    it->second->pvp_month_point   = month_point;
+    return true;
+}
+
 std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
 {
     std::lock_guard lock(m_mtx);

@@ -150,4 +150,50 @@ SendMwGuildContributionReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwGuildPeerReq(std::shared_ptr<PeerSession> peer,
+                   std::uint32_t                char_id,
+                   std::uint32_t                key,
+                   std::uint8_t                 result,
+                   const std::string&           target_name,
+                   std::uint8_t                 new_peer,
+                   std::uint8_t                 old_peer)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WriteString(body, target_name);
+    WritePOD<std::uint8_t>(body, new_peer);
+    WritePOD<std::uint8_t>(body, old_peer);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDPEER_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
+                         std::uint32_t                char_id,
+                         std::uint32_t                key,
+                         std::uint8_t                 max_cabinet)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, max_cabinet);
+    // Legacy doesn't have a dedicated wID for this; the map side
+    // re-reads the cabinet count from the guild's next state push.
+    // We emit it on the closest matching wID — the same
+    // MW_GUILDCABINETPUTIN_ACK channel the map uses for cabinet
+    // delta notices — so future protocol cleanup can pick a real
+    // dedicated ID without breaking the in-place handler.
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDCABINETPUTIN_ACK),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

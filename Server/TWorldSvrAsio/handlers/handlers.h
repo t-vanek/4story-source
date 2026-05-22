@@ -182,6 +182,41 @@ boost::asio::awaitable<void> OnGuildMemberAddReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-5: peerage + cabinet (handlers_guild.cpp) ----------------
+
+// Inbound from a map server: chief promoted/demoted a member's
+// peerage rank. World runs CheckPeerage against the requester's
+// duty + guild level, updates the member's bPeer, persists, and
+// broadcasts MW_GUILDPEER_REQ to both the requesting chief and
+// (if online elsewhere) the target's main map peer.
+//
+// Wire layout (SSHandler.cpp:3500):
+//   DWORD dwCharID, DWORD dwKey, STRING strTarget, BYTE bPeer
+boost::asio::awaitable<void> OnGuildPeerAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from a map server's DB worker: chief expanded the
+// guild's cabinet slot count (paid via the cash-shop flow on
+// the map side). Persists TGUILDTABLE.bMaxCabinet + mirrors the
+// new cap into the in-memory TGuild + ACKs back so the map can
+// refresh its cabinet UI.
+//
+// Wire layout (SSHandler.cpp:4086):
+//   DWORD dwGuildID, BYTE bMaxCabinet
+//
+// (No char_id/key in the legacy wire — this is a pure-DB DM_*
+// handler. We don't emit a reply over the same socket because
+// the legacy module forwards the ACK over a separate channel
+// the map side already subscribes to via the W3a-4c contribution
+// path. Operators see the change reflected on the next
+// MW_GUILDINFO_ACK refresh.)
+boost::asio::awaitable<void> OnGuildCabinetMaxReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-2: RW relay handshake (handlers_relay.cpp) ----------------
 //
 // First packet a map server sends after TCP connect. Carries the

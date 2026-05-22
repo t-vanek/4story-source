@@ -169,6 +169,37 @@ bool FakeGuildRepository::IncrementContribution(std::uint32_t char_id,
     return true;
 }
 
+bool FakeGuildRepository::UpdateMemberPeer(std::uint32_t char_id,
+                                            std::uint32_t guild_id,
+                                            std::uint8_t  new_peer)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kUpdateMemberPeer, guild_id, char_id,
+                       new_peer, 0, 0, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    if (auto* m = it->second->FindMember(char_id))
+    {
+        m->peer = new_peer;
+        return true;
+    }
+    return false;
+}
+
+bool FakeGuildRepository::UpdateMaxCabinet(std::uint32_t guild_id,
+                                            std::uint8_t  max_cabinet)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kUpdateMaxCabinet, guild_id, 0,
+                       max_cabinet, 0, 0, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    it->second->max_cabinet = max_cabinet;
+    return true;
+}
+
 std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
 {
     std::lock_guard lock(m_mtx);

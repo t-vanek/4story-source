@@ -9,25 +9,90 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-4d CoOffloadIf wiring + guild-level table cache
+## Status — W3a-5 peerage gate + cabinet expansion
 
 | Phase | Scope | Status |
 |---|---|---|
 | W1 | Scaffold + transport + dispatch stub | ✅ |
-| W2 | CharRegistry (partitioned) + SessionPool + worker thread_pool + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
-| W3a-1 | GuildRegistry + IGuildRepository read API + schema validator + DM_GUILDLOAD_ACK | ✅ |
-| W3a-2 | PeerSession + PeerRegistry + first SSSender batch + OnRW_RELAYSVR_REQ + OnGuildLoadAck fires its reply | ✅ |
-| W3a-3 | CharRegistry name index + TChar identity fields + OnMW_CHANGECHARBASE_ACK + OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ | ✅ |
-| W3a-4 | TChar.guild_id back-pointer + TGuild::FindMember/RemoveMember + OnMW_GUILDLEAVE_ACK | ✅ |
-| W3a-4b | `services/guild_constants.h` + IGuildRepository write API (SetDisorg / UpdateMemberDuty / UpdateFame / RemoveMember) + OnGuildDisorganizationReq + OnGuildDutyAck + OnGuildFameAck (broadcast) | ✅ |
-| W3a-4c | `services/guild_broadcast.h` (BroadcastToGuildMembers helper) + IGuildRepository::AddMember / IncrementContribution + OnMW_GUILDKICKOUT_ACK + OnMW_GUILDCONTRIBUTION_ACK + OnDM_GUILDMEMBERADD_REQ | ✅ |
-| **W3a-4d** | All SOCI writes wrapped in `fourstory::db::CoOffloadVoidIf(ctx.db_pool, …)` — closes the last W-1 work from PATCH_README §6 + `GuildLevelCache` mirror of TGUILDCHART (10-row immutable lookup) + `SociGuildLevelRepository` + `FakeGuildLevelRepository` + schema_validator extension + HandlerContext.guild_levels | ✅ |
-| W3a-5+ | OnMW_GUILDPEER_ACK (needs guild-level cache — now available) + Invite / Article / Cabinet / Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
+| W2 | CharRegistry + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
+| W3a-1 | GuildRegistry + DM_GUILDLOAD_ACK + schema validator | ✅ |
+| W3a-2 | PeerSession + PeerRegistry + RW_RELAYSVR_REQ + first senders | ✅ |
+| W3a-3 | CharRegistry name index + OnMW_CHANGECHARBASE_ACK + OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ | ✅ |
+| W3a-4 | TChar.guild_id back-pointer + OnMW_GUILDLEAVE_ACK | ✅ |
+| W3a-4b | guild_constants.h + write API + OnGuildDisorganizationReq + OnGuildDutyAck + OnGuildFameAck | ✅ |
+| W3a-4c | guild_broadcast.h + OnMW_GUILDKICKOUT_ACK + OnMW_GUILDCONTRIBUTION_ACK + OnDM_GUILDMEMBERADD_REQ | ✅ |
+| W3a-4d | CoOffloadVoidIf wiring (closes W-1) + GuildLevelCache mirror of TGUILDCHART | ✅ |
+| **W3a-5** | `services/guild_peerage.h` (CheckPeerage gate using guild_levels) + IGuildRepository::UpdateMemberPeer + UpdateMaxCabinet + OnMW_GUILDPEER_ACK + OnDM_GUILDCABINETMAX_REQ + SendMwGuildPeerReq + SendMwGuildCabinetMaxReq | ✅ |
+| W3a-6+ | OnMW_GUILDINVITEANSWER_ACK (in-memory member-add, paired with W3a-4c's DM_MEMBERADD_REQ) + GUILDJOIN_REQ broadcast + Articles board + Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-5 — what landed
+
+Two more mutating guild handlers + the CheckPeerage gate that
+uses the guild-level cache from W3a-4d. Total handlers ported:
+14 → 16. Repo write API gains 2 methods (UpdateMemberPeer,
+UpdateMaxCabinet). New unit test exercises every legacy branch
+of CheckPeerage on synthetic guild + level rows.
+
+* `services/guild_peerage.{h,cpp}` — `CheckPeerage(level_row,
+  requester_duty, new_peer, guild)` mirrors `CTGuild::CheckPeerage`
+  (TGuild.cpp:205) field-for-field:
+  - `new_peer == 0` → always allowed (degrade is free)
+  - `new_peer > MAX_GUILD_PEER_COUNT` → refused
+  - Slot cap from `level_row->peer_slots[new_peer-1]`
+  - Chief-only band per legacy switch (level 3-4 BARON, 5-6
+    VISCOUNT, 7-8 COUNT, 9 MARQUIS, 10 DUKE)
+  - **Null level_row** → relaxed gate (only the global
+    MAX_GUILD_PEER_COUNT cap applies). Matches W3a-4d's
+    "missing TGUILDCHART = empty cache" dev-friendly behavior.
+* `services/guild_repository.h` — `UpdateMemberPeer` +
+  `UpdateMaxCabinet` write API additions. SOCI impls map to
+  CSPGuildPeer / CSPGuildMaxCabinet semantics.
+* `services/fake_guild_repository` — new `Call::Kind::
+  {kUpdateMemberPeer, kUpdateMaxCabinet}` so tests can assert
+  on the persistence side.
+* `handlers/handlers_guild.cpp`
+  - `OnGuildPeerAck` (MW_GUILDPEER_ACK, wID=0x9038):
+    validates requester is in the guild (snapshots their
+    duty), gates the change through CheckPeerage with
+    `ctx.guild_levels->Find(guild->level)`. Success path:
+    update target's peer under guild.lock, persist via
+    CoOffloadVoidIf, reply to requester, broadcast to
+    target's main map peer via the W3a-4c BroadcastToGuildMembers
+    helper. Gate-fail: reply with `guild::kFail` carrying the
+    old + new peer (clients use these for the chat log).
+  - `OnGuildCabinetMaxReq` (DM_GUILDCABINETMAX_REQ,
+    wID=0x58E8): pure DB persistence + in-memory mirror.
+    Clamps the inbound `bMaxCabinet` against the per-level
+    cap from `guild_levels->Find(level)->cabinet_count`
+    (operator-visible via log warning) — legacy trusted the
+    inbound value, we add a soft check.
+* `senders/senders.h` + `senders_guild.cpp`
+  - `SendMwGuildPeerReq` (6-field reply per SSSender.cpp:953)
+  - `SendMwGuildCabinetMaxReq` (3-field reply; piggybacks on
+    `MW_GUILDCABINETPUTIN_ACK` channel — legacy has no
+    dedicated wID for the cap-change notification).
+
+Tests
+- `test_guild_peerage` — 7 scenarios covering every branch of
+  CheckPeerage: zero-peer always OK, out-of-range refused,
+  slot-cap full, slot-cap available + level 1/2 (any duty),
+  level 3-4 BARON chief-only refused / chief-allowed, level
+  5-6 VISCOUNT chief-only + BARON any-duty, level 10 DUKE
+  chief-only, null level_row relaxed gate.
+
+Deferred to W3a-6+
+- `OnMW_GUILDINVITEANSWER_ACK` — in-memory member-add side
+  (W3a-4c's DM_MEMBERADD_REQ is just the DB write). Needs
+  `SendMwGuildJoinReq` sender + `NotifyAddGuildMember`
+  broadcast.
+- Articles / cabinet items / tactics / volunteers / PvP
+  record / point-reward handlers.
+- Cabinet item codec (Lib/Own/TProtocol/ITEM struct port).
 
 ### W3a-4d — what landed
 

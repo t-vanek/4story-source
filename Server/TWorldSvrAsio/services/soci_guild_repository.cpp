@@ -266,6 +266,50 @@ bool SociGuildRepository::AddMember(std::uint32_t char_id,
     }
 }
 
+bool SociGuildRepository::UpdateMemberPeer(std::uint32_t char_id,
+                                            std::uint32_t guild_id,
+                                            std::uint8_t  new_peer)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDMEMBERTABLE\" SET \"bPeer\" = :p "
+               "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
+            soci::use(static_cast<int>(new_peer)),
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::UpdateMemberPeer({}, {}, {}) "
+                      "failed: {}", char_id, guild_id, new_peer, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::UpdateMaxCabinet(std::uint32_t guild_id,
+                                            std::uint8_t  max_cabinet)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDTABLE\" SET \"bMaxCabinet\" = :m "
+               "WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(max_cabinet)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::UpdateMaxCabinet({}, {}) "
+                      "failed: {}", guild_id, max_cabinet, ex.what());
+        return false;
+    }
+}
+
 bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
                                                  std::uint32_t guild_id,
                                                  std::uint32_t exp,

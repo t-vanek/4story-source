@@ -97,6 +97,19 @@ public:
                                        std::uint32_t silver,
                                        std::uint32_t cooper,
                                        std::uint32_t pvp_point) = 0;
+
+    // --- W3a-5 additions ----------------------------------------
+
+    // Update TGUILDMEMBERTABLE.bPeer for one member. Mirrors
+    // CSPGuildPeer (SSHandler.cpp:3551 → DM_GUILDPEER_REQ).
+    virtual bool UpdateMemberPeer(std::uint32_t char_id,
+                                  std::uint32_t guild_id,
+                                  std::uint8_t  new_peer) = 0;
+
+    // Update TGUILDTABLE.bMaxCabinet for the guild. Mirrors
+    // CSPGuildMaxCabinet (SSHandler.cpp:4086 → DM_GUILDCABINETMAX_REQ).
+    virtual bool UpdateMaxCabinet(std::uint32_t guild_id,
+                                  std::uint8_t  max_cabinet) = 0;
 };
 
 } // namespace tworldsvr

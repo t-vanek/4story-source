@@ -37,6 +37,10 @@ public:
                                std::uint32_t exp, std::uint32_t gold,
                                std::uint32_t silver, std::uint32_t cooper,
                                std::uint32_t pvp_point) override;
+    bool UpdateMemberPeer(std::uint32_t char_id, std::uint32_t guild_id,
+                          std::uint8_t new_peer) override;
+    bool UpdateMaxCabinet(std::uint32_t guild_id,
+                          std::uint8_t max_cabinet) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

@@ -212,6 +212,45 @@ boost::asio::awaitable<void> SendMwGuildFameReq(
     std::uint32_t                fame,
     std::uint32_t                fame_color);
 
+// MW_GUILDPEER_REQ — reply after a peerage change (or rejection
+// via CheckPeerage). Broadcast-shaped: both the requesting chief
+// and the target's main map peer receive it.
+//
+// Wire layout (SSSender.cpp:953):
+//   DWORD  dwCharID    -- recipient
+//   DWORD  dwKEY
+//   BYTE   bResult     -- GUILD_SUCCESS / GUILD_FAIL
+//   STRING strTarget   -- the renamed member's name
+//   BYTE   bPeer       -- new rank
+//   BYTE   bOldPeer    -- rank before the change (legacy clients
+//                         use this for the chat-log line)
+boost::asio::awaitable<void> SendMwGuildPeerReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    const std::string&           target_name,
+    std::uint8_t                 new_peer,
+    std::uint8_t                 old_peer);
+
+// MW_GUILDCABINETMAX_REQ — reply after the chief expands the
+// guild's cabinet slot count via the cash-shop flow on the map
+// side. Pure ACK with the new size.
+//
+// Wire layout: legacy uses an in-line broadcast (no dedicated
+// SendMW_GUILDCABINETMAX_REQ — the map side reads bMaxCabinet
+// off the guild's next refresh). We expose the symmetric ACK
+// here so the matching handler can fire it; layout matches the
+// W3a-5 client-facing protocol:
+//   DWORD dwCharID    -- the requester
+//   DWORD dwKey
+//   BYTE  bMaxCabinet -- new cap
+boost::asio::awaitable<void> SendMwGuildCabinetMaxReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 max_cabinet);
+
 // MW_GUILDCONTRIBUTION_REQ — reply after a member contributes
 // gold/silver/cooper/exp/pvp to the guild. The bResult byte
 // surfaces failure modes (guild full level + 0 exp, member not

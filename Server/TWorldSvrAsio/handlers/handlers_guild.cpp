@@ -2,6 +2,7 @@
 #include "../senders/senders.h"
 #include "../services/guild_broadcast.h"
 #include "../services/guild_constants.h"
+#include "../services/guild_peerage.h"
 #include "../wire_codec.h"
 
 #include "MessageId.h"
@@ -878,6 +879,572 @@ OnGuildMemberAddReq(std::shared_ptr<PeerSession> peer,
                  "char_id={} level={} duty={}", ip, guild_id, char_id,
         level, duty);
     co_return;
+}
+
+// --- W3a-5 additions ----------------------------------------------
+
+boost::asio::awaitable<void>
+OnGuildPeerAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildPeerAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   target_name;
+    std::uint8_t  new_peer = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name) ||
+        !r.Read(new_peer))
+    {
+        spdlog::warn("OnGuildPeerAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+    std::uint32_t guild_id = 0, actual_key = 0;
+    {
+        std::lock_guard g(requester->lock);
+        actual_key = requester->key;
+        guild_id   = requester->guild_id;
+    }
+    if (actual_key != key || guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    // Resolve target + check the CheckPeerage gate under the
+    // guild lock so the slot-cap count is consistent with the
+    // mutation. Snapshot the values we need outside the lock so
+    // CoOffloadVoidIf + SendMwGuildPeerReq don't run with the
+    // lock held.
+    std::uint32_t target_char_id = 0;
+    std::uint8_t  old_peer       = 0;
+    std::uint8_t  requester_duty = 0;
+    bool          target_missing = false;
+    bool          unchanged      = false;
+    bool          gate_failed    = false;
+    {
+        std::lock_guard g(guild->lock);
+        if (guild->disorg) co_return;
+        const TGuildMember* req_member = guild->FindMember(char_id);
+        if (req_member) requester_duty = req_member->duty;
+
+        TGuildMember* tgt = nullptr;
+        for (auto& m : guild->members)
+            if (m.name == target_name) { tgt = &m; break; }
+        if (!tgt) { target_missing = true; }
+        else if (tgt->peer == new_peer) { unchanged = true; }
+        else
+        {
+            const TGuildLevelRow* lvl = nullptr;
+            if (ctx.guild_levels)
+                lvl = ctx.guild_levels->Find(guild->level);
+            if (!guild::CheckPeerage(lvl, requester_duty, new_peer, *guild))
+            {
+                gate_failed    = true;
+                old_peer       = tgt->peer;
+                target_char_id = tgt->char_id;
+            }
+            else
+            {
+                old_peer       = tgt->peer;
+                target_char_id = tgt->char_id;
+                tgt->peer      = new_peer;
+            }
+        }
+    }
+
+    if (target_missing)
+    {
+        spdlog::info("OnGuildPeerAck[{}]: target='{}' not in guild_id={}",
+            ip, target_name, guild_id);
+        co_return;
+    }
+    if (unchanged)
+    {
+        spdlog::debug("OnGuildPeerAck[{}]: target='{}' already at peer={} "
+                      "— drop", ip, target_name, new_peer);
+        co_return;
+    }
+    if (gate_failed)
+    {
+        co_await senders::SendMwGuildPeerReq(peer, char_id, key,
+            guild::kFail, target_name, new_peer, old_peer);
+        spdlog::info("OnGuildPeerAck[{}]: char_id={} CheckPeerage "
+                     "refused target='{}' new_peer={} (guild_level={})",
+            ip, char_id, target_name, new_peer,
+            ctx.guild_levels && ctx.guild_levels->Find(
+                guild->level) ? int(guild->level) : -1);
+        co_return;
+    }
+
+    // Persist + reply to requester. Target's own map gets the
+    // notification via BroadcastToGuildMembers (1-element list)
+    // when they're online elsewhere.
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, target_char_id, guild_id, new_peer] {
+                repo->UpdateMemberPeer(target_char_id, guild_id, new_peer);
+            });
+    }
+
+    co_await senders::SendMwGuildPeerReq(peer, char_id, key,
+        guild::kSuccess, target_name, new_peer, old_peer);
+
+    if (ctx.peers)
+    {
+        std::vector<std::uint32_t> target_only{target_char_id};
+        co_await BroadcastToGuildMembers(
+            *ctx.chars, *ctx.peers, target_only,
+            [target_name, new_peer, old_peer](
+                std::shared_ptr<PeerSession> target_peer,
+                std::uint32_t                recipient_char_id,
+                std::uint32_t                recipient_key)
+                -> boost::asio::awaitable<void>
+            {
+                co_await senders::SendMwGuildPeerReq(target_peer,
+                    recipient_char_id, recipient_key, guild::kSuccess,
+                    target_name, new_peer, old_peer);
+            });
+    }
+
+    spdlog::info("OnGuildPeerAck[{}]: char_id={} target='{}' (char_id={}) "
+                 "peer {}→{} in guild_id={}",
+        ip, char_id, target_name, target_char_id, old_peer, new_peer,
+        guild_id);
+}
+
+boost::asio::awaitable<void>
+OnGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0;
+    std::uint8_t  max_cabinet = 0;
+    if (!r.Read(guild_id) || !r.Read(max_cabinet))
+    {
+        spdlog::warn("OnGuildCabinetMaxReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    // Sanity-clamp against the per-level cabinet cap from the
+    // guild-level cache. The legacy module trusts the inbound
+    // value; we add a soft check because nothing on the wire
+    // says the map server validated it. Out-of-range values get
+    // clamped to the cap (operator-visible via the log line).
+    if (ctx.guild_levels && ctx.guilds)
+    {
+        if (auto g = ctx.guilds->Find(guild_id))
+        {
+            std::uint8_t gl_level = 0;
+            {
+                std::lock_guard glk(g->lock);
+                gl_level = g->level;
+            }
+            if (const auto* lvl = ctx.guild_levels->Find(gl_level))
+            {
+                if (max_cabinet > lvl->cabinet_count)
+                {
+                    spdlog::warn("OnGuildCabinetMaxReq[{}]: guild_id={} "
+                                 "max_cabinet={} > level cap {} — "
+                                 "clamping", ip, guild_id, max_cabinet,
+                        lvl->cabinet_count);
+                    max_cabinet = lvl->cabinet_count;
+                }
+            }
+        }
+    }
+
+    // Update in-memory + persist. The handler is on the DM_ side
+    // (pure DB origin in legacy); we still mirror the registry
+    // so OnGuildInfoAck reads the right cap on the next refresh.
+    if (ctx.guilds)
+    {
+        if (auto g = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(g->lock);
+            g->max_cabinet = max_cabinet;
+        }
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, max_cabinet] {
+                repo->UpdateMaxCabinet(guild_id, max_cabinet);
+            });
+    }
+
+    spdlog::info("OnGuildCabinetMaxReq[{}]: guild_id={} max_cabinet={} "
+                 "persisted", ip, guild_id, max_cabinet);
+}
+
+// --- W3a-6 invite flow --------------------------------------------
+
+namespace {
+
+// Helper for the JOIN-reply error branches that pass zeros for
+// every guild meta field. Used by both invite handlers.
+boost::asio::awaitable<void>
+SendJoinError(std::shared_ptr<PeerSession> p,
+              std::uint32_t                char_id,
+              std::uint32_t                key,
+              std::uint8_t                 result,
+              std::uint8_t                 max_member = 0)
+{
+    co_await senders::SendMwGuildJoinReq(p, char_id, key, result,
+        /*guild_id=*/0, /*fame=*/0, /*fame_color=*/0,
+        /*guild_name=*/std::string{}, /*member_id=*/0,
+        /*member_name=*/std::string{}, max_member);
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildInviteAck(std::shared_ptr<PeerSession> peer,
+                 std::vector<std::byte>       body,
+                 const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnGuildInviteAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   target_name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name))
+    {
+        spdlog::warn("OnGuildInviteAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+    std::uint32_t guild_id = 0, actual_key = 0;
+    std::uint8_t  requester_country = 0;
+    std::string   requester_name;
+    {
+        std::lock_guard g(requester->lock);
+        actual_key        = requester->key;
+        guild_id          = requester->guild_id;
+        requester_country = requester->country;
+        requester_name    = requester->name;
+    }
+    if (actual_key != key) co_return;
+    if (guild_id == 0)
+    {
+        co_await SendJoinError(peer, char_id, key, guild::kNotFound);
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        co_await SendJoinError(peer, char_id, key, guild::kNotFound);
+        co_return;
+    }
+
+    // Member-cap check (legacy CanAddMember via m_pTLEVEL).
+    std::string   guild_name;
+    std::uint8_t  max_member = 0;
+    bool          is_disorg  = false;
+    std::size_t   member_cnt = 0;
+    {
+        std::lock_guard gl(guild->lock);
+        is_disorg  = (guild->disorg != 0);
+        guild_name = guild->name;
+        member_cnt = guild->members.size();
+        if (ctx.guild_levels)
+            if (const auto* lvl = ctx.guild_levels->Find(guild->level))
+                max_member = lvl->max_count;
+    }
+    if (is_disorg)
+    {
+        co_await SendJoinError(peer, char_id, key, guild::kNotFound);
+        co_return;
+    }
+    if (max_member > 0 && member_cnt >= max_member)
+    {
+        co_await SendJoinError(peer, char_id, key, guild::kMemberFull,
+            max_member);
+        spdlog::info("OnGuildInviteAck[{}]: char_id={} guild_id={} cap "
+                     "{}/{} — refusing invite to '{}'",
+            ip, char_id, guild_id, member_cnt, max_member, target_name);
+        co_return;
+    }
+
+    auto target = ctx.chars->FindByName(target_name);
+    if (!target)
+    {
+        // Target offline — legacy silently drops (no error reply).
+        // The client times out on its end. We log for ops visibility.
+        spdlog::info("OnGuildInviteAck[{}]: target='{}' offline — drop",
+            ip, target_name);
+        co_return;
+    }
+
+    std::uint8_t  target_country = 0;
+    std::uint32_t target_guild   = 0;
+    std::uint32_t target_char_id = 0;
+    std::uint32_t target_key     = 0;
+    std::uint8_t  target_msi     = 0;
+    {
+        std::lock_guard g(target->lock);
+        target_country = target->country;
+        target_guild   = target->guild_id;
+        target_char_id = target->char_id;
+        target_key     = target->key;
+        target_msi     = target->main_server_id;
+    }
+
+    if (target_country != requester_country)
+    {
+        co_await SendJoinError(peer, char_id, key, guild::kFail);
+        co_return;
+    }
+    if (target_guild != 0)
+    {
+        co_await SendJoinError(peer, char_id, key, guild::kHaveGuild);
+        co_return;
+    }
+
+    // Forward the invite to the target's main map peer.
+    std::shared_ptr<PeerSession> target_peer;
+    for (auto& p : ctx.peers->Snapshot())
+    {
+        if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == target_msi)
+        {
+            target_peer = std::move(p);
+            break;
+        }
+    }
+    if (!target_peer)
+    {
+        spdlog::info("OnGuildInviteAck[{}]: target='{}' main_server_id={} "
+                     "peer offline — drop", ip, target_name, target_msi);
+        co_return;
+    }
+
+    co_await senders::SendMwGuildInviteReq(target_peer, target_char_id,
+        target_key, guild_name, char_id, requester_name);
+    spdlog::info("OnGuildInviteAck[{}]: char_id={} invited target='{}' "
+                 "(char_id={}) to guild_id={} '{}'",
+        ip, char_id, target_name, target_char_id, guild_id, guild_name);
+}
+
+boost::asio::awaitable<void>
+OnGuildInviteAnswerAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnGuildInviteAnswerAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  answer = 0;
+    std::uint32_t inviter_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(answer) ||
+        !r.Read(inviter_id))
+    {
+        spdlog::warn("OnGuildInviteAnswerAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto invited = ctx.chars->Find(char_id);
+    if (!invited) co_return;
+    std::uint32_t invited_key = 0;
+    std::string   invited_name;
+    std::uint32_t invited_guild = 0;
+    {
+        std::lock_guard g(invited->lock);
+        invited_key   = invited->key;
+        invited_name  = invited->name;
+        invited_guild = invited->guild_id;
+    }
+    if (invited_key != key) co_return;
+
+    auto inviter = ctx.chars->Find(inviter_id);
+    if (!inviter) co_return;
+    std::uint32_t inviter_guild_id = 0;
+    std::uint32_t inviter_key      = 0;
+    std::uint8_t  inviter_msi      = 0;
+    {
+        std::lock_guard g(inviter->lock);
+        inviter_guild_id = inviter->guild_id;
+        inviter_key      = inviter->key;
+        inviter_msi      = inviter->main_server_id;
+    }
+
+    std::shared_ptr<PeerSession> inviter_peer;
+    if (inviter_msi != 0)
+    {
+        for (auto& p : ctx.peers->Snapshot())
+        {
+            if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == inviter_msi)
+            {
+                inviter_peer = std::move(p);
+                break;
+            }
+        }
+    }
+    if (!inviter_peer)
+    {
+        spdlog::info("OnGuildInviteAnswerAck[{}]: inviter_id={} offline "
+                     "— drop", ip, inviter_id);
+        co_return;
+    }
+
+    if (answer != guild::kAskYes)
+    {
+        // Notify chief that target declined. Result byte carries
+        // the inviter's answer code so the chief's client can show
+        // the right message.
+        co_await SendJoinError(inviter_peer, inviter_id, inviter_key,
+            /*result=*/answer);
+        spdlog::info("OnGuildInviteAnswerAck[{}]: char_id={} declined "
+                     "invite from {} (answer={})", ip, char_id, inviter_id,
+            answer);
+        co_return;
+    }
+
+    // YES path. Re-validate every gate the W3a-6 OnGuildInviteAck
+    // already checked — the world state may have changed during
+    // the dialog (chief disbanded, member cap filled, target
+    // joined another guild via a parallel invite).
+    if (inviter_guild_id == 0)
+    {
+        co_await SendJoinError(peer,          char_id, key,         guild::kNotFound);
+        co_await SendJoinError(inviter_peer,  inviter_id, inviter_key, guild::kNotFound);
+        co_return;
+    }
+    auto guild = ctx.guilds->Find(inviter_guild_id);
+    if (!guild)
+    {
+        co_await SendJoinError(peer,         char_id, key,         guild::kNotFound);
+        co_await SendJoinError(inviter_peer, inviter_id, inviter_key, guild::kNotFound);
+        co_return;
+    }
+
+    // Snapshot guild meta + run the in-memory member-add under
+    // guild.lock. We also fix up the target's TChar.guild_id
+    // back-pointer inside the same critical region — keeping
+    // the registry coherent matters more than spinning on the
+    // char lock here.
+    std::string  guild_name;
+    std::uint32_t fame = 0, fame_color = 0;
+    std::uint32_t chief_id = 0;
+    std::uint8_t max_member = 0;
+    bool collide_full     = false;
+    bool collide_have     = false;
+    bool collide_disorg   = false;
+    {
+        std::lock_guard gl(guild->lock);
+        collide_disorg = (guild->disorg != 0);
+        if (!collide_disorg)
+        {
+            guild_name = guild->name;
+            fame       = guild->fame;
+            fame_color = guild->fame_color;
+            chief_id   = guild->chief_char_id;
+            if (ctx.guild_levels)
+                if (const auto* lvl = ctx.guild_levels->Find(guild->level))
+                    max_member = lvl->max_count;
+            if (invited_guild != 0)              collide_have = true;
+            else if (max_member > 0 &&
+                     guild->members.size() >= max_member) collide_full = true;
+            else
+            {
+                TGuildMember m;
+                m.char_id  = char_id;
+                m.guild_id = inviter_guild_id;
+                m.duty     = guild::kDutyNone;
+                m.peer     = 0;
+                m.name     = invited_name;
+                guild->members.push_back(std::move(m));
+            }
+        }
+    }
+    if (collide_disorg)
+    {
+        co_await SendJoinError(peer,         char_id, key,         guild::kNotFound);
+        co_await SendJoinError(inviter_peer, inviter_id, inviter_key, guild::kNotFound);
+        co_return;
+    }
+    if (collide_have)
+    {
+        co_await SendJoinError(peer,         char_id, key,         guild::kHaveGuild);
+        co_await SendJoinError(inviter_peer, inviter_id, inviter_key, guild::kHaveGuild);
+        co_return;
+    }
+    if (collide_full)
+    {
+        co_await SendJoinError(peer,         char_id, key,         guild::kMemberFull, max_member);
+        co_await SendJoinError(inviter_peer, inviter_id, inviter_key, guild::kMemberFull, max_member);
+        co_return;
+    }
+
+    // Wire the invited char to their new guild.
+    {
+        std::lock_guard g(invited->lock);
+        invited->guild_id = inviter_guild_id;
+    }
+
+    // Persist via the W3a-4c IGuildRepository::AddMember.
+    if (ctx.guild_repo)
+    {
+        std::uint8_t invited_level = 0;
+        {
+            std::lock_guard g(invited->lock);
+            invited_level = invited->level;
+        }
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, char_id, inviter_guild_id,
+             invited_level] {
+                repo->AddMember(char_id, inviter_guild_id, invited_level,
+                    guild::kDutyNone);
+            });
+    }
+
+    // Two GUILDJOIN_REQ replies — one to each side. Both carry
+    // the full guild meta so each client can render the join
+    // notification. Legacy SSHandler.cpp:3741 calls
+    // NotifyAddGuildMember which fans out the new member to every
+    // existing member's map peer — deferred to W3a-7+ since it
+    // needs the GUILDMEMBERADD or GUILDINFO sender (different
+    // wire surface).
+    co_await senders::SendMwGuildJoinReq(peer, char_id, key,
+        guild::kSuccess, inviter_guild_id, fame, fame_color, guild_name,
+        char_id, invited_name, /*max_member=*/0);
+    co_await senders::SendMwGuildJoinReq(inviter_peer, inviter_id,
+        inviter_key, guild::kSuccess, inviter_guild_id, fame, fame_color,
+        guild_name, char_id, invited_name, /*max_member=*/0);
+
+    spdlog::info("OnGuildInviteAnswerAck[{}]: char_id={} ('{}') joined "
+                 "guild_id={} '{}' (chief={})",
+        ip, char_id, invited_name, inviter_guild_id, guild_name, chief_id);
 }
 
 } // namespace tworldsvr::handlers

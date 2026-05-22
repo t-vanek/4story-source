@@ -46,6 +46,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
+    ${TWORLD_ASIO_SRC}/services/guild_peerage.cpp
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_level_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
@@ -208,3 +209,13 @@ target_link_libraries(test_tworldsvr_asio_guild_level_cache PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_guild_level_cache
     COMMAND test_tworldsvr_asio_guild_level_cache)
+
+# W3a-5 unit test: CheckPeerage gate. 7 scenarios cover every
+# branch of the legacy switch + the W3a-4d "null level_row =
+# relaxed dev gate" path.
+add_executable(test_tworldsvr_asio_guild_peerage
+    ${TWORLD_ASIO_SRC}/tests/test_guild_peerage.cpp)
+target_link_libraries(test_tworldsvr_asio_guild_peerage PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_guild_peerage
+    COMMAND test_tworldsvr_asio_guild_peerage)

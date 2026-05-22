@@ -37,6 +37,10 @@ public:
                                std::uint32_t exp, std::uint32_t gold,
                                std::uint32_t silver, std::uint32_t cooper,
                                std::uint32_t pvp_point) override;
+    bool UpdateMemberPeer(std::uint32_t char_id, std::uint32_t guild_id,
+                          std::uint8_t new_peer) override;
+    bool UpdateMaxCabinet(std::uint32_t guild_id,
+                          std::uint8_t max_cabinet) override;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -44,7 +48,8 @@ public:
     struct Call
     {
         enum class Kind { kSetDisorg, kUpdateMemberDuty, kUpdateFame,
-                          kRemoveMember, kAddMember, kIncrementContribution };
+                          kRemoveMember, kAddMember, kIncrementContribution,
+                          kUpdateMemberPeer, kUpdateMaxCabinet };
         Kind          kind;
         std::uint32_t guild_id = 0;
         std::uint32_t char_id  = 0;

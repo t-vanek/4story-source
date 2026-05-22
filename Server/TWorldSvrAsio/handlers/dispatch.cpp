@@ -73,8 +73,24 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnGuildMemberAddReq(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W3a-4d wires CoOffloadIf for SOCI writes; W3a-5 picks up
-    // Peer / Invite / Article / Cabinet handlers. … see README §4.
+    // ---- W3a-5: peerage + cabinet ----------------------------------
+    case MessageId::MW_GUILDPEER_ACK:
+        co_await OnGuildPeerAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_GUILDCABINETMAX_REQ:
+        co_await OnGuildCabinetMaxReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDINVITE_ACK:
+        co_await OnGuildInviteAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDINVITEANSWER_ACK:
+        co_await OnGuildInviteAnswerAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-7+ picks up Articles / Tactics / Volunteers / PvP
+    // record / Point reward + the post-join NotifyAddGuildMember
+    // broadcast. … see README §4.
 
     default:
         break;

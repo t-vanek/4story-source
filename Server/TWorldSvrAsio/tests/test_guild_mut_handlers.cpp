@@ -234,6 +234,19 @@ std::vector<std::byte> MemberAddBody(std::uint32_t guild_id,
     return b;
 }
 
+std::vector<std::byte> InviteAnswerBody(std::uint32_t char_id,
+                                         std::uint32_t key,
+                                         std::uint8_t  answer,
+                                         std::uint32_t inviter_id)
+{
+    std::vector<std::byte> b;
+    tworldsvr::wire::WritePOD(b, char_id);
+    tworldsvr::wire::WritePOD(b, key);
+    tworldsvr::wire::WritePOD(b, answer);
+    tworldsvr::wire::WritePOD(b, inviter_id);
+    return b;
+}
+
 std::vector<std::byte> EntercharBody(std::uint32_t char_id,
                                       const std::string& name)
 {
@@ -633,6 +646,92 @@ int main()
         EXPECT(saw_add);
     }
 
+    // --- Scenario 13: INVITEANSWER ASK_NO declines (chief gets JOIN) ---
+    //
+    // Set up a fresh char 400 who's not in any guild, then have
+    // them answer NO to an invite from char 200 (chief of
+    // guild_id=8). The chief receives MW_GUILDJOIN_REQ with
+    // result=ASK_NO carrying empty guild meta.
+    SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
+        AddCharBody(400, 0xFEED0001));
+    SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
+        NameBody(400, 0xFEED0001, "Carol"));
+    for (int i = 0; i < 50; ++i)
+    {
+        if (chars.FindByName("Carol")) break;
+        std::this_thread::sleep_for(10ms);
+    }
+
+    // Re-add char 200's guild (we kicked Bravo2 + canceled disorg
+    // in earlier scenarios; the guild itself is still loaded but
+    // we need to make sure 200's back-pointer is still set).
+    {
+        auto c200 = chars.Find(200);
+        if (c200) { std::lock_guard cg(c200->lock); c200->guild_id = 8; }
+    }
+
+    SendFramed(peer1, ToUint16(MessageId::MW_GUILDINVITEANSWER_ACK),
+        InviteAnswerBody(400, 0xFEED0001, /*answer=ASK_NO=*/1, 200));
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDJOIN_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0, key = 0;
+        std::uint8_t  result = 0;
+        EXPECT(r.Read(cid));    EXPECT(cid == 200);     // chief gets it
+        EXPECT(r.Read(key));
+        EXPECT(r.Read(result)); EXPECT(result == 1);    // ASK_NO
+    }
+
+    // --- Scenario 14: INVITEANSWER ASK_YES joins the guild --------
+    //
+    // Carol (char 400) accepts. Both chief + Carol get
+    // MW_GUILDJOIN_REQ with kSuccess. Carol's TChar.guild_id flips
+    // to 8 and the guild's member list gains an entry. Repo
+    // records AddMember(400, 8, …, kDutyNone).
+    SendFramed(peer1, ToUint16(MessageId::MW_GUILDINVITEANSWER_ACK),
+        InviteAnswerBody(400, 0xFEED0001, /*answer=ASK_YES=*/0, 200));
+    // Carol (peer1) gets a reply…
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDJOIN_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0, key = 0, gid = 0;
+        std::uint8_t  result = 0;
+        EXPECT(r.Read(cid));    EXPECT(cid == 400);
+        EXPECT(r.Read(key));    EXPECT(key == 0xFEED0001);
+        EXPECT(r.Read(result)); EXPECT(result == tworldsvr::guild::kSuccess);
+        EXPECT(r.Read(gid));    EXPECT(gid == 8);
+    }
+    // …and the chief (also peer1 since both share the peer wID) too.
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDJOIN_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0;
+        EXPECT(r.Read(cid)); EXPECT(cid == 200);
+    }
+    {
+        auto carol = chars.Find(400);
+        EXPECT(carol != nullptr);
+        if (carol) { std::lock_guard g(carol->lock); EXPECT(carol->guild_id == 8); }
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->FindMember(400) != nullptr);
+        }
+        bool saw_add = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind::kAddMember
+                && c.guild_id == 8 && c.char_id == 400)
+            { saw_add = true; break; }
+        }
+        EXPECT(saw_add);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -642,7 +741,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (12 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (14 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

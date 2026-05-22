@@ -6,6 +6,9 @@
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/write.hpp>
 
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+
 #include <spdlog/spdlog.h>
 
 #include <cstring>
@@ -39,6 +42,36 @@ std::uint32_t ComputeChecksum(const std::byte* body, std::size_t len)
     return FoldChecksum(body, len);
 }
 
+namespace {
+// Extract the X509 Common Name field from an SSL session's peer
+// certificate. Returns empty when the peer didn't present a cert or
+// the cert's subject has no CN. Caller must have already driven
+// async_handshake to completion — calling on an in-progress handshake
+// is undefined.
+std::string ExtractPeerCommonName(SSL* ssl)
+{
+    if (ssl == nullptr) return {};
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    X509* cert = SSL_get1_peer_certificate(ssl);
+#else
+    X509* cert = SSL_get_peer_certificate(ssl);
+#endif
+    if (cert == nullptr) return {};
+    std::string out;
+    X509_NAME* subj = X509_get_subject_name(cert);
+    if (subj != nullptr)
+    {
+        char buf[256] = {0};
+        const int len = X509_NAME_get_text_by_NID(subj, NID_commonName,
+                                                   buf, sizeof(buf));
+        if (len > 0)
+            out.assign(buf, static_cast<std::size_t>(len));
+    }
+    X509_free(cert);
+    return out;
+}
+} // namespace
+
 ControlSession::ControlSession(PlainSocket sock)
     : m_socket(std::in_place_type<PlainSocket>, std::move(sock))
 {
@@ -55,6 +88,13 @@ ControlSession::ControlSession(TlsStream stream)
     auto ep = UnderlyingTcp().remote_endpoint(ec);
     if (!ec && ep.address().is_v4())
         m_remote_ipv4 = ep.address().to_v4().to_string();
+
+    // Capture the peer CN now — the ssl::stream is fully handshaked
+    // by the time the caller hands it to this ctor (ControlServer
+    // drives async_handshake then constructs us), so SSL_get_peer_cert
+    // will return the cert the peer presented during the handshake.
+    m_peer_cn = ExtractPeerCommonName(
+        std::get<TlsStream>(m_socket).native_handle());
 }
 
 ControlSession::PlainSocket& ControlSession::UnderlyingTcp()

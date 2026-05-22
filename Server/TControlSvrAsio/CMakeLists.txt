@@ -271,6 +271,20 @@ if(EXISTS ${CONTROL_TLS_CERT_DIR}/ca.crt)
         PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
     add_test(NAME tcontrolsvr_asio_hybrid
         COMMAND test_tcontrolsvr_asio_hybrid)
+
+    # CN → TPEER_AUTH.peer_name validation on CT_PEER_REGISTER_REQ.
+    # Verifies the register handler rejects a peer whose TLS cert CN
+    # doesn't match the operator-configured peer_name in the trust
+    # map; accepts when they match; and skips the check entirely when
+    # the gate has no opinion on the identity.
+    add_executable(test_tcontrolsvr_asio_register_cn
+        ${TCONTROL_ASIO_SRC}/tests/test_register_cn_validation.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_register_cn
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_register_cn
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_register_cn
+        COMMAND test_tcontrolsvr_asio_register_cn)
 endif()
 
 # CoOffload helper test — verifies the lambda runs on a worker

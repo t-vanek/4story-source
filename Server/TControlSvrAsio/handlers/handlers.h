@@ -33,6 +33,7 @@
 #include "../services/user_protected_service.h"
 
 #include "fourstory/ops/rate_limiter.h"
+#include "fourstory/security/peer_security_gate.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -80,6 +81,14 @@ struct HandlerContext
     // Persistent peer state repository (TPEER_REGISTRY, TPEER_STATUS_LOG,
     // TPEER_METRICS, TOP_AUDIT_LOG). nullptr when no DB is configured.
     IPeerRepository*       peer_repo  = nullptr;
+
+    // Cluster trust store. Handlers consult it for post-handshake CN
+    // validation against TPEER_AUTH.peer_name and for any per-peer
+    // authorization decisions outside the on-accept gate. nullptr
+    // when peer-auth is disabled — handlers MUST treat that as "no
+    // strong identity available" and either skip CN checks or fall
+    // back to the legacy trust model.
+    fourstory::security::PeerSecurityGate* security = nullptr;
 };
 
 namespace handlers {

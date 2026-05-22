@@ -5,6 +5,8 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/redirect_error.hpp>
+#include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
@@ -61,8 +63,86 @@ ControlServer::Run()
             }
         }
 
-        auto sess = std::make_shared<ControlSession>(std::move(sock));
-        spdlog::info("control_svr: accept from {}", sess->RemoteIPv4());
+        std::shared_ptr<ControlSession> sess;
+
+        if (m_cfg.ssl_ctx != nullptr)
+        {
+            // Hybrid first-byte detection for backward-compat with
+            // legacy TController.exe (which speaks plain TCP).
+            // TLS ClientHello always starts with 0x16 (Handshake
+            // content type); the legacy operator protocol's first
+            // byte is wSize's low byte and is never 0x16 in practice
+            // — the legacy CT_OPLOGIN frame is at minimum 18 bytes,
+            // so wSize >= 18 and wSize is small (< 0x1000), the low
+            // byte is the size mod 256 which never lands on 0x16 for
+            // any defined CT_* opcode. If it ever does for a future
+            // opcode, that opcode's frame layout has to grow past
+            // 0x1600 bytes before this confuses us.
+            //
+            // We MSG_PEEK one byte so the TLS handshake (or the
+            // legacy framer) still sees the original byte stream
+            // unchanged.
+            std::array<unsigned char, 1> peek{};
+            boost::system::error_code peek_ec;
+            const auto peeked = co_await sock.async_receive(
+                boost::asio::buffer(peek),
+                tcp::socket::message_peek,
+                boost::asio::redirect_error(
+                    boost::asio::use_awaitable, peek_ec));
+            if (peek_ec || peeked == 0)
+            {
+                spdlog::debug("control_svr: peek failed from {} — closing",
+                    sock.remote_endpoint(peek_ec).address().to_string());
+                boost::system::error_code ig;
+                sock.close(ig);
+                continue;
+            }
+
+            const bool looks_like_tls = (peek[0] == 0x16);
+            if (looks_like_tls)
+            {
+                // Server-side TLS — wrap and handshake. Same path as
+                // before, just gated on the peek.
+                ControlSession::TlsStream stream(std::move(sock),
+                                                  *m_cfg.ssl_ctx);
+                boost::system::error_code tls_ec;
+                co_await stream.async_handshake(
+                    boost::asio::ssl::stream_base::server,
+                    boost::asio::redirect_error(
+                        boost::asio::use_awaitable, tls_ec));
+                if (tls_ec)
+                {
+                    spdlog::warn("control_svr: TLS handshake failed: {}",
+                        tls_ec.message());
+                    boost::system::error_code ig;
+                    stream.next_layer().shutdown(
+                        tcp::socket::shutdown_both, ig);
+                    stream.next_layer().close(ig);
+                    continue;
+                }
+                sess = std::make_shared<ControlSession>(std::move(stream));
+                spdlog::info("control_svr: TLS accept from {}",
+                    sess->RemoteIPv4());
+            }
+            else
+            {
+                // Plain TCP path — legacy operator binary on a
+                // TLS-enabled listener. Logged so operators see the
+                // mix; future Phase B token validation can refuse
+                // operator commands on plain sessions if required.
+                sess = std::make_shared<ControlSession>(std::move(sock));
+                spdlog::info("control_svr: plain accept from {} "
+                             "(legacy operator path)",
+                    sess->RemoteIPv4());
+            }
+        }
+        else
+        {
+            // No TLS context configured — plain TCP for everyone.
+            sess = std::make_shared<ControlSession>(std::move(sock));
+            spdlog::info("control_svr: accept from {}", sess->RemoteIPv4());
+        }
+
         boost::asio::co_spawn(m_io,
             HandleConnection(std::move(sess)),
             boost::asio::detached);
@@ -95,6 +175,7 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.patch_meta = m_cfg.patch_meta;
     ctx.alerter    = m_cfg.alerter;
     ctx.peer_repo  = m_cfg.peer_repo;
+    ctx.security   = m_cfg.security;
     ctx.login_rate = m_cfg.login_rate;
     ctx.db_pool    = m_cfg.db_pool;
     ctx.io         = &m_io;

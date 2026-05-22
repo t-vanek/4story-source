@@ -9,12 +9,14 @@
 #include "fourstory/security/hmac.h"
 #include "fourstory/security/peer_auth_token.h"
 #include "fourstory/security/peer_security_gate.h"
+#include "fourstory/security/peer_tls_context.h"
 #include "fourstory/security/security_config.h"
 
 #include <cassert>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 
 int main()
@@ -126,6 +128,138 @@ int main()
         cfg.ip_allowlist = {"10.0.0.0/33"};
         const auto err = cfg.Validate();
         assert(err.find("ip_allowlist") != std::string::npos);
+
+        // future_window must accept 0 (mandates exact clock sync) but
+        // not negative.
+        SecurityConfig fcfg;
+        fcfg.master_key_hex = "deadbeef";
+        fcfg.future_window = std::chrono::seconds(0);
+        assert(fcfg.Validate().empty());
+        fcfg.future_window = std::chrono::seconds(-1);
+        const auto fwerr = fcfg.Validate();
+        assert(fwerr.find("future_window") != std::string::npos);
+
+        // peer_tls_enabled requires cert/key/CA + valid min_version.
+        SecurityConfig tcfg;
+        tcfg.peer_tls_enabled = true;
+        const auto ca_missing = tcfg.Validate();
+        assert(ca_missing.find("peer_tls_ca_cert") != std::string::npos);
+        tcfg.peer_tls_ca_cert = "/tmp/ca.crt";
+        const auto cert_missing = tcfg.Validate();
+        assert(cert_missing.find("peer_tls_peer_cert") != std::string::npos);
+        tcfg.peer_tls_peer_cert = "/tmp/peer.crt";
+        const auto key_missing = tcfg.Validate();
+        assert(key_missing.find("peer_tls_peer_key") != std::string::npos);
+        tcfg.peer_tls_peer_key = "/tmp/peer.key";
+        assert(tcfg.Validate().empty());
+        tcfg.peer_tls_min_version = "1.0";
+        const auto bad_ver = tcfg.Validate();
+        assert(bad_ver.find("peer_tls_min_version") != std::string::npos);
+    }
+
+    // ── Asymmetric timestamp window ─────────────────────────────────
+    // Verifies CheckToken's freshness check rejects future-skewed
+    // tokens with the tight `future_window` bound and past-skewed
+    // tokens with the wider `nonce_window` bound. peer_auth_required
+    // is on, so we exercise the freshness branch; trust map is empty
+    // (no DB), so accepted tokens fall through to UnknownPeer — that's
+    // the signal that freshness passed.
+    {
+        SecurityConfig cfg;
+        cfg.peer_auth_required = true;
+        cfg.master_key_hex     = "00112233445566778899aabbccddeeff";
+        cfg.nonce_window       = std::chrono::seconds(30);
+        cfg.future_window      = std::chrono::seconds(3);
+        cfg.audit_failed_attempts = false;  // no DB → would crash on log
+        assert(cfg.Validate().empty());
+
+        PeerSecurityGate gate(cfg, nullptr);
+        const std::uint64_t now = 1'700'000'000ULL;
+
+        auto mk = [](std::uint64_t ts) {
+            PeerAuthToken t{};
+            t.timestamp = ts;
+            t.nonce     = 1;
+            t.peer_type = 4;
+            t.group_id  = 1;
+            t.server_id = 2;
+            return t;
+        };
+
+        // Future +2s — inside future_window → freshness OK → UnknownPeer.
+        {
+            const auto r = gate.CheckToken(mk(now + 2), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::UnknownPeer);
+        }
+        // Future +10s — outside future_window → Expired.
+        {
+            const auto r = gate.CheckToken(mk(now + 10), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::Expired);
+            assert(r.reason.find("future_window") != std::string::npos ||
+                   r.reason.find("+3s") != std::string::npos);
+        }
+        // Past -20s — inside nonce_window → freshness OK → UnknownPeer.
+        {
+            const auto r = gate.CheckToken(mk(now - 20), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::UnknownPeer);
+        }
+        // Past -100s — outside nonce_window → Expired.
+        {
+            const auto r = gate.CheckToken(mk(now - 100), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::Expired);
+        }
+        // Exact `now` — trivially fresh.
+        {
+            const auto r = gate.CheckToken(mk(now), "10.0.0.5", now);
+            assert(r.outcome == PeerAuthOutcome::UnknownPeer);
+        }
+    }
+
+    // ── PeerTlsContextBuilder ───────────────────────────────────────
+    // Disabled config must throw (the helper isn't a no-op — callers
+    // should guard on peer_tls_enabled themselves).
+    {
+        SecurityConfig cfg;
+        cfg.peer_tls_enabled = false;
+        bool threw = false;
+        try { (void)PeerTlsContextBuilder::BuildServerContext(cfg); }
+        catch (const std::runtime_error&) { threw = true; }
+        assert(threw && "BuildServerContext must throw when disabled");
+        (void)threw;  // silence -Wunused-but-set-variable on release builds
+    }
+    // Missing fields → throws with the offending field in the message.
+    {
+        SecurityConfig cfg;
+        cfg.peer_tls_enabled = true;
+        cfg.peer_tls_peer_cert = "/tmp/x";
+        cfg.peer_tls_peer_key  = "/tmp/y";
+        try {
+            PeerTlsContextBuilder::BuildServerContext(cfg);
+            assert(false && "expected throw on missing CA");
+        }
+        catch (const std::runtime_error& ex) {
+            const std::string what(ex.what());
+            assert(what.find("peer_tls_ca_cert") != std::string::npos);
+        }
+    }
+    // Nonexistent cert file → throws with file path in message.
+    {
+        SecurityConfig cfg;
+        cfg.peer_tls_enabled = true;
+        cfg.peer_tls_ca_cert   = "/tmp/4story-test-does-not-exist-ca.pem";
+        cfg.peer_tls_peer_cert = "/tmp/4story-test-does-not-exist-peer.pem";
+        cfg.peer_tls_peer_key  = "/tmp/4story-test-does-not-exist-key.pem";
+        try {
+            PeerTlsContextBuilder::BuildClientContext(cfg);
+            assert(false && "expected throw on missing file");
+        }
+        catch (const std::runtime_error& ex) {
+            const std::string what(ex.what());
+            // The first file checked is the peer cert (cert chain is
+            // loaded before key + CA). Expect that path to appear in
+            // the error message.
+            assert(what.find("4story-test-does-not-exist") != std::string::npos);
+        }
     }
 
     std::printf("test_security: all assertions passed\n");

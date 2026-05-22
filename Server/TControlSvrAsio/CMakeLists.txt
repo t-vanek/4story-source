@@ -244,6 +244,49 @@ target_link_libraries(test_tcontrolsvr_asio_peer_client PRIVATE
 add_test(NAME tcontrolsvr_asio_peer_client
     COMMAND test_tcontrolsvr_asio_peer_client)
 
+# ControlSession TLS round-trip — wraps the accepted socket in
+# asio::ssl::stream, drives the server-side handshake, and verifies
+# the wire protocol (8-byte header + checksum + body) flows through
+# the encrypted channel. Reuses the tnetlib cert fixtures.
+set(CONTROL_TLS_CERT_DIR
+    ${CMAKE_BINARY_DIR}/Lib/Own/TNetLib/test_certs)
+if(EXISTS ${CONTROL_TLS_CERT_DIR}/ca.crt)
+    add_executable(test_tcontrolsvr_asio_control_session_tls
+        ${TCONTROL_ASIO_SRC}/tests/test_control_session_tls.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_control_session_tls
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_control_session_tls
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_control_session_tls
+        COMMAND test_tcontrolsvr_asio_control_session_tls)
+
+    # Hybrid first-byte detection — TLS clients (0x16 ClientHello) and
+    # legacy plain-TCP operators on the SAME listener. Exercises the
+    # Phase A.2 peek branch in ControlServer::Run().
+    add_executable(test_tcontrolsvr_asio_hybrid
+        ${TCONTROL_ASIO_SRC}/tests/test_control_server_hybrid.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_hybrid
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_hybrid
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_hybrid
+        COMMAND test_tcontrolsvr_asio_hybrid)
+
+    # CN → TPEER_AUTH.peer_name validation on CT_PEER_REGISTER_REQ.
+    # Verifies the register handler rejects a peer whose TLS cert CN
+    # doesn't match the operator-configured peer_name in the trust
+    # map; accepts when they match; and skips the check entirely when
+    # the gate has no opinion on the identity.
+    add_executable(test_tcontrolsvr_asio_register_cn
+        ${TCONTROL_ASIO_SRC}/tests/test_register_cn_validation.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_register_cn
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_register_cn
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_register_cn
+        COMMAND test_tcontrolsvr_asio_register_cn)
+endif()
+
 # CoOffload helper test — verifies the lambda runs on a worker
 # thread, the coroutine resumes on the io_context, and exceptions
 # propagate. Pure logic, no DB. Also covers the CoOffloadIf /

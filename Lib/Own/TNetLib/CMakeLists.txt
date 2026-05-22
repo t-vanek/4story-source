@@ -23,6 +23,7 @@ set(TNETLIB_SOURCES
     ${TNETLIB_SRC_DIR}/platform.cpp
     ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
     ${TNETLIB_SRC_DIR}/asio_session.cpp
+    ${TNETLIB_SRC_DIR}/tls_asio_session.cpp
     ${TNETLIB_SRC_DIR}/packet_codec.cpp
     ${TNETLIB_SRC_DIR}/MessageId.cpp
 )
@@ -41,7 +42,9 @@ set(TNETLIB_HEADERS
     ${TNETLIB_SRC_DIR}/TNetLib.h
     ${TNETLIB_SRC_DIR}/platform.h
     ${TNETLIB_SRC_DIR}/tnetlib_crypto.h
+    ${TNETLIB_SRC_DIR}/tnetlib_proto_log.h
     ${TNETLIB_SRC_DIR}/asio_session.h
+    ${TNETLIB_SRC_DIR}/tls_asio_session.h
     ${TNETLIB_SRC_DIR}/packet_codec.h
 )
 
@@ -61,14 +64,15 @@ target_include_directories(tnetlib
 if(WIN32)
     target_precompile_headers(tnetlib PRIVATE ${TNETLIB_SRC_DIR}/stdafx.h)
 
-    # platform.cpp, tnetlib_crypto.cpp, and asio_session.cpp are PCH-free
-    # — they deliberately do NOT include stdafx.h (which drags in
-    # winsock2.h). Opt them out of PCH on Windows so the two toolchains
-    # compile them identically.
+    # platform.cpp, tnetlib_crypto.cpp, asio_session.cpp, and
+    # tls_asio_session.cpp are PCH-free — they deliberately do NOT
+    # include stdafx.h (which drags in winsock2.h). Opt them out of
+    # PCH on Windows so the two toolchains compile them identically.
     set_source_files_properties(
         ${TNETLIB_SRC_DIR}/platform.cpp
         ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
         ${TNETLIB_SRC_DIR}/asio_session.cpp
+        ${TNETLIB_SRC_DIR}/tls_asio_session.cpp
         ${TNETLIB_SRC_DIR}/packet_codec.cpp
         ${TNETLIB_SRC_DIR}/MessageId.cpp
         PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
@@ -139,6 +143,62 @@ if(Boost_FOUND OR EXISTS /usr/include/boost/asio.hpp)
     add_test(NAME tnetlib_asio_echo COMMAND test_tnetlib_asio)
 endif()
 
+# TLS session test — generates throw-away self-signed CA + server +
+# client certs at configure time, links the TlsAsioSession source
+# and exercises a packet round-trip plus a negative handshake case.
+# Skipped if OpenSSL is missing (Windows minimum-build) or on hosts
+# without `openssl` CLI for the cert script.
+if((Boost_FOUND OR EXISTS /usr/include/boost/asio/ssl.hpp) AND
+   (OpenSSL_FOUND OR NOT WIN32))
+    find_program(OPENSSL_BIN openssl)
+    if(OPENSSL_BIN)
+        set(TLS_TEST_CERT_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_certs)
+        execute_process(
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/gen_test_certs.sh
+                    ${TLS_TEST_CERT_DIR}
+            RESULT_VARIABLE TLS_CERT_GEN_RESULT
+            OUTPUT_QUIET
+            ERROR_QUIET)
+        if(NOT TLS_CERT_GEN_RESULT EQUAL 0)
+            message(WARNING "tnetlib: gen_test_certs.sh failed (rc=${TLS_CERT_GEN_RESULT}); skipping TLS test")
+        else()
+            if(NOT OpenSSL_FOUND)
+                find_package(OpenSSL REQUIRED)
+            endif()
+            add_executable(test_tnetlib_tls
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_tls_session.cpp
+                ${TNETLIB_SRC_DIR}/asio_session.cpp
+                ${TNETLIB_SRC_DIR}/tls_asio_session.cpp
+                ${TNETLIB_SRC_DIR}/packet_codec.cpp
+                ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp)
+            target_include_directories(test_tnetlib_tls PRIVATE
+                ${TNETLIB_SRC_DIR})
+            target_compile_definitions(test_tnetlib_tls PRIVATE
+                TEST_CERT_DIR="${TLS_TEST_CERT_DIR}")
+            target_link_libraries(test_tnetlib_tls PRIVATE
+                OpenSSL::SSL OpenSSL::Crypto)
+            if(Boost_FOUND)
+                target_link_libraries(test_tnetlib_tls PRIVATE Boost::system)
+            else()
+                target_link_libraries(test_tnetlib_tls PRIVATE boost_system)
+            endif()
+            if(NOT WIN32)
+                target_link_libraries(test_tnetlib_tls PRIVATE pthread)
+            endif()
+            set_source_files_properties(
+                ${TNETLIB_SRC_DIR}/asio_session.cpp
+                ${TNETLIB_SRC_DIR}/tls_asio_session.cpp
+                ${TNETLIB_SRC_DIR}/packet_codec.cpp
+                ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
+                PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+                TARGET_DIRECTORY test_tnetlib_tls)
+            add_test(NAME tnetlib_tls COMMAND test_tnetlib_tls)
+        endif()
+    else()
+        message(STATUS "tnetlib: openssl CLI not found, skipping TLS test")
+    endif()
+endif()
+
 # Packet codec test — pure C++20, no Boost or OpenSSL needed.
 add_executable(test_tnetlib_packet_codec
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_packet_codec.cpp
@@ -171,6 +231,7 @@ add_test(NAME tnetlib_messageid COMMAND test_tnetlib_messageid)
 # files until step E phases 3/4 complete the per-server migration).
 add_library(tnetlib_portable STATIC
     ${TNETLIB_SRC_DIR}/asio_session.cpp
+    ${TNETLIB_SRC_DIR}/tls_asio_session.cpp
     ${TNETLIB_SRC_DIR}/packet_codec.cpp
     ${TNETLIB_SRC_DIR}/platform.cpp
     ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
@@ -182,6 +243,7 @@ set_target_properties(tnetlib_portable PROPERTIES
     POSITION_INDEPENDENT_CODE ON)
 set_source_files_properties(
     ${TNETLIB_SRC_DIR}/asio_session.cpp
+    ${TNETLIB_SRC_DIR}/tls_asio_session.cpp
     ${TNETLIB_SRC_DIR}/packet_codec.cpp
     ${TNETLIB_SRC_DIR}/platform.cpp
     ${TNETLIB_SRC_DIR}/tnetlib_crypto.cpp
@@ -194,7 +256,9 @@ else()
     target_link_libraries(tnetlib_portable PUBLIC boost_system)
 endif()
 if(OpenSSL_FOUND)
-    target_link_libraries(tnetlib_portable PUBLIC OpenSSL::Crypto)
+    # tls_asio_session.cpp needs both libssl (for asio::ssl) and
+    # libcrypto (for X509 inspection during handshake).
+    target_link_libraries(tnetlib_portable PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 endif()
 if(NOT WIN32)
     target_link_libraries(tnetlib_portable PUBLIC pthread)

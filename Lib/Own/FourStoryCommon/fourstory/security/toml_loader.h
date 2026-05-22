@@ -39,12 +39,24 @@ inline SecurityConfig LoadFromToml(const toml::table& tbl)
         cfg.master_key_hex = *s;
     if (auto n = tbl["nonce_window_seconds"].value<std::int64_t>())
         cfg.nonce_window = std::chrono::seconds(*n);
+    if (auto n = tbl["future_window_seconds"].value<std::int64_t>())
+        cfg.future_window = std::chrono::seconds(*n);
     if (auto n = tbl["handshake_timeout_seconds"].value<std::int64_t>())
         cfg.handshake_timeout = std::chrono::seconds(*n);
     if (auto b = tbl["db_trust_store"].value<bool>())
         cfg.db_trust_store = *b;
     if (auto b = tbl["audit_failed_attempts"].value<bool>())
         cfg.audit_failed_attempts = *b;
+    if (auto b = tbl["peer_tls_enabled"].value<bool>())
+        cfg.peer_tls_enabled = *b;
+    if (auto s = tbl["peer_tls_ca_cert"].value<std::string>())
+        cfg.peer_tls_ca_cert = *s;
+    if (auto s = tbl["peer_tls_peer_cert"].value<std::string>())
+        cfg.peer_tls_peer_cert = *s;
+    if (auto s = tbl["peer_tls_peer_key"].value<std::string>())
+        cfg.peer_tls_peer_key = *s;
+    if (auto s = tbl["peer_tls_min_version"].value<std::string>())
+        cfg.peer_tls_min_version = *s;
 
     return cfg;
 }

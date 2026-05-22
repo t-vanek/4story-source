@@ -44,8 +44,22 @@ std::string SecurityConfig::Validate() const
     }
     if (nonce_window.count() <= 0)
         return "[security] nonce_window_seconds must be > 0";
+    if (future_window.count() < 0)
+        return "[security] future_window_seconds must be >= 0";
     if (handshake_timeout.count() <= 0)
         return "[security] handshake_timeout_seconds must be > 0";
+
+    if (peer_tls_enabled)
+    {
+        if (peer_tls_ca_cert.empty())
+            return "[security] peer_tls_enabled=true requires peer_tls_ca_cert";
+        if (peer_tls_peer_cert.empty())
+            return "[security] peer_tls_enabled=true requires peer_tls_peer_cert";
+        if (peer_tls_peer_key.empty())
+            return "[security] peer_tls_enabled=true requires peer_tls_peer_key";
+        if (peer_tls_min_version != "1.2" && peer_tls_min_version != "1.3")
+            return "[security] peer_tls_min_version must be '1.2' or '1.3'";
+    }
     return {};
 }
 

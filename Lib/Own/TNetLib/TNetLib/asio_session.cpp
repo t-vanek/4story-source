@@ -3,6 +3,7 @@
 
 #include "asio_session.h"
 #include "tnetlib_crypto.h"
+#include "tnetlib_proto_log.h"
 
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/read.hpp>
@@ -16,6 +17,7 @@
 #include <atomic>
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 #include <utility>
 
 namespace tnetlib {
@@ -26,17 +28,28 @@ namespace {
 // per-recv memory.
 constexpr std::size_t kRecvChunkBytes = 4096;
 
+// Send-queue capacity per session. 256 in-flight packets per peer is
+// well above the legacy wire protocol's burst patterns (handler
+// replies are bounded by the per-request payload) and gives roughly
+// 16 KB-worth of buffered PendingSend metadata per session at typical
+// body sizes. Process-wide knob via SetSendQueueCapacity.
+std::atomic<std::size_t> g_send_queue_capacity{256};
+
 void DefaultErrorLogger(std::string_view msg) noexcept
 {
     std::fprintf(stderr, "[tnetlib] %.*s\n",
                  static_cast<int>(msg.size()), msg.data());
 }
+} // namespace
 
-std::atomic<AsioSession::ErrorLogger> g_error_logger{&DefaultErrorLogger};
+namespace detail {
+// Shared sink — declared in tnetlib_proto_log.h. Both AsioSession and
+// TlsAsioSession route diagnostics through it.
+std::atomic<AsioSession::ErrorLogger> g_proto_logger{&DefaultErrorLogger};
 
 void LogProto(const char* fmt, ...) noexcept
 {
-    auto* fn = g_error_logger.load(std::memory_order_relaxed);
+    auto* fn = g_proto_logger.load(std::memory_order_relaxed);
     if (fn == nullptr) return;
     char buf[256];
     std::va_list ap;
@@ -48,11 +61,25 @@ void LogProto(const char* fmt, ...) noexcept
                                      sizeof(buf) - 1);
     fn(std::string_view(buf, len));
 }
+} // namespace detail
+
+namespace {
+// Bring the shared LogProto into this TU's anonymous namespace so the
+// rest of this file can call it unqualified, matching the original
+// shape from before the TlsAsioSession split.
+using detail::LogProto;
 } // namespace
 
 void AsioSession::SetErrorLogger(ErrorLogger logger) noexcept
 {
-    g_error_logger.store(logger, std::memory_order_relaxed);
+    detail::g_proto_logger.store(logger, std::memory_order_relaxed);
+}
+
+void AsioSession::SetSendQueueCapacity(std::size_t n) noexcept
+{
+    // 0 would deadlock SendPacket on the first call; clamp to 1.
+    g_send_queue_capacity.store(n == 0 ? 1 : n,
+                                std::memory_order_relaxed);
 }
 
 // ===== AsioSession ==========================================================
@@ -61,6 +88,8 @@ AsioSession::AsioSession(boost::asio::ip::tcp::socket socket, PeerType type)
     : m_socket(std::move(socket))
     , m_type(type)
     , m_recv_buffer(kRecvChunkBytes)
+    , m_send_chan(m_socket.get_executor(),
+                  g_send_queue_capacity.load(std::memory_order_relaxed))
 {
     // Capture peer IPv4 once at construction. remote_endpoint() throws
     // on a closed / unconnected socket; the auth path (IP banlist,
@@ -79,9 +108,28 @@ AsioSession::~AsioSession()
     Close();
 }
 
+void AsioSession::StartDrainIfNeeded()
+{
+    // exchange returns the prior value — we spawn iff we flipped false→true.
+    if (m_drain_started.exchange(true, std::memory_order_acq_rel))
+        return;
+
+    // The drain coroutine holds the session alive through shared_from_this
+    // so it can outlive whichever caller spawned us (typical pattern: Run
+    // or RunPackets exits when the peer closes, but a few last queued
+    // sends may still be in flight on the channel).
+    boost::asio::co_spawn(
+        m_socket.get_executor(),
+        [self = shared_from_this()]() -> boost::asio::awaitable<void> {
+            co_await self->DrainSendQueue();
+        },
+        boost::asio::detached);
+}
+
 boost::asio::awaitable<void>
 AsioSession::Run(BytesHandler on_bytes)
 {
+    StartDrainIfNeeded();
     boost::system::error_code ec;
     while (m_socket.is_open())
     {
@@ -119,6 +167,7 @@ AsioSession::Send(std::span<const std::byte> bytes)
 boost::asio::awaitable<void>
 AsioSession::RunPackets(PacketHandler on_packet)
 {
+    StartDrainIfNeeded();
     boost::system::error_code ec;
 
     // Per-iteration: read 16-byte header, parse plaintext wSize, read
@@ -243,8 +292,40 @@ AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
         co_return;
     }
 
+    // Copy the body into the channel envelope. The drain coroutine owns
+    // the lifetime from here, so the caller's `body` span need not stay
+    // valid past this co_return.
+    PendingSend pending;
+    pending.wId  = wId;
+    pending.body.assign(body.begin(), body.end());
+
+    boost::system::error_code ec;
+    co_await m_send_chan.async_send(
+        boost::system::error_code{},
+        std::move(pending),
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+    if (ec)
+    {
+        // Channel was closed (Close() called) or the operation was
+        // cancelled. Quietly drop — the caller's intent was to send
+        // on a session that is now going away.
+        LogProto("send: enqueue dropped (ip=%s, wId=0x%04X, err=%s)",
+                 m_remote_ipv4.c_str(),
+                 static_cast<unsigned>(wId),
+                 ec.message().c_str());
+    }
+}
+
+boost::asio::awaitable<void>
+AsioSession::DoSendPacket(std::uint16_t wId, std::span<const std::byte> body)
+{
+    if (!m_socket.is_open())
+        co_return;
+
     // Build the frame in m_send_buffer so the async_write sees one
-    // contiguous chunk (no scatter/gather needed).
+    // contiguous chunk (no scatter/gather needed). m_send_buffer is
+    // owned exclusively by the drain coroutine.
     const std::size_t frame_size = kPacketHeaderSize + body.size();
     m_send_buffer.resize(frame_size);
 
@@ -282,14 +363,58 @@ AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
         hdr->wSize = saved_wsize;
     }
 
+    boost::system::error_code ec;
     co_await boost::asio::async_write(
         m_socket,
         boost::asio::buffer(m_send_buffer.data(), frame_size),
-        boost::asio::use_awaitable);
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+    if (ec)
+    {
+        // The socket-level errors here (broken pipe, connection reset)
+        // are the normal "peer went away" path; surfacing them once
+        // helps diagnose unexpected drops.
+        LogProto("send: write failed (ip=%s, wId=0x%04X, err=%s)",
+                 m_remote_ipv4.c_str(),
+                 static_cast<unsigned>(wId),
+                 ec.message().c_str());
+    }
+}
+
+boost::asio::awaitable<void>
+AsioSession::DrainSendQueue()
+{
+    boost::system::error_code ec;
+    while (true)
+    {
+        PendingSend pending = co_await m_send_chan.async_receive(
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+        if (ec)
+        {
+            // Channel closed (Close()) or cancelled. We're done.
+            break;
+        }
+
+        // Hand off the buffered body to the actual serialize+write.
+        // DoSendPacket is responsible for socket-state checks.
+        co_await DoSendPacket(pending.wId,
+            std::span<const std::byte>(pending.body.data(),
+                                       pending.body.size()));
+
+        if (!m_socket.is_open())
+            break;
+    }
 }
 
 void AsioSession::Close()
 {
+    // Always tear down the send channel — pending awaiters (producers
+    // suspended on a full queue, the drain awaiting the next item)
+    // will wake with operation_aborted/cancelled and unwind. close()
+    // is idempotent for the channel itself.
+    m_send_chan.close();
+
     if (!m_socket.is_open())
         return;
     boost::system::error_code ec;

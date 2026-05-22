@@ -53,6 +53,7 @@ namespace {
 // with the wire format if the registry contract changes.
 constexpr std::uint32_t kRejectUnknownService = 1;
 constexpr std::uint32_t kRejectMalformed      = 2;
+constexpr std::uint32_t kRejectCnMismatch     = 3;
 constexpr std::uint32_t kRejectInternal       = 99;
 
 // Fixed cadence the control side asks every peer to use. 30s matches
@@ -106,6 +107,45 @@ OnPeerRegisterReq(std::shared_ptr<OperatorSession> op,
         co_await senders::SendPeerRegisterAck(op->Wire(), 0,
             kRejectUnknownService, 0, kHeartbeatIntervalSec);
         co_return;
+    }
+
+    // Post-handshake CN validation. When the peer connected over
+    // TLS, the cert's Common Name was captured into
+    // ControlSession::PeerCommonName() at construction time. We
+    // compare it against the operator-configured peer_name in
+    // TPEER_AUTH (looked up via the security gate's trust map) for
+    // the identity claimed by service_id.
+    //
+    // Policy:
+    //   * No CN (plain-TCP session): skip the check entirely. This
+    //     preserves backward-compat for deployments that haven't
+    //     enabled peer_tls_enabled yet; the legacy operator gate
+    //     (IP allowlist + handshake HMAC) still applies.
+    //   * CN present + no matching TPEER_AUTH row: skip — the row
+    //     might be intentionally absent (peer is configured in TOML
+    //     fallback). LogOutcome path stays clean.
+    //   * CN present + row peer_name differs: REJECT. A peer
+    //     presenting a valid cert but claiming an identity that
+    //     doesn't match the cert's CN is either misconfigured or
+    //     hostile; either way we don't want it in the live registry.
+    const auto& peer_cn = op->Wire()->PeerCommonName();
+    if (!peer_cn.empty() && ctx.security != nullptr)
+    {
+        const std::uint8_t group_id  =
+            static_cast<std::uint8_t>((service_id >> 16) & 0xFF);
+        const std::uint8_t server_id =
+            static_cast<std::uint8_t>(service_id & 0xFF);
+        const auto expected =
+            ctx.security->LookupPeerName(group_id, server_id);
+        if (expected.has_value() && *expected != peer_cn)
+        {
+            spdlog::warn("CT_PEER_REGISTER_REQ: CN mismatch — cert CN='{}', "
+                         "expected '{}' for service_id={:#x}",
+                peer_cn, *expected, service_id);
+            co_await senders::SendPeerRegisterAck(op->Wire(), 0,
+                kRejectCnMismatch, 0, kHeartbeatIntervalSec);
+            co_return;
+        }
     }
 
     RegistryEntry entry{};

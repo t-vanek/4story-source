@@ -532,6 +532,142 @@ void TestSendPacketRejectsOversizedBody()
     if (io_thread.joinable()) io_thread.join();
 }
 
+// Stress test for the Phase-3 send queue. Spawns N concurrent producer
+// coroutines on the client, each issuing M SendPackets back-to-back
+// without explicit serialization between them. The drain coroutine
+// inside AsioSession is responsible for keeping sequence numbers and
+// socket writes ordered. Server-side: the per-session read loop
+// receives the packets and counts them; any sequence drift or
+// checksum mismatch would terminate RunPackets and short the count.
+//
+// Asserts: all N*M packets land, and the encoded wId of each one falls
+// into the expected per-producer range so we know none were corrupted.
+void TestConcurrentSendPacketSerializes()
+{
+    std::printf("[concurrent SendPacket serializes via internal queue]\n");
+
+    constexpr int kProducers     = 8;
+    constexpr int kPacketsPerOne = 50;
+    constexpr int kTotal         = kProducers * kPacketsPerOne;
+
+    asio::io_context io;
+    tnetlib::AsioListener listener(io.get_executor(), 0);
+    const std::uint16_t port = listener.Port();
+    Check(port != 0, "listener bound");
+
+    std::atomic<int> server_received{0};
+    std::vector<std::uint16_t> server_wids;
+    std::mutex server_wids_mtx;
+
+    asio::co_spawn(io,
+        listener.Run([&](tcp::socket socket) {
+            auto sess = std::make_shared<tnetlib::AsioSession>(
+                std::move(socket), tnetlib::PeerType::Server);
+            asio::co_spawn(io,
+                [sess, &server_received, &server_wids, &server_wids_mtx]()
+                    -> asio::awaitable<void> {
+                    co_await sess->RunPackets(
+                        [&](const tnetlib::DecodedPacket& pkt) {
+                            {
+                                std::lock_guard<std::mutex> lk(
+                                    server_wids_mtx);
+                                server_wids.push_back(pkt.wId);
+                            }
+                            server_received.fetch_add(1);
+                        });
+                },
+                asio::detached);
+        }),
+        asio::detached);
+
+    // Run io_context on multiple threads to amplify any latent races
+    // between concurrent producers and the drain. Two suffices to
+    // detect ordering bugs without burning CPU.
+    std::thread io_thread1([&io] { io.run(); });
+    std::thread io_thread2([&io] { io.run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    asio::io_context client_io;
+    tcp::socket client_sock(client_io);
+    client_sock.connect(tcp::endpoint(asio::ip::address_v4::loopback(), port));
+    auto client_sess = std::make_shared<tnetlib::AsioSession>(
+        std::move(client_sock), tnetlib::PeerType::Server);
+
+    // RunPackets has to start so the client-side drain spawns. We
+    // don't care about inbound packets here, just kick it.
+    asio::co_spawn(client_io,
+        [client_sess]() -> asio::awaitable<void> {
+            co_await client_sess->RunPackets(
+                [](const tnetlib::DecodedPacket&){});
+        },
+        asio::detached);
+
+    // Spawn kProducers parallel sender coroutines. Each one tags its
+    // packets with a wId in [pid*1000, pid*1000 + kPacketsPerOne) so
+    // we can spot interleaving on the receive side.
+    for (int pid = 0; pid < kProducers; ++pid)
+    {
+        asio::co_spawn(client_io,
+            [client_sess, pid]() -> asio::awaitable<void> {
+                std::vector<std::byte> payload(8, std::byte{0xAB});
+                for (int i = 0; i < kPacketsPerOne; ++i)
+                {
+                    const std::uint16_t wId =
+                        static_cast<std::uint16_t>(pid * 1000 + i);
+                    co_await client_sess->SendPacket(wId,
+                        std::span<const std::byte>(payload.data(),
+                                                    payload.size()));
+                }
+            },
+            asio::detached);
+    }
+
+    std::thread client_thread([&client_io] { client_io.run(); });
+
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(5);
+    while (server_received.load() < kTotal &&
+           std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    Check(server_received.load() == kTotal,
+          "server received every packet (no sequence/checksum failure)");
+
+    // Verify each producer's packets all arrived (wIds present, no
+    // gaps). Allows arbitrary interleaving between producers.
+    {
+        std::lock_guard<std::mutex> lk(server_wids_mtx);
+        std::vector<int> per_producer(kProducers, 0);
+        bool all_in_range = true;
+        for (auto w : server_wids)
+        {
+            const int pid = w / 1000;
+            const int idx = w % 1000;
+            if (pid < 0 || pid >= kProducers ||
+                idx < 0 || idx >= kPacketsPerOne)
+            {
+                all_in_range = false;
+                break;
+            }
+            per_producer[pid]++;
+        }
+        Check(all_in_range, "every wId falls in an expected producer range");
+        bool counts_ok = true;
+        for (int c : per_producer)
+            if (c != kPacketsPerOne) counts_ok = false;
+        Check(counts_ok, "each producer's packets all arrived");
+    }
+
+    client_sess->Close();
+    client_io.stop();
+    if (client_thread.joinable()) client_thread.join();
+    io.stop();
+    if (io_thread1.joinable()) io_thread1.join();
+    if (io_thread2.joinable()) io_thread2.join();
+}
+
 } // namespace
 
 int main()
@@ -549,6 +685,7 @@ int main()
         TestPacketRoundtripWithRC4();
         TestErrorLoggerOnMalformedPacket();
         TestSendPacketRejectsOversizedBody();
+        TestConcurrentSendPacketSerializes();
     }
     catch (const std::exception& ex)
     {

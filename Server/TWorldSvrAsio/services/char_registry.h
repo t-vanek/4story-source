@@ -54,12 +54,15 @@ struct TCharCon
 };
 
 // Per-character state. W2 ships only the fields that
-// OnMW_ADDCHAR_ACK / OnMW_CLOSECHAR_ACK actually touch. Each W3+
-// phase appends here (guild/party/corps back-pointers, BR/BoW
-// session pointers, soulmate / friend lists, …).
+// OnMW_ADDCHAR_ACK / OnMW_CLOSECHAR_ACK actually touch. **W3a-3**
+// extends with the identity fields (name + country + aid_country
+// + class + level) that OnMW_CHANGECHARBASE_ACK populates and that
+// OnRW_ENTERCHAR_REQ reads. Each W3+ phase appends here as more
+// handlers land (guild/party/corps back-pointers, BR/BoW session
+// pointers, soulmate / friend lists, …).
 //
-// `lock` guards every other field. Handlers that mutate more than
-// one TChar must acquire locks in increasing char_id order.
+// `lock` guards every mutable field. Handlers that mutate more
+// than one TChar must acquire locks in increasing char_id order.
 struct TChar
 {
     mutable std::mutex lock;
@@ -70,22 +73,37 @@ struct TChar
     std::uint32_t user_id = 0;
 
     // The map server that "owns" this character's main session.
-    // Additional map connections (e.g. for arena / sub-zones) live
-    // in `cons`. Mirrors legacy m_bMainID + m_mapTCHARCON.
+    // Additional map connections live in `cons`. Mirrors legacy
+    // m_bMainID + m_mapTCHARCON.
     std::uint8_t  main_server_id = 0;
 
-    // Subset of the legacy lifecycle flags handlers consult at
-    // W2 entry/exit. Guild/party/BR/BoW state arrives in W3+.
-    bool          logout            = false; // m_bLogout
-    bool          saving            = false; // m_bSave
-    bool          db_loading        = false; // m_bDBLoading
-    bool          main_id_changing  = false; // m_bCHGMainID
+    // Lifecycle flags.
+    bool          logout            = false;
+    bool          saving            = false;
+    bool          db_loading        = false;
+    bool          main_id_changing  = false;
 
     // Per-map-server connection table. Insert ordering is by
-    // server_id arrival, NOT sorted; lookups are linear (legacy
-    // average size: 1–3 entries per char, so an unordered_map
-    // would cost more in cache misses than the linear walk saves).
+    // server_id arrival; lookups are linear (typical size 1–3).
     std::vector<TCharCon> cons;
+
+    // W3a-3 identity fields. Populated by OnMW_CHANGECHARBASE_ACK
+    // (and its initial CHARINFO push that arrives shortly after
+    // OnMW_ADDCHAR_ACK in the legacy flow). Default-zero until
+    // then; OnRW_ENTERCHAR_REQ reflects whatever's been set.
+    std::string   name;            // m_strNAME, original case
+    std::uint8_t  country     = 0; // m_bCountry (TCONTRY_A/B/N)
+    std::uint8_t  aid_country = 0; // m_bAidCountry
+    std::uint8_t  klass       = 0; // m_bClass (TCLASS_*)
+    std::uint8_t  level       = 0; // m_bLevel
+    std::uint8_t  race        = 0; // m_bRace (TRACE_*)
+    std::uint8_t  sex         = 0; // m_bSex
+    std::uint8_t  face        = 0; // m_bFace
+    std::uint8_t  hair        = 0; // m_bHair
+    std::uint16_t map_id      = 0; // m_wMapID — last seen map
+    float         pos_x       = 0.0f;
+    float         pos_y       = 0.0f;
+    float         pos_z       = 0.0f;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created
@@ -113,6 +131,22 @@ public:
     // Read-only lookup. Returns nullptr if absent. The returned
     // shared_ptr is safe to outlive the next Remove() call.
     std::shared_ptr<TChar> Find(std::uint32_t char_id) const;
+
+    // W3a-3: case-insensitive name lookup. Legacy m_mapTCHARNAME
+    // uses MakeUpper as the index key; we mirror that so handlers
+    // can call FindByName(strName) and reach the right entry
+    // regardless of the inbound packet's casing. Returns nullptr
+    // for an unset / unknown name.
+    std::shared_ptr<TChar> FindByName(const std::string& name) const;
+
+    // W3a-3: atomically update a char's name + the name-index.
+    // Returns false if char_id is not registered or if new_name
+    // collides with another char (name uniqueness is enforced
+    // case-insensitively). Pass an empty new_name to clear the
+    // index entry without renaming (used at CloseChar time when
+    // we want the char gone from the name lookup but keep the
+    // entry for the upcoming CloseChar handler).
+    bool Rename(std::uint32_t char_id, const std::string& new_name);
 
     // Total count across all shards. Locks each shard in turn —
     // O(N_shards) for an exact count.
@@ -145,22 +179,32 @@ private:
         mutable std::shared_mutex          mtx;
         std::unordered_set<std::uint32_t>  users;
     };
+    // W3a-3: per-shard name index. Keyed by ToUpper(name) so
+    // FindByName is case-insensitive. Shard selected by
+    // std::hash<std::string> of the uppercased name — independent
+    // of the char_id shard so a rename only touches one name shard
+    // (and one char_id shard via the TChar back-pointer).
+    struct NameShard
+    {
+        mutable std::shared_mutex                                 mtx;
+        std::unordered_map<std::string, std::shared_ptr<TChar>>   names;
+    };
 
     static std::size_t ShardOf(std::uint32_t key)
     {
-        // Direct modulo. Char IDs are densely allocated in legacy
-        // (sequential per shard at the DB layer), so the low bits
-        // already distribute evenly across kShardCount=16. An
-        // earlier Knuth multiplicative hash had a bug — the
-        // multiply overflowed uint64_t and the shift produced
-        // indices > kShardCount-1, segfaulting on shard access.
         static_assert((kShardCount & (kShardCount - 1)) == 0,
                       "kShardCount must be a power of two");
         return key & (kShardCount - 1);
     }
+    static std::size_t NameShardOf(const std::string& upper_name)
+    {
+        return std::hash<std::string>{}(upper_name) & (kShardCount - 1);
+    }
+    static std::string ToUpper(const std::string& s);
 
     std::array<Shard,     kShardCount> m_shards;
     std::array<UserShard, kShardCount> m_user_shards;
+    std::array<NameShard, kShardCount> m_name_shards;
 };
 
 } // namespace tworldsvr

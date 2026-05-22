@@ -28,4 +28,19 @@ SendMwGuildEstablishReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwRelayconnectReq(std::shared_ptr<PeerSession> peer,
+                      std::uint32_t                char_id,
+                      std::uint8_t                 relay_on)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint8_t>(body, relay_on);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_RELAYCONNECT_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

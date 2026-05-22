@@ -19,9 +19,15 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     const auto id = ToMessageId(wId);
     switch (id)
     {
-    // ---- W3a-2: relay handshake (handlers_relay.cpp) --------------
+    // ---- W3a-2/W3a-3: RW handshake + relay (handlers_relay.cpp) ---
     case MessageId::RW_RELAYSVR_REQ:
         co_await OnRelaysvrReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::RW_ENTERCHAR_REQ:
+        co_await OnEnterCharReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::RW_RELAYCONNECT_REQ:
+        co_await OnRelayConnectReq(std::move(peer), std::move(body), ctx);
         co_return;
 
     // ---- W2: char lifecycle (handlers_char.cpp) -------------------
@@ -32,12 +38,18 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCloseCharAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W3a-3: char base update (handlers_char_base.cpp) ---------
+    case MessageId::MW_CHANGECHARBASE_ACK:
+        co_await OnChangeCharBaseAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W3a-1: guild load (handlers_guild.cpp) -------------------
     case MessageId::DM_GUILDLOAD_ACK:
         co_await OnGuildLoadAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W3a-3 fills the remaining ~70 GUILD handlers, W3b PARTY_/CORPS_,
+    // W3a-4 starts the mutating guild handler batch (Establish /
+    // Update / Disorg / Member CRUD). W3b party + corps.
     // … see README §4.
 
     default:

@@ -9,20 +9,78 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-2 peer session + relay handshake
+## Status — W3a-3 RW lookup + char base + name index
 
 | Phase | Scope | Status |
 |---|---|---|
 | W1 | Scaffold + transport + dispatch stub | ✅ |
 | W2 | CharRegistry (partitioned) + SessionPool + worker thread_pool + MW_ADDCHAR_ACK + MW_CLOSECHAR_ACK | ✅ |
 | W3a-1 | GuildRegistry + IGuildRepository (SOCI + Fake) + schema validator + DM_GUILDLOAD_ACK | ✅ |
-| **W3a-2** | PeerSession + PeerRegistry + first SSSender batch (RW_RELAYSVR_ACK + MW_GUILDESTABLISH_REQ) + OnRW_RELAYSVR_REQ + MW_ADDCHAR_ACK gains real server_id + OnGuildLoadAck fires its reply | ✅ |
-| W3a-3 | OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ + ~25 mutating guild handlers (Establish / Update / Disorg / Member add+leave+duty / Kickout) + remaining ~50 guild handlers in follow-up batches | ⏸ |
+| W3a-2 | PeerSession + PeerRegistry + first SSSender batch (RW_RELAYSVR_ACK + MW_GUILDESTABLISH_REQ) + OnRW_RELAYSVR_REQ + MW_ADDCHAR_ACK gains real server_id + OnGuildLoadAck fires its reply | ✅ |
+| **W3a-3** | CharRegistry name index + TChar identity fields (name/country/aid_country/class/level/race/sex/face/hair/map_id/pos) + OnMW_CHANGECHARBASE_ACK + OnRW_ENTERCHAR_REQ + OnRW_RELAYCONNECT_REQ + PeerRegistry::SnapshotExcept + cluster RELAYCONNECT broadcast | ✅ |
+| W3a-4 | ~25 mutating guild handlers (Establish ACK from DM / Update / Disorg / Member add+leave+duty / Kickout / Fame / Peer / Contribution) + cabinet item codec + guild-level table cache + name-rename fan-out (RW_CHANGENAME_ACK + friend/soulmate notify) | ⏸ |
+| W3a-5+ | Remaining guild handlers (tactics / volunteers / articles / pvp record / point reward) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-3 — what landed
+
+Three handlers that turn the relay-map ↔ world handshake from a
+stub into a real round trip, plus the TChar identity expansion
+that all subsequent guild / party / chat handlers need to reach
+beyond `dwCharID`.
+
+* **CharRegistry name index** — sharded secondary index
+  (16 shards × `std::shared_mutex`) keyed by `ToUpper(name)` so
+  `FindByName` is case-insensitive (matches legacy
+  `m_mapTCHARNAME` semantics). `Rename(char_id, new_name)` is
+  atomic: insert under new name → store on TChar → drop old
+  entry, rejecting cluster-wide name collisions. `Rename(id, "")`
+  drops only the index entry — used by future CloseChar prep
+  paths.
+* **TChar identity fields** — `name`, `country`, `aid_country`,
+  `klass`, `level`, `race`, `sex`, `face`, `hair`, `map_id`,
+  `pos_x/y/z`. Each is the modern mirror of one legacy
+  `tagTCHARACTER` member; OnRW_ENTERCHAR_REQ now answers with the
+  real country / map id instead of zeros.
+* **OnChangeCharBaseAck** (MW_CHANGECHARBASE_ACK, wID=0x911B) —
+  branches on `bType` for FACE / HAIR / RACE / SEX / COUNTRY /
+  AIDCOUNTRY / NAME. NAME drives `CharRegistry::Rename` and
+  refuses on collision; the friend / soulmate / guild-app
+  notification fan-out defers to W4 / W3a-4 (they need the
+  matching registries).
+* **OnEnterCharReq** (RW_ENTERCHAR_REQ, wID=0x999C) — looks up by
+  name, validates `dwCharID`, replies with `RW_ENTERCHAR_ACK`
+  carrying the char's cluster state. Guild / party / corps /
+  tactics ids stay zero-default in W3a-3 (those registries don't
+  hold member back-pointers yet); W3a-4 fills them.
+* **OnRelayConnectReq** (RW_RELAYCONNECT_REQ, wID=0x99A5) —
+  routes `MW_RELAYCONNECT_REQ` to the peer matching the char's
+  `main_server_id` (LOBYTE of the peer's wID, set at
+  RELAYSVR_REQ time). Legacy parity for `FindMapSvr(bMainID)`.
+* **PeerRegistry::SnapshotExcept** — efficient
+  "every other peer" iterator. Used by `OnRelaysvrReq` to fan
+  out the legacy `(*it).second->SendMW_RELAYCONNECT_REQ(0)`
+  broadcast when a new relay registers.
+* **Sender batch** — `SendRwEntercharAck` (16-field reply,
+  legacy RWSender.cpp:34) + `SendMwRelayconnectReq` (legacy
+  SSSender.cpp:3062).
+
+New tests:
+* `test_char_name_index` — 7 scenarios: insert+rename round trip,
+  case insensitivity, rename clears the old entry, drop-only
+  rename (empty new_name), collision refusal, Remove drops both
+  indices, concurrent renames on disjoint chars × 4096 entries.
+* `test_char_base_handlers` — 5 wire scenarios driving every
+  `bType` branch on a real socket + a follow-up valid packet
+  proves the framer stays alive after the unknown-bType drop.
+* `test_rw_lookup_handlers` — 4 wire scenarios across two real
+  peer connections: ENTERCHAR hit + miss, RELAYCONNECT routing
+  by main_server_id, and the cluster broadcast triggered by a
+  second RELAYSVR registration.
 
 ### W3a-2 — what landed
 

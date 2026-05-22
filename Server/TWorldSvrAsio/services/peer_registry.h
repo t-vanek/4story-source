@@ -50,9 +50,16 @@ public:
     std::size_t Size() const;
 
     // Snapshot every registered peer (e.g. for cluster-wide
-    // broadcasts in W3a-3). Holds the shared lock for the duration
-    // of the copy.
+    // broadcasts). Holds the shared lock for the duration of the
+    // copy.
     std::vector<std::shared_ptr<PeerSession>> Snapshot() const;
+
+    // W3a-3: snapshot every registered peer EXCEPT the one with
+    // `except_wid`. Used by OnRelaysvrReq to broadcast a new
+    // relay's arrival to every other peer (legacy fan-out at
+    // RWHandler.cpp:13-15). Pass 0 to snapshot all peers.
+    std::vector<std::shared_ptr<PeerSession>>
+        SnapshotExcept(std::uint16_t except_wid) const;
 
 private:
     mutable std::shared_mutex                                       m_mtx;

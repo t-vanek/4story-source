@@ -38,6 +38,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/db/schema_validator.cpp
     ${TWORLD_ASIO_SRC}/handlers/dispatch.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_char.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_char_base.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_guild.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
@@ -153,3 +154,35 @@ target_link_libraries(test_tworldsvr_asio_relay_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_relay_handlers
     COMMAND test_tworldsvr_asio_relay_handlers)
+
+# W3a-3 unit test: CharRegistry secondary name index, including
+# case-insensitive lookup, Rename, collision rejection, Remove
+# dropping both indices, and concurrent renames on disjoint chars.
+add_executable(test_tworldsvr_asio_char_name_index
+    ${TWORLD_ASIO_SRC}/tests/test_char_name_index.cpp)
+target_link_libraries(test_tworldsvr_asio_char_name_index PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_char_name_index
+    COMMAND test_tworldsvr_asio_char_name_index)
+
+# W3a-3 wire test: drives MW_CHANGECHARBASE_ACK over loopback,
+# asserts the per-bType mutation lands on TChar (face/hair/race/sex/
+# country/aid_country/name) + the name-index update on IK_NAME +
+# the collision-refused branch.
+add_executable(test_tworldsvr_asio_char_base_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_char_base_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_char_base_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_char_base_handlers
+    COMMAND test_tworldsvr_asio_char_base_handlers)
+
+# W3a-3 wire test: OnRW_ENTERCHAR_REQ (hit + miss) and
+# OnRW_RELAYCONNECT_REQ routing to the right map peer by
+# main_server_id, plus the cluster-wide RELAYCONNECT broadcast
+# triggered by a second RELAYSVR registration.
+add_executable(test_tworldsvr_asio_rw_lookup_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_rw_lookup_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_rw_lookup_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_rw_lookup_handlers
+    COMMAND test_tworldsvr_asio_rw_lookup_handlers)

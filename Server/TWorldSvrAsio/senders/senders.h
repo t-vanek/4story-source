@@ -79,4 +79,63 @@ boost::asio::awaitable<void> SendMwGuildEstablishReq(
 // pull the full enum once the matching handler ports demand them.
 constexpr std::uint8_t kGuildSuccess = 0;
 
+// --- RW family — W3a-3 batch ---------------------------------------
+
+// RW_ENTERCHAR_ACK — reply to RW_ENTERCHAR_REQ. The relay server
+// asked "is this char online and where?"; we answer with the
+// char's current cluster-wide state. For W3a-3 most cluster
+// state (guild, party, corps, tactics) is still zero-default;
+// W3a-4 will populate those once the matching registries land.
+//
+// Wire layout (RWSender.cpp::SendRW_ENTERCHAR_ACK):
+//   DWORD dwCharID
+//   STRING strName
+//   BYTE   bResult           -- TRUE if char found + key matched
+//   BYTE   bCountry
+//   BYTE   bAidCountry
+//   DWORD  dwGuildID
+//   DWORD  dwGuildChief
+//   BYTE   bDuty
+//   WORD   wPartyID
+//   DWORD  dwPartyChiefID
+//   WORD   wCorpsID
+//   DWORD  dwGeneralID
+//   DWORD  dwTacticsID
+//   DWORD  dwTacticsChief
+//   WORD   wMapID
+//   WORD   wUnitID           -- MAKEWORD(BYTE(posX/UNIT), BYTE(posZ/UNIT))
+boost::asio::awaitable<void> SendRwEntercharAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    const std::string&           name,
+    std::uint8_t                 result,
+    std::uint8_t                 country,
+    std::uint8_t                 aid_country,
+    std::uint32_t                guild_id,
+    std::uint32_t                guild_chief,
+    std::uint8_t                 duty,
+    std::uint16_t                party_id,
+    std::uint32_t                party_chief_id,
+    std::uint16_t                corps_id,
+    std::uint32_t                general_id,
+    std::uint32_t                tactics_id,
+    std::uint32_t                tactics_chief,
+    std::uint16_t                map_id,
+    std::uint16_t                unit_id);
+
+// --- MW family — W3a-3 batch ---------------------------------------
+
+// MW_RELAYCONNECT_REQ — sent to a map server to tell it to relay
+// the named char's data through the relay server. The bRelayOn
+// byte is 0 in the broadcast path (OnRelaysvrReq's fan-out) and
+// 1 in the per-char path (OnRW_RELAYCONNECT_REQ → main map).
+//
+// Wire layout (SSSender.cpp:3062):
+//   DWORD dwCharID
+//   BYTE  bRelayOn
+boost::asio::awaitable<void> SendMwRelayconnectReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint8_t                 relay_on);
+
 } // namespace tworldsvr::senders

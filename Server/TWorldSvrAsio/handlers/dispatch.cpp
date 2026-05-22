@@ -110,8 +110,16 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_GUILDINFO_ACK:
         co_await OnGuildInfoAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_GUILDMONEYRECOVER_ACK:
+        co_await OnGuildMoneyRecoverAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDEXTINCTION_REQ:
+        co_await OnGuildExtinctionReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
 
-    // W3a-10+ picks up Tactics / Volunteers / PvP record / Point
+    // W3a-11+ picks up Tactics / Volunteers / PvP record / Point
     // reward / Cabinet item codec. … see README §4.
 
     default:

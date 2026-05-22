@@ -212,6 +212,34 @@ boost::asio::awaitable<void> OnGuildMemberListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-10: money recover + guild extinction (handlers_guild.cpp)
+
+// Inbound from a map server: chief sold a cash-shop item priced
+// in guild treasury cooper; world bumps the guild's cooper
+// balance. No reply (cluster-wide refresh comes from the next
+// MW_GUILDINFO_ACK).
+//
+// Wire layout (SSHandler.cpp:10539):
+//   DWORD dwGuildID, DWORD dwPrice
+boost::asio::awaitable<void> OnGuildMoneyRecoverAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from a map server's DB worker: extinction-timer fired
+// for a disorganized guild → cascade delete. World runs DB
+// delete + walks the in-memory member list, clearing each
+// member's TChar.guild_id + sending MW_GUILDLEAVE_REQ
+// (kLeaveDisorganization), then removes the guild from the
+// registry.
+//
+// Wire layout (SSHandler.cpp:3283):
+//   DWORD dwGuildID
+boost::asio::awaitable<void> OnGuildExtinctionReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-9: single guild info refresh (handlers_guild.cpp) --------
 
 // Inbound from a map server: client opened the guild info pane.

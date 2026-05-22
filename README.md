@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-05-22:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ███░░░░░░░░░░░░░░░░░   26%   (W3a-9 — single guild info, 24 handlers)
+TWorldSvr         ███░░░░░░░░░░░░░░░░░   27%   (W3a-10 — money recover + guild extinction, 26 handlers)
 ─────────────────────────────────────────
 Cluster total     ███░░░░░░░░░░░░░░░░░  ~18%   (LOC-weighted, see below)
 ```
@@ -36,7 +36,7 @@ Cluster total     ███░░░░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~12 000 | 24/287 + single-guild info refresh (27-field sender) + vice-chief slot padding | 🟡 W3a-1+W3a-4d+W3a-8 (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE) | 🟡 **W3a-9 — single guild info** |
+| **TWorldSvrAsio** | 38 851 | ~12 600 | 26/287 + guild deletion (cluster fan-out + cascade-delete 3 tables) | 🟡 W3a-1+W3a-4d+W3a-8 (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE) | 🟡 **W3a-10 — money recover + extinction** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
 LOC weighting: `(24 213 complete + ~6 700 scaffolded) / 175 906 legacy ≈ 17 %`.

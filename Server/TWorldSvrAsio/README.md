@@ -32,6 +32,61 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
+### W3a-10 — what landed
+
+Two more handlers that close out the guild lifecycle: simple
+money recover (chief sells a cash-shop item priced in cooper)
+and the full cluster-wide extinction flow (disorg-timer fires →
+DB delete + member fan-out + registry drop). Both are
+representative of the "DM handler that mutates registry +
+notifies peers" pattern future handlers will follow.
+
+Adds (repo)
+- services/guild_repository.h — `DeleteGuild(guild_id)`.
+- services/fake_guild_repository.{h,cpp} — impl + Call::Kind
+  ::kDeleteGuild record so tests can assert on the persistence
+  side.
+- services/soci_guild_repository.{h,cpp} — explicit cascade:
+  DELETEs TGUILDARTICLETABLE + TGUILDMEMBERTABLE +
+  TGUILDTABLE in dependency order. Legacy CSPGuildDelete
+  relies on schema FK CASCADE which not every deploy has —
+  explicit DELETEs keep the behavior independent.
+
+Adds (handlers)
+- handlers/handlers_guild.cpp
+  - OnGuildMoneyRecoverAck (MW_GUILDMONEYRECOVER_ACK,
+    wID=0x912D): legacy SSHandler.cpp:10539 port. Validates
+    guild exists, bumps `cooper` under the guild lock, persists
+    via IncrementContribution (cooper delta only) on the worker
+    pool. No reply (cluster sees the change via the next
+    OnGuildInfoAck refresh).
+  - OnGuildExtinctionReq (DM_GUILDEXTINCTION_REQ,
+    wID=0x58CD): legacy SSHandler.cpp:3283-3315 port,
+    collapsed (REQ + ACK round-trip → single coroutine because
+    CoOffloadVoidIf already serialises the DB write).
+    Sequence:
+      1. snapshot member_ids under guild.lock + read name
+         for log line
+      2. ctx.guilds->Remove(guild_id) (registry-level drop;
+         cached shared_ptrs still work)
+      3. CoOffloadVoidIf → repo->DeleteGuild
+      4. per-member: clear TChar.guild_id, look up main map
+         peer via PeerRegistry, fire MW_GUILDLEAVE_REQ
+         (kLeaveDisorganization) — the same sender from W3a-4
+         + the kLeaveKick sender path from W3a-4c.
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed)
+on GCC 13.3 Ubuntu noble.
+
+Deferred to W3a-11+
+- Tactics subsystem (~7 handlers): TACTICSADD / TACTICSDEL /
+  TACTICSANSWER / TACTICSINVITE / TACTICSKICKOUT /
+  TACTICSLIST / TACTICSREPLY + tactics-side wanted/volunteer
+- Volunteers / Wanted (~11): GUILDWANTED + GUILDVOLUNTEER
+  flow for guild recruitment board
+- PvP record / point reward (~3)
+- Cabinet item codec (Lib/Own/TProtocol/ITEM struct port)
+
 ### W3a-9 — what landed
 
 Single-guild info refresh — the densest sender + handler in the

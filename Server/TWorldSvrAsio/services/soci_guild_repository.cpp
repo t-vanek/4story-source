@@ -390,6 +390,32 @@ bool SociGuildRepository::UpdateArticle(std::uint32_t      guild_id,
     }
 }
 
+bool SociGuildRepository::DeleteGuild(std::uint32_t guild_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        // Cascade-delete the related rows ourselves — the legacy
+        // CSPGuildDelete relies on FK CASCADE which not every
+        // deployed schema has. Explicit DELETEs make the behavior
+        // independent of FK configuration.
+        sql << "DELETE FROM \"TGUILDARTICLETABLE\" WHERE \"dwGuildID\" = :g",
+            soci::use(static_cast<int>(guild_id));
+        sql << "DELETE FROM \"TGUILDMEMBERTABLE\" WHERE \"dwGuildID\" = :g",
+            soci::use(static_cast<int>(guild_id));
+        sql << "DELETE FROM \"TGUILDTABLE\" WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::DeleteGuild({}) failed: {}",
+            guild_id, ex.what());
+        return false;
+    }
+}
+
 bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
                                                  std::uint32_t guild_id,
                                                  std::uint32_t exp,

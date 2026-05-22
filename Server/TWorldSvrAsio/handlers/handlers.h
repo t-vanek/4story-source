@@ -88,11 +88,49 @@ boost::asio::awaitable<void> OnGuildLoadAck(
 // confirmed locally; world removes the member from the guild's
 // in-memory member list, clears TChar.guild_id, and pings the
 // originating peer with MW_GUILDLEAVE_REQ so it can forward the
-// confirmation back to the client. Persistence to TGUILDMEMBERTABLE
-// follows in W3a-4b once the IGuildRepository write API ships.
+// confirmation back to the client. **W3a-4b** wires the
+// IGuildRepository::RemoveMember persistence step.
 //
 // Wire layout (SSHandler.cpp:3571): DWORD dwCharID, DWORD dwKey
 boost::asio::awaitable<void> OnGuildLeaveAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3a-4b: guild mutating handlers (handlers_guild.cpp) ---------
+
+// Inbound from a map server's DB worker. The chief asked for the
+// guild to (start | cancel) disbanding; world flips the flag,
+// persists via IGuildRepository::SetDisorg, and ACKs the
+// originating peer so the client sees the state change.
+//
+// Wire layout (SSHandler.cpp:3203):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwGuildID, BYTE bDisorg
+boost::asio::awaitable<void> OnGuildDisorganizationReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from a map server: chief promoted / demoted a member.
+// World validates the requester is chief (& target isn't), runs
+// the legacy gate (no double-vicechief, etc.), updates the
+// member's bDuty, persists, and broadcasts MW_GUILDDUTY_REQ.
+//
+// Wire layout (SSHandler.cpp:3408):
+//   DWORD dwCharID, DWORD dwKey, STRING strTarget, BYTE bDuty
+boost::asio::awaitable<void> OnGuildDutyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from a map server: chief changed the guild's fame
+// banner. Charges PvP points, updates dwFame + dwFameColor,
+// broadcasts the new fame to every online guild member's main
+// map peer. NoPoint result code if the guild can't afford it.
+//
+// Wire layout (SSHandler.cpp:4346):
+//   DWORD dwCharID, DWORD dwKey, DWORD dwFame, DWORD dwFameColor
+boost::asio::awaitable<void> OnGuildFameAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

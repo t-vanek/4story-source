@@ -17,6 +17,8 @@
 
 #include "../handlers/handlers.h"
 #include "../services/char_registry.h"
+#include "../services/fake_guild_repository.h"
+#include "../services/guild_constants.h"
 #include "../services/guild_registry.h"
 #include "../services/peer_registry.h"
 #include "../wire_codec.h"
@@ -150,6 +152,45 @@ std::vector<std::byte> LeaveBody(std::uint32_t char_id,
     return b;
 }
 
+std::vector<std::byte> DisorgBody(std::uint32_t char_id,
+                                   std::uint32_t key,
+                                   std::uint32_t guild_id,
+                                   std::uint8_t  disorg)
+{
+    std::vector<std::byte> b;
+    tworldsvr::wire::WritePOD(b, char_id);
+    tworldsvr::wire::WritePOD(b, key);
+    tworldsvr::wire::WritePOD(b, guild_id);
+    tworldsvr::wire::WritePOD(b, disorg);
+    return b;
+}
+
+std::vector<std::byte> DutyBody(std::uint32_t char_id,
+                                 std::uint32_t key,
+                                 const std::string& target_name,
+                                 std::uint8_t  duty)
+{
+    std::vector<std::byte> b;
+    tworldsvr::wire::WritePOD(b, char_id);
+    tworldsvr::wire::WritePOD(b, key);
+    tworldsvr::wire::WriteString(b, target_name);
+    tworldsvr::wire::WritePOD(b, duty);
+    return b;
+}
+
+std::vector<std::byte> FameBody(std::uint32_t char_id,
+                                 std::uint32_t key,
+                                 std::uint32_t fame,
+                                 std::uint32_t fame_color)
+{
+    std::vector<std::byte> b;
+    tworldsvr::wire::WritePOD(b, char_id);
+    tworldsvr::wire::WritePOD(b, key);
+    tworldsvr::wire::WritePOD(b, fame);
+    tworldsvr::wire::WritePOD(b, fame_color);
+    return b;
+}
+
 std::vector<std::byte> EntercharBody(std::uint32_t char_id,
                                       const std::string& name)
 {
@@ -172,12 +213,14 @@ int main()
     tworldsvr::CharRegistry  chars;
     tworldsvr::GuildRegistry guilds;
     tworldsvr::PeerRegistry  peers;
+    tworldsvr::FakeGuildRepository fake_repo;
     tworldsvr::HandlerContext ctx{};
-    ctx.io     = &io;
-    ctx.chars  = &chars;
-    ctx.guilds = &guilds;
-    ctx.peers  = &peers;
-    ctx.nation = 0;
+    ctx.io         = &io;
+    ctx.chars      = &chars;
+    ctx.guilds     = &guilds;
+    ctx.peers      = &peers;
+    ctx.guild_repo = &fake_repo;
+    ctx.nation     = 0;
 
     tworldsvr::WorldServerConfig svr_cfg{};
     svr_cfg.port = 0;
@@ -242,7 +285,7 @@ int main()
         EXPECT(r.Read(cid));    EXPECT(cid == 42);
         EXPECT(r.Read(key));    EXPECT(key == 0xCAFEBABE);
         EXPECT(r.ReadString(name)); EXPECT(name == "Alice");
-        EXPECT(r.Read(reason)); EXPECT(reason == 1); // GUILD_LEAVE_SELF
+        EXPECT(r.Read(reason)); EXPECT(reason == 12); // GUILD_LEAVE_SELF (NetCode.h:448)
         EXPECT(r.Read(time_unix));
         EXPECT(time_unix > 0);                       // any non-zero epoch
     }
@@ -279,6 +322,171 @@ int main()
         EXPECT(r.Read(duty));        EXPECT(duty == 0);
     }
 
+    // --- Scenario 5: load a second guild with two members for the
+    //                 W3a-4b duty/fame/disorg cases ----------------
+    SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
+        AddCharBody(200, 0xBEEF1111));
+    SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
+        NameBody(200, 0xBEEF1111, "Bob"));
+    SendFramed(peer1, ToUint16(MessageId::DM_GUILDLOAD_ACK),
+        GuildLoadBody(200, 0xBEEF1111, 8, "Bravos"));
+    // Drain GUILDESTABLISH_REQ.
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDESTABLISH_REQ)); }
+
+    // Manually add a second member via the registry (real
+    // OnGuildMemberAdd is W3a-4c). Mirrors what
+    // OnDM_GUILDMEMBERADD_REQ + OnMW_GUILDINVITEANSWER_ACK will
+    // do once those land.
+    SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
+        AddCharBody(201, 0xBEEF2222));
+    SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
+        NameBody(201, 0xBEEF2222, "Bravo2"));
+    for (int i = 0; i < 50; ++i)
+    {
+        if (chars.FindByName("Bravo2")) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            tworldsvr::TGuildMember m2;
+            m2.char_id  = 201;
+            m2.guild_id = 8;
+            m2.duty     = tworldsvr::guild::kDutyNone;
+            m2.name     = "Bravo2";
+            g->members.push_back(m2);
+            g->pvp_useable_point = 50000;  // enough for fame change
+        }
+        auto m2_char = chars.Find(201);
+        if (m2_char)
+        {
+            std::lock_guard cg(m2_char->lock);
+            m2_char->guild_id = 8;
+        }
+    }
+
+    // --- Scenario 6: DUTY change promotes Bravo2 to vice-chief ------
+    SendFramed(peer1, ToUint16(MessageId::MW_GUILDDUTY_ACK),
+        DutyBody(200, 0xBEEF1111, "Bravo2", tworldsvr::guild::kDutyViceChief));
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDDUTY_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0, key = 0; std::string name;
+        std::uint8_t duty = 0;
+        EXPECT(r.Read(cid));      EXPECT(cid == 200);
+        EXPECT(r.Read(key));      EXPECT(key == 0xBEEF1111);
+        EXPECT(r.ReadString(name)); EXPECT(name == "Bravo2");
+        EXPECT(r.Read(duty));     EXPECT(duty == tworldsvr::guild::kDutyViceChief);
+    }
+    {
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            const auto* m = g->FindMember(201);
+            EXPECT(m && m->duty == tworldsvr::guild::kDutyViceChief);
+        }
+        // Repo recorded the persistence call.
+        const auto calls = fake_repo.Calls();
+        bool saw_duty_call = false;
+        for (const auto& c : calls)
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateMemberDuty
+                && c.char_id == 201 && c.guild_id == 8
+                && c.a == tworldsvr::guild::kDutyViceChief)
+            { saw_duty_call = true; break; }
+        }
+        EXPECT(saw_duty_call);
+    }
+
+    // --- Scenario 7: FAME change broadcasts to all members ----------
+    SendFramed(peer1, ToUint16(MessageId::MW_GUILDFAME_ACK),
+        FameBody(200, 0xBEEF1111, /*fame=*/ 9999, /*color=*/ 0xAABBCC));
+    // Two FAME_REQ replies expected — one per member (chief +
+    // Bravo2) since both have main_server_id=0x42 (which equals
+    // peer1's wID LOBYTE).
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDFAME_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0, key = 0, dwID = 0, fame = 0, color = 0;
+        std::uint8_t result = 0;
+        EXPECT(r.Read(cid));
+        EXPECT(r.Read(key));
+        EXPECT(r.Read(result));   EXPECT(result == tworldsvr::guild::kSuccess);
+        EXPECT(r.Read(dwID));     EXPECT(dwID == 200);
+        EXPECT(r.Read(fame));     EXPECT(fame == 9999);
+        EXPECT(r.Read(color));    EXPECT(color == 0xAABBCC);
+    }
+    {
+        auto [w, _b] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDFAME_REQ));  // second member
+    }
+    {
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->fame == 9999);
+            EXPECT(g->fame_color == 0xAABBCC);
+            EXPECT(g->pvp_useable_point ==
+                   50000 - tworldsvr::guild::kPvPointCostFameChange);
+        }
+    }
+
+    // --- Scenario 8: DISORGANIZATION flips flag + persists ----------
+    SendFramed(peer1, ToUint16(MessageId::DM_GUILDDISORGANIZATION_REQ),
+        DisorgBody(200, 0xBEEF1111, 8, /*disorg=*/ 1));
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDDISORGANIZATION_REQ));
+        tworldsvr::wire::Reader r(body);
+        std::uint32_t cid = 0, key = 0; std::uint8_t d = 0;
+        EXPECT(r.Read(cid)); EXPECT(cid == 200);
+        EXPECT(r.Read(key)); EXPECT(key == 0xBEEF1111);
+        EXPECT(r.Read(d));   EXPECT(d == 1);
+    }
+    {
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->disorg == 1);
+            EXPECT(g->disorg_time > 0);
+        }
+        bool saw_disorg_call = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kSetDisorg
+                && c.guild_id == 8 && c.a == 1 && c.b > 0)
+            { saw_disorg_call = true; break; }
+        }
+        EXPECT(saw_disorg_call);
+    }
+
+    // --- Scenario 9: DUTY change on disorg guild is rejected ----------
+    // Legacy gate at SSHandler.cpp:3430 — disorg guild ignores
+    // duty changes. We confirm no reply lands by sending a known
+    // packet right after and asserting it's the next response.
+    SendFramed(peer1, ToUint16(MessageId::MW_GUILDDUTY_ACK),
+        DutyBody(200, 0xBEEF1111, "Bravo2", tworldsvr::guild::kDutyChief));
+    SendFramed(peer1, ToUint16(MessageId::RW_ENTERCHAR_REQ),
+        EntercharBody(200, "Bob"));
+    {
+        auto [w, _] = ReadFramed(peer1);
+        // Skips the disorg-rejected DUTY_REQ, lands on ENTERCHAR_ACK.
+        EXPECT(w == ToUint16(MessageId::RW_ENTERCHAR_ACK));
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -288,7 +496,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (4 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (9 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

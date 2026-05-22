@@ -64,4 +64,63 @@ SendMwGuildLeaveReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwGuildDisorganizationReq(std::shared_ptr<PeerSession> peer,
+                              std::uint32_t                char_id,
+                              std::uint32_t                key,
+                              std::uint8_t                 disorg)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, disorg);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDDISORGANIZATION_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwGuildDutyReq(std::shared_ptr<PeerSession> peer,
+                   std::uint32_t                char_id,
+                   std::uint32_t                key,
+                   const std::string&           target_name,
+                   std::uint8_t                 duty)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WriteString(body, target_name);
+    WritePOD<std::uint8_t>(body, duty);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDDUTY_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwGuildFameReq(std::shared_ptr<PeerSession> peer,
+                   std::uint32_t                char_id,
+                   std::uint32_t                key,
+                   std::uint8_t                 result,
+                   std::uint32_t                originator_char_id,
+                   std::uint32_t                fame,
+                   std::uint32_t                fame_color)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint32_t>(body, originator_char_id);
+    WritePOD<std::uint32_t>(body, fame);
+    WritePOD<std::uint32_t>(body, fame_color);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDFAME_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

@@ -61,4 +61,67 @@ FakeGuildRepository::FindById(std::uint32_t guild_id)
     return Clone(it->second);
 }
 
+bool FakeGuildRepository::SetDisorg(std::uint32_t guild_id,
+                                     std::uint8_t  disorg,
+                                     std::uint32_t time_unix)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kSetDisorg, guild_id, 0, disorg, time_unix});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    it->second->disorg      = disorg;
+    it->second->disorg_time = time_unix;
+    return true;
+}
+
+bool FakeGuildRepository::UpdateMemberDuty(std::uint32_t char_id,
+                                            std::uint32_t guild_id,
+                                            std::uint8_t  new_duty)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kUpdateMemberDuty, guild_id, char_id,
+                       new_duty, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    if (auto* m = it->second->FindMember(char_id))
+    {
+        m->duty = new_duty;
+        return true;
+    }
+    return false;
+}
+
+bool FakeGuildRepository::UpdateFame(std::uint32_t guild_id,
+                                      std::uint32_t fame,
+                                      std::uint32_t fame_color)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kUpdateFame, guild_id, 0, fame, fame_color});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    it->second->fame       = fame;
+    it->second->fame_color = fame_color;
+    return true;
+}
+
+bool FakeGuildRepository::RemoveMember(std::uint32_t char_id,
+                                        std::uint32_t guild_id)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kRemoveMember, guild_id, char_id, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    std::lock_guard g(it->second->lock);
+    return it->second->RemoveMember(char_id);
+}
+
+std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
+{
+    std::lock_guard lock(m_mtx);
+    return m_calls;
+}
+
 } // namespace tworldsvr

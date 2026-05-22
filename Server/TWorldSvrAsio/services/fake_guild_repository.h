@@ -24,9 +24,33 @@ public:
     std::optional<std::shared_ptr<TGuild>> FindById(
         std::uint32_t guild_id) override;
 
+    bool SetDisorg(std::uint32_t guild_id, std::uint8_t disorg,
+                   std::uint32_t time_unix) override;
+    bool UpdateMemberDuty(std::uint32_t char_id, std::uint32_t guild_id,
+                          std::uint8_t new_duty) override;
+    bool UpdateFame(std::uint32_t guild_id, std::uint32_t fame,
+                    std::uint32_t fame_color) override;
+    bool RemoveMember(std::uint32_t char_id, std::uint32_t guild_id) override;
+
+    // Test-only: snapshot of the mutating calls in arrival order.
+    // Lets test_guild_mut_handlers assert that the right CSP-equivalent
+    // ran after each handler runs.
+    struct Call
+    {
+        enum class Kind { kSetDisorg, kUpdateMemberDuty, kUpdateFame,
+                          kRemoveMember };
+        Kind          kind;
+        std::uint32_t guild_id = 0;
+        std::uint32_t char_id  = 0;
+        std::uint32_t a        = 0;   // disorg / duty / fame (semantic per Kind)
+        std::uint32_t b        = 0;   // time_unix / fame_color
+    };
+    std::vector<Call> Calls() const;
+
 private:
     mutable std::mutex                                         m_mtx;
     std::unordered_map<std::uint32_t, std::shared_ptr<TGuild>> m_guilds;
+    std::vector<Call>                                          m_calls;
 };
 
 } // namespace tworldsvr

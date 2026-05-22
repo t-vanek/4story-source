@@ -3,6 +3,7 @@
 
 #include "asio_session.h"
 #include "tnetlib_crypto.h"
+#include "tnetlib_proto_log.h"
 
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/read.hpp>
@@ -39,12 +40,16 @@ void DefaultErrorLogger(std::string_view msg) noexcept
     std::fprintf(stderr, "[tnetlib] %.*s\n",
                  static_cast<int>(msg.size()), msg.data());
 }
+} // namespace
 
-std::atomic<AsioSession::ErrorLogger> g_error_logger{&DefaultErrorLogger};
+namespace detail {
+// Shared sink — declared in tnetlib_proto_log.h. Both AsioSession and
+// TlsAsioSession route diagnostics through it.
+std::atomic<AsioSession::ErrorLogger> g_proto_logger{&DefaultErrorLogger};
 
 void LogProto(const char* fmt, ...) noexcept
 {
-    auto* fn = g_error_logger.load(std::memory_order_relaxed);
+    auto* fn = g_proto_logger.load(std::memory_order_relaxed);
     if (fn == nullptr) return;
     char buf[256];
     std::va_list ap;
@@ -56,11 +61,18 @@ void LogProto(const char* fmt, ...) noexcept
                                      sizeof(buf) - 1);
     fn(std::string_view(buf, len));
 }
+} // namespace detail
+
+namespace {
+// Bring the shared LogProto into this TU's anonymous namespace so the
+// rest of this file can call it unqualified, matching the original
+// shape from before the TlsAsioSession split.
+using detail::LogProto;
 } // namespace
 
 void AsioSession::SetErrorLogger(ErrorLogger logger) noexcept
 {
-    g_error_logger.store(logger, std::memory_order_relaxed);
+    detail::g_proto_logger.store(logger, std::memory_order_relaxed);
 }
 
 void AsioSession::SetSendQueueCapacity(std::size_t n) noexcept

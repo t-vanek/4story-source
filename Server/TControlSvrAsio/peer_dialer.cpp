@@ -2,11 +2,15 @@
 
 #include "MessageId.h"
 
+#include "fourstory/security/hostname_match.h"
+
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/redirect_error.hpp>
+#include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
@@ -83,7 +87,85 @@ PeerDialer::Dial(const ServiceInstance& svc)
         co_return res;
     }
 
-    auto wire = std::make_shared<ControlSession>(std::move(sock));
+    // Drive the client-side TLS handshake before publishing the
+    // session. The remote ControlServer is configured for hybrid
+    // detection (PR #46), so its accept loop will see our 0x16
+    // ClientHello and route into the TLS code path.
+    std::shared_ptr<ControlSession> wire;
+    if (m_ssl_ctx != nullptr)
+    {
+        ControlSession::TlsStream stream(std::move(sock), *m_ssl_ctx);
+        boost::system::error_code tls_ec;
+        co_await stream.async_handshake(
+            boost::asio::ssl::stream_base::client,
+            boost::asio::redirect_error(
+                boost::asio::use_awaitable, tls_ec));
+        if (tls_ec)
+        {
+            res.failure_reason = "TLS handshake failed: " + tls_ec.message();
+            spdlog::warn("peer_dialer: dial svc_id={:08x} ({}:{}) — {}",
+                svc.service_id, host, svc.port, res.failure_reason);
+            boost::system::error_code ig;
+            stream.next_layer().close(ig);
+            co_return res;
+        }
+        wire = std::make_shared<ControlSession>(std::move(stream));
+
+        // Outbound identity enforcement. When the security gate is
+        // wired (typical Phase A deployment), the cert's CN / SAN
+        // entries must match the operator-configured peer_name for
+        // the target (group, server). Mirror of the inbound check
+        // in OnPeerRegisterReq — same trust map, same hostname-
+        // match semantics (CN literal + SAN with RFC 6125 wildcard
+        // expansion). Without an opinion in the trust map we just
+        // log the captured CN and proceed; without a gate at all
+        // we keep the pre-enforce behaviour.
+        if (m_security != nullptr)
+        {
+            const auto expected = m_security->LookupPeerName(
+                svc.group_id, svc.server_id);
+            if (expected.has_value())
+            {
+                const auto& peer_cn   = wire->PeerCommonName();
+                const auto& peer_sans = wire->PeerSubjectAltNames();
+                const bool cn_matches =
+                    fourstory::security::detail::EqualIgnoreCase(
+                        peer_cn, *expected);
+                bool san_matches = false;
+                for (const auto& san : peer_sans)
+                {
+                    if (fourstory::security::HostnameMatch(san, *expected))
+                    {
+                        san_matches = true;
+                        break;
+                    }
+                }
+                if (!cn_matches && !san_matches)
+                {
+                    res.failure_reason =
+                        "peer identity mismatch — cert CN='" + peer_cn +
+                        "' SANs=" + std::to_string(peer_sans.size()) +
+                        " expected='" + *expected + "'";
+                    spdlog::warn("peer_dialer: dial svc_id={:08x} ({}:{}) — {}",
+                        svc.service_id, host, svc.port, res.failure_reason);
+                    boost::system::error_code ig;
+                    wire->Close();
+                    co_return res;
+                }
+            }
+        }
+
+        if (!wire->PeerCommonName().empty())
+        {
+            spdlog::info("peer_dialer: TLS peer CN='{}' on svc_id={:08x}",
+                wire->PeerCommonName(), svc.service_id);
+        }
+    }
+    else
+    {
+        wire = std::make_shared<ControlSession>(std::move(sock));
+    }
+
     auto peer = std::make_shared<PeerSession>(wire, svc);
     m_registry.SetConnection(svc.service_id, peer);
 

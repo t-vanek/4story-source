@@ -43,21 +43,31 @@ std::uint32_t ComputeChecksum(const std::byte* body, std::size_t len)
 }
 
 namespace {
-// Extract the X509 Common Name field from an SSL session's peer
-// certificate. Returns empty when the peer didn't present a cert or
-// the cert's subject has no CN. Caller must have already driven
-// async_handshake to completion — calling on an in-progress handshake
-// is undefined.
-std::string ExtractPeerCommonName(SSL* ssl)
+// Extract identity material (CN + DNS-type SubjectAltNames) from an
+// SSL session's peer certificate in one pass. Combining the two
+// keeps a single SSL_get_peer_certificate / X509_free pair instead
+// of two — relevant because the OpenSSL 3 variant explicitly
+// up-refs the cert.
+//
+// Caller must have already driven async_handshake to completion.
+struct PeerIdentity
 {
-    if (ssl == nullptr) return {};
+    std::string              cn;
+    std::vector<std::string> sans;
+};
+
+PeerIdentity ExtractPeerIdentity(SSL* ssl)
+{
+    PeerIdentity id;
+    if (ssl == nullptr) return id;
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     X509* cert = SSL_get1_peer_certificate(ssl);
 #else
     X509* cert = SSL_get_peer_certificate(ssl);
 #endif
-    if (cert == nullptr) return {};
-    std::string out;
+    if (cert == nullptr) return id;
+
+    // CN — legacy identity field, still populated by most CAs.
     X509_NAME* subj = X509_get_subject_name(cert);
     if (subj != nullptr)
     {
@@ -65,10 +75,34 @@ std::string ExtractPeerCommonName(SSL* ssl)
         const int len = X509_NAME_get_text_by_NID(subj, NID_commonName,
                                                    buf, sizeof(buf));
         if (len > 0)
-            out.assign(buf, static_cast<std::size_t>(len));
+            id.cn.assign(buf, static_cast<std::size_t>(len));
     }
+
+    // SAN — RFC 5280 §4.2.1.6 modern identity. We only collect the
+    // DNS-type entries; IP-type and URI-type are out of scope for
+    // this project's identity model (peer_name is a string).
+    auto* sans = static_cast<GENERAL_NAMES*>(
+        X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
+    if (sans != nullptr)
+    {
+        const int n = sk_GENERAL_NAME_num(sans);
+        for (int i = 0; i < n; ++i)
+        {
+            const GENERAL_NAME* gn = sk_GENERAL_NAME_value(sans, i);
+            if (gn == nullptr || gn->type != GEN_DNS) continue;
+            ASN1_IA5STRING* dns = gn->d.dNSName;
+            if (dns == nullptr) continue;
+            const unsigned char* data = ASN1_STRING_get0_data(dns);
+            const int len             = ASN1_STRING_length(dns);
+            if (data == nullptr || len <= 0) continue;
+            id.sans.emplace_back(reinterpret_cast<const char*>(data),
+                                  static_cast<std::size_t>(len));
+        }
+        GENERAL_NAMES_free(sans);
+    }
+
     X509_free(cert);
-    return out;
+    return id;
 }
 } // namespace
 
@@ -89,12 +123,14 @@ ControlSession::ControlSession(TlsStream stream)
     if (!ec && ep.address().is_v4())
         m_remote_ipv4 = ep.address().to_v4().to_string();
 
-    // Capture the peer CN now — the ssl::stream is fully handshaked
-    // by the time the caller hands it to this ctor (ControlServer
-    // drives async_handshake then constructs us), so SSL_get_peer_cert
-    // will return the cert the peer presented during the handshake.
-    m_peer_cn = ExtractPeerCommonName(
+    // Capture peer identity (CN + SAN entries) now — the ssl::stream
+    // is fully handshaked by the time the caller hands it to this
+    // ctor (ControlServer drives async_handshake then constructs us),
+    // so SSL_get_peer_cert returns the presented cert.
+    auto identity = ExtractPeerIdentity(
         std::get<TlsStream>(m_socket).native_handle());
+    m_peer_cn   = std::move(identity.cn);
+    m_peer_sans = std::move(identity.sans);
 }
 
 ControlSession::PlainSocket& ControlSession::UnderlyingTcp()

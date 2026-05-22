@@ -285,6 +285,31 @@ if(EXISTS ${CONTROL_TLS_CERT_DIR}/ca.crt)
         PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
     add_test(NAME tcontrolsvr_asio_register_cn
         COMMAND test_tcontrolsvr_asio_register_cn)
+
+    # SAN matching — modern PKI path (RFC 5280 §4.2.1.6). Exercises
+    # the SubjectAltName extraction + identity-match branch in
+    # OnPeerRegisterReq using the san_client.crt fixture (CN
+    # differs from any SAN entry).
+    add_executable(test_tcontrolsvr_asio_register_san
+        ${TCONTROL_ASIO_SRC}/tests/test_register_san_validation.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_register_san
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_register_san
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_register_san
+        COMMAND test_tcontrolsvr_asio_register_san)
+
+    # PeerDialer outbound CN/SAN enforcement — mirror of the
+    # inbound register test but on the dial side. Verifies the
+    # security gate's trust map is consulted post-handshake.
+    add_executable(test_tcontrolsvr_asio_peer_dialer_cn
+        ${TCONTROL_ASIO_SRC}/tests/test_peer_dialer_cn_enforce.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_peer_dialer_cn
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_peer_dialer_cn
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_peer_dialer_cn
+        COMMAND test_tcontrolsvr_asio_peer_dialer_cn)
 endif()
 
 # CoOffload helper test — verifies the lambda runs on a worker

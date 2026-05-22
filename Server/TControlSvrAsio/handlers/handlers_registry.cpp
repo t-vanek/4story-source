@@ -41,6 +41,7 @@
 #include "MessageId.h"
 
 #include "fourstory/db/co_offload.h"
+#include "fourstory/security/hostname_match.h"
 
 
 #include <spdlog/spdlog.h>
@@ -109,27 +110,24 @@ OnPeerRegisterReq(std::shared_ptr<OperatorSession> op,
         co_return;
     }
 
-    // Post-handshake CN validation. When the peer connected over
-    // TLS, the cert's Common Name was captured into
-    // ControlSession::PeerCommonName() at construction time. We
-    // compare it against the operator-configured peer_name in
-    // TPEER_AUTH (looked up via the security gate's trust map) for
-    // the identity claimed by service_id.
+    // Post-handshake identity validation. When the peer connected
+    // over TLS, the cert's Common Name AND any DNS-type SAN entries
+    // were captured into ControlSession at construction. We accept
+    // a name match against either CN or any SAN — RFC 5280 §4.2.1.6
+    // deprecates CN-as-identity in favor of SAN, and modern PKI
+    // tooling (cert-manager, step-ca, ACME) frequently leaves CN
+    // empty and only populates SAN.
     //
-    // Policy:
-    //   * No CN (plain-TCP session): skip the check entirely. This
-    //     preserves backward-compat for deployments that haven't
-    //     enabled peer_tls_enabled yet; the legacy operator gate
-    //     (IP allowlist + handshake HMAC) still applies.
-    //   * CN present + no matching TPEER_AUTH row: skip — the row
-    //     might be intentionally absent (peer is configured in TOML
-    //     fallback). LogOutcome path stays clean.
-    //   * CN present + row peer_name differs: REJECT. A peer
-    //     presenting a valid cert but claiming an identity that
-    //     doesn't match the cert's CN is either misconfigured or
-    //     hostile; either way we don't want it in the live registry.
-    const auto& peer_cn = op->Wire()->PeerCommonName();
-    if (!peer_cn.empty() && ctx.security != nullptr)
+    // Policy (otherwise unchanged from PR #47):
+    //   * No TLS identity at all (plain-TCP session): skip.
+    //   * Trust map has no opinion for this slot: skip.
+    //   * Trust map has an opinion AND neither CN nor any SAN
+    //     matches: REJECT with kRejectCnMismatch.
+    const auto& peer_cn   = op->Wire()->PeerCommonName();
+    const auto& peer_sans = op->Wire()->PeerSubjectAltNames();
+    const bool has_tls_identity = !peer_cn.empty() || !peer_sans.empty();
+
+    if (has_tls_identity && ctx.security != nullptr)
     {
         const std::uint8_t group_id  =
             static_cast<std::uint8_t>((service_id >> 16) & 0xFF);
@@ -137,14 +135,37 @@ OnPeerRegisterReq(std::shared_ptr<OperatorSession> op,
             static_cast<std::uint8_t>(service_id & 0xFF);
         const auto expected =
             ctx.security->LookupPeerName(group_id, server_id);
-        if (expected.has_value() && *expected != peer_cn)
+        if (expected.has_value())
         {
-            spdlog::warn("CT_PEER_REGISTER_REQ: CN mismatch — cert CN='{}', "
-                         "expected '{}' for service_id={:#x}",
-                peer_cn, *expected, service_id);
-            co_await senders::SendPeerRegisterAck(op->Wire(), 0,
-                kRejectCnMismatch, 0, kHeartbeatIntervalSec);
-            co_return;
+            // Identity match policy: literal compare against CN +
+            // every SAN entry, plus RFC 6125 wildcard expansion on
+            // the SAN side (operators sometimes issue one
+            // "*.cluster.local" cert per machine instead of one
+            // cert per peer). CN gets literal-only comparison
+            // because CN-as-identity is deprecated and wildcards
+            // there are easy to misuse.
+            const bool cn_matches =
+                fourstory::security::detail::EqualIgnoreCase(
+                    peer_cn, *expected);
+            bool san_matches = false;
+            for (const auto& san : peer_sans)
+            {
+                if (fourstory::security::HostnameMatch(san, *expected))
+                {
+                    san_matches = true;
+                    break;
+                }
+            }
+            if (!cn_matches && !san_matches)
+            {
+                spdlog::warn("CT_PEER_REGISTER_REQ: identity mismatch — "
+                             "cert CN='{}' SANs={} expected='{}' "
+                             "service_id={:#x}",
+                    peer_cn, peer_sans.size(), *expected, service_id);
+                co_await senders::SendPeerRegisterAck(op->Wire(), 0,
+                    kRejectCnMismatch, 0, kHeartbeatIntervalSec);
+                co_return;
+            }
         }
     }
 

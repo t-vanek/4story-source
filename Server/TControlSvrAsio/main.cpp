@@ -333,13 +333,29 @@ int main(int argc, char** argv)
         // over mutual TLS; the legacy TController.exe operator
         // binary cannot use this listener until the hybrid first-byte
         // detection lands in Phase A.2.
+        //
+        // Outbound side: PeerDialer (CT_NEWCONNECT_REQ flow) also
+        // needs a client-side context so admin commands routed back
+        // to a registered peer travel over TLS. Built from the same
+        // SecurityConfig but with the client method family.
         std::optional<boost::asio::ssl::context> server_tls_ctx;
+        std::optional<boost::asio::ssl::context> dialer_tls_ctx;
         if (cfg.security.peer_tls_enabled)
         {
             server_tls_ctx.emplace(
                 fourstory::security::PeerTlsContextBuilder
                     ::BuildServerContext(cfg.security));
             svr_cfg.ssl_ctx = &*server_tls_ctx;
+            dialer_tls_ctx.emplace(
+                fourstory::security::PeerTlsContextBuilder
+                    ::BuildClientContext(cfg.security));
+            dialer.SetTlsContext(&*dialer_tls_ctx);
+            // Enforce the same CN/SAN-vs-TPEER_AUTH.peer_name check
+            // on the outbound side that handlers_registry.cpp does
+            // on the inbound side. Without this, the dialer could
+            // hand back a PeerSession to a peer whose cert didn't
+            // match its claimed identity.
+            dialer.SetSecurityGate(security_gate.get());
             spdlog::info("control_svr: peer transport = TLS "
                          "(ca={}, min_version={})",
                 cfg.security.peer_tls_ca_cert,

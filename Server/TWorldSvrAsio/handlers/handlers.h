@@ -339,6 +339,33 @@ boost::asio::awaitable<void> OnGuildVolunteeringDelReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-17: leave/kickout DB fan-in (handlers_guild.cpp) ---------
+//
+// Membership-lifecycle DB-side fan-in completing the pair that
+// W3a-4c started with OnDM_GUILDMEMBERADD_REQ. Both drop the
+// member from guild->members and clear the char's
+// guild_id back-pointer, then persist via repo->RemoveMember.
+// No wire reply: the legacy MW_GUILDLEAVE_REQ broadcast lives
+// on the player-action path (OnGuildLeaveAck), not on this
+// DB-driven fan-in.
+//
+// OnDM_GUILDLEAVE_REQ carries 4 fields (guildID, charID, bLeave,
+// dwTime) where bLeave is the leave-type code and dwTime is the
+// Unix-epoch second. We log both for audit but don't persist
+// them separately — the modern SOCI repo has no leave-log table
+// yet; the legacy SP `TGuildLeave` may write one on production
+// schemas (deferred).
+
+boost::asio::awaitable<void> OnGuildLeaveReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildKickoutReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

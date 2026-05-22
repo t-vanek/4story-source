@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-16 wanted + volunteering DB fan-in
+## Status — W3a-17 leave + kickout DB fan-in
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -33,13 +33,75 @@ that the four shipped Asio daemons already use.
 | W3a-13 | `TryPromoteIntoGuild` helper (dedupes W3a-6 InviteAnswer YES + W3a-12 VolunteerReply accept) + IGuildRepository::UpdatePvPoints + OnDM_GUILDPVPOINT_REQ | ✅ |
 | W3a-14 | DB-side fan-in cohort: 5 thin handlers (OnDM_GUILDDUTY/PEER/CONTRIBUTION/LEVEL/POINTREWARD_REQ) + 2 new repo methods (UpdateLevel, LogPointReward) + 6 mut-handler test scenarios | ✅ |
 | W3a-15 | Fame + article DB fan-in (OnDM_GUILDFAME_REQ + OnDM_GUILDARTICLEADD/DEL/UPDATE_REQ) — 4 handlers reusing existing repo methods | ✅ |
-| **W3a-16** | Wanted/volunteering DB fan-in (OnDM_GUILDWANTEDADD/DEL_REQ + OnDM_GUILDVOLUNTEERING/INGDEL_REQ) — 4 handlers + GuildWantedRegistry defensive mirror + bType filter on the volunteering pair | ✅ |
-| W3a-17+ | Leave/kickout DB fan-in + tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
+| W3a-16 | Wanted/volunteering DB fan-in (OnDM_GUILDWANTEDADD/DEL_REQ + OnDM_GUILDVOLUNTEERING/INGDEL_REQ) — 4 handlers + GuildWantedRegistry defensive mirror + bType filter on the volunteering pair | ✅ |
+| **W3a-17** | Leave/kickout DB fan-in (OnDM_GUILDLEAVE_REQ + OnDM_GUILDKICKOUT_REQ) — 2 handlers + shared ScrubMembershipInMemory helper completes the W3a-4c MEMBERADD pair | ✅ |
+| W3a-18+ | Tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-17 — what landed
+
+Two more DB-side fan-in handlers completing the membership-
+lifecycle pair that W3a-4c opened with `OnDM_GUILDMEMBERADD_REQ`.
+The cluster topology had `MEMBERADD` going DB→World but no
+counterpart for LEAVE / KICKOUT — only the player-action
+`OnGuildLeaveAck` / `OnGuildKickoutAck` paths existed. W3a-17
+closes that gap.
+
+- `OnDM_GUILDLEAVE_REQ` (wID=0x58CC) → `repo->RemoveMember`.
+  Wire carries 4 fields: `{guild_id, char_id, leave_kind,
+  leave_time}`. Defensive in-memory cleanup via
+  `ScrubMembershipInMemory` (see below). `leave_kind` and
+  `leave_time` are logged for audit but not persisted
+  separately — the modern repo has no leave-log table; the
+  legacy SP `TGuildLeave` may write one on production
+  schemas (deferred).
+- `OnDM_GUILDKICKOUT_REQ` (wID=0x58CF) → `repo->RemoveMember`.
+  Wire carries 2 fields: `{guild_id, char_id}`. Same
+  defensive cleanup. Legacy `CSPGuildKickout` is also a
+  thin DELETE wrapper, so for our SOCI impl `RemoveMember`
+  is semantically equivalent.
+
+Shared helper
+- `ScrubMembershipInMemory(ctx, guild_id, char_id)` —
+  file-local helper that drops the member from
+  `guild->members` under the guild lock + clears
+  `TChar.guild_id` under the char lock. Returns `true` if
+  either side actually mutated state. Both handlers call it
+  before queueing the repo write. Designed for idempotency:
+  re-runs on already-cleaned state are benign (a flapping DB
+  push or a player+DB race both end up calling the same
+  cleanup twice).
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 32-34:
+  - 32: LEAVE drops Carol (char 400, joined in scenario 14)
+    from guild 8 + clears back-pointer + repo recorded the
+    RemoveMember call
+  - 33: KICKOUT seeds Echo (char 500) into guild 8 manually,
+    then exercises the fan-in and verifies the same cleanup
+    (Bravo2 from earlier scenarios was already kicked in
+    scenario 10 so we couldn't reuse him)
+  - 34: idempotent re-LEAVE on already-cleaned Carol — repo
+    still gets the call (DB-authoritative), in-memory state
+    stays at guild_id=0 (no-op cleanup)
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-18+
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+- PvP record listing (`CTBLGuildPvPointReward` TOP 50)
+- Cabinet item codec
+- Scheduler-driven wanted-entry expiry sweep
+- `OnDM_GUILDUPDATE_REQ` (variable-length alliance/enemy CSV
+  columns — non-trivial wire codec)
+- `OnDM_GUILDESTABLISH_ACK` / `OnDM_GUILDEXTINCTION_ACK` /
+  `OnDM_GUILDDISORGANIZATION_ACK` (DB→World ACKs confirming
+  prior World→DB writes landed — currently we fire-and-forget)
 
 ### W3a-16 — what landed
 

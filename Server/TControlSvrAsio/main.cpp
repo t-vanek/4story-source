@@ -350,6 +350,12 @@ int main(int argc, char** argv)
                 fourstory::security::PeerTlsContextBuilder
                     ::BuildClientContext(cfg.security));
             dialer.SetTlsContext(&*dialer_tls_ctx);
+            // Enforce the same CN/SAN-vs-TPEER_AUTH.peer_name check
+            // on the outbound side that handlers_registry.cpp does
+            // on the inbound side. Without this, the dialer could
+            // hand back a PeerSession to a peer whose cert didn't
+            // match its claimed identity.
+            dialer.SetSecurityGate(security_gate.get());
             spdlog::info("control_svr: peer transport = TLS "
                          "(ca={}, min_version={})",
                 cfg.security.peer_tls_ca_cert,

@@ -50,6 +50,7 @@ public:
     bool UpdateArticle(std::uint32_t guild_id, std::uint32_t article_id,
                        const std::string& title,
                        const std::string& body) override;
+    bool DeleteGuild(std::uint32_t guild_id) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

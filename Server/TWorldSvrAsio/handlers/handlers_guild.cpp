@@ -1091,6 +1091,179 @@ OnGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
                  "persisted", ip, guild_id, max_cabinet);
 }
 
+// --- W3a-10 money recover + guild extinction ----------------------
+
+boost::asio::awaitable<void>
+OnGuildMoneyRecoverAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.guilds)
+    {
+        spdlog::warn("OnGuildMoneyRecoverAck[{}]: guild registry not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0;
+    std::uint32_t price    = 0;
+    if (!r.Read(guild_id) || !r.Read(price))
+    {
+        spdlog::warn("OnGuildMoneyRecoverAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        spdlog::warn("OnGuildMoneyRecoverAck[{}]: guild_id={} not in "
+                     "registry — dropped", ip, guild_id);
+        co_return;
+    }
+
+    // Legacy GainMoney(0, 0, dwPrice) — adds dwPrice to cooper,
+    // then normalizes via CalcMoney (1000 cooper = 1 silver,
+    // 1000 silver = 1 gold). For now we skip the normalization
+    // (our CONTRIBUTION path also += each bucket without
+    // overflow); a dedicated W3a-11+ pass can add the normaliser
+    // if dashboard reports show overflow.
+    {
+        std::lock_guard gl(guild->lock);
+        guild->cooper += price;
+    }
+
+    // Persist via the existing IncrementContribution path
+    // (legacy: GainMoney emits SendDM_GUILDCONTRIBUTION_REQ with
+    // exp=0 + the money delta). dwPrice → cooper; 0s elsewhere.
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, price] {
+                repo->IncrementContribution(/*char_id=*/0, guild_id,
+                    /*exp=*/0, /*gold=*/0, /*silver=*/0, /*cooper=*/price,
+                    /*pvp_point=*/0);
+            });
+    }
+
+    spdlog::info("OnGuildMoneyRecoverAck[{}]: guild_id={} cooper+={}",
+        ip, guild_id, price);
+}
+
+boost::asio::awaitable<void>
+OnGuildExtinctionReq(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnGuildExtinctionReq[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0;
+    if (!r.Read(guild_id))
+    {
+        spdlog::warn("OnGuildExtinctionReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        spdlog::info("OnGuildExtinctionReq[{}]: guild_id={} already "
+                     "unloaded — DB-only delete", ip, guild_id);
+        // Still hit the repo in case the legacy row is stale.
+        if (ctx.guild_repo)
+        {
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.guild_repo, guild_id] {
+                    repo->DeleteGuild(guild_id);
+                });
+        }
+        co_return;
+    }
+
+    // Snapshot members under guild.lock + remove from registry.
+    // The legacy fan-out walks the member list AFTER the registry
+    // entry is gone (DeleteTGuild line 3204); we do the same by
+    // copying out the member-ids first then dropping the lock,
+    // then iterating + cleanup.
+    std::vector<std::uint32_t> member_ids;
+    std::string                guild_name_for_log;
+    {
+        std::lock_guard gl(guild->lock);
+        guild_name_for_log = guild->name;
+        member_ids.reserve(guild->members.size());
+        for (const auto& m : guild->members) member_ids.push_back(m.char_id);
+    }
+    // Drop from the registry — any concurrent Find returns
+    // nullptr from this point on; cached shared_ptrs (like the
+    // local `guild` here) still work until they die.
+    ctx.guilds->Remove(guild_id);
+
+    // Persist (best-effort).
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id] {
+                repo->DeleteGuild(guild_id);
+            });
+    }
+
+    // Per-member fan-out: clear TChar.guild_id + send the
+    // disorg-flavored leave to each online member's main map.
+    // The legacy module logs the broadcast count for ops; we
+    // match that.
+    const std::uint32_t now =
+        static_cast<std::uint32_t>(std::time(nullptr));
+    std::size_t notified = 0;
+    for (auto cid : member_ids)
+    {
+        auto tchar = ctx.chars->Find(cid);
+        if (!tchar) continue;
+        std::string char_name;
+        std::uint32_t char_key = 0;
+        std::uint8_t  main_svr = 0;
+        {
+            std::lock_guard cg(tchar->lock);
+            tchar->guild_id = 0;
+            char_name       = tchar->name;
+            char_key        = tchar->key;
+            main_svr        = tchar->main_server_id;
+        }
+        if (main_svr == 0) continue;
+
+        std::shared_ptr<PeerSession> target;
+        for (auto& p : ctx.peers->Snapshot())
+        {
+            if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == main_svr)
+            {
+                target = std::move(p);
+                break;
+            }
+        }
+        if (!target) continue;
+
+        co_await senders::SendMwGuildLeaveReq(target, cid, char_key,
+            char_name, guild::kLeaveDisorganization, now);
+        ++notified;
+    }
+
+    spdlog::info("OnGuildExtinctionReq[{}]: guild_id={} ('{}') deleted, "
+                 "members={} notified={}", ip, guild_id, guild_name_for_log,
+        member_ids.size(), notified);
+    // TODO W3a-11+: cascade through TGUILDTACTICSTABLE + alliance
+    // links. Legacy DeleteTGuild also walks m_mapTTactics +
+    // breaks alliance/enemy edges; both rely on registries we
+    // haven't ported yet.
+}
+
 // --- W3a-9 single guild info refresh ------------------------------
 
 boost::asio::awaitable<void>

@@ -50,6 +50,7 @@ public:
     bool UpdateArticle(std::uint32_t guild_id, std::uint32_t article_id,
                        const std::string& title,
                        const std::string& body) override;
+    bool DeleteGuild(std::uint32_t guild_id) override;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -59,7 +60,8 @@ public:
         enum class Kind { kSetDisorg, kUpdateMemberDuty, kUpdateFame,
                           kRemoveMember, kAddMember, kIncrementContribution,
                           kUpdateMemberPeer, kUpdateMaxCabinet,
-                          kAddArticle, kDelArticle, kUpdateArticle };
+                          kAddArticle, kDelArticle, kUpdateArticle,
+                          kDeleteGuild };
         Kind          kind;
         std::uint32_t guild_id = 0;
         std::uint32_t char_id  = 0;

@@ -128,12 +128,22 @@ public:
     virtual bool DelArticle(std::uint32_t guild_id,
                             std::uint32_t article_id) = 0;
 
+
     // Update title + body of an existing article. Mirrors
     // CSPGuildArticleUpdate (SSHandler.cpp:4323).
     virtual bool UpdateArticle(std::uint32_t      guild_id,
                                std::uint32_t      article_id,
                                const std::string& title,
                                const std::string& body) = 0;
+
+    // --- W3a-10 guild lifecycle (extinction) ---------------------
+
+    // Delete the guild row + cascade (TGUILDTABLE + TGUILDMEMBERTABLE
+    // + TGUILDARTICLETABLE for this guild_id). Mirrors CSPGuildDelete
+    // (SSHandler.cpp:3290) — the legacy SP cascades the delete via
+    // FK on the DB side; the SOCI impl issues the DELETEs explicitly
+    // since legacy schemas often lack the FK cascade.
+    virtual bool DeleteGuild(std::uint32_t guild_id) = 0;
 };
 
 } // namespace tworldsvr

@@ -244,6 +244,15 @@ bool FakeGuildRepository::UpdateArticle(std::uint32_t      guild_id,
     return true;
 }
 
+bool FakeGuildRepository::DeleteGuild(std::uint32_t guild_id)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kDeleteGuild, guild_id, 0, 0, 0,
+                       0, 0, 0});
+    m_guilds.erase(guild_id);
+    return true;
+}
+
 std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
 {
     std::lock_guard lock(m_mtx);

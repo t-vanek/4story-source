@@ -244,6 +244,23 @@ target_link_libraries(test_tcontrolsvr_asio_peer_client PRIVATE
 add_test(NAME tcontrolsvr_asio_peer_client
     COMMAND test_tcontrolsvr_asio_peer_client)
 
+# ControlSession TLS round-trip — wraps the accepted socket in
+# asio::ssl::stream, drives the server-side handshake, and verifies
+# the wire protocol (8-byte header + checksum + body) flows through
+# the encrypted channel. Reuses the tnetlib cert fixtures.
+set(CONTROL_TLS_CERT_DIR
+    ${CMAKE_BINARY_DIR}/Lib/Own/TNetLib/test_certs)
+if(EXISTS ${CONTROL_TLS_CERT_DIR}/ca.crt)
+    add_executable(test_tcontrolsvr_asio_control_session_tls
+        ${TCONTROL_ASIO_SRC}/tests/test_control_session_tls.cpp)
+    target_link_libraries(test_tcontrolsvr_asio_control_session_tls
+        PRIVATE tcontrolsvr_asio_core)
+    target_compile_definitions(test_tcontrolsvr_asio_control_session_tls
+        PRIVATE TEST_CERT_DIR="${CONTROL_TLS_CERT_DIR}")
+    add_test(NAME tcontrolsvr_asio_control_session_tls
+        COMMAND test_tcontrolsvr_asio_control_session_tls)
+endif()
+
 # CoOffload helper test — verifies the lambda runs on a worker
 # thread, the coroutine resumes on the io_context, and exceptions
 # propagate. Pure logic, no DB. Also covers the CoOffloadIf /

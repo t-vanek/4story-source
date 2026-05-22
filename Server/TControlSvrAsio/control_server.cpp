@@ -5,6 +5,8 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/redirect_error.hpp>
+#include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
@@ -61,8 +63,41 @@ ControlServer::Run()
             }
         }
 
-        auto sess = std::make_shared<ControlSession>(std::move(sock));
-        spdlog::info("control_svr: accept from {}", sess->RemoteIPv4());
+        std::shared_ptr<ControlSession> sess;
+
+        if (m_cfg.ssl_ctx != nullptr)
+        {
+            // Server-side TLS — wrap the accepted socket in an
+            // ssl::stream and drive the handshake before handing
+            // off to the session machinery. On failure the socket
+            // is closed and we go back to accept.
+            ControlSession::TlsStream stream(std::move(sock),
+                                              *m_cfg.ssl_ctx);
+            boost::system::error_code tls_ec;
+            co_await stream.async_handshake(
+                boost::asio::ssl::stream_base::server,
+                boost::asio::redirect_error(
+                    boost::asio::use_awaitable, tls_ec));
+            if (tls_ec)
+            {
+                spdlog::warn("control_svr: TLS handshake failed: {}",
+                    tls_ec.message());
+                boost::system::error_code ig;
+                stream.next_layer().shutdown(
+                    tcp::socket::shutdown_both, ig);
+                stream.next_layer().close(ig);
+                continue;
+            }
+            sess = std::make_shared<ControlSession>(std::move(stream));
+            spdlog::info("control_svr: TLS accept from {}",
+                sess->RemoteIPv4());
+        }
+        else
+        {
+            sess = std::make_shared<ControlSession>(std::move(sock));
+            spdlog::info("control_svr: accept from {}", sess->RemoteIPv4());
+        }
+
         boost::asio::co_spawn(m_io,
             HandleConnection(std::move(sess)),
             boost::asio::detached);

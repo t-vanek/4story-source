@@ -14,6 +14,7 @@
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/stream.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -21,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace tcontrolsvr {
@@ -56,7 +58,17 @@ public:
     using PacketHandler = std::function<
         boost::asio::awaitable<void>(std::shared_ptr<ControlSession>, DecodedPacket)>;
 
-    explicit ControlSession(boost::asio::ip::tcp::socket sock);
+    using PlainSocket = boost::asio::ip::tcp::socket;
+    using TlsStream   = boost::asio::ssl::stream<PlainSocket>;
+
+    // Plain-TCP ctor — legacy operator and pre-Phase-A peer paths.
+    explicit ControlSession(PlainSocket sock);
+
+    // TLS ctor — caller already wrapped the accepted socket in an
+    // ssl::stream and (typically) co_awaited async_handshake(server)
+    // before constructing the session. Inbound bytes from here on
+    // arrive plaintext on this side, ciphertext on the wire.
+    explicit ControlSession(TlsStream stream);
 
     // Read loop. Returns when peer closes or framing breaks.
     boost::asio::awaitable<void> Run(PacketHandler on_packet);
@@ -67,7 +79,7 @@ public:
                                             std::vector<std::byte> body);
 
     void Close();
-    bool IsOpen() const           { return m_socket.is_open(); }
+    bool IsOpen() const;
 
     const std::string& RemoteIPv4() const { return m_remote_ipv4; }
 
@@ -87,7 +99,14 @@ public:
 private:
     void TouchRecv();
 
-    boost::asio::ip::tcp::socket          m_socket;
+    // Underlying tcp::socket regardless of whether we're plain or
+    // TLS — used for is_open(), shutdown/close, and the cached IP
+    // lookup at construction time.
+    PlainSocket& UnderlyingTcp();
+    const PlainSocket& UnderlyingTcp() const;
+
+    using SocketVariant = std::variant<PlainSocket, TlsStream>;
+    SocketVariant                         m_socket;
     std::string                           m_remote_ipv4;
     std::vector<std::byte>                m_send_scratch;
     std::chrono::steady_clock::time_point m_connected_at{

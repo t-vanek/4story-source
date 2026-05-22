@@ -24,9 +24,9 @@ Cluster-wide rewrite status as of 2026-05-22:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ░░░░░░░░░░░░░░░░░░░░    0%   (not started)
+TWorldSvr         █░░░░░░░░░░░░░░░░░░░    5%   (W1 scaffold — transport + dispatch stub)
 ─────────────────────────────────────────
-Cluster total     ███░░░░░░░░░░░░░░░░░  ~17%   (LOC-weighted, see below)
+Cluster total     ███░░░░░░░░░░░░░░░░░  ~18%   (LOC-weighted, see below)
 ```
 
 | Component | Legacy LOC | Modern LOC | Wire handlers | DB schema | Status |
@@ -36,7 +36,7 @@ Cluster total     ███░░░░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvr** | 38 851 | — | — | — | ❌ Not started |
+| **TWorldSvrAsio** | 38 851 | ~600 | 0/287 (dispatch stub) | ⏸ W2 | 🟡 **W1 scaffold — transport only** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
 LOC weighting: `(24 213 complete + ~6 700 scaffolded) / 175 906 legacy ≈ 17 %`.
@@ -134,6 +134,7 @@ Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
 │   ├── TMapSvr/                    # legacy gameplay engine (reference, unmodified)
 │   ├── TMapSvrAsio/                # 🟡 emulator map server — scaffold only
 │   ├── TWorldSvr/                  # legacy cluster coordinator (reference)
+│   ├── TWorldSvrAsio/              # 🟡 emulator cluster coordinator — W1 scaffold
 │   ├── TBRSvr/  TBoWSvr/           # legacy empty shells (BR/BoW compile flags)
 │   └── Tools/                      # legacy ops tools (unmodified)
 ├── _rewrite/docs/                  # plan + analysis + patch catalog
@@ -148,6 +149,7 @@ mapping, configuration schema, and bring-up notes:
 * [`Server/TLogSvrAsio/README.md`](Server/TLogSvrAsio/README.md) — ✅ complete
 * [`Server/TControlSvrAsio/README.md`](Server/TControlSvrAsio/README.md) — ✅ complete
 * [`Server/TMapSvrAsio/README.md`](Server/TMapSvrAsio/README.md) — 🟡 scaffold (see also `ARCHITECTURE.md` / `CONSOLIDATION.md`)
+* [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W1 scaffold (transport + dispatch stub)
 * [`Lib/Own/FourStoryCommon/README.md`](Lib/Own/FourStoryCommon/README.md) — ✅ shared infrastructure
 
 ## Build

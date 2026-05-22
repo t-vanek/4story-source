@@ -1,0 +1,43 @@
+# TWorldSvrAsio example config — W1 scaffold.
+#
+# W1 brings up the transport: accepts SS connections from TMap and
+# TLogin peers, logs every packet through the dispatch stub, and
+# drops them. No char persistence, no guild, no DB. W2 introduces
+# the [database] section and wires the SOCI char repository.
+#
+# The four shipped Asio daemons use the same TOML shape — see
+# Server/TControlSvrAsio/tcontrolsvr.example.toml for the canonical
+# reference and Server/TWorldSvrAsio/README.md §4 for the full
+# rollout.
+
+[server]
+# DEF_WORLDPORT from Lib/Own/TNetLib/TNetLib/TNetDef.h. Matching this
+# default means existing TMap/TLogin peer configs point at this
+# listener without change.
+port            = 3815
+
+# Hard cap on concurrent peer sockets. Defense against pre-auth
+# socket flood. Set 0 to disable (not recommended in production).
+max_connections = 256
+
+# When [database] is set, W2 will load char + guild state from the
+# global + world SOCI pools instead of in-memory bootstraps. The
+# `worker_threads` knob controls a boost::asio::thread_pool that
+# handlers offload synchronous SOCI calls onto via the
+# fourstory::db::CoOffload helper — keeps the io_context responsive
+# while a DB query is in flight. Set worker_threads=0 to run SOCI
+# in-line on the io_context (legacy behavior, only OK for tests).
+#
+# [database]
+# backend           = "mssql"
+# connection_string = "DSN=4story;UID=sa;PWD=…"
+# pool_size         = 4
+# worker_threads    = 2
+
+[health]
+# Minimal HTTP /healthz endpoint. Same shape as the four shipped
+# Asio daemons so the cluster healthcheck rules can reuse them.
+port = 18087
+
+[log]
+level = "info"

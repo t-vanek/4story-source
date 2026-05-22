@@ -22,13 +22,70 @@ that the four shipped Asio daemons already use.
 | W3a-4b | guild_constants.h + write API + OnGuildDisorganizationReq + OnGuildDutyAck + OnGuildFameAck | ✅ |
 | W3a-4c | guild_broadcast.h + OnMW_GUILDKICKOUT_ACK + OnMW_GUILDCONTRIBUTION_ACK + OnDM_GUILDMEMBERADD_REQ | ✅ |
 | W3a-4d | CoOffloadVoidIf wiring (closes W-1) + GuildLevelCache mirror of TGUILDCHART | ✅ |
-| **W3a-5** | `services/guild_peerage.h` (CheckPeerage gate using guild_levels) + IGuildRepository::UpdateMemberPeer + UpdateMaxCabinet + OnMW_GUILDPEER_ACK + OnDM_GUILDCABINETMAX_REQ + SendMwGuildPeerReq + SendMwGuildCabinetMaxReq | ✅ |
-| W3a-6+ | OnMW_GUILDINVITEANSWER_ACK (in-memory member-add, paired with W3a-4c's DM_MEMBERADD_REQ) + GUILDJOIN_REQ broadcast + Articles board + Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
+| W3a-5 | `services/guild_peerage.h` (CheckPeerage gate using guild_levels) + UpdateMemberPeer + UpdateMaxCabinet + OnMW_GUILDPEER_ACK + OnDM_GUILDCABINETMAX_REQ | ✅ |
+| **W3a-6** | Guild invite flow: SendMwGuildInviteReq + SendMwGuildJoinReq (10-field, longest sender to date) + OnMW_GUILDINVITE_ACK (chief sends invite to target's main map peer with country / member-cap / target-has-guild gates) + OnMW_GUILDINVITEANSWER_ACK (target accepts → in-memory member-add + TChar.guild_id + repo persist + dual JOIN_REQ reply; target declines → JOIN_REQ to chief only) | ✅ |
+| W3a-7+ | NotifyAddGuildMember broadcast (announce new member to all existing members) + Articles board + Tactics / Volunteers / PvP record / Point reward / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-6 — what landed
+
+The two-handler guild-invite flow plus its 10-field "join
+result" sender — the longest sender in the guild family. Closes
+the in-memory member-add path the W3a-4c DM_GUILDMEMBERADD_REQ
+already persists (it was the DB half; this is the in-memory
+mirror).
+
+* `services/guild_constants.h` — gained `kAskYes` (0) and
+  `kAskNo` (1) for the answer-byte enum (NetCode.h:222).
+* `senders/senders.h` + `senders_guild.cpp`
+  - `SendMwGuildInviteReq` (5-field; forwards from chief's
+    peer to target's main map peer).
+  - `SendMwGuildJoinReq` (10-field; result + full guild meta
+    + new-member id/name + max-member cap byte).
+* `handlers/handlers_guild.cpp`
+  - `OnGuildInviteAck` (MW_GUILDINVITE_ACK, wID=0x9030):
+    chief invites target by name. Gates: requester has a
+    guild, guild not disorg, member cap not reached
+    (`max_member` from guild_levels), target online, target
+    same country as chief, target not in another guild.
+    Each failure path replies MW_GUILDJOIN_REQ with the
+    matching kNotFound/kMemberFull/kFail/kHaveGuild error
+    + zero meta. Success path forwards MW_GUILDINVITE_REQ to
+    the target's main map peer.
+  - `OnGuildInviteAnswerAck` (MW_GUILDINVITEANSWER_ACK,
+    wID=0x9031): target accepts (kAskYes) or declines.
+    Decline → JOIN_REQ to chief with the answer code as
+    result. Accept → re-validate every gate (state may have
+    changed during the dialog), add member under guild.lock,
+    flip target's TChar.guild_id, persist via
+    `IGuildRepository::AddMember` through CoOffloadVoidIf,
+    send two JOIN_REQ replies (one to each side) with the
+    full guild meta. The post-join `NotifyAddGuildMember`
+    broadcast (announce new member to all existing members)
+    defers to W3a-7 — needs a new sender family.
+
+Tests
+- `test_guild_mut_handlers` extended 12 → 14 scenarios:
+  * INVITEANSWER ASK_NO → chief gets MW_GUILDJOIN_REQ with
+    result=1
+  * INVITEANSWER ASK_YES → both Carol + chief get
+    MW_GUILDJOIN_REQ kSuccess + Carol's TChar.guild_id=8 +
+    guild members contains 400 + fake repo recorded
+    kAddMember(400, 8, …)
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed).
+
+Deferred to W3a-7+
+- `NotifyAddGuildMember` broadcast — needs a new sender (the
+  legacy uses a TGUILDMEMBERADD_REQ shape that the W3a-5+
+  member-list-refresh handler will share).
+- Articles board (5+ handlers)
+- Tactics / volunteers / PvP record / point reward (~15)
+- Cabinet item codec (Lib/Own/TProtocol/ITEM struct port)
 
 ### W3a-5 — what landed
 

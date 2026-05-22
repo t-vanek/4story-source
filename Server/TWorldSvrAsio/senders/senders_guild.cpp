@@ -151,6 +151,58 @@ SendMwGuildContributionReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwGuildInviteReq(std::shared_ptr<PeerSession> peer,
+                     std::uint32_t                target_char_id,
+                     std::uint32_t                target_key,
+                     const std::string&           guild_name,
+                     std::uint32_t                inviter_char_id,
+                     const std::string&           inviter_name)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, target_char_id);
+    WritePOD<std::uint32_t>(body, target_key);
+    WriteString(body, guild_name);
+    WritePOD<std::uint32_t>(body, inviter_char_id);
+    WriteString(body, inviter_name);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDINVITE_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwGuildJoinReq(std::shared_ptr<PeerSession> peer,
+                   std::uint32_t                char_id,
+                   std::uint32_t                key,
+                   std::uint8_t                 result,
+                   std::uint32_t                guild_id,
+                   std::uint32_t                fame,
+                   std::uint32_t                fame_color,
+                   const std::string&           guild_name,
+                   std::uint32_t                member_id,
+                   const std::string&           member_name,
+                   std::uint8_t                 max_member)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint32_t>(body, guild_id);
+    WritePOD<std::uint32_t>(body, fame);
+    WritePOD<std::uint32_t>(body, fame_color);
+    WriteString(body, guild_name);
+    WritePOD<std::uint32_t>(body, member_id);
+    WriteString(body, member_name);
+    WritePOD<std::uint8_t>(body, max_member);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDJOIN_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwGuildPeerReq(std::shared_ptr<PeerSession> peer,
                    std::uint32_t                char_id,
                    std::uint32_t                key,

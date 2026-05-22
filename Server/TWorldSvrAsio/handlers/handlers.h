@@ -197,6 +197,33 @@ boost::asio::awaitable<void> OnGuildPeerAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-6: guild invite flow (handlers_guild.cpp) ----------------
+
+// Inbound from a map server: chief sent an invite to a target by
+// name. World validates guild not-disorg + not-full + same country
+// + target not already in a guild, then forwards
+// MW_GUILDINVITE_REQ to the target's main map peer so their
+// client pops a "join guild?" dialog.
+//
+// Wire layout (SSHandler.cpp:3745):
+//   DWORD dwCharID, DWORD dwKey, STRING strTarget
+boost::asio::awaitable<void> OnGuildInviteAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Inbound from the target's map server: the invited char answered
+// the dialog. On YES + guild still has room + char still has no
+// guild, world adds the member in-memory + sets TChar.guild_id +
+// fires MW_GUILDJOIN_REQ replies to both inviter and invited.
+//
+// Wire layout (SSHandler.cpp:3627):
+//   DWORD dwCharID, DWORD dwKey, BYTE bAnswer, DWORD dwInviter
+boost::asio::awaitable<void> OnGuildInviteAnswerAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // Inbound from a map server's DB worker: chief expanded the
 // guild's cabinet slot count (paid via the cash-shop flow on
 // the map side). Persists TGUILDTABLE.bMaxCabinet + mirrors the

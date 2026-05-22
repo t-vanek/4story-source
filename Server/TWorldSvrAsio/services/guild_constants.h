@@ -59,4 +59,9 @@ enum : std::uint8_t {
 // fame-change cost check and other point-budget gates.
 constexpr std::uint32_t kPvPointCostFameChange = 30000;
 
+// ASK_YES / ASK_NO (NetCode.h:222) — generic accept/decline byte
+// used by the guild invite answer flow + future party invite.
+constexpr std::uint8_t kAskYes = 0;
+constexpr std::uint8_t kAskNo  = 1;
+
 } // namespace tworldsvr::guild

@@ -212,6 +212,58 @@ boost::asio::awaitable<void> SendMwGuildFameReq(
     std::uint32_t                fame,
     std::uint32_t                fame_color);
 
+// MW_GUILDINVITE_REQ — forwarded to the target's main map peer
+// when a chief invites them by name. The target's client pops a
+// "join guild?" dialog with the inviter's name.
+//
+// Wire layout (SSSender.cpp:876):
+//   DWORD  target_char_id
+//   DWORD  target_key
+//   STRING guild_name
+//   DWORD  inviter_char_id
+//   STRING inviter_name
+boost::asio::awaitable<void> SendMwGuildInviteReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                target_char_id,
+    std::uint32_t                target_key,
+    const std::string&           guild_name,
+    std::uint32_t                inviter_char_id,
+    const std::string&           inviter_name);
+
+// MW_GUILDJOIN_REQ — answer to the invite flow. Sent to both
+// inviter (chief) and invited (target) so each side's client
+// gets the result (success / NOTFOUND / MEMBER_FULL / HAVEGUILD
+// / FAIL). Result-only branches pass zeros for the guild meta.
+//
+// Wire layout (SSSender.cpp:894 — 10 fields, the longest sender
+// in the guild family):
+//   DWORD  dwCharID
+//   DWORD  dwKey
+//   BYTE   bRet            -- guild::kSuccess / kMemberFull /
+//                             kHaveGuild / kNotFound / kFail
+//   DWORD  dwGuildID
+//   DWORD  dwFame
+//   DWORD  dwFameColor
+//   STRING strGuildName
+//   DWORD  dwMemberID      -- the new member's char_id (success)
+//                             or 0 (error)
+//   STRING strMemberName   -- the new member's name or empty
+//   BYTE   bMaxGuildMember -- legacy default 0; populated on
+//                             MEMBER_FULL so the client knows
+//                             the cap
+boost::asio::awaitable<void> SendMwGuildJoinReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                guild_id,
+    std::uint32_t                fame,
+    std::uint32_t                fame_color,
+    const std::string&           guild_name,
+    std::uint32_t                member_id,
+    const std::string&           member_name,
+    std::uint8_t                 max_member);
+
 // MW_GUILDPEER_REQ — reply after a peerage change (or rejection
 // via CheckPeerage). Broadcast-shaped: both the requesting chief
 // and the target's main map peer receive it.

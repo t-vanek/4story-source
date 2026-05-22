@@ -151,6 +151,86 @@ SendMwGuildContributionReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwGuildArticleListReq(std::shared_ptr<PeerSession>           peer,
+                          std::uint32_t                          char_id,
+                          std::uint32_t                          key,
+                          const std::vector<GuildArticleRow>&    articles)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(articles.size()));
+    for (const auto& a : articles)
+    {
+        WritePOD<std::uint32_t>(body, a.id);
+        WritePOD<std::uint8_t>(body, a.duty);
+        WriteString(body, a.writer);
+        WriteString(body, a.title);
+        WriteString(body, a.body);
+        WriteString(body, a.date);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDARTICLELIST_REQ),
+        std::move(body));
+}
+
+namespace {
+// Shared by ADD/DEL/UPDATE: identical 3-byte reply (char_id, key,
+// result). The wID is the only difference, so we factor the wire
+// build behind a single helper.
+boost::asio::awaitable<void>
+SendArticleResultReply(std::shared_ptr<PeerSession> peer,
+                       tnetlib::protocol::MessageId wid,
+                       std::uint32_t                char_id,
+                       std::uint32_t                key,
+                       std::uint8_t                 result)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(wid), std::move(body));
+}
+} // namespace
+
+boost::asio::awaitable<void>
+SendMwGuildArticleAddReq(std::shared_ptr<PeerSession> peer,
+                         std::uint32_t                char_id,
+                         std::uint32_t                key,
+                         std::uint8_t                 result)
+{
+    co_await SendArticleResultReply(peer,
+        tnetlib::protocol::MessageId::MW_GUILDARTICLEADD_REQ,
+        char_id, key, result);
+}
+
+boost::asio::awaitable<void>
+SendMwGuildArticleDelReq(std::shared_ptr<PeerSession> peer,
+                         std::uint32_t                char_id,
+                         std::uint32_t                key,
+                         std::uint8_t                 result)
+{
+    co_await SendArticleResultReply(peer,
+        tnetlib::protocol::MessageId::MW_GUILDARTICLEDEL_REQ,
+        char_id, key, result);
+}
+
+boost::asio::awaitable<void>
+SendMwGuildArticleUpdateReq(std::shared_ptr<PeerSession> peer,
+                            std::uint32_t                char_id,
+                            std::uint32_t                key,
+                            std::uint8_t                 result)
+{
+    co_await SendArticleResultReply(peer,
+        tnetlib::protocol::MessageId::MW_GUILDARTICLEUPDATE_REQ,
+        char_id, key, result);
+}
+
+boost::asio::awaitable<void>
 SendMwGuildMemberListReq(std::shared_ptr<PeerSession>           peer,
                          std::uint32_t                          char_id,
                          std::uint32_t                          key,

@@ -41,6 +41,15 @@ public:
                           std::uint8_t new_peer) override;
     bool UpdateMaxCabinet(std::uint32_t guild_id,
                           std::uint8_t max_cabinet) override;
+    bool AddArticle(std::uint32_t guild_id, std::uint32_t article_id,
+                    std::uint8_t duty, const std::string& writer,
+                    const std::string& title, const std::string& body,
+                    std::uint32_t time_unix) override;
+    bool DelArticle(std::uint32_t guild_id,
+                    std::uint32_t article_id) override;
+    bool UpdateArticle(std::uint32_t guild_id, std::uint32_t article_id,
+                       const std::string& title,
+                       const std::string& body) override;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -49,7 +58,8 @@ public:
     {
         enum class Kind { kSetDisorg, kUpdateMemberDuty, kUpdateFame,
                           kRemoveMember, kAddMember, kIncrementContribution,
-                          kUpdateMemberPeer, kUpdateMaxCabinet };
+                          kUpdateMemberPeer, kUpdateMaxCabinet,
+                          kAddArticle, kDelArticle, kUpdateArticle };
         Kind          kind;
         std::uint32_t guild_id = 0;
         std::uint32_t char_id  = 0;

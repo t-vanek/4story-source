@@ -110,6 +110,30 @@ public:
     // CSPGuildMaxCabinet (SSHandler.cpp:4086 → DM_GUILDCABINETMAX_REQ).
     virtual bool UpdateMaxCabinet(std::uint32_t guild_id,
                                   std::uint8_t  max_cabinet) = 0;
+
+    // --- W3a-8 article board ----------------------------------
+
+    // Insert a row into TGUILDARTICLETABLE. Mirrors
+    // CSPGuildArticleAdd (SSHandler.cpp:4220). article_id comes
+    // from TGuild.article_index — caller bumps + passes in.
+    virtual bool AddArticle(std::uint32_t      guild_id,
+                            std::uint32_t      article_id,
+                            std::uint8_t       duty,
+                            const std::string& writer,
+                            const std::string& title,
+                            const std::string& body,
+                            std::uint32_t      time_unix) = 0;
+
+    // Delete a TGUILDARTICLETABLE row. Mirrors CSPGuildArticleDel.
+    virtual bool DelArticle(std::uint32_t guild_id,
+                            std::uint32_t article_id) = 0;
+
+    // Update title + body of an existing article. Mirrors
+    // CSPGuildArticleUpdate (SSHandler.cpp:4323).
+    virtual bool UpdateArticle(std::uint32_t      guild_id,
+                               std::uint32_t      article_id,
+                               const std::string& title,
+                               const std::string& body) = 0;
 };
 
 } // namespace tworldsvr

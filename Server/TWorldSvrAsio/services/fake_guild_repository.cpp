@@ -200,6 +200,50 @@ bool FakeGuildRepository::UpdateMaxCabinet(std::uint32_t guild_id,
     return true;
 }
 
+bool FakeGuildRepository::AddArticle(std::uint32_t      guild_id,
+                                      std::uint32_t      article_id,
+                                      std::uint8_t       duty,
+                                      const std::string& writer,
+                                      const std::string& title,
+                                      const std::string& body,
+                                      std::uint32_t      time_unix)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kAddArticle, guild_id, article_id,
+                       duty, time_unix, 0, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    (void)writer; (void)title; (void)body;
+    // The fake repo doesn't keep article body content — only the
+    // call record. The in-memory mirror lives on TGuild.articles
+    // (which the handler already updated before calling us).
+    return true;
+}
+
+bool FakeGuildRepository::DelArticle(std::uint32_t guild_id,
+                                      std::uint32_t article_id)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kDelArticle, guild_id, article_id,
+                       0, 0, 0, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    return it != m_guilds.end();
+}
+
+bool FakeGuildRepository::UpdateArticle(std::uint32_t      guild_id,
+                                         std::uint32_t      article_id,
+                                         const std::string& title,
+                                         const std::string& body)
+{
+    std::lock_guard lock(m_mtx);
+    m_calls.push_back({Call::Kind::kUpdateArticle, guild_id, article_id,
+                       0, 0, 0, 0, 0});
+    auto it = m_guilds.find(guild_id);
+    if (it == m_guilds.end()) return false;
+    (void)title; (void)body;
+    return true;
+}
+
 std::vector<FakeGuildRepository::Call> FakeGuildRepository::Calls() const
 {
     std::lock_guard lock(m_mtx);

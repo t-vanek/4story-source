@@ -310,6 +310,86 @@ bool SociGuildRepository::UpdateMaxCabinet(std::uint32_t guild_id,
     }
 }
 
+bool SociGuildRepository::AddArticle(std::uint32_t      guild_id,
+                                      std::uint32_t      article_id,
+                                      std::uint8_t       duty,
+                                      const std::string& writer,
+                                      const std::string& title,
+                                      const std::string& body,
+                                      std::uint32_t      time_unix)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "INSERT INTO \"TGUILDARTICLETABLE\" (\"dwGuildID\", "
+               "\"dwID\", \"bDuty\", \"szWritter\", \"szTitle\", "
+               "\"szArticle\", \"dwTime\") "
+               "VALUES (:g, :a, :d, :w, :t, :b, :ts)",
+            soci::use(static_cast<int>(guild_id)),
+            soci::use(static_cast<int>(article_id)),
+            soci::use(static_cast<int>(duty)),
+            soci::use(writer),
+            soci::use(title),
+            soci::use(body),
+            soci::use(static_cast<int>(time_unix));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::AddArticle({}, {}) failed: {}",
+            guild_id, article_id, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::DelArticle(std::uint32_t guild_id,
+                                      std::uint32_t article_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "DELETE FROM \"TGUILDARTICLETABLE\" "
+               "WHERE \"dwGuildID\" = :g AND \"dwID\" = :a",
+            soci::use(static_cast<int>(guild_id)),
+            soci::use(static_cast<int>(article_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::DelArticle({}, {}) failed: {}",
+            guild_id, article_id, ex.what());
+        return false;
+    }
+}
+
+bool SociGuildRepository::UpdateArticle(std::uint32_t      guild_id,
+                                         std::uint32_t      article_id,
+                                         const std::string& title,
+                                         const std::string& body)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDARTICLETABLE\" SET \"szTitle\" = :t, "
+               "\"szArticle\" = :b "
+               "WHERE \"dwGuildID\" = :g AND \"dwID\" = :a",
+            soci::use(title),
+            soci::use(body),
+            soci::use(static_cast<int>(guild_id)),
+            soci::use(static_cast<int>(article_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::UpdateArticle({}, {}) "
+                      "failed: {}", guild_id, article_id, ex.what());
+        return false;
+    }
+}
+
 bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
                                                  std::uint32_t guild_id,
                                                  std::uint32_t exp,

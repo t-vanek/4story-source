@@ -1091,6 +1091,301 @@ OnGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
                  "persisted", ip, guild_id, max_cabinet);
 }
 
+// --- W3a-8 article board ------------------------------------------
+
+namespace {
+
+// Build the wire-shaped article rows from TGuild.articles under
+// the guild lock. Date string is formatted yyyy-mm-dd (legacy
+// CTime::Format) — clients parse the literal string.
+std::vector<senders::GuildArticleRow>
+BuildArticleRows(const TGuild& guild)
+{
+    std::vector<senders::GuildArticleRow> rows;
+    rows.reserve(guild.articles.size());
+    for (const auto& a : guild.articles)
+    {
+        senders::GuildArticleRow row;
+        row.id     = a.id;
+        row.duty   = a.duty;
+        row.writer = a.writer;
+        row.title  = a.title;
+        row.body   = a.body;
+        // gmtime + 11-byte buffer covers "YYYY-MM-DD\0".
+        const std::time_t t = static_cast<std::time_t>(a.time_unix);
+        std::tm tm{};
+#ifdef _WIN32
+        gmtime_s(&tm, &t);
+#else
+        gmtime_r(&t, &tm);
+#endif
+        char buf[40] = {0};
+        std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d",
+            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+        row.date = buf;
+        rows.push_back(std::move(row));
+    }
+    return rows;
+}
+
+// Resolve the requester's guild + return the locked snapshot the
+// article handlers need. Returns (nullptr, 0) when any of the
+// legacy gates (char missing, key mismatch, no guild) fail.
+struct GuildHandle
+{
+    std::shared_ptr<TGuild> guild;
+    std::uint32_t           guild_id = 0;
+};
+
+GuildHandle ResolveRequesterGuild(const HandlerContext& ctx,
+                                   std::uint32_t char_id,
+                                   std::uint32_t key)
+{
+    GuildHandle out;
+    if (!ctx.chars || !ctx.guilds) return out;
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) return out;
+    std::uint32_t actual_key = 0, gid = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        gid        = tchar->guild_id;
+    }
+    if (actual_key != key || gid == 0) return out;
+    out.guild_id = gid;
+    out.guild    = ctx.guilds->Find(gid);
+    return out;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildArticleListAck(std::shared_ptr<PeerSession> peer,
+                      std::vector<std::byte>       body,
+                      const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildArticleListAck[{}]: short body", ip);
+        co_return;
+    }
+    auto h = ResolveRequesterGuild(ctx, char_id, key);
+    if (!h.guild) co_return;
+
+    std::vector<senders::GuildArticleRow> rows;
+    {
+        std::lock_guard gl(h.guild->lock);
+        rows = BuildArticleRows(*h.guild);
+    }
+    co_await senders::SendMwGuildArticleListReq(peer, char_id, key, rows);
+    spdlog::info("OnGuildArticleListAck[{}]: char_id={} guild_id={} "
+                 "→ {} articles",
+        ip, char_id, h.guild_id, rows.size());
+}
+
+boost::asio::awaitable<void>
+OnGuildArticleAddAck(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   title, body_text;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(title) ||
+        !r.ReadString(body_text))
+    {
+        spdlog::warn("OnGuildArticleAddAck[{}]: short body", ip);
+        co_return;
+    }
+    // Legacy SSHandler.cpp:4172-4174: caps are silent-drop, not a
+    // FAIL reply — the client UI shouldn't have let this through
+    // anyway. We follow legacy.
+    if (title.empty() || title.size() > guild::kMaxBoardTitle ||
+        body_text.size() > guild::kMaxBoardText)
+        co_return;
+
+    auto h = ResolveRequesterGuild(ctx, char_id, key);
+    if (!h.guild) co_return;
+
+    // Add under the guild lock + capture state for the persistence
+    // call (no I/O while holding the lock).
+    std::uint32_t article_id = 0;
+    std::uint8_t  writer_duty = 0;
+    std::string   writer_name;
+    std::uint32_t now_unix = static_cast<std::uint32_t>(std::time(nullptr));
+    std::vector<senders::GuildArticleRow> rows;
+    {
+        std::lock_guard gl(h.guild->lock);
+        if (h.guild->articles.size() >= guild::kMaxGuildArticleCount)
+        {
+            // Cap reached — legacy returns GUILD_FAIL without a
+            // LIST refresh. Reply outside the lock.
+        }
+        else
+        {
+            const TGuildMember* writer = h.guild->FindMember(char_id);
+            if (writer)
+            {
+                writer_duty = writer->duty;
+                writer_name = writer->name;
+                ++h.guild->article_index;
+                article_id  = h.guild->article_index;
+                TGuildArticle a;
+                a.id        = article_id;
+                a.duty      = writer_duty;
+                a.writer    = writer_name;
+                a.title     = title;
+                a.body      = body_text;
+                a.time_unix = now_unix;
+                h.guild->articles.push_back(std::move(a));
+                rows = BuildArticleRows(*h.guild);
+            }
+        }
+    }
+
+    if (article_id == 0)
+    {
+        co_await senders::SendMwGuildArticleAddReq(peer, char_id, key,
+            guild::kFail);
+        co_return;
+    }
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, gid = h.guild_id, article_id,
+             writer_duty, writer_name, title, body_text, now_unix] {
+                repo->AddArticle(gid, article_id, writer_duty, writer_name,
+                    title, body_text, now_unix);
+            });
+    }
+    co_await senders::SendMwGuildArticleAddReq(peer, char_id, key,
+        guild::kSuccess);
+    co_await senders::SendMwGuildArticleListReq(peer, char_id, key, rows);
+    spdlog::info("OnGuildArticleAddAck[{}]: char_id={} guild_id={} "
+                 "article_id={} title.len={}",
+        ip, char_id, h.guild_id, article_id, title.size());
+}
+
+boost::asio::awaitable<void>
+OnGuildArticleDelAck(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, article_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(article_id))
+    {
+        spdlog::warn("OnGuildArticleDelAck[{}]: short body", ip);
+        co_return;
+    }
+
+    auto h = ResolveRequesterGuild(ctx, char_id, key);
+    if (!h.guild) co_return;
+
+    bool removed = false;
+    std::vector<senders::GuildArticleRow> rows;
+    {
+        std::lock_guard gl(h.guild->lock);
+        for (auto it = h.guild->articles.begin();
+             it != h.guild->articles.end(); ++it)
+        {
+            if (it->id == article_id)
+            {
+                h.guild->articles.erase(it);
+                removed = true;
+                break;
+            }
+        }
+        if (removed) rows = BuildArticleRows(*h.guild);
+    }
+
+    if (!removed)
+    {
+        co_await senders::SendMwGuildArticleDelReq(peer, char_id, key,
+            guild::kFail);
+        co_return;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, gid = h.guild_id, article_id] {
+                repo->DelArticle(gid, article_id);
+            });
+    }
+    co_await senders::SendMwGuildArticleDelReq(peer, char_id, key,
+        guild::kSuccess);
+    co_await senders::SendMwGuildArticleListReq(peer, char_id, key, rows);
+    spdlog::info("OnGuildArticleDelAck[{}]: char_id={} guild_id={} "
+                 "article_id={} removed", ip, char_id, h.guild_id,
+        article_id);
+}
+
+boost::asio::awaitable<void>
+OnGuildArticleUpdateAck(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, article_id = 0;
+    std::string   title, body_text;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(article_id) ||
+        !r.ReadString(title) || !r.ReadString(body_text))
+    {
+        spdlog::warn("OnGuildArticleUpdateAck[{}]: short body", ip);
+        co_return;
+    }
+    if (title.empty() || title.size() > guild::kMaxBoardTitle ||
+        body_text.size() > guild::kMaxBoardText)
+        co_return;
+
+    auto h = ResolveRequesterGuild(ctx, char_id, key);
+    if (!h.guild) co_return;
+
+    bool updated = false;
+    std::vector<senders::GuildArticleRow> rows;
+    {
+        std::lock_guard gl(h.guild->lock);
+        for (auto& a : h.guild->articles)
+        {
+            if (a.id == article_id)
+            {
+                a.title = title;
+                a.body  = body_text;
+                updated = true;
+                break;
+            }
+        }
+        if (updated) rows = BuildArticleRows(*h.guild);
+    }
+    if (!updated)
+    {
+        co_await senders::SendMwGuildArticleUpdateReq(peer, char_id, key,
+            guild::kFail);
+        co_return;
+    }
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, gid = h.guild_id, article_id, title,
+             body_text] {
+                repo->UpdateArticle(gid, article_id, title, body_text);
+            });
+    }
+    co_await senders::SendMwGuildArticleUpdateReq(peer, char_id, key,
+        guild::kSuccess);
+    co_await senders::SendMwGuildArticleListReq(peer, char_id, key, rows);
+    spdlog::info("OnGuildArticleUpdateAck[{}]: char_id={} guild_id={} "
+                 "article_id={} updated", ip, char_id, h.guild_id,
+        article_id);
+}
+
 // --- W3a-7 member list refresh ------------------------------------
 
 boost::asio::awaitable<void>

@@ -64,4 +64,11 @@ constexpr std::uint32_t kPvPointCostFameChange = 30000;
 constexpr std::uint8_t kAskYes = 0;
 constexpr std::uint8_t kAskNo  = 1;
 
+// Article board caps (NetCode.h:27, 29, 75). Enforced by
+// OnGuildArticleAdd / OnGuildArticleUpdate handlers; oversized
+// payloads get silent-dropped to match legacy parity.
+constexpr std::size_t  kMaxBoardTitle        = 256;
+constexpr std::size_t  kMaxBoardText         = 2048;
+constexpr std::uint8_t kMaxGuildArticleCount = 100;
+
 } // namespace tworldsvr::guild

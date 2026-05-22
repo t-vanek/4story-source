@@ -32,6 +32,74 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
+### W3a-8 — what landed
+
+Guild bulletin board: members post short articles to a shared
+buffer. Four handlers (LIST / ADD / DEL / UPDATE) plus their
+matching senders + the IGuildRepository write API for
+TGUILDARTICLETABLE persistence. Handlers cap the title at 256
+chars + body at 2048 + total articles per guild at 100 — legacy
+parity (silent-drop oversized payloads, kFail on guild full).
+
+Adds (state)
+- `services/guild_registry.h` — `TGuildArticle` POD struct
+  (id, duty, writer, title, body, time_unix). TGuild grows
+  `articles` vector + monotonic `article_index` counter
+  (the legacy `m_dwArticleIndex` — IDs never reused even
+  after deletion).
+- `services/guild_constants.h` — `kMaxBoardTitle = 256`,
+  `kMaxBoardText = 2048`, `kMaxGuildArticleCount = 100`
+  (NetCode.h:27/29/75).
+
+Adds (repo)
+- `services/guild_repository.h` — AddArticle / DelArticle /
+  UpdateArticle.
+- `services/fake_guild_repository.{h,cpp}` — impls + Call
+  records (Kind::kAddArticle / kDelArticle / kUpdateArticle).
+- `services/soci_guild_repository.{h,cpp}` — INSERT / DELETE
+  / UPDATE against TGUILDARTICLETABLE (legacy CSPGuildArticle*).
+
+Adds (senders)
+- `senders/senders.h` + `senders_guild.cpp`
+  - `GuildArticleRow` POD (6 fields per article).
+  - `SendMwGuildArticleListReq` — variable-length tail:
+    1-byte count + per-article tuple. Sent on every
+    successful add/del/update (legacy chases each ACK
+    with a LIST refresh so the chief's UI re-renders).
+  - `SendMwGuildArticleAddReq` / `DelReq` / `UpdateReq`
+    — 3-field result replies, all share the same wire
+    shape; factored behind a private `SendArticleResultReply`
+    helper that takes the wID + result byte.
+
+Adds (handlers)
+- `handlers/handlers_guild.cpp`
+  - `ResolveRequesterGuild` private helper: locates the
+    requesting char's guild + validates char/key/guild
+    gates in one place. The 4 article handlers share this.
+  - `BuildArticleRows` private helper: builds wire-shaped
+    rows under the guild lock, formats Unix timestamps to
+    "YYYY-MM-DD" strings (legacy CTime::Format).
+  - `OnGuildArticleListAck` (MW_GUILDARTICLELIST_ACK,
+    wID=0x90DA): snapshot + send.
+  - `OnGuildArticleAddAck` (wID=0x90DC): cap checks +
+    member lookup + bump article_index + persist via
+    CoOffloadVoidIf + ACK + LIST refresh.
+  - `OnGuildArticleDelAck` (wID=0x90DE): linear scan for
+    matching ID + erase + persist + ACK + LIST refresh.
+    Returns kFail when ID isn't found.
+  - `OnGuildArticleUpdateAck` (wID=0x90E2): linear scan +
+    title/body update + persist + ACK + LIST refresh.
+
+Build verified: cmake + ctest -R tworldsvr_asio (14/14 passed)
+on GCC 13.3 Ubuntu noble.
+
+Deferred to W3a-9+
+- `NotifyAddGuildMember` fan-out to *all* existing members on
+  join (currently just chief + new member). The W3a-4c
+  broadcast helper is the right tool.
+- Tactics / volunteers / PvP record / point reward (~15)
+- Cabinet item codec (Lib/Own/TProtocol/ITEM struct port).
+
 ### W3a-7 — what landed
 
 Guild member-list refresh handler plus a silent wire-bug fix

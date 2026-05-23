@@ -742,6 +742,61 @@ SendMwGuildTacticsVolunteerListReq(
 }
 
 boost::asio::awaitable<void>
+SendMwGuildTacticsKickoutReq(std::shared_ptr<PeerSession> peer,
+                             std::uint32_t                char_id,
+                             std::uint32_t                key,
+                             std::uint8_t                 result,
+                             std::uint32_t                target,
+                             std::uint8_t                 kick)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint32_t>(body, target);
+    WritePOD<std::uint8_t>(body, kick);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDTACTICSKICKOUT_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwGuildTacticsListReq(
+    std::shared_ptr<PeerSession>              peer,
+    std::uint32_t                             char_id,
+    std::uint32_t                             key,
+    const std::vector<GuildTacticsMemberRow>& members)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint32_t>(body, static_cast<std::uint32_t>(
+        members.size()));
+    for (const auto& m : members)
+    {
+        WritePOD<std::uint32_t>(body, m.id);
+        WriteString(body, m.name);
+        WritePOD<std::uint8_t>(body, m.level);
+        WritePOD<std::uint8_t>(body, m.klass);
+        WritePOD<std::uint8_t>(body, m.day);
+        WritePOD<std::uint32_t>(body, m.reward_point);
+        WritePOD<std::int64_t>(body, m.reward_money);
+        WritePOD<std::int64_t>(body, m.end_time);
+        WritePOD<std::uint32_t>(body, m.gain_point);
+        WritePOD<std::uint32_t>(body, 0);   // region (not modelled)
+        WritePOD<std::uint16_t>(body, 0);   // castle (W5)
+        WritePOD<std::uint8_t>(body, 0);    // camp (W5)
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDTACTICSLIST_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwGuildTacticsReplyReq(std::shared_ptr<PeerSession> peer,
                            std::uint32_t                char_id,
                            std::uint32_t                key,

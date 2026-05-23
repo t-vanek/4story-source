@@ -234,6 +234,16 @@ struct TGuild
         return nullptr;
     }
 
+    // W3a-34 helper — remove a tactics member by char_id. When
+    // `refund` is true (self-leave, legacy bKick==0) the member's
+    // up-front reward (PvP-points + money) is returned to the
+    // guild's useable bank; a chief-kick (bKick==1) forfeits it.
+    // Returns true if a member was removed. Caller holds the
+    // guild lock. Money refund uses the CalcMoney/SplitMoney
+    // ratio (see guild_constants.h) — declared out-of-line in
+    // guild_registry.cpp since it pulls in that header.
+    bool RemoveTactics(std::uint32_t char_id, bool refund);
+
     // Members — keyed by char_id. Linear lookups are fine; a typical
     // guild has < 200 members and FindMember is the hot path on
     // chat / member-join. The legacy module uses a map_string-

@@ -661,6 +661,28 @@ boost::asio::awaitable<void> OnGuildTacticsReplyAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-34: tactics kickout + list -------------------------------
+//
+// KICKOUT removes a hired tactics member: chief-kick (char !=
+// target, forfeits the up-front payment) or member self-leave
+// (char == target, refunds the payment to the guild). LIST
+// returns the current guild's tactics roster (the "current
+// guild" is the char's tactics guild if any, else their full
+// guild — legacy GetCurGuild).
+//
+// Wire layouts (SSHandler.cpp:4935/5219):
+//   KICKOUT : DWORD char_id, key, target
+//   LIST    : DWORD char_id, key
+boost::asio::awaitable<void> OnGuildTacticsKickoutAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildTacticsListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

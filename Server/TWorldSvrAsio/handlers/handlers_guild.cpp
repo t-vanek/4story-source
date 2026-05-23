@@ -3594,6 +3594,204 @@ OnGuildTacticsReplyAck(std::shared_ptr<PeerSession> peer,
         reward_money);
 }
 
+// --- W3a-34 tactics kickout + list ---------------------------------
+
+boost::asio::awaitable<void>
+OnGuildTacticsKickoutAck(std::shared_ptr<PeerSession> peer,
+                         std::vector<std::byte>       body,
+                         const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildTacticsKickoutAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, target = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(target))
+    {
+        spdlog::warn("OnGuildTacticsKickoutAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, requester_guild = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key      = tchar->key;
+        requester_guild = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+
+    const bool self_leave = (char_id == target);
+
+    // Resolve the hiring guild. Chief-kick uses the requester's
+    // own guild; self-leave finds the target's tactics guild via
+    // their back-pointer.
+    std::uint32_t hiring_guild_id = 0;
+    if (!self_leave)
+    {
+        hiring_guild_id = requester_guild;
+    }
+    else
+    {
+        if (auto t = ctx.chars->Find(target))
+        {
+            std::lock_guard g(t->lock);
+            hiring_guild_id = t->tactics_guild_id;
+        }
+    }
+    if (hiring_guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(hiring_guild_id);
+    if (!guild) co_return;
+
+    bool removed = false;
+    {
+        std::lock_guard gl(guild->lock);
+        if (guild->FindTactics(target))
+            removed = guild->RemoveTactics(target, /*refund=*/self_leave);
+    }
+    if (!removed)
+    {
+        spdlog::info("OnGuildTacticsKickoutAck[{}]: target={} not a "
+                     "tactics member of guild_id={} — drop",
+            ip, target, hiring_guild_id);
+        co_return;
+    }
+
+    // Clear the target's tactics back-pointer.
+    if (auto t = ctx.chars->Find(target))
+    {
+        std::lock_guard g(t->lock);
+        if (t->tactics_guild_id == hiring_guild_id)
+            t->tactics_guild_id = 0;
+    }
+
+    // Persist the refunded PvP banks on self-leave (money stays
+    // in-memory — same deferral as W3a-33).
+    if (self_leave && ctx.guild_repo)
+    {
+        std::uint32_t t = 0, u = 0, mo = 0;
+        {
+            std::lock_guard gl(guild->lock);
+            t = guild->pvp_total_point; u = guild->pvp_useable_point;
+            mo = guild->pvp_month_point;
+        }
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, hiring_guild_id, t, u, mo] {
+                repo->UpdatePvPoints(hiring_guild_id, t, u, mo);
+            });
+    }
+
+    // Chief-kick replies KICKOUT + a roster refresh; a self-leave
+    // is silent (legacy only replies when char != target).
+    if (!self_leave)
+    {
+        co_await senders::SendMwGuildTacticsKickoutReq(peer, char_id, key,
+            guild::kSuccess, target, /*kick=*/1);
+
+        std::vector<senders::GuildTacticsMemberRow> rows;
+        {
+            std::lock_guard gl(guild->lock);
+            rows.reserve(guild->tactics_members.size());
+            for (const auto& m : guild->tactics_members)
+            {
+                senders::GuildTacticsMemberRow row;
+                row.id           = m.id;
+                row.name         = m.name;
+                row.level        = m.level;
+                row.klass        = m.klass;
+                row.day          = m.day;
+                row.reward_point = m.reward_point;
+                row.reward_money = m.reward_money;
+                row.end_time     = m.end_time;
+                row.gain_point   = m.gain_point;
+                rows.push_back(std::move(row));
+            }
+        }
+        co_await senders::SendMwGuildTacticsListReq(peer, char_id, key,
+            rows);
+    }
+
+    spdlog::info("OnGuildTacticsKickoutAck[{}]: char_id={} target={} "
+                 "guild_id={} {} (refund={})",
+        ip, char_id, target, hiring_guild_id,
+        self_leave ? "self-left" : "kicked", self_leave);
+}
+
+boost::asio::awaitable<void>
+OnGuildTacticsListAck(std::shared_ptr<PeerSession> peer,
+                      std::vector<std::byte>       body,
+                      const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildTacticsListAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildTacticsListAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, tactics_guild = 0, full_guild = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key    = tchar->key;
+        tactics_guild = tchar->tactics_guild_id;
+        full_guild    = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+
+    // GetCurGuild: tactics guild takes priority, else full guild.
+    const std::uint32_t cur_guild =
+        tactics_guild != 0 ? tactics_guild : full_guild;
+    if (cur_guild == 0) co_return;
+
+    auto guild = ctx.guilds->Find(cur_guild);
+    if (!guild) co_return;
+
+    std::vector<senders::GuildTacticsMemberRow> rows;
+    {
+        std::lock_guard gl(guild->lock);
+        rows.reserve(guild->tactics_members.size());
+        for (const auto& m : guild->tactics_members)
+        {
+            senders::GuildTacticsMemberRow row;
+            row.id           = m.id;
+            row.name         = m.name;
+            row.level        = m.level;
+            row.klass        = m.klass;
+            row.day          = m.day;
+            row.reward_point = m.reward_point;
+            row.reward_money = m.reward_money;
+            row.end_time     = m.end_time;
+            row.gain_point   = m.gain_point;
+            rows.push_back(std::move(row));
+        }
+    }
+
+    co_await senders::SendMwGuildTacticsListReq(peer, char_id, key, rows);
+
+    spdlog::info("OnGuildTacticsListAck[{}]: char_id={} guild_id={} "
+                 "tactics_members={}", ip, char_id, cur_guild, rows.size());
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

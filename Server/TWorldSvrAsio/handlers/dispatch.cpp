@@ -261,7 +261,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-27+ picks up tactics subsystem, cabinet PUTIN/TAKEOUT
+    // ---- W3a-27: PvP point reward log reader -------------------
+    case MessageId::MW_GUILDPOINTLOG_ACK:
+        co_await OnGuildPointLogAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-28+ picks up tactics subsystem, cabinet PUTIN/TAKEOUT
     // + item codec, per-day vRecord history. … see README §4.
 
     default:

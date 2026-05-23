@@ -50,6 +50,17 @@ struct TPvPRecord
     std::array<std::uint32_t, guild::kPvPEventCount> points{};
 };
 
+// W3a-27 — one row of the guild's PvP point reward audit log.
+// Mirrors legacy `m_vPointReward` entries (TGUILDPVPOINTREWARDTABLE).
+// Populated on the DB-write path (`OnGuildPointRewardReq` —
+// W3a-14) and read back via `OnGuildPointLogAck` (W3a-27).
+struct TPointRewardEntry
+{
+    std::int64_t  date_unix = 0;
+    std::string   recipient_name;
+    std::uint32_t point     = 0;
+};
+
 struct TGuildMember
 {
     std::uint32_t char_id   = 0;   // dwCharID — PK
@@ -162,6 +173,18 @@ struct TGuild
     // relationships during a castle siege.
     std::vector<std::uint32_t> alliance_ids;
     std::vector<std::uint32_t> enemy_ids;
+
+    // W3a-27 — rolling PvP point reward audit log. Legacy
+    // m_vPointReward; appended whenever a chief uses
+    // PvP-useable-points to reward a member. Populated by the
+    // W3a-14 OnGuildPointRewardReq fan-in (which both persists
+    // to TGUILDPVPOINTREWARDTABLE and mirrors here for the
+    // reader) and read back by W3a-27 OnGuildPointLogAck. The
+    // legacy SELECT TOP 50 (CTBLGuildPvPointReward) suggests
+    // legacy clients trim the view to the latest 50 entries —
+    // we don't currently trim in-memory because the log is per-
+    // process and load-from-DB wiring lives in a later batch.
+    std::vector<TPointRewardEntry> point_log;
 
     // Members — keyed by char_id. Linear lookups are fine; a typical
     // guild has < 200 members and FindMember is the hot path on

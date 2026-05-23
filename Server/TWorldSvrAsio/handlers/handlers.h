@@ -543,6 +543,24 @@ boost::asio::awaitable<void> OnGuildCabinetListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-27: PvP point reward log reader (handlers_guild.cpp) -----
+//
+// Player opens the guild PvP-point-reward audit log UI. Pairs
+// with the W3a-14 OnGuildPointRewardReq writer — that handler
+// now appends to TGuild.point_log in addition to persisting to
+// TGUILDPVPOINTREWARDTABLE, so this reader returns live data on
+// the next call. Legacy SELECT TOP 50
+// (CTBLGuildPvPointReward) trims to the latest 50 entries; our
+// in-memory log is per-process and load-from-DB wiring lives
+// in a later batch.
+//
+// Wire layout (SSHandler.cpp:10286):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildPointLogAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

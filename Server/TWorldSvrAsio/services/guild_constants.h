@@ -89,6 +89,13 @@ constexpr std::int64_t kGuildWantedPeriodSec = 60LL * 60 * 24 * 14;
 constexpr std::uint8_t kVolunteerKindMember  = 0;
 constexpr std::uint8_t kVolunteerKindTactics = 1;
 
+// W3a-21 PvP event-point bucket count. The legacy
+// CSPSaveGuildPvPRecord persists `dwPoint_1..dwPoint_8` (one
+// DWORD per PVPE_* bucket — see TGUILDPVPRECORDTABLE schema +
+// PvPEvent enum). Wire packet (DM_PVPRECORD_REQ) carries the
+// same 8 DWORDs per row.
+constexpr std::size_t kPvPEventCount = 8;
+
 // Max guild-name length in bytes — matches the legacy MAX_NAME
 // ceiling (50 bytes for the ANSI build the original server runs).
 // The legacy validator at SSHandler.cpp:3056 just compares

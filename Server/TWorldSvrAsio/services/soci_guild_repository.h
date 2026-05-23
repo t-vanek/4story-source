@@ -72,6 +72,14 @@ public:
                                               std::uint8_t  country,
                                               std::int64_t  establish_time_unix)
         override;
+    bool LogPvPRecord(std::uint32_t guild_id,
+                      std::uint32_t member_id,
+                      std::uint32_t date,
+                      std::uint16_t kill_count,
+                      std::uint16_t die_count,
+                      const std::array<std::uint32_t,
+                                        guild::kPvPEventCount>&
+                          points) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

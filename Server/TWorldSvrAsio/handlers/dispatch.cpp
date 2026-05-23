@@ -232,8 +232,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             std::move(body), ctx);
         co_return;
 
-    // W3a-21+ picks up tactics subsystem, cabinet item codec,
-    // PvP record listing. … see README §4.
+    // ---- W3a-21: PvP record audit log --------------------------
+    case MessageId::DM_PVPRECORD_REQ:
+        co_await OnPvPRecordReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W3a-22+ picks up tactics subsystem, cabinet item codec,
+    // PvP record read-side handler. … see README §4.
 
     default:
         break;

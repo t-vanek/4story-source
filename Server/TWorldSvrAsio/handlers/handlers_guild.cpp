@@ -2136,6 +2136,76 @@ OnGuildExtinctionAckEcho(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+// --- W3a-21 PvP record audit log -----------------------------------
+//
+// Pure DB-write fan-in: batched PvP record persistence. Wire
+// carries N rows in one packet; we loop and queue one repo
+// write per row via CoOffloadVoidIf (mirrors legacy parity —
+// CSPSaveGuildPvPRecord is also per-row). No in-memory mirror:
+// the weekrecord aggregate that the matching MW_GUILDPVPRECORD
+// reader would consume lives in TGuildMember state we haven't
+// modelled yet — deferred. Until then this handler is the audit-
+// trail-only sink.
+
+boost::asio::awaitable<void>
+OnPvPRecordReq(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0, member_id = 0;
+    std::uint16_t count    = 0;
+    if (!r.Read(guild_id) || !r.Read(member_id) || !r.Read(count))
+    {
+        spdlog::warn("OnPvPRecordReq[{}]: short header ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    std::size_t persisted = 0;
+    for (std::uint16_t i = 0; i < count; ++i)
+    {
+        std::uint32_t date = 0;
+        std::uint16_t kill_count = 0, die_count = 0;
+        std::array<std::uint32_t, guild::kPvPEventCount> points{};
+        if (!r.Read(date) || !r.Read(kill_count) || !r.Read(die_count))
+        {
+            spdlog::warn("OnPvPRecordReq[{}]: short row {} of {} "
+                         "(guild_id={} member_id={})",
+                ip, i, count, guild_id, member_id);
+            co_return;
+        }
+        bool point_short = false;
+        for (std::size_t p = 0; p < guild::kPvPEventCount; ++p)
+        {
+            if (!r.Read(points[p])) { point_short = true; break; }
+        }
+        if (point_short)
+        {
+            spdlog::warn("OnPvPRecordReq[{}]: short point array on row "
+                         "{} (guild_id={} member_id={})",
+                ip, i, guild_id, member_id);
+            co_return;
+        }
+
+        if (ctx.guild_repo)
+        {
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.guild_repo, guild_id, member_id, date,
+                 kill_count, die_count, points] {
+                    repo->LogPvPRecord(guild_id, member_id, date,
+                        kill_count, die_count, points);
+                });
+        }
+        ++persisted;
+    }
+
+    spdlog::info("OnPvPRecordReq[{}]: guild_id={} member_id={} "
+                 "persisted={} of {} row(s)",
+        ip, guild_id, member_id, persisted, count);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

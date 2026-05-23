@@ -72,6 +72,14 @@ public:
                                               std::uint8_t  country,
                                               std::int64_t  establish_time_unix)
         override;
+    bool LogPvPRecord(std::uint32_t guild_id,
+                      std::uint32_t member_id,
+                      std::uint32_t date,
+                      std::uint16_t kill_count,
+                      std::uint16_t die_count,
+                      const std::array<std::uint32_t,
+                                        guild::kPvPEventCount>&
+                          points) override;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -85,7 +93,7 @@ public:
                           kDeleteGuild, kAddWanted, kDeleteWanted,
                           kAddVolunteerApp, kDelVolunteerApp,
                           kUpdatePvPoints, kUpdateLevel, kLogPointReward,
-                          kCreateGuild };
+                          kCreateGuild, kLogPvPRecord };
         Kind          kind;
         std::uint32_t guild_id = 0;
         std::uint32_t char_id  = 0;

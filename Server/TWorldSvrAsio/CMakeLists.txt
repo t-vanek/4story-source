@@ -40,14 +40,17 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_char.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_char_base.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_guild.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_party.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_party.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
     ${TWORLD_ASIO_SRC}/services/guild_peerage.cpp
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/party_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/guild_tactics_wanted_registry.cpp
@@ -255,3 +258,25 @@ target_link_libraries(test_tworldsvr_asio_tactics_sweep PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_tactics_sweep
     COMMAND test_tworldsvr_asio_tactics_sweep)
+
+# W3b-1 unit test: PartyRegistry partition / lifecycle + TParty
+# member-set helpers (IsChief / IsMember / Size / AddMember /
+# RemoveMember). Pure logic, no asio. Mirrors test_guild_registry.
+add_executable(test_tworldsvr_asio_party_registry
+    ${TWORLD_ASIO_SRC}/tests/test_party_registry.cpp)
+target_link_libraries(test_tworldsvr_asio_party_registry PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_party_registry
+    COMMAND test_tworldsvr_asio_party_registry)
+
+# W3b-1 wire test: drives MW_PARTYADD_ACK across a loopback session
+# and asserts every validation branch of the invite gate
+# (NOUSER / WAITERS / ALREADY / COUNTRY / NOTCHIEF / FULL) replies
+# on the requester's socket, while the success branch relays
+# PARTY_AGREE to the target's map peer + flags the target waiter.
+add_executable(test_tworldsvr_asio_party_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_party_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_party_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_party_handlers
+    COMMAND test_tworldsvr_asio_party_handlers)

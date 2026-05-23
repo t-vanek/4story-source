@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-38 disband + point-reward player actions
+## Status — W3b-1 party subsystem + invite relay
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -57,11 +57,71 @@ that the four shipped Asio daemons already use.
 | W3a-37 | Cabinet item codec — TGuildCabinetItem model + WrapItem/CreateItem-symmetric wire codec; OnGuildCabinetPutin/TakeoutAck (stack/decrement) + LIST upgraded from the W3a-26 stub to emit real items | ✅ |
 | **W3a-38** | Disband + point-reward player actions (OnGuildDisorganization/PointRewardAck) — the map→world entry points pairing the W3a-4b/W3a-14 DB fan-ins; closes the last player-facing guild gaps | ✅ |
 | W3a-39+ | DB persistence (tactics + cabinet) + W5 castle/skill guild handlers | ⏸ |
-| W3b | Party + Corps | ⏸ |
+| **W3b-1** | Party subsystem foundation — PartyRegistry + TParty + TChar party_id/party_waiter/HP-MP fields + OnMW_PARTYADD_ACK invite-relay gate + SendMwPartyAddReq | ✅ |
+| W3b-2+ | Party formation (PARTYJOIN create/join + broadcast) + PARTYDEL leave/kick + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3b-1 — what landed
+
+Opens the **party** vertical — the W3a guild subsystem's sibling
+and the first half of the W3b phase. Mirrors how W3a-1 opened the
+guild work: the cluster-wide registry + back-pointer + the first
+handler. The guild + tactics + cabinet vertical is functionally
+complete on the player-facing surface, so this broadens scope to
+the next subsystem rather than chasing the schema-uncertain DB
+persistence backlog.
+
+Infrastructure
+- `services/party_registry.{h,cpp}` — `PartyRegistry` (16-shard,
+  same partitioning + per-entry-mutex actor model as
+  GuildRegistry; keyed by the WORD party id) + `TParty` (the
+  subset of legacy `CTParty` the world side touches: id, loot
+  `obtain_type`, optional `corps_id`, chief + loot-turn-order
+  back-pointers, arena flag, ordered member-id list, with
+  IsChief / IsMember / Size / AddMember / RemoveMember helpers).
+  Party **creation** (Insert with a freshly-allocated id) +
+  chief succession land with the W3b-2 PARTYJOIN / W3b-3 PARTYDEL
+  flows; W3b-1 only needs the read path for the invite gate.
+- `services/party_constants.h` — `party::` mirror of the
+  NetCode.h `TPARTY_RESULT` (kAgree..kCountry) + `PARTY_TYPE`
+  loot modes (kObtain*) + kMaxPartyMember=7 + the `WarCountry`
+  helper (legacy GetWarCountry: aid_country unless neutral).
+- `TChar` gains `party_id` + `party_waiter` (legacy m_pParty /
+  m_bPartyWaiter) + `max_hp/hp/max_mp/mp` (legacy SetCharStatus
+  stash for the later JOIN/MANSTAT broadcasts).
+- `HandlerContext.parties`.
+
+Handler — `OnPartyAddAck` (wID 0x901A, the chief/solo player
+inviting another player). Runs the legacy SSHandler.cpp:2486
+gate in order: requester online (else drop) → not inviting self
+→ target online (`kNoUser`) → target not mid-invite
+(`kWaiters`) → target unpartied (`kAlready`) → same war-country
+(`kCountry`) → if the requester is already in a party they must
+be its chief (`kNotChief`) of a non-full (`kFull`), non-arena
+(silent drop) party. Failures relay back to the requester's map
+(the originating peer); success stashes the requester's combat
+stats and forwards `PARTY_AGREE` (keyed by the inviter id) to
+the target's map peer so their client pops the join dialog, then
+flags the target `party_waiter`. No party is created — formation
+happens when the target answers (PARTYJOIN, W3b-2).
+
+Sender — `SendMwPartyAddReq` (7-field: char_id, key,
+request_name, target_name, obtain_type, result, request_char_id).
+
+Tests
+- `tests/test_party_registry.cpp` (6 scenarios) — registry
+  lifecycle + the TParty member-set helpers, incl. concurrent
+  inserts.
+- `tests/test_party_handlers.cpp` (7 scenarios) — drives
+  MW_PARTYADD_ACK over a two-peer loopback session, asserting
+  each gate (NOUSER / AGREE-on-target-peer / WAITERS / ALREADY /
+  COUNTRY / NOTCHIEF / FULL), the target waiter flip, and the
+  inviter stat stash.
+
+Build verified: cmake + ctest -R tworldsvr_asio (19/19 passed).
 
 ### W3a-38 — what landed
 

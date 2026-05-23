@@ -343,8 +343,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             std::move(body), ctx);
         co_return;
 
-    // W3a-36+ picks up the tactics term-expiry sweep,
-    // cabinet PUTIN/TAKEOUT + item codec. … see README §4.
+    // ---- W3b-1: party invite relay (handlers_party.cpp) --------
+    case MessageId::MW_PARTYADD_ACK:
+        co_await OnPartyAddAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W3b-2+ picks up PARTYJOIN (formation) + PARTYDEL (leave) +
+    // the corps subsystem. … see README §4.
 
     default:
         break;

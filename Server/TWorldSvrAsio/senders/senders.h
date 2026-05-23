@@ -967,4 +967,31 @@ boost::asio::awaitable<void> SendMwGuildPvPRecordReq(
     std::uint32_t                              key,
     const std::vector<GuildPvPRecordRow>&      members);
 
+// --- W3b-1 party invite relay -------------------------------------
+
+// MW_PARTYADD_REQ — the party-invite result/dialog packet. On a
+// failure result it lands on the requester's map (their client
+// shows the toast); on PARTY_AGREE it lands on the target's map
+// (their client pops the "join party?" dialog, keyed by
+// request_char_id). The dwRequest field is the inviter's char_id —
+// 0 on the failure branches, the inviter on AGREE.
+//
+// Wire layout (SSSender.cpp:694):
+//   DWORD  char_id          -- recipient
+//   DWORD  key              -- recipient's session key
+//   STRING request_name     -- inviter's name
+//   STRING target_name      -- invitee's name
+//   BYTE   obtain_type      -- proposed loot mode (PT_*)
+//   BYTE   result           -- PARTY_* (party::k*)
+//   DWORD  request_char_id   -- inviter id (AGREE) / 0 (failure)
+boost::asio::awaitable<void> SendMwPartyAddReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           request_name,
+    const std::string&           target_name,
+    std::uint8_t                 obtain_type,
+    std::uint8_t                 result,
+    std::uint32_t                request_char_id);
+
 } // namespace tworldsvr::senders

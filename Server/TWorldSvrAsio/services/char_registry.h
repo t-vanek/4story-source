@@ -119,6 +119,25 @@ struct TChar
     // from guild_id (full membership): a char can be a full
     // member of one guild AND a tactics mercenary of another.
     std::uint32_t tactics_guild_id = 0;
+
+    // W3b-1 party back-pointer. Legacy holds `CTParty* m_pParty`;
+    // we keep a `party_id` (0 = no party) and resolve the TParty
+    // through PartyRegistry on demand — same cycle-free pattern as
+    // guild_id. `party_waiter` mirrors m_bPartyWaiter: set true
+    // while an invite dialog is pending on this char's client so a
+    // second inviter is rejected with PARTY_WAITERS.
+    std::uint16_t party_id     = 0;
+    bool          party_waiter = false;
+
+    // W3b-1 combat stats. Legacy m_dwMaxHP / m_dwHP / m_dwMaxMP /
+    // m_dwMP, refreshed by SetCharStatus on every party-flow packet
+    // (the map server ships the current values so world can fan
+    // them out in the MW_PARTYJOIN_REQ / MW_PARTYMANSTAT_REQ
+    // broadcasts). Zero until the first party packet sets them.
+    std::uint32_t max_hp = 0;
+    std::uint32_t hp     = 0;
+    std::uint32_t max_mp = 0;
+    std::uint32_t mp     = 0;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

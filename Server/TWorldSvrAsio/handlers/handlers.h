@@ -22,6 +22,7 @@
 #include "../services/guild_repository.h"
 #include "../services/guild_wanted_registry.h"
 #include "../services/guild_tactics_wanted_registry.h"
+#include "../services/party_registry.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -67,6 +68,11 @@ struct HandlerContext
     // entries per guild (vs. one for guild_wanted), each with a
     // globally-unique id. Owned by main; non-null in W3a-31+.
     GuildTacticsWantedRegistry* guild_tactics_wanted = nullptr;
+
+    // W3b-1: cluster-wide party index. Owned by main; non-null in
+    // W3b-1+ deploys. Party-flow handlers consult it for the
+    // requester's existing-party state (chief / size gates).
+    PartyRegistry*            parties    = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1007,6 +1013,31 @@ boost::asio::awaitable<void> OnEnterCharReq(
 //
 // Wire layout: DWORD dwCharID
 boost::asio::awaitable<void> OnRelayConnectReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3b-1: party invite relay (handlers_party.cpp) ----------------
+//
+// The first slice of the party subsystem (the W3a guild vertical's
+// W3b sibling). MW_PARTYADD_ACK is the chief/solo player asking to
+// invite another player into a party. World runs the legacy
+// validation gate (target online / not mid-invite / not already
+// partied / same war-country / requester is chief of a non-full,
+// non-arena party) and either relays the failure result back to the
+// requester's map or forwards PARTY_AGREE to the target's map so
+// their client pops the "join party?" dialog. On AGREE the target
+// is flagged party_waiter to block a second concurrent invite.
+//
+// No party is created here — formation happens when the target
+// answers (MW_PARTYJOIN_ACK, W3b-2). The requester's combat stats
+// ride along on the packet and are stashed on their TChar for the
+// later JOIN broadcast (legacy SetCharStatus).
+//
+// Wire layout (SSHandler.cpp:2486):
+//   STRING strRequest, STRING strTarget, BYTE bObtainType,
+//   DWORD dwMaxHP, DWORD dwHP, DWORD dwMaxMP, DWORD dwMP
+boost::asio::awaitable<void> OnPartyAddAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

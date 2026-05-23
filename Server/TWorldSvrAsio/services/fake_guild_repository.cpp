@@ -382,4 +382,25 @@ FakeGuildRepository::CreateGuild(const std::string& name,
     return new_id;
 }
 
+bool FakeGuildRepository::LogPvPRecord(
+    std::uint32_t guild_id,
+    std::uint32_t member_id,
+    std::uint32_t date,
+    std::uint16_t kill_count,
+    std::uint16_t die_count,
+    const std::array<std::uint32_t, guild::kPvPEventCount>& points)
+{
+    std::lock_guard lock(m_mtx);
+    // Record fields we care about for test assertions: guild_id +
+    // member_id (as char_id slot) + date (a) + kill_count (b) +
+    // die_count (c) + points[0] (d) + points[1] (e). The other 6
+    // points are dropped from the Call record but the SOCI impl
+    // persists all 8.
+    (void)points;
+    m_calls.push_back({Call::Kind::kLogPvPRecord, guild_id, member_id,
+                       date, kill_count, die_count,
+                       points[0], points[1]});
+    return true;
+}
+
 } // namespace tworldsvr

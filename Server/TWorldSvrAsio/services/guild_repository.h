@@ -12,8 +12,10 @@
 // handlers and the sender layer that ACKs back to the requesting
 // map server.
 
+#include "services/guild_constants.h"
 #include "services/guild_registry.h"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -176,6 +178,23 @@ public:
                                 std::uint32_t total_point,
                                 std::uint32_t useable_point,
                                 std::uint32_t month_point) = 0;
+
+    // --- W3a-21 PvP record audit log ----------------------------
+
+    // Insert one row into TGUILDPVPRECORDTABLE. Mirrors
+    // CSPSaveGuildPvPRecord (SSHandler.cpp:10456 / DBAccess.h:2234).
+    // Wire packet carries N rows in one shot; caller loops + calls
+    // this once per row (legacy parity — the SP is per-row too).
+    // The points array is fixed-size kPvPEventCount (=8) matching
+    // the schema's dwPoint_1..dwPoint_8 columns.
+    virtual bool LogPvPRecord(std::uint32_t guild_id,
+                              std::uint32_t member_id,
+                              std::uint32_t date,
+                              std::uint16_t kill_count,
+                              std::uint16_t die_count,
+                              const std::array<std::uint32_t,
+                                                guild::kPvPEventCount>&
+                                  points) = 0;
 
     // --- W3a-18 guild establishment ------------------------------
 

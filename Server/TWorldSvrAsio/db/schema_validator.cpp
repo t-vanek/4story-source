@@ -135,6 +135,15 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                      "will log a SOCI error and drop the row; the "
                      "TGUILDTABLE running totals still get updated.");
     }
+    if (!TableHasColumns(*lease, "TGUILDPVPRECORDTABLE",
+            {"dwGuildID","dwCharID","dwDate","wKillCount","wDieCount",
+             "dwPoint_1","dwPoint_8"}))
+    {
+        spdlog::warn("schema_validator (world): TGUILDPVPRECORDTABLE not "
+                     "deployed — DM_PVPRECORD_REQ (W3a-21) will log a "
+                     "SOCI error per row and drop the batch; no in-memory "
+                     "fallback (audit-log only).");
+    }
 }
 
 } // namespace tworldsvr::db

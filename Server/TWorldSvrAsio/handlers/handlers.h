@@ -420,6 +420,26 @@ boost::asio::awaitable<void> OnGuildExtinctionAckEcho(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-21: PvP record audit log (handlers_guild.cpp) ------------
+//
+// DB-side fan-in: receives a batched PvP record write request
+// from the map server (PvP outcomes accumulated since the last
+// flush) and persists each row via repo->LogPvPRecord. No reply,
+// no in-memory mirror — this is a pure append-only audit log
+// that nothing currently reads back through TWorldSvr (the
+// existing MW_GUILDPVPRECORD_ACK in legacy reads from in-memory
+// weekrecord state which we haven't ported yet — deferred).
+//
+// Wire layout (SSHandler.cpp:10456):
+//   DWORD dwGuildID, DWORD dwMemberID, WORD wCount,
+//   then wCount rows of:
+//     DWORD dwDate, WORD wKillCount, WORD wDieCount,
+//     DWORD points[kPvPEventCount]  (=8 DWORDs)
+boost::asio::awaitable<void> OnPvPRecordReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

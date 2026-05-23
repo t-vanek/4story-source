@@ -1772,6 +1772,65 @@ int main()
         EntercharBody(200, "Bob"));
     { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::RW_ENTERCHAR_ACK)); }
 
+    // --- Scenario 41: DM_PVPRECORD_REQ persists N rows (W3a-21) ---
+    //
+    // Batched PvP record write — guild 8, char 200, 2 rows with
+    // distinct dates + kill/die counts. Repo should receive one
+    // LogPvPRecord call per row. Audit-log only — no in-memory
+    // mirror to verify.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);   // member_id
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 2);     // row count
+
+        // Row 0
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1700000000); // date
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 5);          // kills
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 2);          // dies
+        for (std::size_t i = 0; i < tworldsvr::guild::kPvPEventCount; ++i)
+            tworldsvr::wire::WritePOD<std::uint32_t>(body,
+                static_cast<std::uint32_t>(100 + i));
+
+        // Row 1
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1700086400); // date
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 3);          // kills
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 1);          // dies
+        for (std::size_t i = 0; i < tworldsvr::guild::kPvPEventCount; ++i)
+            tworldsvr::wire::WritePOD<std::uint32_t>(body,
+                static_cast<std::uint32_t>(200 + i));
+
+        SendFramed(peer1, ToUint16(MessageId::DM_PVPRECORD_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        std::size_t hits = 0;
+        for (const auto& c : fake_repo.Calls())
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kLogPvPRecord
+                && c.guild_id == 8 && c.char_id == 200) ++hits;
+        if (hits >= 2) break;
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        // Verify both rows landed with the right per-row fields.
+        // Call layout (set in fake repo): a=date, b=kill_count,
+        // c=die_count, d=points[0], e=points[1].
+        bool saw_row0 = false, saw_row1 = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind != tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kLogPvPRecord) continue;
+            if (c.guild_id != 8 || c.char_id != 200) continue;
+            if (c.a == 1700000000 && c.b == 5 && c.c == 2 &&
+                c.d == 100 && c.e == 101) saw_row0 = true;
+            if (c.a == 1700086400 && c.b == 3 && c.c == 1 &&
+                c.d == 200 && c.e == 201) saw_row1 = true;
+        }
+        EXPECT(saw_row0);
+        EXPECT(saw_row1);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1781,7 +1840,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (40 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (41 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

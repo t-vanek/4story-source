@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-20 vestigial DB-server ACK echoes
+## Status — W3a-21 PvP record audit log
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -37,13 +37,77 @@ that the four shipped Asio daemons already use.
 | W3a-17 | Leave/kickout DB fan-in (OnDM_GUILDLEAVE_REQ + OnDM_GUILDKICKOUT_REQ) — 2 handlers + shared ScrubMembershipInMemory helper completes the W3a-4c MEMBERADD pair | ✅ |
 | W3a-18 | Guild establishment: OnMW_GUILDESTABLISH_ACK creates new guilds in one coroutine (vs. legacy 4-hop map↔world↔DB roundtrip) + IGuildRepository::CreateGuild | ✅ |
 | W3a-19 | Wanted-board periodic expiry sweep: GuildWantedRegistry::PruneExpired + SweepExpiredWanted coroutine wired into RegistryRefresher (closes W3a-11 TODO) | ✅ |
-| **W3a-20** | Vestigial DB-server ACK echoes (OnDM_GUILDESTABLISH/DISORGANIZATION/EXTINCTION_ACK) — 3 log+drop stubs eliminate "unknown wID" warnings on hybrid legacy-DB deployments | ✅ |
-| W3a-21+ | Tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
+| W3a-20 | Vestigial DB-server ACK echoes (OnDM_GUILDESTABLISH/DISORGANIZATION/EXTINCTION_ACK) — 3 log+drop stubs eliminate "unknown wID" warnings on hybrid legacy-DB deployments | ✅ |
+| **W3a-21** | PvP record audit log (OnDM_PVPRECORD_REQ) — batched per-row persistence via new IGuildRepository::LogPvPRecord + kPvPEventCount=8 constant | ✅ |
+| W3a-22+ | Tactics subsystem (~17) + Cabinet item codec + PvP record read-side handler | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-21 — what landed
+
+Pure DB-write fan-in for batched PvP record persistence. Map
+servers accumulate per-member PvP outcomes (kills / deaths +
+per-event-bucket points) between flushes; periodically they
+shoot the batch at TWorld in one packet, which loops + persists
+each row.
+
+Wire format (SSHandler.cpp:10456) variable-length, no reply:
+```
+DWORD guild_id, DWORD member_id, WORD row_count,
+  [row_count times]:
+    DWORD date, WORD kill_count, WORD die_count,
+    DWORD points[kPvPEventCount]   // 8 DWORDs
+```
+
+Repo — new `IGuildRepository::LogPvPRecord`
+- Signature: `(guild_id, member_id, date, kill_count, die_count,
+  std::array<uint32_t, 8> points) → bool`. Per-row to match the
+  legacy SP `TSaveGuildPvPRecord`.
+- Fake impl: records a `Call::kLogPvPRecord` entry. Layout:
+  `guild_id, char_id=member_id, a=date, b=kill_count, c=die_count,
+  d=points[0], e=points[1]` — the other 6 points are dropped from
+  the Call record (tests verify dispatch + per-row routing only;
+  the SOCI impl persists all 8).
+- SOCI impl: single INSERT into `TGUILDPVPRECORDTABLE` with all
+  13 columns (guild_id, char_id, date, wKillCount, wDieCount,
+  dwPoint_1..dwPoint_8). Schema validator gets a new optional
+  warning for the table.
+
+Constants
+- `services/guild_constants.h` gains `kPvPEventCount = 8` —
+  matches legacy PVPE_COUNT and the dwPoint_1..dwPoint_8
+  schema columns.
+
+Handler — `OnPvPRecordReq` (wID `DM_PVPRECORD_REQ` = 0x5917)
+- Reads header `{guild_id, member_id, count}`.
+- Loops count times, parsing `{date, kill_count, die_count,
+  points[8]}` per row.
+- Queues `repo->LogPvPRecord` per row via `CoOffloadVoidIf`.
+- No in-memory mirror: the weekrecord aggregate that the matching
+  `MW_GUILDPVPRECORD_ACK` reader would consume lives in
+  TGuildMember state not yet ported. Audit-log only.
+- Short-body protection: bails on truncated header / row / point
+  array (with a log line indicating which row failed).
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenario 41: sends a
+  2-row batch and verifies both `LogPvPRecord` calls landed
+  with the right per-row date/kill/die/points[0,1] fields.
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed).
+
+Deferred to W3a-22+
+- MW_GUILDPVPRECORD_ACK read-side handler — needs TGuildMember
+  weekrecord state-model expansion
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+- Cabinet item subsystem (CABINETLIST/PUTIN/TAKEOUT + item
+  codec)
+- `OnDM_GUILDUPDATE_REQ` (variable-length alliance/enemy CSV
+  columns)
 
 ### W3a-20 — what landed
 

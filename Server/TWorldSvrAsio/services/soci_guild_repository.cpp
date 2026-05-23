@@ -737,4 +737,47 @@ SociGuildRepository::CreateGuild(const std::string& name,
     }
 }
 
+bool SociGuildRepository::LogPvPRecord(
+    std::uint32_t guild_id,
+    std::uint32_t member_id,
+    std::uint32_t date,
+    std::uint16_t kill_count,
+    std::uint16_t die_count,
+    const std::array<std::uint32_t, guild::kPvPEventCount>& points)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "INSERT INTO \"TGUILDPVPRECORDTABLE\" "
+               "(\"dwGuildID\", \"dwCharID\", \"dwDate\", \"wKillCount\", "
+               " \"wDieCount\", "
+               " \"dwPoint_1\", \"dwPoint_2\", \"dwPoint_3\", \"dwPoint_4\", "
+               " \"dwPoint_5\", \"dwPoint_6\", \"dwPoint_7\", \"dwPoint_8\") "
+               "VALUES (:g, :c, :d, :k, :y, :p1, :p2, :p3, :p4, "
+               "        :p5, :p6, :p7, :p8)",
+            soci::use(static_cast<int>(guild_id)),
+            soci::use(static_cast<int>(member_id)),
+            soci::use(static_cast<int>(date)),
+            soci::use(static_cast<int>(kill_count)),
+            soci::use(static_cast<int>(die_count)),
+            soci::use(static_cast<int>(points[0])),
+            soci::use(static_cast<int>(points[1])),
+            soci::use(static_cast<int>(points[2])),
+            soci::use(static_cast<int>(points[3])),
+            soci::use(static_cast<int>(points[4])),
+            soci::use(static_cast<int>(points[5])),
+            soci::use(static_cast<int>(points[6])),
+            soci::use(static_cast<int>(points[7]));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::LogPvPRecord(guild={}, "
+                      "member={}) failed: {}",
+            guild_id, member_id, ex.what());
+        return false;
+    }
+}
+
 } // namespace tworldsvr

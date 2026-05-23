@@ -1921,10 +1921,12 @@ int main()
     // --- Scenario 43: MW_GUILDPVPRECORD_ACK returns weekrecord ---
     //
     // Chief (char 200) opens the PvP-statistics panel. We pre-
-    // populate one member's weekrecord directly (the per-day
-    // vRecord fan-in path that legacy uses isn't ported yet), so
-    // verify the populated row + the zero rows for any other
-    // members all land in the reply.
+    // populate one member's vRecord with today's row (W3a-28
+    // semantics: weekrecord is derived from vRecord; setting
+    // weekrecord directly would get wiped by the next
+    // CalcWeekRecord call from scenario 44's fan-in). Mirror
+    // the weekrecord too so the reader returns immediately
+    // without needing a fan-in first.
     {
         auto g = guilds.Find(8);
         EXPECT(g != nullptr);
@@ -1935,11 +1937,22 @@ int main()
             {
                 if (m.char_id == 200)
                 {
+                    const std::int64_t today =
+                        static_cast<std::int64_t>(std::time(nullptr)) /
+                        tworldsvr::guild::kDaySec;
+                    tworldsvr::TPvPDayRecord day;
+                    day.day_index  = today;
+                    day.kill_count = 7;
+                    day.die_count  = 3;
+                    day.points[0]  = 500;  // PVPE_KILL_H
+                    day.points[1]  = 300;  // PVPE_KILL_E
+                    day.points[2]  = 100;  // PVPE_KILL_L
+                    m.vRecord.push_back(std::move(day));
                     m.weekrecord.kill_count = 7;
                     m.weekrecord.die_count  = 3;
-                    m.weekrecord.points[0]  = 500;  // PVPE_KILL_H
-                    m.weekrecord.points[1]  = 300;  // PVPE_KILL_E
-                    m.weekrecord.points[2]  = 100;  // PVPE_KILL_L
+                    m.weekrecord.points[0]  = 500;
+                    m.weekrecord.points[1]  = 300;
+                    m.weekrecord.points[2]  = 100;
                 }
             }
         }

@@ -96,6 +96,15 @@ constexpr std::uint8_t kVolunteerKindTactics = 1;
 // same 8 DWORDs per row.
 constexpr std::size_t kPvPEventCount = 8;
 
+// W3a-28 PvP record per-day history constants. Legacy
+// `dwDate = m_timeCurrent / DAY_ONE` where DAY_ONE = 86 400
+// (seconds in one day). CalcWeekRecord keeps any vRecord row
+// whose `day_index + kPvPRecordWindowDays > today_day_index`,
+// so the window is the last 7 distinct day-buckets inclusive
+// of today.
+constexpr std::int64_t kDaySec               = 86'400;
+constexpr std::int64_t kPvPRecordWindowDays  = 7;
+
 // Max guild-name length in bytes — matches the legacy MAX_NAME
 // ceiling (50 bytes for the ANSI build the original server runs).
 // The legacy validator at SSHandler.cpp:3056 just compares

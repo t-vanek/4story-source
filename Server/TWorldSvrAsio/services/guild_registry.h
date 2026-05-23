@@ -39,12 +39,23 @@ namespace tworldsvr {
 // W3a-23 — per-member PvP outcome bucket. Mirrors legacy
 // TENTRYRECORD (TWorldType.h:~370). Used both for the rolling
 // weekly aggregate (TGuildMember.weekrecord) and the per-day
-// history rows (legacy m_vRecord; deferred until the war-result
-// fan-in path ports). Points array uses the full
-// kPvPEventCount=8 storage; the wire only emits the first 6
-// (PVPE_KILL_H..PVPE_WIN-1).
+// history rows (TGuildMember.vRecord — added in W3a-28).
+// Points array uses the full kPvPEventCount=8 storage; the
+// wire only emits the first 6 (PVPE_KILL_H..PVPE_WIN-1).
 struct TPvPRecord
 {
+    std::uint16_t kill_count = 0;
+    std::uint16_t die_count  = 0;
+    std::array<std::uint32_t, guild::kPvPEventCount> points{};
+};
+
+// W3a-28 — one per-day row of a member's PvP record history.
+// Same payload as TPvPRecord plus a `day_index` tag (legacy
+// dwDate = m_timeCurrent / DAY_ONE, i.e. days-since-epoch).
+// CalcWeekRecord sums the last 7 day_indexes into weekrecord.
+struct TPvPDayRecord
+{
+    std::int64_t  day_index  = 0;
     std::uint16_t kill_count = 0;
     std::uint16_t die_count  = 0;
     std::array<std::uint32_t, guild::kPvPEventCount> points{};
@@ -86,14 +97,18 @@ struct TGuildMember
     std::int64_t  connected_date_unix = 0;  // m_dlConnectedDate
 
     // W3a-23 — rolling 7-day PvP outcome aggregate. Returned by
-    // OnGuildPvPRecordAck. Legacy fills this from CalcWeekRecord
-    // summing the last 7 days of vRecord entries; we leave the
-    // per-day history deferred until the war-result fan-in path
-    // ports, so weekrecord is zero-initialized at member load
-    // time and stays that way until something explicitly updates
-    // it. The reader handler still operates correctly — zero
-    // values are wire-compat (client just shows an empty record).
+    // OnGuildPvPRecordAck. W3a-28 wired the per-day vRecord
+    // history below + a CalcWeekRecord helper that re-derives
+    // this on every war-result fan-in.
     TPvPRecord    weekrecord{};
+
+    // W3a-28 — per-day PvP record history. Appended (or merged
+    // with the existing today's row) on every OnLocalRecordAck
+    // tick. Stays bounded at ~7 entries by CalcWeekRecord which
+    // both sums the last 7 days AND trims older rows inline
+    // (legacy parity TGuild.cpp:615 CalcWeekRecord). No
+    // separate sweep needed.
+    std::vector<TPvPDayRecord> vRecord;
 };
 
 // One entry of the guild articles board (legacy MAPTGUILDARTICLE

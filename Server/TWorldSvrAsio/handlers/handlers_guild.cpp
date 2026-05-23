@@ -3,6 +3,7 @@
 #include "../services/guild_broadcast.h"
 #include "../services/guild_constants.h"
 #include "../services/guild_peerage.h"
+#include "../services/pvp_aggregate.h"
 #include "../wire_codec.h"
 
 #include "MessageId.h"
@@ -2498,25 +2499,41 @@ OnLocalRecordAck(std::shared_ptr<PeerSession> peer,
 
             if (!guild) { ++dropped; continue; }
 
-            // Accumulate into the member's weekrecord under the
-            // guild lock. Tactics-only members get skipped here
-            // (deferred along with the rest of the tactics
-            // subsystem).
+            // W3a-28: append/merge the deltas into today's
+            // vRecord row, then run CalcWeekRecord to refresh
+            // weekrecord AND trim stale rows. Tactics-only
+            // members get skipped here (deferred along with the
+            // rest of the tactics subsystem).
+            const std::int64_t today =
+                static_cast<std::int64_t>(std::time(nullptr)) /
+                guild::kDaySec;
             bool matched = false;
             {
                 std::lock_guard gl(guild->lock);
                 for (auto& m : guild->members)
                 {
-                    if (m.char_id == char_id)
+                    if (m.char_id != char_id) continue;
+                    TPvPDayRecord* day = nullptr;
+                    if (!m.vRecord.empty() &&
+                        m.vRecord.back().day_index == today)
                     {
-                        m.weekrecord.kill_count += kill_count;
-                        m.weekrecord.die_count  += die_count;
-                        for (std::size_t p = 0;
-                             p < guild::kPvPEventCount; ++p)
-                            m.weekrecord.points[p] += points[p];
-                        matched = true;
-                        break;
+                        day = &m.vRecord.back();
                     }
+                    else
+                    {
+                        TPvPDayRecord fresh;
+                        fresh.day_index = today;
+                        m.vRecord.push_back(fresh);
+                        day = &m.vRecord.back();
+                    }
+                    day->kill_count += kill_count;
+                    day->die_count  += die_count;
+                    for (std::size_t p = 0;
+                         p < guild::kPvPEventCount; ++p)
+                        day->points[p] += points[p];
+                    CalcWeekRecord(m, today);
+                    matched = true;
+                    break;
                 }
             }
             if (matched) ++applied;

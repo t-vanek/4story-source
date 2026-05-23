@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-27 PvP point reward log reader
+## Status — W3a-28 per-day vRecord history + CalcWeekRecord
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -44,13 +44,77 @@ that the four shipped Asio daemons already use.
 | W3a-24 | Per-period war-result fan-in (OnMW_LOCALRECORD_ACK) — accumulates kill/die/points deltas into TGuildMember.weekrecord so W3a-23 reader returns live data | ✅ |
 | W3a-25 | Alliance + enemy state modelling — TGuild gains vector<uint32_t> fields populated by W3a-22 (drained-and-dropped lists become real in-memory state) | ✅ |
 | W3a-26 | Cabinet LIST stub (OnGuildCabinetListAck) — wire-compat empty-list reply via SendMwGuildCabinetListReq; PUTIN/TAKEOUT + item codec still deferred | ✅ |
-| **W3a-27** | PvP point reward log reader (OnGuildPointLogAck) — pairs with W3a-14 writer; new TPointRewardEntry + TGuild.point_log in-memory mirror | ✅ |
-| W3a-28+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) + per-day vRecord history | ⏸ |
+| W3a-27 | PvP point reward log reader (OnGuildPointLogAck) — pairs with W3a-14 writer; new TPointRewardEntry + TGuild.point_log in-memory mirror | ✅ |
+| **W3a-28** | Per-day vRecord history + CalcWeekRecord — replaces W3a-24's plain accumulator with proper week-trim semantics matching legacy CTGuild::CalcWeekRecord exactly | ✅ |
+| W3a-29+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-28 — what landed
+
+Replaces W3a-24's "plain accumulator" approach to weekrecord
+with the proper per-day history + week-trim semantics matching
+legacy `CTGuild::CalcWeekRecord` (TGuild.cpp:615) exactly.
+weekrecord now stays a true rolling 7-day aggregate instead of
+growing unbounded for the process lifetime.
+
+State model
+- `TPvPDayRecord` POD added to `services/guild_registry.h` —
+  same payload as `TPvPRecord` (kill/die/points[8]) plus a
+  `day_index: i64` tag (Unix-epoch-seconds / 86400, legacy
+  `dwDate = m_timeCurrent / DAY_ONE`).
+- `TGuildMember.vRecord` field of `vector<TPvPDayRecord>` —
+  one row per day, appended (or merged into today's row) on
+  every war-result fan-in. Stays bounded at ~7 entries by
+  `CalcWeekRecord`'s inline trim.
+
+New helper — `services/pvp_aggregate.{h,cpp}`
+- `CalcWeekRecord(member, today_day_index)` walks `vRecord`
+  once: drops rows where `day_index + kPvPRecordWindowDays <=
+  today_day_index` (legacy `+7 <= today` predicate), sums the
+  kept rows into the zeroed `weekrecord`. O(N) per call;
+  vRecord size N is bounded at ~7 so it's trivial.
+- `CalcWeekRecord(member)` overload samples
+  `std::time(nullptr) / kDaySec` for today's index.
+- Two new constants in `services/guild_constants.h`:
+  `kDaySec = 86 400` and `kPvPRecordWindowDays = 7`.
+
+W3a-24 handler update — `OnLocalRecordAck`
+- Instead of accumulating deltas directly into `weekrecord`,
+  finds (or appends) today's `vRecord` row keyed by
+  `day_index`, increments kill/die/points there.
+- Then calls `CalcWeekRecord(m, today)` to re-derive
+  `weekrecord` from the (now-updated) `vRecord` AND trim
+  stale rows in one pass.
+- Net effect: `weekrecord` reads now reflect true 7-day
+  rolling totals, identical to legacy semantics.
+
+Tests
+- New dedicated `tests/test_pvp_aggregate.cpp` (6 scenarios):
+  empty / single fresh / mixed fresh+stale / all-stale /
+  boundary entry (`day_index + 7 == today` dropped per legacy)
+  / idempotent re-call.
+- `tests/test_guild_mut_handlers.cpp` scenario 43 updated to
+  seed `vRecord` instead of writing `weekrecord` directly (so
+  the next CalcWeekRecord from scenario 44's fan-in doesn't
+  wipe the seed). Scenario 44 expectations unchanged — the
+  arithmetic ends at the same per-member values.
+
+Build verified: cmake + ctest -R tworldsvr_asio (16/16 passed,
++1 new dedicated pvp_aggregate test).
+
+Deferred to W3a-29+
+- Boot-time vRecord load from TGUILDPVPRECORDTABLE so the
+  in-memory history survives process restart (the W3a-21
+  audit-log writes have a paired read path now but it
+  doesn't auto-warm-up on boot yet)
+- Cabinet PUTIN / TAKEOUT handlers + DM fan-in + item codec
+- Tactics subsystem (~17 handlers)
+- War-bonus award for B-country tactics-guilds
+- SOCI persistence for alliance / enemy + point_log
 
 ### W3a-27 — what landed
 

@@ -50,6 +50,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
+    ${TWORLD_ASIO_SRC}/services/pvp_aggregate.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_level_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_guild_level_repository.cpp
@@ -232,3 +233,13 @@ target_link_libraries(test_tworldsvr_asio_guild_wanted_sweep PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_guild_wanted_sweep
     COMMAND test_tworldsvr_asio_guild_wanted_sweep)
+
+# W3a-28 unit test: CalcWeekRecord per-day vRecord trim + sum.
+# Pure-logic, 6 scenarios covering empty / fresh / mixed / stale /
+# boundary / idempotency.
+add_executable(test_tworldsvr_asio_pvp_aggregate
+    ${TWORLD_ASIO_SRC}/tests/test_pvp_aggregate.cpp)
+target_link_libraries(test_tworldsvr_asio_pvp_aggregate PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_pvp_aggregate
+    COMMAND test_tworldsvr_asio_pvp_aggregate)

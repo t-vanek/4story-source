@@ -65,6 +65,45 @@ int main()
 
     EXPECT(!repo.FindById(999).has_value());
 
+    // W3a-30: Clone must deep-copy the W3a-25/27 fields too —
+    // previously alliance_ids / enemy_ids / point_log /
+    // pvp_month_point were silently dropped on LoadAll/FindById.
+    {
+        auto g = MakeGuild(3, "Gamma", 500);
+        g->pvp_month_point = 7777;
+        g->alliance_ids = {11, 22, 33};
+        g->enemy_ids    = {44};
+        TPointRewardEntry e;
+        e.date_unix      = 1700000000;
+        e.recipient_name = "Rewardee";
+        e.point          = 250;
+        g->point_log.push_back(e);
+        repo.AddGuild(std::move(g));
+
+        auto got = repo.FindById(3);
+        EXPECT(got.has_value());
+        if (got)
+        {
+            EXPECT((*got)->pvp_month_point == 7777);
+            EXPECT((*got)->alliance_ids.size() == 3);
+            if ((*got)->alliance_ids.size() == 3)
+            {
+                EXPECT((*got)->alliance_ids[0] == 11);
+                EXPECT((*got)->alliance_ids[2] == 33);
+            }
+            EXPECT((*got)->enemy_ids.size() == 1);
+            if (!(*got)->enemy_ids.empty())
+                EXPECT((*got)->enemy_ids[0] == 44);
+            EXPECT((*got)->point_log.size() == 1);
+            if (!(*got)->point_log.empty())
+            {
+                EXPECT((*got)->point_log[0].recipient_name == "Rewardee");
+                EXPECT((*got)->point_log[0].point == 250);
+                EXPECT((*got)->point_log[0].date_unix == 1700000000);
+            }
+        }
+    }
+
     if (g_fails == 0)
         std::printf("PASS test_tworldsvr_asio_fake_guild_repo\n");
     else

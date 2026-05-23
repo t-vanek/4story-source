@@ -120,6 +120,45 @@ std::vector<std::shared_ptr<TGuild>> SociGuildRepository::LoadAll()
             m.service  = static_cast<std::uint32_t>(r.get<int>("dwService"));
             it->second->members.push_back(std::move(m));
         }
+
+        // W3a-30 third pass: PvP point reward log, newest-first.
+        // Mirrors legacy CTBLGuildPvPointReward (DBAccess.h:710 —
+        // SELECT TOP 50 ... ORDER BY dlDate DESC). We sort across
+        // all guilds in one rowset and cap each guild's in-memory
+        // log at kPointLogMaxEntries on insert (matching the
+        // CTGuild::PointLog 50-entry bound). Optional table — a
+        // SOCI error here just leaves point_log empty (the
+        // schema validator already warns at boot).
+        try
+        {
+            soci::rowset<soci::row> prs = (sql.prepare <<
+                "SELECT \"dwGuildID\", \"szName\", \"dwPoint\", \"dlDate\" "
+                "FROM \"TGUILDPVPOINTREWARDTABLE\" "
+                "ORDER BY \"dlDate\" DESC");
+            for (const auto& r : prs)
+            {
+                const auto guild_id = static_cast<std::uint32_t>(
+                    r.get<int>("dwGuildID"));
+                auto it = by_id.find(guild_id);
+                if (it == by_id.end()) continue;
+                auto& log = it->second->point_log;
+                if (log.size() >= guild::kPointLogMaxEntries) continue;
+                TPointRewardEntry e;
+                e.recipient_name = r.get<std::string>("szName");
+                e.point          = static_cast<std::uint32_t>(
+                    r.get<int>("dwPoint"));
+                // dlDate is a DB timestamp; SOCI maps it to
+                // std::tm. Convert to Unix epoch seconds.
+                std::tm tm = r.get<std::tm>("dlDate");
+                e.date_unix = static_cast<std::int64_t>(std::mktime(&tm));
+                log.push_back(std::move(e));
+            }
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::warn("SociGuildRepository::LoadAll point_log pass "
+                         "skipped: {}", ex.what());
+        }
     }
     catch (const std::exception& ex)
     {

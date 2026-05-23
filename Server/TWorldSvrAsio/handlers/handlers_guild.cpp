@@ -1,6 +1,7 @@
 #include "handlers.h"
 #include "../senders/senders.h"
 #include "../services/guild_broadcast.h"
+#include "../services/guild_cabinet_codec.h"
 #include "../services/guild_constants.h"
 #include "../services/guild_peerage.h"
 #include "../services/pvp_aggregate.h"
@@ -2612,17 +2613,146 @@ OnGuildCabinetListAck(std::shared_ptr<PeerSession> peer,
     }
 
     std::uint8_t max_cabinet = 0;
+    std::vector<TGuildCabinetItem> items;
     {
         std::lock_guard gl(guild->lock);
         max_cabinet = guild->max_cabinet;
+        items = guild->cabinet_items;   // value copy under lock
     }
 
     co_await senders::SendMwGuildCabinetListReq(peer, char_id, key,
-        max_cabinet);
+        max_cabinet, items);
 
     spdlog::info("OnGuildCabinetListAck[{}]: char_id={} guild_id={} "
-                 "max_cabinet={} (stub — item codec deferred, items=0)",
-        ip, char_id, guild_id, max_cabinet);
+                 "max_cabinet={} items={}",
+        ip, char_id, guild_id, max_cabinet, items.size());
+}
+
+// --- W3a-37 cabinet put-in / take-out ------------------------------
+
+boost::asio::awaitable<void>
+OnGuildCabinetPutinAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildCabinetPutinAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, slot_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(slot_id))
+    {
+        spdlog::warn("OnGuildCabinetPutinAck[{}]: short header ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    TGuildCabinetItem item;
+    if (!ReadCabinetItem(r, item))
+    {
+        spdlog::warn("OnGuildCabinetPutinAck[{}]: malformed item codec "
+                     "(slot_id={})", ip, slot_id);
+        co_return;
+    }
+    item.slot_id = slot_id;
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+    if (guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    std::uint8_t max_cabinet = 0;
+    std::vector<TGuildCabinetItem> items;
+    {
+        std::lock_guard gl(guild->lock);
+        guild->PutInCabinet(item);
+        max_cabinet = guild->max_cabinet;
+        items = guild->cabinet_items;
+    }
+
+    // Refresh the cabinet view (legacy chases PUTIN with a
+    // CABINETLIST_REQ).
+    co_await senders::SendMwGuildCabinetListReq(peer, char_id, key,
+        max_cabinet, items);
+
+    spdlog::info("OnGuildCabinetPutinAck[{}]: char_id={} guild_id={} "
+                 "slot_id={} count={} (cabinet size={})",
+        ip, char_id, guild_id, slot_id, item.count, items.size());
+}
+
+boost::asio::awaitable<void>
+OnGuildCabinetTakeoutAck(std::shared_ptr<PeerSession> peer,
+                         std::vector<std::byte>       body,
+                         const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildCabinetTakeoutAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, slot_id = 0;
+    std::uint8_t  count = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(slot_id) ||
+        !r.Read(count))
+    {
+        spdlog::warn("OnGuildCabinetTakeoutAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+    if (guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    bool removed = false;
+    std::uint8_t max_cabinet = 0;
+    std::vector<TGuildCabinetItem> items;
+    {
+        std::lock_guard gl(guild->lock);
+        removed = guild->TakeOutCabinet(slot_id, count);
+        max_cabinet = guild->max_cabinet;
+        items = guild->cabinet_items;
+    }
+    if (!removed)
+    {
+        spdlog::info("OnGuildCabinetTakeoutAck[{}]: slot_id={} not in "
+                     "guild_id={} cabinet — drop", ip, slot_id, guild_id);
+        co_return;
+    }
+
+    co_await senders::SendMwGuildCabinetListReq(peer, char_id, key,
+        max_cabinet, items);
+
+    spdlog::info("OnGuildCabinetTakeoutAck[{}]: char_id={} guild_id={} "
+                 "slot_id={} count={} (cabinet size={})",
+        ip, char_id, guild_id, slot_id, count, items.size());
 }
 
 // --- W3a-27 PvP point reward log reader ----------------------------

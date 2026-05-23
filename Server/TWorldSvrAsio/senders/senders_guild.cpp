@@ -1,4 +1,5 @@
 #include "senders/senders.h"
+#include "services/guild_cabinet_codec.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -939,21 +940,23 @@ SendMwGuildPointLogReq(std::shared_ptr<PeerSession>           peer,
 }
 
 boost::asio::awaitable<void>
-SendMwGuildCabinetListReq(std::shared_ptr<PeerSession> peer,
-                          std::uint32_t                char_id,
-                          std::uint32_t                key,
-                          std::uint8_t                 max_cabinet)
+SendMwGuildCabinetListReq(std::shared_ptr<PeerSession>          peer,
+                          std::uint32_t                         char_id,
+                          std::uint32_t                         key,
+                          std::uint8_t                          max_cabinet,
+                          const std::vector<TGuildCabinetItem>& items)
 {
     using namespace wire;
     std::vector<std::byte> body;
     WritePOD<std::uint32_t>(body, char_id);
     WritePOD<std::uint32_t>(body, key);
     WritePOD<std::uint8_t>(body, max_cabinet);
-    // W3a-26 stub: item_count = 0. The per-item loop body
-    // (DWORD itemID + WrapItem 18-field codec) lands when the
-    // cabinet PUTIN/TAKEOUT handlers port — those need the full
-    // TItem state model first.
-    WritePOD<std::uint8_t>(body, 0);
+    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(items.size()));
+    for (const auto& it : items)
+    {
+        WritePOD<std::uint32_t>(body, it.slot_id);
+        WriteCabinetItem(body, it);
+    }
     co_await peer->Wire()->SendPacket(
         tnetlib::protocol::ToUint16(
             tnetlib::protocol::MessageId::MW_GUILDCABINETLIST_REQ),

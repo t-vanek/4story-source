@@ -2970,6 +2970,141 @@ int main()
         }
     }
 
+    // --- Scenario 61: cabinet PUTIN stores an item (W3a-37) -------
+    //
+    // Char 200 stores an item (slot_id=5000) with 2 magic
+    // entries into guild 8's cabinet. PUTIN replies with a
+    // CABINETLIST refresh carrying the wrapped item.
+    auto WriteItem = [](std::vector<std::byte>& b, std::uint32_t slot,
+                        std::uint8_t count)
+    {
+        tworldsvr::wire::WritePOD<std::uint32_t>(b, slot);   // slot_id
+        tworldsvr::wire::WritePOD<std::int64_t>(b, 0x1122334455LL); // m_dlID
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 1);        // item_id_b
+        tworldsvr::wire::WritePOD<std::uint16_t>(b, 4321);    // item_id_w
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 7);        // level
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 2);        // gem
+        tworldsvr::wire::WritePOD<std::uint16_t>(b, 99);      // mogg
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, count);    // count
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 3);        // glevel
+        tworldsvr::wire::WritePOD<std::uint32_t>(b, 1000);    // dura_max
+        tworldsvr::wire::WritePOD<std::uint32_t>(b, 950);     // dura_cur
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 4);        // refine_cur
+        tworldsvr::wire::WritePOD<std::int64_t>(b, 1700000000LL); // end_time
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 1);        // grade_effect
+        tworldsvr::wire::WritePOD<std::uint32_t>(b, 10);      // ext_eld
+        tworldsvr::wire::WritePOD<std::uint32_t>(b, 20);      // ext_wrap
+        tworldsvr::wire::WritePOD<std::uint32_t>(b, 30);      // ext_color
+        tworldsvr::wire::WritePOD<std::uint32_t>(b, 40);      // ext_guild
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 2);        // magic_count
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 11);
+        tworldsvr::wire::WritePOD<std::uint16_t>(b, 111);
+        tworldsvr::wire::WritePOD<std::uint8_t>(b, 22);
+        tworldsvr::wire::WritePOD<std::uint16_t>(b, 222);
+    };
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        WriteItem(body, 5000, 3);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDCABINETPUTIN_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDCABINETLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0;
+        std::uint8_t  maxc = 0, count = 0;
+        EXPECT(rr.Read(cid));    EXPECT(cid == 200);
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(maxc));   EXPECT(maxc == 10);
+        EXPECT(rr.Read(count));  EXPECT(count == 1);
+        if (count == 1)
+        {
+            std::uint32_t slot = 0, dmax = 0, dcur = 0,
+                          eeld = 0, ewrap = 0, ecolor = 0, eguild = 0;
+            std::int64_t  did = 0, etime = 0;
+            std::uint8_t  ibyte = 0, lvl = 0, gem = 0, cnt = 0, glvl = 0,
+                          refine = 0, grade = 0, mcount = 0;
+            std::uint16_t iword = 0, mogg = 0;
+            EXPECT(rr.Read(slot));   EXPECT(slot == 5000);
+            EXPECT(rr.Read(did));    EXPECT(did == 0x1122334455LL);
+            EXPECT(rr.Read(ibyte));
+            EXPECT(rr.Read(iword));  EXPECT(iword == 4321);
+            EXPECT(rr.Read(lvl));    EXPECT(lvl == 7);
+            EXPECT(rr.Read(gem));
+            EXPECT(rr.Read(mogg));
+            EXPECT(rr.Read(cnt));    EXPECT(cnt == 3);
+            EXPECT(rr.Read(glvl));
+            EXPECT(rr.Read(dmax));   EXPECT(dmax == 1000);
+            EXPECT(rr.Read(dcur));   EXPECT(dcur == 950);
+            EXPECT(rr.Read(refine));
+            EXPECT(rr.Read(etime));
+            EXPECT(rr.Read(grade));
+            EXPECT(rr.Read(eeld));   EXPECT(eeld == 10);
+            EXPECT(rr.Read(ewrap));
+            EXPECT(rr.Read(ecolor));
+            EXPECT(rr.Read(eguild)); EXPECT(eguild == 40);
+            EXPECT(rr.Read(mcount)); EXPECT(mcount == 2);
+            std::uint8_t mid = 0; std::uint16_t mval = 0;
+            EXPECT(rr.Read(mid));    EXPECT(mid == 11);
+            EXPECT(rr.Read(mval));   EXPECT(mval == 111);
+            EXPECT(rr.Read(mid));    EXPECT(mid == 22);
+            EXPECT(rr.Read(mval));   EXPECT(mval == 222);
+        }
+    }
+
+    // --- Scenario 62: cabinet PUTIN stacks same slot (W3a-37) -----
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        WriteItem(body, 5000, 4);   // same slot → stacks to 3+4=7
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDCABINETPUTIN_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDCABINETLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0; std::uint8_t maxc = 0, count = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(maxc); rr.Read(count);
+        EXPECT(count == 1);   // still one slot, count stacked
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            const auto* it = g->FindCabinetItem(5000);
+            EXPECT(it != nullptr);
+            if (it) EXPECT(it->count == 7);
+        }
+    }
+
+    // --- Scenario 63: cabinet TAKEOUT decrements + erases (W3a-37) -
+    {
+        // Take out 7 → count hits 0 → slot erased.
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 5000);  // slot
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 7);      // count
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDCABINETTAKEOUT_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDCABINETLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0; std::uint8_t maxc = 0, count = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(maxc); rr.Read(count);
+        EXPECT(count == 0);   // slot erased at zero
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->FindCabinetItem(5000) == nullptr);
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2979,7 +3114,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (60 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (63 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

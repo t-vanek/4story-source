@@ -125,6 +125,11 @@ public:
     // drives the wanted board's already_applied flag.
     std::uint32_t FindAppGuildByChar(std::uint32_t char_id) const;
 
+    // Full applicant record for a char (nullopt if none) — the
+    // W3a-33 accept path reads the stored reward fields from it.
+    std::optional<TGuildTacticsWantedApp> FindApp(
+        std::uint32_t char_id) const;
+
 private:
     mutable std::shared_mutex m_mtx;
     std::unordered_map<std::uint32_t,

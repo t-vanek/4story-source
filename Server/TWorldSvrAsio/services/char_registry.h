@@ -113,6 +113,12 @@ struct TChar
     // lock free of TGuild's lock. The matching W3a-4 tactics
     // back-pointer lands together with the guild-tactics handlers.
     std::uint32_t guild_id    = 0;
+
+    // W3a-33 — the guild this char is a hired tactics member of
+    // (legacy m_pTactics). 0 = not a tactics member. Distinct
+    // from guild_id (full membership): a char can be a full
+    // member of one guild AND a tactics mercenary of another.
+    std::uint32_t tactics_guild_id = 0;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

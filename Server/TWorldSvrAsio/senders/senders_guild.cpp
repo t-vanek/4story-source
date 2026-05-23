@@ -742,6 +742,37 @@ SendMwGuildTacticsVolunteerListReq(
 }
 
 boost::asio::awaitable<void>
+SendMwGuildTacticsReplyReq(std::shared_ptr<PeerSession> peer,
+                           std::uint32_t                char_id,
+                           std::uint32_t                key,
+                           std::uint8_t                 result,
+                           std::uint32_t                member_id,
+                           std::uint32_t                guild_id,
+                           const std::string&           guild_name,
+                           const std::string&           member_name,
+                           std::uint32_t                gold,
+                           std::uint32_t                silver,
+                           std::uint32_t                cooper)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint32_t>(body, member_id);
+    WritePOD<std::uint32_t>(body, guild_id);
+    WriteString(body, guild_name);
+    WriteString(body, member_name);
+    WritePOD<std::uint32_t>(body, gold);
+    WritePOD<std::uint32_t>(body, silver);
+    WritePOD<std::uint32_t>(body, cooper);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDTACTICSREPLY_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwGainPvPointReq(std::shared_ptr<PeerSession> peer,
                      std::uint32_t                owner_id,
                      std::uint32_t                point,

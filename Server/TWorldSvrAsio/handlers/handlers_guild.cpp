@@ -3312,6 +3312,288 @@ OnGuildTacticsVolunteerListAck(std::shared_ptr<PeerSession> peer,
         ip, char_id, guild_id, rows.size());
 }
 
+// --- W3a-33 tactics reply (accept/reject hire) ---------------------
+//
+// Chief accepts or rejects a tactics-wanted applicant. Accept
+// promotes the applicant to a hired tactics member, charging the
+// guild's PvP-useable points + money up front. Mirrors legacy
+// OnMW_GUILDTACTICSREPLY_ACK + ApplyGuildTacticsApp.
+
+namespace {
+
+// Send the chief's volunteer-list refresh after a reply (legacy
+// NotifyGuildTacticsVolunteerList tail). Mirrors the body of
+// OnGuildTacticsVolunteerListAck without the wire-read.
+boost::asio::awaitable<void>
+RefreshTacticsVolunteerList(std::shared_ptr<PeerSession> peer,
+                            const HandlerContext&        ctx,
+                            std::uint32_t                char_id,
+                            std::uint32_t                key,
+                            std::uint32_t                guild_id)
+{
+    auto apps = ctx.guild_tactics_wanted->SnapshotAppsFor(guild_id);
+    std::vector<senders::GuildTacticsVolunteerRow> rows;
+    rows.reserve(apps.size());
+    for (const auto& a : apps)
+    {
+        senders::GuildTacticsVolunteerRow row;
+        row.char_id = a.char_id;
+        row.name    = a.name;
+        row.level   = a.level;
+        row.klass   = a.klass;
+        row.region  = 0;
+        row.day     = a.day;
+        row.point   = a.point;
+        row.gold    = a.gold;
+        row.silver  = a.silver;
+        row.cooper  = a.cooper;
+        rows.push_back(std::move(row));
+    }
+    co_await senders::SendMwGuildTacticsVolunteerListReq(peer, char_id,
+        key, rows);
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildTacticsReplyAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers ||
+        !ctx.guild_tactics_wanted)
+    {
+        spdlog::warn("OnGuildTacticsReplyAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, target_id = 0;
+    std::uint8_t  reply = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(target_id) ||
+        !r.Read(reply))
+    {
+        spdlog::warn("OnGuildTacticsReplyAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto chief = ctx.chars->Find(char_id);
+    if (!chief) co_return;
+    std::uint32_t actual_key = 0, chief_guild = 0;
+    {
+        std::lock_guard g(chief->lock);
+        actual_key  = chief->key;
+        chief_guild = chief->guild_id;
+    }
+    if (actual_key != key) co_return;
+    if (chief_guild == 0) co_return;
+
+    // Reject: drop the application + refresh the chief's list.
+    if (reply == 0)
+    {
+        ctx.guild_tactics_wanted->DelApp(target_id);
+        co_await RefreshTacticsVolunteerList(peer, ctx, char_id, key,
+            chief_guild);
+        spdlog::info("OnGuildTacticsReplyAck[{}]: char_id={} rejected "
+                     "target={} guild_id={}", ip, char_id, target_id,
+            chief_guild);
+        co_return;
+    }
+
+    // Accept. Look up the application + its reward fields.
+    auto app_opt = ctx.guild_tactics_wanted->FindApp(target_id);
+    if (!app_opt)
+    {
+        co_await senders::SendMwGuildTacticsReplyReq(peer, char_id, key,
+            guild::kFail, target_id, chief_guild, std::string{},
+            std::string{}, 0, 0, 0);
+        co_return;
+    }
+    const auto& app = *app_opt;
+    const std::uint32_t hiring_guild_id = app.wanted_guild_id;
+
+    auto guild = ctx.guilds->Find(hiring_guild_id);
+    if (!guild)
+    {
+        co_await senders::SendMwGuildTacticsReplyReq(peer, char_id, key,
+            guild::kFail, target_id, hiring_guild_id, std::string{},
+            std::string{}, 0, 0, 0);
+        co_return;
+    }
+
+    // Snapshot the target char's state.
+    auto target = ctx.chars->Find(target_id);
+    std::uint32_t target_tactics_guild = 0, target_guild = 0;
+    std::uint8_t  target_level = app.level, target_klass = app.klass;
+    std::uint8_t  target_msi = 0;
+    std::uint32_t target_key = 0;
+    std::string   target_name = app.name;
+    if (target)
+    {
+        std::lock_guard g(target->lock);
+        target_tactics_guild = target->tactics_guild_id;
+        target_guild         = target->guild_id;
+        target_level         = target->level;
+        target_klass         = target->klass;
+        target_msi           = target->main_server_id;
+        target_key           = target->key;
+        target_name          = target->name;
+    }
+
+    // Gate: already a tactics member somewhere.
+    if (target_tactics_guild != 0)
+    {
+        co_await senders::SendMwGuildTacticsReplyReq(peer, char_id, key,
+            guild::kHaveGuild, target_id, hiring_guild_id,
+            std::string{}, std::string{}, 0, 0, 0);
+        co_return;
+    }
+    // Gate: target is a vice-chief+ of their own guild.
+    if (target_guild != 0)
+    {
+        if (auto og = ctx.guilds->Find(target_guild))
+        {
+            std::lock_guard gl(og->lock);
+            if (const auto* m = og->FindMember(target_id))
+                if (m->duty >= guild::kDutyViceChief)
+                {
+                    co_await senders::SendMwGuildTacticsReplyReq(peer,
+                        char_id, key, guild::kNoDuty, target_id,
+                        hiring_guild_id, std::string{}, std::string{},
+                        0, 0, 0);
+                    co_return;
+                }
+        }
+    }
+
+    // The remaining gates + the mutation run under the hiring
+    // guild's lock. Compute the cap from the level chart.
+    std::uint8_t  fail = 0;
+    std::string   guild_name;
+    const std::int64_t reward_money =
+        guild::CalcMoney(app.gold, app.silver, app.cooper);
+    {
+        std::lock_guard gl(guild->lock);
+        guild_name = guild->name;
+        std::uint8_t tactics_cap = 0;
+        if (ctx.guild_levels)
+            if (const auto* lvl = ctx.guild_levels->Find(guild->level))
+                tactics_cap = lvl->tactics_count;
+
+        if (guild->FindTactics(target_id))                fail = guild::kAlreadyMember;
+        else if (guild->FindMember(target_id))            fail = guild::kSameGuildTactics;
+        else if (guild->pvp_useable_point < app.point)    fail = guild::kNoPoint;
+        else if (tactics_cap > 0 &&
+                 guild->tactics_members.size() >= tactics_cap)
+            fail = guild::kMemberFull;
+        else if (guild::CalcMoney(guild->gold, guild->silver,
+                                  guild->cooper) < reward_money)
+            fail = guild::kNoMoney;
+
+        if (fail == 0)
+        {
+            // Charge the guild + add the tactics member.
+            guild->pvp_useable_point -= app.point;
+            const std::int64_t remaining =
+                guild::CalcMoney(guild->gold, guild->silver,
+                                 guild->cooper) - reward_money;
+            guild::SplitMoney(remaining, guild->gold, guild->silver,
+                              guild->cooper);
+
+            TTacticsMember m;
+            m.id           = target_id;
+            m.name         = target_name;
+            m.level        = target_level;
+            m.klass        = target_klass;
+            m.reward_point = app.point;
+            m.reward_money = reward_money;
+            m.gain_point   = 0;
+            m.day          = app.day;
+            m.end_time     =
+                static_cast<std::int64_t>(std::time(nullptr)) +
+                static_cast<std::int64_t>(app.day) * guild::kDaySec;
+            guild->tactics_members.push_back(std::move(m));
+        }
+    }
+
+    if (fail != 0)
+    {
+        co_await senders::SendMwGuildTacticsReplyReq(peer, char_id, key,
+            fail, target_id, hiring_guild_id, std::string{},
+            std::string{}, 0, 0, 0);
+        spdlog::info("OnGuildTacticsReplyAck[{}]: char_id={} accept "
+                     "target={} failed result={}", ip, char_id,
+            target_id, fail);
+        co_return;
+    }
+
+    // Wire the target's tactics back-pointer + clear the app.
+    if (target)
+    {
+        std::lock_guard g(target->lock);
+        target->tactics_guild_id = hiring_guild_id;
+    }
+    ctx.guild_tactics_wanted->DelApp(target_id);
+
+    // Persist the guild's new PvP-point banks (legacy fires
+    // SendDM_GUILDPVPOINT_REQ from inside UsePvPoint). The money
+    // deduction stays in-memory only for now — there's no
+    // set-absolute money repo method (IncrementContribution is
+    // an additive delta, not a set, so it can't flush the new
+    // balance), and UpdateGuildFull would need every other guild
+    // scalar. A dedicated UpdateGuildMoney repo method is a
+    // documented follow-up; until then a restart re-warms the
+    // money from the canonical DB row.
+    if (ctx.guild_repo)
+    {
+        std::uint32_t t = 0, u = 0, mo = 0;
+        {
+            std::lock_guard gl(guild->lock);
+            t = guild->pvp_total_point; u = guild->pvp_useable_point;
+            mo = guild->pvp_month_point;
+        }
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, hiring_guild_id, t, u, mo] {
+                repo->UpdatePvPoints(hiring_guild_id, t, u, mo);
+            });
+    }
+
+    // Notify the new member's map peer (if online) + the chief.
+    if (target && target_msi != 0)
+    {
+        std::shared_ptr<PeerSession> target_peer;
+        for (auto& p : ctx.peers->Snapshot())
+        {
+            if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == target_msi)
+            {
+                target_peer = std::move(p);
+                break;
+            }
+        }
+        if (target_peer)
+        {
+            co_await senders::SendMwGuildTacticsReplyReq(target_peer,
+                target_id, target_key, guild::kSuccess, target_id,
+                hiring_guild_id, guild_name, target_name, app.gold,
+                app.silver, app.cooper);
+        }
+    }
+    co_await senders::SendMwGuildTacticsReplyReq(peer, char_id, key,
+        guild::kSuccess, target_id, hiring_guild_id, guild_name,
+        target_name, app.gold, app.silver, app.cooper);
+
+    co_await RefreshTacticsVolunteerList(peer, ctx, char_id, key,
+        chief_guild);
+
+    spdlog::info("OnGuildTacticsReplyAck[{}]: char_id={} hired target={} "
+                 "('{}') into guild_id={} (point={} money={})",
+        ip, char_id, target_id, target_name, hiring_guild_id, app.point,
+        reward_money);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

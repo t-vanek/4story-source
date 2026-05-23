@@ -131,6 +131,38 @@ constexpr std::size_t kMaxTacticsWantedPerGuild = 5;
 // CTBLGuildPvPointReward SELECT TOP 50).
 constexpr std::size_t kPointLogMaxEntries = 50;
 
+// W3a-33 — guild money denomination. 1 gold = 1000 silver,
+// 1 silver = 1000 cooper (copper). Inferred from the audit-log
+// packing at TMapSvrAsio/legacy_src/UdpSocket.cpp:1799
+// (gold*1000000 + silver*1000 + cooper). CalcMoney folds a
+// gold/silver/cooper triple into a single combined-cooper total;
+// SplitMoney does the reverse with borrow.
+constexpr std::int64_t kSilverPerGold   = 1000;
+constexpr std::int64_t kCooperPerSilver = 1000;
+constexpr std::int64_t kCooperPerGold   =
+    kSilverPerGold * kCooperPerSilver;   // 1 000 000
+
+inline std::int64_t CalcMoney(std::uint32_t gold,
+                              std::uint32_t silver,
+                              std::uint32_t cooper)
+{
+    return static_cast<std::int64_t>(gold)   * kCooperPerGold
+         + static_cast<std::int64_t>(silver) * kCooperPerSilver
+         + static_cast<std::int64_t>(cooper);
+}
+
+inline void SplitMoney(std::int64_t total,
+                       std::uint32_t& gold,
+                       std::uint32_t& silver,
+                       std::uint32_t& cooper)
+{
+    if (total < 0) total = 0;
+    gold   = static_cast<std::uint32_t>(total / kCooperPerGold);
+    total %= kCooperPerGold;
+    silver = static_cast<std::uint32_t>(total / kCooperPerSilver);
+    cooper = static_cast<std::uint32_t>(total % kCooperPerSilver);
+}
+
 // Max guild-name length in bytes — matches the legacy MAX_NAME
 // ceiling (50 bytes for the ANSI build the original server runs).
 // The legacy validator at SSHandler.cpp:3056 just compares

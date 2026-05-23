@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-32 tactics volunteer (applicant) flow
+## Status — W3a-33 tactics reply (accept/reject hire)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -49,13 +49,87 @@ that the four shipped Asio daemons already use.
 | W3a-29 | PvP-point gain/use fan-in (OnGainPvPointAck) — char relay + guild bank mutation (total/useable/month) + point_log newest-first/TOP-50 trim fix | ✅ |
 | W3a-30 | Boot-time point_log load (SOCI LoadAll third pass from TGUILDPVPOINTREWARDTABLE) + FakeGuildRepository::Clone fidelity fix (was dropping alliance/enemy/point_log/month on round-trip) | ✅ |
 | W3a-31 | Tactics subsystem part 1 — wanted board (OnGuildTacticsWantedAdd/Del/ListAck) + new GuildTacticsWantedRegistry (multi-posting-per-guild, globally-unique ids, reward fields) | ✅ |
-| **W3a-32** | Tactics subsystem part 2 — volunteer applicant flow (OnGuildTacticsVolunteering/Del/VolunteerListAck) + registry applicant API (AddApp 7-gate / DelApp / SnapshotAppsFor) + wanted-board already_applied wiring | ✅ |
-| W3a-33+ | Tactics reply (accept→member promotion) / invite / answer / kickout + Cabinet item codec | ⏸ |
+| W3a-32 | Tactics subsystem part 2 — volunteer applicant flow (OnGuildTacticsVolunteering/Del/VolunteerListAck) + registry applicant API (AddApp 7-gate / DelApp / SnapshotAppsFor) + wanted-board already_applied wiring | ✅ |
+| **W3a-33** | Tactics subsystem part 3 — reply accept/reject (OnGuildTacticsReplyAck): hires applicant as a tactics member (TTacticsMember model + TChar.tactics_guild_id) charging PvP-points + money up front, with the 7 hire gates + dual broadcast | ✅ |
+| W3a-34+ | Tactics invite / answer / kickout / list + Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-33 — what landed
+
+Third slice of the tactics subsystem — the chief's accept/reject
+reply, which on accept actually hires the applicant as a tactics
+member. Mirrors legacy `OnMW_GUILDTACTICSREPLY_ACK` +
+`ApplyGuildTacticsApp`.
+
+State model
+- `TTacticsMember` struct on `TGuild` (legacy TTACTICSMEMBER):
+  id (char_id), name, level, klass, reward_point, reward_money,
+  gain_point, day, end_time. Stored in
+  `TGuild.tactics_members` (legacy m_mapTTactics) with a
+  `FindTactics(char_id)` helper.
+- `TChar.tactics_guild_id` back-pointer (legacy m_pTactics) —
+  a char can be a full member of one guild AND a tactics
+  mercenary of another, so this is separate from `guild_id`.
+- Money helper in `guild_constants.h`: `CalcMoney(g,s,c)` /
+  `SplitMoney(total, …)` with the 1 gold = 1000 silver = 1e6
+  cooper ratio (inferred from the audit-log packing at
+  TMapSvrAsio/legacy_src/UdpSocket.cpp:1799).
+
+Handler — `OnGuildTacticsReplyAck` (wID 0x90FD)
+- Wire: `{char_id (chief), key, target_char_id, reply}`.
+- Reject (`reply=0`): `DelApp(target)` + chief volunteer-list
+  refresh.
+- Accept (`reply=1`): looks up the applicant's stored app
+  (reward fields), then runs the 7 legacy hire gates:
+  already-a-tactics-member-anywhere → `kHaveGuild`, target is
+  vice-chief+ of their own guild → `kNoDuty`, already a tactics
+  member of this guild → `kAlreadyMember`, full member of this
+  guild → `kSameGuildTactics`, guild PvP-useable < reward point
+  → `kNoPoint`, guild tactics roster full (level-chart
+  `tactics_count`) → `kMemberFull`, guild money < reward money
+  → `kNoMoney`. On success: charges the guild's useable points
+  + money, appends the `TTacticsMember` with `end_time = now +
+  day*kDaySec`, wires the target's `tactics_guild_id`, clears
+  the app, fires the dual `TACTICSREPLY_REQ` (new member's map
+  peer + chief), refreshes the chief's volunteer list.
+
+Sender — `SendMwGuildTacticsReplyReq` (10-field hire result).
+
+Registry — `GuildTacticsWantedRegistry::FindApp(char_id)` added
+(full applicant record lookup for the accept path).
+
+Scope notes
+- PvP-point deduction is persisted (`repo->UpdatePvPoints`).
+  Money deduction stays in-memory only — `IncrementContribution`
+  is an additive delta (can't flush an absolute balance) and
+  `UpdateGuildFull` needs every guild scalar; a dedicated
+  `UpdateGuildMoney` repo method is a documented follow-up. A
+  restart re-warms money from the canonical DB row.
+- Tactics-member roster cap uses the level chart's
+  `tactics_count`; a null level row (dev/test path) means no
+  cap, matching the W3a-5 relaxed-gate convention.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 55-56: seed the
+  guild's banks, post a hire entry, have a guild-less char
+  apply, then accept (verify the tactics member lands with the
+  contract + the guild's points/gold were charged) and reject
+  (verify no member + the app dropped).
+
+Build verified: cmake + ctest -R tworldsvr_asio (16/16 passed).
+
+Deferred to W3a-34+
+- Tactics INVITE / ANSWER (chief-initiated hire by name) +
+  KICKOUT + LIST flows
+- DB persistence for tactics members (TGUILDTACTICSTABLE) +
+  a dedicated guild-money repo flush
+- The EXPIRED_GT term-expiry sweep (tactics contracts ending
+  at end_time) — parallels the W3a-19 wanted sweep
+- Cabinet PUTIN / TAKEOUT + item codec
 
 ### W3a-32 — what landed
 

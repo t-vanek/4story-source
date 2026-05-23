@@ -301,7 +301,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             std::move(body), ctx);
         co_return;
 
-    // W3a-33+ picks up tactics reply/invite/answer/kickout flows,
+    // ---- W3a-33: tactics reply (accept/reject hire) ------------
+    case MessageId::MW_GUILDTACTICSREPLY_ACK:
+        co_await OnGuildTacticsReplyAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+
+    // W3a-34+ picks up tactics invite/answer/kickout flows,
     // cabinet PUTIN/TAKEOUT + item codec. … see README §4.
 
     default:

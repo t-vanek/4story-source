@@ -72,6 +72,25 @@ struct TPointRewardEntry
     std::uint32_t point     = 0;
 };
 
+// W3a-33 — a hired tactics member of a guild (legacy
+// TTACTICSMEMBER, stored in TGuild.m_mapTTactics keyed by
+// char_id). Distinct from a full TGuildMember: a tactics member
+// is a mercenary recruited via the tactics-wanted board for a
+// fixed term (day → end_time), paid an up-front reward of
+// PvP-points + money. `id` is the member's char_id.
+struct TTacticsMember
+{
+    std::uint32_t id           = 0;   // char_id
+    std::string   name;
+    std::uint8_t  level        = 0;
+    std::uint8_t  klass        = 0;
+    std::uint32_t reward_point = 0;   // PvP-points paid up front
+    std::int64_t  reward_money = 0;   // combined-cooper money paid
+    std::uint32_t gain_point   = 0;   // PvP-points earned for the guild
+    std::uint8_t  day          = 0;   // contract length in days
+    std::int64_t  end_time     = 0;   // Unix epoch sec the term ends
+};
+
 struct TGuildMember
 {
     std::uint32_t char_id   = 0;   // dwCharID — PK
@@ -200,6 +219,20 @@ struct TGuild
     // we don't currently trim in-memory because the log is per-
     // process and load-from-DB wiring lives in a later batch.
     std::vector<TPointRewardEntry> point_log;
+
+    // W3a-33 — hired tactics members (legacy m_mapTTactics),
+    // keyed by char_id. A guild may hold up to its level chart's
+    // tactics_count mercenaries. Separate from `members` (full
+    // guild membership).
+    std::vector<TTacticsMember> tactics_members;
+
+    // W3a-33 helper — find a hired tactics member by char_id.
+    TTacticsMember* FindTactics(std::uint32_t char_id)
+    {
+        for (auto& t : tactics_members)
+            if (t.id == char_id) return &t;
+        return nullptr;
+    }
 
     // Members — keyed by char_id. Linear lookups are fine; a typical
     // guild has < 200 members and FindMember is the hot path on

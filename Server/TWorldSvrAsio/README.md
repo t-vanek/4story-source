@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-37 cabinet item codec (PUTIN/TAKEOUT/LIST)
+## Status — W3a-38 disband + point-reward player actions
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -54,13 +54,66 @@ that the four shipped Asio daemons already use.
 | W3a-34 | Tactics subsystem part 4 — kickout (chief-kick forfeit / self-leave refund via TGuild::RemoveTactics) + roster list (GetCurGuild priority) | ✅ |
 | W3a-35 | Tactics subsystem part 5 — chief-initiated hire (OnGuildTacticsInvite/AnswerAck): invite-by-name dialog relayed to the target, accept runs the hire promotion + dual outcome echo. Tactics subsystem now feature-complete (wanted/volunteer/reply/kickout/list/invite/answer) | ✅ |
 | W3a-36 | Tactics contract term-expiry sweep (SweepExpiredTactics on a RegistryRefresher tick) — ends contracts past end_time, clears char back-pointers; closes the legacy EXPIRED_GT path | ✅ |
-| **W3a-37** | Cabinet item codec — TGuildCabinetItem model + WrapItem/CreateItem-symmetric wire codec; OnGuildCabinetPutin/TakeoutAck (stack/decrement) + LIST upgraded from the W3a-26 stub to emit real items | ✅ |
-| W3a-38+ | Cabinet DM fan-in (PUTIN/TAKEOUT/ROLLBACK) + DB persistence (tactics + cabinet) | ⏸ |
+| W3a-37 | Cabinet item codec — TGuildCabinetItem model + WrapItem/CreateItem-symmetric wire codec; OnGuildCabinetPutin/TakeoutAck (stack/decrement) + LIST upgraded from the W3a-26 stub to emit real items | ✅ |
+| **W3a-38** | Disband + point-reward player actions (OnGuildDisorganization/PointRewardAck) — the map→world entry points pairing the W3a-4b/W3a-14 DB fan-ins; closes the last player-facing guild gaps | ✅ |
+| W3a-39+ | DB persistence (tactics + cabinet) + W5 castle/skill guild handlers | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-38 — what landed
+
+The two remaining map→world player-action entry points whose
+DB-side fan-in already shipped earlier. A guild-handler audit
+(legacy SSHandler `On*` set vs. the Asio dispatch) found these
+were the only player-facing guild gaps left — everything else
+unported is W5 castle/skill (`CT_CASTLEGUILDCHG_REQ`,
+`MW_GUILDSKILLACTION_REQ`, `MW_UPDATEGUILDCOOLDOWN_ACK`),
+DB-routed echoes (`DM_GUILDESTABLISH_REQ`, `DM_GUILDLOAD_REQ`,
+the `DM_GUILDTACTICS*` / `DM_TACTICSPOINT_REQ` persistence
+fan-ins), or timer-service messages (`SM_GUILDDISORGANIZATION_REQ`).
+
+Handlers
+- `OnGuildDisorganizationAck` (wID 0x902E) — player requests
+  their guild disband / cancel. 3-field wire `{char_id, key,
+  disorg}`; resolves guild_id from the char (vs. the W3a-4b
+  `DM_GUILDDISORGANIZATION_REQ` 4-field fan-in). No-ops when the
+  flag already matches (legacy gate), else flips
+  `disorg`/`disorg_time` under the guild lock, persists via
+  `repo->SetDisorg`, replies `MW_GUILDDISORGANIZATION_REQ`.
+- `OnGuildPointRewardAck` (wID 0x9127) — a chief grants
+  PvP-useable points to a member by name. Gates: sender must be
+  the chief (`kGprNoMember` otherwise), guild useable ≥ point
+  (`kGprNeedPoint`), target is a member (`kGprNoMember`). On
+  success deducts the points, prepends a `point_log` entry
+  (newest-first, capped at `kPointLogMaxEntries` — same as the
+  W3a-29 fix), persists via `repo->LogPointReward`, replies
+  `MW_GUILDPOINTREWARD_REQ` with `kGprSuccess`, and relays a
+  `MW_GAINPVPPOINT_REQ` gain toast to the recipient's map peer.
+
+Sender — `SendMwGuildPointRewardReq` (8-field result).
+Constants — `kGprSuccess/NeedPoint/NoMember` (0/1/2, inferred
+from the client switch order at TClient/CSHandler.cpp:16482).
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 64-65: disband
+  flip 0→1 (verify reply + flag/time) + repeat-is-no-op (framer
+  survives), and a chief point-reward grant (verify the result
+  reply, the recipient gain-toast relay, the deducted bank +
+  the newest point_log entry).
+
+Build verified: cmake + ctest -R tworldsvr_asio (17/17 passed).
+
+The guild + tactics + cabinet vertical is now functionally
+complete on the player-facing wire surface; the remaining work
+is cross-cutting DB persistence + the W5 castle/skill family.
+
+Deferred to W3a-39+
+- DB persistence for the in-memory-only state (tactics members
+  + wanted board, cabinet items, alliance/enemy, guild money)
+- W5 castle / guild-skill handlers
 
 ### W3a-37 — what landed
 

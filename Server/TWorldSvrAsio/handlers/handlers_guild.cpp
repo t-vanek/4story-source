@@ -2755,6 +2755,208 @@ OnGuildCabinetTakeoutAck(std::shared_ptr<PeerSession> peer,
         ip, char_id, guild_id, slot_id, count, items.size());
 }
 
+// --- W3a-38 disband + point-reward player actions ------------------
+
+boost::asio::awaitable<void>
+OnGuildDisorganizationAck(std::shared_ptr<PeerSession> peer,
+                          std::vector<std::byte>       body,
+                          const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildDisorganizationAck[{}]: registries not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  disorg = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(disorg))
+    {
+        spdlog::warn("OnGuildDisorganizationAck[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+    if (guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    // Legacy gate (SSHandler.cpp:3190): no-op when the flag is
+    // already at the requested value.
+    bool changed = false;
+    std::uint32_t time_unix = 0;
+    {
+        std::lock_guard gl(guild->lock);
+        if (guild->disorg != disorg)
+        {
+            const std::uint32_t now =
+                static_cast<std::uint32_t>(std::time(nullptr));
+            time_unix = disorg ? now : 0;
+            guild->disorg      = disorg;
+            guild->disorg_time = time_unix;
+            changed = true;
+        }
+    }
+    if (!changed)
+    {
+        spdlog::info("OnGuildDisorganizationAck[{}]: char_id={} "
+                     "guild_id={} disorg already {} — no-op",
+            ip, char_id, guild_id, disorg);
+        co_return;
+    }
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, disorg, time_unix] {
+                repo->SetDisorg(guild_id, disorg, time_unix);
+            });
+    }
+
+    co_await senders::SendMwGuildDisorganizationReq(peer, char_id, key,
+        disorg);
+
+    spdlog::info("OnGuildDisorganizationAck[{}]: char_id={} guild_id={} "
+                 "disorg={} time={}", ip, char_id, guild_id, disorg,
+        time_unix);
+}
+
+boost::asio::awaitable<void>
+OnGuildPointRewardAck(std::shared_ptr<PeerSession> peer,
+                      std::vector<std::byte>       body,
+                      const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnGuildPointRewardAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, point = 0;
+    std::string   target_name, message;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name) ||
+        !r.Read(point) || !r.ReadString(message))
+    {
+        spdlog::warn("OnGuildPointRewardAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto chief = ctx.chars->Find(char_id);
+    if (!chief) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    {
+        std::lock_guard g(chief->lock);
+        actual_key = chief->key;
+        guild_id   = chief->guild_id;
+    }
+    if (actual_key != key) co_return;
+    if (guild_id == 0) co_return;
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    // Resolve the target member by name + their map peer for the
+    // gain-toast relay.
+    std::uint32_t target_id = 0;
+    std::uint8_t  target_msi = 0;
+    std::uint32_t target_key = 0;
+    if (auto target = ctx.chars->FindByName(target_name))
+    {
+        std::lock_guard g(target->lock);
+        target_id  = target->char_id;
+        target_msi = target->main_server_id;
+        target_key = target->key;
+    }
+
+    std::uint8_t  result      = guild::kGprSuccess;
+    std::uint32_t remain      = 0, new_total = 0, new_useable = 0,
+                  new_month   = 0;
+    {
+        std::lock_guard gl(guild->lock);
+        // Gate: only the chief may grant rewards.
+        if (guild->chief_char_id != char_id)
+        {
+            result = guild::kGprNoMember;   // legacy drops; closest code
+        }
+        else if (guild->pvp_useable_point < point)
+        {
+            result = guild::kGprNeedPoint;
+        }
+        else if (target_id == 0 || guild->FindMember(target_id) == nullptr)
+        {
+            result = guild::kGprNoMember;
+        }
+        else
+        {
+            guild->pvp_useable_point -= point;
+            TPointRewardEntry entry;
+            entry.date_unix      =
+                static_cast<std::int64_t>(std::time(nullptr));
+            entry.recipient_name = target_name;
+            entry.point          = point;
+            guild->point_log.insert(guild->point_log.begin(),
+                std::move(entry));
+            if (guild->point_log.size() > guild::kPointLogMaxEntries)
+                guild->point_log.pop_back();
+        }
+        remain      = guild->pvp_useable_point;
+        new_total   = guild->pvp_total_point;
+        new_useable = guild->pvp_useable_point;
+        new_month   = guild->pvp_month_point;
+    }
+
+    if (result == guild::kGprSuccess && ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, point, target_name,
+             new_total, new_useable] {
+                repo->LogPointReward(guild_id, point, target_name,
+                    new_total, new_useable);
+            });
+    }
+
+    co_await senders::SendMwGuildPointRewardReq(peer, result, char_id,
+        key, remain, point, target_id, target_name, message);
+
+    // On success, relay the PvP-point gain toast to the recipient's
+    // map peer (legacy SendMW_GAINPVPPOINT_REQ).
+    if (result == guild::kGprSuccess && target_msi != 0)
+    {
+        for (auto& p : ctx.peers->Snapshot())
+        {
+            if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == target_msi)
+            {
+                co_await senders::SendMwGainPvPointReq(p, target_id,
+                    point, /*event=*/0, guild::kPvPMaskUseable,
+                    /*gain=*/1, std::string{}, 0, 0);
+                break;
+            }
+        }
+    }
+
+    (void)new_month;
+    spdlog::info("OnGuildPointRewardAck[{}]: char_id={} guild_id={} "
+                 "target='{}' point={} result={} (remain={})",
+        ip, char_id, guild_id, target_name, point, result, remain);
+}
+
 // --- W3a-27 PvP point reward log reader ----------------------------
 //
 // Read-side counterpart to W3a-14's OnGuildPointRewardReq. The

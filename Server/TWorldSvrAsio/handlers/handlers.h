@@ -555,6 +555,30 @@ boost::asio::awaitable<void> OnGuildCabinetTakeoutAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-38: disband + point-reward player actions ---------------
+//
+// The map→world player-action entry points whose DB-side fan-in
+// already landed earlier. DISORGANIZATION_ACK is the player
+// requesting their guild disband (3-field wire; resolves
+// guild_id from the char — vs. the W3a-4b DM_*_REQ 4-field
+// fan-in). POINTREWARD_ACK is a chief granting PvP-useable
+// points to a member by name (charges the bank, logs to
+// point_log, persists, relays a gain toast to the recipient).
+//
+// Wire layouts (SSHandler.cpp:3171/10309):
+//   DISORGANIZATION : DWORD char_id, key, BYTE disorg
+//   POINTREWARD     : DWORD char_id, key, STRING target_name,
+//                     DWORD point, STRING message
+boost::asio::awaitable<void> OnGuildDisorganizationAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildPointRewardAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-27: PvP point reward log reader (handlers_guild.cpp) -----
 //
 // Player opens the guild PvP-point-reward audit log UI. Pairs

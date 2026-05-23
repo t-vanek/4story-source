@@ -131,6 +131,14 @@ constexpr std::size_t kMaxTacticsWantedPerGuild = 5;
 // CTBLGuildPvPointReward SELECT TOP 50).
 constexpr std::size_t kPointLogMaxEntries = 50;
 
+// W3a-38 — guild-point-reward result codes (GPR_*). The enum
+// isn't in the headers available to this port; the client
+// switch (TClient/CSHandler.cpp:16482) lists SUCCESS / NEEDPOINT
+// / NOMEMBER in order, so they're the sequential 0/1/2.
+constexpr std::uint8_t kGprSuccess   = 0;
+constexpr std::uint8_t kGprNeedPoint = 1;
+constexpr std::uint8_t kGprNoMember  = 2;
+
 // W3a-33 — guild money denomination. 1 gold = 1000 silver,
 // 1 silver = 1000 cooper (copper). Inferred from the audit-log
 // packing at TMapSvrAsio/legacy_src/UdpSocket.cpp:1799

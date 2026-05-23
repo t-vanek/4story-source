@@ -19,6 +19,8 @@
 // guild lives even past a Remove() (legacy "disorg" timer needs
 // this — the guild lingers in m_mapTGuildEx for a grace period).
 
+#include "services/guild_constants.h"
+
 #include <array>
 #include <cstdint>
 #include <ctime>
@@ -34,6 +36,20 @@ namespace tworldsvr {
 // One row of TGUILDMEMBERTABLE for a guild member, expanded with
 // the runtime fields the legacy module pulls from the linked
 // TChar (m_pChar back-pointer). Held inside TGuild::members.
+// W3a-23 — per-member PvP outcome bucket. Mirrors legacy
+// TENTRYRECORD (TWorldType.h:~370). Used both for the rolling
+// weekly aggregate (TGuildMember.weekrecord) and the per-day
+// history rows (legacy m_vRecord; deferred until the war-result
+// fan-in path ports). Points array uses the full
+// kPvPEventCount=8 storage; the wire only emits the first 6
+// (PVPE_KILL_H..PVPE_WIN-1).
+struct TPvPRecord
+{
+    std::uint16_t kill_count = 0;
+    std::uint16_t die_count  = 0;
+    std::array<std::uint32_t, guild::kPvPEventCount> points{};
+};
+
 struct TGuildMember
 {
     std::uint32_t char_id   = 0;   // dwCharID — PK
@@ -57,6 +73,16 @@ struct TGuildMember
     std::uint16_t castle             = 0;   // m_wCastle
     std::uint8_t  camp               = 0;   // m_bCamp
     std::int64_t  connected_date_unix = 0;  // m_dlConnectedDate
+
+    // W3a-23 — rolling 7-day PvP outcome aggregate. Returned by
+    // OnGuildPvPRecordAck. Legacy fills this from CalcWeekRecord
+    // summing the last 7 days of vRecord entries; we leave the
+    // per-day history deferred until the war-result fan-in path
+    // ports, so weekrecord is zero-initialized at member load
+    // time and stays that way until something explicitly updates
+    // it. The reader handler still operates correctly — zero
+    // values are wire-compat (client just shows an empty record).
+    TPvPRecord    weekrecord{};
 };
 
 // One entry of the guild articles board (legacy MAPTGUILDARTICLE

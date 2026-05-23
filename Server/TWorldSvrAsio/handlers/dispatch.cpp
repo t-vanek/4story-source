@@ -243,8 +243,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-23+ picks up tactics subsystem, cabinet item codec,
-    // PvP record read-side handler. … see README §4.
+    // ---- W3a-23: PvP record list reader ------------------------
+    case MessageId::MW_GUILDPVPRECORD_ACK:
+        co_await OnGuildPvPRecordAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-24+ picks up tactics subsystem, cabinet item codec,
+    // per-day vRecord war-result fan-in. … see README §4.
 
     default:
         break;

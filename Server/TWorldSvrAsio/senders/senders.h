@@ -599,4 +599,47 @@ boost::asio::awaitable<void> SendMwGuildContributionReq(
 // kLeaveKick / kLeaveDisorganization) live in
 // services/guild_constants.h alongside the rest of GUILD_*.
 
+// --- W3a-23 — PvP record list ---------------------------------
+
+// One per-member row carrying both the rolling weekrecord and a
+// "last record" placeholder slot. The legacy sender at
+// SSSender.cpp:3184 emits the last vRecord entry when its
+// dwDate >= dwRecentRecordDate, otherwise zeros — we always
+// emit zeros for the last slot until the per-day vRecord history
+// ports (deferred to a later W3a-* batch).
+struct GuildPvPRecordRow
+{
+    std::uint32_t char_id    = 0;
+    std::uint16_t kill_count = 0;
+    std::uint16_t die_count  = 0;
+    // Wire emits the first 6 buckets (PVPE_KILL_H .. PVPE_WIN-1
+    // — see TWorldSvr/SSSender.cpp:3204). Storage carries all 8
+    // for parity with the W3a-21 audit-log; this struct uses 6
+    // to match the wire exactly.
+    std::array<std::uint32_t, 6> points{};
+};
+
+// MW_GUILDPVPRECORD_REQ — reply to OnGuildPvPRecordAck. Returns
+// every member's rolling weekly PvP outcome aggregate plus a
+// per-member "last record" slot (currently always zeros — see
+// note above).
+//
+// Wire layout (SSSender.cpp:3184):
+//   DWORD dwCharID
+//   DWORD dwKey
+//   WORD  member_count
+//     [member_count times]
+//       DWORD member.dwID
+//       WORD  weekrecord.wKillCount
+//       WORD  weekrecord.wDieCount
+//       DWORD weekrecord.points[6]   (PVPE_KILL_H..PVPE_WIN-1)
+//       WORD  last.wKillCount   (or 0)
+//       WORD  last.wDieCount    (or 0)
+//       DWORD last.points[6]    (or 0)
+boost::asio::awaitable<void> SendMwGuildPvPRecordReq(
+    std::shared_ptr<PeerSession>               peer,
+    std::uint32_t                              char_id,
+    std::uint32_t                              key,
+    const std::vector<GuildPvPRecordRow>&      members);
+
 } // namespace tworldsvr::senders

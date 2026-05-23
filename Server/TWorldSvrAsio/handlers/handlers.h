@@ -467,6 +467,28 @@ boost::asio::awaitable<void> OnGuildUpdateReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-23: PvP record list reader (handlers_guild.cpp) ----------
+//
+// Player opens the guild "PvP statistics" UI panel; the map
+// server forwards the open request to world via this handler.
+// We snapshot every member of the requester's guild + emit
+// their rolling weekrecord aggregate.
+//
+// Pairs with W3a-21 (OnPvPRecordReq) which persists the per-row
+// audit log. The aggregate that this handler returns is fed by
+// CalcWeekRecord summing the last 7 days of vRecord entries in
+// legacy; our port hasn't ported the per-day fan-in (war-result
+// path) yet, so weekrecord is zero-initialized at member load
+// time and stays that way. The reader still works — clients
+// just see an empty record per member until the fan-in lands.
+//
+// Wire layout (SSHandler.cpp:10379):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildPvPRecordAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

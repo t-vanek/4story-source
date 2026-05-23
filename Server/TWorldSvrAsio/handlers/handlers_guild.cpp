@@ -2319,6 +2319,92 @@ OnGuildUpdateReq(std::shared_ptr<PeerSession> peer,
         time_unix, ally_count, enemy_count);
 }
 
+// --- W3a-23 PvP record list reader ---------------------------------
+//
+// Read-side counterpart to W3a-21's OnPvPRecordReq. Returns
+// every member's rolling weekly PvP outcome aggregate.
+// Currently weekrecord stays zero-initialized at member load
+// time (the per-day vRecord fan-in path lives in legacy
+// SSHandler.cpp:10155 and hasn't ported yet), so the reply just
+// carries zeros. That's wire-compat — the client UI shows an
+// empty record table.
+
+boost::asio::awaitable<void>
+OnGuildPvPRecordAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildPvPRecordAck[{}]: char/guild registry not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildPvPRecordAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+    // Legacy SSHandler.cpp:10391 also short-circuits when the
+    // char has no guild AND no tactics. We haven't wired the
+    // tactics half yet — skip the tactics branch and just drop
+    // when guild_id == 0.
+    if (guild_id == 0)
+    {
+        spdlog::info("OnGuildPvPRecordAck[{}]: char_id={} has no guild "
+                     "— dropped", ip, char_id);
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        spdlog::info("OnGuildPvPRecordAck[{}]: char_id={} stale "
+                     "guild_id={} — dropped", ip, char_id, guild_id);
+        co_return;
+    }
+
+    // Snapshot the member list under the guild lock. Wire emits
+    // only 6 of the 8 storage point buckets — slice on copy.
+    std::vector<senders::GuildPvPRecordRow> rows;
+    {
+        std::lock_guard gl(guild->lock);
+        rows.reserve(guild->members.size());
+        for (const auto& m : guild->members)
+        {
+            senders::GuildPvPRecordRow row;
+            row.char_id    = m.char_id;
+            row.kill_count = m.weekrecord.kill_count;
+            row.die_count  = m.weekrecord.die_count;
+            for (std::size_t i = 0; i < row.points.size(); ++i)
+                row.points[i] = m.weekrecord.points[i];
+            rows.push_back(std::move(row));
+        }
+    }
+
+    co_await senders::SendMwGuildPvPRecordReq(peer, char_id, key, rows);
+
+    spdlog::info("OnGuildPvPRecordAck[{}]: char_id={} guild_id={} "
+                 "members={} (weekrecord zero-init until per-day "
+                 "fan-in ports)",
+        ip, char_id, guild_id, rows.size());
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

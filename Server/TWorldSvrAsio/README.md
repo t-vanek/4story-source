@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-22 full-row guild update fan-in
+## Status — W3a-23 PvP record list reader
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -39,13 +39,80 @@ that the four shipped Asio daemons already use.
 | W3a-19 | Wanted-board periodic expiry sweep: GuildWantedRegistry::PruneExpired + SweepExpiredWanted coroutine wired into RegistryRefresher (closes W3a-11 TODO) | ✅ |
 | W3a-20 | Vestigial DB-server ACK echoes (OnDM_GUILDESTABLISH/DISORGANIZATION/EXTINCTION_ACK) — 3 log+drop stubs eliminate "unknown wID" warnings on hybrid legacy-DB deployments | ✅ |
 | W3a-21 | PvP record audit log (OnDM_PVPRECORD_REQ) — batched per-row persistence via new IGuildRepository::LogPvPRecord + kPvPEventCount=8 constant | ✅ |
-| **W3a-22** | Full-row guild update fan-in (OnDM_GUILDUPDATE_REQ) — 8-column scalar overwrite via new IGuildRepository::UpdateGuildFull; alliance/enemy ID lists parsed for wire-compat then dropped (deferred to W5+ war system) | ✅ |
-| W3a-23+ | Tactics subsystem (~17) + Cabinet item codec + PvP record read-side handler | ⏸ |
+| W3a-22 | Full-row guild update fan-in (OnDM_GUILDUPDATE_REQ) — 8-column scalar overwrite via new IGuildRepository::UpdateGuildFull; alliance/enemy ID lists parsed for wire-compat then dropped (deferred to W5+ war system) | ✅ |
+| **W3a-23** | PvP record list reader (OnMW_GUILDPVPRECORD_ACK) — pairs with W3a-21 audit log; new TPvPRecord POD + TGuildMember.weekrecord + GuildPvPRecordRow sender | ✅ |
+| W3a-24+ | Tactics subsystem (~17) + Cabinet item codec + per-day vRecord war-result fan-in | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-23 — what landed
+
+Read-side counterpart to W3a-21's audit log. Player opens the
+guild PvP-statistics panel; the map server forwards the open
+request to world via `MW_GUILDPVPRECORD_ACK`; world replies
+with a per-member roll-up of the rolling weekly kill / die /
+points record.
+
+State model
+- `TPvPRecord` POD added to `services/guild_registry.h` —
+  `{ kill_count: u16, die_count: u16, points: array<u32, 8> }`.
+  Mirrors legacy `TENTRYRECORD`. Storage uses all 8 buckets for
+  parity with W3a-21's audit row; the wire only emits the first
+  6 (PVPE_KILL_H..PVPE_WIN-1).
+- `TGuildMember.weekrecord` field of that type — zero-init on
+  construction. Legacy `CalcWeekRecord` sums the last 7 days of
+  per-day `vRecord` entries to populate this; the per-day fan-in
+  path (war-result handler at `SSHandler.cpp:10155`) hasn't
+  ported yet, so for now `weekrecord` stays zeros until
+  something explicitly updates it. Reader is still wire-compat
+  — clients just see empty record tables.
+
+Sender — `SendMwGuildPvPRecordReq`
+- New `GuildPvPRecordRow` POD: 6-bucket point array (slice of
+  storage to match wire).
+- Loop emits per member: `{char_id, weekrecord.kill_count,
+  weekrecord.die_count, weekrecord.points[0..5]}` then a
+  per-member "last record" slot that's currently always zeros
+  (the legacy slot would carry the latest per-day vRecord row
+  when its `dwDate >= dwRecentRecordDate`; deferred along with
+  the per-day fan-in).
+
+Handler — `OnGuildPvPRecordAck` (wID `MW_GUILDPVPRECORD_ACK` =
+0x9129)
+- Wire: `{char_id, key}`.
+- Validates char + key + non-zero `guild_id` + guild present in
+  registry. Drops silently on any mismatch (legacy parity:
+  `SSHandler.cpp:10391`).
+- Snapshots `guild->members` under the guild lock, builds the
+  6-bucket-sliced row list, fires the reply.
+- Legacy SSHandler.cpp:10391 ALSO short-circuits when the char
+  has tactics-only membership; we drop the tactics branch
+  (deferred until the tactics subsystem ports — same as W3a-22).
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenario 43: pre-populates
+  Bob's (char 200) weekrecord with non-zero kill/die/points,
+  fires the request, reads back the reply, verifies the chief's
+  row carries the populated values + every "last record" slot is
+  all zeros.
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed).
+
+Deferred to W3a-24+
+- Per-day vRecord fan-in (`SSHandler.cpp:10155` war-result
+  handler) — would actually populate `weekrecord` via
+  `CalcWeekRecord` so reads see live data
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+  + the tactics-branch short-circuit in OnGuildPvPRecordAck
+- Cabinet item subsystem (CABINETLIST/PUTIN/TAKEOUT + item
+  codec)
+- Alliance / enemy relationship modelling (TGuild gains two
+  vector<uint32_t> fields; the W3a-22 handler's
+  drained-and-dropped lists become a real write)
 
 ### W3a-22 — what landed
 

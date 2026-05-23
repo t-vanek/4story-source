@@ -1894,6 +1894,87 @@ int main()
         EXPECT(saw_update);
     }
 
+    // --- Scenario 43: MW_GUILDPVPRECORD_ACK returns weekrecord ---
+    //
+    // Chief (char 200) opens the PvP-statistics panel. We pre-
+    // populate one member's weekrecord directly (the per-day
+    // vRecord fan-in path that legacy uses isn't ported yet), so
+    // verify the populated row + the zero rows for any other
+    // members all land in the reply.
+    {
+        auto g = guilds.Find(8);
+        EXPECT(g != nullptr);
+        if (g)
+        {
+            std::lock_guard gl(g->lock);
+            for (auto& m : g->members)
+            {
+                if (m.char_id == 200)
+                {
+                    m.weekrecord.kill_count = 7;
+                    m.weekrecord.die_count  = 3;
+                    m.weekrecord.points[0]  = 500;  // PVPE_KILL_H
+                    m.weekrecord.points[1]  = 300;  // PVPE_KILL_E
+                    m.weekrecord.points[2]  = 100;  // PVPE_KILL_L
+                }
+            }
+        }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDPVPRECORD_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDPVPRECORD_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0;
+        std::uint16_t mcount = 0;
+        EXPECT(rr.Read(cid));      EXPECT(cid == 200);
+        EXPECT(rr.Read(key));      EXPECT(key == 0xBEEF1111);
+        EXPECT(rr.Read(mcount));
+        // Guild 8's membership has been mutated across scenarios
+        // (added/removed Carol, Bravo2, Echo at various points)
+        // — just verify at least the chief shows up correctly.
+        bool saw_chief = false;
+        for (std::uint16_t i = 0; i < mcount; ++i)
+        {
+            std::uint32_t mid = 0;
+            std::uint16_t kc = 0, dc = 0;
+            std::array<std::uint32_t, 6> pts{};
+            std::uint16_t last_kc = 0, last_dc = 0;
+            std::array<std::uint32_t, 6> last_pts{};
+            EXPECT(rr.Read(mid));
+            EXPECT(rr.Read(kc));
+            EXPECT(rr.Read(dc));
+            for (std::size_t p = 0; p < pts.size(); ++p) EXPECT(rr.Read(pts[p]));
+            EXPECT(rr.Read(last_kc));
+            EXPECT(rr.Read(last_dc));
+            for (std::size_t p = 0; p < last_pts.size(); ++p)
+                EXPECT(rr.Read(last_pts[p]));
+            // "Last record" slot is always zeros until per-day
+            // vRecord fan-in ports.
+            EXPECT(last_kc == 0);
+            EXPECT(last_dc == 0);
+            for (std::size_t p = 0; p < last_pts.size(); ++p)
+                EXPECT(last_pts[p] == 0);
+            if (mid == 200)
+            {
+                saw_chief = true;
+                EXPECT(kc == 7);
+                EXPECT(dc == 3);
+                EXPECT(pts[0] == 500);
+                EXPECT(pts[1] == 300);
+                EXPECT(pts[2] == 100);
+                EXPECT(pts[3] == 0);
+            }
+        }
+        EXPECT(saw_chief);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1903,7 +1984,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (42 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (43 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

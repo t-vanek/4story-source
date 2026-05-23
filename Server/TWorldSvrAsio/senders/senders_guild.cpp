@@ -568,4 +568,39 @@ SendMwGuildCabinetMaxReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwGuildPvPRecordReq(std::shared_ptr<PeerSession>           peer,
+                        std::uint32_t                          char_id,
+                        std::uint32_t                          key,
+                        const std::vector<GuildPvPRecordRow>&  members)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(
+        members.size()));
+    for (const auto& m : members)
+    {
+        WritePOD<std::uint32_t>(body, m.char_id);
+        WritePOD<std::uint16_t>(body, m.kill_count);
+        WritePOD<std::uint16_t>(body, m.die_count);
+        for (std::size_t i = 0; i < m.points.size(); ++i)
+            WritePOD<std::uint32_t>(body, m.points[i]);
+        // "Last record" slot — always zeros until per-day
+        // vRecord history ports. Legacy emits the last vRecord
+        // entry when its dwDate >= dwRecentRecordDate; the
+        // structure is the same as the weekrecord slot above
+        // (WORD kill / WORD die / DWORD points[6]).
+        WritePOD<std::uint16_t>(body, 0);
+        WritePOD<std::uint16_t>(body, 0);
+        for (std::size_t i = 0; i < m.points.size(); ++i)
+            WritePOD<std::uint32_t>(body, 0);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDPVPRECORD_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

@@ -2405,6 +2405,110 @@ OnGuildPvPRecordAck(std::shared_ptr<PeerSession> peer,
         ip, char_id, guild_id, rows.size());
 }
 
+// --- W3a-24 per-period war-result fan-in ---------------------------
+//
+// Accumulates the deltas from MW_LOCALRECORD_ACK into
+// TGuildMember.weekrecord. Pairs with W3a-21 (audit log writes)
+// and W3a-23 (reader). After this lands, the W3a-23 reader
+// returns live (non-zero) data once the map server has fanned
+// at least one record batch through.
+
+boost::asio::awaitable<void>
+OnLocalRecordAck(std::shared_ptr<PeerSession> peer,
+                 std::vector<std::byte>       body,
+                 const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.guilds)
+    {
+        spdlog::warn("OnLocalRecordAck[{}]: guild registry not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t win_guild_id = 0, guild_point = 0;
+    std::uint16_t guild_count = 0;
+    if (!r.Read(win_guild_id) || !r.Read(guild_point) ||
+        !r.Read(guild_count))
+    {
+        spdlog::warn("OnLocalRecordAck[{}]: short header ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    std::size_t applied = 0, dropped = 0;
+    for (std::uint16_t g = 0; g < guild_count; ++g)
+    {
+        std::uint32_t guild_id = 0;
+        std::uint16_t record_count = 0;
+        if (!r.Read(guild_id) || !r.Read(record_count))
+        {
+            spdlog::warn("OnLocalRecordAck[{}]: short guild header at "
+                         "guild row {} of {}", ip, g, guild_count);
+            co_return;
+        }
+
+        auto guild = ctx.guilds->Find(guild_id);
+
+        for (std::uint16_t i = 0; i < record_count; ++i)
+        {
+            std::uint32_t char_id = 0;
+            std::uint16_t kill_count = 0, die_count = 0;
+            if (!r.Read(char_id) || !r.Read(kill_count) ||
+                !r.Read(die_count))
+            {
+                spdlog::warn("OnLocalRecordAck[{}]: short record header "
+                             "at guild={} row {} of {}",
+                    ip, guild_id, i, record_count);
+                co_return;
+            }
+            std::array<std::uint32_t, guild::kPvPEventCount> points{};
+            bool point_short = false;
+            for (std::size_t p = 0; p < guild::kPvPEventCount; ++p)
+            {
+                if (!r.Read(points[p])) { point_short = true; break; }
+            }
+            if (point_short)
+            {
+                spdlog::warn("OnLocalRecordAck[{}]: short point array at "
+                             "guild={} record={}", ip, guild_id, i);
+                co_return;
+            }
+
+            if (!guild) { ++dropped; continue; }
+
+            // Accumulate into the member's weekrecord under the
+            // guild lock. Tactics-only members get skipped here
+            // (deferred along with the rest of the tactics
+            // subsystem).
+            bool matched = false;
+            {
+                std::lock_guard gl(guild->lock);
+                for (auto& m : guild->members)
+                {
+                    if (m.char_id == char_id)
+                    {
+                        m.weekrecord.kill_count += kill_count;
+                        m.weekrecord.die_count  += die_count;
+                        for (std::size_t p = 0;
+                             p < guild::kPvPEventCount; ++p)
+                            m.weekrecord.points[p] += points[p];
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            if (matched) ++applied;
+            else         ++dropped;
+        }
+    }
+
+    spdlog::info("OnLocalRecordAck[{}]: win_guild={} guild_pt={} "
+                 "guilds={} applied={} dropped={}",
+        ip, win_guild_id, guild_point, guild_count, applied, dropped);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

@@ -767,6 +767,45 @@ boost::asio::awaitable<void> SendMwGuildTacticsReplyReq(
     std::uint32_t                silver,
     std::uint32_t                cooper);
 
+// MW_GUILDTACTICSINVITE_REQ — forwarded to a target's map peer
+// when a chief invites them to become a tactics member. The
+// target's client pops a "join as tactics member?" dialog.
+//
+// Wire layout (SSSender.cpp:1556):
+//   DWORD char_id, key, STRING guild_name, inviter_name,
+//   BYTE day, DWORD point, gold, silver, cooper
+boost::asio::awaitable<void> SendMwGuildTacticsInviteReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           guild_name,
+    const std::string&           inviter_name,
+    std::uint8_t                 day,
+    std::uint32_t                point,
+    std::uint32_t                gold,
+    std::uint32_t                silver,
+    std::uint32_t                cooper);
+
+// MW_GUILDTACTICSANSWER_REQ — invite outcome, sent to both the
+// target's peer and the chief's peer.
+//
+// Wire layout (SSSender.cpp:1581):
+//   DWORD char_id, key, BYTE result, DWORD guild_id,
+//   STRING guild_name, DWORD member_id, STRING member_name,
+//   DWORD gold, silver, cooper
+boost::asio::awaitable<void> SendMwGuildTacticsAnswerReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                guild_id,
+    const std::string&           guild_name,
+    std::uint32_t                member_id,
+    const std::string&           member_name,
+    std::uint32_t                gold,
+    std::uint32_t                silver,
+    std::uint32_t                cooper);
+
 // MW_GUILDTACTICSKICKOUT_REQ — result of a chief kicking a
 // tactics member (or a member self-leaving).
 //

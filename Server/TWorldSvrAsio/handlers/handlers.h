@@ -683,6 +683,31 @@ boost::asio::awaitable<void> OnGuildTacticsListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-35: tactics invite + answer (chief-initiated hire) -------
+//
+// The chief-initiated hire dialog (vs. the W3a-32/33 volunteer-
+// initiated path). INVITE: chief offers a contract to a player
+// by name; the validated offer is relayed to the target's map
+// peer as a dialog. ANSWER: the target accepts/declines; on
+// accept the tactics-member promotion runs (same charge + add
+// as the W3a-33 reply path), with the outcome echoed to both
+// the target's and chief's peers.
+//
+// Wire layouts (SSHandler.cpp:5006/5094):
+//   INVITE : DWORD char_id, key, STRING target_name, BYTE day,
+//            DWORD point, gold, silver, cooper
+//   ANSWER : DWORD char_id, key, BYTE answer, STRING inviter_name,
+//            BYTE day, DWORD point, gold, silver, cooper
+boost::asio::awaitable<void> OnGuildTacticsInviteAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildTacticsAnswerAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

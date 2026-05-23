@@ -350,9 +350,12 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_PARTYJOIN_ACK:
         co_await OnPartyJoinAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_PARTYDEL_ACK:
+        co_await OnPartyDelAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3b-3+ picks up PARTYDEL (leave/kick) + chief succession +
-    // the corps subsystem. … see README §4.
+    // W3b-4+ picks up PARTYMANSTAT (member stats) + PARTYMOVE +
+    // CHGPARTYCHIEF/TYPE + the corps subsystem. … see README §4.
 
     default:
         break;

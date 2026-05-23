@@ -1069,4 +1069,32 @@ boost::asio::awaitable<void> SendMwPartyAttrReq(
     std::uint32_t                chief_id,
     std::uint16_t                commander_id);
 
+// --- W3b-3 party leave / kick -------------------------------------
+
+// MW_PARTYDEL_REQ — sent to every party member when one leaves (or
+// is kicked). The leaver receives it with chief_id = 0 and
+// party_id = 0 (telling their client they're now partyless); the
+// remaining members receive the surviving chief + party id so
+// their roster re-renders. On a disband (party drops below two)
+// every member sees chief_id/party_id = 0.
+//
+// Wire layout (SSSender.cpp:749):
+//   DWORD recipient_char_id
+//   DWORD recipient_key
+//   DWORD leaver_char_id      -- who left / was kicked
+//   DWORD chief_id            -- surviving chief (0 for the leaver
+//                                / on disband)
+//   WORD  commander_id        -- corps commander (0, no corps)
+//   WORD  party_id            -- 0 when chief_id is 0
+//   BYTE  kick                -- 1 = kicked, 0 = voluntary leave
+boost::asio::awaitable<void> SendMwPartyDelReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                recipient_char_id,
+    std::uint32_t                recipient_key,
+    std::uint32_t                leaver_char_id,
+    std::uint32_t                chief_id,
+    std::uint16_t                commander_id,
+    std::uint16_t                party_id,
+    std::uint8_t                 kick);
+
 } // namespace tworldsvr::senders

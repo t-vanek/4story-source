@@ -499,4 +499,186 @@ OnPartyJoinAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+namespace {
+
+// Push a char a MW_PARTYATTR_REQ if their map is online. Small
+// shared helper for the succession refresh + the leaver's clear.
+boost::asio::awaitable<void>
+SendAttr(const HandlerContext& ctx, std::uint32_t char_id,
+         std::uint16_t party_id, std::uint8_t obtain,
+         std::uint32_t chief_id)
+{
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    std::uint32_t key = 0;
+    std::uint8_t  msi = 0;
+    {
+        std::lock_guard g(c->lock);
+        key = c->key;
+        msi = c->main_server_id;
+    }
+    if (auto p = FindMapPeer(ctx, msi))
+        co_await senders::SendMwPartyAttrReq(p, char_id, key, party_id,
+            obtain, chief_id, /*commander=*/0);
+}
+
+// Remove `leaver_id` from `party`, mirroring legacy
+// CTWorldSvrModule::LeaveParty. Survives if ≥2 members remain
+// (with chief succession when the leaver was chief), else disbands
+// — pulling the last member out (the recursive is_delete=false
+// call) and dropping the party from the registry.
+//
+// Self-recursive coroutine → forward-declared.
+boost::asio::awaitable<void>
+LeaveParty(const HandlerContext& ctx, std::shared_ptr<TParty> party,
+           std::uint32_t leaver_id, std::uint8_t kick, bool is_delete);
+
+boost::asio::awaitable<void>
+LeaveParty(const HandlerContext& ctx, std::shared_ptr<TParty> party,
+           std::uint32_t leaver_id, std::uint8_t kick, bool is_delete)
+{
+    std::vector<std::uint32_t> members_before;
+    std::uint16_t pid         = 0;
+    std::uint8_t  obtain      = 0;
+    std::uint32_t chief_after = 0;
+    bool          will_delete = false;
+    bool          succession  = false;
+    {
+        std::lock_guard pg(party->lock);
+        pid            = party->id;
+        obtain         = party->obtain_type;
+        members_before = party->members;
+        const std::uint8_t size = party->Size();
+        const bool leaver_was_chief = party->IsChief(leaver_id);
+        if (size > 2 || !is_delete)
+        {
+            // Chief succession: promote the first other member
+            // (legacy GetNextChief). Non-chief leave leaves it be.
+            if (leaver_was_chief)
+                for (auto mid : party->members)
+                    if (mid != leaver_id)
+                    {
+                        party->chief_char_id = mid;
+                        succession = true;
+                        break;
+                    }
+            chief_after = party->chief_char_id;
+        }
+        else
+        {
+            party->chief_char_id = 0;
+            chief_after          = 0;
+            will_delete          = true;
+        }
+    }
+
+    // Succession refresh: every member (incl. the leaver) gets the
+    // new chief before the DEL fan-out (legacy PartyAttr loop).
+    if (succession)
+        for (auto mid : members_before)
+            co_await SendAttr(ctx, mid, pid, obtain, chief_after);
+
+    // DEL fan-out to all members. The leaver hears chief=0/party=0;
+    // survivors hear the surviving chief + party id.
+    for (auto mid : members_before)
+    {
+        auto c = ctx.chars->Find(mid);
+        if (!c) continue;
+        std::uint32_t mkey = 0;
+        std::uint8_t  mmsi = 0;
+        {
+            std::lock_guard g(c->lock);
+            mkey = c->key;
+            mmsi = c->main_server_id;
+        }
+        auto p = FindMapPeer(ctx, mmsi);
+        if (!p) continue;
+        const std::uint32_t chief_field = (mid != leaver_id) ? chief_after : 0;
+        const std::uint16_t party_field = chief_field ? pid : 0;
+        co_await senders::SendMwPartyDelReq(p, mid, mkey, leaver_id,
+            chief_field, /*commander=*/0, party_field, kick);
+    }
+
+    // Commit the removal + clear the leaver's back-pointer, then
+    // push it a cleared PARTYATTR (legacy PartyAttr(pChar) after
+    // DelMember leaves m_pParty null).
+    {
+        std::lock_guard pg(party->lock);
+        party->RemoveMember(leaver_id);
+    }
+    if (auto lc = ctx.chars->Find(leaver_id))
+    {
+        std::lock_guard g(lc->lock);
+        lc->party_id = 0;
+    }
+    co_await SendAttr(ctx, leaver_id, /*party_id=*/0, /*obtain=*/0,
+        /*chief=*/0);
+
+    // Disband cascade: pull the last member out, then drop the
+    // (now-empty) party from the registry.
+    if (will_delete)
+    {
+        std::uint32_t last = 0;
+        {
+            std::lock_guard pg(party->lock);
+            if (!party->members.empty()) last = party->members.front();
+        }
+        if (last != 0)
+            co_await LeaveParty(ctx, party, last, /*kick=*/0,
+                /*is_delete=*/false);
+        if (ctx.parties) ctx.parties->Remove(pid);
+    }
+    co_return;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnPartyDelAck(std::shared_ptr<PeerSession> peer,
+              std::vector<std::byte>       body,
+              const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnPartyDelAck[{}]: registries not wired — dropped", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint16_t party_id = 0;
+    std::uint32_t char_id  = 0;
+    std::uint8_t  kick     = 0;
+    if (!r.Read(party_id) || !r.Read(char_id) || !r.Read(kick))
+    {
+        spdlog::warn("OnPartyDelAck[{}]: short body ({} bytes) — dropped",
+            ip, body.size());
+        co_return;
+    }
+
+    auto party = ctx.parties->Find(party_id);
+    if (!party)
+    {
+        spdlog::info("OnPartyDelAck[{}]: party {} not found — drop",
+            ip, party_id);
+        co_return;
+    }
+    bool is_member = false;
+    {
+        std::lock_guard pg(party->lock);
+        is_member = party->IsMember(char_id);
+    }
+    if (!is_member)
+    {
+        spdlog::info("OnPartyDelAck[{}]: char_id={} not in party {} — drop",
+            ip, char_id, party_id);
+        co_return;
+    }
+
+    co_await LeaveParty(ctx, party, char_id, kick, /*is_delete=*/true);
+    spdlog::info("OnPartyDelAck[{}]: char_id={} left party {} (kick={})",
+        ip, char_id, party_id, kick);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

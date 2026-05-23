@@ -291,3 +291,14 @@ target_link_libraries(test_tworldsvr_asio_party_join_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_party_join_handlers
     COMMAND test_tworldsvr_asio_party_join_handlers)
+
+# W3b-3 wire test: MW_PARTYDEL_ACK leave/kick over a four-peer
+# loopback session — chief-leave succession, non-chief kick
+# (flag + survival), and the disband cascade (2→0 with the last
+# member pulled out + the party dropped from the registry).
+add_executable(test_tworldsvr_asio_party_del_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_party_del_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_party_del_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_party_del_handlers
+    COMMAND test_tworldsvr_asio_party_del_handlers)

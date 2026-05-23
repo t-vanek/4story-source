@@ -1064,5 +1064,24 @@ boost::asio::awaitable<void> OnPartyJoinAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3b-3: party leave / kick (handlers_party.cpp) ----------------
+//
+// MW_PARTYDEL_ACK removes one member from a party — voluntary
+// leave (bKick=0, char removes self) or chief kick (bKick=1, the
+// map server already validated chief authority). World runs the
+// legacy LeaveParty: if the party still has ≥2 members afterwards
+// it survives (with chief succession to the next member if the
+// leaver was chief), otherwise it disbands and the last remaining
+// member is pulled out too. Every member is told via
+// MW_PARTYDEL_REQ + the survivors get a MW_PARTYATTR_REQ refresh;
+// the leaver's party_id back-pointer is cleared.
+//
+// Wire layout (SSHandler.cpp:2817):
+//   WORD wPartyID, DWORD dwCharID, BYTE bKick
+boost::asio::awaitable<void> OnPartyDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

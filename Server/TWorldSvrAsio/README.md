@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3b-2 party formation (PARTYJOIN)
+## Status — W3b-3 party leave / kick (PARTYDEL)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -58,12 +58,62 @@ that the four shipped Asio daemons already use.
 | **W3a-38** | Disband + point-reward player actions (OnGuildDisorganization/PointRewardAck) — the map→world entry points pairing the W3a-4b/W3a-14 DB fan-ins; closes the last player-facing guild gaps | ✅ |
 | W3a-39+ | DB persistence (tactics + cabinet) + W5 castle/skill guild handlers | ⏸ |
 | W3b-1 | Party subsystem foundation — PartyRegistry + TParty + TChar party_id/party_waiter/HP-MP fields + OnMW_PARTYADD_ACK invite-relay gate + SendMwPartyAddReq | ✅ |
-| **W3b-2** | Party formation — OnMW_PARTYJOIN_ACK (create new party / join existing) + PartyRegistry::GenId + JoinParty pairwise PARTYJOIN_REQ fan-out + PARTYATTR HUD push + SendMwPartyJoinReq/AttrReq | ✅ |
-| W3b-3+ | Party leave/kick (PARTYDEL) + chief succession + member-stat (PARTYMANSTAT) + Corps | ⏸ |
+| W3b-2 | Party formation — OnMW_PARTYJOIN_ACK (create new party / join existing) + PartyRegistry::GenId + JoinParty pairwise PARTYJOIN_REQ fan-out + PARTYATTR HUD push + SendMwPartyJoinReq/AttrReq | ✅ |
+| **W3b-3** | Party leave/kick — OnMW_PARTYDEL_ACK + LeaveParty (chief succession, PARTYDEL fan-out, disband cascade on drop-below-two) + SendMwPartyDelReq | ✅ |
+| W3b-4+ | Party member-stat (PARTYMANSTAT) + PARTYMOVE + CHGPARTYCHIEF/TYPE + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3b-3 — what landed
+
+Party **leave / kick** — completes the party lifecycle's
+create→join→leave triangle. The map server already validated chief
+authority before sending, so the handler is symmetric for both the
+voluntary-leave (bKick=0, char removes self) and chief-kick
+(bKick=1) cases.
+
+Handler — `OnPartyDelAck` (wID 0x9024): finds the party, confirms
+the named char is a member, then runs `LeaveParty`.
+
+`LeaveParty` (file-local self-recursive coroutine, mirrors legacy
+`CTWorldSvrModule::LeaveParty`):
+- **Survives** when ≥2 members remain (party size > 2, or the
+  recursive `is_delete=false` tail). If the leaver was chief,
+  succession promotes the first other member (legacy
+  `GetNextChief`) and every member gets a `MW_PARTYATTR_REQ`
+  refresh with the new chief before the DEL fan-out.
+- **Disbands** when the leave would drop it below two: the chief
+  is zeroed and, after the leaver is removed, the last remaining
+  member is pulled out via a recursive `LeaveParty(..., is_delete
+  =false)` and the party is dropped from the registry.
+- Fan-out: every member is sent `MW_PARTYDEL_REQ` — the leaver
+  with chief_id/party_id = 0 (their client clears the HUD), the
+  survivors with the surviving chief + party id. The leaver's
+  `TChar.party_id` back-pointer is cleared and it gets a final
+  cleared `MW_PARTYATTR_REQ`.
+
+Lock discipline unchanged: party member-set + meta snapshotted
+under the party lock and released before any char lock; a char
+lock is never held across the party lock (README §5).
+
+Deferred (corps not ported): `NotifyDelCorpsUnit` /
+`NotifyCorpsLeave` / `ChgSquadChief` / `ReportEnemyList` and the
+`RW_PARTYDEL_ACK` / `RW_PARTYCHGCHIEF_ACK` relay-DB echoes — all
+corps_id-gated (always 0) or relay-channel-only.
+
+Sender — `SendMwPartyDelReq` (7-field).
+
+Tests — `tests/test_party_del_handlers.cpp` (3 scenarios,
+four-peer loopback on one progressively-shrinking party):
+chief-leave with succession to the next member (asserts the
+new-chief PARTYATTR to all + the DEL fan-out + the leaver's
+cleared PARTYATTR), a non-chief kick (flag propagation + survival),
+and the disband cascade (2→0: both members pulled out, party
+removed from the registry, both back-pointers cleared).
+
+Build verified: cmake + ctest -R tworldsvr_asio (21/21 passed).
 
 ### W3b-2 — what landed
 

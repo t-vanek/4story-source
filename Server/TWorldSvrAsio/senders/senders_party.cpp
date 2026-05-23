@@ -90,4 +90,29 @@ SendMwPartyAttrReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwPartyDelReq(std::shared_ptr<PeerSession> peer,
+                  std::uint32_t                recipient_char_id,
+                  std::uint32_t                recipient_key,
+                  std::uint32_t                leaver_char_id,
+                  std::uint32_t                chief_id,
+                  std::uint16_t                commander_id,
+                  std::uint16_t                party_id,
+                  std::uint8_t                 kick)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, recipient_char_id);
+    WritePOD<std::uint32_t>(body, recipient_key);
+    WritePOD<std::uint32_t>(body, leaver_char_id);
+    WritePOD<std::uint32_t>(body, chief_id);
+    WritePOD<std::uint16_t>(body, commander_id);
+    WritePOD<std::uint16_t>(body, party_id);
+    WritePOD<std::uint8_t>(body, kick);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_PARTYDEL_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

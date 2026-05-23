@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-35 tactics invite + answer (chief-initiated hire)
+## Status — W3a-36 tactics term-expiry sweep
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -52,13 +52,57 @@ that the four shipped Asio daemons already use.
 | W3a-32 | Tactics subsystem part 2 — volunteer applicant flow (OnGuildTacticsVolunteering/Del/VolunteerListAck) + registry applicant API (AddApp 7-gate / DelApp / SnapshotAppsFor) + wanted-board already_applied wiring | ✅ |
 | W3a-33 | Tactics subsystem part 3 — reply accept/reject (OnGuildTacticsReplyAck): hires applicant as a tactics member (TTacticsMember model + TChar.tactics_guild_id) charging PvP-points + money up front, with the 7 hire gates + dual broadcast | ✅ |
 | W3a-34 | Tactics subsystem part 4 — kickout (chief-kick forfeit / self-leave refund via TGuild::RemoveTactics) + roster list (GetCurGuild priority) | ✅ |
-| **W3a-35** | Tactics subsystem part 5 — chief-initiated hire (OnGuildTacticsInvite/AnswerAck): invite-by-name dialog relayed to the target, accept runs the hire promotion + dual outcome echo. Tactics subsystem now feature-complete (wanted/volunteer/reply/kickout/list/invite/answer) | ✅ |
-| W3a-36+ | Tactics term-expiry sweep + DB persistence + Cabinet item codec | ⏸ |
+| W3a-35 | Tactics subsystem part 5 — chief-initiated hire (OnGuildTacticsInvite/AnswerAck): invite-by-name dialog relayed to the target, accept runs the hire promotion + dual outcome echo. Tactics subsystem now feature-complete (wanted/volunteer/reply/kickout/list/invite/answer) | ✅ |
+| **W3a-36** | Tactics contract term-expiry sweep (SweepExpiredTactics on a RegistryRefresher tick) — ends contracts past end_time, clears char back-pointers; closes the legacy EXPIRED_GT path | ✅ |
+| W3a-37+ | Tactics DB persistence + Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-36 — what landed
+
+Periodic prune of tactics-member contracts whose fixed term
+(`TTacticsMember.end_time`) has elapsed — the in-process
+replacement for the legacy EXPIRED_GT timer path
+(`CTGuild::AddTactics` registered an `OnEventExpired` entry that
+the timer service fired at end_time). Mirrors the W3a-19
+wanted-board sweep.
+
+New service — `services/guild_tactics_sweep.{h,cpp}`
+- `SweepExpiredTactics(GuildRegistry&, CharRegistry*)`: samples
+  now, walks every guild (via `GuildRegistry::SnapshotIds` →
+  `Find`), erases tactics members with `end_time <= now` under
+  each guild's lock collecting the freed char_ids, then clears
+  each freed char's `tactics_guild_id` back-pointer. `end_time
+  == 0` is treated as "no expiry". Logs a one-line summary when
+  anything expired.
+- Expiry is an end-of-term, **not** a refund event — the
+  member served their contract, so no money/point is returned
+  (matching legacy: `DelTactics` only refunds on the self-leave
+  path, W3a-34).
+
+Wiring
+- `main.cpp` spins a second `RegistryRefresher` (alongside the
+  W3a-19 wanted sweeper) with the tactics sweep registered as a
+  coroutine hook. Stops cleanly on shutdown.
+- `[guild] tactics_sweep_period_sec = N` config knob (default
+  300s; 0 disables — same shape as `wanted_sweep_period_sec`).
+
+Tests
+- New `tests/test_tactics_sweep.cpp` (4 scenarios): empty
+  roster no-op, mixed expired/live (only expired removed +
+  back-pointer cleared, live kept), `end_time == 0` never
+  expires, null CharRegistry still prunes the roster.
+
+Build verified: cmake + ctest -R tworldsvr_asio (17/17 passed,
++1 new dedicated sweep test).
+
+Deferred to W3a-37+
+- DB persistence for tactics members + wanted board (and the
+  guild-money repo flush noted in W3a-33)
+- Cabinet PUTIN / TAKEOUT + item codec
 
 ### W3a-35 — what landed
 

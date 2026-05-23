@@ -93,6 +93,13 @@ AppConfig LoadConfig(const std::string& path)
                     "guild.wanted_sweep_period_sec must be >= 0");
             cfg.wanted_sweep_period_sec = static_cast<std::uint32_t>(*v);
         }
+        if (auto v = (*g)["tactics_sweep_period_sec"].value<std::int64_t>())
+        {
+            if (*v < 0)
+                throw std::runtime_error(
+                    "guild.tactics_sweep_period_sec must be >= 0");
+            cfg.tactics_sweep_period_sec = static_cast<std::uint32_t>(*v);
+        }
     }
     if (auto lg = tbl["log"].as_table())
     {

@@ -55,6 +55,12 @@ struct AppConfig
     // never lingers more than a sweep tick past its end_time.
     std::uint32_t wanted_sweep_period_sec = 300;
 
+    // W3a-36 tactics-contract expiry sweep period in seconds.
+    // Same shape as wanted_sweep_period_sec; 0 disables. Default
+    // 300s — tactics contracts run for days so a 5-minute sweep
+    // ends them well within a tick of their end_time.
+    std::uint32_t tactics_sweep_period_sec = 300;
+
     spdlog::level::level_enum log_level = spdlog::level::info;
 };
 

@@ -51,6 +51,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/guild_tactics_wanted_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/guild_tactics_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/pvp_aggregate.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_level_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
@@ -244,3 +245,12 @@ target_link_libraries(test_tworldsvr_asio_pvp_aggregate PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_pvp_aggregate
     COMMAND test_tworldsvr_asio_pvp_aggregate)
+
+# W3a-36 unit test: SweepExpiredTactics — prunes expired tactics
+# contracts across the guild registry + clears char back-pointers.
+add_executable(test_tworldsvr_asio_tactics_sweep
+    ${TWORLD_ASIO_SRC}/tests/test_tactics_sweep.cpp)
+target_link_libraries(test_tworldsvr_asio_tactics_sweep PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tactics_sweep
+    COMMAND test_tworldsvr_asio_tactics_sweep)

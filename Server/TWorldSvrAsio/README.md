@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-26 cabinet LIST stub
+## Status — W3a-27 PvP point reward log reader
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -43,13 +43,81 @@ that the four shipped Asio daemons already use.
 | W3a-23 | PvP record list reader (OnMW_GUILDPVPRECORD_ACK) — pairs with W3a-21 audit log; new TPvPRecord POD + TGuildMember.weekrecord + GuildPvPRecordRow sender | ✅ |
 | W3a-24 | Per-period war-result fan-in (OnMW_LOCALRECORD_ACK) — accumulates kill/die/points deltas into TGuildMember.weekrecord so W3a-23 reader returns live data | ✅ |
 | W3a-25 | Alliance + enemy state modelling — TGuild gains vector<uint32_t> fields populated by W3a-22 (drained-and-dropped lists become real in-memory state) | ✅ |
-| **W3a-26** | Cabinet LIST stub (OnGuildCabinetListAck) — wire-compat empty-list reply via SendMwGuildCabinetListReq; PUTIN/TAKEOUT + item codec still deferred | ✅ |
-| W3a-27+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) + per-day vRecord history | ⏸ |
+| W3a-26 | Cabinet LIST stub (OnGuildCabinetListAck) — wire-compat empty-list reply via SendMwGuildCabinetListReq; PUTIN/TAKEOUT + item codec still deferred | ✅ |
+| **W3a-27** | PvP point reward log reader (OnGuildPointLogAck) — pairs with W3a-14 writer; new TPointRewardEntry + TGuild.point_log in-memory mirror | ✅ |
+| W3a-28+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) + per-day vRecord history | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-27 — what landed
+
+Read-side counterpart to W3a-14's PvP point reward writer.
+Player opens the guild "point reward log" UI panel; map server
+forwards via `MW_GUILDPOINTLOG_ACK`; world replies with the
+guild's full rolling point-reward audit log. Pairs with the
+W3a-14 writer (`OnGuildPointRewardReq`) which now also appends
+to `TGuild.point_log` in addition to persisting to
+`TGUILDPVPOINTREWARDTABLE` — so the reader returns live data
+after at least one reward fan-in.
+
+State model
+- `TPointRewardEntry` POD added to `services/guild_registry.h`
+  — `{date_unix: i64, recipient_name: string, point: u32}`.
+  Mirrors legacy `m_vPointReward` entries.
+- `TGuild.point_log` field of `vector<TPointRewardEntry>` —
+  unbounded per-process growth; the legacy `m_vPointReward`
+  doesn't trim either, and the read-side `CTBLGuildPvPointReward`
+  SELECT-TOP-50 trims on read in the legacy DB layer. We
+  don't currently trim in-memory or wire — boot-time load-
+  from-DB wiring lives in a future batch.
+
+W3a-14 handler update
+- `OnGuildPointRewardReq` now also appends a `TPointRewardEntry`
+  to `TGuild.point_log` under the guild lock, alongside the
+  existing total/useable defensive mirror.
+- `date_unix = std::time(nullptr)` (the DB SP stamps its own
+  `dlDate` column with `CURRENT_TIMESTAMP`; we sample world's
+  wall-clock so the reader's reply carries an accurate
+  date even before a DB roundtrip).
+
+Sender — `SendMwGuildPointLogReq`
+- New `GuildPointLogEntry` POD on the wire-friendly side.
+- Loop emits per entry: `{INT64 date_unix, STRING recipient_name,
+  DWORD point}`.
+
+Handler — `OnGuildPointLogAck` (wID `MW_GUILDPOINTLOG_ACK` =
+0x9125)
+- Wire: `{char_id, key}`.
+- Validates char + key + non-zero `guild_id` + guild present in
+  registry (legacy parity SSHandler.cpp:10298).
+- Snapshots `guild->point_log` under the guild lock, fires the
+  reply.
+- Tactics-branch short-circuit deferred along with the rest of
+  the tactics subsystem.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenario 46: builds on
+  scenario 22 (which fired a `DM_GUILDPOINTREWARD_REQ` for
+  "Bravo2" recipient + 250 points). Verifies the log reader
+  reply contains an entry with the expected recipient name +
+  point value + non-zero date.
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed).
+
+Deferred to W3a-28+
+- Boot-time `point_log` load from `TGUILDPVPOINTREWARDTABLE` so
+  the in-memory log survives process restart and the reader
+  returns rows from before the latest boot
+- TOP-50 trim semantics (legacy
+  `CTBLGuildPvPointReward` trims on read)
+- Cabinet PUTIN / TAKEOUT handlers + DM fan-in + item codec
+- Tactics subsystem (~17 handlers)
+- Per-day vRecord history (replaces W3a-24's plain accumulator)
+- War-bonus award for B-country tactics-guilds
+- SOCI persistence for alliance / enemy
 
 ### W3a-26 — what landed
 

@@ -619,6 +619,31 @@ struct GuildPvPRecordRow
     std::array<std::uint32_t, 6> points{};
 };
 
+// MW_GUILDPOINTLOG_REQ — reply to OnGuildPointLogAck. Returns
+// the guild's rolling PvP point-reward audit log (TGuild.point_log
+// vector populated by the W3a-14 OnGuildPointRewardReq fan-in
+// + the W3a-27 in-memory mirror).
+//
+// Wire layout (SSSender.cpp:3140):
+//   DWORD dwCharID
+//   DWORD dwKey
+//   WORD  entry_count
+//     [entry_count times]
+//       INT64  date_unix
+//       STRING recipient_name
+//       DWORD  point
+struct GuildPointLogEntry
+{
+    std::int64_t  date_unix = 0;
+    std::string   recipient_name;
+    std::uint32_t point     = 0;
+};
+boost::asio::awaitable<void> SendMwGuildPointLogReq(
+    std::shared_ptr<PeerSession>                  peer,
+    std::uint32_t                                 char_id,
+    std::uint32_t                                 key,
+    const std::vector<GuildPointLogEntry>&        entries);
+
 // MW_GUILDCABINETLIST_REQ — reply to OnGuildCabinetListAck. The
 // legacy reply emits the guild's max_cabinet cap + every item
 // in `m_mapTCabinet`. Our W3a-26 stub always emits count=0

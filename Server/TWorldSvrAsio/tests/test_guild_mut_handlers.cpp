@@ -2139,6 +2139,47 @@ int main()
         EXPECT(rr.Read(count));   EXPECT(count == 0);
     }
 
+    // --- Scenario 46: MW_GUILDPOINTLOG_ACK round-trip (W3a-27) ----
+    //
+    // Scenario 22 already fired a DM_GUILDPOINTREWARD_REQ for
+    // guild 8 ("Bravo2" recipient, 250 points). W3a-27 added an
+    // in-memory mirror onto TGuild.point_log inside that
+    // handler, so the log reader should return that entry now.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);  // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111); // key
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDPOINTLOG_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDPOINTLOG_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0;
+        std::uint16_t entry_count = 0;
+        EXPECT(rr.Read(cid));    EXPECT(cid == 200);
+        EXPECT(rr.Read(key));    EXPECT(key == 0xBEEF1111);
+        EXPECT(rr.Read(entry_count));
+        EXPECT(entry_count >= 1);
+        bool saw_bravo = false;
+        for (std::uint16_t i = 0; i < entry_count; ++i)
+        {
+            std::int64_t  date = 0;
+            std::string   name;
+            std::uint32_t point = 0;
+            EXPECT(rr.Read(date));
+            EXPECT(rr.ReadString(name));
+            EXPECT(rr.Read(point));
+            if (name == "Bravo2" && point == 250)
+            {
+                saw_bravo = true;
+                EXPECT(date > 0);   // any non-zero epoch second
+            }
+        }
+        EXPECT(saw_bravo);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2148,7 +2189,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (45 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (46 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

@@ -1402,6 +1402,11 @@ OnGuildPointRewardReq(std::shared_ptr<PeerSession> peer,
     // Mirror W3a-13's defensive in-memory update for the
     // total/useable fields — they shadow the canonical DB row
     // and OnGuildInfoAck reads them straight from the registry.
+    // W3a-27: also append the reward to TGuild.point_log so the
+    // matching OnGuildPointLogAck reader returns the entry on
+    // the next call (legacy parity — pGuild->PointLog at
+    // SSHandler.cpp:10357 appends to m_vPointReward right after
+    // the SP fan-out).
     if (ctx.guilds)
     {
         if (auto guild = ctx.guilds->Find(guild_id))
@@ -1409,6 +1414,12 @@ OnGuildPointRewardReq(std::shared_ptr<PeerSession> peer,
             std::lock_guard gl(guild->lock);
             guild->pvp_total_point   = total;
             guild->pvp_useable_point = useable;
+            TPointRewardEntry entry;
+            entry.date_unix      =
+                static_cast<std::int64_t>(std::time(nullptr));
+            entry.recipient_name = recipient;
+            entry.point          = point;
+            guild->point_log.push_back(std::move(entry));
         }
     }
     if (ctx.guild_repo)
@@ -2589,6 +2600,87 @@ OnGuildCabinetListAck(std::shared_ptr<PeerSession> peer,
     spdlog::info("OnGuildCabinetListAck[{}]: char_id={} guild_id={} "
                  "max_cabinet={} (stub — item codec deferred, items=0)",
         ip, char_id, guild_id, max_cabinet);
+}
+
+// --- W3a-27 PvP point reward log reader ----------------------------
+//
+// Read-side counterpart to W3a-14's OnGuildPointRewardReq. The
+// W3a-27 patch added the in-memory mirror onto TGuild.point_log
+// so this reader returns live data after at least one reward
+// fan-in.
+
+boost::asio::awaitable<void>
+OnGuildPointLogAck(std::shared_ptr<PeerSession> peer,
+                   std::vector<std::byte>       body,
+                   const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildPointLogAck[{}]: char/guild registry not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildPointLogAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+    // Legacy SSHandler.cpp:10298 also short-circuits on tactics
+    // path (pTactics != null). Skipped along with the rest of
+    // the tactics subsystem.
+    if (guild_id == 0)
+    {
+        spdlog::info("OnGuildPointLogAck[{}]: char_id={} has no guild "
+                     "— dropped", ip, char_id);
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        spdlog::info("OnGuildPointLogAck[{}]: char_id={} stale "
+                     "guild_id={} — dropped", ip, char_id, guild_id);
+        co_return;
+    }
+
+    // Snapshot the log under the guild lock. Each TGuild stores
+    // its full per-process log; the wire format carries every
+    // entry (legacy CTBLGuildPvPointReward trims to TOP 50 on
+    // read, but the in-memory pGuild->m_vPointReward grows
+    // unbounded until process restart — same behavior here).
+    std::vector<senders::GuildPointLogEntry> entries;
+    {
+        std::lock_guard gl(guild->lock);
+        entries.reserve(guild->point_log.size());
+        for (const auto& e : guild->point_log)
+        {
+            senders::GuildPointLogEntry row;
+            row.date_unix      = e.date_unix;
+            row.recipient_name = e.recipient_name;
+            row.point          = e.point;
+            entries.push_back(std::move(row));
+        }
+    }
+
+    co_await senders::SendMwGuildPointLogReq(peer, char_id, key, entries);
+
+    spdlog::info("OnGuildPointLogAck[{}]: char_id={} guild_id={} "
+                 "entries={}", ip, char_id, guild_id, entries.size());
 }
 
 // --- W3a-12 volunteer / applicant flow ----------------------------

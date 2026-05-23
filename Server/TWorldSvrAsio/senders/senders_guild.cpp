@@ -604,6 +604,30 @@ SendMwGuildPvPRecordReq(std::shared_ptr<PeerSession>           peer,
 }
 
 boost::asio::awaitable<void>
+SendMwGuildPointLogReq(std::shared_ptr<PeerSession>           peer,
+                       std::uint32_t                          char_id,
+                       std::uint32_t                          key,
+                       const std::vector<GuildPointLogEntry>& entries)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(
+        entries.size()));
+    for (const auto& e : entries)
+    {
+        WritePOD<std::int64_t>(body, e.date_unix);
+        WriteString(body, e.recipient_name);
+        WritePOD<std::uint32_t>(body, e.point);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDPOINTLOG_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwGuildCabinetListReq(std::shared_ptr<PeerSession> peer,
                           std::uint32_t                char_id,
                           std::uint32_t                key,

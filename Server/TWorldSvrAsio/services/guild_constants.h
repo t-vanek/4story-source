@@ -117,6 +117,14 @@ constexpr std::uint8_t kPvPOwnerGuild = 1;   // TOWNER_GUILD
 constexpr std::uint8_t kPvPMaskTotal   = 1;  // PVP_TOTAL
 constexpr std::uint8_t kPvPMaskUseable = 2;  // PVP_USEABLE
 
+// W3a-31 — max concurrent tactics-wanted postings per guild.
+// Legacy MAX_TACTICSWANTED (caps the per-guild vector in
+// AddGuildTacticsWanted, TWorldSvr.cpp:4668). The exact legacy
+// value isn't in the headers available to this port; 5 is a
+// conservative recruitment-board cap. Adjust if the canonical
+// value surfaces.
+constexpr std::size_t kMaxTacticsWantedPerGuild = 5;
+
 // W3a-29 — max entries kept in TGuild.point_log. Legacy
 // CTGuild::PointLog (TGuild.cpp:603) inserts newest-first and
 // pop_back()s once size exceeds 50 (matching the read-side

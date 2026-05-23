@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-30 boot-time point_log load + Clone fidelity fix
+## Status — W3a-31 tactics wanted board
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -47,13 +47,83 @@ that the four shipped Asio daemons already use.
 | W3a-27 | PvP point reward log reader (OnGuildPointLogAck) — pairs with W3a-14 writer; new TPointRewardEntry + TGuild.point_log in-memory mirror | ✅ |
 | W3a-28 | Per-day vRecord history + CalcWeekRecord — replaces W3a-24's plain accumulator with proper week-trim semantics matching legacy CTGuild::CalcWeekRecord exactly | ✅ |
 | W3a-29 | PvP-point gain/use fan-in (OnGainPvPointAck) — char relay + guild bank mutation (total/useable/month) + point_log newest-first/TOP-50 trim fix | ✅ |
-| **W3a-30** | Boot-time point_log load (SOCI LoadAll third pass from TGUILDPVPOINTREWARDTABLE) + FakeGuildRepository::Clone fidelity fix (was dropping alliance/enemy/point_log/month on round-trip) | ✅ |
-| W3a-31+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) | ⏸ |
+| W3a-30 | Boot-time point_log load (SOCI LoadAll third pass from TGUILDPVPOINTREWARDTABLE) + FakeGuildRepository::Clone fidelity fix (was dropping alliance/enemy/point_log/month on round-trip) | ✅ |
+| **W3a-31** | Tactics subsystem part 1 — wanted board (OnGuildTacticsWantedAdd/Del/ListAck) + new GuildTacticsWantedRegistry (multi-posting-per-guild, globally-unique ids, reward fields) | ✅ |
+| W3a-32+ | Tactics volunteer/invite/answer/reply/kickout flows + Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-31 — what landed
+
+First slice of the tactics subsystem — the "we need tactics
+members" recruitment board. Structurally parallels the W3a-11
+guild wanted board but with two key differences: a guild may
+hold MULTIPLE postings (vs. one), and each posting carries a
+globally-unique id + reward fields (point / gold / silver /
+cooper / day).
+
+New registry — `services/guild_tactics_wanted_registry.{h,cpp}`
+- `TGuildTacticsWanted` struct: id, guild_id, country, name,
+  title, text, day, min/max level, point, gold, silver, cooper,
+  end_time.
+- Storage: `unordered_map<guild_id, vector<entry>>` + a reverse
+  index `id -> guild_id` for O(1) `Find(id)`. `shared_mutex`.
+- `NextId()` — monotonic global counter (legacy
+  `++m_dwTacticsIndex`).
+- `AddOrUpdate(entry)` — upsert; in-place update when the id
+  matches an existing posting, otherwise insert subject to the
+  `kMaxTacticsWantedPerGuild` cap (returns `kSuccess` /
+  `kMaxWanted`).
+- `Remove(guild_id, id)`, `Find(id)`,
+  `SnapshotByCountry(country)`, `Size()`.
+
+Handlers (`handlers_guild.cpp`)
+- `OnGuildTacticsWantedAddAck` (wID 0x90F1) — chief posts an
+  entry. `id=0` auto-allocates via `NextId()`; non-zero updates
+  in place. Validates char/key/guild/disorg gates. Replies the
+  3-byte ADD result + a LIST refresh on success.
+- `OnGuildTacticsWantedDelAck` (wID 0x90F3) — removes by
+  `(guild_id, id)`. ADD/DEL both chase success with a LIST
+  refresh (legacy `NotifyGuildTacticsWantedList`).
+- `OnGuildTacticsWantedListAck` (wID 0x90F5) — country-filtered
+  snapshot.
+
+Senders — `SendMwGuildTacticsWantedAdd/Del/ListReq`
+- 3-byte result replies + the variable-length list (14 fields
+  per row, DWORD count prefix). `already_applied` always 0
+  until the tactics-volunteer subsystem ports.
+
+Constant
+- `kMaxTacticsWantedPerGuild = 5` (legacy MAX_TACTICSWANTED;
+  exact value not in available headers — documented assumption).
+
+Scope notes
+- In-memory only. DB persistence (legacy
+  TGUILDTACTICSWANTEDTABLE) deferred, mirroring the W3a-25
+  alliance/enemy approach — the gameplay surface works, the
+  postings just don't survive a restart yet.
+- `end_time = now + kGuildWantedPeriodSec` (legacy uses
+  GUILDWANTED_PERIOD for the tactics board too; `day` is stored
+  for display but doesn't shorten the expiry on this path).
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` fixture gains a
+  `GuildTacticsWantedRegistry`; scenarios 49-51 cover
+  add→list→del round-trips: post auto-id entry + verify the
+  14-field LIST row, standalone LIST, then DEL + verify the
+  registry empties.
+
+Build verified: cmake + ctest -R tworldsvr_asio (16/16 passed).
+
+Deferred to W3a-32+
+- Tactics volunteer / invite / answer / reply / kickout flows
+  (the rest of the ~17-handler tactics subsystem)
+- DB persistence for tactics wanted (TGUILDTACTICSWANTEDTABLE)
+- Cabinet PUTIN / TAKEOUT handlers + item codec
+- War-bonus award for B-country tactics-guilds
 
 ### W3a-30 — what landed
 

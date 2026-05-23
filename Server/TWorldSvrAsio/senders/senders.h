@@ -619,6 +619,72 @@ struct GuildPvPRecordRow
     std::array<std::uint32_t, 6> points{};
 };
 
+// --- W3a-31 — tactics wanted board --------------------------------
+
+// MW_GUILDTACTICSWANTEDADD_REQ / DEL_REQ — 3-byte result replies
+// (char_id, key, result). Mirror SSSender's tactics-wanted ack
+// senders.
+boost::asio::awaitable<void> SendMwGuildTacticsWantedAddReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+boost::asio::awaitable<void> SendMwGuildTacticsWantedDelReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_GUILDTACTICSWANTEDLIST_REQ — variable-length list filtered
+// by country. Richer per-row payload than the guild wanted board
+// (adds id + reward fields). The `already_applied` byte marks
+// whether the requester applied to this posting — always 0 until
+// the tactics-volunteer subsystem ports.
+//
+// Wire layout (SSSender.cpp:1406):
+//   DWORD  dwCharID
+//   DWORD  dwKey
+//   DWORD  entry_count
+//   × entry_count:
+//     DWORD  dwID
+//     DWORD  dwGuildID
+//     STRING strName
+//     STRING strTitle
+//     STRING strText
+//     BYTE   bDay
+//     BYTE   bMinLevel
+//     BYTE   bMaxLevel
+//     DWORD  dwPoint
+//     DWORD  dwGold
+//     DWORD  dwSilver
+//     DWORD  dwCooper
+//     INT64  end_time_unix
+//     BYTE   already_applied
+struct GuildTacticsWantedRow
+{
+    std::uint32_t id              = 0;
+    std::uint32_t guild_id        = 0;
+    std::string   name;
+    std::string   title;
+    std::string   text;
+    std::uint8_t  day             = 0;
+    std::uint8_t  min_level       = 0;
+    std::uint8_t  max_level       = 0;
+    std::uint32_t point           = 0;
+    std::uint32_t gold            = 0;
+    std::uint32_t silver          = 0;
+    std::uint32_t cooper          = 0;
+    std::int64_t  end_time_unix   = 0;
+    std::uint8_t  already_applied = 0;
+};
+
+boost::asio::awaitable<void> SendMwGuildTacticsWantedListReq(
+    std::shared_ptr<PeerSession>                 peer,
+    std::uint32_t                                char_id,
+    std::uint32_t                                key,
+    const std::vector<GuildTacticsWantedRow>&    entries);
+
 // MW_GAINPVPPOINT_REQ — relay forwarded to a char's main map
 // peer when the owner of a PvP-point delta is a character
 // (TOWNER_CHAR). The map server applies the per-char delta +

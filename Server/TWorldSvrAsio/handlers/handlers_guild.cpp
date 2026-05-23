@@ -2856,6 +2856,254 @@ OnGainPvPointAck(std::shared_ptr<PeerSession> peer,
         new_useable, new_month);
 }
 
+// --- W3a-31 tactics wanted board -----------------------------------
+//
+// Tactics-recruitment counterpart to the W3a-11 guild wanted
+// board. In-memory only (DB persistence deferred). The three
+// handlers parallel OnGuildWantedAdd/Del/ListAck closely.
+
+namespace {
+
+// Build the country-filtered tactics-wanted row list for the
+// LIST reply. Shared by the explicit LIST handler + the
+// add/del refresh tails.
+std::vector<senders::GuildTacticsWantedRow>
+BuildTacticsWantedRows(const GuildTacticsWantedRegistry& reg,
+                       std::uint8_t                      country)
+{
+    auto entries = reg.SnapshotByCountry(country);
+    std::vector<senders::GuildTacticsWantedRow> rows;
+    rows.reserve(entries.size());
+    for (const auto& w : entries)
+    {
+        senders::GuildTacticsWantedRow r;
+        r.id              = w.id;
+        r.guild_id        = w.guild_id;
+        r.name            = w.name;
+        r.title           = w.title;
+        r.text            = w.text;
+        r.day             = w.day;
+        r.min_level       = w.min_level;
+        r.max_level       = w.max_level;
+        r.point           = w.point;
+        r.gold            = w.gold;
+        r.silver          = w.silver;
+        r.cooper          = w.cooper;
+        r.end_time_unix   = w.end_time;
+        r.already_applied = 0;  // tactics-volunteer subsystem ports later
+        rows.push_back(std::move(r));
+    }
+    return rows;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildTacticsWantedAddAck(std::shared_ptr<PeerSession> peer,
+                           std::vector<std::byte>       body,
+                           const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.guild_tactics_wanted)
+    {
+        spdlog::warn("OnGuildTacticsWantedAddAck[{}]: registries not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, id = 0;
+    std::string   title, text;
+    std::uint8_t  day = 0, min_level = 0, max_level = 0;
+    std::uint32_t point = 0, gold = 0, silver = 0, cooper = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(id) ||
+        !r.ReadString(title) || !r.ReadString(text) || !r.Read(day) ||
+        !r.Read(min_level) || !r.Read(max_level) || !r.Read(point) ||
+        !r.Read(gold) || !r.Read(silver) || !r.Read(cooper))
+    {
+        spdlog::warn("OnGuildTacticsWantedAddAck[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    std::uint8_t  char_country = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key   = tchar->key;
+        guild_id     = tchar->guild_id;
+        char_country = tchar->country;
+    }
+    if (actual_key != key) co_return;
+    if (guild_id == 0)
+    {
+        co_await senders::SendMwGuildTacticsWantedAddReq(peer, char_id,
+            key, guild::kFail);
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        co_await senders::SendMwGuildTacticsWantedAddReq(peer, char_id,
+            key, guild::kFail);
+        co_return;
+    }
+    std::string  guild_name;
+    bool         is_disorg = false;
+    {
+        std::lock_guard gl(guild->lock);
+        is_disorg  = (guild->disorg != 0);
+        guild_name = guild->name;
+    }
+    if (is_disorg)
+    {
+        co_await senders::SendMwGuildTacticsWantedAddReq(peer, char_id,
+            key, guild::kFail);
+        co_return;
+    }
+
+    // A non-zero `id` updates an existing posting; zero allocates
+    // a fresh global id (legacy `dwID > 0 ? dwID : ++m_dwTacticsIndex`).
+    const std::uint32_t entry_id =
+        (id > 0) ? id : ctx.guild_tactics_wanted->NextId();
+
+    TGuildTacticsWanted entry;
+    entry.id        = entry_id;
+    entry.guild_id  = guild_id;
+    entry.country   = char_country;
+    entry.name      = guild_name;
+    entry.title     = title;
+    entry.text      = text;
+    entry.day       = day;
+    entry.min_level = min_level;
+    entry.max_level = max_level;
+    entry.point     = point;
+    entry.gold      = gold;
+    entry.silver    = silver;
+    entry.cooper    = cooper;
+    entry.end_time  =
+        static_cast<std::int64_t>(std::time(nullptr)) +
+        guild::kGuildWantedPeriodSec;
+
+    const std::uint8_t result =
+        ctx.guild_tactics_wanted->AddOrUpdate(entry);
+
+    co_await senders::SendMwGuildTacticsWantedAddReq(peer, char_id, key,
+        result);
+
+    if (result == guild::kSuccess)
+    {
+        co_await senders::SendMwGuildTacticsWantedListReq(peer, char_id,
+            key, BuildTacticsWantedRows(*ctx.guild_tactics_wanted,
+                char_country));
+    }
+
+    spdlog::info("OnGuildTacticsWantedAddAck[{}]: char_id={} guild_id={} "
+                 "id={} levels {}-{} point={} result={}",
+        ip, char_id, guild_id, entry_id, min_level, max_level, point,
+        result);
+}
+
+boost::asio::awaitable<void>
+OnGuildTacticsWantedDelAck(std::shared_ptr<PeerSession> peer,
+                           std::vector<std::byte>       body,
+                           const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guild_tactics_wanted)
+    {
+        spdlog::warn("OnGuildTacticsWantedDelAck[{}]: registries not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(id))
+    {
+        spdlog::warn("OnGuildTacticsWantedDelAck[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    std::uint8_t  char_country = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key   = tchar->key;
+        guild_id     = tchar->guild_id;
+        char_country = tchar->country;
+    }
+    if (actual_key != key) co_return;
+    if (guild_id == 0)
+    {
+        co_await senders::SendMwGuildTacticsWantedDelReq(peer, char_id,
+            key, guild::kFail);
+        co_return;
+    }
+
+    const std::uint8_t result =
+        ctx.guild_tactics_wanted->Remove(guild_id, id);
+
+    co_await senders::SendMwGuildTacticsWantedDelReq(peer, char_id, key,
+        result);
+
+    if (result == guild::kSuccess)
+    {
+        co_await senders::SendMwGuildTacticsWantedListReq(peer, char_id,
+            key, BuildTacticsWantedRows(*ctx.guild_tactics_wanted,
+                char_country));
+    }
+
+    spdlog::info("OnGuildTacticsWantedDelAck[{}]: char_id={} guild_id={} "
+                 "id={} result={}", ip, char_id, guild_id, id, result);
+}
+
+boost::asio::awaitable<void>
+OnGuildTacticsWantedListAck(std::shared_ptr<PeerSession> peer,
+                            std::vector<std::byte>       body,
+                            const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guild_tactics_wanted)
+    {
+        spdlog::warn("OnGuildTacticsWantedListAck[{}]: registries not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildTacticsWantedListAck[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0;
+    std::uint8_t  char_country = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key   = tchar->key;
+        char_country = tchar->country;
+    }
+    if (actual_key != key) co_return;
+
+    co_await senders::SendMwGuildTacticsWantedListReq(peer, char_id, key,
+        BuildTacticsWantedRows(*ctx.guild_tactics_wanted, char_country));
+
+    spdlog::info("OnGuildTacticsWantedListAck[{}]: char_id={} country={} "
+                 "list", ip, char_id, char_country);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

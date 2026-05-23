@@ -21,6 +21,7 @@
 #include "../services/guild_registry.h"
 #include "../services/guild_repository.h"
 #include "../services/guild_wanted_registry.h"
+#include "../services/guild_tactics_wanted_registry.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -61,6 +62,11 @@ struct HandlerContext
     // One entry per guild, filtered cross-country on read. Owned
     // by main; non-null in W3a-11+ deploys.
     GuildWantedRegistry*      guild_wanted = nullptr;
+
+    // W3a-31: cluster-wide tactics-recruitment postings. Multiple
+    // entries per guild (vs. one for guild_wanted), each with a
+    // globally-unique id. Owned by main; non-null in W3a-31+.
+    GuildTacticsWantedRegistry* guild_tactics_wanted = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -576,6 +582,39 @@ boost::asio::awaitable<void> OnGuildPointLogAck(
 //   BYTE event, BYTE type, BYTE gain,
 //   STRING name, BYTE klass, BYTE level
 boost::asio::awaitable<void> OnGainPvPointAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3a-31: tactics wanted board (handlers_guild.cpp) ------------
+//
+// Tactics-recruitment counterpart to the W3a-11 guild wanted
+// board. A guild posts "we need tactics members" entries (chief
+// action); players browse them filtered by country. Unlike the
+// guild board (one entry per guild) a guild may hold up to
+// kMaxTacticsWantedPerGuild postings, each with a globally-
+// unique id + reward fields (point/gold/silver/cooper/day).
+// In-memory only for now — DB persistence (legacy
+// TGUILDTACTICSWANTEDTABLE) deferred like the W3a-25
+// alliance/enemy state.
+//
+// Wire layouts (SSHandler.cpp:4668/4746/4778):
+//   ADD : DWORD char_id, key, id, STRING title, text,
+//         BYTE day, min_level, max_level,
+//         DWORD point, gold, silver, cooper
+//   DEL : DWORD char_id, key, id
+//   LIST: DWORD char_id, key
+boost::asio::awaitable<void> OnGuildTacticsWantedAddAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildTacticsWantedDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildTacticsWantedListAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

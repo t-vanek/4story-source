@@ -237,7 +237,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnPvPRecordReq(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W3a-22+ picks up tactics subsystem, cabinet item codec,
+    // ---- W3a-22: full-row guild update fan-in ------------------
+    case MessageId::DM_GUILDUPDATE_REQ:
+        co_await OnGuildUpdateReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-23+ picks up tactics subsystem, cabinet item codec,
     // PvP record read-side handler. … see README §4.
 
     default:

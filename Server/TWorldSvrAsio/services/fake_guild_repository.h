@@ -80,6 +80,15 @@ public:
                       const std::array<std::uint32_t,
                                         guild::kPvPEventCount>&
                           points) override;
+    bool UpdateGuildFull(std::uint32_t guild_id,
+                         std::uint8_t  fame,
+                         std::uint8_t  guild_points,
+                         std::uint8_t  level,
+                         std::uint8_t  status,
+                         std::uint32_t chief_id,
+                         std::uint32_t gi,
+                         std::uint32_t exp,
+                         std::uint32_t time_unix) override;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -93,7 +102,7 @@ public:
                           kDeleteGuild, kAddWanted, kDeleteWanted,
                           kAddVolunteerApp, kDelVolunteerApp,
                           kUpdatePvPoints, kUpdateLevel, kLogPointReward,
-                          kCreateGuild, kLogPvPRecord };
+                          kCreateGuild, kLogPvPRecord, kUpdateGuildFull };
         Kind          kind;
         std::uint32_t guild_id = 0;
         std::uint32_t char_id  = 0;

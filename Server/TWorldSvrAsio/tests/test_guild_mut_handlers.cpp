@@ -1831,6 +1831,69 @@ int main()
         EXPECT(saw_row1);
     }
 
+    // --- Scenario 42: DM_GUILDUPDATE_REQ overwrites scalars + drops lists ---
+    //
+    // Admin / bulk-load path. Overwrite guild 8's scalar columns
+    // + drain the alliance / enemy ID lists. Verify the
+    // in-memory mirror landed AND the repo recorded the call.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 42);     // fame
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 7);      // gpoint
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 6);      // level
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 2);      // status
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);   // chief
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 555);   // exp
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 999);   // gi
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1700009999); // time
+
+        // 2 allies, 1 enemy — both dropped from in-memory but
+        // parsed for wire-compat (framer length agreement).
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 2);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 11);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 22);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 1);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 33);
+
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDUPDATE_REQ), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            if (g->fame == 42 && g->level == 6) break;
+        }
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->fame          == 42);
+            EXPECT(g->guild_points  == 7);
+            EXPECT(g->level         == 6);
+            EXPECT(g->status        == 2);
+            EXPECT(g->chief_char_id == 200);
+            EXPECT(g->exp           == 555);
+            EXPECT(g->gi            == 999);
+            EXPECT(g->disorg_time   == 1700009999);
+        }
+        // Repo got the call. Call layout (set in fake repo):
+        // char_id=chief, a=fame, b=gpoint, c=level, d=status, e=time.
+        bool saw_update = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdateGuildFull
+                && c.guild_id == 8 && c.char_id == 200
+                && c.a == 42 && c.b == 7 && c.c == 6 && c.d == 2
+                && c.e == 1700009999) { saw_update = true; break; }
+        }
+        EXPECT(saw_update);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1840,7 +1903,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (41 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (42 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

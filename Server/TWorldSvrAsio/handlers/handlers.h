@@ -440,6 +440,33 @@ boost::asio::awaitable<void> OnPvPRecordReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-22: full-row guild update fan-in (handlers_guild.cpp) ----
+//
+// Admin / bulk-load tool path. Overwrites the scalar columns of
+// TGUILDTABLE for one guild in one shot. Mirrors legacy
+// CSPGuildUpdate (SSHandler.cpp:2979). The wire packet also
+// carries alliance + enemy ID lists (legacy stores them as
+// comma-separated DWORDs in szAlliance + szEnemy columns); our
+// schema doesn't model those yet so we parse + drain them with a
+// log note and skip the persistence (deferred to W5+ war system).
+//
+// Defensive in-memory mirror: fame / guild_points / level /
+// status / chief_char_id / gi / exp / disorg_time on the
+// matching registry entry. Most are wire-truncated to BYTE
+// (legacy quirk — bFame especially is BYTE here but DWORD in
+// OnDM_GUILDLOAD_ACK).
+//
+// Wire layout (SSHandler.cpp:2979):
+//   DWORD dwID, BYTE bFame, BYTE bGPoint, BYTE bLevel,
+//   BYTE bStatus, DWORD dwChief, DWORD dwExp, DWORD dwGI,
+//   DWORD dwTime,
+//   BYTE allyCount, DWORD ally[allyCount],
+//   BYTE enemyCount, DWORD enemy[enemyCount]
+boost::asio::awaitable<void> OnGuildUpdateReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

@@ -737,6 +737,44 @@ SociGuildRepository::CreateGuild(const std::string& name,
     }
 }
 
+bool SociGuildRepository::UpdateGuildFull(std::uint32_t guild_id,
+                                           std::uint8_t  fame,
+                                           std::uint8_t  guild_points,
+                                           std::uint8_t  level,
+                                           std::uint8_t  status,
+                                           std::uint32_t chief_id,
+                                           std::uint32_t gi,
+                                           std::uint32_t exp,
+                                           std::uint32_t time_unix)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        sql << "UPDATE \"TGUILDTABLE\" SET "
+               "\"dwFame\" = :f, \"bGPoint\" = :gp, \"bLevel\" = :l, "
+               "\"bStatus\" = :s, \"dwChief\" = :c, \"dwGI\" = :gi, "
+               "\"dwExp\" = :e, \"dwTime\" = :t "
+               "WHERE \"dwID\" = :g",
+            soci::use(static_cast<int>(fame)),
+            soci::use(static_cast<int>(guild_points)),
+            soci::use(static_cast<int>(level)),
+            soci::use(static_cast<int>(status)),
+            soci::use(static_cast<int>(chief_id)),
+            soci::use(static_cast<int>(gi)),
+            soci::use(static_cast<int>(exp)),
+            soci::use(static_cast<int>(time_unix)),
+            soci::use(static_cast<int>(guild_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::UpdateGuildFull({}) "
+                      "failed: {}", guild_id, ex.what());
+        return false;
+    }
+}
+
 bool SociGuildRepository::LogPvPRecord(
     std::uint32_t guild_id,
     std::uint32_t member_id,

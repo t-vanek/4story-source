@@ -2518,6 +2518,79 @@ OnLocalRecordAck(std::shared_ptr<PeerSession> peer,
         ip, win_guild_id, guild_point, guild_count, applied, dropped);
 }
 
+// --- W3a-26 cabinet LIST stub --------------------------------------
+//
+// Wire-compat stub for the guild-storage UI open path. Always
+// emits an empty cabinet list because the TItem state model +
+// item codec haven't ported yet. Clients see a "no items" view
+// — semantically truthful since nothing else populates the
+// cabinet in our port either. PUTIN / TAKEOUT + DM cabinet
+// fan-in land together with the item codec in a future W3a-*
+// session.
+
+boost::asio::awaitable<void>
+OnGuildCabinetListAck(std::shared_ptr<PeerSession> peer,
+                      std::vector<std::byte>       body,
+                      const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds)
+    {
+        spdlog::warn("OnGuildCabinetListAck[{}]: char/guild registry "
+                     "not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildCabinetListAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto tchar = ctx.chars->Find(char_id);
+    if (!tchar) co_return;
+    std::uint32_t actual_key = 0, guild_id = 0;
+    {
+        std::lock_guard g(tchar->lock);
+        actual_key = tchar->key;
+        guild_id   = tchar->guild_id;
+    }
+    if (actual_key != key) co_return;
+    // Legacy SSHandler.cpp:3953 also short-circuits when the
+    // char is on the tactics path (pTactics != null). Skipped
+    // here along with the rest of the tactics subsystem.
+    if (guild_id == 0)
+    {
+        spdlog::info("OnGuildCabinetListAck[{}]: char_id={} has no "
+                     "guild — dropped", ip, char_id);
+        co_return;
+    }
+
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild)
+    {
+        spdlog::info("OnGuildCabinetListAck[{}]: char_id={} stale "
+                     "guild_id={} — dropped", ip, char_id, guild_id);
+        co_return;
+    }
+
+    std::uint8_t max_cabinet = 0;
+    {
+        std::lock_guard gl(guild->lock);
+        max_cabinet = guild->max_cabinet;
+    }
+
+    co_await senders::SendMwGuildCabinetListReq(peer, char_id, key,
+        max_cabinet);
+
+    spdlog::info("OnGuildCabinetListAck[{}]: char_id={} guild_id={} "
+                 "max_cabinet={} (stub — item codec deferred, items=0)",
+        ip, char_id, guild_id, max_cabinet);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

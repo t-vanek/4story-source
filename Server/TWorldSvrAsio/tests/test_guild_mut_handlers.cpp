@@ -2113,6 +2113,32 @@ int main()
         EXPECT(saw_chief);
     }
 
+    // --- Scenario 45: MW_GUILDCABINETLIST_ACK returns empty stub --
+    //
+    // Open the guild storage UI. W3a-26 stub always replies with
+    // max_cabinet from the guild + 0 items (item codec deferred).
+    // Verify the reply lands with the right header and zero count.
+    // Guild 8's max_cabinet was set to 10 by scenario 1's
+    // GuildLoadBody; subsequent scenarios haven't changed it.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);  // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111); // key
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDCABINETLIST_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDCABINETLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0;
+        std::uint8_t  max_cab = 0, count = 0;
+        EXPECT(rr.Read(cid));     EXPECT(cid == 200);
+        EXPECT(rr.Read(key));     EXPECT(key == 0xBEEF1111);
+        EXPECT(rr.Read(max_cab)); EXPECT(max_cab == 10);
+        EXPECT(rr.Read(count));   EXPECT(count == 0);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2122,7 +2148,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (44 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (45 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

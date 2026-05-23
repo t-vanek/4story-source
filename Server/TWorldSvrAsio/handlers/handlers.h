@@ -524,6 +524,25 @@ boost::asio::awaitable<void> OnLocalRecordAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-26: cabinet LIST stub (handlers_guild.cpp) ----------------
+//
+// Player opens the guild storage UI; map server forwards the
+// open request to world. Legacy enumerates the in-memory
+// m_mapTCabinet item list back through MW_GUILDCABINETLIST_REQ.
+// Our port doesn't have the TItem state model yet so the stub
+// always returns an empty list — wire-compat (the client just
+// sees "no items"). PUTIN / TAKEOUT handlers + DM_*
+// cabinet fan-in are deferred together; without those nothing
+// populates the cabinet anyway so the empty-list reply is also
+// semantically truthful.
+//
+// Wire layout (SSHandler.cpp:3938):
+//   DWORD dwCharID, DWORD dwKey
+boost::asio::awaitable<void> OnGuildCabinetListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

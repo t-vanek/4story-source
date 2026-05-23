@@ -619,6 +619,27 @@ struct GuildPvPRecordRow
     std::array<std::uint32_t, 6> points{};
 };
 
+// MW_GUILDCABINETLIST_REQ — reply to OnGuildCabinetListAck. The
+// legacy reply emits the guild's max_cabinet cap + every item
+// in `m_mapTCabinet`. Our W3a-26 stub always emits count=0
+// because the full item codec (TItem WrapItem — 18 scalar
+// fields + variable-length magic array — see
+// TWorldSvr/TWorldSvr.cpp:5498) hasn't ported yet. Clients
+// receive a wire-compat "cabinet is empty" reply, which is
+// truthful for our port (nothing else populates the cabinet).
+//
+// Wire layout (SSSender.cpp:1087):
+//   DWORD dwCharID
+//   DWORD dwKey
+//   BYTE  max_cabinet
+//   BYTE  item_count   (always 0 in the W3a-26 stub)
+//   [item_count times: DWORD itemID + WrapItem]
+boost::asio::awaitable<void> SendMwGuildCabinetListReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 max_cabinet);
+
 // MW_GUILDPVPRECORD_REQ — reply to OnGuildPvPRecordAck. Returns
 // every member's rolling weekly PvP outcome aggregate plus a
 // per-member "last record" slot (currently always zeros — see

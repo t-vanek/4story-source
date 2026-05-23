@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-25 alliance + enemy state modelling
+## Status — W3a-26 cabinet LIST stub
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -42,13 +42,70 @@ that the four shipped Asio daemons already use.
 | W3a-22 | Full-row guild update fan-in (OnDM_GUILDUPDATE_REQ) — 8-column scalar overwrite via new IGuildRepository::UpdateGuildFull; alliance/enemy ID lists parsed for wire-compat then dropped (deferred to W5+ war system) | ✅ |
 | W3a-23 | PvP record list reader (OnMW_GUILDPVPRECORD_ACK) — pairs with W3a-21 audit log; new TPvPRecord POD + TGuildMember.weekrecord + GuildPvPRecordRow sender | ✅ |
 | W3a-24 | Per-period war-result fan-in (OnMW_LOCALRECORD_ACK) — accumulates kill/die/points deltas into TGuildMember.weekrecord so W3a-23 reader returns live data | ✅ |
-| **W3a-25** | Alliance + enemy state modelling — TGuild gains vector<uint32_t> fields populated by W3a-22 (drained-and-dropped lists become real in-memory state) | ✅ |
-| W3a-26+ | Tactics subsystem (~17) + Cabinet item codec + per-day vRecord history | ⏸ |
+| W3a-25 | Alliance + enemy state modelling — TGuild gains vector<uint32_t> fields populated by W3a-22 (drained-and-dropped lists become real in-memory state) | ✅ |
+| **W3a-26** | Cabinet LIST stub (OnGuildCabinetListAck) — wire-compat empty-list reply via SendMwGuildCabinetListReq; PUTIN/TAKEOUT + item codec still deferred | ✅ |
+| W3a-27+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) + per-day vRecord history | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-26 — what landed
+
+Wire-compat stub for the guild-storage UI open path. Player
+opens the cabinet panel; map server forwards the open request
+to world via `MW_GUILDCABINETLIST_ACK`; world replies with the
+guild's `max_cabinet` cap + an empty item list. Clients see a
+"no items" view, which is semantically truthful for our port
+since nothing else populates the cabinet anyway.
+
+Why a stub
+- Legacy `SendMW_GUILDCABINETLIST_REQ` (SSSender.cpp:1087)
+  iterates `pGuild->m_mapTCabinet` and emits `WrapItem` per
+  entry — that's the full TItem codec (18 scalar fields +
+  variable-length magic array, see `TWorldSvr.cpp:5498`). The
+  codec is substantial and gates PUTIN/TAKEOUT as well, so all
+  three cabinet handlers wait for one future W3a-* batch that
+  ports TItem + the wrap/unwrap codec together.
+- Until then, sending `count=0` on every reply is wire-compat
+  and matches what the world actually knows (nothing populates
+  the cabinet without the PUTIN handler). No data loss, no
+  client UI hang.
+
+Sender — `SendMwGuildCabinetListReq`
+- Wire: `{char_id, key, max_cabinet, item_count=0}`. Always
+  emits zero items.
+
+Handler — `OnGuildCabinetListAck` (wID
+`MW_GUILDCABINETLIST_ACK` = 0x90D1)
+- Wire: `{char_id, key}`.
+- Validates char + key + non-zero `guild_id` + guild present in
+  registry. Drops silently on any mismatch (legacy parity
+  SSHandler.cpp:3953).
+- Snapshots `guild->max_cabinet` under the guild lock, fires
+  the empty-list reply.
+- Tactics-branch short-circuit (`pTactics != null`) deferred
+  along with the rest of the tactics subsystem.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenario 45: chief opens
+  cabinet, verifies reply carries `max_cabinet=10` (set by
+  scenario 1's `GuildLoadBody`) and `count=0`.
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed).
+
+Deferred to W3a-27+
+- Cabinet PUTIN / TAKEOUT handlers + DM fan-in + item codec
+  (would replace the empty-list stub with a real cabinet view)
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+  + the tactics-branch short-circuit in OnGuildCabinetListAck
+- Per-day vRecord history (replaces W3a-24's plain accumulator
+  with proper week-trim semantics)
+- War-bonus award for B-country tactics-guilds
+- SOCI persistence for alliance / enemy (W3a-25's deferred
+  schema-migration follow-up)
 
 ### W3a-25 — what landed
 

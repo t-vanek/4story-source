@@ -603,4 +603,26 @@ SendMwGuildPvPRecordReq(std::shared_ptr<PeerSession>           peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwGuildCabinetListReq(std::shared_ptr<PeerSession> peer,
+                          std::uint32_t                char_id,
+                          std::uint32_t                key,
+                          std::uint8_t                 max_cabinet)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, max_cabinet);
+    // W3a-26 stub: item_count = 0. The per-item loop body
+    // (DWORD itemID + WrapItem 18-field codec) lands when the
+    // cabinet PUTIN/TAKEOUT handlers port — those need the full
+    // TItem state model first.
+    WritePOD<std::uint8_t>(body, 0);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GUILDCABINETLIST_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

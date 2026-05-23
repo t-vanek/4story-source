@@ -255,8 +255,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-25+ picks up tactics subsystem, cabinet item codec,
-    // alliance/enemy modelling. … see README §4.
+    // ---- W3a-26: cabinet LIST stub -----------------------------
+    case MessageId::MW_GUILDCABINETLIST_ACK:
+        co_await OnGuildCabinetListAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-27+ picks up tactics subsystem, cabinet PUTIN/TAKEOUT
+    // + item codec, per-day vRecord history. … see README §4.
 
     default:
         break;

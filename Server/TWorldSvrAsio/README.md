@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-28 per-day vRecord history + CalcWeekRecord
+## Status — W3a-29 PvP-point gain/use fan-in
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -45,13 +45,79 @@ that the four shipped Asio daemons already use.
 | W3a-25 | Alliance + enemy state modelling — TGuild gains vector<uint32_t> fields populated by W3a-22 (drained-and-dropped lists become real in-memory state) | ✅ |
 | W3a-26 | Cabinet LIST stub (OnGuildCabinetListAck) — wire-compat empty-list reply via SendMwGuildCabinetListReq; PUTIN/TAKEOUT + item codec still deferred | ✅ |
 | W3a-27 | PvP point reward log reader (OnGuildPointLogAck) — pairs with W3a-14 writer; new TPointRewardEntry + TGuild.point_log in-memory mirror | ✅ |
-| **W3a-28** | Per-day vRecord history + CalcWeekRecord — replaces W3a-24's plain accumulator with proper week-trim semantics matching legacy CTGuild::CalcWeekRecord exactly | ✅ |
-| W3a-29+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) | ⏸ |
+| W3a-28 | Per-day vRecord history + CalcWeekRecord — replaces W3a-24's plain accumulator with proper week-trim semantics matching legacy CTGuild::CalcWeekRecord exactly | ✅ |
+| **W3a-29** | PvP-point gain/use fan-in (OnGainPvPointAck) — char relay + guild bank mutation (total/useable/month) + point_log newest-first/TOP-50 trim fix | ✅ |
+| W3a-30+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-29 — what landed
+
+Per-event PvP-point delta fan-in from the map server, plus a
+follow-up fix to W3a-27's point_log ordering / trim. The map
+reports a gain or use against either a character or a guild.
+
+Handler — `OnGainPvPointAck` (wID `MW_GAINPVPPOINT_ACK` = 0x9121)
+- Wire: `{owner_type, owner_id, point, event, type, gain, name,
+  klass, level}`.
+- `TOWNER_CHAR` (=0): pure relay. Looks up the char's
+  `main_server_id`, finds the matching map peer in PeerRegistry,
+  forwards `MW_GAINPVPPOINT_REQ` verbatim so the map shows the
+  gain/loss toast. Drops if char missing or main map offline.
+- `TOWNER_GUILD` (=1): applies the delta to the guild's PvP
+  banks under the guild lock, mirroring legacy
+  `GainPvPoint`/`UsePvPoint` (TGuild.cpp:564/585):
+  - gain + `PVP_TOTAL` → `total += point` AND `month += point`
+  - gain + `PVP_USEABLE` → `useable += point`
+  - use + `PVP_TOTAL` → `total = max(0, total - point)`
+  - use + `PVP_USEABLE` → `useable = max(0, useable - point)`
+  - **use never decrements month** (legacy quirk preserved)
+  - then persists all three banks via `repo->UpdatePvPoints`
+    (legacy fires `SendDM_GUILDPVPOINT_REQ` from inside
+    Gain/UsePvPoint).
+
+New sender — `SendMwGainPvPointReq`
+- 8-field relay packet matching SSSender.cpp:3117.
+
+Constants (`services/guild_constants.h`)
+- `kPvPOwnerChar = 0` / `kPvPOwnerGuild = 1` (NetCode.h
+  TOWNER_*).
+- `kPvPMaskTotal = 1` / `kPvPMaskUseable = 2` (NetCode.h
+  PVP_TOTAL / PVP_USEABLE).
+- `kPointLogMaxEntries = 50`.
+
+Follow-up fix — W3a-27 point_log ordering
+- The W3a-14 `OnGuildPointRewardReq` mirror now inserts
+  newest-first (`point_log.insert(begin(), …)`) and `pop_back`s
+  once size exceeds `kPointLogMaxEntries` — exactly matching
+  legacy `CTGuild::PointLog` (TGuild.cpp:603). Previously it
+  `push_back`ed unbounded in oldest-first order, which both
+  grew without limit and emitted the log in the wrong order to
+  the W3a-27 reader. Closes the "TOP-50 trim semantics"
+  deferred item from W3a-27.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 47-48:
+  - 47: guild gain with `PVP_TOTAL | PVP_USEABLE` — verifies
+    all three banks bumped by the delta + the
+    `UpdatePvPoints` persistence call landed with the new
+    totals.
+  - 48: guild use with `PVP_USEABLE` only — verifies useable
+    shrinks while total + month stay put (the never-decrement-
+    month quirk).
+
+Build verified: cmake + ctest -R tworldsvr_asio (16/16 passed).
+
+Deferred to W3a-30+
+- Boot-time vRecord / point_log load from DB so the in-memory
+  history survives process restart
+- Cabinet PUTIN / TAKEOUT handlers + DM fan-in + item codec
+- Tactics subsystem (~17 handlers)
+- War-bonus award for B-country tactics-guilds
+- SOCI persistence for alliance / enemy
 
 ### W3a-28 — what landed
 

@@ -604,6 +604,33 @@ SendMwGuildPvPRecordReq(std::shared_ptr<PeerSession>           peer,
 }
 
 boost::asio::awaitable<void>
+SendMwGainPvPointReq(std::shared_ptr<PeerSession> peer,
+                     std::uint32_t                owner_id,
+                     std::uint32_t                point,
+                     std::uint8_t                 event,
+                     std::uint8_t                 type,
+                     std::uint8_t                 gain,
+                     const std::string&           name,
+                     std::uint8_t                 klass,
+                     std::uint8_t                 level)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, owner_id);
+    WritePOD<std::uint32_t>(body, point);
+    WritePOD<std::uint8_t>(body, event);
+    WritePOD<std::uint8_t>(body, type);
+    WritePOD<std::uint8_t>(body, gain);
+    WriteString(body, name);
+    WritePOD<std::uint8_t>(body, klass);
+    WritePOD<std::uint8_t>(body, level);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_GAINPVPPOINT_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwGuildPointLogReq(std::shared_ptr<PeerSession>           peer,
                        std::uint32_t                          char_id,
                        std::uint32_t                          key,

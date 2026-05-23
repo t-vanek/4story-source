@@ -105,6 +105,24 @@ constexpr std::size_t kPvPEventCount = 8;
 constexpr std::int64_t kDaySec               = 86'400;
 constexpr std::int64_t kPvPRecordWindowDays  = 7;
 
+// W3a-29 PvP-point gain/use fan-in constants.
+// `bOwnerType` discriminator (NetCode.h:2250) — TOWNER_CHAR
+// relays to the char's map peer, TOWNER_GUILD applies the
+// delta to the guild's PvP-point banks.
+constexpr std::uint8_t kPvPOwnerChar  = 0;   // TOWNER_CHAR
+constexpr std::uint8_t kPvPOwnerGuild = 1;   // TOWNER_GUILD
+// `bType` bitmask (NetCode.h:122) — which PvP-point bank(s)
+// the delta touches. GainPvPoint also bumps month_point
+// whenever TOTAL is set; UsePvPoint never decrements month.
+constexpr std::uint8_t kPvPMaskTotal   = 1;  // PVP_TOTAL
+constexpr std::uint8_t kPvPMaskUseable = 2;  // PVP_USEABLE
+
+// W3a-29 — max entries kept in TGuild.point_log. Legacy
+// CTGuild::PointLog (TGuild.cpp:603) inserts newest-first and
+// pop_back()s once size exceeds 50 (matching the read-side
+// CTBLGuildPvPointReward SELECT TOP 50).
+constexpr std::size_t kPointLogMaxEntries = 50;
+
 // Max guild-name length in bytes — matches the legacy MAX_NAME
 // ceiling (50 bytes for the ANSI build the original server runs).
 // The legacy validator at SSHandler.cpp:3056 just compares

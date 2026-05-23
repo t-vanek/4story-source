@@ -561,6 +561,25 @@ boost::asio::awaitable<void> OnGuildPointLogAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-29: PvP-point gain/use fan-in (handlers_guild.cpp) -------
+//
+// Map server reports a PvP-point delta (gain or use). The owner
+// is either a character (TOWNER_CHAR — relay the toast to the
+// char's main map peer) or a guild (TOWNER_GUILD — apply the
+// delta to the guild's total/useable/month banks + persist via
+// repo->UpdatePvPoints). Mirrors legacy GainPvPoint /
+// UsePvPoint semantics (TGuild.cpp:564/585): gain bumps month
+// when TOTAL is set; use never touches month.
+//
+// Wire layout (SSHandler.cpp:10090):
+//   BYTE owner_type, DWORD owner_id, DWORD point,
+//   BYTE event, BYTE type, BYTE gain,
+//   STRING name, BYTE klass, BYTE level
+boost::asio::awaitable<void> OnGainPvPointAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

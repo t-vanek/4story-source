@@ -619,6 +619,33 @@ struct GuildPvPRecordRow
     std::array<std::uint32_t, 6> points{};
 };
 
+// MW_GAINPVPPOINT_REQ — relay forwarded to a char's main map
+// peer when the owner of a PvP-point delta is a character
+// (TOWNER_CHAR). The map server applies the per-char delta +
+// shows the gain/loss toast. Guild-owned deltas (TOWNER_GUILD)
+// don't relay — the world applies them to the guild bank
+// directly (see OnGainPvPointAck).
+//
+// Wire layout (SSSender.cpp:3117):
+//   DWORD owner_id
+//   DWORD point
+//   BYTE  event
+//   BYTE  type
+//   BYTE  gain
+//   STRING name
+//   BYTE  klass
+//   BYTE  level
+boost::asio::awaitable<void> SendMwGainPvPointReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                owner_id,
+    std::uint32_t                point,
+    std::uint8_t                 event,
+    std::uint8_t                 type,
+    std::uint8_t                 gain,
+    const std::string&           name,
+    std::uint8_t                 klass,
+    std::uint8_t                 level);
+
 // MW_GUILDPOINTLOG_REQ — reply to OnGuildPointLogAck. Returns
 // the guild's rolling PvP point-reward audit log (TGuild.point_log
 // vector populated by the W3a-14 OnGuildPointRewardReq fan-in

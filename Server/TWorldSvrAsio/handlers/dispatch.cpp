@@ -267,8 +267,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-28+ picks up tactics subsystem, cabinet PUTIN/TAKEOUT
-    // + item codec, per-day vRecord history. … see README §4.
+    // ---- W3a-29: PvP-point gain/use fan-in ---------------------
+    case MessageId::MW_GAINPVPPOINT_ACK:
+        co_await OnGainPvPointAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-30+ picks up tactics subsystem, cabinet PUTIN/TAKEOUT
+    // + item codec. … see README §4.
 
     default:
         break;

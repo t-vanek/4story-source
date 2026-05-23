@@ -23,6 +23,7 @@
 #include "services/guild_wanted_registry.h"
 #include "services/guild_wanted_sweep.h"
 #include "services/guild_tactics_wanted_registry.h"
+#include "services/guild_tactics_sweep.h"
 #include "services/peer_registry.h"
 #include "services/soci_guild_level_repository.h"
 #include "services/soci_guild_repository.h"
@@ -242,9 +243,29 @@ int main(int argc, char** argv)
                 cfg.wanted_sweep_period_sec);
         }
 
+        // W3a-36: periodic tactics-contract expiry sweep. Ends
+        // tactics-member contracts whose end_time has elapsed
+        // (legacy EXPIRED_GT path) without the timer-service
+        // dependency. period_sec=0 disables.
+        std::shared_ptr<fourstory::ops::RegistryRefresher> tactics_sweeper;
+        if (cfg.tactics_sweep_period_sec != 0)
+        {
+            tactics_sweeper = fourstory::ops::RegistryRefresher::Make(
+                io, std::chrono::seconds(cfg.tactics_sweep_period_sec));
+            tactics_sweeper->AddCoroutineHook(
+                [&guilds, &chars]() -> boost::asio::awaitable<void> {
+                    co_await tworldsvr::SweepExpiredTactics(guilds, &chars);
+                });
+            tactics_sweeper->Start();
+            spdlog::info("tactics-contract expiry sweep enabled "
+                         "(period={}s)",
+                cfg.tactics_sweep_period_sec);
+        }
+
         io.run();
 
         if (wanted_sweeper) wanted_sweeper->Stop();
+        if (tactics_sweeper) tactics_sweeper->Stop();
 
         // Drain in-flight SOCI work before tearing the pool down so
         // a query doesn't keep a session reference alive past the

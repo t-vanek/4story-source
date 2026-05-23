@@ -20,6 +20,7 @@
 // functions; the family-file split lives under senders/senders_*.cpp.
 
 #include "../peer_session.h"
+#include "../services/guild_registry.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -907,26 +908,23 @@ boost::asio::awaitable<void> SendMwGuildPointLogReq(
     std::uint32_t                                 key,
     const std::vector<GuildPointLogEntry>&        entries);
 
-// MW_GUILDCABINETLIST_REQ — reply to OnGuildCabinetListAck. The
-// legacy reply emits the guild's max_cabinet cap + every item
-// in `m_mapTCabinet`. Our W3a-26 stub always emits count=0
-// because the full item codec (TItem WrapItem — 18 scalar
-// fields + variable-length magic array — see
-// TWorldSvr/TWorldSvr.cpp:5498) hasn't ported yet. Clients
-// receive a wire-compat "cabinet is empty" reply, which is
-// truthful for our port (nothing else populates the cabinet).
+// MW_GUILDCABINETLIST_REQ — reply to OnGuildCabinetListAck.
+// Emits the guild's max_cabinet cap + every cabinet item
+// (W3a-37: real items via the WrapItem codec; W3a-26 shipped a
+// count=0 stub).
 //
 // Wire layout (SSSender.cpp:1087):
 //   DWORD dwCharID
 //   DWORD dwKey
 //   BYTE  max_cabinet
-//   BYTE  item_count   (always 0 in the W3a-26 stub)
-//   [item_count times: DWORD itemID + WrapItem]
+//   BYTE  item_count
+//   × item_count: DWORD slot_id + WrapItem(item)
 boost::asio::awaitable<void> SendMwGuildCabinetListReq(
-    std::shared_ptr<PeerSession> peer,
-    std::uint32_t                char_id,
-    std::uint32_t                key,
-    std::uint8_t                 max_cabinet);
+    std::shared_ptr<PeerSession>               peer,
+    std::uint32_t                              char_id,
+    std::uint32_t                              key,
+    std::uint8_t                               max_cabinet,
+    const std::vector<TGuildCabinetItem>&      items);
 
 // MW_GUILDPVPRECORD_REQ — reply to OnGuildPvPRecordAck. Returns
 // every member's rolling weekly PvP outcome aggregate plus a

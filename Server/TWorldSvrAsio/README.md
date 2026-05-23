@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-36 tactics term-expiry sweep
+## Status — W3a-37 cabinet item codec (PUTIN/TAKEOUT/LIST)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -53,13 +53,76 @@ that the four shipped Asio daemons already use.
 | W3a-33 | Tactics subsystem part 3 — reply accept/reject (OnGuildTacticsReplyAck): hires applicant as a tactics member (TTacticsMember model + TChar.tactics_guild_id) charging PvP-points + money up front, with the 7 hire gates + dual broadcast | ✅ |
 | W3a-34 | Tactics subsystem part 4 — kickout (chief-kick forfeit / self-leave refund via TGuild::RemoveTactics) + roster list (GetCurGuild priority) | ✅ |
 | W3a-35 | Tactics subsystem part 5 — chief-initiated hire (OnGuildTacticsInvite/AnswerAck): invite-by-name dialog relayed to the target, accept runs the hire promotion + dual outcome echo. Tactics subsystem now feature-complete (wanted/volunteer/reply/kickout/list/invite/answer) | ✅ |
-| **W3a-36** | Tactics contract term-expiry sweep (SweepExpiredTactics on a RegistryRefresher tick) — ends contracts past end_time, clears char back-pointers; closes the legacy EXPIRED_GT path | ✅ |
-| W3a-37+ | Tactics DB persistence + Cabinet item codec | ⏸ |
+| W3a-36 | Tactics contract term-expiry sweep (SweepExpiredTactics on a RegistryRefresher tick) — ends contracts past end_time, clears char back-pointers; closes the legacy EXPIRED_GT path | ✅ |
+| **W3a-37** | Cabinet item codec — TGuildCabinetItem model + WrapItem/CreateItem-symmetric wire codec; OnGuildCabinetPutin/TakeoutAck (stack/decrement) + LIST upgraded from the W3a-26 stub to emit real items | ✅ |
+| W3a-38+ | Cabinet DM fan-in (PUTIN/TAKEOUT/ROLLBACK) + DB persistence (tactics + cabinet) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-37 — what landed
+
+The guild cabinet (storage vault) item codec — the last big
+guild-area subsystem. Replaces the W3a-26 empty-list LIST stub
+with real item storage + the PUTIN / TAKEOUT operations.
+
+State model
+- `TGuildCabinetItem` on `TGuild` (subset of the legacy CTItem
+  per-instance fields): slot_id (cabinet key, legacy
+  m_dwItemID) + id (m_dlID instance id) + the 16 codec scalars
+  (item ids, level, gem, mogg, count, glevel, dura max/cur,
+  refine, end_time, grade_effect, 4 ext values) + a
+  variable-length `magic` enchant list ({magic_id, value}).
+- `TGuild.cabinet_items` + `PutInCabinet` (stack onto an
+  existing slot or append), `TakeOutCabinet` (decrement, erase
+  at zero), `FindCabinetItem`. Mirror legacy
+  PutInItem/TakeOutItem/FindCabinetItem.
+
+Codec — `services/guild_cabinet_codec.{h,cpp}`
+- `ReadCabinetItem(Reader&, item)` / `WriteCabinetItem(body,
+  item)`: symmetric with the legacy CreateItem (TWorldSvr.cpp:
+  5498) / WrapItem (TServer.cpp:16). 17 fixed fields + the
+  variable magic list. ReadCabinetItem fails cleanly on a short
+  read or an overrunning magic_count; it leaves slot_id for the
+  caller to set from the preceding DWORD.
+
+Handlers
+- `OnGuildCabinetListAck` (0x90D1) — upgraded from the W3a-26
+  stub to snapshot `cabinet_items` under the guild lock and
+  emit real items.
+- `OnGuildCabinetPutinAck` (0x90D3) — reads `{char_id, key,
+  slot_id, <WrapItem>}`, stores the item (stacking on a repeat
+  slot), chases a CABINETLIST refresh (legacy parity).
+- `OnGuildCabinetTakeoutAck` (0x90D5) — reads `{char_id, key,
+  slot_id, count}`, decrements/erases, chases a refresh.
+
+Sender — `SendMwGuildCabinetListReq` gained an `items` param;
+emits `{char_id, key, max_cabinet, count, [slot_id + WrapItem]…}`.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 61-63: PUTIN an
+  item with 2 magic entries (verify the full round-trip codec
+  in the LIST refresh), PUTIN the same slot again (verify the
+  count stacks 3+4=7), TAKEOUT 7 (verify the slot erases at
+  zero).
+
+Build verified: cmake + ctest -R tworldsvr_asio (17/17 passed).
+
+Notes
+- The dead W3a-5 `SendMwGuildCabinetMaxReq` (declared but never
+  called) still nominally emits on MW_GUILDCABINETPUTIN_ACK,
+  which is now an inbound handler wID. Harmless (it's never
+  invoked); a future cleanup can drop it.
+- In-memory only — the cabinet DM fan-in
+  (DM_GUILDCABINETPUTIN/TAKEOUT/ROLLBACK) + DB persistence
+  (TGUILDCABINETTABLE) are W3a-38.
+
+Deferred to W3a-38+
+- Cabinet DM fan-in + rollback + DB persistence
+- DB persistence for the tactics subsystem
+- Guild-money repo flush (W3a-33 note)
 
 ### W3a-36 — what landed
 

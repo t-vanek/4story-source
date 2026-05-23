@@ -530,21 +530,27 @@ boost::asio::awaitable<void> OnLocalRecordAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
-// --- W3a-26: cabinet LIST stub (handlers_guild.cpp) ----------------
+// --- W3a-26/W3a-37: cabinet flow (handlers_guild.cpp) -------------
 //
-// Player opens the guild storage UI; map server forwards the
-// open request to world. Legacy enumerates the in-memory
-// m_mapTCabinet item list back through MW_GUILDCABINETLIST_REQ.
-// Our port doesn't have the TItem state model yet so the stub
-// always returns an empty list — wire-compat (the client just
-// sees "no items"). PUTIN / TAKEOUT handlers + DM_*
-// cabinet fan-in are deferred together; without those nothing
-// populates the cabinet anyway so the empty-list reply is also
-// semantically truthful.
+// Guild storage vault. W3a-26 shipped LIST as an empty-list stub;
+// W3a-37 adds the item codec so LIST emits real items + wires
+// PUTIN (store an item) and TAKEOUT (withdraw / decrement).
 //
-// Wire layout (SSHandler.cpp:3938):
-//   DWORD dwCharID, DWORD dwKey
+// Wire layouts (SSHandler.cpp:3938/3960/3991):
+//   LIST    : DWORD char_id, key
+//   PUTIN   : DWORD char_id, key, slot_id, <WrapItem>
+//   TAKEOUT : DWORD char_id, key, slot_id, BYTE count
 boost::asio::awaitable<void> OnGuildCabinetListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildCabinetPutinAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildCabinetTakeoutAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

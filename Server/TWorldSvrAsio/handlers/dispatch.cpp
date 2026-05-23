@@ -255,10 +255,18 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // ---- W3a-26: cabinet LIST stub -----------------------------
+    // ---- W3a-26/W3a-37: cabinet flow ---------------------------
     case MessageId::MW_GUILDCABINETLIST_ACK:
         co_await OnGuildCabinetListAck(std::move(peer), std::move(body),
             ctx);
+        co_return;
+    case MessageId::MW_GUILDCABINETPUTIN_ACK:
+        co_await OnGuildCabinetPutinAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_GUILDCABINETTAKEOUT_ACK:
+        co_await OnGuildCabinetTakeoutAck(std::move(peer),
+            std::move(body), ctx);
         co_return;
 
     // ---- W3a-27: PvP point reward log reader -------------------

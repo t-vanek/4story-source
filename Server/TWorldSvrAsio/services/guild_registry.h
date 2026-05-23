@@ -29,6 +29,7 @@
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tworldsvr {
@@ -154,6 +155,35 @@ struct TGuildArticle
 // OnGuildInfoAck actually read. Cabinet items, articles, alliance/
 // enemy lists, point-reward log, tactics members, stats — all of
 // those land in W3a-2/W3a-3 when the matching handlers get ported.
+// W3a-37 — one item instance held in a guild's cabinet (storage
+// vault). Mirrors the per-instance item the legacy WrapItem /
+// CreateItem codec serialises (TWorldSvr CTItem subset). `slot_id`
+// is the cabinet key (legacy m_dwItemID — distinct from the
+// item's own instance id `id` / m_dlID). `magic` is the
+// variable-length enchant list ({magic_id, value} pairs).
+struct TGuildCabinetItem
+{
+    std::uint32_t slot_id      = 0;   // cabinet key (m_dwItemID)
+    std::int64_t  id           = 0;   // m_dlID — instance id
+    std::uint8_t  item_id_b    = 0;   // m_bItemID
+    std::uint16_t item_id_w    = 0;   // m_wItemID
+    std::uint8_t  level        = 0;
+    std::uint8_t  gem          = 0;
+    std::uint16_t mogg_item_id = 0;
+    std::uint8_t  count        = 0;
+    std::uint8_t  glevel       = 0;
+    std::uint32_t dura_max     = 0;
+    std::uint32_t dura_cur     = 0;
+    std::uint8_t  refine_cur   = 0;
+    std::int64_t  end_time     = 0;   // m_dEndTime
+    std::uint8_t  grade_effect = 0;
+    std::uint32_t ext_eld      = 0;   // m_dwExtValue[IEV_ELD]
+    std::uint32_t ext_wrap     = 0;   // m_dwExtValue[IEV_WRAP]
+    std::uint32_t ext_color    = 0;   // m_dwExtValue[IEV_COLOR]
+    std::uint32_t ext_guild    = 0;   // m_dwExtValue[IEV_GUILD]
+    std::vector<std::pair<std::uint8_t, std::uint16_t>> magic;
+};
+
 struct TGuild
 {
     mutable std::mutex lock;
@@ -225,6 +255,46 @@ struct TGuild
     // tactics_count mercenaries. Separate from `members` (full
     // guild membership).
     std::vector<TTacticsMember> tactics_members;
+
+    // W3a-37 — guild cabinet (storage vault), legacy
+    // m_mapTCabinet keyed by slot_id. PutInCabinet stacks onto an
+    // existing slot or appends; TakeOutCabinet decrements and
+    // erases at zero.
+    std::vector<TGuildCabinetItem> cabinet_items;
+
+    TGuildCabinetItem* FindCabinetItem(std::uint32_t slot_id)
+    {
+        for (auto& it : cabinet_items)
+            if (it.slot_id == slot_id) return &it;
+        return nullptr;
+    }
+
+    // Stack onto an existing slot (count +=) or append a new
+    // item. Caller holds the guild lock.
+    void PutInCabinet(const TGuildCabinetItem& item)
+    {
+        if (auto* existing = FindCabinetItem(item.slot_id))
+            existing->count = static_cast<std::uint8_t>(
+                existing->count + item.count);
+        else
+            cabinet_items.push_back(item);
+    }
+
+    // Decrement `count` from a slot; erase when it hits zero.
+    // Returns true if the slot existed.
+    bool TakeOutCabinet(std::uint32_t slot_id, std::uint8_t count)
+    {
+        for (auto it = cabinet_items.begin();
+             it != cabinet_items.end(); ++it)
+        {
+            if (it->slot_id != slot_id) continue;
+            it->count = (it->count > count)
+                ? static_cast<std::uint8_t>(it->count - count) : 0;
+            if (it->count == 0) cabinet_items.erase(it);
+            return true;
+        }
+        return false;
+    }
 
     // W3a-33 helper — find a hired tactics member by char_id.
     TTacticsMember* FindTactics(std::uint32_t char_id)

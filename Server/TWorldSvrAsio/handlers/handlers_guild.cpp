@@ -2236,12 +2236,12 @@ OnGuildUpdateReq(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Drain the alliance + enemy DWORD lists. Both are parsed
-    // for wire-compat (so the dispatch byte counter agrees with
-    // the packet length) but dropped — TGuild doesn't yet model
-    // alliance / enemy relationships (deferred to W5+ war
-    // system). Log the counts so an operator can spot when a
-    // legacy admin tool tries to push them through.
+    // Parse the alliance + enemy DWORD lists. W3a-25 keeps them
+    // in TGuild.alliance_ids / .enemy_ids (vectors) — SOCI
+    // persistence is still deferred (legacy uses comma-separated
+    // szAllience / szEnemy columns that our portable schema
+    // doesn't model yet) but in-memory consumers (W5+ war
+    // system) can read them as soon as they land here.
     std::uint8_t ally_count = 0;
     if (!r.Read(ally_count))
     {
@@ -2249,16 +2249,19 @@ OnGuildUpdateReq(std::shared_ptr<PeerSession> peer,
                      "(guild_id={})", ip, guild_id);
         co_return;
     }
+    std::vector<std::uint32_t> alliance_ids;
+    alliance_ids.reserve(ally_count);
     for (std::uint8_t i = 0; i < ally_count; ++i)
     {
-        std::uint32_t dropped = 0;
-        if (!r.Read(dropped))
+        std::uint32_t id = 0;
+        if (!r.Read(id))
         {
             spdlog::warn("OnGuildUpdateReq[{}]: short ally list at "
                          "row {} of {} (guild_id={})",
                 ip, i, ally_count, guild_id);
             co_return;
         }
+        alliance_ids.push_back(id);
     }
     std::uint8_t enemy_count = 0;
     if (!r.Read(enemy_count))
@@ -2267,16 +2270,19 @@ OnGuildUpdateReq(std::shared_ptr<PeerSession> peer,
                      "(guild_id={})", ip, guild_id);
         co_return;
     }
+    std::vector<std::uint32_t> enemy_ids;
+    enemy_ids.reserve(enemy_count);
     for (std::uint8_t i = 0; i < enemy_count; ++i)
     {
-        std::uint32_t dropped = 0;
-        if (!r.Read(dropped))
+        std::uint32_t id = 0;
+        if (!r.Read(id))
         {
             spdlog::warn("OnGuildUpdateReq[{}]: short enemy list at "
                          "row {} of {} (guild_id={})",
                 ip, i, enemy_count, guild_id);
             co_return;
         }
+        enemy_ids.push_back(id);
     }
 
     // Defensive in-memory mirror. Field set matches
@@ -2294,6 +2300,8 @@ OnGuildUpdateReq(std::shared_ptr<PeerSession> peer,
             guild->gi            = gi;
             guild->exp           = exp;
             guild->disorg_time   = time_unix;
+            guild->alliance_ids  = alliance_ids;
+            guild->enemy_ids     = enemy_ids;
         }
         else
         {
@@ -2306,17 +2314,18 @@ OnGuildUpdateReq(std::shared_ptr<PeerSession> peer,
     {
         co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
             [repo = ctx.guild_repo, guild_id, fame, gpoint, level, status,
-             chief, gi, exp, time_unix] {
+             chief, gi, exp, time_unix, alliance_ids, enemy_ids] {
                 repo->UpdateGuildFull(guild_id, fame, gpoint, level,
-                    status, chief, gi, exp, time_unix);
+                    status, chief, gi, exp, time_unix, alliance_ids,
+                    enemy_ids);
             });
     }
 
     spdlog::info("OnGuildUpdateReq[{}]: guild_id={} fame={} gp={} "
                  "level={} status={} chief={} gi={} exp={} time={} "
-                 "(allies dropped: {}, enemies dropped: {})",
+                 "alliance={} enemy={}",
         ip, guild_id, fame, gpoint, level, status, chief, gi, exp,
-        time_unix, ally_count, enemy_count);
+        time_unix, alliance_ids.size(), enemy_ids.size());
 }
 
 // --- W3a-23 PvP record list reader ---------------------------------

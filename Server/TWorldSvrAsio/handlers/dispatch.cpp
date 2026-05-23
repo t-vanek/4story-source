@@ -317,7 +317,17 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             std::move(body), ctx);
         co_return;
 
-    // W3a-35+ picks up tactics invite/answer flows,
+    // ---- W3a-35: tactics invite + answer (chief-initiated) -----
+    case MessageId::MW_GUILDTACTICSINVITE_ACK:
+        co_await OnGuildTacticsInviteAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDTACTICSANSWER_ACK:
+        co_await OnGuildTacticsAnswerAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+
+    // W3a-36+ picks up the tactics term-expiry sweep,
     // cabinet PUTIN/TAKEOUT + item codec. … see README §4.
 
     default:

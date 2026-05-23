@@ -2867,6 +2867,109 @@ int main()
         }
     }
 
+    // --- Scenario 59: tactics INVITE relays to target (W3a-35) ----
+    //
+    // Chief (char 200, guild 8) invites char 700 (guild-less +
+    // tactics-less after scenario 58's kick) by name "Golf". The
+    // validated offer is relayed to char 700's map peer (peer1).
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);  // chief
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WriteString(body, "Golf");           // target
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 30);    // day
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 2000); // point
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 5);    // gold
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);    // silver
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);    // cooper
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSINVITE_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSINVITE_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t tid = 0, tkey = 0, point = 0, gold = 0,
+                      silver = 0, cooper = 0;
+        std::string gname, iname;
+        std::uint8_t day = 0;
+        EXPECT(rr.Read(tid));        EXPECT(tid == 700);
+        EXPECT(rr.Read(tkey));       EXPECT(tkey == 0xA1B2C3D4);
+        EXPECT(rr.ReadString(gname));
+        EXPECT(rr.ReadString(iname)); EXPECT(iname == "Bob");
+        EXPECT(rr.Read(day));        EXPECT(day == 30);
+        EXPECT(rr.Read(point));      EXPECT(point == 2000);
+        EXPECT(rr.Read(gold));       EXPECT(gold == 5);
+        EXPECT(rr.Read(silver));
+        EXPECT(rr.Read(cooper));
+    }
+
+    // --- Scenario 60: tactics ANSWER yes hires (W3a-35) -----------
+    //
+    // Char 700 accepts. Verify the dual ANSWER_REQ (target +
+    // chief, both on peer1) + char 700 becomes a tactics member
+    // of guild 8 + the guild's points were charged.
+    std::uint32_t pre_inv_useable = 0;
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            pre_inv_useable = g->pvp_useable_point;
+        }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 700);  // target
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xA1B2C3D4);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kAskYes);
+        tworldsvr::wire::WriteString(body, "Bob");            // inviter
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 30);    // day
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 2000); // point
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 5);    // gold
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSANSWER_ACK), body);
+    }
+    // Two ANSWER_REQ (target peer + chief peer, both peer1).
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSANSWER_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, gid = 0, mid = 0,
+                      gold = 0, silver = 0, cooper = 0;
+        std::uint8_t result = 0;
+        std::string gname, mname;
+        rr.Read(cid); rr.Read(key); rr.Read(result); rr.Read(gid);
+        rr.ReadString(gname); rr.Read(mid); rr.ReadString(mname);
+        rr.Read(gold); rr.Read(silver); rr.Read(cooper);
+        EXPECT(cid == 700);
+        EXPECT(result == tworldsvr::guild::kSuccess);
+        EXPECT(gid == 8);
+        EXPECT(mid == 700);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSANSWER_REQ)); }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            const auto* tm = g->FindTactics(700);
+            EXPECT(tm != nullptr);
+            if (tm)
+            {
+                EXPECT(tm->reward_point == 2000);
+                EXPECT(tm->day == 30);
+            }
+            EXPECT(g->pvp_useable_point == pre_inv_useable - 2000);
+        }
+        if (auto c = chars.Find(700))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->tactics_guild_id == 8);
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2876,7 +2979,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (58 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (60 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

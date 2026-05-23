@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-34 tactics kickout + list
+## Status — W3a-35 tactics invite + answer (chief-initiated hire)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -51,13 +51,70 @@ that the four shipped Asio daemons already use.
 | W3a-31 | Tactics subsystem part 1 — wanted board (OnGuildTacticsWantedAdd/Del/ListAck) + new GuildTacticsWantedRegistry (multi-posting-per-guild, globally-unique ids, reward fields) | ✅ |
 | W3a-32 | Tactics subsystem part 2 — volunteer applicant flow (OnGuildTacticsVolunteering/Del/VolunteerListAck) + registry applicant API (AddApp 7-gate / DelApp / SnapshotAppsFor) + wanted-board already_applied wiring | ✅ |
 | W3a-33 | Tactics subsystem part 3 — reply accept/reject (OnGuildTacticsReplyAck): hires applicant as a tactics member (TTacticsMember model + TChar.tactics_guild_id) charging PvP-points + money up front, with the 7 hire gates + dual broadcast | ✅ |
-| **W3a-34** | Tactics subsystem part 4 — kickout (chief-kick forfeit / self-leave refund via TGuild::RemoveTactics) + roster list (GetCurGuild priority) | ✅ |
-| W3a-35+ | Tactics invite / answer (chief-initiated hire) + term-expiry sweep + Cabinet item codec | ⏸ |
+| W3a-34 | Tactics subsystem part 4 — kickout (chief-kick forfeit / self-leave refund via TGuild::RemoveTactics) + roster list (GetCurGuild priority) | ✅ |
+| **W3a-35** | Tactics subsystem part 5 — chief-initiated hire (OnGuildTacticsInvite/AnswerAck): invite-by-name dialog relayed to the target, accept runs the hire promotion + dual outcome echo. Tactics subsystem now feature-complete (wanted/volunteer/reply/kickout/list/invite/answer) | ✅ |
+| W3a-36+ | Tactics term-expiry sweep + DB persistence + Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-35 — what landed
+
+Fifth and final core slice of the tactics subsystem — the
+chief-initiated hire dialog (vs. the W3a-32/33 player-initiated
+volunteer path). Mirrors legacy `OnMW_GUILDTACTICSINVITE_ACK` +
+`OnMW_GUILDTACTICSANSWER_ACK`.
+
+Handlers
+- `OnGuildTacticsInviteAck` (wID 0x9136): chief offers a
+  contract to a player by name. Validates char/key/guild + the
+  hire gates (target found → else `kNotFound`; country match;
+  guild useable points ≥ offer; guild money ≥ offer; target not
+  a tactics member of a *different* guild → `kHaveGuild`; roster
+  not full → `kMemberFull`; target not a full member of the
+  chief's guild → `kSameGuildTactics`). On success the offer is
+  relayed to the target's map peer as a dialog (carrying the
+  chief's name so the ANSWER can find the origin); on failure
+  the chief gets an ANSWER reply with the failure code.
+- `OnGuildTacticsAnswerAck` (wID 0x9138): target accepts/declines.
+  Decline → `kJoinDeny`. Accept → re-validates the same gates,
+  then (with renewal support: an existing contract for the same
+  guild is dropped no-refund first, preserving its end_time
+  base) charges the guild's useable points + money, appends the
+  `TTacticsMember`, wires the target's `tactics_guild_id`,
+  persists the PvP banks. The outcome is echoed to BOTH the
+  target's peer and the chief's peer.
+
+Senders — `SendMwGuildTacticsInviteReq` (9-field dialog) +
+`SendMwGuildTacticsAnswerReq` (10-field outcome). Shared
+`FindMapPeer(ctx, msi)` helper for the relay lookups.
+
+Scope notes
+- Same in-memory-money / persisted-points split as W3a-33.
+- guild_levels is optional (null → no roster cap, W3a-5
+  relaxed-gate convention).
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 59-60: chief
+  invites char 700 by name (verify the relayed dialog carries
+  the chief's name + offer), char 700 accepts (verify the dual
+  ANSWER echo + the tactics member lands + points charged).
+
+Build verified: cmake + ctest -R tworldsvr_asio (16/16 passed).
+
+The tactics subsystem is now feature-complete across W3a-31..35:
+wanted board, volunteer flow, reply (volunteer accept), kickout,
+list, and invite/answer (chief hire).
+
+Deferred to W3a-36+
+- Tactics term-expiry sweep (contracts ending at `end_time` —
+  parallels the W3a-19 wanted sweep + the legacy EXPIRED_GT
+  timer)
+- DB persistence for tactics members / wanted board + a
+  guild-money repo flush
+- Cabinet PUTIN / TAKEOUT + item codec
 
 ### W3a-34 — what landed
 

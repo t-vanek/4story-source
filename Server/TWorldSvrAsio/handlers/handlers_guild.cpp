@@ -3792,6 +3792,308 @@ OnGuildTacticsListAck(std::shared_ptr<PeerSession> peer,
                  "tactics_members={}", ip, char_id, cur_guild, rows.size());
 }
 
+// --- W3a-35 tactics invite + answer (chief-initiated hire) ---------
+
+namespace {
+
+// Find the map peer serving a given main_server_id (msi), or
+// nullptr if that map is offline. Shared by the invite/answer
+// relay paths.
+std::shared_ptr<PeerSession>
+FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
+{
+    if (msi == 0 || !ctx.peers) return nullptr;
+    for (auto& p : ctx.peers->Snapshot())
+        if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
+            return p;
+    return nullptr;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnGuildTacticsInviteAck(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnGuildTacticsInviteAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   target_name;
+    std::uint8_t  day = 0;
+    std::uint32_t point = 0, gold = 0, silver = 0, cooper = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name) ||
+        !r.Read(day) || !r.Read(point) || !r.Read(gold) ||
+        !r.Read(silver) || !r.Read(cooper))
+    {
+        spdlog::warn("OnGuildTacticsInviteAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto chief = ctx.chars->Find(char_id);
+    if (!chief) co_return;
+    std::uint32_t actual_key = 0, chief_guild = 0;
+    std::uint8_t  chief_country = 0;
+    std::string   chief_name;
+    {
+        std::lock_guard g(chief->lock);
+        actual_key    = chief->key;
+        chief_guild   = chief->guild_id;
+        chief_country = chief->country;
+        chief_name    = chief->name;
+    }
+    if (actual_key != key) co_return;
+    if (chief_guild == 0) co_return;
+
+    auto guild = ctx.guilds->Find(chief_guild);
+    if (!guild) co_return;
+
+    // Snapshot the target by name.
+    auto target = ctx.chars->FindByName(target_name);
+    std::uint32_t target_id = 0, target_tactics = 0, target_guild = 0;
+    std::uint8_t  target_country = 0, target_msi = 0;
+    std::uint32_t target_key = 0;
+    if (target)
+    {
+        std::lock_guard g(target->lock);
+        target_id      = target->char_id;
+        target_tactics = target->tactics_guild_id;
+        target_guild   = target->guild_id;
+        target_country = target->country;
+        target_msi     = target->main_server_id;
+        target_key     = target->key;
+    }
+
+    const std::int64_t cost_money = guild::CalcMoney(gold, silver, cooper);
+    std::string  guild_name;
+    std::uint8_t result = guild::kSuccess;
+    if (!target)
+    {
+        result = guild::kNotFound;
+    }
+    else if (target_country != chief_country)
+    {
+        result = guild::kFail;
+    }
+    else
+    {
+        std::lock_guard gl(guild->lock);
+        guild_name = guild->name;
+        std::uint8_t tactics_cap = 0;
+        if (ctx.guild_levels)
+            if (const auto* lvl = ctx.guild_levels->Find(guild->level))
+                tactics_cap = lvl->tactics_count;
+        const bool target_is_member_here = guild->FindTactics(target_id);
+
+        if (guild->pvp_useable_point < point)            result = guild::kNoPoint;
+        else if (guild::CalcMoney(guild->gold, guild->silver,
+                                  guild->cooper) < cost_money)
+            result = guild::kNoMoney;
+        else if (target_tactics != 0 && target_tactics != chief_guild)
+            result = guild::kHaveGuild;
+        else if (!target_is_member_here && tactics_cap > 0 &&
+                 guild->tactics_members.size() >= tactics_cap)
+            result = guild::kMemberFull;
+        else if (target_guild == chief_guild)
+            result = guild::kSameGuildTactics;
+    }
+
+    if (result == guild::kSuccess)
+    {
+        // Relay the invite dialog to the target's map peer.
+        auto target_peer = FindMapPeer(ctx, target_msi);
+        if (target_peer)
+            co_await senders::SendMwGuildTacticsInviteReq(target_peer,
+                target_id, target_key, guild_name, chief_name,
+                day, point, gold, silver, cooper);
+        spdlog::info("OnGuildTacticsInviteAck[{}]: char_id={} invited "
+                     "'{}' (target_id={}) day={} point={}",
+            ip, char_id, target_name, target_id, day, point);
+    }
+    else
+    {
+        // Failure → reply to the chief with the failure code.
+        co_await senders::SendMwGuildTacticsAnswerReq(peer, char_id, key,
+            result, 0, std::string{}, 0, target_name, gold, silver,
+            cooper);
+        spdlog::info("OnGuildTacticsInviteAck[{}]: char_id={} invite "
+                     "'{}' failed result={}", ip, char_id, target_name,
+            result);
+    }
+}
+
+boost::asio::awaitable<void>
+OnGuildTacticsAnswerAck(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnGuildTacticsAnswerAck[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  answer = 0, day = 0;
+    std::string   inviter_name;
+    std::uint32_t point = 0, gold = 0, silver = 0, cooper = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(answer) ||
+        !r.ReadString(inviter_name) || !r.Read(day) || !r.Read(point) ||
+        !r.Read(gold) || !r.Read(silver) || !r.Read(cooper))
+    {
+        spdlog::warn("OnGuildTacticsAnswerAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto target = ctx.chars->Find(char_id);
+    if (!target) co_return;
+    std::uint32_t actual_key = 0, target_tactics = 0, target_guild = 0;
+    std::uint8_t  target_country = 0, target_level = 0, target_klass = 0;
+    std::string   target_name;
+    {
+        std::lock_guard g(target->lock);
+        actual_key     = target->key;
+        target_tactics = target->tactics_guild_id;
+        target_guild   = target->guild_id;
+        target_country = target->country;
+        target_level   = target->level;
+        target_klass   = target->klass;
+        target_name    = target->name;
+    }
+    if (actual_key != key) co_return;
+
+    auto origin = ctx.chars->FindByName(inviter_name);
+    if (!origin) co_return;
+    std::uint32_t origin_id = 0, origin_guild = 0, origin_key = 0;
+    std::uint8_t  origin_country = 0, origin_msi = 0;
+    {
+        std::lock_guard g(origin->lock);
+        origin_id      = origin->char_id;
+        origin_guild   = origin->guild_id;
+        origin_key     = origin->key;
+        origin_country = origin->country;
+        origin_msi     = origin->main_server_id;
+    }
+    if (origin_guild == 0) co_return;
+
+    auto guild = ctx.guilds->Find(origin_guild);
+    if (!guild) co_return;
+
+    const std::int64_t cost_money = guild::CalcMoney(gold, silver, cooper);
+    std::uint8_t result = guild::kSuccess;
+    std::string  guild_name;
+
+    if (answer != guild::kAskYes)
+    {
+        result = guild::kJoinDeny;
+        std::lock_guard gl(guild->lock);
+        guild_name = guild->name;
+    }
+    else
+    {
+        std::lock_guard gl(guild->lock);
+        guild_name = guild->name;
+        std::uint8_t tactics_cap = 0;
+        if (ctx.guild_levels)
+            if (const auto* lvl = ctx.guild_levels->Find(guild->level))
+                tactics_cap = lvl->tactics_count;
+        const bool member_here = guild->FindTactics(char_id);
+
+        if (guild->pvp_useable_point < point)            result = guild::kNoPoint;
+        else if (target_country != origin_country)        result = guild::kFail;
+        else if (guild::CalcMoney(guild->gold, guild->silver,
+                                  guild->cooper) < cost_money)
+            result = guild::kNoMoney;
+        else if (target_tactics != 0 && target_tactics != origin_guild)
+            result = guild::kHaveGuild;
+        else if (!member_here && tactics_cap > 0 &&
+                 guild->tactics_members.size() >= tactics_cap)
+            result = guild::kMemberFull;
+        else if (target_guild == origin_guild)
+            result = guild::kSameGuildTactics;
+
+        if (result == guild::kSuccess)
+        {
+            // Renewal: if already a tactics member here, drop the
+            // old contract first (legacy GuildTacticsDel bKick=2:
+            // no refund, no expiry-queue touch).
+            std::int64_t base_time =
+                static_cast<std::int64_t>(std::time(nullptr));
+            if (auto* existing = guild->FindTactics(char_id))
+            {
+                base_time = existing->end_time;
+                guild->RemoveTactics(char_id, /*refund=*/false);
+            }
+            // Charge + add.
+            guild->pvp_useable_point -= point;
+            const std::int64_t remaining =
+                guild::CalcMoney(guild->gold, guild->silver,
+                                 guild->cooper) - cost_money;
+            guild::SplitMoney(remaining, guild->gold, guild->silver,
+                              guild->cooper);
+            TTacticsMember m;
+            m.id           = char_id;
+            m.name         = target_name;
+            m.level        = target_level;
+            m.klass        = target_klass;
+            m.reward_point = point;
+            m.reward_money = cost_money;
+            m.gain_point   = 0;
+            m.day          = day;
+            m.end_time     = base_time +
+                static_cast<std::int64_t>(day) * guild::kDaySec;
+            guild->tactics_members.push_back(std::move(m));
+        }
+    }
+
+    // On accept, wire the target's back-pointer + persist points.
+    if (result == guild::kSuccess)
+    {
+        {
+            std::lock_guard g(target->lock);
+            target->tactics_guild_id = origin_guild;
+        }
+        if (ctx.guild_repo)
+        {
+            std::uint32_t t = 0, u = 0, mo = 0;
+            {
+                std::lock_guard gl(guild->lock);
+                t = guild->pvp_total_point; u = guild->pvp_useable_point;
+                mo = guild->pvp_month_point;
+            }
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.guild_repo, origin_guild, t, u, mo] {
+                    repo->UpdatePvPoints(origin_guild, t, u, mo);
+                });
+        }
+    }
+
+    // Echo the outcome to the target (this peer) + the chief.
+    co_await senders::SendMwGuildTacticsAnswerReq(peer, char_id, key,
+        result, origin_guild, guild_name, char_id, target_name, gold,
+        silver, cooper);
+    if (auto chief_peer = FindMapPeer(ctx, origin_msi))
+        co_await senders::SendMwGuildTacticsAnswerReq(chief_peer,
+            origin_id, origin_key, result, origin_guild, guild_name,
+            char_id, target_name, gold, silver, cooper);
+
+    spdlog::info("OnGuildTacticsAnswerAck[{}]: char_id={} answer={} "
+                 "inviter='{}' guild_id={} result={}",
+        ip, char_id, answer, inviter_name, origin_guild, result);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

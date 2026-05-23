@@ -2560,6 +2560,223 @@ int main()
         EXPECT(count == 0);
     }
 
+    // --- Scenario 55: tactics REPLY accept hires member (W3a-33) --
+    //
+    // Seed guild 8 with PvP-useable points + money + a level
+    // chart row granting tactics slots, re-post a tactics-wanted
+    // entry, have guild-less char 700 apply, then the chief
+    // accepts. Verify char 700 becomes a tactics member with the
+    // contract + the guild's banks were charged.
+    {
+        // Seed the guild's banks + ensure level cache has a
+        // tactics slot for guild 8's level.
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            g->pvp_useable_point = 100000;
+            g->gold   = 100;     // 100 * 1e6 cooper available
+            g->silver = 0;
+            g->cooper = 0;
+        }
+    }
+    {
+        // Re-post wanted (min_level 0 so lvl-0 char 700 qualifies).
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);
+        tworldsvr::wire::WriteString(body, "Hire");
+        tworldsvr::wire::WriteString(body, "now");
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 14);     // day
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);      // min
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 99);     // max
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 5000);  // point
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 10);    // gold
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);     // silver
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);     // cooper
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSWANTEDADD_ACK), body);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDADD_REQ)); }
+    std::uint32_t hire_id = 0;
+    {
+        auto [w, body] = ReadFramed(peer1);  // list refresh
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(count);
+        // Older postings from earlier scenarios may still linger
+        // (unordered iteration), so pick the one with our unique
+        // point=5000 marker rather than the first entry.
+        for (std::uint32_t i = 0; i < count; ++i)
+        {
+            std::uint32_t id = 0, gid = 0; std::string n, t, x;
+            std::uint8_t d = 0, mn = 0, mx = 0;
+            std::uint32_t p = 0, g = 0, s = 0, c = 0; std::int64_t et = 0;
+            std::uint8_t ap = 0;
+            rr.Read(id); rr.Read(gid); rr.ReadString(n); rr.ReadString(t);
+            rr.ReadString(x); rr.Read(d); rr.Read(mn); rr.Read(mx);
+            rr.Read(p); rr.Read(g); rr.Read(s); rr.Read(c); rr.Read(et);
+            rr.Read(ap);
+            if (p == 5000) hire_id = id;
+        }
+        EXPECT(hire_id != 0);
+    }
+    // Char 700 applies.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 700);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xA1B2C3D4);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, hire_id);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERING_ACK), body);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERING_REQ)); }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ)); }
+    // Chief accepts char 700 (char 700's main_server_id = 66 =
+    // peer1's wID LOBYTE, so the member-notify lands on peer1
+    // too; then the chief reply; then the volunteer-list refresh).
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);  // chief
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 700);  // target
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 1);     // accept
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSREPLY_ACK), body);
+    }
+    // Two REPLY_REQ (member peer + chief) — both on peer1.
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSREPLY_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, mid = 0, gid = 0,
+                      gold = 0, silver = 0, cooper = 0;
+        std::uint8_t result = 0;
+        std::string gname, mname;
+        rr.Read(cid); rr.Read(key); rr.Read(result);
+        rr.Read(mid); rr.Read(gid);
+        rr.ReadString(gname); rr.ReadString(mname);
+        rr.Read(gold); rr.Read(silver); rr.Read(cooper);
+        EXPECT(result == tworldsvr::guild::kSuccess);
+        EXPECT(mid == 700);
+        EXPECT(gid == 8);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSREPLY_REQ)); }
+    {
+        auto [w, _] = ReadFramed(peer1);  // volunteer-list refresh
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERLIST_REQ));
+    }
+    {
+        // Verify the tactics member + the guild's charged banks.
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            const auto* tm = g->FindTactics(700);
+            EXPECT(tm != nullptr);
+            if (tm)
+            {
+                EXPECT(tm->reward_point == 5000);
+                EXPECT(tm->day == 14);
+                EXPECT(tm->end_time > 0);
+            }
+            EXPECT(g->pvp_useable_point == 100000 - 5000);
+            // 100 gold − 10 gold = 90 gold.
+            EXPECT(g->gold == 90);
+        }
+        // Char 700's tactics back-pointer set.
+        if (auto c = chars.Find(700))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->tactics_guild_id == 8);
+        }
+    }
+
+    // --- Scenario 56: tactics REPLY reject drops applicant (W3a-33) -
+    //
+    // Char 500 (Echo, guild-less after scenario 33's kickout)
+    // applies, chief rejects → application dropped, no member.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);
+        tworldsvr::wire::WriteString(body, "Hire2");
+        tworldsvr::wire::WriteString(body, "now2");
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 7);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 99);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 100);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSWANTEDADD_ACK), body);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDADD_REQ)); }
+    std::uint32_t hire2_id = 0;
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(count);
+        // pick the highest id (the just-posted one)
+        for (std::uint32_t i = 0; i < count; ++i)
+        {
+            std::uint32_t id = 0, gid = 0; std::string n, t, x;
+            std::uint8_t d = 0, mn = 0, mx = 0;
+            std::uint32_t p = 0, g = 0, s = 0, c = 0; std::int64_t et = 0;
+            std::uint8_t ap = 0;
+            rr.Read(id); rr.Read(gid); rr.ReadString(n); rr.ReadString(t);
+            rr.ReadString(x); rr.Read(d); rr.Read(mn); rr.Read(mx);
+            rr.Read(p); rr.Read(g); rr.Read(s); rr.Read(c); rr.Read(et);
+            rr.Read(ap);
+            if (p == 100) hire2_id = id;
+        }
+        EXPECT(hire2_id != 0);
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 500);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xECC00500);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, hire2_id);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERING_ACK), body);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERING_REQ)); }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ)); }
+    // Chief rejects char 500.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 500);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);     // reject
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSREPLY_ACK), body);
+    }
+    {
+        // Reject sends only the volunteer-list refresh (no REPLY_REQ).
+        auto [w, _] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERLIST_REQ));
+    }
+    {
+        // Char 500 was not hired.
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->FindTactics(500) == nullptr);
+        }
+        if (auto c = chars.Find(500))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->tactics_guild_id == 0);
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2569,7 +2786,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (54 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (56 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

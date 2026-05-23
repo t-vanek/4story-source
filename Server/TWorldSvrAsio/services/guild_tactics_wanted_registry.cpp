@@ -166,4 +166,13 @@ GuildTacticsWantedRegistry::FindAppGuildByChar(std::uint32_t char_id) const
     return it == m_apps.end() ? 0u : it->second.wanted_guild_id;
 }
 
+std::optional<TGuildTacticsWantedApp>
+GuildTacticsWantedRegistry::FindApp(std::uint32_t char_id) const
+{
+    std::shared_lock lock(m_mtx);
+    auto it = m_apps.find(char_id);
+    if (it == m_apps.end()) return std::nullopt;
+    return it->second;
+}
+
 } // namespace tworldsvr

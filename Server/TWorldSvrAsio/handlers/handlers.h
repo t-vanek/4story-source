@@ -646,6 +646,21 @@ boost::asio::awaitable<void> OnGuildTacticsVolunteerListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-33: tactics reply (accept/reject hire) -------------------
+//
+// Chief accepts or rejects a tactics-wanted applicant. Reject
+// just drops the application. Accept promotes the applicant to a
+// hired tactics member (TGuild.tactics_members) for a fixed term,
+// charging the guild's PvP-useable points + money up front, then
+// fires the dual TACTICSREPLY broadcast (new member + chief).
+//
+// Wire layout (SSHandler.cpp:4897):
+//   DWORD char_id, key, target_char_id, BYTE reply
+boost::asio::awaitable<void> OnGuildTacticsReplyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

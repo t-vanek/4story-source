@@ -738,6 +738,35 @@ boost::asio::awaitable<void> SendMwGuildTacticsVolunteerListReq(
     std::uint32_t                                   key,
     const std::vector<GuildTacticsVolunteerRow>&    applicants);
 
+// MW_GUILDTACTICSREPLY_REQ — tactics-hire result. Sent to both
+// the new tactics member's map peer and the chief's on a
+// successful accept (each carries the same payload). On failure
+// only the chief's peer gets it with the failure result byte.
+//
+// Wire layout (SSSender.cpp:1512):
+//   DWORD  char_id
+//   DWORD  key
+//   BYTE   result
+//   DWORD  member_id
+//   DWORD  guild_id
+//   STRING guild_name
+//   STRING member_name
+//   DWORD  gold
+//   DWORD  silver
+//   DWORD  cooper
+boost::asio::awaitable<void> SendMwGuildTacticsReplyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                member_id,
+    std::uint32_t                guild_id,
+    const std::string&           guild_name,
+    const std::string&           member_name,
+    std::uint32_t                gold,
+    std::uint32_t                silver,
+    std::uint32_t                cooper);
+
 // MW_GAINPVPPOINT_REQ — relay forwarded to a char's main map
 // peer when the owner of a PvP-point delta is a character
 // (TOWNER_CHAR). The map server applies the per-char delta +

@@ -21,6 +21,7 @@
 #include "../services/guild_constants.h"
 #include "../services/guild_registry.h"
 #include "../services/guild_wanted_registry.h"
+#include "../services/guild_tactics_wanted_registry.h"
 #include "../services/peer_registry.h"
 #include "../wire_codec.h"
 #include "../world_server.h"
@@ -271,6 +272,7 @@ int main()
     tworldsvr::GuildRegistry guilds;
     tworldsvr::PeerRegistry  peers;
     tworldsvr::GuildWantedRegistry guild_wanted;
+    tworldsvr::GuildTacticsWantedRegistry guild_tactics_wanted;
     tworldsvr::FakeGuildRepository fake_repo;
     tworldsvr::HandlerContext ctx{};
     ctx.io           = &io;
@@ -278,6 +280,7 @@ int main()
     ctx.guilds       = &guilds;
     ctx.peers        = &peers;
     ctx.guild_wanted = &guild_wanted;
+    ctx.guild_tactics_wanted = &guild_tactics_wanted;
     ctx.guild_repo   = &fake_repo;
     ctx.nation       = 0;
 
@@ -2309,6 +2312,124 @@ int main()
         }
     }
 
+    // --- Scenario 49: tactics WANTED add → registry + list (W3a-31) -
+    //
+    // Chief (char 200, guild 8, country 0) posts a tactics-wanted
+    // entry with id=0 (auto-assign). Expect the ADD result reply
+    // + a follow-up LIST refresh carrying the new posting.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);  // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111); // key
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);    // id (auto)
+        tworldsvr::wire::WriteString(body, "Need DPS");       // title
+        tworldsvr::wire::WriteString(body, "War prep");       // text
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 7);     // day
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 10);    // min_level
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 50);    // max_level
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1000); // point
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 500);  // gold
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);    // silver
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);    // cooper
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSWANTEDADD_ACK), body);
+    }
+    {
+        // ADD result reply.
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDADD_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0; std::uint8_t result = 0;
+        EXPECT(rr.Read(cid));    EXPECT(cid == 200);
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(result)); EXPECT(result == tworldsvr::guild::kSuccess);
+    }
+    std::uint32_t posted_id = 0;
+    {
+        // LIST refresh — should carry exactly one entry.
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        EXPECT(rr.Read(cid));
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(count));  EXPECT(count == 1);
+        if (count == 1)
+        {
+            std::uint32_t id = 0, gid = 0;
+            std::string name, title, text;
+            std::uint8_t day = 0, minl = 0, maxl = 0;
+            std::uint32_t point = 0, gold = 0, silver = 0, cooper = 0;
+            std::int64_t  end_time = 0;
+            std::uint8_t  applied = 0;
+            EXPECT(rr.Read(id));         posted_id = id;
+            EXPECT(rr.Read(gid));        EXPECT(gid == 8);
+            EXPECT(rr.ReadString(name));
+            EXPECT(rr.ReadString(title)); EXPECT(title == "Need DPS");
+            EXPECT(rr.ReadString(text));
+            EXPECT(rr.Read(day));        EXPECT(day == 7);
+            EXPECT(rr.Read(minl));       EXPECT(minl == 10);
+            EXPECT(rr.Read(maxl));       EXPECT(maxl == 50);
+            EXPECT(rr.Read(point));      EXPECT(point == 1000);
+            EXPECT(rr.Read(gold));       EXPECT(gold == 500);
+            EXPECT(rr.Read(silver));
+            EXPECT(rr.Read(cooper));
+            EXPECT(rr.Read(end_time));   EXPECT(end_time > 0);
+            EXPECT(rr.Read(applied));    EXPECT(applied == 0);
+        }
+        EXPECT(posted_id != 0);
+        EXPECT(guild_tactics_wanted.Size() == 1);
+    }
+
+    // --- Scenario 50: tactics WANTED list standalone (W3a-31) -----
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        EXPECT(rr.Read(cid));
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(count)); EXPECT(count == 1);
+    }
+
+    // --- Scenario 51: tactics WANTED del → registry empty (W3a-31) -
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, posted_id);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSWANTEDDEL_ACK), body);
+    }
+    {
+        // DEL result reply.
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDDEL_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0; std::uint8_t result = 0;
+        EXPECT(rr.Read(cid));
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(result)); EXPECT(result == tworldsvr::guild::kSuccess);
+    }
+    {
+        // LIST refresh — now empty.
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        EXPECT(rr.Read(cid));
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(count)); EXPECT(count == 0);
+        EXPECT(guild_tactics_wanted.Size() == 0);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2318,7 +2439,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (48 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (51 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

@@ -273,8 +273,22 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-30+ picks up tactics subsystem, cabinet PUTIN/TAKEOUT
-    // + item codec. … see README §4.
+    // ---- W3a-31: tactics wanted board --------------------------
+    case MessageId::MW_GUILDTACTICSWANTEDADD_ACK:
+        co_await OnGuildTacticsWantedAddAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDTACTICSWANTEDDEL_ACK:
+        co_await OnGuildTacticsWantedDelAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDTACTICSWANTEDLIST_ACK:
+        co_await OnGuildTacticsWantedListAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+
+    // W3a-32+ picks up tactics volunteer/invite/answer flows,
+    // cabinet PUTIN/TAKEOUT + item codec. … see README §4.
 
     default:
         break;

@@ -249,8 +249,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-24+ picks up tactics subsystem, cabinet item codec,
-    // per-day vRecord war-result fan-in. … see README §4.
+    // ---- W3a-24: per-period war-result fan-in ------------------
+    case MessageId::MW_LOCALRECORD_ACK:
+        co_await OnLocalRecordAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // W3a-25+ picks up tactics subsystem, cabinet item codec,
+    // alliance/enemy modelling. … see README §4.
 
     default:
         break;

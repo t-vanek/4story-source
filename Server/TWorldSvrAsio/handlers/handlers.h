@@ -489,6 +489,41 @@ boost::asio::awaitable<void> OnGuildPvPRecordAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-24: per-period war-result fan-in (handlers_guild.cpp) ----
+//
+// Map server flushes a batch of PvP outcomes per period (one
+// guild + one or more members per guild row). World accumulates
+// the deltas into TGuildMember.weekrecord so the W3a-23 reader
+// returns live data instead of zeros.
+//
+// Wire layout (SSHandler.cpp:10139):
+//   DWORD win_guild_id, DWORD guild_point, WORD guild_count,
+//     [guild_count times]:
+//       DWORD guild_id, WORD record_count,
+//         [record_count times]:
+//           DWORD char_id, WORD kill_count, WORD die_count,
+//           DWORD points[kPvPEventCount=8]
+//
+// Simplifications vs legacy:
+// - Tactics-member branch is skipped (the tactics subsystem
+//   hasn't ported yet; the W3a-23 reader's tactics shortcut is
+//   on the same deferred list).
+// - The dwWinGuildID + dwGuildPoint header fields (war-bonus
+//   award path for winning B-country tactics-guilds) are read
+//   and logged but not acted on — also tactics-subsystem
+//   dependent.
+// - No per-day vRecord history. weekrecord just accumulates;
+//   `CalcWeekRecord`'s 7-day trim doesn't run. A production
+//   deployment will want a periodic weekly clear (similar to
+//   the W3a-19 wanted-board sweep) — deferred until per-day
+//   vRecord lands or operators ask for it explicitly.
+//
+// Reply: none.
+boost::asio::awaitable<void> OnLocalRecordAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

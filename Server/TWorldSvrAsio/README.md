@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-23 PvP record list reader
+## Status — W3a-24 per-period war-result fan-in
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -40,13 +40,80 @@ that the four shipped Asio daemons already use.
 | W3a-20 | Vestigial DB-server ACK echoes (OnDM_GUILDESTABLISH/DISORGANIZATION/EXTINCTION_ACK) — 3 log+drop stubs eliminate "unknown wID" warnings on hybrid legacy-DB deployments | ✅ |
 | W3a-21 | PvP record audit log (OnDM_PVPRECORD_REQ) — batched per-row persistence via new IGuildRepository::LogPvPRecord + kPvPEventCount=8 constant | ✅ |
 | W3a-22 | Full-row guild update fan-in (OnDM_GUILDUPDATE_REQ) — 8-column scalar overwrite via new IGuildRepository::UpdateGuildFull; alliance/enemy ID lists parsed for wire-compat then dropped (deferred to W5+ war system) | ✅ |
-| **W3a-23** | PvP record list reader (OnMW_GUILDPVPRECORD_ACK) — pairs with W3a-21 audit log; new TPvPRecord POD + TGuildMember.weekrecord + GuildPvPRecordRow sender | ✅ |
-| W3a-24+ | Tactics subsystem (~17) + Cabinet item codec + per-day vRecord war-result fan-in | ⏸ |
+| W3a-23 | PvP record list reader (OnMW_GUILDPVPRECORD_ACK) — pairs with W3a-21 audit log; new TPvPRecord POD + TGuildMember.weekrecord + GuildPvPRecordRow sender | ✅ |
+| **W3a-24** | Per-period war-result fan-in (OnMW_LOCALRECORD_ACK) — accumulates kill/die/points deltas into TGuildMember.weekrecord so W3a-23 reader returns live data | ✅ |
+| W3a-25+ | Tactics subsystem (~17) + Cabinet item codec + alliance/enemy relationship modelling | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-24 — what landed
+
+The missing link between W3a-21 (audit-log writes) and W3a-23
+(reader). Map server flushes a batch of per-period PvP outcomes
+(one or more members per guild, optionally several guilds per
+batch); world accumulates the kill/die/points deltas into each
+matched `TGuildMember.weekrecord` so the reader returns live
+data on the next call.
+
+Wire format (no reply):
+```
+DWORD win_guild_id, DWORD guild_point, WORD guild_count,
+  [guild_count times]:
+    DWORD guild_id, WORD record_count,
+      [record_count times]:
+        DWORD char_id, WORD kill_count, WORD die_count,
+        DWORD points[kPvPEventCount=8]
+```
+
+Simplifications vs legacy (SSHandler.cpp:10139)
+- Tactics-member branch is skipped — the legacy second-chance
+  path for char→tactics→tactics->parent-guild lookup waits for
+  the tactics subsystem to port.
+- `win_guild_id` + `guild_point` (war-bonus award path for
+  winning B-country tactics-guilds) read and logged but not
+  acted on. Also tactics-dependent.
+- No per-day `vRecord` history. `weekrecord` is a plain
+  accumulator until the per-day store + `CalcWeekRecord`
+  7-day-trim ports. Production may want a periodic weekly
+  clear (analogous to the W3a-19 wanted-board sweep) but it
+  doesn't ship today — operators can issue a registry-wide
+  reset out-of-band if it matters before per-day vRecord
+  lands.
+
+Handler — `OnLocalRecordAck` (wID `MW_LOCALRECORD_ACK` = 0x9123)
+- Reads header, then nested loop per guild → per record.
+- For each record: short-body protection on header + point
+  array; on missing guild OR missing member silently drops
+  the row (legacy parity); on match accumulates under the
+  guild lock.
+- Logs `applied` + `dropped` counts per call.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenario 44: builds on
+  scenario 43's pre-populated chief weekrecord, fires a fan-in
+  with `kill+=2, die+=1, points[0]+=50`, verifies in-memory
+  values accumulated (9/4/{550, 300, 100}), then round-trips
+  through W3a-23 reader to confirm the accumulated state lands
+  on the wire.
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed).
+
+Deferred to W3a-25+
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+  + the tactics second-chance branches that W3a-22, W3a-23,
+  and W3a-24 all skip
+- Cabinet item subsystem (CABINETLIST/PUTIN/TAKEOUT + item
+  codec)
+- Per-day vRecord history (production weekly-trim semantics
+  for weekrecord)
+- War-bonus award for B-country tactics-guilds (W3a-24's
+  win_guild_id + guild_point fields)
+- Alliance / enemy relationship modelling (TGuild gains two
+  vector<uint32_t> fields)
 
 ### W3a-23 — what landed
 

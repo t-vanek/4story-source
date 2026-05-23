@@ -1975,6 +1975,120 @@ int main()
         EXPECT(saw_chief);
     }
 
+    // --- Scenario 44: MW_LOCALRECORD_ACK feeds W3a-23 reader ------
+    //
+    // Fan-in a war-result batch then read it back via
+    // MW_GUILDPVPRECORD_ACK. Chief (char 200) already has
+    // weekrecord pre-populated from scenario 43 with
+    // kill=7/die=3/points[0..2]={500,300,100}; this scenario
+    // sends ADDITIONAL deltas and verifies they accumulate.
+    {
+        std::vector<std::byte> body;
+        // Header: win_guild_id, guild_point, guild_count
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);   // win_guild
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1000);// guild_pt
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 1);   // 1 guild
+
+        // Guild 8 — 1 record for char 200
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);   // guild_id
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 1);   // 1 record
+
+        // Record: char 200, kill+=2, die+=1, points: +50 to bucket 0
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 2);
+        tworldsvr::wire::WritePOD<std::uint16_t>(body, 1);
+        for (std::size_t p = 0; p < tworldsvr::guild::kPvPEventCount; ++p)
+            tworldsvr::wire::WritePOD<std::uint32_t>(body,
+                p == 0 ? 50u : 0u);
+
+        SendFramed(peer1, ToUint16(MessageId::MW_LOCALRECORD_ACK),
+            body);
+    }
+    // Wait for accumulation to land (async write under guild lock).
+    for (int i = 0; i < 50; ++i)
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            bool found = false;
+            for (const auto& m : g->members)
+                if (m.char_id == 200 && m.weekrecord.kill_count == 9)
+                { found = true; break; }
+            if (found) break;
+        }
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        // Verify in-memory accumulation: 7+2=9 kills, 3+1=4 dies,
+        // points[0]=500+50=550 (others unchanged).
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            bool checked = false;
+            for (const auto& m : g->members)
+            {
+                if (m.char_id == 200)
+                {
+                    EXPECT(m.weekrecord.kill_count == 9);
+                    EXPECT(m.weekrecord.die_count  == 4);
+                    EXPECT(m.weekrecord.points[0]  == 550);
+                    EXPECT(m.weekrecord.points[1]  == 300);
+                    EXPECT(m.weekrecord.points[2]  == 100);
+                    checked = true;
+                    break;
+                }
+            }
+            EXPECT(checked);
+        }
+    }
+
+    // Round-trip via W3a-23 reader: verify the accumulated
+    // weekrecord lands on the wire.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDPVPRECORD_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDPVPRECORD_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0;
+        std::uint16_t mcount = 0;
+        EXPECT(rr.Read(cid));
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(mcount));
+        bool saw_chief = false;
+        for (std::uint16_t i = 0; i < mcount; ++i)
+        {
+            std::uint32_t mid = 0;
+            std::uint16_t kc = 0, dc = 0;
+            std::array<std::uint32_t, 6> pts{};
+            std::uint16_t last_kc = 0, last_dc = 0;
+            std::array<std::uint32_t, 6> last_pts{};
+            EXPECT(rr.Read(mid));
+            EXPECT(rr.Read(kc));
+            EXPECT(rr.Read(dc));
+            for (std::size_t p = 0; p < pts.size(); ++p) EXPECT(rr.Read(pts[p]));
+            EXPECT(rr.Read(last_kc));
+            EXPECT(rr.Read(last_dc));
+            for (std::size_t p = 0; p < last_pts.size(); ++p)
+                EXPECT(rr.Read(last_pts[p]));
+            if (mid == 200)
+            {
+                saw_chief = true;
+                EXPECT(kc == 9);
+                EXPECT(dc == 4);
+                EXPECT(pts[0] == 550);
+                EXPECT(pts[1] == 300);
+                EXPECT(pts[2] == 100);
+            }
+        }
+        EXPECT(saw_chief);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1984,7 +2098,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (43 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (44 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

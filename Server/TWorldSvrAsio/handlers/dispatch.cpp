@@ -52,6 +52,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_GUILDLEAVE_ACK:
         co_await OnGuildLeaveAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_GUILDDISORGANIZATION_ACK:
+        co_await OnGuildDisorganizationAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDPOINTREWARD_ACK:
+        co_await OnGuildPointRewardAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
     case MessageId::DM_GUILDDISORGANIZATION_REQ:
         co_await OnGuildDisorganizationReq(std::move(peer), std::move(body),
             ctx);

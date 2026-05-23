@@ -856,6 +856,24 @@ boost::asio::awaitable<void> SendMwGuildTacticsListReq(
     std::uint32_t                                key,
     const std::vector<GuildTacticsMemberRow>&    members);
 
+// MW_GUILDPOINTREWARD_REQ — reply to a chief's point-reward
+// grant (OnGuildPointRewardAck). The bResult byte is a GPR_*
+// code (services/guild_constants.h).
+//
+// Wire layout (SSSender.cpp:3161):
+//   BYTE result, DWORD char_id, key, remain_point, point,
+//   target_id, STRING target_name, message
+boost::asio::awaitable<void> SendMwGuildPointRewardReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 result,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                remain_point,
+    std::uint32_t                point,
+    std::uint32_t                target_id,
+    const std::string&           target_name,
+    const std::string&           message);
+
 // MW_GAINPVPPOINT_REQ — relay forwarded to a char's main map
 // peer when the owner of a PvP-point delta is a character
 // (TOWNER_CHAR). The map server applies the per-char delta +

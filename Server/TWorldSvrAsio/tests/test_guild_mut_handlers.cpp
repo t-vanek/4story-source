@@ -3105,6 +3105,127 @@ int main()
         }
     }
 
+    // --- Scenario 64: MW disorganization (player action, W3a-38) --
+    //
+    // Chief (char 200) requests guild 8 disband. Seed disorg=0
+    // first for determinism, then flip 0→1 and verify; a repeat
+    // disorg=1 is a no-op (no reply — verified by a follow-up
+    // ENTERCHAR round-trip surviving).
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            g->disorg = 0;
+            g->disorg_time = 0;
+        }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 1);  // disorg=1
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDDISORGANIZATION_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDDISORGANIZATION_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0; std::uint8_t d = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(d);
+        EXPECT(cid == 200);
+        EXPECT(d == 1);
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->disorg == 1);
+            EXPECT(g->disorg_time > 0);
+        }
+    }
+    // Repeat disorg=1 → no-op (no reply). Confirm framer alive.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 1);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDDISORGANIZATION_ACK), body);
+    }
+    std::this_thread::sleep_for(50ms);
+    SendFramed(peer1, ToUint16(MessageId::RW_ENTERCHAR_REQ),
+        EntercharBody(200, "Bob"));
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::RW_ENTERCHAR_ACK)); }
+    // Restore disorg=0 so it doesn't perturb any later assertions.
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            g->disorg = 0;
+            g->disorg_time = 0;
+        }
+    }
+
+    // --- Scenario 65: MW point reward (chief grants, W3a-38) ------
+    //
+    // Chief (char 200, "Bob") grants 1500 PvP-useable points to a
+    // member. The chief is a member of guild 8, so reward "Bob".
+    // Seed useable points for determinism.
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            g->pvp_useable_point = 10000;
+        }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WriteString(body, "Bob");           // target
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1500);// point
+        tworldsvr::wire::WriteString(body, "gj");            // message
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDPOINTREWARD_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDPOINTREWARD_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint8_t  result = 0;
+        std::uint32_t cid = 0, key = 0, remain = 0, point = 0, tid = 0;
+        std::string tname, msg;
+        rr.Read(result); rr.Read(cid); rr.Read(key); rr.Read(remain);
+        rr.Read(point); rr.Read(tid); rr.ReadString(tname);
+        rr.ReadString(msg);
+        EXPECT(result == tworldsvr::guild::kGprSuccess);
+        EXPECT(cid == 200);
+        EXPECT(point == 1500);
+        EXPECT(remain == 8500);   // 10000 - 1500
+        EXPECT(tname == "Bob");
+    }
+    // The recipient (char 200, msi=66=peer1) also gets a
+    // GAINPVPPOINT relay.
+    {
+        auto [w, _] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GAINPVPPOINT_REQ));
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->pvp_useable_point == 8500);
+            // Newest point_log entry is this reward.
+            EXPECT(!g->point_log.empty());
+            if (!g->point_log.empty())
+            {
+                EXPECT(g->point_log.front().recipient_name == "Bob");
+                EXPECT(g->point_log.front().point == 1500);
+            }
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -3114,7 +3235,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (63 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (65 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

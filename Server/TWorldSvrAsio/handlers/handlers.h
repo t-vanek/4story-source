@@ -389,6 +389,37 @@ boost::asio::awaitable<void> OnGuildEstablishAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-20: vestigial DB-server confirmation echoes --------------
+//
+// Legacy TWorldSvr runs in a 3-process cluster (TWorld + DB + BATCH);
+// every guild-mutating DM_*_REQ that TWorld sends to DB triggers a
+// DM_*_ACK that BATCH fans back to every world shard so they can
+// refresh in-memory state. Our SOCI-direct port collapses each
+// REQ+ACK pair into a single coroutine (W3a-4b for DISORGANIZATION,
+// W3a-10 for EXTINCTION, W3a-18 for ESTABLISH), so the ACK side is
+// redundant in single-shard deployments.
+//
+// These stubs accept the ACK packets and drop them at info-level so
+// hybrid deployments — where a legacy BATCH server is still
+// broadcasting confirmations — don't pollute the log with
+// "unknown wID" warnings on every guild mutation. No state change:
+// the synchronous REQ-side handlers already did the work.
+
+boost::asio::awaitable<void> OnGuildEstablishAckEcho(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildDisorganizationAckEcho(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildExtinctionAckEcho(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

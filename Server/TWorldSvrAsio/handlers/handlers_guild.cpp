@@ -2056,6 +2056,86 @@ OnGuildEstablishAck(std::shared_ptr<PeerSession> peer,
         ip, char_id, *new_id, guild_name, country);
 }
 
+// --- W3a-20 vestigial DB-server confirmation echoes ----------------
+//
+// All three handlers below accept legacy BATCH-server broadcast
+// echoes and drop them at info-level. The synchronous REQ-side
+// handlers (W3a-4b / W3a-10 / W3a-18) already did all the work
+// these ACKs would have triggered in a 3-process cluster. The
+// stubs exist purely so a hybrid deployment doesn't pollute the
+// log with "unknown wID" warnings on every guild mutation.
+
+boost::asio::awaitable<void>
+OnGuildEstablishAckEcho(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        /*ctx*/)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  result = 0;
+    std::uint32_t guild_id = 0;
+    std::string   name;
+    std::int64_t  time_es = 0;
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(result) || !r.Read(guild_id) || !r.ReadString(name) ||
+        !r.Read(time_es) || !r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnGuildEstablishAckEcho[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    spdlog::info("OnGuildEstablishAckEcho[{}]: vestigial echo for "
+                 "guild_id={} name='{}' result={} (W3a-18 already "
+                 "handled the create synchronously)",
+        ip, guild_id, name, result);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnGuildDisorganizationAckEcho(std::shared_ptr<PeerSession> peer,
+                              std::vector<std::byte>       body,
+                              const HandlerContext&        /*ctx*/)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, guild_id = 0, disorg_time = 0;
+    std::uint8_t  disorg = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(guild_id) ||
+        !r.Read(disorg) || !r.Read(disorg_time))
+    {
+        spdlog::warn("OnGuildDisorganizationAckEcho[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+    spdlog::info("OnGuildDisorganizationAckEcho[{}]: vestigial echo for "
+                 "guild_id={} disorg={} time={} (W3a-4b already "
+                 "handled the flag flip synchronously)",
+        ip, guild_id, disorg, disorg_time);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnGuildExtinctionAckEcho(std::shared_ptr<PeerSession> peer,
+                         std::vector<std::byte>       body,
+                         const HandlerContext&        /*ctx*/)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t guild_id = 0;
+    std::uint8_t  result = 0;
+    if (!r.Read(guild_id) || !r.Read(result))
+    {
+        spdlog::warn("OnGuildExtinctionAckEcho[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+    spdlog::info("OnGuildExtinctionAckEcho[{}]: vestigial echo for "
+                 "guild_id={} result={} (W3a-10 already handled the "
+                 "delete synchronously)",
+        ip, guild_id, result);
+    co_return;
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

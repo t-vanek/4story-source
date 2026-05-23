@@ -1718,6 +1718,60 @@ int main()
         }
     }
 
+    // --- Scenario 38: DM_GUILDESTABLISH_ACK echo (W3a-20 vestigial) ---
+    //
+    // Wire-compat stub for hybrid legacy-DB deployments. Handler
+    // accepts the packet, logs at info-level, doesn't mutate
+    // state (W3a-18 already did the synchronous create). We just
+    // verify the handler doesn't crash + the dispatch isn't
+    // dropped (framer survives — follow-up packet processes).
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);          // bRet
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 100);       // guild_id
+        tworldsvr::wire::WriteString(body, "EchoGuild");           // name
+        tworldsvr::wire::WritePOD<std::int64_t>(body, 1700000000); // time_es
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 999);       // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xDEADBEEF);// key
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDESTABLISH_ACK),
+            body);
+    }
+    // Sleep + framer-survival check via a known-good packet.
+    std::this_thread::sleep_for(50ms);
+    // Use a no-mutation query to confirm the connection still works.
+    SendFramed(peer1, ToUint16(MessageId::RW_ENTERCHAR_REQ),
+        EntercharBody(200, "Bob"));
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::RW_ENTERCHAR_ACK)); }
+
+    // --- Scenario 39: DM_GUILDDISORGANIZATION_ACK echo (W3a-20) ---
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 999);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xDEADBEEF);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 100);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 1);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 1700000000);
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDDISORGANIZATION_ACK),
+            body);
+    }
+    std::this_thread::sleep_for(50ms);
+    SendFramed(peer1, ToUint16(MessageId::RW_ENTERCHAR_REQ),
+        EntercharBody(200, "Bob"));
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::RW_ENTERCHAR_ACK)); }
+
+    // --- Scenario 40: DM_GUILDEXTINCTION_ACK echo (W3a-20) --------
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 100);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);
+        SendFramed(peer1, ToUint16(MessageId::DM_GUILDEXTINCTION_ACK),
+            body);
+    }
+    std::this_thread::sleep_for(50ms);
+    SendFramed(peer1, ToUint16(MessageId::RW_ENTERCHAR_REQ),
+        EntercharBody(200, "Bob"));
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::RW_ENTERCHAR_ACK)); }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -1727,7 +1781,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (37 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (40 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

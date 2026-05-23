@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-19 wanted-board expiry sweep
+## Status — W3a-20 vestigial DB-server ACK echoes
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -36,13 +36,67 @@ that the four shipped Asio daemons already use.
 | W3a-16 | Wanted/volunteering DB fan-in (OnDM_GUILDWANTEDADD/DEL_REQ + OnDM_GUILDVOLUNTEERING/INGDEL_REQ) — 4 handlers + GuildWantedRegistry defensive mirror + bType filter on the volunteering pair | ✅ |
 | W3a-17 | Leave/kickout DB fan-in (OnDM_GUILDLEAVE_REQ + OnDM_GUILDKICKOUT_REQ) — 2 handlers + shared ScrubMembershipInMemory helper completes the W3a-4c MEMBERADD pair | ✅ |
 | W3a-18 | Guild establishment: OnMW_GUILDESTABLISH_ACK creates new guilds in one coroutine (vs. legacy 4-hop map↔world↔DB roundtrip) + IGuildRepository::CreateGuild | ✅ |
-| **W3a-19** | Wanted-board periodic expiry sweep: GuildWantedRegistry::PruneExpired + SweepExpiredWanted coroutine wired into RegistryRefresher (closes W3a-11 TODO) | ✅ |
-| W3a-20+ | Tactics subsystem (~17) + PvP record / Cabinet item codec + vestigial DM_*_ACK no-ops | ⏸ |
+| W3a-19 | Wanted-board periodic expiry sweep: GuildWantedRegistry::PruneExpired + SweepExpiredWanted coroutine wired into RegistryRefresher (closes W3a-11 TODO) | ✅ |
+| **W3a-20** | Vestigial DB-server ACK echoes (OnDM_GUILDESTABLISH/DISORGANIZATION/EXTINCTION_ACK) — 3 log+drop stubs eliminate "unknown wID" warnings on hybrid legacy-DB deployments | ✅ |
+| W3a-21+ | Tactics subsystem (~17) + PvP record / Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-20 — what landed
+
+Three vestigial-echo handlers that accept legacy BATCH-server
+broadcast confirmations and drop them at info-level. Wire-compat
+plumbing for hybrid deployments where the legacy DB+BATCH
+processes are still running alongside this TWorldSvrAsio.
+
+Context
+- Legacy TWorldSvr runs in a 3-process cluster: TWorld + DB +
+  BATCH. Every guild-mutating `DM_*_REQ` that TWorld sends to
+  DB triggers a `DM_*_ACK` that BATCH fans back to every world
+  shard so they can refresh in-memory state.
+- Our SOCI-direct port collapses each REQ+ACK pair into a
+  single coroutine — W3a-4b for DISORGANIZATION, W3a-10 for
+  EXTINCTION, W3a-18 for ESTABLISH — so the ACK side is
+  redundant in single-shard deployments.
+- A hybrid deployment (legacy BATCH still alive) would
+  otherwise spam the log with `unknown wID=0x589E/0x58A0/0x58CE`
+  warnings on every guild mutation. These stubs convert those
+  to deliberate info-level "vestigial echo" logs.
+
+Handlers (all in `handlers/handlers_guild.cpp` after the W3a-18
+block)
+- `OnGuildEstablishAckEcho` (wID `DM_GUILDESTABLISH_ACK` =
+  0x589E). Wire: `{bRet, guild_id, name, time_es, char_id, key}`.
+- `OnGuildDisorganizationAckEcho` (wID
+  `DM_GUILDDISORGANIZATION_ACK` = 0x58A0). Wire:
+  `{char_id, key, guild_id, disorg, disorg_time}`.
+- `OnGuildExtinctionAckEcho` (wID `DM_GUILDEXTINCTION_ACK` =
+  0x58CE). Wire: `{guild_id, result}`.
+
+Each handler is ~15 LOC: read wire fields → log a one-liner with
+"vestigial echo for X (W3a-N already handled the Y
+synchronously)" → `co_return`. No state mutation, no reply.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 38-40 drive each
+  echo through dispatch then send a follow-up
+  `RW_ENTERCHAR_REQ` to verify the framer survived (handler
+  didn't crash, dispatch loop kept running).
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed).
+
+Deferred to W3a-21+
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+- PvP record listing (`CTBLGuildPvPointReward` TOP 50 +
+  per-member weekrecord/vRecord state-model expansion)
+- Cabinet item subsystem (CABINETLIST/PUTIN/TAKEOUT + DM
+  fan-in + item codec)
+- `OnDM_GUILDUPDATE_REQ` (variable-length alliance/enemy CSV
+  columns — non-trivial wire codec)
 
 ### W3a-19 — what landed
 

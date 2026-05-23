@@ -737,15 +737,18 @@ SociGuildRepository::CreateGuild(const std::string& name,
     }
 }
 
-bool SociGuildRepository::UpdateGuildFull(std::uint32_t guild_id,
-                                           std::uint8_t  fame,
-                                           std::uint8_t  guild_points,
-                                           std::uint8_t  level,
-                                           std::uint8_t  status,
-                                           std::uint32_t chief_id,
-                                           std::uint32_t gi,
-                                           std::uint32_t exp,
-                                           std::uint32_t time_unix)
+bool SociGuildRepository::UpdateGuildFull(
+    std::uint32_t                     guild_id,
+    std::uint8_t                      fame,
+    std::uint8_t                      guild_points,
+    std::uint8_t                      level,
+    std::uint8_t                      status,
+    std::uint32_t                     chief_id,
+    std::uint32_t                     gi,
+    std::uint32_t                     exp,
+    std::uint32_t                     time_unix,
+    const std::vector<std::uint32_t>& alliance_ids,
+    const std::vector<std::uint32_t>& enemy_ids)
 {
     try
     {
@@ -765,6 +768,20 @@ bool SociGuildRepository::UpdateGuildFull(std::uint32_t guild_id,
             soci::use(static_cast<int>(exp)),
             soci::use(static_cast<int>(time_unix)),
             soci::use(static_cast<int>(guild_id));
+        // Alliance + enemy IDs are kept in memory by the handler
+        // (TGuild.alliance_ids / .enemy_ids) but not persisted —
+        // the legacy szAllience / szEnemy CSV columns aren't in
+        // our portable schema yet (deferred to a future W5+
+        // migration alongside the rest of the war system). Log
+        // when non-empty so operators can spot the mismatch if
+        // they care.
+        if (!alliance_ids.empty() || !enemy_ids.empty())
+        {
+            spdlog::info("SociGuildRepository::UpdateGuildFull({}): "
+                         "alliance_ids={} enemy_ids={} kept in memory "
+                         "only (schema lacks szAllience / szEnemy)",
+                guild_id, alliance_ids.size(), enemy_ids.size());
+        }
         return true;
     }
     catch (const std::exception& ex)

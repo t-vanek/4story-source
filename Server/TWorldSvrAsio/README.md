@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-24 per-period war-result fan-in
+## Status — W3a-25 alliance + enemy state modelling
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -41,13 +41,78 @@ that the four shipped Asio daemons already use.
 | W3a-21 | PvP record audit log (OnDM_PVPRECORD_REQ) — batched per-row persistence via new IGuildRepository::LogPvPRecord + kPvPEventCount=8 constant | ✅ |
 | W3a-22 | Full-row guild update fan-in (OnDM_GUILDUPDATE_REQ) — 8-column scalar overwrite via new IGuildRepository::UpdateGuildFull; alliance/enemy ID lists parsed for wire-compat then dropped (deferred to W5+ war system) | ✅ |
 | W3a-23 | PvP record list reader (OnMW_GUILDPVPRECORD_ACK) — pairs with W3a-21 audit log; new TPvPRecord POD + TGuildMember.weekrecord + GuildPvPRecordRow sender | ✅ |
-| **W3a-24** | Per-period war-result fan-in (OnMW_LOCALRECORD_ACK) — accumulates kill/die/points deltas into TGuildMember.weekrecord so W3a-23 reader returns live data | ✅ |
-| W3a-25+ | Tactics subsystem (~17) + Cabinet item codec + alliance/enemy relationship modelling | ⏸ |
+| W3a-24 | Per-period war-result fan-in (OnMW_LOCALRECORD_ACK) — accumulates kill/die/points deltas into TGuildMember.weekrecord so W3a-23 reader returns live data | ✅ |
+| **W3a-25** | Alliance + enemy state modelling — TGuild gains vector<uint32_t> fields populated by W3a-22 (drained-and-dropped lists become real in-memory state) | ✅ |
+| W3a-26+ | Tactics subsystem (~17) + Cabinet item codec + per-day vRecord history | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-25 — what landed
+
+Completes the W3a-22 story. The full-row guild update handler
+previously parsed the alliance + enemy DWORD ID lists for
+wire-compat then dropped them; W3a-25 promotes them to proper
+in-memory state on `TGuild` so future war-system code can read
+guild relationships without waiting for a registry reload.
+
+State model
+- `TGuild` gains two `std::vector<std::uint32_t>` fields:
+  `alliance_ids` and `enemy_ids`. Both default-construct empty.
+  The legacy `TGUILDTABLE.szAllience` / `.szEnemy` columns
+  are comma-separated DWORD strings (and yes, "szAllience" is
+  the legacy spelling); we don't model the persistence path yet
+  (deferred to a W5+ schema migration alongside the rest of the
+  war system) so the in-memory state is rebuilt from
+  `OnGuildUpdateReq` calls and lasts until process restart.
+
+Repo signature change
+- `IGuildRepository::UpdateGuildFull` gains two
+  `const std::vector<std::uint32_t>&` parameters at the tail
+  (alliance, enemy). Only the W3a-22 handler calls this method,
+  so no other call sites needed updating.
+- Fake records the lists in test-only members
+  (`LastAllianceIds()` / `LastEnemyIds()` accessors) and also
+  mirrors them onto the in-memory `TGuild` so subsequent
+  `FindById` returns see them.
+- SOCI logs a warning when the lists are non-empty and skips
+  the persistence (the legacy CSV columns aren't in our
+  portable schema yet).
+
+Handler update — W3a-22 `OnGuildUpdateReq`
+- Wire parse for the alliance / enemy lists now collects into
+  `std::vector<std::uint32_t>` instead of draining + dropping.
+- In-memory mirror under `guild->lock` copies the vectors onto
+  `TGuild.alliance_ids` / `.enemy_ids` alongside the existing
+  scalar fields.
+- Repo call passes the lists through; log line counts allies +
+  enemies instead of saying "dropped".
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenario 42 extended:
+  same packet (2 allies, 1 enemy) now verifies the
+  `TGuild.alliance_ids` / `.enemy_ids` vectors landed AND the
+  fake repo's `LastAllianceIds` / `LastEnemyIds` accessors
+  return the same lists.
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed).
+
+Deferred to W3a-26+
+- SOCI persistence for alliance / enemy (`szAllience` /
+  `szEnemy` CSV column round-trip OR a new relational join
+  table — either way needs a schema migration). Currently the
+  in-memory state is lost on process restart until a fresh
+  `DM_GUILDUPDATE_REQ` arrives.
+- Tactics subsystem (~17 handlers): TACTICSADD/DEL/ANSWER/
+  INVITE/KICKOUT/LIST/REPLY + tactics-side WANTED/VOLUNTEER
+- Cabinet item subsystem (CABINETLIST/PUTIN/TAKEOUT + item
+  codec)
+- Per-day vRecord history (replaces W3a-24's plain
+  accumulator with proper week-trim semantics)
+- War-bonus award for B-country tactics-guilds (W3a-24's
+  win_guild_id + guild_point fields)
 
 ### W3a-24 — what landed
 

@@ -80,15 +80,24 @@ public:
                       const std::array<std::uint32_t,
                                         guild::kPvPEventCount>&
                           points) override;
-    bool UpdateGuildFull(std::uint32_t guild_id,
-                         std::uint8_t  fame,
-                         std::uint8_t  guild_points,
-                         std::uint8_t  level,
-                         std::uint8_t  status,
-                         std::uint32_t chief_id,
-                         std::uint32_t gi,
-                         std::uint32_t exp,
-                         std::uint32_t time_unix) override;
+    bool UpdateGuildFull(
+        std::uint32_t                     guild_id,
+        std::uint8_t                      fame,
+        std::uint8_t                      guild_points,
+        std::uint8_t                      level,
+        std::uint8_t                      status,
+        std::uint32_t                     chief_id,
+        std::uint32_t                     gi,
+        std::uint32_t                     exp,
+        std::uint32_t                     time_unix,
+        const std::vector<std::uint32_t>& alliance_ids,
+        const std::vector<std::uint32_t>& enemy_ids) override;
+
+    // W3a-25 test hooks — last alliance/enemy list seen by
+    // UpdateGuildFull. The vectors don't fit in the Call struct's
+    // numeric slots so they live as separate test-only members.
+    std::vector<std::uint32_t> LastAllianceIds() const;
+    std::vector<std::uint32_t> LastEnemyIds() const;
 
     // Test-only: snapshot of the mutating calls in arrival order.
     // Lets test_guild_mut_handlers assert that the right CSP-equivalent
@@ -118,6 +127,8 @@ private:
     mutable std::mutex                                         m_mtx;
     std::unordered_map<std::uint32_t, std::shared_ptr<TGuild>> m_guilds;
     std::vector<Call>                                          m_calls;
+    std::vector<std::uint32_t>                                 m_last_alliance_ids;
+    std::vector<std::uint32_t>                                 m_last_enemy_ids;
 };
 
 } // namespace tworldsvr

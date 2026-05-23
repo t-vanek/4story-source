@@ -80,15 +80,18 @@ public:
                       const std::array<std::uint32_t,
                                         guild::kPvPEventCount>&
                           points) override;
-    bool UpdateGuildFull(std::uint32_t guild_id,
-                         std::uint8_t  fame,
-                         std::uint8_t  guild_points,
-                         std::uint8_t  level,
-                         std::uint8_t  status,
-                         std::uint32_t chief_id,
-                         std::uint32_t gi,
-                         std::uint32_t exp,
-                         std::uint32_t time_unix) override;
+    bool UpdateGuildFull(
+        std::uint32_t                     guild_id,
+        std::uint8_t                      fame,
+        std::uint8_t                      guild_points,
+        std::uint8_t                      level,
+        std::uint8_t                      status,
+        std::uint32_t                     chief_id,
+        std::uint32_t                     gi,
+        std::uint32_t                     exp,
+        std::uint32_t                     time_unix,
+        const std::vector<std::uint32_t>& alliance_ids,
+        const std::vector<std::uint32_t>& enemy_ids) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

@@ -150,6 +150,19 @@ struct TGuild
     std::uint8_t  stat_point      = 0;
     std::uint32_t stat_exp        = 0;
 
+    // W3a-25 — inter-guild alliance / enemy relationships.
+    // Legacy stores both as comma-separated DWORD strings in
+    // TGUILDTABLE.szAllience / .szEnemy (yes, the legacy column
+    // is misspelled). We hold them as proper vectors in memory;
+    // the SOCI persistence path is deferred (would require a
+    // schema migration to a relational join table, or a CSV
+    // round-trip that matches the legacy column shape exactly).
+    // Until then the in-memory state survives until process
+    // restart — useful for W5+ war-system reads that look up
+    // relationships during a castle siege.
+    std::vector<std::uint32_t> alliance_ids;
+    std::vector<std::uint32_t> enemy_ids;
+
     // Members — keyed by char_id. Linear lookups are fine; a typical
     // guild has < 200 members and FindMember is the hot path on
     // chat / member-join. The legacy module uses a map_string-

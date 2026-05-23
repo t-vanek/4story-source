@@ -1831,11 +1831,12 @@ int main()
         EXPECT(saw_row1);
     }
 
-    // --- Scenario 42: DM_GUILDUPDATE_REQ overwrites scalars + drops lists ---
+    // --- Scenario 42: DM_GUILDUPDATE_REQ overwrites scalars + lists ---
     //
     // Admin / bulk-load path. Overwrite guild 8's scalar columns
-    // + drain the alliance / enemy ID lists. Verify the
-    // in-memory mirror landed AND the repo recorded the call.
+    // + the alliance / enemy ID lists. Verify the in-memory mirror
+    // landed (W3a-25 added the list fields to TGuild) AND the
+    // repo recorded the call with the lists.
     {
         std::vector<std::byte> body;
         tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);     // guild_id
@@ -1848,8 +1849,8 @@ int main()
         tworldsvr::wire::WritePOD<std::uint32_t>(body, 999);   // gi
         tworldsvr::wire::WritePOD<std::uint32_t>(body, 1700009999); // time
 
-        // 2 allies, 1 enemy — both dropped from in-memory but
-        // parsed for wire-compat (framer length agreement).
+        // 2 allies, 1 enemy — W3a-25 populates these into
+        // TGuild.alliance_ids / .enemy_ids.
         tworldsvr::wire::WritePOD<std::uint8_t>(body, 2);
         tworldsvr::wire::WritePOD<std::uint32_t>(body, 11);
         tworldsvr::wire::WritePOD<std::uint32_t>(body, 22);
@@ -1863,7 +1864,9 @@ int main()
         if (auto g = guilds.Find(8))
         {
             std::lock_guard gl(g->lock);
-            if (g->fame == 42 && g->level == 6) break;
+            if (g->fame == 42 && g->level == 6 &&
+                g->alliance_ids.size() == 2)
+                break;
         }
         std::this_thread::sleep_for(10ms);
     }
@@ -1879,6 +1882,16 @@ int main()
             EXPECT(g->exp           == 555);
             EXPECT(g->gi            == 999);
             EXPECT(g->disorg_time   == 1700009999);
+            // W3a-25: alliance + enemy lists land in TGuild.
+            EXPECT(g->alliance_ids.size() == 2);
+            if (g->alliance_ids.size() == 2)
+            {
+                EXPECT(g->alliance_ids[0] == 11);
+                EXPECT(g->alliance_ids[1] == 22);
+            }
+            EXPECT(g->enemy_ids.size() == 1);
+            if (g->enemy_ids.size() == 1)
+                EXPECT(g->enemy_ids[0] == 33);
         }
         // Repo got the call. Call layout (set in fake repo):
         // char_id=chief, a=fame, b=gpoint, c=level, d=status, e=time.
@@ -1892,6 +1905,17 @@ int main()
                 && c.e == 1700009999) { saw_update = true; break; }
         }
         EXPECT(saw_update);
+        // W3a-25: Fake repo records the last-seen lists separately.
+        const auto last_a = fake_repo.LastAllianceIds();
+        const auto last_e = fake_repo.LastEnemyIds();
+        EXPECT(last_a.size() == 2);
+        if (last_a.size() == 2)
+        {
+            EXPECT(last_a[0] == 11);
+            EXPECT(last_a[1] == 22);
+        }
+        EXPECT(last_e.size() == 1);
+        if (last_e.size() == 1) EXPECT(last_e[0] == 33);
     }
 
     // --- Scenario 43: MW_GUILDPVPRECORD_ACK returns weekrecord ---

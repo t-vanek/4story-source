@@ -382,25 +382,31 @@ FakeGuildRepository::CreateGuild(const std::string& name,
     return new_id;
 }
 
-bool FakeGuildRepository::UpdateGuildFull(std::uint32_t guild_id,
-                                           std::uint8_t  fame,
-                                           std::uint8_t  guild_points,
-                                           std::uint8_t  level,
-                                           std::uint8_t  status,
-                                           std::uint32_t chief_id,
-                                           std::uint32_t gi,
-                                           std::uint32_t exp,
-                                           std::uint32_t time_unix)
+bool FakeGuildRepository::UpdateGuildFull(
+    std::uint32_t                     guild_id,
+    std::uint8_t                      fame,
+    std::uint8_t                      guild_points,
+    std::uint8_t                      level,
+    std::uint8_t                      status,
+    std::uint32_t                     chief_id,
+    std::uint32_t                     gi,
+    std::uint32_t                     exp,
+    std::uint32_t                     time_unix,
+    const std::vector<std::uint32_t>& alliance_ids,
+    const std::vector<std::uint32_t>& enemy_ids)
 {
     std::lock_guard lock(m_mtx);
     // Call layout: char_id slot carries chief_id;
     // a=fame, b=guild_points, c=level, d=status, e=time_unix.
     // gi + exp are dropped from the Call record (tests verify
     // dispatch routing + scalar updates; SOCI impl persists all
-    // 8 columns).
+    // 8 columns). alliance + enemy ID lists live in separate
+    // test-only members below.
     (void)gi; (void)exp;
     m_calls.push_back({Call::Kind::kUpdateGuildFull, guild_id, chief_id,
                        fame, guild_points, level, status, time_unix});
+    m_last_alliance_ids = alliance_ids;
+    m_last_enemy_ids    = enemy_ids;
     auto it = m_guilds.find(guild_id);
     if (it == m_guilds.end()) return false;
     std::lock_guard gl(it->second->lock);
@@ -412,7 +418,21 @@ bool FakeGuildRepository::UpdateGuildFull(std::uint32_t guild_id,
     it->second->gi            = gi;
     it->second->exp           = exp;
     it->second->disorg_time   = time_unix;
+    it->second->alliance_ids  = alliance_ids;
+    it->second->enemy_ids     = enemy_ids;
     return true;
+}
+
+std::vector<std::uint32_t> FakeGuildRepository::LastAllianceIds() const
+{
+    std::lock_guard lock(m_mtx);
+    return m_last_alliance_ids;
+}
+
+std::vector<std::uint32_t> FakeGuildRepository::LastEnemyIds() const
+{
+    std::lock_guard lock(m_mtx);
+    return m_last_enemy_ids;
 }
 
 bool FakeGuildRepository::LogPvPRecord(

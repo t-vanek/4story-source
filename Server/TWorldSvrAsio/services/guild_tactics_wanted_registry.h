@@ -27,6 +27,26 @@
 
 namespace tworldsvr {
 
+// One applicant to a tactics-wanted posting (legacy
+// TGUILDTACTICSWANTEDAPP). Reward fields are copied from the
+// parent posting at apply time so the chief's volunteer-list UI
+// can show what each applicant was promised.
+struct TGuildTacticsWantedApp
+{
+    std::uint32_t char_id        = 0;
+    std::uint32_t wanted_id      = 0;   // the posting id applied to
+    std::uint32_t wanted_guild_id = 0;  // posting's guild
+    std::uint32_t region         = 0;   // refreshed at LIST time
+    std::uint8_t  level          = 0;
+    std::uint8_t  klass          = 0;
+    std::string   name;
+    std::uint8_t  day            = 0;
+    std::uint32_t point          = 0;
+    std::uint32_t gold           = 0;
+    std::uint32_t silver         = 0;
+    std::uint32_t cooper         = 0;
+};
+
 // One tactics-wanted posting. Mirrors legacy TGUILDTACTICSWANTED.
 struct TGuildTacticsWanted
 {
@@ -79,12 +99,43 @@ public:
 
     std::size_t Size() const;
 
+    // --- W3a-32 applicant flow -----------------------------------
+    //
+    // Parallels GuildWantedRegistry's W3a-12 applicant API.
+    // AddApp runs the legacy gates:
+    //   - already applied to this same guild → kSame
+    //   - already applied elsewhere          → kAlreadyApply
+    //   - no such posting                    → kFail
+    //   - country mismatch                   → kFail
+    //   - posting expired                    → kWantedEnd
+    //   - level out of [min,max]             → kMismatchLevel
+    //   - applicant is in the posting's own guild → kSameGuildTactics
+    //   - otherwise                          → kSuccess
+    // The caller supplies the applicant's war-country + current
+    // guild_id (the registry doesn't reach into CharRegistry).
+    std::uint8_t AddApp(const TGuildTacticsWantedApp& app,
+                        std::uint8_t  country,
+                        std::uint32_t applicant_guild_id);
+    bool         DelApp(std::uint32_t char_id);
+    // All applicants across every posting owned by `guild_id`
+    // (the chief's volunteer-list view).
+    std::vector<TGuildTacticsWantedApp> SnapshotAppsFor(
+        std::uint32_t guild_id) const;
+    // The wanted-guild_id this char applied to (0 if none) —
+    // drives the wanted board's already_applied flag.
+    std::uint32_t FindAppGuildByChar(std::uint32_t char_id) const;
+
 private:
     mutable std::shared_mutex m_mtx;
     std::unordered_map<std::uint32_t,
                        std::vector<TGuildTacticsWanted>> m_by_guild;
     std::unordered_map<std::uint32_t, std::uint32_t>     m_guild_by_id;
     std::uint32_t                                        m_next_id = 0;
+
+    // Applicants keyed by char_id (one pending application per
+    // char). The value carries the posting id + guild so DelApp
+    // and the volunteer-list scan don't need a posting walk.
+    std::unordered_map<std::uint32_t, TGuildTacticsWantedApp> m_apps;
 };
 
 } // namespace tworldsvr

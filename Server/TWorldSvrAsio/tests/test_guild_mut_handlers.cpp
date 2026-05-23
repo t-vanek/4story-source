@@ -2430,6 +2430,136 @@ int main()
         EXPECT(guild_tactics_wanted.Size() == 0);
     }
 
+    // --- Scenario 52: tactics VOLUNTEER apply + list (W3a-32) -----
+    //
+    // Re-post a tactics-wanted entry for guild 8 (scenario 51
+    // deleted the prior one), then have a guild-less applicant
+    // (char 700 "Golf", added in scenario 37, never joined a
+    // guild) apply to it. Verify the apply result + the chief's
+    // volunteer-list shows the applicant.
+    std::uint32_t tactics_wanted_id = 0;
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0);     // id auto
+        tworldsvr::wire::WriteString(body, "Recruiting");
+        tworldsvr::wire::WriteString(body, "Join us");
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 7);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);      // min_level (char 700 lvl 0)
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 99);     // max_level
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 2000);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 100);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 50);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 25);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSWANTEDADD_ACK), body);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDADD_REQ)); }
+    {
+        auto [w, body] = ReadFramed(peer1);  // list refresh
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(count);
+        if (count >= 1) { rr.Read(tactics_wanted_id); }
+        EXPECT(tactics_wanted_id != 0);
+    }
+    // Char 700 (Golf) applies. country defaults 0 (matches
+    // posting). level was set via NameBody — check it's in [1,99].
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 700);  // char_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xA1B2C3D4); // key
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);    // guild_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, tactics_wanted_id);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERING_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERING_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0; std::uint8_t result = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(result);
+        EXPECT(cid == 700);
+        EXPECT(result == tworldsvr::guild::kSuccess);
+    }
+    {
+        // Apply chases a wanted-board refresh to char 700.
+        auto [w, _] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ));
+    }
+
+    // --- Scenario 53: chief lists tactics applicants (W3a-32) -----
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);  // chief
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERLIST_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        EXPECT(rr.Read(cid));   EXPECT(cid == 200);
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(count)); EXPECT(count == 1);
+        if (count == 1)
+        {
+            std::uint32_t acid = 0, region = 0, point = 0, gold = 0,
+                          silver = 0, cooper = 0;
+            std::string aname;
+            std::uint8_t alvl = 0, aklass = 0, aday = 0;
+            EXPECT(rr.Read(acid));        EXPECT(acid == 700);
+            EXPECT(rr.ReadString(aname));
+            EXPECT(rr.Read(alvl));
+            EXPECT(rr.Read(aklass));
+            EXPECT(rr.Read(region));
+            EXPECT(rr.Read(aday));        EXPECT(aday == 7);
+            EXPECT(rr.Read(point));       EXPECT(point == 2000);
+            EXPECT(rr.Read(gold));        EXPECT(gold == 100);
+            EXPECT(rr.Read(silver));      EXPECT(silver == 50);
+            EXPECT(rr.Read(cooper));      EXPECT(cooper == 25);
+        }
+    }
+
+    // --- Scenario 54: applicant cancels (W3a-32) ------------------
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 700);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xA1B2C3D4);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERINGDEL_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERINGDEL_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0; std::uint8_t result = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(result);
+        EXPECT(result == tworldsvr::guild::kSuccess);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSWANTEDLIST_REQ)); }
+    {
+        // Chief's applicant list is now empty.
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERLIST_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSVOLUNTEERLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(count);
+        EXPECT(count == 0);
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2439,7 +2569,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (51 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (54 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

@@ -685,6 +685,59 @@ boost::asio::awaitable<void> SendMwGuildTacticsWantedListReq(
     std::uint32_t                                key,
     const std::vector<GuildTacticsWantedRow>&    entries);
 
+// --- W3a-32 — tactics volunteer (applicant) flow ------------------
+
+// MW_GUILDTACTICSVOLUNTEERING_REQ / VOLUNTEERINGDEL_REQ — 3-byte
+// result replies for the apply / cancel branches.
+boost::asio::awaitable<void> SendMwGuildTacticsVolunteeringReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+boost::asio::awaitable<void> SendMwGuildTacticsVolunteeringDelReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_GUILDTACTICSVOLUNTEERLIST_REQ — chief's applicant list.
+//
+// Wire layout (SSSender.cpp:1483):
+//   DWORD  dwCharID
+//   DWORD  dwKey
+//   DWORD  applicant_count
+//   × applicant_count:
+//     DWORD  dwCharID
+//     STRING strName
+//     BYTE   bLevel
+//     BYTE   bClass
+//     DWORD  dwRegion
+//     BYTE   bDay
+//     DWORD  dwPoint
+//     DWORD  dwGold
+//     DWORD  dwSilver
+//     DWORD  dwCooper
+struct GuildTacticsVolunteerRow
+{
+    std::uint32_t char_id = 0;
+    std::string   name;
+    std::uint8_t  level   = 0;
+    std::uint8_t  klass   = 0;
+    std::uint32_t region  = 0;
+    std::uint8_t  day     = 0;
+    std::uint32_t point   = 0;
+    std::uint32_t gold    = 0;
+    std::uint32_t silver  = 0;
+    std::uint32_t cooper  = 0;
+};
+
+boost::asio::awaitable<void> SendMwGuildTacticsVolunteerListReq(
+    std::shared_ptr<PeerSession>                    peer,
+    std::uint32_t                                   char_id,
+    std::uint32_t                                   key,
+    const std::vector<GuildTacticsVolunteerRow>&    applicants);
+
 // MW_GAINPVPPOINT_REQ — relay forwarded to a char's main map
 // peer when the owner of a PvP-point delta is a character
 // (TOWNER_CHAR). The map server applies the per-char delta +

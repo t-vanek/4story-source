@@ -30,6 +30,19 @@ std::shared_ptr<TGuild> Clone(const std::shared_ptr<TGuild>& src)
     dst->pvp_total_point   = src->pvp_total_point;
     dst->pvp_useable_point = src->pvp_useable_point;
     dst->country           = src->country;
+    // W3a-9 + W3a-25 + W3a-27 fields — previously dropped on
+    // Clone (a latent test-fidelity bug: FindById / LoadAll
+    // round-trips silently lost month-point, ranking/stat,
+    // alliance/enemy + the point reward log).
+    dst->pvp_month_point   = src->pvp_month_point;
+    dst->rank_total        = src->rank_total;
+    dst->rank_month        = src->rank_month;
+    dst->stat_level        = src->stat_level;
+    dst->stat_point        = src->stat_point;
+    dst->stat_exp          = src->stat_exp;
+    dst->alliance_ids      = src->alliance_ids;
+    dst->enemy_ids         = src->enemy_ids;
+    dst->point_log         = src->point_log;
     dst->members           = src->members;  // value copy
     return dst;
 }

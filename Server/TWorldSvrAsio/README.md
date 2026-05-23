@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-29 PvP-point gain/use fan-in
+## Status — W3a-30 boot-time point_log load + Clone fidelity fix
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -46,13 +46,65 @@ that the four shipped Asio daemons already use.
 | W3a-26 | Cabinet LIST stub (OnGuildCabinetListAck) — wire-compat empty-list reply via SendMwGuildCabinetListReq; PUTIN/TAKEOUT + item codec still deferred | ✅ |
 | W3a-27 | PvP point reward log reader (OnGuildPointLogAck) — pairs with W3a-14 writer; new TPointRewardEntry + TGuild.point_log in-memory mirror | ✅ |
 | W3a-28 | Per-day vRecord history + CalcWeekRecord — replaces W3a-24's plain accumulator with proper week-trim semantics matching legacy CTGuild::CalcWeekRecord exactly | ✅ |
-| **W3a-29** | PvP-point gain/use fan-in (OnGainPvPointAck) — char relay + guild bank mutation (total/useable/month) + point_log newest-first/TOP-50 trim fix | ✅ |
-| W3a-30+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) | ⏸ |
+| W3a-29 | PvP-point gain/use fan-in (OnGainPvPointAck) — char relay + guild bank mutation (total/useable/month) + point_log newest-first/TOP-50 trim fix | ✅ |
+| **W3a-30** | Boot-time point_log load (SOCI LoadAll third pass from TGUILDPVPOINTREWARDTABLE) + FakeGuildRepository::Clone fidelity fix (was dropping alliance/enemy/point_log/month on round-trip) | ✅ |
+| W3a-31+ | Tactics subsystem (~17) + Cabinet item codec (PUTIN/TAKEOUT + DM fan-in) | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-30 — what landed
+
+Two related durability/correctness items: boot-time loading of
+the PvP point reward log + a latent `Clone` fidelity bug fix.
+
+Boot-time point_log load
+- `SociGuildRepository::LoadAll` gains a third pass after the
+  guild + member passes: `SELECT dwGuildID, szName, dwPoint,
+  dlDate FROM TGUILDPVPOINTREWARDTABLE ORDER BY dlDate DESC`,
+  dispatched into each guild's `point_log` (newest-first,
+  capped at `kPointLogMaxEntries` = 50 per guild — matching the
+  legacy `CTBLGuildPvPointReward` SELECT-TOP-50 + the
+  `CTGuild::PointLog` in-memory bound). After this, the W3a-27
+  log reader returns rewards granted before the latest process
+  restart, not just ones fanned in during the current run.
+- `dlDate` (DB timestamp) is read as `std::tm` and converted to
+  Unix epoch seconds via `std::mktime`.
+- Wrapped in its own try/catch — a missing
+  TGUILDPVPOINTREWARDTABLE (the schema validator already warns
+  at boot) just leaves `point_log` empty rather than aborting
+  the whole `LoadAll`.
+
+Clone fidelity fix
+- `FakeGuildRepository`'s internal `Clone` (used by `LoadAll` /
+  `FindById` to hand out deep copies) was field-by-field and
+  silently dropped everything added after W3a-1:
+  `pvp_month_point`, `rank_total` / `rank_month`, `stat_*`,
+  `alliance_ids`, `enemy_ids`, and `point_log`. Any test that
+  round-tripped a guild through the fake lost those fields.
+  Now copies all of them. (Production
+  `SociGuildRepository` builds fresh TGuild from DB rows so it
+  was never affected — this is a test-fidelity fix.)
+
+Tests
+- `tests/test_fake_guild_repository.cpp` gains a Gamma guild
+  seeded with `pvp_month_point` + alliance/enemy lists +
+  a point_log entry; verifies `FindById` round-trips all of
+  them.
+
+Build verified: cmake + ctest -R tworldsvr_asio (16/16 passed).
+
+Deferred to W3a-31+
+- Boot-time vRecord load from TGUILDPVPRECORDTABLE (the
+  point_log half landed here; the per-member per-day vRecord
+  half is more involved — needs a per-member dispatch + a
+  CalcWeekRecord pass after load)
+- Cabinet PUTIN / TAKEOUT handlers + DM fan-in + item codec
+- Tactics subsystem (~17 handlers)
+- War-bonus award for B-country tactics-guilds
+- SOCI persistence for alliance / enemy
 
 ### W3a-29 — what landed
 

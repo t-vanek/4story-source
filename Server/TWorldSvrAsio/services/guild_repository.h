@@ -179,6 +179,30 @@ public:
                                 std::uint32_t useable_point,
                                 std::uint32_t month_point) = 0;
 
+    // --- W3a-22 full-row guild update ---------------------------
+
+    // Bulk overwrite of TGUILDTABLE scalar columns. Mirrors
+    // CSPGuildUpdate (SSHandler.cpp:2979 / DBAccess.h:1601) which
+    // takes (id, fame, gpoint, level, status, chief, gi, exp,
+    // time, szAlliance, szEnemy) and runs `TGuildUpdate(?,?,?,?,?,?,?,?,?,?,?)`.
+    //
+    // Our port only persists the 8 scalar columns — `szAlliance`
+    // and `szEnemy` (legacy comma-separated DWORD lists) require
+    // a relational schema migration we haven't done yet, so the
+    // caller drops the variable-length lists with a log note.
+    // Most fields are wire-truncated to BYTE in DM_GUILDUPDATE_REQ
+    // (legacy parity); the repo signature takes the post-truncation
+    // values straight through.
+    virtual bool UpdateGuildFull(std::uint32_t guild_id,
+                                 std::uint8_t  fame,
+                                 std::uint8_t  guild_points,
+                                 std::uint8_t  level,
+                                 std::uint8_t  status,
+                                 std::uint32_t chief_id,
+                                 std::uint32_t gi,
+                                 std::uint32_t exp,
+                                 std::uint32_t time_unix) = 0;
+
     // --- W3a-21 PvP record audit log ----------------------------
 
     // Insert one row into TGUILDPVPRECORDTABLE. Mirrors

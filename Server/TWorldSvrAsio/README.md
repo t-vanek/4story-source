@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-21 PvP record audit log
+## Status — W3a-22 full-row guild update fan-in
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -38,13 +38,74 @@ that the four shipped Asio daemons already use.
 | W3a-18 | Guild establishment: OnMW_GUILDESTABLISH_ACK creates new guilds in one coroutine (vs. legacy 4-hop map↔world↔DB roundtrip) + IGuildRepository::CreateGuild | ✅ |
 | W3a-19 | Wanted-board periodic expiry sweep: GuildWantedRegistry::PruneExpired + SweepExpiredWanted coroutine wired into RegistryRefresher (closes W3a-11 TODO) | ✅ |
 | W3a-20 | Vestigial DB-server ACK echoes (OnDM_GUILDESTABLISH/DISORGANIZATION/EXTINCTION_ACK) — 3 log+drop stubs eliminate "unknown wID" warnings on hybrid legacy-DB deployments | ✅ |
-| **W3a-21** | PvP record audit log (OnDM_PVPRECORD_REQ) — batched per-row persistence via new IGuildRepository::LogPvPRecord + kPvPEventCount=8 constant | ✅ |
-| W3a-22+ | Tactics subsystem (~17) + Cabinet item codec + PvP record read-side handler | ⏸ |
+| W3a-21 | PvP record audit log (OnDM_PVPRECORD_REQ) — batched per-row persistence via new IGuildRepository::LogPvPRecord + kPvPEventCount=8 constant | ✅ |
+| **W3a-22** | Full-row guild update fan-in (OnDM_GUILDUPDATE_REQ) — 8-column scalar overwrite via new IGuildRepository::UpdateGuildFull; alliance/enemy ID lists parsed for wire-compat then dropped (deferred to W5+ war system) | ✅ |
+| W3a-23+ | Tactics subsystem (~17) + Cabinet item codec + PvP record read-side handler | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-22 — what landed
+
+Full-row guild update from the admin / bulk-load path. Mirrors
+legacy `CSPGuildUpdate` (SSHandler.cpp:2979 + DBAccess.h:1601):
+the wire packet carries the 8 scalar TGUILDTABLE columns +
+variable-length alliance / enemy DWORD ID lists. We persist the
+scalars + defensively mirror them into the registry; the lists
+are parsed (so the framer length counter agrees with the packet
+size) then dropped with a log note — TGuild doesn't yet model
+inter-guild alliance / enemy relationships (deferred to the
+W5+ war system).
+
+Wire format (no reply):
+```
+DWORD dwID, BYTE bFame, BYTE bGPoint, BYTE bLevel, BYTE bStatus,
+DWORD dwChief, DWORD dwExp, DWORD dwGI, DWORD dwTime,
+BYTE allyCount, DWORD allies[allyCount],
+BYTE enemyCount, DWORD enemies[enemyCount]
+```
+
+Legacy quirk: `bFame` is BYTE here but DWORD in
+`OnDM_GUILDLOAD_ACK` — admin-path updates can only set fame in
+0-255 range. We honor the wire as-is.
+
+Repo — new `IGuildRepository::UpdateGuildFull`
+- Signature takes the 8 scalars (post-truncation). Fake records a
+  `Call::kUpdateGuildFull` entry with chief_id in the char_id
+  slot and fame/gpoint/level/status/time in the a/b/c/d/e
+  payload (gi + exp dropped from Call record; SOCI persists
+  all 8 columns).
+- SOCI impl: single `UPDATE TGUILDTABLE SET dwFame=:f, bGPoint=:gp,
+  bLevel=:l, bStatus=:s, dwChief=:c, dwGI=:gi, dwExp=:e,
+  dwTime=:t WHERE dwID=:g`.
+
+Handler — `OnGuildUpdateReq` (wID `DM_GUILDUPDATE_REQ` = 0x589B)
+- Reads scalar block, drains both variable-length lists with
+  short-body protection per row.
+- Mirrors the 8 scalar fields into the registry entry under the
+  guild's lock.
+- Queues `repo->UpdateGuildFull` via `CoOffloadVoidIf`.
+- Logs ally / enemy counts so an operator can spot when a
+  legacy admin tool tries to push them.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenario 42: sends a
+  packet with 2 allies + 1 enemy + non-zero scalars; verifies
+  the in-memory fields landed AND the repo recorded the call.
+
+Build verified: cmake + ctest -R tworldsvr_asio (15/15 passed).
+
+Deferred to W3a-23+
+- MW_GUILDPVPRECORD_ACK read-side handler — needs TGuildMember
+  weekrecord state-model expansion
+- Tactics subsystem (~17 handlers)
+- Cabinet item subsystem (CABINETLIST/PUTIN/TAKEOUT + item
+  codec)
+- Alliance / enemy relationship modelling (TGuild gains two
+  vector<uint32_t> fields + repo + persistence; the W3a-22
+  handler's drained-and-dropped lists become a real write)
 
 ### W3a-21 — what landed
 

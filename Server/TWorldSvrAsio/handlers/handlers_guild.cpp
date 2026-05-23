@@ -2206,6 +2206,119 @@ OnPvPRecordReq(std::shared_ptr<PeerSession> peer,
         ip, guild_id, member_id, persisted, count);
 }
 
+// --- W3a-22 full-row guild update fan-in ---------------------------
+//
+// Admin / bulk-load path. Overwrites the 8 scalar columns of
+// TGUILDTABLE for one guild in a single shot, mirroring legacy
+// CSPGuildUpdate. Wire packet also carries variable-length
+// alliance + enemy DWORD ID lists; our TGuild doesn't model
+// those yet so we parse + log + skip. Defensive in-memory
+// mirror updates the registry entry so the next GuildInfoAck
+// returns the new values without waiting for a reload.
+
+boost::asio::awaitable<void>
+OnGuildUpdateReq(std::shared_ptr<PeerSession> peer,
+                 std::vector<std::byte>       body,
+                 const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+
+    std::uint32_t guild_id = 0;
+    std::uint8_t  fame = 0, gpoint = 0, level = 0, status = 0;
+    std::uint32_t chief = 0, exp = 0, gi = 0, time_unix = 0;
+    if (!r.Read(guild_id) || !r.Read(fame) || !r.Read(gpoint) ||
+        !r.Read(level) || !r.Read(status) || !r.Read(chief) ||
+        !r.Read(exp) || !r.Read(gi) || !r.Read(time_unix))
+    {
+        spdlog::warn("OnGuildUpdateReq[{}]: short scalar block "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    // Drain the alliance + enemy DWORD lists. Both are parsed
+    // for wire-compat (so the dispatch byte counter agrees with
+    // the packet length) but dropped — TGuild doesn't yet model
+    // alliance / enemy relationships (deferred to W5+ war
+    // system). Log the counts so an operator can spot when a
+    // legacy admin tool tries to push them through.
+    std::uint8_t ally_count = 0;
+    if (!r.Read(ally_count))
+    {
+        spdlog::warn("OnGuildUpdateReq[{}]: short ally count "
+                     "(guild_id={})", ip, guild_id);
+        co_return;
+    }
+    for (std::uint8_t i = 0; i < ally_count; ++i)
+    {
+        std::uint32_t dropped = 0;
+        if (!r.Read(dropped))
+        {
+            spdlog::warn("OnGuildUpdateReq[{}]: short ally list at "
+                         "row {} of {} (guild_id={})",
+                ip, i, ally_count, guild_id);
+            co_return;
+        }
+    }
+    std::uint8_t enemy_count = 0;
+    if (!r.Read(enemy_count))
+    {
+        spdlog::warn("OnGuildUpdateReq[{}]: short enemy count "
+                     "(guild_id={})", ip, guild_id);
+        co_return;
+    }
+    for (std::uint8_t i = 0; i < enemy_count; ++i)
+    {
+        std::uint32_t dropped = 0;
+        if (!r.Read(dropped))
+        {
+            spdlog::warn("OnGuildUpdateReq[{}]: short enemy list at "
+                         "row {} of {} (guild_id={})",
+                ip, i, enemy_count, guild_id);
+            co_return;
+        }
+    }
+
+    // Defensive in-memory mirror. Field set matches
+    // FakeGuildRepository::UpdateGuildFull below.
+    if (ctx.guilds)
+    {
+        if (auto guild = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(guild->lock);
+            guild->fame          = fame;
+            guild->guild_points  = gpoint;
+            guild->level         = level;
+            guild->status        = status;
+            guild->chief_char_id = chief;
+            guild->gi            = gi;
+            guild->exp           = exp;
+            guild->disorg_time   = time_unix;
+        }
+        else
+        {
+            spdlog::info("OnGuildUpdateReq[{}]: guild_id={} not in "
+                         "registry (DB write only)", ip, guild_id);
+        }
+    }
+
+    if (ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, guild_id, fame, gpoint, level, status,
+             chief, gi, exp, time_unix] {
+                repo->UpdateGuildFull(guild_id, fame, gpoint, level,
+                    status, chief, gi, exp, time_unix);
+            });
+    }
+
+    spdlog::info("OnGuildUpdateReq[{}]: guild_id={} fame={} gp={} "
+                 "level={} status={} chief={} gi={} exp={} time={} "
+                 "(allies dropped: {}, enemies dropped: {})",
+        ip, guild_id, fame, gpoint, level, status, chief, gi, exp,
+        time_unix, ally_count, enemy_count);
+}
+
 // --- W3a-12 volunteer / applicant flow ----------------------------
 
 namespace {

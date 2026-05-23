@@ -287,7 +287,21 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             std::move(body), ctx);
         co_return;
 
-    // W3a-32+ picks up tactics volunteer/invite/answer flows,
+    // ---- W3a-32: tactics volunteer (applicant) flow ------------
+    case MessageId::MW_GUILDTACTICSVOLUNTEERING_ACK:
+        co_await OnGuildTacticsVolunteeringAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDTACTICSVOLUNTEERINGDEL_ACK:
+        co_await OnGuildTacticsVolunteeringDelAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::MW_GUILDTACTICSVOLUNTEERLIST_ACK:
+        co_await OnGuildTacticsVolunteerListAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+
+    // W3a-33+ picks up tactics reply/invite/answer/kickout flows,
     // cabinet PUTIN/TAKEOUT + item codec. … see README §4.
 
     default:

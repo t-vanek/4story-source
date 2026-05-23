@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-05-22:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ██████░░░░░░░░░░░░░░   53%   (W3a-31 — tactics wanted board, 63 handlers)
+TWorldSvr         ██████░░░░░░░░░░░░░░   54%   (W3a-32 — tactics volunteer flow, 66 handlers)
 ─────────────────────────────────────────
 Cluster total     ███░░░░░░░░░░░░░░░░░  ~18%   (LOC-weighted, see below)
 ```
@@ -36,7 +36,7 @@ Cluster total     ███░░░░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~18 000 | 63/287 + tactics wanted board (multi-posting registry, opens the tactics subsystem) | 🟡 W3a-* (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE + TGUILDWANTEDTABLE + TGUILDVOLUNTEERTABLE + TGUILDPVPOINTREWARDTABLE + TGUILDPVPRECORDTABLE) | 🟡 **W3a-31 — tactics wanted** |
+| **TWorldSvrAsio** | 38 851 | ~18 400 | 66/287 + tactics volunteer applicant flow (apply/cancel/chief-browse, 7-gate AddApp) | 🟡 W3a-* (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE + TGUILDWANTEDTABLE + TGUILDVOLUNTEERTABLE + TGUILDPVPOINTREWARDTABLE + TGUILDPVPRECORDTABLE) | 🟡 **W3a-32 — tactics volunteer** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
 LOC weighting: `(24 213 complete + ~6 700 scaffolded) / 175 906 legacy ≈ 17 %`.

@@ -619,6 +619,33 @@ boost::asio::awaitable<void> OnGuildTacticsWantedListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3a-32: tactics volunteer (applicant) flow -------------------
+//
+// Tactics-recruitment applicant lifecycle, parallel to the
+// W3a-12 guild volunteer flow. Players apply to a tactics-wanted
+// posting; chiefs browse applicants. The accept/reject REPLY
+// handler is deferred to W3a-33 (accept needs the tactics-member
+// promotion model that hasn't ported yet).
+//
+// Wire layouts (SSHandler.cpp:4812/4854/4882):
+//   VOLUNTEERING    : DWORD char_id, key, guild_id, wanted_id
+//   VOLUNTEERINGDEL : DWORD char_id, key
+//   VOLUNTEERLIST   : DWORD char_id, key
+boost::asio::awaitable<void> OnGuildTacticsVolunteeringAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildTacticsVolunteeringDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+boost::asio::awaitable<void> OnGuildTacticsVolunteerListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-12: volunteer / applicant flow (handlers_guild.cpp) ------
 
 // Player applies to a wanted-board entry. World runs the 5

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-31 tactics wanted board
+## Status — W3a-32 tactics volunteer (applicant) flow
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -48,13 +48,86 @@ that the four shipped Asio daemons already use.
 | W3a-28 | Per-day vRecord history + CalcWeekRecord — replaces W3a-24's plain accumulator with proper week-trim semantics matching legacy CTGuild::CalcWeekRecord exactly | ✅ |
 | W3a-29 | PvP-point gain/use fan-in (OnGainPvPointAck) — char relay + guild bank mutation (total/useable/month) + point_log newest-first/TOP-50 trim fix | ✅ |
 | W3a-30 | Boot-time point_log load (SOCI LoadAll third pass from TGUILDPVPOINTREWARDTABLE) + FakeGuildRepository::Clone fidelity fix (was dropping alliance/enemy/point_log/month on round-trip) | ✅ |
-| **W3a-31** | Tactics subsystem part 1 — wanted board (OnGuildTacticsWantedAdd/Del/ListAck) + new GuildTacticsWantedRegistry (multi-posting-per-guild, globally-unique ids, reward fields) | ✅ |
-| W3a-32+ | Tactics volunteer/invite/answer/reply/kickout flows + Cabinet item codec | ⏸ |
+| W3a-31 | Tactics subsystem part 1 — wanted board (OnGuildTacticsWantedAdd/Del/ListAck) + new GuildTacticsWantedRegistry (multi-posting-per-guild, globally-unique ids, reward fields) | ✅ |
+| **W3a-32** | Tactics subsystem part 2 — volunteer applicant flow (OnGuildTacticsVolunteering/Del/VolunteerListAck) + registry applicant API (AddApp 7-gate / DelApp / SnapshotAppsFor) + wanted-board already_applied wiring | ✅ |
+| W3a-33+ | Tactics reply (accept→member promotion) / invite / answer / kickout + Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-32 — what landed
+
+Second slice of the tactics subsystem — the volunteer
+(applicant) flow. Players apply to a tactics-wanted posting,
+chiefs browse applicants. Parallels the W3a-12 guild volunteer
+flow. The accept/reject REPLY handler is deferred to W3a-33
+(accept needs the tactics-member promotion model that hasn't
+ported yet).
+
+Registry applicant API (`GuildTacticsWantedRegistry`)
+- `TGuildTacticsWantedApp` struct: char_id, wanted_id,
+  wanted_guild_id, region, level, klass, name + the posting's
+  reward fields (day/point/gold/silver/cooper, copied at apply
+  time so the chief's list shows what each applicant was
+  promised).
+- `AddApp(app, country, applicant_guild_id)` runs the 7 legacy
+  gates: already-applied-same-guild → `kSame`,
+  already-applied-elsewhere → `kAlreadyApply`, no-such-posting
+  → `kFail`, country mismatch → `kFail`, posting expired →
+  `kWantedEnd`, level out of `[min,max]` → `kMismatchLevel`,
+  applicant in the posting's own guild → `kSameGuildTactics`,
+  else `kSuccess`. One pending application per char (keyed by
+  char_id).
+- `DelApp(char_id)`, `SnapshotAppsFor(guild_id)` (all applicants
+  across a guild's postings — the chief view),
+  `FindAppGuildByChar(char_id)` (drives the wanted board's
+  `already_applied` flag).
+
+Handlers (`handlers_guild.cpp`)
+- `OnGuildTacticsVolunteeringAck` (wID 0x90F7) — apply. Snapshots
+  the applicant's char fields, calls AddApp, replies the 3-byte
+  result, and on success chases a wanted-board refresh (so the
+  `already_applied` flag flips).
+- `OnGuildTacticsVolunteeringDelAck` (wID 0x90F9) — cancel +
+  wanted-board refresh.
+- `OnGuildTacticsVolunteerListAck` (wID 0x90FB) — chief browses
+  applicants across all of their guild's postings. Empty list
+  when guildless.
+
+Senders — `SendMwGuildTacticsVolunteering/Del/VolunteerListReq`
+- 3-byte result replies + the 10-field-per-applicant variable
+  list.
+
+W3a-31 follow-through
+- `BuildTacticsWantedRows` now takes an `applied_guild_id` and
+  sets `already_applied=1` on the matching posting. All three
+  W3a-31 wanted-board handlers now thread
+  `FindAppGuildByChar(char_id)` through (previously hardcoded 0).
+
+Scope notes
+- In-memory only (DB persistence deferred with the rest of the
+  tactics subsystem). Applicant `region` left 0 — our TChar
+  doesn't model the map-zone id the legacy refreshes here, and
+  no ported handler needs it.
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 52-54: re-post a
+  tactics-wanted entry, have a guild-less char apply (verify
+  `kSuccess` + board refresh), chief lists applicants (verify
+  the 10-field row carries the promised reward fields), then
+  the applicant cancels (verify the chief's list empties).
+
+Build verified: cmake + ctest -R tworldsvr_asio (16/16 passed).
+
+Deferred to W3a-33+
+- Tactics REPLY (accept → tactics-member promotion / reject) —
+  the accept path needs the TTacticsMember model (TGuild's
+  m_mapTTactics equivalent) which hasn't ported
+- Tactics INVITE / ANSWER / KICKOUT / LIST flows
+- Cabinet PUTIN / TAKEOUT + item codec
+- DB persistence for the tactics wanted board + applicants
 
 ### W3a-31 — what landed
 

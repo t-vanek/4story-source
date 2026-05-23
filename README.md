@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-05-22:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ██████░░░░░░░░░░░░░░   51%   (W3a-28 — per-day vRecord + CalcWeekRecord, 59 handlers)
+TWorldSvr         ██████░░░░░░░░░░░░░░   52%   (W3a-29 — PvP-point gain/use fan-in, 60 handlers)
 ─────────────────────────────────────────
 Cluster total     ███░░░░░░░░░░░░░░░░░  ~18%   (LOC-weighted, see below)
 ```
@@ -36,7 +36,7 @@ Cluster total     ███░░░░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~17 300 | 59/287 + per-day vRecord history with proper 7-day rolling weekrecord (CalcWeekRecord trims + sums in one pass) | 🟡 W3a-* (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE + TGUILDWANTEDTABLE + TGUILDVOLUNTEERTABLE + TGUILDPVPOINTREWARDTABLE + TGUILDPVPRECORDTABLE) | 🟡 **W3a-28 — per-day vRecord** |
+| **TWorldSvrAsio** | 38 851 | ~17 500 | 60/287 + PvP-point gain/use fan-in (char relay + guild bank mutation) | 🟡 W3a-* (TGUILD* + TGUILDCHART + TGUILDARTICLETABLE + TGUILDWANTEDTABLE + TGUILDVOLUNTEERTABLE + TGUILDPVPOINTREWARDTABLE + TGUILDPVPRECORDTABLE) | 🟡 **W3a-29 — PvP-point gain/use** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
 LOC weighting: `(24 213 complete + ~6 700 scaffolded) / 175 906 legacy ≈ 17 %`.

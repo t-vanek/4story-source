@@ -1420,7 +1420,13 @@ OnGuildPointRewardReq(std::shared_ptr<PeerSession> peer,
                 static_cast<std::int64_t>(std::time(nullptr));
             entry.recipient_name = recipient;
             entry.point          = point;
-            guild->point_log.push_back(std::move(entry));
+            // W3a-29: legacy CTGuild::PointLog inserts newest-
+            // first and pop_back()s once size exceeds 50
+            // (matching CTBLGuildPvPointReward SELECT TOP 50).
+            guild->point_log.insert(guild->point_log.begin(),
+                std::move(entry));
+            if (guild->point_log.size() > guild::kPointLogMaxEntries)
+                guild->point_log.pop_back();
         }
     }
     if (ctx.guild_repo)
@@ -2698,6 +2704,156 @@ OnGuildPointLogAck(std::shared_ptr<PeerSession> peer,
 
     spdlog::info("OnGuildPointLogAck[{}]: char_id={} guild_id={} "
                  "entries={}", ip, char_id, guild_id, entries.size());
+}
+
+// --- W3a-29 PvP-point gain/use fan-in ------------------------------
+//
+// Per-event PvP-point delta from the map server. Owner is a
+// char (relay to map peer) or a guild (apply to the bank +
+// persist). Mirrors legacy GainPvPoint / UsePvPoint.
+
+boost::asio::awaitable<void>
+OnGainPvPointAck(std::shared_ptr<PeerSession> peer,
+                 std::vector<std::byte>       body,
+                 const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  owner_type = 0;
+    std::uint32_t owner_id = 0, point = 0;
+    std::uint8_t  event = 0, type = 0, gain = 0;
+    std::string   name;
+    std::uint8_t  klass = 0, level = 0;
+    if (!r.Read(owner_type) || !r.Read(owner_id) || !r.Read(point) ||
+        !r.Read(event) || !r.Read(type) || !r.Read(gain) ||
+        !r.ReadString(name) || !r.Read(klass) || !r.Read(level))
+    {
+        spdlog::warn("OnGainPvPointAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    if (owner_type == guild::kPvPOwnerChar)
+    {
+        // Relay the toast to the char's main map peer. Look up
+        // the char's main_server_id, find the matching peer,
+        // forward the packet verbatim.
+        if (!ctx.chars || !ctx.peers)
+        {
+            spdlog::warn("OnGainPvPointAck[{}]: char/peer registry not "
+                         "wired for TOWNER_CHAR relay", ip);
+            co_return;
+        }
+        auto tchar = ctx.chars->Find(owner_id);
+        if (!tchar)
+        {
+            spdlog::info("OnGainPvPointAck[{}]: char owner_id={} not in "
+                         "registry — drop", ip, owner_id);
+            co_return;
+        }
+        std::uint8_t msi = 0;
+        {
+            std::lock_guard g(tchar->lock);
+            msi = tchar->main_server_id;
+        }
+        std::shared_ptr<PeerSession> map_peer;
+        if (msi != 0)
+        {
+            for (auto& p : ctx.peers->Snapshot())
+            {
+                if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
+                {
+                    map_peer = std::move(p);
+                    break;
+                }
+            }
+        }
+        if (!map_peer)
+        {
+            spdlog::info("OnGainPvPointAck[{}]: char owner_id={} main "
+                         "map (msi={}) offline — drop", ip, owner_id, msi);
+            co_return;
+        }
+        co_await senders::SendMwGainPvPointReq(map_peer, owner_id, point,
+            event, type, gain, name, klass, level);
+        spdlog::info("OnGainPvPointAck[{}]: relayed char owner_id={} "
+                     "point={} gain={} to msi={}",
+            ip, owner_id, point, gain, msi);
+        co_return;
+    }
+
+    // TOWNER_GUILD — apply the delta to the guild banks.
+    if (!ctx.guilds)
+    {
+        spdlog::warn("OnGainPvPointAck[{}]: guild registry not wired",
+            ip);
+        co_return;
+    }
+    auto guild = ctx.guilds->Find(owner_id);
+    if (!guild)
+    {
+        spdlog::info("OnGainPvPointAck[{}]: guild owner_id={} not in "
+                     "registry — drop", ip, owner_id);
+        co_return;
+    }
+
+    std::uint32_t new_total = 0, new_useable = 0, new_month = 0;
+    if (point != 0)
+    {
+        std::lock_guard gl(guild->lock);
+        if (gain)
+        {
+            // GainPvPoint: TOTAL bumps total + month; USEABLE
+            // bumps useable.
+            if (type & guild::kPvPMaskTotal)
+            {
+                guild->pvp_total_point += point;
+                guild->pvp_month_point += point;
+            }
+            if (type & guild::kPvPMaskUseable)
+                guild->pvp_useable_point += point;
+        }
+        else
+        {
+            // UsePvPoint: TOTAL + USEABLE saturate at 0; month
+            // is never decremented (legacy parity).
+            if (type & guild::kPvPMaskTotal)
+                guild->pvp_total_point =
+                    guild->pvp_total_point > point
+                        ? guild->pvp_total_point - point : 0;
+            if (type & guild::kPvPMaskUseable)
+                guild->pvp_useable_point =
+                    guild->pvp_useable_point > point
+                        ? guild->pvp_useable_point - point : 0;
+        }
+        new_total   = guild->pvp_total_point;
+        new_useable = guild->pvp_useable_point;
+        new_month   = guild->pvp_month_point;
+    }
+    else
+    {
+        std::lock_guard gl(guild->lock);
+        new_total   = guild->pvp_total_point;
+        new_useable = guild->pvp_useable_point;
+        new_month   = guild->pvp_month_point;
+    }
+
+    // Persist the new bank totals (legacy fires
+    // SendDM_GUILDPVPOINT_REQ from inside Gain/UsePvPoint).
+    if (point != 0 && ctx.guild_repo)
+    {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.guild_repo, owner_id, new_total, new_useable,
+             new_month] {
+                repo->UpdatePvPoints(owner_id, new_total, new_useable,
+                    new_month);
+            });
+    }
+
+    spdlog::info("OnGainPvPointAck[{}]: guild owner_id={} {}{} type={} "
+                 "→ total={} useable={} month={}",
+        ip, owner_id, gain ? "+" : "-", point, type, new_total,
+        new_useable, new_month);
 }
 
 // --- W3a-12 volunteer / applicant flow ----------------------------

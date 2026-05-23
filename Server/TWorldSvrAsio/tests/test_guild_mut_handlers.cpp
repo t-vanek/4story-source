@@ -2193,6 +2193,122 @@ int main()
         EXPECT(saw_bravo);
     }
 
+    // --- Scenario 47: MW_GAINPVPPOINT_ACK guild gain (W3a-29) -----
+    //
+    // Guild-owned gain with PVP_TOTAL | PVP_USEABLE. TOTAL bumps
+    // total + month; USEABLE bumps useable. Verify all three
+    // banks + the persistence call. Guild 8's banks were last
+    // set by scenario 17's DM_GUILDPVPOINT_REQ
+    // (total=12345 useable=6789 month=1000); scenario 42's
+    // DM_GUILDUPDATE_REQ then overwrote dwTime but NOT the pvp
+    // banks, so the W3a-13 values still stand. We don't assert
+    // absolute pre-state — just the delta.
+    std::uint32_t pre_total = 0, pre_useable = 0, pre_month = 0;
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            pre_total   = g->pvp_total_point;
+            pre_useable = g->pvp_useable_point;
+            pre_month   = g->pvp_month_point;
+        }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kPvPOwnerGuild);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);    // owner_id
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 500);  // point
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);     // event
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kPvPMaskTotal |
+            tworldsvr::guild::kPvPMaskUseable);               // type
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 1);     // gain
+        tworldsvr::wire::WriteString(body, "");               // name
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);     // klass
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);     // level
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GAINPVPPOINT_ACK), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            if (g->pvp_total_point == pre_total + 500) break;
+        }
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->pvp_total_point   == pre_total + 500);
+            EXPECT(g->pvp_useable_point == pre_useable + 500);
+            EXPECT(g->pvp_month_point   == pre_month + 500);
+        }
+        bool saw_persist = false;
+        for (const auto& c : fake_repo.Calls())
+        {
+            if (c.kind == tworldsvr::FakeGuildRepository::Call::Kind
+                            ::kUpdatePvPoints
+                && c.guild_id == 8 && c.a == pre_total + 500
+                && c.b == pre_useable + 500 && c.c == pre_month + 500)
+            { saw_persist = true; break; }
+        }
+        EXPECT(saw_persist);
+    }
+
+    // --- Scenario 48: MW_GAINPVPPOINT_ACK guild use (W3a-29) ------
+    //
+    // Guild-owned use with PVP_USEABLE only. useable shrinks;
+    // total + month untouched. Saturates at 0 (not tested here —
+    // we use a small delta well within the bank).
+    std::uint32_t pre2_total = 0, pre2_useable = 0, pre2_month = 0;
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            pre2_total   = g->pvp_total_point;
+            pre2_useable = g->pvp_useable_point;
+            pre2_month   = g->pvp_month_point;
+        }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kPvPOwnerGuild);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 8);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 100);  // point
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);     // event
+        tworldsvr::wire::WritePOD<std::uint8_t>(body,
+            tworldsvr::guild::kPvPMaskUseable);               // type
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);     // gain=use
+        tworldsvr::wire::WriteString(body, "");
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);
+        tworldsvr::wire::WritePOD<std::uint8_t>(body, 0);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GAINPVPPOINT_ACK), body);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            if (g->pvp_useable_point == pre2_useable - 100) break;
+        }
+        std::this_thread::sleep_for(10ms);
+    }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->pvp_useable_point == pre2_useable - 100);
+            EXPECT(g->pvp_total_point   == pre2_total);   // unchanged
+            EXPECT(g->pvp_month_point   == pre2_month);   // unchanged
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2202,7 +2318,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (46 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (48 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-33 tactics reply (accept/reject hire)
+## Status — W3a-34 tactics kickout + list
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -50,13 +50,62 @@ that the four shipped Asio daemons already use.
 | W3a-30 | Boot-time point_log load (SOCI LoadAll third pass from TGUILDPVPOINTREWARDTABLE) + FakeGuildRepository::Clone fidelity fix (was dropping alliance/enemy/point_log/month on round-trip) | ✅ |
 | W3a-31 | Tactics subsystem part 1 — wanted board (OnGuildTacticsWantedAdd/Del/ListAck) + new GuildTacticsWantedRegistry (multi-posting-per-guild, globally-unique ids, reward fields) | ✅ |
 | W3a-32 | Tactics subsystem part 2 — volunteer applicant flow (OnGuildTacticsVolunteering/Del/VolunteerListAck) + registry applicant API (AddApp 7-gate / DelApp / SnapshotAppsFor) + wanted-board already_applied wiring | ✅ |
-| **W3a-33** | Tactics subsystem part 3 — reply accept/reject (OnGuildTacticsReplyAck): hires applicant as a tactics member (TTacticsMember model + TChar.tactics_guild_id) charging PvP-points + money up front, with the 7 hire gates + dual broadcast | ✅ |
-| W3a-34+ | Tactics invite / answer / kickout / list + Cabinet item codec | ⏸ |
+| W3a-33 | Tactics subsystem part 3 — reply accept/reject (OnGuildTacticsReplyAck): hires applicant as a tactics member (TTacticsMember model + TChar.tactics_guild_id) charging PvP-points + money up front, with the 7 hire gates + dual broadcast | ✅ |
+| **W3a-34** | Tactics subsystem part 4 — kickout (chief-kick forfeit / self-leave refund via TGuild::RemoveTactics) + roster list (GetCurGuild priority) | ✅ |
+| W3a-35+ | Tactics invite / answer (chief-initiated hire) + term-expiry sweep + Cabinet item codec | ⏸ |
 | W3b | Party + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3a-34 — what landed
+
+Fourth slice of the tactics subsystem — kicking a tactics
+member + listing the roster. Mirrors legacy
+`OnMW_GUILDTACTICSKICKOUT_ACK` + `OnMW_GUILDTACTICSLIST_ACK`.
+
+State model
+- `TGuild::RemoveTactics(char_id, refund)` (out-of-line in
+  guild_registry.cpp so it can use the CalcMoney/SplitMoney
+  helpers). When `refund` is true the member's up-front
+  PvP-points + money are returned to the guild's useable banks
+  (legacy DelTactics bKick==0 GainPvPoint + GainMoney); a
+  chief-kick forfeits them.
+
+Handlers
+- `OnGuildTacticsKickoutAck` (wID 0x9100). Wire `{char_id, key,
+  target}`. `char != target` is a chief-kick (resolves the
+  guild from the requester's `guild_id`, no refund); `char ==
+  target` is a self-leave (resolves the guild from the target's
+  `tactics_guild_id`, refunds). Removes the member, clears the
+  target's `tactics_guild_id`, persists the refunded PvP banks
+  on self-leave. Chief-kick replies KICKOUT + a roster refresh;
+  self-leave is silent (legacy parity).
+- `OnGuildTacticsListAck` (wID 0x913B). Wire `{char_id, key}`.
+  Resolves the "current guild" with tactics-priority (legacy
+  GetCurGuild: tactics guild if a member, else full guild) and
+  sends the roster.
+
+Sender — `SendMwGuildTacticsKickoutReq` (5-field result) +
+`SendMwGuildTacticsListReq` (12-field-per-member variable list;
+region/castle/camp emitted as 0 — not modelled / W5 castle war).
+
+Tests
+- `tests/test_guild_mut_handlers.cpp` scenarios 57-58: list the
+  roster (verify char 700's contract fields from scenario 55's
+  hire), then chief-kick char 700 (verify member gone +
+  back-pointer cleared + no refund since chief-kick forfeits).
+
+Build verified: cmake + ctest -R tworldsvr_asio (16/16 passed).
+
+Deferred to W3a-35+
+- Tactics INVITE / ANSWER (chief invites a player by name, who
+  accepts/declines → hire via the same promotion path)
+- Tactics term-expiry sweep (contracts ending at `end_time` —
+  parallels the W3a-19 wanted sweep + the EXPIRED_GT timer)
+- DB persistence for tactics members + a guild-money repo flush
+- Cabinet PUTIN / TAKEOUT + item codec
 
 ### W3a-33 — what landed
 

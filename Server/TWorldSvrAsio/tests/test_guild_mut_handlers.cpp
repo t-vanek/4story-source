@@ -2777,6 +2777,96 @@ int main()
         }
     }
 
+    // --- Scenario 57: tactics LIST shows hired member (W3a-34) ----
+    //
+    // Char 700 was hired as a tactics member of guild 8 in
+    // scenario 55. Chief (char 200) lists the roster.
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSLIST_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSLIST_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, count = 0;
+        EXPECT(rr.Read(cid));   EXPECT(cid == 200);
+        EXPECT(rr.Read(key));
+        EXPECT(rr.Read(count)); EXPECT(count == 1);
+        if (count == 1)
+        {
+            std::uint32_t id = 0, rpoint = 0, gpoint = 0, region = 0;
+            std::string name;
+            std::uint8_t lvl = 0, klass = 0, day = 0, camp = 0;
+            std::int64_t rmoney = 0, end_time = 0;
+            std::uint16_t castle = 0;
+            EXPECT(rr.Read(id));         EXPECT(id == 700);
+            EXPECT(rr.ReadString(name));
+            EXPECT(rr.Read(lvl));
+            EXPECT(rr.Read(klass));
+            EXPECT(rr.Read(day));        EXPECT(day == 14);
+            EXPECT(rr.Read(rpoint));     EXPECT(rpoint == 5000);
+            EXPECT(rr.Read(rmoney));     EXPECT(rmoney == 10 * 1000000LL);
+            EXPECT(rr.Read(end_time));   EXPECT(end_time > 0);
+            EXPECT(rr.Read(gpoint));     EXPECT(gpoint == 0);
+            EXPECT(rr.Read(region));
+            EXPECT(rr.Read(castle));
+            EXPECT(rr.Read(camp));
+        }
+    }
+
+    // --- Scenario 58: tactics KICKOUT removes member (W3a-34) -----
+    //
+    // Chief kicks char 700 (chief-kick → no refund). Verify the
+    // member is gone, char 700's tactics back-pointer cleared,
+    // the guild's useable points UNCHANGED (95000 from sc.55).
+    std::uint32_t pre_kick_useable = 0;
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            pre_kick_useable = g->pvp_useable_point;
+        }
+    }
+    {
+        std::vector<std::byte> body;
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 200);  // chief
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 0xBEEF1111);
+        tworldsvr::wire::WritePOD<std::uint32_t>(body, 700);  // target
+        SendFramed(peer1,
+            ToUint16(MessageId::MW_GUILDTACTICSKICKOUT_ACK), body);
+    }
+    {
+        auto [w, body] = ReadFramed(peer1);
+        EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSKICKOUT_REQ));
+        tworldsvr::wire::Reader rr(body);
+        std::uint32_t cid = 0, key = 0, target = 0;
+        std::uint8_t result = 0, kick = 0;
+        rr.Read(cid); rr.Read(key); rr.Read(result); rr.Read(target);
+        rr.Read(kick);
+        EXPECT(result == tworldsvr::guild::kSuccess);
+        EXPECT(target == 700);
+        EXPECT(kick == 1);
+    }
+    { auto [w, _] = ReadFramed(peer1); EXPECT(w == ToUint16(MessageId::MW_GUILDTACTICSLIST_REQ)); }
+    {
+        if (auto g = guilds.Find(8))
+        {
+            std::lock_guard gl(g->lock);
+            EXPECT(g->FindTactics(700) == nullptr);
+            // Chief-kick forfeits the payment → no refund.
+            EXPECT(g->pvp_useable_point == pre_kick_useable);
+        }
+        if (auto c = chars.Find(700))
+        {
+            std::lock_guard cg(c->lock);
+            EXPECT(c->tactics_guild_id == 0);
+        }
+    }
+
     boost::system::error_code ec;
     peer1.shutdown(tcp::socket::shutdown_both, ec);
     peer1.close(ec);
@@ -2786,7 +2876,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (56 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_guild_mut_handlers (58 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_guild_mut_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

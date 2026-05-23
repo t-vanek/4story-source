@@ -1,6 +1,31 @@
 #include "services/guild_registry.h"
 
+#include "services/guild_constants.h"
+
 namespace tworldsvr {
+
+bool TGuild::RemoveTactics(std::uint32_t char_id, bool refund)
+{
+    for (auto it = tactics_members.begin();
+         it != tactics_members.end(); ++it)
+    {
+        if (it->id != char_id) continue;
+        if (refund)
+        {
+            // Return the up-front PvP-point + money payment to
+            // the guild's useable banks (legacy DelTactics
+            // bKick==0 GainPvPoint + GainMoney).
+            pvp_useable_point += it->reward_point;
+            const std::int64_t money =
+                guild::CalcMoney(gold, silver, cooper) +
+                it->reward_money;
+            guild::SplitMoney(money, gold, silver, cooper);
+        }
+        tactics_members.erase(it);
+        return true;
+    }
+    return false;
+}
 
 bool GuildRegistry::Insert(std::shared_ptr<TGuild> g)
 {

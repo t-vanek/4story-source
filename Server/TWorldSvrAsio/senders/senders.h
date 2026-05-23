@@ -767,6 +767,55 @@ boost::asio::awaitable<void> SendMwGuildTacticsReplyReq(
     std::uint32_t                silver,
     std::uint32_t                cooper);
 
+// MW_GUILDTACTICSKICKOUT_REQ — result of a chief kicking a
+// tactics member (or a member self-leaving).
+//
+// Wire layout (SSSender.cpp:1539):
+//   DWORD char_id, key, BYTE result, DWORD target, BYTE kick
+boost::asio::awaitable<void> SendMwGuildTacticsKickoutReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                target,
+    std::uint8_t                 kick);
+
+// MW_GUILDTACTICSLIST_REQ — the guild's hired tactics members.
+//
+// Wire layout (SSSender.cpp:1608):
+//   DWORD char_id, key, DWORD member_count
+//   × member_count:
+//     DWORD  id
+//     STRING name
+//     BYTE   level
+//     BYTE   klass
+//     BYTE   day
+//     DWORD  reward_point
+//     INT64  reward_money
+//     INT64  end_time
+//     DWORD  gain_point
+//     DWORD  region   (0 — TChar region not modelled)
+//     WORD   castle   (0 — W5 castle war)
+//     BYTE   camp     (0 — W5 castle war)
+struct GuildTacticsMemberRow
+{
+    std::uint32_t id           = 0;
+    std::string   name;
+    std::uint8_t  level        = 0;
+    std::uint8_t  klass        = 0;
+    std::uint8_t  day          = 0;
+    std::uint32_t reward_point = 0;
+    std::int64_t  reward_money = 0;
+    std::int64_t  end_time     = 0;
+    std::uint32_t gain_point   = 0;
+};
+
+boost::asio::awaitable<void> SendMwGuildTacticsListReq(
+    std::shared_ptr<PeerSession>                 peer,
+    std::uint32_t                                char_id,
+    std::uint32_t                                key,
+    const std::vector<GuildTacticsMemberRow>&    members);
+
 // MW_GAINPVPPOINT_REQ — relay forwarded to a char's main map
 // peer when the owner of a PvP-point delta is a character
 // (TOWNER_CHAR). The map server applies the per-char delta +

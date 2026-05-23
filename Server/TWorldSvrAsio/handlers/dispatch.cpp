@@ -218,7 +218,21 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3a-19+ picks up tactics subsystem, cabinet item codec,
+    // ---- W3a-20: vestigial DB-server ACK echoes ----------------
+    case MessageId::DM_GUILDESTABLISH_ACK:
+        co_await OnGuildEstablishAckEcho(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::DM_GUILDDISORGANIZATION_ACK:
+        co_await OnGuildDisorganizationAckEcho(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::DM_GUILDEXTINCTION_ACK:
+        co_await OnGuildExtinctionAckEcho(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+
+    // W3a-21+ picks up tactics subsystem, cabinet item codec,
     // PvP record listing. … see README §4.
 
     default:

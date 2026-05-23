@@ -1042,5 +1042,27 @@ boost::asio::awaitable<void> OnPartyAddAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3b-2: party formation (handlers_party.cpp) -------------------
+//
+// MW_PARTYJOIN_ACK is the invitee's answer to the PARTY_AGREE
+// dialog that OnPartyAddAck forwarded. On ASK_YES (and the gates
+// still hold) world forms the party: if the inviter already has a
+// party the invitee joins it, otherwise a fresh TParty is created
+// with the inviter as chief. Either way the JoinParty fan-out
+// fires pairwise MW_PARTYJOIN_REQ packets (each member learns the
+// joiner, the joiner learns each member) followed by a
+// MW_PARTYATTR_REQ HUD refresh; the joining char's party_id
+// back-pointer is set. Denials / stale-state failures relay a
+// MW_PARTYADD_REQ result back to the inviter (or invitee).
+//
+// Wire layout (SSHandler.cpp:2623):
+//   STRING strOrigin, STRING strTarget, BYTE bObtainType,
+//   BYTE bResponse, DWORD dwMaxHP, DWORD dwHP, DWORD dwMaxMP,
+//   DWORD dwMP
+boost::asio::awaitable<void> OnPartyJoinAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

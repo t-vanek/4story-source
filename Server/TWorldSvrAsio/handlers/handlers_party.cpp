@@ -26,6 +26,114 @@ FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
     return nullptr;
 }
 
+// Snapshot a char's MW_PARTYJOIN_REQ describe-fields + its session
+// key + main_server_id. Returns false if the char isn't online.
+// Resolves the guild name through GuildRegistry (NAME_NULL = "" when
+// guildless). Takes the char lock then, separately, the guild lock
+// — never nested, honouring the char-before-guild ordering rule.
+bool SnapshotMember(const HandlerContext& ctx, std::uint32_t char_id,
+                    senders::PartyMemberInfo& info,
+                    std::uint32_t& key, std::uint8_t& msi)
+{
+    auto c = ctx.chars->Find(char_id);
+    if (!c) return false;
+    std::uint32_t guild_id = 0;
+    {
+        std::lock_guard g(c->lock);
+        info.char_id = c->char_id;
+        info.name    = c->name;
+        info.level   = c->level;
+        info.max_hp  = c->max_hp;
+        info.hp      = c->hp;
+        info.max_mp  = c->max_mp;
+        info.mp      = c->mp;
+        info.race    = c->race;
+        info.sex     = c->sex;
+        info.face    = c->face;
+        info.hair    = c->hair;
+        info.klass   = c->klass;
+        key          = c->key;
+        msi          = c->main_server_id;
+        guild_id     = c->guild_id;
+    }
+    info.guild_name.clear(); // NAME_NULL
+    if (guild_id != 0 && ctx.guilds)
+        if (auto g = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(g->lock);
+            info.guild_name = g->name;
+        }
+    return true;
+}
+
+// Add a char to an existing party and run the legacy JoinParty
+// fan-out: announce each current member to the joiner and the
+// joiner to each member (pairwise MW_PARTYJOIN_REQ), then commit
+// the member-add + back-pointer and push the joiner a
+// MW_PARTYATTR_REQ HUD refresh. Offline members are skipped (their
+// map can't receive the packet) — same as legacy's per-member
+// FindMapSvr `continue`.
+//
+// Lock discipline: the party's member list + meta are snapshotted
+// under the party lock and released before any char lock is taken,
+// so a char lock is never held across the party lock.
+boost::asio::awaitable<void>
+JoinPartyFanout(const HandlerContext& ctx,
+                std::shared_ptr<TParty> party,
+                std::uint32_t joining_char_id)
+{
+    senders::PartyMemberInfo joining_info;
+    std::uint32_t joining_key = 0;
+    std::uint8_t  joining_msi = 0;
+    if (!SnapshotMember(ctx, joining_char_id, joining_info,
+                        joining_key, joining_msi))
+        co_return;
+    auto joining_peer = FindMapPeer(ctx, joining_msi);
+
+    std::vector<std::uint32_t> member_ids;
+    std::uint32_t chief_id = 0;
+    std::uint16_t pid      = 0;
+    std::uint8_t  obtain   = 0;
+    {
+        std::lock_guard pg(party->lock);
+        member_ids = party->members;
+        chief_id   = party->chief_char_id;
+        pid        = party->id;
+        obtain     = party->obtain_type;
+    }
+
+    for (auto mid : member_ids)
+    {
+        senders::PartyMemberInfo minfo;
+        std::uint32_t mkey = 0;
+        std::uint8_t  mmsi = 0;
+        if (!SnapshotMember(ctx, mid, minfo, mkey, mmsi)) continue;
+        auto member_peer = FindMapPeer(ctx, mmsi);
+        if (!member_peer) continue;
+
+        if (joining_peer)
+            co_await senders::SendMwPartyJoinReq(joining_peer,
+                joining_info.char_id, joining_key, pid, chief_id,
+                /*commander=*/0, obtain, minfo);
+        co_await senders::SendMwPartyJoinReq(member_peer, minfo.char_id,
+            mkey, pid, chief_id, /*commander=*/0, obtain, joining_info);
+    }
+
+    {
+        std::lock_guard pg(party->lock);
+        party->AddMember(joining_char_id);
+    }
+    if (auto jc = ctx.chars->Find(joining_char_id))
+    {
+        std::lock_guard g(jc->lock);
+        jc->party_id = pid;
+    }
+    if (joining_peer)
+        co_await senders::SendMwPartyAttrReq(joining_peer,
+            joining_info.char_id, joining_key, pid, obtain, chief_id,
+            /*commander=*/0);
+}
+
 } // namespace
 
 boost::asio::awaitable<void>
@@ -193,6 +301,201 @@ OnPartyAddAck(std::shared_ptr<PeerSession> peer,
     spdlog::info("OnPartyAddAck[{}]: char_id={} invited '{}' (msi={}) "
                  "obtain={} — AGREE relayed", ip, req_char_id, target_name,
         tgt_msi, obtain_type);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnPartyJoinAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnPartyJoinAck[{}]: registries not wired — dropped", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::string   origin_name, target_name;
+    std::uint8_t  obtain_type = 0, response = 0;
+    std::uint32_t max_hp = 0, hp = 0, max_mp = 0, mp = 0;
+    if (!r.ReadString(origin_name) || !r.ReadString(target_name) ||
+        !r.Read(obtain_type) || !r.Read(response) ||
+        !r.Read(max_hp) || !r.Read(hp) || !r.Read(max_mp) || !r.Read(mp))
+    {
+        spdlog::warn("OnPartyJoinAck[{}]: short body ({} bytes) — dropped",
+            ip, body.size());
+        co_return;
+    }
+
+    auto origin = ctx.chars->FindByName(origin_name); // inviter / chief
+    auto target = ctx.chars->FindByName(target_name); // invitee answering
+
+    // The dialog is resolved either way — clear the waiter latch.
+    if (target)
+    {
+        std::lock_guard g(target->lock);
+        target->party_waiter = false;
+    }
+    if (!origin && !target) co_return;
+
+    std::uint32_t o_char_id = 0, o_key = 0, o_party_id = 0;
+    std::uint8_t  o_country = 0, o_aid = 0, o_msi = 0;
+    if (origin)
+    {
+        std::lock_guard g(origin->lock);
+        o_char_id  = origin->char_id;
+        o_key      = origin->key;
+        o_party_id = origin->party_id;
+        o_country  = origin->country;
+        o_aid      = origin->aid_country;
+        o_msi      = origin->main_server_id;
+    }
+    std::uint32_t t_char_id = 0, t_key = 0, t_party_id = 0;
+    std::uint8_t  t_country = 0, t_aid = 0, t_msi = 0;
+    if (target)
+    {
+        std::lock_guard g(target->lock);
+        t_char_id  = target->char_id;
+        t_key      = target->key;
+        t_party_id = target->party_id;
+        t_country  = target->country;
+        t_aid      = target->aid_country;
+        t_msi      = target->main_server_id;
+    }
+
+    auto origin_peer = FindMapPeer(ctx, o_msi);
+    auto target_peer = FindMapPeer(ctx, t_msi);
+
+    auto reply = [&](std::shared_ptr<PeerSession> p, std::uint32_t char_id,
+                     std::uint32_t key, std::uint8_t result)
+        -> boost::asio::awaitable<void> {
+        if (p)
+            co_await senders::SendMwPartyAddReq(p, char_id, key, origin_name,
+                target_name, obtain_type, result, /*request=*/0);
+    };
+
+    if (!origin)
+    {
+        co_await reply(target_peer, t_char_id, t_key, party::kNoReqUser);
+        co_return;
+    }
+    if (!target)
+    {
+        co_await reply(origin_peer, o_char_id, o_key, party::kNoUser);
+        co_return;
+    }
+    if (response != party::kAskYes)
+    {
+        // Invitee declined / was busy — relay their answer code
+        // (ASK_NO/ASK_BUSY align with PARTY_DENY/PARTY_BUSY).
+        co_await reply(origin_peer, o_char_id, o_key, response);
+        co_return;
+    }
+    if (t_party_id != 0)
+    {
+        // Invitee joined some party between the AGREE and this ack.
+        co_await reply(origin_peer, o_char_id, o_key, party::kNoUser);
+        co_return;
+    }
+    if (party::WarCountry(t_country, t_aid) !=
+        party::WarCountry(o_country, o_aid))
+    {
+        co_await reply(target_peer, t_char_id, t_key, party::kCountry);
+        co_await reply(origin_peer, o_char_id, o_key, party::kCountry);
+        co_return;
+    }
+
+    // SetCharStatus(pTarget): stash the invitee's combat stats for
+    // the JOIN broadcast.
+    {
+        std::lock_guard g(target->lock);
+        target->max_hp = max_hp;
+        target->hp     = hp;
+        target->max_mp = max_mp;
+        target->mp     = mp;
+    }
+
+    // Legacy bails if either map is offline (it can't fan the JOIN
+    // packets out to a missing peer).
+    if (!target_peer || !origin_peer)
+    {
+        spdlog::info("OnPartyJoinAck[{}]: origin msi={} or target msi={} "
+                     "offline — formation aborted", ip, o_msi, t_msi);
+        co_return;
+    }
+
+    // Inviter already in a party → invitee joins it (chief-gated).
+    if (o_party_id != 0)
+    {
+        auto party = ctx.parties ? ctx.parties->Find(o_party_id) : nullptr;
+        if (party)
+        {
+            bool         is_chief = false, arena = false;
+            std::uint8_t size     = 0;
+            {
+                std::lock_guard pg(party->lock);
+                is_chief = party->IsChief(o_char_id);
+                size     = party->Size();
+                arena    = party->arena;
+            }
+            if (!is_chief)
+            {
+                co_await reply(origin_peer, o_char_id, o_key, party::kNotChief);
+                co_await reply(target_peer, t_char_id, t_key, party::kNotChief);
+                co_return;
+            }
+            if (size >= party::kMaxPartyMember)
+            {
+                co_await reply(origin_peer, o_char_id, o_key, party::kFull);
+                co_await reply(target_peer, t_char_id, t_key, party::kFull);
+                co_return;
+            }
+            if (arena)
+            {
+                co_await reply(target_peer, t_char_id, t_key, party::kBusy);
+                co_return;
+            }
+            co_await JoinPartyFanout(ctx, party, t_char_id);
+            spdlog::info("OnPartyJoinAck[{}]: char_id={} joined party {} "
+                         "(chief={})", ip, t_char_id, o_party_id, o_char_id);
+            co_return;
+        }
+        spdlog::warn("OnPartyJoinAck[{}]: inviter char_id={} has stale "
+                     "party_id={} — forming a fresh party",
+            ip, o_char_id, o_party_id);
+    }
+
+    // New party: inviter becomes chief, both join.
+    if (!ctx.parties)
+    {
+        spdlog::warn("OnPartyJoinAck[{}]: party registry not wired — "
+                     "cannot form party", ip);
+        co_return;
+    }
+    auto party = std::make_shared<TParty>();
+    party->obtain_type   = obtain_type;
+    party->chief_char_id = o_char_id;
+    bool inserted = false;
+    for (int i = 0; i < 4 && !inserted; ++i)
+    {
+        const std::uint16_t id = ctx.parties->GenId();
+        if (id == 0) break;
+        party->id = id;
+        inserted = ctx.parties->Insert(party);
+    }
+    if (!inserted)
+    {
+        spdlog::error("OnPartyJoinAck[{}]: could not allocate a party id — "
+                      "dropped", ip);
+        co_return;
+    }
+
+    co_await JoinPartyFanout(ctx, party, o_char_id); // chief first (empty)
+    co_await JoinPartyFanout(ctx, party, t_char_id); // then the invitee
+    spdlog::info("OnPartyJoinAck[{}]: formed party {} chief={} member={}",
+        ip, party->id, o_char_id, t_char_id);
     co_return;
 }
 

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3b-1 party subsystem + invite relay
+## Status — W3b-2 party formation (PARTYJOIN)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -57,12 +57,68 @@ that the four shipped Asio daemons already use.
 | W3a-37 | Cabinet item codec — TGuildCabinetItem model + WrapItem/CreateItem-symmetric wire codec; OnGuildCabinetPutin/TakeoutAck (stack/decrement) + LIST upgraded from the W3a-26 stub to emit real items | ✅ |
 | **W3a-38** | Disband + point-reward player actions (OnGuildDisorganization/PointRewardAck) — the map→world entry points pairing the W3a-4b/W3a-14 DB fan-ins; closes the last player-facing guild gaps | ✅ |
 | W3a-39+ | DB persistence (tactics + cabinet) + W5 castle/skill guild handlers | ⏸ |
-| **W3b-1** | Party subsystem foundation — PartyRegistry + TParty + TChar party_id/party_waiter/HP-MP fields + OnMW_PARTYADD_ACK invite-relay gate + SendMwPartyAddReq | ✅ |
-| W3b-2+ | Party formation (PARTYJOIN create/join + broadcast) + PARTYDEL leave/kick + Corps | ⏸ |
+| W3b-1 | Party subsystem foundation — PartyRegistry + TParty + TChar party_id/party_waiter/HP-MP fields + OnMW_PARTYADD_ACK invite-relay gate + SendMwPartyAddReq | ✅ |
+| **W3b-2** | Party formation — OnMW_PARTYJOIN_ACK (create new party / join existing) + PartyRegistry::GenId + JoinParty pairwise PARTYJOIN_REQ fan-out + PARTYATTR HUD push + SendMwPartyJoinReq/AttrReq | ✅ |
+| W3b-3+ | Party leave/kick (PARTYDEL) + chief succession + member-stat (PARTYMANSTAT) + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3b-2 — what landed
+
+Party **formation** — the invitee's answer to the W3b-1 invite
+dialog. Where W3b-1 only relayed the dialog, this is the first
+handler that actually mutates the PartyRegistry.
+
+Registry — `PartyRegistry::GenId()` allocates a free WORD party id
+(rolling cursor over [1, 65535], skipping live ids; 0 reserved as
+the TChar "no party" sentinel). Legacy pre-seeds a recycled-id
+queue (`m_qGenPartyID`); the scan is the modern equivalent.
+
+Handler — `OnPartyJoinAck` (wID 0x9022). Re-runs the gate the
+invite passed (inviter+invitee online → `kNoReqUser`/`kNoUser`;
+answer == ASK_YES else relay the decline code, which aligns
+ASK_NO/ASK_BUSY ↔ PARTY_DENY/PARTY_BUSY; invitee still unpartied
+→ `kNoUser`; same war-country → `kCountry`), stashes the
+invitee's combat stats (SetCharStatus), then:
+- inviter already in a party → invitee joins it, chief-gated
+  (`kNotChief` / `kFull` / arena `kBusy`);
+- otherwise a fresh `TParty` is created (GenId + Insert) with the
+  inviter as chief and both chars joined.
+
+`JoinParty` fan-out (file-local coroutine) mirrors legacy
+`CTWorldSvrModule::JoinParty` + `AddPartyMember`: snapshot the
+party's member ids + meta under the party lock, release it, then
+for each online member fire the pairwise `MW_PARTYJOIN_REQ` (the
+joiner learns the member, the member learns the joiner), commit
+`TParty::AddMember` + set the joiner's `TChar.party_id`, and push
+the joiner a `MW_PARTYATTR_REQ` HUD refresh. Member describe-
+fields (name / level / HP-MP / race-sex-face-hair / class / guild
+name via GuildRegistry) are snapshotted through a `SnapshotMember`
+helper. Lock discipline: a char lock is never held across the
+party lock (snapshot-then-release), per README §5.
+
+Deferred (corps not ported): the `RW_PARTYADD_ACK` relay-DB
+persistence echo, `MW_CORPSJOIN_REQ`, and `NotifyAddCorpsUnit` —
+all guarded by `corps_id != 0`, which is always 0 until the corps
+subsystem lands. The BOW/BR cross-server JoinParty guards are
+W6-territory and skipped.
+
+Senders — `SendMwPartyJoinReq` (19-field, via a `PartyMemberInfo`
+POD) + `SendMwPartyAttrReq` (6-field).
+
+Tests
+- `tests/test_party_registry.cpp` scenario 7 — GenId sequential /
+  occupied-slot-skip / non-zero.
+- `tests/test_party_join_handlers.cpp` (4 scenarios, three-peer
+  loopback) — decline relay, inviter-offline relay, new-party
+  formation (asserts the pairwise JOIN_REQ describe-fields + both
+  PARTYATTR pushes + registry 2-member state + chief + both
+  back-pointers + the stashed stats), and a third char joining the
+  existing party (grows to 3, member-order-deterministic fan-out).
+
+Build verified: cmake + ctest -R tworldsvr_asio (20/20 passed).
 
 ### W3b-1 — what landed
 

@@ -32,6 +32,17 @@ PartyRegistry::Find(std::uint16_t party_id) const
     return it == shard.parties.end() ? nullptr : it->second;
 }
 
+std::uint16_t PartyRegistry::GenId()
+{
+    std::lock_guard gen(m_gen_mtx);
+    for (std::uint32_t tries = 0; tries < 0x10000u; ++tries)
+    {
+        if (++m_gen_cursor == 0) m_gen_cursor = 1; // skip the 0 sentinel
+        if (!Find(m_gen_cursor)) return m_gen_cursor;
+    }
+    return 0; // id space exhausted
+}
+
 std::size_t PartyRegistry::Size() const
 {
     std::size_t total = 0;

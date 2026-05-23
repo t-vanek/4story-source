@@ -280,3 +280,14 @@ target_link_libraries(test_tworldsvr_asio_party_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_party_handlers
     COMMAND test_tworldsvr_asio_party_handlers)
+
+# W3b-2 wire test: MW_PARTYJOIN_ACK formation over a three-peer
+# loopback session — decline / inviter-offline relays + new-party
+# creation (pairwise PARTYJOIN_REQ + PARTYATTR + registry state +
+# back-pointers) + a third char joining the existing party.
+add_executable(test_tworldsvr_asio_party_join_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_party_join_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_party_join_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_party_join_handlers
+    COMMAND test_tworldsvr_asio_party_join_handlers)

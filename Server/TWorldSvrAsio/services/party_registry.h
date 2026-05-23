@@ -106,11 +106,21 @@ public:
 
     // Insert a freshly-formed party. Returns false if the id was
     // already registered (caller must not overwrite). W3b-2's
-    // PARTYJOIN allocates the id before calling this.
+    // PARTYJOIN allocates the id via GenId() before calling this.
     bool Insert(std::shared_ptr<TParty> p);
 
     std::shared_ptr<TParty> Remove(std::uint16_t party_id);
     std::shared_ptr<TParty> Find(std::uint16_t party_id) const;
+
+    // Allocate a currently-unused party id in [1, 65535]. Legacy
+    // pre-seeds a recycled-id queue (m_qGenPartyID); we scan a
+    // rolling cursor for a free slot instead — id 0 is reserved
+    // for "no party" (TChar::party_id sentinel). Returns 0 only if
+    // the entire 16-bit id space is occupied (65 534 live parties,
+    // never reached in practice). The result is advisory: a caller
+    // must still check Insert()'s return and re-generate on the
+    // (single-threaded-io: impossible) race.
+    std::uint16_t GenId();
 
     std::size_t Size() const;
     std::vector<std::uint16_t> SnapshotIds() const;
@@ -130,6 +140,11 @@ private:
     }
 
     std::array<Shard, kShardCount> m_shards;
+
+    // Rolling cursor for GenId(), guarded by its own mutex so id
+    // allocation doesn't contend with the per-shard index locks.
+    mutable std::mutex m_gen_mtx;
+    std::uint16_t      m_gen_cursor = 0;
 };
 
 } // namespace tworldsvr

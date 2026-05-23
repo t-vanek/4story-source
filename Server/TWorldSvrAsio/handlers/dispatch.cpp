@@ -343,12 +343,15 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             std::move(body), ctx);
         co_return;
 
-    // ---- W3b-1: party invite relay (handlers_party.cpp) --------
+    // ---- W3b-1/W3b-2: party invite + formation (handlers_party) -
     case MessageId::MW_PARTYADD_ACK:
         co_await OnPartyAddAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_PARTYJOIN_ACK:
+        co_await OnPartyJoinAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3b-2+ picks up PARTYJOIN (formation) + PARTYDEL (leave) +
+    // W3b-3+ picks up PARTYDEL (leave/kick) + chief succession +
     // the corps subsystem. … see README §4.
 
     default:

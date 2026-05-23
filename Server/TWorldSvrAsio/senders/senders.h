@@ -994,4 +994,79 @@ boost::asio::awaitable<void> SendMwPartyAddReq(
     std::uint8_t                 result,
     std::uint32_t                request_char_id);
 
+// --- W3b-2 party formation ----------------------------------------
+
+// Describe-fields for the member being announced in a
+// MW_PARTYJOIN_REQ. The legacy sender pulls them straight off the
+// TChar (pNew->m_*); we snapshot them into this POD so the sender
+// stays a stateless field-writer.
+struct PartyMemberInfo
+{
+    std::uint32_t char_id = 0;
+    std::string   name;
+    std::string   guild_name;        // NAME_NULL ("") when guildless
+    std::uint8_t  level   = 0;
+    std::uint32_t max_hp  = 0;
+    std::uint32_t hp      = 0;
+    std::uint32_t max_mp  = 0;
+    std::uint32_t mp      = 0;
+    std::uint8_t  race    = 0;
+    std::uint8_t  sex     = 0;
+    std::uint8_t  face    = 0;
+    std::uint8_t  hair    = 0;
+    std::uint8_t  klass   = 0;
+};
+
+// MW_PARTYJOIN_REQ — sent to every party member (and the joiner)
+// when a char joins, announcing one member to one recipient. The
+// JoinParty fan-out fires it pairwise: each existing member learns
+// about the joiner and the joiner learns about each member.
+//
+// Wire layout (SSSender.cpp:716):
+//   DWORD  recipient_char_id
+//   DWORD  recipient_key
+//   WORD   party_id
+//   STRING member.name
+//   DWORD  member.char_id
+//   DWORD  chief_id
+//   WORD   commander_id          -- corps commander (0, no corps)
+//   STRING member.guild_name
+//   BYTE   member.level
+//   DWORD  member.max_hp
+//   DWORD  member.hp
+//   DWORD  member.max_mp
+//   DWORD  member.mp
+//   BYTE   member.race
+//   BYTE   member.sex
+//   BYTE   member.face
+//   BYTE   member.hair
+//   BYTE   obtain_type
+//   BYTE   member.klass
+boost::asio::awaitable<void> SendMwPartyJoinReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                recipient_char_id,
+    std::uint32_t                recipient_key,
+    std::uint16_t                party_id,
+    std::uint32_t                chief_id,
+    std::uint16_t                commander_id,
+    std::uint8_t                 obtain_type,
+    const PartyMemberInfo&       member);
+
+// MW_PARTYATTR_REQ — pushed to a char after their party membership
+// changes so their client re-renders the party HUD (id / loot mode
+// / chief / corps commander). Sent with party_id=0 (and zeroed
+// meta) when the char leaves a party (W3b-3).
+//
+// Wire layout (SSSender.cpp:1856):
+//   DWORD char_id, DWORD key, WORD party_id, BYTE party_type,
+//   DWORD chief_id, WORD commander_id
+boost::asio::awaitable<void> SendMwPartyAttrReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint16_t                party_id,
+    std::uint8_t                 party_type,
+    std::uint32_t                chief_id,
+    std::uint16_t                commander_id);
+
 } // namespace tworldsvr::senders

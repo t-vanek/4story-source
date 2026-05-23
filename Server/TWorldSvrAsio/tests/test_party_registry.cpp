@@ -167,8 +167,29 @@ int main()
         EXPECT(missing == 0);
     }
 
+    // --- Scenario 7: GenId allocates free, non-zero, unique ids ------
+    {
+        PartyRegistry reg;
+        // First three ids are sequential from the 0 cursor.
+        const std::uint16_t a = reg.GenId();
+        EXPECT(a == 1);
+        auto pa = MakeParty(a); EXPECT(reg.Insert(pa));
+        const std::uint16_t b = reg.GenId();
+        EXPECT(b == 2);
+        auto pb = MakeParty(b); EXPECT(reg.Insert(pb));
+
+        // An occupied slot is skipped: pre-seed id 3, next GenId == 4.
+        auto p3 = MakeParty(3); EXPECT(reg.Insert(p3));
+        const std::uint16_t c = reg.GenId();
+        EXPECT(c == 4);
+        EXPECT(c != 0);
+
+        // Every generated id is unused at the moment it's returned.
+        EXPECT(reg.Find(c) == nullptr);
+    }
+
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_party_registry (6 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_party_registry (7 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_party_registry (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

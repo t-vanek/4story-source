@@ -353,9 +353,18 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_PARTYDEL_ACK:
         co_await OnPartyDelAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_PARTYMANSTAT_ACK:
+        co_await OnPartyManstatAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHGPARTYCHIEF_ACK:
+        co_await OnChgPartyChiefAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHGPARTYTYPE_ACK:
+        co_await OnChgPartyTypeAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3b-4+ picks up PARTYMANSTAT (member stats) + PARTYMOVE +
-    // CHGPARTYCHIEF/TYPE + the corps subsystem. … see README §4.
+    // W3b-5+ picks up PARTYMOVE (summon) + member-recall +
+    // order-take-item + the corps subsystem. … see README §4.
 
     default:
         break;

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3b-3 party leave / kick (PARTYDEL)
+## Status — W3b-4 party attribute changes (MANSTAT / CHGCHIEF / CHGTYPE)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -59,12 +59,60 @@ that the four shipped Asio daemons already use.
 | W3a-39+ | DB persistence (tactics + cabinet) + W5 castle/skill guild handlers | ⏸ |
 | W3b-1 | Party subsystem foundation — PartyRegistry + TParty + TChar party_id/party_waiter/HP-MP fields + OnMW_PARTYADD_ACK invite-relay gate + SendMwPartyAddReq | ✅ |
 | W3b-2 | Party formation — OnMW_PARTYJOIN_ACK (create new party / join existing) + PartyRegistry::GenId + JoinParty pairwise PARTYJOIN_REQ fan-out + PARTYATTR HUD push + SendMwPartyJoinReq/AttrReq | ✅ |
-| **W3b-3** | Party leave/kick — OnMW_PARTYDEL_ACK + LeaveParty (chief succession, PARTYDEL fan-out, disband cascade on drop-below-two) + SendMwPartyDelReq | ✅ |
-| W3b-4+ | Party member-stat (PARTYMANSTAT) + PARTYMOVE + CHGPARTYCHIEF/TYPE + Corps | ⏸ |
+| W3b-3 | Party leave/kick — OnMW_PARTYDEL_ACK + LeaveParty (chief succession, PARTYDEL fan-out, disband cascade on drop-below-two) + SendMwPartyDelReq | ✅ |
+| **W3b-4** | Party attribute changes — OnMW_PARTYMANSTAT_ACK (member-stat broadcast) + OnMW_CHGPARTYCHIEF_ACK (hand off leadership) + OnMW_CHGPARTYTYPE_ACK (loot mode) + 3 senders | ✅ |
+| W3b-5+ | Party summon (PARTYMOVE) + member-recall + order-take-item + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3b-4 — what landed
+
+Three small party-attribute mutations, each fanning a broadcast to
+the roster. All read-mostly: no new state beyond the existing
+`TParty.chief_char_id` / `obtain_type` and `TChar` combat stats.
+
+Handlers
+- `OnPartyManstatAck` (wID 0x9026) — a member's HP/MP/level
+  changed on the map side. Updates the subject member's stored
+  combat stats (legacy SetCharStatus — HP/MP only; level stays
+  owned by LEVELUP) and re-broadcasts `MW_PARTYMANSTAT_REQ` to
+  every member so their roster HUD refreshes.
+- `OnChgPartyChiefAck` (wID 0x90A2) — chief hands leadership to
+  another member. Gates (legacy order): requester online + key
+  match → target online (`kNoUser`) → both in a party
+  (`kNoParty`) → same party (`kNoUser`) → not self (`kAlready`)
+  → requester is chief (`kNotChief`). On success sets the new
+  chief, replies `kChgChief` to the requester, and re-broadcasts
+  `MW_PARTYATTR_REQ` to every member with the new chief.
+- `OnChgPartyTypeAck` (wID 0x90CC) — chief changes the loot-
+  distribution mode. Gates: requester in a party + is chief
+  (`kNotChief` reply otherwise). On success updates
+  `TParty.obtain_type` + broadcasts `MW_CHGPARTYTYPE_REQ`
+  (result=0) to every member.
+
+Senders — `SendMwPartyManstatReq` (9-field), `SendMwChgPartyChiefReq`
+(3-field), `SendMwChgPartyTypeReq` (4-field). The chief-change
+roster refresh reuses the W3b-2/3 `SendAttr` (PARTYATTR) helper.
+
+Lock discipline unchanged: member-set + chief/obtain snapshotted
+under the party lock, released before any char lock or send.
+
+Deferred (corps not ported): the MANSTAT corps-general relay, the
+CHGCHIEF `ChgSquadChief` / `ReportEnemyList` / general-reassign
+and the `RW_PARTYCHGCHIEF_ACK` relay-DB echo — all corps_id-gated
+(always 0) or relay-channel-only.
+
+Tests — `tests/test_party_attr_handlers.cpp` (6 scenarios,
+three-peer loopback on one party): MANSTAT broadcast + stored-stat
+update; CHGTYPE non-chief reject (obtain unchanged) then chief
+broadcast (obtain updated); CHGCHIEF Alice→Bob (reply + roster
+PARTYATTR with the new chief + registry chief flip), the
+now-ex-chief's CHGCHIEF rejected `kNotChief`, and a self-target
+`kAlready`.
+
+Build verified: cmake + ctest -R tworldsvr_asio (22/22 passed).
 
 ### W3b-3 — what landed
 

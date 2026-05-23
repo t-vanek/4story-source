@@ -302,3 +302,15 @@ target_link_libraries(test_tworldsvr_asio_party_del_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_party_del_handlers
     COMMAND test_tworldsvr_asio_party_del_handlers)
+
+# W3b-4 wire test: party attribute changes over a three-peer
+# loopback session — MANSTAT member-stat broadcast + stored-stat
+# update, CHGPARTYTYPE (non-chief reject / chief broadcast), and
+# CHGPARTYCHIEF (success + roster PARTYATTR refresh / not-chief /
+# already gates).
+add_executable(test_tworldsvr_asio_party_attr_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_party_attr_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_party_attr_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_party_attr_handlers
+    COMMAND test_tworldsvr_asio_party_attr_handlers)

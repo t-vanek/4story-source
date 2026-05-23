@@ -681,4 +681,245 @@ OnPartyDelAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnPartyManstatAck(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnPartyManstatAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint16_t party_id  = 0;
+    std::uint32_t member_id = 0;
+    std::uint8_t  type      = 0, level = 0;
+    std::uint32_t max_hp = 0, hp = 0, max_mp = 0, mp = 0;
+    if (!r.Read(party_id) || !r.Read(member_id) || !r.Read(type) ||
+        !r.Read(level) || !r.Read(max_hp) || !r.Read(hp) ||
+        !r.Read(max_mp) || !r.Read(mp))
+    {
+        spdlog::warn("OnPartyManstatAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto party = ctx.parties->Find(party_id);
+    if (!party) co_return;
+
+    std::vector<std::uint32_t> members;
+    {
+        std::lock_guard pg(party->lock);
+        members = party->members;
+    }
+
+    // Update the subject member's stored combat stats (legacy
+    // SetCharStatus — HP/MP only; level stays owned by LEVELUP).
+    if (auto subject = ctx.chars->Find(member_id))
+    {
+        std::lock_guard g(subject->lock);
+        subject->max_hp = max_hp;
+        subject->hp     = hp;
+        subject->max_mp = max_mp;
+        subject->mp     = mp;
+    }
+
+    // Broadcast the new stats to every member's map.
+    for (auto mid : members)
+    {
+        auto c = ctx.chars->Find(mid);
+        if (!c) continue;
+        std::uint32_t mkey = 0;
+        std::uint8_t  mmsi = 0;
+        {
+            std::lock_guard g(c->lock);
+            mkey = c->key;
+            mmsi = c->main_server_id;
+        }
+        if (auto p = FindMapPeer(ctx, mmsi))
+            co_await senders::SendMwPartyManstatReq(p, mid, mkey, member_id,
+                type, level, max_hp, hp, max_mp, mp);
+    }
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnChgPartyChiefAck(std::shared_ptr<PeerSession> peer,
+                   std::vector<std::byte>       body,
+                   const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnChgPartyChiefAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t chief_id = 0, key = 0, target_id = 0;
+    if (!r.Read(chief_id) || !r.Read(key) || !r.Read(target_id))
+    {
+        spdlog::warn("OnChgPartyChiefAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto chief = ctx.chars->Find(chief_id);
+    if (!chief) co_return;
+    std::uint32_t actual_key = 0, chief_party = 0;
+    {
+        std::lock_guard g(chief->lock);
+        actual_key  = chief->key;
+        chief_party = chief->party_id;
+    }
+    if (actual_key != key) co_return;
+
+    auto reply = [&](std::uint8_t result) -> boost::asio::awaitable<void> {
+        co_await senders::SendMwChgPartyChiefReq(peer, chief_id, key, result);
+    };
+
+    auto target = ctx.chars->Find(target_id);
+    if (!target)
+    {
+        co_await reply(party::kNoUser);
+        co_return;
+    }
+    std::uint32_t target_party = 0;
+    {
+        std::lock_guard g(target->lock);
+        target_party = target->party_id;
+    }
+
+    if (chief_party == 0 || target_party == 0)
+    {
+        co_await reply(party::kNoParty);
+        co_return;
+    }
+    if (chief_party != target_party)
+    {
+        co_await reply(party::kNoUser);
+        co_return;
+    }
+    if (chief_id == target_id)
+    {
+        co_await reply(party::kAlready);
+        co_return;
+    }
+
+    auto party = ctx.parties->Find(static_cast<std::uint16_t>(chief_party));
+    if (!party)
+    {
+        co_await reply(party::kNoParty);
+        co_return;
+    }
+
+    bool is_chief = false;
+    {
+        std::lock_guard pg(party->lock);
+        is_chief = party->IsChief(chief_id);
+    }
+    if (!is_chief)
+    {
+        co_await reply(party::kNotChief);
+        co_return;
+    }
+
+    // Promote the target + snapshot the roster for the refresh.
+    std::vector<std::uint32_t> members;
+    std::uint8_t obtain = 0;
+    {
+        std::lock_guard pg(party->lock);
+        party->chief_char_id = target_id;
+        members = party->members;
+        obtain  = party->obtain_type;
+    }
+
+    co_await reply(party::kChgChief);
+    for (auto mid : members)
+        co_await SendAttr(ctx, mid, static_cast<std::uint16_t>(chief_party),
+            obtain, target_id);
+
+    spdlog::info("OnChgPartyChiefAck[{}]: party {} chief {}→{}",
+        ip, chief_party, chief_id, target_id);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnChgPartyTypeAck(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnChgPartyTypeAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  party_type = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(party_type))
+    {
+        spdlog::warn("OnChgPartyTypeAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+    std::uint32_t actual_key = 0, party_id32 = 0;
+    {
+        std::lock_guard g(requester->lock);
+        actual_key = requester->key;
+        party_id32 = requester->party_id;
+    }
+    if (actual_key != key) co_return;
+    if (party_id32 == 0) co_return; // not in a party — legacy silent drop
+
+    auto party = ctx.parties->Find(static_cast<std::uint16_t>(party_id32));
+    if (!party) co_return;
+
+    bool is_chief = false;
+    {
+        std::lock_guard pg(party->lock);
+        is_chief = party->IsChief(char_id);
+    }
+    if (!is_chief)
+    {
+        co_await senders::SendMwChgPartyTypeReq(peer, char_id, key,
+            party::kNotChief, party_type);
+        co_return;
+    }
+
+    std::vector<std::uint32_t> members;
+    {
+        std::lock_guard pg(party->lock);
+        party->obtain_type = party_type;
+        members = party->members;
+    }
+
+    for (auto mid : members)
+    {
+        auto c = ctx.chars->Find(mid);
+        if (!c) continue;
+        std::uint32_t mkey = 0;
+        std::uint8_t  mmsi = 0;
+        {
+            std::lock_guard g(c->lock);
+            mkey = c->key;
+            mmsi = c->main_server_id;
+        }
+        if (auto p = FindMapPeer(ctx, mmsi))
+            co_await senders::SendMwChgPartyTypeReq(p, mid, mkey,
+                /*result=*/0, party_type);
+    }
+    spdlog::info("OnChgPartyTypeAck[{}]: party {} obtain_type={}",
+        ip, party_id32, party_type);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

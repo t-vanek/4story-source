@@ -1083,5 +1083,42 @@ boost::asio::awaitable<void> OnPartyDelAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3b-4: party attribute changes (handlers_party.cpp) -----------
+//
+// Three small chief-/member-driven party mutations, each fanning a
+// broadcast to the party roster.
+//
+// MANSTAT — a member's HP/MP/level changed on the map side; world
+// updates that member's stored combat stats and re-broadcasts to
+// every member so their roster HUD refreshes.
+//   Wire (SSHandler.cpp:2840): WORD party_id, DWORD member_id,
+//     BYTE type, BYTE level, DWORD max_hp, DWORD hp, DWORD max_mp,
+//     DWORD mp
+boost::asio::awaitable<void> OnPartyManstatAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// CHGPARTYCHIEF — chief hands leadership to another member. Gates:
+// both online + both in the same party + requester is chief +
+// target isn't already chief. On success sets the new chief +
+// re-broadcasts MW_PARTYATTR_REQ to every member.
+//   Wire (SSHandler.cpp:2334): DWORD chief_id, DWORD key,
+//     DWORD target_id
+boost::asio::awaitable<void> OnChgPartyChiefAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// CHGPARTYTYPE — chief changes the loot-distribution mode. Gates:
+// requester in a party + is chief. On success updates the party's
+// obtain_type + broadcasts MW_CHGPARTYTYPE_REQ to every member.
+//   Wire (SSHandler.cpp:2447): DWORD char_id, DWORD key,
+//     BYTE party_type
+boost::asio::awaitable<void> OnChgPartyTypeAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

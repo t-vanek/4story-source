@@ -1097,4 +1097,54 @@ boost::asio::awaitable<void> SendMwPartyDelReq(
     std::uint16_t                party_id,
     std::uint8_t                 kick);
 
+// --- W3b-4 party attribute changes --------------------------------
+
+// MW_PARTYMANSTAT_REQ — one party member's combat stats / level
+// changed; broadcast to every member so their roster HUD updates.
+// `member_char_id` is the subject; the recipient is each member in
+// turn.
+//
+// Wire layout (SSSender.cpp:770):
+//   DWORD recipient_char_id, DWORD recipient_key,
+//   DWORD member_char_id, BYTE type, BYTE level,
+//   DWORD max_hp, DWORD hp, DWORD max_mp, DWORD mp
+boost::asio::awaitable<void> SendMwPartyManstatReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                recipient_char_id,
+    std::uint32_t                recipient_key,
+    std::uint32_t                member_char_id,
+    std::uint8_t                 type,
+    std::uint8_t                 level,
+    std::uint32_t                max_hp,
+    std::uint32_t                hp,
+    std::uint32_t                max_mp,
+    std::uint32_t                mp);
+
+// MW_CHGPARTYCHIEF_REQ — result of a chief handing leadership to
+// another member. On success (PARTY_CHGCHIEF) only the requesting
+// chief gets this reply; the roster-wide refresh rides on the
+// MW_PARTYATTR_REQ broadcast. Failure branches (NOUSER / NOPARTY /
+// NOTCHIEF / ALREADY) also reply to the requester.
+//
+// Wire layout (SSSender.cpp:1844):
+//   DWORD char_id, DWORD key, BYTE result
+boost::asio::awaitable<void> SendMwChgPartyChiefReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_CHGPARTYTYPE_REQ — result of a chief changing the loot mode.
+// On success broadcast to every member with result=0; the
+// not-chief failure replies only to the requester.
+//
+// Wire layout (SSSender.cpp:678):
+//   DWORD char_id, DWORD key, BYTE result, BYTE party_type
+boost::asio::awaitable<void> SendMwChgPartyTypeReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint8_t                 party_type);
+
 } // namespace tworldsvr::senders

@@ -388,4 +388,88 @@ OnCharStatInfoAnsAck(std::shared_ptr<PeerSession>  peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnPetRidingAck(std::shared_ptr<PeerSession>  peer,
+               std::vector<std::byte>        body,
+               const HandlerContext&         ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnPetRidingAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, riding = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(riding))
+    {
+        spdlog::warn("OnPetRidingAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    const std::uint8_t origin_msi =
+        static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+    std::vector<std::uint8_t> other_msis;
+    bool ok = false;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key == key)
+        {
+            c->riding = riding;
+            // Fan to every other connection (legacy excludes the
+            // originating server, which already applied it locally).
+            for (const auto& con : c->cons)
+                if (con.valid && con.server_id != origin_msi)
+                    other_msis.push_back(con.server_id);
+            ok = true;
+        }
+    }
+    if (!ok) co_return;
+
+    for (auto msi : other_msis)
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwPetRidingReq(p, char_id, key, riding);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnHelmetHideAck(std::shared_ptr<PeerSession>  peer,
+                std::vector<std::byte>        body,
+                const HandlerContext&         ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars)
+    {
+        spdlog::warn("OnHelmetHideAck[{}]: char registry not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  hide = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(hide))
+    {
+        spdlog::warn("OnHelmetHideAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    bool ok = false;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key == key) { c->helmet_hide = hide; ok = true; }
+    }
+    if (!ok) co_return;
+
+    // Confirm back to the originating map (legacy echoes to pSERVER).
+    co_await senders::SendMwHelmetHideReq(peer, char_id, key, hide);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

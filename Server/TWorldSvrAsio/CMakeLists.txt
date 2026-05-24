@@ -565,3 +565,13 @@ target_link_libraries(test_tworldsvr_asio_post_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_post_handlers
     COMMAND test_tworldsvr_asio_post_handlers)
+
+# W4-14 wire test: per-character visual state sync — PETRIDING fans
+# the mount to a char's other map session; HELMETHIDE confirms back
+# to the originating map.
+add_executable(test_tworldsvr_asio_appearance_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_appearance_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_appearance_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_appearance_handlers
+    COMMAND test_tworldsvr_asio_appearance_handlers)

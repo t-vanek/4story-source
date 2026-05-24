@@ -1528,6 +1528,26 @@ boost::asio::awaitable<void> OnCharStatInfoAnsAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-14: per-character visual state sync (handlers_char.cpp) ----
+//
+// Continues the W4-8/W4-9 "live per-char state propagation" theme.
+//   PETRIDING — a char mounted / dismounted; store TChar.riding and
+//     fan MW_PETRIDING_REQ to the char's *other* (non-originating)
+//     map sessions so each client renders the mount.
+//     Wire (SSHandler.cpp:8604): DWORD char_id, key, DWORD riding
+//   HELMETHIDE — a char toggled helmet visibility; store
+//     TChar.helmet_hide and confirm MW_HELMETHIDE_REQ back to the
+//     originating map.
+//     Wire (SSHandler.cpp:8683): DWORD char_id, key, BYTE hide
+boost::asio::awaitable<void> OnPetRidingAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnHelmetHideAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-11: TMS conference channels (handlers_tms.cpp) -------------
 //
 // The "temporary messaging system" — the in-game multi-party

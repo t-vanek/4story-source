@@ -114,4 +114,38 @@ SendMwLevelUpReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwPetRidingReq(std::shared_ptr<PeerSession> peer,
+                   std::uint32_t                char_id,
+                   std::uint32_t                key,
+                   std::uint32_t                riding)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint32_t>(body, riding);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_PETRIDING_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwHelmetHideReq(std::shared_ptr<PeerSession> peer,
+                    std::uint32_t                char_id,
+                    std::uint32_t                key,
+                    std::uint8_t                 hide)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, hide);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_HELMETHIDE_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

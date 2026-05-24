@@ -152,6 +152,24 @@ boost::asio::awaitable<void> SendMwLevelUpReq(
     std::uint32_t                key,
     std::uint8_t                 level);
 
+// MW_PETRIDING_REQ — propagate a char's active mount to another map
+// session it is visible on (the char's non-originating connections).
+//   Wire (SSSender.cpp): DWORD char_id, key, DWORD riding
+boost::asio::awaitable<void> SendMwPetRidingReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                riding);
+
+// MW_HELMETHIDE_REQ — confirm a char's helmet-visibility toggle back
+// to the originating map (which then renders + broadcasts locally).
+//   Wire (SSSender.cpp): DWORD char_id, key, BYTE hide
+boost::asio::awaitable<void> SendMwHelmetHideReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 hide);
+
 // MW_CHARSTATINFOANS_REQ — ask a target's map to gather the
 // inspected char's stat block (step 1 of the inspect-player relay).
 //

@@ -496,7 +496,15 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnReservedPostRecvAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W4-13+ picks up login presence (connect fan-out) + the
+    // ---- W4-14: per-character visual state (handlers_char.cpp) -
+    case MessageId::MW_PETRIDING_ACK:
+        co_await OnPetRidingAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_HELMETHIDE_ACK:
+        co_await OnHelmetHideAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-15+ picks up login presence (connect fan-out) + the
     // friend/soulmate DB load. … see README §4.
 
     default:

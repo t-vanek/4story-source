@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-13 mail delivery relay (POST)
+## Status — W4-14 per-character visual state sync (PETRIDING / HELMETHIDE)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -82,12 +82,41 @@ that the four shipped Asio daemons already use.
 | W4-10 | Inspect-player stat relay — OnMW_CHARSTATINFO_ACK + OnMW_CHARSTATINFOANS_ACK (request routed to the target's map, the gathered stat block forwarded verbatim to the requester) | ✅ |
 | W4-11 | TMS conference channels — TmsRegistry + TTms + TChar.tms id-set + OnMW_TMSSEND/INVITEASK/INVITE/OUT_ACK (open / fan-out / re-pair / tear-down a multi-party group chat) + 4 senders | ✅ |
 | W4-12 | TMS presence on logout — NotifyTmsOnLogout (legacy LeaveTMS) wired into OnCloseCharAck: drops a logging-out char from every conference + tells the survivors via TMSOUT_REQ | ✅ |
-| **W4-13** | Mail delivery relay — OnMW_POSTRECV_ACK (player mail) + OnDM_RESERVEDPOSTRECV_ACK (system mail) forward MW_POSTRECV_REQ verbatim to the recipient's map (routed by target name) + SendMwPostRecvReq | ✅ |
-| W4-14+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-13 | Mail delivery relay — OnMW_POSTRECV_ACK (player mail) + OnDM_RESERVEDPOSTRECV_ACK (system mail) forward MW_POSTRECV_REQ verbatim to the recipient's map (routed by target name) + SendMwPostRecvReq | ✅ |
+| **W4-14** | Per-character visual state sync — OnMW_PETRIDING_ACK (mount fan-out to the char's other map sessions) + OnMW_HELMETHIDE_ACK (helmet-visibility store + confirm) + TChar.riding/helmet_hide + 2 senders | ✅ |
+| W4-15+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-14 — what landed
+
+**Per-character visual state sync** — continues the W4-8 (region) /
+W4-9 (level) "live per-char state propagation" theme with two
+cosmetic-state handlers (handlers_char.cpp).
+
+- `OnPetRidingAck` (wID 0x90D0) — a char mounted / dismounted.
+  Stores `TChar.riding` and fans `MW_PETRIDING_REQ` to the char's
+  *other* (non-originating, valid) map sessions so every client it
+  is visible on renders the mount. Mirrors legacy
+  SSHandler.cpp:8604, which excludes the originating server (it
+  already applied the change locally).
+- `OnHelmetHideAck` (wID 0x9103) — a char toggled helmet
+  visibility. Stores `TChar.helmet_hide` and confirms
+  `MW_HELMETHIDE_REQ` back to the originating map (legacy
+  SSHandler.cpp:8683).
+
+`TChar` gains `riding` (u32) + `helmet_hide` (u8); senders
+`SendMwPetRidingReq` / `SendMwHelmetHideReq` live in
+`senders_relay.cpp` next to the W4-9 LevelUp sender.
+
+Tests — `tests/test_appearance_handlers.cpp` (two-peer, one char on
+both): PETRIDING from the main session reaches the secondary
+session with the mount id; HELMETHIDE echoes back to the sender;
+both fields land on the registry entry.
+
+Build verified: cmake + ctest -R tworldsvr_asio (46/46 passed).
 
 ### W4-13 — what landed
 

@@ -51,6 +51,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_event.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_combat.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_item.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_admin.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_rank.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_recallmon.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
@@ -67,6 +68,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_event.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_combat.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_item.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_admin.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_rank.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_recallmon.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
@@ -755,6 +757,15 @@ target_link_libraries(test_tworldsvr_asio_guildrank_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_guildrank_handlers
     COMMAND test_tworldsvr_asio_guildrank_handlers)
+
+# W6-12 wire test: GM user-tracking relays — USERPOSITION + USERMOVE
+# route to the target char's map.
+add_executable(test_tworldsvr_asio_admin_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_admin_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_admin_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_admin_handlers
+    COMMAND test_tworldsvr_asio_admin_handlers)
 
 # W6-3 wire test: global announcement broadcasts — FAMERANKUPDATE
 # (verbatim) + HEROSELECT fan to every map peer.

@@ -1927,5 +1927,24 @@ boost::asio::awaitable<void> OnDealItemErrorAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-12: GM user-tracking relays (handlers_admin.cpp) ----------
+//
+// CT_USERPOSITION_ACK — a GM's "locate this player" request, relayed
+// to the target's map (MW_USERPOSITION_REQ; both target + GM must be
+// online). CT_USERMOVE_ACK — a GM force-move, relayed to the user's
+// map (re-sent as CT_USERMOVE_ACK, the legacy world→map form).
+//   Wire (SSHandler.cpp:49/17):
+//     USERPOSITION : STRING target, gm
+//     USERMOVE     : STRING user, BYTE channel, WORD map, FLOAT x,y,z,
+//                    WORD party_id
+boost::asio::awaitable<void> OnUserPositionAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnUserMoveAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

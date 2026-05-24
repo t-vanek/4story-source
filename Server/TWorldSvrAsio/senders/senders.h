@@ -1915,4 +1915,29 @@ boost::asio::awaitable<void> SendMwPostRecvReq(
     std::shared_ptr<PeerSession>   peer,
     const std::vector<std::byte>&  body);
 
+// --- W6-12 GM user-tracking relays (senders_admin.cpp) ------------
+
+// MW_USERPOSITION_REQ — relay a GM's "where is this player" request
+// to the target's map.
+//   Wire: DWORD char_id, key, STRING gm_name
+boost::asio::awaitable<void> SendMwUserPositionReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           gm_name);
+
+// CT_USERMOVE_ACK — relay a GM force-move to the target's map.
+//   Wire: DWORD char_id, key, BYTE channel, WORD map_id,
+//     FLOAT pos_x, pos_y, pos_z, WORD party_id
+boost::asio::awaitable<void> SendCtUserMoveAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z,
+    std::uint16_t                party_id);
+
 } // namespace tworldsvr::senders

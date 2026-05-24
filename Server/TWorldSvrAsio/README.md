@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-11 day-change guild ranking (CHANGEDAY)
+## Status — W6-12 GM user-tracking relays (USERPOSITION / USERMOVE)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -106,9 +106,30 @@ that the four shipped Asio daemons already use.
 | W6-8 | GM char message relay — OnCT_CHARMSG_ACK routes a control-server system/GM message (≤1 KiB) to the named char's main map (MW_CHARMSG_REQ) + sender | ✅ |
 | W6-9 | Friend-protected refuse relay — OnMW_FRIENDPROTECTEDASK_ACK relays an auto-refuse (FRIEND_REFUSE + requester name) to a protection-enabled target's map; completes the friend-ask protection sub-case | ✅ |
 | W6-10 | Item-result relays — OnMW_ADDITEMRESULT_ACK (route to the requesting map server) + OnMW_DEALITEMERROR_ACK (route to the target char's map) + SendMwDealItemErrorReq (reuses the W3b SendMwAddItemResultReq) | ✅ |
-| **W6-11** | Day-change guild ranking — OnSM_CHANGEDAY_REQ recomputes every guild's PvP total/month rank over GuildRegistry (legacy CalcGuildRanking); read back by GuildInfoAck | ✅ |
+| W6-11 | Day-change guild ranking — OnSM_CHANGEDAY_REQ recomputes every guild's PvP total/month rank over GuildRegistry (legacy CalcGuildRanking); read back by GuildInfoAck | ✅ |
+| **W6-12** | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-12 — what landed
+
+**GM user-tracking relays** — two control-server (GM) tools routed to
+the target char's map:
+
+- `OnUserPositionAck` (handlers_admin.cpp, `CT_USERPOSITION_ACK`) —
+  "where is this player": relays `MW_USERPOSITION_REQ` (char id/key +
+  GM name) to the target's map; requires both target and GM online.
+- `OnUserMoveAck` (`CT_USERMOVE_ACK`) — GM force-move: relays the
+  destination (channel/map/pos/party) to the user's map, re-sent as
+  `CT_USERMOVE_ACK` (the legacy world→map form).
+
+Two senders in `senders_admin.cpp`; both reachable via the same
+Dispatch as the other CT_/SM_ messages.
+
+Tests — `tests/test_admin_handlers.cpp`: a locate request and a
+force-move both reach the target's map with the right payload.
+
+Build verified: cmake + ctest -R tworldsvr_asio (68/68 passed).
 
 ### W6-11 — what landed
 

@@ -63,4 +63,13 @@ BowRegistry::Contains(std::uint32_t char_id) const
     return m_queue.find(char_id) != m_queue.end();
 }
 
+void
+BowRegistry::ReleaseSinglePlayer(std::uint32_t char_id, std::uint32_t key)
+{
+    std::unique_lock g(m_lock);
+    auto it = m_queue.find(char_id);
+    if (it != m_queue.end() && it->second.key == key)
+        m_queue.erase(it);
+}
+
 } // namespace tworldsvr

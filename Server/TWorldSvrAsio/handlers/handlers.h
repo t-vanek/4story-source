@@ -1174,6 +1174,24 @@ boost::asio::awaitable<void> OnPartyOrderTakeItemAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3c-5: corps squad reshuffle (handlers_party.cpp) -------------
+//
+// MW_PARTYMOVE_ACK — a corps general moves a member between squads.
+// Move mode (empty dest name): the target leaves their party and
+// joins party `target_party`. Swap mode (dest name set): the target
+// and the named dest char trade parties (both parties must have ≥2
+// members). Reuses the party LeaveParty + JoinParty machinery; the
+// map server has already validated the general's authority. Result:
+// MW_PARTYMOVE_REQ (CORPS_SUCCESS / CORPS_NOT_COMMANDER /
+// CORPS_WRONG_TARGET).
+//
+// Wire (SSHandler.cpp:7303): DWORD char_id, key, STRING target_name,
+//   STRING dest_name, WORD target_party
+boost::asio::awaitable<void> OnPartyMoveAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3c-1: corps invite relay (handlers_corps.cpp) ----------------
 //
 // Opens the corps subsystem (the party subsystem's parent: a corps

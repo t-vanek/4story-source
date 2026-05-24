@@ -387,9 +387,12 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_CHGCORPSCOMMANDER_ACK:
         co_await OnChgCorpsCommanderAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_PARTYMOVE_ACK:
+        co_await OnPartyMoveAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3c-5+ picks up PARTYMOVE (squad reshuffle) + corps command /
-    // enemy-list. … README §4.
+    // W3c-6+ picks up corps command (CORPSCMD) + the corps
+    // enemy-list family (CORPSENEMYLIST / ADD / DEL / MOVE). README §4.
 
     default:
         break;

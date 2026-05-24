@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/corps_constants.h"
 #include "../services/guild_cabinet_codec.h"
 #include "../services/party_constants.h"
 #include "../wire_codec.h"
@@ -1154,6 +1155,132 @@ OnPartyOrderTakeItemAck(std::shared_ptr<PeerSession> peer,
     if (auto np = FindMapPeer(ctx, next_msi))
         co_await senders::SendMwPartyOrderTakeItemReq(np, next_id, next_key,
             server_id, channel, map_id, mon_id, temp_mon_id, item);
+    co_return;
+}
+
+namespace {
+
+// Snapshot a char's party_id (0 if absent / not in registry).
+std::uint16_t PartyIdOf(const HandlerContext& ctx, std::uint32_t char_id)
+{
+    auto c = ctx.chars->Find(char_id);
+    if (!c) return 0;
+    std::lock_guard g(c->lock);
+    return c->party_id;
+}
+
+std::uint8_t PartySize(const HandlerContext& ctx, std::uint16_t party_id)
+{
+    auto p = ctx.parties->Find(party_id);
+    if (!p) return 0;
+    std::lock_guard g(p->lock);
+    return p->Size();
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnPartyMoveAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnPartyMoveAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   target_name, dest_name;
+    std::uint16_t target_party = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name) ||
+        !r.ReadString(dest_name) || !r.Read(target_party))
+    {
+        spdlog::warn("OnPartyMoveAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto reply = [&](std::uint8_t result) -> boost::asio::awaitable<void> {
+        co_await senders::SendMwPartyMoveReq(peer, char_id, key, result);
+    };
+
+    // The general must exist with a matching key (map pre-validated
+    // the commander authority).
+    auto general = ctx.chars->Find(char_id);
+    bool key_ok = false;
+    if (general)
+    { std::lock_guard g(general->lock); key_ok = (general->key == key); }
+    if (!general || !key_ok)
+    {
+        co_await reply(corps::kNotCommander);
+        co_return;
+    }
+
+    auto target = ctx.chars->FindByName(target_name);
+    std::uint32_t target_id = 0;
+    if (target)
+    { std::lock_guard g(target->lock); target_id = target->char_id; }
+    const std::uint16_t tgt_party_id = target ? PartyIdOf(ctx, target_id) : 0;
+    if (!target || tgt_party_id == 0)
+    {
+        co_await reply(corps::kNotCommander);
+        co_return;
+    }
+    auto tg_party = ctx.parties->Find(tgt_party_id);
+
+    if (!dest_name.empty())
+    {
+        // Swap mode: target ↔ dest, both parties must have ≥2.
+        auto dest = ctx.chars->FindByName(dest_name);
+        std::uint32_t dest_id = 0;
+        if (dest)
+        { std::lock_guard g(dest->lock); dest_id = dest->char_id; }
+        const std::uint16_t dest_party_id = dest ? PartyIdOf(ctx, dest_id) : 0;
+        if (!dest || dest_party_id == 0 ||
+            PartySize(ctx, dest_party_id) <= 1 ||
+            PartySize(ctx, tgt_party_id) <= 1)
+        {
+            co_await reply(corps::kWrongTarget);
+            co_return;
+        }
+        auto dest_party = ctx.parties->Find(dest_party_id);
+        if (!dest_party || !tg_party)
+        {
+            co_await reply(corps::kWrongTarget);
+            co_return;
+        }
+        // Pull both out (no dissolve), then cross-join.
+        co_await LeaveParty(ctx, dest_party, dest_id, /*kick=*/1,
+            /*is_delete=*/false);
+        co_await LeaveParty(ctx, tg_party, target_id, /*kick=*/1,
+            /*is_delete=*/false);
+        co_await JoinPartyFanout(ctx, dest_party, target_id);
+        co_await JoinPartyFanout(ctx, tg_party, dest_id);
+        spdlog::info("OnPartyMoveAck[{}]: swapped char {} (party {}) with "
+                     "char {} (party {})", ip, target_id, tgt_party_id,
+            dest_id, dest_party_id);
+    }
+    else
+    {
+        // Move mode: target → party `target_party`.
+        auto dest_party = ctx.parties->Find(target_party);
+        if (!dest_party || PartySize(ctx, target_party) == 0 ||
+            tgt_party_id == target_party || !tg_party)
+        {
+            co_await reply(corps::kNotCommander);
+            co_return;
+        }
+        co_await LeaveParty(ctx, tg_party, target_id, /*kick=*/1,
+            /*is_delete=*/true);
+        co_await JoinPartyFanout(ctx, dest_party, target_id);
+        spdlog::info("OnPartyMoveAck[{}]: moved char {} from party {} to {}",
+            ip, target_id, tgt_party_id, target_party);
+    }
+
+    co_await reply(corps::kSuccess);
     co_return;
 }
 

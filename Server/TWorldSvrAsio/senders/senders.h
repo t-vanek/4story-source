@@ -1225,6 +1225,17 @@ boost::asio::awaitable<void> SendMwAddItemResultReq(
     std::uint8_t                 item_id,
     std::uint8_t                 result);
 
+// MW_PARTYMOVE_REQ — result of a corps general reshuffling a member
+// between squads (move or swap). CORPS_* result code.
+//
+// Wire layout (SSSender.cpp:2160):
+//   DWORD char_id, DWORD key, BYTE result
+boost::asio::awaitable<void> SendMwPartyMoveReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
 // --- W3c-1 corps invite relay (senders_corps.cpp) -----------------
 
 // MW_CORPSASK_REQ — forwarded to the target chief's map when a

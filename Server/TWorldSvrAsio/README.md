@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3c-4 change corps commander (CHGCORPSCOMMANDER)
+## Status — W3c-5 corps squad reshuffle (PARTYMOVE)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -66,12 +66,48 @@ that the four shipped Asio daemons already use.
 | W3c-1 | Corps subsystem opener — CorpsRegistry + TCorps + corps_constants + OnMW_CORPSASK_ACK invite-relay gate (CheckCorpsJoin) + SendMwCorpsAskReq/ReplyReq | ✅ |
 | W3c-2 | Corps formation — OnMW_CORPSREPLY_ACK (create new corps / join existing) + CorpsRegistry::GenId (shared party id pool) + NotifyCorpsJoin pairwise ADDSQUAD fan-out + CORPSJOIN_REQ + commander PARTYATTR + SendMwAddSquadReq/CorpsJoinReq | ✅ |
 | W3c-3 | Corps leave/dissolve — OnMW_CORPSLEAVE_ACK + NotifyCorpsLeave (mutual DELSQUAD fan-out, commander succession, dissolve cascade on drop-to-one) + SendMwDelSquadReq | ✅ |
-| **W3c-4** | Change corps commander — OnMW_CHGCORPSCOMMANDER_ACK (general hands the commander role to another squad; reply + all-squad refresh) + SendMwChgCorpsCommanderReq | ✅ |
-| W3c-5+ | PARTYMOVE (squad reshuffle) + corps command/enemy-list | ⏸ |
+| W3c-4 | Change corps commander — OnMW_CHGCORPSCOMMANDER_ACK (general hands the commander role to another squad; reply + all-squad refresh) + SendMwChgCorpsCommanderReq | ✅ |
+| **W3c-5** | Corps squad reshuffle — OnMW_PARTYMOVE_ACK (general moves a member between squads / swaps two members) reusing the party Leave/Join machinery + SendMwPartyMoveReq | ✅ |
+| W3c-6+ | Corps command (CORPSCMD) + the corps enemy-list family (CORPSENEMYLIST / ADD / DEL / MOVE) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3c-5 — what landed
+
+Corps **squad reshuffle** (`PARTYMOVE`) — the handler that was the
+original reason for opening the corps subsystem. A corps general
+rebalances members across squads. It lives in `handlers_party.cpp`
+because it reuses the party `LeaveParty` + `JoinPartyFanout`
+machinery (W3b-2/3).
+
+Handler — `OnPartyMoveAck` (wID 0x90A1):
+- **Move mode** (empty dest name): the target leaves their party
+  (`is_delete=true` → the source party dissolves if it drops below
+  two) and joins party `target_party`.
+- **Swap mode** (dest name set): the target and the named dest char
+  trade parties; both parties must have ≥2 members (else
+  `CORPS_WRONG_TARGET`), each leaves with `is_delete=false` (no
+  dissolve) then cross-joins.
+
+Gates mirror legacy: the general must exist with a matching key
+(the map server pre-validates the commander authority), the target
+must be in a party, you can't move to the target's own party, and
+the swap size rule. Result via `MW_PARTYMOVE_REQ`
+(`CORPS_SUCCESS` / `CORPS_NOT_COMMANDER` / `CORPS_WRONG_TARGET`).
+
+Sender — `SendMwPartyMoveReq` (3-field). `handlers_party.cpp` now
+includes `corps_constants.h` for the CORPS_* codes.
+
+Tests — `tests/test_party_move_handlers.cpp` (5 scenarios,
+two-peer loopback with the general isolated on peer1 so it sees
+only the result): key-mismatch / no-party / own-party
+`NOT_COMMANDER`, size-1-swap `WRONG_TARGET`, and a successful move
+between squads (asserts the moved char's party_id, both squads'
+membership, and the source party's chief succession).
+
+Build verified: cmake + ctest -R tworldsvr_asio (30/30 passed).
 
 ### W3c-4 — what landed
 

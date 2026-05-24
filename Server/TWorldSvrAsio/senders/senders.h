@@ -1671,6 +1671,32 @@ boost::asio::awaitable<void> SendMwMissionOccupyReq(
     std::uint16_t                local_id,
     std::uint8_t                 country);
 
+// --- W5-2 castle-war apply (senders_occupy.cpp) -------------------
+
+// MW_CASTLEAPPLY_REQ — result of a chief assigning a member to a
+// castle siege, sent to the chief's map and (if different) the
+// assigned member's map.
+//   Wire: DWORD char_id, key, BYTE result, WORD castle, DWORD target,
+//     BYTE camp
+boost::asio::awaitable<void> SendMwCastleApplyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint16_t                castle_id,
+    std::uint32_t                target,
+    std::uint8_t                 camp);
+
+// MW_CASTLEAPPLICANTCOUNT_REQ — broadcast the new applicant count for
+// one (guild, castle) so every map's siege UI updates. The legacy
+// wire splits the WORD count into two bytes (hi, lo).
+//   Wire: WORD castle, DWORD guild_id, BYTE count_hi, BYTE count_lo
+boost::asio::awaitable<void> SendMwCastleApplicantCountReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint16_t                castle_id,
+    std::uint32_t                guild_id,
+    std::uint16_t                count);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

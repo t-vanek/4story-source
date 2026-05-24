@@ -461,6 +461,9 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_MISSIONOCCUPY_ACK:
         co_await OnMissionOccupyAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_CASTLEAPPLY_ACK:
+        co_await OnCastleApplyAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
     // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
     case MessageId::MW_SOULMATESEARCH_ACK:

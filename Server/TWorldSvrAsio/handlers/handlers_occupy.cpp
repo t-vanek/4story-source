@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/castle_constants.h"
 #include "../wire_codec.h"
 
 #include <spdlog/spdlog.h>
@@ -16,6 +17,16 @@ namespace {
 // needs. D=0, C=1, B=2, N=3, PEACE=4.
 constexpr std::uint8_t kCountryB = 2;
 constexpr std::uint8_t kCountryN = 3;
+
+std::shared_ptr<PeerSession>
+FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
+{
+    if (msi == 0 || !ctx.peers) return nullptr;
+    for (auto& p : ctx.peers->Snapshot())
+        if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
+            return p;
+    return nullptr;
+}
 
 // Resolve a guild's display name (empty when absent / not wired).
 std::string GuildName(const HandlerContext& ctx, std::uint32_t guild_id)
@@ -141,6 +152,116 @@ OnMissionOccupyAck(std::shared_ptr<PeerSession> peer,
 
     for (auto& p : ctx.peers->Snapshot())
         co_await senders::SendMwMissionOccupyReq(p, type, local_id, country);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnCastleApplyAck(std::shared_ptr<PeerSession> peer,
+                 std::vector<std::byte>       body,
+                 const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnCastleApplyAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, target = 0;
+    std::uint16_t castle = 0;
+    std::uint8_t  camp = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(castle) ||
+        !r.Read(target) || !r.Read(camp))
+    {
+        spdlog::warn("OnCastleApplyAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto self = ctx.chars->Find(char_id);
+    if (!self) co_return;
+    std::uint32_t guild_id = 0;
+    {
+        std::lock_guard g(self->lock);
+        if (self->key != key) co_return;
+        guild_id = self->guild_id;
+    }
+    if (guild_id == 0) co_return;
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    // Resolve + apply under the guild lock, then route the replies
+    // (char locks are taken separately — never held with the guild
+    // lock, per the README §5 ordering).
+    std::uint16_t eff_castle = castle, prev_castle = 0;
+    std::uint8_t  eff_camp = camp;
+    std::uint16_t prev_count = 0, new_count = 0;
+    bool full = false, changed = false;
+    {
+        std::lock_guard g(guild->lock);
+        if (guild->chief_char_id != char_id) co_return;   // chief-only
+
+        TGuildMember*   m = guild->FindMember(target);
+        TTacticsMember* t = nullptr;
+        if (!m)
+        {
+            t = guild->FindTactics(target);
+            if (!t) co_return;                 // target not in the guild
+        }
+        else if (m->tactics != 0)
+            co_return;                         // member is a merc elsewhere
+
+        prev_castle = m ? m->castle : t->castle;
+        // Re-applying to the same castle cancels the application.
+        if (prev_castle == eff_castle) { eff_castle = 0; eff_camp = 0; }
+
+        if (eff_castle != 0 && !guild->CanApplyWar(eff_castle))
+            full = true;                       // 49-applicant cap hit
+        else if (prev_castle != 0 || eff_castle != 0)
+        {
+            if (m) { m->castle = eff_castle; m->camp = eff_camp; }
+            else   { t->castle = eff_castle; t->camp = eff_camp; }
+            changed = true;
+            if (prev_castle) prev_count = guild->CastleApplicantCount(prev_castle);
+            if (eff_castle)  new_count  = guild->CastleApplicantCount(eff_castle);
+        }
+    }
+
+    if (full)
+    {
+        co_await senders::SendMwCastleApplyReq(peer, char_id, key,
+            castle::kFull, eff_castle, target, eff_camp);
+        co_return;
+    }
+    if (!changed) co_return;     // no state change → legacy sends nothing
+
+    co_await senders::SendMwCastleApplyReq(peer, char_id, key, castle::kSuccess,
+        eff_castle, target, eff_camp);
+
+    if (target != char_id)
+        if (auto tc = ctx.chars->Find(target))
+        {
+            std::uint32_t tkey = 0; std::uint8_t tmsi = 0;
+            { std::lock_guard g(tc->lock);
+              tkey = tc->key; tmsi = tc->main_server_id; }
+            if (auto tp = FindMapPeer(ctx, tmsi))
+                co_await senders::SendMwCastleApplyReq(tp, target, tkey,
+                    castle::kSuccess, eff_castle, target, eff_camp);
+        }
+
+    // Re-broadcast the applicant count for the vacated + joined castle
+    // (legacy NotifyCastleApply). Persistence (DM_CASTLEAPPLY_REQ) is
+    // deferred — castle/camp aren't in the guild-member load query yet.
+    auto snapshot = ctx.peers->Snapshot();
+    if (prev_castle)
+        for (auto& p : snapshot)
+            co_await senders::SendMwCastleApplicantCountReq(p, prev_castle,
+                guild_id, prev_count);
+    if (eff_castle)
+        for (auto& p : snapshot)
+            co_await senders::SendMwCastleApplicantCountReq(p, eff_castle,
+                guild_id, new_count);
     co_return;
 }
 

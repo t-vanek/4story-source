@@ -644,3 +644,12 @@ target_link_libraries(test_tworldsvr_asio_occupy_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_occupy_handlers
     COMMAND test_tworldsvr_asio_occupy_handlers)
+
+# W5-2 wire test: castle-war apply — chief assigns a member to a
+# castle → SUCCESS to both maps + applicant-count broadcast.
+add_executable(test_tworldsvr_asio_castle_apply_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_castle_apply_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_castle_apply_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_castle_apply_handlers
+    COMMAND test_tworldsvr_asio_castle_apply_handlers)

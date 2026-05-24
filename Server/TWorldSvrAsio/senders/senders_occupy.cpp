@@ -64,4 +64,45 @@ SendMwMissionOccupyReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwCastleApplyReq(std::shared_ptr<PeerSession> peer,
+                     std::uint32_t                char_id,
+                     std::uint32_t                key,
+                     std::uint8_t                 result,
+                     std::uint16_t                castle_id,
+                     std::uint32_t                target,
+                     std::uint8_t                 camp)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint16_t>(body, castle_id);
+    WritePOD<std::uint32_t>(body, target);
+    WritePOD<std::uint8_t>(body, camp);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CASTLEAPPLY_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwCastleApplicantCountReq(std::shared_ptr<PeerSession> peer,
+                              std::uint16_t                castle_id,
+                              std::uint32_t                guild_id,
+                              std::uint16_t                count)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint16_t>(body, castle_id);
+    WritePOD<std::uint32_t>(body, guild_id);
+    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>((count >> 8) & 0xFF));
+    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(count & 0xFF));
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CASTLEAPPLICANTCOUNT_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

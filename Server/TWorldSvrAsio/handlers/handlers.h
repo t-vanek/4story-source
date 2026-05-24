@@ -1509,6 +1509,23 @@ boost::asio::awaitable<void> OnMissionOccupyAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W5-2: castle-war apply (handlers_occupy.cpp) ------------------
+//
+// MW_CASTLEAPPLY_ACK — a guild chief assigns a member (or hired
+// tactics member) to defend/attack a castle. World validates chief +
+// target-in-guild + the 49-applicant cap (CanApplyWar), toggles the
+// member's castle/camp (re-applying to the same castle cancels),
+// replies to the chief + the assigned member, and re-broadcasts the
+// applicant count for the vacated + joined castle (NotifyCastleApply).
+// DB persistence is deferred (castle/camp aren't loaded yet).
+//
+// Wire (SSHandler.cpp:7894): DWORD char_id, key, WORD castle,
+//   DWORD target, BYTE camp
+boost::asio::awaitable<void> OnCastleApplyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

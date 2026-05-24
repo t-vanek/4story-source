@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W5-1 territory occupation broadcasts (CASTLE/LOCAL/MISSION)
+## Status — W5-2 castle-war apply (CASTLEAPPLY)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -91,10 +91,45 @@ that the four shipped Asio daemons already use.
 | W4-19 | GM chat ban — OnMW_CHATBAN_ACK sets/extends/clears TChar.chat_ban_time, enforces on the target's map + echoes to the issuing GM (MW_CHATBAN_REQ) | ✅ |
 | W4-20 | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
 | W4-21+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
-| **W5-1** | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
+| W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
+| **W5-2** | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
 | W5 | War + Castle + Tournament / TNMT | 🚧 |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W5-2 — what landed
+
+**Castle-war apply** — a guild chief assigns members (and hired
+tactics members) to attack/defend a castle; this is the per-member
+apply state that W5-1's deferred `ResetCastleApply` will later clear.
+
+- `TGuildMember` already carried `castle`/`camp`; `TTacticsMember`
+  gains them. `TGuild::CastleApplicantCount` + `CanApplyWar` (the
+  legacy literal 49-applicant cap) count members + tactics per castle.
+- `OnCastleApplyAck` (handlers_occupy.cpp): chief-only gate; resolves
+  the target as a member (rejecting one who's a merc elsewhere) or a
+  tactics member; re-applying to the same castle cancels; the cap
+  yields `CBS_FULL`. On a change it toggles the target's castle/camp,
+  replies `MW_CASTLEAPPLY_REQ(SUCCESS)` to the chief's map and the
+  assigned member's map, and re-broadcasts the applicant count for the
+  vacated + joined castle (`MW_CASTLEAPPLICANTCOUNT_REQ`) to every
+  peer. Snapshot-then-release locking keeps the guild + char locks
+  disjoint.
+- `castle_constants.h` — `CBS_*` result codes. `kSuccess = 0` is
+  certain (the client's `!=` sentinel + codebase convention); the
+  error codes (only `kFull` is emitted) are reconstructed from the
+  client switch ordering since the real enum is **absent from the
+  source tree**, and flagged as inferred.
+
+Deferred: DB persistence (legacy `DM_CASTLEAPPLY_REQ`) — castle/camp
+aren't in the guild-member load query yet, so the assignment is
+in-memory only (a world restart loses pending applications).
+
+Tests — `tests/test_castle_apply_handlers.cpp`: chief Alice assigns
+member Bob to a castle; both maps get the SUCCESS reply, every peer
+gets the applicant count, and Bob's member row holds the assignment.
+
+Build verified: cmake + ctest -R tworldsvr_asio (54/54 passed).
 
 ### W5-1 — what landed
 

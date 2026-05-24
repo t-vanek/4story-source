@@ -90,6 +90,12 @@ struct TTacticsMember
     std::uint32_t gain_point   = 0;   // PvP-points earned for the guild
     std::uint8_t  day          = 0;   // contract length in days
     std::int64_t  end_time     = 0;   // Unix epoch sec the term ends
+
+    // W5-2 castle-war application (legacy m_wCastle/m_bCamp) — a hired
+    // tactics member can be assigned to a castle siege by the chief,
+    // same as a full member.
+    std::uint16_t castle       = 0;
+    std::uint8_t  camp         = 0;
 };
 
 struct TGuildMember
@@ -302,6 +308,22 @@ struct TGuild
         for (auto& t : tactics_members)
             if (t.id == char_id) return &t;
         return nullptr;
+    }
+
+    // W5-2 helper — count members + tactics applied to one castle
+    // (legacy CTGuild::GetCastleApplicantCount / CanApplyWar). Caller
+    // holds the guild lock.
+    std::uint16_t CastleApplicantCount(std::uint16_t castle_id) const
+    {
+        std::uint16_t n = 0;
+        for (const auto& m : members)         if (m.castle == castle_id) ++n;
+        for (const auto& t : tactics_members) if (t.castle == castle_id) ++n;
+        return n;
+    }
+    // Cap is the legacy literal 49 (TGuild.cpp CanApplyWar).
+    bool CanApplyWar(std::uint16_t castle_id) const
+    {
+        return CastleApplicantCount(castle_id) < 49;
     }
 
     // W3a-34 helper — remove a tactics member by char_id. When

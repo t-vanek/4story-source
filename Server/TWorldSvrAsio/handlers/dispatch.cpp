@@ -486,6 +486,12 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_MONTEMPTEVO_ACK:
         co_await OnMonTemptEvoAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_MONSTERDIE_ACK:
+        co_await OnMonsterDieAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TAKEMONMONEY_ACK:
+        co_await OnTakeMonMoneyAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
     // ---- W6-3: global announcement broadcasts (handlers_rank.cpp)
     case MessageId::MW_FAMERANKUPDATE_ACK:

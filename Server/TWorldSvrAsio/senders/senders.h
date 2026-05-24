@@ -1767,6 +1767,15 @@ boost::asio::awaitable<void> SendMwMonTemptEvoReq(
     std::uint32_t                host_id,
     std::uint8_t                 host_type);
 
+// MW_MONSTERDIE_REQ / MW_TAKEMONMONEY_REQ — a monster-result the map
+// asked world about, routed verbatim back to the char's main map.
+boost::asio::awaitable<void> SendMwMonsterDieReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+boost::asio::awaitable<void> SendMwTakeMonMoneyReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
 // --- W6-3 global announcement broadcasts (senders_rank.cpp) -------
 
 // MW_FAMERANKUPDATE_REQ — fame-ranking refresh, forwarded verbatim

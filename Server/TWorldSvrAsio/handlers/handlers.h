@@ -1588,6 +1588,22 @@ boost::asio::awaitable<void> OnMonTemptEvoAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-6: monster-result relays (handlers_combat.cpp) -------------
+//
+// MONSTERDIE / TAKEMONMONEY — a monster result the map asked world
+// about, routed verbatim back to the char's main map (found by
+// id+key). (MONSTERBUY belongs here but is deferred — it spends guild
+// money + needs the MSB_* result enum, absent from the tree.)
+//   Wire (SSHandler.cpp:5622/5599): DWORD char_id, key, <opaque>
+boost::asio::awaitable<void> OnMonsterDieAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnTakeMonMoneyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W6-3: global announcement broadcasts (handlers_rank.cpp) ------
 //
 // FAMERANKUPDATE (fame-ranking refresh, forwarded verbatim) and

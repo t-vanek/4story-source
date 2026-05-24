@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-5 companion-mon (spolecnik) sync
+## Status — W6-6 monster-result relays (MONSTERDIE / TAKEMONMONEY)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -100,9 +100,28 @@ that the four shipped Asio daemons already use.
 | W6-2 | Combat / taming cross-server relays — OnMW_MAGICMIRROR_ACK (verbatim) + OnMW_MONTEMPT_ACK + OnMW_MONTEMPTEVO_ACK route the effect to the attacker char's map + 3 senders; GETBLOOD deferred (OT_PC absent) | ✅ |
 | W6-3 | Global announcement broadcasts — OnMW_FAMERANKUPDATE_ACK (verbatim) + OnMW_HEROSELECT_ACK fan to every map peer + 2 senders | ✅ |
 | W6-4 | Recall-mon (summoned creature) sync — OnMW_CREATERECALLMON_ACK (assigns the recall id, mirrors to the char's connections) + OnMW_RECALLMONDATA/DEL_ACK (verbatim) + 3 passthrough senders; id-counter DB-seed deferred | ✅ |
-| **W6-5** | Companion-mon (spolecnik) sync — OnMW_CREATESPOLECNIKMON_ACK + OnMW_SPOLECNIKMONDEL_ACK (recall-mon's sibling; shares the recall-id counter + connection fan-out) + 2 passthrough senders | ✅ |
+| W6-5 | Companion-mon (spolecnik) sync — OnMW_CREATESPOLECNIKMON_ACK + OnMW_SPOLECNIKMONDEL_ACK (recall-mon's sibling; shares the recall-id counter + connection fan-out) + 2 passthrough senders | ✅ |
+| **W6-6** | Monster-result relays — OnMW_MONSTERDIE_ACK + OnMW_TAKEMONMONEY_ACK route verbatim to the char's main map (id+key) + 2 senders; MONSTERBUY deferred (guild-money + MSB_* absent) | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-6 — what landed
+
+**Monster-result relays** — `MONSTERDIE` (a monster the char killed
+died) and `TAKEMONMONEY` (collect a monster's money drop) are
+resolved on the map where the monster lives and routed by world back
+to the char's *main* map. Both find the char by id+key and forward
+the body verbatim (handlers_combat.cpp `RouteMonResult` +
+`senders_combat.cpp`).
+
+Deferred: `MONSTERBUY` (buying a siege NPC with guild treasury) — it
+spends guild money (no `UseMoney` helper yet) and replies with the
+`MSB_*` result enum, which is absent from the source tree.
+
+Tests — `tests/test_monresult_handlers.cpp`: a result resolved on a
+second peer routes verbatim to the char's main map.
+
+Build verified: cmake + ctest -R tworldsvr_asio (62/62 passed).
 
 ### W6-5 — what landed
 

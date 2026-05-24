@@ -716,3 +716,12 @@ target_link_libraries(test_tworldsvr_asio_recallmon_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_recallmon_handlers
     COMMAND test_tworldsvr_asio_recallmon_handlers)
+
+# W6-5 wire test: companion-mon (spolecnik) sync — CREATE assigns the
+# recall id + mirrors to the char's connections; DEL forwards verbatim.
+add_executable(test_tworldsvr_asio_spolecnikmon_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_spolecnikmon_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_spolecnikmon_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_spolecnikmon_handlers
+    COMMAND test_tworldsvr_asio_spolecnikmon_handlers)

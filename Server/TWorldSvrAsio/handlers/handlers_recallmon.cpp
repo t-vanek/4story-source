@@ -154,4 +154,77 @@ OnRecallMonDelAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+// --- W6-5 companion-mon (spolecnik) — recall-mon's sibling. Shares
+// the recall-id counter + the valid-connection fan-out. ------------
+
+boost::asio::awaitable<void>
+OnCreateSpolecnikMonAck(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnCreateSpolecnikMonAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, mon_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(mon_id))
+    {
+        spdlog::warn("OnCreateSpolecnikMonAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) co_return;
+    }
+
+    if (mon_id == 0)
+    {
+        mon_id = GenRecallId();
+        std::memcpy(body.data() + 8, &mon_id, sizeof(mon_id));
+    }
+
+    for (auto msi : ValidCons(c))
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwCreateSpolecnikMonReq(p, body);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnSpolecnikMonDelAck(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnSpolecnikMonDelAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0;
+    if (!r.Read(char_id))
+    {
+        spdlog::warn("OnSpolecnikMonDelAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+
+    for (auto msi : ValidCons(c))
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwSpolecnikMonDelReq(p, body);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

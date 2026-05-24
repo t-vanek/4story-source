@@ -1799,6 +1799,14 @@ boost::asio::awaitable<void> SendMwRecallMonDelReq(
     std::shared_ptr<PeerSession>   peer,
     const std::vector<std::byte>&  body);
 
+// --- W6-5 companion-mon (spolecnik) sync — recall-mon's sibling ---
+boost::asio::awaitable<void> SendMwCreateSpolecnikMonReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+boost::asio::awaitable<void> SendMwSpolecnikMonDelReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

@@ -1629,6 +1629,22 @@ boost::asio::awaitable<void> OnRecallMonDelAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-5: companion-mon (spolecnik) sync (handlers_recallmon.cpp) -
+//
+// Recall-mon's sibling — CREATE (assigns the same recall id when the
+// map sent 0) + DEL, mirrored to the char's valid connections. Same
+// opaque-passthrough shape; shares the recall-id counter.
+//   Wire (SSHandler.cpp:8320/8455): lead DWORD char_id, key (DEL keys
+//   off char_id only); remainder opaque.
+boost::asio::awaitable<void> OnCreateSpolecnikMonAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnSpolecnikMonDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

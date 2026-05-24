@@ -506,6 +506,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnRecallMonDelAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-5: companion-mon sync (handlers_recallmon.cpp) -----
+    case MessageId::MW_CREATESPOLECNIKMON_ACK:
+        co_await OnCreateSpolecnikMonAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_SPOLECNIKMONDEL_ACK:
+        co_await OnSpolecnikMonDelAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
     case MessageId::MW_SOULMATESEARCH_ACK:
         co_await OnSoulmateSearchAck(std::move(peer), std::move(body), ctx);

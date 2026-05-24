@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-4 recall-mon (summoned creature) sync
+## Status — W6-5 companion-mon (spolecnik) sync
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -99,9 +99,25 @@ that the four shipped Asio daemons already use.
 | W6-1 | Timed-event broadcast — OnSM_EVENTQUARTER_REQ (present event, single server-chosen bucket) + OnSM_EVENTQUARTERNOTIFY_REQ (world-chat announcement via the chat sender) fan to every map peer + SendMwEventQuarterReq | ✅ |
 | W6-2 | Combat / taming cross-server relays — OnMW_MAGICMIRROR_ACK (verbatim) + OnMW_MONTEMPT_ACK + OnMW_MONTEMPTEVO_ACK route the effect to the attacker char's map + 3 senders; GETBLOOD deferred (OT_PC absent) | ✅ |
 | W6-3 | Global announcement broadcasts — OnMW_FAMERANKUPDATE_ACK (verbatim) + OnMW_HEROSELECT_ACK fan to every map peer + 2 senders | ✅ |
-| **W6-4** | Recall-mon (summoned creature) sync — OnMW_CREATERECALLMON_ACK (assigns the recall id, mirrors to the char's connections) + OnMW_RECALLMONDATA/DEL_ACK (verbatim) + 3 passthrough senders; id-counter DB-seed deferred | ✅ |
+| W6-4 | Recall-mon (summoned creature) sync — OnMW_CREATERECALLMON_ACK (assigns the recall id, mirrors to the char's connections) + OnMW_RECALLMONDATA/DEL_ACK (verbatim) + 3 passthrough senders; id-counter DB-seed deferred | ✅ |
+| **W6-5** | Companion-mon (spolecnik) sync — OnMW_CREATESPOLECNIKMON_ACK + OnMW_SPOLECNIKMONDEL_ACK (recall-mon's sibling; shares the recall-id counter + connection fan-out) + 2 passthrough senders | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-5 — what landed
+
+**Companion-mon (spolecnik) sync** — recall-mon's direct sibling
+(`spolecnik` = companion). `OnCreateSpolecnikMonAck` +
+`OnSpolecnikMonDelAck` (handlers_recallmon.cpp) reuse the recall-id
+counter and the valid-connection fan-out: CREATE assigns the id when
+the map sent 0 (patched into the body), DEL forwards verbatim; both
+mirror to every valid connection of the char. Two passthrough senders.
+
+Tests — `tests/test_spolecnikmon_handlers.cpp`: a char on two
+connections gets a CREATE (freshly-assigned id, identical on both,
+opaque tail preserved) + DEL mirrored to both.
+
+Build verified: cmake + ctest -R tworldsvr_asio (61/61 passed).
 
 ### W6-4 — what landed
 

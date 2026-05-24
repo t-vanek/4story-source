@@ -164,6 +164,7 @@ int main(int argc, char** argv)
         tworldsvr::PartyRegistry party;
         tworldsvr::CorpsRegistry corps;
         tworldsvr::TmsRegistry   tms;
+        tworldsvr::BowRegistry   bow;
 
         // Warm the guild-level chart from the backing store. Empty
         // on the FakeGuildLevelRepository path; SOCI returns every
@@ -203,6 +204,7 @@ int main(int argc, char** argv)
         ctx.parties      = &party;
         ctx.corps        = &corps;
         ctx.tms          = &tms;
+        ctx.bow          = &bow;
         ctx.nation       = cfg.nation;
 
         tworldsvr::WorldServerConfig svr_cfg{};

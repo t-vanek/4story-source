@@ -16,6 +16,7 @@
 // guild member-add fan-out in W3a-3).
 
 #include "../peer_session.h"
+#include "../services/bow_registry.h"
 #include "../services/char_registry.h"
 #include "../services/guild_level_cache.h"
 #include "../services/guild_registry.h"
@@ -91,6 +92,10 @@ struct HandlerContext
     // W4-11: cluster-wide TMS conference index. Owned by main;
     // non-null in W4-11+ deploys.
     TmsRegistry*              tms        = nullptr;
+
+    // W6-24: Bow battleground queue + scoreboard. Owned by main;
+    // non-null in W6-24+ deploys.
+    BowRegistry*              bow        = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -2086,6 +2091,45 @@ boost::asio::awaitable<void> OnRouteAck(
 // MW_INVALIDCHAR_REQ; unknown char → MW_DELCHAR_REQ.
 //   Wire (SSHandler.cpp:1038): DWORD char_id, key
 boost::asio::awaitable<void> OnEnterCharAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-24: Bow battleground (handlers_bow.cpp) -------------------
+//
+// The smallest of the W6 content subsystems — three handlers covering
+// the player-driven queue actions for the Bow PvP battleground. State
+// lives in BowRegistry (services/bow_registry.h); deferred: the BS_PEACE
+// / BS_ALARM status gate + match creation + teleportation + the per-
+// guild queue grouping (those need a scheduler the world doesn't have
+// yet — separate slice).
+
+// MW_ADDTOBOWQUEUE_REQ — char wants to join the Bow queue. World
+// derives an effective country (m_bCountry, falling back to
+// m_bAidCountry when the primary is past TCONTRY_C — legacy gate),
+// picks tactics_id > guild_id > 0 for the queue-grouping hint, and
+// runs BowRegistry::AddPlayer. Reply MW_ADDTOBOWQUEUE_ACK carries
+// the result byte + the registry tick.
+//   Wire (SSHandler.cpp:14027): DWORD char_id, key
+boost::asio::awaitable<void> OnAddToBowQueueReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_CANCELBOWQUEUE_REQ — char wants to leave the queue. World runs
+// BowRegistry::RemovePlayer and replies MW_CANCELBOWQUEUE_ACK with
+// the result + registry tick. (Legacy also tries BR_MODULE::Erase on
+// fall-through; BR battleground isn't ported yet — deferred.)
+//   Wire (SSHandler.cpp:14062): DWORD char_id, key
+boost::asio::awaitable<void> OnCancelBowQueueReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_BOWPOINTSUPDATE_REQ — a Bow-side score event. World increments
+// the scoreboard for the named country. No reply.
+//   Wire (SSHandler.cpp:14099): BYTE country
+boost::asio::awaitable<void> OnBowPointsUpdateReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

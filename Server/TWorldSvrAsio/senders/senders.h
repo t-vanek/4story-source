@@ -1189,4 +1189,40 @@ boost::asio::awaitable<void> SendMwPartyMemberRecallReq(
     float                        pos_y,
     float                        pos_z);
 
+// --- W3b-6 party round-robin loot (PT_ORDER) ----------------------
+
+// MW_PARTYORDERTAKEITEM_REQ — hands the next looter (chosen by the
+// party's turn cursor) the dropped item. The trailing item is
+// written with the W3a-37 cabinet codec (legacy WrapItem).
+//
+// Wire layout (SSSender.cpp:1698):
+//   DWORD char_id, DWORD key, BYTE server_id, BYTE channel,
+//   WORD map_id, DWORD mon_id, WORD temp_mon_id, <WrapItem>
+boost::asio::awaitable<void> SendMwPartyOrderTakeItemReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 server_id,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    std::uint32_t                mon_id,
+    std::uint16_t                temp_mon_id,
+    const TGuildCabinetItem&     item);
+
+// MW_ADDITEMRESULT_REQ — generic item-pickup result; the PT_ORDER
+// path uses it to report MIT_NOTFOUND when the party id is stale.
+//
+// Wire layout (SSSender.cpp:1889):
+//   DWORD char_id, DWORD key, BYTE channel, WORD map_id,
+//   DWORD mon_id, BYTE item_id, BYTE result
+boost::asio::awaitable<void> SendMwAddItemResultReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    std::uint32_t                mon_id,
+    std::uint8_t                 item_id,
+    std::uint8_t                 result);
+
 } // namespace tworldsvr::senders

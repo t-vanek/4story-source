@@ -369,9 +369,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnPartyMemberRecallAnsAck(std::move(peer), std::move(body),
             ctx);
         co_return;
+    case MessageId::MW_PARTYORDERTAKEITEM_ACK:
+        co_await OnPartyOrderTakeItemAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
 
-    // W3b-6+ picks up PARTYMOVE (corps squad reshuffle) +
-    // order-take-item + the corps subsystem. … see README §4.
+    // W3c+ opens the Corps subsystem (squads/general), which
+    // unblocks PARTYMOVE + the deferred corps branches across the
+    // party handlers. … see README §4.
 
     default:
         break;

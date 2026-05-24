@@ -1,6 +1,58 @@
 #include "services/party_registry.h"
 
+#include <map>
+
 namespace tworldsvr {
+
+std::uint8_t TParty::GetOrderIndex(std::uint32_t char_id) const
+{
+    for (std::size_t i = 0; i < members.size(); ++i)
+        if (members[i] == char_id)
+            return static_cast<std::uint8_t>(i);
+    return 0;
+}
+
+void TParty::SetNextOrder(std::uint32_t char_id)
+{
+    const std::size_t next = static_cast<std::size_t>(GetOrderIndex(char_id)) + 1;
+    order_char_id = (members.size() <= next) ? (members.empty() ? 0 : members[0])
+                                             : members[next];
+}
+
+std::uint32_t TParty::GetNextOrder(const std::vector<std::uint32_t>& eligible)
+{
+    // Map member-position → char_id for the eligible members, so the
+    // walk below visits them in party order (legacy mapINDEX).
+    std::map<std::uint8_t, std::uint32_t> by_index;
+    for (auto id : eligible)
+        for (std::size_t j = 0; j < members.size(); ++j)
+            if (members[j] == id)
+                by_index.emplace(static_cast<std::uint8_t>(j), members[j]);
+
+    if (by_index.empty()) return 0;
+
+    // The member whose turn it currently is, if eligible.
+    for (const auto& [idx, id] : by_index)
+        if (id == order_char_id)
+        {
+            SetNextOrder(id);
+            return id;
+        }
+
+    // Otherwise the first eligible member after the cursor position.
+    const std::uint8_t cur = GetOrderIndex(order_char_id);
+    for (const auto& [idx, id] : by_index)
+        if (idx > cur)
+        {
+            SetNextOrder(id);
+            return id;
+        }
+
+    // Else wrap to the first eligible member.
+    const std::uint32_t first = by_index.begin()->second;
+    SetNextOrder(first);
+    return first;
+}
 
 bool PartyRegistry::Insert(std::shared_ptr<TParty> p)
 {

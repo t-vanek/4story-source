@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/guild_cabinet_codec.h"
 #include "../services/party_constants.h"
 #include "../wire_codec.h"
 
@@ -8,6 +9,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace tworldsvr::handlers {
 
@@ -1079,6 +1081,79 @@ OnPartyMemberRecallAnsAck(std::shared_ptr<PeerSession> peer,
     co_await senders::SendMwPartyMemberRecallReq(user_peer, u_charid, u_key,
         result, target_name, type, inven_id, item_id, channel, map_id,
         pos_x, pos_y, pos_z);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnPartyOrderTakeItemAck(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnPartyOrderTakeItemAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, mon_id = 0;
+    std::uint16_t party_id = 0, map_id = 0, temp_mon_id = 0;
+    std::uint8_t  server_id = 0, channel = 0, count = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(party_id) ||
+        !r.Read(server_id) || !r.Read(channel) || !r.Read(map_id) ||
+        !r.Read(mon_id) || !r.Read(temp_mon_id) || !r.Read(count))
+    {
+        spdlog::warn("OnPartyOrderTakeItemAck[{}]: short header ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    std::vector<std::uint32_t> eligible;
+    eligible.reserve(count);
+    for (std::uint8_t i = 0; i < count; ++i)
+    {
+        std::uint32_t mid = 0;
+        if (!r.Read(mid))
+        {
+            spdlog::warn("OnPartyOrderTakeItemAck[{}]: short member list", ip);
+            co_return;
+        }
+        eligible.push_back(mid);
+    }
+    TGuildCabinetItem item;
+    if (!ReadCabinetItem(r, item))
+    {
+        spdlog::warn("OnPartyOrderTakeItemAck[{}]: bad item payload", ip);
+        co_return;
+    }
+
+    auto party = ctx.parties->Find(party_id);
+    if (!party)
+    {
+        co_await senders::SendMwAddItemResultReq(peer, char_id, key, channel,
+            map_id, mon_id, item.item_id_b, party::kMonItemTakeNotFound);
+        co_return;
+    }
+
+    std::uint32_t next_id = 0;
+    {
+        std::lock_guard pg(party->lock);
+        next_id = party->GetNextOrder(eligible);
+    }
+    if (next_id == 0) co_return; // no eligible member online — drop
+
+    auto next = ctx.chars->Find(next_id);
+    if (!next) co_return;
+    std::uint32_t next_key = 0;
+    std::uint8_t  next_msi = 0;
+    {
+        std::lock_guard g(next->lock);
+        next_key = next->key;
+        next_msi = next->main_server_id;
+    }
+    if (auto np = FindMapPeer(ctx, next_msi))
+        co_await senders::SendMwPartyOrderTakeItemReq(np, next_id, next_key,
+            server_id, channel, map_id, mon_id, temp_mon_id, item);
     co_return;
 }
 

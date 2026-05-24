@@ -1,4 +1,5 @@
 #include "senders/senders.h"
+#include "services/guild_cabinet_codec.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -235,6 +236,58 @@ SendMwPartyMemberRecallReq(std::shared_ptr<PeerSession> peer,
     co_await peer->Wire()->SendPacket(
         tnetlib::protocol::ToUint16(
             tnetlib::protocol::MessageId::MW_PARTYMEMBERRECALL_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwPartyOrderTakeItemReq(std::shared_ptr<PeerSession> peer,
+                            std::uint32_t                char_id,
+                            std::uint32_t                key,
+                            std::uint8_t                 server_id,
+                            std::uint8_t                 channel,
+                            std::uint16_t                map_id,
+                            std::uint32_t                mon_id,
+                            std::uint16_t                temp_mon_id,
+                            const TGuildCabinetItem&     item)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, server_id);
+    WritePOD<std::uint8_t>(body, channel);
+    WritePOD<std::uint16_t>(body, map_id);
+    WritePOD<std::uint32_t>(body, mon_id);
+    WritePOD<std::uint16_t>(body, temp_mon_id);
+    WriteCabinetItem(body, item);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_PARTYORDERTAKEITEM_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwAddItemResultReq(std::shared_ptr<PeerSession> peer,
+                       std::uint32_t                char_id,
+                       std::uint32_t                key,
+                       std::uint8_t                 channel,
+                       std::uint16_t                map_id,
+                       std::uint32_t                mon_id,
+                       std::uint8_t                 item_id,
+                       std::uint8_t                 result)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, channel);
+    WritePOD<std::uint16_t>(body, map_id);
+    WritePOD<std::uint32_t>(body, mon_id);
+    WritePOD<std::uint8_t>(body, item_id);
+    WritePOD<std::uint8_t>(body, result);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_ADDITEMRESULT_REQ),
         std::move(body));
 }
 

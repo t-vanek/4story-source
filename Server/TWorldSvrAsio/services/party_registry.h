@@ -90,6 +90,22 @@ struct TParty
             if (*it == char_id) { members.erase(it); return true; }
         return false;
     }
+
+    // Loot turn-order helpers (legacy CTParty, used by the PT_ORDER
+    // round-robin item distribution). Defined in party_registry.cpp.
+    // All assume the caller holds the party lock.
+
+    // Member position of char_id (0 if absent — legacy GetOrderIndex).
+    std::uint8_t GetOrderIndex(std::uint32_t char_id) const;
+
+    // Advance the loot cursor (m_dwOrder) to the member after
+    // char_id, wrapping to the front (legacy SetNextOrder).
+    void SetNextOrder(std::uint32_t char_id);
+
+    // Pick the next looter among `eligible` (the members in range of
+    // the drop), honouring + advancing the turn cursor. Returns 0 if
+    // none of `eligible` are current members (legacy GetNextOrder).
+    std::uint32_t GetNextOrder(const std::vector<std::uint32_t>& eligible);
 };
 
 // PartyRegistry owns the cluster-wide party index. Lifetime: created

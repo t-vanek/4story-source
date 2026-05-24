@@ -1151,5 +1151,23 @@ boost::asio::awaitable<void> OnPartyMemberRecallAnsAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3b-6: party round-robin loot (handlers_party.cpp) ------------
+//
+// MW_PARTYORDERTAKEITEM_ACK — a monster dropped an item for a
+// PT_ORDER (turn-based loot) party. World picks the next looter via
+// the party's turn cursor among the eligible members (those in
+// range of the drop) and forwards MW_PARTYORDERTAKEITEM_REQ with
+// the item to that looter's map. A stale party id replies
+// MW_ADDITEMRESULT_REQ(MIT_NOTFOUND) to the reporting map.
+//
+// Wire (SSHandler.cpp:5693): DWORD char_id, key, WORD party_id,
+//   BYTE server_id, channel, WORD map_id, DWORD mon_id,
+//   WORD temp_mon_id, BYTE member_count, DWORD member[member_count],
+//   <CreateItem>
+boost::asio::awaitable<void> OnPartyOrderTakeItemAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

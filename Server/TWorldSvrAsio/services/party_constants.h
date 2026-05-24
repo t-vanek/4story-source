@@ -79,4 +79,9 @@ inline constexpr bool IsSmallMeetingRoom(std::uint16_t map_id)
            map_id <= kMeetingMapId + kMeetingSmallRoomCount;
 }
 
+// Monster-item-take result (MONITEMTAKE_RESULT, NetCode.h:510) —
+// the PT_ORDER round-robin loot path replies MIT_NOTFOUND when the
+// party id is stale.
+inline constexpr std::uint8_t kMonItemTakeNotFound = 2; // MIT_NOTFOUND
+
 } // namespace tworldsvr::party

@@ -326,3 +326,14 @@ target_link_libraries(test_tworldsvr_asio_party_recall_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_party_recall_handlers
     COMMAND test_tworldsvr_asio_party_recall_handlers)
+
+# W3b-6 wire test: PT_ORDER round-robin loot over a three-peer
+# loopback session — turn-cursor selection across drops (item
+# round-tripped through the W3a-37 cabinet codec) + the stale-party
+# MIT_NOTFOUND reply.
+add_executable(test_tworldsvr_asio_party_order_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_party_order_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_party_order_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_party_order_handlers
+    COMMAND test_tworldsvr_asio_party_order_handlers)

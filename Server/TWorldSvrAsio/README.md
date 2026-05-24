@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3b-5 party member recall (summon / move-to)
+## Status — W3b-6 party round-robin loot (PT_ORDER)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -61,12 +61,49 @@ that the four shipped Asio daemons already use.
 | W3b-2 | Party formation — OnMW_PARTYJOIN_ACK (create new party / join existing) + PartyRegistry::GenId + JoinParty pairwise PARTYJOIN_REQ fan-out + PARTYATTR HUD push + SendMwPartyJoinReq/AttrReq | ✅ |
 | W3b-3 | Party leave/kick — OnMW_PARTYDEL_ACK + LeaveParty (chief succession, PARTYDEL fan-out, disband cascade on drop-below-two) + SendMwPartyDelReq | ✅ |
 | W3b-4 | Party attribute changes — OnMW_PARTYMANSTAT_ACK (member-stat broadcast) + OnMW_CHGPARTYCHIEF_ACK (hand off leadership) + OnMW_CHGPARTYTYPE_ACK (loot mode) + 3 senders | ✅ |
-| **W3b-5** | Party member recall — OnMW_PARTYMEMBERRECALL_ACK (summon/move-to gate + RECALLANS_REQ forward) + OnMW_PARTYMEMBERRECALLANS_ACK (destination relay, same-map + meeting-room gates) + 2 senders | ✅ |
-| W3b-6+ | PARTYMOVE (corps squad reshuffle) + ORDERTAKEITEM + Corps | ⏸ |
+| W3b-5 | Party member recall — OnMW_PARTYMEMBERRECALL_ACK (summon/move-to gate + RECALLANS_REQ forward) + OnMW_PARTYMEMBERRECALLANS_ACK (destination relay, same-map + meeting-room gates) + 2 senders | ✅ |
+| **W3b-6** | Party round-robin loot — OnMW_PARTYORDERTAKEITEM_ACK (turn-cursor next-looter selection + item forward via the cabinet codec; stale-party MIT_NOTFOUND) + TParty order rotation (GetNextOrder/SetNextOrder/GetOrderIndex) + 2 senders | ✅ |
+| W3c | Corps subsystem (squads / general) — unblocks PARTYMOVE + the deferred corps branches | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3b-6 — what landed
+
+Party **round-robin loot** (PT_ORDER mode) — the last party-only
+handler; the party subsystem is now complete on the player-facing
+wire surface. A monster drop for a turn-based-loot party is handed
+to the next member in turn-order.
+
+Handler — `OnPartyOrderTakeItemAck` (wID 0x904A): reads the header
++ the eligible-member list (those in range of the drop) + the
+dropped item, then picks the next looter via the party's turn
+cursor and forwards `MW_PARTYORDERTAKEITEM_REQ` with the item to
+that looter's map. A stale party id replies
+`MW_ADDITEMRESULT_REQ(MIT_NOTFOUND)` to the reporting map.
+
+The item is read with the W3a-37 cabinet codec's `ReadCabinetItem`
+and re-emitted with `WriteCabinetItem` — that codec is exactly the
+legacy `CreateItem` / `WrapItem` pair this handler uses, so it
+round-trips byte-for-byte without a new item codec.
+
+`TParty` order rotation (ported from legacy CTParty,
+party_registry.cpp) — `GetOrderIndex` / `SetNextOrder` /
+`GetNextOrder(eligible)`: the cursor honours the current member's
+turn if eligible, else the first eligible member after the cursor
+position, else wraps to the front. Runs under the party lock.
+
+Senders — `SendMwPartyOrderTakeItemReq` (header + WrapItem) +
+`SendMwAddItemResultReq` (generic item-pickup result).
+
+Tests — `tests/test_party_order_handlers.cpp` (4 scenarios,
+three-peer loopback): the cursor walking Alice→Bob across drops,
+a single-eligible-member drop, the item round-trip through the
+cabinet codec (incl. a variable magic entry), and the stale-party
+MIT_NOTFOUND reply.
+
+Build verified: cmake + ctest -R tworldsvr_asio (24/24 passed).
 
 ### W3b-5 — what landed
 

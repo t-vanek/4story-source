@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-12 GM user-tracking relays (USERPOSITION / USERMOVE)
+## Status — W6-19 CloseChar teardown (connection/teleport cluster, 7 slices)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -117,6 +117,117 @@ that the four shipped Asio daemons already use.
 | **W6-19** | CloseChar teardown — OnMW_CLOSECHAR_ACK now does the full legacy CloseChar: chg_main_id → INVALIDCHAR(release_main) on the would-be new main, DELCHAR every con (dead first, then live; logout/save flags only on the main), registry+name-index removal, friend/soulmate/TMS offline fan-out. Shared helper wired into the BeginTeleport/CheckConnect main-offline paths. Party-leave + guild/tactics DB persistence still deferred | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+## Gaps audit — not yet ported / deferred (as of W6-19)
+
+Legacy `Server/TWorldSvr/` defines **266** message handlers
+(`CTWorldSvrModule::On*`); **~154** are ported in `handlers/dispatch.cpp`,
+leaving **112** with no port, plus a number of sub-branches deferred
+*inside* handlers that did land. (Note: the legacy source is CP949 — grep
+it with `-a`, or whole handlers appear "missing" when they are not.) This
+section is the authoritative checklist of what is still open.
+
+### A. Real hole in the connection/teleport cluster (W6-13–W6-19)
+
+The reconcile side ("decide a new connection is needed → send
+`MW_ROUTELIST_REQ`") is ported, but **the reply path that actually
+establishes the new connection is not**:
+
+- **`OnMW_ROUTE_ACK`** (SSHandler.cpp:1903) — the main map's answer to
+  `ROUTELIST_REQ`. Should register each new server as a *pending*
+  `TCharCon` (`valid=false, ready=false`) and send the client
+  **`MW_ADDCONNECT_REQ`** (IP/port, via the reporting map); on `count==0`
+  send `MW_CHARDATA_REQ`. **Today `MW_ROUTE_ACK` is dropped** ("no handler
+  yet"), so the requested new connections never materialise.
+- **`OnMW_ENTERCHAR_ACK`** (1038) — per-connection entry handshake; sets
+  `con.ready`, and when all cons are ready → `CheckMainCON`.
+- **`OnMW_CHARDATA_ACK`** — the data-load confirm (the other half of ready).
+- Senders **`MW_ADDCONNECT_REQ`**, **`MW_CHARDATA_REQ`**.
+
+So the full loop `reconcile → ROUTELIST → **ROUTE_ACK → ADDCONNECT →
+ENTERCHAR_ACK/CHARDATA_ACK → CheckMainCON**` has only its first half.
+Also still open in the cluster: **`OnMW_TELEPORT_ACK`** (1490, teleport
+confirm to client + `TELEPORT_REQ(NODESTINATION)`/`CloseChar` on a bad
+destination), `OnMW_PROTECTEDCHECK`, `OnMW_TERMINATE`.
+**`OnMW_CONNECT_ACK`** (592, map-server registration) is intentionally
+skipped — replaced by `RW_RELAYSVR_REQ`.
+
+### B. Sub-branches deferred inside ported handlers
+
+- **ENTERSVR fresh-login** (W6-16): the big `CHARINFO_REQ` composite reply
+  + `ROUTE_REQ` + `SOULMATELIST`/`FRIENDLIST` + `CheckChatBan` (only the
+  identity-load is ported); the BR/Bow `CHARINFO` sub-case.
+- **CloseChar** (W6-19): party-leave on logout; guild/tactics DB
+  persistence (`PVPRECORD`/`TACTICSPOINT`/`SaveGuildStats`). The sketchy
+  legacy `if(!m_bSave) CloseChar` at the top of CHECKMAIN_ACK (a
+  use-after-free in the original) is **intentionally** not ported.
+- **Guild**: stat-exp award (absent constants), duty/peer/contribution
+  caps, member-online-date, some broadcast fan-outs (GUILDDUTY to the
+  target, chat re-broadcast).
+- **Chat**: operator-whisper "/GM …" sub-case; cluster-wide ban list
+  (`AddChatBan`).
+- **Occupy/War** (W5): guild stat-exp award, `BS_PEACE` bookkeeping,
+  SKYGARDEN, castle/camp in the member-load query, castle-apply DB persist.
+- **Combat** (W6-2/6): `GETBLOOD` (absent `OT_PC`), `MONSTERBUY`
+  (absent `MSB_*`).
+- **Char-base**: ChangeCountry/ChangeName cluster fan-out
+  (`RW_CHANGENAME_ACK`), region tracking.
+- **Friend/Soulmate**: soulmate write-back is in-memory only (no soulmate
+  repository); some friend write-backs.
+- **Corps**: the `m_command` late-joiner ADDSQUAD cache; the MANSTAT
+  corps-general relay.
+- **Recall-mon**: id-counter DB-seed at boot.
+
+### C. Whole subsystems with no port (the 112), grouped
+
+**Roadmap W6 🚧 (battle / event content):**
+- Battle Royale: `ADDTOBRQUEUE`, `BRTEAMMATEADD/ADDRESULT/DEL`, `VOTEFORBRMAP`
+- Bow battleground: `ADDTOBOWQUEUE`, `CANCELBOWQUEUE`, `BOWPOINTSUPDATE`
+- Arena / BattleMode: `ARENAJOIN`, `BATTLEMODESTATUS`, `CMTELEPORTBATTLEMODE`,
+  `LEAVEBATTLEFIELD`
+- APEX (Taiwan): `MW_APEXDATA/APEXSTART`, `SM_APEXDATA/APEXKILLUSER`
+- Tournament: `MW_TOURNAMENT/ENTERGATE/RESULT`, `DM_TOURNAMENT*` (6),
+  `DM_TNMTEVENT*` (3), `SM_TOURNAMENT*` (3), `CT_TOURNAMENTEVENT`
+  (blocked on `TNMTSTEP_*`)
+- RPS event: `MW_RPSGAME`, `CT_RPSGAMECHANGE/DATA`, `DM_RPSGAMERECORD`
+- Event subsystem (broader): `CT_EVENTMSG/EVENTUPDATE/EVENTQUARTERLIST/UPDATE`,
+  `DM_EVENTQUARTERLIST/UPDATE`, `SM_EVENTEXPIRED` (only the W6-1 broadcast landed)
+
+**Roadmap W7 ⏸ (cash / item / rank):**
+- CMGift: `MW_CMGIFT/RESULT`, `CT_CMGIFT/CHARTUPDATE/LIST`, `DM_CMGIFT/CHARTUPDATE`
+- Cash-item sale: `MW/CT/DM_CASHITEMSALE`, `CT_CASHSHOPSTOP`
+- MonthRank: `MW_MONTHRANKUPDATE/RESETCHAR`, `DM/SM_MONTHRANKSAVE`
+- GM item tools: `MW_ADDITEM`, `CT/DM_ITEMFIND`, `CT/DM_ITEMSTATE`
+
+**War/Castle extras (W5+):** `MW_CASTLEWARINFO`, `MW_ENDWAR`,
+`MW_WARCOUNTRYBALANCE`, `MW_WARLORDSAY`, `MW_SKYGARDENOCCUPY`,
+`CT_CASTLEGUILDCHG`, `DM_CASTLEAPPLY`
+
+**Guild extras (blocked on absent constants/model):** `MW_GUILDSKILLACTION`,
+`MW_MEETINGROOM`, `MW_UPDATEGUILDCOOLDOWN`,
+`DM_GUILDTACTICSADD/DEL/WANTEDADD/WANTEDDEL`, `SM_GUILDDISORGANIZATION`
+
+**Service / control plane:** `CT_CTRLSVR`, `CT_SERVICEDATACLEAR`,
+`CT_SERVICEMONITOR`, `CT/DM_HELPMESSAGE`, `SM_DELSESSION`, `SM_QUITSERVICE`,
+`DM_CLEARDATA`, `DM_CLEARMAPCURRENTUSER`, `DM_ACTIVECHARUPDATE`,
+`DM_GETCHARINFO`
+
+### D. "Missing" only on paper — replaced by a different mechanism
+
+The legacy DB-thread round-trips are replaced by the repository pattern,
+so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
+`DM_SOULMATELIST/REG/DEL/END` (soulmate persistence still in-memory),
+`DM_TACTICSPOINT`, `DM_RESERVEDPOSTSEND` (generator poll — deferred).
+`DM_GUILDLOAD` and `DM_PVPRECORD` *are* ported (as `_ACK`/`_REQ`).
+
+### Suggested next slices (by value / self-containedness)
+
+1. **Connection-completion sub-flow** (§A: `ROUTE_ACK` + `ADDCONNECT` +
+   `ENTERCHAR_ACK` + `CHARDATA_ACK`) — closes the loop opened in W6-13/18;
+   this is a genuine functional hole, not just a roadmap deferral.
+2. `TELEPORT_ACK` (teleport confirm; finishes W6-17).
+3. Fresh-login ENTERSVR completion (CHARINFO/ROUTE/SOULMATELIST/FRIENDLIST).
+4. Then the large roadmap subsystems (BR / Bow / Tournament / …).
 
 ### W6-19 — what landed
 

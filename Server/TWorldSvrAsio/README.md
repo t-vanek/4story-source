@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-21 teleport confirm (finishes the W6-17 teleport flow)
+## Status — W4-21 friend-protected presence sync (PROTECTEDCHECK)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -90,7 +90,8 @@ that the four shipped Asio daemons already use.
 | W4-18 | Soulmate write-back — IFriendRepository RegSoulmate/DelSoulmate wired into SEARCH-pair / REG / END + the W4-9 level-gap auto-dissolve (both mutual rows) via CoOffloadVoidIf | ✅ |
 | W4-19 | GM chat ban — OnMW_CHATBAN_ACK sets/extends/clears TChar.chat_ban_time, enforces on the target's map + echoes to the issuing GM (MW_CHATBAN_REQ) | ✅ |
 | W4-20 | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
-| W4-21+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
+| **W4-21** | Friend-protected presence sync — OnMW_PROTECTEDCHECK_ACK is the symmetric partner to W6-9. The map updates the connect/disconnect status of a protected friend; world mirrors the transition across both directed edges (when both still hold each other), syncs regions, and relays MW_FRIENDCONNECTION_REQ to the target's map (skipping FT_TARGET — legacy parity). On disconnect, also fires the W4-17 IFriendRepository::EraseFriend write-back. Missing char/friend/edge → silent drop | ✅ |
+| W4-22+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
 | W5-3 | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
@@ -120,31 +121,36 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-21)
+## Gaps audit — not yet ported / deferred (as of W4-21)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~158** are ported in `handlers/dispatch.cpp`,
-leaving **~108** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~159** are ported in `handlers/dispatch.cpp`,
+leaving **~107** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
 
-### A. Remaining gaps in the connection/teleport cluster (W6-13–W6-21)
+### A. Connection/teleport cluster — complete (W6-13 … W6-21)
 
-The W6-13/W6-18 reconcile loop closes through W6-20 (the
-`reconcile → ROUTELIST → ROUTE_ACK → ADDCONNECT → ENTERCHAR_ACK /
-CHARDATA_ACK → CheckMainCON` chain). W6-21 ports the
+The full cluster is ported. The `reconcile → ROUTELIST → ROUTE_ACK →
+ADDCONNECT → ENTERCHAR_ACK / CHARDATA_ACK → CheckMainCON` chain (W6-13
+… W6-20) closes the reconcile loop end-to-end; W6-21 ports the
 `BEGINTELEPORT_ACK → … → TELEPORT_ACK → TELEPORT_REQ + CONLIST_REQ`
-finish for the W6-17 teleport flow. Sub-branches deferred: the
-`CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out (the fat composite is
-the same one priority #2 of the gaps audit — Fresh-login ENTERSVR
-completion — owns). Still open in the cluster:
+finish that closes the W6-17 teleport handshake. The sole sub-branch
+deferred inside the cluster is the `CHARDATA_ACK` non-ready
+`ENTERCHAR_REQ` fan-out — the fat composite is the same one
+"Fresh-login ENTERSVR completion" (§B) owns, so it lands with that.
 
-- **`OnMW_PROTECTEDCHECK`** (anti-cheat session ping).
-- **`OnMW_TERMINATE`** (peer-initiated session teardown).
+Intentionally not ported:
 
-**`OnMW_CONNECT_ACK`** (592, map-server registration) is intentionally
-skipped — replaced by `RW_RELAYSVR_REQ`.
+- **`OnMW_CONNECT_ACK`** (SSHandler.cpp:592, map-server registration)
+  — replaced by `RW_RELAYSVR_REQ` (W3a-2).
+- **`OnMW_TERMINATE_ACK`** (SSHandler.cpp:12818) — commented out in the
+  legacy. The dead-code body broadcasts a `MW_TERMINATE_REQ` to every
+  peer gated by a hard-coded magic key (`720809425`); a dev-time
+  kill-switch backdoor. If a cluster-wide shutdown is ever needed it
+  should go through proper control-server admin auth, not this
+  pattern.
 
 ### B. Sub-branches deferred inside ported handlers
 
@@ -222,10 +228,65 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 1. **Fresh-login ENTERSVR completion** (§B) — the big CHARINFO_REQ
    composite + ROUTE_REQ + SOULMATELIST / FRIENDLIST + CheckChatBan.
    Lands the W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out as
-   part of the same composite.
-2. **`PROTECTEDCHECK` / `TERMINATE`** (§A) — the last two cluster
-   handlers; small relays.
-3. Then the large roadmap subsystems (BR / Bow / Tournament / …).
+   part of the same composite (both bodies are the same fat
+   guild/tactics/party/soulmate/region/chat-ban/riding payload).
+2. Then the large roadmap subsystems (BR / Bow / Tournament / …).
+
+### W4-21 — what landed
+
+**Friend-protected presence sync** — `OnProtectedCheckAck`
+(handlers_friend.cpp, `MW_PROTECTEDCHECK_ACK`) is the symmetric
+partner to W6-9's `OnFriendProtectedAskAck`. While W6-9 relays an
+auto-refuse when *adding* a protected friend, W4-21 syncs the
+*presence* of an already-mutual protected friendship between two
+chars.
+
+Behaviour mirrors the legacy `OnMW_PROTECTEDCHECK_ACK`
+(SSHandler.cpp:5769):
+
+- Read `(char_id, key, connect, protected_name)`. Drop on missing
+  char / key mismatch / friend-name not in requester's list.
+- On `connect == FRIEND_DISCONNECTION`, fire the W4-17
+  `IFriendRepository::EraseFriend` write-back via `CoOffloadVoidIf`
+  (matching legacy `SendDM_FRIENDERASE_REQ`). The in-memory edge
+  stays — legacy keeps it until the next reload.
+- Look up the target by name (`CharRegistry::FindByName`); drop if
+  not online. Under the target's lock, mutate the target→requester
+  edge — on `FRIEND_CONNECTION` set `connected=true` and copy the
+  requester's region; on disconnect drop `connected`. Snapshot the
+  target's identity + edge type + region for the relay step.
+- Under the requester's lock, mutate the requester→target edge
+  cross-wise (connect picks up the *target's* region). Drop if the
+  reverse edge is missing (legacy double-check).
+- Relay `MW_FRIENDCONNECTION_REQ` to the target's main map naming
+  the requester, with region populated only on connect (legacy
+  `!bConnect ? region : 0`). Skip the relay when the target's edge
+  is `FT_TARGET` (a pending invite — no toast yet, legacy parity).
+
+The two char locks are taken sequentially (target first, then
+requester) — never overlapping. Eventual-consistency window between
+the two mutations is fine for presence sync; the in-flight relay
+already carries the fully-resolved state.
+
+Reuses `SendMwFriendConnectionReq` (W4-7) and the `FindMapPeer`
+helper local to `handlers_friend.cpp`. No new senders.
+
+Tests — `tests/test_protected_check_handlers.cpp` (2 map peers,
+Alice on 0x42 and Bob on 0x43, mutual FT_FRIENDFRIEND): connect →
+FRIENDCONNECTION(CONN) relay on Bob's map naming Alice + Alice's
+region (555); both edges flip connected with cross-wise regions
+(Alice's edge → Bob's 777, Bob's edge → Alice's 555). Disconnect →
+FRIENDCONNECTION(DISC) relay with region=0; both edges drop
+`connected`. Unknown friend name → silent drop (verified by sending
+a known-name packet behind it and confirming the relay is the known
+one's). Unknown char_id → same silent-drop verification.
+
+Build verified: cmake + ctest -R tworldsvr_asio (78/78 passed).
+Note: a longstanding parallel-run flake in the W6-13 era cluster
+tests (releasemain / route_completion occasionally fail in
+isolation between rapid serial test launches, presumably ephemeral-
+port reuse or TIME_WAIT) is unrelated; each affected test passes in
+isolation, and re-running the full suite reaches 78/78 reliably.
 
 ### W6-21 — what landed
 

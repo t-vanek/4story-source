@@ -89,6 +89,143 @@ OnFriendProtectedAskAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+// W4-21 — symmetric to OnFriendProtectedAskAck (W6-9). A char's map
+// is updating the connect/disconnect state of one of the char's
+// friend-protected friends; world mirrors the transition across both
+// directed edges (when both still hold each other) and tells the
+// target's map. The disconnect path also fires the W4-17
+// IFriendRepository::EraseFriend write-back, matching the legacy
+// SendDM_FRIENDERASE_REQ side effect (DB-side, in-memory state
+// stays — the legacy keeps the entry until the next reload).
+boost::asio::awaitable<void>
+OnProtectedCheckAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnProtectedCheckAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  connect = 0;
+    std::string   protected_name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(connect) ||
+        !r.ReadString(protected_name))
+    {
+        spdlog::warn("OnProtectedCheckAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+
+    // Snapshot requester's name/region + look up the named friend
+    // entry. Drop silently on key mismatch / missing entry — same
+    // legacy behaviour (FindTChar + the iterate-friends scan).
+    std::string   req_name;
+    std::uint32_t req_region = 0, friend_id = 0;
+    bool          found_friend = false;
+    {
+        std::lock_guard g(requester->lock);
+        if (requester->key != key) co_return;
+        req_name   = requester->name;
+        req_region = requester->region;
+        for (const auto& f : requester->friends)
+            if (f.name == protected_name)
+            {
+                friend_id = f.id;
+                found_friend = true;
+                break;
+            }
+    }
+    if (!found_friend) co_return;
+
+    // Disconnect: persist the requester→friend edge erasure via the
+    // W4-17 write-back (legacy SendDM_FRIENDERASE_REQ runs here).
+    // The in-memory edge stays until the next reload, matching legacy.
+    if (connect == frnd::kDisconnection && ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, friend_id]
+            { repo->EraseFriend(char_id, friend_id); });
+
+    auto target = ctx.chars->FindByName(protected_name);
+    if (!target) co_return;
+
+    // Mutate target's edge to requester under the target's lock,
+    // snapshotting the target identity + edge type + region for the
+    // relay step. Drop silently if target doesn't actually hold the
+    // requester (legacy `pTarget->m_mapTFRIEND.find(dwCharID)`).
+    std::uint32_t target_id = 0, target_key = 0, target_region = 0;
+    std::uint8_t  target_main = 0, target_edge_type = 0;
+    bool target_has_requester = false;
+    {
+        std::lock_guard g(target->lock);
+        target_id     = target->char_id;
+        target_key    = target->key;
+        target_main   = target->main_server_id;
+        target_region = target->region;
+        for (auto& f : target->friends)
+            if (f.id == char_id)
+            {
+                target_edge_type = f.type;
+                target_has_requester = true;
+                if (connect == frnd::kConnection)
+                {
+                    f.connected = true;
+                    f.region    = req_region;
+                }
+                else
+                {
+                    f.connected = false;
+                }
+                break;
+            }
+    }
+    if (!target_has_requester) co_return;
+
+    // Mutate the requester's edge to target under the requester's
+    // lock. Drop silently if the entry is gone (legacy
+    // `pChar->m_mapTFRIEND.find(pTarget->m_dwCharID)`).
+    bool requester_has_target = false;
+    {
+        std::lock_guard g(requester->lock);
+        for (auto& f : requester->friends)
+            if (f.id == target_id)
+            {
+                requester_has_target = true;
+                if (connect == frnd::kConnection)
+                {
+                    f.connected = true;
+                    f.region    = target_region;
+                }
+                else
+                {
+                    f.connected = false;
+                }
+                break;
+            }
+    }
+    if (!requester_has_target) co_return;
+
+    // Tell the target's map about the requester's transition unless
+    // the target's edge is FT_TARGET (a pending invite — legacy
+    // skips the toast in that case). Legacy ships region only on
+    // connect (`!bConnect ? pChar->m_dwRegion : 0`).
+    if (target_edge_type != frnd::kTypeTarget)
+        if (auto p = FindMapPeer(ctx, target_main))
+        {
+            const std::uint32_t emit_region =
+                (connect == frnd::kConnection) ? req_region : 0;
+            co_await senders::SendMwFriendConnectionReq(p, target_id, target_key,
+                connect, req_name, emit_region);
+        }
+}
+
 boost::asio::awaitable<void>
 OnFriendAskAck(std::shared_ptr<PeerSession> peer,
                std::vector<std::byte>       body,

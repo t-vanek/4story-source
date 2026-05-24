@@ -1381,6 +1381,26 @@ boost::asio::awaitable<void> OnFriendProtectedAskAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-21: friend-protected presence sync (handlers_friend.cpp) ---
+//
+// MW_PROTECTEDCHECK_ACK — the symmetric partner to W6-9. A char's
+// map is asking "is this protected friend still actually online?" or
+// reporting the connect/disconnect transition. World iterates the
+// char's friend list to find the named friend, then, when both sides
+// hold each other in their friend lists (mutual edges), mirrors the
+// connect/disconnect status across both directed edges + relays an
+// MW_FRIENDCONNECTION_REQ to the target's main map (skipping the
+// FT_TARGET pending-edge case, legacy parity). On disconnect, also
+// persists the requester's edge-to-friend erasure via the W4-17
+// IFriendRepository::EraseFriend write-back. Missing char / friend /
+// mutual edge → silent drop, matching legacy.
+//   Wire (SSHandler.cpp:5769): DWORD char_id, key, BYTE connect,
+//     STRING protected_name
+boost::asio::awaitable<void> OnProtectedCheckAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-1: friend invite (handlers_friend.cpp) ---------------------
 //
 // Opens the social-graph (friend) subsystem. MW_FRIENDASK_ACK is a

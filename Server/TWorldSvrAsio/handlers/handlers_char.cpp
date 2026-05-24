@@ -293,19 +293,23 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
     // then ROUTE_REQ so the main resolves any additional connections
     // (answered by MW_ROUTE_ACK → W6-20), then the friend list, then
     // CheckChatBan. Mirrors the legacy fresh-login path
-    // (SSHandler.cpp:1379), minus the BR/BOW bow_release flag, the
-    // RW_CHANGEMAP relay hop, and the APEX notify — those land in
-    // follow-up slices (the bow_release flag piggybacks on the W6-16
-    // BR/BOW chg_main_id handoff, the relay hop needs the W3a-2 relay
-    // wiring extended, and APEX is Taiwan-only).
+    // (SSHandler.cpp:1379), minus the RW_CHANGEMAP relay hop and the
+    // APEX notify — both deferred follow-ups (relay-server wiring +
+    // Taiwan-only feature).
     senders::CharInfoPayload info{};
     info.title_id   = title_id;
     info.rank_point = rank_point;
+    // W4-23: bow_release marks a return from a BR/Bow battleground
+    // (chg_main_id arrived as BOW_SERVER_ID or BR_SERVER_ID and was
+    // *not* cleared by the W6-16 normal-handoff branch). Legacy
+    // parity, SSHandler.cpp:1456.
+    info.bow_release = (chg == kBowServerId || chg == kBrServerId) ? 1 : 0;
 
     std::uint32_t guild_id = 0, tactics_guild_id = 0;
     std::uint16_t party_id = 0;
     std::int64_t  chat_ban_time = 0;
     std::string   self_name;
+    std::uint32_t soulmate_target = 0;
     {
         std::lock_guard g(self->lock);
         guild_id         = self->guild_id;
@@ -313,6 +317,7 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
         party_id         = self->party_id;
         chat_ban_time    = self->chat_ban_time;
         self_name        = self->name;
+        soulmate_target  = self->soulmate.target;
     }
 
     if (guild_id && ctx.guilds)
@@ -365,9 +370,8 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
 
     // Friend list: groups + non-pending friends, with online status /
     // level / class / region resolved live from the registry. Same
-    // shape as W4-4 OnFriendListAck; soulmate target stays 0 (the
-    // SendMwFriendListReq sender currently emits the soulmate
-    // sentinel — populating it is a small cross-cutting follow-up).
+    // shape as W4-4 OnFriendListAck; soulmate target carried inline
+    // (W4-23 — was the deferred zero-sentinel until this slice).
     std::vector<std::pair<std::uint8_t, std::string>> fl_groups;
     std::vector<senders::FriendListRow>               fl_rows;
     {
@@ -392,7 +396,8 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
             row.klass  = fc->klass;
             row.region = fc->region;
         }
-    co_await senders::SendMwFriendListReq(peer, char_id, key, fl_groups, fl_rows);
+    co_await senders::SendMwFriendListReq(peer, char_id, key,
+        soulmate_target, fl_groups, fl_rows);
 
     // CheckChatBan — legacy looks up the cluster-wide m_mapBanChar
     // ban list (deferred — same family as W4-19's deferred cluster-

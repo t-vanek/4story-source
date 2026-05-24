@@ -97,6 +97,7 @@ boost::asio::awaitable<void>
 SendMwFriendListReq(std::shared_ptr<PeerSession>                             peer,
                     std::uint32_t                                            char_id,
                     std::uint32_t                                            key,
+                    std::uint32_t                                            soulmate_target,
                     const std::vector<std::pair<std::uint8_t, std::string>>& groups,
                     const std::vector<FriendListRow>&                        friends)
 {
@@ -104,7 +105,8 @@ SendMwFriendListReq(std::shared_ptr<PeerSession>                             pee
     std::vector<std::byte> body;
     WritePOD<std::uint32_t>(body, char_id);
     WritePOD<std::uint32_t>(body, key);
-    WritePOD<std::uint32_t>(body, 0); // soulmate sentinel (deferred)
+    // W4-23: the legacy soulmate slot — 0 when unpaired (NO soulmate).
+    WritePOD<std::uint32_t>(body, soulmate_target);
     WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(groups.size()));
     for (const auto& [id, name] : groups)
     {

@@ -491,6 +491,17 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCheckConnectAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-20: connection-completion sub-flow (handlers_conn.cpp)
+    case MessageId::MW_ROUTE_ACK:
+        co_await OnRouteAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_ENTERCHAR_ACK:
+        co_await OnEnterCharAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHARDATA_ACK:
+        co_await OnCharDataAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
     case MessageId::MW_CASTLEOCCUPY_ACK:
         co_await OnCastleOccupyAck(std::move(peer), std::move(body), ctx);

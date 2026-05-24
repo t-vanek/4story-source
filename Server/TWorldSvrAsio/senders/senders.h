@@ -2080,4 +2080,38 @@ boost::asio::awaitable<void> SendMwStartTeleportReq(
     float                        pos_y,
     float                        pos_z);
 
+// --- W6-20 connection-completion sub-flow (senders_conn.cpp) ------
+
+// One pending connection entry in MW_ADDCONNECT_REQ — the (ip/port)
+// the client should open + the map server id it leads to.
+struct AddConnectEntry
+{
+    std::uint32_t ip_addr   = 0;   // dwIPAddr (network order on the wire)
+    std::uint16_t port      = 0;   // wPort
+    std::uint8_t  server_id = 0;   // bServerID
+};
+
+// MW_ADDCONNECT_REQ — forwarded to the reporting (main) map so it
+// hands the client the list of new map-server (IP/port) endpoints to
+// open. Carries the *new* cons that ROUTE_ACK just registered — not
+// the live set. The legacy sender is inline in OnMW_ROUTE_ACK
+// (SSHandler.cpp:1943); we expose a dedicated free-function builder.
+//   Wire: DWORD char_id, key, BYTE count, × count: DWORD ip, WORD port,
+//     BYTE server_id
+boost::asio::awaitable<void> SendMwAddConnectReq(
+    std::shared_ptr<PeerSession>            peer,
+    std::uint32_t                           char_id,
+    std::uint32_t                           key,
+    const std::vector<AddConnectEntry>&     entries);
+
+// MW_CHARDATA_REQ — ask the (main) map to send back the char's
+// current level / HP / MP composite. Fired when ROUTE_ACK reports
+// count==0, so no new cons are pending; the matching CHARDATA_ACK
+// closes the loop by re-confirming the main session across all cons.
+//   Wire (SSSender.cpp:246): DWORD char_id, key
+boost::asio::awaitable<void> SendMwCharDataReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key);
+
 } // namespace tworldsvr::senders

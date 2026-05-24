@@ -760,4 +760,291 @@ OnCheckConnectAck(std::shared_ptr<PeerSession> peer,
     co_await CheckConnect(std::move(peer), std::move(body), ctx);
 }
 
+// --- W6-20 connection-completion sub-flow --------------------------
+
+boost::asio::awaitable<void>
+OnRouteAck(std::shared_ptr<PeerSession> peer,
+           std::vector<std::byte>       body,
+           const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnRouteAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  count = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(count))
+    {
+        spdlog::warn("OnRouteAck[{}]: short body ({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    std::vector<senders::AddConnectEntry> entries;
+    entries.reserve(count);
+    for (std::uint8_t i = 0; i < count; ++i)
+    {
+        senders::AddConnectEntry e;
+        if (!r.Read(e.ip_addr) || !r.Read(e.port) || !r.Read(e.server_id))
+        {
+            spdlog::warn("OnRouteAck[{}]: truncated entry list (char_id={})",
+                ip, char_id);
+            co_return;
+        }
+        entries.push_back(e);
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    bool ok = ch != nullptr;
+    if (ok)
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key) ok = false;
+    }
+    if (!ok)
+    {
+        spdlog::info("OnRouteAck[{}]: char_id={} not registered / key "
+                     "mismatch — DELCHAR", ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    if (count == 0)
+    {
+        // No additional connections — ask the main for the CHARDATA
+        // round-trip (legacy SendMW_CHARDATA_REQ via the responder).
+        spdlog::info("OnRouteAck[{}]: char_id={} no new cons — CHARDATA_REQ",
+            ip, char_id);
+        co_await senders::SendMwCharDataReq(peer, char_id, key);
+        co_return;
+    }
+
+    // Register each new (ip/port/server_id) as a *pending* TCharCon.
+    // Preserve the existing entry's valid bit when replacing
+    // (legacy: pCON->m_bValid = (*itCON).second->m_bValid). The new
+    // entry always starts with ready=false — the per-con readiness is
+    // (re-)driven by the subsequent ENTERCHAR_ACK / CHARDATA_ACK pair.
+    {
+        std::lock_guard g(ch->lock);
+        for (const auto& e : entries)
+        {
+            bool old_valid = false;
+            auto it = std::find_if(ch->cons.begin(), ch->cons.end(),
+                [&](const TCharCon& c) { return c.server_id == e.server_id; });
+            if (it != ch->cons.end())
+            {
+                old_valid = it->valid;
+                ch->cons.erase(it);
+            }
+            ch->cons.push_back(TCharCon{
+                e.server_id, e.ip_addr, e.port,
+                /*ready*/ false, /*valid*/ old_valid,
+            });
+        }
+    }
+
+    spdlog::info("OnRouteAck[{}]: char_id={} ADDCONNECT count={} via reporter",
+        ip, char_id, count);
+    co_await senders::SendMwAddConnectReq(peer, char_id, key, entries);
+}
+
+boost::asio::awaitable<void>
+OnEnterCharAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnEnterCharAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnEnterCharAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    if (!ch)
+    {
+        spdlog::info("OnEnterCharAck[{}]: char_id={} not registered — DELCHAR",
+            ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    const std::uint8_t reporting_id =
+        static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+
+    bool key_ok = true;
+    bool found_con = false;
+    bool all_ready = false;
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key)
+        {
+            key_ok = false;
+        }
+        else
+        {
+            for (auto& c : ch->cons)
+                if (c.server_id == reporting_id)
+                {
+                    c.ready = true;
+                    found_con = true;
+                    break;
+                }
+            if (found_con)
+            {
+                all_ready = std::all_of(ch->cons.begin(), ch->cons.end(),
+                    [](const TCharCon& c) { return c.ready; });
+            }
+        }
+    }
+
+    if (!key_ok)
+    {
+        spdlog::warn("OnEnterCharAck[{}]: char_id={} key mismatch — DELCHAR",
+            ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+    if (!found_con)
+    {
+        // No matching TCharCon for the reporting map — suspected stale /
+        // hijacked connect (legacy SendMW_INVALIDCHAR_REQ).
+        spdlog::info("OnEnterCharAck[{}]: char_id={} no con for reporter={} — "
+                     "INVALIDCHAR", ip, char_id, reporting_id);
+        co_await senders::SendMwInvalidCharReq(peer, char_id, key,
+            /*release_main=*/0);
+        co_return;
+    }
+    if (!all_ready)
+    {
+        spdlog::info("OnEnterCharAck[{}]: char_id={} con server={} ready; "
+                     "waiting for others", ip, char_id, reporting_id);
+        co_return;
+    }
+
+    spdlog::info("OnEnterCharAck[{}]: char_id={} all cons ready — CheckMainCon",
+        ip, char_id);
+    co_await CheckMainCon(ch, ctx);
+}
+
+boost::asio::awaitable<void>
+OnCharDataAck(std::shared_ptr<PeerSession> peer,
+              std::vector<std::byte>       body,
+              const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnCharDataAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  start_act = 0, level = 0;
+    std::uint32_t max_hp = 0, hp = 0, max_mp = 0, mp = 0;
+    std::uint8_t  country = 0, mode = 0;
+    if (!r.Read(char_id) || !r.Read(key) ||
+        !r.Read(start_act) || !r.Read(level) ||
+        !r.Read(max_hp) || !r.Read(hp) || !r.Read(max_mp) || !r.Read(mp) ||
+        !r.Read(country) || !r.Read(mode))
+    {
+        spdlog::warn("OnCharDataAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+    (void)start_act;
+    (void)country;
+    (void)mode;
+
+    auto ch = ctx.chars->Find(char_id);
+    if (!ch)
+    {
+        spdlog::info("OnCharDataAck[{}]: char_id={} not registered — DELCHAR",
+            ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    // Snapshot the cons + main_server_id under the char lock, then
+    // refresh level/HP/MP (legacy SetCharLevel / SetCharStatus).
+    bool          key_ok = true;
+    std::uint8_t  main_id = 0;
+    bool          all_ready = false;
+    std::size_t   pending_count = 0;
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key)
+        {
+            key_ok = false;
+        }
+        else
+        {
+            ch->level = level;
+            ch->max_hp = max_hp; ch->hp = hp;
+            ch->max_mp = max_mp; ch->mp = mp;
+            main_id = ch->main_server_id;
+            all_ready = std::all_of(ch->cons.begin(), ch->cons.end(),
+                [](const TCharCon& c) { return c.ready; });
+            for (const auto& c : ch->cons)
+                if (!c.ready) ++pending_count;
+        }
+    }
+
+    if (!key_ok)
+    {
+        spdlog::warn("OnCharDataAck[{}]: char_id={} key mismatch — DELCHAR",
+            ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    auto main_peer = FindMapPeer(ctx, main_id);
+    if (!main_peer)
+    {
+        spdlog::info("OnCharDataAck[{}]: char_id={} main={} offline — "
+                     "INVALIDCHAR", ip, char_id, main_id);
+        co_await senders::SendMwInvalidCharReq(peer, char_id, key,
+            /*release_main=*/0);
+        co_return;
+    }
+
+    if (!all_ready)
+    {
+        // Legacy fans MW_ENTERCHAR_REQ (the fat guild/tactics/party/
+        // soulmate composite carrying the opaque CHARDATA_ACK tail) to
+        // every non-ready con. The composite is the same one priority
+        // #3 of the gaps audit ("Fresh-login ENTERSVR completion")
+        // owns, so the fan-out is deferred to that slice. In the
+        // typical count==0 ROUTE path every con is already ready and
+        // this branch doesn't fire.
+        spdlog::info("OnCharDataAck[{}]: char_id={} {} con(s) not ready — "
+                     "ENTERCHAR_REQ fan-out deferred (fresh-login slice)",
+            ip, char_id, pending_count);
+        co_return;
+    }
+
+    spdlog::info("OnCharDataAck[{}]: char_id={} all cons ready — CheckMainCon "
+                 "(level={} hp={}/{} mp={}/{})", ip, char_id, level, hp,
+        max_hp, mp, max_mp);
+    co_await CheckMainCon(ch, ctx);
+}
+
 } // namespace tworldsvr::handlers

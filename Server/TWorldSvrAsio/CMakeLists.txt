@@ -864,3 +864,14 @@ target_link_libraries(test_tworldsvr_asio_closechar_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_closechar_handlers
     COMMAND test_tworldsvr_asio_closechar_handlers)
+
+# W6-20 wire test: connection-completion sub-flow — ROUTE_ACK
+# count=0/count>0, ENTERCHAR_ACK partial then all-ready CHECKMAIN
+# broadcast, CHARDATA_ACK level/HP refresh + CHECKMAIN, unknown-char
+# DELCHAR.
+add_executable(test_tworldsvr_asio_route_completion_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_route_completion_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_route_completion_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_route_completion_handlers
+    COMMAND test_tworldsvr_asio_route_completion_handlers)

@@ -11,6 +11,7 @@
 // (enum TGUILD_RESULT, enum TGUILD_DUTY). Keep the // line refs
 // in sync if NetCode.h ever reorders.
 
+#include <cstddef>   // std::size_t (MSVC doesn't pull it via <cstdint>)
 #include <cstdint>
 
 namespace tworldsvr::guild {

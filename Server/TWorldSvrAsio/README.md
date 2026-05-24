@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-19 CloseChar teardown (connection/teleport cluster, 7 slices)
+## Status — W6-20 connection-completion (closes the W6-13/18 reconcile loop)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -114,41 +114,36 @@ that the four shipped Asio daemons already use.
 | W6-16 | Handoff completion — OnMW_ENTERSVR_ACK now branches on `chg_main_id`: a normal-map handoff clears it + asks the new main for the server list (MAPSVRLIST_REQ → re-enters the W6-13 reconcile), skipping the fresh-login fan-out; BR/Bow battleground ids (50/30) excluded. Closes the handoff loop (reconcile→checkmain→release→entersvr→reconcile) | ✅ |
 | W6-17 | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender | ✅ |
 | W6-18 | Connect-check reconcile — OnMW_CHECKCONNECT_ACK (the other cession producer): updates the char's position then reconciles cons (count=0 → CHECKMAIN sweep; else drop stale → dead_cons + ROUTELIST new servers via main, else CHECKMAIN); replays via PopConCess. Reuses the W6-17 cession queue; no new senders | ✅ |
-| **W6-19** | CloseChar teardown — OnMW_CLOSECHAR_ACK now does the full legacy CloseChar: chg_main_id → INVALIDCHAR(release_main) on the would-be new main, DELCHAR every con (dead first, then live; logout/save flags only on the main), registry+name-index removal, friend/soulmate/TMS offline fan-out. Shared helper wired into the BeginTeleport/CheckConnect main-offline paths. Party-leave + guild/tactics DB persistence still deferred | ✅ |
+| W6-19 | CloseChar teardown — OnMW_CLOSECHAR_ACK now does the full legacy CloseChar: chg_main_id → INVALIDCHAR(release_main) on the would-be new main, DELCHAR every con (dead first, then live; logout/save flags only on the main), registry+name-index removal, friend/soulmate/TMS offline fan-out. Shared helper wired into the BeginTeleport/CheckConnect main-offline paths. Party-leave + guild/tactics DB persistence still deferred | ✅ |
+| **W6-20** | Connection-completion sub-flow — closes the W6-13/W6-18 reconcile loop. OnMW_ROUTE_ACK (main's reply to ROUTELIST): count==0 → SendMwCharDataReq; count>0 → register each (ip/port/server_id) as a *pending* TCharCon (valid=false, ready=false; existing entry's valid bit preserved) + SendMwAddConnectReq to the reporter. OnMW_ENTERCHAR_ACK flips the reporter's con.ready; all-ready → CheckMainCon broadcast. OnMW_CHARDATA_ACK refreshes level/HP/MP; all-ready → CheckMainCon (the non-ready ENTERCHAR_REQ fan-out is deferred — the fat composite belongs to the fresh-login slice). DELCHAR/INVALIDCHAR errors + 2 senders (ADDCONNECT_REQ / CHARDATA_REQ). Drive-by: add `<cstddef>` to guild_constants.h (MSVC doesn't pull it via `<cstdint>`) | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-19)
+## Gaps audit — not yet ported / deferred (as of W6-20)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~154** are ported in `handlers/dispatch.cpp`,
-leaving **112** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~157** are ported in `handlers/dispatch.cpp`,
+leaving **~109** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
 
-### A. Real hole in the connection/teleport cluster (W6-13–W6-19)
+### A. Remaining gaps in the connection/teleport cluster (W6-13–W6-20)
 
-The reconcile side ("decide a new connection is needed → send
-`MW_ROUTELIST_REQ`") is ported, but **the reply path that actually
-establishes the new connection is not**:
+The W6-13/W6-18 reconcile loop now closes through W6-20: the
+`reconcile → ROUTELIST → ROUTE_ACK → ADDCONNECT → ENTERCHAR_ACK /
+CHARDATA_ACK → CheckMainCON` chain is ported end-to-end (the
+`CHARDATA_ACK` non-ready ENTERCHAR_REQ fan-out — the fat
+guild/tactics/party/soulmate composite — is deferred, since it shares
+its body with the §B fresh-login completion). Still open in the
+cluster:
 
-- **`OnMW_ROUTE_ACK`** (SSHandler.cpp:1903) — the main map's answer to
-  `ROUTELIST_REQ`. Should register each new server as a *pending*
-  `TCharCon` (`valid=false, ready=false`) and send the client
-  **`MW_ADDCONNECT_REQ`** (IP/port, via the reporting map); on `count==0`
-  send `MW_CHARDATA_REQ`. **Today `MW_ROUTE_ACK` is dropped** ("no handler
-  yet"), so the requested new connections never materialise.
-- **`OnMW_ENTERCHAR_ACK`** (1038) — per-connection entry handshake; sets
-  `con.ready`, and when all cons are ready → `CheckMainCON`.
-- **`OnMW_CHARDATA_ACK`** — the data-load confirm (the other half of ready).
-- Senders **`MW_ADDCONNECT_REQ`**, **`MW_CHARDATA_REQ`**.
+- **`OnMW_TELEPORT_ACK`** (1490) — teleport confirm to the client +
+  `TELEPORT_REQ(NODESTINATION)` / `CloseChar` on a bad destination; the
+  matching follow-up to W6-17's `BEGINTELEPORT_ACK`.
+- **`OnMW_PROTECTEDCHECK`** (anti-cheat session ping).
+- **`OnMW_TERMINATE`** (peer-initiated session teardown).
 
-So the full loop `reconcile → ROUTELIST → **ROUTE_ACK → ADDCONNECT →
-ENTERCHAR_ACK/CHARDATA_ACK → CheckMainCON**` has only its first half.
-Also still open in the cluster: **`OnMW_TELEPORT_ACK`** (1490, teleport
-confirm to client + `TELEPORT_REQ(NODESTINATION)`/`CloseChar` on a bad
-destination), `OnMW_PROTECTEDCHECK`, `OnMW_TERMINATE`.
 **`OnMW_CONNECT_ACK`** (592, map-server registration) is intentionally
 skipped — replaced by `RW_RELAYSVR_REQ`.
 
@@ -156,7 +151,10 @@ skipped — replaced by `RW_RELAYSVR_REQ`.
 
 - **ENTERSVR fresh-login** (W6-16): the big `CHARINFO_REQ` composite reply
   + `ROUTE_REQ` + `SOULMATELIST`/`FRIENDLIST` + `CheckChatBan` (only the
-  identity-load is ported); the BR/Bow `CHARINFO` sub-case.
+  identity-load is ported); the BR/Bow `CHARINFO` sub-case. The
+  W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out (the
+  guild/tactics/party/soulmate composite) shares the same body and
+  lands with this slice.
 - **CloseChar** (W6-19): party-leave on logout; guild/tactics DB
   persistence (`PVPRECORD`/`TACTICSPOINT`/`SaveGuildStats`). The sketchy
   legacy `if(!m_bSave) CloseChar` at the top of CHECKMAIN_ACK (a
@@ -222,12 +220,84 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **Connection-completion sub-flow** (§A: `ROUTE_ACK` + `ADDCONNECT` +
-   `ENTERCHAR_ACK` + `CHARDATA_ACK`) — closes the loop opened in W6-13/18;
-   this is a genuine functional hole, not just a roadmap deferral.
-2. `TELEPORT_ACK` (teleport confirm; finishes W6-17).
-3. Fresh-login ENTERSVR completion (CHARINFO/ROUTE/SOULMATELIST/FRIENDLIST).
+1. **`TELEPORT_ACK`** (§A) — teleport confirm to client; finishes W6-17
+   (the matching follow-up to `BEGINTELEPORT_ACK`).
+2. **Fresh-login ENTERSVR completion** (§B) — the big CHARINFO_REQ
+   composite + ROUTE_REQ + SOULMATELIST / FRIENDLIST + CheckChatBan.
+   Lands the W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out as
+   part of the same composite.
+3. **`PROTECTEDCHECK` / `TERMINATE`** (§A) — the last two cluster
+   handlers; small relays.
 4. Then the large roadmap subsystems (BR / Bow / Tournament / …).
+
+### W6-20 — what landed
+
+**Connection-completion sub-flow** — the reply path that actually
+materialises the new connections asked for by the W6-13/W6-18 reconcile
+(`MW_ROUTELIST_REQ`). Three new handlers in `handlers_conn.cpp` (with
+two new senders in `senders_conn.cpp`) close the loop end-to-end:
+
+- `OnRouteAck` (`MW_ROUTE_ACK`, the main's reply to ROUTELIST): when
+  `count == 0` the main is asked for a `MW_CHARDATA_REQ` round-trip
+  (legacy parity — no new cons needed); when `count > 0` each
+  `(ip, port, server_id)` tuple is registered as a *pending* TCharCon
+  (`ready=false, valid=false`, preserving any matching entry's
+  `valid` bit across the replace), and `MW_ADDCONNECT_REQ` is forwarded
+  back to the reporter so it can hand the new endpoints to the client.
+  Unknown char / key mismatch → `MW_DELCHAR_REQ`.
+- `OnEnterCharAck` (`MW_ENTERCHAR_ACK`, per-connection entry handshake):
+  flips the reporting con's `ready` bit; once every con is ready, fires
+  `CheckMainCon` to re-confirm the main session across the whole new
+  set. Missing con for the reporter → `MW_INVALIDCHAR_REQ`; unknown
+  char → `MW_DELCHAR_REQ`.
+- `OnCharDataAck` (`MW_CHARDATA_ACK`, main's reply to CHARDATA_REQ):
+  refreshes the char's `level / hp / max_hp / mp / max_mp` (legacy
+  `SetCharLevel` + `SetCharStatus`), then fires `CheckMainCon` if every
+  con is ready (the typical count==0 path). Errors: unknown char →
+  DELCHAR; main offline → INVALIDCHAR.
+
+The full chain that now closes:
+
+```
+reconcile (W6-13)                 — ROUTELIST_REQ via main
+  → ROUTE_ACK (W6-20)             — main returns IP/port set
+    → ADDCONNECT_REQ (W6-20)      — reporter hands endpoints to client
+    → CHARDATA_REQ (W6-20)        — count==0 branch
+      → CHARDATA_ACK (W6-20)      — main returns level/HP/MP
+  → ENTERCHAR_ACK (W6-20)         — per new con: ready=true
+  → CheckMainCON (W6-13)          — broadcast CHECKMAIN_REQ to all cons
+    → CHECKMAIN_ACK (W6-14)       — close dead_cons + CONRESULT
+```
+
+Two senders in `senders_conn.cpp` — `SendMwAddConnectReq` (uses a new
+`senders::AddConnectEntry` POD for the per-entry tuple) +
+`SendMwCharDataReq`. Reuses `MW_DELCHAR_REQ` / `MW_INVALIDCHAR_REQ` /
+`MW_CHECKMAIN_REQ` from the W6-13 batch.
+
+Deferred — the legacy `CHARDATA_ACK` non-ready branch fans
+`MW_ENTERCHAR_REQ` to each not-yet-ready con carrying a fat
+guild/tactics/party/soulmate/region/chat-ban/riding composite (the
+same body the fresh-login path emits). That fan-out lands with §B
+priority #2 ("Fresh-login ENTERSVR completion"); in the typical
+`count==0` ROUTE path every con is already ready and the deferred
+branch doesn't fire.
+
+Drive-by: `services/guild_constants.h` needed `<cstddef>` (MSVC 14.51
+doesn't pull `std::size_t` via `<cstdint>` the way GCC does); the
+fix unblocks the Windows build of `tworldsvr_asio_core` without
+changing any behaviour.
+
+Tests — `tests/test_route_completion_handlers.cpp` (3 map peers):
+ROUTE_ACK count=0 → CHARDATA_REQ; ROUTE_ACK count=1 with a new server
+0x44 → ADDCONNECT_REQ + the pending con is registered with the right
+ip/port/ready=false/valid=false; ENTERCHAR_ACK from 0x42 → only its
+con becomes ready (no broadcast); ENTERCHAR_ACK from 0x44 → all
+ready, CheckMainCon broadcasts CHECKMAIN_REQ to 0x42 + 0x44 carrying
+the char's channel/map/pos; CHARDATA_ACK with level=42 + HP/MP →
+CHECKMAIN sweep and the char's stats refresh; ROUTE_ACK for an
+unknown char → DELCHAR.
+
+Build verified: cmake + ctest -R tworldsvr_asio (76/76 passed).
 
 ### W6-19 — what landed
 

@@ -49,6 +49,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_post.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_occupy.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_event.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_combat.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -61,6 +62,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_post.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_occupy.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_event.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_combat.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -683,3 +685,12 @@ target_link_libraries(test_tworldsvr_asio_event_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_event_handlers
     COMMAND test_tworldsvr_asio_event_handlers)
+
+# W6-2 wire test: combat / taming cross-server relays — MAGICMIRROR /
+# MONTEMPT / MONTEMPTEVO route to the attacker char's map.
+add_executable(test_tworldsvr_asio_combat_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_combat_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_combat_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_combat_handlers
+    COMMAND test_tworldsvr_asio_combat_handlers)

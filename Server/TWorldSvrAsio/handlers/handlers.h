@@ -1561,6 +1561,33 @@ boost::asio::awaitable<void> OnEventQuarterNotifyReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-2: combat / taming cross-server relays (handlers_combat.cpp)
+//
+// MAGICMIRROR (spell reflection) / MONTEMPT (taming attempt) /
+// MONTEMPTEVO (taming evolution) — when the attacker and the affected
+// object are on different map servers, the effect is relayed to the
+// attacker's map. Each resolves the attacker char by id and forwards
+// to its main map. (GETBLOOD belongs to this family but is deferred —
+// its routing branches on OT_PC, an object-type enum absent from the
+// source tree.)
+//
+// Wire (SSHandler.cpp:8117/8008/8031):
+//   MAGICMIRROR : DWORD host, attack, target, BYTE atk_type, tgt_type
+//   MONTEMPT    : DWORD atk_id, WORD mon_id
+//   MONTEMPTEVO : DWORD atk_id, host_id, BYTE host_type
+boost::asio::awaitable<void> OnMagicMirrorAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMonTemptAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMonTemptEvoAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

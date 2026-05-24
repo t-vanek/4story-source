@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-20 login finalization + connect presence (ENTERSVR)
+## Status — W5-1 territory occupation broadcasts (CASTLE/LOCAL/MISSION)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -89,12 +89,43 @@ that the four shipped Asio daemons already use.
 | W4-17 | Friend-edge write-back — IFriendRepository InsertFriend/EraseFriend wired into the accept paths (both directed edges) + erase path (forward edge) via CoOffloadVoidIf | ✅ |
 | W4-18 | Soulmate write-back — IFriendRepository RegSoulmate/DelSoulmate wired into SEARCH-pair / REG / END + the W4-9 level-gap auto-dissolve (both mutual rows) via CoOffloadVoidIf | ✅ |
 | W4-19 | GM chat ban — OnMW_CHATBAN_ACK sets/extends/clears TChar.chat_ban_time, enforces on the target's map + echoes to the issuing GM (MW_CHATBAN_REQ) | ✅ |
-| **W4-20** | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
+| W4-20 | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
 | W4-21+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
-| W4 | Friend + Chat + Soulmate | ⏸ |
-| W5 | War + Castle + Tournament / TNMT | ⏸ |
+| **W5-1** | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
+| W5 | War + Castle + Tournament / TNMT | 🚧 |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W5-1 — what landed
+
+**Territory occupation broadcasts** — opens the W5 war vertical with
+the cluster coordinator's core territory role: when a castle / local
+(territory) / mission objective changes hands, world fans the new
+owner + flag to **every** map peer so the whole cluster renders it
+consistently.
+
+- `handlers_occupy.cpp` — `OnCastleOccupyAck` (wID 0x9087),
+  `OnLocalOccupyAck` (0x906B), `OnMissionOccupyAck` (0x9168). CASTLE
+  and LOCAL resolve the guild name from the registry; LOCAL applies
+  the legacy B-country display flip (a `TCONTRY_B` guild's capture
+  shows as the opposing flag and reports guild-less when the prior
+  holder wasn't neutral). MISSION is a bare type/local/country fan-out.
+- `senders_occupy.cpp` — `SendMwCastleOccupyReq` / `SendMwLocalOccupyReq`
+  / `SendMwMissionOccupyReq`, each broadcast over `peers->Snapshot()`.
+
+Deferred — **blocked on data absent from the source tree**: the
+winning guild's stat-exp award + level-up (CASTLEOCCUPY / LOCALOCCUPY)
+needs `CALCULATE_NEXTGEXP` + the `*_STATEXP` award constants, which
+are referenced by client + both servers but **defined nowhere in the
+repo**; and CASTLEOCCUPY's `ResetCastleApply` (clearing members'
+castle-application flags) needs the castle-apply subsystem, not yet
+ported. Both are follow-up W5 slices once the constants / model land.
+
+Tests — `tests/test_occupy_handlers.cpp` (two-peer): each occupy
+reaches both peers with the right fields, and a B-country guild's
+LOCAL capture arrives flag-flipped + guild-less.
+
+Build verified: cmake + ctest -R tworldsvr_asio (53/53 passed).
 
 ### W4-20 — what landed
 

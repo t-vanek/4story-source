@@ -1479,6 +1479,36 @@ boost::asio::awaitable<void> OnChatBanAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W5-1: territory occupation broadcasts (handlers_occupy.cpp) ---
+//
+// CASTLE / LOCAL / MISSION occupy — a castle / territory / mission
+// objective changed hands; world fans the new owner+flag to every
+// map peer so the cluster shows it consistently. LOCAL applies the
+// legacy B-country display flip. The guild stat-exp award (CASTLE /
+// LOCAL) and the castle-apply reset (CASTLE) are deferred — the
+// guild-stat level formula (CALCULATE_NEXTGEXP) + *_STATEXP award
+// constants are absent from the source tree, and the castle-apply
+// subsystem hasn't ported.
+//
+// Wire (SSHandler.cpp:7780/7840/7875):
+//   CASTLE : BYTE type, WORD castle, DWORD guild_id, BYTE country,
+//            DWORD lose_guild
+//   LOCAL  : BYTE type, WORD local, BYTE country, DWORD guild_id,
+//            BYTE cur_country
+//   MISSION: BYTE type, WORD local, BYTE country
+boost::asio::awaitable<void> OnCastleOccupyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnLocalOccupyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMissionOccupyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

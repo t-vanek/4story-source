@@ -47,6 +47,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_soulmate.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_tms.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_post.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_occupy.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -57,6 +58,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_soulmate.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_tms.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_post.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_occupy.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -632,3 +634,13 @@ target_link_libraries(test_tworldsvr_asio_entersvr_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_entersvr_handlers
     COMMAND test_tworldsvr_asio_entersvr_handlers)
+
+# W5-1 wire test: territory occupation broadcasts — CASTLE/LOCAL/
+# MISSION occupy fan the new owner+flag to every map peer (+ the
+# LOCAL B-country display flip).
+add_executable(test_tworldsvr_asio_occupy_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_occupy_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_occupy_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_occupy_handlers
+    COMMAND test_tworldsvr_asio_occupy_handlers)

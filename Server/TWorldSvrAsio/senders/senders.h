@@ -1636,6 +1636,41 @@ boost::asio::awaitable<void> SendMwChatBanReq(
     std::uint32_t                char_id,
     std::uint32_t                key);
 
+// --- W5-1 territory occupation broadcasts (senders_occupy.cpp) ----
+//
+// Each is broadcast to every map peer so the new owner/flag shows
+// cluster-wide. Mirrors SSSender.cpp.
+
+// MW_CASTLEOCCUPY_REQ — a castle changed hands.
+//   Wire: BYTE type, WORD castle, DWORD guild_id, BYTE country,
+//     STRING guild_name
+boost::asio::awaitable<void> SendMwCastleOccupyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 type,
+    std::uint16_t                castle_id,
+    std::uint32_t                guild_id,
+    std::uint8_t                 country,
+    const std::string&           guild_name);
+
+// MW_LOCALOCCUPY_REQ — a local (territory) changed hands.
+//   Wire: BYTE type, WORD local, BYTE country, DWORD guild_id,
+//     STRING guild_name
+boost::asio::awaitable<void> SendMwLocalOccupyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 type,
+    std::uint16_t                local_id,
+    std::uint8_t                 country,
+    std::uint32_t                guild_id,
+    const std::string&           guild_name);
+
+// MW_MISSIONOCCUPY_REQ — a mission objective changed hands.
+//   Wire: BYTE type, WORD local, BYTE country
+boost::asio::awaitable<void> SendMwMissionOccupyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 type,
+    std::uint16_t                local_id,
+    std::uint8_t                 country);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

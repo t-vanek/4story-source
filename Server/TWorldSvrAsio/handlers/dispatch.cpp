@@ -451,6 +451,17 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnChatBanAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
+    case MessageId::MW_CASTLEOCCUPY_ACK:
+        co_await OnCastleOccupyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_LOCALOCCUPY_ACK:
+        co_await OnLocalOccupyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_MISSIONOCCUPY_ACK:
+        co_await OnMissionOccupyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
     case MessageId::MW_SOULMATESEARCH_ACK:
         co_await OnSoulmateSearchAck(std::move(peer), std::move(body), ctx);

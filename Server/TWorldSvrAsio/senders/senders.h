@@ -1422,4 +1422,45 @@ boost::asio::awaitable<void> SendMwFriendEraseReq(
     std::uint8_t                 result,
     std::uint32_t                target_id);
 
+// --- W4-3 friend groups (senders_friend.cpp) ----------------------
+
+// MW_FRIENDGROUPMAKE_REQ / MW_FRIENDGROUPNAME_REQ — result of
+// creating / renaming a named friend group.
+//   Wire (SSSender.cpp:2437/2483):
+//     DWORD char_id, key, BYTE result, BYTE group, STRING name
+boost::asio::awaitable<void> SendMwFriendGroupMakeReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint8_t                 group,
+    const std::string&           name);
+boost::asio::awaitable<void> SendMwFriendGroupNameReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint8_t                 group,
+    const std::string&           name);
+
+// MW_FRIENDGROUPDELETE_REQ — result of deleting a group.
+//   Wire (SSSender.cpp:2453): DWORD char_id, key, BYTE result, group
+boost::asio::awaitable<void> SendMwFriendGroupDeleteReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint8_t                 group);
+
+// MW_FRIENDGROUPCHANGE_REQ — result of moving a friend to a group.
+//   Wire (SSSender.cpp:2467):
+//     DWORD char_id, key, BYTE result, group, DWORD friend_id
+boost::asio::awaitable<void> SendMwFriendGroupChangeReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint8_t                 group,
+    std::uint32_t                friend_id);
+
 } // namespace tworldsvr::senders

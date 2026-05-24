@@ -4,6 +4,7 @@
 // Lib/Own/TProtocol/include/NetCode.h. Same single-source-of-truth
 // rationale as guild_/party_/corps_constants.h.
 
+#include <cstddef>
 #include <cstdint>
 
 namespace tworldsvr::frnd {
@@ -29,5 +30,8 @@ inline constexpr std::uint8_t kDisconnection = 1; // FRIEND_DISCONNECTION
 // MAX_FRIEND / MAX_FRIENDGROUP (TWorldType.h:146).
 inline constexpr std::uint8_t kMaxFriend      = 64;
 inline constexpr std::uint8_t kMaxFriendGroup = 5;
+
+// MAX_GROUPNAME (DBAccess.h:4) — friend-group name length cap.
+inline constexpr std::size_t kMaxGroupName = 20;
 
 } // namespace tworldsvr::frnd

@@ -158,6 +158,11 @@ struct TChar
     // legacy m_mapTFRIEND friend list (typical size ≤ MAX_FRIEND).
     std::uint32_t        region = 0;
     std::vector<TFriend> friends;
+
+    // W4-3 named friend groups (legacy m_mapFRIENDGROUP, BYTE id →
+    // name), capped at MAX_FRIENDGROUP. Each TFriend.group references
+    // one of these (0 = ungrouped).
+    std::vector<std::pair<std::uint8_t, std::string>> friend_groups;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

@@ -383,4 +383,186 @@ OnFriendEraseAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnFriendGroupMakeAck(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars) { spdlog::warn("OnFriendGroupMakeAck[{}]: no chars", ip);
+        co_return; }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  group = 0;
+    std::string   name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(group) ||
+        !r.ReadString(name))
+    {
+        spdlog::warn("OnFriendGroupMakeAck[{}]: short body", ip);
+        co_return;
+    }
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+
+    std::uint8_t result = frnd::kSuccess;
+    bool         key_ok = true;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) { key_ok = false; }
+        else if (group == 0 ||
+                 c->friend_groups.size() >= frnd::kMaxFriendGroup)
+            result = frnd::kMax;
+        else if (name.size() > frnd::kMaxGroupName)
+            key_ok = false;       // legacy: silent drop on over-long name
+        else
+        {
+            for (const auto& gp : c->friend_groups)
+                if (gp.first == group || gp.second == name)
+                { result = frnd::kAlready; break; }
+            if (result == frnd::kSuccess)
+                c->friend_groups.emplace_back(group, name);
+        }
+    }
+    if (!key_ok) co_return;
+    co_await senders::SendMwFriendGroupMakeReq(peer, char_id, key, result,
+        result == frnd::kSuccess ? group : 0, name);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnFriendGroupDeleteAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars) { spdlog::warn("OnFriendGroupDeleteAck[{}]: no chars", ip);
+        co_return; }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  group = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(group))
+    {
+        spdlog::warn("OnFriendGroupDeleteAck[{}]: short body", ip);
+        co_return;
+    }
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+
+    bool key_ok = true, exists = false, occupied = false;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) key_ok = false;
+        else
+        {
+            for (const auto& gp : c->friend_groups)
+                if (gp.first == group) exists = true;
+            for (const auto& f : c->friends)
+                if (f.type != frnd::kTypeTarget && f.group == group)
+                    occupied = true;
+            if (exists && !occupied)
+            {
+                auto& v = c->friend_groups;
+                for (auto it = v.begin(); it != v.end(); ++it)
+                    if (it->first == group) { v.erase(it); break; }
+            }
+        }
+    }
+    if (!key_ok || !exists) co_return;  // legacy: no reply when absent
+    co_await senders::SendMwFriendGroupDeleteReq(peer, char_id, key,
+        occupied ? frnd::kRefuse : frnd::kSuccess, group);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnFriendGroupChangeAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars) { spdlog::warn("OnFriendGroupChangeAck[{}]: no chars", ip);
+        co_return; }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, friend_id = 0;
+    std::uint8_t  group = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(friend_id) ||
+        !r.Read(group))
+    {
+        spdlog::warn("OnFriendGroupChangeAck[{}]: short body", ip);
+        co_return;
+    }
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+
+    bool key_ok = true, ok = false;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) { key_ok = false; }
+        else
+        {
+            bool group_ok = (group == 0);
+            if (!group_ok)
+                for (const auto& gp : c->friend_groups)
+                    if (gp.first == group) group_ok = true;
+            if (group_ok)
+                for (auto& f : c->friends)
+                    if (f.id == friend_id) { f.group = group; ok = true; }
+        }
+    }
+    if (!key_ok || !ok) co_return;  // legacy: silent drop on bad group/friend
+    co_await senders::SendMwFriendGroupChangeReq(peer, char_id, key,
+        frnd::kSuccess, group, friend_id);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnFriendGroupNameAck(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars) { spdlog::warn("OnFriendGroupNameAck[{}]: no chars", ip);
+        co_return; }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  group = 0;
+    std::string   name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(group) ||
+        !r.ReadString(name))
+    {
+        spdlog::warn("OnFriendGroupNameAck[{}]: short body", ip);
+        co_return;
+    }
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+
+    bool         key_ok = true;
+    std::uint8_t result = frnd::kSuccess;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) key_ok = false;
+        else if (name.size() > frnd::kMaxGroupName) key_ok = false; // drop
+        else
+        {
+            bool name_taken = false, found = false;
+            for (const auto& gp : c->friend_groups)
+                if (gp.second == name) name_taken = true;
+            if (name_taken) result = frnd::kRefuse;
+            else
+            {
+                for (auto& gp : c->friend_groups)
+                    if (gp.first == group) { gp.second = name; found = true; }
+                if (!found) result = frnd::kNotFound;
+            }
+        }
+    }
+    if (!key_ok) co_return;
+    co_await senders::SendMwFriendGroupNameReq(peer, char_id, key, result,
+        group, name);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

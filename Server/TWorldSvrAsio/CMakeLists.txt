@@ -446,3 +446,13 @@ target_link_libraries(test_tworldsvr_asio_friend_reply_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_friend_reply_handlers
     COMMAND test_tworldsvr_asio_friend_reply_handlers)
+
+# W4-3 wire test: friend-group handlers (MAKE/DELETE/CHANGE/NAME)
+# over a single-peer loopback session — all result branches +
+# the friend-group membership / TFriend.group state transitions.
+add_executable(test_tworldsvr_asio_friend_group_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_group_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_group_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_group_handlers
+    COMMAND test_tworldsvr_asio_friend_group_handlers)

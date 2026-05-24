@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-2 friend reply + erase (FRIENDREPLY / FRIENDERASE)
+## Status — W4-3 friend groups (MAKE / DELETE / CHANGE / NAME)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -71,12 +71,43 @@ that the four shipped Asio daemons already use.
 | W3c-6 | Corps command broadcast — OnMW_CORPSCMD_ACK (general's move/attack order relayed to every corps member, or own party when corps-less) + SendMwCorpsCmdReq | ✅ |
 | W3c-7 | Corps enemy-list family + HP — OnMW_CORPSENEMYLIST/ADDCORPSENEMY/DELCORPSENEMY/MOVECORPSENEMY/MOVECORPSUNIT/CORPSHP_ACK (6 chief-to-chief opaque relays via a shared CorpsChiefRelay + SendMwCorpsChiefRelay) — **corps subsystem complete** | ✅ |
 | W4-1 | Friend subsystem opener — TChar.friends/region + TFriend + friend_constants + OnMW_FRIENDASK_ACK invite gate (relay / mutual instant-add) + SendMwFriendAddReq/AskReq | ✅ |
-| **W4-2** | Friend reply + erase — OnMW_FRIENDREPLY_ACK (accept upserts mutual entries / reject relays code) + OnMW_FRIENDERASE_ACK (mutual demote / one-way remove) + SendMwFriendEraseReq | ✅ |
-| W4-3+ | Friend groups (MAKE/DELETE/CHANGE/NAME) + connection notifications + Chat + Soulmate | ⏸ |
+| W4-2 | Friend reply + erase — OnMW_FRIENDREPLY_ACK (accept upserts mutual entries / reject relays code) + OnMW_FRIENDERASE_ACK (mutual demote / one-way remove) + SendMwFriendEraseReq | ✅ |
+| **W4-3** | Friend groups — OnMW_FRIENDGROUPMAKE/DELETE/CHANGE/NAME_ACK (per-char named buckets, TChar.friend_groups + TFriend.group) + 4 senders | ✅ |
+| W4-4+ | Friend connection notifications + Chat + Soulmate | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-3 — what landed
+
+Friend **groups** — the per-char named buckets a client uses to
+organise its friend list (legacy m_mapFRIENDGROUP, capped at
+MAX_FRIENDGROUP=5, names ≤ MAX_GROUPNAME=20).
+
+Model — `TChar.friend_groups` (vector of {byte id, name}); each
+`TFriend.group` references one (0 = ungrouped).
+
+Handlers (all per-char, single-lock; persistence deferred):
+- `OnFriendGroupMakeAck` (0x905B): create — gates group-id≠0 +
+  under cap (`kMax`), unique id + name (`kAlready`); over-long name
+  is a silent drop.
+- `OnFriendGroupDeleteAck` (0x905D): delete — only an *empty* group
+  (no non-pending friend references it, else `kRefuse`); unknown
+  group is a silent drop.
+- `OnFriendGroupChangeAck` (0x905F): move a friend into a group
+  (0 = ungroup); bad group / unknown friend silent-drop.
+- `OnFriendGroupNameAck` (0x9061): rename — name-unique
+  (`kRefuse`), group-exists (`kNotFound`).
+
+Senders — `SendMwFriendGroupMake/Delete/Change/NameReq`.
+
+Tests — `tests/test_friend_group_handlers.cpp` (11 checks,
+single-peer): MAKE success/id-taken/group-0, CHANGE into a group,
+DELETE occupied (REFUSE) → ungroup → DELETE empty (SUCCESS), and
+NAME rename/name-taken/unknown-group.
+
+Build verified: cmake + ctest -R tworldsvr_asio (35/35 passed).
 
 ### W4-2 — what landed
 

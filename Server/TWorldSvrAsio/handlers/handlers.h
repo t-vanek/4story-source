@@ -1364,5 +1364,35 @@ boost::asio::awaitable<void> OnFriendEraseAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-3: friend groups (handlers_friend.cpp) ---------------------
+//
+// Per-char named friend buckets (legacy m_mapFRIENDGROUP, capped at
+// MAX_FRIENDGROUP). MAKE creates a group (id + name, both unique),
+// DELETE removes an empty group, CHANGE moves a friend into a group
+// (0 = ungrouped), NAME renames a group. Each replies the matching
+// MW_FRIENDGROUP*_REQ; persistence (legacy DM_FRIENDGROUP*_REQ) is
+// deferred.
+//   Wire (SSHandler.cpp:6238/6307/6360/6410):
+//     MAKE   : DWORD char_id, key, BYTE group, STRING name
+//     DELETE : DWORD char_id, key, BYTE group
+//     CHANGE : DWORD char_id, key, DWORD friend_id, BYTE group
+//     NAME   : DWORD char_id, key, BYTE group, STRING name
+boost::asio::awaitable<void> OnFriendGroupMakeAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnFriendGroupDeleteAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnFriendGroupChangeAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnFriendGroupNameAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

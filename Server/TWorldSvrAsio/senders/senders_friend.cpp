@@ -72,4 +72,78 @@ SendMwFriendEraseReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwFriendGroupMakeReq(std::shared_ptr<PeerSession> peer,
+                         std::uint32_t char_id, std::uint32_t key,
+                         std::uint8_t result, std::uint8_t group,
+                         const std::string& name)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint8_t>(body, group);
+    WriteString(body, name);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_FRIENDGROUPMAKE_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwFriendGroupNameReq(std::shared_ptr<PeerSession> peer,
+                         std::uint32_t char_id, std::uint32_t key,
+                         std::uint8_t result, std::uint8_t group,
+                         const std::string& name)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint8_t>(body, group);
+    WriteString(body, name);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_FRIENDGROUPNAME_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwFriendGroupDeleteReq(std::shared_ptr<PeerSession> peer,
+                           std::uint32_t char_id, std::uint32_t key,
+                           std::uint8_t result, std::uint8_t group)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint8_t>(body, group);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_FRIENDGROUPDELETE_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwFriendGroupChangeReq(std::shared_ptr<PeerSession> peer,
+                           std::uint32_t char_id, std::uint32_t key,
+                           std::uint8_t result, std::uint8_t group,
+                           std::uint32_t friend_id)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint8_t>(body, group);
+    WritePOD<std::uint32_t>(body, friend_id);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_FRIENDGROUPCHANGE_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

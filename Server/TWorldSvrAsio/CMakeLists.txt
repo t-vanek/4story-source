@@ -805,3 +805,13 @@ target_link_libraries(test_tworldsvr_asio_conn_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_conn_handlers
     COMMAND test_tworldsvr_asio_conn_handlers)
+
+# W6-14 wire test: CHECKMAIN_ACK — main confirmation closes dead cons
+# + CONRESULTs the live set; non-main handoff RELEASEMAINs the old main
+# and re-points main; unknown char replies DELCHAR.
+add_executable(test_tworldsvr_asio_checkmain_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_checkmain_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_checkmain_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_checkmain_handlers
+    COMMAND test_tworldsvr_asio_checkmain_handlers)

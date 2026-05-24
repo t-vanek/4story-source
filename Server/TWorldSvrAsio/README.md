@@ -108,9 +108,49 @@ that the four shipped Asio daemons already use.
 | W6-10 | Item-result relays — OnMW_ADDITEMRESULT_ACK (route to the requesting map server) + OnMW_DEALITEMERROR_ACK (route to the target char's map) + SendMwDealItemErrorReq (reuses the W3b SendMwAddItemResultReq) | ✅ |
 | W6-11 | Day-change guild ranking — OnSM_CHANGEDAY_REQ recomputes every guild's PvP total/month rank over GuildRegistry (legacy CalcGuildRanking); read back by GuildInfoAck | ✅ |
 | W6-12 | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
-| **W6-13** | Connection-list reconcile — OnMW_CONLIST_ACK + OnMW_MAPSVRLIST_ACK (byte-identical) reconcile `cons` vs the reported set: drop stale cons to `dead_cons`, ROUTELIST new servers via the main map, else CHECKMAIN every remaining connection; DELCHAR/INVALIDCHAR error replies + 4 senders. First slice of the connection/teleport cluster | ✅ |
+| W6-13 | Connection-list reconcile — OnMW_CONLIST_ACK + OnMW_MAPSVRLIST_ACK (byte-identical) reconcile `cons` vs the reported set: drop stale cons to `dead_cons`, ROUTELIST new servers via the main map, else CHECKMAIN every remaining connection; DELCHAR/INVALIDCHAR error replies + 4 senders. First slice of the connection/teleport cluster | ✅ |
+| **W6-14** | Main-session confirmation — OnMW_CHECKMAIN_ACK: responder-is-main → drain `dead_cons` via CLOSECHAR (ClearDeadCON) + CONRESULT (CN_SUCCESS) the live set; responder-is-other → RELEASEMAIN the old main + re-point main; DELCHAR/INVALIDCHAR errors + 3 senders. CloseChar (logout teardown) + cession queue (PopConCess) deferred | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-14 — what landed
+
+**Main-session confirmation** — `OnMW_CHECKMAIN_ACK` (handlers_conn.cpp)
+handles a map's answer to the W6-13 `CHECKMAIN_REQ` broadcast. The
+responding map either *is* the char's main session or claims it:
+
+- **responder is the main** (`responding_id == main_server_id`) — world
+  drains `TChar::dead_cons`, sending `MW_CLOSECHAR_REQ` to each (legacy
+  `ClearDeadCON`), then green-lights the connection set back to the main
+  with `MW_CONRESULT_REQ` / `CN_SUCCESS` (NetCode.h `TCONNECT_RESULT`)
+  carrying the live server list. The responder is the packet's sender,
+  so its main peer is always present — the dead-con drain happens under
+  the same lock as the snapshot, no INVALIDCHAR can intervene.
+- **responder is a different map** — main-session handoff: world tells
+  the *old* main to release (`MW_RELEASEMAIN_REQ` with the char's
+  channel/map/pos) and re-points `main_server_id` at the responder
+  (clearing `saving`). The mutation is deferred until after the old-main
+  lookup succeeds, matching legacy's pMAIN-before-reassign ordering.
+
+Error replies match legacy: unknown char / key mismatch →
+`MW_DELCHAR_REQ(logout=1,save=0)`; old main offline → `MW_INVALIDCHAR_REQ`.
+Three senders in `senders_conn.cpp` (CONRESULT / CLOSECHAR / RELEASEMAIN).
+
+Deferred (each a slice of its own): the `if(!m_bSave) CloseChar` logout
+teardown (friend/TMS/party/guild/tactics unwind + DELCHAR every con),
+and `PopConCess` — the cession queue is only populated by
+`CHECKCONNECT_ACK` (not yet ported), so it is always empty today and the
+PopConCess call would be a no-op.
+
+Tests — `tests/test_checkmain_handlers.cpp` (3 map peers): a CHECKMAIN
+from the main closes the dead con + CONRESULTs the live set (and drains
+`dead_cons`); a CHECKMAIN from a non-main RELEASEMAINs the old main +
+re-points `main_server_id`; a CHECKMAIN for an unknown char replies
+DELCHAR. Both connection tests now serialise the two per-char ADDCHARs
+(let p1's insert win the main slot before p2 adds its con) to remove a
+cross-socket ordering race.
+
+Build verified: cmake + ctest -R tworldsvr_asio (70/70 passed).
 
 ### W6-13 — what landed
 

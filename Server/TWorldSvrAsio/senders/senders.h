@@ -2001,4 +2001,43 @@ boost::asio::awaitable<void> SendMwInvalidCharReq(
     std::uint32_t                key,
     std::uint8_t                 release_main);
 
+// --- W6-14 main-session confirmation (senders_conn.cpp) -----------
+
+// MW_CONRESULT_REQ — the main map's go-ahead: the char's connection
+// set is confirmed, so the client may proceed. Carries the result
+// byte (CN_SUCCESS / a TCONNECT_RESULT failure) and the full server
+// list the char is connected to.
+//   Wire (SSSender.cpp:450): DWORD char_id, key, BYTE result,
+//     BYTE count, × count: BYTE server_id
+boost::asio::awaitable<void> SendMwConResultReq(
+    std::shared_ptr<PeerSession>       peer,
+    std::uint32_t                      char_id,
+    std::uint32_t                      key,
+    std::uint8_t                       result,
+    const std::vector<std::uint8_t>&   server_ids);
+
+// MW_CLOSECHAR_REQ — tell a map to drop a connection that's no
+// longer part of the char's set (drains TChar::dead_cons; legacy
+// ClearDeadCON).
+//   Wire (SSSender.cpp:473): DWORD char_id, key
+boost::asio::awaitable<void> SendMwCloseCharReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key);
+
+// MW_RELEASEMAIN_REQ — ask the current main map to hand off the main
+// session (so a different map can take it over). Carries the char's
+// channel / map / position so the new main can resume it.
+//   Wire (SSSender.cpp:188): DWORD char_id, key, BYTE channel,
+//     WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> SendMwReleaseMainReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z);
+
 } // namespace tworldsvr::senders

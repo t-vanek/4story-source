@@ -13,6 +13,9 @@ namespace tworldsvr::handlers {
 
 namespace {
 
+// TCONNECT_RESULT::CN_SUCCESS (NetCode.h:321).
+constexpr std::uint8_t kConSuccess = 0;
+
 std::shared_ptr<PeerSession>
 FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
 {
@@ -190,6 +193,131 @@ OnMapSvrListAck(std::shared_ptr<PeerSession> peer,
 {
     co_await ReconcileConList(std::move(peer), std::move(body), ctx,
         "OnMapSvrListAck");
+}
+
+boost::asio::awaitable<void>
+OnCheckMainAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnCheckMainAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnCheckMainAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    if (!ch)
+    {
+        spdlog::info("OnCheckMainAck[{}]: char_id={} not registered — DELCHAR",
+            ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    const std::uint8_t responding_id =
+        static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+
+    // Snapshot under the char lock. For the "responder is main" case
+    // we also drain dead_cons + capture the live con set here (the
+    // responder is `peer`, so its main peer is guaranteed present —
+    // no INVALIDCHAR can intervene before the drain). For the
+    // "main changes" case we defer the main_server_id / save mutation
+    // until after the old-main lookup succeeds (legacy checks
+    // pMAIN before reassigning).
+    bool          key_ok = true, is_main = false;
+    std::uint8_t  old_main_id = 0, channel = 0;
+    std::uint16_t map_id = 0;
+    float         px = 0, py = 0, pz = 0;
+    std::vector<std::uint8_t> dead;          // drained dead_cons
+    std::vector<std::uint8_t> live_servers;  // current con set
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key)
+        {
+            key_ok = false;
+        }
+        else
+        {
+            old_main_id = ch->main_server_id;
+            channel = ch->channel; map_id = ch->map_id;
+            px = ch->pos_x; py = ch->pos_y; pz = ch->pos_z;
+            is_main = (responding_id == old_main_id);
+            if (is_main)
+            {
+                dead.swap(ch->dead_cons);
+                for (const auto& c : ch->cons)
+                    live_servers.push_back(c.server_id);
+            }
+        }
+    }
+
+    if (!key_ok)
+    {
+        spdlog::warn("OnCheckMainAck[{}]: char_id={} key mismatch — DELCHAR",
+            ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    auto main_peer = FindMapPeer(ctx, old_main_id);
+    if (!main_peer)
+    {
+        spdlog::info("OnCheckMainAck[{}]: char_id={} main_server_id={} "
+                     "offline — INVALIDCHAR", ip, char_id, old_main_id);
+        co_await senders::SendMwInvalidCharReq(peer, char_id, key,
+            /*release_main=*/0);
+        co_return;
+    }
+
+    // TODO (full-logout slice): legacy runs `if(!m_bSave) CloseChar`
+    // here — the friend/TMS/party/guild/tactics teardown + DELCHAR of
+    // every connection. CloseChar is a subsystem of its own; the
+    // logout path lands in a later slice.
+
+    if (is_main)
+    {
+        // Responder owns the main session: close the dead connections
+        // (ClearDeadCON) and confirm the connection set to the main.
+        spdlog::info("OnCheckMainAck[{}]: char_id={} main confirmed "
+                     "(server={}); closing {} dead con(s), CONRESULT {} "
+                     "live", ip, char_id, old_main_id, dead.size(),
+            live_servers.size());
+        for (std::uint8_t sid : dead)
+            if (auto p = FindMapPeer(ctx, sid))
+                co_await senders::SendMwCloseCharReq(p, char_id, key);
+        co_await senders::SendMwConResultReq(main_peer, char_id, key,
+            kConSuccess, live_servers);
+        // TODO (cession-queue slice): legacy calls PopConCess here to
+        // replay the next queued teleport/connect handoff. The queue
+        // is only populated by CHECKCONNECT_ACK (not yet ported), so
+        // it is always empty today — PopConCess would be a no-op.
+        co_return;
+    }
+
+    // Responder is a different map → hand the main session over: tell
+    // the old main to release, then re-point main at the responder.
+    spdlog::info("OnCheckMainAck[{}]: char_id={} main handoff {} -> {}",
+        ip, char_id, old_main_id, responding_id);
+    co_await senders::SendMwReleaseMainReq(main_peer, char_id, key,
+        channel, map_id, px, py, pz);
+    {
+        std::lock_guard g(ch->lock);
+        ch->main_server_id = responding_id;
+        ch->saving = false;
+    }
 }
 
 } // namespace tworldsvr::handlers

@@ -1968,5 +1968,20 @@ boost::asio::awaitable<void> OnMapSvrListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// MW_CHECKMAIN_ACK — a map answers the CHECKMAIN broadcast claiming
+// (or declining) the char's main session. When the responder *is*
+// the main, world drains the char's dead_cons (MW_CLOSECHAR_REQ each,
+// legacy ClearDeadCON) and green-lights the connection set back to
+// the main (MW_CONRESULT_REQ / CN_SUCCESS). When the responder is a
+// *different* map, world hands the main session off: it tells the
+// old main to release (MW_RELEASEMAIN_REQ) and re-points main at the
+// responder. Errors: unknown char / key mismatch → MW_DELCHAR_REQ;
+// old main offline → MW_INVALIDCHAR_REQ.
+//   Wire (SSHandler.cpp:1095): DWORD char_id, key
+boost::asio::awaitable<void> OnCheckMainAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

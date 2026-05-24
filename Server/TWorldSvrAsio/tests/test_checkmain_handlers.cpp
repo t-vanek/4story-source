@@ -1,13 +1,12 @@
-// W6-13 wire test: connection-list reconcile.
+// W6-14 wire test: CHECKMAIN_ACK — main-session confirmation.
 //
 // Three map peers (svr 0x42/0x43/0x44). A char connected to 0x42+0x43
-// drives the two reconcile outcomes:
-//   * CONLIST reporting a *new* server (0x44) → world drops the
-//     no-longer-reported 0x43 to dead_cons and asks the main map
-//     (0x42) to ROUTELIST the char to 0x44.
-//   * CONLIST reporting only existing servers → world re-confirms the
-//     main session on every remaining connection (CHECKMAIN broadcast).
-// A CONLIST for an unknown char → DELCHAR back to the reporting map.
+// with main 0x42 and a dead con on 0x44:
+//   * CHECKMAIN_ACK from the main (0x42) → CLOSECHAR the dead con
+//     (0x44) and CONRESULT the live set (0x42,0x43) back to the main.
+//   * CHECKMAIN_ACK from a non-main (0x43) → RELEASEMAIN to the old
+//     main (0x42) and re-point the char's main at 0x43.
+//   * CHECKMAIN_ACK for an unknown char → DELCHAR.
 
 #include "../handlers/handlers.h"
 #include "../services/char_registry.h"
@@ -26,7 +25,6 @@
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
 
-#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -91,16 +89,11 @@ std::vector<std::byte> AddCharBody(std::uint32_t char_id, std::uint32_t key)
     return b;
 }
 
-std::vector<std::byte> ConListBody(std::uint32_t char_id, std::uint32_t key,
-                                   const std::vector<std::uint8_t>& servers)
+std::vector<std::byte> CharKeyBody(std::uint32_t char_id, std::uint32_t key)
 {
     std::vector<std::byte> b;
     tworldsvr::wire::WritePOD(b, char_id);
     tworldsvr::wire::WritePOD(b, key);
-    tworldsvr::wire::WritePOD<std::uint8_t>(
-        b, static_cast<std::uint8_t>(servers.size()));
-    for (std::uint8_t s : servers)
-        tworldsvr::wire::WritePOD<std::uint8_t>(b, s);
     return b;
 }
 
@@ -137,8 +130,6 @@ int main()
     p1.connect(ep); p2.connect(ep); p3.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    // Register three map peers; drain the RELAYCONNECT fan-out the
-    // world emits to each already-registered peer as the next joins.
     SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
@@ -161,11 +152,11 @@ int main()
         std::lock_guard g(c->lock);
         return c->cons.size();
     };
-    // Char A (100) and Char B (200), each connected to 0x42 (main) +
-    // 0x43. Serialise the two ADDCHARs: let p1's insert establish
-    // main=0x42 before p2 adds its con (the inserts land on different
-    // sockets with no cross-socket ordering, and the first insert wins
-    // the main slot).
+    // Char A (100) + Char B (200): each connected to 0x42 (main) + 0x43.
+    // The two ADDCHARs land on different sockets with no cross-socket
+    // ordering guarantee, so serialise them: let p1's insert establish
+    // main=0x42 before p2 adds its con (otherwise main could race to
+    // 0x43, since the first insert wins).
     auto establish = [&](std::uint32_t id, std::uint32_t key) {
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
@@ -181,66 +172,87 @@ int main()
     EXPECT(cons_size(100) == 2);
     EXPECT(cons_size(200) == 2);
 
-    // Give Char B a meaningful main-session position for CHECKMAIN.
+    // Char A gets a dead con on 0x44 (p3) + a known position.
+    if (auto a = chars.Find(100))
+    {
+        std::lock_guard g(a->lock);
+        a->dead_cons.push_back(0x44);
+        a->channel = 1; a->map_id = 7;
+    }
+    // Char B gets a known position for the RELEASEMAIN handoff.
     if (auto b = chars.Find(200))
     {
         std::lock_guard g(b->lock);
-        b->channel = 2; b->map_id = 500;
-        b->pos_x = 10.0f; b->pos_y = 20.0f; b->pos_z = 30.0f;
+        b->channel = 3; b->map_id = 900;
+        b->pos_x = 5.0f; b->pos_y = 6.0f; b->pos_z = 7.0f;
     }
 
-    // --- ROUTELIST branch: CONLIST reports a new server 0x44 -------
+    // --- main confirmed: CHECKMAIN_ACK from the main (0x42 = p1) ----
     {
-        SendFramed(p1, ToUint16(MessageId::MW_CONLIST_ACK),
-                   ConListBody(100, 0xA1, {0x44}));
-        auto [w, got] = ReadFramed(p1);
-        EXPECT(w == ToUint16(MessageId::MW_ROUTELIST_REQ));
-        wire::Reader r(got);
-        std::uint32_t cid = 0, key = 0; std::uint8_t cnt = 0, sid = 0;
-        r.Read(cid); r.Read(key); r.Read(cnt); r.Read(sid);
+        SendFramed(p1, ToUint16(MessageId::MW_CHECKMAIN_ACK),
+                   CharKeyBody(100, 0xA1));
+        // p3 (0x44) gets CLOSECHAR for the dead con.
+        auto [wc, gc] = ReadFramed(p3);
+        EXPECT(wc == ToUint16(MessageId::MW_CLOSECHAR_REQ));
+        { wire::Reader r(gc); std::uint32_t cid = 0, key = 0;
+          r.Read(cid); r.Read(key);
+          EXPECT(cid == 100); EXPECT(key == 0xA1); }
+        // p1 (main) gets CONRESULT with the live set {0x42,0x43}.
+        auto [wr, gr] = ReadFramed(p1);
+        EXPECT(wr == ToUint16(MessageId::MW_CONRESULT_REQ));
+        wire::Reader r(gr);
+        std::uint32_t cid = 0, key = 0;
+        std::uint8_t result = 0xFF, cnt = 0, s0 = 0, s1 = 0;
+        r.Read(cid); r.Read(key); r.Read(result); r.Read(cnt);
+        r.Read(s0); r.Read(s1);
         EXPECT(cid == 100); EXPECT(key == 0xA1);
-        EXPECT(cnt == 1);   EXPECT(sid == 0x44);
+        EXPECT(result == 0);   // CN_SUCCESS
+        EXPECT(cnt == 2); EXPECT(s0 == 0x42); EXPECT(s1 == 0x43);
 
-        // 0x43 was dropped to dead_cons; only 0x42 remains a con.
-        bool ok = false;
+        // dead_cons drained.
+        bool drained = false;
         for (int i = 0; i < 200; ++i)
         {
             auto c = chars.Find(100);
             std::lock_guard g(c->lock);
-            const bool live_ok = c->cons.size() == 1
-                && c->cons.front().server_id == 0x42;
-            const bool dead_ok = std::find(c->dead_cons.begin(),
-                c->dead_cons.end(), 0x43) != c->dead_cons.end();
-            if (live_ok && dead_ok) { ok = true; break; }
+            if (c->dead_cons.empty()) { drained = true; break; }
             std::this_thread::sleep_for(10ms);
         }
-        EXPECT(ok);
+        EXPECT(drained);
     }
 
-    // --- CHECKMAIN branch: CONLIST reports only an existing con ----
+    // --- main handoff: CHECKMAIN_ACK from a non-main (0x43 = p2) ----
     {
-        SendFramed(p1, ToUint16(MessageId::MW_CONLIST_ACK),
-                   ConListBody(200, 0xB0, {0x43}));
-        // Main (0x42 = p1) then 0x43 (p2) each get CHECKMAIN.
-        auto [w1, got1] = ReadFramed(p1);
-        EXPECT(w1 == ToUint16(MessageId::MW_CHECKMAIN_REQ));
-        wire::Reader r(got1);
+        SendFramed(p2, ToUint16(MessageId::MW_CHECKMAIN_ACK),
+                   CharKeyBody(200, 0xB0));
+        // Old main (0x42 = p1) gets RELEASEMAIN with the char's pos.
+        auto [w, got] = ReadFramed(p1);
+        EXPECT(w == ToUint16(MessageId::MW_RELEASEMAIN_REQ));
+        wire::Reader r(got);
         std::uint32_t cid = 0, key = 0; std::uint8_t channel = 0;
         std::uint16_t map_id = 0; float x = 0, y = 0, z = 0;
         r.Read(cid); r.Read(key); r.Read(channel); r.Read(map_id);
         r.Read(x); r.Read(y); r.Read(z);
         EXPECT(cid == 200); EXPECT(key == 0xB0);
-        EXPECT(channel == 2); EXPECT(map_id == 500);
-        EXPECT(x == 10.0f); EXPECT(z == 30.0f);
+        EXPECT(channel == 3); EXPECT(map_id == 900);
+        EXPECT(x == 5.0f); EXPECT(z == 7.0f);
 
-        auto [w2, _] = ReadFramed(p2);
-        EXPECT(w2 == ToUint16(MessageId::MW_CHECKMAIN_REQ));
+        // main re-pointed at the responder (0x43).
+        bool repointed = false;
+        for (int i = 0; i < 200; ++i)
+        {
+            auto c = chars.Find(200);
+            std::lock_guard g(c->lock);
+            if (c->main_server_id == 0x43) { repointed = true; break; }
+            std::this_thread::sleep_for(10ms);
+        }
+        EXPECT(repointed);
     }
 
-    // --- error branch: CONLIST for an unknown char → DELCHAR -------
+    // --- error branch: CHECKMAIN_ACK for an unknown char → DELCHAR --
     {
-        SendFramed(p3, ToUint16(MessageId::MW_CONLIST_ACK),
-                   ConListBody(999, 0xCC, {}));
+        SendFramed(p3, ToUint16(MessageId::MW_CHECKMAIN_ACK),
+                   CharKeyBody(999, 0xCC));
         auto [w, got] = ReadFramed(p3);
         EXPECT(w == ToUint16(MessageId::MW_DELCHAR_REQ));
         wire::Reader r(got);
@@ -254,9 +266,9 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_conn_handlers\n");
+        std::printf("PASS test_tworldsvr_asio_checkmain_handlers\n");
     else
-        std::printf("FAIL test_tworldsvr_asio_conn_handlers "
+        std::printf("FAIL test_tworldsvr_asio_checkmain_handlers "
                     "(%d failure%s)\n", g_fails, g_fails == 1 ? "" : "s");
     return g_fails == 0 ? 0 : 1;
 }

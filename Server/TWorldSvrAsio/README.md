@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3c-5 corps squad reshuffle (PARTYMOVE)
+## Status — W3c-6 corps command broadcast (CORPSCMD)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -67,12 +67,42 @@ that the four shipped Asio daemons already use.
 | W3c-2 | Corps formation — OnMW_CORPSREPLY_ACK (create new corps / join existing) + CorpsRegistry::GenId (shared party id pool) + NotifyCorpsJoin pairwise ADDSQUAD fan-out + CORPSJOIN_REQ + commander PARTYATTR + SendMwAddSquadReq/CorpsJoinReq | ✅ |
 | W3c-3 | Corps leave/dissolve — OnMW_CORPSLEAVE_ACK + NotifyCorpsLeave (mutual DELSQUAD fan-out, commander succession, dissolve cascade on drop-to-one) + SendMwDelSquadReq | ✅ |
 | W3c-4 | Change corps commander — OnMW_CHGCORPSCOMMANDER_ACK (general hands the commander role to another squad; reply + all-squad refresh) + SendMwChgCorpsCommanderReq | ✅ |
-| **W3c-5** | Corps squad reshuffle — OnMW_PARTYMOVE_ACK (general moves a member between squads / swaps two members) reusing the party Leave/Join machinery + SendMwPartyMoveReq | ✅ |
-| W3c-6+ | Corps command (CORPSCMD) + the corps enemy-list family (CORPSENEMYLIST / ADD / DEL / MOVE) | ⏸ |
+| W3c-5 | Corps squad reshuffle — OnMW_PARTYMOVE_ACK (general moves a member between squads / swaps two members) reusing the party Leave/Join machinery + SendMwPartyMoveReq | ✅ |
+| **W3c-6** | Corps command broadcast — OnMW_CORPSCMD_ACK (general's move/attack order relayed to every corps member, or own party when corps-less) + SendMwCorpsCmdReq | ✅ |
+| W3c-7+ | Corps enemy-list family (CORPSENEMYLIST / ADD / DEL / MOVE) + CORPSHP | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3c-6 — what landed
+
+Corps **command broadcast** — the general issues a movement/attack
+order that fans out to the whole corps so every member's client
+mirrors it.
+
+Handler — `OnCorpsCmdAck` (wID 0x9093): validates the issuer
+(exists + key match + in a party), then relays `MW_CORPSCMD_REQ`
+to every member of every squad in the corps — or, when the issuer
+is corps-less, just their own party's members. Silent drop on a
+bad issuer (legacy parity).
+
+Sender — `SendMwCorpsCmdReq` (10-field).
+
+Deferred: legacy also caches the order on the issuing squad's +
+the commander char's `m_command` so a late-joiner's ADDSQUAD shows
+the current order. That per-member command state isn't modelled
+yet (W3c-2's ADDSQUAD emits it as 0); the broadcast — the
+player-facing effect — is byte-identical without it. The cache +
+ADDSQUAD un-stub land together when the command model is ported.
+
+Tests — `tests/test_corps_cmd_handlers.cpp` (2 scenarios,
+three-peer loopback): a general's command reaching all three corps
+members across two squads/peers (asserts the relayed cmd / target /
+squad / commander / position fields), and a corps-less issuer
+reaching only their own party.
+
+Build verified: cmake + ctest -R tworldsvr_asio (31/31 passed).
 
 ### W3c-5 — what landed
 

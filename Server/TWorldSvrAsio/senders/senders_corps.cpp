@@ -125,6 +125,37 @@ SendMwDelSquadReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwCorpsCmdReq(std::shared_ptr<PeerSession> peer,
+                  std::uint32_t                member_char_id,
+                  std::uint32_t                key,
+                  std::uint16_t                squad_id,
+                  std::uint32_t                commander_char_id,
+                  std::uint16_t                map_id,
+                  std::uint8_t                 cmd,
+                  std::uint32_t                target_id,
+                  std::uint8_t                 target_type,
+                  std::uint16_t                pos_x,
+                  std::uint16_t                pos_z)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, member_char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint16_t>(body, squad_id);
+    WritePOD<std::uint32_t>(body, commander_char_id);
+    WritePOD<std::uint16_t>(body, map_id);
+    WritePOD<std::uint8_t>(body, cmd);
+    WritePOD<std::uint32_t>(body, target_id);
+    WritePOD<std::uint8_t>(body, target_type);
+    WritePOD<std::uint16_t>(body, pos_x);
+    WritePOD<std::uint16_t>(body, pos_z);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CORPSCMD_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwChgCorpsCommanderReq(std::shared_ptr<PeerSession> peer,
                            std::uint32_t                char_id,
                            std::uint32_t                key,

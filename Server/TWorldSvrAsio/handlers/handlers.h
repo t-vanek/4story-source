@@ -1263,5 +1263,23 @@ boost::asio::awaitable<void> OnChgCorpsCommanderAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3c-6: corps command broadcast (handlers_corps.cpp) -----------
+//
+// MW_CORPSCMD_ACK — the general issues a movement/attack order. It
+// is relayed (MW_CORPSCMD_REQ) to every member of every squad in
+// the corps (or just the issuer's party when corps-less). Legacy
+// also caches the order on the squad's + commander's m_command for
+// late-joiner ADDSQUAD; that per-member command state isn't
+// modelled yet (ADDSQUAD emits it as 0 — W3c-2 note), so the cache
+// step is deferred. The broadcast itself is byte-identical.
+//
+// Wire (SSHandler.cpp:7125): DWORD general, key, WORD map_id,
+//   squad_id, DWORD char_id, BYTE cmd, DWORD target_id,
+//   BYTE target_type, WORD pos_x, pos_z
+boost::asio::awaitable<void> OnCorpsCmdAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

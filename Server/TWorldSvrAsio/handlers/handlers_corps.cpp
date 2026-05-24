@@ -746,4 +746,84 @@ OnChgCorpsCommanderAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnCorpsCmdAck(std::shared_ptr<PeerSession> peer,
+              std::vector<std::byte>       body,
+              const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnCorpsCmdAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t general = 0, key = 0, char_id = 0, target_id = 0;
+    std::uint16_t map_id = 0, squad_id = 0, pos_x = 0, pos_z = 0;
+    std::uint8_t  cmd = 0, target_type = 0;
+    if (!r.Read(general) || !r.Read(key) || !r.Read(map_id) ||
+        !r.Read(squad_id) || !r.Read(char_id) || !r.Read(cmd) ||
+        !r.Read(target_id) || !r.Read(target_type) || !r.Read(pos_x) ||
+        !r.Read(pos_z))
+    {
+        spdlog::warn("OnCorpsCmdAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto issuer = ctx.chars->Find(general);
+    if (!issuer) co_return;
+    std::uint32_t actual_key = 0, g_party = 0;
+    {
+        std::lock_guard g(issuer->lock);
+        actual_key = issuer->key;
+        g_party    = issuer->party_id;
+    }
+    if (actual_key != key || g_party == 0) co_return;
+
+    // (Legacy caches the order on the squad's + commander's
+    // m_command for late-joiner ADDSQUAD — deferred; see header.)
+
+    std::uint16_t g_corps = 0;
+    if (auto p = ctx.parties->Find(static_cast<std::uint16_t>(g_party)))
+    { std::lock_guard pg(p->lock); g_corps = p->corps_id; }
+
+    // Collect the recipient squads: every squad in the corps, or
+    // just the issuer's party when corps-less.
+    std::vector<std::uint16_t> recipient_parties;
+    if (g_corps != 0)
+    {
+        if (auto c = ctx.corps->Find(g_corps))
+        { std::lock_guard cg(c->lock); recipient_parties = c->squads; }
+        else
+            recipient_parties.push_back(static_cast<std::uint16_t>(g_party));
+    }
+    else
+        recipient_parties.push_back(static_cast<std::uint16_t>(g_party));
+
+    // Flatten to member char ids.
+    std::vector<std::uint32_t> members;
+    for (auto pid : recipient_parties)
+        if (auto p = ctx.parties->Find(pid))
+        {
+            std::lock_guard pg(p->lock);
+            members.insert(members.end(), p->members.begin(),
+                p->members.end());
+        }
+
+    for (auto mid : members)
+    {
+        auto c = ctx.chars->Find(mid);
+        if (!c) continue;
+        std::uint32_t mkey = 0;
+        std::uint8_t  msi  = 0;
+        { std::lock_guard g(c->lock); mkey = c->key; msi = c->main_server_id; }
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwCorpsCmdReq(p, mid, mkey, squad_id,
+                char_id, map_id, cmd, target_id, target_type, pos_x, pos_z);
+    }
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

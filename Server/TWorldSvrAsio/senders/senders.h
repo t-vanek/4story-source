@@ -1331,6 +1331,28 @@ boost::asio::awaitable<void> SendMwDelSquadReq(
     std::uint32_t                key,
     std::uint16_t                squad_party_id);
 
+// MW_CORPSCMD_REQ — the general's command (move / attack a target
+// or position) relayed to every corps member so their client
+// mirrors the order. `member_char_id` is the recipient;
+// `commander_char_id` is the squad chief whose command this is.
+//
+// Wire layout (SSSender.cpp:2118):
+//   DWORD member_char_id, DWORD key, WORD squad_id,
+//   DWORD commander_char_id, WORD map_id, BYTE cmd,
+//   DWORD target_id, BYTE target_type, WORD pos_x, WORD pos_z
+boost::asio::awaitable<void> SendMwCorpsCmdReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                member_char_id,
+    std::uint32_t                key,
+    std::uint16_t                squad_id,
+    std::uint32_t                commander_char_id,
+    std::uint16_t                map_id,
+    std::uint8_t                 cmd,
+    std::uint32_t                target_id,
+    std::uint8_t                 target_type,
+    std::uint16_t                pos_x,
+    std::uint16_t                pos_z);
+
 // MW_CHGCORPSCOMMANDER_REQ — result of the general handing the
 // commander role to another squad (CORPS_* code).
 //

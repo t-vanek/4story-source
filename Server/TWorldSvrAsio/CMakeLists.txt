@@ -885,3 +885,13 @@ target_link_libraries(test_tworldsvr_asio_teleport_confirm_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_teleport_confirm_handlers
     COMMAND test_tworldsvr_asio_teleport_confirm_handlers)
+
+# W4-21 wire test: friend-protected presence sync — connect/disconnect
+# mutates both edges + relays MW_FRIENDCONNECTION_REQ to target's map;
+# unknown friend / char silent-drops.
+add_executable(test_tworldsvr_asio_protected_check_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_protected_check_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_protected_check_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_protected_check_handlers
+    COMMAND test_tworldsvr_asio_protected_check_handlers)

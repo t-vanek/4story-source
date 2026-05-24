@@ -24,9 +24,9 @@ Cluster-wide rewrite status as of 2026-05-24:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ████████████░░░░░░░░   59%   (W6-19 — connection/teleport cluster; 156/266 handlers, 75 tests)
+TWorldSvr         ██████████████░░░░░░   68%   (W6-35 — event + cash-shop + ctrl-svr identification; 181/266 handlers, 89 tests)
 ─────────────────────────────────────────
-Cluster total     ██████░░░░░░░░░░░░░░  ~31%   (LOC-weighted, see below)
+Cluster total     ███████░░░░░░░░░░░░░  ~33%   (LOC-weighted, see below)
 ```
 
 | Component | Legacy LOC | Modern LOC | Wire handlers | DB schema | Status |
@@ -36,18 +36,18 @@ Cluster total     ██████░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~28 400 | 156/266 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat verticals + the connection/teleport cluster (7 slices) functionally done; BR/Bow/Arena/Tournament/Apex/RPS/CMGift/Cash/MonthRank remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS) | 🟡 **W6-19 — connection/teleport cluster** |
+| **TWorldSvrAsio** | 38 851 | ~33 200 | 181/266 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + cash-shop sale + CMGift result + ctrl-svr identification; BR/Bow/Arena/Tournament/Apex/MonthRank and the heavier DB-bound CMGift/Cash sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS) | 🟡 **W6-35 — event/cash-shop/CMGift result + ctrl-svr** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
-LOC weighting: `(24 213 edge-complete + ~22 900 TWorldSvr functional
-[156/266 handlers ≈ 59 % of 38 851 LOC] + ~6 700 TMap scaffold) / 175 906
-legacy ≈ 31 %`.
+LOC weighting: `(24 213 edge-complete + ~26 400 TWorldSvr functional
+[181/266 handlers ≈ 68 % of 38 851 LOC] + ~6 700 TMap scaffold) / 175 906
+legacy ≈ 33 %`.
 By cluster-edge functionality, the four daemons that gate access to the
 world (auth, patching, audit, ops) are **100 %** complete, and the World
-coordinator is ~59 % ported — what's left is mostly the Map gameplay
+coordinator is ~68 % ported — what's left is mostly the Map gameplay
 surface plus the remaining World battle/event content (BR / Bow / Arena /
-Tournament / Apex / RPS / cash / month-rank), ~73 % of the legacy LOC and
-where the architectural risk lives.
+Tournament / Apex / MonthRank) and the DB-bound CMGift / Cash admin
+sub-paths, ~64 % of the legacy LOC and where the architectural risk lives.
 
 Per-server detail (handler tables, schema, configuration, tests) lives
 in each component's README; an Araz-source-to-modern patch catalog
@@ -138,7 +138,7 @@ Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
 │   ├── TMapSvr/                    # legacy gameplay engine (reference, unmodified)
 │   ├── TMapSvrAsio/                # 🟡 emulator map server — scaffold only
 │   ├── TWorldSvr/                  # legacy cluster coordinator (reference)
-│   ├── TWorldSvrAsio/              # 🟡 cluster coordinator — W6-19 (connection/teleport cluster)
+│   ├── TWorldSvrAsio/              # 🟡 cluster coordinator — W6-35 (event/cash-shop/CMGift result + ctrl-svr identification)
 │   ├── TBRSvr/  TBoWSvr/           # legacy empty shells (BR/BoW compile flags)
 │   └── Tools/                      # legacy ops tools (unmodified)
 ├── _rewrite/docs/                  # plan + analysis + patch catalog
@@ -153,7 +153,7 @@ mapping, configuration schema, and bring-up notes:
 * [`Server/TLogSvrAsio/README.md`](Server/TLogSvrAsio/README.md) — ✅ complete
 * [`Server/TControlSvrAsio/README.md`](Server/TControlSvrAsio/README.md) — ✅ complete
 * [`Server/TMapSvrAsio/README.md`](Server/TMapSvrAsio/README.md) — 🟡 scaffold (see also `ARCHITECTURE.md` / `CONSOLIDATION.md`)
-* [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W6-19 (guild/party/corps/social/territory/combat + connection/teleport cluster; gaps audit inside)
+* [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W6-35 (guild/party/corps/social/territory/combat + connection/teleport + event/cash-shop/CMGift result + ctrl-svr; gaps audit inside)
 * [`Lib/Own/FourStoryCommon/README.md`](Lib/Own/FourStoryCommon/README.md) — ✅ shared infrastructure
 
 ## Build
@@ -272,18 +272,23 @@ ctest --test-dir build -C Release --output-on-failure
   NOT implemented.** The 297 legacy `OnCS_*` and 300+ `DM_/MW_/SS_`
   handlers are catalogued in `CONSOLIDATION.md`; the priority signal
   is in PR #25.
-* **TWorldSvrAsio** — cluster coordinator, **~59 % ported** (156/266
-  handlers, 75 in-process wire tests). Functionally-complete verticals:
+* **TWorldSvrAsio** — cluster coordinator, **~68 % ported** (181/266
+  handlers, 89 in-process wire tests). Functionally-complete verticals:
   guild (+ tactics + cabinet), party, corps, friend / soulmate / chat /
   TMS / mail, per-character visual state, territory + castle-war
-  broadcasts, combat / monster relays, and the 7-slice connection /
+  broadcasts, combat / monster relays, the connection /
   teleport cluster (reconcile → main-session handoff → teleport →
-  connect-check → CloseChar teardown). Remaining: the
-  connection-completion reply path (`ROUTE_ACK → ADDCONNECT`) and the
-  battle/event subsystems (BR / Bow / Arena / Tournament / Apex / RPS /
-  CMGift / cash / month-rank). Full not-yet-ported checklist lives in the
-  sub-README's **gaps audit**. Until the rest lands, the legacy
-  `TWorldSvr` binary remains canonical.
+  connect-check → CloseChar teardown), the BR / Bow battleground
+  openers + leave-battlefield + BattleMode / Arena trio, the RPS
+  event game, the event subsystem (timed-event broadcast +
+  CT_EVENTMSG + CT_EVENTUPDATE store/broadcast + replay-on-connect),
+  the cash-shop sale family (CT_CASHITEMSALE + CT_CASHSHOPSTOP +
+  replay-on-connect), the CMGift result relay (in-game GM + admin
+  paths), and ctrl-svr peer identification. Remaining: the heavier
+  battle/event subsystems (Bow/BR matchmaking + Tournament + Apex +
+  MonthRank) and the DB-bound CMGift / Cash admin sub-paths. Full
+  not-yet-ported checklist lives in the sub-README's **gaps audit**.
+  Until the rest lands, the legacy `TWorldSvr` binary remains canonical.
 
 ### Open (cluster edge wrap-up)
 

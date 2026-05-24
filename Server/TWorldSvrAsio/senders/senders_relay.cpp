@@ -148,4 +148,68 @@ SendMwHelmetHideReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+// --- W4-22 fresh-login ENTERSVR completion ------------------------
+
+boost::asio::awaitable<void>
+SendMwCharInfoReq(std::shared_ptr<PeerSession> peer,
+                  std::uint32_t                char_id,
+                  std::uint32_t                key,
+                  const CharInfoPayload&       p)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    // Guild block (legacy emits zeros + TCONTRY_N + "" when guildless).
+    WritePOD<std::uint32_t>(body, p.guild_id);
+    WritePOD<std::uint8_t> (body, p.guild_country);
+    WriteString            (body, p.guild_name);
+    WritePOD<std::uint32_t>(body, p.fame);
+    WritePOD<std::uint32_t>(body, p.fame_color);
+    // Tactics block.
+    WritePOD<std::uint32_t>(body, p.tactics_id);
+    WriteString            (body, p.tactics_name);
+    // Per-guild member fields + party.
+    WritePOD<std::uint8_t> (body, p.duty);
+    WritePOD<std::uint8_t> (body, p.peer);
+    WritePOD<std::uint16_t>(body, p.castle);
+    WritePOD<std::uint8_t> (body, p.camp);
+    WritePOD<std::uint16_t>(body, p.party_id);
+    WritePOD<std::uint8_t> (body, p.party_obtain_type);
+    WritePOD<std::uint32_t>(body, p.party_chief_id);
+    // Trailer.
+    WritePOD<std::uint16_t>(body, p.title_id);
+    WritePOD<std::uint32_t>(body, p.rank_point);
+    WritePOD<std::uint8_t> (body, p.bow_release);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CHARINFO_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwRouteReq(std::shared_ptr<PeerSession> peer,
+               std::uint32_t                char_id,
+               std::uint32_t                key,
+               std::uint8_t                 channel,
+               std::uint16_t                map_id,
+               float                        pos_x,
+               float                        pos_y,
+               float                        pos_z)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t> (body, channel);
+    WritePOD<std::uint16_t>(body, map_id);
+    WritePOD<float>        (body, pos_x);
+    WritePOD<float>        (body, pos_y);
+    WritePOD<float>        (body, pos_z);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_ROUTE_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

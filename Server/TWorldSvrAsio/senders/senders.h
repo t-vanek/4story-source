@@ -152,6 +152,63 @@ boost::asio::awaitable<void> SendMwLevelUpReq(
     std::uint32_t                key,
     std::uint8_t                 level);
 
+// --- W4-22 fresh-login ENTERSVR completion (senders_relay.cpp) ----
+
+// MW_CHARINFO_REQ — the fat composite the main map ships to the
+// client right after a fresh login completes (legacy
+// SendMW_CHARINFO_REQ, SSSender.cpp:523). Carries the char's
+// guild / tactics / party identity + duty + peer + castle / camp
+// + title / rank-point + a BR/Bow "battleground" flag.
+//
+// Wire layout: char_id, key, guild_id, guild_country, guild_name,
+//   fame, fame_color, tactics_id, tactics_name, duty, peer,
+//   castle, camp, party_id, party_obtain_type, party_chief_id,
+//   title_id, rank_point, bow_release (BYTE).
+// Empty guild / tactics emit (0, TCONTRY_N, "") / (0, "") — the
+// legacy NAME_NULL sentinel is just an empty string.
+struct CharInfoPayload
+{
+    std::uint32_t guild_id          = 0;
+    std::uint8_t  guild_country     = 2;   // TCONTRY_N
+    std::string   guild_name;              // "" when guildless
+    std::uint32_t fame              = 0;
+    std::uint32_t fame_color        = 0;
+    std::uint32_t tactics_id        = 0;
+    std::string   tactics_name;            // "" when not in tactics
+    std::uint8_t  duty              = 0;
+    std::uint8_t  peer              = 0;
+    std::uint16_t castle            = 0;
+    std::uint8_t  camp              = 0;
+    std::uint16_t party_id          = 0;
+    std::uint8_t  party_obtain_type = 0;
+    std::uint32_t party_chief_id    = 0;
+    std::uint16_t title_id          = 0;
+    std::uint32_t rank_point        = 0;
+    std::uint8_t  bow_release       = 0;   // 1 when arriving back from BR/Bow
+};
+
+boost::asio::awaitable<void> SendMwCharInfoReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const CharInfoPayload&       payload);
+
+// MW_ROUTE_REQ — kick off the route-resolution leg of the legacy
+// connection handshake (legacy SendMW_ROUTE_REQ, SSSender.cpp:638).
+// Sent on a fresh login so the main can resolve the additional map
+// servers the char needs (it answers MW_ROUTE_ACK, which W6-20
+// processes).
+//   Wire: char_id, key, channel, map_id, pos_x, pos_y, pos_z
+boost::asio::awaitable<void> SendMwRouteReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z);
+
 // MW_PETRIDING_REQ — propagate a char's active mount to another map
 // session it is visible on (the char's non-originating connections).
 //   Wire (SSSender.cpp): DWORD char_id, key, DWORD riding

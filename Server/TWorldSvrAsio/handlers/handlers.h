@@ -1701,6 +1701,26 @@ boost::asio::awaitable<void> OnCtCashShopStopReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// W6-34: MW_CMGIFTRESULT_ACK — the map server reports back the result
+// of a cash-gift transaction. In-game GM path (tool=0): relay
+// MW_CMGIFTRESULT_REQ to the GM's main map so the client renders
+// the dialog. Admin path (tool=1): would route CT_CMGIFT_ACK back
+// to the control server, but ctrl-svr identification isn't ported
+// yet (legacy OnCT_CTRLSVR_REQ sets `m_pCtrlSvr`); logged + dropped.
+// See README §C "CMGift" for the deferred list.
+//
+//   Wire (SSHandler.cpp:13988): BYTE result, tool, DWORD gm_id
+//
+// Note: MW_CMGIFTRESULT_REQ and MW_CMGIFTRESULT_ACK share wire ID
+// 0x9178 (legacy quirk — MWProtocol.h:522-523). The dispatcher
+// keys on MessageId::MW_CMGIFTRESULT_ACK; the response sender
+// targets MessageId::MW_CMGIFTRESULT_REQ. Both resolve to the
+// same uint16.
+boost::asio::awaitable<void> OnCmGiftResultAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W6-2: combat / taming cross-server relays (handlers_combat.cpp)
 //
 // MAGICMIRROR (spell reflection) / MONTEMPT (taming attempt) /

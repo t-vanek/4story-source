@@ -1541,6 +1541,26 @@ boost::asio::awaitable<void> OnBattleStatusReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-1: timed-event broadcast (handlers_event.cpp) --------------
+//
+// SM_EVENTQUARTER_REQ — the scheduler starts a "present quarter"
+// timed event; world picks the present bucket once and fans
+// MW_EVENTQUARTER_REQ to every map peer. SM_EVENTQUARTERNOTIFY_REQ —
+// a world-chat announcement of the event, broadcast via the existing
+// chat sender (operator display name deferred, as in W4-5).
+//
+// Wire (SSHandler.cpp:8640/8658):
+//   QUARTER : BYTE day, hour, minute, STRING present
+//   NOTIFY  : STRING announce
+boost::asio::awaitable<void> OnEventQuarterReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnEventQuarterNotifyReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

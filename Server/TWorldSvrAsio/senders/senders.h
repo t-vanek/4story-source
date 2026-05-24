@@ -1728,6 +1728,19 @@ boost::asio::awaitable<void> SendMwMissionEnableReq(
     std::uint32_t                start,
     std::uint32_t                second);
 
+// --- W6-1 timed-event broadcast (senders_event.cpp) ---------------
+
+// MW_EVENTQUARTER_REQ — announce a timed "present quarter" event to
+// every map peer; `select` is the (server-chosen) present bucket.
+//   Wire: BYTE day, hour, minute, select, STRING present
+boost::asio::awaitable<void> SendMwEventQuarterReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 day,
+    std::uint8_t                 hour,
+    std::uint8_t                 minute,
+    std::uint8_t                 select,
+    const std::string&           present);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

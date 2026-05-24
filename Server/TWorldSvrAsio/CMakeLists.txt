@@ -48,6 +48,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_tms.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_post.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_occupy.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_event.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -59,6 +60,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_tms.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_post.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_occupy.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_event.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -671,3 +673,13 @@ target_link_libraries(test_tworldsvr_asio_battlestatus_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_battlestatus_handlers
     COMMAND test_tworldsvr_asio_battlestatus_handlers)
+
+# W6-1 wire test: timed-event broadcast — EVENTQUARTER fans the
+# present event to every peer; EVENTQUARTERNOTIFY broadcasts a
+# world-chat announcement.
+add_executable(test_tworldsvr_asio_event_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_event_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_event_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_event_handlers
+    COMMAND test_tworldsvr_asio_event_handlers)

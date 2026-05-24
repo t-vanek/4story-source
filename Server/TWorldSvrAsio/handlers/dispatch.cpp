@@ -468,6 +468,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnBattleStatusReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-1: timed-event broadcast (handlers_event.cpp) ------
+    case MessageId::SM_EVENTQUARTER_REQ:
+        co_await OnEventQuarterReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::SM_EVENTQUARTERNOTIFY_REQ:
+        co_await OnEventQuarterNotifyReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
     case MessageId::MW_SOULMATESEARCH_ACK:
         co_await OnSoulmateSearchAck(std::move(peer), std::move(body), ctx);

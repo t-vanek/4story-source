@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W5-4 war-window enable broadcast (BATTLESTATUS)
+## Status — W6-1 timed-event broadcast (EVENTQUARTER)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -94,10 +94,34 @@ that the four shipped Asio daemons already use.
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
 | W5-3 | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
-| **W5-4** | War-window enable broadcast — OnSM_BATTLESTATUS_REQ fans the LOCAL/CASTLE/MISSION enable packet to every map peer (the trigger that starts the sieges) + 3 senders; BS_PEACE record bookkeeping + SKYGARDEN deferred | ✅ |
+| W5-4 | War-window enable broadcast — OnSM_BATTLESTATUS_REQ fans the LOCAL/CASTLE/MISSION enable packet to every map peer (the trigger that starts the sieges) + 3 senders; BS_PEACE record bookkeeping + SKYGARDEN deferred | ✅ |
 | W5 | War + Castle + Tournament / TNMT | 🚧 |
-| W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
+| **W6-1** | Timed-event broadcast — OnSM_EVENTQUARTER_REQ (present event, single server-chosen bucket) + OnSM_EVENTQUARTERNOTIFY_REQ (world-chat announcement via the chat sender) fan to every map peer + SendMwEventQuarterReq | ✅ |
+| W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-1 — what landed
+
+**Timed-event broadcast** — opens the W6 event vertical. The scheduler
+fires a "present quarter" timed event; world relays it cluster-wide.
+
+- `OnEventQuarterReq` (handlers_event.cpp, `SM_EVENTQUARTER_REQ`) reads
+  (day, hour, minute, present), picks the present bucket **once**
+  (legacy `rand() % 100`) so every map shows the same one, and fans
+  `MW_EVENTQUARTER_REQ` to every peer (`SendMwEventQuarterReq`).
+- `OnEventQuarterNotifyReq` (`SM_EVENTQUARTERNOTIFY_REQ`) broadcasts
+  the event announcement as a world-chat line to every peer, reusing
+  the W4-5 `SendMwChatReq` (channel `CHAT_WORLD`). The operator display
+  name (legacy `GetSvrMsg(NAME_OPERATOR)`) is deferred — the same
+  server-message-table gap as the W4-5 operator-whisper — so the sender
+  name is empty.
+
+Tests — `tests/test_event_handlers.cpp`: EVENTQUARTER reaches both
+peers with the same bucket + matching day/hour/minute/present;
+EVENTQUARTERNOTIFY reaches both as a world-chat line carrying the
+announcement.
+
+Build verified: cmake + ctest -R tworldsvr_asio (57/57 passed).
 
 ### W5-4 — what landed
 

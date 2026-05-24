@@ -474,7 +474,21 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCharStatInfoAnsAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W4-11+ picks up login presence (connect fan-out) + the
+    // ---- W4-11: TMS conference channels (handlers_tms.cpp) -----
+    case MessageId::MW_TMSSEND_ACK:
+        co_await OnTmsSendAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TMSINVITEASK_ACK:
+        co_await OnTmsInviteAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TMSINVITE_ACK:
+        co_await OnTmsInviteAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TMSOUT_ACK:
+        co_await OnTmsOutAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-12+ picks up login presence (connect fan-out) + the
     // friend/soulmate DB load. … see README §4.
 
     default:

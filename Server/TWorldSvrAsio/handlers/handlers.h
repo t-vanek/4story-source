@@ -24,6 +24,7 @@
 #include "../services/guild_tactics_wanted_registry.h"
 #include "../services/party_registry.h"
 #include "../services/corps_registry.h"
+#include "../services/tms_registry.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -78,6 +79,10 @@ struct HandlerContext
     // W3c-1: cluster-wide corps index (party alliances under a
     // general). Owned by main; non-null in W3c-1+ deploys.
     CorpsRegistry*            corps      = nullptr;
+
+    // W4-11: cluster-wide TMS conference index. Owned by main;
+    // non-null in W4-11+ deploys.
+    TmsRegistry*              tms        = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1512,6 +1517,58 @@ boost::asio::awaitable<void> OnCharStatInfoAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 boost::asio::awaitable<void> OnCharStatInfoAnsAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W4-11: TMS conference channels (handlers_tms.cpp) -------------
+//
+// The "temporary messaging system" — the in-game multi-party
+// conference chat. A TMS group has a roster of members and a
+// rolling id; messages fan out to every member. The four ACK
+// handlers cover the full lifecycle:
+//
+//   SEND       — post a message to a conference. A solo (size==1)
+//                conference re-pairs its last departed member via an
+//                invite-ask dialog; otherwise the message is fanned
+//                to every member as TMSRECV_REQ.
+//   INVITEASK  — answer to that invite-ask dialog. On accept the
+//                target joins the conference (roster broadcast via
+//                TMSINVITE_REQ); either way the pending message is
+//                delivered to the roster.
+//   INVITE     — open / expand a conference with a target list
+//                (filtered to same-war-country, online targets).
+//                Handles the 1:1 re-pair shortcut and fresh-group
+//                creation, then broadcasts the roster.
+//   OUT        — leave a conference. The roster is told via
+//                TMSOUT_REQ, the leaver is dropped, and an emptied
+//                conference is destroyed (its last member's name is
+//                stashed for a future re-pair).
+//
+// The legacy NORECEIVER server-message (BuildNetString +
+// GetSvrMsg) is replaced by an empty message — the server-message
+// table isn't ported (same deferral as the chat operator-whisper).
+//
+// Wire layouts (SSHandler.cpp):
+//   SEND      (7431): DWORD char_id, key, tms, STRING message
+//   INVITEASK (7501): DWORD char_id, key, target_id, target_key,
+//                     BYTE result, DWORD tms, STRING message
+//   INVITE    (7576): DWORD char_id, key, tms, BYTE count,
+//                     DWORD target[count]
+//   OUT       (7700): DWORD char_id, key, tms
+boost::asio::awaitable<void> OnTmsSendAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnTmsInviteAskAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnTmsInviteAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnTmsOutAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

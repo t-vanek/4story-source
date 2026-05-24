@@ -182,6 +182,12 @@ struct TChar
     // current pairing (target = 0 when unpaired).
     std::uint8_t real_sex = 0;
     TSoulmate    soulmate;
+
+    // W4-11 — the TMS conferences this char currently belongs to
+    // (legacy m_mapTMS, a set of TMS ids). Resolved through
+    // TmsRegistry on demand — same cycle-free back-link pattern as
+    // party_id / guild_id. Typical size 0..few; lookups are linear.
+    std::vector<std::uint32_t> tms;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

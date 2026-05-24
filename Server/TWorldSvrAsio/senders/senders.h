@@ -1606,4 +1606,63 @@ boost::asio::awaitable<void> SendMwChatReq(
     std::uint32_t                target_id,
     const std::string&           talk);
 
+// --- W4-11 TMS conference channels (senders_tms.cpp) --------------
+
+// MW_TMSRECV_REQ — a conference message delivered to one member.
+//   Wire (SSSender.cpp:2173):
+//     DWORD char_id, key, tms, STRING sender_name, STRING message
+boost::asio::awaitable<void> SendMwTmsRecvReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                tms,
+    const std::string&           sender_name,
+    const std::string&           message);
+
+// MW_TMSINVITEASK_REQ — forwarded to a target's map so their client
+// pops the "join conference?" dialog (keyed by the requester).
+//   Wire (SSSender.cpp:2190):
+//     DWORD char_id, key, target_id, target_key, tms, STRING message
+boost::asio::awaitable<void> SendMwTmsInviteAskReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                target_id,
+    std::uint32_t                target_key,
+    std::uint32_t                tms,
+    const std::string&           message);
+
+// One roster row in a MW_TMSINVITE_REQ. Mirrors the per-member
+// fields the legacy sender pulls off each LPTCHARACTER.
+struct TmsMemberInfo
+{
+    std::uint32_t char_id = 0;
+    std::string   name;
+    std::uint8_t  klass   = 0;
+    std::uint8_t  level   = 0;
+};
+
+// MW_TMSINVITE_REQ — announces the full conference roster to one
+// recipient. `inviter` identifies who triggered the change.
+//   Wire (SSSender.cpp:2209):
+//     DWORD char_id, key, inviter, tms, BYTE member_count,
+//     × member_count: DWORD id, STRING name, BYTE klass, BYTE level
+boost::asio::awaitable<void> SendMwTmsInviteReq(
+    std::shared_ptr<PeerSession>       peer,
+    std::uint32_t                      char_id,
+    std::uint32_t                      key,
+    std::uint32_t                      inviter,
+    std::uint32_t                      tms,
+    const std::vector<TmsMemberInfo>&  members);
+
+// MW_TMSOUT_REQ — tells a member that someone left the conference.
+//   Wire (SSSender.cpp:2235):
+//     DWORD char_id, key, tms, STRING target_name
+boost::asio::awaitable<void> SendMwTmsOutReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                tms,
+    const std::string&           target_name);
+
 } // namespace tworldsvr::senders

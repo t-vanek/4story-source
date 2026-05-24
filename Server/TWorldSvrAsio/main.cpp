@@ -25,6 +25,7 @@
 #include "services/guild_tactics_wanted_registry.h"
 #include "services/party_registry.h"
 #include "services/corps_registry.h"
+#include "services/tms_registry.h"
 #include "services/guild_tactics_sweep.h"
 #include "services/peer_registry.h"
 #include "services/soci_guild_level_repository.h"
@@ -158,6 +159,7 @@ int main(int argc, char** argv)
         tworldsvr::GuildTacticsWantedRegistry guild_tactics_wanted;
         tworldsvr::PartyRegistry party;
         tworldsvr::CorpsRegistry corps;
+        tworldsvr::TmsRegistry   tms;
 
         // Warm the guild-level chart from the backing store. Empty
         // on the FakeGuildLevelRepository path; SOCI returns every
@@ -195,6 +197,7 @@ int main(int argc, char** argv)
         ctx.guild_tactics_wanted = &guild_tactics_wanted;
         ctx.parties      = &party;
         ctx.corps        = &corps;
+        ctx.tms          = &tms;
         ctx.nation       = cfg.nation;
 
         tworldsvr::WorldServerConfig svr_cfg{};

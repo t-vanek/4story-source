@@ -45,6 +45,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_friend.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_chat.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_soulmate.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_tms.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -53,6 +54,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_friend.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_chat.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_soulmate.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_tms.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -60,6 +62,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
     ${TWORLD_ASIO_SRC}/services/party_registry.cpp
     ${TWORLD_ASIO_SRC}/services/corps_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/tms_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/guild_tactics_wanted_registry.cpp
@@ -531,3 +534,13 @@ target_link_libraries(test_tworldsvr_asio_charstat_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_charstat_handlers
     COMMAND test_tworldsvr_asio_charstat_handlers)
+
+# W4-11 wire test: TMS conference channels (INVITE opens a group,
+# SEND fans the message, INVITEASK accepts a re-pair, OUT tears the
+# group down) over a three-peer loopback session.
+add_executable(test_tworldsvr_asio_tms_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_tms_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_tms_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tms_handlers
+    COMMAND test_tworldsvr_asio_tms_handlers)

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-10 inspect-player stat relay (CHARSTATINFO)
+## Status — W4-11 TMS conference channels (group messaging)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -79,12 +79,62 @@ that the four shipped Asio daemons already use.
 | W4-7 | Social presence on logout — OnCloseCharAck fans FRIENDCONNECTION(DISCONNECTION) to friends + marks reverse friend/soulmate entries offline (NotifyFriends/SoulmateOnLogout) | ✅ |
 | W4-8 | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
 | W4-9 | Level update — OnMW_LEVELUP_ACK stores TChar.level + multi-connection LEVELUP_REQ fan-out + soulmate level-sync / auto-dissolve on gap + SendMwLevelUpReq | ✅ |
-| **W4-10** | Inspect-player stat relay — OnMW_CHARSTATINFO_ACK + OnMW_CHARSTATINFOANS_ACK (request routed to the target's map, the gathered stat block forwarded verbatim to the requester) | ✅ |
-| W4-11+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-10 | Inspect-player stat relay — OnMW_CHARSTATINFO_ACK + OnMW_CHARSTATINFOANS_ACK (request routed to the target's map, the gathered stat block forwarded verbatim to the requester) | ✅ |
+| **W4-11** | TMS conference channels — TmsRegistry + TTms + TChar.tms id-set + OnMW_TMSSEND/INVITEASK/INVITE/OUT_ACK (open / fan-out / re-pair / tear-down a multi-party group chat) + 4 senders | ✅ |
+| W4-12+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-11 — what landed
+
+**TMS conference channels** — the in-game multi-party "temporary
+messaging system" (a group/conference chat that survives members
+joining and leaving). World owns the conference roster; the four
+`MW_TMS*_ACK` handlers drive the whole lifecycle.
+
+New cluster state:
+- `services/tms_registry.{h,cpp}` — `TTms { id, last_member,
+  members[] }` + a 16-shard `TmsRegistry` (same partitioning /
+  per-group-mutex model as PartyRegistry; 32-bit rolling `GenId`,
+  id 0 reserved). Wired into `HandlerContext.tms` + `main.cpp`.
+- `TChar.tms` — the conference id-set a char belongs to (legacy
+  `m_mapTMS`), the cycle-free back-link resolved through the
+  registry on demand.
+
+Handlers (`handlers_tms.cpp`):
+- **SEND** (0x9077) — post to a conference. A solo (size==1)
+  conference re-pairs its last departed member by popping a
+  `MW_TMSINVITEASK_REQ` dialog on their client; a populated
+  conference fans the message to every member as `MW_TMSRECV_REQ`.
+- **INVITEASK** (0x90CE) — answer to that dialog. On accept the new
+  member joins (roster announced via `MW_TMSINVITE_REQ`); either
+  way the pending message is delivered to the roster.
+- **INVITE** (0x907A) — open / expand a conference with a target
+  list (filtered to online, same-war-country targets). Handles the
+  1:1 re-pair shortcut and fresh-group creation, then broadcasts
+  the full roster.
+- **OUT** (0x907C) — leave. The roster is told via `MW_TMSOUT_REQ`,
+  the leaver is dropped (its name stashed in `last_member` for a
+  future re-pair), and an emptied conference is destroyed.
+
+Senders (`senders_tms.cpp`) — `SendMwTmsRecvReq` /
+`SendMwTmsInviteAskReq` / `SendMwTmsInviteReq` (variable roster) /
+`SendMwTmsOutReq`.
+
+Deferred: the legacy `TMS_NORECEIVER` server-message (a localized
+`GetSvrMsg` string shown when a solo re-pair finds no target) is
+replaced by an empty message — the server-message table isn't
+ported (same deferral as the W4-5 chat operator-whisper sub-case).
+
+Tests — `tests/test_tms_handlers.cpp` (two-peer) walks the full
+lifecycle: INVITE opens a conference, SEND fans a message, OUT
+tears it down to a solo channel, a solo SEND re-pairs the departed
+member, and INVITEASK-accept restores the roster + delivers the
+pending message.
+
+Build verified: cmake + ctest -R tworldsvr_asio (43/43 passed).
 
 ### W4-10 — what landed
 

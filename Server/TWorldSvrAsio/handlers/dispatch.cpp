@@ -483,6 +483,9 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_return;
 
     // ---- W6-1: timed-event broadcast (handlers_event.cpp) ------
+    case MessageId::SM_CHANGEDAY_REQ:
+        co_await OnChangeDayReq(std::move(peer), std::move(body), ctx);
+        co_return;
     case MessageId::SM_EVENTQUARTER_REQ:
         co_await OnEventQuarterReq(std::move(peer), std::move(body), ctx);
         co_return;

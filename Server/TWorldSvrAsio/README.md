@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-10 item-result relays (ADDITEMRESULT / DEALITEMERROR)
+## Status — W6-11 day-change guild ranking (CHANGEDAY)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -105,9 +105,27 @@ that the four shipped Asio daemons already use.
 | W6-7 | Solo-instance party lifecycle — OnMW_ENTERSOLOMAP_ACK (spins up a 1-member PT_SOLO party, mirrors to the char's connections) + OnMW_LEAVESOLOMAP_ACK (tears it down) + SendMwEnterSoloMapReq; uses PartyRegistry | ✅ |
 | W6-8 | GM char message relay — OnCT_CHARMSG_ACK routes a control-server system/GM message (≤1 KiB) to the named char's main map (MW_CHARMSG_REQ) + sender | ✅ |
 | W6-9 | Friend-protected refuse relay — OnMW_FRIENDPROTECTEDASK_ACK relays an auto-refuse (FRIEND_REFUSE + requester name) to a protection-enabled target's map; completes the friend-ask protection sub-case | ✅ |
-| **W6-10** | Item-result relays — OnMW_ADDITEMRESULT_ACK (route to the requesting map server) + OnMW_DEALITEMERROR_ACK (route to the target char's map) + SendMwDealItemErrorReq (reuses the W3b SendMwAddItemResultReq) | ✅ |
+| W6-10 | Item-result relays — OnMW_ADDITEMRESULT_ACK (route to the requesting map server) + OnMW_DEALITEMERROR_ACK (route to the target char's map) + SendMwDealItemErrorReq (reuses the W3b SendMwAddItemResultReq) | ✅ |
+| **W6-11** | Day-change guild ranking — OnSM_CHANGEDAY_REQ recomputes every guild's PvP total/month rank over GuildRegistry (legacy CalcGuildRanking); read back by GuildInfoAck | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-11 — what landed
+
+**Day-change guild ranking** — the scheduler's daily rollover
+(`SM_CHANGEDAY_REQ`) recomputes every guild's PvP rank. `OnChangeDayReq`
+(handlers_guild.cpp) snapshots each guild's `(pvp_total_point,
+pvp_month_point)` under its lock, then assigns `rank_total` /
+`rank_month` = (guilds with strictly more points) + 1, counting only
+guilds that have points (pointless guilds rank 0). Mirrors legacy
+`CalcGuildRanking`; the ranks are read back by `OnGuildInfoAck`. No
+reply, no persistence; snapshot-then-write keeps guild locks disjoint.
+
+Tests — `tests/test_guildrank_handlers.cpp`: three guilds with
+distinct total/month points get the expected ranks (incl. the
+unranked zero-point guild).
+
+Build verified: cmake + ctest -R tworldsvr_asio (67/67 passed).
 
 ### W6-10 — what landed
 

@@ -747,6 +747,15 @@ target_link_libraries(test_tworldsvr_asio_item_handlers PRIVATE
 add_test(NAME tworldsvr_asio_item_handlers
     COMMAND test_tworldsvr_asio_item_handlers)
 
+# W6-11 wire test: day-change guild ranking — SM_CHANGEDAY recomputes
+# each guild's PvP total/month rank.
+add_executable(test_tworldsvr_asio_guildrank_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_guildrank_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_guildrank_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_guildrank_handlers
+    COMMAND test_tworldsvr_asio_guildrank_handlers)
+
 # W6-3 wire test: global announcement broadcasts — FAMERANKUPDATE
 # (verbatim) + HEROSELECT fan to every map peer.
 add_executable(test_tworldsvr_asio_rank_handlers

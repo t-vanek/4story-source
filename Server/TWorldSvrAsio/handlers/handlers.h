@@ -1898,6 +1898,16 @@ boost::asio::awaitable<void> OnReservedPostRecvAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-11: day-change guild ranking (handlers_guild.cpp) ----------
+//
+// SM_CHANGEDAY_REQ — daily rollover; recompute every guild's PvP rank
+// (total + month) from the in-memory points (legacy CalcGuildRanking).
+// Read back by OnGuildInfoAck; no reply.
+boost::asio::awaitable<void> OnChangeDayReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W6-10: item-result relays (handlers_item.cpp) ----------------
 //
 // ADDITEMRESULT — an item-add result (from the DB / another map)

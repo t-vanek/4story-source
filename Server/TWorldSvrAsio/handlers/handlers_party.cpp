@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace tworldsvr::handlers {
@@ -1402,6 +1403,103 @@ OnLeaveSoloMapAck(std::shared_ptr<PeerSession> peer,
     ctx.parties->Remove(party_id);
     { std::lock_guard g(c->lock); if (c->party_id == party_id) c->party_id = 0; }
     co_return;
+}
+
+// --- W6-28 arena join (legacy SSHandler.cpp:13477) ----------------
+
+boost::asio::awaitable<void>
+OnArenaJoinAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnArenaJoinAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, count = 0;
+    std::uint8_t  join = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(join) || !r.Read(count))
+    {
+        spdlog::warn("OnArenaJoinAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    std::vector<std::uint32_t> keep_ids;
+    keep_ids.reserve(count);
+    for (std::uint32_t i = 0; i < count; ++i)
+    {
+        std::uint32_t mid = 0;
+        if (!r.Read(mid))
+        {
+            spdlog::warn("OnArenaJoinAck[{}]: truncated keep list (count={})",
+                ip, count);
+            co_return;
+        }
+        keep_ids.push_back(mid);
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    if (!ch) co_return;
+
+    std::uint16_t party_id = 0;
+    bool          key_ok = true;
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key) key_ok = false;
+        else                party_id = ch->party_id;
+    }
+    if (!key_ok || party_id == 0) co_return;
+
+    auto party = ctx.parties->Find(party_id);
+    if (!party) co_return;
+
+    // Flag flip — runs on both join=0 and join=1 (legacy
+    // SSHandler.cpp:13495 sets m_bArena = bJoin before the
+    // early-return on !bJoin).
+    std::uint16_t corps_id = 0;
+    std::vector<std::uint32_t> members_before;
+    {
+        std::lock_guard pg(party->lock);
+        party->arena   = (join != 0);
+        corps_id       = party->corps_id;
+        members_before = party->members;
+    }
+
+    if (!join)
+    {
+        spdlog::info("OnArenaJoinAck[{}]: char_id={} party={} arena-LEAVE "
+                     "flag flipped", ip, char_id, party_id);
+        co_return;
+    }
+
+    // Arena-enter: leave the corps if we were in one (arena parties
+    // must be standalone), then kick every member not in the
+    // keep_ids set. Lock-ordering note: NotifyCorpsLeave takes the
+    // corps lock + per-party locks via the registries; LeaveParty
+    // takes the party lock. We don't hold any locks across either
+    // call (the snapshot above released them all).
+    if (corps_id != 0 && ctx.corps)
+        if (auto corps = ctx.corps->Find(corps_id))
+            co_await NotifyCorpsLeave(ctx, corps, party_id);
+
+    std::unordered_set<std::uint32_t> keep_set(keep_ids.begin(),
+                                                keep_ids.end());
+    spdlog::info("OnArenaJoinAck[{}]: char_id={} party={} arena-JOIN — "
+                 "keeping {}/{} members, corps_id={}",
+        ip, char_id, party_id, keep_set.size(), members_before.size(),
+        corps_id);
+    for (auto mid : members_before)
+    {
+        if (keep_set.find(mid) != keep_set.end()) continue;
+        // Legacy LeaveParty(it->second, TRUE) — kick=true so the
+        // surviving members' DEL fan-out flags the kicked flag.
+        co_await LeaveParty(ctx, party, mid, /*kick=*/1, /*is_delete=*/true);
+    }
 }
 
 } // namespace tworldsvr::handlers

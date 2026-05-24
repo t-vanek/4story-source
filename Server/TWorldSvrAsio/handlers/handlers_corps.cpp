@@ -492,13 +492,13 @@ CorpsJoinBroadcast(const HandlerContext& ctx, std::uint16_t party_id,
     }
 }
 
+} // namespace
+
 // Remove `leaving_party_id` from `corps`, mirroring legacy
 // NotifyCorpsLeave. Self-recursive coroutine (dissolve pulls the
-// last squad out too) → forward-declared.
-boost::asio::awaitable<void>
-NotifyCorpsLeave(const HandlerContext& ctx, std::shared_ptr<TCorps> corps,
-                 std::uint16_t leaving_party_id);
-
+// last squad out too). Public so W6-28 OnArenaJoinAck
+// (handlers_party.cpp) can call it when arena-entry forces a
+// corps unwind; forward-declared in handlers.h.
 boost::asio::awaitable<void>
 NotifyCorpsLeave(const HandlerContext& ctx, std::shared_ptr<TCorps> corps,
                  std::uint16_t leaving_party_id)
@@ -575,8 +575,6 @@ NotifyCorpsLeave(const HandlerContext& ctx, std::shared_ptr<TCorps> corps,
     // The leaver's members: corps + commander are now 0.
     co_await CorpsJoinBroadcast(ctx, leaving_party_id, 0);
 }
-
-} // namespace
 
 boost::asio::awaitable<void>
 OnCorpsLeaveAck(std::shared_ptr<PeerSession> peer,

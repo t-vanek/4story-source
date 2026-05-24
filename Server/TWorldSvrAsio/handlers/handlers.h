@@ -2247,6 +2247,33 @@ boost::asio::awaitable<void> OnCmTeleportBattleModeReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-28: arena join (handlers_party.cpp) -----------------------
+//
+// MW_ARENAJOIN_ACK — a party's chief signals the party is entering
+// (or leaving) arena mode with a specific roster. World flips
+// TParty.arena to `join`, and on the join branch:
+//   * if the party is in a corps, runs NotifyCorpsLeave so the
+//     corps unwinds (arena parties must be standalone);
+//   * for every party member NOT in the keep-list, runs LeaveParty
+//     (legacy `LeaveParty(it->second, TRUE)` — kick=true so
+//     surviving members see the right DEL fan-out).
+//
+// Mirrors legacy SSHandler.cpp:13477. No reply.
+//   Wire: DWORD char_id, key, BYTE join, DWORD count,
+//     × count: DWORD keep_member_id
+boost::asio::awaitable<void> OnArenaJoinAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Public re-exports used by W6-28 (extracted from their files'
+// anonymous namespaces). The two coroutines implement legacy
+// LeaveParty / NotifyCorpsLeave verbatim — see their definitions
+// in handlers_party.cpp / handlers_corps.cpp.
+boost::asio::awaitable<void> NotifyCorpsLeave(
+    const HandlerContext& ctx, std::shared_ptr<TCorps> corps,
+    std::uint16_t leaving_party_id);
+
 // MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
 // count==0 ROUTE branch (or when world otherwise asked for a CHARDATA
 // round-trip). World refreshes the char's level + HP/MP from the

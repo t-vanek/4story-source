@@ -958,3 +958,13 @@ target_link_libraries(test_tworldsvr_asio_battlemode_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_battlemode_handlers
     COMMAND test_tworldsvr_asio_battlemode_handlers)
+
+# W6-28 wire test: MW_ARENAJOIN_ACK — arena flag flip, non-keep
+# members get LeaveParty (PARTYDEL fan-out), arena LEAVE leaves
+# membership intact.
+add_executable(test_tworldsvr_asio_arenajoin_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_arenajoin_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_arenajoin_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_arenajoin_handlers
+    COMMAND test_tworldsvr_asio_arenajoin_handlers)

@@ -141,6 +141,17 @@ boost::asio::awaitable<void> SendMwRelayconnectReq(
     std::uint32_t                char_id,
     std::uint8_t                 relay_on);
 
+// MW_LEVELUP_REQ — propagate a char's new level to another map
+// server it is visible on (the char's non-main connections).
+//
+// Wire layout (SSSender.cpp:795):
+//   DWORD char_id, DWORD key, BYTE level
+boost::asio::awaitable<void> SendMwLevelUpReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 level);
+
 // MW_GUILDLEAVE_REQ — sent back to the originating map server
 // after world removes a member from a guild. The map server
 // forwards the confirmation down to the client + broadcasts the

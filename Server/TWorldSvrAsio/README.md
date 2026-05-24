@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-8 region update (presence region propagation)
+## Status — W4-9 level update (LEVELUP)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -77,12 +77,39 @@ that the four shipped Asio daemons already use.
 | W4-5 | Chat channel relay — OnMW_CHAT_ACK (GUILD/TACTICS/PARTY/FORCE/MAP/WORLD/SHOW/WHISPER) routed to the right audience via the guild/party/corps/peer registries + SendMwChatReq | ✅ |
 | W4-6 | Soulmate — OnMW_SOULMATESEARCH/REG/END_ACK (matchmaking + mutual pairing / register-preview / dissolve) + TChar.real_sex/soulmate + 3 senders | ✅ |
 | W4-7 | Social presence on logout — OnCloseCharAck fans FRIENDCONNECTION(DISCONNECTION) to friends + marks reverse friend/soulmate entries offline (NotifyFriends/SoulmateOnLogout) | ✅ |
-| **W4-8** | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
-| W4-9+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-8 | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
+| **W4-9** | Level update — OnMW_LEVELUP_ACK stores TChar.level + multi-connection LEVELUP_REQ fan-out + soulmate level-sync / auto-dissolve on gap + SendMwLevelUpReq | ✅ |
+| W4-10+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-9 — what landed
+
+**Level update** — `MW_LEVELUP_ACK` is the authoritative source for
+`TChar.level` (which the party / guild member-list / friend-list /
+soulmate displays read), so this makes level live world-side.
+
+`OnLevelUpAck` (wID 0x9028): stores the char's `level`, then:
+- fans `MW_LEVELUP_REQ` to the char's *other* (non-main, valid) map
+  connections so every map showing the char updates;
+- syncs the new level into the soulmate partner's reverse entry,
+  and **auto-dissolves** the pairing (both sides) when the level
+  gap now exceeds `SOULMATE_LEVEL` (legacy CheckSoulmateEnd).
+
+Deferred: the legacy war-country level-gap index (a W5 matchmaking
+structure) and DB persistence. Lock discipline: snapshot/update the
+char under its lock, then each partner under its own.
+
+Sender — `SendMwLevelUpReq` (3-field, `senders_relay.cpp`).
+
+Tests — `tests/test_levelup_handlers.cpp` (3 scenarios): a small
+level gain (soulmate view synced, pairing intact), a large jump
+(soulmate auto-dissolved both sides), and a level-up fanned to a
+char's second map connection.
+
+Build verified: cmake + ctest -R tworldsvr_asio (41/41 passed).
 
 ### W4-8 — what landed
 

@@ -1482,5 +1482,20 @@ boost::asio::awaitable<void> OnRegionAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-9: level update (handlers_char.cpp) ------------------------
+//
+// MW_LEVELUP_ACK — a char's level changed. Stores TChar.level (the
+// authoritative source the party/guild/friend/soulmate displays
+// read), fans MW_LEVELUP_REQ to the char's other map connections,
+// and syncs the new level into the soulmate partner's view —
+// auto-dissolving the pairing if the level gap now exceeds
+// SOULMATE_LEVEL (legacy CheckSoulmateEnd). The legacy war-country
+// level-gap index is deferred to W5. DB persistence deferred.
+//   Wire (SSHandler.cpp:2910): DWORD char_id, key, BYTE level
+boost::asio::awaitable<void> OnLevelUpAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

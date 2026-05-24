@@ -461,7 +461,12 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnRegionAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W4-9+ picks up login presence (connect fan-out) + the
+    // ---- W4-9: level update (handlers_char.cpp) ----------------
+    case MessageId::MW_LEVELUP_ACK:
+        co_await OnLevelUpAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-10+ picks up login presence (connect fan-out) + the
     // friend/soulmate DB load. … see README §4.
 
     default:

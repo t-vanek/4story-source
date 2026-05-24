@@ -1,5 +1,7 @@
 #include "handlers.h"
+#include "../senders/senders.h"
 #include "../services/friend_constants.h"
+#include "../services/soulmate_constants.h"
 #include "../wire_codec.h"
 
 #include "MessageId.h"
@@ -8,6 +10,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <mutex>
 #include <vector>
 
@@ -237,6 +240,96 @@ OnRegionAck(std::shared_ptr<PeerSession>  peer,
             std::lock_guard g(p->lock);
             for (auto& pf : p->friends)
                 if (pf.id == char_id) pf.region = region;
+        }
+    }
+    co_return;
+}
+
+namespace {
+
+std::shared_ptr<PeerSession>
+FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
+{
+    if (msi == 0 || !ctx.peers) return nullptr;
+    for (auto& p : ctx.peers->Snapshot())
+        if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
+            return p;
+    return nullptr;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
+             std::vector<std::byte>        body,
+             const HandlerContext&         ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars)
+    {
+        spdlog::warn("OnLevelUpAck[{}]: char registry not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  level = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(level))
+    {
+        spdlog::warn("OnLevelUpAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    std::uint8_t  main_msi = 0;
+    std::vector<std::uint8_t> other_msis;
+    std::uint32_t sm_target = 0;
+    std::uint8_t  sm_known_level = 0;
+    bool ok = false;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key == key)
+        {
+            c->level = level;
+            main_msi = c->main_server_id;
+            for (const auto& con : c->cons)
+                if (con.valid && con.server_id != main_msi)
+                    other_msis.push_back(con.server_id);
+            sm_target = c->soulmate.target;
+            sm_known_level = c->soulmate.level;
+            ok = true;
+        }
+    }
+    if (!ok) co_return;
+
+    // Fan the new level to the char's other map connections.
+    for (auto msi : other_msis)
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwLevelUpReq(p, char_id, key, level);
+
+    if (sm_target != 0)
+    {
+        // Keep the partner's view of our level current.
+        if (auto p = ctx.chars->Find(sm_target))
+        {
+            std::lock_guard g(p->lock);
+            if (p->soulmate.target == char_id) p->soulmate.level = level;
+        }
+        // Auto-dissolve if the level gap now exceeds the window
+        // (legacy CheckSoulmateEnd).
+        if (std::abs(int(level) - int(sm_known_level)) >
+            soulmate::kLevelWindow)
+        {
+            { std::lock_guard g(c->lock);
+              if (c->soulmate.target == sm_target) c->soulmate = TSoulmate{}; }
+            if (auto p = ctx.chars->Find(sm_target))
+            { std::lock_guard g(p->lock);
+              if (p->soulmate.target == char_id) p->soulmate = TSoulmate{}; }
+            spdlog::info("OnLevelUpAck[{}]: char_id={} level {} dissolved "
+                         "soulmate {} (gap > {})", ip, char_id, level,
+                sm_target, soulmate::kLevelWindow);
         }
     }
     co_return;

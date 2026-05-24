@@ -512,3 +512,12 @@ target_link_libraries(test_tworldsvr_asio_region_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_region_handlers
     COMMAND test_tworldsvr_asio_region_handlers)
+
+# W4-9 wire test: MW_LEVELUP_ACK — level store + soulmate sync /
+# auto-dissolve on level gap + multi-connection LEVELUP_REQ fan-out.
+add_executable(test_tworldsvr_asio_levelup_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_levelup_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_levelup_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_levelup_handlers
+    COMMAND test_tworldsvr_asio_levelup_handlers)

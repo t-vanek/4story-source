@@ -510,6 +510,17 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnTeleportAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-24: Bow battleground (handlers_bow.cpp) ------------
+    case MessageId::MW_ADDTOBOWQUEUE_REQ:
+        co_await OnAddToBowQueueReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CANCELBOWQUEUE_REQ:
+        co_await OnCancelBowQueueReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_BOWPOINTSUPDATE_REQ:
+        co_await OnBowPointsUpdateReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
     case MessageId::MW_CASTLEOCCUPY_ACK:
         co_await OnCastleOccupyAck(std::move(peer), std::move(body), ctx);

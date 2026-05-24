@@ -280,6 +280,26 @@ boost::asio::awaitable<void> SendMwEnterCharReq(
     const EnterCharReqPayload&        p,
     const std::vector<std::byte>&     opaque_tail);
 
+// --- W6-24 Bow battleground (senders_bow.cpp) ---------------------
+
+// MW_ADDTOBOWQUEUE_ACK — result of an enqueue (legacy SSSender.cpp:3704).
+//   Wire: BYTE result, DWORD char_id, DWORD key, DWORD tick
+boost::asio::awaitable<void> SendMwAddToBowQueueAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 result,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                tick);
+
+// MW_CANCELBOWQUEUE_ACK — result of a dequeue (legacy
+// SSSender.cpp:3716). Same shape as ADDTOBOWQUEUE_ACK.
+boost::asio::awaitable<void> SendMwCancelBowQueueAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 result,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                tick);
+
 // MW_PETRIDING_REQ — propagate a char's active mount to another map
 // session it is visible on (the char's non-originating connections).
 //   Wire (SSSender.cpp): DWORD char_id, key, DWORD riding

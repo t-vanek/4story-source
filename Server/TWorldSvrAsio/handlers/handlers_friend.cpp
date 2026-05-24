@@ -44,6 +44,52 @@ void UpsertMutual(TChar& c, std::uint32_t id, const std::string& name,
 } // namespace
 
 boost::asio::awaitable<void>
+OnFriendProtectedAskAck(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnFriendProtectedAskAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    // A char tried to friend a protection-enabled target (the map
+    // gates that); world relays the auto-refuse to the target's map,
+    // naming the requester (legacy OnMW_FRIENDPROTECTEDASK_ACK).
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   target_name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name))
+    {
+        spdlog::warn("OnFriendProtectedAskAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+    std::string req_name;
+    { std::lock_guard g(requester->lock);
+      if (requester->key != key) co_return;
+      req_name = requester->name; }
+
+    auto target = ctx.chars->FindByName(target_name);
+    if (!target) co_return;
+    std::uint32_t t_id = 0, t_key = 0; std::uint8_t t_msi = 0;
+    {
+        std::lock_guard g(target->lock);
+        t_id = target->char_id; t_key = target->key;
+        t_msi = target->main_server_id;
+    }
+    if (auto p = FindMapPeer(ctx, t_msi))
+        co_await senders::SendMwFriendAddReq(p, t_id, t_key, frnd::kRefuse,
+            /*friend_id=*/0, req_name, 0, 0, 0, 0);
+    co_return;
+}
+
+boost::asio::awaitable<void>
 OnFriendAskAck(std::shared_ptr<PeerSession> peer,
                std::vector<std::byte>       body,
                const HandlerContext&        ctx)

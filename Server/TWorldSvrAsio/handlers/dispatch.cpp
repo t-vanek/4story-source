@@ -429,6 +429,9 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_FRIENDASK_ACK:
         co_await OnFriendAskAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_FRIENDPROTECTEDASK_ACK:
+        co_await OnFriendProtectedAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
     case MessageId::MW_FRIENDREPLY_ACK:
         co_await OnFriendReplyAck(std::move(peer), std::move(body), ctx);
         co_return;

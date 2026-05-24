@@ -727,6 +727,15 @@ target_link_libraries(test_tworldsvr_asio_charmsg_handlers PRIVATE
 add_test(NAME tworldsvr_asio_charmsg_handlers
     COMMAND test_tworldsvr_asio_charmsg_handlers)
 
+# W6-9 wire test: friend-protected refuse relay — a friend request to
+# a protected target is relayed as a refuse to the target's map.
+add_executable(test_tworldsvr_asio_friend_protected_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_protected_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_protected_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_protected_handlers
+    COMMAND test_tworldsvr_asio_friend_protected_handlers)
+
 # W6-3 wire test: global announcement broadcasts — FAMERANKUPDATE
 # (verbatim) + HEROSELECT fan to every map peer.
 add_executable(test_tworldsvr_asio_rank_handlers

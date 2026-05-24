@@ -1369,6 +1369,18 @@ boost::asio::awaitable<void> OnCorpsHpAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-9: friend-protected refuse relay (handlers_friend.cpp) -----
+//
+// MW_FRIENDPROTECTEDASK_ACK — a char tried to friend a target that
+// has friend-protection on (the map gates that); world relays the
+// auto-refuse to the target's map, naming the requester. World's
+// whole role is the relay — the protection state lives map/DB-side.
+//   Wire (SSHandler.cpp:5847): DWORD char_id, key, STRING target
+boost::asio::awaitable<void> OnFriendProtectedAskAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-1: friend invite (handlers_friend.cpp) ---------------------
 //
 // Opens the social-graph (friend) subsystem. MW_FRIENDASK_ACK is a

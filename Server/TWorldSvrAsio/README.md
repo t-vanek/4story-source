@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-8 GM char message relay (CHARMSG)
+## Status — W6-9 friend-protected refuse relay (FRIENDPROTECTEDASK)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -103,9 +103,27 @@ that the four shipped Asio daemons already use.
 | W6-5 | Companion-mon (spolecnik) sync — OnMW_CREATESPOLECNIKMON_ACK + OnMW_SPOLECNIKMONDEL_ACK (recall-mon's sibling; shares the recall-id counter + connection fan-out) + 2 passthrough senders | ✅ |
 | W6-6 | Monster-result relays — OnMW_MONSTERDIE_ACK + OnMW_TAKEMONMONEY_ACK route verbatim to the char's main map (id+key) + 2 senders; MONSTERBUY deferred (guild-money + MSB_* absent) | ✅ |
 | W6-7 | Solo-instance party lifecycle — OnMW_ENTERSOLOMAP_ACK (spins up a 1-member PT_SOLO party, mirrors to the char's connections) + OnMW_LEAVESOLOMAP_ACK (tears it down) + SendMwEnterSoloMapReq; uses PartyRegistry | ✅ |
-| **W6-8** | GM char message relay — OnCT_CHARMSG_ACK routes a control-server system/GM message (≤1 KiB) to the named char's main map (MW_CHARMSG_REQ) + sender | ✅ |
+| W6-8 | GM char message relay — OnCT_CHARMSG_ACK routes a control-server system/GM message (≤1 KiB) to the named char's main map (MW_CHARMSG_REQ) + sender | ✅ |
+| **W6-9** | Friend-protected refuse relay — OnMW_FRIENDPROTECTEDASK_ACK relays an auto-refuse (FRIEND_REFUSE + requester name) to a protection-enabled target's map; completes the friend-ask protection sub-case | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-9 — what landed
+
+**Friend-protected refuse relay** — completes the friend-ask
+protection sub-case. When a char tries to friend a target that has
+friend-protection enabled (the map gates that), the map sends
+`MW_FRIENDPROTECTEDASK_ACK`; `OnFriendProtectedAskAck`
+(handlers_friend.cpp) verifies the requester, resolves the target by
+name, and relays an auto-refuse (`FRIEND_REFUSE` + the requester's
+name) to the target's map via the existing `SendMwFriendAddReq`.
+World's whole role is the relay — the protection state lives
+map/DB-side, so no new state is modelled.
+
+Tests — `tests/test_friend_protected_handlers.cpp`: Alice's request to
+protected Bob arrives at Bob's map as a refuse naming Alice.
+
+Build verified: cmake + ctest -R tworldsvr_asio (65/65 passed).
 
 ### W6-8 — what landed
 

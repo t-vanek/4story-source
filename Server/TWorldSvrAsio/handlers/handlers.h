@@ -1580,5 +1580,29 @@ boost::asio::awaitable<void> OnTmsOutAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-13: mail delivery relay (handlers_post.cpp) ----------------
+//
+// World's whole role in the mail/post system: route a "you have new
+// mail" notification to the recipient's map. The mailbox itself
+// (list / read / delete) lives DB-side + map-side; world only
+// forwards the delivery ping, keyed by the target's name. Two entry
+// points share one opaque-passthrough relay:
+//   POSTRECV (player→player) and RESERVEDPOSTRECV (DB-side system /
+//   scheduled mail). The reserved-post *generator* poll
+//   (DM_RESERVEDPOSTSEND_REQ, a stored-proc sweep) is deferred — it
+//   needs the reserved-post table/SP.
+//
+// Wire (SSHandler.cpp:7750 / 6600):
+//   DWORD post_id, STRING sender, STRING target, STRING title,
+//   BYTE type
+boost::asio::awaitable<void> OnPostRecvAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnReservedPostRecvAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

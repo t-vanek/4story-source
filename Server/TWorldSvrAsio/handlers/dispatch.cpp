@@ -488,7 +488,15 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnTmsOutAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W4-12+ picks up login presence (connect fan-out) + the
+    // ---- W4-13: mail delivery relay (handlers_post.cpp) --------
+    case MessageId::MW_POSTRECV_ACK:
+        co_await OnPostRecvAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_RESERVEDPOSTRECV_ACK:
+        co_await OnReservedPostRecvAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-13+ picks up login presence (connect fan-out) + the
     // friend/soulmate DB load. … see README §4.
 
     default:

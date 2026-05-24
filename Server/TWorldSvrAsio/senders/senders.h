@@ -1665,4 +1665,15 @@ boost::asio::awaitable<void> SendMwTmsOutReq(
     std::uint32_t                tms,
     const std::string&           target_name);
 
+// --- W4-13 mail delivery relay (senders_post.cpp) -----------------
+
+// MW_POSTRECV_REQ — "you have new mail" notification routed to the
+// recipient's map. The body is forwarded verbatim (the inbound
+// POSTRECV_ACK payload: post_id / sender / target / title / type) —
+// world never interprets it, it only routes by the target name.
+// Legacy re-tags the inbound packet in place (SSSender.cpp:2250).
+boost::asio::awaitable<void> SendMwPostRecvReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
 } // namespace tworldsvr::senders

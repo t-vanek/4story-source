@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-12 TMS presence on logout (LeaveTMS)
+## Status — W4-13 mail delivery relay (POST)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -81,12 +81,45 @@ that the four shipped Asio daemons already use.
 | W4-9 | Level update — OnMW_LEVELUP_ACK stores TChar.level + multi-connection LEVELUP_REQ fan-out + soulmate level-sync / auto-dissolve on gap + SendMwLevelUpReq | ✅ |
 | W4-10 | Inspect-player stat relay — OnMW_CHARSTATINFO_ACK + OnMW_CHARSTATINFOANS_ACK (request routed to the target's map, the gathered stat block forwarded verbatim to the requester) | ✅ |
 | W4-11 | TMS conference channels — TmsRegistry + TTms + TChar.tms id-set + OnMW_TMSSEND/INVITEASK/INVITE/OUT_ACK (open / fan-out / re-pair / tear-down a multi-party group chat) + 4 senders | ✅ |
-| **W4-12** | TMS presence on logout — NotifyTmsOnLogout (legacy LeaveTMS) wired into OnCloseCharAck: drops a logging-out char from every conference + tells the survivors via TMSOUT_REQ | ✅ |
-| W4-13+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-12 | TMS presence on logout — NotifyTmsOnLogout (legacy LeaveTMS) wired into OnCloseCharAck: drops a logging-out char from every conference + tells the survivors via TMSOUT_REQ | ✅ |
+| **W4-13** | Mail delivery relay — OnMW_POSTRECV_ACK (player mail) + OnDM_RESERVEDPOSTRECV_ACK (system mail) forward MW_POSTRECV_REQ verbatim to the recipient's map (routed by target name) + SendMwPostRecvReq | ✅ |
+| W4-14+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-13 — what landed
+
+**Mail delivery relay** — world's entire role in the mail/post
+system. The mailbox itself (list / read / delete) lives DB-side and
+map-side; world only routes the "you have new mail" delivery ping to
+the recipient's map, keyed by the target's name.
+
+- `OnPostRecvAck` (wID 0x907E) — a player sent mail; relay the
+  notification to the recipient's map.
+- `OnReservedPostRecvAck` (wID 0x5909) — DB-side system / scheduled
+  ("reserved") mail; identical relay.
+
+Both share one opaque-passthrough helper (`RelayPostRecv`): parse
+the target name off the `(post_id, sender, target, title, type)`
+body, look the char up, and forward the bytes **verbatim** as
+`MW_POSTRECV_REQ` via `SendMwPostRecvReq`. An offline target is
+dropped (the mail is already persisted DB-side and shown next time
+the mailbox opens) — matching legacy `OnMW_POSTRECV_ACK` /
+`OnDM_RESERVEDPOSTRECV_ACK`.
+
+Deferred: the reserved-post *generator* poll
+(`DM_RESERVEDPOSTSEND_REQ`, a `CSPGetReservedPost` stored-proc
+sweep that emits the RESERVEDPOSTRECV pings) — it needs the
+reserved-post table/SP, so it lands with the DB-persistence batch.
+
+Tests — `tests/test_post_handlers.cpp` (two-peer): both the player
+and system mail paths forward the body unchanged to the recipient's
+map, and an unknown-target ping is silently dropped without
+disturbing the next valid delivery.
+
+Build verified: cmake + ctest -R tworldsvr_asio (45/45 passed).
 
 ### W4-12 — what landed
 

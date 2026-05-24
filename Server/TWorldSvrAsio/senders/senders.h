@@ -2015,6 +2015,15 @@ boost::asio::awaitable<void> SendMwEventQuarterReq(
     std::uint8_t                 select,
     const std::string&           present);
 
+// W6-30: MW_EVENTMSG_REQ — operator event-message line for every map
+// peer to render (system / world chat per `msg_type`).
+//   Wire: BYTE event_id, msg_type, STRING msg
+boost::asio::awaitable<void> SendMwEventMsgReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 event_id,
+    std::uint8_t                 msg_type,
+    const std::string&           msg);
+
 // --- W6-2 combat / taming cross-server relays (senders_combat.cpp)-
 
 // MW_MAGICMIRROR_REQ — spell-reflection, routed to the attacker's

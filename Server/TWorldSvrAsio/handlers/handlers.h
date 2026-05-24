@@ -1635,6 +1635,15 @@ boost::asio::awaitable<void> OnEventQuarterNotifyReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// W6-30: CT_EVENTMSG_REQ — an operator-driven event-message line; world
+// forwards MW_EVENTMSG_REQ verbatim to every map peer. Pure broadcast,
+// no state.
+//   Wire (SSHandler.cpp:310): BYTE event_id, msg_type, STRING msg
+boost::asio::awaitable<void> OnCtEventMsgReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W6-2: combat / taming cross-server relays (handlers_combat.cpp)
 //
 // MAGICMIRROR (spell reflection) / MONTEMPT (taming attempt) /

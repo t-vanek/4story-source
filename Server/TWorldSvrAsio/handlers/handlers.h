@@ -17,6 +17,7 @@
 
 #include "../peer_session.h"
 #include "../services/bow_registry.h"
+#include "../services/br_registry.h"
 #include "../services/char_registry.h"
 #include "../services/guild_level_cache.h"
 #include "../services/guild_registry.h"
@@ -96,6 +97,10 @@ struct HandlerContext
     // W6-24: Bow battleground queue + scoreboard. Owned by main;
     // non-null in W6-24+ deploys.
     BowRegistry*              bow        = nullptr;
+
+    // W6-25: Battle Royale queue + premade teams + map / mode votes.
+    // Owned by main; non-null in W6-25+ deploys.
+    BrRegistry*               br         = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -2130,6 +2135,69 @@ boost::asio::awaitable<void> OnCancelBowQueueReq(
 // the scoreboard for the named country. No reply.
 //   Wire (SSHandler.cpp:14099): BYTE country
 boost::asio::awaitable<void> OnBowPointsUpdateReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-25: Battle Royale (handlers_br.cpp) -----------------------
+//
+// Five player-driven handlers + the UPDATEBRTEAM broadcast helper.
+// Mirrors W6-24's Bow shape, with a premade team model on top:
+// chief invites teammates by name; on accept the mate joins the
+// chief's team; the team broadcasts UPDATEBRTEAM to every member's
+// map. State lives in BrRegistry (services/br_registry.h).
+
+// MW_ADDTOBRQUEUE_REQ — char joins the BR queue OR signals ready.
+// When `only_ready` is set, world flips the char's `ready` flag in
+// its premade team (or solo queue) and broadcasts UPDATEBRTEAM;
+// otherwise it inserts into the solo queue and replies
+// MW_ADDTOBRQUEUE_ACK(result, char_id, key, tick).
+//   Wire (SSHandler.cpp:14133): DWORD char_id, key, BYTE only_ready
+boost::asio::awaitable<void> OnAddToBrQueueReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_BRTEAMMATEADD_REQ — chief asks to invite a teammate by name.
+// World resolves the target by name; missing / self target →
+// MW_BRTEAMMATEADD_ACK(NOTFOUND) on the chief's map. Otherwise
+// forwards MW_BRTEAMMATEADD_ACK(SUCCESS, inviter_name) to the
+// *target's* map so their client pops the join dialog. The actual
+// team mutation waits for OnBrTeamMateAddResultAck.
+//   Wire (SSHandler.cpp:14181): DWORD char_id, key, STRING name
+boost::asio::awaitable<void> OnBrTeamMateAddReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_BRTEAMMATEDEL_REQ — chief drops a member (or a member self-
+// leaves). World runs BrRegistry::ErasePlayerFromPremade. No reply
+// (legacy parity).
+//   Wire (SSHandler.cpp:14234): DWORD char_id, key, STRING name
+boost::asio::awaitable<void> OnBrTeamMateDelReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_BRTEAMMATEADDRESULT_ACK — the invited mate's reply to the
+// MW_BRTEAMMATEADD_ACK(SUCCESS) dialog forwarded by OnBrTeamMateAddReq.
+// On SUCCESS: gate against duplicate-in-team + team-full
+// (BR_TEAMMATE_MAX_COUNT(BR_3V3)=3 — chief + 2 mates), then
+// BrRegistry::JoinPremadeTeam, then UPDATEBRTEAM broadcast. On
+// non-SUCCESS: forward the result code back to the chief's map.
+//   Wire (SSHandler.cpp:14259): DWORD char_id (mate), key (mate),
+//     BYTE result, STRING chief_name
+boost::asio::awaitable<void> OnBrTeamMateAddResultAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_VOTEFORBRMAP_REQ — char votes for a map (`map` non-empty) or
+// the battle mode (`map` empty AND mode != 0xFF). First vote wins,
+// per-user. No reply.
+//   Wire (SSHandler.cpp:14346): DWORD char_id, key, STRING map,
+//     BYTE mode
+boost::asio::awaitable<void> OnVoteForBrMapReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

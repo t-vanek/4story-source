@@ -300,6 +300,52 @@ boost::asio::awaitable<void> SendMwCancelBowQueueAck(
     std::uint32_t                key,
     std::uint32_t                tick);
 
+// --- W6-25 Battle Royale (senders_br.cpp) -------------------------
+
+// MW_ADDTOBRQUEUE_ACK — result of a BR enqueue (legacy
+// SSSender.cpp:3884). Same shape as ADDTOBOWQUEUE_ACK.
+boost::asio::awaitable<void> SendMwAddToBrQueueAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 result,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                tick);
+
+// MW_BRTEAMMATEADD_ACK — teammate-invite result. Different shape
+// from the BOW family — the result byte goes FIRST (legacy
+// SSSender.cpp:3814), then the recipient char_id/key, then the
+// inviter / target name string. Used in two directions: as the
+// dialog packet forwarded to the target's map on a SUCCESS gate
+// (inviter name), and as the error reply to the chief on
+// NOTFOUND / ALREADYINTEAM.
+//   Wire: BYTE result, DWORD char_id, DWORD key, STRING name
+boost::asio::awaitable<void> SendMwBrTeamMateAddAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 result,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           name);
+
+// MW_UPDATEBRTEAM_ACK — broadcast the current team roster + ready
+// state to one recipient (legacy SSSender.cpp:3826 — sent once per
+// team member). Wire: DWORD char_id, key, STRING chief_name,
+// BYTE team_ready, BYTE member_count, × { DWORD id, STRING name,
+// BYTE ready }.
+struct UpdateBrTeamRow
+{
+    std::uint32_t char_id = 0;
+    std::string   name;
+    std::uint8_t  ready   = 0;
+};
+
+boost::asio::awaitable<void> SendMwUpdateBrTeamAck(
+    std::shared_ptr<PeerSession>          peer,
+    std::uint32_t                         char_id,
+    std::uint32_t                         key,
+    const std::string&                    chief_name,
+    std::uint8_t                          team_ready,
+    const std::vector<UpdateBrTeamRow>&   members);
+
 // MW_PETRIDING_REQ — propagate a char's active mount to another map
 // session it is visible on (the char's non-originating connections).
 //   Wire (SSSender.cpp): DWORD char_id, key, DWORD riding

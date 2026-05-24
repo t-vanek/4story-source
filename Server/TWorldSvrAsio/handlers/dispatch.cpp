@@ -521,6 +521,23 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnBowPointsUpdateReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-25: Battle Royale (handlers_br.cpp) ----------------
+    case MessageId::MW_ADDTOBRQUEUE_REQ:
+        co_await OnAddToBrQueueReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_BRTEAMMATEADD_REQ:
+        co_await OnBrTeamMateAddReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_BRTEAMMATEDEL_REQ:
+        co_await OnBrTeamMateDelReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_BRTEAMMATEADDRESULT_ACK:
+        co_await OnBrTeamMateAddResultAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_VOTEFORBRMAP_REQ:
+        co_await OnVoteForBrMapReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
     case MessageId::MW_CASTLEOCCUPY_ACK:
         co_await OnCastleOccupyAck(std::move(peer), std::move(body), ctx);

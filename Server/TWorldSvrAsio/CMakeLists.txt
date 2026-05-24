@@ -56,6 +56,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_recallmon.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_conn.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_bow.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_br.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -75,6 +76,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_recallmon.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_conn.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_bow.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_br.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -84,6 +86,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/corps_registry.cpp
     ${TWORLD_ASIO_SRC}/services/tms_registry.cpp
     ${TWORLD_ASIO_SRC}/services/bow_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/br_registry.cpp
     ${TWORLD_ASIO_SRC}/services/fake_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
@@ -927,3 +930,13 @@ target_link_libraries(test_tworldsvr_asio_bow_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_bow_handlers
     COMMAND test_tworldsvr_asio_bow_handlers)
+
+# W6-25 wire test: Battle Royale — enqueue + BR fall-through + invite
+# + accept (JoinPremadeTeam + UPDATEBRTEAM broadcast) + ready signal +
+# del + vote for map / mode.
+add_executable(test_tworldsvr_asio_br_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_br_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_br_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_br_handlers
+    COMMAND test_tworldsvr_asio_br_handlers)

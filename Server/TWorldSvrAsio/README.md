@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-24 Bow battleground (first W6 content subsystem)
+## Status — W6-25 Battle Royale opener (queue + premade teams + votes)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -94,7 +94,8 @@ that the four shipped Asio daemons already use.
 | **W4-22** | Fresh-login ENTERSVR completion — OnEnterSvrAck now does the legacy fresh-login chain after the W4-20 identity load: build the CHARINFO_REQ composite from in-memory guild + tactics + party state (FindMember / FindTactics for the per-char castle/duty/peer) and send it back to the responder; ROUTE_REQ so the main can resolve any additional connections (answered by W6-20's MW_ROUTE_ACK); MW_FRIENDLIST_REQ (groups + non-pending friends, online state resolved live like W4-4); MW_CHATBAN_REQ when the char's chat_ban_time is still active. 2 senders (CharInfoPayload + CHARINFO_REQ, ROUTE_REQ); reuses FRIENDLIST/CHATBAN. Deferred: BR/Bow bow_release flag, RW_CHANGEMAP relay-server hop, APEX notify (TW), cluster-wide chat-ban list | ✅ |
 | W6-23 | CHARDATA_ACK drift fan-out — closes the W6-20 deferral. When CHARDATA_ACK arrives but some cons haven't ENTERCHAR_ACKed yet, world fans MW_ENTERCHAR_REQ (33-field composite + opaque recall-mon tail lifted verbatim from the inbound body) to each non-ready con. Each map loads the char and replies ENTERCHAR_ACK → CheckMainCon completes the loop. 1 new sender (EnterCharReqPayload + SendMwEnterCharReq); reuses GuildRegistry / PartyRegistry / CorpsRegistry for the composite | ✅ |
 | W4-23 | Fresh-login fidelity polish — closes the two W4-22 placeholder-zero defaults. (1) SendMwFriendListReq now takes a soulmate_target DWORD that both W4-4 (OnFriendListAck) and W4-22 (OnEnterSvrAck) populate from TChar.soulmate.target — clients render the soulmate slot live. (2) CharInfoPayload.bow_release is set to 1 when chg_main_id arrives as BOW_SERVER_ID or BR_SERVER_ID, matching legacy SSHandler.cpp:1456 (the chg_main_id stays after the fresh-login emit — legacy quirk preserved) | ✅ |
-| **W6-24** | Bow battleground opener — first W6 🚧 content subsystem ported. OnAddToBowQueueReq derives effective_country (primary, falling back to aid_country when primary > TCONTRY_C — legacy gate), picks tactics_id > guild_id > 0 for the queue-grouping hint, calls BowRegistry::AddPlayer, replies MW_ADDTOBOWQUEUE_ACK(result, char_id, key, tick). OnCancelBowQueueReq runs RemovePlayer + emits MW_CANCELBOWQUEUE_ACK. OnBowPointsUpdateReq bumps the per-country scoreboard. New BowRegistry (services/bow_registry.h/.cpp) with shared_mutex-protected queue + scoreboard; bow_constants.h carries BOWREG_* result codes + BOW_SERVER_ID / BOW_MAP_ID. Deferred: BS_PEACE/BS_ALARM status gating, match creation + team balancing, teleportation, per-guild queue grouping, BR fall-through in cancel | ✅ |
+| W6-24 | Bow battleground opener — first W6 🚧 content subsystem ported. OnAddToBowQueueReq derives effective_country (primary, falling back to aid_country when primary > TCONTRY_C — legacy gate), picks tactics_id > guild_id > 0 for the queue-grouping hint, calls BowRegistry::AddPlayer, replies MW_ADDTOBOWQUEUE_ACK(result, char_id, key, tick). OnCancelBowQueueReq runs RemovePlayer + emits MW_CANCELBOWQUEUE_ACK + BR fall-through (W6-25). OnBowPointsUpdateReq bumps the per-country scoreboard. New BowRegistry + bow_constants.h. Deferred: BS_PEACE/BS_ALARM status gating, match creation + team balancing, teleportation, per-guild queue grouping | ✅ |
+| **W6-25** | Battle Royale opener — second W6 🚧 content subsystem. 5 handlers covering the player-driven queue + premade team flow + map/mode votes: OnAddToBrQueueReq (enqueue OR ready-signal — chief→FlagTeamReady, mate→FlagPlayerReady), OnBrTeamMateAddReq (chief invites mate by name → forwarded SUCCESS dialog on mate's map / NOTFOUND to chief on self/unknown), OnBrTeamMateDelReq (chief drops mate or mate self-leaves), OnBrTeamMateAddResultAck (mate's accept/refuse — SUCCESS path runs the duplicate + cap gates and JoinPremadeTeam + UPDATEBRTEAM broadcast to every team member's map), OnVoteForBrMapReq (per-user first-vote-wins map and mode tallies). New BrRegistry + br_constants.h (TEAMADD_* + BR_TEAMMATE_MAX_COUNT(BR_3V3)=3). Wired W6-24's OnCancelBowQueueReq BR fall-through (legacy SSHandler.cpp:14078). Deferred: BS_PEACE/BS_ALARM gating, UpdatePlayerQueue / CreateMatch / team balancing, BR_SOLO vs BR_TEAM switch, ReleaseSinglePlayer on logout | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -125,11 +126,11 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-24)
+## Gaps audit — not yet ported / deferred (as of W6-25)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~162** are ported in `handlers/dispatch.cpp`,
-leaving **~104** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~167** are ported in `handlers/dispatch.cpp`,
+leaving **~99** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
@@ -198,7 +199,9 @@ Intentionally not ported:
 ### C. Whole subsystems with no port (the 112), grouped
 
 **Roadmap W6 🚧 (battle / event content):**
-- Battle Royale: `ADDTOBRQUEUE`, `BRTEAMMATEADD/ADDRESULT/DEL`, `VOTEFORBRMAP`
+- Battle Royale: queue + invite/del + accept + ready signal + map/mode
+  vote landed in W6-25; the scheduler / match creation / BR_SOLO vs
+  BR_TEAM switch / teleportation are deferred (see W6-25 row)
 - Bow battleground: queue + cancel + points landed in W6-24; the
   scheduler / match creation / teleportation / per-guild grouping
   are deferred (see W6-24 row)
@@ -241,21 +244,87 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **Battle Royale opener** — `ADDTOBRQUEUE`, `BRTEAMMATEADD`,
-   `BRTEAMMATEADDRESULT`, `BRTEAMMATEDEL`, `VOTEFORBRMAP`. Same
-   shape as W6-24 (queue + state + replies) but with a teammate
-   model on top. Reuses the W6-24 BowRegistry pattern for its
-   `BrRegistry` cousin.
+1. **`LEAVEBATTLEFIELD`** — small handler that already routes to
+   *both* BR (channel == BR_SERVER_ID → ReleaseSinglePlayer) and
+   Bow (map == BOW_MAP_ID → ReleaseSinglePlayer) at SSHandler.cpp:
+   14112. Closes the last shared piece between W6-24 / W6-25.
 2. **Arena / BattleMode** — `ARENAJOIN`, `BATTLEMODESTATUS`,
-   `CMTELEPORTBATTLEMODE`, `LEAVEBATTLEFIELD` (the last one
-   already has a legacy `OnMW_LEAVEBATTLEFIELD_REQ` that touches
-   both BR and Bow — pair with W6-24).
+   `CMTELEPORTBATTLEMODE`. Same W6-24/25 pattern; CMTELEPORT also
+   reuses the Bow / BR AddPlayerToQueue paths (legacy
+   SSHandler.cpp:14397 / 14400).
 3. **`TChar.soul_silence`** — model the legacy `m_dwSoulSilence`
    field so `MW_ENTERCHAR_REQ` (W6-23) carries it instead of
    always emitting 0. Trivial change; ride alongside a handler
    that actually writes it.
 4. Larger roadmap subsystems (Tournament / RPS / CMGift / Cash /
    MonthRank).
+
+### W6-25 — what landed
+
+**Battle Royale opener** — second W6 🚧 content subsystem.
+Five player-driven handlers + a per-team UPDATEBRTEAM broadcast,
+backed by a new `BrRegistry` modeling the solo queue, premade
+teams (chief + members + ready flags), and per-user map / mode
+vote tallies. Legacy parity SSHandler.cpp:14133 / 14181 / 14234 /
+14259 / 14346.
+
+- `OnAddToBrQueueReq` — `only_ready=0` runs
+  `BrRegistry::AddPlayerToQueue` + emits
+  `MW_ADDTOBRQUEUE_ACK(result, char_id, key, tick)` on the
+  reporter's map peer. `only_ready=1` flips the ready flag —
+  `FlagTeamReady(char_id)` when the char is a chief
+  (`GetPremadePlayerCountByChief > 0`), else
+  `FlagPlayerReady(char_id, key)` — and broadcasts UPDATEBRTEAM.
+- `OnBrTeamMateAddReq` — chief invites a mate by name. Missing /
+  self target → `MW_BRTEAMMATEADD_ACK(NOTFOUND)` on the chief's
+  map (legacy SSHandler.cpp:14202). Otherwise forwards
+  `MW_BRTEAMMATEADD_ACK(SUCCESS, inviter_name)` to the *target's*
+  map so their client pops the join dialog.
+- `OnBrTeamMateDelReq` — chief drops a mate by name, or any char
+  self-leaves. Runs `ErasePlayerFromPremade`. No reply.
+- `OnBrTeamMateAddResultAck` — mate's reply to the invite dialog.
+  SUCCESS runs the duplicate-in-team gate and the team-size cap
+  (`+ 1 > BR_TEAMMATE_MAX_COUNT(BR_3V3)` = 3), then
+  `JoinPremadeTeam` and the UPDATEBRTEAM broadcast. Non-SUCCESS
+  forwards the result code back to the chief's map.
+- `OnVoteForBrMapReq` — map name non-empty → `VoteForMap`; map
+  empty AND mode != 0xFF → `VoteForMode`. First vote wins,
+  per-user; the scheduler picks the winning entry at match time.
+
+New service: `BrRegistry` (services/br_registry.h/.cpp) +
+`br_constants.h` (TEAMADD_* result codes + BR_3V3 mode constant
++ kTeamMaxCount3v3 + kBrServerId). `TBrTeam` carries the chief
+id, the member roster keyed by char_id, and per-member +
+team-wide `ready` flags. `TBrPlayer` mirrors the legacy
+`TBRPLAYERS` row (id, key, class, name, ready). One
+`shared_mutex` guards the registry; the broadcast snapshots the
+team under that lock, then sends outside it.
+
+W6-24 follow-up wired: `OnCancelBowQueueReq` now falls through
+to `BrRegistry::ErasePlayerFromQueue` when the Bow remove
+returned `kFail`, mirroring legacy SSHandler.cpp:14078. The
+W6-24 README row already noted this as deferred; the W6-25
+fall-through removes that note.
+
+Deferred — each its own follow-up:
+- BS_PEACE / BS_ALARM status gating (no scheduler).
+- `UpdatePlayerQueue` auto-fill from solo queue into teams once a
+  size threshold is reached.
+- `CreateMatch` / team balancing.
+- BR_SOLO vs BR_TEAM type switch (`SwitchType` / `m_bType`).
+- `ReleaseSinglePlayer` on logout (cleanup hook).
+
+Tests — `tests/test_br_handlers.cpp` (2 peers, Alice on 0x42 +
+Bob on 0x43, mutual invitee/inviter): enqueue / re-enqueue /
+BR fall-through from W6-24 cancel-bow / invite-forward /
+invite-self-or-unknown → NOTFOUND / accept → JoinPremadeTeam +
+UPDATEBRTEAM on both peers (verified `team_ready=0`, 2 rows,
+chief="Alice") / Bob ready (UPDATEBRTEAM with Bob's row ready=1,
+team_ready=0) / Alice ready (team_ready=1) / chief drops Bob /
+map+mode vote count both at 1.
+
+Build verified: cmake + ctest -R tworldsvr_asio -C Release -j 1
+(82/82 passed, first try, no flake).
 
 ### W6-24 — what landed
 

@@ -122,13 +122,16 @@ OnCancelBowQueueReq(std::shared_ptr<PeerSession> peer,
     }
     if (!key_ok) co_return;
 
-    const std::uint8_t result = ctx.bow->RemovePlayer(char_id, key);
+    std::uint8_t result = ctx.bow->RemovePlayer(char_id, key);
+    // Legacy fall-through (SSHandler.cpp:14078): if the Bow remove
+    // missed, also try the BR queue — the player might have been
+    // queued there instead. The W6-25 BrRegistry::ErasePlayerFromQueue
+    // returns the same BOWREG_* enum, so we forward whichever
+    // succeeded; the legacy `max(bow.tick, br.tick)` collapses to
+    // bow.tick here because both modules currently have a 0 tick.
+    if (result == bow::kFail && ctx.br)
+        result = ctx.br->ErasePlayerFromQueue(char_id, key);
     const std::uint32_t tick = ctx.bow->Tick();
-
-    // Legacy also tries BRRegistry::ErasePlayerFromQueue on a Bow miss
-    // (the player might have been queued for the Battle Royale instead).
-    // The BR subsystem isn't ported yet — when it lands, this branch
-    // gets the same Erase call here.
 
     auto main_peer = FindMapPeer(ctx, static_cast<std::uint8_t>(main_id));
     if (!main_peer) co_return;

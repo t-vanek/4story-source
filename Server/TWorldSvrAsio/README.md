@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-5 chat channel relay (CHAT)
+## Status — W4-6 soulmate (SEARCH / REG / END)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -74,12 +74,54 @@ that the four shipped Asio daemons already use.
 | W4-2 | Friend reply + erase — OnMW_FRIENDREPLY_ACK (accept upserts mutual entries / reject relays code) + OnMW_FRIENDERASE_ACK (mutual demote / one-way remove) + SendMwFriendEraseReq | ✅ |
 | W4-3 | Friend groups — OnMW_FRIENDGROUPMAKE/DELETE/CHANGE/NAME_ACK (per-char named buckets, TChar.friend_groups + TFriend.group) + 4 senders | ✅ |
 | W4-4 | Friend list reader — OnMW_FRIENDLIST_ACK → MW_FRIENDLIST_REQ (groups + non-pending friends, per-friend level/class/connected/region resolved live) | ✅ |
-| **W4-5** | Chat channel relay — OnMW_CHAT_ACK (GUILD/TACTICS/PARTY/FORCE/MAP/WORLD/SHOW/WHISPER) routed to the right audience via the guild/party/corps/peer registries + SendMwChatReq | ✅ |
-| W4-6+ | Friend connection notifications (presence) + friend DB load + Soulmate | ⏸ |
+| W4-5 | Chat channel relay — OnMW_CHAT_ACK (GUILD/TACTICS/PARTY/FORCE/MAP/WORLD/SHOW/WHISPER) routed to the right audience via the guild/party/corps/peer registries + SendMwChatReq | ✅ |
+| **W4-6** | Soulmate — OnMW_SOULMATESEARCH/REG/END_ACK (matchmaking + mutual pairing / register-preview / dissolve) + TChar.real_sex/soulmate + 3 senders | ✅ |
+| W4-7+ | Friend/soulmate connection notifications (presence) + friend/soulmate DB load | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-6 — what landed
+
+The **soulmate** (marriage/pairing) subsystem — the last W4 social
+feature with a clean wire surface.
+
+Model — `TChar` gains `real_sex` (m_bRealSex, the account gender,
+distinct from the avatar `sex`) + `soulmate` (a `TSoulmate`: target
+id / name / level / class / connected / region; target 0 =
+unpaired).
+
+Handlers (`handlers_soulmate.cpp`):
+- `OnSoulmateSearchAck` (0x9109): matchmaking over the online
+  roster — same country, within `SOULMATE_LEVEL` (10), picking the
+  lowest-level candidate, with the legacy tiebreak chain (opposite
+  real-sex → no existing soulmate → opposite avatar-sex). On a
+  match it pairs both chars mutually + replies `SOULMATE_SUCCESS`
+  with the partner; none → `SOULMATE_NOTFOUND`.
+- `OnSoulmateRegAck` (0x910B): a named pairing — gates same country
+  + level window (`SOULMATE_FAIL`). `bReg=1` commits the mutual
+  pairing; `bReg=0` is a preview (success reply, no pairing).
+- `OnSoulmateEndAck` (0x910D): dissolves the current pairing on
+  both sides (`SOULMATE_SUCCESS` + timestamp); no pairing →
+  `SOULMATE_FAIL`.
+
+The legacy DB round-trip (`DM_SOULMATEREG/END_REQ`) is collapsed to
+an in-memory mutual pairing (consistent with the guild-establish /
+friend-mutual-add collapses); persistence is deferred. Lock
+discipline: each char's `soulmate` is mutated under its own lock,
+sequentially.
+
+Senders — `SendMwSoulmateSearch/Reg/EndReq` in the new
+`senders_soulmate.cpp`.
+
+Tests — `tests/test_soulmate_handlers.cpp` (6 scenarios,
+three-peer loopback): SEARCH match with the real-sex tiebreak +
+mutual pairing, REG preview (no pairing) vs register (pairing),
+cross-country REG FAIL, END dissolve (both cleared), and END with
+no soulmate FAIL.
+
+Build verified: cmake + ctest -R tworldsvr_asio (38/38 passed).
 
 ### W4-5 — what landed
 

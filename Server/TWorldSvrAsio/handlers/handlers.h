@@ -1427,5 +1427,33 @@ boost::asio::awaitable<void> OnChatAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-6: soulmate (handlers_soulmate.cpp) ------------------------
+//
+// The marriage/pairing flow. SEARCH matchmakes among online chars
+// (same country, within SOULMATE_LEVEL, with real-sex / soulmate /
+// avatar-sex tiebreakers) and pairs the best candidate. REG
+// registers (bReg=1) or previews (bReg=0) a named pairing. END
+// dissolves the current pairing. The legacy DB round-trip
+// (DM_SOULMATEREG/END_REQ) is collapsed to an in-memory mutual
+// pairing; persistence is deferred.
+//
+// Wire (SSHandler.cpp:9354/9467/9549):
+//   SEARCH : DWORD char_id, key, BYTE min_level, npc_inven, npc_item
+//   REG    : DWORD char_id, key, STRING name, BYTE reg, npc_inven,
+//            npc_item
+//   END    : DWORD char_id, key
+boost::asio::awaitable<void> OnSoulmateSearchAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnSoulmateRegAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnSoulmateEndAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

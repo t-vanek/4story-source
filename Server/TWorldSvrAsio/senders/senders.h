@@ -1498,6 +1498,47 @@ boost::asio::awaitable<void> SendMwFriendGroupChangeReq(
     std::uint8_t                 group,
     std::uint32_t                friend_id);
 
+// --- W4-6 soulmate (senders_soulmate.cpp) -------------------------
+
+// MW_SOULMATESEARCH_REQ — matchmaking result.
+//   Wire (SSSender.cpp): DWORD char_id, key, BYTE result,
+//     DWORD soul_id, STRING soul_name, DWORD region,
+//     BYTE npc_inven, BYTE npc_item
+boost::asio::awaitable<void> SendMwSoulmateSearchReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                soul_id,
+    const std::string&           soul_name,
+    std::uint32_t                region,
+    std::uint8_t                 npc_inven,
+    std::uint8_t                 npc_item);
+
+// MW_SOULMATEREG_REQ — register/preview result.
+//   Wire: DWORD char_id, key, BYTE result, reg, npc_inven,
+//     npc_item, DWORD soulmate, STRING soul_name, DWORD region
+boost::asio::awaitable<void> SendMwSoulmateRegReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint8_t                 reg,
+    std::uint8_t                 npc_inven,
+    std::uint8_t                 npc_item,
+    std::uint32_t                soulmate,
+    const std::string&           soul_name,
+    std::uint32_t                region);
+
+// MW_SOULMATEEND_REQ — divorce result.
+//   Wire: DWORD char_id, key, BYTE result, DWORD time
+boost::asio::awaitable<void> SendMwSoulmateEndReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                time_unix);
+
 // --- W4-5 chat relay (senders_chat.cpp) ---------------------------
 
 // MW_CHAT_REQ — a chat message delivered to one recipient (or, for

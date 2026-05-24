@@ -445,8 +445,19 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnChatAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W4-6+ picks up friend connection notifications (presence) +
-    // soulmate. … see README §4.
+    // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
+    case MessageId::MW_SOULMATESEARCH_ACK:
+        co_await OnSoulmateSearchAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_SOULMATEREG_ACK:
+        co_await OnSoulmateRegAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_SOULMATEEND_ACK:
+        co_await OnSoulmateEndAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-7+ picks up friend connection notifications (presence) +
+    // the friend/soulmate DB load. … see README §4.
 
     default:
         break;

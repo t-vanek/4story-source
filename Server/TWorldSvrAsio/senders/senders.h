@@ -1784,6 +1784,21 @@ boost::asio::awaitable<void> SendMwHeroSelectReq(
     const std::string&           hero_name,
     std::int64_t                 time_hero);
 
+// --- W6-4 recall-mon (summoned creature) sync (senders_recallmon.cpp)
+//
+// All three forward the inbound body verbatim (the ACK and REQ share
+// an identical wire layout); CREATE's caller patches the generated
+// recall id into the body before forwarding.
+boost::asio::awaitable<void> SendMwCreateRecallMonReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+boost::asio::awaitable<void> SendMwRecallMonDataReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+boost::asio::awaitable<void> SendMwRecallMonDelReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-3 global announcement broadcasts (FAMERANK / HEROSELECT)
+## Status — W6-4 recall-mon (summoned creature) sync
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -98,9 +98,32 @@ that the four shipped Asio daemons already use.
 | W5 | War + Castle + Tournament / TNMT | 🚧 |
 | W6-1 | Timed-event broadcast — OnSM_EVENTQUARTER_REQ (present event, single server-chosen bucket) + OnSM_EVENTQUARTERNOTIFY_REQ (world-chat announcement via the chat sender) fan to every map peer + SendMwEventQuarterReq | ✅ |
 | W6-2 | Combat / taming cross-server relays — OnMW_MAGICMIRROR_ACK (verbatim) + OnMW_MONTEMPT_ACK + OnMW_MONTEMPTEVO_ACK route the effect to the attacker char's map + 3 senders; GETBLOOD deferred (OT_PC absent) | ✅ |
-| **W6-3** | Global announcement broadcasts — OnMW_FAMERANKUPDATE_ACK (verbatim) + OnMW_HEROSELECT_ACK fan to every map peer + 2 senders | ✅ |
+| W6-3 | Global announcement broadcasts — OnMW_FAMERANKUPDATE_ACK (verbatim) + OnMW_HEROSELECT_ACK fan to every map peer + 2 senders | ✅ |
+| **W6-4** | Recall-mon (summoned creature) sync — OnMW_CREATERECALLMON_ACK (assigns the recall id, mirrors to the char's connections) + OnMW_RECALLMONDATA/DEL_ACK (verbatim) + 3 passthrough senders; id-counter DB-seed deferred | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-4 — what landed
+
+**Recall-mon (summoned creature) sync** — a char's summoned recall
+monster is mirrored across all the char's valid map connections so
+every client it's visible on renders it.
+
+- `handlers_recallmon.cpp` — `OnCreateRecallMonAck` assigns the recall
+  id when the map sent 0 (legacy `GenRecallID`, a `++counter`),
+  patching it into the body, then forwards to each valid connection;
+  `OnRecallMonDataAck` / `OnRecallMonDelAck` forward verbatim. All
+  three are opaque passthroughs — the ACK and REQ share one wire
+  layout — so no wide per-field sender is needed (`senders_recallmon.cpp`
+  re-tags the body). DEL keys off char_id only (legacy parity).
+- Deferred: the id counter's DB-seed at boot (legacy reads the last
+  id from the DB); it starts at 0 here.
+
+Tests — `tests/test_recallmon_handlers.cpp`: a char on two
+connections gets a CREATE (with a freshly-assigned id, identical on
+both, opaque tail preserved) + DATA + DEL mirrored to both.
+
+Build verified: cmake + ctest -R tworldsvr_asio (60/60 passed).
 
 ### W6-3 — what landed
 

@@ -495,6 +495,17 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnHeroSelectAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-4: recall-mon sync (handlers_recallmon.cpp) --------
+    case MessageId::MW_CREATERECALLMON_ACK:
+        co_await OnCreateRecallMonAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_RECALLMONDATA_ACK:
+        co_await OnRecallMonDataAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_RECALLMONDEL_ACK:
+        co_await OnRecallMonDelAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
     case MessageId::MW_SOULMATESEARCH_ACK:
         co_await OnSoulmateSearchAck(std::move(peer), std::move(body), ctx);

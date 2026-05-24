@@ -1606,6 +1606,29 @@ boost::asio::awaitable<void> OnHeroSelectAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-4: recall-mon (summoned creature) sync (handlers_recallmon.cpp)
+//
+// CREATE / DATA / DEL — a char's summoned recall monster is mirrored
+// across all the char's valid map connections so each client renders
+// it. World assigns the recall id on CREATE (when the map sends 0)
+// and otherwise forwards the body verbatim. The DB-seed of the id
+// counter at boot is deferred.
+//
+// Wire (SSHandler.cpp:8144/9678/8279): all lead with DWORD char_id,
+//   key (DEL keys off char_id only); the remainder is opaque.
+boost::asio::awaitable<void> OnCreateRecallMonAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnRecallMonDataAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnRecallMonDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

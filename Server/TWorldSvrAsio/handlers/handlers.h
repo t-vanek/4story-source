@@ -1996,5 +1996,19 @@ boost::asio::awaitable<void> OnReleaseMainAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// MW_BEGINTELEPORT_ACK — a map asks world to start teleporting a char.
+// A same-channel teleport just records the new channel. Otherwise the
+// request is pushed onto the char's cession queue (so overlapping
+// teleports/connects serialise); if it's the only entry it runs now,
+// broadcasting MW_STARTTELEPORT_REQ to every map the char is connected
+// to. Deferred entries replay when the one ahead completes (PopConCess,
+// driven by CHECKMAIN_ACK). Unknown char / key mismatch → MW_DELCHAR_REQ.
+//   Wire (SSHandler.cpp:8554): DWORD char_id, key, BYTE same_channel,
+//     channel, WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> OnBeginTeleportAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

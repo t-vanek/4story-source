@@ -29,9 +29,11 @@
 // all references die).
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -76,6 +78,22 @@ struct TCharCon
     std::uint16_t port          = 0;     // wPort   — client port
     bool          ready         = false; // m_bReady — passed the entry handshake
     bool          valid         = true;  // m_bValid — connection accepted
+};
+
+// W6-17 — one deferred inbound packet in a character's connection
+// cession queue (legacy m_qConCess). The queue serialises a char's
+// multi-round-trip connection handoffs (teleport / connect-check) so
+// overlapping ones don't interleave: the front entry is the one
+// currently in flight, and each later entry is replayed when the one
+// ahead of it completes. We store the reporting map's server id (the
+// peer is re-resolved at replay time, like the legacy FindTServer)
+// plus the message id + raw body so the matching handler can be
+// re-run verbatim.
+struct ConCessEntry
+{
+    std::uint8_t            server_id = 0;   // reporting map (low byte of wID)
+    std::uint16_t           msg_id    = 0;   // MW_BEGINTELEPORT_ACK / …
+    std::vector<std::byte>  body;
 };
 
 // Per-character state. W2 ships only the fields that
@@ -126,6 +144,12 @@ struct TChar
     // MW_CLOSECHAR_REQ once the main session is re-confirmed
     // (CHECKMAIN_ACK — lands in the follow-up slice).
     std::vector<std::uint8_t> dead_cons;
+
+    // W6-17 — connection cession queue (legacy m_qConCess). FIFO of
+    // deferred teleport / connect-check packets; the front is the
+    // in-flight handoff, replayed forward as each completes. Guarded
+    // by `lock`.
+    std::queue<ConCessEntry> con_cess;
 
     // W3a-3 identity fields. Populated by OnMW_CHANGECHARBASE_ACK
     // (and its initial CHARINFO push that arrives shortly after

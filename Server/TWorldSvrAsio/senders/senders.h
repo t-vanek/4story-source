@@ -2065,4 +2065,19 @@ boost::asio::awaitable<void> SendMwMapSvrListReq(
     float                        pos_y,
     float                        pos_z);
 
+// MW_STARTTELEPORT_REQ — tell every map the char is connected to that
+// a teleport is starting, so each can move the char's avatar to the
+// destination channel/map/position. Broadcast from BeginTeleport.
+//   Wire (SSSender.cpp:2731): DWORD char_id, key, BYTE channel,
+//     WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> SendMwStartTeleportReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z);
+
 } // namespace tworldsvr::senders

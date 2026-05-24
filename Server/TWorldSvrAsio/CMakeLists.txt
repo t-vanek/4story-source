@@ -835,3 +835,13 @@ target_link_libraries(test_tworldsvr_asio_entersvr_handoff_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_entersvr_handoff_handlers
     COMMAND test_tworldsvr_asio_entersvr_handoff_handlers)
+
+# W6-17 wire test: teleport begin + cession queue — same-channel fast
+# path, single BEGINTELEPORT → STARTTELEPORT broadcast, and a deferred
+# second teleport that replays when CHECKMAIN_ACK pops the first.
+add_executable(test_tworldsvr_asio_teleport_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_teleport_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_teleport_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_teleport_handlers
+    COMMAND test_tworldsvr_asio_teleport_handlers)

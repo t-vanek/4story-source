@@ -111,9 +111,50 @@ that the four shipped Asio daemons already use.
 | W6-13 | Connection-list reconcile — OnMW_CONLIST_ACK + OnMW_MAPSVRLIST_ACK (byte-identical) reconcile `cons` vs the reported set: drop stale cons to `dead_cons`, ROUTELIST new servers via the main map, else CHECKMAIN every remaining connection; DELCHAR/INVALIDCHAR error replies + 4 senders. First slice of the connection/teleport cluster | ✅ |
 | W6-14 | Main-session confirmation — OnMW_CHECKMAIN_ACK: responder-is-main → drain `dead_cons` via CLOSECHAR (ClearDeadCON) + CONRESULT (CN_SUCCESS) the live set; responder-is-other → RELEASEMAIN the old main + re-point main; DELCHAR/INVALIDCHAR errors + 3 senders. CloseChar (logout teardown) + cession queue (PopConCess) deferred | ✅ |
 | W6-15 | Main-session handoff forward — OnMW_RELEASEMAIN_ACK: the old main releases → forward the released char verbatim to the new main (re-tagged MW_ENTERSVR_REQ) + record the old main in `chg_main_id`; new main offline → INVALIDCHAR(release_main=1); unknown char → DELCHAR. Opaque-passthrough sender | ✅ |
-| **W6-16** | Handoff completion — OnMW_ENTERSVR_ACK now branches on `chg_main_id`: a normal-map handoff clears it + asks the new main for the server list (MAPSVRLIST_REQ → re-enters the W6-13 reconcile), skipping the fresh-login fan-out; BR/Bow battleground ids (50/30) excluded. Closes the handoff loop (reconcile→checkmain→release→entersvr→reconcile) | ✅ |
+| W6-16 | Handoff completion — OnMW_ENTERSVR_ACK now branches on `chg_main_id`: a normal-map handoff clears it + asks the new main for the server list (MAPSVRLIST_REQ → re-enters the W6-13 reconcile), skipping the fresh-login fan-out; BR/Bow battleground ids (50/30) excluded. Closes the handoff loop (reconcile→checkmain→release→entersvr→reconcile) | ✅ |
+| **W6-17** | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender. CHECKCONNECT producer + CloseChar deferred | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-17 — what landed
+
+**Teleport begin + cession queue** — `OnBeginTeleportAck`
+(handlers_conn.cpp, `MW_BEGINTELEPORT_ACK`) starts a char teleport, and
+introduces the connection **cession queue** (`TChar::con_cess`, legacy
+`m_qConCess`) that serialises a char's multi-round-trip handoffs.
+
+- A *same-channel* teleport just records the new channel and returns —
+  no map handoff, never queued.
+- Otherwise the request is pushed onto the cession queue. `PushConCess`
+  returns whether something was already in flight: if so the new request
+  waits; if it's the only entry, `BeginTeleport` runs immediately. It
+  must originate from the char's main map (else it's ignored and the
+  queue advances), updates the char's destination channel/map/pos, and
+  broadcasts `MW_STARTTELEPORT_REQ` to every map the char is connected
+  to (the valid cons).
+- The entry stays at the queue front until its handoff round-trip
+  completes. `PopConCess` — now wired into the `CHECKMAIN_ACK`
+  main-confirmed branch (W6-14's deferred TODO) — pops the finished
+  entry and replays the next one (`BeginTeleport` again). `PopConCess`
+  and `BeginTeleport` are mutually recursive so a skipped/non-main entry
+  advances the queue without stalling.
+
+Errors: unknown char / key mismatch → `MW_DELCHAR_REQ`. One sender
+(`SendMwStartTeleportReq`). The cession entry stores the reporting map's
+server id + msg id + raw body; the peer is re-resolved at replay time
+(legacy `FindTServer`). Deferred: the `MW_CHECKCONNECT_ACK` producer
+(the other queue feeder — reconcile-with-position) and the
+main-offline `CloseChar` (logout teardown).
+
+Tests — `tests/test_teleport_handlers.cpp` (2 map peers): the
+same-channel fast path (records channel, never queues); a single
+teleport broadcasting STARTTELEPORT to both cons; and a second teleport
+deferred behind the first (queue size 2) that replays + broadcasts when
+`CHECKMAIN_ACK` pops the first (queue back to 1). A test-side note: poll
+loops must read state under the char lock and sleep *outside* it —
+holding the entity lock across a sleep starves the handler coroutine.
+
+Build verified: cmake + ctest -R tworldsvr_asio (73/73 passed).
 
 ### W6-16 — what landed
 

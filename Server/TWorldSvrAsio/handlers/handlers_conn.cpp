@@ -2,6 +2,8 @@
 #include "../senders/senders.h"
 #include "../wire_codec.h"
 
+#include "MessageId.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -24,6 +26,29 @@ FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
         if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
             return p;
     return nullptr;
+}
+
+// --- cession queue (legacy PushConCess / PopConCess) ---------------
+// Forward-declared because PopConCess + BeginTeleport are mutually
+// recursive (a non-main teleport pops + replays the next entry) and
+// OnCheckMainAck drives PopConCess when a main session is confirmed.
+boost::asio::awaitable<void>
+BeginTeleport(std::shared_ptr<PeerSession> peer,
+              std::vector<std::byte>       body,
+              const HandlerContext&        ctx);
+boost::asio::awaitable<void>
+PopConCess(std::shared_ptr<TChar> ch, const HandlerContext& ctx);
+
+// Push a deferred handoff packet. Returns true if the char already had
+// one in flight (this one must wait); false if it's now the only entry
+// and the caller should process it immediately. Mirrors the legacy
+// PushConCess "queue.size() > 1" gate.
+bool PushConCess(TChar& ch, std::uint8_t server_id, std::uint16_t msg_id,
+                 const std::vector<std::byte>& body)
+{
+    std::lock_guard g(ch.lock);
+    ch.con_cess.push(ConCessEntry{server_id, msg_id, body});
+    return ch.con_cess.size() > 1;
 }
 
 // Shared body of MW_CONLIST_ACK and MW_MAPSVRLIST_ACK — the legacy
@@ -175,6 +200,112 @@ ReconcileConList(std::shared_ptr<PeerSession> peer,
                 channel, map_id, px, py, pz);
 }
 
+// BeginTeleport — the actual teleport once the cession queue lets it
+// run (legacy CTWorldSvrModule::OnBeginTeleport). The teleport must
+// originate from the char's main map; from any other map it's ignored
+// and the queue advances. On success world updates the char's
+// destination and tells every connected map to start moving the avatar.
+boost::asio::awaitable<void>
+BeginTeleport(std::shared_ptr<PeerSession> peer,
+              std::vector<std::byte>       body,
+              const HandlerContext&        ctx)
+{
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  same_channel = 0, channel = 0;
+    std::uint16_t map_id = 0;
+    float         px = 0, py = 0, pz = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(same_channel) ||
+        !r.Read(channel) || !r.Read(map_id) ||
+        !r.Read(px) || !r.Read(py) || !r.Read(pz))
+        co_return;
+
+    auto ch = ctx.chars->Find(char_id);
+    if (!ch) co_return;          // char gone (legacy CloseChar — deferred)
+
+    const std::uint8_t reporting_id =
+        static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+    std::uint8_t main_id = 0;
+    { std::lock_guard g(ch->lock); main_id = ch->main_server_id; }
+
+    auto main_peer = FindMapPeer(ctx, main_id);
+    if (!main_peer)
+    {
+        // Main offline — legacy CloseChar (logout teardown, a later
+        // slice). Advance the queue so it doesn't stall.
+        spdlog::warn("BeginTeleport: char_id={} main={} offline "
+                     "(CloseChar deferred) — advancing cession queue",
+            char_id, main_id);
+        co_await PopConCess(ch, ctx);
+        co_return;
+    }
+    if (reporting_id != main_id)
+    {
+        // Teleport didn't come from the main session — ignore + advance.
+        spdlog::info("BeginTeleport: char_id={} request from non-main {} "
+                     "(main={}) — skipped", char_id, reporting_id, main_id);
+        co_await PopConCess(ch, ctx);
+        co_return;
+    }
+
+    // Move the char to the destination and announce to every map it is
+    // connected to (the entry stays at the queue front until the
+    // teleport's CHECKMAIN round-trip completes and pops it).
+    std::vector<std::uint8_t> targets;
+    {
+        std::lock_guard g(ch->lock);
+        ch->channel = channel; ch->map_id = map_id;
+        ch->pos_x = px; ch->pos_y = py; ch->pos_z = pz;
+        for (const auto& c : ch->cons)
+            if (c.valid) targets.push_back(c.server_id);
+    }
+    spdlog::info("BeginTeleport: char_id={} → channel={} map={} "
+                 "(STARTTELEPORT to {} con(s))", char_id, channel, map_id,
+        targets.size());
+    for (std::uint8_t sid : targets)
+        if (auto p = FindMapPeer(ctx, sid))
+            co_await senders::SendMwStartTeleportReq(p, char_id, key,
+                channel, map_id, px, py, pz);
+}
+
+// PopConCess — the in-flight handoff completed; drop it and replay the
+// next queued one (legacy CTWorldSvrModule::PopConCess).
+boost::asio::awaitable<void>
+PopConCess(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
+{
+    ConCessEntry next;
+    bool has_next = false;
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->con_cess.empty()) co_return;
+        ch->con_cess.pop();
+        if (!ch->con_cess.empty())
+        {
+            next = ch->con_cess.front();   // stays in queue until it completes
+            has_next = true;
+        }
+    }
+    if (!has_next) co_return;
+
+    auto peer = FindMapPeer(ctx, next.server_id);
+    if (!peer)
+    {
+        // Reporting map gone — skip this entry and try the one after.
+        co_await PopConCess(ch, ctx);
+        co_return;
+    }
+    switch (tnetlib::protocol::ToMessageId(next.msg_id))
+    {
+    case tnetlib::protocol::MessageId::MW_BEGINTELEPORT_ACK:
+        co_await BeginTeleport(peer, std::move(next.body), ctx);
+        break;
+    default:
+        // CHECKCONNECT_ACK replay lands with that handler (later slice).
+        co_await PopConCess(ch, ctx);
+        break;
+    }
+}
+
 } // namespace
 
 boost::asio::awaitable<void>
@@ -300,10 +431,9 @@ OnCheckMainAck(std::shared_ptr<PeerSession> peer,
                 co_await senders::SendMwCloseCharReq(p, char_id, key);
         co_await senders::SendMwConResultReq(main_peer, char_id, key,
             kConSuccess, live_servers);
-        // TODO (cession-queue slice): legacy calls PopConCess here to
-        // replay the next queued teleport/connect handoff. The queue
-        // is only populated by CHECKCONNECT_ACK (not yet ported), so
-        // it is always empty today — PopConCess would be a no-op.
+        // The confirmed main session completes any in-flight cession
+        // entry (teleport / connect); pop it and replay the next.
+        co_await PopConCess(ch, ctx);
         co_return;
     }
 
@@ -383,6 +513,69 @@ OnReleaseMainAck(std::shared_ptr<PeerSession> peer,
     }
     spdlog::info("OnReleaseMainAck[{}]: char_id={} forwarded to new main={} "
                  "(old main={})", ip, char_id, new_main_id, ch->chg_main_id);
+}
+
+boost::asio::awaitable<void>
+OnBeginTeleportAck(std::shared_ptr<PeerSession> peer,
+                   std::vector<std::byte>       body,
+                   const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnBeginTeleportAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  same_channel = 0, channel = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(same_channel) ||
+        !r.Read(channel))
+    {
+        spdlog::warn("OnBeginTeleportAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    bool ok = ch != nullptr;
+    if (ok)
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key) ok = false;
+    }
+    if (!ok)
+    {
+        spdlog::info("OnBeginTeleportAck[{}]: char_id={} not registered / key "
+                     "mismatch — DELCHAR", ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    // Same-channel teleport: no map handoff, just record the channel.
+    if (same_channel)
+    {
+        std::lock_guard g(ch->lock);
+        ch->channel = channel;
+        co_return;
+    }
+
+    // Serialize against any in-flight handoff. If this is the only
+    // entry, run it now; otherwise it waits for PopConCess to replay it.
+    const std::uint8_t reporting_id =
+        static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+    if (PushConCess(*ch, reporting_id,
+            tnetlib::protocol::ToUint16(
+                tnetlib::protocol::MessageId::MW_BEGINTELEPORT_ACK),
+            body))
+    {
+        spdlog::info("OnBeginTeleportAck[{}]: char_id={} deferred behind an "
+                     "in-flight handoff", ip, char_id);
+        co_return;
+    }
+    co_await BeginTeleport(std::move(peer), std::move(body), ctx);
 }
 
 } // namespace tworldsvr::handlers

@@ -85,6 +85,31 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
         spdlog::info("OnRelaysvrReq[{}]: broadcast RELAYCONNECT to {} "
                      "other peer(s)", ip, others.size());
     }
+
+    // W6-32: replay active timed events to the newly-connected map.
+    // Legacy SSHandler.cpp:662-664 walks `m_mapEVENT` after the peer
+    // registers and re-fires SendMW_EVENTUPDATE_REQ for every
+    // currently-active entry so the joining map sees the same
+    // event state as everyone else. The W6-31 EventRegistry stores
+    // each entry's outer (event_id, value) plus the opaque EVENTINFO
+    // tail — re-emit is a verbatim relay.
+    //
+    // We deliberately re-emit in this handler (not the legacy
+    // CASHITEMSALE / castle-applicant replays from SSHandler.cpp:
+    // 666-680) — those touch state we haven't ported yet. The
+    // event replay is self-contained on what W6-31 landed.
+    if (ctx.events)
+    {
+        const auto active = ctx.events->Snapshot();
+        for (const auto& info : active)
+        {
+            co_await senders::SendMwEventUpdateReq(
+                peer, info.event_id, info.value, info.body);
+        }
+        if (!active.empty())
+            spdlog::info("OnRelaysvrReq[{}]: replayed {} active "
+                         "event(s) to wID={}", ip, active.size(), wid);
+    }
     co_return;
 }
 

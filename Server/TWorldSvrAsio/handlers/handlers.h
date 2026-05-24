@@ -1946,5 +1946,69 @@ boost::asio::awaitable<void> OnUserMoveAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-13: connection-list reconcile (handlers_conn.cpp) ---------
+//
+// MW_CONLIST_ACK / MW_MAPSVRLIST_ACK — a map server reports the set
+// of map servers a char is connected to. World reconciles its own
+// `cons` table against that set: connections the map no longer
+// reports are moved to `dead_cons`; servers the char must newly
+// connect to are requested from the main map (MW_ROUTELIST_REQ);
+// when there are no new servers the main session is re-confirmed on
+// every remaining connection (MW_CHECKMAIN_REQ). The two handlers
+// share byte-identical logic (the only difference in legacy is the
+// packet id) — both delegate to the same reconcile.
+//   Wire (SSHandler.cpp:2020 / 2133):
+//     DWORD char_id, key, BYTE count, × count: BYTE server_id
+boost::asio::awaitable<void> OnConListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMapSvrListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_CHECKMAIN_ACK — a map answers the CHECKMAIN broadcast claiming
+// (or declining) the char's main session. When the responder *is*
+// the main, world drains the char's dead_cons (MW_CLOSECHAR_REQ each,
+// legacy ClearDeadCON) and green-lights the connection set back to
+// the main (MW_CONRESULT_REQ / CN_SUCCESS). When the responder is a
+// *different* map, world hands the main session off: it tells the
+// old main to release (MW_RELEASEMAIN_REQ) and re-points main at the
+// responder. Errors: unknown char / key mismatch → MW_DELCHAR_REQ;
+// old main offline → MW_INVALIDCHAR_REQ.
+//   Wire (SSHandler.cpp:1095): DWORD char_id, key
+boost::asio::awaitable<void> OnCheckMainAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_RELEASEMAIN_ACK — the old main confirms it released the char's
+// main session (completing the W6-14 handoff it was asked to start).
+// World forwards the released char verbatim to the new main (the
+// map main_server_id was re-pointed at in CHECKMAIN_ACK) re-tagged as
+// MW_ENTERSVR_REQ, and records the old main in chg_main_id. Errors:
+// unknown char / key mismatch → MW_DELCHAR_REQ; new main offline →
+// MW_INVALIDCHAR_REQ(release_main=1).
+//   Wire (SSHandler.cpp:2284): BYTE db_load, DWORD char_id, key, …
+boost::asio::awaitable<void> OnReleaseMainAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_BEGINTELEPORT_ACK — a map asks world to start teleporting a char.
+// A same-channel teleport just records the new channel. Otherwise the
+// request is pushed onto the char's cession queue (so overlapping
+// teleports/connects serialise); if it's the only entry it runs now,
+// broadcasting MW_STARTTELEPORT_REQ to every map the char is connected
+// to. Deferred entries replay when the one ahead completes (PopConCess,
+// driven by CHECKMAIN_ACK). Unknown char / key mismatch → MW_DELCHAR_REQ.
+//   Wire (SSHandler.cpp:8554): DWORD char_id, key, BYTE same_channel,
+//     channel, WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> OnBeginTeleportAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

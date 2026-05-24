@@ -54,6 +54,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_admin.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_rank.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_recallmon.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_conn.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -71,6 +72,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_admin.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_rank.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_recallmon.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_conn.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -793,3 +795,53 @@ target_link_libraries(test_tworldsvr_asio_spolecnikmon_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_spolecnikmon_handlers
     COMMAND test_tworldsvr_asio_spolecnikmon_handlers)
+
+# W6-13 wire test: connection-list reconcile — CONLIST/MAPSVRLIST
+# drop no-longer-reported cons to dead_cons, ROUTELIST new servers
+# via the main map, and CHECKMAIN every remaining connection.
+add_executable(test_tworldsvr_asio_conn_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_conn_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_conn_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_conn_handlers
+    COMMAND test_tworldsvr_asio_conn_handlers)
+
+# W6-14 wire test: CHECKMAIN_ACK — main confirmation closes dead cons
+# + CONRESULTs the live set; non-main handoff RELEASEMAINs the old main
+# and re-points main; unknown char replies DELCHAR.
+add_executable(test_tworldsvr_asio_checkmain_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_checkmain_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_checkmain_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_checkmain_handlers
+    COMMAND test_tworldsvr_asio_checkmain_handlers)
+
+# W6-15 wire test: RELEASEMAIN_ACK — old main releases → forward the
+# char verbatim to the new main as ENTERSVR_REQ + record chg_main_id;
+# new main offline → INVALIDCHAR; unknown char → DELCHAR.
+add_executable(test_tworldsvr_asio_releasemain_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_releasemain_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_releasemain_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_releasemain_handlers
+    COMMAND test_tworldsvr_asio_releasemain_handlers)
+
+# W6-16 wire test: ENTERSVR_ACK handoff completion — chg_main_id set
+# (normal map) → clear it + MAPSVRLIST to the new main; BR_SERVER_ID
+# excluded (falls through to fresh login, flag intact).
+add_executable(test_tworldsvr_asio_entersvr_handoff_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_entersvr_handoff_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_entersvr_handoff_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_entersvr_handoff_handlers
+    COMMAND test_tworldsvr_asio_entersvr_handoff_handlers)
+
+# W6-17 wire test: teleport begin + cession queue — same-channel fast
+# path, single BEGINTELEPORT → STARTTELEPORT broadcast, and a deferred
+# second teleport that replays when CHECKMAIN_ACK pops the first.
+add_executable(test_tworldsvr_asio_teleport_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_teleport_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_teleport_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_teleport_handlers
+    COMMAND test_tworldsvr_asio_teleport_handlers)

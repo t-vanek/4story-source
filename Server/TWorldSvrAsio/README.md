@@ -107,9 +107,206 @@ that the four shipped Asio daemons already use.
 | W6-9 | Friend-protected refuse relay — OnMW_FRIENDPROTECTEDASK_ACK relays an auto-refuse (FRIEND_REFUSE + requester name) to a protection-enabled target's map; completes the friend-ask protection sub-case | ✅ |
 | W6-10 | Item-result relays — OnMW_ADDITEMRESULT_ACK (route to the requesting map server) + OnMW_DEALITEMERROR_ACK (route to the target char's map) + SendMwDealItemErrorReq (reuses the W3b SendMwAddItemResultReq) | ✅ |
 | W6-11 | Day-change guild ranking — OnSM_CHANGEDAY_REQ recomputes every guild's PvP total/month rank over GuildRegistry (legacy CalcGuildRanking); read back by GuildInfoAck | ✅ |
-| **W6-12** | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
+| W6-12 | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
+| W6-13 | Connection-list reconcile — OnMW_CONLIST_ACK + OnMW_MAPSVRLIST_ACK (byte-identical) reconcile `cons` vs the reported set: drop stale cons to `dead_cons`, ROUTELIST new servers via the main map, else CHECKMAIN every remaining connection; DELCHAR/INVALIDCHAR error replies + 4 senders. First slice of the connection/teleport cluster | ✅ |
+| W6-14 | Main-session confirmation — OnMW_CHECKMAIN_ACK: responder-is-main → drain `dead_cons` via CLOSECHAR (ClearDeadCON) + CONRESULT (CN_SUCCESS) the live set; responder-is-other → RELEASEMAIN the old main + re-point main; DELCHAR/INVALIDCHAR errors + 3 senders. CloseChar (logout teardown) + cession queue (PopConCess) deferred | ✅ |
+| W6-15 | Main-session handoff forward — OnMW_RELEASEMAIN_ACK: the old main releases → forward the released char verbatim to the new main (re-tagged MW_ENTERSVR_REQ) + record the old main in `chg_main_id`; new main offline → INVALIDCHAR(release_main=1); unknown char → DELCHAR. Opaque-passthrough sender | ✅ |
+| W6-16 | Handoff completion — OnMW_ENTERSVR_ACK now branches on `chg_main_id`: a normal-map handoff clears it + asks the new main for the server list (MAPSVRLIST_REQ → re-enters the W6-13 reconcile), skipping the fresh-login fan-out; BR/Bow battleground ids (50/30) excluded. Closes the handoff loop (reconcile→checkmain→release→entersvr→reconcile) | ✅ |
+| **W6-17** | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender. CHECKCONNECT producer + CloseChar deferred | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-17 — what landed
+
+**Teleport begin + cession queue** — `OnBeginTeleportAck`
+(handlers_conn.cpp, `MW_BEGINTELEPORT_ACK`) starts a char teleport, and
+introduces the connection **cession queue** (`TChar::con_cess`, legacy
+`m_qConCess`) that serialises a char's multi-round-trip handoffs.
+
+- A *same-channel* teleport just records the new channel and returns —
+  no map handoff, never queued.
+- Otherwise the request is pushed onto the cession queue. `PushConCess`
+  returns whether something was already in flight: if so the new request
+  waits; if it's the only entry, `BeginTeleport` runs immediately. It
+  must originate from the char's main map (else it's ignored and the
+  queue advances), updates the char's destination channel/map/pos, and
+  broadcasts `MW_STARTTELEPORT_REQ` to every map the char is connected
+  to (the valid cons).
+- The entry stays at the queue front until its handoff round-trip
+  completes. `PopConCess` — now wired into the `CHECKMAIN_ACK`
+  main-confirmed branch (W6-14's deferred TODO) — pops the finished
+  entry and replays the next one (`BeginTeleport` again). `PopConCess`
+  and `BeginTeleport` are mutually recursive so a skipped/non-main entry
+  advances the queue without stalling.
+
+Errors: unknown char / key mismatch → `MW_DELCHAR_REQ`. One sender
+(`SendMwStartTeleportReq`). The cession entry stores the reporting map's
+server id + msg id + raw body; the peer is re-resolved at replay time
+(legacy `FindTServer`). Deferred: the `MW_CHECKCONNECT_ACK` producer
+(the other queue feeder — reconcile-with-position) and the
+main-offline `CloseChar` (logout teardown).
+
+Tests — `tests/test_teleport_handlers.cpp` (2 map peers): the
+same-channel fast path (records channel, never queues); a single
+teleport broadcasting STARTTELEPORT to both cons; and a second teleport
+deferred behind the first (queue size 2) that replays + broadcasts when
+`CHECKMAIN_ACK` pops the first (queue back to 1). A test-side note: poll
+loops must read state under the char lock and sleep *outside* it —
+holding the entity lock across a sleep starves the handler coroutine.
+
+Build verified: cmake + ctest -R tworldsvr_asio (73/73 passed).
+
+### W6-16 — what landed
+
+**Handoff completion** — `OnEnterSvrAck` (handlers_char.cpp,
+`MW_ENTERSVR_ACK`) now branches on the char's `chg_main_id` before the
+fresh-login path. When it's set to a normal map id, this ENTERSVR_ACK is
+the new main confirming it loaded the handed-off char (the W6-15
+RELEASEMAIN_ACK → ENTERSVR_REQ → here chain): world clears `chg_main_id`
+and asks the new main for the char's full server list (`MAPSVRLIST_REQ`
+carrying the just-received channel/map/pos), which re-enters the W6-13
+reconcile. This is a map move, not a login, so the friend-presence
+fan-out is skipped (early return). A `chg_main_id` of `BR_SERVER_ID` (50)
+or `BOW_SERVER_ID` (30) — the Battle-Royale / Bow battleground instances
+(NetCode.h) — is excluded and falls through to the fresh-login path,
+matching legacy `OnMW_ENTERSVR_ACK:1343`.
+
+This closes the main-session handoff loop end-to-end:
+
+```
+CONLIST/MAPSVRLIST reconcile (W6-13)
+  → CHECKMAIN broadcast
+  → CHECKMAIN_ACK from a non-main (W6-14): RELEASEMAIN old main, re-point main
+  → RELEASEMAIN_ACK from old main (W6-15): forward ENTERSVR_REQ to new main
+  → ENTERSVR_ACK from new main (W6-16): MAPSVRLIST_REQ → reconcile (W6-13)
+```
+
+One sender (`SendMwMapSvrListReq`). The legacy BR/Bow `CHARINFO_REQ`
+sub-case and the full fresh-login completion (guild/tactics resolve,
+CHARINFO_REQ + ROUTE_REQ + SOULMATELIST/FRIENDLIST) remain as later
+slices — the ported fresh-login path so far is the W4-20 identity load +
+friend fan-out.
+
+Tests — `tests/test_entersvr_handoff_handlers.cpp` (2 map peers): two
+ENTERSVR_ACKs on one socket (ordered) — a BR-excluded char (chg=50) that
+must emit nothing, then a normal-handoff char — confirm only the handoff
+char's MAPSVRLIST is sent (with its channel/map/pos), its `chg_main_id`
+is cleared, and the BR char's flag is left intact (proving exclusion).
+
+Build verified: cmake + ctest -R tworldsvr_asio (72/72 passed).
+
+### W6-15 — what landed
+
+**Main-session handoff forward** — `OnReleaseMainAck` (handlers_conn.cpp,
+`MW_RELEASEMAIN_ACK`) completes the handoff W6-14 starts. When a char's
+main session is being moved to a different map, W6-14's CHECKMAIN_ACK
+re-points `main_server_id` at the new map and asks the *old* main to
+release; the old main's `MW_RELEASEMAIN_ACK` lands here. World forwards
+the released char to the new main — the inbound body (BYTE db_load,
+DWORD char_id, key, + the char's saved state) is re-tagged verbatim as
+`MW_ENTERSVR_REQ` (opaque passthrough; world reads only the first three
+fields to find the char) — and records the old main in the char's new
+`chg_main_id` byte (legacy `m_bCHGMainID`, replacing the misnomer
+`bool main_id_changing`; 0 = no handoff). The new main loads the char
+and replies `MW_ENTERSVR_ACK` to finish.
+
+Errors match legacy: unknown char / key mismatch → `MW_DELCHAR_REQ`; new
+main offline → `MW_INVALIDCHAR_REQ(release_main=1)`. One opaque-passthrough
+sender (`SendMwEnterSvrReq`).
+
+Deferred (its own slice): the `MW_ENTERSVR_ACK` handoff-completion logic
+that *consumes* `chg_main_id` — the legacy `OnMW_ENTERSVR_ACK` branches on
+`m_bCHGMainID` (incl. the BOW_/BR_SERVER special cases) to finalize the
+takeover, CONRESULT the new connection set, and clear the flag. The
+Asio `OnEnterSvrAck` ported so far only loads identity; the
+handoff-completion path lands later.
+
+Tests — `tests/test_releasemain_handlers.cpp` (2 map peers): an old main
+releasing a char whose main was re-pointed at the new map forwards the
+verbatim body (incl. a saved-state marker) to the new main as
+ENTERSVR_REQ + sets `chg_main_id`; a char whose new main is offline
+replies INVALIDCHAR(release_main=1); an unknown char replies DELCHAR.
+
+Build verified: cmake + ctest -R tworldsvr_asio (71/71 passed).
+
+### W6-14 — what landed
+
+**Main-session confirmation** — `OnMW_CHECKMAIN_ACK` (handlers_conn.cpp)
+handles a map's answer to the W6-13 `CHECKMAIN_REQ` broadcast. The
+responding map either *is* the char's main session or claims it:
+
+- **responder is the main** (`responding_id == main_server_id`) — world
+  drains `TChar::dead_cons`, sending `MW_CLOSECHAR_REQ` to each (legacy
+  `ClearDeadCON`), then green-lights the connection set back to the main
+  with `MW_CONRESULT_REQ` / `CN_SUCCESS` (NetCode.h `TCONNECT_RESULT`)
+  carrying the live server list. The responder is the packet's sender,
+  so its main peer is always present — the dead-con drain happens under
+  the same lock as the snapshot, no INVALIDCHAR can intervene.
+- **responder is a different map** — main-session handoff: world tells
+  the *old* main to release (`MW_RELEASEMAIN_REQ` with the char's
+  channel/map/pos) and re-points `main_server_id` at the responder
+  (clearing `saving`). The mutation is deferred until after the old-main
+  lookup succeeds, matching legacy's pMAIN-before-reassign ordering.
+
+Error replies match legacy: unknown char / key mismatch →
+`MW_DELCHAR_REQ(logout=1,save=0)`; old main offline → `MW_INVALIDCHAR_REQ`.
+Three senders in `senders_conn.cpp` (CONRESULT / CLOSECHAR / RELEASEMAIN).
+
+Deferred (each a slice of its own): the `if(!m_bSave) CloseChar` logout
+teardown (friend/TMS/party/guild/tactics unwind + DELCHAR every con),
+and `PopConCess` — the cession queue is only populated by
+`CHECKCONNECT_ACK` (not yet ported), so it is always empty today and the
+PopConCess call would be a no-op.
+
+Tests — `tests/test_checkmain_handlers.cpp` (3 map peers): a CHECKMAIN
+from the main closes the dead con + CONRESULTs the live set (and drains
+`dead_cons`); a CHECKMAIN from a non-main RELEASEMAINs the old main +
+re-points `main_server_id`; a CHECKMAIN for an unknown char replies
+DELCHAR. Both connection tests now serialise the two per-char ADDCHARs
+(let p1's insert win the main slot before p2 adds its con) to remove a
+cross-socket ordering race.
+
+Build verified: cmake + ctest -R tworldsvr_asio (70/70 passed).
+
+### W6-13 — what landed
+
+**Connection-list reconcile** — the first, self-contained slice of the
+legacy connection/teleport cluster. A map server periodically reports
+which map servers a char is connected to (`MW_CONLIST_ACK`) or which it
+must mirror to (`MW_MAPSVRLIST_ACK`); the two legacy handlers
+(SSHandler.cpp:2020 / 2133) are byte-identical, so one `ReconcileConList`
+serves both. Given the reported server set (always including the
+reporting map itself), world:
+
+- moves connections the map no longer reports out of `TChar::cons` into
+  the new `TChar::dead_cons` (legacy `m_vTDEADCON`) — these are closed
+  later by `ClearDeadCON` at `CHECKMAIN_ACK` time (next slice);
+- if the char must connect to *new* servers, asks its main map to route
+  it there (`SendMwRouteListReq` → the map answers `MW_ROUTE_ACK`, which
+  it forwards down to the client);
+- otherwise re-confirms the main session on every remaining connection
+  (`SendMwCheckMainReq` to each, legacy `CheckMainCON`).
+
+Error replies match legacy: char not in the registry (or key mismatch) →
+`SendMwDelCharReq(logout=1,save=0)` to the reporting map; main session's
+peer offline → `SendMwInvalidCharReq`. Reconcile runs under the char
+lock and snapshots the new-server list / live-con list / channel-map-pos
+before any peer lookup or send (README §5 — never hold the lock across a
+co_await). Added `TChar::channel` (legacy `m_bChannel`, also now stored
+by `OnEnterSvrAck`) so `CHECKMAIN_REQ` carries the right channel.
+
+Four senders in `senders_conn.cpp` (ROUTELIST / CHECKMAIN / DELCHAR /
+INVALIDCHAR). The cession queue, `CHECKMAIN_ACK`, `RELEASEMAIN`,
+`ENTERSVR` handoff and `BEGINTELEPORT`/`CHECKCONNECT` teleport flow are
+the remaining cluster slices.
+
+Tests — `tests/test_conn_handlers.cpp` (3 map peers): a CONLIST naming a
+new server routes via the main map + drops the stale con to `dead_cons`;
+a CONLIST naming only existing cons broadcasts CHECKMAIN to each
+(carrying the char's channel/map/pos); a CONLIST for an unknown char
+replies DELCHAR.
+
+Build verified: cmake + ctest -R tworldsvr_asio (69/69 passed).
 
 ### W6-12 — what landed
 

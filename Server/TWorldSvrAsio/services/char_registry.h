@@ -29,9 +29,11 @@
 // all references die).
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -78,6 +80,22 @@ struct TCharCon
     bool          valid         = true;  // m_bValid — connection accepted
 };
 
+// W6-17 — one deferred inbound packet in a character's connection
+// cession queue (legacy m_qConCess). The queue serialises a char's
+// multi-round-trip connection handoffs (teleport / connect-check) so
+// overlapping ones don't interleave: the front entry is the one
+// currently in flight, and each later entry is replayed when the one
+// ahead of it completes. We store the reporting map's server id (the
+// peer is re-resolved at replay time, like the legacy FindTServer)
+// plus the message id + raw body so the matching handler can be
+// re-run verbatim.
+struct ConCessEntry
+{
+    std::uint8_t            server_id = 0;   // reporting map (low byte of wID)
+    std::uint16_t           msg_id    = 0;   // MW_BEGINTELEPORT_ACK / …
+    std::vector<std::byte>  body;
+};
+
 // Per-character state. W2 ships only the fields that
 // OnMW_ADDCHAR_ACK / OnMW_CLOSECHAR_ACK actually touch. **W3a-3**
 // extends with the identity fields (name + country + aid_country
@@ -106,11 +124,32 @@ struct TChar
     bool          logout            = false;
     bool          saving            = false;
     bool          db_loading        = false;
-    bool          main_id_changing  = false;
+
+    // W6-15 — the *old* main map's id while a main-session handoff is
+    // in flight (legacy m_bCHGMainID; 0 = no handoff). Set when world
+    // forwards the released char to the new main (RELEASEMAIN_ACK →
+    // MW_ENTERSVR_REQ) so the completing handler / CloseChar can tell
+    // the old main its takeover was superseded. A byte, not a bool —
+    // the legacy field stores the server id, not just a flag.
+    std::uint8_t  chg_main_id       = 0;
 
     // Per-map-server connection table. Insert ordering is by
     // server_id arrival; lookups are linear (typical size 1–3).
     std::vector<TCharCon> cons;
+
+    // W6-13 — map-server ids whose connection was dropped during a
+    // connection-list reconcile but not yet closed (legacy
+    // m_vTDEADCON). The reconcile (OnConListAck / OnMapSvrListAck)
+    // moves a no-longer-needed con here; ClearDeadCON drains it with
+    // MW_CLOSECHAR_REQ once the main session is re-confirmed
+    // (CHECKMAIN_ACK — lands in the follow-up slice).
+    std::vector<std::uint8_t> dead_cons;
+
+    // W6-17 — connection cession queue (legacy m_qConCess). FIFO of
+    // deferred teleport / connect-check packets; the front is the
+    // in-flight handoff, replayed forward as each completes. Guarded
+    // by `lock`.
+    std::queue<ConCessEntry> con_cess;
 
     // W3a-3 identity fields. Populated by OnMW_CHANGECHARBASE_ACK
     // (and its initial CHARINFO push that arrives shortly after
@@ -125,6 +164,7 @@ struct TChar
     std::uint8_t  sex         = 0; // m_bSex
     std::uint8_t  face        = 0; // m_bFace
     std::uint8_t  hair        = 0; // m_bHair
+    std::uint8_t  channel     = 0; // m_bChannel — last seen channel
     std::uint16_t map_id      = 0; // m_wMapID — last seen map
     float         pos_x       = 0.0f;
     float         pos_y       = 0.0f;

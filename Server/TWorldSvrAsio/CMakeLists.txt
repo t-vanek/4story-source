@@ -596,3 +596,12 @@ target_link_libraries(test_tworldsvr_asio_friend_persist_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_friend_persist_handlers
     COMMAND test_tworldsvr_asio_friend_persist_handlers)
+
+# W4-17 wire test: friend-edge write-back — accept persists both
+# directed edges; remove deletes only the requester's forward edge.
+add_executable(test_tworldsvr_asio_friend_edge_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_edge_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_edge_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_edge_handlers
+    COMMAND test_tworldsvr_asio_friend_edge_handlers)

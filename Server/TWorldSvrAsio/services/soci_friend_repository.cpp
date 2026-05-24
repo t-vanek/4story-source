@@ -177,4 +177,45 @@ bool SociFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
     }
 }
 
+bool SociFriendRepository::InsertFriend(std::uint32_t char_id,
+                                        std::uint32_t friend_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "INSERT INTO \"TFRIENDTABLE\" "
+                  "(\"dwCharID\", \"dwFriendID\", \"bGroup\") "
+                  "VALUES (:c, :f, 0)",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(friend_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::InsertFriend({},{}) failed: {}",
+            char_id, friend_id, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::EraseFriend(std::uint32_t char_id,
+                                       std::uint32_t friend_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "DELETE FROM \"TFRIENDTABLE\" "
+                  "WHERE \"dwCharID\" = :c AND \"dwFriendID\" = :f",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(friend_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::EraseFriend({},{}) failed: {}",
+            char_id, friend_id, ex.what());
+        return false;
+    }
+}
+
 } // namespace tworldsvr

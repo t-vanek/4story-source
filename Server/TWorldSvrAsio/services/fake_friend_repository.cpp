@@ -77,4 +77,25 @@ bool FakeFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
     return true;
 }
 
+bool FakeFriendRepository::InsertFriend(std::uint32_t char_id,
+                                        std::uint32_t friend_id)
+{
+    std::lock_guard g(m_mtx);
+    auto& fwd = m_data[char_id].forward;
+    for (const auto& f : fwd)
+        if (f.id == friend_id) return true;   // already present
+    fwd.push_back(FriendRow{friend_id, "", 0, 0, 0});
+    return true;
+}
+
+bool FakeFriendRepository::EraseFriend(std::uint32_t char_id,
+                                       std::uint32_t friend_id)
+{
+    std::lock_guard g(m_mtx);
+    auto& fwd = m_data[char_id].forward;
+    for (auto it = fwd.begin(); it != fwd.end(); ++it)
+        if (it->id == friend_id) { fwd.erase(it); break; }
+    return true;
+}
+
 } // namespace tworldsvr

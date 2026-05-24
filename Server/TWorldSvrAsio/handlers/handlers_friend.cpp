@@ -176,7 +176,14 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
                     f.region = req_region;
                 }
         }
-        // (Persistence — legacy DM_FRIENDINSERT_REQ — deferred.)
+        // Persist both directed edges (legacy DM_FRIENDINSERT_REQ ×2).
+        if (ctx.friend_repo)
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.friend_repo, char_id, t_id]
+                {
+                    repo->InsertFriend(t_id, char_id);
+                    repo->InsertFriend(char_id, t_id);
+                });
         co_await reply(frnd::kSuccess, t_id, t_name, t_level, t_class,
             t_region);
         spdlog::info("OnFriendAskAck[{}]: char_id={} + '{}' now mutual "
@@ -290,7 +297,14 @@ OnFriendReplyAck(std::shared_ptr<PeerSession> peer,
       UpsertMutual(*inviter, char_id, f_name, f_region); }
     { std::lock_guard g(answerer->lock);
       UpsertMutual(*answerer, p_id, p_name, p_region); }
-    // (Persistence — legacy DM_FRIENDINSERT_REQ ×2 — deferred.)
+    // Persist both directed edges (legacy DM_FRIENDINSERT_REQ ×2).
+    if (ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, p_id, char_id]
+            {
+                repo->InsertFriend(p_id, char_id);
+                repo->InsertFriend(char_id, p_id);
+            });
 
     if (auto p = FindMapPeer(ctx, p_msi))
         co_await senders::SendMwFriendAddReq(p, p_id, p_key, frnd::kSuccess,
@@ -380,6 +394,13 @@ OnFriendEraseAck(std::shared_ptr<PeerSession> peer,
 
     co_await senders::SendMwFriendEraseReq(peer, char_id, key, frnd::kSuccess,
         target_id);
+    // Both the demote and one-way branches drop the char's forward
+    // edge; FT_TARGET leaves the DB untouched (legacy CSPFriendErase).
+    if ((type == frnd::kTypeFriendFriend || type == frnd::kTypeFriend) &&
+        ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, target_id]
+            { repo->EraseFriend(char_id, target_id); });
     spdlog::info("OnFriendEraseAck[{}]: char_id={} erased friend {}",
         ip, char_id, target_id);
     co_return;

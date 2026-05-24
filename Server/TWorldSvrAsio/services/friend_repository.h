@@ -86,6 +86,20 @@ public:
     virtual bool ChangeFriendGroup(std::uint32_t char_id,
                                    std::uint32_t friend_id,
                                    std::uint8_t  group) = 0;
+
+    // --- W4-17 friend edge write-back ----------------------------
+    //
+    // One directed TFRIENDTABLE row (char_id → friend_id, group 0).
+    // A mutual friendship is two rows, so the accept paths call
+    // InsertFriend twice. Mirrors CSPFriendInsert / CSPFriendErase
+    // (SSHandler.cpp:6185/6202).
+
+    // INSERT a (char_id, friend_id, bGroup=0) row.
+    virtual bool InsertFriend(std::uint32_t char_id,
+                              std::uint32_t friend_id) = 0;
+    // DELETE the (char_id, friend_id) row (the char's forward edge).
+    virtual bool EraseFriend(std::uint32_t char_id,
+                             std::uint32_t friend_id) = 0;
 };
 
 } // namespace tworldsvr

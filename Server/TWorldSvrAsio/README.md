@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-16 friend-group write-back persistence
+## Status — W4-17 friend-edge write-back persistence
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -85,12 +85,43 @@ that the four shipped Asio daemons already use.
 | W4-13 | Mail delivery relay — OnMW_POSTRECV_ACK (player mail) + OnDM_RESERVEDPOSTRECV_ACK (system mail) forward MW_POSTRECV_REQ verbatim to the recipient's map (routed by target name) + SendMwPostRecvReq | ✅ |
 | W4-14 | Per-character visual state sync — OnMW_PETRIDING_ACK (mount fan-out to the char's other map sessions) + OnMW_HELMETHIDE_ACK (helmet-visibility store + confirm) + TChar.riding/helmet_hide + 2 senders | ✅ |
 | W4-15 | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
-| **W4-16** | Friend-group write-back — IFriendRepository MakeGroup/DeleteGroup/RenameGroup/ChangeFriendGroup wired into the W4-3 group handlers via CoOffloadVoidIf (persist alongside the in-memory mutation) | ✅ |
-| W4-17+ | Friend insert/erase + soulmate write-back; login-presence connect fan-out (blocked on a char-identity-loaded signal) | ⏸ |
+| W4-16 | Friend-group write-back — IFriendRepository MakeGroup/DeleteGroup/RenameGroup/ChangeFriendGroup wired into the W4-3 group handlers via CoOffloadVoidIf (persist alongside the in-memory mutation) | ✅ |
+| **W4-17** | Friend-edge write-back — IFriendRepository InsertFriend/EraseFriend wired into the accept paths (both directed edges) + erase path (forward edge) via CoOffloadVoidIf | ✅ |
+| W4-18+ | Soulmate write-back; login-presence connect fan-out (blocked on a char-identity-loaded signal) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-17 — what landed
+
+**Friend-edge write-back** — persists the friendship graph itself
+(W4-16 did the named groups). The accept paths added the mutual
+friendship only in memory; a relog reloaded the old graph.
+
+- `IFriendRepository` gains `InsertFriend(char_id, friend_id)` (one
+  directed TFRIENDTABLE row, group 0) + `EraseFriend(char_id,
+  friend_id)` (Soci + Fake), mirroring CSPFriendInsert /
+  CSPFriendErase (SSHandler.cpp:6185/6202).
+- Both accept paths — the OnFriendAskAck both-sides-pending shortcut
+  and the OnFriendReplyAck YES branch — persist the two directed
+  edges (legacy fired DM_FRIENDINSERT_REQ twice). OnFriendEraseAck
+  deletes the requester's forward edge on the FT_FRIENDFRIEND demote
+  and the FT_FRIEND one-way removal; an FT_TARGET erase leaves the DB
+  untouched (legacy parity). All via CoOffloadVoidIf, best-effort.
+
+With W4-16 this completes the friend write-back: groups, group
+membership, and the edges all survive a relog.
+
+Deferred to W4-18: soulmate write-back (TSOULMATETABLE reg/del). The
+connect-side login presence remains blocked on a char-identity-loaded
+signal (name/region unset at OnAddCharAck).
+
+Tests — `tests/test_friend_edge_handlers.cpp`: Bob accepts Alice's
+invite (both edges land in the repo); Alice removes Bob (only her
+forward edge is deleted, Bob still friends Alice).
+
+Build verified: cmake + ctest -R tworldsvr_asio (49/49 passed).
 
 ### W4-16 — what landed
 

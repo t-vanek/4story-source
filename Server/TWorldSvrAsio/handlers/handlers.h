@@ -1338,5 +1338,31 @@ boost::asio::awaitable<void> OnFriendAskAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-2: friend reply + erase (handlers_friend.cpp) --------------
+//
+// MW_FRIENDREPLY_ACK — the invited char's answer to the FRIENDASK
+// dialog. On ASK_YES both sides' friend entries are upserted to
+// FT_FRIENDFRIEND (connected, each other's region) and both get
+// MW_FRIENDADD_REQ SUCCESS; on reject the inviter gets the answer
+// code. Missing-char branches relay FRIEND_NOTFOUND.
+//   Wire (SSHandler.cpp:6015): DWORD char_id, key, STRING inviter,
+//     BYTE reply
+boost::asio::awaitable<void> OnFriendReplyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_FRIENDERASE_ACK — remove a friend. Legacy round-trips through
+// the DB then runs EraseFriend; the SOCI-direct port runs the
+// in-memory removal here (persistence deferred). A mutual
+// (FT_FRIENDFRIEND) friend is demoted (self → FT_TARGET, the
+// online other side → FT_FRIEND); a one-way (FT_FRIEND) friend is
+// fully removed from both lists (when the other is online).
+//   Wire (SSHandler.cpp:6157): DWORD char_id, key, DWORD target_id
+boost::asio::awaitable<void> OnFriendEraseAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

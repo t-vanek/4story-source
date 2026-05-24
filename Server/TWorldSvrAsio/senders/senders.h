@@ -1411,4 +1411,15 @@ boost::asio::awaitable<void> SendMwFriendAskReq(
     const std::string&           inviter_name,
     std::uint32_t                inviter_id);
 
+// MW_FRIENDERASE_REQ — result of removing a friend.
+//
+// Wire layout (SSSender.cpp:1830):
+//   DWORD char_id, DWORD key, BYTE result, DWORD target_id
+boost::asio::awaitable<void> SendMwFriendEraseReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                target_id);
+
 } // namespace tworldsvr::senders

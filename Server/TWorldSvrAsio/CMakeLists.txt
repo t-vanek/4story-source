@@ -436,3 +436,13 @@ target_link_libraries(test_tworldsvr_asio_friend_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_friend_handlers
     COMMAND test_tworldsvr_asio_friend_handlers)
+
+# W4-2 wire test: MW_FRIENDREPLY_ACK (accept/reject/offline) +
+# MW_FRIENDERASE_ACK (mutual demote / not-found / one-way remove)
+# over a three-peer loopback session.
+add_executable(test_tworldsvr_asio_friend_reply_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_reply_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_reply_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_reply_handlers
+    COMMAND test_tworldsvr_asio_friend_reply_handlers)

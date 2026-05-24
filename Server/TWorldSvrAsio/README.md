@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-1 friend subsystem opener (FRIENDASK invite)
+## Status — W4-2 friend reply + erase (FRIENDREPLY / FRIENDERASE)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -70,12 +70,46 @@ that the four shipped Asio daemons already use.
 | W3c-5 | Corps squad reshuffle — OnMW_PARTYMOVE_ACK (general moves a member between squads / swaps two members) reusing the party Leave/Join machinery + SendMwPartyMoveReq | ✅ |
 | W3c-6 | Corps command broadcast — OnMW_CORPSCMD_ACK (general's move/attack order relayed to every corps member, or own party when corps-less) + SendMwCorpsCmdReq | ✅ |
 | W3c-7 | Corps enemy-list family + HP — OnMW_CORPSENEMYLIST/ADDCORPSENEMY/DELCORPSENEMY/MOVECORPSENEMY/MOVECORPSUNIT/CORPSHP_ACK (6 chief-to-chief opaque relays via a shared CorpsChiefRelay + SendMwCorpsChiefRelay) — **corps subsystem complete** | ✅ |
-| **W4-1** | Friend subsystem opener — TChar.friends/region + TFriend + friend_constants + OnMW_FRIENDASK_ACK invite gate (relay / mutual instant-add) + SendMwFriendAddReq/AskReq | ✅ |
-| W4-2+ | FRIENDREPLY (accept) + FRIENDERASE + friend groups + connection notifications + Chat + Soulmate | ⏸ |
+| W4-1 | Friend subsystem opener — TChar.friends/region + TFriend + friend_constants + OnMW_FRIENDASK_ACK invite gate (relay / mutual instant-add) + SendMwFriendAddReq/AskReq | ✅ |
+| **W4-2** | Friend reply + erase — OnMW_FRIENDREPLY_ACK (accept upserts mutual entries / reject relays code) + OnMW_FRIENDERASE_ACK (mutual demote / one-way remove) + SendMwFriendEraseReq | ✅ |
+| W4-3+ | Friend groups (MAKE/DELETE/CHANGE/NAME) + connection notifications + Chat + Soulmate | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-2 — what landed
+
+Friend **accept/reject + remove** — completes the add/remove core
+of the friend subsystem.
+
+Handlers
+- `OnFriendReplyAck` (wID 0x9054): the invited char's answer. On
+  ASK_YES both sides' entries are upserted to a connected
+  `FT_FRIENDFRIEND` (each other's region copied in) and both get
+  `MW_FRIENDADD_REQ` SUCCESS; on reject the inviter gets the answer
+  code. Inviter-/answerer-offline branches relay `FRIEND_NOTFOUND`.
+- `OnFriendEraseAck` (wID 0x9056): legacy round-trips the removal
+  through the DB then runs EraseFriend; the SOCI-direct port does
+  the in-memory removal inline (persistence deferred). A mutual
+  (`FT_FRIENDFRIEND`) friend is *demoted* — self → `FT_TARGET`, the
+  online other side → `FT_FRIEND`; a one-way (`FT_FRIEND`) friend is
+  fully removed from both lists (when the other is online); a
+  pending `FT_TARGET` is left as-is. Missing entry → `kNotFound`.
+
+Lock discipline: the two affected chars' lists are read/mutated
+under each char's own lock (sequential, never both held at once).
+
+Sender — `SendMwFriendEraseReq` (4-field); the reply result reuses
+the W4-1 `SendMwFriendAddReq`.
+
+Tests — `tests/test_friend_reply_handlers.cpp` (6 scenarios,
+three-peer loopback): accept (both SUCCESS + mutual entries +
+region swap), reject (inviter gets the code), inviter-offline
+NOTFOUND, mutual erase (demote to TARGET/FRIEND), erase-not-found,
+and one-way erase (both entries removed).
+
+Build verified: cmake + ctest -R tworldsvr_asio (34/34 passed).
 
 ### W4-1 — what landed
 

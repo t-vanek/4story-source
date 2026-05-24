@@ -23,6 +23,22 @@ FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
     return nullptr;
 }
 
+// Upsert a char's friend entry to a connected mutual friend
+// (FT_FRIENDFRIEND). Caller holds the char's lock.
+void UpsertMutual(TChar& c, std::uint32_t id, const std::string& name,
+                  std::uint32_t region)
+{
+    for (auto& f : c.friends)
+        if (f.id == id)
+        {
+            f.type = frnd::kTypeFriendFriend;
+            f.connected = true;
+            f.region = region;
+            return;
+        }
+    c.friends.push_back({id, name, frnd::kTypeFriendFriend, true, region, 0});
+}
+
 } // namespace
 
 boost::asio::awaitable<void>
@@ -178,6 +194,192 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
             char_id);
     spdlog::info("OnFriendAskAck[{}]: char_id={} asked '{}' to befriend",
         ip, char_id, target_name);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnFriendReplyAck(std::shared_ptr<PeerSession> peer,
+                 std::vector<std::byte>       body,
+                 const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnFriendReplyAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::string   inviter_name;
+    std::uint8_t  reply = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(inviter_name) ||
+        !r.Read(reply))
+    {
+        spdlog::warn("OnFriendReplyAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto inviter = ctx.chars->FindByName(inviter_name);  // pPlayer
+    auto answerer = ctx.chars->Find(char_id);            // pFriend
+
+    bool friend_ok = false;
+    std::uint32_t f_key = 0;
+    if (answerer)
+    { std::lock_guard g(answerer->lock); f_key = answerer->key;
+      friend_ok = (f_key == key); }
+
+    if (!inviter && !friend_ok) co_return;
+
+    if (!inviter && friend_ok)
+    {
+        // Inviter logged off — tell the answerer.
+        std::uint8_t msi = 0;
+        { std::lock_guard g(answerer->lock); msi = answerer->main_server_id; }
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwFriendAddReq(p, char_id, key,
+                frnd::kNotFound, 0, inviter_name, 0, 0, 0, 0);
+        co_return;
+    }
+    if (inviter && !friend_ok)
+    {
+        std::uint32_t p_id = 0, p_key = 0;
+        std::uint8_t  p_msi = 0;
+        { std::lock_guard g(inviter->lock); p_id = inviter->char_id;
+          p_key = inviter->key; p_msi = inviter->main_server_id; }
+        if (auto p = FindMapPeer(ctx, p_msi))
+            co_await senders::SendMwFriendAddReq(p, p_id, p_key,
+                frnd::kNotFound, 0, std::string{}, 0, 0, 0, 0);
+        co_return;
+    }
+
+    std::uint32_t p_id = 0, p_key = 0, p_region = 0;
+    std::uint8_t  p_level = 0, p_class = 0, p_msi = 0;
+    std::string   p_name;
+    {
+        std::lock_guard g(inviter->lock);
+        p_id = inviter->char_id; p_key = inviter->key;
+        p_region = inviter->region; p_level = inviter->level;
+        p_class = inviter->klass; p_msi = inviter->main_server_id;
+        p_name = inviter->name;
+    }
+    std::uint32_t f_region = 0;
+    std::uint8_t  f_level = 0, f_class = 0, f_msi = 0;
+    std::string   f_name;
+    {
+        std::lock_guard g(answerer->lock);
+        f_region = answerer->region; f_level = answerer->level;
+        f_class = answerer->klass; f_msi = answerer->main_server_id;
+        f_name = answerer->name;
+    }
+
+    if (reply != 0 /* ASK_YES (NetCode.h:222) */)
+    {
+        // Decline — relay the answer code to the inviter.
+        if (auto p = FindMapPeer(ctx, p_msi))
+            co_await senders::SendMwFriendAddReq(p, p_id, p_key, reply, char_id,
+                f_name, 0, 0, 0, 0);
+        co_return;
+    }
+
+    // Accept — both sides become connected mutual friends.
+    { std::lock_guard g(inviter->lock);
+      UpsertMutual(*inviter, char_id, f_name, f_region); }
+    { std::lock_guard g(answerer->lock);
+      UpsertMutual(*answerer, p_id, p_name, p_region); }
+    // (Persistence — legacy DM_FRIENDINSERT_REQ ×2 — deferred.)
+
+    if (auto p = FindMapPeer(ctx, p_msi))
+        co_await senders::SendMwFriendAddReq(p, p_id, p_key, frnd::kSuccess,
+            char_id, f_name, f_level, 0, f_class, f_region);
+    if (auto p = FindMapPeer(ctx, f_msi))
+        co_await senders::SendMwFriendAddReq(p, char_id, key, frnd::kSuccess,
+            p_id, p_name, p_level, 0, p_class, p_region);
+    spdlog::info("OnFriendReplyAck[{}]: '{}' + char_id={} now friends",
+        ip, inviter_name, char_id);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnFriendEraseAck(std::shared_ptr<PeerSession> peer,
+                 std::vector<std::byte>       body,
+                 const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnFriendEraseAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, target_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(target_id))
+    {
+        spdlog::warn("OnFriendEraseAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto self = ctx.chars->Find(char_id);
+    if (!self) co_return;
+    std::uint32_t actual_key = 0;
+    bool          found = false, connected = false;
+    std::uint8_t  type = 0;
+    {
+        std::lock_guard g(self->lock);
+        actual_key = self->key;
+        for (const auto& f : self->friends)
+            if (f.id == target_id)
+            { found = true; type = f.type; connected = f.connected; }
+    }
+    if (actual_key != key) co_return;
+
+    if (!found)
+    {
+        co_await senders::SendMwFriendEraseReq(peer, char_id, key,
+            frnd::kNotFound, target_id);
+        co_return;
+    }
+
+    if (type == frnd::kTypeFriendFriend)
+    {
+        // Demote: self keeps a pending stub, the online other side
+        // drops to a one-way FT_FRIEND.
+        if (connected)
+            if (auto tgt = ctx.chars->Find(target_id))
+            {
+                std::lock_guard g(tgt->lock);
+                for (auto& f : tgt->friends)
+                    if (f.id == char_id) f.type = frnd::kTypeFriend;
+            }
+        std::lock_guard g(self->lock);
+        for (auto& f : self->friends)
+            if (f.id == target_id) f.type = frnd::kTypeTarget;
+    }
+    else if (type == frnd::kTypeFriend)
+    {
+        // One-way friend: fully remove from both lists.
+        if (connected)
+            if (auto tgt = ctx.chars->Find(target_id))
+            {
+                std::lock_guard g(tgt->lock);
+                auto& v = tgt->friends;
+                for (auto it = v.begin(); it != v.end(); ++it)
+                    if (it->id == char_id) { v.erase(it); break; }
+            }
+        std::lock_guard g(self->lock);
+        auto& v = self->friends;
+        for (auto it = v.begin(); it != v.end(); ++it)
+            if (it->id == target_id) { v.erase(it); break; }
+    }
+    // (FT_TARGET stays as-is — legacy replies SUCCESS without change.)
+
+    co_await senders::SendMwFriendEraseReq(peer, char_id, key, frnd::kSuccess,
+        target_id);
+    spdlog::info("OnFriendEraseAck[{}]: char_id={} erased friend {}",
+        ip, char_id, target_id);
     co_return;
 }
 

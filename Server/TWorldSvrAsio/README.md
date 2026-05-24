@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3c-7 corps enemy-list family + HP (corps subsystem complete)
+## Status — W4-1 friend subsystem opener (FRIENDASK invite)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -69,12 +69,58 @@ that the four shipped Asio daemons already use.
 | W3c-4 | Change corps commander — OnMW_CHGCORPSCOMMANDER_ACK (general hands the commander role to another squad; reply + all-squad refresh) + SendMwChgCorpsCommanderReq | ✅ |
 | W3c-5 | Corps squad reshuffle — OnMW_PARTYMOVE_ACK (general moves a member between squads / swaps two members) reusing the party Leave/Join machinery + SendMwPartyMoveReq | ✅ |
 | W3c-6 | Corps command broadcast — OnMW_CORPSCMD_ACK (general's move/attack order relayed to every corps member, or own party when corps-less) + SendMwCorpsCmdReq | ✅ |
-| **W3c-7** | Corps enemy-list family + HP — OnMW_CORPSENEMYLIST/ADDCORPSENEMY/DELCORPSENEMY/MOVECORPSENEMY/MOVECORPSUNIT/CORPSHP_ACK (6 chief-to-chief opaque relays via a shared CorpsChiefRelay + SendMwCorpsChiefRelay) — **corps subsystem complete** | ✅ |
-| W4 | Friend + Chat + Soulmate | ⏸ |
+| W3c-7 | Corps enemy-list family + HP — OnMW_CORPSENEMYLIST/ADDCORPSENEMY/DELCORPSENEMY/MOVECORPSENEMY/MOVECORPSUNIT/CORPSHP_ACK (6 chief-to-chief opaque relays via a shared CorpsChiefRelay + SendMwCorpsChiefRelay) — **corps subsystem complete** | ✅ |
+| **W4-1** | Friend subsystem opener — TChar.friends/region + TFriend + friend_constants + OnMW_FRIENDASK_ACK invite gate (relay / mutual instant-add) + SendMwFriendAddReq/AskReq | ✅ |
+| W4-2+ | FRIENDREPLY (accept) + FRIENDERASE + friend groups + connection notifications + Chat + Soulmate | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-1 — what landed
+
+Opens the **friend** subsystem (the W4 social-graph phase). Unlike
+the guild/party/corps cluster entities, a friend list is per-char
+state, so this adds the model to `TChar` rather than a new
+registry.
+
+Model — `TChar` gains `friends` (the legacy m_mapTFRIEND list of
+`TFriend{ id, name, type, connected, region, group }`) + `region`
+(m_dwRegion, the last-seen zone shipped in presence updates).
+`services/friend_constants.h` mirrors NetCode.h's `FRIEND_RESULT`,
+`FRIEND_TYPE` (FT_FRIEND/TARGET/FRIENDFRIEND), `FRIEND_CONNECTION`,
+and `MAX_FRIEND` (64).
+
+Handler — `OnFriendAskAck` (wID 0x9052): a char requests to
+befriend another by name. Gates (legacy order): target online +
+same country (`kNotFound`), not already a non-pending friend
+(`kAlready`), requester under MAX_FRIEND (`kMax`). Then:
+- if both chars already hold a pending `FT_TARGET` for each other,
+  the friendship completes immediately — both upgrade to
+  `FT_FRIENDFRIEND` (connected, each other's region copied in) and
+  the requester gets `MW_FRIENDADD_REQ` SUCCESS with the new
+  friend's row;
+- else the target's own cap is checked (`kRefuse`) and
+  `MW_FRIENDASK_REQ` is forwarded to the target's map for the
+  confirm dialog (→ FRIENDREPLY, W4-2).
+
+Lock discipline: the requester's + target's friend lists are read,
+then mutated, under each char's own lock (sequential, single io
+thread — never both held at once).
+
+Deferred: friend-row persistence (legacy DM_FRIENDINSERT_REQ) is
+in-memory only — it lands with the friend repository slice.
+
+Senders — `SendMwFriendAddReq` (9-field) + `SendMwFriendAskReq`
+(4-field), in the new `senders/senders_friend.cpp`.
+
+Tests — `tests/test_friend_handlers.cpp` (5 scenarios, three-peer
+loopback): unknown-target NOTFOUND, a clean ask forwarding
+FRIENDASK_REQ to the target, ALREADY, the mutual pending-target
+instant-add (both entries upgraded + regions swapped + the SUCCESS
+row), and a different-country NOTFOUND.
+
+Build verified: cmake + ctest -R tworldsvr_asio (33/33 passed).
 
 ### W3c-7 — what landed
 

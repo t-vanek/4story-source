@@ -414,8 +414,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCorpsHpAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // The corps subsystem (W3c) is now feature-complete. W4 opens
-    // Friend + Chat + Soulmate. … see README §4.
+    // ---- W4-1: friend invite (handlers_friend.cpp) -------------
+    case MessageId::MW_FRIENDASK_ACK:
+        co_await OnFriendAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-2+ picks up FRIENDREPLY (accept) + FRIENDERASE + friend
+    // groups + connection notifications + chat + soulmate. README §4.
 
     default:
         break;

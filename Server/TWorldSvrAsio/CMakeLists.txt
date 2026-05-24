@@ -42,11 +42,13 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_guild.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_party.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_corps.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_friend.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_party.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_corps.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_friend.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -424,3 +426,13 @@ target_link_libraries(test_tworldsvr_asio_corps_enemy_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_corps_enemy_handlers
     COMMAND test_tworldsvr_asio_corps_enemy_handlers)
+
+# W4-1 wire test: MW_FRIENDASK_ACK invite gate over a three-peer
+# loopback session — NOTFOUND / relay / ALREADY / mutual instant-add
+# (both pending FT_TARGET upgrade + regions swapped) / country.
+add_executable(test_tworldsvr_asio_friend_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_handlers
+    COMMAND test_tworldsvr_asio_friend_handlers)

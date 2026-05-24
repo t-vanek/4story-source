@@ -40,6 +40,19 @@
 
 namespace tworldsvr {
 
+// W4-1 — one entry in a character's friend list (legacy TFRIEND in
+// m_mapTFRIEND, keyed by the friend's char id). Stored in
+// TChar::friends; mutated under the owning TChar's lock.
+struct TFriend
+{
+    std::uint32_t id        = 0;     // friend's char id (m_dwID)
+    std::string   name;              // m_strName
+    std::uint8_t  type      = 0;     // m_bType (friend::FT_*)
+    bool          connected = false; // m_bConnected (online)
+    std::uint32_t region    = 0;     // m_dwRegion (last-seen zone)
+    std::uint8_t  group     = 0;     // m_bGroup (friend-group bucket)
+};
+
 // One inbound connection from a map server pinned to a character.
 // Mirrors the legacy TCHARCON struct (m_mapTCHARCON entry per
 // map server bServerID). Held in TChar::cons; mutated under the
@@ -138,6 +151,13 @@ struct TChar
     std::uint32_t hp     = 0;
     std::uint32_t max_mp = 0;
     std::uint32_t mp     = 0;
+
+    // W4-1 social state. `region` mirrors legacy m_dwRegion (the
+    // char's last-known zone, shipped in friend/soulmate presence
+    // updates; 0 until a region handler ports). `friends` is the
+    // legacy m_mapTFRIEND friend list (typical size ≤ MAX_FRIEND).
+    std::uint32_t        region = 0;
+    std::vector<TFriend> friends;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

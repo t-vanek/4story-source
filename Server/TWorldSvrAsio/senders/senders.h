@@ -1377,4 +1377,38 @@ boost::asio::awaitable<void> SendMwChgCorpsCommanderReq(
     std::uint32_t                key,
     std::uint8_t                 result);
 
+// --- W4-1 friend invite (senders_friend.cpp) ----------------------
+
+// MW_FRIENDADD_REQ — the friend-request outcome relayed to the
+// requester. On failure the trailing fields are zero + `name` is
+// the attempted target name; on success they carry the new
+// friend's row.
+//
+// Wire layout (SSSender.cpp:1792):
+//   DWORD char_id, DWORD key, BYTE result, DWORD friend_id,
+//   STRING name, BYTE level, BYTE group, BYTE class, DWORD region
+boost::asio::awaitable<void> SendMwFriendAddReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint32_t                friend_id,
+    const std::string&           name,
+    std::uint8_t                 level,
+    std::uint8_t                 group,
+    std::uint8_t                 klass,
+    std::uint32_t                region);
+
+// MW_FRIENDASK_REQ — forwarded to a target's map when someone
+// requests to befriend them; their client pops the confirm dialog.
+//
+// Wire layout (SSSender.cpp:1816):
+//   DWORD char_id, DWORD key, STRING inviter_name, DWORD inviter_id
+boost::asio::awaitable<void> SendMwFriendAskReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           inviter_name,
+    std::uint32_t                inviter_id);
+
 } // namespace tworldsvr::senders

@@ -1318,5 +1318,25 @@ boost::asio::awaitable<void> OnCorpsHpAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-1: friend invite (handlers_friend.cpp) ---------------------
+//
+// Opens the social-graph (friend) subsystem. MW_FRIENDASK_ACK is a
+// char requesting to befriend another by name. World gates
+// (target online + same country + not already a friend + neither
+// at MAX_FRIEND). If both chars already hold a pending FT_TARGET
+// for each other the friendship completes immediately (both
+// upgraded to FT_FRIENDFRIEND, requester gets MW_FRIENDADD_REQ
+// SUCCESS); otherwise MW_FRIENDASK_REQ is forwarded to the target's
+// map so their client confirms (→ MW_FRIENDREPLY_ACK, W4-2).
+// Failure gates relay MW_FRIENDADD_REQ to the requester. Friend-row
+// persistence (legacy DM_FRIENDINSERT_REQ) is in-memory only for
+// now — deferred to the friend repository slice.
+//
+// Wire (SSHandler.cpp:5880): DWORD char_id, key, STRING target_name
+boost::asio::awaitable<void> OnFriendAskAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

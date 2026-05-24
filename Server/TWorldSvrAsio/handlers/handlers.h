@@ -1728,6 +1728,19 @@ boost::asio::awaitable<void> NotifyFriendsOnLogin(
 boost::asio::awaitable<void> NotifyTmsOnLogout(
     const HandlerContext& ctx, std::shared_ptr<TChar> who);
 
+// W6-19 — full char teardown (legacy CTWorldSvrModule::CloseChar).
+// Removes a char from the cluster: if a main-session handoff was in
+// flight, voids it on the would-be new main (MW_INVALIDCHAR_REQ); tells
+// every map the char is connected to — dead_cons first, then live cons —
+// to drop it (MW_DELCHAR_REQ, with the logout/save flags only on the
+// main connection); drops it from the registry (clearing the name
+// index); then fans the offline presence out to friends / soulmate /
+// TMS. Used by OnCloseCharAck and by the connection-cluster error paths
+// (BeginTeleport / CheckConnect when the main map is gone). Party-leave
+// + guild/tactics DB persistence remain deferred.
+boost::asio::awaitable<void> CloseChar(
+    std::shared_ptr<TChar> ch, const HandlerContext& ctx);
+
 // --- W4-6: soulmate (handlers_soulmate.cpp) ------------------------
 //
 // The marriage/pairing flow. SEARCH matchmakes among online chars
@@ -2006,6 +2019,20 @@ boost::asio::awaitable<void> OnReleaseMainAck(
 //   Wire (SSHandler.cpp:8554): DWORD char_id, key, BYTE same_channel,
 //     channel, WORD map_id, FLOAT pos_x, pos_y, pos_z
 boost::asio::awaitable<void> OnBeginTeleportAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_CHECKCONNECT_ACK — a map reports the char's position + the servers
+// it should be connected to. Like BEGINTELEPORT it serialises on the
+// cession queue; when it runs it updates the char's position and
+// reconciles the connection set (drop stale → dead_cons, ROUTELIST new
+// servers via main, else CHECKMAIN sweep). A count of 0 short-circuits
+// to the CHECKMAIN sweep. The reporting map is NOT auto-added to the
+// needed set (unlike CONLIST/MAPSVRLIST). Unknown char → MW_DELCHAR_REQ.
+//   Wire (SSHandler.cpp:3839): DWORD char_id, key, BYTE channel,
+//     WORD map_id, FLOAT pos_x, pos_y, pos_z, BYTE count, count×BYTE sid
+boost::asio::awaitable<void> OnCheckConnectAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

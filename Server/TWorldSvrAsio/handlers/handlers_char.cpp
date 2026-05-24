@@ -313,52 +313,27 @@ OnCloseCharAck(std::shared_ptr<PeerSession>  peer,
         co_return;
     }
 
-    auto removed = ctx.chars->Remove(char_id);
-    if (!removed)
+    auto ch = ctx.chars->Find(char_id);
+    bool ok = ch != nullptr;
+    if (ok)
     {
-        spdlog::info("OnCloseCharAck[{}]: char_id={} not in registry "
-                     "(stale close) — TODO W3a-3: SendMW_DELCHAR_REQ",
-            ip, char_id);
+        std::lock_guard g(ch->lock);
+        if (ch->key != key) ok = false;
+    }
+    if (!ok)
+    {
+        // Stale / wrong-key close — tell the reporting map to drop the
+        // client (legacy FindTChar miss → SendMW_DELCHAR_REQ).
+        spdlog::info("OnCloseCharAck[{}]: char_id={} not registered / key "
+                     "mismatch — DELCHAR", ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
         co_return;
     }
 
-    std::uint32_t removed_user_id = 0;
-    {
-        std::lock_guard g(removed->lock);
-        if (removed->key != key)
-            spdlog::warn("OnCloseCharAck[{}]: key mismatch for char_id={} "
-                         "(registry=0x{:08X} incoming=0x{:08X}) — removed anyway",
-                ip, char_id, removed->key, key);
-        removed_user_id = removed->user_id;
-    }
-
-    // W4-7: fan out the offline presence to this char's friends +
-    // soulmate (legacy LeaveFriend / LeaveSoulmate). `removed` is
-    // out of the registry but kept alive by the shared_ptr.
-    co_await NotifyFriendsOnLogout(ctx, removed);
-    co_await NotifySoulmateOnLogout(ctx, removed);
-    // W4-12: drop the char from any open TMS conferences (LeaveTMS).
-    co_await NotifyTmsOnLogout(ctx, removed);
-
-    bool any_other = false;
-    for (auto other_id : ctx.chars->SnapshotIds())
-    {
-        if (auto other = ctx.chars->Find(other_id))
-        {
-            std::lock_guard g(other->lock);
-            if (other->user_id == removed_user_id)
-            {
-                any_other = true;
-                break;
-            }
-        }
-    }
-    if (!any_other)
-        ctx.chars->MarkUserInactive(removed_user_id);
-
-    spdlog::info("OnCloseCharAck[{}]: char_id={} removed user_id={} "
-                 "user_still_active={} (total={})",
-        ip, char_id, removed_user_id, any_other, ctx.chars->Size());
+    co_await CloseChar(ch, ctx);
+    spdlog::info("OnCloseCharAck[{}]: char_id={} closed (total={})",
+        ip, char_id, ctx.chars->Size());
     co_return;
 }
 
@@ -438,6 +413,65 @@ FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
 }
 
 } // namespace
+
+boost::asio::awaitable<void>
+CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
+{
+    if (!ch || !ctx.chars) co_return;
+
+    std::uint32_t char_id = 0, key = 0, user_id = 0;
+    std::uint8_t  main_id = 0, chg_main_id = 0;
+    bool          logout = false, saving = false;
+    std::vector<std::uint8_t> cons, dead;
+    {
+        std::lock_guard g(ch->lock);
+        char_id = ch->char_id; key = ch->key; user_id = ch->user_id;
+        main_id = ch->main_server_id; chg_main_id = ch->chg_main_id;
+        logout = ch->logout; saving = ch->saving;
+        dead = ch->dead_cons;
+        for (const auto& c : ch->cons) cons.push_back(c.server_id);
+    }
+
+    // A main-session handoff was in flight → void the would-be new
+    // main's takeover (legacy CloseChar's m_bCHGMainID branch).
+    if (chg_main_id != 0)
+        if (auto p = FindMapPeer(ctx, chg_main_id))
+            co_await senders::SendMwInvalidCharReq(p, char_id, key,
+                /*release_main=*/1);
+
+    // Tell every connected map to drop the char (dead cons first, then
+    // live). Only the main connection carries the logout / save flags.
+    for (std::uint8_t sid : dead)
+        if (auto p = FindMapPeer(ctx, sid))
+            co_await senders::SendMwDelCharReq(p, char_id, key,
+                static_cast<std::uint8_t>(sid == main_id && logout ? 1 : 0),
+                static_cast<std::uint8_t>(sid == main_id && saving ? 1 : 0));
+    for (std::uint8_t sid : cons)
+        if (auto p = FindMapPeer(ctx, sid))
+            co_await senders::SendMwDelCharReq(p, char_id, key,
+                static_cast<std::uint8_t>(sid == main_id && logout ? 1 : 0),
+                static_cast<std::uint8_t>(sid == main_id && saving ? 1 : 0));
+
+    // Drop from the registry (also clears the name index).
+    ctx.chars->Remove(char_id);
+
+    // Fan out the offline presence (legacy LeaveFriend / LeaveSoulmate
+    // / LeaveTMS). `ch` outlives the registry entry via our shared_ptr.
+    co_await NotifyFriendsOnLogout(ctx, ch);
+    co_await NotifySoulmateOnLogout(ctx, ch);
+    co_await NotifyTmsOnLogout(ctx, ch);
+
+    // Mark the account inactive if it has no other char online.
+    bool any_other = false;
+    for (auto other_id : ctx.chars->SnapshotIds())
+        if (auto other = ctx.chars->Find(other_id))
+        {
+            std::lock_guard g(other->lock);
+            if (other->user_id == user_id) { any_other = true; break; }
+        }
+    if (!any_other)
+        ctx.chars->MarkUserInactive(user_id);
+}
 
 boost::asio::awaitable<void>
 OnLevelUpAck(std::shared_ptr<PeerSession>  peer,

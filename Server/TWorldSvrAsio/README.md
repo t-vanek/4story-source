@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-12 GM user-tracking relays (USERPOSITION / USERMOVE)
+## Status — W6-19 CloseChar teardown (connection/teleport cluster, 7 slices)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -112,9 +112,193 @@ that the four shipped Asio daemons already use.
 | W6-14 | Main-session confirmation — OnMW_CHECKMAIN_ACK: responder-is-main → drain `dead_cons` via CLOSECHAR (ClearDeadCON) + CONRESULT (CN_SUCCESS) the live set; responder-is-other → RELEASEMAIN the old main + re-point main; DELCHAR/INVALIDCHAR errors + 3 senders. CloseChar (logout teardown) + cession queue (PopConCess) deferred | ✅ |
 | W6-15 | Main-session handoff forward — OnMW_RELEASEMAIN_ACK: the old main releases → forward the released char verbatim to the new main (re-tagged MW_ENTERSVR_REQ) + record the old main in `chg_main_id`; new main offline → INVALIDCHAR(release_main=1); unknown char → DELCHAR. Opaque-passthrough sender | ✅ |
 | W6-16 | Handoff completion — OnMW_ENTERSVR_ACK now branches on `chg_main_id`: a normal-map handoff clears it + asks the new main for the server list (MAPSVRLIST_REQ → re-enters the W6-13 reconcile), skipping the fresh-login fan-out; BR/Bow battleground ids (50/30) excluded. Closes the handoff loop (reconcile→checkmain→release→entersvr→reconcile) | ✅ |
-| **W6-17** | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender. CHECKCONNECT producer + CloseChar deferred | ✅ |
+| W6-17 | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender | ✅ |
+| W6-18 | Connect-check reconcile — OnMW_CHECKCONNECT_ACK (the other cession producer): updates the char's position then reconciles cons (count=0 → CHECKMAIN sweep; else drop stale → dead_cons + ROUTELIST new servers via main, else CHECKMAIN); replays via PopConCess. Reuses the W6-17 cession queue; no new senders | ✅ |
+| **W6-19** | CloseChar teardown — OnMW_CLOSECHAR_ACK now does the full legacy CloseChar: chg_main_id → INVALIDCHAR(release_main) on the would-be new main, DELCHAR every con (dead first, then live; logout/save flags only on the main), registry+name-index removal, friend/soulmate/TMS offline fan-out. Shared helper wired into the BeginTeleport/CheckConnect main-offline paths. Party-leave + guild/tactics DB persistence still deferred | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+## Gaps audit — not yet ported / deferred (as of W6-19)
+
+Legacy `Server/TWorldSvr/` defines **266** message handlers
+(`CTWorldSvrModule::On*`); **~154** are ported in `handlers/dispatch.cpp`,
+leaving **112** with no port, plus a number of sub-branches deferred
+*inside* handlers that did land. (Note: the legacy source is CP949 — grep
+it with `-a`, or whole handlers appear "missing" when they are not.) This
+section is the authoritative checklist of what is still open.
+
+### A. Real hole in the connection/teleport cluster (W6-13–W6-19)
+
+The reconcile side ("decide a new connection is needed → send
+`MW_ROUTELIST_REQ`") is ported, but **the reply path that actually
+establishes the new connection is not**:
+
+- **`OnMW_ROUTE_ACK`** (SSHandler.cpp:1903) — the main map's answer to
+  `ROUTELIST_REQ`. Should register each new server as a *pending*
+  `TCharCon` (`valid=false, ready=false`) and send the client
+  **`MW_ADDCONNECT_REQ`** (IP/port, via the reporting map); on `count==0`
+  send `MW_CHARDATA_REQ`. **Today `MW_ROUTE_ACK` is dropped** ("no handler
+  yet"), so the requested new connections never materialise.
+- **`OnMW_ENTERCHAR_ACK`** (1038) — per-connection entry handshake; sets
+  `con.ready`, and when all cons are ready → `CheckMainCON`.
+- **`OnMW_CHARDATA_ACK`** — the data-load confirm (the other half of ready).
+- Senders **`MW_ADDCONNECT_REQ`**, **`MW_CHARDATA_REQ`**.
+
+So the full loop `reconcile → ROUTELIST → **ROUTE_ACK → ADDCONNECT →
+ENTERCHAR_ACK/CHARDATA_ACK → CheckMainCON**` has only its first half.
+Also still open in the cluster: **`OnMW_TELEPORT_ACK`** (1490, teleport
+confirm to client + `TELEPORT_REQ(NODESTINATION)`/`CloseChar` on a bad
+destination), `OnMW_PROTECTEDCHECK`, `OnMW_TERMINATE`.
+**`OnMW_CONNECT_ACK`** (592, map-server registration) is intentionally
+skipped — replaced by `RW_RELAYSVR_REQ`.
+
+### B. Sub-branches deferred inside ported handlers
+
+- **ENTERSVR fresh-login** (W6-16): the big `CHARINFO_REQ` composite reply
+  + `ROUTE_REQ` + `SOULMATELIST`/`FRIENDLIST` + `CheckChatBan` (only the
+  identity-load is ported); the BR/Bow `CHARINFO` sub-case.
+- **CloseChar** (W6-19): party-leave on logout; guild/tactics DB
+  persistence (`PVPRECORD`/`TACTICSPOINT`/`SaveGuildStats`). The sketchy
+  legacy `if(!m_bSave) CloseChar` at the top of CHECKMAIN_ACK (a
+  use-after-free in the original) is **intentionally** not ported.
+- **Guild**: stat-exp award (absent constants), duty/peer/contribution
+  caps, member-online-date, some broadcast fan-outs (GUILDDUTY to the
+  target, chat re-broadcast).
+- **Chat**: operator-whisper "/GM …" sub-case; cluster-wide ban list
+  (`AddChatBan`).
+- **Occupy/War** (W5): guild stat-exp award, `BS_PEACE` bookkeeping,
+  SKYGARDEN, castle/camp in the member-load query, castle-apply DB persist.
+- **Combat** (W6-2/6): `GETBLOOD` (absent `OT_PC`), `MONSTERBUY`
+  (absent `MSB_*`).
+- **Char-base**: ChangeCountry/ChangeName cluster fan-out
+  (`RW_CHANGENAME_ACK`), region tracking.
+- **Friend/Soulmate**: soulmate write-back is in-memory only (no soulmate
+  repository); some friend write-backs.
+- **Corps**: the `m_command` late-joiner ADDSQUAD cache; the MANSTAT
+  corps-general relay.
+- **Recall-mon**: id-counter DB-seed at boot.
+
+### C. Whole subsystems with no port (the 112), grouped
+
+**Roadmap W6 🚧 (battle / event content):**
+- Battle Royale: `ADDTOBRQUEUE`, `BRTEAMMATEADD/ADDRESULT/DEL`, `VOTEFORBRMAP`
+- Bow battleground: `ADDTOBOWQUEUE`, `CANCELBOWQUEUE`, `BOWPOINTSUPDATE`
+- Arena / BattleMode: `ARENAJOIN`, `BATTLEMODESTATUS`, `CMTELEPORTBATTLEMODE`,
+  `LEAVEBATTLEFIELD`
+- APEX (Taiwan): `MW_APEXDATA/APEXSTART`, `SM_APEXDATA/APEXKILLUSER`
+- Tournament: `MW_TOURNAMENT/ENTERGATE/RESULT`, `DM_TOURNAMENT*` (6),
+  `DM_TNMTEVENT*` (3), `SM_TOURNAMENT*` (3), `CT_TOURNAMENTEVENT`
+  (blocked on `TNMTSTEP_*`)
+- RPS event: `MW_RPSGAME`, `CT_RPSGAMECHANGE/DATA`, `DM_RPSGAMERECORD`
+- Event subsystem (broader): `CT_EVENTMSG/EVENTUPDATE/EVENTQUARTERLIST/UPDATE`,
+  `DM_EVENTQUARTERLIST/UPDATE`, `SM_EVENTEXPIRED` (only the W6-1 broadcast landed)
+
+**Roadmap W7 ⏸ (cash / item / rank):**
+- CMGift: `MW_CMGIFT/RESULT`, `CT_CMGIFT/CHARTUPDATE/LIST`, `DM_CMGIFT/CHARTUPDATE`
+- Cash-item sale: `MW/CT/DM_CASHITEMSALE`, `CT_CASHSHOPSTOP`
+- MonthRank: `MW_MONTHRANKUPDATE/RESETCHAR`, `DM/SM_MONTHRANKSAVE`
+- GM item tools: `MW_ADDITEM`, `CT/DM_ITEMFIND`, `CT/DM_ITEMSTATE`
+
+**War/Castle extras (W5+):** `MW_CASTLEWARINFO`, `MW_ENDWAR`,
+`MW_WARCOUNTRYBALANCE`, `MW_WARLORDSAY`, `MW_SKYGARDENOCCUPY`,
+`CT_CASTLEGUILDCHG`, `DM_CASTLEAPPLY`
+
+**Guild extras (blocked on absent constants/model):** `MW_GUILDSKILLACTION`,
+`MW_MEETINGROOM`, `MW_UPDATEGUILDCOOLDOWN`,
+`DM_GUILDTACTICSADD/DEL/WANTEDADD/WANTEDDEL`, `SM_GUILDDISORGANIZATION`
+
+**Service / control plane:** `CT_CTRLSVR`, `CT_SERVICEDATACLEAR`,
+`CT_SERVICEMONITOR`, `CT/DM_HELPMESSAGE`, `SM_DELSESSION`, `SM_QUITSERVICE`,
+`DM_CLEARDATA`, `DM_CLEARMAPCURRENTUSER`, `DM_ACTIVECHARUPDATE`,
+`DM_GETCHARINFO`
+
+### D. "Missing" only on paper — replaced by a different mechanism
+
+The legacy DB-thread round-trips are replaced by the repository pattern,
+so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
+`DM_SOULMATELIST/REG/DEL/END` (soulmate persistence still in-memory),
+`DM_TACTICSPOINT`, `DM_RESERVEDPOSTSEND` (generator poll — deferred).
+`DM_GUILDLOAD` and `DM_PVPRECORD` *are* ported (as `_ACK`/`_REQ`).
+
+### Suggested next slices (by value / self-containedness)
+
+1. **Connection-completion sub-flow** (§A: `ROUTE_ACK` + `ADDCONNECT` +
+   `ENTERCHAR_ACK` + `CHARDATA_ACK`) — closes the loop opened in W6-13/18;
+   this is a genuine functional hole, not just a roadmap deferral.
+2. `TELEPORT_ACK` (teleport confirm; finishes W6-17).
+3. Fresh-login ENTERSVR completion (CHARINFO/ROUTE/SOULMATELIST/FRIENDLIST).
+4. Then the large roadmap subsystems (BR / Bow / Tournament / …).
+
+### W6-19 — what landed
+
+**CloseChar teardown** — the W2 `OnCloseCharAck` stub (registry remove +
+social fan-out) is now the full legacy `CloseChar` (TWorldSvr.cpp:3061),
+extracted into a shared `CloseChar(ch, ctx)` helper (handlers_char.cpp,
+declared in handlers.h). Tearing a char down now:
+
+- if a main-session handoff was in flight (`chg_main_id` set), voids the
+  would-be new main's takeover (`MW_INVALIDCHAR_REQ`, release_main=1);
+- DELCHARs every map the char is connected to — `dead_cons` first, then
+  live `cons` — with the logout / save flags set **only** on the main
+  connection (`sid == main_server_id ? char.logout/saving : 0`), matching
+  the legacy per-con flag logic;
+- removes it from the registry (which also clears the name index);
+- fans the offline presence out to friends / soulmate / TMS (the W4
+  notifiers, unchanged).
+
+`OnCloseCharAck` now replies `MW_DELCHAR_REQ` to the reporting map on a
+stale / wrong-key close (retiring the W2 TODO), then calls `CloseChar`.
+The same helper is wired into the connection-cluster error paths
+(`BeginTeleport` / `CheckConnect` when the main map is offline), retiring
+their deferred "CloseChar" notes. Still deferred (un-ported dependencies):
+the party-leave on logout (`LeaveParty` resolution) and the guild/tactics
+DB persistence (PVPRECORD / TACTICSPOINT / SaveGuildStats); guild/tactics
+"connection clear" is a no-op here since online state is resolved live
+from the registry. The sketchy legacy `if(!m_bSave) CloseChar` at the top
+of CHECKMAIN_ACK (a use-after-free in the original) is intentionally not
+ported.
+
+Tests — `tests/test_closechar_handlers.cpp` (3 map peers): closing a char
+with a dead con + main/live cons DELCHARs all three (dead first, main
+carrying logout=save=1, the rest 0/0) and removes it; closing a char with
+a handoff in flight INVALIDCHARs the would-be new main before the DELCHAR;
+an unknown/wrong-key close replies DELCHAR. The existing close / friend /
+TMS-logout tests still pass (the DELCHAR fan-out targets the char's own
+con peers, not the friends' peers the presence tests read).
+
+Build verified: cmake + ctest -R tworldsvr_asio (75/75 passed).
+
+### W6-18 — what landed
+
+**Connect-check reconcile** — `OnCheckConnectAck` (handlers_conn.cpp,
+`MW_CHECKCONNECT_ACK`) is the second cession-queue producer (alongside
+W6-17's teleport). A map periodically re-asserts a char's position and
+the set of servers it should be connected to; world serialises it on the
+same cession queue (`PushConCess` / `PopConCess` replay), then runs
+`CheckConnect`:
+
+- must originate from the char's main map (else the queue advances);
+- updates the char's channel / map / position from the report;
+- `count == 0` → `CheckMainCon` sweep (CHECKMAIN to every con);
+- otherwise reconciles `cons` against the reported set — drop
+  no-longer-listed cons to `dead_cons`, and either `MW_ROUTELIST_REQ`
+  the newly-needed servers via the main map or, if none are new, sweep
+  with CHECKMAIN. Unlike CONLIST/MAPSVRLIST the reporting map is **not**
+  auto-added to the needed set (legacy `OnCheckConnect` parity).
+
+Factored a shared `CheckMainCon` helper (the CHECKMAIN broadcast) used by
+the count=0 and no-new-server paths. Unknown char / key mismatch →
+`MW_DELCHAR_REQ`. No new senders (reuses ROUTELIST / CHECKMAIN / DELCHAR).
+`PopConCess`'s replay switch now dispatches both BEGINTELEPORT and
+CHECKCONNECT entries. Deferred: the main-offline `CloseChar` teardown.
+
+Tests — `tests/test_checkconnect_handlers.cpp` (3 map peers): a count=0
+report updates position + sweeps CHECKMAIN to both cons; a report naming
+a new server (0x44, with the existing cons retained) updates position +
+ROUTELISTs only the new server via the main, dropping nothing; an unknown
+char replies DELCHAR.
+
+Build verified: cmake + ctest -R tworldsvr_asio (74/74 passed).
 
 ### W6-17 — what landed
 

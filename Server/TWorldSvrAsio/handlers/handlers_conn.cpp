@@ -37,6 +37,10 @@ BeginTeleport(std::shared_ptr<PeerSession> peer,
               std::vector<std::byte>       body,
               const HandlerContext&        ctx);
 boost::asio::awaitable<void>
+CheckConnect(std::shared_ptr<PeerSession> peer,
+             std::vector<std::byte>       body,
+             const HandlerContext&        ctx);
+boost::asio::awaitable<void>
 PopConCess(std::shared_ptr<TChar> ch, const HandlerContext& ctx);
 
 // Push a deferred handoff packet. Returns true if the char already had
@@ -231,12 +235,11 @@ BeginTeleport(std::shared_ptr<PeerSession> peer,
     auto main_peer = FindMapPeer(ctx, main_id);
     if (!main_peer)
     {
-        // Main offline — legacy CloseChar (logout teardown, a later
-        // slice). Advance the queue so it doesn't stall.
-        spdlog::warn("BeginTeleport: char_id={} main={} offline "
-                     "(CloseChar deferred) — advancing cession queue",
+        // Main offline — tear the char down (legacy CloseChar). The
+        // cession queue dies with it, so no PopConCess needed.
+        spdlog::warn("BeginTeleport: char_id={} main={} offline — CloseChar",
             char_id, main_id);
-        co_await PopConCess(ch, ctx);
+        co_await CloseChar(ch, ctx);
         co_return;
     }
     if (reporting_id != main_id)
@@ -266,6 +269,131 @@ BeginTeleport(std::shared_ptr<PeerSession> peer,
         if (auto p = FindMapPeer(ctx, sid))
             co_await senders::SendMwStartTeleportReq(p, char_id, key,
                 channel, map_id, px, py, pz);
+}
+
+// CheckMainCon — broadcast MW_CHECKMAIN_REQ to every map the char is
+// connected to (legacy CheckMainCON). Snapshot-then-send per README §5.
+boost::asio::awaitable<void>
+CheckMainCon(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
+{
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  channel = 0;
+    std::uint16_t map_id = 0;
+    float         px = 0, py = 0, pz = 0;
+    std::vector<std::uint8_t> live;
+    {
+        std::lock_guard g(ch->lock);
+        char_id = ch->char_id; key = ch->key;
+        channel = ch->channel; map_id = ch->map_id;
+        px = ch->pos_x; py = ch->pos_y; pz = ch->pos_z;
+        for (const auto& c : ch->cons)
+            live.push_back(c.server_id);
+    }
+    for (std::uint8_t sid : live)
+        if (auto p = FindMapPeer(ctx, sid))
+            co_await senders::SendMwCheckMainReq(p, char_id, key,
+                channel, map_id, px, py, pz);
+}
+
+// CheckConnect — a map reports the char's current position + the set of
+// servers it should be connected to (legacy OnCheckConnect). Updates
+// the position, then reconciles the connection set much like the W6-13
+// CONLIST reconcile — except the reporting map is NOT auto-added to the
+// needed set, and a count of 0 short-circuits to a CHECKMAIN sweep.
+// Must originate from the main map; otherwise the queue just advances.
+boost::asio::awaitable<void>
+CheckConnect(std::shared_ptr<PeerSession> peer,
+             std::vector<std::byte>       body,
+             const HandlerContext&        ctx)
+{
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  channel = 0, count = 0;
+    std::uint16_t map_id = 0;
+    float         px = 0, py = 0, pz = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(channel) ||
+        !r.Read(map_id) || !r.Read(px) || !r.Read(py) || !r.Read(pz) ||
+        !r.Read(count))
+        co_return;
+
+    auto ch = ctx.chars->Find(char_id);
+    if (!ch) co_return;          // char gone (legacy CloseChar — deferred)
+
+    const std::uint8_t reporting_id =
+        static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+    std::uint8_t main_id = 0;
+    { std::lock_guard g(ch->lock); main_id = ch->main_server_id; }
+
+    auto main_peer = FindMapPeer(ctx, main_id);
+    if (!main_peer)
+    {
+        spdlog::warn("CheckConnect: char_id={} main={} offline — CloseChar",
+            char_id, main_id);
+        co_await CloseChar(ch, ctx);
+        co_return;
+    }
+    if (reporting_id != main_id)
+    {
+        spdlog::info("CheckConnect: char_id={} request from non-main {} "
+                     "(main={}) — skipped", char_id, reporting_id, main_id);
+        co_await PopConCess(ch, ctx);
+        co_return;
+    }
+
+    // Update the char's position from the report.
+    {
+        std::lock_guard g(ch->lock);
+        ch->channel = channel; ch->map_id = map_id;
+        ch->pos_x = px; ch->pos_y = py; ch->pos_z = pz;
+    }
+
+    if (count == 0)
+    {
+        co_await CheckMainCon(ch, ctx);
+        co_return;
+    }
+
+    std::vector<std::uint8_t> needed;
+    needed.reserve(count);
+    for (std::uint8_t i = 0; i < count; ++i)
+    {
+        std::uint8_t sid = 0;
+        if (!r.Read(sid)) co_return;
+        needed.push_back(sid);
+    }
+    std::sort(needed.begin(), needed.end());
+    needed.erase(std::unique(needed.begin(), needed.end()), needed.end());
+
+    std::vector<std::uint8_t> new_servers;
+    {
+        std::lock_guard g(ch->lock);
+        auto is_dropped = [&](const TCharCon& c) {
+            const bool keep = std::binary_search(
+                needed.begin(), needed.end(), c.server_id);
+            if (!keep) ch->dead_cons.push_back(c.server_id);
+            return !keep;
+        };
+        ch->cons.erase(
+            std::remove_if(ch->cons.begin(), ch->cons.end(), is_dropped),
+            ch->cons.end());
+        for (std::uint8_t sid : needed)
+            if (std::find_if(ch->cons.begin(), ch->cons.end(),
+                    [sid](const TCharCon& c) { return c.server_id == sid; })
+                == ch->cons.end())
+                new_servers.push_back(sid);
+    }
+
+    if (!new_servers.empty())
+    {
+        spdlog::info("CheckConnect: char_id={} routing to {} new server(s) "
+                     "via main={}", char_id, new_servers.size(), main_id);
+        co_await senders::SendMwRouteListReq(main_peer, char_id, key,
+            new_servers);
+    }
+    else
+    {
+        co_await CheckMainCon(ch, ctx);
+    }
 }
 
 // PopConCess — the in-flight handoff completed; drop it and replay the
@@ -299,8 +427,10 @@ PopConCess(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
     case tnetlib::protocol::MessageId::MW_BEGINTELEPORT_ACK:
         co_await BeginTeleport(peer, std::move(next.body), ctx);
         break;
+    case tnetlib::protocol::MessageId::MW_CHECKCONNECT_ACK:
+        co_await CheckConnect(peer, std::move(next.body), ctx);
+        break;
     default:
-        // CHECKCONNECT_ACK replay lands with that handler (later slice).
         co_await PopConCess(ch, ctx);
         break;
     }
@@ -576,6 +706,58 @@ OnBeginTeleportAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
     co_await BeginTeleport(std::move(peer), std::move(body), ctx);
+}
+
+boost::asio::awaitable<void>
+OnCheckConnectAck(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnCheckConnectAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnCheckConnectAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    bool ok = ch != nullptr;
+    if (ok)
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key) ok = false;
+    }
+    if (!ok)
+    {
+        spdlog::info("OnCheckConnectAck[{}]: char_id={} not registered / key "
+                     "mismatch — DELCHAR", ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    // Serialize against any in-flight handoff (same gate as teleport).
+    const std::uint8_t reporting_id =
+        static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+    if (PushConCess(*ch, reporting_id,
+            tnetlib::protocol::ToUint16(
+                tnetlib::protocol::MessageId::MW_CHECKCONNECT_ACK),
+            body))
+    {
+        spdlog::info("OnCheckConnectAck[{}]: char_id={} deferred behind an "
+                     "in-flight handoff", ip, char_id);
+        co_return;
+    }
+    co_await CheckConnect(std::move(peer), std::move(body), ctx);
 }
 
 } // namespace tworldsvr::handlers

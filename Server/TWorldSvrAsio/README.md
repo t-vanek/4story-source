@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-3 friend groups (MAKE / DELETE / CHANGE / NAME)
+## Status — W4-4 friend list reader (FRIENDLIST)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -72,12 +72,41 @@ that the four shipped Asio daemons already use.
 | W3c-7 | Corps enemy-list family + HP — OnMW_CORPSENEMYLIST/ADDCORPSENEMY/DELCORPSENEMY/MOVECORPSENEMY/MOVECORPSUNIT/CORPSHP_ACK (6 chief-to-chief opaque relays via a shared CorpsChiefRelay + SendMwCorpsChiefRelay) — **corps subsystem complete** | ✅ |
 | W4-1 | Friend subsystem opener — TChar.friends/region + TFriend + friend_constants + OnMW_FRIENDASK_ACK invite gate (relay / mutual instant-add) + SendMwFriendAddReq/AskReq | ✅ |
 | W4-2 | Friend reply + erase — OnMW_FRIENDREPLY_ACK (accept upserts mutual entries / reject relays code) + OnMW_FRIENDERASE_ACK (mutual demote / one-way remove) + SendMwFriendEraseReq | ✅ |
-| **W4-3** | Friend groups — OnMW_FRIENDGROUPMAKE/DELETE/CHANGE/NAME_ACK (per-char named buckets, TChar.friend_groups + TFriend.group) + 4 senders | ✅ |
-| W4-4+ | Friend connection notifications + Chat + Soulmate | ⏸ |
+| W4-3 | Friend groups — OnMW_FRIENDGROUPMAKE/DELETE/CHANGE/NAME_ACK (per-char named buckets, TChar.friend_groups + TFriend.group) + 4 senders | ✅ |
+| **W4-4** | Friend list reader — OnMW_FRIENDLIST_ACK → MW_FRIENDLIST_REQ (groups + non-pending friends, per-friend level/class/connected/region resolved live) | ✅ |
+| W4-5+ | Friend connection notifications (presence) + friend DB load + Chat + Soulmate | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-4 — what landed
+
+Friend **list reader** — the reply when a client opens its friend
+window.
+
+Handler — `OnFriendListAck` (wID 0x912F): snapshots the char's
+friend groups + every non-pending (`!= FT_TARGET`) friend, then
+resolves each friend's `level` / `class` / `region` + the online
+flag **live** from the CharRegistry (online → real values, offline
+→ 0). Replies `MW_FRIENDLIST_REQ`.
+
+This live resolution is cleaner than legacy's stored
+`m_bLevel`/`m_bConnected`/`m_dwRegion` (which drift until a
+presence update refreshes them) and keeps the reader self-contained
+— it doesn't depend on the not-yet-ported presence-notification
+flow. The soulmate slot is emitted as the "none" sentinel (DWORD 0)
+until soulmate ports.
+
+Sender — `SendMwFriendListReq` (variable-length: soulmate sentinel
++ group list + friend rows) via the new `FriendListRow` POD.
+
+Tests — `tests/test_friend_list_handlers.cpp`: a list with one
+group, an online friend (live level/class/region + connected=1),
+an offline friend (zeroed + connected=0), and an `FT_TARGET`
+pending entry correctly excluded.
+
+Build verified: cmake + ctest -R tworldsvr_asio (36/36 passed).
 
 ### W4-3 — what landed
 

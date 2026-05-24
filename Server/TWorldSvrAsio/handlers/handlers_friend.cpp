@@ -565,4 +565,54 @@ OnFriendGroupNameAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnFriendListAck(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte>       body,
+                const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars) { spdlog::warn("OnFriendListAck[{}]: no chars", ip);
+        co_return; }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnFriendListAck[{}]: short body", ip);
+        co_return;
+    }
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+
+    // Snapshot the groups + non-pending friend entries.
+    std::vector<std::pair<std::uint8_t, std::string>> groups;
+    std::vector<senders::FriendListRow> rows;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) co_return;
+        groups = c->friend_groups;
+        for (const auto& f : c->friends)
+        {
+            if (f.type == frnd::kTypeTarget) continue;
+            senders::FriendListRow row;
+            row.id = f.id; row.name = f.name; row.group = f.group;
+            rows.push_back(std::move(row));
+        }
+    }
+
+    // Resolve each friend's live level/class/region + online flag.
+    for (auto& row : rows)
+        if (auto fc = ctx.chars->Find(row.id))
+        {
+            std::lock_guard fg(fc->lock);
+            row.connected = 1;
+            row.level  = fc->level;
+            row.klass  = fc->klass;
+            row.region = fc->region;
+        }
+
+    co_await senders::SendMwFriendListReq(peer, char_id, key, groups, rows);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

@@ -436,9 +436,12 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_FRIENDGROUPNAME_ACK:
         co_await OnFriendGroupNameAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_FRIENDLIST_ACK:
+        co_await OnFriendListAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W4-4+ picks up friend connection notifications + chat +
-    // soulmate. … see README §4.
+    // W4-5+ picks up friend connection notifications (presence) +
+    // chat + soulmate. … see README §4.
 
     default:
         break;

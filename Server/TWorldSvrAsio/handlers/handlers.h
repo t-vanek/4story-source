@@ -1394,5 +1394,19 @@ boost::asio::awaitable<void> OnFriendGroupNameAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-4: friend list (handlers_friend.cpp) -----------------------
+//
+// MW_FRIENDLIST_ACK — the client opened the friend window. World
+// replies MW_FRIENDLIST_REQ with the char's friend groups + every
+// non-pending friend; each friend's level/class/connected/region
+// is resolved live from the CharRegistry (online → real, offline →
+// 0). The soulmate slot is the "none" sentinel until soulmate
+// ports.
+//   Wire (SSHandler.cpp:1830): DWORD char_id, key
+boost::asio::awaitable<void> OnFriendListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

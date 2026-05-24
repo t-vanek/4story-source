@@ -1422,6 +1422,41 @@ boost::asio::awaitable<void> SendMwFriendEraseReq(
     std::uint8_t                 result,
     std::uint32_t                target_id);
 
+// --- W4-4 friend list (senders_friend.cpp) ------------------------
+
+// One non-pending friend row in MW_FRIENDLIST_REQ. level/class/
+// connected/region are resolved live from the CharRegistry by the
+// handler (online → real values; offline → 0); name + group come
+// from the stored friend entry.
+struct FriendListRow
+{
+    std::uint32_t id        = 0;
+    std::string   name;
+    std::uint8_t  level     = 0;
+    std::uint8_t  group     = 0;
+    std::uint8_t  klass     = 0;
+    std::uint8_t  connected = 0;
+    std::uint32_t region    = 0;
+};
+
+// MW_FRIENDLIST_REQ — the char's full friend list (sent when the
+// client opens the friend window). The soulmate slot is emitted as
+// the "no soulmate" sentinel (DWORD 0) until soulmate ports.
+//
+// Wire layout (SSSender.cpp:1723):
+//   DWORD char_id, DWORD key,
+//   DWORD soulmate_target (0 = none),
+//   BYTE group_count, × { BYTE id, STRING name },
+//   BYTE friend_count,
+//   × { DWORD id, STRING name, BYTE level, BYTE group, BYTE class,
+//       BYTE connected, DWORD region }
+boost::asio::awaitable<void> SendMwFriendListReq(
+    std::shared_ptr<PeerSession>                              peer,
+    std::uint32_t                                             char_id,
+    std::uint32_t                                             key,
+    const std::vector<std::pair<std::uint8_t, std::string>>&  groups,
+    const std::vector<FriendListRow>&                         friends);
+
 // --- W4-3 friend groups (senders_friend.cpp) ----------------------
 
 // MW_FRIENDGROUPMAKE_REQ / MW_FRIENDGROUPNAME_REQ — result of

@@ -73,6 +73,41 @@ SendMwFriendEraseReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwFriendListReq(std::shared_ptr<PeerSession>                             peer,
+                    std::uint32_t                                            char_id,
+                    std::uint32_t                                            key,
+                    const std::vector<std::pair<std::uint8_t, std::string>>& groups,
+                    const std::vector<FriendListRow>&                        friends)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint32_t>(body, 0); // soulmate sentinel (deferred)
+    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(groups.size()));
+    for (const auto& [id, name] : groups)
+    {
+        WritePOD<std::uint8_t>(body, id);
+        WriteString(body, name);
+    }
+    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(friends.size()));
+    for (const auto& f : friends)
+    {
+        WritePOD<std::uint32_t>(body, f.id);
+        WriteString(body, f.name);
+        WritePOD<std::uint8_t>(body, f.level);
+        WritePOD<std::uint8_t>(body, f.group);
+        WritePOD<std::uint8_t>(body, f.klass);
+        WritePOD<std::uint8_t>(body, f.connected);
+        WritePOD<std::uint32_t>(body, f.region);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_FRIENDLIST_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwFriendGroupMakeReq(std::shared_ptr<PeerSession> peer,
                          std::uint32_t char_id, std::uint32_t key,
                          std::uint8_t result, std::uint8_t group,

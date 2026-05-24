@@ -456,3 +456,14 @@ target_link_libraries(test_tworldsvr_asio_friend_group_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_friend_group_handlers
     COMMAND test_tworldsvr_asio_friend_group_handlers)
+
+# W4-4 wire test: MW_FRIENDLIST_ACK → MW_FRIENDLIST_REQ — groups +
+# non-pending friends with online friends resolved live (level/
+# class/connected/region) and offline ones zeroed; FT_TARGET
+# excluded; soulmate sentinel.
+add_executable(test_tworldsvr_asio_friend_list_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_list_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_list_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_list_handlers
+    COMMAND test_tworldsvr_asio_friend_list_handlers)

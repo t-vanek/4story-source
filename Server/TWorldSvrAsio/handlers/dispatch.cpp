@@ -608,6 +608,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtEventUpdateReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-33: cash-shop relays (handlers_cashshop.cpp) ------------
+    case MessageId::CT_CASHITEMSALE_REQ:
+        co_await OnCtCashItemSaleReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_CASHSHOPSTOP_REQ:
+        co_await OnCtCashShopStopReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-2: combat / taming relays (handlers_combat.cpp) ----
     case MessageId::MW_MAGICMIRROR_ACK:
         co_await OnMagicMirrorAck(std::move(peer), std::move(body), ctx);

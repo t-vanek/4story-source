@@ -393,6 +393,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_PARTYMOVE_ACK:
         co_await OnPartyMoveAck(std::move(peer), std::move(body), ctx);
         co_return;
+
+    // ---- W6-7: solo-instance party lifecycle (handlers_party.cpp)
+    case MessageId::MW_ENTERSOLOMAP_ACK:
+        co_await OnEnterSoloMapAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_LEAVESOLOMAP_ACK:
+        co_await OnLeaveSoloMapAck(std::move(peer), std::move(body), ctx);
+        co_return;
     case MessageId::MW_CORPSCMD_ACK:
         co_await OnCorpsCmdAck(std::move(peer), std::move(body), ctx);
         co_return;
@@ -420,6 +428,9 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     // ---- W4-1: friend invite (handlers_friend.cpp) -------------
     case MessageId::MW_FRIENDASK_ACK:
         co_await OnFriendAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_FRIENDPROTECTEDASK_ACK:
+        co_await OnFriendProtectedAskAck(std::move(peer), std::move(body), ctx);
         co_return;
     case MessageId::MW_FRIENDREPLY_ACK:
         co_await OnFriendReplyAck(std::move(peer), std::move(body), ctx);
@@ -450,6 +461,15 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_CHATBAN_ACK:
         co_await OnChatBanAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::CT_CHARMSG_ACK:
+        co_await OnCharMsgAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_USERPOSITION_ACK:
+        co_await OnUserPositionAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_USERMOVE_ACK:
+        co_await OnUserMoveAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
     // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
     case MessageId::MW_CASTLEOCCUPY_ACK:
@@ -469,6 +489,9 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_return;
 
     // ---- W6-1: timed-event broadcast (handlers_event.cpp) ------
+    case MessageId::SM_CHANGEDAY_REQ:
+        co_await OnChangeDayReq(std::move(peer), std::move(body), ctx);
+        co_return;
     case MessageId::SM_EVENTQUARTER_REQ:
         co_await OnEventQuarterReq(std::move(peer), std::move(body), ctx);
         co_return;
@@ -485,6 +508,47 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_return;
     case MessageId::MW_MONTEMPTEVO_ACK:
         co_await OnMonTemptEvoAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_MONSTERDIE_ACK:
+        co_await OnMonsterDieAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TAKEMONMONEY_ACK:
+        co_await OnTakeMonMoneyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W6-10: item-result relays (handlers_item.cpp) ---------
+    case MessageId::MW_ADDITEMRESULT_ACK:
+        co_await OnAddItemResultAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_DEALITEMERROR_ACK:
+        co_await OnDealItemErrorAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W6-3: global announcement broadcasts (handlers_rank.cpp)
+    case MessageId::MW_FAMERANKUPDATE_ACK:
+        co_await OnFameRankUpdateAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_HEROSELECT_ACK:
+        co_await OnHeroSelectAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W6-4: recall-mon sync (handlers_recallmon.cpp) --------
+    case MessageId::MW_CREATERECALLMON_ACK:
+        co_await OnCreateRecallMonAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_RECALLMONDATA_ACK:
+        co_await OnRecallMonDataAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_RECALLMONDEL_ACK:
+        co_await OnRecallMonDelAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W6-5: companion-mon sync (handlers_recallmon.cpp) -----
+    case MessageId::MW_CREATESPOLECNIKMON_ACK:
+        co_await OnCreateSpolecnikMonAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_SPOLECNIKMONDEL_ACK:
+        co_await OnSpolecnikMonDelAck(std::move(peer), std::move(body), ctx);
         co_return;
 
     // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------

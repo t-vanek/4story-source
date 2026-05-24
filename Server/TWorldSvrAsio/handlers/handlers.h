@@ -1227,6 +1227,22 @@ boost::asio::awaitable<void> OnPartyMoveAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-7: solo-instance party lifecycle (handlers_party.cpp) ------
+//
+// ENTERSOLOMAP — a char enters a solo instance; world spins up a
+// one-member PT_SOLO party (if it has none) and mirrors the party
+// state to each of the char's map connections. LEAVESOLOMAP tears the
+// solo party back down. Uses the existing PartyRegistry.
+//   Wire (SSHandler.cpp:6687/6663): DWORD char_id, key
+boost::asio::awaitable<void> OnEnterSoloMapAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnLeaveSoloMapAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3c-1: corps invite relay (handlers_corps.cpp) ----------------
 //
 // Opens the corps subsystem (the party subsystem's parent: a corps
@@ -1349,6 +1365,18 @@ boost::asio::awaitable<void> OnDelCorpsEnemyAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 boost::asio::awaitable<void> OnCorpsHpAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-9: friend-protected refuse relay (handlers_friend.cpp) -----
+//
+// MW_FRIENDPROTECTEDASK_ACK — a char tried to friend a target that
+// has friend-protection on (the map gates that); world relays the
+// auto-refuse to the target's map, naming the requester. World's
+// whole role is the relay — the protection state lives map/DB-side.
+//   Wire (SSHandler.cpp:5847): DWORD char_id, key, STRING target
+boost::asio::awaitable<void> OnFriendProtectedAskAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
@@ -1479,6 +1507,17 @@ boost::asio::awaitable<void> OnChatBanAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-8: GM char message relay (handlers_chat.cpp) ---------------
+//
+// CT_CHARMSG_ACK — the control server sends a system/GM message to a
+// char by name; world routes it (truncated to 1 KiB) to the char's
+// main map as MW_CHARMSG_REQ.
+//   Wire (SSHandler.cpp:111): STRING name, STRING message
+boost::asio::awaitable<void> OnCharMsgAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W5-1: territory occupation broadcasts (handlers_occupy.cpp) ---
 //
 // CASTLE / LOCAL / MISSION occupy — a castle / territory / mission
@@ -1584,6 +1623,79 @@ boost::asio::awaitable<void> OnMonTemptAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 boost::asio::awaitable<void> OnMonTemptEvoAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-6: monster-result relays (handlers_combat.cpp) -------------
+//
+// MONSTERDIE / TAKEMONMONEY — a monster result the map asked world
+// about, routed verbatim back to the char's main map (found by
+// id+key). (MONSTERBUY belongs here but is deferred — it spends guild
+// money + needs the MSB_* result enum, absent from the tree.)
+//   Wire (SSHandler.cpp:5622/5599): DWORD char_id, key, <opaque>
+boost::asio::awaitable<void> OnMonsterDieAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnTakeMonMoneyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-3: global announcement broadcasts (handlers_rank.cpp) ------
+//
+// FAMERANKUPDATE (fame-ranking refresh, forwarded verbatim) and
+// HEROSELECT (a battle-zone hero was chosen) are fanned to every map
+// peer so the cluster shows them consistently.
+//
+// Wire (SSHandler.cpp:11252/9847):
+//   FAMERANKUPDATE : opaque (forwarded verbatim)
+//   HEROSELECT     : WORD battle_zone, STRING hero_name, INT64 time
+boost::asio::awaitable<void> OnFameRankUpdateAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnHeroSelectAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-4: recall-mon (summoned creature) sync (handlers_recallmon.cpp)
+//
+// CREATE / DATA / DEL — a char's summoned recall monster is mirrored
+// across all the char's valid map connections so each client renders
+// it. World assigns the recall id on CREATE (when the map sends 0)
+// and otherwise forwards the body verbatim. The DB-seed of the id
+// counter at boot is deferred.
+//
+// Wire (SSHandler.cpp:8144/9678/8279): all lead with DWORD char_id,
+//   key (DEL keys off char_id only); the remainder is opaque.
+boost::asio::awaitable<void> OnCreateRecallMonAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnRecallMonDataAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnRecallMonDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-5: companion-mon (spolecnik) sync (handlers_recallmon.cpp) -
+//
+// Recall-mon's sibling — CREATE (assigns the same recall id when the
+// map sent 0) + DEL, mirrored to the char's valid connections. Same
+// opaque-passthrough shape; shares the recall-id counter.
+//   Wire (SSHandler.cpp:8320/8455): lead DWORD char_id, key (DEL keys
+//   off char_id only); remainder opaque.
+boost::asio::awaitable<void> OnCreateSpolecnikMonAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnSpolecnikMonDelAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
@@ -1782,6 +1894,54 @@ boost::asio::awaitable<void> OnPostRecvAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 boost::asio::awaitable<void> OnReservedPostRecvAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-11: day-change guild ranking (handlers_guild.cpp) ----------
+//
+// SM_CHANGEDAY_REQ — daily rollover; recompute every guild's PvP rank
+// (total + month) from the in-memory points (legacy CalcGuildRanking).
+// Read back by OnGuildInfoAck; no reply.
+boost::asio::awaitable<void> OnChangeDayReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-10: item-result relays (handlers_item.cpp) ----------------
+//
+// ADDITEMRESULT — an item-add result (from the DB / another map)
+// relayed to the requesting map server (by bMapSvrID). DEALITEMERROR
+// — a trade/deal error relayed to the affected char's main map (by
+// name). Both reuse existing senders.
+//   Wire (SSHandler.cpp:6628/8095):
+//     ADDITEMRESULT : DWORD char_id, key, BYTE map_svr, channel,
+//                     WORD map_id, DWORD mon_id, BYTE item_id, result
+//     DEALITEMERROR : STRING target, error_char, BYTE error
+boost::asio::awaitable<void> OnAddItemResultAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnDealItemErrorAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-12: GM user-tracking relays (handlers_admin.cpp) ----------
+//
+// CT_USERPOSITION_ACK — a GM's "locate this player" request, relayed
+// to the target's map (MW_USERPOSITION_REQ; both target + GM must be
+// online). CT_USERMOVE_ACK — a GM force-move, relayed to the user's
+// map (re-sent as CT_USERMOVE_ACK, the legacy world→map form).
+//   Wire (SSHandler.cpp:49/17):
+//     USERPOSITION : STRING target, gm
+//     USERMOVE     : STRING user, BYTE channel, WORD map, FLOAT x,y,z,
+//                    WORD party_id
+boost::asio::awaitable<void> OnUserPositionAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnUserMoveAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

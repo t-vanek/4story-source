@@ -1016,6 +1016,18 @@ boost::asio::awaitable<void> SendMwGuildPvPRecordReq(
 
 // --- W3b-1 party invite relay -------------------------------------
 
+// MW_ENTERSOLOMAP_REQ — mirror a char's solo-instance party state to
+// each of its map connections.
+//   Wire: DWORD char_id, key, WORD party_id, BYTE party_type,
+//     DWORD chief_id
+boost::asio::awaitable<void> SendMwEnterSoloMapReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint16_t                party_id,
+    std::uint8_t                 party_type,
+    std::uint32_t                chief_id);
+
 // MW_PARTYADD_REQ — the party-invite result/dialog packet. On a
 // failure result it lands on the requester's map (their client
 // shows the toast); on PARTY_AGREE it lands on the target's map
@@ -1271,6 +1283,15 @@ boost::asio::awaitable<void> SendMwAddItemResultReq(
     std::uint32_t                mon_id,
     std::uint8_t                 item_id,
     std::uint8_t                 result);
+
+// MW_DEALITEMERROR_REQ — a trade/deal error relayed to the affected
+// char's map.
+//   Wire (SSSender.cpp): STRING target, STRING error_char, BYTE error
+boost::asio::awaitable<void> SendMwDealItemErrorReq(
+    std::shared_ptr<PeerSession> peer,
+    const std::string&           target,
+    const std::string&           error_char,
+    std::uint8_t                 error);
 
 // MW_PARTYMOVE_REQ — result of a corps general reshuffling a member
 // between squads (move or swap). CORPS_* result code.
@@ -1636,6 +1657,14 @@ boost::asio::awaitable<void> SendMwChatBanReq(
     std::uint32_t                char_id,
     std::uint32_t                key);
 
+// MW_CHARMSG_REQ — a system / GM message delivered to a named char's
+// map (the control server's CT_CHARMSG relay).
+//   Wire (SSSender.cpp): STRING name, STRING message
+boost::asio::awaitable<void> SendMwCharMsgReq(
+    std::shared_ptr<PeerSession> peer,
+    const std::string&           name,
+    const std::string&           message);
+
 // --- W5-1 territory occupation broadcasts (senders_occupy.cpp) ----
 //
 // Each is broadcast to every map peer so the new owner/flag shows
@@ -1767,6 +1796,55 @@ boost::asio::awaitable<void> SendMwMonTemptEvoReq(
     std::uint32_t                host_id,
     std::uint8_t                 host_type);
 
+// MW_MONSTERDIE_REQ / MW_TAKEMONMONEY_REQ — a monster-result the map
+// asked world about, routed verbatim back to the char's main map.
+boost::asio::awaitable<void> SendMwMonsterDieReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+boost::asio::awaitable<void> SendMwTakeMonMoneyReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
+// --- W6-3 global announcement broadcasts (senders_rank.cpp) -------
+
+// MW_FAMERANKUPDATE_REQ — fame-ranking refresh, forwarded verbatim
+// to every map peer (world doesn't interpret the table).
+boost::asio::awaitable<void> SendMwFameRankUpdateReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
+// MW_HEROSELECT_REQ — a battle-zone hero was chosen; announced to
+// every map peer.
+//   Wire: WORD battle_zone, STRING hero_name, INT64 time
+boost::asio::awaitable<void> SendMwHeroSelectReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint16_t                battle_zone,
+    const std::string&           hero_name,
+    std::int64_t                 time_hero);
+
+// --- W6-4 recall-mon (summoned creature) sync (senders_recallmon.cpp)
+//
+// All three forward the inbound body verbatim (the ACK and REQ share
+// an identical wire layout); CREATE's caller patches the generated
+// recall id into the body before forwarding.
+boost::asio::awaitable<void> SendMwCreateRecallMonReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+boost::asio::awaitable<void> SendMwRecallMonDataReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+boost::asio::awaitable<void> SendMwRecallMonDelReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
+// --- W6-5 companion-mon (spolecnik) sync — recall-mon's sibling ---
+boost::asio::awaitable<void> SendMwCreateSpolecnikMonReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+boost::asio::awaitable<void> SendMwSpolecnikMonDelReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.
@@ -1836,5 +1914,30 @@ boost::asio::awaitable<void> SendMwTmsOutReq(
 boost::asio::awaitable<void> SendMwPostRecvReq(
     std::shared_ptr<PeerSession>   peer,
     const std::vector<std::byte>&  body);
+
+// --- W6-12 GM user-tracking relays (senders_admin.cpp) ------------
+
+// MW_USERPOSITION_REQ — relay a GM's "where is this player" request
+// to the target's map.
+//   Wire: DWORD char_id, key, STRING gm_name
+boost::asio::awaitable<void> SendMwUserPositionReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           gm_name);
+
+// CT_USERMOVE_ACK — relay a GM force-move to the target's map.
+//   Wire: DWORD char_id, key, BYTE channel, WORD map_id,
+//     FLOAT pos_x, pos_y, pos_z, WORD party_id
+boost::asio::awaitable<void> SendCtUserMoveAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z,
+    std::uint16_t                party_id);
 
 } // namespace tworldsvr::senders

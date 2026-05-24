@@ -50,6 +50,10 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_occupy.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_event.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_combat.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_item.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_admin.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_rank.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_recallmon.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -63,6 +67,10 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_occupy.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_event.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_combat.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_item.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_admin.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_rank.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_recallmon.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -694,3 +702,94 @@ target_link_libraries(test_tworldsvr_asio_combat_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_combat_handlers
     COMMAND test_tworldsvr_asio_combat_handlers)
+
+# W6-6 wire test: monster-result relays — MONSTERDIE / TAKEMONMONEY
+# route verbatim to the char's main map.
+add_executable(test_tworldsvr_asio_monresult_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_monresult_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_monresult_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_monresult_handlers
+    COMMAND test_tworldsvr_asio_monresult_handlers)
+
+# W6-7 wire test: solo-instance party lifecycle — ENTERSOLOMAP spins
+# up a PT_SOLO party + mirrors it to the char's connections;
+# LEAVESOLOMAP tears it down.
+add_executable(test_tworldsvr_asio_solomap_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_solomap_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_solomap_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_solomap_handlers
+    COMMAND test_tworldsvr_asio_solomap_handlers)
+
+# W6-8 wire test: GM char message relay — CT_CHARMSG routes to the
+# named char's main map.
+add_executable(test_tworldsvr_asio_charmsg_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_charmsg_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_charmsg_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_charmsg_handlers
+    COMMAND test_tworldsvr_asio_charmsg_handlers)
+
+# W6-9 wire test: friend-protected refuse relay — a friend request to
+# a protected target is relayed as a refuse to the target's map.
+add_executable(test_tworldsvr_asio_friend_protected_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_protected_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_protected_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_protected_handlers
+    COMMAND test_tworldsvr_asio_friend_protected_handlers)
+
+# W6-10 wire test: item-result relays — ADDITEMRESULT routes to the
+# requesting map server; DEALITEMERROR routes to the target's map.
+add_executable(test_tworldsvr_asio_item_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_item_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_item_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_item_handlers
+    COMMAND test_tworldsvr_asio_item_handlers)
+
+# W6-11 wire test: day-change guild ranking — SM_CHANGEDAY recomputes
+# each guild's PvP total/month rank.
+add_executable(test_tworldsvr_asio_guildrank_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_guildrank_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_guildrank_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_guildrank_handlers
+    COMMAND test_tworldsvr_asio_guildrank_handlers)
+
+# W6-12 wire test: GM user-tracking relays — USERPOSITION + USERMOVE
+# route to the target char's map.
+add_executable(test_tworldsvr_asio_admin_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_admin_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_admin_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_admin_handlers
+    COMMAND test_tworldsvr_asio_admin_handlers)
+
+# W6-3 wire test: global announcement broadcasts — FAMERANKUPDATE
+# (verbatim) + HEROSELECT fan to every map peer.
+add_executable(test_tworldsvr_asio_rank_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_rank_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_rank_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_rank_handlers
+    COMMAND test_tworldsvr_asio_rank_handlers)
+
+# W6-4 wire test: recall-mon sync — CREATE assigns the recall id +
+# mirrors to the char's connections; DATA/DEL forward verbatim.
+add_executable(test_tworldsvr_asio_recallmon_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_recallmon_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_recallmon_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_recallmon_handlers
+    COMMAND test_tworldsvr_asio_recallmon_handlers)
+
+# W6-5 wire test: companion-mon (spolecnik) sync — CREATE assigns the
+# recall id + mirrors to the char's connections; DEL forwards verbatim.
+add_executable(test_tworldsvr_asio_spolecnikmon_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_spolecnikmon_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_spolecnikmon_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_spolecnikmon_handlers
+    COMMAND test_tworldsvr_asio_spolecnikmon_handlers)

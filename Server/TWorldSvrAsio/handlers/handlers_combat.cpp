@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 namespace tworldsvr::handlers {
 
@@ -124,6 +125,56 @@ OnMonTemptEvoAck(std::shared_ptr<PeerSession> peer,
         co_await senders::SendMwMonTemptEvoReq(p, atk_id, rt.key, host_id,
             host_type);
     co_return;
+}
+
+// MONSTERDIE / TAKEMONMONEY — the map asked world about a monster
+// result; route it back to the char's main map (found by id+key),
+// forwarding the body verbatim.
+namespace {
+boost::asio::awaitable<void>
+RouteMonResult(std::string_view tag, std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte> body, const HandlerContext& ctx,
+               bool die)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("{}[{}]: registries not wired", tag, ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("{}[{}]: short body ({} bytes)", tag, ip, body.size());
+        co_return;
+    }
+    auto rt = RouteOf(ctx, char_id);
+    if (!rt.found || rt.key != key) co_return;
+    if (auto p = FindMapPeer(ctx, rt.msi))
+    {
+        if (die) co_await senders::SendMwMonsterDieReq(p, body);
+        else     co_await senders::SendMwTakeMonMoneyReq(p, body);
+    }
+}
+} // namespace
+
+boost::asio::awaitable<void>
+OnMonsterDieAck(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte>       body,
+                const HandlerContext&        ctx)
+{
+    co_await RouteMonResult("OnMonsterDieAck", std::move(peer), std::move(body),
+                            ctx, /*die=*/true);
+}
+
+boost::asio::awaitable<void>
+OnTakeMonMoneyAck(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    co_await RouteMonResult("OnTakeMonMoneyAck", std::move(peer),
+                            std::move(body), ctx, /*die=*/false);
 }
 
 } // namespace tworldsvr::handlers

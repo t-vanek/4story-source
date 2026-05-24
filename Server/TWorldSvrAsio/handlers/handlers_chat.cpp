@@ -254,4 +254,35 @@ OnChatBanAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnCharMsgAck(std::shared_ptr<PeerSession> peer,
+             std::vector<std::byte>       body,
+             const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnCharMsgAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::string name, msg;
+    if (!r.ReadString(name) || !r.ReadString(msg))
+    {
+        spdlog::warn("OnCharMsgAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+    if (msg.size() > 1024) msg.resize(1024);   // legacy strMsg.Left(ONE_KBYTE)
+
+    auto tgt = ctx.chars->FindByName(name);
+    if (!tgt) co_return;
+    std::uint8_t msi = 0;
+    { std::lock_guard g(tgt->lock); msi = tgt->main_server_id; }
+    if (auto p = FindMapPeer(ctx, msi))
+        co_await senders::SendMwCharMsgReq(p, name, msg);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

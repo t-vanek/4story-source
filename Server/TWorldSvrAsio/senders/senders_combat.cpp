@@ -52,4 +52,26 @@ SendMwMonTemptEvoReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwMonsterDieReq(std::shared_ptr<PeerSession>  peer,
+                    const std::vector<std::byte>& body)
+{
+    std::vector<std::byte> copy(body);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_MONSTERDIE_REQ),
+        std::move(copy));
+}
+
+boost::asio::awaitable<void>
+SendMwTakeMonMoneyReq(std::shared_ptr<PeerSession>  peer,
+                      const std::vector<std::byte>& body)
+{
+    std::vector<std::byte> copy(body);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_TAKEMONMONEY_REQ),
+        std::move(copy));
+}
+
 } // namespace tworldsvr::senders

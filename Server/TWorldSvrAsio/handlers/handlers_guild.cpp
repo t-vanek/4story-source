@@ -16,8 +16,59 @@
 #include <cstdint>
 #include <ctime>
 #include <mutex>
+#include <vector>
 
 namespace tworldsvr::handlers {
+
+// --- W6-11: day-change guild ranking -------------------------------
+//
+// SM_CHANGEDAY_REQ — the scheduler's daily rollover; world recomputes
+// every guild's PvP rank (total + month) from the in-memory points
+// (legacy CalcGuildRanking, TWorldSvr.cpp:7743). A guild's rank is
+// (number of guilds with strictly more points) + 1, counting only
+// guilds that have points; pointless guilds rank 0. Ranks are read
+// back by OnGuildInfoAck — no reply, no persistence.
+boost::asio::awaitable<void>
+OnChangeDayReq(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       /*body*/,
+               const HandlerContext&        ctx)
+{
+    if (!ctx.guilds) co_return;
+
+    struct G { std::uint32_t id, total, month, rt, rm; };
+    std::vector<G> gs;
+    for (auto id : ctx.guilds->SnapshotIds())
+        if (auto g = ctx.guilds->Find(id))
+        {
+            std::lock_guard lk(g->lock);
+            gs.push_back({id, g->pvp_total_point, g->pvp_month_point, 0, 0});
+        }
+
+    for (auto& g : gs)
+    {
+        if (g.total == 0 && g.month == 0) continue;   // unranked
+        for (const auto& c : gs)
+        {
+            if (c.total == 0 && c.month == 0) continue;
+            if (g.total && g.total < c.total) ++g.rt;
+            if (g.month && g.month < c.month) ++g.rm;
+        }
+        if (g.total) ++g.rt;
+        if (g.month) ++g.rm;
+    }
+
+    for (const auto& g : gs)
+        if (auto gd = ctx.guilds->Find(g.id))
+        {
+            std::lock_guard lk(gd->lock);
+            gd->rank_total = g.rt;
+            gd->rank_month = g.rm;
+        }
+
+    spdlog::info("OnChangeDayReq[{}]: recomputed ranking for {} guild(s)",
+        peer->Wire()->RemoteIPv4(), gs.size());
+    co_return;
+}
 
 namespace {
 

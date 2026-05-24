@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-2 combat / taming cross-server relays
+## Status — W6-12 GM user-tracking relays (USERPOSITION / USERMOVE)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -97,9 +97,203 @@ that the four shipped Asio daemons already use.
 | W5-4 | War-window enable broadcast — OnSM_BATTLESTATUS_REQ fans the LOCAL/CASTLE/MISSION enable packet to every map peer (the trigger that starts the sieges) + 3 senders; BS_PEACE record bookkeeping + SKYGARDEN deferred | ✅ |
 | W5 | War + Castle + Tournament / TNMT | 🚧 |
 | W6-1 | Timed-event broadcast — OnSM_EVENTQUARTER_REQ (present event, single server-chosen bucket) + OnSM_EVENTQUARTERNOTIFY_REQ (world-chat announcement via the chat sender) fan to every map peer + SendMwEventQuarterReq | ✅ |
-| **W6-2** | Combat / taming cross-server relays — OnMW_MAGICMIRROR_ACK (verbatim) + OnMW_MONTEMPT_ACK + OnMW_MONTEMPTEVO_ACK route the effect to the attacker char's map + 3 senders; GETBLOOD deferred (OT_PC absent) | ✅ |
+| W6-2 | Combat / taming cross-server relays — OnMW_MAGICMIRROR_ACK (verbatim) + OnMW_MONTEMPT_ACK + OnMW_MONTEMPTEVO_ACK route the effect to the attacker char's map + 3 senders; GETBLOOD deferred (OT_PC absent) | ✅ |
+| W6-3 | Global announcement broadcasts — OnMW_FAMERANKUPDATE_ACK (verbatim) + OnMW_HEROSELECT_ACK fan to every map peer + 2 senders | ✅ |
+| W6-4 | Recall-mon (summoned creature) sync — OnMW_CREATERECALLMON_ACK (assigns the recall id, mirrors to the char's connections) + OnMW_RECALLMONDATA/DEL_ACK (verbatim) + 3 passthrough senders; id-counter DB-seed deferred | ✅ |
+| W6-5 | Companion-mon (spolecnik) sync — OnMW_CREATESPOLECNIKMON_ACK + OnMW_SPOLECNIKMONDEL_ACK (recall-mon's sibling; shares the recall-id counter + connection fan-out) + 2 passthrough senders | ✅ |
+| W6-6 | Monster-result relays — OnMW_MONSTERDIE_ACK + OnMW_TAKEMONMONEY_ACK route verbatim to the char's main map (id+key) + 2 senders; MONSTERBUY deferred (guild-money + MSB_* absent) | ✅ |
+| W6-7 | Solo-instance party lifecycle — OnMW_ENTERSOLOMAP_ACK (spins up a 1-member PT_SOLO party, mirrors to the char's connections) + OnMW_LEAVESOLOMAP_ACK (tears it down) + SendMwEnterSoloMapReq; uses PartyRegistry | ✅ |
+| W6-8 | GM char message relay — OnCT_CHARMSG_ACK routes a control-server system/GM message (≤1 KiB) to the named char's main map (MW_CHARMSG_REQ) + sender | ✅ |
+| W6-9 | Friend-protected refuse relay — OnMW_FRIENDPROTECTEDASK_ACK relays an auto-refuse (FRIEND_REFUSE + requester name) to a protection-enabled target's map; completes the friend-ask protection sub-case | ✅ |
+| W6-10 | Item-result relays — OnMW_ADDITEMRESULT_ACK (route to the requesting map server) + OnMW_DEALITEMERROR_ACK (route to the target char's map) + SendMwDealItemErrorReq (reuses the W3b SendMwAddItemResultReq) | ✅ |
+| W6-11 | Day-change guild ranking — OnSM_CHANGEDAY_REQ recomputes every guild's PvP total/month rank over GuildRegistry (legacy CalcGuildRanking); read back by GuildInfoAck | ✅ |
+| **W6-12** | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-12 — what landed
+
+**GM user-tracking relays** — two control-server (GM) tools routed to
+the target char's map:
+
+- `OnUserPositionAck` (handlers_admin.cpp, `CT_USERPOSITION_ACK`) —
+  "where is this player": relays `MW_USERPOSITION_REQ` (char id/key +
+  GM name) to the target's map; requires both target and GM online.
+- `OnUserMoveAck` (`CT_USERMOVE_ACK`) — GM force-move: relays the
+  destination (channel/map/pos/party) to the user's map, re-sent as
+  `CT_USERMOVE_ACK` (the legacy world→map form).
+
+Two senders in `senders_admin.cpp`; both reachable via the same
+Dispatch as the other CT_/SM_ messages.
+
+Tests — `tests/test_admin_handlers.cpp`: a locate request and a
+force-move both reach the target's map with the right payload.
+
+Build verified: cmake + ctest -R tworldsvr_asio (68/68 passed).
+
+### W6-11 — what landed
+
+**Day-change guild ranking** — the scheduler's daily rollover
+(`SM_CHANGEDAY_REQ`) recomputes every guild's PvP rank. `OnChangeDayReq`
+(handlers_guild.cpp) snapshots each guild's `(pvp_total_point,
+pvp_month_point)` under its lock, then assigns `rank_total` /
+`rank_month` = (guilds with strictly more points) + 1, counting only
+guilds that have points (pointless guilds rank 0). Mirrors legacy
+`CalcGuildRanking`; the ranks are read back by `OnGuildInfoAck`. No
+reply, no persistence; snapshot-then-write keeps guild locks disjoint.
+
+Tests — `tests/test_guildrank_handlers.cpp`: three guilds with
+distinct total/month points get the expected ranks (incl. the
+unranked zero-point guild).
+
+Build verified: cmake + ctest -R tworldsvr_asio (67/67 passed).
+
+### W6-10 — what landed
+
+**Item-result relays** — two cross-server item routings:
+
+- `OnAddItemResultAck` (handlers_item.cpp, `MW_ADDITEMRESULT_ACK`) —
+  an item-add result computed elsewhere, routed to the *requesting*
+  map server (by `bMapSvrID`) via the W3b `SendMwAddItemResultReq`.
+- `OnDealItemErrorAck` (`MW_DEALITEMERROR_ACK`) — a trade/deal error
+  routed to the target char's main map (by name) via the new
+  `SendMwDealItemErrorReq` (senders_item.cpp).
+
+Tests — `tests/test_item_handlers.cpp`: ADDITEMRESULT reaches the
+named map server with its payload; DEALITEMERROR reaches the target's
+map.
+
+Build verified: cmake + ctest -R tworldsvr_asio (66/66 passed).
+
+### W6-9 — what landed
+
+**Friend-protected refuse relay** — completes the friend-ask
+protection sub-case. When a char tries to friend a target that has
+friend-protection enabled (the map gates that), the map sends
+`MW_FRIENDPROTECTEDASK_ACK`; `OnFriendProtectedAskAck`
+(handlers_friend.cpp) verifies the requester, resolves the target by
+name, and relays an auto-refuse (`FRIEND_REFUSE` + the requester's
+name) to the target's map via the existing `SendMwFriendAddReq`.
+World's whole role is the relay — the protection state lives
+map/DB-side, so no new state is modelled.
+
+Tests — `tests/test_friend_protected_handlers.cpp`: Alice's request to
+protected Bob arrives at Bob's map as a refuse naming Alice.
+
+Build verified: cmake + ctest -R tworldsvr_asio (65/65 passed).
+
+### W6-8 — what landed
+
+**GM char message relay** — the control server's `CT_CHARMSG` (a
+system / GM message addressed to a char by name). `OnCharMsgAck`
+(handlers_chat.cpp) resolves the char by name, truncates the message
+to 1 KiB (legacy `strMsg.Left(ONE_KBYTE)`), and routes it to the
+char's main map as `MW_CHARMSG_REQ` (`SendMwCharMsgReq`). Reachable
+via the same Dispatch as the SM_ scheduler messages — the control
+server is just another peer sending by wID.
+
+Tests — `tests/test_charmsg_handlers.cpp`: a message for an online
+char reaches its map; one for an unknown name is dropped.
+
+Build verified: cmake + ctest -R tworldsvr_asio (64/64 passed).
+
+### W6-7 — what landed
+
+**Solo-instance party lifecycle** — entering a solo instance puts the
+char in a one-member `PT_SOLO` party so the instance's party-scoped
+mechanics work; leaving tears it down.
+
+- `OnEnterSoloMapAck` (handlers_party.cpp): if the char has no party,
+  allocate one through `PartyRegistry::GenId` + `Insert` (obtain =
+  `kObtainSolo`, the char as sole member + chief), set
+  `TChar.party_id`, then mirror `MW_ENTERSOLOMAP_REQ`
+  `(party_id, type, chief)` to each of the char's valid connections
+  (`SendMwEnterSoloMapReq`).
+- `OnLeaveSoloMapAck`: if the char's party is `PT_SOLO`, `Remove` it
+  and clear `party_id` (no reply — legacy parity).
+
+Reuses the W3b PartyRegistry; lock-ordering keeps the char + party
+locks disjoint.
+
+Tests — `tests/test_solomap_handlers.cpp`: a char on two connections
+enters (a solo party appears, same id mirrored to both connections,
+char.party_id set) then leaves (party removed, party_id cleared).
+
+Build verified: cmake + ctest -R tworldsvr_asio (63/63 passed).
+
+### W6-6 — what landed
+
+**Monster-result relays** — `MONSTERDIE` (a monster the char killed
+died) and `TAKEMONMONEY` (collect a monster's money drop) are
+resolved on the map where the monster lives and routed by world back
+to the char's *main* map. Both find the char by id+key and forward
+the body verbatim (handlers_combat.cpp `RouteMonResult` +
+`senders_combat.cpp`).
+
+Deferred: `MONSTERBUY` (buying a siege NPC with guild treasury) — it
+spends guild money (no `UseMoney` helper yet) and replies with the
+`MSB_*` result enum, which is absent from the source tree.
+
+Tests — `tests/test_monresult_handlers.cpp`: a result resolved on a
+second peer routes verbatim to the char's main map.
+
+Build verified: cmake + ctest -R tworldsvr_asio (62/62 passed).
+
+### W6-5 — what landed
+
+**Companion-mon (spolecnik) sync** — recall-mon's direct sibling
+(`spolecnik` = companion). `OnCreateSpolecnikMonAck` +
+`OnSpolecnikMonDelAck` (handlers_recallmon.cpp) reuse the recall-id
+counter and the valid-connection fan-out: CREATE assigns the id when
+the map sent 0 (patched into the body), DEL forwards verbatim; both
+mirror to every valid connection of the char. Two passthrough senders.
+
+Tests — `tests/test_spolecnikmon_handlers.cpp`: a char on two
+connections gets a CREATE (freshly-assigned id, identical on both,
+opaque tail preserved) + DEL mirrored to both.
+
+Build verified: cmake + ctest -R tworldsvr_asio (61/61 passed).
+
+### W6-4 — what landed
+
+**Recall-mon (summoned creature) sync** — a char's summoned recall
+monster is mirrored across all the char's valid map connections so
+every client it's visible on renders it.
+
+- `handlers_recallmon.cpp` — `OnCreateRecallMonAck` assigns the recall
+  id when the map sent 0 (legacy `GenRecallID`, a `++counter`),
+  patching it into the body, then forwards to each valid connection;
+  `OnRecallMonDataAck` / `OnRecallMonDelAck` forward verbatim. All
+  three are opaque passthroughs — the ACK and REQ share one wire
+  layout — so no wide per-field sender is needed (`senders_recallmon.cpp`
+  re-tags the body). DEL keys off char_id only (legacy parity).
+- Deferred: the id counter's DB-seed at boot (legacy reads the last
+  id from the DB); it starts at 0 here.
+
+Tests — `tests/test_recallmon_handlers.cpp`: a char on two
+connections gets a CREATE (with a freshly-assigned id, identical on
+both, opaque tail preserved) + DATA + DEL mirrored to both.
+
+Build verified: cmake + ctest -R tworldsvr_asio (60/60 passed).
+
+### W6-3 — what landed
+
+**Global announcement broadcasts** — two stateless fan-outs to every
+map peer so the cluster stays in sync:
+
+- `OnFameRankUpdateAck` (handlers_rank.cpp, `MW_FAMERANKUPDATE_ACK`) —
+  the fame-ranking table refresh, forwarded **verbatim** (world never
+  interprets it).
+- `OnHeroSelectAck` (`MW_HEROSELECT_ACK`) — a battle-zone hero was
+  chosen; broadcast `(battle_zone, hero_name, time)` to every peer.
+
+Two senders in `senders_rank.cpp`.
+
+Tests — `tests/test_rank_handlers.cpp`: FAMERANKUPDATE reaches both
+peers byte-for-byte; HEROSELECT reaches both with the right
+zone/name/time.
+
+Build verified: cmake + ctest -R tworldsvr_asio (59/59 passed).
 
 ### W6-2 — what landed
 

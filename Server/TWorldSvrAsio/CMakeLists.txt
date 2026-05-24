@@ -544,3 +544,12 @@ target_link_libraries(test_tworldsvr_asio_tms_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_tms_handlers
     COMMAND test_tworldsvr_asio_tms_handlers)
+
+# W4-12 wire test: TMS presence on logout (LeaveTMS) — a char in a
+# conference logs out; the surviving member is told via TMSOUT_REQ.
+add_executable(test_tworldsvr_asio_tms_logout_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_tms_logout_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_tms_logout_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tms_logout_handlers
+    COMMAND test_tworldsvr_asio_tms_logout_handlers)

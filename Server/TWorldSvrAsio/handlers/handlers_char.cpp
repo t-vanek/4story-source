@@ -159,6 +159,8 @@ OnCloseCharAck(std::shared_ptr<PeerSession>  peer,
     // out of the registry but kept alive by the shared_ptr.
     co_await NotifyFriendsOnLogout(ctx, removed);
     co_await NotifySoulmateOnLogout(ctx, removed);
+    // W4-12: drop the char from any open TMS conferences (LeaveTMS).
+    co_await NotifyTmsOnLogout(ctx, removed);
 
     bool any_other = false;
     for (auto other_id : ctx.chars->SnapshotIds())

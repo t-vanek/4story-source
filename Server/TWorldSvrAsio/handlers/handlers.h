@@ -1447,6 +1447,13 @@ boost::asio::awaitable<void> NotifyFriendsOnLogout(
 boost::asio::awaitable<void> NotifySoulmateOnLogout(
     const HandlerContext& ctx, std::shared_ptr<TChar> who);
 
+// W4-12: drop a logging-out char from every TMS conference it was
+// in, telling the surviving members (legacy LeaveTMS). Declared
+// here next to its W4-7 friend/soulmate siblings; defined in
+// handlers_tms.cpp. Called from OnCloseCharAck.
+boost::asio::awaitable<void> NotifyTmsOnLogout(
+    const HandlerContext& ctx, std::shared_ptr<TChar> who);
+
 // --- W4-6: soulmate (handlers_soulmate.cpp) ------------------------
 //
 // The marriage/pairing flow. SEARCH matchmakes among online chars

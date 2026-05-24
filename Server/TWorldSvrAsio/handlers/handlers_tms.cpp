@@ -418,4 +418,48 @@ OnTmsOutAck(std::shared_ptr<PeerSession> peer,
     if (empty) ctx.tms->Remove(tms_id);
 }
 
+// --- logout cleanup (legacy LeaveTMS) ------------------------------
+boost::asio::awaitable<void>
+NotifyTmsOnLogout(const HandlerContext& ctx, std::shared_ptr<TChar> who)
+{
+    if (!ctx.chars || !ctx.peers || !ctx.tms || !who) co_return;
+
+    std::uint32_t cid = 0;
+    std::string   name;
+    std::vector<std::uint32_t> ids;
+    {
+        std::lock_guard g(who->lock);
+        cid  = who->char_id;
+        name = who->name;
+        ids  = who->tms;
+    }
+
+    // Drop the leaver from every conference it was in. For each, the
+    // remaining members are told via TMSOUT_REQ and an emptied
+    // conference is destroyed (legacy LeaveTMS, TWorldSvr.cpp:2845).
+    for (auto tid : ids)
+    {
+        auto group = ctx.tms->Find(tid);
+        if (!group) continue;
+
+        std::vector<std::uint32_t> remaining;
+        bool empty = false;
+        {
+            std::lock_guard g(group->lock);
+            group->last_member = name;
+            group->RemoveMember(cid);
+            remaining = group->members;
+            empty = remaining.empty();
+        }
+        for (auto mid : remaining)
+        {
+            auto rt = Snap(ctx, mid);
+            if (!rt.found) continue;
+            if (auto p = FindMapPeer(ctx, rt.msi))
+                co_await senders::SendMwTmsOutReq(p, rt.id, rt.key, tid, name);
+        }
+        if (empty) ctx.tms->Remove(tid);
+    }
+}
+
 } // namespace tworldsvr::handlers

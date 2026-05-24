@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-11 TMS conference channels (group messaging)
+## Status — W4-12 TMS presence on logout (LeaveTMS)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -80,12 +80,36 @@ that the four shipped Asio daemons already use.
 | W4-8 | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
 | W4-9 | Level update — OnMW_LEVELUP_ACK stores TChar.level + multi-connection LEVELUP_REQ fan-out + soulmate level-sync / auto-dissolve on gap + SendMwLevelUpReq | ✅ |
 | W4-10 | Inspect-player stat relay — OnMW_CHARSTATINFO_ACK + OnMW_CHARSTATINFOANS_ACK (request routed to the target's map, the gathered stat block forwarded verbatim to the requester) | ✅ |
-| **W4-11** | TMS conference channels — TmsRegistry + TTms + TChar.tms id-set + OnMW_TMSSEND/INVITEASK/INVITE/OUT_ACK (open / fan-out / re-pair / tear-down a multi-party group chat) + 4 senders | ✅ |
-| W4-12+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-11 | TMS conference channels — TmsRegistry + TTms + TChar.tms id-set + OnMW_TMSSEND/INVITEASK/INVITE/OUT_ACK (open / fan-out / re-pair / tear-down a multi-party group chat) + 4 senders | ✅ |
+| **W4-12** | TMS presence on logout — NotifyTmsOnLogout (legacy LeaveTMS) wired into OnCloseCharAck: drops a logging-out char from every conference + tells the survivors via TMSOUT_REQ | ✅ |
+| W4-13+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-12 — what landed
+
+**TMS presence on logout** — completes W4-11's lifecycle for the
+disconnect path. `CloseChar` in the legacy calls `LeaveTMS`
+alongside `LeaveFriend` / `LeaveSoulmate`; W4-11 wired the first two
+(W4-7) but not the TMS cleanup, leaving a logging-out member as a
+stale id in any conference they were in.
+
+- `NotifyTmsOnLogout(ctx, who)` (handlers_tms.cpp) — for each
+  conference in the char's `tms` id-set: stash the leaver's name in
+  `last_member`, drop them from the roster, tell the surviving
+  members via `MW_TMSOUT_REQ`, and destroy an emptied conference.
+  Mirrors legacy `LeaveTMS` (TWorldSvr.cpp:2845) exactly.
+- Wired into `OnCloseCharAck` after the W4-7 friend/soulmate
+  notifies (the removed char is out of the registry but kept alive
+  by the caller's shared_ptr).
+
+Tests — `tests/test_tms_logout_handlers.cpp` (two-peer): two chars
+share a conference; one logs out and the survivor receives a
+`MW_TMSOUT_REQ` naming the departed member.
+
+Build verified: cmake + ctest -R tworldsvr_asio (44/44 passed).
 
 ### W4-11 — what landed
 

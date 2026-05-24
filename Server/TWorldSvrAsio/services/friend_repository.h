@@ -100,6 +100,19 @@ public:
     // DELETE the (char_id, friend_id) row (the char's forward edge).
     virtual bool EraseFriend(std::uint32_t char_id,
                              std::uint32_t friend_id) = 0;
+
+    // --- W4-18 soulmate write-back -------------------------------
+    //
+    // TSOULMATETABLE is one row per char (dwCharID PK); a pairing is
+    // mutual, so the reg / dissolve paths call these for both chars.
+    // Mirror TSoulmateReg (upsert, time reset to 0) / TSoulmateDel.
+
+    // Upsert this char's soulmate row to point at `target`.
+    virtual bool RegSoulmate(std::uint32_t char_id,
+                             std::uint32_t target) = 0;
+    // Delete this char's soulmate row when it points at `target`.
+    virtual bool DelSoulmate(std::uint32_t char_id,
+                             std::uint32_t target) = 0;
 };
 
 } // namespace tworldsvr

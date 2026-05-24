@@ -218,4 +218,49 @@ bool SociFriendRepository::EraseFriend(std::uint32_t char_id,
     }
 }
 
+bool SociFriendRepository::RegSoulmate(std::uint32_t char_id,
+                                       std::uint32_t target)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        // dwCharID is the PK — delete-then-insert is a portable upsert
+        // with the same net effect as TSoulmateReg (one row, dwTime 0).
+        sql << "DELETE FROM \"TSOULMATETABLE\" WHERE \"dwCharID\" = :c",
+            soci::use(static_cast<int>(char_id));
+        sql << "INSERT INTO \"TSOULMATETABLE\" "
+               "(\"dwCharID\", \"dwTarget\", \"dwTime\") VALUES (:c, :t, 0)",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(target));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::RegSoulmate({},{}) failed: {}",
+            char_id, target, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::DelSoulmate(std::uint32_t char_id,
+                                       std::uint32_t target)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "DELETE FROM \"TSOULMATETABLE\" "
+                  "WHERE \"dwCharID\" = :c AND \"dwTarget\" = :t",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(target));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::DelSoulmate({},{}) failed: {}",
+            char_id, target, ex.what());
+        return false;
+    }
+}
+
 } // namespace tworldsvr

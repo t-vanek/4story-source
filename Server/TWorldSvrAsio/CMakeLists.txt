@@ -605,3 +605,12 @@ target_link_libraries(test_tworldsvr_asio_friend_edge_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_friend_edge_handlers
     COMMAND test_tworldsvr_asio_friend_edge_handlers)
+
+# W4-18 wire test: soulmate write-back — REG persists both mutual
+# rows; END deletes them.
+add_executable(test_tworldsvr_asio_soulmate_persist_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_soulmate_persist_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_soulmate_persist_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_soulmate_persist_handlers
+    COMMAND test_tworldsvr_asio_soulmate_persist_handlers)

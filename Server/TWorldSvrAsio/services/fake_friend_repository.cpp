@@ -98,4 +98,29 @@ bool FakeFriendRepository::EraseFriend(std::uint32_t char_id,
     return true;
 }
 
+bool FakeFriendRepository::RegSoulmate(std::uint32_t char_id,
+                                       std::uint32_t target)
+{
+    std::lock_guard g(m_mtx);
+    auto& fl = m_data[char_id];
+    fl.has_soulmate    = target != 0;
+    fl.soulmate_target = target;
+    fl.soulmate_time   = 0;
+    return true;
+}
+
+bool FakeFriendRepository::DelSoulmate(std::uint32_t char_id,
+                                       std::uint32_t target)
+{
+    std::lock_guard g(m_mtx);
+    auto& fl = m_data[char_id];
+    if (fl.soulmate_target == target)
+    {
+        fl.has_soulmate    = false;
+        fl.soulmate_target = 0;
+        fl.soulmate_time   = 0;
+    }
+    return true;
+}
+
 } // namespace tworldsvr

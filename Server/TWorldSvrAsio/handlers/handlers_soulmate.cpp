@@ -3,6 +3,8 @@
 #include "../services/soulmate_constants.h"
 #include "../wire_codec.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
@@ -138,10 +140,14 @@ OnSoulmateSearchAck(std::shared_ptr<PeerSession> peer,
 
     const Mate match = cands.front().mate;
 
-    // Register the mutual pairing in-memory (DB persistence deferred).
+    // Register the mutual pairing in-memory + persist both rows.
     { std::lock_guard g(searcher->lock); SetSoulmate(*searcher, match); }
     if (auto m = ctx.chars->Find(match.id))
     { std::lock_guard g(m->lock); SetSoulmate(*m, self_mate); }
+    if (ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, mid = match.id]
+            { repo->RegSoulmate(char_id, mid); repo->RegSoulmate(mid, char_id); });
 
     co_await senders::SendMwSoulmateSearchReq(peer, char_id, key,
         soulmate::kSuccess, match.id, match.name, match.region, npc_inven,
@@ -211,10 +217,15 @@ OnSoulmateRegAck(std::shared_ptr<PeerSession> peer,
 
     if (reg)
     {
-        // Commit the mutual pairing (DB persistence deferred).
+        // Commit the mutual pairing in-memory + persist both rows.
         { std::lock_guard g(self->lock); SetSoulmate(*self, t_mate); }
         if (auto t2 = ctx.chars->Find(t_mate.id))
         { std::lock_guard g(t2->lock); SetSoulmate(*t2, self_mate); }
+        if (ctx.friend_repo)
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.friend_repo, char_id, tid = t_mate.id]
+                { repo->RegSoulmate(char_id, tid);
+                  repo->RegSoulmate(tid, char_id); });
     }
     co_await reply(soulmate::kSuccess, t_mate.id, t_mate.name, t_mate.region);
     co_return;
@@ -252,13 +263,18 @@ OnSoulmateEndAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Clear both sides (DB persistence deferred).
+    // Clear both sides in-memory + delete both rows.
     { std::lock_guard g(self->lock); self->soulmate = TSoulmate{}; }
     if (auto p = ctx.chars->Find(partner))
     {
         std::lock_guard g(p->lock);
         if (p->soulmate.target == char_id) p->soulmate = TSoulmate{};
     }
+    if (ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, partner]
+            { repo->DelSoulmate(char_id, partner);
+              repo->DelSoulmate(partner, char_id); });
     co_await senders::SendMwSoulmateEndReq(peer, char_id, key,
         soulmate::kSuccess,
         static_cast<std::uint32_t>(std::time(nullptr)));

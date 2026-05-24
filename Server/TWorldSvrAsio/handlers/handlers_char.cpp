@@ -401,6 +401,11 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
             if (auto p = ctx.chars->Find(sm_target))
             { std::lock_guard g(p->lock);
               if (p->soulmate.target == char_id) p->soulmate = TSoulmate{}; }
+            if (ctx.friend_repo)
+                co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                    [repo = ctx.friend_repo, char_id, sm_target]
+                    { repo->DelSoulmate(char_id, sm_target);
+                      repo->DelSoulmate(sm_target, char_id); });
             spdlog::info("OnLevelUpAck[{}]: char_id={} level {} dissolved "
                          "soulmate {} (gap > {})", ip, char_id, level,
                 sm_target, soulmate::kLevelWindow);

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-17 friend-edge write-back persistence
+## Status — W4-18 soulmate write-back persistence
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -86,12 +86,44 @@ that the four shipped Asio daemons already use.
 | W4-14 | Per-character visual state sync — OnMW_PETRIDING_ACK (mount fan-out to the char's other map sessions) + OnMW_HELMETHIDE_ACK (helmet-visibility store + confirm) + TChar.riding/helmet_hide + 2 senders | ✅ |
 | W4-15 | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
 | W4-16 | Friend-group write-back — IFriendRepository MakeGroup/DeleteGroup/RenameGroup/ChangeFriendGroup wired into the W4-3 group handlers via CoOffloadVoidIf (persist alongside the in-memory mutation) | ✅ |
-| **W4-17** | Friend-edge write-back — IFriendRepository InsertFriend/EraseFriend wired into the accept paths (both directed edges) + erase path (forward edge) via CoOffloadVoidIf | ✅ |
-| W4-18+ | Soulmate write-back; login-presence connect fan-out (blocked on a char-identity-loaded signal) | ⏸ |
+| W4-17 | Friend-edge write-back — IFriendRepository InsertFriend/EraseFriend wired into the accept paths (both directed edges) + erase path (forward edge) via CoOffloadVoidIf | ✅ |
+| **W4-18** | Soulmate write-back — IFriendRepository RegSoulmate/DelSoulmate wired into SEARCH-pair / REG / END + the W4-9 level-gap auto-dissolve (both mutual rows) via CoOffloadVoidIf | ✅ |
+| W4-19+ | Login-presence connect fan-out (blocked on a char-identity-loaded signal) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-18 — what landed
+
+**Soulmate write-back** — the last friend/soulmate persistence gap.
+The pairing flows mutated only the in-memory `TChar.soulmate`; a
+relog reloaded the old pairing (or lost a fresh one).
+
+- `IFriendRepository` gains `RegSoulmate(char_id, target)` (upsert,
+  `dwTime` reset to 0 — mirrors the `TSoulmateReg` proc via a
+  portable delete-then-insert since `dwCharID` is the PK) +
+  `DelSoulmate(char_id, target)` (mirrors `TSoulmateDel`), Soci + Fake.
+- A pairing is mutual (one row per char), so every site persists
+  both directions: `OnSoulmateSearchAck` (matchmaking pair),
+  `OnSoulmateRegAck` (register branch), `OnSoulmateEndAck` (dissolve),
+  and the W4-9 `OnLevelUpAck` level-gap auto-dissolve. All via
+  `CoOffloadVoidIf`, best-effort.
+
+This closes friend/soulmate persistence end to end: groups, group
+membership, friend edges, and soulmate pairings all survive a relog
+(read path: W4-15; writes: W4-16/17/18).
+
+Deferred: the connect-side login-presence fan-out is still blocked on
+a "char identity loaded" signal — at OnAddCharAck the char's own name
+and region aren't set yet (they arrive with the later
+CHANGECHARBASE), so the FRIEND_CONNECTION toast would carry a blank
+name; it needs a post-identity-load hook the port doesn't have yet.
+
+Tests — `tests/test_soulmate_persist_handlers.cpp`: Alice registers
+Bob (both rows land in the repo), then dissolves (both rows deleted).
+
+Build verified: cmake + ctest -R tworldsvr_asio (50/50 passed).
 
 ### W4-17 — what landed
 

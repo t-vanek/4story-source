@@ -39,4 +39,42 @@ FriendLoad FakeFriendRepository::LoadForChar(std::uint32_t char_id)
     return it == m_data.end() ? FriendLoad{} : it->second;
 }
 
+bool FakeFriendRepository::MakeGroup(std::uint32_t char_id, std::uint8_t group,
+                                     const std::string& name)
+{
+    std::lock_guard g(m_mtx);
+    m_data[char_id].groups.emplace_back(group, name);
+    return true;
+}
+
+bool FakeFriendRepository::DeleteGroup(std::uint32_t char_id,
+                                       std::uint8_t group)
+{
+    std::lock_guard g(m_mtx);
+    auto& v = m_data[char_id].groups;
+    for (auto it = v.begin(); it != v.end(); ++it)
+        if (it->first == group) { v.erase(it); break; }
+    return true;
+}
+
+bool FakeFriendRepository::RenameGroup(std::uint32_t char_id,
+                                       std::uint8_t group,
+                                       const std::string& name)
+{
+    std::lock_guard g(m_mtx);
+    for (auto& gp : m_data[char_id].groups)
+        if (gp.first == group) gp.second = name;
+    return true;
+}
+
+bool FakeFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
+                                             std::uint32_t friend_id,
+                                             std::uint8_t group)
+{
+    std::lock_guard g(m_mtx);
+    for (auto& f : m_data[char_id].forward)
+        if (f.id == friend_id) f.group = group;
+    return true;
+}
+
 } // namespace tworldsvr

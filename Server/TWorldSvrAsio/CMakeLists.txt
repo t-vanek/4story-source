@@ -587,3 +587,12 @@ target_link_libraries(test_tworldsvr_asio_friend_load_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_friend_load_handlers
     COMMAND test_tworldsvr_asio_friend_load_handlers)
+
+# W4-16 wire test: friend-group write-back — MAKE/NAME/CHANGE/DELETE
+# persist through the (fake) repo in addition to the in-memory change.
+add_executable(test_tworldsvr_asio_friend_persist_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_persist_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_persist_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_persist_handlers
+    COMMAND test_tworldsvr_asio_friend_persist_handlers)

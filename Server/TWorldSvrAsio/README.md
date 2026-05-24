@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-15 friend/soulmate load-at-login (IFriendRepository)
+## Status — W4-16 friend-group write-back persistence
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -84,12 +84,45 @@ that the four shipped Asio daemons already use.
 | W4-12 | TMS presence on logout — NotifyTmsOnLogout (legacy LeaveTMS) wired into OnCloseCharAck: drops a logging-out char from every conference + tells the survivors via TMSOUT_REQ | ✅ |
 | W4-13 | Mail delivery relay — OnMW_POSTRECV_ACK (player mail) + OnDM_RESERVEDPOSTRECV_ACK (system mail) forward MW_POSTRECV_REQ verbatim to the recipient's map (routed by target name) + SendMwPostRecvReq | ✅ |
 | W4-14 | Per-character visual state sync — OnMW_PETRIDING_ACK (mount fan-out to the char's other map sessions) + OnMW_HELMETHIDE_ACK (helmet-visibility store + confirm) + TChar.riding/helmet_hide + 2 senders | ✅ |
-| **W4-15** | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
-| W4-16+ | Login presence connect fan-out (now that friends load at login) + friend/soulmate write-back persistence | ⏸ |
+| W4-15 | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
+| **W4-16** | Friend-group write-back — IFriendRepository MakeGroup/DeleteGroup/RenameGroup/ChangeFriendGroup wired into the W4-3 group handlers via CoOffloadVoidIf (persist alongside the in-memory mutation) | ✅ |
+| W4-17+ | Friend insert/erase + soulmate write-back; login-presence connect fan-out (blocked on a char-identity-loaded signal) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-16 — what landed
+
+**Friend-group write-back** — the write half of the W4-15 read path,
+for the four friend-group mutations. The W4-3 group handlers
+(MAKE / DELETE / CHANGE / NAME) updated only the in-memory registry;
+a relog reloaded the old groups from the DB. Now each success also
+persists.
+
+- `IFriendRepository` gains `MakeGroup` / `DeleteGroup` /
+  `RenameGroup` / `ChangeFriendGroup` (Soci + Fake), each one legacy
+  CSP wrapper (CSPFriendGroupMake/Delete/Name/Change,
+  SSHandler.cpp:6490+) — single-table INSERT / DELETE / UPDATE.
+- The four handlers fire the matching write via `CoOffloadVoidIf`
+  only on a successful in-memory mutation, after the client reply.
+  Best-effort like the guild writes (a false return doesn't reverse
+  the in-memory change; the registry stays authoritative in-session).
+
+Deferred: friend insert/erase write-back (the accept path inserts
+both directions; the erase path deletes the forward edge in both the
+demote and one-way cases) + soulmate write-back land in W4-17. The
+connect-side login-presence fan-out is still blocked on a
+"char identity loaded" signal — at OnAddCharAck the char's own name
+and region aren't set yet (they arrive with the later
+CHANGECHARBASE), so the FRIEND_CONNECTION toast would carry a blank
+name; it needs a post-identity-load hook the port doesn't have yet.
+
+Tests — `tests/test_friend_persist_handlers.cpp`: a fake-backed run
+drives MAKE / NAME / CHANGE / (MAKE+DELETE) over the wire and reads
+the repo back to confirm each write landed.
+
+Build verified: cmake + ctest -R tworldsvr_asio (48/48 passed).
 
 ### W4-15 — what landed
 

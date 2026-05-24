@@ -63,6 +63,29 @@ public:
     // CoOffloadIf so it never blocks the io_context. Returns an empty
     // FriendLoad for a char with no rows.
     virtual FriendLoad LoadForChar(std::uint32_t char_id) = 0;
+
+    // --- W4-16 friend-group write-back ---------------------------
+    //
+    // Persist the four friend-group mutations the W4-3 handlers do
+    // in memory. Each maps onto one legacy CSP wrapper (CSPFriendGroup
+    // Make / Delete / Name / Change, SSHandler.cpp:6490+). Best-effort
+    // like the guild writes — handlers don't reverse the in-memory
+    // mutation on a false return; the in-memory registry stays
+    // authoritative within a session. Called via CoOffloadVoidIf so
+    // SOCI never blocks the io_context.
+
+    // INSERT a new named group row (TFRIENDGROUPTABLE).
+    virtual bool MakeGroup(std::uint32_t char_id, std::uint8_t group,
+                           const std::string& name) = 0;
+    // DELETE a group row.
+    virtual bool DeleteGroup(std::uint32_t char_id, std::uint8_t group) = 0;
+    // UPDATE a group's name.
+    virtual bool RenameGroup(std::uint32_t char_id, std::uint8_t group,
+                             const std::string& name) = 0;
+    // UPDATE one friend's group bucket (TFRIENDTABLE.bGroup).
+    virtual bool ChangeFriendGroup(std::uint32_t char_id,
+                                   std::uint32_t friend_id,
+                                   std::uint8_t  group) = 0;
 };
 
 } // namespace tworldsvr

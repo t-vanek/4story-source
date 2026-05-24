@@ -3,6 +3,8 @@
 #include "../services/friend_constants.h"
 #include "../wire_codec.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
@@ -427,6 +429,10 @@ OnFriendGroupMakeAck(std::shared_ptr<PeerSession> peer,
     if (!key_ok) co_return;
     co_await senders::SendMwFriendGroupMakeReq(peer, char_id, key, result,
         result == frnd::kSuccess ? group : 0, name);
+    if (result == frnd::kSuccess && ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, group, name]
+            { repo->MakeGroup(char_id, group, name); });
     co_return;
 }
 
@@ -472,6 +478,10 @@ OnFriendGroupDeleteAck(std::shared_ptr<PeerSession> peer,
     if (!key_ok || !exists) co_return;  // legacy: no reply when absent
     co_await senders::SendMwFriendGroupDeleteReq(peer, char_id, key,
         occupied ? frnd::kRefuse : frnd::kSuccess, group);
+    if (!occupied && ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, group]
+            { repo->DeleteGroup(char_id, group); });
     co_return;
 }
 
@@ -514,6 +524,10 @@ OnFriendGroupChangeAck(std::shared_ptr<PeerSession> peer,
     if (!key_ok || !ok) co_return;  // legacy: silent drop on bad group/friend
     co_await senders::SendMwFriendGroupChangeReq(peer, char_id, key,
         frnd::kSuccess, group, friend_id);
+    if (ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, friend_id, group]
+            { repo->ChangeFriendGroup(char_id, friend_id, group); });
     co_return;
 }
 
@@ -562,6 +576,10 @@ OnFriendGroupNameAck(std::shared_ptr<PeerSession> peer,
     if (!key_ok) co_return;
     co_await senders::SendMwFriendGroupNameReq(peer, char_id, key, result,
         group, name);
+    if (result == frnd::kSuccess && ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, group, name]
+            { repo->RenameGroup(char_id, group, name); });
     co_return;
 }
 

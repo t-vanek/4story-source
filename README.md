@@ -272,6 +272,18 @@ ctest --test-dir build -C Release --output-on-failure
   NOT implemented.** The 297 legacy `OnCS_*` and 300+ `DM_/MW_/SS_`
   handlers are catalogued in `CONSOLIDATION.md`; the priority signal
   is in PR #25.
+* **TWorldSvrAsio** — cluster coordinator, **~59 % ported** (156/266
+  handlers, 75 in-process wire tests). Functionally-complete verticals:
+  guild (+ tactics + cabinet), party, corps, friend / soulmate / chat /
+  TMS / mail, per-character visual state, territory + castle-war
+  broadcasts, combat / monster relays, and the 7-slice connection /
+  teleport cluster (reconcile → main-session handoff → teleport →
+  connect-check → CloseChar teardown). Remaining: the
+  connection-completion reply path (`ROUTE_ACK → ADDCONNECT`) and the
+  battle/event subsystems (BR / Bow / Arena / Tournament / Apex / RPS /
+  CMGift / cash / month-rank). Full not-yet-ported checklist lives in the
+  sub-README's **gaps audit**. Until the rest lands, the legacy
+  `TWorldSvr` binary remains canonical.
 
 ### Open (cluster edge wrap-up)
 
@@ -293,13 +305,6 @@ ctest --test-dir build -C Release --output-on-failure
   the rules layer is what needs design (Lua-via-sol2 vs data-driven
   YAML interpreter for quests, register-based dispatch for the 20k-LOC
   `SSHandler.cpp` switch, etc.).
-* **TWorldSvr modernization** — cluster coordinator, ~59 % ported
-  (guild / party / corps / friend / soulmate / chat / TMS / mail /
-  territory+war / combat verticals + the connection/teleport cluster).
-  Remaining: BR / Bow / Arena / Tournament / Apex / RPS / CMGift / cash /
-  month-rank, plus the connection-completion reply path (ROUTE_ACK →
-  ADDCONNECT) — see the gaps audit in the sub-README. Until those land,
-  the legacy `TWorldSvr` binary remains canonical.
 * **Map data pipeline** — reproducible extraction of map / NPC / drop
   tables from the shipped data files, so world content can be
   regenerated rather than restored from a binary backup.

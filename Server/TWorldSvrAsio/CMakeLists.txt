@@ -845,3 +845,13 @@ target_link_libraries(test_tworldsvr_asio_teleport_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_teleport_handlers
     COMMAND test_tworldsvr_asio_teleport_handlers)
+
+# W6-18 wire test: CHECKCONNECT_ACK — count=0 updates position +
+# CHECKMAIN sweep; count>0 with a new server → ROUTELIST via main;
+# unknown char → DELCHAR.
+add_executable(test_tworldsvr_asio_checkconnect_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_checkconnect_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_checkconnect_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_checkconnect_handlers
+    COMMAND test_tworldsvr_asio_checkconnect_handlers)

@@ -112,9 +112,42 @@ that the four shipped Asio daemons already use.
 | W6-14 | Main-session confirmation — OnMW_CHECKMAIN_ACK: responder-is-main → drain `dead_cons` via CLOSECHAR (ClearDeadCON) + CONRESULT (CN_SUCCESS) the live set; responder-is-other → RELEASEMAIN the old main + re-point main; DELCHAR/INVALIDCHAR errors + 3 senders. CloseChar (logout teardown) + cession queue (PopConCess) deferred | ✅ |
 | W6-15 | Main-session handoff forward — OnMW_RELEASEMAIN_ACK: the old main releases → forward the released char verbatim to the new main (re-tagged MW_ENTERSVR_REQ) + record the old main in `chg_main_id`; new main offline → INVALIDCHAR(release_main=1); unknown char → DELCHAR. Opaque-passthrough sender | ✅ |
 | W6-16 | Handoff completion — OnMW_ENTERSVR_ACK now branches on `chg_main_id`: a normal-map handoff clears it + asks the new main for the server list (MAPSVRLIST_REQ → re-enters the W6-13 reconcile), skipping the fresh-login fan-out; BR/Bow battleground ids (50/30) excluded. Closes the handoff loop (reconcile→checkmain→release→entersvr→reconcile) | ✅ |
-| **W6-17** | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender. CHECKCONNECT producer + CloseChar deferred | ✅ |
+| W6-17 | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender | ✅ |
+| **W6-18** | Connect-check reconcile — OnMW_CHECKCONNECT_ACK (the other cession producer): updates the char's position then reconciles cons (count=0 → CHECKMAIN sweep; else drop stale → dead_cons + ROUTELIST new servers via main, else CHECKMAIN); replays via PopConCess. Reuses the W6-17 cession queue; no new senders | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-18 — what landed
+
+**Connect-check reconcile** — `OnCheckConnectAck` (handlers_conn.cpp,
+`MW_CHECKCONNECT_ACK`) is the second cession-queue producer (alongside
+W6-17's teleport). A map periodically re-asserts a char's position and
+the set of servers it should be connected to; world serialises it on the
+same cession queue (`PushConCess` / `PopConCess` replay), then runs
+`CheckConnect`:
+
+- must originate from the char's main map (else the queue advances);
+- updates the char's channel / map / position from the report;
+- `count == 0` → `CheckMainCon` sweep (CHECKMAIN to every con);
+- otherwise reconciles `cons` against the reported set — drop
+  no-longer-listed cons to `dead_cons`, and either `MW_ROUTELIST_REQ`
+  the newly-needed servers via the main map or, if none are new, sweep
+  with CHECKMAIN. Unlike CONLIST/MAPSVRLIST the reporting map is **not**
+  auto-added to the needed set (legacy `OnCheckConnect` parity).
+
+Factored a shared `CheckMainCon` helper (the CHECKMAIN broadcast) used by
+the count=0 and no-new-server paths. Unknown char / key mismatch →
+`MW_DELCHAR_REQ`. No new senders (reuses ROUTELIST / CHECKMAIN / DELCHAR).
+`PopConCess`'s replay switch now dispatches both BEGINTELEPORT and
+CHECKCONNECT entries. Deferred: the main-offline `CloseChar` teardown.
+
+Tests — `tests/test_checkconnect_handlers.cpp` (3 map peers): a count=0
+report updates position + sweeps CHECKMAIN to both cons; a report naming
+a new server (0x44, with the existing cons retained) updates position +
+ROUTELISTs only the new server via the main, dropping nothing; an unknown
+char replies DELCHAR.
+
+Build verified: cmake + ctest -R tworldsvr_asio (74/74 passed).
 
 ### W6-17 — what landed
 

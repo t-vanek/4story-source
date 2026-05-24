@@ -2010,5 +2010,19 @@ boost::asio::awaitable<void> OnBeginTeleportAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// MW_CHECKCONNECT_ACK — a map reports the char's position + the servers
+// it should be connected to. Like BEGINTELEPORT it serialises on the
+// cession queue; when it runs it updates the char's position and
+// reconciles the connection set (drop stale → dead_cons, ROUTELIST new
+// servers via main, else CHECKMAIN sweep). A count of 0 short-circuits
+// to the CHECKMAIN sweep. The reporting map is NOT auto-added to the
+// needed set (unlike CONLIST/MAPSVRLIST). Unknown char → MW_DELCHAR_REQ.
+//   Wire (SSHandler.cpp:3839): DWORD char_id, key, BYTE channel,
+//     WORD map_id, FLOAT pos_x, pos_y, pos_z, BYTE count, count×BYTE sid
+boost::asio::awaitable<void> OnCheckConnectAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

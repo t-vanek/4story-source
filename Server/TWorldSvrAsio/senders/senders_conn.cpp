@@ -244,4 +244,56 @@ SendMwCharDataReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwTeleportReq(std::shared_ptr<PeerSession> peer,
+                  std::uint32_t                char_id,
+                  std::uint32_t                key,
+                  std::uint8_t                 channel,
+                  std::uint16_t                map_id,
+                  float                        pos_x,
+                  float                        pos_y,
+                  float                        pos_z,
+                  std::uint8_t                 result)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, channel);
+    WritePOD<std::uint16_t>(body, map_id);
+    WritePOD<float>(body, pos_x);
+    WritePOD<float>(body, pos_y);
+    WritePOD<float>(body, pos_z);
+    WritePOD<std::uint8_t>(body, result);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_TELEPORT_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwConListReq(std::shared_ptr<PeerSession> peer,
+                 std::uint32_t                char_id,
+                 std::uint32_t                key,
+                 std::uint8_t                 channel,
+                 std::uint16_t                map_id,
+                 float                        pos_x,
+                 float                        pos_y,
+                 float                        pos_z)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, channel);
+    WritePOD<std::uint16_t>(body, map_id);
+    WritePOD<float>(body, pos_x);
+    WritePOD<float>(body, pos_y);
+    WritePOD<float>(body, pos_z);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CONLIST_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

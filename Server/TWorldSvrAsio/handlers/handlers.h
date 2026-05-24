@@ -2089,5 +2089,23 @@ boost::asio::awaitable<void> OnCharDataAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-21: teleport confirm (handlers_conn.cpp) ------------------
+//
+// MW_TELEPORT_ACK — the originating map's confirmation that a teleport
+// has reached the destination map (legacy SSHandler.cpp:1490). Completes
+// the W6-17 BEGINTELEPORT chain. World clears the char's party_waiter
+// and forwards MW_TELEPORT_REQ(TPR_SUCCESS) back to the responder so it
+// can hand the result to the client, then fires MW_CONLIST_REQ to the
+// destination map so it re-enters the W6-13 reconcile and joins the
+// char's connection set. Destination map offline → MW_TELEPORT_REQ
+// (TPR_NODESTINATION) + CloseChar (the W6-19 helper, since the legacy
+// CloseChar tears the char down here). Unknown char / key mismatch →
+// MW_DELCHAR_REQ.
+//   Wire (SSHandler.cpp:1490): DWORD char_id, key, BYTE dest_server_id
+boost::asio::awaitable<void> OnTeleportAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

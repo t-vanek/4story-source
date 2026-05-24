@@ -1047,4 +1047,94 @@ OnCharDataAck(std::shared_ptr<PeerSession> peer,
     co_await CheckMainCon(ch, ctx);
 }
 
+// --- W6-21 teleport confirm ----------------------------------------
+
+// TTELEPORT_RESULT (NetCode.h:254). Only the two values the handler
+// emits are defined here — adding the rest as the war/portal/etc.
+// teleport branches port.
+namespace {
+constexpr std::uint8_t kTeleportSuccess       = 0;   // TPR_SUCCESS
+constexpr std::uint8_t kTeleportNoDestination = 3;   // TPR_NODESTINATION
+}  // namespace
+
+boost::asio::awaitable<void>
+OnTeleportAck(std::shared_ptr<PeerSession> peer,
+              std::vector<std::byte>       body,
+              const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnTeleportAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  dest_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(dest_id))
+    {
+        spdlog::warn("OnTeleportAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    bool          key_ok = ch != nullptr;
+    std::uint8_t  channel = 0;
+    std::uint16_t map_id = 0;
+    float         px = 0, py = 0, pz = 0;
+    if (ch)
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key)
+        {
+            key_ok = false;
+        }
+        else
+        {
+            channel = ch->channel; map_id = ch->map_id;
+            px = ch->pos_x; py = ch->pos_y; pz = ch->pos_z;
+        }
+    }
+
+    if (!key_ok)
+    {
+        spdlog::info("OnTeleportAck[{}]: char_id={} not registered / key "
+                     "mismatch — DELCHAR", ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    auto dest_peer = FindMapPeer(ctx, dest_id);
+    if (!dest_peer)
+    {
+        // Destination map gone — fail the teleport on the client side
+        // and tear the char down (legacy CloseChar). Mirrors the
+        // legacy "No Map > ServerID" branch (SSHandler.cpp:1519).
+        spdlog::warn("OnTeleportAck[{}]: char_id={} dest_server={} offline — "
+                     "NODESTINATION + CloseChar", ip, char_id, dest_id);
+        co_await senders::SendMwTeleportReq(peer, char_id, key,
+            channel, map_id, px, py, pz, kTeleportNoDestination);
+        co_await CloseChar(ch, ctx);
+        co_return;
+    }
+
+    // Success — clear party_waiter (legacy: pTCHAR->m_bPartyWaiter =
+    // FALSE only on the happy path) and emit the result + connection
+    // list refresh on the destination map (re-entering the W6-13
+    // CONLIST reconcile).
+    {
+        std::lock_guard g(ch->lock);
+        ch->party_waiter = false;
+    }
+    spdlog::info("OnTeleportAck[{}]: char_id={} teleport SUCCESS dest_server={}",
+        ip, char_id, dest_id);
+    co_await senders::SendMwTeleportReq(peer, char_id, key,
+        channel, map_id, px, py, pz, kTeleportSuccess);
+    co_await senders::SendMwConListReq(dest_peer, char_id, key,
+        channel, map_id, px, py, pz);
+}
+
 } // namespace tworldsvr::handlers

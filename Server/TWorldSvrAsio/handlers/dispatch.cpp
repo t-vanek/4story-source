@@ -598,6 +598,11 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnEventQuarterNotifyReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-30: operator event-message broadcast (handlers_event.cpp) -
+    case MessageId::CT_EVENTMSG_REQ:
+        co_await OnCtEventMsgReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-2: combat / taming relays (handlers_combat.cpp) ----
     case MessageId::MW_MAGICMIRROR_ACK:
         co_await OnMagicMirrorAck(std::move(peer), std::move(body), ctx);

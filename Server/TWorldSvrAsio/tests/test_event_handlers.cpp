@@ -163,6 +163,27 @@ int main()
         EXPECT(talk == "Event starts now!");
     }
 
+    // --- W6-30: CT_EVENTMSG_REQ → MW_EVENTMSG_REQ to every map peer
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 7);   // event_id
+        wire::WritePOD<std::uint8_t>(b, 2);   // msg_type
+        wire::WriteString(b, "Lottery winners announced!");
+        SendFramed(p1, ToUint16(MessageId::CT_EVENTMSG_REQ), b);
+    }
+    for (auto* s : {&p1, &p2})
+    {
+        auto [w, b] = ReadFramed(*s);
+        EXPECT(w == ToUint16(MessageId::MW_EVENTMSG_REQ));
+        wire::Reader r(b);
+        std::uint8_t event_id = 0, msg_type = 0;
+        std::string msg;
+        r.Read(event_id); r.Read(msg_type); r.ReadString(msg);
+        EXPECT(event_id == 7);
+        EXPECT(msg_type == 2);
+        EXPECT(msg == "Lottery winners announced!");
+    }
+
     p1.close(); p2.close();
     io.stop();
     io_thread.join();

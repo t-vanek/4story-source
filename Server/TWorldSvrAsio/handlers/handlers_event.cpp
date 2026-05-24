@@ -84,4 +84,32 @@ OnEventQuarterNotifyReq(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnCtEventMsgReq(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte>       body,
+                const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.peers)
+    {
+        spdlog::warn("OnCtEventMsgReq[{}]: peers not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t event_id = 0;
+    std::uint8_t msg_type = 0;
+    std::string  msg;
+    if (!r.Read(event_id) || !r.Read(msg_type) || !r.ReadString(msg))
+    {
+        spdlog::warn("OnCtEventMsgReq[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    for (auto& p : ctx.peers->Snapshot())
+        co_await senders::SendMwEventMsgReq(p, event_id, msg_type, msg);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

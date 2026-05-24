@@ -1495,6 +1495,17 @@ boost::asio::awaitable<void> OnChatBanAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-8: GM char message relay (handlers_chat.cpp) ---------------
+//
+// CT_CHARMSG_ACK — the control server sends a system/GM message to a
+// char by name; world routes it (truncated to 1 KiB) to the char's
+// main map as MW_CHARMSG_REQ.
+//   Wire (SSHandler.cpp:111): STRING name, STRING message
+boost::asio::awaitable<void> OnCharMsgAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W5-1: territory occupation broadcasts (handlers_occupy.cpp) ---
 //
 // CASTLE / LOCAL / MISSION occupy — a castle / territory / mission

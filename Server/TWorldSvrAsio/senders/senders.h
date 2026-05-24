@@ -1648,6 +1648,14 @@ boost::asio::awaitable<void> SendMwChatBanReq(
     std::uint32_t                char_id,
     std::uint32_t                key);
 
+// MW_CHARMSG_REQ — a system / GM message delivered to a named char's
+// map (the control server's CT_CHARMSG relay).
+//   Wire (SSSender.cpp): STRING name, STRING message
+boost::asio::awaitable<void> SendMwCharMsgReq(
+    std::shared_ptr<PeerSession> peer,
+    const std::string&           name,
+    const std::string&           message);
+
 // --- W5-1 territory occupation broadcasts (senders_occupy.cpp) ----
 //
 // Each is broadcast to every map peer so the new owner/flag shows

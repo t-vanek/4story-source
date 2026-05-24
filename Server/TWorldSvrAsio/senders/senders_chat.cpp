@@ -59,4 +59,19 @@ SendMwChatBanReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwCharMsgReq(std::shared_ptr<PeerSession> peer,
+                 const std::string&           name,
+                 const std::string&           message)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WriteString(body, name);
+    WriteString(body, message);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CHARMSG_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

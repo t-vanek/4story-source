@@ -718,6 +718,15 @@ target_link_libraries(test_tworldsvr_asio_solomap_handlers PRIVATE
 add_test(NAME tworldsvr_asio_solomap_handlers
     COMMAND test_tworldsvr_asio_solomap_handlers)
 
+# W6-8 wire test: GM char message relay — CT_CHARMSG routes to the
+# named char's main map.
+add_executable(test_tworldsvr_asio_charmsg_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_charmsg_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_charmsg_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_charmsg_handlers
+    COMMAND test_tworldsvr_asio_charmsg_handlers)
+
 # W6-3 wire test: global announcement broadcasts — FAMERANKUPDATE
 # (verbatim) + HEROSELECT fan to every map peer.
 add_executable(test_tworldsvr_asio_rank_handlers

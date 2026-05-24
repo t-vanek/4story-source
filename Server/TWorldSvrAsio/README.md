@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-7 solo-instance party lifecycle (ENTER/LEAVESOLOMAP)
+## Status — W6-8 GM char message relay (CHARMSG)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -102,9 +102,25 @@ that the four shipped Asio daemons already use.
 | W6-4 | Recall-mon (summoned creature) sync — OnMW_CREATERECALLMON_ACK (assigns the recall id, mirrors to the char's connections) + OnMW_RECALLMONDATA/DEL_ACK (verbatim) + 3 passthrough senders; id-counter DB-seed deferred | ✅ |
 | W6-5 | Companion-mon (spolecnik) sync — OnMW_CREATESPOLECNIKMON_ACK + OnMW_SPOLECNIKMONDEL_ACK (recall-mon's sibling; shares the recall-id counter + connection fan-out) + 2 passthrough senders | ✅ |
 | W6-6 | Monster-result relays — OnMW_MONSTERDIE_ACK + OnMW_TAKEMONMONEY_ACK route verbatim to the char's main map (id+key) + 2 senders; MONSTERBUY deferred (guild-money + MSB_* absent) | ✅ |
-| **W6-7** | Solo-instance party lifecycle — OnMW_ENTERSOLOMAP_ACK (spins up a 1-member PT_SOLO party, mirrors to the char's connections) + OnMW_LEAVESOLOMAP_ACK (tears it down) + SendMwEnterSoloMapReq; uses PartyRegistry | ✅ |
+| W6-7 | Solo-instance party lifecycle — OnMW_ENTERSOLOMAP_ACK (spins up a 1-member PT_SOLO party, mirrors to the char's connections) + OnMW_LEAVESOLOMAP_ACK (tears it down) + SendMwEnterSoloMapReq; uses PartyRegistry | ✅ |
+| **W6-8** | GM char message relay — OnCT_CHARMSG_ACK routes a control-server system/GM message (≤1 KiB) to the named char's main map (MW_CHARMSG_REQ) + sender | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-8 — what landed
+
+**GM char message relay** — the control server's `CT_CHARMSG` (a
+system / GM message addressed to a char by name). `OnCharMsgAck`
+(handlers_chat.cpp) resolves the char by name, truncates the message
+to 1 KiB (legacy `strMsg.Left(ONE_KBYTE)`), and routes it to the
+char's main map as `MW_CHARMSG_REQ` (`SendMwCharMsgReq`). Reachable
+via the same Dispatch as the SM_ scheduler messages — the control
+server is just another peer sending by wID.
+
+Tests — `tests/test_charmsg_handlers.cpp`: a message for an online
+char reaches its map; one for an unknown name is dropped.
+
+Build verified: cmake + ctest -R tworldsvr_asio (64/64 passed).
 
 ### W6-7 — what landed
 

@@ -2037,5 +2037,57 @@ boost::asio::awaitable<void> OnCheckConnectAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-20: connection-completion sub-flow (handlers_conn.cpp) ----
+//
+// Closes the loop W6-13/W6-18 opened: world sent MW_ROUTELIST_REQ to
+// the char's main map asking it to route the char to the newly-needed
+// servers, and the main answers with one of these three packets that
+// drive the new connections to ready.
+//
+// MW_ROUTE_ACK — main's answer to ROUTELIST. Either the char needs no
+// new connections (count==0) and the main is asked for a CHARDATA
+// round-trip, or `count` new (ip/port/server_id) tuples are registered
+// as *pending* TCharCons (valid=false, ready=false; any matching entry's
+// valid bit is preserved across the replace) and forwarded back to the
+// reporting (main) map as MW_ADDCONNECT_REQ so the client opens the new
+// TCP connections. Unknown char / key mismatch → MW_DELCHAR_REQ.
+//   Wire (SSHandler.cpp:1903): DWORD char_id, key, BYTE count,
+//     × count: DWORD ip_addr, WORD port, BYTE server_id
+boost::asio::awaitable<void> OnRouteAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_ENTERCHAR_ACK — the per-connection entry handshake reply: the
+// map that just accepted a new connection tells world "I'm ready".
+// World flips that con's `ready` flag and, once every con is ready,
+// fires CheckMainCon to re-confirm the main session across the whole
+// new connection set. Missing TCharCon for the reporting map →
+// MW_INVALIDCHAR_REQ; unknown char → MW_DELCHAR_REQ.
+//   Wire (SSHandler.cpp:1038): DWORD char_id, key
+boost::asio::awaitable<void> OnEnterCharAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
+// count==0 ROUTE branch (or when world otherwise asked for a CHARDATA
+// round-trip). World refreshes the char's level + HP/MP from the
+// packet and, if every con is ready, fires CheckMainCon. The legacy
+// non-ready branch fans MW_ENTERCHAR_REQ to each not-yet-ready con
+// carrying the full guild/tactics/party/soulmate composite — that fan-
+// out is deferred (the composite is the same one priority #3 of the
+// gaps audit, "Fresh-login ENTERSVR completion", owns); in the typical
+// count==0 path every con is already ready so the deferred branch
+// doesn't fire. Errors: unknown char → DELCHAR; main offline →
+// INVALIDCHAR.
+//   Wire (SSHandler.cpp:847): DWORD char_id, key, BYTE start_act,
+//     level, DWORD max_hp, hp, max_mp, mp, BYTE country, mode,
+//     <opaque tail>
+boost::asio::awaitable<void> OnCharDataAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

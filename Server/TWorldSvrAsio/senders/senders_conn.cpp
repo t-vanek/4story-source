@@ -206,4 +206,42 @@ SendMwStartTeleportReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwAddConnectReq(std::shared_ptr<PeerSession>            peer,
+                    std::uint32_t                           char_id,
+                    std::uint32_t                           key,
+                    const std::vector<AddConnectEntry>&     entries)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(entries.size()));
+    for (const auto& e : entries)
+    {
+        WritePOD<std::uint32_t>(body, e.ip_addr);
+        WritePOD<std::uint16_t>(body, e.port);
+        WritePOD<std::uint8_t>(body, e.server_id);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_ADDCONNECT_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwCharDataReq(std::shared_ptr<PeerSession> peer,
+                  std::uint32_t                char_id,
+                  std::uint32_t                key)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CHARDATA_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

@@ -1193,5 +1193,25 @@ boost::asio::awaitable<void> OnCorpsAskAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3c-2: corps formation (handlers_corps.cpp) -------------------
+//
+// MW_CORPSREPLY_ACK is the invited chief's answer to the CORPSASK
+// dialog. On ASK_YES (gates still hold) world forms the corps: if
+// the inviter already has one the answerer's party joins it, if the
+// answerer has one the inviter's party joins it, otherwise a fresh
+// TCorps is created with the inviter's party as commander. The
+// NotifyCorpsJoin fan-out announces every squad to every other
+// squad's members (pairwise MW_ADDSQUAD_REQ), sets the joining
+// party's corps_id, and pushes each joining member MW_CORPSJOIN_REQ
+// + a MW_PARTYATTR_REQ carrying the commander. Denials relay
+// MW_CORPSREPLY_REQ.
+//
+// Wire (SSHandler.cpp:6953): DWORD char_id, key, BYTE reply,
+//   STRING requester_name
+boost::asio::awaitable<void> OnCorpsReplyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

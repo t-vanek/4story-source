@@ -34,6 +34,8 @@
 
 namespace tworldsvr {
 
+class PartyRegistry; // for GenId's shared-pool check
+
 struct TCorps
 {
     mutable std::mutex lock;
@@ -87,6 +89,14 @@ public:
     std::shared_ptr<TCorps> Remove(std::uint16_t corps_id);
     std::shared_ptr<TCorps> Find(std::uint16_t corps_id) const;
 
+    // Allocate a free WORD id in [1, 65535]. Legacy GenPartyID()
+    // draws corps + party ids from one recycled pool, so a corps id
+    // never collides with a live party id; we replicate that by
+    // skipping ids present in either registry (pass the
+    // PartyRegistry; nullptr = corps-registry-only check). Returns 0
+    // only if the id space is exhausted.
+    std::uint16_t GenId(const PartyRegistry* parties);
+
     std::size_t Size() const;
     std::vector<std::uint16_t> SnapshotIds() const;
 
@@ -105,6 +115,8 @@ private:
     }
 
     std::array<Shard, kShardCount> m_shards;
+    mutable std::mutex m_gen_mtx;
+    std::uint16_t      m_gen_cursor = 0;
 };
 
 } // namespace tworldsvr

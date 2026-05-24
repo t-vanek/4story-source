@@ -374,13 +374,16 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // ---- W3c-1: corps invite relay (handlers_corps.cpp) --------
+    // ---- W3c-1/2: corps invite + formation (handlers_corps.cpp) -
     case MessageId::MW_CORPSASK_ACK:
         co_await OnCorpsAskAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_CORPSREPLY_ACK:
+        co_await OnCorpsReplyAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
-    // W3c-2+ picks up CORPSREPLY (formation) + CORPSLEAVE +
-    // CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle). … README §4.
+    // W3c-3+ picks up CORPSLEAVE + CHGCORPSCOMMANDER + PARTYMOVE
+    // (squad reshuffle) + corps command / enemy-list. … README §4.
 
     default:
         break;

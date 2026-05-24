@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3c-1 corps subsystem opener (CORPSASK invite relay)
+## Status — W3c-2 corps formation (CORPSREPLY)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -63,12 +63,59 @@ that the four shipped Asio daemons already use.
 | W3b-4 | Party attribute changes — OnMW_PARTYMANSTAT_ACK (member-stat broadcast) + OnMW_CHGPARTYCHIEF_ACK (hand off leadership) + OnMW_CHGPARTYTYPE_ACK (loot mode) + 3 senders | ✅ |
 | W3b-5 | Party member recall — OnMW_PARTYMEMBERRECALL_ACK (summon/move-to gate + RECALLANS_REQ forward) + OnMW_PARTYMEMBERRECALLANS_ACK (destination relay, same-map + meeting-room gates) + 2 senders | ✅ |
 | W3b-6 | Party round-robin loot — OnMW_PARTYORDERTAKEITEM_ACK (turn-cursor next-looter selection + item forward via the cabinet codec; stale-party MIT_NOTFOUND) + TParty order rotation (GetNextOrder/SetNextOrder/GetOrderIndex) + 2 senders | ✅ |
-| **W3c-1** | Corps subsystem opener — CorpsRegistry + TCorps + corps_constants + OnMW_CORPSASK_ACK invite-relay gate (CheckCorpsJoin) + SendMwCorpsAskReq/ReplyReq | ✅ |
-| W3c-2+ | Corps formation (CORPSREPLY) + CORPSLEAVE + CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle) + corps command/enemy-list | ⏸ |
+| W3c-1 | Corps subsystem opener — CorpsRegistry + TCorps + corps_constants + OnMW_CORPSASK_ACK invite-relay gate (CheckCorpsJoin) + SendMwCorpsAskReq/ReplyReq | ✅ |
+| **W3c-2** | Corps formation — OnMW_CORPSREPLY_ACK (create new corps / join existing) + CorpsRegistry::GenId (shared party id pool) + NotifyCorpsJoin pairwise ADDSQUAD fan-out + CORPSJOIN_REQ + commander PARTYATTR + SendMwAddSquadReq/CorpsJoinReq | ✅ |
+| W3c-3+ | CORPSLEAVE + CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle) + corps command/enemy-list | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3c-2 — what landed
+
+Corps **formation** — the answer to the W3c-1 invite, the corps-
+level analog of party PARTYJOIN. First handler that mutates the
+CorpsRegistry.
+
+Registry — `CorpsRegistry::GenId(parties)` allocates a free WORD id
+skipping ids live in *either* the corps or party registry, matching
+legacy `GenPartyID`'s shared pool (corps ids never collide with
+party ids).
+
+Handler — `OnCorpsReplyAck` (wID 0x906F): the invited chief's
+answer. Relays the decline code to the inviter on a no; on
+ASK_YES re-runs the gate (both party chiefs / same war-country /
+non-arena / CheckCorpsJoin) then forms the corps — fresh TCorps
+(commander = the inviter's party, general = inviter) when neither
+side has one, else the corps-less party joins the existing corps.
+
+`NotifyCorpsJoin` (file-local coroutine, mirrors legacy
+NotifyCorpsJoin + CorpsJoin): snapshots the corps' squads, then for
+each existing squad fires the pairwise `MW_ADDSQUAD_REQ` (each
+existing-squad member learns the joining squad and vice versa),
+commits `TCorps::AddParty` + the joining party's `corps_id`
+back-link, and pushes each joining member `MW_CORPSJOIN_REQ` + a
+`MW_PARTYATTR_REQ` carrying the commander party id. Squad members
+are gathered through a `SnapshotSquad` helper.
+
+The `MW_ADDSQUAD_REQ` per-member payload includes legacy
+`m_command` real-time target/move state (target obj, target pos,
+command, move type) that the world side doesn't model — emitted as
+0 / `MOVE_NONE`; the corps-command handler (later W3c) will own it.
+
+Lock discipline holds the char → party → corps order; no two locks
+are ever held at once (snapshot-then-release).
+
+Senders — `SendMwAddSquadReq` (squad + member list via the new
+`SquadMemberInfo` POD) + `SendMwCorpsJoinReq`.
+
+Tests — `tests/test_corps_reply_handlers.cpp` (3 scenarios,
+three-peer loopback): decline relay, new-corps formation (asserts
+the pairwise ADDSQUAD + CORPSJOIN + commander PARTYATTR ordering +
+the registry's 2-squad/commander/general state), and a third party
+joining the existing corps (grows to 3).
+
+Build verified: cmake + ctest -R tworldsvr_asio (27/27 passed).
 
 ### W3c-1 — what landed
 

@@ -1,6 +1,21 @@
 #include "services/corps_registry.h"
 
+#include "services/party_registry.h"
+
 namespace tworldsvr {
+
+std::uint16_t CorpsRegistry::GenId(const PartyRegistry* parties)
+{
+    std::lock_guard gen(m_gen_mtx);
+    for (std::uint32_t tries = 0; tries < 0x10000u; ++tries)
+    {
+        if (++m_gen_cursor == 0) m_gen_cursor = 1; // skip the 0 sentinel
+        if (Find(m_gen_cursor)) continue;
+        if (parties && parties->Find(m_gen_cursor)) continue;
+        return m_gen_cursor;
+    }
+    return 0; // id space exhausted
+}
 
 bool CorpsRegistry::Insert(std::shared_ptr<TCorps> c)
 {

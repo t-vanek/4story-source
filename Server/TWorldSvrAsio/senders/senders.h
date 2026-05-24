@@ -1253,4 +1253,60 @@ boost::asio::awaitable<void> SendMwCorpsReplyReq(
     std::uint8_t                 result,
     const std::string&           name);
 
+// --- W3c-2 corps formation ----------------------------------------
+
+// One squad member as serialised in MW_ADDSQUAD_REQ. The legacy
+// packet also carries per-member real-time command/target state
+// (m_command.*) which the world side doesn't model — those fields
+// are emitted as 0 (the corps-command handler will own them later).
+struct SquadMemberInfo
+{
+    std::uint32_t char_id = 0;
+    std::string   name;
+    std::uint32_t max_hp  = 0;
+    std::uint32_t hp      = 0;
+    std::uint16_t map_id  = 0;
+    std::uint16_t pos_x   = 0;   // WORD-truncated world X
+    std::uint16_t pos_z   = 0;
+    std::uint8_t  level   = 0;
+    std::uint8_t  klass   = 0;
+    std::uint8_t  race    = 0;
+    std::uint8_t  sex     = 0;
+    std::uint8_t  face    = 0;
+    std::uint8_t  hair    = 0;
+};
+
+// MW_ADDSQUAD_REQ — announces one squad (party) + its members to a
+// recipient. The corps-join fan-out fires it pairwise so every
+// existing-squad member learns the joining squad and vice versa.
+//
+// Wire layout (SSSender.cpp:1968):
+//   DWORD recipient_char_id, DWORD recipient_key,
+//   DWORD chief_id, WORD party_id, BYTE member_count,
+//   × member_count:
+//     DWORD char_id, STRING name, FLOAT 1.0, DWORD tg_obj(0),
+//     DWORD max_hp, DWORD hp, WORD tg_pos_x(0), WORD tg_pos_z(0),
+//     WORD map_id, WORD pos_x, WORD pos_z, WORD MOVE_NONE(1800),
+//     BYTE tg_type(0), BYTE level, BYTE class, BYTE race, BYTE sex,
+//     BYTE face, BYTE hair, BYTE command(0)
+boost::asio::awaitable<void> SendMwAddSquadReq(
+    std::shared_ptr<PeerSession>          peer,
+    std::uint32_t                         recipient_char_id,
+    std::uint32_t                         recipient_key,
+    std::uint32_t                         chief_id,
+    std::uint16_t                         party_id,
+    const std::vector<SquadMemberInfo>&   members);
+
+// MW_CORPSJOIN_REQ — tells a (just-joined) squad member their corps
+// id + the commander party id, so their client shows corps state.
+//
+// Wire layout (SSSender.cpp:2036):
+//   DWORD char_id, DWORD key, WORD corps_id, WORD commander_party_id
+boost::asio::awaitable<void> SendMwCorpsJoinReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint16_t                corps_id,
+    std::uint16_t                commander_party_id);
+
 } // namespace tworldsvr::senders

@@ -24,6 +24,120 @@ FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
     return nullptr;
 }
 
+// A squad (party) snapshotted for the corps-join fan-out: the
+// ADDSQUAD payload (member describe list) + parallel per-member
+// routing (key + map server). Built outside any lock.
+struct SquadMemberRt { std::uint32_t char_id = 0, key = 0; std::uint8_t msi = 0; };
+struct Squad
+{
+    std::uint32_t chief_id = 0;
+    std::uint16_t party_id = 0;
+    std::uint8_t  obtain   = 0;
+    bool          found    = false;
+    std::vector<senders::SquadMemberInfo> infos;
+    std::vector<SquadMemberRt>            rt;
+};
+
+Squad SnapshotSquad(const HandlerContext& ctx, std::uint16_t party_id)
+{
+    Squad sq;
+    sq.party_id = party_id;
+    auto party = ctx.parties->Find(party_id);
+    if (!party) return sq;
+    std::vector<std::uint32_t> mids;
+    {
+        std::lock_guard pg(party->lock);
+        sq.chief_id = party->chief_char_id;
+        sq.obtain   = party->obtain_type;
+        mids        = party->members;
+    }
+    sq.found = true;
+    for (auto mid : mids)
+    {
+        auto c = ctx.chars->Find(mid);
+        if (!c) continue;
+        senders::SquadMemberInfo info;
+        SquadMemberRt rt;
+        {
+            std::lock_guard g(c->lock);
+            info.char_id = c->char_id;
+            info.name    = c->name;
+            info.max_hp  = c->max_hp;
+            info.hp      = c->hp;
+            info.map_id  = c->map_id;
+            info.pos_x   = static_cast<std::uint16_t>(c->pos_x);
+            info.pos_z   = static_cast<std::uint16_t>(c->pos_z);
+            info.level   = c->level;
+            info.klass   = c->klass;
+            info.race    = c->race;
+            info.sex     = c->sex;
+            info.face    = c->face;
+            info.hair    = c->hair;
+            rt.char_id   = c->char_id;
+            rt.key       = c->key;
+            rt.msi       = c->main_server_id;
+        }
+        sq.infos.push_back(std::move(info));
+        sq.rt.push_back(rt);
+    }
+    return sq;
+}
+
+// Add `joining_party_id` to `corps`, mirroring legacy
+// NotifyCorpsJoin + CorpsJoin: announce each existing squad to the
+// joiner and the joiner to each existing squad (pairwise ADDSQUAD),
+// commit the squad + the party's corps_id back-link, then push each
+// joining member CORPSJOIN_REQ + a PARTYATTR carrying the commander.
+boost::asio::awaitable<void>
+NotifyCorpsJoin(const HandlerContext& ctx, std::shared_ptr<TCorps> corps,
+                std::uint16_t joining_party_id)
+{
+    std::vector<std::uint16_t> existing;
+    std::uint16_t corps_id  = 0;
+    std::uint16_t commander = 0;
+    {
+        std::lock_guard cg(corps->lock);
+        existing  = corps->squads;
+        corps_id  = corps->id;
+        commander = corps->commander_party_id;
+    }
+
+    const Squad joining = SnapshotSquad(ctx, joining_party_id);
+
+    for (auto esid : existing)
+    {
+        const Squad es = SnapshotSquad(ctx, esid);
+        if (!es.found) continue;
+        for (const auto& rt : es.rt)
+            if (auto p = FindMapPeer(ctx, rt.msi))
+                co_await senders::SendMwAddSquadReq(p, rt.char_id, rt.key,
+                    joining.chief_id, joining.party_id, joining.infos);
+        for (const auto& rt : joining.rt)
+            if (auto p = FindMapPeer(ctx, rt.msi))
+                co_await senders::SendMwAddSquadReq(p, rt.char_id, rt.key,
+                    es.chief_id, es.party_id, es.infos);
+    }
+
+    {
+        std::lock_guard cg(corps->lock);
+        corps->AddParty(joining_party_id);
+    }
+    if (auto party = ctx.parties->Find(joining_party_id))
+    {
+        std::lock_guard pg(party->lock);
+        party->corps_id = corps_id;
+    }
+
+    for (const auto& rt : joining.rt)
+        if (auto p = FindMapPeer(ctx, rt.msi))
+        {
+            co_await senders::SendMwCorpsJoinReq(p, rt.char_id, rt.key,
+                corps_id, commander);
+            co_await senders::SendMwPartyAttrReq(p, rt.char_id, rt.key,
+                joining.party_id, joining.obtain, joining.chief_id, commander);
+        }
+}
+
 // Legacy CheckCorpsJoin (TWorldSvr.cpp:4577): reject if both
 // parties already belong to a corps; if either's corps is at the
 // MAX_CORPS_PARTY cap, reject with kMaxParty. Returns kSuccess (0)
@@ -163,6 +277,174 @@ OnCorpsAskAck(std::shared_ptr<PeerSession> peer,
     co_await senders::SendMwCorpsAskReq(tp, t_charid, t_key, char_id, req_name);
     spdlog::info("OnCorpsAskAck[{}]: char_id={} invited '{}' to corps",
         ip, char_id, target_name);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnCorpsReplyAck(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte>       body,
+                const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties || !ctx.corps)
+    {
+        spdlog::warn("OnCorpsReplyAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  reply = 0;
+    std::string   req_name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(reply) ||
+        !r.ReadString(req_name))
+    {
+        spdlog::warn("OnCorpsReplyAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto answerer = ctx.chars->Find(char_id);  // pPlayer
+    if (!answerer) co_return;
+    std::uint32_t actual_key = 0, a_party = 0;
+    std::uint8_t  a_country = 0, a_aid = 0;
+    std::string   a_name;
+    {
+        std::lock_guard g(answerer->lock);
+        actual_key = answerer->key;
+        a_party    = answerer->party_id;
+        a_country  = answerer->country;
+        a_aid      = answerer->aid_country;
+        a_name     = answerer->name;
+    }
+    if (actual_key != key) co_return;
+
+    auto reply_self = [&](std::uint8_t result)
+        -> boost::asio::awaitable<void> {
+        co_await senders::SendMwCorpsReplyReq(peer, char_id, key, result,
+            req_name);
+    };
+
+    auto inviter = ctx.chars->FindByName(req_name);  // pRequest
+    if (!inviter)
+    {
+        co_await reply_self(corps::kWrongTarget);
+        co_return;
+    }
+    std::uint32_t i_charid = 0, i_key = 0, i_party = 0;
+    std::uint8_t  i_country = 0, i_aid = 0, i_msi = 0;
+    {
+        std::lock_guard g(inviter->lock);
+        i_charid  = inviter->char_id;
+        i_key     = inviter->key;
+        i_party   = inviter->party_id;
+        i_country = inviter->country;
+        i_aid     = inviter->aid_country;
+        i_msi     = inviter->main_server_id;
+    }
+    auto inviter_peer = FindMapPeer(ctx, i_msi);
+    if (!inviter_peer)
+    {
+        co_await reply_self(corps::kWrongTarget);
+        co_return;
+    }
+
+    auto reply_inviter = [&](std::uint8_t result)
+        -> boost::asio::awaitable<void> {
+        co_await senders::SendMwCorpsReplyReq(inviter_peer, i_charid, i_key,
+            result, a_name);
+    };
+
+    if (reply != party::kAskYes)
+    {
+        co_await reply_inviter(reply);
+        co_return;
+    }
+
+    // Re-validate the gate (state may have changed since the invite).
+    bool          a_is_chief = false, a_arena = false;
+    std::uint16_t a_corps = 0;
+    if (a_party != 0)
+        if (auto p = ctx.parties->Find(static_cast<std::uint16_t>(a_party)))
+        {
+            std::lock_guard pg(p->lock);
+            a_is_chief = p->IsChief(char_id);
+            a_arena    = p->arena;
+            a_corps    = p->corps_id;
+        }
+    bool          i_is_chief = false, i_arena = false;
+    std::uint16_t i_corps = 0;
+    if (i_party != 0)
+        if (auto p = ctx.parties->Find(static_cast<std::uint16_t>(i_party)))
+        {
+            std::lock_guard pg(p->lock);
+            i_is_chief = p->IsChief(i_charid);
+            i_arena    = p->arena;
+            i_corps    = p->corps_id;
+        }
+
+    if (a_party == 0 || !a_is_chief || i_party == 0 || !i_is_chief ||
+        party::WarCountry(a_country, a_aid) !=
+            party::WarCountry(i_country, i_aid))
+    {
+        co_await reply_self(corps::kWrongTarget);
+        co_await reply_inviter(corps::kWrongTarget);
+        co_return;
+    }
+    if (a_arena || i_arena)
+    {
+        co_await reply_self(corps::kBusy);
+        co_await reply_inviter(corps::kBusy);
+        co_return;
+    }
+    const std::uint8_t gate = CheckCorpsJoin(ctx, a_corps, i_corps);
+    if (gate != corps::kSuccess)
+    {
+        co_await reply_self(gate);
+        co_await reply_inviter(gate);
+        co_return;
+    }
+
+    if (a_corps == 0 && i_corps == 0)
+    {
+        // Form a fresh corps: the inviter's party is the commander.
+        auto corps = std::make_shared<TCorps>();
+        corps->commander_party_id = static_cast<std::uint16_t>(i_party);
+        corps->general_char_id    = i_charid;
+        bool inserted = false;
+        for (int n = 0; n < 4 && !inserted; ++n)
+        {
+            const std::uint16_t id = ctx.corps->GenId(ctx.parties);
+            if (id == 0) break;
+            corps->id = id;
+            inserted = ctx.corps->Insert(corps);
+        }
+        if (!inserted)
+        {
+            spdlog::error("OnCorpsReplyAck[{}]: could not allocate corps id",
+                ip);
+            co_return;
+        }
+        co_await NotifyCorpsJoin(ctx, corps,
+            static_cast<std::uint16_t>(a_party));
+        co_await NotifyCorpsJoin(ctx, corps,
+            static_cast<std::uint16_t>(i_party));
+        spdlog::info("OnCorpsReplyAck[{}]: formed corps {} commander_party={}",
+            ip, corps->id, i_party);
+        co_return;
+    }
+
+    // One side already has a corps — the other party joins it.
+    const std::uint16_t join_into = a_corps != 0 ? a_corps : i_corps;
+    const std::uint16_t joining   = a_corps != 0
+        ? static_cast<std::uint16_t>(i_party)
+        : static_cast<std::uint16_t>(a_party);
+    if (auto corps = ctx.corps->Find(join_into))
+    {
+        co_await NotifyCorpsJoin(ctx, corps, joining);
+        spdlog::info("OnCorpsReplyAck[{}]: party {} joined corps {}",
+            ip, joining, join_into);
+    }
     co_return;
 }
 

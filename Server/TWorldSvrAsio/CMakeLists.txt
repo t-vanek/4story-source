@@ -359,3 +359,14 @@ target_link_libraries(test_tworldsvr_asio_corps_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_corps_handlers
     COMMAND test_tworldsvr_asio_corps_handlers)
+
+# W3c-2 wire test: MW_CORPSREPLY_ACK formation over a three-peer
+# loopback session — decline relay, new-corps creation (pairwise
+# ADDSQUAD + CORPSJOIN + commander PARTYATTR + registry state), and
+# a third party joining the existing corps.
+add_executable(test_tworldsvr_asio_corps_reply_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_corps_reply_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_corps_reply_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_corps_reply_handlers
+    COMMAND test_tworldsvr_asio_corps_reply_handlers)

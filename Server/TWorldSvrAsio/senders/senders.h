@@ -1320,4 +1320,15 @@ boost::asio::awaitable<void> SendMwDelSquadReq(
     std::uint32_t                key,
     std::uint16_t                squad_party_id);
 
+// MW_CHGCORPSCOMMANDER_REQ — result of the general handing the
+// commander role to another squad (CORPS_* code).
+//
+// Wire layout (SSSender.cpp:1942):
+//   DWORD char_id, DWORD key, BYTE result
+boost::asio::awaitable<void> SendMwChgCorpsCommanderReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
 } // namespace tworldsvr::senders

@@ -1229,5 +1229,21 @@ boost::asio::awaitable<void> OnCorpsLeaveAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3c-4: change corps commander (handlers_corps.cpp) ------------
+//
+// MW_CHGCORPSCOMMANDER_ACK — the general hands the commander role
+// to another squad in the corps. Only the general (the chief of the
+// current commander party) may do this. On success the corps'
+// commander_party_id + general_char_id move to the target squad and
+// every squad's HUD is refreshed (CorpsJoin with the new
+// commander). Failure codes: NO_PARTY / NOT_COMMANDER /
+// WRONG_TARGET (already commander) / TARGET_NO_PARTY.
+//
+// Wire (SSHandler.cpp:6778): DWORD char_id, key, WORD party_id
+boost::asio::awaitable<void> OnChgCorpsCommanderAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

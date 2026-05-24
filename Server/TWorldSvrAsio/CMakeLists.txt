@@ -381,3 +381,14 @@ target_link_libraries(test_tworldsvr_asio_corps_leave_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_corps_leave_handlers
     COMMAND test_tworldsvr_asio_corps_leave_handlers)
+
+# W3c-4 wire test: MW_CHGCORPSCOMMANDER_ACK over a three-peer
+# loopback session — non-commander / current-commander /
+# non-member reject branches + the general's successful reassign
+# (reply + every-squad commander refresh + registry update).
+add_executable(test_tworldsvr_asio_corps_commander_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_corps_commander_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_corps_commander_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_corps_commander_handlers
+    COMMAND test_tworldsvr_asio_corps_commander_handlers)

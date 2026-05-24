@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3c-3 corps leave / dissolve (CORPSLEAVE)
+## Status — W3c-4 change corps commander (CHGCORPSCOMMANDER)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -65,12 +65,38 @@ that the four shipped Asio daemons already use.
 | W3b-6 | Party round-robin loot — OnMW_PARTYORDERTAKEITEM_ACK (turn-cursor next-looter selection + item forward via the cabinet codec; stale-party MIT_NOTFOUND) + TParty order rotation (GetNextOrder/SetNextOrder/GetOrderIndex) + 2 senders | ✅ |
 | W3c-1 | Corps subsystem opener — CorpsRegistry + TCorps + corps_constants + OnMW_CORPSASK_ACK invite-relay gate (CheckCorpsJoin) + SendMwCorpsAskReq/ReplyReq | ✅ |
 | W3c-2 | Corps formation — OnMW_CORPSREPLY_ACK (create new corps / join existing) + CorpsRegistry::GenId (shared party id pool) + NotifyCorpsJoin pairwise ADDSQUAD fan-out + CORPSJOIN_REQ + commander PARTYATTR + SendMwAddSquadReq/CorpsJoinReq | ✅ |
-| **W3c-3** | Corps leave/dissolve — OnMW_CORPSLEAVE_ACK + NotifyCorpsLeave (mutual DELSQUAD fan-out, commander succession, dissolve cascade on drop-to-one) + SendMwDelSquadReq | ✅ |
-| W3c-4+ | CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle) + corps command/enemy-list | ⏸ |
+| W3c-3 | Corps leave/dissolve — OnMW_CORPSLEAVE_ACK + NotifyCorpsLeave (mutual DELSQUAD fan-out, commander succession, dissolve cascade on drop-to-one) + SendMwDelSquadReq | ✅ |
+| **W3c-4** | Change corps commander — OnMW_CHGCORPSCOMMANDER_ACK (general hands the commander role to another squad; reply + all-squad refresh) + SendMwChgCorpsCommanderReq | ✅ |
+| W3c-5+ | PARTYMOVE (squad reshuffle) + corps command/enemy-list | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3c-4 — what landed
+
+Change corps commander — the corps-level analog of party
+CHGPARTYCHIEF. Only the **general** (the chief of the current
+commander party) may hand the commander role to another squad.
+
+Handler — `OnChgCorpsCommanderAck` (wID 0x90A4): gates
+`kNoParty` (requester party-less / corps-less) → `kNotCommander`
+(not the commander party's general) → `kWrongTarget` (target is
+already the commander) → `kTargetNoParty` (target not a squad of
+this corps). On success moves `commander_party_id` +
+`general_char_id` to the target squad (its chief), replies
+`kChgCommander`, and refreshes every squad's HUD via the W3c-3
+`CorpsJoinBroadcast` (CORPSJOIN + commander PARTYATTR).
+
+Sender — `SendMwChgCorpsCommanderReq` (3-field).
+
+Tests — `tests/test_corps_commander_handlers.cpp` (4 scenarios,
+three-peer loopback): non-commander reject, current-commander
+`kWrongTarget`, non-member `kTargetNoParty`, and the general's
+successful reassign (reply + all-three-squad commander refresh +
+registry commander/general update).
+
+Build verified: cmake + ctest -R tworldsvr_asio (29/29 passed).
 
 ### W3c-3 — what landed
 

@@ -642,4 +642,108 @@ OnCorpsLeaveAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnChgCorpsCommanderAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties || !ctx.corps)
+    {
+        spdlog::warn("OnChgCorpsCommanderAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint16_t target_party = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(target_party))
+    {
+        spdlog::warn("OnChgCorpsCommanderAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+    std::uint32_t actual_key = 0, req_party = 0;
+    {
+        std::lock_guard g(requester->lock);
+        actual_key = requester->key;
+        req_party  = requester->party_id;
+    }
+    if (actual_key != key) co_return;
+
+    auto reply = [&](std::uint8_t result) -> boost::asio::awaitable<void> {
+        co_await senders::SendMwChgCorpsCommanderReq(peer, char_id, key,
+            result);
+    };
+
+    if (req_party == 0)
+    {
+        co_await reply(corps::kNoParty);
+        co_return;
+    }
+    std::uint16_t req_corps = 0;
+    if (auto p = ctx.parties->Find(static_cast<std::uint16_t>(req_party)))
+    { std::lock_guard pg(p->lock); req_corps = p->corps_id; }
+    if (req_corps == 0)
+    {
+        co_await reply(corps::kNoParty);
+        co_return;
+    }
+    auto corps = ctx.corps->Find(req_corps);
+    if (!corps)
+    {
+        co_await reply(corps::kNoParty);
+        co_return;
+    }
+
+    std::uint16_t commander = 0;
+    std::uint32_t general = 0;
+    bool          target_member = false;
+    {
+        std::lock_guard cg(corps->lock);
+        commander     = corps->commander_party_id;
+        general       = corps->general_char_id;
+        target_member = corps->IsParty(target_party);
+    }
+    // Only the general (chief of the commander party) may reassign.
+    if (static_cast<std::uint16_t>(req_party) != commander || char_id != general)
+    {
+        co_await reply(corps::kNotCommander);
+        co_return;
+    }
+    if (target_party == commander)
+    {
+        co_await reply(corps::kWrongTarget);
+        co_return;
+    }
+    if (!target_member)
+    {
+        co_await reply(corps::kTargetNoParty);
+        co_return;
+    }
+
+    std::uint32_t new_general = 0;
+    if (auto np = ctx.parties->Find(target_party))
+    { std::lock_guard pg(np->lock); new_general = np->chief_char_id; }
+    {
+        std::lock_guard cg(corps->lock);
+        corps->commander_party_id = target_party;
+        corps->general_char_id    = new_general;
+    }
+
+    co_await reply(corps::kChgCommander);
+
+    std::vector<std::uint16_t> squads;
+    { std::lock_guard cg(corps->lock); squads = corps->squads; }
+    for (auto sid : squads)
+        co_await CorpsJoinBroadcast(ctx, sid, target_party);
+
+    spdlog::info("OnChgCorpsCommanderAck[{}]: corps {} commander {}→{}",
+        ip, req_corps, commander, target_party);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

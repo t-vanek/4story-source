@@ -1284,4 +1284,124 @@ OnPartyMoveAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnEnterSoloMapAck(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties)
+    {
+        spdlog::warn("OnEnterSoloMapAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnEnterSoloMapAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    std::uint16_t party_id = 0;
+    std::vector<std::uint8_t> cons;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) co_return;
+        party_id = c->party_id;
+        for (const auto& con : c->cons)
+            if (con.valid) cons.push_back(con.server_id);
+    }
+
+    // No party yet → spin up a solo party (legacy PT_SOLO).
+    if (party_id == 0)
+    {
+        auto party = std::make_shared<TParty>();
+        party->obtain_type   = party::kObtainSolo;
+        party->chief_char_id = char_id;
+        party->members.push_back(char_id);
+        bool inserted = false;
+        for (int i = 0; i < 4 && !inserted; ++i)
+        {
+            const std::uint16_t id = ctx.parties->GenId();
+            if (id == 0) break;
+            party->id = id;
+            inserted = ctx.parties->Insert(party);
+        }
+        if (!inserted)
+        {
+            spdlog::error("OnEnterSoloMapAck[{}]: could not allocate a party "
+                          "id — dropped", ip);
+            co_return;
+        }
+        party_id = party->id;
+        { std::lock_guard g(c->lock); c->party_id = party_id; }
+    }
+
+    // Snapshot the party meta for the per-connection mirror.
+    std::uint8_t  obtain = party::kObtainSolo;
+    std::uint32_t chief  = char_id;
+    if (auto party = ctx.parties->Find(party_id))
+    {
+        std::lock_guard g(party->lock);
+        obtain = party->obtain_type;
+        chief  = party->chief_char_id;
+    }
+
+    for (auto msi : cons)
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwEnterSoloMapReq(p, char_id, key, party_id,
+                obtain, chief);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnLeaveSoloMapAck(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.parties)
+    {
+        spdlog::warn("OnLeaveSoloMapAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnLeaveSoloMapAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    std::uint16_t party_id = 0;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) co_return;
+        party_id = c->party_id;
+    }
+    if (party_id == 0) co_return;
+
+    // Only a solo party is torn down on leave (legacy gate).
+    bool is_solo = false;
+    if (auto party = ctx.parties->Find(party_id))
+    {
+        std::lock_guard g(party->lock);
+        is_solo = (party->obtain_type == party::kObtainSolo);
+    }
+    if (!is_solo) co_return;
+
+    ctx.parties->Remove(party_id);
+    { std::lock_guard g(c->lock); if (c->party_id == party_id) c->party_id = 0; }
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

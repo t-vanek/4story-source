@@ -393,6 +393,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_PARTYMOVE_ACK:
         co_await OnPartyMoveAck(std::move(peer), std::move(body), ctx);
         co_return;
+
+    // ---- W6-7: solo-instance party lifecycle (handlers_party.cpp)
+    case MessageId::MW_ENTERSOLOMAP_ACK:
+        co_await OnEnterSoloMapAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_LEAVESOLOMAP_ACK:
+        co_await OnLeaveSoloMapAck(std::move(peer), std::move(body), ctx);
+        co_return;
     case MessageId::MW_CORPSCMD_ACK:
         co_await OnCorpsCmdAck(std::move(peer), std::move(body), ctx);
         co_return;

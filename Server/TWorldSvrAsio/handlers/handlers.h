@@ -1227,6 +1227,22 @@ boost::asio::awaitable<void> OnPartyMoveAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-7: solo-instance party lifecycle (handlers_party.cpp) ------
+//
+// ENTERSOLOMAP — a char enters a solo instance; world spins up a
+// one-member PT_SOLO party (if it has none) and mirrors the party
+// state to each of the char's map connections. LEAVESOLOMAP tears the
+// solo party back down. Uses the existing PartyRegistry.
+//   Wire (SSHandler.cpp:6687/6663): DWORD char_id, key
+boost::asio::awaitable<void> OnEnterSoloMapAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnLeaveSoloMapAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3c-1: corps invite relay (handlers_corps.cpp) ----------------
 //
 // Opens the corps subsystem (the party subsystem's parent: a corps

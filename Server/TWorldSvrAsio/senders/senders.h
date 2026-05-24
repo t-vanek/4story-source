@@ -1016,6 +1016,18 @@ boost::asio::awaitable<void> SendMwGuildPvPRecordReq(
 
 // --- W3b-1 party invite relay -------------------------------------
 
+// MW_ENTERSOLOMAP_REQ — mirror a char's solo-instance party state to
+// each of its map connections.
+//   Wire: DWORD char_id, key, WORD party_id, BYTE party_type,
+//     DWORD chief_id
+boost::asio::awaitable<void> SendMwEnterSoloMapReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint16_t                party_id,
+    std::uint8_t                 party_type,
+    std::uint32_t                chief_id);
+
 // MW_PARTYADD_REQ — the party-invite result/dialog packet. On a
 // failure result it lands on the requester's map (their client
 // shows the toast); on PARTY_AGREE it lands on the target's map

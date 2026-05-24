@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-6 monster-result relays (MONSTERDIE / TAKEMONMONEY)
+## Status — W6-7 solo-instance party lifecycle (ENTER/LEAVESOLOMAP)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -101,9 +101,34 @@ that the four shipped Asio daemons already use.
 | W6-3 | Global announcement broadcasts — OnMW_FAMERANKUPDATE_ACK (verbatim) + OnMW_HEROSELECT_ACK fan to every map peer + 2 senders | ✅ |
 | W6-4 | Recall-mon (summoned creature) sync — OnMW_CREATERECALLMON_ACK (assigns the recall id, mirrors to the char's connections) + OnMW_RECALLMONDATA/DEL_ACK (verbatim) + 3 passthrough senders; id-counter DB-seed deferred | ✅ |
 | W6-5 | Companion-mon (spolecnik) sync — OnMW_CREATESPOLECNIKMON_ACK + OnMW_SPOLECNIKMONDEL_ACK (recall-mon's sibling; shares the recall-id counter + connection fan-out) + 2 passthrough senders | ✅ |
-| **W6-6** | Monster-result relays — OnMW_MONSTERDIE_ACK + OnMW_TAKEMONMONEY_ACK route verbatim to the char's main map (id+key) + 2 senders; MONSTERBUY deferred (guild-money + MSB_* absent) | ✅ |
+| W6-6 | Monster-result relays — OnMW_MONSTERDIE_ACK + OnMW_TAKEMONMONEY_ACK route verbatim to the char's main map (id+key) + 2 senders; MONSTERBUY deferred (guild-money + MSB_* absent) | ✅ |
+| **W6-7** | Solo-instance party lifecycle — OnMW_ENTERSOLOMAP_ACK (spins up a 1-member PT_SOLO party, mirrors to the char's connections) + OnMW_LEAVESOLOMAP_ACK (tears it down) + SendMwEnterSoloMapReq; uses PartyRegistry | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-7 — what landed
+
+**Solo-instance party lifecycle** — entering a solo instance puts the
+char in a one-member `PT_SOLO` party so the instance's party-scoped
+mechanics work; leaving tears it down.
+
+- `OnEnterSoloMapAck` (handlers_party.cpp): if the char has no party,
+  allocate one through `PartyRegistry::GenId` + `Insert` (obtain =
+  `kObtainSolo`, the char as sole member + chief), set
+  `TChar.party_id`, then mirror `MW_ENTERSOLOMAP_REQ`
+  `(party_id, type, chief)` to each of the char's valid connections
+  (`SendMwEnterSoloMapReq`).
+- `OnLeaveSoloMapAck`: if the char's party is `PT_SOLO`, `Remove` it
+  and clear `party_id` (no reply — legacy parity).
+
+Reuses the W3b PartyRegistry; lock-ordering keeps the char + party
+locks disjoint.
+
+Tests — `tests/test_solomap_handlers.cpp`: a char on two connections
+enters (a solo party appears, same id mirrored to both connections,
+char.party_id set) then leaves (party removed, party_id cleared).
+
+Build verified: cmake + ctest -R tworldsvr_asio (63/63 passed).
 
 ### W6-6 — what landed
 

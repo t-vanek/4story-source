@@ -1,4 +1,5 @@
 #include "handlers.h"
+#include "../services/friend_constants.h"
 #include "../wire_codec.h"
 
 #include "MessageId.h"
@@ -6,7 +7,9 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <mutex>
+#include <vector>
 
 namespace tworldsvr::handlers {
 
@@ -173,6 +176,69 @@ OnCloseCharAck(std::shared_ptr<PeerSession>  peer,
     spdlog::info("OnCloseCharAck[{}]: char_id={} removed user_id={} "
                  "user_still_active={} (total={})",
         ip, char_id, removed_user_id, any_other, ctx.chars->Size());
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnRegionAck(std::shared_ptr<PeerSession>  peer,
+            std::vector<std::byte>        body,
+            const HandlerContext&         ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars)
+    {
+        spdlog::warn("OnRegionAck[{}]: char registry not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, region = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(region))
+    {
+        spdlog::warn("OnRegionAck[{}]: short body ({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    std::uint32_t soulmate_target = 0;
+    struct FE { std::uint32_t id; std::uint8_t type; bool connected; };
+    std::vector<FE> friends;
+    bool ok = false;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key == key)
+        {
+            c->region = region;
+            soulmate_target = c->soulmate.target;
+            for (const auto& f : c->friends)
+                friends.push_back({f.id, f.type, f.connected});
+            ok = true;
+        }
+    }
+    if (!ok) co_return;
+
+    // Mirror the new region into the soulmate partner's view (and
+    // mark it connected — a region update implies we're online).
+    if (soulmate_target != 0)
+        if (auto p = ctx.chars->Find(soulmate_target))
+        {
+            std::lock_guard g(p->lock);
+            if (p->soulmate.target == char_id)
+            { p->soulmate.connected = true; p->soulmate.region = region; }
+        }
+
+    // Mirror it into each connected real-friend's reverse entry.
+    for (const auto& fe : friends)
+    {
+        if (fe.type == frnd::kTypeFriend || !fe.connected) continue;
+        if (auto p = ctx.chars->Find(fe.id))
+        {
+            std::lock_guard g(p->lock);
+            for (auto& pf : p->friends)
+                if (pf.id == char_id) pf.region = region;
+        }
+    }
     co_return;
 }
 

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-7 social presence on logout
+## Status — W4-8 region update (presence region propagation)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -76,12 +76,35 @@ that the four shipped Asio daemons already use.
 | W4-4 | Friend list reader — OnMW_FRIENDLIST_ACK → MW_FRIENDLIST_REQ (groups + non-pending friends, per-friend level/class/connected/region resolved live) | ✅ |
 | W4-5 | Chat channel relay — OnMW_CHAT_ACK (GUILD/TACTICS/PARTY/FORCE/MAP/WORLD/SHOW/WHISPER) routed to the right audience via the guild/party/corps/peer registries + SendMwChatReq | ✅ |
 | W4-6 | Soulmate — OnMW_SOULMATESEARCH/REG/END_ACK (matchmaking + mutual pairing / register-preview / dissolve) + TChar.real_sex/soulmate + 3 senders | ✅ |
-| **W4-7** | Social presence on logout — OnCloseCharAck fans FRIENDCONNECTION(DISCONNECTION) to friends + marks reverse friend/soulmate entries offline (NotifyFriends/SoulmateOnLogout) | ✅ |
-| W4-8+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-7 | Social presence on logout — OnCloseCharAck fans FRIENDCONNECTION(DISCONNECTION) to friends + marks reverse friend/soulmate entries offline (NotifyFriends/SoulmateOnLogout) | ✅ |
+| **W4-8** | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
+| W4-9+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-8 — what landed
+
+**Region update** — makes the `TChar.region` field (added in W4-1
+but always 0) live, so the friend/soulmate presence views carry an
+accurate last-seen zone.
+
+`OnRegionAck` (wID 0x90BD): stores the char's `region`, then
+mirrors it into the soulmate partner's reverse entry (marking it
+connected — a region update implies online) and into each
+connected real-friend's (non-`FT_FRIEND`) reverse entry. Pure
+in-memory state propagation — no outbound packet, no DB. Lock
+discipline: the char is snapshotted/updated under its lock, then
+each partner under its own (never two at once).
+
+Tests — `tests/test_region_handlers.cpp`: a region update for a
+char that's a mutual friend + soulmate of one peer and a one-way
+friend of another; verifies the region lands on the char, on the
+soulmate + mutual-friend reverse entries, but not on the one-way
+`FT_FRIEND` entry.
+
+Build verified: cmake + ctest -R tworldsvr_asio (40/40 passed).
 
 ### W4-7 — what landed
 

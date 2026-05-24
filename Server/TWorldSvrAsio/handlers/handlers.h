@@ -1470,5 +1470,17 @@ boost::asio::awaitable<void> OnSoulmateEndAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-8: region update (handlers_char.cpp) -----------------------
+//
+// MW_REGION_ACK — a char moved to a new zone. Stores TChar.region
+// and mirrors it into the soulmate partner's + each connected
+// real-friend's reverse entry so their presence views stay current
+// (legacy OnMW_REGION_ACK). No outbound packet.
+//   Wire (SSHandler.cpp:8496): DWORD char_id, key, DWORD region
+boost::asio::awaitable<void> OnRegionAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

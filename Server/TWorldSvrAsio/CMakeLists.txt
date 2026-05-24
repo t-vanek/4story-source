@@ -502,3 +502,13 @@ target_link_libraries(test_tworldsvr_asio_friend_presence_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_friend_presence_handlers
     COMMAND test_tworldsvr_asio_friend_presence_handlers)
+
+# W4-8 wire test: MW_REGION_ACK propagation — stores the char's
+# region and mirrors it into the soulmate + mutual-friend reverse
+# entries (and skips one-way FT_FRIEND); no packet emitted.
+add_executable(test_tworldsvr_asio_region_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_region_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_region_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_region_handlers
+    COMMAND test_tworldsvr_asio_region_handlers)

@@ -300,6 +300,24 @@ boost::asio::awaitable<void> SendMwCancelBowQueueAck(
     std::uint32_t                key,
     std::uint32_t                tick);
 
+// MW_BATTLEMODESTATUS_ACK — battle-mode status snapshot (legacy
+// SSSender.cpp:3947). W6-27 ships the "no module" / quiescent
+// branch: Bow status + start + winner all zero except winner =
+// TCONTRY_N (3), BR status + start + type all zero. The richer
+// status values land with the scheduler slice.
+//   Wire: DWORD char_id, key, BYTE bow_status, DWORD bow_start,
+//     BYTE bow_winner, BYTE br_status, DWORD br_start, BYTE br_type
+boost::asio::awaitable<void> SendMwBattleModeStatusAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 bow_status,
+    std::uint32_t                bow_start,
+    std::uint8_t                 bow_winner,
+    std::uint8_t                 br_status,
+    std::uint32_t                br_start,
+    std::uint8_t                 br_type);
+
 // --- W6-25 Battle Royale (senders_br.cpp) -------------------------
 
 // MW_ADDTOBRQUEUE_ACK — result of a BR enqueue (legacy

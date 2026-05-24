@@ -949,3 +949,12 @@ target_link_libraries(test_tworldsvr_asio_leavebattlefield_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_leavebattlefield_handlers
     COMMAND test_tworldsvr_asio_leavebattlefield_handlers)
+
+# W6-27 wire test: BATTLEMODESTATUS_REQ quiescent reply + CM teleport
+# routing (SYSTEM_BOW enqueues, SYSTEM_BR no-op).
+add_executable(test_tworldsvr_asio_battlemode_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_battlemode_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_battlemode_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_battlemode_handlers
+    COMMAND test_tworldsvr_asio_battlemode_handlers)

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-26 LEAVEBATTLEFIELD cleanup (Bow + BR shared)
+## Status — W6-27 BattleMode status + CM teleport (Arena trio, 2/3)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -96,7 +96,8 @@ that the four shipped Asio daemons already use.
 | W4-23 | Fresh-login fidelity polish — closes the two W4-22 placeholder-zero defaults. (1) SendMwFriendListReq now takes a soulmate_target DWORD that both W4-4 (OnFriendListAck) and W4-22 (OnEnterSvrAck) populate from TChar.soulmate.target — clients render the soulmate slot live. (2) CharInfoPayload.bow_release is set to 1 when chg_main_id arrives as BOW_SERVER_ID or BR_SERVER_ID, matching legacy SSHandler.cpp:1456 (the chg_main_id stays after the fresh-login emit — legacy quirk preserved) | ✅ |
 | W6-24 | Bow battleground opener — first W6 🚧 content subsystem ported. OnAddToBowQueueReq derives effective_country (primary, falling back to aid_country when primary > TCONTRY_C — legacy gate), picks tactics_id > guild_id > 0 for the queue-grouping hint, calls BowRegistry::AddPlayer, replies MW_ADDTOBOWQUEUE_ACK(result, char_id, key, tick). OnCancelBowQueueReq runs RemovePlayer + emits MW_CANCELBOWQUEUE_ACK + BR fall-through (W6-25). OnBowPointsUpdateReq bumps the per-country scoreboard. New BowRegistry + bow_constants.h. Deferred: BS_PEACE/BS_ALARM status gating, match creation + team balancing, teleportation, per-guild queue grouping | ✅ |
 | W6-25 | Battle Royale opener — second W6 🚧 content subsystem. 5 handlers covering the player-driven queue + premade team flow + map/mode votes: OnAddToBrQueueReq (enqueue OR ready-signal — chief→FlagTeamReady, mate→FlagPlayerReady), OnBrTeamMateAddReq (chief invites mate by name → forwarded SUCCESS dialog on mate's map / NOTFOUND to chief on self/unknown), OnBrTeamMateDelReq (chief drops mate or mate self-leaves), OnBrTeamMateAddResultAck (mate's accept/refuse — SUCCESS path runs the duplicate + cap gates and JoinPremadeTeam + UPDATEBRTEAM broadcast to every team member's map), OnVoteForBrMapReq (per-user first-vote-wins map and mode tallies). New BrRegistry + br_constants.h (TEAMADD_* + BR_TEAMMATE_MAX_COUNT(BR_3V3)=3). Wired W6-24's OnCancelBowQueueReq BR fall-through (legacy SSHandler.cpp:14078). Deferred: BS_PEACE/BS_ALARM gating, UpdatePlayerQueue / CreateMatch / team balancing, BR_SOLO vs BR_TEAM switch | ✅ |
-| **W6-26** | LEAVEBATTLEFIELD cleanup — OnLeaveBattlefieldReq routes by location (channel == BR_SERVER_ID → BrRegistry::ReleaseSinglePlayer; else map_id == BOW_MAP_ID → BowRegistry::ReleaseSinglePlayer). Both registry methods do opportunistic queue + premade drops (legacy teleport-home from active-match state is deferred — we don't model the active match yet). Off-battlefield chars are a silent no-op (legacy parity). Closes the W6-25 deferred "ReleaseSinglePlayer on logout" note | ✅ |
+| W6-26 | LEAVEBATTLEFIELD cleanup — OnLeaveBattlefieldReq routes by location (channel == BR_SERVER_ID → BrRegistry::ReleaseSinglePlayer; else map_id == BOW_MAP_ID → BowRegistry::ReleaseSinglePlayer). Both registry methods do opportunistic queue + premade drops (legacy teleport-home from active-match state is deferred — we don't model the active match yet). Off-battlefield chars are a silent no-op (legacy parity). Closes the W6-25 deferred "ReleaseSinglePlayer on logout" note | ✅ |
+| **W6-27** | BattleMode status + CM teleport — `OnBattleModeStatusReq` replies `MW_BATTLEMODESTATUS_ACK` on the char's main map carrying the quiescent payload (zeros + TCONTRY_N for bow_winner — same shape the legacy emits when neither subsystem is running). `OnCmTeleportBattleModeReq` routes by `system_type`: SYSTEM_BOW → `BowRegistry::AddPlayer(country=TCONTRY_C)` (admin force-add; our registry doesn't model the BS_ALARM/Admin gate so it just accepts), SYSTEM_BR → no-op (legacy body is empty — a TODO in the original). 1 new sender (`SendMwBattleModeStatusAck`). Closes 2 of the Arena/BattleMode trio; `OnArenaJoinAck` deferred to its own slice (needs `LeaveParty` + `NotifyCorpsLeave` extracted from their files' anonymous namespaces) | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -127,11 +128,11 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-26)
+## Gaps audit — not yet ported / deferred (as of W6-27)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~168** are ported in `handlers/dispatch.cpp`,
-leaving **~98** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~170** are ported in `handlers/dispatch.cpp`,
+leaving **~96** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
@@ -206,8 +207,10 @@ Intentionally not ported:
 - Bow battleground: queue + cancel + points landed in W6-24; the
   scheduler / match creation / teleportation / per-guild grouping
   are deferred (see W6-24 row)
-- Arena / BattleMode: `ARENAJOIN`, `BATTLEMODESTATUS`, `CMTELEPORTBATTLEMODE`,
-  `LEAVEBATTLEFIELD`
+- Arena / BattleMode: `BATTLEMODESTATUS` + `CMTELEPORTBATTLEMODE`
+  landed in W6-27. `ARENAJOIN` deferred (needs the W3b `LeaveParty`
+  + W3c `NotifyCorpsLeave` helpers extracted from their
+  anonymous namespaces — its own slice)
 - APEX (Taiwan): `MW_APEXDATA/APEXSTART`, `SM_APEXDATA/APEXKILLUSER`
 - Tournament: `MW_TOURNAMENT/ENTERGATE/RESULT`, `DM_TOURNAMENT*` (6),
   `DM_TNMTEVENT*` (3), `SM_TOURNAMENT*` (3), `CT_TOURNAMENTEVENT`
@@ -245,17 +248,70 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **Arena / BattleMode** — `ARENAJOIN`, `BATTLEMODESTATUS`,
-   `CMTELEPORTBATTLEMODE`. Same W6-24/25 pattern; CMTELEPORT
-   reuses the Bow / BR `AddPlayerToQueue` paths (legacy
-   SSHandler.cpp:14397 / 14400), so most of the wiring is
-   already there.
-2. **`TChar.soul_silence`** — model the legacy `m_dwSoulSilence`
-   field so `MW_ENTERCHAR_REQ` (W6-23) carries it instead of
-   always emitting 0. Trivial change; ride alongside a handler
-   that actually writes it.
-3. Larger roadmap subsystems (Tournament / RPS / CMGift / Cash /
+1. **`ARENAJOIN`** (W6-27 deferred) — extract `LeaveParty` from
+   handlers_party.cpp's anonymous namespace + `NotifyCorpsLeave`
+   from handlers_corps.cpp's, declare both in handlers.h. Then
+   wire `OnArenaJoinAck`: flip `party.arena = bJoin`; on join,
+   `NotifyCorpsLeave` if in a corps + `LeaveParty` for every
+   member NOT in the keep-list.
+2. **RPS event** — `MW_RPSGAME`, `CT_RPSGAMECHANGE/DATA`,
+   `DM_RPSGAMERECORD`. Small dedicated subsystem; same pattern
+   as W6-24's BowRegistry.
+3. **`TChar.soul_silence`** — model `m_dwSoulSilence` for the
+   W6-23 `MW_ENTERCHAR_REQ` composite (trivial; rides with a
+   handler that writes it).
+4. Larger roadmap subsystems (Tournament / CMGift / Cash /
    MonthRank).
+
+### W6-27 — what landed
+
+**BattleMode status + CM teleport** — two of the three Arena /
+BattleMode trio handlers; the third (`MW_ARENAJOIN_ACK`) is
+deferred to its own slice (needs cross-file helper extraction).
+Mirrors legacy SSHandler.cpp:570 and 14377.
+
+- `OnBattleModeStatusReq` (handlers_bow.cpp) — char's map asks
+  for the current Bow + BR status. World replies
+  `MW_BATTLEMODESTATUS_ACK` on the char's main map peer carrying
+  the quiescent payload (`bow_status=0, bow_start=0,
+  bow_winner=TCONTRY_N (3), br_status=0, br_start=0, br_type=0`).
+  The richer status — `m_bStatus / m_dwStart / m_bWinner /
+  m_bType` from the legacy modules — lands with the scheduler
+  / status state machine slice; emitting the "no module" branch
+  is wire-compatible with the legacy fallback (SSSender.cpp:3962
+  / 3978).
+- `OnCmTeleportBattleModeReq` — admin / GM force-add. Switches
+  on `system_type`: `SYSTEM_BOW (0)` → `BowRegistry::AddPlayer`
+  with country=TCONTRY_C + the `tactics_guild_id > guild_id > 0`
+  group hint (our registry doesn't model the BS_ALARM / Admin
+  bypass — it accepts unconditionally — so a single AddPlayer
+  call is enough); `SYSTEM_BR (1)` → no-op (the legacy body is
+  empty here, a TODO in the original). No reply.
+
+One new sender in senders_bow.cpp: `SendMwBattleModeStatusAck`
+(8-field wire — char_id, key, then the Bow + BR triplets).
+
+Deferred — these come with the scheduler / status state machine
+or their own cross-cutting refactors:
+- `MW_ARENAJOIN_ACK` — needs `LeaveParty` / `NotifyCorpsLeave`
+  out of their anonymous namespaces; tracked in the suggested-
+  next-slice list above.
+- BS_PEACE / BS_ALARM status fields in `MW_BATTLEMODESTATUS_ACK`
+  (the registry would need a status field + the Bow / BR
+  scheduler).
+
+Tests — `tests/test_battlemode_handlers.cpp` (one peer, one
+char): `BATTLEMODESTATUS_REQ` → ACK with the quiescent payload
+(all 8 fields asserted, `bow_winner=3`);
+`CMTELEPORTBATTLEMODE_REQ(SYSTEM_BOW)` enqueues Alice into the
+Bow registry (verified via direct read); `CMTELEPORTBATTLEMODE_REQ
+(SYSTEM_BR)` is a no-op (BR queue untouched — verified by sending
+a follow-up status query to sync handler progress, then asserting
+`QueueSize == 0`).
+
+Build verified: cmake + ctest -R tworldsvr_asio -C Release -j 1
+(84/84 passed on the third run; first two hit the known
+parallel-serial flake from W6-13 era documented since W4-21).
 
 ### W6-26 — what landed
 

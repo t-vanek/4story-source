@@ -2218,6 +2218,35 @@ boost::asio::awaitable<void> OnLeaveBattlefieldReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-27: BattleMode status + CM teleport (handlers_bow.cpp) -----
+//
+// Two related queries / actions for the battle-mode subsystems
+// (Bow + BR). Mirrors legacy SSHandler.cpp:570 and 14377.
+
+// MW_BATTLEMODESTATUS_REQ — char's map asks for the current Bow + BR
+// status snapshot. World replies MW_BATTLEMODESTATUS_ACK on the
+// char's main map. W6-27 emits the "no module" / quiescent values
+// (Bow status/start = 0, winner = TCONTRY_N; BR status/start/type
+// = 0) since the scheduler / status state machine isn't ported yet
+// (same family as W6-24/25 deferrals).
+//   Wire (SSHandler.cpp:570): DWORD char_id, key
+boost::asio::awaitable<void> OnBattleModeStatusReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_CMTELEPORTBATTLEMODE_REQ — admin / GM "force-add" to a battle
+// mode: SYSTEM_BOW (0) → BowRegistry::AddPlayer with country=
+// TCONTRY_C + the legacy's `Admin=TRUE` bypass intent (our registry
+// doesn't model the status gate so all adds succeed today); SYSTEM_BR
+// (1) → legacy body is empty (a TODO in the original), so we no-op
+// with a log. No reply (legacy parity).
+//   Wire (SSHandler.cpp:14377): DWORD char_id, key, BYTE system_type
+boost::asio::awaitable<void> OnCmTeleportBattleModeReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
 // count==0 ROUTE branch (or when world otherwise asked for a CHARDATA
 // round-trip). World refreshes the char's level + HP/MP from the

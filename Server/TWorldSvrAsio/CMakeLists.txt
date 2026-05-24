@@ -59,6 +59,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_br.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_rps.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_cashshop.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_ctrlsvr.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -94,6 +95,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/rps_registry.cpp
     ${TWORLD_ASIO_SRC}/services/event_registry.cpp
     ${TWORLD_ASIO_SRC}/services/cash_item_sale_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/ctrl_svr_slot.cpp
     ${TWORLD_ASIO_SRC}/services/fake_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp

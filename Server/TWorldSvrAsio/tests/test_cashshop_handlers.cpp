@@ -13,6 +13,7 @@
 #include "../handlers/handlers.h"
 #include "../services/cash_item_sale_registry.h"
 #include "../services/char_registry.h"
+#include "../services/ctrl_svr_slot.h"
 #include "../services/event_registry.h"
 #include "../services/guild_registry.h"
 #include "../services/peer_registry.h"
@@ -143,10 +144,12 @@ int main()
     tworldsvr::PeerRegistry        peers;
     tworldsvr::EventRegistry       events;
     tworldsvr::CashItemSaleRegistry cash_sales;
+    tworldsvr::CtrlSvrSlot         ctrl_svr;
     tworldsvr::HandlerContext      ctx{};
     ctx.io = &io; ctx.chars = &chars; ctx.guilds = &guilds;
     ctx.peers = &peers; ctx.events = &events;
     ctx.cash_sales = &cash_sales;
+    ctx.ctrl_svr = &ctrl_svr;
     ctx.nation = 0;
 
     tworldsvr::WorldServerConfig svr_cfg{};
@@ -295,9 +298,10 @@ int main()
         EXPECT(gm_id == 1234);
     }
 
-    // --- W6-34b: tool=1 admin path → log + drop (no broadcast) -----
-    // Send tool=1; expect no peer to receive anything. Sentinel: send
-    // a CASHSHOPSTOP afterward and confirm both p1+p2 receive that.
+    // --- W6-34b: tool=1 admin path with no ctrl-svr → drop ---------
+    // Send tool=1 BEFORE registering a ctrl-svr; expect no peer to
+    // receive anything (slot empty → silent drop). Sentinel: a
+    // CASHSHOPSTOP afterward must be the next frame everywhere.
     {
         std::vector<std::byte> b;
         wire::WritePOD<std::uint8_t>(b, 0);
@@ -319,6 +323,30 @@ int main()
         std::uint8_t type = 0, send_player = 0;
         r.Read(type); r.Read(send_player);
         EXPECT(type == 99);   // sentinel — confirms no admin-path frame
+    }
+
+    // --- W6-35: ctrl-svr identifies, then admin-path round-trips --
+    // p1 announces it's the ctrl-svr via CT_CTRLSVR_REQ (empty body).
+    SendFramed(p1, ToUint16(MessageId::CT_CTRLSVR_REQ), {});
+    std::this_thread::sleep_for(20ms);
+    EXPECT(ctrl_svr.Get() != nullptr);
+    // Now a tool=1 result-ack lands → expect CT_CMGIFT_ACK on p1.
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 0);      // result=success
+        wire::WritePOD<std::uint8_t>(b, 1);      // tool=1 (admin)
+        wire::WritePOD<std::uint32_t>(b, 1234);  // gm_id
+        SendFramed(p3, ToUint16(MessageId::MW_CMGIFTRESULT_ACK), b);
+    }
+    {
+        auto [w, b] = ReadFramed(p1);
+        EXPECT(w == ToUint16(MessageId::CT_CMGIFT_ACK));
+        wire::Reader r(b);
+        std::uint8_t  result = 0xFF;
+        std::uint32_t gm_id  = 0;
+        r.Read(result); r.Read(gm_id);
+        EXPECT(result == 0);
+        EXPECT(gm_id == 1234);
     }
 
     // --- W6-34c: unknown gm_id → silent drop -----------------------

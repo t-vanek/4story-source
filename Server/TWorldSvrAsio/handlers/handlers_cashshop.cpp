@@ -150,15 +150,27 @@ OnCmGiftResultAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Admin path (tool=1) routes back to control-server, but
-    // ctrl-svr identification isn't ported yet (no OnCT_CTRLSVR_REQ).
-    // Log + drop — this is the same deferral note as the W7 CMGift
-    // umbrella.
+    // Admin path (tool=1): reply CT_CMGIFT_ACK on the ctrl-svr peer
+    // (legacy SSHandler.cpp:13760-13765, 13999-14005). The slot may
+    // be empty (ctrl-svr never identified) or stale (the recorded
+    // peer disconnected); both surface as `Get()` returning nullptr,
+    // which we treat as a silent drop — matches legacy
+    // `if(m_pCtrlSvr) ...` short-circuit.
     if (tool != 0)
     {
-        spdlog::info("OnCmGiftResultAck[{}]: tool=1 admin path "
-                     "(result={}, gm_id={}) — deferred (ctrl-svr "
-                     "identification not ported)", ip, result, gm_id);
+        if (!ctx.ctrl_svr)
+        {
+            spdlog::info("OnCmGiftResultAck[{}]: tool=1 admin path "
+                         "(result={}, gm_id={}) — ctrl_svr slot not "
+                         "wired", ip, result, gm_id);
+            co_return;
+        }
+        if (auto cs = ctx.ctrl_svr->Get())
+            co_await senders::SendCtCmGiftAck(cs, result, gm_id);
+        else
+            spdlog::info("OnCmGiftResultAck[{}]: tool=1 admin path "
+                         "(result={}, gm_id={}) — ctrl-svr offline",
+                ip, result, gm_id);
         co_return;
     }
 

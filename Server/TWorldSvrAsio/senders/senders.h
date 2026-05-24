@@ -2069,6 +2069,16 @@ boost::asio::awaitable<void> SendMwCmGiftResultReq(
     std::uint8_t                   result,
     std::uint32_t                  gm_id);
 
+// W6-35: CT_CMGIFT_ACK — admin-tool cash-gift completion reply,
+// routed back to the control server. Legacy parity SSHandler.cpp:
+// 13760-13765 (the tool=1 branch of OnDM_CMGIFT_ACK and
+// OnMW_CMGIFTRESULT_ACK).
+//   Wire: BYTE result, DWORD gm_id
+boost::asio::awaitable<void> SendCtCmGiftAck(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   result,
+    std::uint32_t                  gm_id);
+
 // --- W6-2 combat / taming cross-server relays (senders_combat.cpp)-
 
 // MW_MAGICMIRROR_REQ — spell-reflection, routed to the attacker's

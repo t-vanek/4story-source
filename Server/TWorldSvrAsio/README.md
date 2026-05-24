@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-34 CMGift result relay (in-game GM path)
+## Status — W6-35 Ctrl-svr identification (closes W6-34 admin path)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -104,7 +104,8 @@ that the four shipped Asio daemons already use.
 | W6-31 | Event update — `OnCtEventUpdateReq` adds the W6-30 deferred piece. New `EventRegistry` stores active events keyed by `dw_index` with the EVENTINFO body kept opaque (only the routing fields `dw_index` + `b_id` are surfaced); value==0 erases (legacy "deactivate"), value!=0 inserts. Then fans `MW_EVENTUPDATE_REQ(event_id, value, <opaque body>)` to every map peer — same shape legacy emits via `pEvent->WrapPacketIn` (SSSender.cpp:3270), avoiding a full WrapPacketOut/WrapPacketIn parse round-trip. `event_id > kCount` is dropped (SSHandler.cpp:276). LOTTERY/GIFTTIME body-ids short-circuit to log+drop (legacy runs `LotteryItem`/`GiftTime` reward subsystems on the world server — random char pick + in-game mail via SendPost + `MW_EVENTMSGLOTTERY_REQ`; helpers not ported yet). New `event_constants.h` (kLottery=14, kGiftTime=15, kCount=16) + `event_registry.h/.cpp` + 1 sender (`SendMwEventUpdateReq`). Replay-on-connect (legacy SSHandler.cpp:664 walks `m_mapEVENT` on a new map peer's connect) deferred — `EventRegistry::Snapshot()` is the hook | ✅ |
 | W6-32 | Event replay-on-connect — wires `EventRegistry::Snapshot()` into `OnRelaysvrReq`. After the joining peer is registered + RELAYSVR_ACK'd and the cluster gets its RELAYCONNECT broadcast, the handler walks the active-event snapshot and re-fires `SendMwEventUpdateReq` (W6-31's verbatim relay) on this peer only. Closes legacy SSHandler.cpp:662-664 ("for each event in m_mapEVENT, re-send to this server"). The other legacy replays at the same site (CASHITEMSALE, castle applicant counts) stay deferred — they touch state we haven't ported yet | ✅ |
 | W6-33 | Cash-shop sale — `OnCtCashItemSaleReq` ports the admin-driven cash-shop sale campaign (SSHandler.cpp:342). value!=0 stores a new (dw_index → items[]) row; value==0 deactivates an existing row in-place (zero `sale_value` on every item, keep the entry so replay-on-connect still shows it — legacy parity SSHandler.cpp:372-385); deactivate-miss is silently dropped (no broadcast — legacy SSHandler.cpp:393-397 logs an error and returns). Then fans `MW_CASHITEMSALE_REQ(dw_index, value, count, items[])` to every map peer. `OnCtCashShopStopReq` is the operator emergency-stop relay (SSHandler.cpp:328) — pure broadcast of `MW_CASHSHOPSTOP_REQ(type, send_player=1)`. Replay-on-connect: `OnRelaysvrReq` extension walks `CashItemSaleRegistry::Snapshot()` (mirrors W6-32 for events) and re-fires `SendMwCashItemSaleReq` per row — closes legacy SSHandler.cpp:666-668. New `cash_item_sale_registry.h/.cpp` + `handlers_cashshop.cpp` + `senders_cashshop.cpp` (2 senders). Castle-applicant replay (SSHandler.cpp:670-680) and expired-buffer init (:682+) at the same site stay deferred | ✅ |
-| **W6-34** | CMGift result relay — `OnCmGiftResultAck` ports the in-game GM-issued cash-gift completion handler (SSHandler.cpp:13988). Map server reports `(result, tool, gm_id)` after firing the gift transaction; world routes `MW_CMGIFTRESULT_REQ(result, gm_id)` to the GM's main map so the client renders the success/failure dialog. The tool=1 admin path (SSHandler.cpp:13999-14005) is logged + dropped — it routes to the control server which our infra doesn't yet identify (legacy `OnCT_CTRLSVR_REQ` sets `m_pCtrlSvr` — that handler isn't ported). Missing GM char / `main_server_id=0` / target peer offline are silent drops (legacy SSHandler.cpp:13769-13783). Wire ID quirk: `MW_CMGIFTRESULT_REQ` and `MW_CMGIFTRESULT_ACK` share `0x9178` (MWProtocol.h:522-523) — dispatcher keys on the `_ACK` enum, sender targets the `_REQ` enum, both resolve to the same uint16. 1 new sender (`SendMwCmGiftResultReq`). The rest of the CMGift family (`CT_CMGIFT_REQ/LIST/CHARTUPDATE` + `DM_CMGIFT*` + `CMGiftRegistry` + the SOCI repo) stays deferred — see README §C | ✅ |
+| W6-34 | CMGift result relay — `OnCmGiftResultAck` ports the in-game GM-issued cash-gift completion handler (SSHandler.cpp:13988). Map server reports `(result, tool, gm_id)` after firing the gift transaction; world routes `MW_CMGIFTRESULT_REQ(result, gm_id)` to the GM's main map so the client renders the success/failure dialog. The tool=1 admin path was deferred in W6-34 (closed in W6-35). Missing GM char / `main_server_id=0` / target peer offline are silent drops (legacy SSHandler.cpp:13769-13783). Wire ID quirk: `MW_CMGIFTRESULT_REQ` and `MW_CMGIFTRESULT_ACK` share `0x9178` (MWProtocol.h:522-523) — dispatcher keys on the `_ACK` enum, sender targets the `_REQ` enum, both resolve to the same uint16. 1 new sender (`SendMwCmGiftResultReq`). The rest of the CMGift family (`CT_CMGIFT_REQ/LIST/CHARTUPDATE` + `DM_CMGIFT*` + `CMGiftRegistry` + the SOCI repo) stays deferred — see README §C | ✅ |
+| **W6-35** | Ctrl-svr peer identification — `OnCtCtrlsvrReq` ports the legacy ctrl-svr handshake (SSHandler.cpp:207). Pure single-cell store: the connecting peer fires an empty `CT_CTRLSVR_REQ`, world stashes the inbound `peer` in a new `CtrlSvrSlot` (weak_ptr-backed so a dropped session naturally expires the slot — better than legacy's dangling-pointer behaviour). Unlocks the W6-34 tool=1 admin path: `OnCmGiftResultAck` now consults `ctx.ctrl_svr->Get()` and fires `SendCtCmGiftAck(result, gm_id)` when the slot is live; empty slot or expired weak_ptr both silently drop (matches legacy `if(m_pCtrlSvr) ...`). New `services/ctrl_svr_slot.h/.cpp` + `handlers/handlers_ctrlsvr.cpp` + 1 sender (`SendCtCmGiftAck`). Same hook will land the deferred CT-bound replies in `OnCT_ITEMSTATE_ACK`, `OnCT_CMGIFTLIST_ACK`, `OnCT_CASHITEMSALE_ACK`, etc. when those subsystems get ported | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -135,11 +136,11 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-34)
+## Gaps audit — not yet ported / deferred (as of W6-35)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~180** are ported in `handlers/dispatch.cpp`,
-leaving **~86** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~181** are ported in `handlers/dispatch.cpp`,
+leaving **~85** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
@@ -236,11 +237,13 @@ Intentionally not ported:
 
 **Roadmap W7 ⏸ (cash / item / rank):**
 - CMGift: W6-34 ports `OnMW_CMGIFTRESULT_ACK` in-game GM path (relays
-  `MW_CMGIFTRESULT_REQ` to the GM's main map). Still deferred:
-  `OnMW_CMGIFTRESULT_ACK` tool=1 admin route (needs ctrl-svr peer
-  identification), `OnCT_CMGIFT_REQ`/`OnCT_CMGIFTLIST_REQ` (need
-  `CMGiftRegistry` + `m_mapCMGift` boot-load), `OnCT_CMGIFTCHARTUPDATE_REQ`
-  (DataSvr forwarder), `OnDM_CMGIFT_REQ`/`_ACK` and
+  `MW_CMGIFTRESULT_REQ` to the GM's main map); W6-35 wires the
+  tool=1 admin path via the new `CtrlSvrSlot` (now fires
+  `SendCtCmGiftAck` back to the ctrl-svr). Still deferred:
+  `OnCT_CMGIFT_REQ`/`OnCT_CMGIFTLIST_REQ` (need
+  `CMGiftRegistry` + `m_mapCMGift` boot-load),
+  `OnCT_CMGIFTCHARTUPDATE_REQ` (DataSvr forwarder),
+  `OnDM_CMGIFT_REQ`/`_ACK` and
   `OnDM_CMGIFTCHARTUPDATE_REQ`/`_ACK` (SOCI repository — no
   `ICmGiftRepository` yet)
 - Cash-item sale: W6-33 ports `CT_CASHITEMSALE` (admin sale activation/deactivation) +
@@ -273,17 +276,59 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **Ctrl-svr peer identification** — port `OnCT_CTRLSVR_REQ`
-   (SSHandler.cpp:207) so the world can identify the control-server
-   peer by name. Unblocks W6-34's tool=1 admin path, and several
-   other CT-bound replies (CMGIFTLIST_ACK, ITEMSTATE_ACK, …) that
-   currently can't route back to the control svr without it. Small
-   slice — one handler, one field on HandlerContext.
+1. **CT_ITEMSTATE_ACK / CT_USERPROTECTED_REQ family** — small ops
+   relays that the W6-35 CtrlSvrSlot now unlocks. SSHandler.cpp:
+   10079 `OnDM_ITEMSTATE_ACK` forwards `CT_ITEMSTATE_ACK` to
+   ctrl-svr verbatim; SSHandler.cpp:10662 `OnDM_CASHITEMSALE_ACK`
+   sends `CT_CASHITEMSALE_ACK` on the wValue==0 deactivate path.
+   Both are 1-2 line handlers now that the slot is live.
 2. **APEX (Taiwan)** — small notify hook from W4-22 fresh-login.
 3. **`TChar.soul_silence`** — trivial field add for the W6-23
    composite.
 4. Larger roadmap subsystems (Tournament / MonthRank / GM item
    tools).
+
+### W6-35 — what landed
+
+**Ctrl-svr peer identification** — `OnCtCtrlsvrReq` ports the
+legacy ctrl-svr handshake (SSHandler.cpp:207-215). The connecting
+peer fires an empty `CT_CTRLSVR_REQ` after the TCP handshake;
+world stashes the inbound `peer` in a new `CtrlSvrSlot`.
+Subsequent handlers needing to route a reply back to the operator
+console call `ctx.ctrl_svr->Get()`.
+
+- `OnCtCtrlsvrReq` — empty-body handshake; stores the inbound
+  `peer` in `ctx.ctrl_svr`. The legacy `OnCT_CTRLSVR_REQ` (which
+  consists of `m_pCtrlSvr = pSERVER; return;`) does the same.
+- `CtrlSvrSlot` — single-cell `weak_ptr<PeerSession>` store under
+  a shared_mutex. `Set` overwrites (matches legacy's no-duplicate-
+  detection — a fresh ctrl-svr reconnect just takes the slot).
+  `Get()` upgrades the weak_ptr; returns nullptr if the slot was
+  never set or if the previously-registered peer has disconnected
+  (PeerRegistry drops the strong reference on read-loop exit, so
+  the weak_ptr expires naturally — better than the legacy
+  dangling-pointer behaviour).
+
+The W6-34 deferred tool=1 admin path is closed by this slice.
+`OnCmGiftResultAck` now consults the slot:
+- empty slot → log + drop (matches legacy `if(m_pCtrlSvr) ...`);
+- live slot → `SendCtCmGiftAck(result, gm_id)` on the ctrl-svr
+  peer.
+
+1 new sender (`SendCtCmGiftAck`). No registry / no constants.
+
+Tests — extended `tests/test_cashshop_handlers.cpp` with a W6-35
+sub-case on the existing fixture: send `CT_CTRLSVR_REQ` on p1
+(empty body) → assert `ctrl_svr.Get()` is now non-null → fire
+the same `tool=1` admin-path frame from p3 → assert p1 receives
+`CT_CMGIFT_ACK(result=0, gm_id=1234)`. The prior W6-34 sub-case
+that asserted "empty slot drops the frame" was kept and now reads
+"empty slot logs `ctrl-svr offline`, frame still dropped" — both
+states (never-registered, registered-then-disconnected) silently
+drop.
+
+Build verified: cmake + ctest -R tworldsvr_asio -C Debug on the
+representative subset (13/13 passed).
 
 ### W6-34 — what landed
 

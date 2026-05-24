@@ -20,6 +20,7 @@
 #include "../services/br_registry.h"
 #include "../services/cash_item_sale_registry.h"
 #include "../services/char_registry.h"
+#include "../services/ctrl_svr_slot.h"
 #include "../services/event_registry.h"
 #include "../services/rps_registry.h"
 #include "../services/guild_level_cache.h"
@@ -116,6 +117,14 @@ struct HandlerContext
     // W6-33: Active cash-shop sale campaigns (legacy
     // m_mapTCashItemSale). Owned by main; non-null in W6-33+ deploys.
     CashItemSaleRegistry*     cash_sales = nullptr;
+
+    // W6-35: Single-cell store for the control-server peer
+    // reference (legacy m_pCtrlSvr). Set by OnCtCtrlsvrReq when a
+    // ctrl-svr connect handshakes via CT_CTRLSVR_REQ; read by
+    // handlers routing replies back to the operator console
+    // (W6-34's CMGift admin path is the first user). Owned by
+    // main; non-null in W6-35+ deploys.
+    CtrlSvrSlot*              ctrl_svr   = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1717,6 +1726,16 @@ boost::asio::awaitable<void> OnCtCashShopStopReq(
 // targets MessageId::MW_CMGIFTRESULT_REQ. Both resolve to the
 // same uint16.
 boost::asio::awaitable<void> OnCmGiftResultAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// W6-35: CT_CTRLSVR_REQ — the connecting peer announces itself as
+// the cluster's control-server. Pure handshake: the body is empty;
+// world stores the inbound `peer` in `ctx.ctrl_svr` so subsequent
+// CT_*_ACK / DM_*_ACK replies can be routed back. Legacy parity
+// SSHandler.cpp:207-215 (`m_pCtrlSvr = pSERVER;`).
+boost::asio::awaitable<void> OnCtCtrlsvrReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

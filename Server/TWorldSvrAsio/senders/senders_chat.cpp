@@ -38,4 +38,25 @@ SendMwChatReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwChatBanReq(std::shared_ptr<PeerSession> peer,
+                 const std::string&           name,
+                 std::int64_t                 ban_time,
+                 std::uint8_t                 result,
+                 std::uint32_t                char_id,
+                 std::uint32_t                key)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WriteString(body, name);
+    WritePOD<std::int64_t>(body, ban_time);
+    WritePOD<std::uint8_t>(body, result);
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CHATBAN_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

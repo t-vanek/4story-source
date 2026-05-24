@@ -27,4 +27,10 @@ inline constexpr std::uint8_t kTypeOp     = 1; // CHAT_OP
 // waived when either party is in the peace country.
 inline constexpr std::uint8_t kCountryPeace = 4;
 
+// CHATBAN_RESULT (NetCode.h:822) — result of a GM chat-ban action.
+inline constexpr std::uint8_t kChatBanSuccess     = 0;
+inline constexpr std::uint8_t kChatBanNotOperator = 1;
+inline constexpr std::uint8_t kChatBanInvalidChar = 2;
+inline constexpr std::uint8_t kChatBanMaxMin      = 3;
+
 } // namespace tworldsvr::chat

@@ -1440,6 +1440,23 @@ boost::asio::awaitable<void> OnChatAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-19: GM chat ban (handlers_chat.cpp) ------------------------
+//
+// MW_CHATBAN_ACK — a GM bans a player from chat for N minutes (0 =
+// unban). World resolves the target by name, sets/extends/clears the
+// ban timer on the target's TChar, tells the target's map to enforce
+// it (MW_CHATBAN_REQ), and echoes the result to the issuing GM's map.
+// The cluster-wide ban list + RW relay-server propagation (so the
+// ban survives the target reconnecting on another map) are deferred
+// — they need the operator/ban-list infra (same family as the
+// RW_RELAYSVR operator list).
+//   Wire (SSHandler.cpp:13098): STRING target, WORD minutes,
+//     DWORD char_id, DWORD key
+boost::asio::awaitable<void> OnChatBanAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

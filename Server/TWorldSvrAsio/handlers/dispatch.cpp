@@ -444,6 +444,9 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_CHAT_ACK:
         co_await OnChatAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_CHATBAN_ACK:
+        co_await OnChatBanAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
     // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
     case MessageId::MW_SOULMATESEARCH_ACK:

@@ -1624,6 +1624,18 @@ boost::asio::awaitable<void> SendMwChatReq(
     std::uint32_t                target_id,
     const std::string&           talk);
 
+// MW_CHATBAN_REQ — result of a GM chat-ban action, sent to the
+// banned char's map (to enforce) and echoed to the issuing GM's map.
+//   Wire (SSSender.cpp): STRING name, INT64 ban_time, BYTE result,
+//     DWORD char_id, DWORD key
+boost::asio::awaitable<void> SendMwChatBanReq(
+    std::shared_ptr<PeerSession> peer,
+    const std::string&           name,
+    std::int64_t                 ban_time,
+    std::uint8_t                 result,
+    std::uint32_t                char_id,
+    std::uint32_t                key);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

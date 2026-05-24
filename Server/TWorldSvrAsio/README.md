@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-18 soulmate write-back persistence
+## Status — W4-19 GM chat ban (CHATBAN)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -87,12 +87,41 @@ that the four shipped Asio daemons already use.
 | W4-15 | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
 | W4-16 | Friend-group write-back — IFriendRepository MakeGroup/DeleteGroup/RenameGroup/ChangeFriendGroup wired into the W4-3 group handlers via CoOffloadVoidIf (persist alongside the in-memory mutation) | ✅ |
 | W4-17 | Friend-edge write-back — IFriendRepository InsertFriend/EraseFriend wired into the accept paths (both directed edges) + erase path (forward edge) via CoOffloadVoidIf | ✅ |
-| **W4-18** | Soulmate write-back — IFriendRepository RegSoulmate/DelSoulmate wired into SEARCH-pair / REG / END + the W4-9 level-gap auto-dissolve (both mutual rows) via CoOffloadVoidIf | ✅ |
-| W4-19+ | Login-presence connect fan-out (blocked on a char-identity-loaded signal) | ⏸ |
+| W4-18 | Soulmate write-back — IFriendRepository RegSoulmate/DelSoulmate wired into SEARCH-pair / REG / END + the W4-9 level-gap auto-dissolve (both mutual rows) via CoOffloadVoidIf | ✅ |
+| **W4-19** | GM chat ban — OnMW_CHATBAN_ACK sets/extends/clears TChar.chat_ban_time, enforces on the target's map + echoes to the issuing GM (MW_CHATBAN_REQ) | ✅ |
+| W4-20+ | Login-presence connect fan-out (blocked on a char-identity-loaded signal); cluster-wide ban list + RW relay propagation | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-19 — what landed
+
+**GM chat ban** — a moderator silences a player's chat for N minutes
+(0 = unban). The world resolves the target by name, owns the ban
+timer, enforces it on the target's map, and echoes the result to the
+issuing GM.
+
+- `TChar.chat_ban_time` (legacy m_nChatBanTime) — Unix second until
+  which chat is banned; 0 = clear.
+- `OnChatBanAck` (handlers_chat.cpp, wID 0x9117) — `FindByName` the
+  target (INVALIDCHAR back to the GM if missing), then for minutes>0
+  start a fresh ban or stack onto an active one (legacy timer math),
+  for minutes==0 clear it. Sends `MW_CHATBAN_REQ` to the target's map
+  (enforce, no GM id) and, when the GM supplied char_id/key, echoes
+  the result to the GM's map. `SendMwChatBanReq` in senders_chat.cpp;
+  CHATBAN_RESULT codes in chat_constants.h.
+
+Deferred: the cluster-wide ban list (legacy AddChatBan — so a ban
+survives the target reconnecting on another map) and the RW
+relay-server propagation, both of which need the operator/ban-list
+infra (same family as the RW_RELAYSVR operator list).
+
+Tests — `tests/test_chatban_handlers.cpp`: ban (target map enforces +
+GM echo, timer set), unknown target (INVALIDCHAR to the GM only),
+unban (timer cleared).
+
+Build verified: cmake + ctest -R tworldsvr_asio (51/51 passed).
 
 ### W4-18 — what landed
 

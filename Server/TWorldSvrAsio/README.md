@@ -110,9 +110,49 @@ that the four shipped Asio daemons already use.
 | W6-12 | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
 | W6-13 | Connection-list reconcile — OnMW_CONLIST_ACK + OnMW_MAPSVRLIST_ACK (byte-identical) reconcile `cons` vs the reported set: drop stale cons to `dead_cons`, ROUTELIST new servers via the main map, else CHECKMAIN every remaining connection; DELCHAR/INVALIDCHAR error replies + 4 senders. First slice of the connection/teleport cluster | ✅ |
 | W6-14 | Main-session confirmation — OnMW_CHECKMAIN_ACK: responder-is-main → drain `dead_cons` via CLOSECHAR (ClearDeadCON) + CONRESULT (CN_SUCCESS) the live set; responder-is-other → RELEASEMAIN the old main + re-point main; DELCHAR/INVALIDCHAR errors + 3 senders. CloseChar (logout teardown) + cession queue (PopConCess) deferred | ✅ |
-| **W6-15** | Main-session handoff forward — OnMW_RELEASEMAIN_ACK: the old main releases → forward the released char verbatim to the new main (re-tagged MW_ENTERSVR_REQ) + record the old main in `chg_main_id`; new main offline → INVALIDCHAR(release_main=1); unknown char → DELCHAR. Opaque-passthrough sender. ENTERSVR_ACK handoff completion (chg_main_id consume) deferred | ✅ |
+| W6-15 | Main-session handoff forward — OnMW_RELEASEMAIN_ACK: the old main releases → forward the released char verbatim to the new main (re-tagged MW_ENTERSVR_REQ) + record the old main in `chg_main_id`; new main offline → INVALIDCHAR(release_main=1); unknown char → DELCHAR. Opaque-passthrough sender | ✅ |
+| **W6-16** | Handoff completion — OnMW_ENTERSVR_ACK now branches on `chg_main_id`: a normal-map handoff clears it + asks the new main for the server list (MAPSVRLIST_REQ → re-enters the W6-13 reconcile), skipping the fresh-login fan-out; BR/Bow battleground ids (50/30) excluded. Closes the handoff loop (reconcile→checkmain→release→entersvr→reconcile) | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-16 — what landed
+
+**Handoff completion** — `OnEnterSvrAck` (handlers_char.cpp,
+`MW_ENTERSVR_ACK`) now branches on the char's `chg_main_id` before the
+fresh-login path. When it's set to a normal map id, this ENTERSVR_ACK is
+the new main confirming it loaded the handed-off char (the W6-15
+RELEASEMAIN_ACK → ENTERSVR_REQ → here chain): world clears `chg_main_id`
+and asks the new main for the char's full server list (`MAPSVRLIST_REQ`
+carrying the just-received channel/map/pos), which re-enters the W6-13
+reconcile. This is a map move, not a login, so the friend-presence
+fan-out is skipped (early return). A `chg_main_id` of `BR_SERVER_ID` (50)
+or `BOW_SERVER_ID` (30) — the Battle-Royale / Bow battleground instances
+(NetCode.h) — is excluded and falls through to the fresh-login path,
+matching legacy `OnMW_ENTERSVR_ACK:1343`.
+
+This closes the main-session handoff loop end-to-end:
+
+```
+CONLIST/MAPSVRLIST reconcile (W6-13)
+  → CHECKMAIN broadcast
+  → CHECKMAIN_ACK from a non-main (W6-14): RELEASEMAIN old main, re-point main
+  → RELEASEMAIN_ACK from old main (W6-15): forward ENTERSVR_REQ to new main
+  → ENTERSVR_ACK from new main (W6-16): MAPSVRLIST_REQ → reconcile (W6-13)
+```
+
+One sender (`SendMwMapSvrListReq`). The legacy BR/Bow `CHARINFO_REQ`
+sub-case and the full fresh-login completion (guild/tactics resolve,
+CHARINFO_REQ + ROUTE_REQ + SOULMATELIST/FRIENDLIST) remain as later
+slices — the ported fresh-login path so far is the W4-20 identity load +
+friend fan-out.
+
+Tests — `tests/test_entersvr_handoff_handlers.cpp` (2 map peers): two
+ENTERSVR_ACKs on one socket (ordered) — a BR-excluded char (chg=50) that
+must emit nothing, then a normal-handoff char — confirm only the handoff
+char's MAPSVRLIST is sent (with its channel/map/pos), its `chg_main_id`
+is cleared, and the BR char's flag is left intact (proving exclusion).
+
+Build verified: cmake + ctest -R tworldsvr_asio (72/72 passed).
 
 ### W6-15 — what landed
 

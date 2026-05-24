@@ -21,6 +21,13 @@ namespace tworldsvr::handlers {
 
 namespace {
 
+// Special map-server ids (NetCode.h): the Bow battleground (30) and
+// Battle Royale (50) instances. A main-session handoff *into* one of
+// these is not the normal map-to-map flow, so W6-16's ENTERSVR_ACK
+// handoff branch excludes them (legacy OnMW_ENTERSVR_ACK:1343).
+constexpr std::uint8_t kBowServerId = 30;
+constexpr std::uint8_t kBrServerId  = 50;
+
 // Hydrate a freshly-online char's social graph from a FriendLoad.
 // Friend type is derived from the forward/reverse intersection
 // (legacy OnDM_FRIENDLIST_ACK): forward-only = FT_FRIEND, mutual =
@@ -253,6 +260,25 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
         self->pos_y       = pos_y;
         self->pos_z       = pos_z;
         self->logout      = logout != 0;
+    }
+
+    // W6-16: main-session handoff completion. If chg_main_id is set
+    // (and not a Bow/BR battleground), this ENTERSVR_ACK is the new
+    // main confirming it loaded the handed-off char (the W6-15
+    // RELEASEMAIN_ACK → ENTERSVR_REQ → here chain). Clear the flag and
+    // ask the new main for the char's full server list (MAPSVRLIST_REQ
+    // → re-enters the W6-13 reconcile). This is a map move, NOT a fresh
+    // login, so skip the friend fan-out and return early.
+    std::uint8_t chg = 0;
+    { std::lock_guard g(self->lock); chg = self->chg_main_id; }
+    if (chg != 0 && chg != kBowServerId && chg != kBrServerId)
+    {
+        { std::lock_guard g(self->lock); self->chg_main_id = 0; }
+        co_await senders::SendMwMapSvrListReq(peer, char_id, key,
+            channel, map_id, pos_x, pos_y, pos_z);
+        spdlog::info("OnEnterSvrAck[{}]: char_id={} handoff complete (old "
+                     "main={}) — MAPSVRLIST to new main", ip, char_id, chg);
+        co_return;
     }
 
     // Announce arrival to online friends (now that name/region exist).

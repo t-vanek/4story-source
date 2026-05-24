@@ -2049,4 +2049,20 @@ boost::asio::awaitable<void> SendMwEnterSvrReq(
     std::shared_ptr<PeerSession>   peer,
     const std::vector<std::byte>&  body);
 
+// MW_MAPSVRLIST_REQ — ask the (new) main map for the full set of map
+// servers the char must be connected to. Fired after a main-session
+// handoff completes (W6-16 ENTERSVR_ACK); the map answers
+// MW_MAPSVRLIST_ACK, which re-enters the W6-13 reconcile.
+//   Wire (SSSender.cpp:210): DWORD char_id, key, BYTE channel,
+//     WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> SendMwMapSvrListReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z);
+
 } // namespace tworldsvr::senders

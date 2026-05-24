@@ -825,3 +825,13 @@ target_link_libraries(test_tworldsvr_asio_releasemain_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_releasemain_handlers
     COMMAND test_tworldsvr_asio_releasemain_handlers)
+
+# W6-16 wire test: ENTERSVR_ACK handoff completion — chg_main_id set
+# (normal map) → clear it + MAPSVRLIST to the new main; BR_SERVER_ID
+# excluded (falls through to fresh login, flag intact).
+add_executable(test_tworldsvr_asio_entersvr_handoff_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_entersvr_handoff_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_entersvr_handoff_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_entersvr_handoff_handlers
+    COMMAND test_tworldsvr_asio_entersvr_handoff_handlers)

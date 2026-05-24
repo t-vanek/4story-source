@@ -1940,4 +1940,65 @@ boost::asio::awaitable<void> SendCtUserMoveAck(
     float                        pos_z,
     std::uint16_t                party_id);
 
+// --- W6-13 connection-list reconcile (senders_conn.cpp) -----------
+//
+// The four senders the connection-list reconcile fires. They form
+// the smallest complete entry into the legacy connection/teleport
+// cluster: the map server reports which servers a char is connected
+// to (MW_CONLIST_ACK / MW_MAPSVRLIST_ACK), and world reconciles its
+// own view, then either asks the main map to route the char to the
+// newly-needed servers (ROUTELIST) or re-confirms the main session
+// on every remaining connection (CHECKMAIN). The two error replies
+// (DELCHAR / INVALIDCHAR) close a client down when the char is gone
+// or its main session can't be found.
+
+// MW_ROUTELIST_REQ — ask the char's main map for the routing info
+// (IP/port) of the servers it must additionally connect to. The
+// main map answers with MW_ROUTE_ACK, which it forwards down to the
+// client so the client opens the extra map connections.
+//   Wire (SSHandler.cpp:2113): DWORD char_id, key, BYTE count,
+//     × count: BYTE server_id
+boost::asio::awaitable<void> SendMwRouteListReq(
+    std::shared_ptr<PeerSession>       peer,
+    std::uint32_t                      char_id,
+    std::uint32_t                      key,
+    const std::vector<std::uint8_t>&   server_ids);
+
+// MW_CHECKMAIN_REQ — broadcast to every map the char is connected
+// to, asking each "are you the main session?". The one that is
+// answers MW_CHECKMAIN_ACK; the rest ignore it. Carries the char's
+// current channel / map / position so a stale map can re-sync.
+//   Wire (SSSender.cpp:485): DWORD char_id, key, BYTE channel,
+//     WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> SendMwCheckMainReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z);
+
+// MW_DELCHAR_REQ — tell a map to delete a char it reported on when
+// world no longer knows that char. logout=1/save=0 in the reconcile
+// error path (legacy SendMW_DELCHAR_REQ(id,key,TRUE,FALSE)).
+//   Wire (SSSender.cpp:507): DWORD char_id, key, BYTE logout, BYTE save
+boost::asio::awaitable<void> SendMwDelCharReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 logout,
+    std::uint8_t                 save);
+
+// MW_INVALIDCHAR_REQ — tell the reporting map the char's main
+// session is unknown (suspected stale/hacked connect); the map
+// drops the client. release_main is 0 in the reconcile path.
+//   Wire (SSSender.cpp:232): DWORD char_id, key, BYTE release_main
+boost::asio::awaitable<void> SendMwInvalidCharReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 release_main);
+
 } // namespace tworldsvr::senders

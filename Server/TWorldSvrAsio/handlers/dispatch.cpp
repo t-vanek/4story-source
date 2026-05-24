@@ -471,6 +471,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnUserMoveAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-13: connection-list reconcile (handlers_conn.cpp) --
+    case MessageId::MW_CONLIST_ACK:
+        co_await OnConListAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_MAPSVRLIST_ACK:
+        co_await OnMapSvrListAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
     case MessageId::MW_CASTLEOCCUPY_ACK:
         co_await OnCastleOccupyAck(std::move(peer), std::move(body), ctx);

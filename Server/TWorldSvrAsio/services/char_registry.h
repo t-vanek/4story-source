@@ -112,6 +112,14 @@ struct TChar
     // server_id arrival; lookups are linear (typical size 1–3).
     std::vector<TCharCon> cons;
 
+    // W6-13 — map-server ids whose connection was dropped during a
+    // connection-list reconcile but not yet closed (legacy
+    // m_vTDEADCON). The reconcile (OnConListAck / OnMapSvrListAck)
+    // moves a no-longer-needed con here; ClearDeadCON drains it with
+    // MW_CLOSECHAR_REQ once the main session is re-confirmed
+    // (CHECKMAIN_ACK — lands in the follow-up slice).
+    std::vector<std::uint8_t> dead_cons;
+
     // W3a-3 identity fields. Populated by OnMW_CHANGECHARBASE_ACK
     // (and its initial CHARINFO push that arrives shortly after
     // OnMW_ADDCHAR_ACK in the legacy flow). Default-zero until
@@ -125,6 +133,7 @@ struct TChar
     std::uint8_t  sex         = 0; // m_bSex
     std::uint8_t  face        = 0; // m_bFace
     std::uint8_t  hair        = 0; // m_bHair
+    std::uint8_t  channel     = 0; // m_bChannel — last seen channel
     std::uint16_t map_id      = 0; // m_wMapID — last seen map
     float         pos_x       = 0.0f;
     float         pos_y       = 0.0f;

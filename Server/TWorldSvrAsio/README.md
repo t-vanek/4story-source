@@ -107,9 +107,50 @@ that the four shipped Asio daemons already use.
 | W6-9 | Friend-protected refuse relay — OnMW_FRIENDPROTECTEDASK_ACK relays an auto-refuse (FRIEND_REFUSE + requester name) to a protection-enabled target's map; completes the friend-ask protection sub-case | ✅ |
 | W6-10 | Item-result relays — OnMW_ADDITEMRESULT_ACK (route to the requesting map server) + OnMW_DEALITEMERROR_ACK (route to the target char's map) + SendMwDealItemErrorReq (reuses the W3b SendMwAddItemResultReq) | ✅ |
 | W6-11 | Day-change guild ranking — OnSM_CHANGEDAY_REQ recomputes every guild's PvP total/month rank over GuildRegistry (legacy CalcGuildRanking); read back by GuildInfoAck | ✅ |
-| **W6-12** | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
+| W6-12 | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
+| **W6-13** | Connection-list reconcile — OnMW_CONLIST_ACK + OnMW_MAPSVRLIST_ACK (byte-identical) reconcile `cons` vs the reported set: drop stale cons to `dead_cons`, ROUTELIST new servers via the main map, else CHECKMAIN every remaining connection; DELCHAR/INVALIDCHAR error replies + 4 senders. First slice of the connection/teleport cluster | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-13 — what landed
+
+**Connection-list reconcile** — the first, self-contained slice of the
+legacy connection/teleport cluster. A map server periodically reports
+which map servers a char is connected to (`MW_CONLIST_ACK`) or which it
+must mirror to (`MW_MAPSVRLIST_ACK`); the two legacy handlers
+(SSHandler.cpp:2020 / 2133) are byte-identical, so one `ReconcileConList`
+serves both. Given the reported server set (always including the
+reporting map itself), world:
+
+- moves connections the map no longer reports out of `TChar::cons` into
+  the new `TChar::dead_cons` (legacy `m_vTDEADCON`) — these are closed
+  later by `ClearDeadCON` at `CHECKMAIN_ACK` time (next slice);
+- if the char must connect to *new* servers, asks its main map to route
+  it there (`SendMwRouteListReq` → the map answers `MW_ROUTE_ACK`, which
+  it forwards down to the client);
+- otherwise re-confirms the main session on every remaining connection
+  (`SendMwCheckMainReq` to each, legacy `CheckMainCON`).
+
+Error replies match legacy: char not in the registry (or key mismatch) →
+`SendMwDelCharReq(logout=1,save=0)` to the reporting map; main session's
+peer offline → `SendMwInvalidCharReq`. Reconcile runs under the char
+lock and snapshots the new-server list / live-con list / channel-map-pos
+before any peer lookup or send (README §5 — never hold the lock across a
+co_await). Added `TChar::channel` (legacy `m_bChannel`, also now stored
+by `OnEnterSvrAck`) so `CHECKMAIN_REQ` carries the right channel.
+
+Four senders in `senders_conn.cpp` (ROUTELIST / CHECKMAIN / DELCHAR /
+INVALIDCHAR). The cession queue, `CHECKMAIN_ACK`, `RELEASEMAIN`,
+`ENTERSVR` handoff and `BEGINTELEPORT`/`CHECKCONNECT` teleport flow are
+the remaining cluster slices.
+
+Tests — `tests/test_conn_handlers.cpp` (3 map peers): a CONLIST naming a
+new server routes via the main map + drops the stale con to `dead_cons`;
+a CONLIST naming only existing cons broadcasts CHECKMAIN to each
+(carrying the char's channel/map/pos); a CONLIST for an unknown char
+replies DELCHAR.
+
+Build verified: cmake + ctest -R tworldsvr_asio (69/69 passed).
 
 ### W6-12 — what landed
 

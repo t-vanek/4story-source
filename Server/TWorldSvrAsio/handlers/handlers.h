@@ -1946,5 +1946,27 @@ boost::asio::awaitable<void> OnUserMoveAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-13: connection-list reconcile (handlers_conn.cpp) ---------
+//
+// MW_CONLIST_ACK / MW_MAPSVRLIST_ACK — a map server reports the set
+// of map servers a char is connected to. World reconciles its own
+// `cons` table against that set: connections the map no longer
+// reports are moved to `dead_cons`; servers the char must newly
+// connect to are requested from the main map (MW_ROUTELIST_REQ);
+// when there are no new servers the main session is re-confirmed on
+// every remaining connection (MW_CHECKMAIN_REQ). The two handlers
+// share byte-identical logic (the only difference in legacy is the
+// packet id) — both delegate to the same reconcile.
+//   Wire (SSHandler.cpp:2020 / 2133):
+//     DWORD char_id, key, BYTE count, × count: BYTE server_id
+boost::asio::awaitable<void> OnConListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMapSvrListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

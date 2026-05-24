@@ -247,6 +247,7 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
         self->country     = country;
         self->aid_country = aid_country;
         self->region      = region;
+        self->channel     = channel;
         self->map_id      = map_id;
         self->pos_x       = pos_x;
         self->pos_y       = pos_y;

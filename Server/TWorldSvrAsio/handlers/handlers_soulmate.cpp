@@ -38,6 +38,31 @@ void SetSoulmate(TChar& self, const Mate& m)
 } // namespace
 
 boost::asio::awaitable<void>
+NotifySoulmateOnLogout(const HandlerContext& ctx, std::shared_ptr<TChar> who)
+{
+    if (!ctx.chars || !who) co_return;
+    std::uint32_t who_id = 0, partner = 0;
+    bool          connected = false;
+    {
+        std::lock_guard g(who->lock);
+        who_id    = who->char_id;
+        partner   = who->soulmate.target;
+        connected = who->soulmate.connected;
+    }
+    if (partner != 0 && connected)
+        if (auto p = ctx.chars->Find(partner))
+        {
+            std::lock_guard g(p->lock);
+            if (p->soulmate.target == who_id)
+            {
+                p->soulmate.connected = false;
+                p->soulmate.region = 0;
+            }
+        }
+    co_return;   // legacy LeaveSoulmate sends no packet
+}
+
+boost::asio::awaitable<void>
 OnSoulmateSearchAck(std::shared_ptr<PeerSession> peer,
                     std::vector<std::byte>       body,
                     const HandlerContext&        ctx)

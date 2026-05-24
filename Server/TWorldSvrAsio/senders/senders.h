@@ -1411,6 +1411,20 @@ boost::asio::awaitable<void> SendMwFriendAskReq(
     const std::string&           inviter_name,
     std::uint32_t                inviter_id);
 
+// MW_FRIENDCONNECTION_REQ — a presence (online/offline) update
+// pushed to a friend when the other side connects or disconnects.
+//
+// Wire layout (SSSender.cpp:2499):
+//   DWORD char_id, DWORD key, BYTE result (FRIEND_CONNECTION /
+//   FRIEND_DISCONNECTION), STRING name, DWORD region
+boost::asio::awaitable<void> SendMwFriendConnectionReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    const std::string&           name,
+    std::uint32_t                region);
+
 // MW_FRIENDERASE_REQ — result of removing a friend.
 //
 // Wire layout (SSSender.cpp:1830):

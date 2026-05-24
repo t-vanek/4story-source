@@ -566,6 +566,47 @@ OnFriendGroupNameAck(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+NotifyFriendsOnLogout(const HandlerContext& ctx, std::shared_ptr<TChar> who)
+{
+    if (!ctx.chars || !ctx.peers || !who) co_return;
+
+    std::uint32_t who_id = 0;
+    std::string   who_name;
+    struct FE { std::uint32_t id; std::uint8_t type; bool connected; };
+    std::vector<FE> entries;
+    {
+        std::lock_guard g(who->lock);
+        who_id = who->char_id;
+        who_name = who->name;
+        for (const auto& f : who->friends)
+            entries.push_back({f.id, f.type, f.connected});
+    }
+
+    for (const auto& e : entries)
+    {
+        if (!e.connected) continue;
+        auto partner = ctx.chars->Find(e.id);
+        if (!partner) continue;
+        std::uint32_t pkey = 0;
+        std::uint8_t  pmsi = 0;
+        {
+            std::lock_guard g(partner->lock);
+            for (auto& pf : partner->friends)
+                if (pf.id == who_id) pf.connected = false;
+            pkey = partner->key;
+            pmsi = partner->main_server_id;
+        }
+        // Only a real friend (mutual / pending) gets the toast;
+        // a one-way FT_FRIEND stub does not (legacy gate).
+        if (e.type != frnd::kTypeFriend)
+            if (auto p = FindMapPeer(ctx, pmsi))
+                co_await senders::SendMwFriendConnectionReq(p, e.id, pkey,
+                    frnd::kDisconnection, who_name, 0);
+    }
+    co_return;
+}
+
+boost::asio::awaitable<void>
 OnFriendListAck(std::shared_ptr<PeerSession> peer,
                 std::vector<std::byte>       body,
                 const HandlerContext&        ctx)

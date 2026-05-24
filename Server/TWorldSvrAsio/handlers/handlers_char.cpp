@@ -148,6 +148,12 @@ OnCloseCharAck(std::shared_ptr<PeerSession>  peer,
         removed_user_id = removed->user_id;
     }
 
+    // W4-7: fan out the offline presence to this char's friends +
+    // soulmate (legacy LeaveFriend / LeaveSoulmate). `removed` is
+    // out of the registry but kept alive by the shared_ptr.
+    co_await NotifyFriendsOnLogout(ctx, removed);
+    co_await NotifySoulmateOnLogout(ctx, removed);
+
     bool any_other = false;
     for (auto other_id : ctx.chars->SnapshotIds())
     {

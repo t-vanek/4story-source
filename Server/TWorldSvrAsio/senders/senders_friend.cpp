@@ -54,6 +54,27 @@ SendMwFriendAskReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwFriendConnectionReq(std::shared_ptr<PeerSession> peer,
+                          std::uint32_t                char_id,
+                          std::uint32_t                key,
+                          std::uint8_t                 result,
+                          const std::string&           name,
+                          std::uint32_t                region)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WriteString(body, name);
+    WritePOD<std::uint32_t>(body, region);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_FRIENDCONNECTION_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwFriendEraseReq(std::shared_ptr<PeerSession> peer,
                      std::uint32_t                char_id,
                      std::uint32_t                key,

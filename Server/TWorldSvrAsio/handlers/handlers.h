@@ -1427,6 +1427,21 @@ boost::asio::awaitable<void> OnChatAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-7: social presence on logout -------------------------------
+//
+// Called from OnCloseCharAck for a char that just went offline.
+// NotifyFriendsOnLogout marks each connected friend's reverse entry
+// offline and pushes MW_FRIENDCONNECTION_REQ(DISCONNECTION) to the
+// online ones (legacy LeaveFriend). NotifySoulmateOnLogout marks
+// the partner's soulmate entry offline (legacy LeaveSoulmate — no
+// packet). `who` is the removed char (kept alive by the caller's
+// shared_ptr after CharRegistry::Remove). The connect side
+// (login presence) + friend/soulmate DB load are deferred.
+boost::asio::awaitable<void> NotifyFriendsOnLogout(
+    const HandlerContext& ctx, std::shared_ptr<TChar> who);
+boost::asio::awaitable<void> NotifySoulmateOnLogout(
+    const HandlerContext& ctx, std::shared_ptr<TChar> who);
+
 // --- W4-6: soulmate (handlers_soulmate.cpp) ------------------------
 //
 // The marriage/pairing flow. SEARCH matchmakes among online chars

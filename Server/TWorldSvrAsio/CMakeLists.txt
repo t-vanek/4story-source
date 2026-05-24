@@ -491,3 +491,14 @@ target_link_libraries(test_tworldsvr_asio_soulmate_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_soulmate_handlers
     COMMAND test_tworldsvr_asio_soulmate_handlers)
+
+# W4-7 wire test: social presence on logout — OnCloseCharAck fans
+# FRIENDCONNECTION(DISCONNECTION) to a mutual friend + marks the
+# reverse friend/soulmate entries offline; a one-way friend's entry
+# is marked offline without a packet.
+add_executable(test_tworldsvr_asio_friend_presence_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_presence_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_presence_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_presence_handlers
+    COMMAND test_tworldsvr_asio_friend_presence_handlers)

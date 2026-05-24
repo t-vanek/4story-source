@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-6 soulmate (SEARCH / REG / END)
+## Status — W4-7 social presence on logout
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -75,12 +75,45 @@ that the four shipped Asio daemons already use.
 | W4-3 | Friend groups — OnMW_FRIENDGROUPMAKE/DELETE/CHANGE/NAME_ACK (per-char named buckets, TChar.friend_groups + TFriend.group) + 4 senders | ✅ |
 | W4-4 | Friend list reader — OnMW_FRIENDLIST_ACK → MW_FRIENDLIST_REQ (groups + non-pending friends, per-friend level/class/connected/region resolved live) | ✅ |
 | W4-5 | Chat channel relay — OnMW_CHAT_ACK (GUILD/TACTICS/PARTY/FORCE/MAP/WORLD/SHOW/WHISPER) routed to the right audience via the guild/party/corps/peer registries + SendMwChatReq | ✅ |
-| **W4-6** | Soulmate — OnMW_SOULMATESEARCH/REG/END_ACK (matchmaking + mutual pairing / register-preview / dissolve) + TChar.real_sex/soulmate + 3 senders | ✅ |
-| W4-7+ | Friend/soulmate connection notifications (presence) + friend/soulmate DB load | ⏸ |
+| W4-6 | Soulmate — OnMW_SOULMATESEARCH/REG/END_ACK (matchmaking + mutual pairing / register-preview / dissolve) + TChar.real_sex/soulmate + 3 senders | ✅ |
+| **W4-7** | Social presence on logout — OnCloseCharAck fans FRIENDCONNECTION(DISCONNECTION) to friends + marks reverse friend/soulmate entries offline (NotifyFriends/SoulmateOnLogout) | ✅ |
+| W4-8+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-7 — what landed
+
+**Social presence on logout** — the offline half of the
+friend/soulmate presence flow, wired into the existing char
+lifecycle.
+
+`OnCloseCharAck` now, after removing the char from the registry
+(the `shared_ptr` keeps it alive), calls:
+- `NotifyFriendsOnLogout` (handlers_friend.cpp, legacy
+  LeaveFriend): for each connected friend, marks that friend's
+  reverse entry offline and — for a real (mutual / pending) friend,
+  not a one-way `FT_FRIEND` stub — pushes
+  `MW_FRIENDCONNECTION_REQ(DISCONNECTION)` to the friend's map.
+- `NotifySoulmateOnLogout` (handlers_soulmate.cpp, legacy
+  LeaveSoulmate): marks the partner's soulmate entry offline
+  (no packet, per legacy).
+
+Both operate on the in-memory social state (set by the W4-1..6
+handlers) and snapshot-then-release per char (no two char locks
+held at once). Sender — `SendMwFriendConnectionReq` (5-field).
+
+Deferred: the **connect** side (login presence fan-out) and the
+friend/soulmate **DB load** — both need the friend/soulmate
+repository + char-load wiring, a coupled cluster for a later slice.
+
+Tests — `tests/test_friend_presence_handlers.cpp`: a mutual
+friend + soulmate + a one-way friend, all online; on logout the
+mutual friend gets the disconnect toast, all three reverse entries
+(+ the soulmate) flip offline, and the char leaves the registry.
+
+Build verified: cmake + ctest -R tworldsvr_asio (39/39 passed).
 
 ### W4-6 — what landed
 

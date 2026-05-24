@@ -235,12 +235,11 @@ BeginTeleport(std::shared_ptr<PeerSession> peer,
     auto main_peer = FindMapPeer(ctx, main_id);
     if (!main_peer)
     {
-        // Main offline — legacy CloseChar (logout teardown, a later
-        // slice). Advance the queue so it doesn't stall.
-        spdlog::warn("BeginTeleport: char_id={} main={} offline "
-                     "(CloseChar deferred) — advancing cession queue",
+        // Main offline — tear the char down (legacy CloseChar). The
+        // cession queue dies with it, so no PopConCess needed.
+        spdlog::warn("BeginTeleport: char_id={} main={} offline — CloseChar",
             char_id, main_id);
-        co_await PopConCess(ch, ctx);
+        co_await CloseChar(ch, ctx);
         co_return;
     }
     if (reporting_id != main_id)
@@ -328,10 +327,9 @@ CheckConnect(std::shared_ptr<PeerSession> peer,
     auto main_peer = FindMapPeer(ctx, main_id);
     if (!main_peer)
     {
-        spdlog::warn("CheckConnect: char_id={} main={} offline "
-                     "(CloseChar deferred) — advancing cession queue",
+        spdlog::warn("CheckConnect: char_id={} main={} offline — CloseChar",
             char_id, main_id);
-        co_await PopConCess(ch, ctx);
+        co_await CloseChar(ch, ctx);
         co_return;
     }
     if (reporting_id != main_id)

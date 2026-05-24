@@ -113,9 +113,49 @@ that the four shipped Asio daemons already use.
 | W6-15 | Main-session handoff forward — OnMW_RELEASEMAIN_ACK: the old main releases → forward the released char verbatim to the new main (re-tagged MW_ENTERSVR_REQ) + record the old main in `chg_main_id`; new main offline → INVALIDCHAR(release_main=1); unknown char → DELCHAR. Opaque-passthrough sender | ✅ |
 | W6-16 | Handoff completion — OnMW_ENTERSVR_ACK now branches on `chg_main_id`: a normal-map handoff clears it + asks the new main for the server list (MAPSVRLIST_REQ → re-enters the W6-13 reconcile), skipping the fresh-login fan-out; BR/Bow battleground ids (50/30) excluded. Closes the handoff loop (reconcile→checkmain→release→entersvr→reconcile) | ✅ |
 | W6-17 | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender | ✅ |
-| **W6-18** | Connect-check reconcile — OnMW_CHECKCONNECT_ACK (the other cession producer): updates the char's position then reconciles cons (count=0 → CHECKMAIN sweep; else drop stale → dead_cons + ROUTELIST new servers via main, else CHECKMAIN); replays via PopConCess. Reuses the W6-17 cession queue; no new senders | ✅ |
+| W6-18 | Connect-check reconcile — OnMW_CHECKCONNECT_ACK (the other cession producer): updates the char's position then reconciles cons (count=0 → CHECKMAIN sweep; else drop stale → dead_cons + ROUTELIST new servers via main, else CHECKMAIN); replays via PopConCess. Reuses the W6-17 cession queue; no new senders | ✅ |
+| **W6-19** | CloseChar teardown — OnMW_CLOSECHAR_ACK now does the full legacy CloseChar: chg_main_id → INVALIDCHAR(release_main) on the would-be new main, DELCHAR every con (dead first, then live; logout/save flags only on the main), registry+name-index removal, friend/soulmate/TMS offline fan-out. Shared helper wired into the BeginTeleport/CheckConnect main-offline paths. Party-leave + guild/tactics DB persistence still deferred | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-19 — what landed
+
+**CloseChar teardown** — the W2 `OnCloseCharAck` stub (registry remove +
+social fan-out) is now the full legacy `CloseChar` (TWorldSvr.cpp:3061),
+extracted into a shared `CloseChar(ch, ctx)` helper (handlers_char.cpp,
+declared in handlers.h). Tearing a char down now:
+
+- if a main-session handoff was in flight (`chg_main_id` set), voids the
+  would-be new main's takeover (`MW_INVALIDCHAR_REQ`, release_main=1);
+- DELCHARs every map the char is connected to — `dead_cons` first, then
+  live `cons` — with the logout / save flags set **only** on the main
+  connection (`sid == main_server_id ? char.logout/saving : 0`), matching
+  the legacy per-con flag logic;
+- removes it from the registry (which also clears the name index);
+- fans the offline presence out to friends / soulmate / TMS (the W4
+  notifiers, unchanged).
+
+`OnCloseCharAck` now replies `MW_DELCHAR_REQ` to the reporting map on a
+stale / wrong-key close (retiring the W2 TODO), then calls `CloseChar`.
+The same helper is wired into the connection-cluster error paths
+(`BeginTeleport` / `CheckConnect` when the main map is offline), retiring
+their deferred "CloseChar" notes. Still deferred (un-ported dependencies):
+the party-leave on logout (`LeaveParty` resolution) and the guild/tactics
+DB persistence (PVPRECORD / TACTICSPOINT / SaveGuildStats); guild/tactics
+"connection clear" is a no-op here since online state is resolved live
+from the registry. The sketchy legacy `if(!m_bSave) CloseChar` at the top
+of CHECKMAIN_ACK (a use-after-free in the original) is intentionally not
+ported.
+
+Tests — `tests/test_closechar_handlers.cpp` (3 map peers): closing a char
+with a dead con + main/live cons DELCHARs all three (dead first, main
+carrying logout=save=1, the rest 0/0) and removes it; closing a char with
+a handoff in flight INVALIDCHARs the would-be new main before the DELCHAR;
+an unknown/wrong-key close replies DELCHAR. The existing close / friend /
+TMS-logout tests still pass (the DELCHAR fan-out targets the char's own
+con peers, not the friends' peers the presence tests read).
+
+Build verified: cmake + ctest -R tworldsvr_asio (75/75 passed).
 
 ### W6-18 — what landed
 

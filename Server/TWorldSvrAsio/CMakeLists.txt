@@ -855,3 +855,12 @@ target_link_libraries(test_tworldsvr_asio_checkconnect_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_checkconnect_handlers
     COMMAND test_tworldsvr_asio_checkconnect_handlers)
+
+# W6-19 wire test: CloseChar teardown — DELCHAR fan-out (dead+live,
+# main-only flags), chg_main_id INVALIDCHAR, unknown-char DELCHAR.
+add_executable(test_tworldsvr_asio_closechar_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_closechar_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_closechar_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_closechar_handlers
+    COMMAND test_tworldsvr_asio_closechar_handlers)

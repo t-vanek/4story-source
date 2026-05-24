@@ -1728,6 +1728,19 @@ boost::asio::awaitable<void> NotifyFriendsOnLogin(
 boost::asio::awaitable<void> NotifyTmsOnLogout(
     const HandlerContext& ctx, std::shared_ptr<TChar> who);
 
+// W6-19 — full char teardown (legacy CTWorldSvrModule::CloseChar).
+// Removes a char from the cluster: if a main-session handoff was in
+// flight, voids it on the would-be new main (MW_INVALIDCHAR_REQ); tells
+// every map the char is connected to — dead_cons first, then live cons —
+// to drop it (MW_DELCHAR_REQ, with the logout/save flags only on the
+// main connection); drops it from the registry (clearing the name
+// index); then fans the offline presence out to friends / soulmate /
+// TMS. Used by OnCloseCharAck and by the connection-cluster error paths
+// (BeginTeleport / CheckConnect when the main map is gone). Party-leave
+// + guild/tactics DB persistence remain deferred.
+boost::asio::awaitable<void> CloseChar(
+    std::shared_ptr<TChar> ch, const HandlerContext& ctx);
+
 // --- W4-6: soulmate (handlers_soulmate.cpp) ------------------------
 //
 // The marriage/pairing flow. SEARCH matchmakes among online chars

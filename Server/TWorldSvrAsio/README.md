@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-27 BattleMode status + CM teleport (Arena trio, 2/3)
+## Status — W6-28 ARENAJOIN (Arena trio complete)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -97,7 +97,8 @@ that the four shipped Asio daemons already use.
 | W6-24 | Bow battleground opener — first W6 🚧 content subsystem ported. OnAddToBowQueueReq derives effective_country (primary, falling back to aid_country when primary > TCONTRY_C — legacy gate), picks tactics_id > guild_id > 0 for the queue-grouping hint, calls BowRegistry::AddPlayer, replies MW_ADDTOBOWQUEUE_ACK(result, char_id, key, tick). OnCancelBowQueueReq runs RemovePlayer + emits MW_CANCELBOWQUEUE_ACK + BR fall-through (W6-25). OnBowPointsUpdateReq bumps the per-country scoreboard. New BowRegistry + bow_constants.h. Deferred: BS_PEACE/BS_ALARM status gating, match creation + team balancing, teleportation, per-guild queue grouping | ✅ |
 | W6-25 | Battle Royale opener — second W6 🚧 content subsystem. 5 handlers covering the player-driven queue + premade team flow + map/mode votes: OnAddToBrQueueReq (enqueue OR ready-signal — chief→FlagTeamReady, mate→FlagPlayerReady), OnBrTeamMateAddReq (chief invites mate by name → forwarded SUCCESS dialog on mate's map / NOTFOUND to chief on self/unknown), OnBrTeamMateDelReq (chief drops mate or mate self-leaves), OnBrTeamMateAddResultAck (mate's accept/refuse — SUCCESS path runs the duplicate + cap gates and JoinPremadeTeam + UPDATEBRTEAM broadcast to every team member's map), OnVoteForBrMapReq (per-user first-vote-wins map and mode tallies). New BrRegistry + br_constants.h (TEAMADD_* + BR_TEAMMATE_MAX_COUNT(BR_3V3)=3). Wired W6-24's OnCancelBowQueueReq BR fall-through (legacy SSHandler.cpp:14078). Deferred: BS_PEACE/BS_ALARM gating, UpdatePlayerQueue / CreateMatch / team balancing, BR_SOLO vs BR_TEAM switch | ✅ |
 | W6-26 | LEAVEBATTLEFIELD cleanup — OnLeaveBattlefieldReq routes by location (channel == BR_SERVER_ID → BrRegistry::ReleaseSinglePlayer; else map_id == BOW_MAP_ID → BowRegistry::ReleaseSinglePlayer). Both registry methods do opportunistic queue + premade drops (legacy teleport-home from active-match state is deferred — we don't model the active match yet). Off-battlefield chars are a silent no-op (legacy parity). Closes the W6-25 deferred "ReleaseSinglePlayer on logout" note | ✅ |
-| **W6-27** | BattleMode status + CM teleport — `OnBattleModeStatusReq` replies `MW_BATTLEMODESTATUS_ACK` on the char's main map carrying the quiescent payload (zeros + TCONTRY_N for bow_winner — same shape the legacy emits when neither subsystem is running). `OnCmTeleportBattleModeReq` routes by `system_type`: SYSTEM_BOW → `BowRegistry::AddPlayer(country=TCONTRY_C)` (admin force-add; our registry doesn't model the BS_ALARM/Admin gate so it just accepts), SYSTEM_BR → no-op (legacy body is empty — a TODO in the original). 1 new sender (`SendMwBattleModeStatusAck`). Closes 2 of the Arena/BattleMode trio; `OnArenaJoinAck` deferred to its own slice (needs `LeaveParty` + `NotifyCorpsLeave` extracted from their files' anonymous namespaces) | ✅ |
+| W6-27 | BattleMode status + CM teleport — `OnBattleModeStatusReq` replies `MW_BATTLEMODESTATUS_ACK` on the char's main map carrying the quiescent payload (zeros + TCONTRY_N for bow_winner — same shape the legacy emits when neither subsystem is running). `OnCmTeleportBattleModeReq` routes by `system_type`: SYSTEM_BOW → `BowRegistry::AddPlayer(country=TCONTRY_C)` (admin force-add; our registry doesn't model the BS_ALARM/Admin gate so it just accepts), SYSTEM_BR → no-op (legacy body is empty — a TODO in the original). 1 new sender (`SendMwBattleModeStatusAck`). Closes 2 of the Arena/BattleMode trio | ✅ |
+| **W6-28** | ARENAJOIN — closes the Arena trio. `OnArenaJoinAck` flips `TParty.arena` to the inbound `join` flag; on the join path: if the party was in a corps, runs `NotifyCorpsLeave` so the corps unwinds (arena parties must be standalone); for each party member NOT in the inbound keep-list, runs `LeaveParty` (kick=1 so survivors get the right PARTYDEL flags). Refactor: `NotifyCorpsLeave` extracted from handlers_corps.cpp's anonymous namespace + declared in handlers.h (`LeaveParty` stays file-local — `OnArenaJoinAck` lives in handlers_party.cpp). No reply | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -128,11 +129,11 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-27)
+## Gaps audit — not yet ported / deferred (as of W6-28)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~170** are ported in `handlers/dispatch.cpp`,
-leaving **~96** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~171** are ported in `handlers/dispatch.cpp`,
+leaving **~95** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
@@ -207,10 +208,9 @@ Intentionally not ported:
 - Bow battleground: queue + cancel + points landed in W6-24; the
   scheduler / match creation / teleportation / per-guild grouping
   are deferred (see W6-24 row)
-- Arena / BattleMode: `BATTLEMODESTATUS` + `CMTELEPORTBATTLEMODE`
-  landed in W6-27. `ARENAJOIN` deferred (needs the W3b `LeaveParty`
-  + W3c `NotifyCorpsLeave` helpers extracted from their
-  anonymous namespaces — its own slice)
+- Arena / BattleMode: all three handlers landed (W6-27 status +
+  CM teleport; W6-28 ARENAJOIN). The Arena/BattleMode trio is
+  complete.
 - APEX (Taiwan): `MW_APEXDATA/APEXSTART`, `SM_APEXDATA/APEXKILLUSER`
 - Tournament: `MW_TOURNAMENT/ENTERGATE/RESULT`, `DM_TOURNAMENT*` (6),
   `DM_TNMTEVENT*` (3), `SM_TOURNAMENT*` (3), `CT_TOURNAMENTEVENT`
@@ -248,20 +248,68 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **`ARENAJOIN`** (W6-27 deferred) — extract `LeaveParty` from
-   handlers_party.cpp's anonymous namespace + `NotifyCorpsLeave`
-   from handlers_corps.cpp's, declare both in handlers.h. Then
-   wire `OnArenaJoinAck`: flip `party.arena = bJoin`; on join,
-   `NotifyCorpsLeave` if in a corps + `LeaveParty` for every
-   member NOT in the keep-list.
-2. **RPS event** — `MW_RPSGAME`, `CT_RPSGAMECHANGE/DATA`,
-   `DM_RPSGAMERECORD`. Small dedicated subsystem; same pattern
-   as W6-24's BowRegistry.
-3. **`TChar.soul_silence`** — model `m_dwSoulSilence` for the
+1. **RPS event** — `MW_RPSGAME`, `CT_RPSGAMECHANGE/DATA`,
+   `DM_RPSGAMERECORD`. Small dedicated subsystem; same shape as
+   W6-24's BowRegistry — registry + 3-4 handlers + an in-memory
+   game-state store.
+2. **`TChar.soul_silence`** — model `m_dwSoulSilence` for the
    W6-23 `MW_ENTERCHAR_REQ` composite (trivial; rides with a
-   handler that writes it).
+   handler that actually writes it).
+3. **APEX (Taiwan)** — small notify hook from W4-22 fresh-login
+   that's currently deferred.
 4. Larger roadmap subsystems (Tournament / CMGift / Cash /
    MonthRank).
+
+### W6-28 — what landed
+
+**ARENAJOIN** — closes the W6-27 deferred third of the Arena /
+BattleMode trio. `OnArenaJoinAck` (handlers_party.cpp) mirrors
+legacy SSHandler.cpp:13477 — the party's chief signals the
+party is entering or leaving arena mode with a specific roster.
+
+- Reads `(char_id, key, BYTE join, DWORD count, × DWORD
+  keep_member_id)` from the wire.
+- Snapshots the char's `party_id` under the char lock; bails
+  silently on key mismatch or no party (legacy parity).
+- Snapshots `party.corps_id` + `party.members` under the party
+  lock and sets `party.arena = join` (the flag flip is the
+  legacy's only state mutation on the leave path — early-return
+  follows for `!join`).
+- On the join path:
+  1. If the party was in a corps, `NotifyCorpsLeave(corps,
+     party_id)` unwinds the corps (arena parties must be
+     standalone — legacy parity).
+  2. For each member NOT in `keep_ids`, runs `LeaveParty` with
+     `kick=1` so the survivors get the right PARTYDEL flag
+     (legacy `LeaveParty(it->second, TRUE)`).
+
+Refactor enabling this slice: `NotifyCorpsLeave` was file-local
+in handlers_corps.cpp's anonymous namespace; it's been moved
+into the file's outer `tworldsvr::handlers` namespace + declared
+in `handlers.h`. The function's internal helpers
+(`SnapshotSquad`, `CorpsJoinBroadcast`, `FindMapPeer`) stay in
+the anon namespace — the moved function still finds them via
+the implicit using-injection that's how anonymous namespaces
+work. No call-site or behaviour change for the existing W3c
+corps-leave path. `LeaveParty` stays file-local in
+handlers_party.cpp — putting `OnArenaJoinAck` there too avoided
+a second extraction.
+
+No reply (legacy parity). The corps-unwind branch relies on
+W3c-3's existing `NotifyCorpsLeave` coverage; this slice's
+test focuses on the arena flag + non-keep-member kick path.
+
+Tests — `tests/test_arenajoin_handlers.cpp` (1 peer, 3 chars
+Alice / Bob / Carol in one party with Alice as chief):
+- Arena ENTER with keep=[Alice, Bob] → 3 PARTYDEL_REQ packets
+  fan out (one per member, including the kicked Carol);
+  `TParty.arena` flips to true; party size drops to 2; Carol's
+  `party_id` back-pointer cleared.
+- Arena LEAVE → `TParty.arena` flips back to false, party size
+  unchanged.
+
+Build verified: cmake + ctest -R tworldsvr_asio -C Release -j 1
+(85/85 passed, first try, no flake).
 
 ### W6-27 — what landed
 

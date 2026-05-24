@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-9 friend-protected refuse relay (FRIENDPROTECTEDASK)
+## Status — W6-10 item-result relays (ADDITEMRESULT / DEALITEMERROR)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -104,9 +104,27 @@ that the four shipped Asio daemons already use.
 | W6-6 | Monster-result relays — OnMW_MONSTERDIE_ACK + OnMW_TAKEMONMONEY_ACK route verbatim to the char's main map (id+key) + 2 senders; MONSTERBUY deferred (guild-money + MSB_* absent) | ✅ |
 | W6-7 | Solo-instance party lifecycle — OnMW_ENTERSOLOMAP_ACK (spins up a 1-member PT_SOLO party, mirrors to the char's connections) + OnMW_LEAVESOLOMAP_ACK (tears it down) + SendMwEnterSoloMapReq; uses PartyRegistry | ✅ |
 | W6-8 | GM char message relay — OnCT_CHARMSG_ACK routes a control-server system/GM message (≤1 KiB) to the named char's main map (MW_CHARMSG_REQ) + sender | ✅ |
-| **W6-9** | Friend-protected refuse relay — OnMW_FRIENDPROTECTEDASK_ACK relays an auto-refuse (FRIEND_REFUSE + requester name) to a protection-enabled target's map; completes the friend-ask protection sub-case | ✅ |
+| W6-9 | Friend-protected refuse relay — OnMW_FRIENDPROTECTEDASK_ACK relays an auto-refuse (FRIEND_REFUSE + requester name) to a protection-enabled target's map; completes the friend-ask protection sub-case | ✅ |
+| **W6-10** | Item-result relays — OnMW_ADDITEMRESULT_ACK (route to the requesting map server) + OnMW_DEALITEMERROR_ACK (route to the target char's map) + SendMwDealItemErrorReq (reuses the W3b SendMwAddItemResultReq) | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-10 — what landed
+
+**Item-result relays** — two cross-server item routings:
+
+- `OnAddItemResultAck` (handlers_item.cpp, `MW_ADDITEMRESULT_ACK`) —
+  an item-add result computed elsewhere, routed to the *requesting*
+  map server (by `bMapSvrID`) via the W3b `SendMwAddItemResultReq`.
+- `OnDealItemErrorAck` (`MW_DEALITEMERROR_ACK`) — a trade/deal error
+  routed to the target char's main map (by name) via the new
+  `SendMwDealItemErrorReq` (senders_item.cpp).
+
+Tests — `tests/test_item_handlers.cpp`: ADDITEMRESULT reaches the
+named map server with its payload; DEALITEMERROR reaches the target's
+map.
+
+Build verified: cmake + ctest -R tworldsvr_asio (66/66 passed).
 
 ### W6-9 — what landed
 

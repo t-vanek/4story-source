@@ -1284,6 +1284,15 @@ boost::asio::awaitable<void> SendMwAddItemResultReq(
     std::uint8_t                 item_id,
     std::uint8_t                 result);
 
+// MW_DEALITEMERROR_REQ — a trade/deal error relayed to the affected
+// char's map.
+//   Wire (SSSender.cpp): STRING target, STRING error_char, BYTE error
+boost::asio::awaitable<void> SendMwDealItemErrorReq(
+    std::shared_ptr<PeerSession> peer,
+    const std::string&           target,
+    const std::string&           error_char,
+    std::uint8_t                 error);
+
 // MW_PARTYMOVE_REQ — result of a corps general reshuffling a member
 // between squads (move or swap). CORPS_* result code.
 //

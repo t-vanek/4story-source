@@ -507,6 +507,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnTakeMonMoneyAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-10: item-result relays (handlers_item.cpp) ---------
+    case MessageId::MW_ADDITEMRESULT_ACK:
+        co_await OnAddItemResultAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_DEALITEMERROR_ACK:
+        co_await OnDealItemErrorAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-3: global announcement broadcasts (handlers_rank.cpp)
     case MessageId::MW_FAMERANKUPDATE_ACK:
         co_await OnFameRankUpdateAck(std::move(peer), std::move(body), ctx);

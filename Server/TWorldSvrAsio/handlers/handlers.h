@@ -1898,5 +1898,24 @@ boost::asio::awaitable<void> OnReservedPostRecvAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-10: item-result relays (handlers_item.cpp) ----------------
+//
+// ADDITEMRESULT — an item-add result (from the DB / another map)
+// relayed to the requesting map server (by bMapSvrID). DEALITEMERROR
+// — a trade/deal error relayed to the affected char's main map (by
+// name). Both reuse existing senders.
+//   Wire (SSHandler.cpp:6628/8095):
+//     ADDITEMRESULT : DWORD char_id, key, BYTE map_svr, channel,
+//                     WORD map_id, DWORD mon_id, BYTE item_id, result
+//     DEALITEMERROR : STRING target, error_char, BYTE error
+boost::asio::awaitable<void> OnAddItemResultAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnDealItemErrorAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

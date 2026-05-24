@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-21 friend-protected presence sync (PROTECTEDCHECK)
+## Status — W4-22 fresh-login ENTERSVR completion (CHARINFO/ROUTE/FRIENDLIST)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -90,8 +90,9 @@ that the four shipped Asio daemons already use.
 | W4-18 | Soulmate write-back — IFriendRepository RegSoulmate/DelSoulmate wired into SEARCH-pair / REG / END + the W4-9 level-gap auto-dissolve (both mutual rows) via CoOffloadVoidIf | ✅ |
 | W4-19 | GM chat ban — OnMW_CHATBAN_ACK sets/extends/clears TChar.chat_ban_time, enforces on the target's map + echoes to the issuing GM (MW_CHATBAN_REQ) | ✅ |
 | W4-20 | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
-| **W4-21** | Friend-protected presence sync — OnMW_PROTECTEDCHECK_ACK is the symmetric partner to W6-9. The map updates the connect/disconnect status of a protected friend; world mirrors the transition across both directed edges (when both still hold each other), syncs regions, and relays MW_FRIENDCONNECTION_REQ to the target's map (skipping FT_TARGET — legacy parity). On disconnect, also fires the W4-17 IFriendRepository::EraseFriend write-back. Missing char/friend/edge → silent drop | ✅ |
-| W4-22+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
+| W4-21 | Friend-protected presence sync — OnMW_PROTECTEDCHECK_ACK is the symmetric partner to W6-9. The map updates the connect/disconnect status of a protected friend; world mirrors the transition across both directed edges (when both still hold each other), syncs regions, and relays MW_FRIENDCONNECTION_REQ to the target's map (skipping FT_TARGET — legacy parity). On disconnect, also fires the W4-17 IFriendRepository::EraseFriend write-back. Missing char/friend/edge → silent drop | ✅ |
+| **W4-22** | Fresh-login ENTERSVR completion — OnEnterSvrAck now does the legacy fresh-login chain after the W4-20 identity load: build the CHARINFO_REQ composite from in-memory guild + tactics + party state (FindMember / FindTactics for the per-char castle/duty/peer) and send it back to the responder; ROUTE_REQ so the main can resolve any additional connections (answered by W6-20's MW_ROUTE_ACK); MW_FRIENDLIST_REQ (groups + non-pending friends, online state resolved live like W4-4); MW_CHATBAN_REQ when the char's chat_ban_time is still active. 2 senders (CharInfoPayload + CHARINFO_REQ, ROUTE_REQ); reuses FRIENDLIST/CHATBAN. Deferred: BR/Bow bow_release flag, RW_CHANGEMAP relay-server hop, APEX notify (TW), cluster-wide chat-ban list | ✅ |
+| W4-23+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
 | W5-3 | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
@@ -121,7 +122,7 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W4-21)
+## Gaps audit — not yet ported / deferred (as of W4-22)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
 (`CTWorldSvrModule::On*`); **~159** are ported in `handlers/dispatch.cpp`,
@@ -154,12 +155,19 @@ Intentionally not ported:
 
 ### B. Sub-branches deferred inside ported handlers
 
-- **ENTERSVR fresh-login** (W6-16): the big `CHARINFO_REQ` composite reply
-  + `ROUTE_REQ` + `SOULMATELIST`/`FRIENDLIST` + `CheckChatBan` (only the
-  identity-load is ported); the BR/Bow `CHARINFO` sub-case. The
-  W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out (the
-  guild/tactics/party/soulmate composite) shares the same body and
-  lands with this slice.
+- **ENTERSVR fresh-login** (W4-22 + W6-16): the bulk of the legacy
+  fresh-login chain is now ported (CHARINFO_REQ + ROUTE_REQ +
+  FRIENDLIST_REQ + CHATBAN_REQ when banned). Still deferred:
+  - the BR/Bow `bow_release` flag inside `MW_CHARINFO_REQ` (always
+    emitted as 0 today; legacy sets it on BR/Bow handoffs);
+  - the `RW_CHANGEMAP_ACK` hop to the relay server (handed by the
+    legacy `m_pRelay` — the asio relay wiring is a separate slice);
+  - the cluster-wide `m_mapBanChar` ban list (W4-19 already syncs
+    the per-char `chat_ban_time`, but the cluster-wide list isn't
+    a thing here yet);
+  - the APEX (Taiwan) notify.
+  Note: the W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out
+  is a *different* composite — separate slice.
 - **CloseChar** (W6-19): party-leave on logout; guild/tactics DB
   persistence (`PVPRECORD`/`TACTICSPOINT`/`SaveGuildStats`). The sketchy
   legacy `if(!m_bSave) CloseChar` at the top of CHECKMAIN_ACK (a
@@ -225,12 +233,79 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **Fresh-login ENTERSVR completion** (§B) — the big CHARINFO_REQ
-   composite + ROUTE_REQ + SOULMATELIST / FRIENDLIST + CheckChatBan.
-   Lands the W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out as
-   part of the same composite (both bodies are the same fat
-   guild/tactics/party/soulmate/region/chat-ban/riding payload).
-2. Then the large roadmap subsystems (BR / Bow / Tournament / …).
+1. **CHARDATA_ACK non-ready ENTERCHAR_REQ fan-out** (W6-20 deferred) —
+   a fat 28-field composite distinct from CHARINFO_REQ; emit it per
+   non-ready con on CHARDATA_ACK so an in-flight reconcile completes
+   when only some cons are ready (today the legacy "drift" path
+   silent-drops). Self-contained, one new sender + one branch.
+2. **Soulmate target in FRIENDLIST_REQ** — small cross-cutting fix
+   to populate the soulmate sentinel that W4-4 + W4-22 currently
+   emit as 0. The data is already in TChar.soulmate.target.
+3. **BR / Bow `bow_release` flag in CHARINFO_REQ** — small follow-up
+   that closes the W4-22 / W6-16 BR-handoff sub-case.
+4. Then the large roadmap subsystems (BR / Bow / Tournament / …).
+
+### W4-22 — what landed
+
+**Fresh-login ENTERSVR completion** — `OnEnterSvrAck`
+(handlers_char.cpp) now does the bulk of the legacy fresh-login
+chain after the W4-20 identity load. Mirrors the legacy
+`OnMW_ENTERSVR_ACK` (SSHandler.cpp:1379), which after the bulk-
+identity store fires four operations on the responder peer:
+
+1. **`MW_CHARINFO_REQ`** — the 18-field composite identity packet.
+   Built from in-memory state: the char's guild via
+   `GuildRegistry::Find(guild_id)` (name / country / fame /
+   fame_color + `FindMember(char_id)` for duty / peer / castle /
+   camp), the tactics-guild via the same path with a castle/camp
+   *fallback* to the tactics member when the guild member didn't
+   surface a castle (legacy parity), and the party via
+   `PartyRegistry::Find(party_id)` (id / obtain_type / chief_id).
+   `title_id` + `rank_point` come straight off the inbound ACK
+   wire fields. The `bow_release` flag stays 0 — populating it on
+   BR/Bow handoffs is a small follow-up (see §B).
+2. **`MW_ROUTE_REQ`** — `(char_id, key, channel, map_id, pos x/y/z)`
+   so the main map starts resolving the char's additional
+   connections (answered by W6-20's `OnRouteAck`).
+3. **`MW_FRIENDLIST_REQ`** — same groups + non-pending friends
+   snapshot W4-4's `OnFriendListAck` builds, with online state +
+   level / class / region resolved live from the CharRegistry.
+   The soulmate sentinel still emits 0 (same TODO as W4-4 — a
+   small cross-cutting fix listed in the suggested next slices).
+4. **`MW_CHATBAN_REQ`** when `TChar.chat_ban_time > now` — enforces
+   an active ban on the freshly-connected map. The cluster-wide
+   `m_mapBanChar` list isn't ported (W4-19 deferral); the
+   per-char `chat_ban_time` is the source of truth here.
+
+Two new senders in `senders_relay.cpp`: `SendMwCharInfoReq`
+(carrying the `CharInfoPayload` POD declared in `senders.h`) and
+`SendMwRouteReq` (the 7-field channel/map/pos shape). Reuses
+`SendMwFriendListReq` (W4-4) and `SendMwChatBanReq` (W4-19).
+Lock ordering follows README §5 — the char / guild / tactics /
+party locks are taken sequentially, never overlapping, with
+`FindMember` / `FindTactics` performed under the matching guild's
+lock.
+
+The W6-16 BR/Bow chg_main_id-exclusion path (where the handoff
+"falls through to fresh-login") now correctly emits this chain on
+re-entry to a BR / Bow instance. The W6-16 test was updated to
+drain the three emitted packets (CHARINFO / ROUTE / FRIENDLIST)
+before reading the handoff char's `MAPSVRLIST_REQ`, matching the
+new legacy-parity behaviour.
+
+Tests — `tests/test_entersvr_fresh_login_handlers.cpp`: Alice
+(guildless / partyless, chat-banned 1h into the future) → empty
+CHARINFO_REQ (zeros + TCONTRY_N + ""), ROUTE_REQ with her position,
+empty FRIENDLIST_REQ, CHATBAN_REQ carrying her ban time. Bob (in
+guild "Eagles" #10 + party #7, no ban) → CHARINFO_REQ populated
+with the guild meta + member's duty / peer / castle / camp +
+party id / obtain_type / chief_id + title_id (99) + rank_point
+(12345); ROUTE_REQ; empty FRIENDLIST_REQ; **no** CHATBAN_REQ
+verified by re-emitting ENTERSVR_ACK and confirming the next
+packet is its own CHARINFO_REQ.
+
+Build verified: cmake + ctest -R tworldsvr_asio -j 1 (79/79
+passed).
 
 ### W4-21 — what landed
 

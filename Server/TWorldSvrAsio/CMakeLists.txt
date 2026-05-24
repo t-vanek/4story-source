@@ -895,3 +895,13 @@ target_link_libraries(test_tworldsvr_asio_protected_check_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_protected_check_handlers
     COMMAND test_tworldsvr_asio_protected_check_handlers)
+
+# W4-22 wire test: fresh-login ENTERSVR completion — full CHARINFO_REQ
+# + ROUTE_REQ + FRIENDLIST_REQ + (conditional) CHATBAN_REQ chain after
+# the W4-20 identity load.
+add_executable(test_tworldsvr_asio_entersvr_fresh_login_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_entersvr_fresh_login_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_entersvr_fresh_login_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_entersvr_fresh_login_handlers
+    COMMAND test_tworldsvr_asio_entersvr_fresh_login_handlers)

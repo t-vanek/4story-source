@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/chat_constants.h"
 #include "../services/friend_constants.h"
 #include "../services/soulmate_constants.h"
 #include "../wire_codec.h"
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <mutex>
 #include <unordered_set>
 #include <vector>
@@ -284,8 +286,130 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
     // Announce arrival to online friends (now that name/region exist).
     co_await NotifyFriendsOnLogin(ctx, self);
 
+    // ---- W4-22 fresh-login completion -----------------------------
+    //
+    // Build the CHARINFO_REQ composite from the in-memory guild /
+    // tactics / party state, send it back to the responder (the main),
+    // then ROUTE_REQ so the main resolves any additional connections
+    // (answered by MW_ROUTE_ACK → W6-20), then the friend list, then
+    // CheckChatBan. Mirrors the legacy fresh-login path
+    // (SSHandler.cpp:1379), minus the BR/BOW bow_release flag, the
+    // RW_CHANGEMAP relay hop, and the APEX notify — those land in
+    // follow-up slices (the bow_release flag piggybacks on the W6-16
+    // BR/BOW chg_main_id handoff, the relay hop needs the W3a-2 relay
+    // wiring extended, and APEX is Taiwan-only).
+    senders::CharInfoPayload info{};
+    info.title_id   = title_id;
+    info.rank_point = rank_point;
+
+    std::uint32_t guild_id = 0, tactics_guild_id = 0;
+    std::uint16_t party_id = 0;
+    std::int64_t  chat_ban_time = 0;
+    std::string   self_name;
+    {
+        std::lock_guard g(self->lock);
+        guild_id         = self->guild_id;
+        tactics_guild_id = self->tactics_guild_id;
+        party_id         = self->party_id;
+        chat_ban_time    = self->chat_ban_time;
+        self_name        = self->name;
+    }
+
+    if (guild_id && ctx.guilds)
+        if (auto g = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(g->lock);
+            info.guild_id      = g->id;
+            info.guild_country = g->country;
+            info.guild_name    = g->name;
+            info.fame          = g->fame;
+            info.fame_color    = g->fame_color;
+            if (auto* m = g->FindMember(char_id))
+            {
+                info.duty   = m->duty;
+                info.peer   = m->peer;
+                info.castle = m->castle;
+                info.camp   = m->camp;
+            }
+        }
+
+    if (tactics_guild_id && ctx.guilds)
+        if (auto tg = ctx.guilds->Find(tactics_guild_id))
+        {
+            std::lock_guard gl(tg->lock);
+            info.tactics_id   = tg->id;
+            info.tactics_name = tg->name;
+            // Legacy parity: castle/camp falls back to the tactics
+            // member only when the guild member didn't already
+            // surface a castle assignment.
+            if (info.castle == 0)
+                if (auto* tm = tg->FindTactics(char_id))
+                {
+                    info.castle = tm->castle;
+                    info.camp   = tm->camp;
+                }
+        }
+
+    if (party_id && ctx.parties)
+        if (auto pty = ctx.parties->Find(party_id))
+        {
+            std::lock_guard pl(pty->lock);
+            info.party_id          = pty->id;
+            info.party_obtain_type = pty->obtain_type;
+            info.party_chief_id    = pty->chief_char_id;
+        }
+
+    co_await senders::SendMwCharInfoReq(peer, char_id, key, info);
+    co_await senders::SendMwRouteReq(peer, char_id, key,
+        channel, map_id, pos_x, pos_y, pos_z);
+
+    // Friend list: groups + non-pending friends, with online status /
+    // level / class / region resolved live from the registry. Same
+    // shape as W4-4 OnFriendListAck; soulmate target stays 0 (the
+    // SendMwFriendListReq sender currently emits the soulmate
+    // sentinel — populating it is a small cross-cutting follow-up).
+    std::vector<std::pair<std::uint8_t, std::string>> fl_groups;
+    std::vector<senders::FriendListRow>               fl_rows;
+    {
+        std::lock_guard g(self->lock);
+        fl_groups = self->friend_groups;
+        for (const auto& f : self->friends)
+        {
+            if (f.type == frnd::kTypeTarget) continue;
+            senders::FriendListRow row;
+            row.id    = f.id;
+            row.name  = f.name;
+            row.group = f.group;
+            fl_rows.push_back(std::move(row));
+        }
+    }
+    for (auto& row : fl_rows)
+        if (auto fc = ctx.chars->Find(row.id))
+        {
+            std::lock_guard fg(fc->lock);
+            row.connected = 1;
+            row.level  = fc->level;
+            row.klass  = fc->klass;
+            row.region = fc->region;
+        }
+    co_await senders::SendMwFriendListReq(peer, char_id, key, fl_groups, fl_rows);
+
+    // CheckChatBan — legacy looks up the cluster-wide m_mapBanChar
+    // ban list (deferred — same family as W4-19's deferred cluster-
+    // wide ban list). We honour the per-char chat_ban_time the
+    // W4-19 handler already mirrors into TChar so a still-active ban
+    // is enforced on the new connection.
+    if (chat_ban_time > 0)
+    {
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        if (chat_ban_time > now)
+            co_await senders::SendMwChatBanReq(peer, self_name, chat_ban_time,
+                chat::kChatBanSuccess, /*char_id=*/0, /*key=*/0);
+    }
+
     spdlog::info("OnEnterSvrAck[{}]: char_id={} '{}' entered (lvl={} map={} "
-                 "region={})", ip, char_id, name, level, map_id, region);
+                 "region={}) — CHARINFO/ROUTE/FRIENDLIST sent", ip, char_id,
+        name, level, map_id, region);
     co_return;
 }
 

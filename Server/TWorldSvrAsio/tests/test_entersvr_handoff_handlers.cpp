@@ -199,14 +199,33 @@ int main()
     if (auto b = chars.Find(200))
     { std::lock_guard g(b->lock); b->chg_main_id = 50; }
 
-    // BR-excluded char first (no MAPSVRLIST), then the handoff char.
+    // BR-excluded char first (chg=50 → falls through to fresh-login;
+    // since W4-22 the fresh-login path emits CHARINFO/ROUTE/FRIENDLIST
+    // to the responder), then the handoff char.
     SendFramed(p2, ToUint16(MessageId::MW_ENTERSVR_ACK),
                EnterSvrBody(200, 0xB0, "CharB", 1, 1, 0, 0, 0));
     SendFramed(p2, ToUint16(MessageId::MW_ENTERSVR_ACK),
                EnterSvrBody(100, 0xA1, "CharA", 4, 800, 11.0f, 22.0f, 33.0f));
 
-    // p2's first (and only) reply is the handoff char's MAPSVRLIST — if
-    // the BR char had wrongly emitted one, it would arrive first.
+    // Drain the W4-22 fresh-login chain CharB emits (it's BR-excluded,
+    // i.e. falls through to the fresh-login code). The handoff char's
+    // MAPSVRLIST arrives only after those — its absence between
+    // CharB's packets and the MAPSVRLIST would mean the BR path
+    // wrongly took the handoff branch and emitted MAPSVRLIST early.
+    {
+        auto [w, _] = ReadFramed(p2);
+        EXPECT(w == ToUint16(MessageId::MW_CHARINFO_REQ));
+    }
+    {
+        auto [w, _] = ReadFramed(p2);
+        EXPECT(w == ToUint16(MessageId::MW_ROUTE_REQ));
+    }
+    {
+        auto [w, _] = ReadFramed(p2);
+        EXPECT(w == ToUint16(MessageId::MW_FRIENDLIST_REQ));
+    }
+
+    // CharA's handoff MAPSVRLIST — the W6-16 path under test.
     {
         auto [w, got] = ReadFramed(p2);
         EXPECT(w == ToUint16(MessageId::MW_MAPSVRLIST_REQ));

@@ -107,4 +107,21 @@ SendMwCorpsJoinReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwDelSquadReq(std::shared_ptr<PeerSession> peer,
+                  std::uint32_t                char_id,
+                  std::uint32_t                key,
+                  std::uint16_t                squad_party_id)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint16_t>(body, squad_party_id);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_DELSQUAD_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

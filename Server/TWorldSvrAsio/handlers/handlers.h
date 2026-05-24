@@ -1213,5 +1213,21 @@ boost::asio::awaitable<void> OnCorpsReplyAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3c-3: corps leave / dissolve (handlers_corps.cpp) ------------
+//
+// MW_CORPSLEAVE_ACK removes a squad (party) from a corps — a chief
+// pulling their own squad out, or the general kicking any squad.
+// World mutual-DELSQUADs the leaving squad against the rest, then
+// either dissolves the corps (when it drops to one squad — pulling
+// the last squad out too) or, if the leaver was the commander,
+// promotes the next squad and refreshes the survivors. The leaving
+// squad's members are told their corps/commander are now 0.
+//
+// Wire (SSHandler.cpp:7091): DWORD char_id, key, WORD squad_party_id
+boost::asio::awaitable<void> OnCorpsLeaveAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

@@ -1309,4 +1309,15 @@ boost::asio::awaitable<void> SendMwCorpsJoinReq(
     std::uint16_t                corps_id,
     std::uint16_t                commander_party_id);
 
+// MW_DELSQUAD_REQ — tells a member that a squad (party) has left
+// their corps so its client drops it from the corps roster.
+//
+// Wire layout (SSSender.cpp:2008):
+//   DWORD char_id, DWORD key, WORD squad_party_id
+boost::asio::awaitable<void> SendMwDelSquadReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint16_t                squad_party_id);
+
 } // namespace tworldsvr::senders

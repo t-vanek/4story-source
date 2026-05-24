@@ -448,4 +448,198 @@ OnCorpsReplyAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+namespace {
+
+// Push every member of `party_id` a CORPSJOIN_REQ (their corps id +
+// the given commander) + a PARTYATTR carrying the commander —
+// legacy CorpsJoin. Used to refresh survivors after succession and
+// to tell a leaving squad its corps/commander are now 0 (the
+// party's corps_id is already cleared before this call in that case).
+boost::asio::awaitable<void>
+CorpsJoinBroadcast(const HandlerContext& ctx, std::uint16_t party_id,
+                   std::uint16_t commander)
+{
+    auto party = ctx.parties->Find(party_id);
+    if (!party) co_return;
+    std::uint16_t corps_id = 0;
+    std::uint32_t chief    = 0;
+    std::uint8_t  obtain   = 0;
+    std::vector<std::uint32_t> mids;
+    {
+        std::lock_guard pg(party->lock);
+        corps_id = party->corps_id;
+        chief    = party->chief_char_id;
+        obtain   = party->obtain_type;
+        mids     = party->members;
+    }
+    for (auto mid : mids)
+    {
+        auto c = ctx.chars->Find(mid);
+        if (!c) continue;
+        std::uint32_t key = 0;
+        std::uint8_t  msi = 0;
+        { std::lock_guard g(c->lock); key = c->key; msi = c->main_server_id; }
+        if (auto p = FindMapPeer(ctx, msi))
+        {
+            co_await senders::SendMwCorpsJoinReq(p, mid, key, corps_id,
+                commander);
+            co_await senders::SendMwPartyAttrReq(p, mid, key, party_id, obtain,
+                chief, commander);
+        }
+    }
+}
+
+// Remove `leaving_party_id` from `corps`, mirroring legacy
+// NotifyCorpsLeave. Self-recursive coroutine (dissolve pulls the
+// last squad out too) → forward-declared.
+boost::asio::awaitable<void>
+NotifyCorpsLeave(const HandlerContext& ctx, std::shared_ptr<TCorps> corps,
+                 std::uint16_t leaving_party_id);
+
+boost::asio::awaitable<void>
+NotifyCorpsLeave(const HandlerContext& ctx, std::shared_ptr<TCorps> corps,
+                 std::uint16_t leaving_party_id)
+{
+    std::vector<std::uint16_t> squads;
+    std::uint16_t corps_id = 0;
+    {
+        std::lock_guard cg(corps->lock);
+        squads   = corps->squads;
+        corps_id = corps->id;
+    }
+
+    const Squad leaving = SnapshotSquad(ctx, leaving_party_id);
+
+    // Mutual DELSQUAD: tell each other squad the leaver is gone, and
+    // tell the leaver each other squad is gone.
+    for (auto sid : squads)
+    {
+        if (sid == leaving_party_id) continue;
+        const Squad other = SnapshotSquad(ctx, sid);
+        for (const auto& rt : other.rt)
+            if (auto p = FindMapPeer(ctx, rt.msi))
+                co_await senders::SendMwDelSquadReq(p, rt.char_id, rt.key,
+                    leaving_party_id);
+        for (const auto& rt : leaving.rt)
+            if (auto p = FindMapPeer(ctx, rt.msi))
+                co_await senders::SendMwDelSquadReq(p, rt.char_id, rt.key, sid);
+    }
+
+    bool          dissolve = false, succession = false;
+    std::uint16_t new_commander = 0;
+    {
+        std::lock_guard cg(corps->lock);
+        corps->RemoveParty(leaving_party_id);
+        dissolve = (corps->squads.size() == 1);
+        if (!dissolve && corps->commander_party_id == leaving_party_id &&
+            !corps->squads.empty())
+        {
+            new_commander = corps->squads.front();
+            corps->commander_party_id = new_commander;
+            succession = true;
+        }
+    }
+    if (auto p = ctx.parties->Find(leaving_party_id))
+    {
+        std::lock_guard pg(p->lock);
+        p->corps_id = 0;
+    }
+    if (succession)
+    {
+        std::uint32_t gen = 0;
+        if (auto np = ctx.parties->Find(new_commander))
+        { std::lock_guard pg(np->lock); gen = np->chief_char_id; }
+        std::lock_guard cg(corps->lock);
+        corps->general_char_id = gen;
+    }
+
+    if (dissolve)
+    {
+        std::uint16_t last = 0;
+        { std::lock_guard cg(corps->lock);
+          if (!corps->squads.empty()) last = corps->squads.front(); }
+        if (last != 0) co_await NotifyCorpsLeave(ctx, corps, last);
+        if (ctx.corps) ctx.corps->Remove(corps_id);
+    }
+    else if (succession)
+    {
+        std::vector<std::uint16_t> remaining;
+        { std::lock_guard cg(corps->lock); remaining = corps->squads; }
+        for (auto sid : remaining)
+            co_await CorpsJoinBroadcast(ctx, sid, new_commander);
+    }
+
+    // The leaver's members: corps + commander are now 0.
+    co_await CorpsJoinBroadcast(ctx, leaving_party_id, 0);
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnCorpsLeaveAck(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte>       body,
+                const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties || !ctx.corps)
+    {
+        spdlog::warn("OnCorpsLeaveAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint16_t squad_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(squad_id))
+    {
+        spdlog::warn("OnCorpsLeaveAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    // The squad to remove must be a real party.
+    if (!ctx.parties->Find(squad_id)) co_return;
+
+    auto requester = ctx.chars->Find(char_id);
+    if (!requester) co_return;
+    std::uint32_t actual_key = 0, req_party = 0;
+    {
+        std::lock_guard g(requester->lock);
+        actual_key = requester->key;
+        req_party  = requester->party_id;
+    }
+    if (actual_key != key || req_party == 0) co_return;
+
+    // The requester must be the chief of their party.
+    bool          is_chief = false;
+    std::uint16_t req_corps = 0;
+    if (auto p = ctx.parties->Find(static_cast<std::uint16_t>(req_party)))
+    {
+        std::lock_guard pg(p->lock);
+        is_chief  = p->IsChief(char_id);
+        req_corps = p->corps_id;
+    }
+    if (!is_chief || req_corps == 0) co_return;
+
+    auto corps = ctx.corps->Find(req_corps);
+    if (!corps) co_return;
+
+    // Authority: leave your own squad, or — as general — kick any.
+    bool is_member = false;
+    std::uint32_t general = 0;
+    {
+        std::lock_guard cg(corps->lock);
+        is_member = corps->IsParty(squad_id);
+        general   = corps->general_char_id;
+    }
+    if (!is_member) co_return;
+    if (squad_id != static_cast<std::uint16_t>(req_party) && general != char_id)
+        co_return;
+
+    co_await NotifyCorpsLeave(ctx, corps, squad_id);
+    spdlog::info("OnCorpsLeaveAck[{}]: char_id={} removed squad {} "
+                 "from corps {}", ip, char_id, squad_id, req_corps);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

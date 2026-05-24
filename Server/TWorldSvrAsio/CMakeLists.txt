@@ -370,3 +370,14 @@ target_link_libraries(test_tworldsvr_asio_corps_reply_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_corps_reply_handlers
     COMMAND test_tworldsvr_asio_corps_reply_handlers)
+
+# W3c-3 wire test: MW_CORPSLEAVE_ACK leave/dissolve over a
+# three-peer loopback session — unauthorized-kick reject, commander
+# succession (3→2 squads), and the dissolve cascade (2→0 with the
+# last squad pulled out + the corps dropped from the registry).
+add_executable(test_tworldsvr_asio_corps_leave_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_corps_leave_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_corps_leave_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_corps_leave_handlers
+    COMMAND test_tworldsvr_asio_corps_leave_handlers)

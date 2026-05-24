@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3c-2 corps formation (CORPSREPLY)
+## Status — W3c-3 corps leave / dissolve (CORPSLEAVE)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -64,12 +64,52 @@ that the four shipped Asio daemons already use.
 | W3b-5 | Party member recall — OnMW_PARTYMEMBERRECALL_ACK (summon/move-to gate + RECALLANS_REQ forward) + OnMW_PARTYMEMBERRECALLANS_ACK (destination relay, same-map + meeting-room gates) + 2 senders | ✅ |
 | W3b-6 | Party round-robin loot — OnMW_PARTYORDERTAKEITEM_ACK (turn-cursor next-looter selection + item forward via the cabinet codec; stale-party MIT_NOTFOUND) + TParty order rotation (GetNextOrder/SetNextOrder/GetOrderIndex) + 2 senders | ✅ |
 | W3c-1 | Corps subsystem opener — CorpsRegistry + TCorps + corps_constants + OnMW_CORPSASK_ACK invite-relay gate (CheckCorpsJoin) + SendMwCorpsAskReq/ReplyReq | ✅ |
-| **W3c-2** | Corps formation — OnMW_CORPSREPLY_ACK (create new corps / join existing) + CorpsRegistry::GenId (shared party id pool) + NotifyCorpsJoin pairwise ADDSQUAD fan-out + CORPSJOIN_REQ + commander PARTYATTR + SendMwAddSquadReq/CorpsJoinReq | ✅ |
-| W3c-3+ | CORPSLEAVE + CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle) + corps command/enemy-list | ⏸ |
+| W3c-2 | Corps formation — OnMW_CORPSREPLY_ACK (create new corps / join existing) + CorpsRegistry::GenId (shared party id pool) + NotifyCorpsJoin pairwise ADDSQUAD fan-out + CORPSJOIN_REQ + commander PARTYATTR + SendMwAddSquadReq/CorpsJoinReq | ✅ |
+| **W3c-3** | Corps leave/dissolve — OnMW_CORPSLEAVE_ACK + NotifyCorpsLeave (mutual DELSQUAD fan-out, commander succession, dissolve cascade on drop-to-one) + SendMwDelSquadReq | ✅ |
+| W3c-4+ | CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle) + corps command/enemy-list | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3c-3 — what landed
+
+Corps **leave / dissolve** — the corps-level analog of party
+PARTYDEL; completes the corps create→form→leave triangle.
+
+Handler — `OnCorpsLeaveAck` (wID 0x9073): a party chief removes a
+squad — their own (`squad_id == their party`) or, as the general,
+any squad. Gates: requester is their party's chief, in a corps, the
+target squad is a real party + a member of that corps, and the
+authority check (own squad or general).
+
+`NotifyCorpsLeave` (file-local self-recursive coroutine, mirrors
+legacy NotifyCorpsLeave): mutual `MW_DELSQUAD_REQ` (each other
+squad's members drop the leaver, the leaver's members drop each
+other squad), `TCorps::RemoveParty` + the leaving party's cleared
+`corps_id`, then —
+- **dissolve** when the corps drops to one squad: pull the last
+  squad out via a recursive `NotifyCorpsLeave` and drop the corps
+  from the registry;
+- **succession** when the leaver was the commander (and the corps
+  survives): promote the first remaining squad (+ its chief as the
+  new general) and refresh every survivor's HUD with a
+  `CorpsJoinBroadcast` (CORPSJOIN + commander PARTYATTR);
+- the leaver's members always get `CORPSJOIN_REQ(0, 0)` + a
+  cleared PARTYATTR.
+
+Sender — `SendMwDelSquadReq`. The CORPSJOIN/PARTYATTR refresh
+reuses a new file-local `CorpsJoinBroadcast`. Lock chain unchanged
+(char → party → corps, never two held at once).
+
+Tests — `tests/test_corps_leave_handlers.cpp` (3 scenarios,
+three-peer loopback on one corps): an unauthorized kick (rejected,
+corps unchanged), commander succession (3→2 squads, asserts the
+DELSQUAD fan-out + the survivors' new-commander CORPSJOIN/PARTYATTR
++ the registry commander/general flip), and the dissolve cascade
+(2→0: both squads pulled out, corps removed).
+
+Build verified: cmake + ctest -R tworldsvr_asio (28/28 passed).
 
 ### W3c-2 — what landed
 

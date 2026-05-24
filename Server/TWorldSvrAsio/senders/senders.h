@@ -2114,4 +2114,38 @@ boost::asio::awaitable<void> SendMwCharDataReq(
     std::uint32_t                char_id,
     std::uint32_t                key);
 
+// --- W6-21 teleport confirm (senders_conn.cpp) --------------------
+
+// MW_TELEPORT_REQ — the teleport outcome relayed back to the
+// originating map (which forwards it to the client). `result` is a
+// TTELEPORT_RESULT byte (TPR_SUCCESS / TPR_NODESTINATION / …;
+// NetCode.h:254).
+//   Wire (SSSender.cpp:614): DWORD char_id, key, BYTE channel,
+//     WORD map_id, FLOAT pos_x, pos_y, pos_z, BYTE result
+boost::asio::awaitable<void> SendMwTeleportReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z,
+    std::uint8_t                 result);
+
+// MW_CONLIST_REQ — ask the destination map for the char's connection
+// list (fired after a successful teleport so the new map's reconcile
+// re-enters the W6-13 CONLIST/MAPSVRLIST flow).
+//   Wire (SSSender.cpp:592): DWORD char_id, key, BYTE channel,
+//     WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> SendMwConListReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z);
+
 } // namespace tworldsvr::senders

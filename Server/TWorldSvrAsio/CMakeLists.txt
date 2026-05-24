@@ -875,3 +875,13 @@ target_link_libraries(test_tworldsvr_asio_route_completion_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_route_completion_handlers
     COMMAND test_tworldsvr_asio_route_completion_handlers)
+
+# W6-21 wire test: teleport confirm — happy path (TELEPORT_REQ SUCCESS +
+# CONLIST_REQ on destination), NODESTINATION (TELEPORT_REQ + CloseChar
+# DELCHAR fan-out), unknown char → DELCHAR.
+add_executable(test_tworldsvr_asio_teleport_confirm_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_teleport_confirm_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_teleport_confirm_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_teleport_confirm_handlers
+    COMMAND test_tworldsvr_asio_teleport_confirm_handlers)

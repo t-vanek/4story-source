@@ -22,6 +22,8 @@
 #include "../services/guild_repository.h"
 #include "../services/guild_wanted_registry.h"
 #include "../services/guild_tactics_wanted_registry.h"
+#include "../services/party_registry.h"
+#include "../services/corps_registry.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -67,6 +69,15 @@ struct HandlerContext
     // entries per guild (vs. one for guild_wanted), each with a
     // globally-unique id. Owned by main; non-null in W3a-31+.
     GuildTacticsWantedRegistry* guild_tactics_wanted = nullptr;
+
+    // W3b-1: cluster-wide party index. Owned by main; non-null in
+    // W3b-1+ deploys. Party-flow handlers consult it for the
+    // requester's existing-party state (chief / size gates).
+    PartyRegistry*            parties    = nullptr;
+
+    // W3c-1: cluster-wide corps index (party alliances under a
+    // general). Owned by main; non-null in W3c-1+ deploys.
+    CorpsRegistry*            corps      = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1007,6 +1018,177 @@ boost::asio::awaitable<void> OnEnterCharReq(
 //
 // Wire layout: DWORD dwCharID
 boost::asio::awaitable<void> OnRelayConnectReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3b-1: party invite relay (handlers_party.cpp) ----------------
+//
+// The first slice of the party subsystem (the W3a guild vertical's
+// W3b sibling). MW_PARTYADD_ACK is the chief/solo player asking to
+// invite another player into a party. World runs the legacy
+// validation gate (target online / not mid-invite / not already
+// partied / same war-country / requester is chief of a non-full,
+// non-arena party) and either relays the failure result back to the
+// requester's map or forwards PARTY_AGREE to the target's map so
+// their client pops the "join party?" dialog. On AGREE the target
+// is flagged party_waiter to block a second concurrent invite.
+//
+// No party is created here — formation happens when the target
+// answers (MW_PARTYJOIN_ACK, W3b-2). The requester's combat stats
+// ride along on the packet and are stashed on their TChar for the
+// later JOIN broadcast (legacy SetCharStatus).
+//
+// Wire layout (SSHandler.cpp:2486):
+//   STRING strRequest, STRING strTarget, BYTE bObtainType,
+//   DWORD dwMaxHP, DWORD dwHP, DWORD dwMaxMP, DWORD dwMP
+boost::asio::awaitable<void> OnPartyAddAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3b-2: party formation (handlers_party.cpp) -------------------
+//
+// MW_PARTYJOIN_ACK is the invitee's answer to the PARTY_AGREE
+// dialog that OnPartyAddAck forwarded. On ASK_YES (and the gates
+// still hold) world forms the party: if the inviter already has a
+// party the invitee joins it, otherwise a fresh TParty is created
+// with the inviter as chief. Either way the JoinParty fan-out
+// fires pairwise MW_PARTYJOIN_REQ packets (each member learns the
+// joiner, the joiner learns each member) followed by a
+// MW_PARTYATTR_REQ HUD refresh; the joining char's party_id
+// back-pointer is set. Denials / stale-state failures relay a
+// MW_PARTYADD_REQ result back to the inviter (or invitee).
+//
+// Wire layout (SSHandler.cpp:2623):
+//   STRING strOrigin, STRING strTarget, BYTE bObtainType,
+//   BYTE bResponse, DWORD dwMaxHP, DWORD dwHP, DWORD dwMaxMP,
+//   DWORD dwMP
+boost::asio::awaitable<void> OnPartyJoinAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3b-3: party leave / kick (handlers_party.cpp) ----------------
+//
+// MW_PARTYDEL_ACK removes one member from a party — voluntary
+// leave (bKick=0, char removes self) or chief kick (bKick=1, the
+// map server already validated chief authority). World runs the
+// legacy LeaveParty: if the party still has ≥2 members afterwards
+// it survives (with chief succession to the next member if the
+// leaver was chief), otherwise it disbands and the last remaining
+// member is pulled out too. Every member is told via
+// MW_PARTYDEL_REQ + the survivors get a MW_PARTYATTR_REQ refresh;
+// the leaver's party_id back-pointer is cleared.
+//
+// Wire layout (SSHandler.cpp:2817):
+//   WORD wPartyID, DWORD dwCharID, BYTE bKick
+boost::asio::awaitable<void> OnPartyDelAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3b-4: party attribute changes (handlers_party.cpp) -----------
+//
+// Three small chief-/member-driven party mutations, each fanning a
+// broadcast to the party roster.
+//
+// MANSTAT — a member's HP/MP/level changed on the map side; world
+// updates that member's stored combat stats and re-broadcasts to
+// every member so their roster HUD refreshes.
+//   Wire (SSHandler.cpp:2840): WORD party_id, DWORD member_id,
+//     BYTE type, BYTE level, DWORD max_hp, DWORD hp, DWORD max_mp,
+//     DWORD mp
+boost::asio::awaitable<void> OnPartyManstatAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// CHGPARTYCHIEF — chief hands leadership to another member. Gates:
+// both online + both in the same party + requester is chief +
+// target isn't already chief. On success sets the new chief +
+// re-broadcasts MW_PARTYATTR_REQ to every member.
+//   Wire (SSHandler.cpp:2334): DWORD chief_id, DWORD key,
+//     DWORD target_id
+boost::asio::awaitable<void> OnChgPartyChiefAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// CHGPARTYTYPE — chief changes the loot-distribution mode. Gates:
+// requester in a party + is chief. On success updates the party's
+// obtain_type + broadcasts MW_CHGPARTYTYPE_REQ to every member.
+//   Wire (SSHandler.cpp:2447): DWORD char_id, DWORD key,
+//     BYTE party_type
+boost::asio::awaitable<void> OnChgPartyTypeAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3b-5: party member recall (handlers_party.cpp) ---------------
+//
+// The recall-scroll teleport flow between two party members. A
+// member either summons another to their location (TP_RECALL) or
+// moves themselves to another member (TP_MOVETO).
+//
+// RECALL_ACK is the initiator's request: world validates the pair
+// (same party + same map for a summon; same map + same war-country
+// for a move-to) and forwards MW_PARTYMEMBERRECALLANS_REQ to the
+// other party's map so their client confirms; on a failed gate it
+// relays MW_PARTYMEMBERRECALL_REQ(IU_TARGETBUSY) back to the
+// initiator. RECALLANS_ACK is the confirmation coming back with the
+// destination position; world re-checks (same map, not a small
+// meeting room) and relays MW_PARTYMEMBERRECALL_REQ to the char
+// being teleported.
+//
+// Wire (SSHandler.cpp:8710): DWORD char_id, key, BYTE inven_id,
+//   item_id, STRING origin_name, target_name
+boost::asio::awaitable<void> OnPartyMemberRecallAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Wire (SSHandler.cpp:8799): BYTE result, STRING user_name,
+//   target_name, BYTE type, inven_id, item_id, channel,
+//   WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> OnPartyMemberRecallAnsAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3b-6: party round-robin loot (handlers_party.cpp) ------------
+//
+// MW_PARTYORDERTAKEITEM_ACK — a monster dropped an item for a
+// PT_ORDER (turn-based loot) party. World picks the next looter via
+// the party's turn cursor among the eligible members (those in
+// range of the drop) and forwards MW_PARTYORDERTAKEITEM_REQ with
+// the item to that looter's map. A stale party id replies
+// MW_ADDITEMRESULT_REQ(MIT_NOTFOUND) to the reporting map.
+//
+// Wire (SSHandler.cpp:5693): DWORD char_id, key, WORD party_id,
+//   BYTE server_id, channel, WORD map_id, DWORD mon_id,
+//   WORD temp_mon_id, BYTE member_count, DWORD member[member_count],
+//   <CreateItem>
+boost::asio::awaitable<void> OnPartyOrderTakeItemAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3c-1: corps invite relay (handlers_corps.cpp) ----------------
+//
+// Opens the corps subsystem (the party subsystem's parent: a corps
+// is a set of parties/squads under a general). MW_CORPSASK_ACK is
+// a party chief inviting another party's chief to ally into a
+// corps. World validates both are party chiefs of the same
+// war-country, neither party is in an arena, and the CheckCorpsJoin
+// gate (not both already in a corps; neither corps at the
+// MAX_CORPS_PARTY cap), then forwards MW_CORPSASK_REQ to the target
+// chief's map so their client pops the confirm dialog. Failures
+// relay MW_CORPSREPLY_REQ back to the inviter. No corps is created
+// here — formation happens on the answer (MW_CORPSREPLY_ACK, W3c-2).
+//
+// Wire (SSHandler.cpp:6873): DWORD char_id, key, STRING target_name
+boost::asio::awaitable<void> OnCorpsAskAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

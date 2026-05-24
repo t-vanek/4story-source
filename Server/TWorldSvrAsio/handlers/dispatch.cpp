@@ -343,8 +343,44 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             std::move(body), ctx);
         co_return;
 
-    // W3a-36+ picks up the tactics term-expiry sweep,
-    // cabinet PUTIN/TAKEOUT + item codec. … see README §4.
+    // ---- W3b-1/W3b-2: party invite + formation (handlers_party) -
+    case MessageId::MW_PARTYADD_ACK:
+        co_await OnPartyAddAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYJOIN_ACK:
+        co_await OnPartyJoinAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYDEL_ACK:
+        co_await OnPartyDelAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYMANSTAT_ACK:
+        co_await OnPartyManstatAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHGPARTYCHIEF_ACK:
+        co_await OnChgPartyChiefAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHGPARTYTYPE_ACK:
+        co_await OnChgPartyTypeAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYMEMBERRECALL_ACK:
+        co_await OnPartyMemberRecallAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYMEMBERRECALLANS_ACK:
+        co_await OnPartyMemberRecallAnsAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_PARTYORDERTAKEITEM_ACK:
+        co_await OnPartyOrderTakeItemAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // ---- W3c-1: corps invite relay (handlers_corps.cpp) --------
+    case MessageId::MW_CORPSASK_ACK:
+        co_await OnCorpsAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W3c-2+ picks up CORPSREPLY (formation) + CORPSLEAVE +
+    // CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle). … README §4.
 
     default:
         break;

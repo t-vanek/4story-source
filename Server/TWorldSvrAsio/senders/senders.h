@@ -967,4 +967,290 @@ boost::asio::awaitable<void> SendMwGuildPvPRecordReq(
     std::uint32_t                              key,
     const std::vector<GuildPvPRecordRow>&      members);
 
+// --- W3b-1 party invite relay -------------------------------------
+
+// MW_PARTYADD_REQ — the party-invite result/dialog packet. On a
+// failure result it lands on the requester's map (their client
+// shows the toast); on PARTY_AGREE it lands on the target's map
+// (their client pops the "join party?" dialog, keyed by
+// request_char_id). The dwRequest field is the inviter's char_id —
+// 0 on the failure branches, the inviter on AGREE.
+//
+// Wire layout (SSSender.cpp:694):
+//   DWORD  char_id          -- recipient
+//   DWORD  key              -- recipient's session key
+//   STRING request_name     -- inviter's name
+//   STRING target_name      -- invitee's name
+//   BYTE   obtain_type      -- proposed loot mode (PT_*)
+//   BYTE   result           -- PARTY_* (party::k*)
+//   DWORD  request_char_id   -- inviter id (AGREE) / 0 (failure)
+boost::asio::awaitable<void> SendMwPartyAddReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           request_name,
+    const std::string&           target_name,
+    std::uint8_t                 obtain_type,
+    std::uint8_t                 result,
+    std::uint32_t                request_char_id);
+
+// --- W3b-2 party formation ----------------------------------------
+
+// Describe-fields for the member being announced in a
+// MW_PARTYJOIN_REQ. The legacy sender pulls them straight off the
+// TChar (pNew->m_*); we snapshot them into this POD so the sender
+// stays a stateless field-writer.
+struct PartyMemberInfo
+{
+    std::uint32_t char_id = 0;
+    std::string   name;
+    std::string   guild_name;        // NAME_NULL ("") when guildless
+    std::uint8_t  level   = 0;
+    std::uint32_t max_hp  = 0;
+    std::uint32_t hp      = 0;
+    std::uint32_t max_mp  = 0;
+    std::uint32_t mp      = 0;
+    std::uint8_t  race    = 0;
+    std::uint8_t  sex     = 0;
+    std::uint8_t  face    = 0;
+    std::uint8_t  hair    = 0;
+    std::uint8_t  klass   = 0;
+};
+
+// MW_PARTYJOIN_REQ — sent to every party member (and the joiner)
+// when a char joins, announcing one member to one recipient. The
+// JoinParty fan-out fires it pairwise: each existing member learns
+// about the joiner and the joiner learns about each member.
+//
+// Wire layout (SSSender.cpp:716):
+//   DWORD  recipient_char_id
+//   DWORD  recipient_key
+//   WORD   party_id
+//   STRING member.name
+//   DWORD  member.char_id
+//   DWORD  chief_id
+//   WORD   commander_id          -- corps commander (0, no corps)
+//   STRING member.guild_name
+//   BYTE   member.level
+//   DWORD  member.max_hp
+//   DWORD  member.hp
+//   DWORD  member.max_mp
+//   DWORD  member.mp
+//   BYTE   member.race
+//   BYTE   member.sex
+//   BYTE   member.face
+//   BYTE   member.hair
+//   BYTE   obtain_type
+//   BYTE   member.klass
+boost::asio::awaitable<void> SendMwPartyJoinReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                recipient_char_id,
+    std::uint32_t                recipient_key,
+    std::uint16_t                party_id,
+    std::uint32_t                chief_id,
+    std::uint16_t                commander_id,
+    std::uint8_t                 obtain_type,
+    const PartyMemberInfo&       member);
+
+// MW_PARTYATTR_REQ — pushed to a char after their party membership
+// changes so their client re-renders the party HUD (id / loot mode
+// / chief / corps commander). Sent with party_id=0 (and zeroed
+// meta) when the char leaves a party (W3b-3).
+//
+// Wire layout (SSSender.cpp:1856):
+//   DWORD char_id, DWORD key, WORD party_id, BYTE party_type,
+//   DWORD chief_id, WORD commander_id
+boost::asio::awaitable<void> SendMwPartyAttrReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint16_t                party_id,
+    std::uint8_t                 party_type,
+    std::uint32_t                chief_id,
+    std::uint16_t                commander_id);
+
+// --- W3b-3 party leave / kick -------------------------------------
+
+// MW_PARTYDEL_REQ — sent to every party member when one leaves (or
+// is kicked). The leaver receives it with chief_id = 0 and
+// party_id = 0 (telling their client they're now partyless); the
+// remaining members receive the surviving chief + party id so
+// their roster re-renders. On a disband (party drops below two)
+// every member sees chief_id/party_id = 0.
+//
+// Wire layout (SSSender.cpp:749):
+//   DWORD recipient_char_id
+//   DWORD recipient_key
+//   DWORD leaver_char_id      -- who left / was kicked
+//   DWORD chief_id            -- surviving chief (0 for the leaver
+//                                / on disband)
+//   WORD  commander_id        -- corps commander (0, no corps)
+//   WORD  party_id            -- 0 when chief_id is 0
+//   BYTE  kick                -- 1 = kicked, 0 = voluntary leave
+boost::asio::awaitable<void> SendMwPartyDelReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                recipient_char_id,
+    std::uint32_t                recipient_key,
+    std::uint32_t                leaver_char_id,
+    std::uint32_t                chief_id,
+    std::uint16_t                commander_id,
+    std::uint16_t                party_id,
+    std::uint8_t                 kick);
+
+// --- W3b-4 party attribute changes --------------------------------
+
+// MW_PARTYMANSTAT_REQ — one party member's combat stats / level
+// changed; broadcast to every member so their roster HUD updates.
+// `member_char_id` is the subject; the recipient is each member in
+// turn.
+//
+// Wire layout (SSSender.cpp:770):
+//   DWORD recipient_char_id, DWORD recipient_key,
+//   DWORD member_char_id, BYTE type, BYTE level,
+//   DWORD max_hp, DWORD hp, DWORD max_mp, DWORD mp
+boost::asio::awaitable<void> SendMwPartyManstatReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                recipient_char_id,
+    std::uint32_t                recipient_key,
+    std::uint32_t                member_char_id,
+    std::uint8_t                 type,
+    std::uint8_t                 level,
+    std::uint32_t                max_hp,
+    std::uint32_t                hp,
+    std::uint32_t                max_mp,
+    std::uint32_t                mp);
+
+// MW_CHGPARTYCHIEF_REQ — result of a chief handing leadership to
+// another member. On success (PARTY_CHGCHIEF) only the requesting
+// chief gets this reply; the roster-wide refresh rides on the
+// MW_PARTYATTR_REQ broadcast. Failure branches (NOUSER / NOPARTY /
+// NOTCHIEF / ALREADY) also reply to the requester.
+//
+// Wire layout (SSSender.cpp:1844):
+//   DWORD char_id, DWORD key, BYTE result
+boost::asio::awaitable<void> SendMwChgPartyChiefReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result);
+
+// MW_CHGPARTYTYPE_REQ — result of a chief changing the loot mode.
+// On success broadcast to every member with result=0; the
+// not-chief failure replies only to the requester.
+//
+// Wire layout (SSSender.cpp:678):
+//   DWORD char_id, DWORD key, BYTE result, BYTE party_type
+boost::asio::awaitable<void> SendMwChgPartyTypeReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint8_t                 party_type);
+
+// --- W3b-5 party member recall ------------------------------------
+
+// MW_PARTYMEMBERRECALLANS_REQ — forwarded to the other party (the
+// recall target on a summon, or the destination member on a
+// move-to) so their client pops the recall confirmation dialog.
+//
+// Wire layout (SSSender.cpp:2831):
+//   DWORD char_id, DWORD key, STRING other_name, BYTE type,
+//   BYTE inven_id, BYTE item_id
+boost::asio::awaitable<void> SendMwPartyMemberRecallAnsReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           other_name,
+    std::uint8_t                 type,
+    std::uint8_t                 inven_id,
+    std::uint8_t                 item_id);
+
+// MW_PARTYMEMBERRECALL_REQ — the recall outcome relayed back to the
+// char being teleported: a failure result (IU_TARGETBUSY) with the
+// trailing destination fields zeroed, or the granted destination
+// (channel + map + position) from the answer.
+//
+// Wire layout (SSSender.cpp:2799):
+//   DWORD char_id, DWORD key, BYTE result, STRING target_name,
+//   BYTE type, BYTE inven_id, BYTE item_id, BYTE channel,
+//   WORD map_id, FLOAT pos_x, FLOAT pos_y, FLOAT pos_z
+boost::asio::awaitable<void> SendMwPartyMemberRecallReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    const std::string&           target_name,
+    std::uint8_t                 type,
+    std::uint8_t                 inven_id,
+    std::uint8_t                 item_id,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z);
+
+// --- W3b-6 party round-robin loot (PT_ORDER) ----------------------
+
+// MW_PARTYORDERTAKEITEM_REQ — hands the next looter (chosen by the
+// party's turn cursor) the dropped item. The trailing item is
+// written with the W3a-37 cabinet codec (legacy WrapItem).
+//
+// Wire layout (SSSender.cpp:1698):
+//   DWORD char_id, DWORD key, BYTE server_id, BYTE channel,
+//   WORD map_id, DWORD mon_id, WORD temp_mon_id, <WrapItem>
+boost::asio::awaitable<void> SendMwPartyOrderTakeItemReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 server_id,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    std::uint32_t                mon_id,
+    std::uint16_t                temp_mon_id,
+    const TGuildCabinetItem&     item);
+
+// MW_ADDITEMRESULT_REQ — generic item-pickup result; the PT_ORDER
+// path uses it to report MIT_NOTFOUND when the party id is stale.
+//
+// Wire layout (SSSender.cpp:1889):
+//   DWORD char_id, DWORD key, BYTE channel, WORD map_id,
+//   DWORD mon_id, BYTE item_id, BYTE result
+boost::asio::awaitable<void> SendMwAddItemResultReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    std::uint32_t                mon_id,
+    std::uint8_t                 item_id,
+    std::uint8_t                 result);
+
+// --- W3c-1 corps invite relay (senders_corps.cpp) -----------------
+
+// MW_CORPSASK_REQ — forwarded to the target chief's map when a
+// party chief invites them to ally into a corps. Their client pops
+// the confirm dialog keyed by the inviter.
+//
+// Wire layout (SSSender.cpp:2021):
+//   DWORD char_id, DWORD key, DWORD inviter_char_id,
+//   STRING inviter_name
+boost::asio::awaitable<void> SendMwCorpsAskReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                inviter_char_id,
+    const std::string&           inviter_name);
+
+// MW_CORPSREPLY_REQ — the corps-invite result relayed back to a
+// chief (CORPS_* code + the other chief's name).
+//
+// Wire layout (SSSender.cpp:1954):
+//   DWORD char_id, DWORD key, BYTE result, STRING name
+boost::asio::awaitable<void> SendMwCorpsReplyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    const std::string&           name);
+
 } // namespace tworldsvr::senders

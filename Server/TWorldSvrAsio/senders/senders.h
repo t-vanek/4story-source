@@ -141,6 +141,53 @@ boost::asio::awaitable<void> SendMwRelayconnectReq(
     std::uint32_t                char_id,
     std::uint8_t                 relay_on);
 
+// MW_LEVELUP_REQ — propagate a char's new level to another map
+// server it is visible on (the char's non-main connections).
+//
+// Wire layout (SSSender.cpp:795):
+//   DWORD char_id, DWORD key, BYTE level
+boost::asio::awaitable<void> SendMwLevelUpReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 level);
+
+// MW_PETRIDING_REQ — propagate a char's active mount to another map
+// session it is visible on (the char's non-originating connections).
+//   Wire (SSSender.cpp): DWORD char_id, key, DWORD riding
+boost::asio::awaitable<void> SendMwPetRidingReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                riding);
+
+// MW_HELMETHIDE_REQ — confirm a char's helmet-visibility toggle back
+// to the originating map (which then renders + broadcasts locally).
+//   Wire (SSSender.cpp): DWORD char_id, key, BYTE hide
+boost::asio::awaitable<void> SendMwHelmetHideReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 hide);
+
+// MW_CHARSTATINFOANS_REQ — ask a target's map to gather the
+// inspected char's stat block (step 1 of the inspect-player relay).
+//
+// Wire layout (SSSender.cpp:1917):
+//   DWORD req_char_id, DWORD char_id
+boost::asio::awaitable<void> SendMwCharStatInfoAnsReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                req_char_id,
+    std::uint32_t                char_id);
+
+// MW_CHARSTATINFO_REQ — relay the gathered stat block back to the
+// requester's map (step 2). The body is forwarded verbatim (the
+// inbound CHARSTATINFOANS_ACK payload, leading with req_char_id) —
+// world doesn't interpret the stats.
+boost::asio::awaitable<void> SendMwCharStatInfoReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
 // MW_GUILDLEAVE_REQ — sent back to the originating map server
 // after world removes a member from a guild. The map server
 // forwards the confirmation down to the client + broadcasts the
@@ -1576,5 +1623,75 @@ boost::asio::awaitable<void> SendMwChatReq(
     std::uint8_t                 group,
     std::uint32_t                target_id,
     const std::string&           talk);
+
+// --- W4-11 TMS conference channels (senders_tms.cpp) --------------
+
+// MW_TMSRECV_REQ — a conference message delivered to one member.
+//   Wire (SSSender.cpp:2173):
+//     DWORD char_id, key, tms, STRING sender_name, STRING message
+boost::asio::awaitable<void> SendMwTmsRecvReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                tms,
+    const std::string&           sender_name,
+    const std::string&           message);
+
+// MW_TMSINVITEASK_REQ — forwarded to a target's map so their client
+// pops the "join conference?" dialog (keyed by the requester).
+//   Wire (SSSender.cpp:2190):
+//     DWORD char_id, key, target_id, target_key, tms, STRING message
+boost::asio::awaitable<void> SendMwTmsInviteAskReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                target_id,
+    std::uint32_t                target_key,
+    std::uint32_t                tms,
+    const std::string&           message);
+
+// One roster row in a MW_TMSINVITE_REQ. Mirrors the per-member
+// fields the legacy sender pulls off each LPTCHARACTER.
+struct TmsMemberInfo
+{
+    std::uint32_t char_id = 0;
+    std::string   name;
+    std::uint8_t  klass   = 0;
+    std::uint8_t  level   = 0;
+};
+
+// MW_TMSINVITE_REQ — announces the full conference roster to one
+// recipient. `inviter` identifies who triggered the change.
+//   Wire (SSSender.cpp:2209):
+//     DWORD char_id, key, inviter, tms, BYTE member_count,
+//     × member_count: DWORD id, STRING name, BYTE klass, BYTE level
+boost::asio::awaitable<void> SendMwTmsInviteReq(
+    std::shared_ptr<PeerSession>       peer,
+    std::uint32_t                      char_id,
+    std::uint32_t                      key,
+    std::uint32_t                      inviter,
+    std::uint32_t                      tms,
+    const std::vector<TmsMemberInfo>&  members);
+
+// MW_TMSOUT_REQ — tells a member that someone left the conference.
+//   Wire (SSSender.cpp:2235):
+//     DWORD char_id, key, tms, STRING target_name
+boost::asio::awaitable<void> SendMwTmsOutReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                tms,
+    const std::string&           target_name);
+
+// --- W4-13 mail delivery relay (senders_post.cpp) -----------------
+
+// MW_POSTRECV_REQ — "you have new mail" notification routed to the
+// recipient's map. The body is forwarded verbatim (the inbound
+// POSTRECV_ACK payload: post_id / sender / target / title / type) —
+// world never interprets it, it only routes by the target name.
+// Legacy re-tags the inbound packet in place (SSSender.cpp:2250).
+boost::asio::awaitable<void> SendMwPostRecvReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
 
 } // namespace tworldsvr::senders

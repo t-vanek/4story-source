@@ -182,6 +182,21 @@ struct TChar
     // current pairing (target = 0 when unpaired).
     std::uint8_t real_sex = 0;
     TSoulmate    soulmate;
+
+    // W4-11 — the TMS conferences this char currently belongs to
+    // (legacy m_mapTMS, a set of TMS ids). Resolved through
+    // TmsRegistry on demand — same cycle-free back-link pattern as
+    // party_id / guild_id. Typical size 0..few; lookups are linear.
+    std::vector<std::uint32_t> tms;
+
+    // W4-14 — per-character visual state synced cluster-wide. `riding`
+    // (legacy m_dwRiding) is the active mount/pet-ride id, propagated
+    // to the char's *other* map sessions so each client renders the
+    // mount. `helmet_hide` (legacy m_bHelmetHide) toggles helmet
+    // visibility; the authoritative value is stored here and confirmed
+    // back to the originating map.
+    std::uint32_t riding      = 0;
+    std::uint8_t  helmet_hide = 0;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

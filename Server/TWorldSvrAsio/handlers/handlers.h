@@ -24,6 +24,8 @@
 #include "../services/guild_tactics_wanted_registry.h"
 #include "../services/party_registry.h"
 #include "../services/corps_registry.h"
+#include "../services/tms_registry.h"
+#include "../services/friend_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -54,6 +56,13 @@ struct HandlerContext
 
     IGuildRepository*         guild_repo = nullptr;
 
+    // W4-15: friend / friend-group / soulmate load source. Read at
+    // char-online (OnAddCharAck) to hydrate TChar.friends /
+    // friend_groups / soulmate. nullptr → no persistence (the
+    // in-memory registry is the only store, e.g. the no-[database]
+    // dev path + tests that don't seed a fake).
+    IFriendRepository*        friend_repo = nullptr;
+
     // W3a-4d: TGUILDCHART mirror loaded at boot. Handlers consult
     // it for per-level caps (member cap, cabinet slots, peerage
     // slot limits). Read-only after main wires it; nullptr means
@@ -78,6 +87,10 @@ struct HandlerContext
     // W3c-1: cluster-wide corps index (party alliances under a
     // general). Owned by main; non-null in W3c-1+ deploys.
     CorpsRegistry*            corps      = nullptr;
+
+    // W4-11: cluster-wide TMS conference index. Owned by main;
+    // non-null in W4-11+ deploys.
+    TmsRegistry*              tms        = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1442,6 +1455,13 @@ boost::asio::awaitable<void> NotifyFriendsOnLogout(
 boost::asio::awaitable<void> NotifySoulmateOnLogout(
     const HandlerContext& ctx, std::shared_ptr<TChar> who);
 
+// W4-12: drop a logging-out char from every TMS conference it was
+// in, telling the surviving members (legacy LeaveTMS). Declared
+// here next to its W4-7 friend/soulmate siblings; defined in
+// handlers_tms.cpp. Called from OnCloseCharAck.
+boost::asio::awaitable<void> NotifyTmsOnLogout(
+    const HandlerContext& ctx, std::shared_ptr<TChar> who);
+
 // --- W4-6: soulmate (handlers_soulmate.cpp) ------------------------
 //
 // The marriage/pairing flow. SEARCH matchmakes among online chars
@@ -1478,6 +1498,136 @@ boost::asio::awaitable<void> OnSoulmateEndAck(
 // (legacy OnMW_REGION_ACK). No outbound packet.
 //   Wire (SSHandler.cpp:8496): DWORD char_id, key, DWORD region
 boost::asio::awaitable<void> OnRegionAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W4-9: level update (handlers_char.cpp) ------------------------
+//
+// MW_LEVELUP_ACK — a char's level changed. Stores TChar.level (the
+// authoritative source the party/guild/friend/soulmate displays
+// read), fans MW_LEVELUP_REQ to the char's other map connections,
+// and syncs the new level into the soulmate partner's view —
+// auto-dissolving the pairing if the level gap now exceeds
+// SOULMATE_LEVEL (legacy CheckSoulmateEnd). The legacy war-country
+// level-gap index is deferred to W5. DB persistence deferred.
+//   Wire (SSHandler.cpp:2910): DWORD char_id, key, BYTE level
+boost::asio::awaitable<void> OnLevelUpAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W4-10: inspect-player stat relay (handlers_char.cpp) ----------
+//
+// The two-step "inspect another player's stats" relay.
+// CHARSTATINFO_ACK is the requester asking about a target: world
+// routes MW_CHARSTATINFOANS_REQ to the target's map to gather the
+// stat block. CHARSTATINFOANS_ACK carries that block back (leading
+// with the requester id); world relays it verbatim as
+// MW_CHARSTATINFO_REQ to the requester's map (opaque passthrough).
+//   Wire (SSHandler.cpp:6739): DWORD req_char_id, DWORD char_id
+//   Wire (SSHandler.cpp:6759): DWORD req_char_id, <stat block>
+boost::asio::awaitable<void> OnCharStatInfoAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCharStatInfoAnsAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W4-14: per-character visual state sync (handlers_char.cpp) ----
+//
+// Continues the W4-8/W4-9 "live per-char state propagation" theme.
+//   PETRIDING — a char mounted / dismounted; store TChar.riding and
+//     fan MW_PETRIDING_REQ to the char's *other* (non-originating)
+//     map sessions so each client renders the mount.
+//     Wire (SSHandler.cpp:8604): DWORD char_id, key, DWORD riding
+//   HELMETHIDE — a char toggled helmet visibility; store
+//     TChar.helmet_hide and confirm MW_HELMETHIDE_REQ back to the
+//     originating map.
+//     Wire (SSHandler.cpp:8683): DWORD char_id, key, BYTE hide
+boost::asio::awaitable<void> OnPetRidingAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnHelmetHideAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W4-11: TMS conference channels (handlers_tms.cpp) -------------
+//
+// The "temporary messaging system" — the in-game multi-party
+// conference chat. A TMS group has a roster of members and a
+// rolling id; messages fan out to every member. The four ACK
+// handlers cover the full lifecycle:
+//
+//   SEND       — post a message to a conference. A solo (size==1)
+//                conference re-pairs its last departed member via an
+//                invite-ask dialog; otherwise the message is fanned
+//                to every member as TMSRECV_REQ.
+//   INVITEASK  — answer to that invite-ask dialog. On accept the
+//                target joins the conference (roster broadcast via
+//                TMSINVITE_REQ); either way the pending message is
+//                delivered to the roster.
+//   INVITE     — open / expand a conference with a target list
+//                (filtered to same-war-country, online targets).
+//                Handles the 1:1 re-pair shortcut and fresh-group
+//                creation, then broadcasts the roster.
+//   OUT        — leave a conference. The roster is told via
+//                TMSOUT_REQ, the leaver is dropped, and an emptied
+//                conference is destroyed (its last member's name is
+//                stashed for a future re-pair).
+//
+// The legacy NORECEIVER server-message (BuildNetString +
+// GetSvrMsg) is replaced by an empty message — the server-message
+// table isn't ported (same deferral as the chat operator-whisper).
+//
+// Wire layouts (SSHandler.cpp):
+//   SEND      (7431): DWORD char_id, key, tms, STRING message
+//   INVITEASK (7501): DWORD char_id, key, target_id, target_key,
+//                     BYTE result, DWORD tms, STRING message
+//   INVITE    (7576): DWORD char_id, key, tms, BYTE count,
+//                     DWORD target[count]
+//   OUT       (7700): DWORD char_id, key, tms
+boost::asio::awaitable<void> OnTmsSendAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnTmsInviteAskAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnTmsInviteAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnTmsOutAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W4-13: mail delivery relay (handlers_post.cpp) ----------------
+//
+// World's whole role in the mail/post system: route a "you have new
+// mail" notification to the recipient's map. The mailbox itself
+// (list / read / delete) lives DB-side + map-side; world only
+// forwards the delivery ping, keyed by the target's name. Two entry
+// points share one opaque-passthrough relay:
+//   POSTRECV (player→player) and RESERVEDPOSTRECV (DB-side system /
+//   scheduled mail). The reserved-post *generator* poll
+//   (DM_RESERVEDPOSTSEND_REQ, a stored-proc sweep) is deferred — it
+//   needs the reserved-post table/SP.
+//
+// Wire (SSHandler.cpp:7750 / 6600):
+//   DWORD post_id, STRING sender, STRING target, STRING title,
+//   BYTE type
+boost::asio::awaitable<void> OnPostRecvAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnReservedPostRecvAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

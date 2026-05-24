@@ -45,6 +45,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_friend.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_chat.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_soulmate.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_tms.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_post.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -53,6 +55,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_friend.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_chat.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_soulmate.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_tms.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_post.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -60,6 +64,9 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
     ${TWORLD_ASIO_SRC}/services/party_registry.cpp
     ${TWORLD_ASIO_SRC}/services/corps_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/tms_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_friend_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/guild_tactics_wanted_registry.cpp
@@ -512,3 +519,71 @@ target_link_libraries(test_tworldsvr_asio_region_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_region_handlers
     COMMAND test_tworldsvr_asio_region_handlers)
+
+# W4-9 wire test: MW_LEVELUP_ACK — level store + soulmate sync /
+# auto-dissolve on level gap + multi-connection LEVELUP_REQ fan-out.
+add_executable(test_tworldsvr_asio_levelup_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_levelup_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_levelup_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_levelup_handlers
+    COMMAND test_tworldsvr_asio_levelup_handlers)
+
+# W4-10 wire test: inspect-player stat relay (CHARSTATINFO /
+# CHARSTATINFOANS) — request routed to the target's map, the
+# gathered stat block forwarded verbatim back to the requester.
+add_executable(test_tworldsvr_asio_charstat_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_charstat_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_charstat_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_charstat_handlers
+    COMMAND test_tworldsvr_asio_charstat_handlers)
+
+# W4-11 wire test: TMS conference channels (INVITE opens a group,
+# SEND fans the message, INVITEASK accepts a re-pair, OUT tears the
+# group down) over a three-peer loopback session.
+add_executable(test_tworldsvr_asio_tms_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_tms_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_tms_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tms_handlers
+    COMMAND test_tworldsvr_asio_tms_handlers)
+
+# W4-12 wire test: TMS presence on logout (LeaveTMS) — a char in a
+# conference logs out; the surviving member is told via TMSOUT_REQ.
+add_executable(test_tworldsvr_asio_tms_logout_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_tms_logout_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_tms_logout_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tms_logout_handlers
+    COMMAND test_tworldsvr_asio_tms_logout_handlers)
+
+# W4-13 wire test: mail delivery relay — player POSTRECV + DB-side
+# RESERVEDPOSTRECV both forward MW_POSTRECV_REQ verbatim to the
+# recipient's map (routed by target name).
+add_executable(test_tworldsvr_asio_post_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_post_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_post_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_post_handlers
+    COMMAND test_tworldsvr_asio_post_handlers)
+
+# W4-14 wire test: per-character visual state sync — PETRIDING fans
+# the mount to a char's other map session; HELMETHIDE confirms back
+# to the originating map.
+add_executable(test_tworldsvr_asio_appearance_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_appearance_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_appearance_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_appearance_handlers
+    COMMAND test_tworldsvr_asio_appearance_handlers)
+
+# W4-15 wire test: friend/group/soulmate load-at-login — a seeded
+# FakeFriendRepository hydrates TChar.friends/friend_groups on
+# MW_ADDCHAR_ACK with correct derived types + live connected flags.
+add_executable(test_tworldsvr_asio_friend_load_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_load_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_load_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_load_handlers
+    COMMAND test_tworldsvr_asio_friend_load_handlers)

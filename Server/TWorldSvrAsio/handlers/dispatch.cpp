@@ -461,7 +461,50 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnRegionAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W4-9+ picks up login presence (connect fan-out) + the
+    // ---- W4-9: level update (handlers_char.cpp) ----------------
+    case MessageId::MW_LEVELUP_ACK:
+        co_await OnLevelUpAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W4-10: inspect-player stat relay (handlers_char.cpp) --
+    case MessageId::MW_CHARSTATINFO_ACK:
+        co_await OnCharStatInfoAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHARSTATINFOANS_ACK:
+        co_await OnCharStatInfoAnsAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W4-11: TMS conference channels (handlers_tms.cpp) -----
+    case MessageId::MW_TMSSEND_ACK:
+        co_await OnTmsSendAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TMSINVITEASK_ACK:
+        co_await OnTmsInviteAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TMSINVITE_ACK:
+        co_await OnTmsInviteAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TMSOUT_ACK:
+        co_await OnTmsOutAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W4-13: mail delivery relay (handlers_post.cpp) --------
+    case MessageId::MW_POSTRECV_ACK:
+        co_await OnPostRecvAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_RESERVEDPOSTRECV_ACK:
+        co_await OnReservedPostRecvAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W4-14: per-character visual state (handlers_char.cpp) -
+    case MessageId::MW_PETRIDING_ACK:
+        co_await OnPetRidingAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_HELMETHIDE_ACK:
+        co_await OnHelmetHideAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-15+ picks up login presence (connect fan-out) + the
     // friend/soulmate DB load. … see README §4.
 
     default:

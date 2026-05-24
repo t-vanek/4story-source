@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-8 region update (presence region propagation)
+## Status — W4-15 friend/soulmate load-at-login (IFriendRepository)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -77,12 +77,240 @@ that the four shipped Asio daemons already use.
 | W4-5 | Chat channel relay — OnMW_CHAT_ACK (GUILD/TACTICS/PARTY/FORCE/MAP/WORLD/SHOW/WHISPER) routed to the right audience via the guild/party/corps/peer registries + SendMwChatReq | ✅ |
 | W4-6 | Soulmate — OnMW_SOULMATESEARCH/REG/END_ACK (matchmaking + mutual pairing / register-preview / dissolve) + TChar.real_sex/soulmate + 3 senders | ✅ |
 | W4-7 | Social presence on logout — OnCloseCharAck fans FRIENDCONNECTION(DISCONNECTION) to friends + marks reverse friend/soulmate entries offline (NotifyFriends/SoulmateOnLogout) | ✅ |
-| **W4-8** | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
-| W4-9+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-8 | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
+| W4-9 | Level update — OnMW_LEVELUP_ACK stores TChar.level + multi-connection LEVELUP_REQ fan-out + soulmate level-sync / auto-dissolve on gap + SendMwLevelUpReq | ✅ |
+| W4-10 | Inspect-player stat relay — OnMW_CHARSTATINFO_ACK + OnMW_CHARSTATINFOANS_ACK (request routed to the target's map, the gathered stat block forwarded verbatim to the requester) | ✅ |
+| W4-11 | TMS conference channels — TmsRegistry + TTms + TChar.tms id-set + OnMW_TMSSEND/INVITEASK/INVITE/OUT_ACK (open / fan-out / re-pair / tear-down a multi-party group chat) + 4 senders | ✅ |
+| W4-12 | TMS presence on logout — NotifyTmsOnLogout (legacy LeaveTMS) wired into OnCloseCharAck: drops a logging-out char from every conference + tells the survivors via TMSOUT_REQ | ✅ |
+| W4-13 | Mail delivery relay — OnMW_POSTRECV_ACK (player mail) + OnDM_RESERVEDPOSTRECV_ACK (system mail) forward MW_POSTRECV_REQ verbatim to the recipient's map (routed by target name) + SendMwPostRecvReq | ✅ |
+| W4-14 | Per-character visual state sync — OnMW_PETRIDING_ACK (mount fan-out to the char's other map sessions) + OnMW_HELMETHIDE_ACK (helmet-visibility store + confirm) + TChar.riding/helmet_hide + 2 senders | ✅ |
+| **W4-15** | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
+| W4-16+ | Login presence connect fan-out (now that friends load at login) + friend/soulmate write-back persistence | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-15 — what landed
+
+**Friend/soulmate load-at-login** — the friend subsystem's missing
+persistence read path. Until now the in-memory friend list was only
+what FRIENDASK/REPLY built up during a single session; a relog
+started empty. Now a char's social graph is hydrated from the DB
+when it comes online — exactly what the legacy DM_FRIENDLIST
+round-trip did, collapsed to a direct query like the guild repo.
+
+- `services/friend_repository.h` — `IFriendRepository::LoadForChar`
+  returns a `FriendLoad { groups, forward[], reverse[], soulmate }`.
+  Friend rows carry id/name (+ level/class on the forward edges)
+  resolved by the legacy JOIN against TCHARTABLE.
+- `SociFriendRepository` (TFRIENDGROUPTABLE / TFRIENDTABLE forward +
+  reverse / TSOULMATETABLE) + `FakeFriendRepository` (test seed).
+  Wired into `HandlerContext.friend_repo` + `main.cpp` (Soci when
+  `[database]` is set, else nullptr — no-DB dev path skips the load).
+- `OnAddCharAck` hydrates the char on first connect via
+  `CoOffloadIf` (never blocks the io_context). `ApplyFriendLoad`
+  derives the friend **type** from the forward/reverse intersection
+  — forward-only = FT_FRIEND, mutual = FT_FRIENDFRIEND, reverse-only
+  = FT_TARGET (legacy OnDM_FRIENDLIST_ACK, SSHandler.cpp:1683) — and
+  resolves each friend's `connected` flag live from the registry
+  (CharRegistry::Find is shard-lock only, so it's safe under the
+  char's entity lock; region/level stay live-resolved by the
+  W4-4 FRIENDLIST reader).
+
+This makes the W4-4 FRIENDLIST reader and W4-7 logout-presence work
+against persistent data. The connect-side login-presence fan-out
+(notifying online friends that this char just came online) is the
+W4-16 follow-up; friend-mutation write-back stays deferred (the
+registry is authoritative within a session).
+
+Tests — `tests/test_friend_load_handlers.cpp`: a seeded fake repo
+hydrates Alice on ADDCHAR with Bob (forward → FT_FRIEND, connected
+because online) + Carol (reverse-only → FT_TARGET, offline) + a
+named group.
+
+Build verified: cmake + ctest -R tworldsvr_asio (47/47 passed).
+
+### W4-14 — what landed
+
+**Per-character visual state sync** — continues the W4-8 (region) /
+W4-9 (level) "live per-char state propagation" theme with two
+cosmetic-state handlers (handlers_char.cpp).
+
+- `OnPetRidingAck` (wID 0x90D0) — a char mounted / dismounted.
+  Stores `TChar.riding` and fans `MW_PETRIDING_REQ` to the char's
+  *other* (non-originating, valid) map sessions so every client it
+  is visible on renders the mount. Mirrors legacy
+  SSHandler.cpp:8604, which excludes the originating server (it
+  already applied the change locally).
+- `OnHelmetHideAck` (wID 0x9103) — a char toggled helmet
+  visibility. Stores `TChar.helmet_hide` and confirms
+  `MW_HELMETHIDE_REQ` back to the originating map (legacy
+  SSHandler.cpp:8683).
+
+`TChar` gains `riding` (u32) + `helmet_hide` (u8); senders
+`SendMwPetRidingReq` / `SendMwHelmetHideReq` live in
+`senders_relay.cpp` next to the W4-9 LevelUp sender.
+
+Tests — `tests/test_appearance_handlers.cpp` (two-peer, one char on
+both): PETRIDING from the main session reaches the secondary
+session with the mount id; HELMETHIDE echoes back to the sender;
+both fields land on the registry entry.
+
+Build verified: cmake + ctest -R tworldsvr_asio (46/46 passed).
+
+### W4-13 — what landed
+
+**Mail delivery relay** — world's entire role in the mail/post
+system. The mailbox itself (list / read / delete) lives DB-side and
+map-side; world only routes the "you have new mail" delivery ping to
+the recipient's map, keyed by the target's name.
+
+- `OnPostRecvAck` (wID 0x907E) — a player sent mail; relay the
+  notification to the recipient's map.
+- `OnReservedPostRecvAck` (wID 0x5909) — DB-side system / scheduled
+  ("reserved") mail; identical relay.
+
+Both share one opaque-passthrough helper (`RelayPostRecv`): parse
+the target name off the `(post_id, sender, target, title, type)`
+body, look the char up, and forward the bytes **verbatim** as
+`MW_POSTRECV_REQ` via `SendMwPostRecvReq`. An offline target is
+dropped (the mail is already persisted DB-side and shown next time
+the mailbox opens) — matching legacy `OnMW_POSTRECV_ACK` /
+`OnDM_RESERVEDPOSTRECV_ACK`.
+
+Deferred: the reserved-post *generator* poll
+(`DM_RESERVEDPOSTSEND_REQ`, a `CSPGetReservedPost` stored-proc
+sweep that emits the RESERVEDPOSTRECV pings) — it needs the
+reserved-post table/SP, so it lands with the DB-persistence batch.
+
+Tests — `tests/test_post_handlers.cpp` (two-peer): both the player
+and system mail paths forward the body unchanged to the recipient's
+map, and an unknown-target ping is silently dropped without
+disturbing the next valid delivery.
+
+Build verified: cmake + ctest -R tworldsvr_asio (45/45 passed).
+
+### W4-12 — what landed
+
+**TMS presence on logout** — completes W4-11's lifecycle for the
+disconnect path. `CloseChar` in the legacy calls `LeaveTMS`
+alongside `LeaveFriend` / `LeaveSoulmate`; W4-11 wired the first two
+(W4-7) but not the TMS cleanup, leaving a logging-out member as a
+stale id in any conference they were in.
+
+- `NotifyTmsOnLogout(ctx, who)` (handlers_tms.cpp) — for each
+  conference in the char's `tms` id-set: stash the leaver's name in
+  `last_member`, drop them from the roster, tell the surviving
+  members via `MW_TMSOUT_REQ`, and destroy an emptied conference.
+  Mirrors legacy `LeaveTMS` (TWorldSvr.cpp:2845) exactly.
+- Wired into `OnCloseCharAck` after the W4-7 friend/soulmate
+  notifies (the removed char is out of the registry but kept alive
+  by the caller's shared_ptr).
+
+Tests — `tests/test_tms_logout_handlers.cpp` (two-peer): two chars
+share a conference; one logs out and the survivor receives a
+`MW_TMSOUT_REQ` naming the departed member.
+
+Build verified: cmake + ctest -R tworldsvr_asio (44/44 passed).
+
+### W4-11 — what landed
+
+**TMS conference channels** — the in-game multi-party "temporary
+messaging system" (a group/conference chat that survives members
+joining and leaving). World owns the conference roster; the four
+`MW_TMS*_ACK` handlers drive the whole lifecycle.
+
+New cluster state:
+- `services/tms_registry.{h,cpp}` — `TTms { id, last_member,
+  members[] }` + a 16-shard `TmsRegistry` (same partitioning /
+  per-group-mutex model as PartyRegistry; 32-bit rolling `GenId`,
+  id 0 reserved). Wired into `HandlerContext.tms` + `main.cpp`.
+- `TChar.tms` — the conference id-set a char belongs to (legacy
+  `m_mapTMS`), the cycle-free back-link resolved through the
+  registry on demand.
+
+Handlers (`handlers_tms.cpp`):
+- **SEND** (0x9077) — post to a conference. A solo (size==1)
+  conference re-pairs its last departed member by popping a
+  `MW_TMSINVITEASK_REQ` dialog on their client; a populated
+  conference fans the message to every member as `MW_TMSRECV_REQ`.
+- **INVITEASK** (0x90CE) — answer to that dialog. On accept the new
+  member joins (roster announced via `MW_TMSINVITE_REQ`); either
+  way the pending message is delivered to the roster.
+- **INVITE** (0x907A) — open / expand a conference with a target
+  list (filtered to online, same-war-country targets). Handles the
+  1:1 re-pair shortcut and fresh-group creation, then broadcasts
+  the full roster.
+- **OUT** (0x907C) — leave. The roster is told via `MW_TMSOUT_REQ`,
+  the leaver is dropped (its name stashed in `last_member` for a
+  future re-pair), and an emptied conference is destroyed.
+
+Senders (`senders_tms.cpp`) — `SendMwTmsRecvReq` /
+`SendMwTmsInviteAskReq` / `SendMwTmsInviteReq` (variable roster) /
+`SendMwTmsOutReq`.
+
+Deferred: the legacy `TMS_NORECEIVER` server-message (a localized
+`GetSvrMsg` string shown when a solo re-pair finds no target) is
+replaced by an empty message — the server-message table isn't
+ported (same deferral as the W4-5 chat operator-whisper sub-case).
+
+Tests — `tests/test_tms_handlers.cpp` (two-peer) walks the full
+lifecycle: INVITE opens a conference, SEND fans a message, OUT
+tears it down to a solo channel, a solo SEND re-pairs the departed
+member, and INVITEASK-accept restores the roster + delivers the
+pending message.
+
+Build verified: cmake + ctest -R tworldsvr_asio (43/43 passed).
+
+### W4-10 — what landed
+
+**Inspect-player stat relay** — the cross-shard "examine another
+player" flow (the client opens a target's stat window).
+
+- `OnCharStatInfoAck` (wID 0x9065): the requester asks about a
+  target by id; world routes `MW_CHARSTATINFOANS_REQ(req, target)`
+  to the *target's* map so it can gather the live stat block.
+- `OnCharStatInfoAnsAck` (wID 0x9067): the target's map returns the
+  block (leading with the requester id); world forwards it
+  **verbatim** as `MW_CHARSTATINFO_REQ` to the requester's map —
+  an opaque passthrough (world never interprets the stats).
+
+Senders — `SendMwCharStatInfoAnsReq` (2-field) +
+`SendMwCharStatInfoReq` (raw-body passthrough), in
+`senders_relay.cpp`.
+
+Tests — `tests/test_charstat_handlers.cpp` (two-peer): the request
+reaches the target's map with the right ids, and a stat block with
+an opaque tail round-trips unchanged back to the requester.
+
+Build verified: cmake + ctest -R tworldsvr_asio (42/42 passed).
+
+### W4-9 — what landed
+
+**Level update** — `MW_LEVELUP_ACK` is the authoritative source for
+`TChar.level` (which the party / guild member-list / friend-list /
+soulmate displays read), so this makes level live world-side.
+
+`OnLevelUpAck` (wID 0x9028): stores the char's `level`, then:
+- fans `MW_LEVELUP_REQ` to the char's *other* (non-main, valid) map
+  connections so every map showing the char updates;
+- syncs the new level into the soulmate partner's reverse entry,
+  and **auto-dissolves** the pairing (both sides) when the level
+  gap now exceeds `SOULMATE_LEVEL` (legacy CheckSoulmateEnd).
+
+Deferred: the legacy war-country level-gap index (a W5 matchmaking
+structure) and DB persistence. Lock discipline: snapshot/update the
+char under its lock, then each partner under its own.
+
+Sender — `SendMwLevelUpReq` (3-field, `senders_relay.cpp`).
+
+Tests — `tests/test_levelup_handlers.cpp` (3 scenarios): a small
+level gain (soulmate view synced, pairing intact), a large jump
+(soulmate auto-dissolved both sides), and a level-up fanned to a
+char's second map connection.
+
+Build verified: cmake + ctest -R tworldsvr_asio (41/41 passed).
 
 ### W4-8 — what landed
 

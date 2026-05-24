@@ -1120,5 +1120,36 @@ boost::asio::awaitable<void> OnChgPartyTypeAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3b-5: party member recall (handlers_party.cpp) ---------------
+//
+// The recall-scroll teleport flow between two party members. A
+// member either summons another to their location (TP_RECALL) or
+// moves themselves to another member (TP_MOVETO).
+//
+// RECALL_ACK is the initiator's request: world validates the pair
+// (same party + same map for a summon; same map + same war-country
+// for a move-to) and forwards MW_PARTYMEMBERRECALLANS_REQ to the
+// other party's map so their client confirms; on a failed gate it
+// relays MW_PARTYMEMBERRECALL_REQ(IU_TARGETBUSY) back to the
+// initiator. RECALLANS_ACK is the confirmation coming back with the
+// destination position; world re-checks (same map, not a small
+// meeting room) and relays MW_PARTYMEMBERRECALL_REQ to the char
+// being teleported.
+//
+// Wire (SSHandler.cpp:8710): DWORD char_id, key, BYTE inven_id,
+//   item_id, STRING origin_name, target_name
+boost::asio::awaitable<void> OnPartyMemberRecallAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// Wire (SSHandler.cpp:8799): BYTE result, STRING user_name,
+//   target_name, BYTE type, inven_id, item_id, channel,
+//   WORD map_id, FLOAT pos_x, pos_y, pos_z
+boost::asio::awaitable<void> OnPartyMemberRecallAnsAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

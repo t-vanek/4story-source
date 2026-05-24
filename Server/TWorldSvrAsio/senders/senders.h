@@ -1147,4 +1147,46 @@ boost::asio::awaitable<void> SendMwChgPartyTypeReq(
     std::uint8_t                 result,
     std::uint8_t                 party_type);
 
+// --- W3b-5 party member recall ------------------------------------
+
+// MW_PARTYMEMBERRECALLANS_REQ — forwarded to the other party (the
+// recall target on a summon, or the destination member on a
+// move-to) so their client pops the recall confirmation dialog.
+//
+// Wire layout (SSSender.cpp:2831):
+//   DWORD char_id, DWORD key, STRING other_name, BYTE type,
+//   BYTE inven_id, BYTE item_id
+boost::asio::awaitable<void> SendMwPartyMemberRecallAnsReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    const std::string&           other_name,
+    std::uint8_t                 type,
+    std::uint8_t                 inven_id,
+    std::uint8_t                 item_id);
+
+// MW_PARTYMEMBERRECALL_REQ — the recall outcome relayed back to the
+// char being teleported: a failure result (IU_TARGETBUSY) with the
+// trailing destination fields zeroed, or the granted destination
+// (channel + map + position) from the answer.
+//
+// Wire layout (SSSender.cpp:2799):
+//   DWORD char_id, DWORD key, BYTE result, STRING target_name,
+//   BYTE type, BYTE inven_id, BYTE item_id, BYTE channel,
+//   WORD map_id, FLOAT pos_x, FLOAT pos_y, FLOAT pos_z
+boost::asio::awaitable<void> SendMwPartyMemberRecallReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    const std::string&           target_name,
+    std::uint8_t                 type,
+    std::uint8_t                 inven_id,
+    std::uint8_t                 item_id,
+    std::uint8_t                 channel,
+    std::uint16_t                map_id,
+    float                        pos_x,
+    float                        pos_y,
+    float                        pos_z);
+
 } // namespace tworldsvr::senders

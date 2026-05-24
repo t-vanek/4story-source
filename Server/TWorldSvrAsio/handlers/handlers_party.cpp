@@ -922,4 +922,164 @@ OnChgPartyTypeAck(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnPartyMemberRecallAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnPartyMemberRecallAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    std::uint8_t  inven_id = 0, item_id = 0;
+    std::string   origin_name, target_name;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(inven_id) ||
+        !r.Read(item_id) || !r.ReadString(origin_name) ||
+        !r.ReadString(target_name))
+    {
+        spdlog::warn("OnPartyMemberRecallAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto self = ctx.chars->Find(char_id);
+    if (!self) co_return;
+    std::uint32_t actual_key = 0, self_party = 0;
+    std::uint16_t self_map = 0;
+    std::uint8_t  self_country = 0, self_aid = 0;
+    std::string   self_name;
+    {
+        std::lock_guard g(self->lock);
+        actual_key   = self->key;
+        self_party   = self->party_id;
+        self_map     = self->map_id;
+        self_country = self->country;
+        self_aid     = self->aid_country;
+        self_name    = self->name;
+    }
+    if (actual_key != key) co_return;
+
+    auto busy = [&](const std::string& who, std::uint8_t type)
+        -> boost::asio::awaitable<void> {
+        co_await senders::SendMwPartyMemberRecallReq(peer, char_id, key,
+            party::kItemUseTargetBusy, who, type, 0, 0, 0, 0,
+            0.0f, 0.0f, 0.0f);
+    };
+
+    if (origin_name == self_name)
+    {
+        // Summon the target to me (TP_RECALL): target must be in my
+        // party + on my map.
+        auto target = ctx.chars->FindByName(target_name);
+        std::uint32_t t_party = 0, t_charid = 0, t_key = 0;
+        std::uint16_t t_map = 0;
+        std::uint8_t  t_msi = 0;
+        if (target)
+        {
+            std::lock_guard g(target->lock);
+            t_party  = target->party_id;
+            t_charid = target->char_id;
+            t_key    = target->key;
+            t_map    = target->map_id;
+            t_msi    = target->main_server_id;
+        }
+        if (target && t_party != 0 && t_map == self_map &&
+            t_party == self_party)
+        {
+            if (auto tp = FindMapPeer(ctx, t_msi))
+                co_await senders::SendMwPartyMemberRecallAnsReq(tp, t_charid,
+                    t_key, origin_name, party::kTpRecall, inven_id, item_id);
+            co_return;
+        }
+        co_await busy(target_name, party::kTpRecall);
+        co_return;
+    }
+
+    // Move me to the origin (TP_MOVETO): origin must be on my map +
+    // same war-country.
+    auto origin = ctx.chars->FindByName(origin_name);
+    std::uint32_t o_charid = 0, o_key = 0;
+    std::uint16_t o_map = 0;
+    std::uint8_t  o_country = 0, o_aid = 0, o_msi = 0;
+    if (origin)
+    {
+        std::lock_guard g(origin->lock);
+        o_charid  = origin->char_id;
+        o_key     = origin->key;
+        o_map     = origin->map_id;
+        o_country = origin->country;
+        o_aid     = origin->aid_country;
+        o_msi     = origin->main_server_id;
+    }
+    if (origin && o_map == self_map &&
+        party::WarCountry(o_country, o_aid) ==
+            party::WarCountry(self_country, self_aid))
+    {
+        if (auto op = FindMapPeer(ctx, o_msi))
+            co_await senders::SendMwPartyMemberRecallAnsReq(op, o_charid,
+                o_key, target_name, party::kTpMoveTo, inven_id, item_id);
+        co_return;
+    }
+    co_await busy(origin_name, party::kTpMoveTo);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnPartyMemberRecallAnsAck(std::shared_ptr<PeerSession> peer,
+                          std::vector<std::byte>       body,
+                          const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnPartyMemberRecallAnsAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  result = 0, type = 0, inven_id = 0, item_id = 0, channel = 0;
+    std::string   user_name, target_name;
+    std::uint16_t map_id = 0;
+    float         pos_x = 0.0f, pos_y = 0.0f, pos_z = 0.0f;
+    if (!r.Read(result) || !r.ReadString(user_name) ||
+        !r.ReadString(target_name) || !r.Read(type) || !r.Read(inven_id) ||
+        !r.Read(item_id) || !r.Read(channel) || !r.Read(map_id) ||
+        !r.Read(pos_x) || !r.Read(pos_y) || !r.Read(pos_z))
+    {
+        spdlog::warn("OnPartyMemberRecallAnsAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto user = ctx.chars->FindByName(user_name);
+    if (!user) co_return;
+    std::uint32_t u_charid = 0, u_key = 0;
+    std::uint16_t u_map = 0;
+    std::uint8_t  u_msi = 0;
+    {
+        std::lock_guard g(user->lock);
+        u_charid = user->char_id;
+        u_key    = user->key;
+        u_map    = user->map_id;
+        u_msi    = user->main_server_id;
+    }
+    auto user_peer = FindMapPeer(ctx, u_msi);
+    if (!user_peer) co_return;
+
+    // The teleport target must still be on the destination map and
+    // not inside a small meeting room.
+    if (u_map != map_id) result = party::kItemUseTargetBusy;
+    if (party::IsSmallMeetingRoom(u_map)) result = party::kItemUseTargetBusy;
+
+    co_await senders::SendMwPartyMemberRecallReq(user_peer, u_charid, u_key,
+        result, target_name, type, inven_id, item_id, channel, map_id,
+        pos_x, pos_y, pos_z);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

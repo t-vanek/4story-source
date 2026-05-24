@@ -180,4 +180,62 @@ SendMwChgPartyTypeReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwPartyMemberRecallAnsReq(std::shared_ptr<PeerSession> peer,
+                              std::uint32_t                char_id,
+                              std::uint32_t                key,
+                              const std::string&           other_name,
+                              std::uint8_t                 type,
+                              std::uint8_t                 inven_id,
+                              std::uint8_t                 item_id)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WriteString(body, other_name);
+    WritePOD<std::uint8_t>(body, type);
+    WritePOD<std::uint8_t>(body, inven_id);
+    WritePOD<std::uint8_t>(body, item_id);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_PARTYMEMBERRECALLANS_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwPartyMemberRecallReq(std::shared_ptr<PeerSession> peer,
+                           std::uint32_t                char_id,
+                           std::uint32_t                key,
+                           std::uint8_t                 result,
+                           const std::string&           target_name,
+                           std::uint8_t                 type,
+                           std::uint8_t                 inven_id,
+                           std::uint8_t                 item_id,
+                           std::uint8_t                 channel,
+                           std::uint16_t                map_id,
+                           float                        pos_x,
+                           float                        pos_y,
+                           float                        pos_z)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t>(body, result);
+    WriteString(body, target_name);
+    WritePOD<std::uint8_t>(body, type);
+    WritePOD<std::uint8_t>(body, inven_id);
+    WritePOD<std::uint8_t>(body, item_id);
+    WritePOD<std::uint8_t>(body, channel);
+    WritePOD<std::uint16_t>(body, map_id);
+    WritePOD<float>(body, pos_x);
+    WritePOD<float>(body, pos_y);
+    WritePOD<float>(body, pos_z);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_PARTYMEMBERRECALL_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

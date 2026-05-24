@@ -59,4 +59,24 @@ inline constexpr std::uint8_t WarCountry(std::uint8_t country,
     return aid_country != kCountryNeutral ? aid_country : country;
 }
 
+// Teleport types for the party member-recall flow (NetCode.h:2230).
+inline constexpr std::uint8_t kTpRecall = 0; // summon a member to me
+inline constexpr std::uint8_t kTpMoveTo = 1; // move me to a member
+
+// Item-use result reused by the recall flow's failure replies
+// (TITEMUSE_RESULT, NetCode.h:406 — IU_TARGETBUSY).
+inline constexpr std::uint8_t kItemUseTargetBusy = 10;
+
+// Meeting-room map range (NetCode.h:139). Recall is blocked into a
+// "small" meeting room — any map in
+// (kMeetingMapId, kMeetingMapId + kMeetingSmallRoomCount].
+inline constexpr std::uint16_t kMeetingMapId          = 1100;
+inline constexpr std::uint16_t kMeetingSmallRoomCount = 5;
+
+inline constexpr bool IsSmallMeetingRoom(std::uint16_t map_id)
+{
+    return map_id > kMeetingMapId &&
+           map_id <= kMeetingMapId + kMeetingSmallRoomCount;
+}
+
 } // namespace tworldsvr::party

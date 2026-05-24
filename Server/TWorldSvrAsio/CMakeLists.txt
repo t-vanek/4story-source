@@ -314,3 +314,15 @@ target_link_libraries(test_tworldsvr_asio_party_attr_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_party_attr_handlers
     COMMAND test_tworldsvr_asio_party_attr_handlers)
+
+# W3b-5 wire test: party member recall over a three-peer loopback
+# session — summon (TP_RECALL) + move-to (TP_MOVETO) RECALLANS_REQ
+# forwarding, the non-party-member busy reject, and the RECALLANS
+# relay back to the teleported char (success + map-mismatch +
+# small-meeting-room IU_TARGETBUSY gates).
+add_executable(test_tworldsvr_asio_party_recall_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_party_recall_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_party_recall_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_party_recall_handlers
+    COMMAND test_tworldsvr_asio_party_recall_handlers)

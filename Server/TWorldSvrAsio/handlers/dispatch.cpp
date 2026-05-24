@@ -362,8 +362,15 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_CHGPARTYTYPE_ACK:
         co_await OnChgPartyTypeAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_PARTYMEMBERRECALL_ACK:
+        co_await OnPartyMemberRecallAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYMEMBERRECALLANS_ACK:
+        co_await OnPartyMemberRecallAnsAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
 
-    // W3b-5+ picks up PARTYMOVE (summon) + member-recall +
+    // W3b-6+ picks up PARTYMOVE (corps squad reshuffle) +
     // order-take-item + the corps subsystem. … see README §4.
 
     default:

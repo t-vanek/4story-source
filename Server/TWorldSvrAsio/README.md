@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3b-4 party attribute changes (MANSTAT / CHGCHIEF / CHGTYPE)
+## Status — W3b-5 party member recall (summon / move-to)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -60,12 +60,53 @@ that the four shipped Asio daemons already use.
 | W3b-1 | Party subsystem foundation — PartyRegistry + TParty + TChar party_id/party_waiter/HP-MP fields + OnMW_PARTYADD_ACK invite-relay gate + SendMwPartyAddReq | ✅ |
 | W3b-2 | Party formation — OnMW_PARTYJOIN_ACK (create new party / join existing) + PartyRegistry::GenId + JoinParty pairwise PARTYJOIN_REQ fan-out + PARTYATTR HUD push + SendMwPartyJoinReq/AttrReq | ✅ |
 | W3b-3 | Party leave/kick — OnMW_PARTYDEL_ACK + LeaveParty (chief succession, PARTYDEL fan-out, disband cascade on drop-below-two) + SendMwPartyDelReq | ✅ |
-| **W3b-4** | Party attribute changes — OnMW_PARTYMANSTAT_ACK (member-stat broadcast) + OnMW_CHGPARTYCHIEF_ACK (hand off leadership) + OnMW_CHGPARTYTYPE_ACK (loot mode) + 3 senders | ✅ |
-| W3b-5+ | Party summon (PARTYMOVE) + member-recall + order-take-item + Corps | ⏸ |
+| W3b-4 | Party attribute changes — OnMW_PARTYMANSTAT_ACK (member-stat broadcast) + OnMW_CHGPARTYCHIEF_ACK (hand off leadership) + OnMW_CHGPARTYTYPE_ACK (loot mode) + 3 senders | ✅ |
+| **W3b-5** | Party member recall — OnMW_PARTYMEMBERRECALL_ACK (summon/move-to gate + RECALLANS_REQ forward) + OnMW_PARTYMEMBERRECALLANS_ACK (destination relay, same-map + meeting-room gates) + 2 senders | ✅ |
+| W3b-6+ | PARTYMOVE (corps squad reshuffle) + ORDERTAKEITEM + Corps | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3b-5 — what landed
+
+Party member **recall** — the recall-scroll teleport flow between
+two party members (summon a member to me, or move me to a member).
+Pure relay logic; no new party state. Corps-free.
+
+Handlers
+- `OnPartyMemberRecallAck` (wID 0x9105) — the initiator's request.
+  If the wire `origin_name` equals the initiator's own name it's a
+  summon (`TP_RECALL`): the target must be in the same party + on
+  the same map. Otherwise it's a move-to (`TP_MOVETO`): the origin
+  must be on the same map + same war-country. On a passing gate
+  world forwards `MW_PARTYMEMBERRECALLANS_REQ` to the other party's
+  map so their client confirms; on a failing gate it relays
+  `MW_PARTYMEMBERRECALL_REQ(IU_TARGETBUSY)` back to the initiator
+  (matching legacy: gate-pass-but-peer-offline is a silent drop,
+  only gate-fail replies busy).
+- `OnPartyMemberRecallAnsAck` (wID 0x9115) — the confirmation
+  coming back with the destination channel/map/position. World
+  re-checks the teleported char is still on the destination map
+  and not inside a small meeting room (forcing `IU_TARGETBUSY`
+  otherwise), then relays `MW_PARTYMEMBERRECALL_REQ` to that
+  char's map.
+
+Constants (party_constants.h) — `kTpRecall`/`kTpMoveTo`,
+`kItemUseTargetBusy` (IU_TARGETBUSY), the meeting-room map range +
+`IsSmallMeetingRoom`.
+
+Senders — `SendMwPartyMemberRecallAnsReq` (6-field) +
+`SendMwPartyMemberRecallReq` (12-field; failure replies zero the
+trailing destination fields).
+
+Tests — `tests/test_party_recall_handlers.cpp` (6 scenarios,
+three-peer loopback): summon + move-to RECALLANS forwarding, the
+non-party-member busy reject, and the RECALLANS relay (success +
+map-mismatch + small-meeting-room IU_TARGETBUSY gates). Float wire
+fields (position) are round-tripped.
+
+Build verified: cmake + ctest -R tworldsvr_asio (23/23 passed).
 
 ### W3b-4 — what landed
 

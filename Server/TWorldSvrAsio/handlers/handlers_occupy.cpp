@@ -38,6 +38,41 @@ std::string GuildName(const HandlerContext& ctx, std::uint32_t guild_id)
     return g->name;
 }
 
+// Clear every member + tactics application to `castle_id` in `guild`
+// and tell each affected char's map (legacy CTWorldSvrModule::
+// ResetCastleApply). Snapshot the affected char_ids under the guild
+// lock, then route the resets via separate char locks.
+boost::asio::awaitable<void>
+ResetCastleApply(const HandlerContext& ctx, std::uint32_t guild_id,
+                 std::uint16_t castle_id)
+{
+    if (guild_id == 0 || !ctx.guilds || !ctx.chars) co_return;
+    auto guild = ctx.guilds->Find(guild_id);
+    if (!guild) co_return;
+
+    std::vector<std::uint32_t> affected;
+    {
+        std::lock_guard g(guild->lock);
+        for (auto& m : guild->members)
+            if (m.castle == castle_id)
+            { m.castle = 0; m.camp = 0; affected.push_back(m.char_id); }
+        for (auto& t : guild->tactics_members)
+            if (t.castle == castle_id)
+            { t.castle = 0; t.camp = 0; affected.push_back(t.id); }
+    }
+
+    for (auto cid : affected)
+    {
+        auto c = ctx.chars->Find(cid);
+        if (!c) continue;
+        std::uint32_t key = 0; std::uint8_t msi = 0;
+        { std::lock_guard g(c->lock); key = c->key; msi = c->main_server_id; }
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwCastleApplyReq(p, cid, key,
+                castle::kSuccess, /*castle=*/0, /*target=*/cid, /*camp=*/0);
+    }
+}
+
 } // namespace
 
 boost::asio::awaitable<void>
@@ -64,10 +99,14 @@ OnCastleOccupyAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Deferred (blocked on the absent CALCULATE_NEXTGEXP / *_STATEXP
-    // constants + the castle-apply model): the winning guild's
-    // ResetCastleApply + StatExp award, and the loser's ResetCastleApply.
     const std::string name = GuildName(ctx, guild_id);
+
+    // W5-3: the siege is over — clear both guilds' applications to
+    // this castle (legacy ResetCastleApply). The StatExp award stays
+    // deferred (absent CALCULATE_NEXTGEXP / *_STATEXP constants).
+    co_await ResetCastleApply(ctx, guild_id, castle_id);
+    if (lose_guild != 0 && lose_guild != guild_id)
+        co_await ResetCastleApply(ctx, lose_guild, castle_id);
 
     for (auto& p : ctx.peers->Snapshot())
         co_await senders::SendMwCastleOccupyReq(p, type, castle_id, guild_id,

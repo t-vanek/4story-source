@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W5-2 castle-war apply (CASTLEAPPLY)
+## Status — W5-3 castle-occupy application reset (ResetCastleApply)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -92,10 +92,40 @@ that the four shipped Asio daemons already use.
 | W4-20 | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
 | W4-21+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
-| **W5-2** | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
+| W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
+| **W5-3** | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
 | W5 | War + Castle + Tournament / TNMT | 🚧 |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W5-3 — what landed
+
+**Castle-occupy application reset** — closes the reset that W5-1
+deferred. When a castle is occupied the siege is over, so every
+applicant to that castle (in both the winning and losing guild) has
+their application cleared.
+
+- `ResetCastleApply(ctx, guild_id, castle_id)` (handlers_occupy.cpp):
+  under the guild lock, zero each member's + tactics member's
+  castle/camp where it matches and collect their char_ids; then route
+  a `MW_CASTLEAPPLY_REQ(SUCCESS, castle=0)` to each affected char's
+  map (separate char locks — disjoint from the guild lock). Mirrors
+  legacy `CTWorldSvrModule::ResetCastleApply`.
+- `OnCastleOccupyAck` now calls it for the winning guild and (when
+  distinct) the losing guild before the occupation broadcast. The
+  guild stat-exp award is still deferred (absent CALCULATE_NEXTGEXP /
+  *_STATEXP constants).
+
+Reuses W5-2's castle/camp fields + `SendMwCastleApplyReq` — no new
+wire. With W5-1/W5-2 the castle-siege state now has a full lifecycle:
+apply (cap-gated) → applicant-count broadcast → occupy → reset.
+
+Tests — `tests/test_castle_occupy_reset_handlers.cpp`: a member
+applied to a castle has their application cleared (with the map
+notified) when that castle is occupied, alongside the occupy
+broadcast.
+
+Build verified: cmake + ctest -R tworldsvr_asio (55/55 passed).
 
 ### W5-2 — what landed
 

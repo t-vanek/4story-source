@@ -653,3 +653,12 @@ target_link_libraries(test_tworldsvr_asio_castle_apply_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_castle_apply_handlers
     COMMAND test_tworldsvr_asio_castle_apply_handlers)
+
+# W5-3 wire test: CASTLEOCCUPY resets castle applications — the won
+# castle's applicants are cleared + told, alongside the broadcast.
+add_executable(test_tworldsvr_asio_castle_occupy_reset_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_castle_occupy_reset_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_castle_occupy_reset_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_castle_occupy_reset_handlers
+    COMMAND test_tworldsvr_asio_castle_occupy_reset_handlers)

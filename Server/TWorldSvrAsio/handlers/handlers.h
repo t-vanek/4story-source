@@ -19,6 +19,7 @@
 #include "../services/bow_registry.h"
 #include "../services/br_registry.h"
 #include "../services/char_registry.h"
+#include "../services/rps_registry.h"
 #include "../services/guild_level_cache.h"
 #include "../services/guild_registry.h"
 #include "../services/guild_repository.h"
@@ -101,6 +102,10 @@ struct HandlerContext
     // W6-25: Battle Royale queue + premade teams + map / mode votes.
     // Owned by main; non-null in W6-25+ deploys.
     BrRegistry*               br         = nullptr;
+
+    // W6-29: RPS event game config + win-cap ledger. Owned by main;
+    // non-null in W6-29+ deploys.
+    RpsRegistry*              rps        = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -2273,6 +2278,62 @@ boost::asio::awaitable<void> OnArenaJoinAck(
 boost::asio::awaitable<void> NotifyCorpsLeave(
     const HandlerContext& ctx, std::shared_ptr<TCorps> corps,
     std::uint16_t leaving_party_id);
+
+// --- W6-29: RPS event (handlers_rps.cpp) --------------------------
+//
+// Small dedicated subsystem covering the rock-paper-scissors event
+// game. State lives in RpsRegistry (services/rps_registry.h);
+// persistence of the win ledger (TRPSGAMERECORDTABLE) is deferred
+// — no IRpsRepository yet.
+
+// MW_RPSGAME_ACK — char played one round against an RPS NPC. The
+// map already resolved the outcome; world's job is to vet the
+// win-keep cap (legacy `m_wWinKeep` per (type, win_count) game)
+// and reply MW_RPSGAME_REQ(result, player_rps). On a cap hit
+// the result is FALSE (denied prize / repeat win).
+//   Wire (SSHandler.cpp:13173): DWORD char_id, key, BYTE type,
+//     win_count, player_rps
+boost::asio::awaitable<void> OnRpsGameAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// DM_RPSGAMERECORD_REQ — DB-side persistence of a single win
+// ledger row (insert / remove). Legacy fires this via the DB
+// queue from inside OnMW_RPSGAME_ACK; the SOCI-direct port would
+// route it through an IRpsRepository write-back. Today: stub
+// that logs and drops — same pattern as the W3a-20 vestigial
+// DB-server ACK echoes.
+//   Wire (SSHandler.cpp:13232): BYTE record, DWORD char_id,
+//     BYTE type, win_count, INT64 date
+boost::asio::awaitable<void> OnRpsGameRecordReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// CT_RPSGAMEDATA_REQ — control-server query for the current
+// game configs. World replies CT_RPSGAMEDATA_ACK(change=FALSE,
+// group, rows) with every TRpsGame row in the registry.
+//   Wire (SSHandler.cpp:13259): BYTE group
+boost::asio::awaitable<void> OnRpsGameDataReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// CT_RPSGAMECHANGE_REQ — control-server admin update. Reads N rows
+// of (type, win_count, win_prob, draw_prob, lose_prob, win_keep,
+// win_period) and `Set`s each (silent-drop on unknown key —
+// legacy parity). If any update applied: reply CT_RPSGAMEDATA_ACK
+// (change=TRUE) + broadcast MW_RPSGAMECHANGE_REQ to every map peer
+// (the legacy verbatim-relay; map servers refresh their config
+// caches from it).
+//   Wire (SSHandler.cpp:13272): BYTE group, WORD count, × {
+//     BYTE type, BYTE win_count, BYTE win_prob, draw_prob,
+//     lose_prob, WORD win_keep, win_period }
+boost::asio::awaitable<void> OnRpsGameChangeReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
 
 // MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
 // count==0 ROUTE branch (or when world otherwise asked for a CHARDATA

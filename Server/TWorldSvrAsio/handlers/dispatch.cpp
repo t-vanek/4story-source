@@ -556,6 +556,20 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnArenaJoinAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-29: RPS event (handlers_rps.cpp) -------------------
+    case MessageId::MW_RPSGAME_ACK:
+        co_await OnRpsGameAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::DM_RPSGAMERECORD_REQ:
+        co_await OnRpsGameRecordReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_RPSGAMEDATA_REQ:
+        co_await OnRpsGameDataReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_RPSGAMECHANGE_REQ:
+        co_await OnRpsGameChangeReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
     case MessageId::MW_CASTLEOCCUPY_ACK:
         co_await OnCastleOccupyAck(std::move(peer), std::move(body), ctx);

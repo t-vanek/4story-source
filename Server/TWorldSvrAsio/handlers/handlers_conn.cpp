@@ -320,4 +320,69 @@ OnCheckMainAck(std::shared_ptr<PeerSession> peer,
     }
 }
 
+boost::asio::awaitable<void>
+OnReleaseMainAck(std::shared_ptr<PeerSession> peer,
+                 std::vector<std::byte>       body,
+                 const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnReleaseMainAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    // Body is opaque past these three fields — the tail is the char's
+    // saved state, forwarded verbatim to the new main.
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  db_load = 0;
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(db_load) || !r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnReleaseMainAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    bool found = ch != nullptr;
+    std::uint8_t new_main_id = 0;
+    if (found)
+    {
+        std::lock_guard g(ch->lock);
+        if (ch->key != key) found = false;
+        else                new_main_id = ch->main_server_id;
+    }
+    if (!found)
+    {
+        spdlog::info("OnReleaseMainAck[{}]: char_id={} not registered / key "
+                     "mismatch — DELCHAR", ip, char_id);
+        co_await senders::SendMwDelCharReq(peer, char_id, key,
+            /*logout=*/1, /*save=*/0);
+        co_return;
+    }
+
+    // The new main is whatever CHECKMAIN_ACK re-pointed main at; the
+    // responder here is the *old* main that just released.
+    auto main_peer = FindMapPeer(ctx, new_main_id);
+    if (!main_peer)
+    {
+        spdlog::info("OnReleaseMainAck[{}]: char_id={} new main={} offline — "
+                     "INVALIDCHAR", ip, char_id, new_main_id);
+        co_await senders::SendMwInvalidCharReq(peer, char_id, key,
+            /*release_main=*/1);
+        co_return;
+    }
+
+    // Forward the released char to the new main; it loads the char and
+    // replies MW_ENTERSVR_ACK to complete the handoff.
+    co_await senders::SendMwEnterSvrReq(main_peer, body);
+    {
+        std::lock_guard g(ch->lock);
+        ch->chg_main_id = static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+    }
+    spdlog::info("OnReleaseMainAck[{}]: char_id={} forwarded to new main={} "
+                 "(old main={})", ip, char_id, new_main_id, ch->chg_main_id);
+}
+
 } // namespace tworldsvr::handlers

@@ -481,6 +481,9 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_CHECKMAIN_ACK:
         co_await OnCheckMainAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_RELEASEMAIN_ACK:
+        co_await OnReleaseMainAck(std::move(peer), std::move(body), ctx);
+        co_return;
 
     // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
     case MessageId::MW_CASTLEOCCUPY_ACK:

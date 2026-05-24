@@ -145,7 +145,7 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
     ch->logout           = false;
     ch->saving           = false;
     ch->db_loading       = false;
-    ch->main_id_changing = false;
+    ch->chg_main_id      = 0;
     ch->cons.push_back(TCharCon{
         server_id, ip_addr, port, /*ready*/ false, /*valid*/ true,
     });

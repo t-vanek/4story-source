@@ -815,3 +815,13 @@ target_link_libraries(test_tworldsvr_asio_checkmain_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_checkmain_handlers
     COMMAND test_tworldsvr_asio_checkmain_handlers)
+
+# W6-15 wire test: RELEASEMAIN_ACK — old main releases → forward the
+# char verbatim to the new main as ENTERSVR_REQ + record chg_main_id;
+# new main offline → INVALIDCHAR; unknown char → DELCHAR.
+add_executable(test_tworldsvr_asio_releasemain_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_releasemain_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_releasemain_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_releasemain_handlers
+    COMMAND test_tworldsvr_asio_releasemain_handlers)

@@ -1983,5 +1983,18 @@ boost::asio::awaitable<void> OnCheckMainAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// MW_RELEASEMAIN_ACK — the old main confirms it released the char's
+// main session (completing the W6-14 handoff it was asked to start).
+// World forwards the released char verbatim to the new main (the
+// map main_server_id was re-pointed at in CHECKMAIN_ACK) re-tagged as
+// MW_ENTERSVR_REQ, and records the old main in chg_main_id. Errors:
+// unknown char / key mismatch → MW_DELCHAR_REQ; new main offline →
+// MW_INVALIDCHAR_REQ(release_main=1).
+//   Wire (SSHandler.cpp:2284): BYTE db_load, DWORD char_id, key, …
+boost::asio::awaitable<void> OnReleaseMainAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

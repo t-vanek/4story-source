@@ -106,7 +106,14 @@ struct TChar
     bool          logout            = false;
     bool          saving            = false;
     bool          db_loading        = false;
-    bool          main_id_changing  = false;
+
+    // W6-15 — the *old* main map's id while a main-session handoff is
+    // in flight (legacy m_bCHGMainID; 0 = no handoff). Set when world
+    // forwards the released char to the new main (RELEASEMAIN_ACK →
+    // MW_ENTERSVR_REQ) so the completing handler / CloseChar can tell
+    // the old main its takeover was superseded. A byte, not a bool —
+    // the legacy field stores the server id, not just a flag.
+    std::uint8_t  chg_main_id       = 0;
 
     // Per-map-server connection table. Insert ordering is by
     // server_id arrival; lookups are linear (typical size 1–3).

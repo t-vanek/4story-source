@@ -146,4 +146,14 @@ SendMwReleaseMainReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwEnterSvrReq(std::shared_ptr<PeerSession>  peer,
+                 const std::vector<std::byte>& body)
+{
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_ENTERSVR_REQ),
+        body);
+}
+
 } // namespace tworldsvr::senders

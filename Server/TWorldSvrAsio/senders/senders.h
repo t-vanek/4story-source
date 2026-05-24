@@ -2040,4 +2040,13 @@ boost::asio::awaitable<void> SendMwReleaseMainReq(
     float                        pos_y,
     float                        pos_z);
 
+// MW_ENTERSVR_REQ — forward a released char to the map taking over its
+// main session. The body is the inbound RELEASEMAIN_ACK payload
+// verbatim (BYTE db_load, DWORD char_id, key, + the char's saved
+// state) re-tagged as ENTERSVR_REQ; world doesn't interpret the tail.
+// Legacy SendMW_ENTERSVR_REQ(pBUF) (SSSender.cpp:178) copies + re-tags.
+boost::asio::awaitable<void> SendMwEnterSvrReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
 } // namespace tworldsvr::senders

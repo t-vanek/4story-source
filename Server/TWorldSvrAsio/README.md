@@ -109,9 +109,44 @@ that the four shipped Asio daemons already use.
 | W6-11 | Day-change guild ranking — OnSM_CHANGEDAY_REQ recomputes every guild's PvP total/month rank over GuildRegistry (legacy CalcGuildRanking); read back by GuildInfoAck | ✅ |
 | W6-12 | GM user-tracking relays — OnCT_USERPOSITION_ACK (locate, → MW_USERPOSITION_REQ) + OnCT_USERMOVE_ACK (force-move, → CT_USERMOVE_ACK) route to the target's map + 2 senders | ✅ |
 | W6-13 | Connection-list reconcile — OnMW_CONLIST_ACK + OnMW_MAPSVRLIST_ACK (byte-identical) reconcile `cons` vs the reported set: drop stale cons to `dead_cons`, ROUTELIST new servers via the main map, else CHECKMAIN every remaining connection; DELCHAR/INVALIDCHAR error replies + 4 senders. First slice of the connection/teleport cluster | ✅ |
-| **W6-14** | Main-session confirmation — OnMW_CHECKMAIN_ACK: responder-is-main → drain `dead_cons` via CLOSECHAR (ClearDeadCON) + CONRESULT (CN_SUCCESS) the live set; responder-is-other → RELEASEMAIN the old main + re-point main; DELCHAR/INVALIDCHAR errors + 3 senders. CloseChar (logout teardown) + cession queue (PopConCess) deferred | ✅ |
+| W6-14 | Main-session confirmation — OnMW_CHECKMAIN_ACK: responder-is-main → drain `dead_cons` via CLOSECHAR (ClearDeadCON) + CONRESULT (CN_SUCCESS) the live set; responder-is-other → RELEASEMAIN the old main + re-point main; DELCHAR/INVALIDCHAR errors + 3 senders. CloseChar (logout teardown) + cession queue (PopConCess) deferred | ✅ |
+| **W6-15** | Main-session handoff forward — OnMW_RELEASEMAIN_ACK: the old main releases → forward the released char verbatim to the new main (re-tagged MW_ENTERSVR_REQ) + record the old main in `chg_main_id`; new main offline → INVALIDCHAR(release_main=1); unknown char → DELCHAR. Opaque-passthrough sender. ENTERSVR_ACK handoff completion (chg_main_id consume) deferred | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-15 — what landed
+
+**Main-session handoff forward** — `OnReleaseMainAck` (handlers_conn.cpp,
+`MW_RELEASEMAIN_ACK`) completes the handoff W6-14 starts. When a char's
+main session is being moved to a different map, W6-14's CHECKMAIN_ACK
+re-points `main_server_id` at the new map and asks the *old* main to
+release; the old main's `MW_RELEASEMAIN_ACK` lands here. World forwards
+the released char to the new main — the inbound body (BYTE db_load,
+DWORD char_id, key, + the char's saved state) is re-tagged verbatim as
+`MW_ENTERSVR_REQ` (opaque passthrough; world reads only the first three
+fields to find the char) — and records the old main in the char's new
+`chg_main_id` byte (legacy `m_bCHGMainID`, replacing the misnomer
+`bool main_id_changing`; 0 = no handoff). The new main loads the char
+and replies `MW_ENTERSVR_ACK` to finish.
+
+Errors match legacy: unknown char / key mismatch → `MW_DELCHAR_REQ`; new
+main offline → `MW_INVALIDCHAR_REQ(release_main=1)`. One opaque-passthrough
+sender (`SendMwEnterSvrReq`).
+
+Deferred (its own slice): the `MW_ENTERSVR_ACK` handoff-completion logic
+that *consumes* `chg_main_id` — the legacy `OnMW_ENTERSVR_ACK` branches on
+`m_bCHGMainID` (incl. the BOW_/BR_SERVER special cases) to finalize the
+takeover, CONRESULT the new connection set, and clear the flag. The
+Asio `OnEnterSvrAck` ported so far only loads identity; the
+handoff-completion path lands later.
+
+Tests — `tests/test_releasemain_handlers.cpp` (2 map peers): an old main
+releasing a char whose main was re-pointed at the new map forwards the
+verbatim body (incl. a saved-state marker) to the new main as
+ENTERSVR_REQ + sets `chg_main_id`; a char whose new main is offline
+replies INVALIDCHAR(release_main=1); an unknown char replies DELCHAR.
+
+Build verified: cmake + ctest -R tworldsvr_asio (71/71 passed).
 
 ### W6-14 — what landed
 

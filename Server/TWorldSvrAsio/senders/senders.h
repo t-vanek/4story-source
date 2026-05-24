@@ -1741,6 +1741,32 @@ boost::asio::awaitable<void> SendMwEventQuarterReq(
     std::uint8_t                 select,
     const std::string&           present);
 
+// --- W6-2 combat / taming cross-server relays (senders_combat.cpp)-
+
+// MW_MAGICMIRROR_REQ — spell-reflection, routed to the attacker's
+// map. Body forwarded verbatim (world doesn't interpret it).
+boost::asio::awaitable<void> SendMwMagicMirrorReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
+// MW_MONTEMPT_REQ — monster-taming attempt result, to the attacker's
+// map.
+//   Wire: DWORD char_id, key, WORD mon_id
+boost::asio::awaitable<void> SendMwMonTemptReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint16_t                mon_id);
+
+// MW_MONTEMPTEVO_REQ — taming-evolution result, to the attacker's map.
+//   Wire: DWORD char_id, key, host_id, BYTE host_type
+boost::asio::awaitable<void> SendMwMonTemptEvoReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                host_id,
+    std::uint8_t                 host_type);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-1 timed-event broadcast (EVENTQUARTER)
+## Status — W6-2 combat / taming cross-server relays
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -96,9 +96,32 @@ that the four shipped Asio daemons already use.
 | W5-3 | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
 | W5-4 | War-window enable broadcast — OnSM_BATTLESTATUS_REQ fans the LOCAL/CASTLE/MISSION enable packet to every map peer (the trigger that starts the sieges) + 3 senders; BS_PEACE record bookkeeping + SKYGARDEN deferred | ✅ |
 | W5 | War + Castle + Tournament / TNMT | 🚧 |
-| **W6-1** | Timed-event broadcast — OnSM_EVENTQUARTER_REQ (present event, single server-chosen bucket) + OnSM_EVENTQUARTERNOTIFY_REQ (world-chat announcement via the chat sender) fan to every map peer + SendMwEventQuarterReq | ✅ |
+| W6-1 | Timed-event broadcast — OnSM_EVENTQUARTER_REQ (present event, single server-chosen bucket) + OnSM_EVENTQUARTERNOTIFY_REQ (world-chat announcement via the chat sender) fan to every map peer + SendMwEventQuarterReq | ✅ |
+| **W6-2** | Combat / taming cross-server relays — OnMW_MAGICMIRROR_ACK (verbatim) + OnMW_MONTEMPT_ACK + OnMW_MONTEMPTEVO_ACK route the effect to the attacker char's map + 3 senders; GETBLOOD deferred (OT_PC absent) | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-2 — what landed
+
+**Combat / taming cross-server relays** — when the attacker and the
+affected object sit on different map servers, the effect result is
+routed to the *attacker's* map (the world server is the only thing
+that knows which map a char is on).
+
+- `handlers_combat.cpp` — `OnMagicMirrorAck` (spell reflection,
+  forwarded **verbatim**), `OnMonTemptAck` (taming attempt),
+  `OnMonTemptEvoAck` (taming evolution). Each resolves the attacker
+  char by id and forwards to its main map via the matching sender
+  (`senders_combat.cpp`).
+- Deferred: `GETBLOOD` (lifesteal) — its routing branches on `OT_PC`,
+  an object-type enum **absent from the source tree** (referenced
+  across the map server but defined in a header not checked in).
+
+Tests — `tests/test_combat_handlers.cpp`: an attacker on one peer has
+each effect routed to its home peer (MAGICMIRROR byte-for-byte;
+MONTEMPT/MONTEMPTEVO with the char's key + payload).
+
+Build verified: cmake + ctest -R tworldsvr_asio (58/58 passed).
 
 ### W6-1 — what landed
 

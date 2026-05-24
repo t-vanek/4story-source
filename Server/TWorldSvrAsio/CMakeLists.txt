@@ -65,6 +65,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/party_registry.cpp
     ${TWORLD_ASIO_SRC}/services/corps_registry.cpp
     ${TWORLD_ASIO_SRC}/services/tms_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_friend_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/guild_tactics_wanted_registry.cpp
@@ -575,3 +577,13 @@ target_link_libraries(test_tworldsvr_asio_appearance_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_appearance_handlers
     COMMAND test_tworldsvr_asio_appearance_handlers)
+
+# W4-15 wire test: friend/group/soulmate load-at-login — a seeded
+# FakeFriendRepository hydrates TChar.friends/friend_groups on
+# MW_ADDCHAR_ACK with correct derived types + live connected flags.
+add_executable(test_tworldsvr_asio_friend_load_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_load_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_load_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_load_handlers
+    COMMAND test_tworldsvr_asio_friend_load_handlers)

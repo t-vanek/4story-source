@@ -30,6 +30,7 @@
 #include "services/peer_registry.h"
 #include "services/soci_guild_level_repository.h"
 #include "services/soci_guild_repository.h"
+#include "services/soci_friend_repository.h"
 #include "world_server.h"
 
 #include "fourstory/db/session_pool.h"
@@ -99,6 +100,7 @@ int main(int argc, char** argv)
         std::unique_ptr<boost::asio::thread_pool>        worker_pool;
         std::unique_ptr<tworldsvr::IGuildRepository>     guild_repo;
         std::unique_ptr<tworldsvr::IGuildLevelRepository> guild_level_repo;
+        std::unique_ptr<tworldsvr::IFriendRepository>    friend_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -134,6 +136,8 @@ int main(int argc, char** argv)
             guild_level_repo =
                 std::make_unique<tworldsvr::SociGuildLevelRepository>(
                     *db_pool_owner);
+            friend_repo = std::make_unique<tworldsvr::SociFriendRepository>(
+                *db_pool_owner);
         }
         else
         {
@@ -192,6 +196,7 @@ int main(int argc, char** argv)
         ctx.guilds       = &guilds;
         ctx.peers        = &peers;
         ctx.guild_repo   = guild_repo.get();
+        ctx.friend_repo  = friend_repo.get();
         ctx.guild_levels = &guild_levels;
         ctx.guild_wanted = &guild_wanted;
         ctx.guild_tactics_wanted = &guild_tactics_wanted;

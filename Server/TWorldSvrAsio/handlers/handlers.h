@@ -25,6 +25,7 @@
 #include "../services/party_registry.h"
 #include "../services/corps_registry.h"
 #include "../services/tms_registry.h"
+#include "../services/friend_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -54,6 +55,13 @@ struct HandlerContext
     PeerRegistry*             peers      = nullptr;
 
     IGuildRepository*         guild_repo = nullptr;
+
+    // W4-15: friend / friend-group / soulmate load source. Read at
+    // char-online (OnAddCharAck) to hydrate TChar.friends /
+    // friend_groups / soulmate. nullptr → no persistence (the
+    // in-memory registry is the only store, e.g. the no-[database]
+    // dev path + tests that don't seed a fake).
+    IFriendRepository*        friend_repo = nullptr;
 
     // W3a-4d: TGUILDCHART mirror loaded at boot. Handlers consult
     // it for per-level caps (member cap, cabinet slots, peerage

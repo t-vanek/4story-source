@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-14 per-character visual state sync (PETRIDING / HELMETHIDE)
+## Status — W4-15 friend/soulmate load-at-login (IFriendRepository)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -83,12 +83,53 @@ that the four shipped Asio daemons already use.
 | W4-11 | TMS conference channels — TmsRegistry + TTms + TChar.tms id-set + OnMW_TMSSEND/INVITEASK/INVITE/OUT_ACK (open / fan-out / re-pair / tear-down a multi-party group chat) + 4 senders | ✅ |
 | W4-12 | TMS presence on logout — NotifyTmsOnLogout (legacy LeaveTMS) wired into OnCloseCharAck: drops a logging-out char from every conference + tells the survivors via TMSOUT_REQ | ✅ |
 | W4-13 | Mail delivery relay — OnMW_POSTRECV_ACK (player mail) + OnDM_RESERVEDPOSTRECV_ACK (system mail) forward MW_POSTRECV_REQ verbatim to the recipient's map (routed by target name) + SendMwPostRecvReq | ✅ |
-| **W4-14** | Per-character visual state sync — OnMW_PETRIDING_ACK (mount fan-out to the char's other map sessions) + OnMW_HELMETHIDE_ACK (helmet-visibility store + confirm) + TChar.riding/helmet_hide + 2 senders | ✅ |
-| W4-15+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-14 | Per-character visual state sync — OnMW_PETRIDING_ACK (mount fan-out to the char's other map sessions) + OnMW_HELMETHIDE_ACK (helmet-visibility store + confirm) + TChar.riding/helmet_hide + 2 senders | ✅ |
+| **W4-15** | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
+| W4-16+ | Login presence connect fan-out (now that friends load at login) + friend/soulmate write-back persistence | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-15 — what landed
+
+**Friend/soulmate load-at-login** — the friend subsystem's missing
+persistence read path. Until now the in-memory friend list was only
+what FRIENDASK/REPLY built up during a single session; a relog
+started empty. Now a char's social graph is hydrated from the DB
+when it comes online — exactly what the legacy DM_FRIENDLIST
+round-trip did, collapsed to a direct query like the guild repo.
+
+- `services/friend_repository.h` — `IFriendRepository::LoadForChar`
+  returns a `FriendLoad { groups, forward[], reverse[], soulmate }`.
+  Friend rows carry id/name (+ level/class on the forward edges)
+  resolved by the legacy JOIN against TCHARTABLE.
+- `SociFriendRepository` (TFRIENDGROUPTABLE / TFRIENDTABLE forward +
+  reverse / TSOULMATETABLE) + `FakeFriendRepository` (test seed).
+  Wired into `HandlerContext.friend_repo` + `main.cpp` (Soci when
+  `[database]` is set, else nullptr — no-DB dev path skips the load).
+- `OnAddCharAck` hydrates the char on first connect via
+  `CoOffloadIf` (never blocks the io_context). `ApplyFriendLoad`
+  derives the friend **type** from the forward/reverse intersection
+  — forward-only = FT_FRIEND, mutual = FT_FRIENDFRIEND, reverse-only
+  = FT_TARGET (legacy OnDM_FRIENDLIST_ACK, SSHandler.cpp:1683) — and
+  resolves each friend's `connected` flag live from the registry
+  (CharRegistry::Find is shard-lock only, so it's safe under the
+  char's entity lock; region/level stay live-resolved by the
+  W4-4 FRIENDLIST reader).
+
+This makes the W4-4 FRIENDLIST reader and W4-7 logout-presence work
+against persistent data. The connect-side login-presence fan-out
+(notifying online friends that this char just came online) is the
+W4-16 follow-up; friend-mutation write-back stays deferred (the
+registry is authoritative within a session).
+
+Tests — `tests/test_friend_load_handlers.cpp`: a seeded fake repo
+hydrates Alice on ADDCHAR with Bob (forward → FT_FRIEND, connected
+because online) + Carol (reverse-only → FT_TARGET, offline) + a
+named group.
+
+Build verified: cmake + ctest -R tworldsvr_asio (47/47 passed).
 
 ### W4-14 — what landed
 

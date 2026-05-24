@@ -6,15 +6,74 @@
 
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
+#include <unordered_set>
 #include <vector>
 
 namespace tworldsvr::handlers {
+
+namespace {
+
+// Hydrate a freshly-online char's social graph from a FriendLoad.
+// Friend type is derived from the forward/reverse intersection
+// (legacy OnDM_FRIENDLIST_ACK): forward-only = FT_FRIEND, mutual =
+// FT_FRIENDFRIEND, reverse-only = FT_TARGET. `connected` is resolved
+// live from the registry (CharRegistry::Find is shard-lock only —
+// safe to call while holding the char's entity lock; region stays 0
+// and is resolved live by the FRIENDLIST reader).
+void ApplyFriendLoad(const HandlerContext& ctx, TChar& ch,
+                     const FriendLoad& fl)
+{
+    std::unordered_set<std::uint32_t> reverse_ids, forward_ids;
+    for (const auto& r : fl.reverse) reverse_ids.insert(r.id);
+
+    std::lock_guard g(ch.lock);
+
+    ch.friend_groups.clear();
+    for (const auto& [grp, name] : fl.groups)
+        ch.friend_groups.emplace_back(grp, name);
+
+    ch.friends.clear();
+    for (const auto& f : fl.forward)
+    {
+        forward_ids.insert(f.id);
+        TFriend tf;
+        tf.id        = f.id;
+        tf.name      = f.name;
+        tf.group     = f.group;
+        tf.type      = reverse_ids.count(f.id) ? frnd::kTypeFriendFriend
+                                               : frnd::kTypeFriend;
+        tf.connected = ctx.chars && ctx.chars->Find(f.id) != nullptr;
+        ch.friends.push_back(std::move(tf));
+    }
+    for (const auto& r : fl.reverse)
+    {
+        if (forward_ids.count(r.id)) continue; // already a mutual friend
+        TFriend tf;
+        tf.id        = r.id;
+        tf.name      = r.name;
+        tf.type      = frnd::kTypeTarget;
+        tf.connected = ctx.chars && ctx.chars->Find(r.id) != nullptr;
+        ch.friends.push_back(std::move(tf));
+    }
+
+    if (fl.has_soulmate && fl.soulmate_target != 0)
+    {
+        ch.soulmate = TSoulmate{};
+        ch.soulmate.target    = fl.soulmate_target;
+        ch.soulmate.connected =
+            ctx.chars && ctx.chars->Find(fl.soulmate_target) != nullptr;
+    }
+}
+
+} // namespace
 
 boost::asio::awaitable<void>
 OnAddCharAck(std::shared_ptr<PeerSession>  peer,
@@ -98,6 +157,19 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
         co_return;
     }
     ctx.chars->MarkUserActive(user_id);
+
+    // W4-15: hydrate the char's friends / groups / soulmate from the
+    // persistence layer (legacy loaded this at login via the
+    // DM_FRIENDLIST round-trip). Offloaded so SOCI never blocks the
+    // io_context; skipped when no repo is wired.
+    if (ctx.friend_repo)
+    {
+        auto fl = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id]
+            { return repo->LoadForChar(char_id); });
+        if (auto self = ctx.chars->Find(char_id))
+            ApplyFriendLoad(ctx, *self, fl);
+    }
 
     spdlog::info("OnAddCharAck[{}]: char_id={} key=0x{:08X} user_id={} "
                  "server_id={} ip={}.{}.{}.{}:{} — registered (total={}, "

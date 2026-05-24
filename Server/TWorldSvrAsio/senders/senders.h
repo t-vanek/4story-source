@@ -152,6 +152,24 @@ boost::asio::awaitable<void> SendMwLevelUpReq(
     std::uint32_t                key,
     std::uint8_t                 level);
 
+// MW_CHARSTATINFOANS_REQ — ask a target's map to gather the
+// inspected char's stat block (step 1 of the inspect-player relay).
+//
+// Wire layout (SSSender.cpp:1917):
+//   DWORD req_char_id, DWORD char_id
+boost::asio::awaitable<void> SendMwCharStatInfoAnsReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                req_char_id,
+    std::uint32_t                char_id);
+
+// MW_CHARSTATINFO_REQ — relay the gathered stat block back to the
+// requester's map (step 2). The body is forwarded verbatim (the
+// inbound CHARSTATINFOANS_ACK payload, leading with req_char_id) —
+// world doesn't interpret the stats.
+boost::asio::awaitable<void> SendMwCharStatInfoReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
 // MW_GUILDLEAVE_REQ — sent back to the originating map server
 // after world removes a member from a guild. The map server
 // forwards the confirmation down to the client + broadcasts the

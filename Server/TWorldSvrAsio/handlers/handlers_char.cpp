@@ -335,4 +335,55 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnCharStatInfoAck(std::shared_ptr<PeerSession>  peer,
+                  std::vector<std::byte>        body,
+                  const HandlerContext&         ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers) co_return;
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t req_char_id = 0, char_id = 0;
+    if (!r.Read(req_char_id) || !r.Read(char_id))
+    {
+        spdlog::warn("OnCharStatInfoAck[{}]: short body", ip);
+        co_return;
+    }
+
+    auto target = ctx.chars->Find(char_id);
+    if (!target) co_return;
+    std::uint8_t msi = 0;
+    { std::lock_guard g(target->lock); msi = target->main_server_id; }
+    if (auto p = FindMapPeer(ctx, msi))
+        co_await senders::SendMwCharStatInfoAnsReq(p, req_char_id, char_id);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnCharStatInfoAnsAck(std::shared_ptr<PeerSession>  peer,
+                     std::vector<std::byte>        body,
+                     const HandlerContext&         ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers) co_return;
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t req_char_id = 0;
+    if (!r.Read(req_char_id))
+    {
+        spdlog::warn("OnCharStatInfoAnsAck[{}]: short body", ip);
+        co_return;
+    }
+
+    auto requester = ctx.chars->Find(req_char_id);
+    if (!requester) co_return;
+    std::uint8_t msi = 0;
+    { std::lock_guard g(requester->lock); msi = requester->main_server_id; }
+    // Relay the gathered stat block back verbatim.
+    if (auto p = FindMapPeer(ctx, msi))
+        co_await senders::SendMwCharStatInfoReq(p, body);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

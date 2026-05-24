@@ -1497,5 +1497,24 @@ boost::asio::awaitable<void> OnLevelUpAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-10: inspect-player stat relay (handlers_char.cpp) ----------
+//
+// The two-step "inspect another player's stats" relay.
+// CHARSTATINFO_ACK is the requester asking about a target: world
+// routes MW_CHARSTATINFOANS_REQ to the target's map to gather the
+// stat block. CHARSTATINFOANS_ACK carries that block back (leading
+// with the requester id); world relays it verbatim as
+// MW_CHARSTATINFO_REQ to the requester's map (opaque passthrough).
+//   Wire (SSHandler.cpp:6739): DWORD req_char_id, DWORD char_id
+//   Wire (SSHandler.cpp:6759): DWORD req_char_id, <stat block>
+boost::asio::awaitable<void> OnCharStatInfoAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCharStatInfoAnsAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

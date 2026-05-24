@@ -521,3 +521,13 @@ target_link_libraries(test_tworldsvr_asio_levelup_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_levelup_handlers
     COMMAND test_tworldsvr_asio_levelup_handlers)
+
+# W4-10 wire test: inspect-player stat relay (CHARSTATINFO /
+# CHARSTATINFOANS) — request routed to the target's map, the
+# gathered stat block forwarded verbatim back to the requester.
+add_executable(test_tworldsvr_asio_charstat_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_charstat_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_charstat_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_charstat_handlers
+    COMMAND test_tworldsvr_asio_charstat_handlers)

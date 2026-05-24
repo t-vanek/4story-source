@@ -72,6 +72,32 @@ SendRwEntercharAck(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwCharStatInfoAnsReq(std::shared_ptr<PeerSession> peer,
+                         std::uint32_t                req_char_id,
+                         std::uint32_t                char_id)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, req_char_id);
+    WritePOD<std::uint32_t>(body, char_id);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CHARSTATINFOANS_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwCharStatInfoReq(std::shared_ptr<PeerSession>  peer,
+                      const std::vector<std::byte>& body)
+{
+    std::vector<std::byte> copy(body);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CHARSTATINFO_REQ),
+        std::move(copy));
+}
+
+boost::asio::awaitable<void>
 SendMwLevelUpReq(std::shared_ptr<PeerSession> peer,
                  std::uint32_t                char_id,
                  std::uint32_t                key,

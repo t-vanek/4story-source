@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-9 level update (LEVELUP)
+## Status — W4-10 inspect-player stat relay (CHARSTATINFO)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -78,12 +78,36 @@ that the four shipped Asio daemons already use.
 | W4-6 | Soulmate — OnMW_SOULMATESEARCH/REG/END_ACK (matchmaking + mutual pairing / register-preview / dissolve) + TChar.real_sex/soulmate + 3 senders | ✅ |
 | W4-7 | Social presence on logout — OnCloseCharAck fans FRIENDCONNECTION(DISCONNECTION) to friends + marks reverse friend/soulmate entries offline (NotifyFriends/SoulmateOnLogout) | ✅ |
 | W4-8 | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
-| **W4-9** | Level update — OnMW_LEVELUP_ACK stores TChar.level + multi-connection LEVELUP_REQ fan-out + soulmate level-sync / auto-dissolve on gap + SendMwLevelUpReq | ✅ |
-| W4-10+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
+| W4-9 | Level update — OnMW_LEVELUP_ACK stores TChar.level + multi-connection LEVELUP_REQ fan-out + soulmate level-sync / auto-dissolve on gap + SendMwLevelUpReq | ✅ |
+| **W4-10** | Inspect-player stat relay — OnMW_CHARSTATINFO_ACK + OnMW_CHARSTATINFOANS_ACK (request routed to the target's map, the gathered stat block forwarded verbatim to the requester) | ✅ |
+| W4-11+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-10 — what landed
+
+**Inspect-player stat relay** — the cross-shard "examine another
+player" flow (the client opens a target's stat window).
+
+- `OnCharStatInfoAck` (wID 0x9065): the requester asks about a
+  target by id; world routes `MW_CHARSTATINFOANS_REQ(req, target)`
+  to the *target's* map so it can gather the live stat block.
+- `OnCharStatInfoAnsAck` (wID 0x9067): the target's map returns the
+  block (leading with the requester id); world forwards it
+  **verbatim** as `MW_CHARSTATINFO_REQ` to the requester's map —
+  an opaque passthrough (world never interprets the stats).
+
+Senders — `SendMwCharStatInfoAnsReq` (2-field) +
+`SendMwCharStatInfoReq` (raw-body passthrough), in
+`senders_relay.cpp`.
+
+Tests — `tests/test_charstat_handlers.cpp` (two-peer): the request
+reaches the target's map with the right ids, and a stat block with
+an opaque tail round-trips unchanged back to the requester.
+
+Build verified: cmake + ctest -R tworldsvr_asio (42/42 passed).
 
 ### W4-9 — what landed
 

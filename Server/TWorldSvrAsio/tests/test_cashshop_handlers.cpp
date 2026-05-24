@@ -33,8 +33,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -262,6 +264,87 @@ int main()
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
+
+    // --- W6-34: CMGift result relay (in-game GM path, tool=0) ------
+    // Seed a GM char on p1 (wID=0x0042, so main_server_id LOBYTE=0x42).
+    {
+        auto gm = std::make_shared<tworldsvr::TChar>();
+        gm->char_id        = 1234;
+        gm->key            = 0xABCDEF01;
+        gm->name           = "GM_Alice";
+        gm->main_server_id = 0x42;
+        chars.Insert(gm);
+    }
+    // p3 (an arbitrary map peer) reports the gift result. World should
+    // route MW_CMGIFTRESULT_REQ to p1 (GM's main map).
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 0);      // result (CMGIFT_SUCCESS=0)
+        wire::WritePOD<std::uint8_t>(b, 0);      // tool=0 (in-game GM)
+        wire::WritePOD<std::uint32_t>(b, 1234);  // gm_id
+        SendFramed(p3, ToUint16(MessageId::MW_CMGIFTRESULT_ACK), b);
+    }
+    {
+        auto [w, b] = ReadFramed(p1);
+        EXPECT(w == ToUint16(MessageId::MW_CMGIFTRESULT_REQ));
+        wire::Reader r(b);
+        std::uint8_t  result = 0xFF;
+        std::uint32_t gm_id  = 0;
+        r.Read(result); r.Read(gm_id);
+        EXPECT(result == 0);
+        EXPECT(gm_id == 1234);
+    }
+
+    // --- W6-34b: tool=1 admin path → log + drop (no broadcast) -----
+    // Send tool=1; expect no peer to receive anything. Sentinel: send
+    // a CASHSHOPSTOP afterward and confirm both p1+p2 receive that.
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 0);
+        wire::WritePOD<std::uint8_t>(b, 1);     // tool=1 (admin)
+        wire::WritePOD<std::uint32_t>(b, 1234);
+        SendFramed(p3, ToUint16(MessageId::MW_CMGIFTRESULT_ACK), b);
+    }
+    std::this_thread::sleep_for(30ms);
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 99);    // sentinel type
+        SendFramed(p3, ToUint16(MessageId::CT_CASHSHOPSTOP_REQ), b);
+    }
+    for (auto* s : {&p1, &p2, &p3})
+    {
+        auto [w, b] = ReadFramed(*s);
+        EXPECT(w == ToUint16(MessageId::MW_CASHSHOPSTOP_REQ));
+        wire::Reader r(b);
+        std::uint8_t type = 0, send_player = 0;
+        r.Read(type); r.Read(send_player);
+        EXPECT(type == 99);   // sentinel — confirms no admin-path frame
+    }
+
+    // --- W6-34c: unknown gm_id → silent drop -----------------------
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 0);
+        wire::WritePOD<std::uint8_t>(b, 0);     // tool=0
+        wire::WritePOD<std::uint32_t>(b, 9999); // unknown char
+        SendFramed(p3, ToUint16(MessageId::MW_CMGIFTRESULT_ACK), b);
+    }
+    std::this_thread::sleep_for(30ms);
+    // Sentinel: another CASHSHOPSTOP must be the next frame everywhere.
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 100);
+        SendFramed(p3, ToUint16(MessageId::CT_CASHSHOPSTOP_REQ), b);
+    }
+    for (auto* s : {&p1, &p2, &p3})
+    {
+        auto [w, b] = ReadFramed(*s);
+        EXPECT(w == ToUint16(MessageId::MW_CASHSHOPSTOP_REQ));
+        wire::Reader r(b);
+        std::uint8_t type = 0, send_player = 0;
+        r.Read(type); r.Read(send_player);
+        EXPECT(type == 100);
+    }
 
     p1.close(); p2.close(); p3.close();
     io.stop();

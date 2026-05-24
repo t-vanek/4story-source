@@ -2059,6 +2059,16 @@ boost::asio::awaitable<void> SendMwCashShopStopReq(
     std::uint8_t                   type,
     std::uint8_t                   send_player);
 
+// W6-34: MW_CMGIFTRESULT_REQ — the in-game GM-issued cash-gift result,
+// relayed back to the GM's main map so the client renders the
+// success / failure dialog. Wire ID is shared with MW_CMGIFTRESULT_ACK
+// (legacy quirk — MWProtocol.h:522-523 both map to 0x9178).
+//   Wire (SSHandler.cpp:13776-13780): BYTE result, DWORD gm_id
+boost::asio::awaitable<void> SendMwCmGiftResultReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   result,
+    std::uint32_t                  gm_id);
+
 // --- W6-2 combat / taming cross-server relays (senders_combat.cpp)-
 
 // MW_MAGICMIRROR_REQ — spell-reflection, routed to the attacker's

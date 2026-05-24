@@ -7,6 +7,8 @@
 #include "../handlers/handlers.h"
 #include "../services/char_registry.h"
 #include "../services/chat_constants.h"
+#include "../services/event_constants.h"
+#include "../services/event_registry.h"
 #include "../services/guild_registry.h"
 #include "../services/peer_registry.h"
 #include "../wire_codec.h"
@@ -89,9 +91,10 @@ int main()
     tworldsvr::CharRegistry   chars;
     tworldsvr::GuildRegistry  guilds;
     tworldsvr::PeerRegistry   peers;
+    tworldsvr::EventRegistry  events;
     tworldsvr::HandlerContext ctx{};
     ctx.io = &io; ctx.chars = &chars; ctx.guilds = &guilds;
-    ctx.peers = &peers; ctx.nation = 0;
+    ctx.peers = &peers; ctx.events = &events; ctx.nation = 0;
 
     tworldsvr::WorldServerConfig svr_cfg{};
     svr_cfg.port = 0; svr_cfg.max_connections = 4; svr_cfg.ctx = ctx;
@@ -183,6 +186,92 @@ int main()
         EXPECT(msg_type == 2);
         EXPECT(msg == "Lottery winners announced!");
     }
+
+    // --- W6-31a: CT_EVENTUPDATE_REQ activate → store + broadcast ----
+    // Body shape: BYTE event_id, WORD value, DWORD dw_index,
+    //             BYTE b_id, <opaque trailer 6 bytes>
+    const std::vector<std::byte> trailer{
+        std::byte{0xAA}, std::byte{0xBB}, std::byte{0xCC},
+        std::byte{0xDD}, std::byte{0xEE}, std::byte{0xFF}};
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 1);           // event_id (EXPADD)
+        wire::WritePOD<std::uint16_t>(b, 100);        // value
+        wire::WritePOD<std::uint32_t>(b, 0x12345678); // dw_index
+        wire::WritePOD<std::uint8_t>(b, 1);           // b_id (EXPADD)
+        b.insert(b.end(), trailer.begin(), trailer.end());
+        SendFramed(p1, ToUint16(MessageId::CT_EVENTUPDATE_REQ), b);
+    }
+    for (auto* s : {&p1, &p2})
+    {
+        auto [w, b] = ReadFramed(*s);
+        EXPECT(w == ToUint16(MessageId::MW_EVENTUPDATE_REQ));
+        wire::Reader r(b);
+        std::uint8_t  event_id = 0, b_id = 0;
+        std::uint16_t value = 0;
+        std::uint32_t dw_index = 0;
+        r.Read(event_id); r.Read(value); r.Read(dw_index); r.Read(b_id);
+        EXPECT(event_id == 1);
+        EXPECT(value == 100);
+        EXPECT(dw_index == 0x12345678);
+        EXPECT(b_id == 1);
+        EXPECT(r.Remaining() == trailer.size());
+        for (std::size_t i = 0; i < trailer.size(); ++i)
+        {
+            std::byte t{};
+            r.Read(t);
+            EXPECT(t == trailer[i]);
+        }
+    }
+    EXPECT(events.Size() == 1);
+    {
+        auto snap = events.Snapshot();
+        EXPECT(snap.size() == 1);
+        EXPECT(snap[0].event_id == 1);
+        EXPECT(snap[0].value == 100);
+        EXPECT(snap[0].dw_index == 0x12345678);
+        EXPECT(snap[0].b_id == 1);
+        EXPECT(snap[0].body.size() == sizeof(std::uint32_t)
+            + sizeof(std::uint8_t) + trailer.size());
+    }
+
+    // --- W6-31b: CT_EVENTUPDATE_REQ deactivate (value=0) → erase
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 1);
+        wire::WritePOD<std::uint16_t>(b, 0);          // value=0 → erase
+        wire::WritePOD<std::uint32_t>(b, 0x12345678); // same index
+        wire::WritePOD<std::uint8_t>(b, 1);
+        SendFramed(p1, ToUint16(MessageId::CT_EVENTUPDATE_REQ), b);
+    }
+    for (auto* s : {&p1, &p2})
+    {
+        auto [w, b] = ReadFramed(*s);
+        EXPECT(w == ToUint16(MessageId::MW_EVENTUPDATE_REQ));
+        wire::Reader r(b);
+        std::uint8_t  event_id = 0, b_id = 0;
+        std::uint16_t value = 0;
+        std::uint32_t dw_index = 0;
+        r.Read(event_id); r.Read(value); r.Read(dw_index); r.Read(b_id);
+        EXPECT(value == 0);
+        EXPECT(dw_index == 0x12345678);
+    }
+    EXPECT(events.Size() == 0);
+
+    // --- W6-31c: LOTTERY short-circuit → no broadcast, no store -----
+    // Send a LOTTERY event-id and confirm neither peer receives anything
+    // and the registry stays empty.
+    {
+        std::vector<std::byte> b;
+        wire::WritePOD<std::uint8_t>(b, 1);   // outer event_id any
+        wire::WritePOD<std::uint16_t>(b, 50); // value > 0
+        wire::WritePOD<std::uint32_t>(b, 999);
+        wire::WritePOD<std::uint8_t>(b, tworldsvr::event_type::kLottery);
+        SendFramed(p1, ToUint16(MessageId::CT_EVENTUPDATE_REQ), b);
+    }
+    // Give the dispatcher a beat to process before the close drains.
+    std::this_thread::sleep_for(50ms);
+    EXPECT(events.Size() == 0);
 
     p1.close(); p2.close();
     io.stop();

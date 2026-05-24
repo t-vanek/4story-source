@@ -603,6 +603,11 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtEventMsgReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-31: event-state update (handlers_event.cpp) -------------
+    case MessageId::CT_EVENTUPDATE_REQ:
+        co_await OnCtEventUpdateReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-2: combat / taming relays (handlers_combat.cpp) ----
     case MessageId::MW_MAGICMIRROR_ACK:
         co_await OnMagicMirrorAck(std::move(peer), std::move(body), ctx);

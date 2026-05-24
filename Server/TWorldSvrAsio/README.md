@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-30 Event subsystem opener (CT_EVENTMSG broadcast)
+## Status — W6-31 Event update (CT_EVENTUPDATE: opaque-tail registry + broadcast)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -100,7 +100,8 @@ that the four shipped Asio daemons already use.
 | W6-27 | BattleMode status + CM teleport — `OnBattleModeStatusReq` replies `MW_BATTLEMODESTATUS_ACK` on the char's main map carrying the quiescent payload (zeros + TCONTRY_N for bow_winner — same shape the legacy emits when neither subsystem is running). `OnCmTeleportBattleModeReq` routes by `system_type`: SYSTEM_BOW → `BowRegistry::AddPlayer(country=TCONTRY_C)` (admin force-add; our registry doesn't model the BS_ALARM/Admin gate so it just accepts), SYSTEM_BR → no-op (legacy body is empty — a TODO in the original). 1 new sender (`SendMwBattleModeStatusAck`). Closes 2 of the Arena/BattleMode trio | ✅ |
 | W6-28 | ARENAJOIN — closes the Arena trio. `OnArenaJoinAck` flips `TParty.arena` to the inbound `join` flag; on the join path: if the party was in a corps, runs `NotifyCorpsLeave` so the corps unwinds (arena parties must be standalone); for each party member NOT in the inbound keep-list, runs `LeaveParty` (kick=1 so survivors get the right PARTYDEL flags). Refactor: `NotifyCorpsLeave` extracted from handlers_corps.cpp's anonymous namespace + declared in handlers.h (`LeaveParty` stays file-local — `OnArenaJoinAck` lives in handlers_party.cpp). No reply | ✅ |
 | W6-29 | RPS event — small dedicated subsystem (rock-paper-scissors event game). `OnRpsGameAck` runs the win-keep cap gate via `RpsRegistry::RecordWin` (prunes >30-day-old entries, counts entries within win_period, denies on cap hit) + replies `MW_RPSGAME_REQ(result, player_rps)`. `OnRpsGameDataReq` snapshots every config row for the `CT_RPSGAMEDATA_ACK` reply. `OnRpsGameChangeReq` applies admin updates (silent-drop on unknown key, legacy parity), then ACKs the requester + broadcasts the verbatim `MW_RPSGAMECHANGE_REQ` body to every map peer. `OnRpsGameRecordReq` is a logged stub (DB persistence to TRPSGAMERECORDTABLE deferred — no IRpsRepository yet). New RpsRegistry + 3 senders | ✅ |
-| **W6-30** | Event subsystem opener — `OnCtEventMsgReq` fans the operator event-message line (event_id + msg_type + msg) verbatim to every map peer as `MW_EVENTMSG_REQ`. Pure broadcast — no per-event state. 1 new sender (`SendMwEventMsgReq`). Companion to W6-1's `SM_EVENTQUARTER_REQ`/`SM_EVENTQUARTERNOTIFY_REQ` broadcasts. Deferred to follow-ups: `CT_EVENTUPDATE_REQ` (full EVENTINFO codec + replay-on-connect + LOTTERY/GIFTTIME special-cases — heavy slice), `CT_EVENTQUARTERLIST/UPDATE_REQ` (DataSvr forwarding — no DataSvr peer in our infra), `SM_EVENTEXPIRED_REQ/_ACK` (W3a-19/W3a-36 sweepers already supersede the legacy timer-fed expiry path), `DM_EVENTQUARTER*` (heavy SOCI — no IEventQuarterRepository) | ✅ |
+| W6-30 | Event subsystem opener — `OnCtEventMsgReq` fans the operator event-message line (event_id + msg_type + msg) verbatim to every map peer as `MW_EVENTMSG_REQ`. Pure broadcast — no per-event state. 1 new sender (`SendMwEventMsgReq`). Companion to W6-1's `SM_EVENTQUARTER_REQ`/`SM_EVENTQUARTERNOTIFY_REQ` broadcasts. Deferred to follow-ups: `CT_EVENTUPDATE_REQ` (full EVENTINFO codec + replay-on-connect + LOTTERY/GIFTTIME special-cases — heavy slice), `CT_EVENTQUARTERLIST/UPDATE_REQ` (DataSvr forwarding — no DataSvr peer in our infra), `SM_EVENTEXPIRED_REQ/_ACK` (W3a-19/W3a-36 sweepers already supersede the legacy timer-fed expiry path), `DM_EVENTQUARTER*` (heavy SOCI — no IEventQuarterRepository) | ✅ |
+| **W6-31** | Event update — `OnCtEventUpdateReq` adds the W6-30 deferred piece. New `EventRegistry` stores active events keyed by `dw_index` with the EVENTINFO body kept opaque (only the routing fields `dw_index` + `b_id` are surfaced); value==0 erases (legacy "deactivate"), value!=0 inserts. Then fans `MW_EVENTUPDATE_REQ(event_id, value, <opaque body>)` to every map peer — same shape legacy emits via `pEvent->WrapPacketIn` (SSSender.cpp:3270), avoiding a full WrapPacketOut/WrapPacketIn parse round-trip. `event_id > kCount` is dropped (SSHandler.cpp:276). LOTTERY/GIFTTIME body-ids short-circuit to log+drop (legacy runs `LotteryItem`/`GiftTime` reward subsystems on the world server — random char pick + in-game mail via SendPost + `MW_EVENTMSGLOTTERY_REQ`; helpers not ported yet). New `event_constants.h` (kLottery=14, kGiftTime=15, kCount=16) + `event_registry.h/.cpp` + 1 sender (`SendMwEventUpdateReq`). Replay-on-connect (legacy SSHandler.cpp:664 walks `m_mapEVENT` on a new map peer's connect) deferred — `EventRegistry::Snapshot()` is the hook | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -131,11 +132,11 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-30)
+## Gaps audit — not yet ported / deferred (as of W6-31)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~176** are ported in `handlers/dispatch.cpp`,
-leaving **~90** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~177** are ported in `handlers/dispatch.cpp`,
+leaving **~89** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
@@ -221,9 +222,12 @@ Intentionally not ported:
   (TRPSGAMERECORDTABLE via the legacy CSPRPSGameRecord SP) is
   deferred — no IRpsRepository yet (logged stub)
 - Event subsystem (broader): W6-1 ported the `SM_EVENTQUARTER*` broadcasts;
-  W6-30 ports `CT_EVENTMSG_REQ` (operator event-message line). Still
-  deferred: `CT_EVENTUPDATE_REQ` (full EVENTINFO codec + replay-on-connect
-  + LOTTERY/GIFTTIME special-cases), `CT/DM_EVENTQUARTERLIST/UPDATE`
+  W6-30 ports `CT_EVENTMSG_REQ` (operator event-message line); W6-31 ports
+  `CT_EVENTUPDATE_REQ` via an opaque-tail `EventRegistry` + broadcast.
+  Still deferred: replay-on-connect (legacy SSHandler.cpp:664 walks
+  `m_mapEVENT` on every new map peer — `EventRegistry::Snapshot()` is
+  the hook), LOTTERY/GIFTTIME reward subsystems (random char pick +
+  in-game mail via SendPost + `MW_EVENTMSGLOTTERY_REQ`), `CT/DM_EVENTQUARTERLIST/UPDATE`
   (DataSvr forwarding), `SM_EVENTEXPIRED_REQ/_ACK` (W3a-19/W3a-36 sweepers
   already cover the wanted/tactics expiry paths)
 
@@ -256,15 +260,13 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **Event subsystem follow-ups** — `CT_EVENTUPDATE_REQ` (full
-   EVENTINFO codec — cash-item-sale / mon-event / mon-regen /
-   lottery vectors — plus the replay-on-connect store mirroring
-   legacy `m_mapEVENT`) is the next natural step after the W6-30
-   opener. `CT/DM_EVENTQUARTERLIST/UPDATE` (DataSvr forwarding)
-   wait on a DataSvr peer abstraction. `SM_EVENTEXPIRED_REQ/_ACK`
-   is intentionally not ported — the W3a-19/W3a-36 sweepers
-   already cover the wanted/tactics expiry paths legacy fanned
-   through this handler.
+1. **Event replay-on-connect** — wire the W6-31 `EventRegistry`
+   snapshot into the RW_RELAYSVR_REQ handler: every new map peer
+   gets one `MW_EVENTUPDATE_REQ` per active event before its first
+   game packet. Small slice (one snapshot loop + a per-entry
+   `SendMwEventUpdateReq`); closes the legacy SSHandler.cpp:664
+   "for each event in m_mapEVENT, re-send to this server" replay
+   path that we shipped the store for in W6-31.
 2. **CMGift / Cash-item sale** (W7) — `MW_CMGIFT/RESULT`,
    `CT_CMGIFT/CHARTUPDATE/LIST`, `DM_CMGIFT/CHARTUPDATE`. Multi-
    handler cash-shop tranche.
@@ -273,6 +275,60 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
    composite.
 5. Larger roadmap subsystems (Tournament / MonthRank / GM item
    tools).
+
+### W6-31 — what landed
+
+**Event update** — `OnCtEventUpdateReq` ports the legacy
+admin-driven event activation handler (SSHandler.cpp:263). The
+control server (ControlSvr) sends `BYTE event_id, WORD value, …`
+followed by a serialized `EVENTINFO` payload (the heavy CashItem /
+MonEvent / MonRegen / Lottery vector struct from
+`TWorldType.h:724`). World stores the active events in a new
+`EventRegistry` keyed by the EVENTINFO's `dw_index`, then fans
+`MW_EVENTUPDATE_REQ` verbatim to every map peer.
+
+- `OnCtEventUpdateReq` — peek `event_id, value, dw_index, b_id`,
+  capture the rest of the body as the opaque EVENTINFO tail.
+  `event_id > kCount` → drop (legacy parity, SSHandler.cpp:276).
+  `b_id == kLottery || b_id == kGiftTime` → log + drop (legacy
+  runs `LotteryItem`/`GiftTime` reward subsystems on the world
+  server — random char selection + in-game mail via SendPost +
+  `MW_EVENTMSGLOTTERY_REQ`; helpers not ported yet). Otherwise:
+  `EventRegistry::Erase(dw_index)` always; `Set` only when
+  `value != 0` (legacy "wValue==0 deactivates"); always broadcast
+  so peers see the deactivation too.
+
+The opaque-tail approach lets world act as a pure relay +
+state-tracker without needing to round-trip through the full
+`EVENTINFO::WrapPacketOut`/`WrapPacketIn` codec. Legacy
+`SendMW_EVENTUPDATE_REQ` (SSSender.cpp:3270) produces the same
+wire layout: `<< bEventID << wValue; pEvent->WrapPacketIn(pMSG)`.
+
+New service: `EventRegistry` (services/event_registry.h/.cpp).
+One `shared_mutex` over the `dw_index` → `TEventInfo` map; `Set`
+and `Erase` mutate under a unique lock, `Snapshot`/`Size` under
+a shared lock. `TEventInfo` keeps the routing fields surfaced
+(`event_id, value, dw_index, b_id`) plus the full opaque body
+ready for re-emit on replay-on-connect.
+
+New header: `services/event_constants.h` —
+`event_type::kLottery=14`, `kGiftTime=15`, `kCount=16` (from
+`NetCode.h:2442-2444`'s `EVENT_TYPE` enum).
+
+1 new sender in `senders_event.cpp`: `SendMwEventUpdateReq`
+(`BYTE event_id, WORD value, <opaque body>`).
+
+Tests — `tests/test_event_handlers.cpp` extended with three
+sub-cases (registry handle added to the test ctx): activate +
+broadcast + store assertions on both peers (verbatim opaque
+trailer survives the round-trip; `Snapshot()` returns the row);
+deactivate (`value=0`) + erase + broadcast; LOTTERY body_id
+short-circuit (no broadcast, no store).
+
+Build verified: cmake + ctest -R tworldsvr_asio -C Debug on the
+representative subset (dispatch + relay + chat + event + rps +
+conn + bow + br + battlemode + leavebattlefield + arenajoin —
+11/11 passed).
 
 ### W6-30 — what landed
 

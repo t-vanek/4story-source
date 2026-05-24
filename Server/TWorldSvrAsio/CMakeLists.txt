@@ -90,6 +90,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/bow_registry.cpp
     ${TWORLD_ASIO_SRC}/services/br_registry.cpp
     ${TWORLD_ASIO_SRC}/services/rps_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/event_registry.cpp
     ${TWORLD_ASIO_SRC}/services/fake_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp

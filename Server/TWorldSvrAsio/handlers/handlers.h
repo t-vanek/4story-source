@@ -19,6 +19,7 @@
 #include "../services/bow_registry.h"
 #include "../services/br_registry.h"
 #include "../services/char_registry.h"
+#include "../services/event_registry.h"
 #include "../services/rps_registry.h"
 #include "../services/guild_level_cache.h"
 #include "../services/guild_registry.h"
@@ -106,6 +107,10 @@ struct HandlerContext
     // W6-29: RPS event game config + win-cap ledger. Owned by main;
     // non-null in W6-29+ deploys.
     RpsRegistry*              rps        = nullptr;
+
+    // W6-31: Active timed-event store (legacy m_mapEVENT). Owned by
+    // main; non-null in W6-31+ deploys.
+    EventRegistry*            events     = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1640,6 +1645,31 @@ boost::asio::awaitable<void> OnEventQuarterNotifyReq(
 // no state.
 //   Wire (SSHandler.cpp:310): BYTE event_id, msg_type, STRING msg
 boost::asio::awaitable<void> OnCtEventMsgReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// W6-31: CT_EVENTUPDATE_REQ — admin-driven event activation /
+// deactivation. value==0 deactivates (erase); value!=0 stores the
+// EVENTINFO body opaquely in EventRegistry. Then fans
+// MW_EVENTUPDATE_REQ verbatim to every map peer.
+//
+// LOTTERY / GIFTTIME (legacy SSHandler.cpp:279-292) short-circuit
+// here in the legacy — they run gameplay reward subsystems on the
+// world server (random char selection + in-game mail). Those
+// subsystems are not yet ported (no SendPost helper / random char
+// iteration); our port logs + returns without storing or
+// broadcasting, matching legacy "non-active" semantics. See README §B
+// "Event subsystem (broader)" for the deferred list.
+//
+//   Wire (SSHandler.cpp:263): BYTE event_id, WORD value,
+//                             <opaque EVENTINFO body>
+//
+// The opaque body begins with DWORD dw_index + BYTE b_id (the two
+// fields routing needs); the remainder is forwarded verbatim. Legacy
+// SendMW_EVENTUPDATE_REQ has the same wire shape on the way out
+// (SSSender.cpp:3270 — bEventID + wValue + WrapPacketIn(EVENTINFO)).
+boost::asio::awaitable<void> OnCtEventUpdateReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

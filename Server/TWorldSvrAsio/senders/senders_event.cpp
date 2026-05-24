@@ -43,4 +43,23 @@ SendMwEventMsgReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwEventUpdateReq(std::shared_ptr<PeerSession>   peer,
+                     std::uint8_t                   event_id,
+                     std::uint16_t                  value,
+                     const std::vector<std::byte>&  event_body)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    body.reserve(sizeof(std::uint8_t) + sizeof(std::uint16_t)
+        + event_body.size());
+    WritePOD<std::uint8_t>(body, event_id);
+    WritePOD<std::uint16_t>(body, value);
+    body.insert(body.end(), event_body.begin(), event_body.end());
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_EVENTUPDATE_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

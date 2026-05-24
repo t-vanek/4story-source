@@ -2024,6 +2024,18 @@ boost::asio::awaitable<void> SendMwEventMsgReq(
     std::uint8_t                 msg_type,
     const std::string&           msg);
 
+// W6-31: MW_EVENTUPDATE_REQ — event-state change for every map peer.
+// `event_body` is the opaque EVENTINFO body received in the inbound
+// CT_EVENTUPDATE_REQ packet (everything past the outer event_id +
+// value pair); the legacy sender does the same via
+// `pEvent->WrapPacketIn(pMSG)` on a freshly-built EVENTINFO struct.
+//   Wire: BYTE event_id, WORD value, <opaque EVENTINFO body>
+boost::asio::awaitable<void> SendMwEventUpdateReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   event_id,
+    std::uint16_t                  value,
+    const std::vector<std::byte>&  event_body);
+
 // --- W6-2 combat / taming cross-server relays (senders_combat.cpp)-
 
 // MW_MAGICMIRROR_REQ — spell-reflection, routed to the attacker's

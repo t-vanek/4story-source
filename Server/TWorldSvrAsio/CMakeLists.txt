@@ -706,6 +706,16 @@ target_link_libraries(test_tworldsvr_asio_event_handlers PRIVATE
 add_test(NAME tworldsvr_asio_event_handlers
     COMMAND test_tworldsvr_asio_event_handlers)
 
+# W6-32 wire test: event replay on map-peer connect — a joining
+# RW_RELAYSVR_REQ triggers a snapshot walk that re-emits every
+# active MW_EVENTUPDATE_REQ to the new peer.
+add_executable(test_tworldsvr_asio_event_replay_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_event_replay_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_event_replay_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_event_replay_handlers
+    COMMAND test_tworldsvr_asio_event_replay_handlers)
+
 # W6-2 wire test: combat / taming cross-server relays — MAGICMIRROR /
 # MONTEMPT / MONTEMPTEVO route to the attacker char's map.
 add_executable(test_tworldsvr_asio_combat_handlers

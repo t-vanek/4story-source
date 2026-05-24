@@ -1498,4 +1498,28 @@ boost::asio::awaitable<void> SendMwFriendGroupChangeReq(
     std::uint8_t                 group,
     std::uint32_t                friend_id);
 
+// --- W4-5 chat relay (senders_chat.cpp) ---------------------------
+
+// MW_CHAT_REQ — a chat message delivered to one recipient (or, for
+// the global channels, broadcast per map peer with char_id/key=0).
+// country/war_country carry the sender's m_bCountry / m_bAidCountry.
+//
+// Wire layout (SSSender.cpp:1641):
+//   DWORD char_id, DWORD key, BYTE channel, DWORD sender_id,
+//   STRING sender_name, BYTE country, BYTE war_country, BYTE type,
+//   BYTE group, DWORD target_id, STRING talk
+boost::asio::awaitable<void> SendMwChatReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 channel,
+    std::uint32_t                sender_id,
+    const std::string&           sender_name,
+    std::uint8_t                 country,
+    std::uint8_t                 war_country,
+    std::uint8_t                 type,
+    std::uint8_t                 group,
+    std::uint32_t                target_id,
+    const std::string&           talk);
+
 } // namespace tworldsvr::senders

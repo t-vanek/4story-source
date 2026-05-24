@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-4 friend list reader (FRIENDLIST)
+## Status — W4-5 chat channel relay (CHAT)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -73,12 +73,45 @@ that the four shipped Asio daemons already use.
 | W4-1 | Friend subsystem opener — TChar.friends/region + TFriend + friend_constants + OnMW_FRIENDASK_ACK invite gate (relay / mutual instant-add) + SendMwFriendAddReq/AskReq | ✅ |
 | W4-2 | Friend reply + erase — OnMW_FRIENDREPLY_ACK (accept upserts mutual entries / reject relays code) + OnMW_FRIENDERASE_ACK (mutual demote / one-way remove) + SendMwFriendEraseReq | ✅ |
 | W4-3 | Friend groups — OnMW_FRIENDGROUPMAKE/DELETE/CHANGE/NAME_ACK (per-char named buckets, TChar.friend_groups + TFriend.group) + 4 senders | ✅ |
-| **W4-4** | Friend list reader — OnMW_FRIENDLIST_ACK → MW_FRIENDLIST_REQ (groups + non-pending friends, per-friend level/class/connected/region resolved live) | ✅ |
-| W4-5+ | Friend connection notifications (presence) + friend DB load + Chat + Soulmate | ⏸ |
+| W4-4 | Friend list reader — OnMW_FRIENDLIST_ACK → MW_FRIENDLIST_REQ (groups + non-pending friends, per-friend level/class/connected/region resolved live) | ✅ |
+| **W4-5** | Chat channel relay — OnMW_CHAT_ACK (GUILD/TACTICS/PARTY/FORCE/MAP/WORLD/SHOW/WHISPER) routed to the right audience via the guild/party/corps/peer registries + SendMwChatReq | ✅ |
+| W4-6+ | Friend connection notifications (presence) + friend DB load + Soulmate | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-5 — what landed
+
+The **chat channel relay** — a capstone that routes a message to
+the right audience through every social registry ported so far.
+
+Handler — `OnChatAck` (wID 0x903F), switching on the CHAT_GROUP:
+- `GUILD` / `TACTICS` — every guild member (+ hired tactics
+  members for TACTICS), via GuildRegistry.
+- `PARTY` — the target party's members, via PartyRegistry.
+- `FORCE` — the sender's corps: every member of every squad, via
+  Party + CorpsRegistry.
+- `MAP` / `WORLD` / `SHOW` — global: one `MW_CHAT_REQ` per map peer
+  (char_id/key = 0), via PeerRegistry.
+- `WHISPER` — a direct recipient (resolved by id, else by name),
+  delivered + echoed back to the sender (the echo carries the
+  recipient's name for the client's "To <name>" line), gated by
+  war-country (waived when either side is in the peace country).
+
+Each recipient is reached through `RelayToChar` (CharRegistry
+lookup → its map peer). The sender's country/aid ride on every
+`MW_CHAT_REQ`. Deferred: the operator-whisper sub-case ("/GM …"),
+which needs the operator list + server-message table.
+
+Sender — `SendMwChatReq` (11-field) in the new `senders_chat.cpp`.
+
+Tests — `tests/test_chat_handlers.cpp` (5 channels, three-peer
+loopback): GUILD (both members), PARTY (both members), WORLD
+(every peer), WHISPER (recipient + sender echo), and the
+cross-war-country whisper block (proven by a follow-up WORLD).
+
+Build verified: cmake + ctest -R tworldsvr_asio (37/37 passed).
 
 ### W4-4 — what landed
 

@@ -440,8 +440,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnFriendListAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W4-5+ picks up friend connection notifications (presence) +
-    // chat + soulmate. … see README §4.
+    // ---- W4-5: chat relay (handlers_chat.cpp) ------------------
+    case MessageId::MW_CHAT_ACK:
+        co_await OnChatAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-6+ picks up friend connection notifications (presence) +
+    // soulmate. … see README §4.
 
     default:
         break;

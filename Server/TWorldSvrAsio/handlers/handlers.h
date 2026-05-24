@@ -1408,5 +1408,24 @@ boost::asio::awaitable<void> OnFriendListAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-5: chat relay (handlers_chat.cpp) --------------------------
+//
+// MW_CHAT_ACK — a chat message routed by channel (CHAT_GROUP) to the
+// right audience: GUILD / TACTICS (guild + hired tactics members),
+// PARTY (target party), FORCE (the sender's corps), MAP/WORLD/SHOW
+// (every map peer, global), or WHISPER (a direct recipient, echoed
+// back to the sender, with a war-country gate waived for peace).
+// Each recipient gets MW_CHAT_REQ. The operator-whisper sub-case
+// (whisper to "GM") is deferred — it needs the operator list +
+// server-message table.
+//
+// Wire (SSHandler.cpp:5248): BYTE channel, DWORD sender, key,
+//   STRING sender_name, BYTE type, group, DWORD target,
+//   STRING name, talk
+boost::asio::awaitable<void> OnChatAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

@@ -905,3 +905,13 @@ target_link_libraries(test_tworldsvr_asio_entersvr_fresh_login_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_entersvr_fresh_login_handlers
     COMMAND test_tworldsvr_asio_entersvr_fresh_login_handlers)
+
+# W6-23 wire test: CHARDATA_ACK drift fan-out — ENTERCHAR_REQ to each
+# not-yet-ready con + opaque tail preserved verbatim; ENTERCHAR_ACK
+# closes the loop with the CHECKMAIN broadcast.
+add_executable(test_tworldsvr_asio_chardata_drift_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_chardata_drift_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_chardata_drift_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_chardata_drift_handlers
+    COMMAND test_tworldsvr_asio_chardata_drift_handlers)

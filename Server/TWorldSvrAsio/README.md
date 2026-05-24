@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-22 fresh-login ENTERSVR completion (CHARINFO/ROUTE/FRIENDLIST)
+## Status — W6-23 CHARDATA_ACK drift fan-out (ENTERCHAR_REQ)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -93,6 +93,7 @@ that the four shipped Asio daemons already use.
 | W4-21 | Friend-protected presence sync — OnMW_PROTECTEDCHECK_ACK is the symmetric partner to W6-9. The map updates the connect/disconnect status of a protected friend; world mirrors the transition across both directed edges (when both still hold each other), syncs regions, and relays MW_FRIENDCONNECTION_REQ to the target's map (skipping FT_TARGET — legacy parity). On disconnect, also fires the W4-17 IFriendRepository::EraseFriend write-back. Missing char/friend/edge → silent drop | ✅ |
 | **W4-22** | Fresh-login ENTERSVR completion — OnEnterSvrAck now does the legacy fresh-login chain after the W4-20 identity load: build the CHARINFO_REQ composite from in-memory guild + tactics + party state (FindMember / FindTactics for the per-char castle/duty/peer) and send it back to the responder; ROUTE_REQ so the main can resolve any additional connections (answered by W6-20's MW_ROUTE_ACK); MW_FRIENDLIST_REQ (groups + non-pending friends, online state resolved live like W4-4); MW_CHATBAN_REQ when the char's chat_ban_time is still active. 2 senders (CharInfoPayload + CHARINFO_REQ, ROUTE_REQ); reuses FRIENDLIST/CHATBAN. Deferred: BR/Bow bow_release flag, RW_CHANGEMAP relay-server hop, APEX notify (TW), cluster-wide chat-ban list | ✅ |
 | W4-23+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
+| **W6-23** | CHARDATA_ACK drift fan-out — closes the W6-20 deferral. When CHARDATA_ACK arrives but some cons haven't ENTERCHAR_ACKed yet, world fans MW_ENTERCHAR_REQ (33-field composite + opaque recall-mon tail lifted verbatim from the inbound body) to each non-ready con. Each map loads the char and replies ENTERCHAR_ACK → CheckMainCon completes the loop. 1 new sender (EnterCharReqPayload + SendMwEnterCharReq); reuses GuildRegistry / PartyRegistry / CorpsRegistry for the composite | ✅ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
 | W5-3 | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
@@ -117,12 +118,12 @@ that the four shipped Asio daemons already use.
 | W6-17 | Teleport begin + cession queue — OnMW_BEGINTELEPORT_ACK: same-channel fast path records the channel; else PushConCess serialises against any in-flight handoff and (if first) BeginTeleport broadcasts MW_STARTTELEPORT_REQ to every con. Deferred entries replay via PopConCess, now wired into CHECKMAIN_ACK. `TChar::con_cess` queue (legacy m_qConCess) + 1 sender | ✅ |
 | W6-18 | Connect-check reconcile — OnMW_CHECKCONNECT_ACK (the other cession producer): updates the char's position then reconciles cons (count=0 → CHECKMAIN sweep; else drop stale → dead_cons + ROUTELIST new servers via main, else CHECKMAIN); replays via PopConCess. Reuses the W6-17 cession queue; no new senders | ✅ |
 | W6-19 | CloseChar teardown — OnMW_CLOSECHAR_ACK now does the full legacy CloseChar: chg_main_id → INVALIDCHAR(release_main) on the would-be new main, DELCHAR every con (dead first, then live; logout/save flags only on the main), registry+name-index removal, friend/soulmate/TMS offline fan-out. Shared helper wired into the BeginTeleport/CheckConnect main-offline paths. Party-leave + guild/tactics DB persistence still deferred | ✅ |
-| W6-20 | Connection-completion sub-flow — closes the W6-13/W6-18 reconcile loop. OnMW_ROUTE_ACK (main's reply to ROUTELIST): count==0 → SendMwCharDataReq; count>0 → register each (ip/port/server_id) as a *pending* TCharCon (valid=false, ready=false; existing entry's valid bit preserved) + SendMwAddConnectReq to the reporter. OnMW_ENTERCHAR_ACK flips the reporter's con.ready; all-ready → CheckMainCon broadcast. OnMW_CHARDATA_ACK refreshes level/HP/MP; all-ready → CheckMainCon (the non-ready ENTERCHAR_REQ fan-out is deferred — the fat composite belongs to the fresh-login slice). DELCHAR/INVALIDCHAR errors + 2 senders (ADDCONNECT_REQ / CHARDATA_REQ). Drive-by: add `<cstddef>` to guild_constants.h (MSVC doesn't pull it via `<cstdint>`) | ✅ |
+| W6-20 | Connection-completion sub-flow — closes the W6-13/W6-18 reconcile loop. OnMW_ROUTE_ACK (main's reply to ROUTELIST): count==0 → SendMwCharDataReq; count>0 → register each (ip/port/server_id) as a *pending* TCharCon (valid=false, ready=false; existing entry's valid bit preserved) + SendMwAddConnectReq to the reporter. OnMW_ENTERCHAR_ACK flips the reporter's con.ready; all-ready → CheckMainCon broadcast. OnMW_CHARDATA_ACK refreshes level/HP/MP; all-ready → CheckMainCon. (Not-all-ready ENTERCHAR_REQ fan-out shipped in W6-23.) DELCHAR/INVALIDCHAR errors + 2 senders (ADDCONNECT_REQ / CHARDATA_REQ). Drive-by: add `<cstddef>` to guild_constants.h (MSVC doesn't pull it via `<cstdint>`) | ✅ |
 | **W6-21** | Teleport confirm — OnMW_TELEPORT_ACK: happy path clears `party_waiter`, replies MW_TELEPORT_REQ(TPR_SUCCESS) to the responder + MW_CONLIST_REQ to the destination map (which re-enters the W6-13 reconcile to join the char's con set). Destination map offline → MW_TELEPORT_REQ(TPR_NODESTINATION) + CloseChar (the W6-19 helper). Unknown char / key mismatch → MW_DELCHAR_REQ. Closes the W6-17 BEGINTELEPORT chain end-to-end. 2 senders (TELEPORT_REQ / CONLIST_REQ) | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W4-22)
+## Gaps audit — not yet ported / deferred (as of W6-23)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
 (`CTWorldSvrModule::On*`); **~159** are ported in `handlers/dispatch.cpp`,
@@ -166,8 +167,9 @@ Intentionally not ported:
     the per-char `chat_ban_time`, but the cluster-wide list isn't
     a thing here yet);
   - the APEX (Taiwan) notify.
-  Note: the W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out
-  is a *different* composite — separate slice.
+  (The W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out
+  shipped separately in W6-23 — it's a different 33-field
+  composite, distinct from `CHARINFO_REQ`.)
 - **CloseChar** (W6-19): party-leave on logout; guild/tactics DB
   persistence (`PVPRECORD`/`TACTICSPOINT`/`SaveGuildStats`). The sketchy
   legacy `if(!m_bSave) CloseChar` at the top of CHECKMAIN_ACK (a
@@ -233,17 +235,66 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **CHARDATA_ACK non-ready ENTERCHAR_REQ fan-out** (W6-20 deferred) —
-   a fat 28-field composite distinct from CHARINFO_REQ; emit it per
-   non-ready con on CHARDATA_ACK so an in-flight reconcile completes
-   when only some cons are ready (today the legacy "drift" path
-   silent-drops). Self-contained, one new sender + one branch.
-2. **Soulmate target in FRIENDLIST_REQ** — small cross-cutting fix
+1. **Soulmate target in FRIENDLIST_REQ** — small cross-cutting fix
    to populate the soulmate sentinel that W4-4 + W4-22 currently
    emit as 0. The data is already in TChar.soulmate.target.
-3. **BR / Bow `bow_release` flag in CHARINFO_REQ** — small follow-up
+2. **BR / Bow `bow_release` flag in CHARINFO_REQ** — small follow-up
    that closes the W4-22 / W6-16 BR-handoff sub-case.
+3. **`TChar.soul_silence`** — model the legacy `m_dwSoulSilence`
+   field so `MW_ENTERCHAR_REQ` (W6-23) and `MW_CHARINFO_REQ`
+   (W4-22 if extended) carry it instead of always emitting 0.
 4. Then the large roadmap subsystems (BR / Bow / Tournament / …).
+
+### W6-23 — what landed
+
+**CHARDATA_ACK drift fan-out** — closes the W6-20 deferral. When
+the main map sends `MW_CHARDATA_ACK` but some of the char's cons
+haven't ENTERCHAR_ACKed yet, world now fans the legacy fat
+`MW_ENTERCHAR_REQ` composite to each not-yet-ready con (legacy
+SSHandler.cpp:920 / SSSender.cpp:258). Each map loads the char and
+replies `MW_ENTERCHAR_ACK` (W6-20) flipping its con `ready`; once
+all are ready, the existing W6-20 all-ready path runs
+`CheckMainCon`, completing the in-flight reconcile.
+
+One new sender in `senders_relay.cpp` — `SendMwEnterCharReq`
+carrying the new `EnterCharReqPayload` POD (33 fields:
+char_id/key/start_act, name + map/pos, the guild block + member's
+duty/peer/castle/camp, tactics_id + name, party id/type/chief,
+corps commander, per-char appearance + chat_ban_time + soulmate
+slot, class). The opaque recall-mon table + comment tail (~5 bytes
+in the minimal case, more with actual recall mons) is lifted from
+the inbound `CHARDATA_ACK` body and appended verbatim — both
+packets emit the same structured shape, so a byte-copy is
+wire-equivalent and avoids a fragile per-recall-mon parse. The
+soulmate-silence DWORD is emitted as 0 today (legacy
+`m_dwSoulSilence` isn't modelled on `TChar` yet — see "Suggested
+next slices").
+
+The handler change is a single branch in `OnCharDataAck`: parse
+the 10-field header (same as before), then capture
+`body[r.Remaining():]` as `opaque_tail`, snapshot the per-char
+fields the composite needs (name / map / pos / appearance /
+soulmate slot / class), resolve guild / tactics / party / corps
+via the existing registries (`GuildRegistry::Find` →
+`FindMember` / `FindTactics`, `PartyRegistry::Find`,
+`CorpsRegistry::Find`), and emit one `ENTERCHAR_REQ` per
+`pending_servers` entry. The all-ready branch is unchanged
+(`CheckMainCon`).
+
+Tests — `tests/test_chardata_drift_handlers.cpp` (2 map peers,
+Bob with main 0x42 manually marked ready + 0x43 not-ready, in
+guild "Eagles" id=10 + party id=7): CHARDATA_ACK from p1 emits one
+`ENTERCHAR_REQ` on p2 carrying the full composite (33 fields
+asserted, including guild_id=10 / fame=500 / duty=1 / peer=2 /
+castle=50 / party_id=7 / chief=200 / level=40 / class=3 / riding=999
+/ soulmate=42 / soulmate_name="Alice") + the opaque tail
+(recall_count=0 + empty comment) preserved verbatim, and refreshes
+the char's level / HP / max_hp. A follow-up `ENTERCHAR_ACK` from
+p2 closes the loop with the `MW_CHECKMAIN_REQ` broadcast on both
+peers (verifying the drift → all-ready transition works end-to-end).
+
+Build verified: cmake + ctest -R tworldsvr_asio -j 1 (80/80
+passed).
 
 ### W4-22 — what landed
 

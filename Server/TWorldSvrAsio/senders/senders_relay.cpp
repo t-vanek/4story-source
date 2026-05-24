@@ -212,4 +212,59 @@ SendMwRouteReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwEnterCharReq(std::shared_ptr<PeerSession>      peer,
+                   std::uint32_t                     char_id,
+                   std::uint32_t                     key,
+                   const EnterCharReqPayload&        p,
+                   const std::vector<std::byte>&     opaque_tail)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint8_t> (body, p.start_act);
+    WriteString            (body, p.name);
+    WritePOD<std::uint16_t>(body, p.map_id);
+    WritePOD<float>        (body, p.pos_x);
+    WritePOD<float>        (body, p.pos_y);
+    WritePOD<float>        (body, p.pos_z);
+    WritePOD<std::uint32_t>(body, p.guild_id);
+    WritePOD<std::uint32_t>(body, p.fame);
+    WritePOD<std::uint32_t>(body, p.fame_color);
+    WriteString            (body, p.guild_name);
+    WritePOD<std::uint8_t> (body, p.duty);
+    WritePOD<std::uint8_t> (body, p.peer);
+    WritePOD<std::uint16_t>(body, p.castle);
+    WritePOD<std::uint8_t> (body, p.camp);
+    WritePOD<std::uint32_t>(body, p.tactics_id);
+    WriteString            (body, p.tactics_name);
+    WritePOD<std::uint16_t>(body, p.party_id);
+    WritePOD<std::uint8_t> (body, p.party_type);
+    WritePOD<std::uint32_t>(body, p.party_chief_id);
+    WritePOD<std::uint16_t>(body, p.commander);
+    WritePOD<std::uint8_t> (body, p.level);
+    WritePOD<std::uint8_t> (body, p.helmet_hide);
+    WritePOD<std::uint8_t> (body, p.country);
+    WritePOD<std::uint8_t> (body, p.aid_country);
+    WritePOD<std::uint8_t> (body, p.mode);
+    WritePOD<std::uint32_t>(body, p.riding);
+    WritePOD<std::int64_t> (body, p.chat_ban_time);
+    WritePOD<std::uint32_t>(body, p.soulmate);
+    WritePOD<std::uint32_t>(body, p.soul_silence);
+    WriteString            (body, p.soulmate_name);
+    WritePOD<std::uint8_t> (body, p.klass);
+    // Recall-mon table + comment string come straight from the inbound
+    // CHARDATA_ACK body (offset past the 10 named header fields). The
+    // legacy parses + re-encodes them field-by-field; both packets
+    // emit the same structured shape, so an opaque byte copy is
+    // wire-equivalent and avoids re-introducing the parsing bug that
+    // an early prototype of this sender hit on the recall-skill list.
+    body.insert(body.end(), opaque_tail.begin(), opaque_tail.end());
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_ENTERCHAR_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

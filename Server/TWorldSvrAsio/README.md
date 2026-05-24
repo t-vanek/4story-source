@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-32 Event replay-on-connect (joining map gets active events)
+## Status — W6-33 Cash-shop sale (registry + handlers + replay-on-connect)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -102,7 +102,8 @@ that the four shipped Asio daemons already use.
 | W6-29 | RPS event — small dedicated subsystem (rock-paper-scissors event game). `OnRpsGameAck` runs the win-keep cap gate via `RpsRegistry::RecordWin` (prunes >30-day-old entries, counts entries within win_period, denies on cap hit) + replies `MW_RPSGAME_REQ(result, player_rps)`. `OnRpsGameDataReq` snapshots every config row for the `CT_RPSGAMEDATA_ACK` reply. `OnRpsGameChangeReq` applies admin updates (silent-drop on unknown key, legacy parity), then ACKs the requester + broadcasts the verbatim `MW_RPSGAMECHANGE_REQ` body to every map peer. `OnRpsGameRecordReq` is a logged stub (DB persistence to TRPSGAMERECORDTABLE deferred — no IRpsRepository yet). New RpsRegistry + 3 senders | ✅ |
 | W6-30 | Event subsystem opener — `OnCtEventMsgReq` fans the operator event-message line (event_id + msg_type + msg) verbatim to every map peer as `MW_EVENTMSG_REQ`. Pure broadcast — no per-event state. 1 new sender (`SendMwEventMsgReq`). Companion to W6-1's `SM_EVENTQUARTER_REQ`/`SM_EVENTQUARTERNOTIFY_REQ` broadcasts. Deferred to follow-ups: `CT_EVENTUPDATE_REQ` (full EVENTINFO codec + replay-on-connect + LOTTERY/GIFTTIME special-cases — heavy slice), `CT_EVENTQUARTERLIST/UPDATE_REQ` (DataSvr forwarding — no DataSvr peer in our infra), `SM_EVENTEXPIRED_REQ/_ACK` (W3a-19/W3a-36 sweepers already supersede the legacy timer-fed expiry path), `DM_EVENTQUARTER*` (heavy SOCI — no IEventQuarterRepository) | ✅ |
 | W6-31 | Event update — `OnCtEventUpdateReq` adds the W6-30 deferred piece. New `EventRegistry` stores active events keyed by `dw_index` with the EVENTINFO body kept opaque (only the routing fields `dw_index` + `b_id` are surfaced); value==0 erases (legacy "deactivate"), value!=0 inserts. Then fans `MW_EVENTUPDATE_REQ(event_id, value, <opaque body>)` to every map peer — same shape legacy emits via `pEvent->WrapPacketIn` (SSSender.cpp:3270), avoiding a full WrapPacketOut/WrapPacketIn parse round-trip. `event_id > kCount` is dropped (SSHandler.cpp:276). LOTTERY/GIFTTIME body-ids short-circuit to log+drop (legacy runs `LotteryItem`/`GiftTime` reward subsystems on the world server — random char pick + in-game mail via SendPost + `MW_EVENTMSGLOTTERY_REQ`; helpers not ported yet). New `event_constants.h` (kLottery=14, kGiftTime=15, kCount=16) + `event_registry.h/.cpp` + 1 sender (`SendMwEventUpdateReq`). Replay-on-connect (legacy SSHandler.cpp:664 walks `m_mapEVENT` on a new map peer's connect) deferred — `EventRegistry::Snapshot()` is the hook | ✅ |
-| **W6-32** | Event replay-on-connect — wires `EventRegistry::Snapshot()` into `OnRelaysvrReq`. After the joining peer is registered + RELAYSVR_ACK'd and the cluster gets its RELAYCONNECT broadcast, the handler walks the active-event snapshot and re-fires `SendMwEventUpdateReq` (W6-31's verbatim relay) on this peer only. Closes legacy SSHandler.cpp:662-664 ("for each event in m_mapEVENT, re-send to this server"). The other legacy replays at the same site (CASHITEMSALE, castle applicant counts) stay deferred — they touch state we haven't ported yet | ✅ |
+| W6-32 | Event replay-on-connect — wires `EventRegistry::Snapshot()` into `OnRelaysvrReq`. After the joining peer is registered + RELAYSVR_ACK'd and the cluster gets its RELAYCONNECT broadcast, the handler walks the active-event snapshot and re-fires `SendMwEventUpdateReq` (W6-31's verbatim relay) on this peer only. Closes legacy SSHandler.cpp:662-664 ("for each event in m_mapEVENT, re-send to this server"). The other legacy replays at the same site (CASHITEMSALE, castle applicant counts) stay deferred — they touch state we haven't ported yet | ✅ |
+| **W6-33** | Cash-shop sale — `OnCtCashItemSaleReq` ports the admin-driven cash-shop sale campaign (SSHandler.cpp:342). value!=0 stores a new (dw_index → items[]) row; value==0 deactivates an existing row in-place (zero `sale_value` on every item, keep the entry so replay-on-connect still shows it — legacy parity SSHandler.cpp:372-385); deactivate-miss is silently dropped (no broadcast — legacy SSHandler.cpp:393-397 logs an error and returns). Then fans `MW_CASHITEMSALE_REQ(dw_index, value, count, items[])` to every map peer. `OnCtCashShopStopReq` is the operator emergency-stop relay (SSHandler.cpp:328) — pure broadcast of `MW_CASHSHOPSTOP_REQ(type, send_player=1)`. Replay-on-connect: `OnRelaysvrReq` extension walks `CashItemSaleRegistry::Snapshot()` (mirrors W6-32 for events) and re-fires `SendMwCashItemSaleReq` per row — closes legacy SSHandler.cpp:666-668. New `cash_item_sale_registry.h/.cpp` + `handlers_cashshop.cpp` + `senders_cashshop.cpp` (2 senders). Castle-applicant replay (SSHandler.cpp:670-680) and expired-buffer init (:682+) at the same site stay deferred | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -133,11 +134,11 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-32)
+## Gaps audit — not yet ported / deferred (as of W6-33)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~177** are ported in `handlers/dispatch.cpp`,
-leaving **~89** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~179** are ported in `handlers/dispatch.cpp`,
+leaving **~87** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
@@ -234,7 +235,10 @@ Intentionally not ported:
 
 **Roadmap W7 ⏸ (cash / item / rank):**
 - CMGift: `MW_CMGIFT/RESULT`, `CT_CMGIFT/CHARTUPDATE/LIST`, `DM_CMGIFT/CHARTUPDATE`
-- Cash-item sale: `MW/CT/DM_CASHITEMSALE`, `CT_CASHSHOPSTOP`
+- Cash-item sale: W6-33 ports `CT_CASHITEMSALE` (admin sale activation/deactivation) +
+  `CT_CASHSHOPSTOP` (operator emergency-stop) + replay-on-connect. Still deferred:
+  `MW_CASHITEMSALE_ACK` (the map's reply confirming a campaign landed) and
+  `DM_CASHITEMSALE` (DB persistence of campaign rows — no IcashSaleRepository yet)
 - MonthRank: `MW_MONTHRANKUPDATE/RESETCHAR`, `DM/SM_MONTHRANKSAVE`
 - GM item tools: `MW_ADDITEM`, `CT/DM_ITEMFIND`, `CT/DM_ITEMSTATE`
 
@@ -261,17 +265,66 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **CMGift / Cash-item sale** (W7) — `MW_CMGIFT/RESULT`,
-   `CT_CMGIFT/CHARTUPDATE/LIST`, `DM_CMGIFT/CHARTUPDATE`. Multi-
-   handler cash-shop tranche. The Cash-item sale half mirrors the
-   W6-31/32 event-update pattern (per-row store + broadcast +
-   replay-on-connect — legacy SSHandler.cpp:666-668 sits right
-   next to the event replay we just landed).
+1. **CMGift** — `MW_CMGIFT/RESULT`, `CT_CMGIFT/CHARTUPDATE/LIST`,
+   `DM_CMGIFT/CHARTUPDATE`. The other half of W7's cash-shop
+   tranche, now that W6-33 closed Cash-item sale. CHARTUPDATE/LIST
+   is a chart of monthly-spend totals; the gift family is a player-
+   to-player cash gift via the cash shop.
 2. **APEX (Taiwan)** — small notify hook from W4-22 fresh-login.
 3. **`TChar.soul_silence`** — trivial field add for the W6-23
    composite.
 4. Larger roadmap subsystems (Tournament / MonthRank / GM item
    tools).
+
+### W6-33 — what landed
+
+**Cash-shop sale** — `OnCtCashItemSaleReq` ports the legacy admin
+cash-shop sale handler (SSHandler.cpp:342) and `OnCtCashShopStopReq`
+ports the emergency-stop relay (SSHandler.cpp:328). Combined with
+the W6-32 replay extension, this is the structured-payload cousin
+of the W6-31/32 event-update pair: per-row store + broadcast +
+replay-on-connect, but with a small typed model rather than the
+opaque-tail relay W6-31 needed for the heavy EVENTINFO codec.
+
+- `OnCtCashItemSaleReq` — reads `(dw_index, value, count, items[])`.
+  `value != 0` stores the new row in `CashItemSaleRegistry` (replace
+  semantics, keyed by `dw_index`) + broadcasts.
+  `value == 0` calls `CashItemSaleRegistry::Deactivate(dw_index)`,
+  which zeroes every item's `sale_value` *in place* and returns the
+  zeroed row — legacy parity SSHandler.cpp:372-385 (the entry stays
+  so the replay-on-connect path still surfaces it to joining maps).
+  Deactivate-miss is silently dropped without broadcasting (legacy
+  parity SSHandler.cpp:393-397).
+- `OnCtCashShopStopReq` — single-byte `type`; broadcasts
+  `MW_CASHSHOPSTOP_REQ(type, send_player=1)` to every peer
+  (legacy sender's 2nd parameter has a default of TRUE; this is the
+  only caller that exercises it).
+- `OnRelaysvrReq` extension — after the W6-32 event walk, also
+  snapshots `cash_sales` and re-fires `SendMwCashItemSaleReq` per
+  row to the joining peer. Same shape, same coroutine.
+
+New service: `CashItemSaleRegistry` (services/cash_item_sale_registry.
+h/.cpp). `TCashItemSale{id, sale_value}` + `TCashItemSaleEvent
+{dw_index, value, items[]}`. `Set` and `Deactivate` mutate under a
+unique lock; `Snapshot` / `Erase` / `Size` follow the pattern of
+the W6-31 EventRegistry.
+
+2 new senders in `senders_cashshop.cpp`: `SendMwCashItemSaleReq`
+(variable-length item list — `DWORD dw_index, WORD value, WORD count,
+N x (WORD id, BYTE sale_value)`), `SendMwCashShopStopReq` (2 bytes).
+
+Tests — new `tests/test_cashshop_handlers.cpp` (5 sub-cases on 3
+peers): activate (3 items @ 100/50) → both peers receive verbatim;
+deactivate (value=0) → both receive the zeroed row (entry kept,
+size=1); deactivate-miss (unknown dw_index) → no peer frame
+(sentinel verified via the next CASHSHOPSTOP); CASHSHOPSTOP →
+`type=7, send_player=1` on both; third peer joins → receives the
+W6-33 replay (zeroed dw_index=100 row) before any subsequent traffic.
+
+Build verified: cmake + ctest -R tworldsvr_asio -C Debug on the
+representative subset (dispatch + relay + chat + event +
+event_replay + cashshop + rps + conn + bow + br + battlemode +
+leavebattlefield + arenajoin — 13/13 passed).
 
 ### W6-32 — what landed
 

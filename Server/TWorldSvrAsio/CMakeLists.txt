@@ -58,6 +58,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_bow.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_br.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_rps.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_cashshop.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -79,6 +80,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_bow.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_br.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_rps.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_cashshop.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -91,6 +93,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/br_registry.cpp
     ${TWORLD_ASIO_SRC}/services/rps_registry.cpp
     ${TWORLD_ASIO_SRC}/services/event_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/cash_item_sale_registry.cpp
     ${TWORLD_ASIO_SRC}/services/fake_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
@@ -715,6 +718,16 @@ target_link_libraries(test_tworldsvr_asio_event_replay_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_event_replay_handlers
     COMMAND test_tworldsvr_asio_event_replay_handlers)
+
+# W6-33 wire test: cash-shop sale + global stop relays + replay on
+# map-peer connect. Activates / deactivates a row, broadcasts the
+# update, asserts a joining peer receives the (zeroed) row.
+add_executable(test_tworldsvr_asio_cashshop_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_cashshop_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_cashshop_handlers
+    COMMAND test_tworldsvr_asio_cashshop_handlers)
 
 # W6-2 wire test: combat / taming cross-server relays — MAGICMIRROR /
 # MONTEMPT / MONTEMPTEVO route to the attacker char's map.

@@ -93,11 +93,6 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
     // event state as everyone else. The W6-31 EventRegistry stores
     // each entry's outer (event_id, value) plus the opaque EVENTINFO
     // tail — re-emit is a verbatim relay.
-    //
-    // We deliberately re-emit in this handler (not the legacy
-    // CASHITEMSALE / castle-applicant replays from SSHandler.cpp:
-    // 666-680) — those touch state we haven't ported yet. The
-    // event replay is self-contained on what W6-31 landed.
     if (ctx.events)
     {
         const auto active = ctx.events->Snapshot();
@@ -109,6 +104,30 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
         if (!active.empty())
             spdlog::info("OnRelaysvrReq[{}]: replayed {} active "
                          "event(s) to wID={}", ip, active.size(), wid);
+    }
+
+    // W6-33: replay active cash-shop sale campaigns to the joining
+    // map. Same pattern as W6-32 — legacy SSHandler.cpp:666-668 walks
+    // `m_mapTCashItemSale` right after the event walk and re-fires
+    // SendMW_CASHITEMSALE_REQ for every row. Includes deactivated
+    // rows (value==0, sale_value=0) so the joining map carries the
+    // identical state every other map already has.
+    //
+    // The remaining post-register replays at SSHandler.cpp:670-680
+    // (castle applicant counts) and :682+ (expired-buffer init) stay
+    // deferred — they touch state we haven't ported yet.
+    if (ctx.cash_sales)
+    {
+        const auto sales = ctx.cash_sales->Snapshot();
+        for (const auto& ev : sales)
+        {
+            co_await senders::SendMwCashItemSaleReq(
+                peer, ev.dw_index, ev.value, ev.items);
+        }
+        if (!sales.empty())
+            spdlog::info("OnRelaysvrReq[{}]: replayed {} cash-sale "
+                         "campaign(s) to wID={}",
+                ip, sales.size(), wid);
     }
     co_return;
 }

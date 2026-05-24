@@ -18,6 +18,7 @@
 #include "../peer_session.h"
 #include "../services/bow_registry.h"
 #include "../services/br_registry.h"
+#include "../services/cash_item_sale_registry.h"
 #include "../services/char_registry.h"
 #include "../services/event_registry.h"
 #include "../services/rps_registry.h"
@@ -111,6 +112,10 @@ struct HandlerContext
     // W6-31: Active timed-event store (legacy m_mapEVENT). Owned by
     // main; non-null in W6-31+ deploys.
     EventRegistry*            events     = nullptr;
+
+    // W6-33: Active cash-shop sale campaigns (legacy
+    // m_mapTCashItemSale). Owned by main; non-null in W6-33+ deploys.
+    CashItemSaleRegistry*     cash_sales = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1670,6 +1675,28 @@ boost::asio::awaitable<void> OnCtEventMsgReq(
 // SendMW_EVENTUPDATE_REQ has the same wire shape on the way out
 // (SSSender.cpp:3270 — bEventID + wValue + WrapPacketIn(EVENTINFO)).
 boost::asio::awaitable<void> OnCtEventUpdateReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-33: cash-shop sale + global stop (handlers_cashshop.cpp) ---
+//
+// CT_CASHITEMSALE_REQ — admin starts/updates/stops a cash-shop sale
+// campaign. value==0 deactivates an existing row (sale_value cleared
+// on every item; the entry stays so replay-on-connect still shows it
+// — legacy SSHandler.cpp:372-385); value!=0 stores the new row. Then
+// broadcasts MW_CASHITEMSALE_REQ to every map peer.
+//   Wire (SSHandler.cpp:342): DWORD dw_index, WORD value, WORD count,
+//                              N x (WORD id, BYTE sale_value)
+//
+// CT_CASHSHOPSTOP_REQ — operator emergency-stop relay; pure
+// broadcast to every map peer.
+//   Wire (SSHandler.cpp:328): BYTE type
+boost::asio::awaitable<void> OnCtCashItemSaleReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCtCashShopStopReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

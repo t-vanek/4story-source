@@ -20,6 +20,7 @@
 // functions; the family-file split lives under senders/senders_*.cpp.
 
 #include "../peer_session.h"
+#include "../services/cash_item_sale_registry.h"
 #include "../services/guild_registry.h"
 #include "../services/rps_registry.h"
 
@@ -2035,6 +2036,28 @@ boost::asio::awaitable<void> SendMwEventUpdateReq(
     std::uint8_t                   event_id,
     std::uint16_t                  value,
     const std::vector<std::byte>&  event_body);
+
+// --- W6-33 cash-shop relays (senders_cashshop.cpp) ----------------
+
+// MW_CASHITEMSALE_REQ — fan the active sale campaign out to every
+// map peer (and on the W6-33 replay-on-connect path, to a single
+// joining peer). Legacy SSSender.cpp:3304.
+//   Wire: DWORD dw_index, WORD value, WORD count,
+//         N x (WORD id, BYTE sale_value)
+boost::asio::awaitable<void> SendMwCashItemSaleReq(
+    std::shared_ptr<PeerSession>           peer,
+    std::uint32_t                          dw_index,
+    std::uint16_t                          value,
+    const std::vector<TCashItemSale>&      items);
+
+// MW_CASHSHOPSTOP_REQ — operator emergency-stop relay. Legacy
+// SSSender.cpp:3294 always sends `send_player=1` from this path
+// (the unused 2nd parameter has a default of TRUE).
+//   Wire: BYTE type, BYTE send_player
+boost::asio::awaitable<void> SendMwCashShopStopReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   type,
+    std::uint8_t                   send_player);
 
 // --- W6-2 combat / taming cross-server relays (senders_combat.cpp)-
 

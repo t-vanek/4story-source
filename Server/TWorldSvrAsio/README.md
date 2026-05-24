@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-28 ARENAJOIN (Arena trio complete)
+## Status — W6-29 RPS event (config + win-cap + admin update + broadcast)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -98,7 +98,8 @@ that the four shipped Asio daemons already use.
 | W6-25 | Battle Royale opener — second W6 🚧 content subsystem. 5 handlers covering the player-driven queue + premade team flow + map/mode votes: OnAddToBrQueueReq (enqueue OR ready-signal — chief→FlagTeamReady, mate→FlagPlayerReady), OnBrTeamMateAddReq (chief invites mate by name → forwarded SUCCESS dialog on mate's map / NOTFOUND to chief on self/unknown), OnBrTeamMateDelReq (chief drops mate or mate self-leaves), OnBrTeamMateAddResultAck (mate's accept/refuse — SUCCESS path runs the duplicate + cap gates and JoinPremadeTeam + UPDATEBRTEAM broadcast to every team member's map), OnVoteForBrMapReq (per-user first-vote-wins map and mode tallies). New BrRegistry + br_constants.h (TEAMADD_* + BR_TEAMMATE_MAX_COUNT(BR_3V3)=3). Wired W6-24's OnCancelBowQueueReq BR fall-through (legacy SSHandler.cpp:14078). Deferred: BS_PEACE/BS_ALARM gating, UpdatePlayerQueue / CreateMatch / team balancing, BR_SOLO vs BR_TEAM switch | ✅ |
 | W6-26 | LEAVEBATTLEFIELD cleanup — OnLeaveBattlefieldReq routes by location (channel == BR_SERVER_ID → BrRegistry::ReleaseSinglePlayer; else map_id == BOW_MAP_ID → BowRegistry::ReleaseSinglePlayer). Both registry methods do opportunistic queue + premade drops (legacy teleport-home from active-match state is deferred — we don't model the active match yet). Off-battlefield chars are a silent no-op (legacy parity). Closes the W6-25 deferred "ReleaseSinglePlayer on logout" note | ✅ |
 | W6-27 | BattleMode status + CM teleport — `OnBattleModeStatusReq` replies `MW_BATTLEMODESTATUS_ACK` on the char's main map carrying the quiescent payload (zeros + TCONTRY_N for bow_winner — same shape the legacy emits when neither subsystem is running). `OnCmTeleportBattleModeReq` routes by `system_type`: SYSTEM_BOW → `BowRegistry::AddPlayer(country=TCONTRY_C)` (admin force-add; our registry doesn't model the BS_ALARM/Admin gate so it just accepts), SYSTEM_BR → no-op (legacy body is empty — a TODO in the original). 1 new sender (`SendMwBattleModeStatusAck`). Closes 2 of the Arena/BattleMode trio | ✅ |
-| **W6-28** | ARENAJOIN — closes the Arena trio. `OnArenaJoinAck` flips `TParty.arena` to the inbound `join` flag; on the join path: if the party was in a corps, runs `NotifyCorpsLeave` so the corps unwinds (arena parties must be standalone); for each party member NOT in the inbound keep-list, runs `LeaveParty` (kick=1 so survivors get the right PARTYDEL flags). Refactor: `NotifyCorpsLeave` extracted from handlers_corps.cpp's anonymous namespace + declared in handlers.h (`LeaveParty` stays file-local — `OnArenaJoinAck` lives in handlers_party.cpp). No reply | ✅ |
+| W6-28 | ARENAJOIN — closes the Arena trio. `OnArenaJoinAck` flips `TParty.arena` to the inbound `join` flag; on the join path: if the party was in a corps, runs `NotifyCorpsLeave` so the corps unwinds (arena parties must be standalone); for each party member NOT in the inbound keep-list, runs `LeaveParty` (kick=1 so survivors get the right PARTYDEL flags). Refactor: `NotifyCorpsLeave` extracted from handlers_corps.cpp's anonymous namespace + declared in handlers.h (`LeaveParty` stays file-local — `OnArenaJoinAck` lives in handlers_party.cpp). No reply | ✅ |
+| **W6-29** | RPS event — small dedicated subsystem (rock-paper-scissors event game). `OnRpsGameAck` runs the win-keep cap gate via `RpsRegistry::RecordWin` (prunes >30-day-old entries, counts entries within win_period, denies on cap hit) + replies `MW_RPSGAME_REQ(result, player_rps)`. `OnRpsGameDataReq` snapshots every config row for the `CT_RPSGAMEDATA_ACK` reply. `OnRpsGameChangeReq` applies admin updates (silent-drop on unknown key, legacy parity), then ACKs the requester + broadcasts the verbatim `MW_RPSGAMECHANGE_REQ` body to every map peer. `OnRpsGameRecordReq` is a logged stub (DB persistence to TRPSGAMERECORDTABLE deferred — no IRpsRepository yet). New RpsRegistry + 3 senders | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -129,11 +130,11 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-28)
+## Gaps audit — not yet ported / deferred (as of W6-29)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~171** are ported in `handlers/dispatch.cpp`,
-leaving **~95** with no port, plus a number of sub-branches deferred
+(`CTWorldSvrModule::On*`); **~175** are ported in `handlers/dispatch.cpp`,
+leaving **~91** with no port, plus a number of sub-branches deferred
 *inside* handlers that did land. (Note: the legacy source is CP949 — grep
 it with `-a`, or whole handlers appear "missing" when they are not.) This
 section is the authoritative checklist of what is still open.
@@ -215,7 +216,9 @@ Intentionally not ported:
 - Tournament: `MW_TOURNAMENT/ENTERGATE/RESULT`, `DM_TOURNAMENT*` (6),
   `DM_TNMTEVENT*` (3), `SM_TOURNAMENT*` (3), `CT_TOURNAMENTEVENT`
   (blocked on `TNMTSTEP_*`)
-- RPS event: `MW_RPSGAME`, `CT_RPSGAMECHANGE/DATA`, `DM_RPSGAMERECORD`
+- RPS event: all four handlers landed in W6-29; DB persistence
+  (TRPSGAMERECORDTABLE via the legacy CSPRPSGameRecord SP) is
+  deferred — no IRpsRepository yet (logged stub)
 - Event subsystem (broader): `CT_EVENTMSG/EVENTUPDATE/EVENTQUARTERLIST/UPDATE`,
   `DM_EVENTQUARTERLIST/UPDATE`, `SM_EVENTEXPIRED` (only the W6-1 broadcast landed)
 
@@ -248,17 +251,78 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **RPS event** — `MW_RPSGAME`, `CT_RPSGAMECHANGE/DATA`,
-   `DM_RPSGAMERECORD`. Small dedicated subsystem; same shape as
-   W6-24's BowRegistry — registry + 3-4 handlers + an in-memory
-   game-state store.
-2. **`TChar.soul_silence`** — model `m_dwSoulSilence` for the
-   W6-23 `MW_ENTERCHAR_REQ` composite (trivial; rides with a
-   handler that actually writes it).
-3. **APEX (Taiwan)** — small notify hook from W4-22 fresh-login
-   that's currently deferred.
-4. Larger roadmap subsystems (Tournament / CMGift / Cash /
-   MonthRank).
+1. **Event subsystem** — `CT_EVENTMSG/EVENTUPDATE/EVENTQUARTERLIST/
+   UPDATE`, `DM_EVENTQUARTERLIST/UPDATE`, `SM_EVENTEXPIRED`.
+   Companion to the W6-1 `SM_EVENTQUARTER_REQ` broadcast. Several
+   handlers but mostly admin queries + per-row updates —
+   straightforward extension of the W6-29 RpsRegistry pattern.
+2. **CMGift / Cash-item sale** (W7) — `MW_CMGIFT/RESULT`,
+   `CT_CMGIFT/CHARTUPDATE/LIST`, `DM_CMGIFT/CHARTUPDATE`. Multi-
+   handler cash-shop tranche.
+3. **APEX (Taiwan)** — small notify hook from W4-22 fresh-login.
+4. **`TChar.soul_silence`** — trivial field add for the W6-23
+   composite.
+5. Larger roadmap subsystems (Tournament / MonthRank / GM item
+   tools).
+
+### W6-29 — what landed
+
+**RPS event** — small dedicated subsystem (rock-paper-scissors
+event game). Four handlers + a new `RpsRegistry` modeling the
+game configs + the per-key win-date ledger that gates how often a
+player can re-win the same prize. Legacy parity SSHandler.cpp:
+13173 / 13232 / 13259 / 13272.
+
+- `OnRpsGameAck` — char played one round against an RPS NPC.
+  Runs `RpsRegistry::RecordWin`, which prunes >30-day-old
+  win-date entries (legacy `m_timeCurrent - rps.m_vWinDate[i] >
+  DAY_ONE * 30`), counts entries within `win_period` days, and
+  denies if the count >= `win_keep`. Reply
+  `MW_RPSGAME_REQ(char_id, key, result, player_rps)` —
+  result=1 on allowed / 0 on cap-hit or missing config. The
+  `player_rps` byte is echoed verbatim (legacy ships the
+  player's RPS pick alongside the result so the client can
+  render the throw).
+- `OnRpsGameDataReq` — control-server snapshot query.
+  `RpsRegistry::Snapshot()` + `CT_RPSGAMEDATA_ACK(change=0,
+  group, rows)`.
+- `OnRpsGameChangeReq` — control-server admin update. Reads N
+  rows of `(type, win_count, win_prob, draw_prob, lose_prob,
+  win_keep, win_period)` and `Set`s each (silent-drop on unknown
+  key, legacy parity). If any update applied: reply
+  `CT_RPSGAMEDATA_ACK(change=1)` to the requester +
+  `MW_RPSGAMECHANGE_REQ` verbatim broadcast to every map peer
+  (legacy `m_mapSERVER` fan-out).
+- `OnRpsGameRecordReq` — DB-fan-in stub. Legacy persists to
+  TRPSGAMERECORDTABLE via the `CSPRPSGameRecord` stored proc;
+  our port logs + drops (no `IRpsRepository` yet — same shape
+  as the W3a-20 vestigial DB-server ACK echoes). The
+  `RpsRegistry::RecordWin` PersistOp ledger surfaces what would
+  have been persisted, so a future write-back has a clear hook.
+
+New service: `RpsRegistry` (services/rps_registry.h/.cpp). One
+`shared_mutex` over the `(type, win_count)` → `TRpsGame` map.
+`RecordWin` is the only mutating path under a unique lock — it
+both prunes expired entries (yielding a `PersistOp{insert=false}`
+per pruned row) and appends `now` on allowed wins (yielding a
+`PersistOp{insert=true}`).
+
+3 new senders in `senders_rps.cpp`:
+`SendMwRpsGameReq` (4-field reply), `SendMwRpsGameChangeReq`
+(opaque body relay — same shape as the inbound CHANGE_REQ; legacy
+SSSender.cpp:3649 just copies the source packet),
+`SendCtRpsGameDataAck` (8-field header + N × 7-field row).
+
+Tests — `tests/test_rps_handlers.cpp` (2 peers, 1 char): no
+config → `result=0`; seed cap=2 / 3 attempts → 1st + 2nd allowed,
+3rd denied (cap reached); CT_RPSGAMEDATA_REQ → ACK with the
+seeded row (all 7 fields asserted); CT_RPSGAMECHANGE_REQ
+updates the row + ACK(change=1) on the requester +
+MW_RPSGAMECHANGE_REQ on both map peers + registry snapshot
+reflects the new probs.
+
+Build verified: cmake + ctest -R tworldsvr_asio -C Release -j 1
+(86/86 passed, first try, no flake).
 
 ### W6-28 — what landed
 

@@ -21,6 +21,7 @@
 
 #include "../peer_session.h"
 #include "../services/guild_registry.h"
+#include "../services/rps_registry.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -299,6 +300,37 @@ boost::asio::awaitable<void> SendMwCancelBowQueueAck(
     std::uint32_t                char_id,
     std::uint32_t                key,
     std::uint32_t                tick);
+
+// --- W6-29 RPS event (senders_rps.cpp) ----------------------------
+
+// MW_RPSGAME_REQ — RPS round outcome reply to the responder
+// (legacy SSSender.cpp:3637).
+//   Wire: DWORD char_id, key, BYTE result, BYTE player_rps
+boost::asio::awaitable<void> SendMwRpsGameReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint8_t                 player_rps);
+
+// MW_RPSGAMECHANGE_REQ — opaque verbatim broadcast of the inbound
+// CT_RPSGAMECHANGE_REQ body, re-tagged. Legacy parity
+// SSSender.cpp:3649 (`pMsg->Copy(&(pBUF->m_packet)); pMsg->SetID
+// (MW_RPSGAMECHANGE_REQ);`). Map servers refresh their RPS config
+// caches from this.
+boost::asio::awaitable<void> SendMwRpsGameChangeReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
+// CT_RPSGAMEDATA_ACK — full RPS config dump (legacy
+// SSSender.cpp:76). Variable-length: change byte + group + count
+// + N × per-row (type, win_count, win_prob, draw_prob, lose_prob,
+// win_keep, win_period).
+boost::asio::awaitable<void> SendCtRpsGameDataAck(
+    std::shared_ptr<PeerSession>      peer,
+    std::uint8_t                      change,
+    std::uint8_t                      group,
+    const std::vector<TRpsGame>&      games);
 
 // MW_BATTLEMODESTATUS_ACK — battle-mode status snapshot (legacy
 // SSSender.cpp:3947). W6-27 ships the "no module" / quiescent

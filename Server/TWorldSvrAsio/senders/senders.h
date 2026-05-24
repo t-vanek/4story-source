@@ -209,6 +209,77 @@ boost::asio::awaitable<void> SendMwRouteReq(
     float                        pos_y,
     float                        pos_z);
 
+// --- W6-23 CHARDATA_ACK drift fan-out (senders_relay.cpp) ---------
+
+// MW_ENTERCHAR_REQ — the fat 33-field composite world emits per
+// not-yet-ready connection when MW_CHARDATA_ACK arrives but some
+// cons haven't ENTERCHAR_ACKed yet (the "drift" path; legacy
+// SendMW_ENTERCHAR_REQ, SSSender.cpp:258). Carries the char's
+// guild + tactics + party + corps state + per-char appearance +
+// soulmate slot, followed by an opaque tail (the recall-mon
+// table + comment string) lifted verbatim from the inbound
+// CHARDATA_ACK body. Each recipient map loads the char and
+// replies MW_ENTERCHAR_ACK (W6-20) to flip its con ready.
+//
+// Wire layout: char_id, key, BYTE start_act, STRING name,
+//   WORD map_id, FLOAT pos x/y/z, DWORD guild_id, fame,
+//   fame_color, STRING guild_name, BYTE duty, peer, WORD castle,
+//   BYTE camp, DWORD tactics_id, STRING tactics_name, WORD
+//   party_id, BYTE party_type, DWORD party_chief, WORD commander,
+//   BYTE level, helmet_hide, country, aid_country, mode, DWORD
+//   riding, INT64 chat_ban_time, DWORD soulmate, soul_silence,
+//   STRING soulmate_name, BYTE class, <opaque tail>
+struct EnterCharReqPayload
+{
+    std::uint8_t  start_act         = 0;
+    std::string   name;
+    std::uint16_t map_id            = 0;
+    float         pos_x             = 0.0f;
+    float         pos_y             = 0.0f;
+    float         pos_z             = 0.0f;
+
+    std::uint32_t guild_id          = 0;
+    std::uint32_t fame              = 0;
+    std::uint32_t fame_color        = 0;
+    std::string   guild_name;
+    std::uint8_t  duty              = 0;
+    std::uint8_t  peer              = 0;
+    std::uint16_t castle            = 0;
+    std::uint8_t  camp              = 0;
+
+    std::uint32_t tactics_id        = 0;
+    std::string   tactics_name;
+
+    std::uint16_t party_id          = 0;
+    std::uint8_t  party_type        = 0;
+    std::uint32_t party_chief_id    = 0;
+
+    std::uint16_t commander         = 0;   // corps commander party id
+
+    std::uint8_t  level             = 0;
+    std::uint8_t  helmet_hide       = 0;
+    std::uint8_t  country           = 0;
+    std::uint8_t  aid_country       = 0;
+    std::uint8_t  mode              = 0;
+    std::uint32_t riding            = 0;
+    std::int64_t  chat_ban_time     = 0;
+
+    std::uint32_t soulmate          = 0;
+    std::uint32_t soul_silence      = 0;   // legacy m_dwSoulSilence;
+                                           // not modelled on TChar yet
+                                           // (always 0 today)
+    std::string   soulmate_name;
+
+    std::uint8_t  klass             = 0;
+};
+
+boost::asio::awaitable<void> SendMwEnterCharReq(
+    std::shared_ptr<PeerSession>      peer,
+    std::uint32_t                     char_id,
+    std::uint32_t                     key,
+    const EnterCharReqPayload&        p,
+    const std::vector<std::byte>&     opaque_tail);
+
 // MW_PETRIDING_REQ — propagate a char's active mount to another map
 // session it is visible on (the char's non-originating connections).
 //   Wire (SSSender.cpp): DWORD char_id, key, DWORD riding

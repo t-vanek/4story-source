@@ -968,9 +968,13 @@ OnCharDataAck(std::shared_ptr<PeerSession> peer,
             body.size());
         co_return;
     }
-    (void)start_act;
-    (void)country;
-    (void)mode;
+
+    // Anything past the 10-field header is the recall-mon table +
+    // comment string the legacy SendMW_ENTERCHAR_REQ re-encodes. We
+    // forward it verbatim — both packets emit the same shape.
+    const std::size_t tail_offset = body.size() - r.Remaining();
+    const std::vector<std::byte> opaque_tail(body.begin() + tail_offset,
+                                             body.end());
 
     auto ch = ctx.chars->Find(char_id);
     if (!ch)
@@ -982,12 +986,21 @@ OnCharDataAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Snapshot the cons + main_server_id under the char lock, then
-    // refresh level/HP/MP (legacy SetCharLevel / SetCharStatus).
+    // Snapshot the per-char fields the fan-out needs + the cons +
+    // main_server_id under the char lock, then refresh level/HP/MP
+    // (legacy SetCharLevel / SetCharStatus). Country/mode come from
+    // the inbound packet (legacy passes them through unchanged).
     bool          key_ok = true;
     std::uint8_t  main_id = 0;
     bool          all_ready = false;
-    std::size_t   pending_count = 0;
+    std::vector<std::uint8_t> pending_servers;   // cons.ready == false
+    senders::EnterCharReqPayload base{};
+    base.start_act   = start_act;
+    base.country     = country;
+    base.mode        = mode;
+    base.level       = level;
+    std::uint16_t party_id = 0, corps_id = 0;
+    std::uint32_t guild_id = 0, tactics_guild_id = 0;
     {
         std::lock_guard g(ch->lock);
         if (ch->key != key)
@@ -999,11 +1012,29 @@ OnCharDataAck(std::shared_ptr<PeerSession> peer,
             ch->level = level;
             ch->max_hp = max_hp; ch->hp = hp;
             ch->max_mp = max_mp; ch->mp = mp;
-            main_id = ch->main_server_id;
+            main_id     = ch->main_server_id;
+            base.name        = ch->name;
+            base.map_id      = ch->map_id;
+            base.pos_x       = ch->pos_x;
+            base.pos_y       = ch->pos_y;
+            base.pos_z       = ch->pos_z;
+            base.helmet_hide = ch->helmet_hide;
+            base.aid_country = ch->aid_country;
+            base.riding      = ch->riding;
+            base.chat_ban_time = ch->chat_ban_time;
+            base.klass       = ch->klass;
+            base.soulmate    = ch->soulmate.target;
+            base.soulmate_name = ch->soulmate.name;
+            // soul_silence stays 0 — TChar doesn't model
+            // legacy m_dwSoulSilence yet.
+            guild_id         = ch->guild_id;
+            tactics_guild_id = ch->tactics_guild_id;
+            party_id         = ch->party_id;
+
             all_ready = std::all_of(ch->cons.begin(), ch->cons.end(),
                 [](const TCharCon& c) { return c.ready; });
             for (const auto& c : ch->cons)
-                if (!c.ready) ++pending_count;
+                if (!c.ready) pending_servers.push_back(c.server_id);
         }
     }
 
@@ -1026,25 +1057,75 @@ OnCharDataAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    if (!all_ready)
+    if (all_ready)
     {
-        // Legacy fans MW_ENTERCHAR_REQ (the fat guild/tactics/party/
-        // soulmate composite carrying the opaque CHARDATA_ACK tail) to
-        // every non-ready con. The composite is the same one priority
-        // #3 of the gaps audit ("Fresh-login ENTERSVR completion")
-        // owns, so the fan-out is deferred to that slice. In the
-        // typical count==0 ROUTE path every con is already ready and
-        // this branch doesn't fire.
-        spdlog::info("OnCharDataAck[{}]: char_id={} {} con(s) not ready — "
-                     "ENTERCHAR_REQ fan-out deferred (fresh-login slice)",
-            ip, char_id, pending_count);
+        spdlog::info("OnCharDataAck[{}]: char_id={} all cons ready — "
+                     "CheckMainCon (level={} hp={}/{} mp={}/{})", ip, char_id,
+            level, hp, max_hp, mp, max_mp);
+        co_await CheckMainCon(ch, ctx);
         co_return;
     }
 
-    spdlog::info("OnCharDataAck[{}]: char_id={} all cons ready — CheckMainCon "
-                 "(level={} hp={}/{} mp={}/{})", ip, char_id, level, hp,
-        max_hp, mp, max_mp);
-    co_await CheckMainCon(ch, ctx);
+    // --- W6-23 drift path: ENTERCHAR_REQ to each non-ready con ----
+    //
+    // Resolve guild / tactics / party / corps state (legacy
+    // SSHandler.cpp:920 fan-out builds the same composite from these
+    // registries). Each lookup runs under the matching registry's
+    // lock; the per-char lock is already released.
+    if (guild_id && ctx.guilds)
+        if (auto g = ctx.guilds->Find(guild_id))
+        {
+            std::lock_guard gl(g->lock);
+            base.guild_id   = g->id;
+            base.guild_name = g->name;
+            base.fame       = g->fame;
+            base.fame_color = g->fame_color;
+            if (auto* m = g->FindMember(char_id))
+            {
+                base.duty   = m->duty;
+                base.peer   = m->peer;
+                base.castle = m->castle;
+                base.camp   = m->camp;
+            }
+        }
+
+    if (tactics_guild_id && ctx.guilds)
+        if (auto tg = ctx.guilds->Find(tactics_guild_id))
+        {
+            std::lock_guard gl(tg->lock);
+            base.tactics_id   = tg->id;
+            base.tactics_name = tg->name;
+            if (base.castle == 0)
+                if (auto* tm = tg->FindTactics(char_id))
+                {
+                    base.castle = tm->castle;
+                    base.camp   = tm->camp;
+                }
+        }
+
+    if (party_id && ctx.parties)
+        if (auto pty = ctx.parties->Find(party_id))
+        {
+            std::lock_guard pl(pty->lock);
+            base.party_id       = pty->id;
+            base.party_type     = pty->obtain_type;
+            base.party_chief_id = pty->chief_char_id;
+            corps_id            = pty->corps_id;
+        }
+
+    if (corps_id && ctx.corps)
+        if (auto co = ctx.corps->Find(corps_id))
+        {
+            std::lock_guard cl(co->lock);
+            base.commander = co->commander_party_id;
+        }
+
+    spdlog::info("OnCharDataAck[{}]: char_id={} {} con(s) not ready — "
+                 "ENTERCHAR_REQ fan-out", ip, char_id, pending_servers.size());
+    for (std::uint8_t sid : pending_servers)
+        if (auto p = FindMapPeer(ctx, sid))
+            co_await senders::SendMwEnterCharReq(p, char_id, key,
+                base, opaque_tail);
 }
 
 // --- W6-21 teleport confirm ----------------------------------------

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-2 combat / taming cross-server relays
+## Status — W6-3 global announcement broadcasts (FAMERANK / HEROSELECT)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -97,9 +97,29 @@ that the four shipped Asio daemons already use.
 | W5-4 | War-window enable broadcast — OnSM_BATTLESTATUS_REQ fans the LOCAL/CASTLE/MISSION enable packet to every map peer (the trigger that starts the sieges) + 3 senders; BS_PEACE record bookkeeping + SKYGARDEN deferred | ✅ |
 | W5 | War + Castle + Tournament / TNMT | 🚧 |
 | W6-1 | Timed-event broadcast — OnSM_EVENTQUARTER_REQ (present event, single server-chosen bucket) + OnSM_EVENTQUARTERNOTIFY_REQ (world-chat announcement via the chat sender) fan to every map peer + SendMwEventQuarterReq | ✅ |
-| **W6-2** | Combat / taming cross-server relays — OnMW_MAGICMIRROR_ACK (verbatim) + OnMW_MONTEMPT_ACK + OnMW_MONTEMPTEVO_ACK route the effect to the attacker char's map + 3 senders; GETBLOOD deferred (OT_PC absent) | ✅ |
+| W6-2 | Combat / taming cross-server relays — OnMW_MAGICMIRROR_ACK (verbatim) + OnMW_MONTEMPT_ACK + OnMW_MONTEMPTEVO_ACK route the effect to the attacker char's map + 3 senders; GETBLOOD deferred (OT_PC absent) | ✅ |
+| **W6-3** | Global announcement broadcasts — OnMW_FAMERANKUPDATE_ACK (verbatim) + OnMW_HEROSELECT_ACK fan to every map peer + 2 senders | ✅ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-3 — what landed
+
+**Global announcement broadcasts** — two stateless fan-outs to every
+map peer so the cluster stays in sync:
+
+- `OnFameRankUpdateAck` (handlers_rank.cpp, `MW_FAMERANKUPDATE_ACK`) —
+  the fame-ranking table refresh, forwarded **verbatim** (world never
+  interprets it).
+- `OnHeroSelectAck` (`MW_HEROSELECT_ACK`) — a battle-zone hero was
+  chosen; broadcast `(battle_zone, hero_name, time)` to every peer.
+
+Two senders in `senders_rank.cpp`.
+
+Tests — `tests/test_rank_handlers.cpp`: FAMERANKUPDATE reaches both
+peers byte-for-byte; HEROSELECT reaches both with the right
+zone/name/time.
+
+Build verified: cmake + ctest -R tworldsvr_asio (59/59 passed).
 
 ### W6-2 — what landed
 

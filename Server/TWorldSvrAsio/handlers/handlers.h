@@ -1588,6 +1588,24 @@ boost::asio::awaitable<void> OnMonTemptEvoAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-3: global announcement broadcasts (handlers_rank.cpp) ------
+//
+// FAMERANKUPDATE (fame-ranking refresh, forwarded verbatim) and
+// HEROSELECT (a battle-zone hero was chosen) are fanned to every map
+// peer so the cluster shows them consistently.
+//
+// Wire (SSHandler.cpp:11252/9847):
+//   FAMERANKUPDATE : opaque (forwarded verbatim)
+//   HEROSELECT     : WORD battle_zone, STRING hero_name, INT64 time
+boost::asio::awaitable<void> OnFameRankUpdateAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnHeroSelectAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

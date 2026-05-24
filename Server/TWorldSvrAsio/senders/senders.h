@@ -1767,6 +1767,23 @@ boost::asio::awaitable<void> SendMwMonTemptEvoReq(
     std::uint32_t                host_id,
     std::uint8_t                 host_type);
 
+// --- W6-3 global announcement broadcasts (senders_rank.cpp) -------
+
+// MW_FAMERANKUPDATE_REQ — fame-ranking refresh, forwarded verbatim
+// to every map peer (world doesn't interpret the table).
+boost::asio::awaitable<void> SendMwFameRankUpdateReq(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<std::byte>&  body);
+
+// MW_HEROSELECT_REQ — a battle-zone hero was chosen; announced to
+// every map peer.
+//   Wire: WORD battle_zone, STRING hero_name, INT64 time
+boost::asio::awaitable<void> SendMwHeroSelectReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint16_t                battle_zone,
+    const std::string&           hero_name,
+    std::int64_t                 time_hero);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

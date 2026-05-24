@@ -487,6 +487,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnMonTemptEvoAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-3: global announcement broadcasts (handlers_rank.cpp)
+    case MessageId::MW_FAMERANKUPDATE_ACK:
+        co_await OnFameRankUpdateAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_HEROSELECT_ACK:
+        co_await OnHeroSelectAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
     case MessageId::MW_SOULMATESEARCH_ACK:
         co_await OnSoulmateSearchAck(std::move(peer), std::move(body), ctx);

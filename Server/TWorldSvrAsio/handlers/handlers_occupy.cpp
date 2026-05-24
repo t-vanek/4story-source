@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/battle_constants.h"
 #include "../services/castle_constants.h"
 #include "../wire_codec.h"
 
@@ -301,6 +302,53 @@ OnCastleApplyAck(std::shared_ptr<PeerSession> peer,
         for (auto& p : snapshot)
             co_await senders::SendMwCastleApplicantCountReq(p, eff_castle,
                 guild_id, new_count);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnBattleStatusReq(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.peers)
+    {
+        spdlog::warn("OnBattleStatusReq[{}]: peers not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  type = 0, status = 0;
+    std::uint32_t start = 0, second = 0;
+    if (!r.Read(type) || !r.Read(status) || !r.Read(start) || !r.Read(second))
+    {
+        spdlog::warn("OnBattleStatusReq[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    // Fan the matching war-window enable to every map peer. The
+    // BS_PEACE peace-time bookkeeping (record-date reset +
+    // CalcWeekRecord + castle-war-info clear) is deferred — it needs
+    // the PvP-record-date + castle-war-info systems. SKYGARDEN
+    // (#ifdef) is also deferred.
+    for (auto& p : ctx.peers->Snapshot())
+    {
+        switch (type)
+        {
+        case battle::kTypeLocal:
+            co_await senders::SendMwLocalEnableReq(p, status, second, 0, 0, 0);
+            break;
+        case battle::kTypeCastle:
+            co_await senders::SendMwCastleEnableReq(p, status, second);
+            break;
+        case battle::kTypeMission:
+            co_await senders::SendMwMissionEnableReq(p, status, start, second);
+            break;
+        default:
+            break;
+        }
+    }
     co_return;
 }
 

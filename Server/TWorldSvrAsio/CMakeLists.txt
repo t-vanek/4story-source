@@ -662,3 +662,12 @@ target_link_libraries(test_tworldsvr_asio_castle_occupy_reset_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_castle_occupy_reset_handlers
     COMMAND test_tworldsvr_asio_castle_occupy_reset_handlers)
+
+# W5-4 wire test: war-window enable broadcast — SM_BATTLESTATUS fans
+# the LOCAL/CASTLE/MISSION enable packet to every map peer.
+add_executable(test_tworldsvr_asio_battlestatus_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_battlestatus_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_battlestatus_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_battlestatus_handlers
+    COMMAND test_tworldsvr_asio_battlestatus_handlers)

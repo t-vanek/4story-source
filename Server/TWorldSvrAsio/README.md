@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W5-3 castle-occupy application reset (ResetCastleApply)
+## Status — W5-4 war-window enable broadcast (BATTLESTATUS)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -93,10 +93,38 @@ that the four shipped Asio daemons already use.
 | W4-21+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
-| **W5-3** | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
+| W5-3 | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
+| **W5-4** | War-window enable broadcast — OnSM_BATTLESTATUS_REQ fans the LOCAL/CASTLE/MISSION enable packet to every map peer (the trigger that starts the sieges) + 3 senders; BS_PEACE record bookkeeping + SKYGARDEN deferred | ✅ |
 | W5 | War + Castle + Tournament / TNMT | 🚧 |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W5-4 — what landed
+
+**War-window enable broadcast** — the front of the W5 war loop: when
+the scheduler opens or closes a war window, world fans the matching
+enable packet to every map peer. This is the trigger that *starts*
+the sieges whose apply / occupy / reset W5-1..3 handle.
+
+- `OnBattleStatusReq` (handlers_occupy.cpp, `SM_BATTLESTATUS_REQ`)
+  reads (type, status, start, second) and, per the battle type,
+  broadcasts `MW_LOCALENABLE_REQ` / `MW_CASTLEENABLE_REQ` /
+  `MW_MISSIONENABLE_REQ` to every peer. Three senders in
+  senders_occupy.cpp.
+- `battle_constants.h` — the `BATTLE_TYPE` selector, reconstructed
+  (the enum is absent from the tree): `kTypeCastle = 1` matches the
+  committed reconstruction in `TControlSvrAsio` (kBattleTypeCastle);
+  LOCAL=0 / MISSION=2 follow the legacy declaration order.
+
+Deferred: the `BS_PEACE` peace-time bookkeeping (record-date reset +
+per-guild `CalcWeekRecord` + castle-war-info clear) — it needs the
+PvP-record-date + castle-war-info systems; and SKYGARDEN (`#ifdef`).
+
+Tests — `tests/test_battlestatus_handlers.cpp`: each of the three
+battle types fans the correct enable packet to both peers with the
+right status/timer fields.
+
+Build verified: cmake + ctest -R tworldsvr_asio (56/56 passed).
 
 ### W5-3 — what landed
 

@@ -105,4 +105,57 @@ SendMwCastleApplicantCountReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwLocalEnableReq(std::shared_ptr<PeerSession> peer,
+                     std::uint8_t                 status,
+                     std::uint32_t                second,
+                     std::uint32_t                local_start,
+                     std::uint8_t                 castle_day,
+                     std::uint32_t                castle_start)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, status);
+    WritePOD<std::uint32_t>(body, second);
+    WritePOD<std::uint32_t>(body, local_start);
+    WritePOD<std::uint8_t>(body, castle_day);
+    WritePOD<std::uint32_t>(body, castle_start);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_LOCALENABLE_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwCastleEnableReq(std::shared_ptr<PeerSession> peer,
+                      std::uint8_t                 status,
+                      std::uint32_t                second)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, status);
+    WritePOD<std::uint32_t>(body, second);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CASTLEENABLE_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwMissionEnableReq(std::shared_ptr<PeerSession> peer,
+                       std::uint8_t                 status,
+                       std::uint32_t                start,
+                       std::uint32_t                second)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, status);
+    WritePOD<std::uint32_t>(body, start);
+    WritePOD<std::uint32_t>(body, second);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_MISSIONENABLE_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

@@ -1526,6 +1526,21 @@ boost::asio::awaitable<void> OnCastleApplyAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W5-4: war-window enable broadcast (handlers_occupy.cpp) -------
+//
+// SM_BATTLESTATUS_REQ — the scheduler opens/closes a war window;
+// world fans the matching LOCAL / CASTLE / MISSION enable packet to
+// every map peer. The BS_PEACE peace-time bookkeeping (record-date
+// reset + CalcWeekRecord + castle-war-info clear) and SKYGARDEN are
+// deferred.
+//
+// Wire (SSHandler.cpp:9870): BYTE type, BYTE status, DWORD start,
+//   DWORD second
+boost::asio::awaitable<void> OnBattleStatusReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.

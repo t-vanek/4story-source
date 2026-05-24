@@ -1697,6 +1697,37 @@ boost::asio::awaitable<void> SendMwCastleApplicantCountReq(
     std::uint32_t                guild_id,
     std::uint16_t                count);
 
+// --- W5-4 war-window enable broadcasts (senders_occupy.cpp) -------
+//
+// Sent to every map peer when the scheduler opens/closes a war
+// window (SM_BATTLESTATUS_REQ fan-out).
+
+// MW_LOCALENABLE_REQ — local/territory war window.
+//   Wire: BYTE status, DWORD second, DWORD local_start,
+//     BYTE castle_day, DWORD castle_start
+boost::asio::awaitable<void> SendMwLocalEnableReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 status,
+    std::uint32_t                second,
+    std::uint32_t                local_start,
+    std::uint8_t                 castle_day,
+    std::uint32_t                castle_start);
+
+// MW_CASTLEENABLE_REQ — castle war window.
+//   Wire: BYTE status, DWORD second
+boost::asio::awaitable<void> SendMwCastleEnableReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 status,
+    std::uint32_t                second);
+
+// MW_MISSIONENABLE_REQ — mission war window.
+//   Wire: BYTE status, DWORD start, DWORD second
+boost::asio::awaitable<void> SendMwMissionEnableReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 status,
+    std::uint32_t                start,
+    std::uint32_t                second);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

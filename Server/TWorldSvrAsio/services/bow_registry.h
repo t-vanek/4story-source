@@ -83,6 +83,14 @@ public:
     std::size_t   QueueSize() const;
     bool          Contains(std::uint32_t char_id) const;
 
+    // W6-26 — opportunistic cleanup on LEAVEBATTLEFIELD (legacy
+    // CTBowSystem::ReleaseSinglePlayer; SSHandler.cpp:14127). Legacy
+    // operates on the active-match roster (m_mapBOWPLAYERS) and
+    // teleports the player home; we don't model the active match yet,
+    // so this is a best-effort drop from the pre-match queue in case
+    // the player left state lingering. Silent no-op if not in queue.
+    void ReleaseSinglePlayer(std::uint32_t char_id, std::uint32_t key);
+
 private:
     mutable std::shared_mutex m_lock;
 

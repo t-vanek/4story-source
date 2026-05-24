@@ -940,3 +940,12 @@ target_link_libraries(test_tworldsvr_asio_br_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_br_handlers
     COMMAND test_tworldsvr_asio_br_handlers)
+
+# W6-26 wire test: LEAVEBATTLEFIELD cleanup routing — BR queue,
+# BR premade, Bow queue, off-battlefield no-op.
+add_executable(test_tworldsvr_asio_leavebattlefield_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_leavebattlefield_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_leavebattlefield_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_leavebattlefield_handlers
+    COMMAND test_tworldsvr_asio_leavebattlefield_handlers)

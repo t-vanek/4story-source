@@ -142,6 +142,14 @@ public:
     std::size_t   MapVoteCount() const;
     std::size_t   ModeVoteCount() const;
 
+    // W6-26 — opportunistic cleanup on LEAVEBATTLEFIELD (legacy
+    // CBRSystem::ReleaseSinglePlayer; SSHandler.cpp:14125). Legacy
+    // operates on the active-match roster (m_mapBRTeam) and teleports
+    // the player home; we don't model the active match yet, so this
+    // is a best-effort drop from the solo queue + any premade team
+    // entry. Silent no-op when not found.
+    void ReleaseSinglePlayer(std::uint32_t char_id, std::uint32_t key);
+
 private:
     mutable std::shared_mutex m_lock;
 

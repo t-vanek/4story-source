@@ -538,6 +538,11 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnVoteForBrMapReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-26: leave-battlefield (handlers_bow.cpp) -----------
+    case MessageId::MW_LEAVEBATTLEFIELD_REQ:
+        co_await OnLeaveBattlefieldReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W5-1: territory occupation (handlers_occupy.cpp) ------
     case MessageId::MW_CASTLEOCCUPY_ACK:
         co_await OnCastleOccupyAck(std::move(peer), std::move(body), ctx);

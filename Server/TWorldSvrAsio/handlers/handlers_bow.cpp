@@ -1,6 +1,7 @@
 #include "handlers.h"
 #include "../senders/senders.h"
 #include "../services/bow_constants.h"
+#include "../services/br_constants.h"
 #include "../wire_codec.h"
 
 #include "MessageId.h"
@@ -167,6 +168,59 @@ OnBowPointsUpdateReq(std::shared_ptr<PeerSession> peer,
     spdlog::info("OnBowPointsUpdateReq[{}]: country={} → D={} C={}", ip,
         country, ctx.bow->Points(bow::kCountryD),
         ctx.bow->Points(bow::kCountryC));
+    co_return;
+}
+
+// --- W6-26 leave-battlefield cleanup ------------------------------
+
+boost::asio::awaitable<void>
+OnLeaveBattlefieldReq(std::shared_ptr<PeerSession> peer,
+                      std::vector<std::byte>       body,
+                      const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars)
+    {
+        spdlog::warn("OnLeaveBattlefieldReq[{}]: char registry not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnLeaveBattlefieldReq[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto ch = ctx.chars->Find(char_id);
+    if (!ch) co_return;
+
+    std::uint8_t  channel = 0;
+    std::uint16_t map_id = 0;
+    {
+        std::lock_guard g(ch->lock);
+        channel = ch->channel;
+        map_id  = ch->map_id;
+    }
+
+    // Legacy SSHandler.cpp:14125 routing: BR takes priority via the
+    // channel marker (chars route through the BR battleground via
+    // channel = BR_SERVER_ID), else Bow via the map_id sentinel.
+    if (channel == br::kBrServerId && ctx.br)
+    {
+        spdlog::info("OnLeaveBattlefieldReq[{}]: char_id={} → BR cleanup",
+            ip, char_id);
+        ctx.br->ReleaseSinglePlayer(char_id, key);
+    }
+    else if (map_id == bow::kBowMapId && ctx.bow)
+    {
+        spdlog::info("OnLeaveBattlefieldReq[{}]: char_id={} → Bow cleanup",
+            ip, char_id);
+        ctx.bow->ReleaseSinglePlayer(char_id, key);
+    }
+    // Else: not on a known battlefield map — no-op.
     co_return;
 }
 

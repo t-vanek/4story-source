@@ -2202,6 +2202,22 @@ boost::asio::awaitable<void> OnVoteForBrMapReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-26: leave-battlefield cleanup (handlers_bow.cpp) ----------
+//
+// MW_LEAVEBATTLEFIELD_REQ — char is on its way out of a battlefield
+// map; world cleans the matching subsystem's lingering state. Legacy
+// SSHandler.cpp:14112 routes by the char's location:
+//   * channel == BR_SERVER_ID → BrRegistry::ReleaseSinglePlayer
+//   * else map_id == BOW_MAP_ID → BowRegistry::ReleaseSinglePlayer
+// Both registry methods are best-effort drops from queue / premade
+// (the legacy teleport-home is deferred — we don't model active match
+// state yet). No reply.
+//   Wire (SSHandler.cpp:14112): DWORD char_id, key
+boost::asio::awaitable<void> OnLeaveBattlefieldReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
 // count==0 ROUTE branch (or when world otherwise asked for a CHARDATA
 // round-trip). World refreshes the char's level + HP/MP from the

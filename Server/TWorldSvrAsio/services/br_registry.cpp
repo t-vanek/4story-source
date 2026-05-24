@@ -203,4 +203,32 @@ std::size_t BrRegistry::ModeVoteCount() const
     return m_mode_votes.size();
 }
 
+void
+BrRegistry::ReleaseSinglePlayer(std::uint32_t char_id, std::uint32_t key)
+{
+    std::unique_lock g(m_lock);
+    // Solo queue — key-checked.
+    auto solo = m_solo_queue.find(char_id);
+    if (solo != m_solo_queue.end() && solo->second.key == key)
+        m_solo_queue.erase(solo);
+    // Premade — chief-leave dissolves the team, mate-leave drops the
+    // member (legacy ErasePlayerFromPremade parity). No key check —
+    // legacy doesn't enforce one for the premade scan.
+    auto chief_it = m_premade_teams.find(char_id);
+    if (chief_it != m_premade_teams.end())
+    {
+        m_premade_teams.erase(chief_it);
+        return;
+    }
+    for (auto& [chief, team] : m_premade_teams)
+    {
+        auto m_it = team.members.find(char_id);
+        if (m_it != team.members.end())
+        {
+            team.members.erase(m_it);
+            return;
+        }
+    }
+}
+
 } // namespace tworldsvr

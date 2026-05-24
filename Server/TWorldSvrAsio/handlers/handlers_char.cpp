@@ -184,6 +184,85 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
 }
 
 boost::asio::awaitable<void>
+OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
+              std::vector<std::byte>        body,
+              const HandlerContext&         ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars)
+    {
+        spdlog::warn("OnEnterSvrAck[{}]: char registry not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, region = 0, rank_point = 0, user_ip = 0;
+    std::string   name;
+    std::uint8_t  level = 0, real_sex = 0, klass = 0, race = 0, sex = 0,
+                  face = 0, hair = 0, helmet_hide = 0, country = 0,
+                  aid_country = 0, channel = 0, logout = 0, save = 0,
+                  result = 0;
+    std::uint16_t map_id = 0, title_id = 0;
+    float         pos_x = 0, pos_y = 0, pos_z = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(name) ||
+        !r.Read(level) || !r.Read(real_sex) || !r.Read(klass) ||
+        !r.Read(race) || !r.Read(sex) || !r.Read(face) || !r.Read(hair) ||
+        !r.Read(helmet_hide) || !r.Read(country) || !r.Read(aid_country) ||
+        !r.Read(region) || !r.Read(channel) || !r.Read(map_id) ||
+        !r.Read(pos_x) || !r.Read(pos_y) || !r.Read(pos_z) ||
+        !r.Read(logout) || !r.Read(save) || !r.Read(result) ||
+        !r.Read(title_id) || !r.Read(rank_point) || !r.Read(user_ip))
+    {
+        spdlog::warn("OnEnterSvrAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto self = ctx.chars->Find(char_id);
+    if (!self) co_return;            // stale enter (legacy DELCHAR — deferred)
+    {
+        std::lock_guard g(self->lock);
+        if (self->key != key) co_return;          // INVALIDCHAR — deferred
+    }
+    if (result != 0) co_return;      // enter error (legacy CONRESULT — deferred)
+
+    // Index the name (Rename keeps FindByName coherent). On a map
+    // change the name is already ours → idempotent; a true collision
+    // with another char is logged but the rest of the load proceeds.
+    if (!name.empty() && !ctx.chars->Rename(char_id, name))
+        spdlog::warn("OnEnterSvrAck[{}]: char_id={} name '{}' index collision",
+            ip, char_id, name);
+
+    // Bulk-set the identity the incremental handlers later refine.
+    {
+        std::lock_guard g(self->lock);
+        self->level       = level;
+        self->real_sex    = real_sex;
+        self->klass       = klass;
+        self->race        = race;
+        self->sex         = sex;
+        self->face        = face;
+        self->hair        = hair;
+        self->helmet_hide = helmet_hide;
+        self->country     = country;
+        self->aid_country = aid_country;
+        self->region      = region;
+        self->map_id      = map_id;
+        self->pos_x       = pos_x;
+        self->pos_y       = pos_y;
+        self->pos_z       = pos_z;
+        self->logout      = logout != 0;
+    }
+
+    // Announce arrival to online friends (now that name/region exist).
+    co_await NotifyFriendsOnLogin(ctx, self);
+
+    spdlog::info("OnEnterSvrAck[{}]: char_id={} '{}' entered (lvl={} map={} "
+                 "region={})", ip, char_id, name, level, map_id, region);
+    co_return;
+}
+
+boost::asio::awaitable<void>
 OnCloseCharAck(std::shared_ptr<PeerSession>  peer,
                std::vector<std::byte>        body,
                const HandlerContext&         ctx)
@@ -401,6 +480,11 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
             if (auto p = ctx.chars->Find(sm_target))
             { std::lock_guard g(p->lock);
               if (p->soulmate.target == char_id) p->soulmate = TSoulmate{}; }
+            if (ctx.friend_repo)
+                co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                    [repo = ctx.friend_repo, char_id, sm_target]
+                    { repo->DelSoulmate(char_id, sm_target);
+                      repo->DelSoulmate(sm_target, char_id); });
             spdlog::info("OnLevelUpAck[{}]: char_id={} level {} dissolved "
                          "soulmate {} (gap > {})", ip, char_id, level,
                 sm_target, soulmate::kLevelWindow);

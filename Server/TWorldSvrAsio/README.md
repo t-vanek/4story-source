@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-15 friend/soulmate load-at-login (IFriendRepository)
+## Status — W6-1 timed-event broadcast (EVENTQUARTER)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -84,12 +84,323 @@ that the four shipped Asio daemons already use.
 | W4-12 | TMS presence on logout — NotifyTmsOnLogout (legacy LeaveTMS) wired into OnCloseCharAck: drops a logging-out char from every conference + tells the survivors via TMSOUT_REQ | ✅ |
 | W4-13 | Mail delivery relay — OnMW_POSTRECV_ACK (player mail) + OnDM_RESERVEDPOSTRECV_ACK (system mail) forward MW_POSTRECV_REQ verbatim to the recipient's map (routed by target name) + SendMwPostRecvReq | ✅ |
 | W4-14 | Per-character visual state sync — OnMW_PETRIDING_ACK (mount fan-out to the char's other map sessions) + OnMW_HELMETHIDE_ACK (helmet-visibility store + confirm) + TChar.riding/helmet_hide + 2 senders | ✅ |
-| **W4-15** | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
-| W4-16+ | Login presence connect fan-out (now that friends load at login) + friend/soulmate write-back persistence | ⏸ |
-| W4 | Friend + Chat + Soulmate | ⏸ |
-| W5 | War + Castle + Tournament / TNMT | ⏸ |
-| W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
+| W4-15 | Friend/soulmate load-at-login — IFriendRepository (Soci + Fake) + OnAddCharAck hydrates TChar.friends/friend_groups/soulmate via CoOffloadIf with forward/reverse type derivation (FT_FRIEND / FT_FRIENDFRIEND / FT_TARGET) | ✅ |
+| W4-16 | Friend-group write-back — IFriendRepository MakeGroup/DeleteGroup/RenameGroup/ChangeFriendGroup wired into the W4-3 group handlers via CoOffloadVoidIf (persist alongside the in-memory mutation) | ✅ |
+| W4-17 | Friend-edge write-back — IFriendRepository InsertFriend/EraseFriend wired into the accept paths (both directed edges) + erase path (forward edge) via CoOffloadVoidIf | ✅ |
+| W4-18 | Soulmate write-back — IFriendRepository RegSoulmate/DelSoulmate wired into SEARCH-pair / REG / END + the W4-9 level-gap auto-dissolve (both mutual rows) via CoOffloadVoidIf | ✅ |
+| W4-19 | GM chat ban — OnMW_CHATBAN_ACK sets/extends/clears TChar.chat_ban_time, enforces on the target's map + echoes to the issuing GM (MW_CHATBAN_REQ) | ✅ |
+| W4-20 | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
+| W4-21+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
+| W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
+| W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
+| W5-3 | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
+| W5-4 | War-window enable broadcast — OnSM_BATTLESTATUS_REQ fans the LOCAL/CASTLE/MISSION enable packet to every map peer (the trigger that starts the sieges) + 3 senders; BS_PEACE record bookkeeping + SKYGARDEN deferred | ✅ |
+| W5 | War + Castle + Tournament / TNMT | 🚧 |
+| **W6-1** | Timed-event broadcast — OnSM_EVENTQUARTER_REQ (present event, single server-chosen bucket) + OnSM_EVENTQUARTERNOTIFY_REQ (world-chat announcement via the chat sender) fan to every map peer + SendMwEventQuarterReq | ✅ |
+| W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W6-1 — what landed
+
+**Timed-event broadcast** — opens the W6 event vertical. The scheduler
+fires a "present quarter" timed event; world relays it cluster-wide.
+
+- `OnEventQuarterReq` (handlers_event.cpp, `SM_EVENTQUARTER_REQ`) reads
+  (day, hour, minute, present), picks the present bucket **once**
+  (legacy `rand() % 100`) so every map shows the same one, and fans
+  `MW_EVENTQUARTER_REQ` to every peer (`SendMwEventQuarterReq`).
+- `OnEventQuarterNotifyReq` (`SM_EVENTQUARTERNOTIFY_REQ`) broadcasts
+  the event announcement as a world-chat line to every peer, reusing
+  the W4-5 `SendMwChatReq` (channel `CHAT_WORLD`). The operator display
+  name (legacy `GetSvrMsg(NAME_OPERATOR)`) is deferred — the same
+  server-message-table gap as the W4-5 operator-whisper — so the sender
+  name is empty.
+
+Tests — `tests/test_event_handlers.cpp`: EVENTQUARTER reaches both
+peers with the same bucket + matching day/hour/minute/present;
+EVENTQUARTERNOTIFY reaches both as a world-chat line carrying the
+announcement.
+
+Build verified: cmake + ctest -R tworldsvr_asio (57/57 passed).
+
+### W5-4 — what landed
+
+**War-window enable broadcast** — the front of the W5 war loop: when
+the scheduler opens or closes a war window, world fans the matching
+enable packet to every map peer. This is the trigger that *starts*
+the sieges whose apply / occupy / reset W5-1..3 handle.
+
+- `OnBattleStatusReq` (handlers_occupy.cpp, `SM_BATTLESTATUS_REQ`)
+  reads (type, status, start, second) and, per the battle type,
+  broadcasts `MW_LOCALENABLE_REQ` / `MW_CASTLEENABLE_REQ` /
+  `MW_MISSIONENABLE_REQ` to every peer. Three senders in
+  senders_occupy.cpp.
+- `battle_constants.h` — the `BATTLE_TYPE` selector, reconstructed
+  (the enum is absent from the tree): `kTypeCastle = 1` matches the
+  committed reconstruction in `TControlSvrAsio` (kBattleTypeCastle);
+  LOCAL=0 / MISSION=2 follow the legacy declaration order.
+
+Deferred: the `BS_PEACE` peace-time bookkeeping (record-date reset +
+per-guild `CalcWeekRecord` + castle-war-info clear) — it needs the
+PvP-record-date + castle-war-info systems; and SKYGARDEN (`#ifdef`).
+
+Tests — `tests/test_battlestatus_handlers.cpp`: each of the three
+battle types fans the correct enable packet to both peers with the
+right status/timer fields.
+
+Build verified: cmake + ctest -R tworldsvr_asio (56/56 passed).
+
+### W5-3 — what landed
+
+**Castle-occupy application reset** — closes the reset that W5-1
+deferred. When a castle is occupied the siege is over, so every
+applicant to that castle (in both the winning and losing guild) has
+their application cleared.
+
+- `ResetCastleApply(ctx, guild_id, castle_id)` (handlers_occupy.cpp):
+  under the guild lock, zero each member's + tactics member's
+  castle/camp where it matches and collect their char_ids; then route
+  a `MW_CASTLEAPPLY_REQ(SUCCESS, castle=0)` to each affected char's
+  map (separate char locks — disjoint from the guild lock). Mirrors
+  legacy `CTWorldSvrModule::ResetCastleApply`.
+- `OnCastleOccupyAck` now calls it for the winning guild and (when
+  distinct) the losing guild before the occupation broadcast. The
+  guild stat-exp award is still deferred (absent CALCULATE_NEXTGEXP /
+  *_STATEXP constants).
+
+Reuses W5-2's castle/camp fields + `SendMwCastleApplyReq` — no new
+wire. With W5-1/W5-2 the castle-siege state now has a full lifecycle:
+apply (cap-gated) → applicant-count broadcast → occupy → reset.
+
+Tests — `tests/test_castle_occupy_reset_handlers.cpp`: a member
+applied to a castle has their application cleared (with the map
+notified) when that castle is occupied, alongside the occupy
+broadcast.
+
+Build verified: cmake + ctest -R tworldsvr_asio (55/55 passed).
+
+### W5-2 — what landed
+
+**Castle-war apply** — a guild chief assigns members (and hired
+tactics members) to attack/defend a castle; this is the per-member
+apply state that W5-1's deferred `ResetCastleApply` will later clear.
+
+- `TGuildMember` already carried `castle`/`camp`; `TTacticsMember`
+  gains them. `TGuild::CastleApplicantCount` + `CanApplyWar` (the
+  legacy literal 49-applicant cap) count members + tactics per castle.
+- `OnCastleApplyAck` (handlers_occupy.cpp): chief-only gate; resolves
+  the target as a member (rejecting one who's a merc elsewhere) or a
+  tactics member; re-applying to the same castle cancels; the cap
+  yields `CBS_FULL`. On a change it toggles the target's castle/camp,
+  replies `MW_CASTLEAPPLY_REQ(SUCCESS)` to the chief's map and the
+  assigned member's map, and re-broadcasts the applicant count for the
+  vacated + joined castle (`MW_CASTLEAPPLICANTCOUNT_REQ`) to every
+  peer. Snapshot-then-release locking keeps the guild + char locks
+  disjoint.
+- `castle_constants.h` — `CBS_*` result codes. `kSuccess = 0` is
+  certain (the client's `!=` sentinel + codebase convention); the
+  error codes (only `kFull` is emitted) are reconstructed from the
+  client switch ordering since the real enum is **absent from the
+  source tree**, and flagged as inferred.
+
+Deferred: DB persistence (legacy `DM_CASTLEAPPLY_REQ`) — castle/camp
+aren't in the guild-member load query yet, so the assignment is
+in-memory only (a world restart loses pending applications).
+
+Tests — `tests/test_castle_apply_handlers.cpp`: chief Alice assigns
+member Bob to a castle; both maps get the SUCCESS reply, every peer
+gets the applicant count, and Bob's member row holds the assignment.
+
+Build verified: cmake + ctest -R tworldsvr_asio (54/54 passed).
+
+### W5-1 — what landed
+
+**Territory occupation broadcasts** — opens the W5 war vertical with
+the cluster coordinator's core territory role: when a castle / local
+(territory) / mission objective changes hands, world fans the new
+owner + flag to **every** map peer so the whole cluster renders it
+consistently.
+
+- `handlers_occupy.cpp` — `OnCastleOccupyAck` (wID 0x9087),
+  `OnLocalOccupyAck` (0x906B), `OnMissionOccupyAck` (0x9168). CASTLE
+  and LOCAL resolve the guild name from the registry; LOCAL applies
+  the legacy B-country display flip (a `TCONTRY_B` guild's capture
+  shows as the opposing flag and reports guild-less when the prior
+  holder wasn't neutral). MISSION is a bare type/local/country fan-out.
+- `senders_occupy.cpp` — `SendMwCastleOccupyReq` / `SendMwLocalOccupyReq`
+  / `SendMwMissionOccupyReq`, each broadcast over `peers->Snapshot()`.
+
+Deferred — **blocked on data absent from the source tree**: the
+winning guild's stat-exp award + level-up (CASTLEOCCUPY / LOCALOCCUPY)
+needs `CALCULATE_NEXTGEXP` + the `*_STATEXP` award constants, which
+are referenced by client + both servers but **defined nowhere in the
+repo**; and CASTLEOCCUPY's `ResetCastleApply` (clearing members'
+castle-application flags) needs the castle-apply subsystem, not yet
+ported. Both are follow-up W5 slices once the constants / model land.
+
+Tests — `tests/test_occupy_handlers.cpp` (two-peer): each occupy
+reaches both peers with the right fields, and a B-country guild's
+LOCAL capture arrives flag-flipped + guild-less.
+
+Build verified: cmake + ctest -R tworldsvr_asio (53/53 passed).
+
+### W4-20 — what landed
+
+**Login finalization + connect presence** — `MW_ENTERSVR_ACK` is the
+"char is fully loaded on its map" signal. It was the missing piece
+that blocked the connect-side friend presence: at `OnAddCharAck` the
+char's own name/region aren't known yet (ADDCHAR carries neither), so
+any "X came online" toast would have shipped a blank name.
+
+- `OnEnterSvrAck` (handlers_char.cpp, wID 0x9009) reads the 25-field
+  login packet, validates char + key (drops on mismatch / enter
+  error — the legacy DELCHAR / INVALIDCHAR / CONRESULT replies are
+  deferred), indexes the name via `CharRegistry::Rename` (so
+  `FindByName` resolves a logged-in char without a prior rename), and
+  bulk-sets identity + position + region (the values the incremental
+  W3a-3 / W4-8 / W4-9 / W4-14 handlers later refine).
+- It then calls `NotifyFriendsOnLogin` — the connect-side mirror of
+  the W4-7 logout fan-out (reverted once in W4-16 as premature, now
+  correct). For each friend online *right now* (resolved live), it
+  flips both sides' connected flag and, for real friends (mutual /
+  target), pushes `MW_FRIENDCONNECTION_REQ(CONNECTION)` to their map.
+
+With W4-15..18 (persistence) this makes the friend subsystem behave
+across a relog: friends load, the player's arrival is announced, and
+their friends' rosters light up live.
+
+Deferred: the big `CHARINFO_REQ` composite reply (guild / duty / peer
+/ castle), the relay-server `CHANGEMAP`, and the enter-failure replies
+— client-facing pieces that don't affect the world-side identity +
+presence this slice delivers.
+
+Tests — `tests/test_entersvr_handlers.cpp`: Bob is online with Alice
+as a mutual friend; Alice's ENTERSVR indexes her name and Bob receives
+a `FRIEND_CONNECTION` toast naming her, with his roster entry flipped
+connected.
+
+Build verified: cmake + ctest -R tworldsvr_asio (52/52 passed).
+
+### W4-19 — what landed
+
+**GM chat ban** — a moderator silences a player's chat for N minutes
+(0 = unban). The world resolves the target by name, owns the ban
+timer, enforces it on the target's map, and echoes the result to the
+issuing GM.
+
+- `TChar.chat_ban_time` (legacy m_nChatBanTime) — Unix second until
+  which chat is banned; 0 = clear.
+- `OnChatBanAck` (handlers_chat.cpp, wID 0x9117) — `FindByName` the
+  target (INVALIDCHAR back to the GM if missing), then for minutes>0
+  start a fresh ban or stack onto an active one (legacy timer math),
+  for minutes==0 clear it. Sends `MW_CHATBAN_REQ` to the target's map
+  (enforce, no GM id) and, when the GM supplied char_id/key, echoes
+  the result to the GM's map. `SendMwChatBanReq` in senders_chat.cpp;
+  CHATBAN_RESULT codes in chat_constants.h.
+
+Deferred: the cluster-wide ban list (legacy AddChatBan — so a ban
+survives the target reconnecting on another map) and the RW
+relay-server propagation, both of which need the operator/ban-list
+infra (same family as the RW_RELAYSVR operator list).
+
+Tests — `tests/test_chatban_handlers.cpp`: ban (target map enforces +
+GM echo, timer set), unknown target (INVALIDCHAR to the GM only),
+unban (timer cleared).
+
+Build verified: cmake + ctest -R tworldsvr_asio (51/51 passed).
+
+### W4-18 — what landed
+
+**Soulmate write-back** — the last friend/soulmate persistence gap.
+The pairing flows mutated only the in-memory `TChar.soulmate`; a
+relog reloaded the old pairing (or lost a fresh one).
+
+- `IFriendRepository` gains `RegSoulmate(char_id, target)` (upsert,
+  `dwTime` reset to 0 — mirrors the `TSoulmateReg` proc via a
+  portable delete-then-insert since `dwCharID` is the PK) +
+  `DelSoulmate(char_id, target)` (mirrors `TSoulmateDel`), Soci + Fake.
+- A pairing is mutual (one row per char), so every site persists
+  both directions: `OnSoulmateSearchAck` (matchmaking pair),
+  `OnSoulmateRegAck` (register branch), `OnSoulmateEndAck` (dissolve),
+  and the W4-9 `OnLevelUpAck` level-gap auto-dissolve. All via
+  `CoOffloadVoidIf`, best-effort.
+
+This closes friend/soulmate persistence end to end: groups, group
+membership, friend edges, and soulmate pairings all survive a relog
+(read path: W4-15; writes: W4-16/17/18).
+
+Deferred: the connect-side login-presence fan-out is still blocked on
+a "char identity loaded" signal — at OnAddCharAck the char's own name
+and region aren't set yet (they arrive with the later
+CHANGECHARBASE), so the FRIEND_CONNECTION toast would carry a blank
+name; it needs a post-identity-load hook the port doesn't have yet.
+
+Tests — `tests/test_soulmate_persist_handlers.cpp`: Alice registers
+Bob (both rows land in the repo), then dissolves (both rows deleted).
+
+Build verified: cmake + ctest -R tworldsvr_asio (50/50 passed).
+
+### W4-17 — what landed
+
+**Friend-edge write-back** — persists the friendship graph itself
+(W4-16 did the named groups). The accept paths added the mutual
+friendship only in memory; a relog reloaded the old graph.
+
+- `IFriendRepository` gains `InsertFriend(char_id, friend_id)` (one
+  directed TFRIENDTABLE row, group 0) + `EraseFriend(char_id,
+  friend_id)` (Soci + Fake), mirroring CSPFriendInsert /
+  CSPFriendErase (SSHandler.cpp:6185/6202).
+- Both accept paths — the OnFriendAskAck both-sides-pending shortcut
+  and the OnFriendReplyAck YES branch — persist the two directed
+  edges (legacy fired DM_FRIENDINSERT_REQ twice). OnFriendEraseAck
+  deletes the requester's forward edge on the FT_FRIENDFRIEND demote
+  and the FT_FRIEND one-way removal; an FT_TARGET erase leaves the DB
+  untouched (legacy parity). All via CoOffloadVoidIf, best-effort.
+
+With W4-16 this completes the friend write-back: groups, group
+membership, and the edges all survive a relog.
+
+Deferred to W4-18: soulmate write-back (TSOULMATETABLE reg/del). The
+connect-side login presence remains blocked on a char-identity-loaded
+signal (name/region unset at OnAddCharAck).
+
+Tests — `tests/test_friend_edge_handlers.cpp`: Bob accepts Alice's
+invite (both edges land in the repo); Alice removes Bob (only her
+forward edge is deleted, Bob still friends Alice).
+
+Build verified: cmake + ctest -R tworldsvr_asio (49/49 passed).
+
+### W4-16 — what landed
+
+**Friend-group write-back** — the write half of the W4-15 read path,
+for the four friend-group mutations. The W4-3 group handlers
+(MAKE / DELETE / CHANGE / NAME) updated only the in-memory registry;
+a relog reloaded the old groups from the DB. Now each success also
+persists.
+
+- `IFriendRepository` gains `MakeGroup` / `DeleteGroup` /
+  `RenameGroup` / `ChangeFriendGroup` (Soci + Fake), each one legacy
+  CSP wrapper (CSPFriendGroupMake/Delete/Name/Change,
+  SSHandler.cpp:6490+) — single-table INSERT / DELETE / UPDATE.
+- The four handlers fire the matching write via `CoOffloadVoidIf`
+  only on a successful in-memory mutation, after the client reply.
+  Best-effort like the guild writes (a false return doesn't reverse
+  the in-memory change; the registry stays authoritative in-session).
+
+Deferred: friend insert/erase write-back (the accept path inserts
+both directions; the erase path deletes the forward edge in both the
+demote and one-way cases) + soulmate write-back land in W4-17. The
+connect-side login-presence fan-out is still blocked on a
+"char identity loaded" signal — at OnAddCharAck the char's own name
+and region aren't set yet (they arrive with the later
+CHANGECHARBASE), so the FRIEND_CONNECTION toast would carry a blank
+name; it needs a post-identity-load hook the port doesn't have yet.
+
+Tests — `tests/test_friend_persist_handlers.cpp`: a fake-backed run
+drives MAKE / NAME / CHANGE / (MAKE+DELETE) over the wire and reads
+the repo back to confirm each write landed.
+
+Build verified: cmake + ctest -R tworldsvr_asio (48/48 passed).
 
 ### W4-15 — what landed
 

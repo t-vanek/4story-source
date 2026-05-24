@@ -3,6 +3,8 @@
 #include "../services/friend_constants.h"
 #include "../wire_codec.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
@@ -174,7 +176,14 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
                     f.region = req_region;
                 }
         }
-        // (Persistence — legacy DM_FRIENDINSERT_REQ — deferred.)
+        // Persist both directed edges (legacy DM_FRIENDINSERT_REQ ×2).
+        if (ctx.friend_repo)
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.friend_repo, char_id, t_id]
+                {
+                    repo->InsertFriend(t_id, char_id);
+                    repo->InsertFriend(char_id, t_id);
+                });
         co_await reply(frnd::kSuccess, t_id, t_name, t_level, t_class,
             t_region);
         spdlog::info("OnFriendAskAck[{}]: char_id={} + '{}' now mutual "
@@ -288,7 +297,14 @@ OnFriendReplyAck(std::shared_ptr<PeerSession> peer,
       UpsertMutual(*inviter, char_id, f_name, f_region); }
     { std::lock_guard g(answerer->lock);
       UpsertMutual(*answerer, p_id, p_name, p_region); }
-    // (Persistence — legacy DM_FRIENDINSERT_REQ ×2 — deferred.)
+    // Persist both directed edges (legacy DM_FRIENDINSERT_REQ ×2).
+    if (ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, p_id, char_id]
+            {
+                repo->InsertFriend(p_id, char_id);
+                repo->InsertFriend(char_id, p_id);
+            });
 
     if (auto p = FindMapPeer(ctx, p_msi))
         co_await senders::SendMwFriendAddReq(p, p_id, p_key, frnd::kSuccess,
@@ -378,6 +394,13 @@ OnFriendEraseAck(std::shared_ptr<PeerSession> peer,
 
     co_await senders::SendMwFriendEraseReq(peer, char_id, key, frnd::kSuccess,
         target_id);
+    // Both the demote and one-way branches drop the char's forward
+    // edge; FT_TARGET leaves the DB untouched (legacy CSPFriendErase).
+    if ((type == frnd::kTypeFriendFriend || type == frnd::kTypeFriend) &&
+        ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, target_id]
+            { repo->EraseFriend(char_id, target_id); });
     spdlog::info("OnFriendEraseAck[{}]: char_id={} erased friend {}",
         ip, char_id, target_id);
     co_return;
@@ -427,6 +450,10 @@ OnFriendGroupMakeAck(std::shared_ptr<PeerSession> peer,
     if (!key_ok) co_return;
     co_await senders::SendMwFriendGroupMakeReq(peer, char_id, key, result,
         result == frnd::kSuccess ? group : 0, name);
+    if (result == frnd::kSuccess && ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, group, name]
+            { repo->MakeGroup(char_id, group, name); });
     co_return;
 }
 
@@ -472,6 +499,10 @@ OnFriendGroupDeleteAck(std::shared_ptr<PeerSession> peer,
     if (!key_ok || !exists) co_return;  // legacy: no reply when absent
     co_await senders::SendMwFriendGroupDeleteReq(peer, char_id, key,
         occupied ? frnd::kRefuse : frnd::kSuccess, group);
+    if (!occupied && ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, group]
+            { repo->DeleteGroup(char_id, group); });
     co_return;
 }
 
@@ -514,6 +545,10 @@ OnFriendGroupChangeAck(std::shared_ptr<PeerSession> peer,
     if (!key_ok || !ok) co_return;  // legacy: silent drop on bad group/friend
     co_await senders::SendMwFriendGroupChangeReq(peer, char_id, key,
         frnd::kSuccess, group, friend_id);
+    if (ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, friend_id, group]
+            { repo->ChangeFriendGroup(char_id, friend_id, group); });
     co_return;
 }
 
@@ -562,6 +597,10 @@ OnFriendGroupNameAck(std::shared_ptr<PeerSession> peer,
     if (!key_ok) co_return;
     co_await senders::SendMwFriendGroupNameReq(peer, char_id, key, result,
         group, name);
+    if (result == frnd::kSuccess && ctx.friend_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.friend_repo, char_id, group, name]
+            { repo->RenameGroup(char_id, group, name); });
     co_return;
 }
 
@@ -602,6 +641,54 @@ NotifyFriendsOnLogout(const HandlerContext& ctx, std::shared_ptr<TChar> who)
             if (auto p = FindMapPeer(ctx, pmsi))
                 co_await senders::SendMwFriendConnectionReq(p, e.id, pkey,
                     frnd::kDisconnection, who_name, 0);
+    }
+    co_return;
+}
+
+boost::asio::awaitable<void>
+NotifyFriendsOnLogin(const HandlerContext& ctx, std::shared_ptr<TChar> who)
+{
+    if (!ctx.chars || !ctx.peers || !who) co_return;
+
+    std::uint32_t who_id = 0, who_region = 0;
+    std::string   who_name;
+    struct FE { std::uint32_t id; std::uint8_t type; };
+    std::vector<FE> entries;
+    {
+        std::lock_guard g(who->lock);
+        who_id     = who->char_id;
+        who_name   = who->name;
+        who_region = who->region;
+        for (const auto& f : who->friends)
+            entries.push_back({f.id, f.type});
+    }
+
+    // Mirror of NotifyFriendsOnLogout, fired once the char's identity
+    // is loaded (OnEnterSvrAck). Online status is resolved live here
+    // (vs. the stored flag) so a friend who came online between this
+    // char's ADDCHAR hydrate and its ENTERSVR still gets the toast.
+    for (const auto& e : entries)
+    {
+        auto partner = ctx.chars->Find(e.id);
+        if (!partner) continue;                 // offline now → skip
+        std::uint32_t pkey = 0;
+        std::uint8_t  pmsi = 0;
+        {
+            std::lock_guard g(partner->lock);
+            for (auto& pf : partner->friends)
+                if (pf.id == who_id)
+                { pf.connected = true; pf.region = who_region; }
+            pkey = partner->key;
+            pmsi = partner->main_server_id;
+        }
+        // Reflect the now-online partner into our own entry.
+        { std::lock_guard g(who->lock);
+          for (auto& f : who->friends) if (f.id == e.id) f.connected = true; }
+        // Only a real friend (mutual / pending) gets the toast.
+        if (e.type != frnd::kTypeFriend)
+            if (auto p = FindMapPeer(ctx, pmsi))
+                co_await senders::SendMwFriendConnectionReq(p, e.id, pkey,
+                    frnd::kConnection, who_name, who_region);
     }
     co_return;
 }

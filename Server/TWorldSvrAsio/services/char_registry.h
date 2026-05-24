@@ -197,6 +197,10 @@ struct TChar
     // back to the originating map.
     std::uint32_t riding      = 0;
     std::uint8_t  helmet_hide = 0;
+
+    // W4-19 — Unix second until which this char is chat-banned by a
+    // GM (legacy m_nChatBanTime). 0 = not banned.
+    std::int64_t  chat_ban_time = 0;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

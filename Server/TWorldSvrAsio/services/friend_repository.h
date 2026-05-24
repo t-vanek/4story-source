@@ -63,6 +63,56 @@ public:
     // CoOffloadIf so it never blocks the io_context. Returns an empty
     // FriendLoad for a char with no rows.
     virtual FriendLoad LoadForChar(std::uint32_t char_id) = 0;
+
+    // --- W4-16 friend-group write-back ---------------------------
+    //
+    // Persist the four friend-group mutations the W4-3 handlers do
+    // in memory. Each maps onto one legacy CSP wrapper (CSPFriendGroup
+    // Make / Delete / Name / Change, SSHandler.cpp:6490+). Best-effort
+    // like the guild writes — handlers don't reverse the in-memory
+    // mutation on a false return; the in-memory registry stays
+    // authoritative within a session. Called via CoOffloadVoidIf so
+    // SOCI never blocks the io_context.
+
+    // INSERT a new named group row (TFRIENDGROUPTABLE).
+    virtual bool MakeGroup(std::uint32_t char_id, std::uint8_t group,
+                           const std::string& name) = 0;
+    // DELETE a group row.
+    virtual bool DeleteGroup(std::uint32_t char_id, std::uint8_t group) = 0;
+    // UPDATE a group's name.
+    virtual bool RenameGroup(std::uint32_t char_id, std::uint8_t group,
+                             const std::string& name) = 0;
+    // UPDATE one friend's group bucket (TFRIENDTABLE.bGroup).
+    virtual bool ChangeFriendGroup(std::uint32_t char_id,
+                                   std::uint32_t friend_id,
+                                   std::uint8_t  group) = 0;
+
+    // --- W4-17 friend edge write-back ----------------------------
+    //
+    // One directed TFRIENDTABLE row (char_id → friend_id, group 0).
+    // A mutual friendship is two rows, so the accept paths call
+    // InsertFriend twice. Mirrors CSPFriendInsert / CSPFriendErase
+    // (SSHandler.cpp:6185/6202).
+
+    // INSERT a (char_id, friend_id, bGroup=0) row.
+    virtual bool InsertFriend(std::uint32_t char_id,
+                              std::uint32_t friend_id) = 0;
+    // DELETE the (char_id, friend_id) row (the char's forward edge).
+    virtual bool EraseFriend(std::uint32_t char_id,
+                             std::uint32_t friend_id) = 0;
+
+    // --- W4-18 soulmate write-back -------------------------------
+    //
+    // TSOULMATETABLE is one row per char (dwCharID PK); a pairing is
+    // mutual, so the reg / dissolve paths call these for both chars.
+    // Mirror TSoulmateReg (upsert, time reset to 0) / TSoulmateDel.
+
+    // Upsert this char's soulmate row to point at `target`.
+    virtual bool RegSoulmate(std::uint32_t char_id,
+                             std::uint32_t target) = 0;
+    // Delete this char's soulmate row when it points at `target`.
+    virtual bool DelSoulmate(std::uint32_t char_id,
+                             std::uint32_t target) = 0;
 };
 
 } // namespace tworldsvr

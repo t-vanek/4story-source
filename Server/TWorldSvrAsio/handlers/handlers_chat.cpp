@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
+#include <ctime>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -189,6 +190,67 @@ OnChatAck(std::shared_ptr<PeerSession> peer,
     default:
         break;
     }
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnChatBanAck(std::shared_ptr<PeerSession> peer,
+             std::vector<std::byte>       body,
+             const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnChatBanAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::string   target_name;
+    std::uint16_t minutes = 0;
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.ReadString(target_name) || !r.Read(minutes) ||
+        !r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnChatBanAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    auto tgt = ctx.chars->FindByName(target_name);
+    if (!tgt)
+    {
+        co_await senders::SendMwChatBanReq(peer, target_name, 0,
+            chat::kChatBanInvalidChar, char_id, key);
+        co_return;
+    }
+
+    std::int64_t ban_time = 0;
+    std::uint8_t t_msi = 0;
+    {
+        std::lock_guard g(tgt->lock);
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        if (minutes > 0)
+            // Stack onto an active ban, else start from now (legacy).
+            tgt->chat_ban_time =
+                (now < tgt->chat_ban_time ? tgt->chat_ban_time : now)
+                + std::int64_t(minutes) * 60;
+        else
+            tgt->chat_ban_time = 0;   // unban
+        ban_time = tgt->chat_ban_time;
+        t_msi    = tgt->main_server_id;
+    }
+
+    // Tell the target's map to enforce (recipient = target, no GM id).
+    if (auto p = FindMapPeer(ctx, t_msi))
+        co_await senders::SendMwChatBanReq(p, target_name, ban_time,
+            chat::kChatBanSuccess, 0, 0);
+    // Echo the result to the issuing GM's map.
+    if (char_id && key)
+        co_await senders::SendMwChatBanReq(peer, target_name, ban_time,
+            chat::kChatBanSuccess, char_id, key);
+    spdlog::info("OnChatBanAck[{}]: '{}' chat-ban until {} (by char {})",
+        ip, target_name, ban_time, char_id);
     co_return;
 }
 

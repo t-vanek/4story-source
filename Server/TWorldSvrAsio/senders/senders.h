@@ -1624,6 +1624,123 @@ boost::asio::awaitable<void> SendMwChatReq(
     std::uint32_t                target_id,
     const std::string&           talk);
 
+// MW_CHATBAN_REQ — result of a GM chat-ban action, sent to the
+// banned char's map (to enforce) and echoed to the issuing GM's map.
+//   Wire (SSSender.cpp): STRING name, INT64 ban_time, BYTE result,
+//     DWORD char_id, DWORD key
+boost::asio::awaitable<void> SendMwChatBanReq(
+    std::shared_ptr<PeerSession> peer,
+    const std::string&           name,
+    std::int64_t                 ban_time,
+    std::uint8_t                 result,
+    std::uint32_t                char_id,
+    std::uint32_t                key);
+
+// --- W5-1 territory occupation broadcasts (senders_occupy.cpp) ----
+//
+// Each is broadcast to every map peer so the new owner/flag shows
+// cluster-wide. Mirrors SSSender.cpp.
+
+// MW_CASTLEOCCUPY_REQ — a castle changed hands.
+//   Wire: BYTE type, WORD castle, DWORD guild_id, BYTE country,
+//     STRING guild_name
+boost::asio::awaitable<void> SendMwCastleOccupyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 type,
+    std::uint16_t                castle_id,
+    std::uint32_t                guild_id,
+    std::uint8_t                 country,
+    const std::string&           guild_name);
+
+// MW_LOCALOCCUPY_REQ — a local (territory) changed hands.
+//   Wire: BYTE type, WORD local, BYTE country, DWORD guild_id,
+//     STRING guild_name
+boost::asio::awaitable<void> SendMwLocalOccupyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 type,
+    std::uint16_t                local_id,
+    std::uint8_t                 country,
+    std::uint32_t                guild_id,
+    const std::string&           guild_name);
+
+// MW_MISSIONOCCUPY_REQ — a mission objective changed hands.
+//   Wire: BYTE type, WORD local, BYTE country
+boost::asio::awaitable<void> SendMwMissionOccupyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 type,
+    std::uint16_t                local_id,
+    std::uint8_t                 country);
+
+// --- W5-2 castle-war apply (senders_occupy.cpp) -------------------
+
+// MW_CASTLEAPPLY_REQ — result of a chief assigning a member to a
+// castle siege, sent to the chief's map and (if different) the
+// assigned member's map.
+//   Wire: DWORD char_id, key, BYTE result, WORD castle, DWORD target,
+//     BYTE camp
+boost::asio::awaitable<void> SendMwCastleApplyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    std::uint16_t                castle_id,
+    std::uint32_t                target,
+    std::uint8_t                 camp);
+
+// MW_CASTLEAPPLICANTCOUNT_REQ — broadcast the new applicant count for
+// one (guild, castle) so every map's siege UI updates. The legacy
+// wire splits the WORD count into two bytes (hi, lo).
+//   Wire: WORD castle, DWORD guild_id, BYTE count_hi, BYTE count_lo
+boost::asio::awaitable<void> SendMwCastleApplicantCountReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint16_t                castle_id,
+    std::uint32_t                guild_id,
+    std::uint16_t                count);
+
+// --- W5-4 war-window enable broadcasts (senders_occupy.cpp) -------
+//
+// Sent to every map peer when the scheduler opens/closes a war
+// window (SM_BATTLESTATUS_REQ fan-out).
+
+// MW_LOCALENABLE_REQ — local/territory war window.
+//   Wire: BYTE status, DWORD second, DWORD local_start,
+//     BYTE castle_day, DWORD castle_start
+boost::asio::awaitable<void> SendMwLocalEnableReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 status,
+    std::uint32_t                second,
+    std::uint32_t                local_start,
+    std::uint8_t                 castle_day,
+    std::uint32_t                castle_start);
+
+// MW_CASTLEENABLE_REQ — castle war window.
+//   Wire: BYTE status, DWORD second
+boost::asio::awaitable<void> SendMwCastleEnableReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 status,
+    std::uint32_t                second);
+
+// MW_MISSIONENABLE_REQ — mission war window.
+//   Wire: BYTE status, DWORD start, DWORD second
+boost::asio::awaitable<void> SendMwMissionEnableReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 status,
+    std::uint32_t                start,
+    std::uint32_t                second);
+
+// --- W6-1 timed-event broadcast (senders_event.cpp) ---------------
+
+// MW_EVENTQUARTER_REQ — announce a timed "present quarter" event to
+// every map peer; `select` is the (server-chosen) present bucket.
+//   Wire: BYTE day, hour, minute, select, STRING present
+boost::asio::awaitable<void> SendMwEventQuarterReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t                 day,
+    std::uint8_t                 hour,
+    std::uint8_t                 minute,
+    std::uint8_t                 select,
+    const std::string&           present);
+
 // --- W4-11 TMS conference channels (senders_tms.cpp) --------------
 
 // MW_TMSRECV_REQ — a conference message delivered to one member.

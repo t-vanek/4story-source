@@ -93,4 +93,174 @@ FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id)
     return out;
 }
 
+bool SociFriendRepository::MakeGroup(std::uint32_t char_id, std::uint8_t group,
+                                     const std::string& name)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "INSERT INTO \"TFRIENDGROUPTABLE\" "
+                  "(\"dwCharID\", \"bGroup\", \"szName\") "
+                  "VALUES (:c, :g, :n)",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(group)), soci::use(name);
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::MakeGroup({},{}) failed: {}",
+            char_id, group, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::DeleteGroup(std::uint32_t char_id,
+                                       std::uint8_t group)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "DELETE FROM \"TFRIENDGROUPTABLE\" "
+                  "WHERE \"dwCharID\" = :c AND \"bGroup\" = :g",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(group));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::DeleteGroup({},{}) failed: {}",
+            char_id, group, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::RenameGroup(std::uint32_t char_id,
+                                       std::uint8_t group,
+                                       const std::string& name)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "UPDATE \"TFRIENDGROUPTABLE\" SET \"szName\" = :n "
+                  "WHERE \"dwCharID\" = :c AND \"bGroup\" = :g",
+            soci::use(name), soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(group));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::RenameGroup({},{}) failed: {}",
+            char_id, group, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
+                                             std::uint32_t friend_id,
+                                             std::uint8_t group)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "UPDATE \"TFRIENDTABLE\" SET \"bGroup\" = :g "
+                  "WHERE \"dwCharID\" = :c AND \"dwFriendID\" = :f",
+            soci::use(static_cast<int>(group)),
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(friend_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::ChangeFriendGroup({},{}) "
+            "failed: {}", char_id, friend_id, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::InsertFriend(std::uint32_t char_id,
+                                        std::uint32_t friend_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "INSERT INTO \"TFRIENDTABLE\" "
+                  "(\"dwCharID\", \"dwFriendID\", \"bGroup\") "
+                  "VALUES (:c, :f, 0)",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(friend_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::InsertFriend({},{}) failed: {}",
+            char_id, friend_id, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::EraseFriend(std::uint32_t char_id,
+                                       std::uint32_t friend_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "DELETE FROM \"TFRIENDTABLE\" "
+                  "WHERE \"dwCharID\" = :c AND \"dwFriendID\" = :f",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(friend_id));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::EraseFriend({},{}) failed: {}",
+            char_id, friend_id, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::RegSoulmate(std::uint32_t char_id,
+                                       std::uint32_t target)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        // dwCharID is the PK — delete-then-insert is a portable upsert
+        // with the same net effect as TSoulmateReg (one row, dwTime 0).
+        sql << "DELETE FROM \"TSOULMATETABLE\" WHERE \"dwCharID\" = :c",
+            soci::use(static_cast<int>(char_id));
+        sql << "INSERT INTO \"TSOULMATETABLE\" "
+               "(\"dwCharID\", \"dwTarget\", \"dwTime\") VALUES (:c, :t, 0)",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(target));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::RegSoulmate({},{}) failed: {}",
+            char_id, target, ex.what());
+        return false;
+    }
+}
+
+bool SociFriendRepository::DelSoulmate(std::uint32_t char_id,
+                                       std::uint32_t target)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        *lease << "DELETE FROM \"TSOULMATETABLE\" "
+                  "WHERE \"dwCharID\" = :c AND \"dwTarget\" = :t",
+            soci::use(static_cast<int>(char_id)),
+            soci::use(static_cast<int>(target));
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociFriendRepository::DelSoulmate({},{}) failed: {}",
+            char_id, target, ex.what());
+        return false;
+    }
+}
+
 } // namespace tworldsvr

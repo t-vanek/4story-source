@@ -23,6 +23,18 @@ public:
 
     FriendLoad LoadForChar(std::uint32_t char_id) override;
 
+    bool MakeGroup(std::uint32_t char_id, std::uint8_t group,
+                   const std::string& name) override;
+    bool DeleteGroup(std::uint32_t char_id, std::uint8_t group) override;
+    bool RenameGroup(std::uint32_t char_id, std::uint8_t group,
+                     const std::string& name) override;
+    bool ChangeFriendGroup(std::uint32_t char_id, std::uint32_t friend_id,
+                           std::uint8_t group) override;
+    bool InsertFriend(std::uint32_t char_id, std::uint32_t friend_id) override;
+    bool EraseFriend(std::uint32_t char_id, std::uint32_t friend_id) override;
+    bool RegSoulmate(std::uint32_t char_id, std::uint32_t target) override;
+    bool DelSoulmate(std::uint32_t char_id, std::uint32_t target) override;
+
 private:
     mutable std::mutex                              m_mtx;
     std::unordered_map<std::uint32_t, FriendLoad>   m_data;

@@ -120,6 +120,28 @@ boost::asio::awaitable<void> OnCloseCharAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-20: login finalization (handlers_char.cpp) -----------------
+//
+// MW_ENTERSVR_ACK — the char finished loading on its map; world
+// finalizes the cluster-side identity (name + base attrs + position
+// + region, the bulk-set the incremental W3a-3/W4-8/W4-9 handlers
+// later update) and fires the friend connect-presence fan-out
+// (NotifyFriendsOnLogin) now that the name/region are known. The
+// big CHARINFO_REQ composite reply (guild/duty/peer/castle), the
+// relay CHANGEMAP, and the failure replies (DELCHAR / INVALIDCHAR /
+// CONRESULT) are deferred — this slice covers the identity store +
+// presence, which is what unblocks login presence.
+//
+// Wire (SSHandler.cpp:1218): DWORD char_id, key, STRING name,
+//   BYTE level, real_sex, class, race, sex, face, hair, helmet_hide,
+//   country, aid_country, DWORD region, BYTE channel, WORD map_id,
+//   FLOAT pos_x, pos_y, pos_z, BYTE logout, save, result,
+//   WORD title_id, DWORD rank_point, user_ip
+boost::asio::awaitable<void> OnEnterSvrAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-1: guild lifecycle (handlers_guild.cpp) -------------------
 
 boost::asio::awaitable<void> OnGuildLoadAck(
@@ -1440,6 +1462,105 @@ boost::asio::awaitable<void> OnChatAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-19: GM chat ban (handlers_chat.cpp) ------------------------
+//
+// MW_CHATBAN_ACK — a GM bans a player from chat for N minutes (0 =
+// unban). World resolves the target by name, sets/extends/clears the
+// ban timer on the target's TChar, tells the target's map to enforce
+// it (MW_CHATBAN_REQ), and echoes the result to the issuing GM's map.
+// The cluster-wide ban list + RW relay-server propagation (so the
+// ban survives the target reconnecting on another map) are deferred
+// — they need the operator/ban-list infra (same family as the
+// RW_RELAYSVR operator list).
+//   Wire (SSHandler.cpp:13098): STRING target, WORD minutes,
+//     DWORD char_id, DWORD key
+boost::asio::awaitable<void> OnChatBanAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W5-1: territory occupation broadcasts (handlers_occupy.cpp) ---
+//
+// CASTLE / LOCAL / MISSION occupy — a castle / territory / mission
+// objective changed hands; world fans the new owner+flag to every
+// map peer so the cluster shows it consistently. LOCAL applies the
+// legacy B-country display flip. The guild stat-exp award (CASTLE /
+// LOCAL) and the castle-apply reset (CASTLE) are deferred — the
+// guild-stat level formula (CALCULATE_NEXTGEXP) + *_STATEXP award
+// constants are absent from the source tree, and the castle-apply
+// subsystem hasn't ported.
+//
+// Wire (SSHandler.cpp:7780/7840/7875):
+//   CASTLE : BYTE type, WORD castle, DWORD guild_id, BYTE country,
+//            DWORD lose_guild
+//   LOCAL  : BYTE type, WORD local, BYTE country, DWORD guild_id,
+//            BYTE cur_country
+//   MISSION: BYTE type, WORD local, BYTE country
+boost::asio::awaitable<void> OnCastleOccupyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnLocalOccupyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMissionOccupyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W5-2: castle-war apply (handlers_occupy.cpp) ------------------
+//
+// MW_CASTLEAPPLY_ACK — a guild chief assigns a member (or hired
+// tactics member) to defend/attack a castle. World validates chief +
+// target-in-guild + the 49-applicant cap (CanApplyWar), toggles the
+// member's castle/camp (re-applying to the same castle cancels),
+// replies to the chief + the assigned member, and re-broadcasts the
+// applicant count for the vacated + joined castle (NotifyCastleApply).
+// DB persistence is deferred (castle/camp aren't loaded yet).
+//
+// Wire (SSHandler.cpp:7894): DWORD char_id, key, WORD castle,
+//   DWORD target, BYTE camp
+boost::asio::awaitable<void> OnCastleApplyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W5-4: war-window enable broadcast (handlers_occupy.cpp) -------
+//
+// SM_BATTLESTATUS_REQ — the scheduler opens/closes a war window;
+// world fans the matching LOCAL / CASTLE / MISSION enable packet to
+// every map peer. The BS_PEACE peace-time bookkeeping (record-date
+// reset + CalcWeekRecord + castle-war-info clear) and SKYGARDEN are
+// deferred.
+//
+// Wire (SSHandler.cpp:9870): BYTE type, BYTE status, DWORD start,
+//   DWORD second
+boost::asio::awaitable<void> OnBattleStatusReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-1: timed-event broadcast (handlers_event.cpp) --------------
+//
+// SM_EVENTQUARTER_REQ — the scheduler starts a "present quarter"
+// timed event; world picks the present bucket once and fans
+// MW_EVENTQUARTER_REQ to every map peer. SM_EVENTQUARTERNOTIFY_REQ —
+// a world-chat announcement of the event, broadcast via the existing
+// chat sender (operator display name deferred, as in W4-5).
+//
+// Wire (SSHandler.cpp:8640/8658):
+//   QUARTER : BYTE day, hour, minute, STRING present
+//   NOTIFY  : STRING announce
+boost::asio::awaitable<void> OnEventQuarterReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnEventQuarterNotifyReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W4-7: social presence on logout -------------------------------
 //
 // Called from OnCloseCharAck for a char that just went offline.
@@ -1453,6 +1574,12 @@ boost::asio::awaitable<void> OnChatAck(
 boost::asio::awaitable<void> NotifyFriendsOnLogout(
     const HandlerContext& ctx, std::shared_ptr<TChar> who);
 boost::asio::awaitable<void> NotifySoulmateOnLogout(
+    const HandlerContext& ctx, std::shared_ptr<TChar> who);
+
+// W4-20: connect-side mirror — fired from OnEnterSvrAck once the
+// char's identity (name/region) is loaded. Tells each already-online
+// friend this char came online + flips their reverse entry connected.
+boost::asio::awaitable<void> NotifyFriendsOnLogin(
     const HandlerContext& ctx, std::shared_ptr<TChar> who);
 
 // W4-12: drop a logging-out char from every TMS conference it was

@@ -47,6 +47,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_soulmate.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_tms.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_post.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_occupy.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_event.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -57,6 +59,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_soulmate.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_tms.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_post.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_occupy.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_event.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -587,3 +591,95 @@ target_link_libraries(test_tworldsvr_asio_friend_load_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_friend_load_handlers
     COMMAND test_tworldsvr_asio_friend_load_handlers)
+
+# W4-16 wire test: friend-group write-back — MAKE/NAME/CHANGE/DELETE
+# persist through the (fake) repo in addition to the in-memory change.
+add_executable(test_tworldsvr_asio_friend_persist_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_persist_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_persist_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_persist_handlers
+    COMMAND test_tworldsvr_asio_friend_persist_handlers)
+
+# W4-17 wire test: friend-edge write-back — accept persists both
+# directed edges; remove deletes only the requester's forward edge.
+add_executable(test_tworldsvr_asio_friend_edge_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_friend_edge_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_friend_edge_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_friend_edge_handlers
+    COMMAND test_tworldsvr_asio_friend_edge_handlers)
+
+# W4-18 wire test: soulmate write-back — REG persists both mutual
+# rows; END deletes them.
+add_executable(test_tworldsvr_asio_soulmate_persist_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_soulmate_persist_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_soulmate_persist_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_soulmate_persist_handlers
+    COMMAND test_tworldsvr_asio_soulmate_persist_handlers)
+
+# W4-19 wire test: GM chat ban — ban/extend/unban an online target +
+# enforce on the target's map + echo to the issuing GM.
+add_executable(test_tworldsvr_asio_chatban_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_chatban_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_chatban_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_chatban_handlers
+    COMMAND test_tworldsvr_asio_chatban_handlers)
+
+# W4-20 wire test: login finalization — ENTERSVR indexes the name +
+# stores identity/region + fans the friend connect-presence toast.
+add_executable(test_tworldsvr_asio_entersvr_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_entersvr_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_entersvr_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_entersvr_handlers
+    COMMAND test_tworldsvr_asio_entersvr_handlers)
+
+# W5-1 wire test: territory occupation broadcasts — CASTLE/LOCAL/
+# MISSION occupy fan the new owner+flag to every map peer (+ the
+# LOCAL B-country display flip).
+add_executable(test_tworldsvr_asio_occupy_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_occupy_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_occupy_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_occupy_handlers
+    COMMAND test_tworldsvr_asio_occupy_handlers)
+
+# W5-2 wire test: castle-war apply — chief assigns a member to a
+# castle → SUCCESS to both maps + applicant-count broadcast.
+add_executable(test_tworldsvr_asio_castle_apply_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_castle_apply_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_castle_apply_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_castle_apply_handlers
+    COMMAND test_tworldsvr_asio_castle_apply_handlers)
+
+# W5-3 wire test: CASTLEOCCUPY resets castle applications — the won
+# castle's applicants are cleared + told, alongside the broadcast.
+add_executable(test_tworldsvr_asio_castle_occupy_reset_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_castle_occupy_reset_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_castle_occupy_reset_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_castle_occupy_reset_handlers
+    COMMAND test_tworldsvr_asio_castle_occupy_reset_handlers)
+
+# W5-4 wire test: war-window enable broadcast — SM_BATTLESTATUS fans
+# the LOCAL/CASTLE/MISSION enable packet to every map peer.
+add_executable(test_tworldsvr_asio_battlestatus_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_battlestatus_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_battlestatus_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_battlestatus_handlers
+    COMMAND test_tworldsvr_asio_battlestatus_handlers)
+
+# W6-1 wire test: timed-event broadcast — EVENTQUARTER fans the
+# present event to every peer; EVENTQUARTERNOTIFY broadcasts a
+# world-chat announcement.
+add_executable(test_tworldsvr_asio_event_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_event_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_event_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_event_handlers
+    COMMAND test_tworldsvr_asio_event_handlers)

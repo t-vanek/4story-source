@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-23 CHARDATA_ACK drift fan-out (ENTERCHAR_REQ)
+## Status — W4-23 fresh-login fidelity polish (soulmate + bow_release)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -92,8 +92,9 @@ that the four shipped Asio daemons already use.
 | W4-20 | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
 | W4-21 | Friend-protected presence sync — OnMW_PROTECTEDCHECK_ACK is the symmetric partner to W6-9. The map updates the connect/disconnect status of a protected friend; world mirrors the transition across both directed edges (when both still hold each other), syncs regions, and relays MW_FRIENDCONNECTION_REQ to the target's map (skipping FT_TARGET — legacy parity). On disconnect, also fires the W4-17 IFriendRepository::EraseFriend write-back. Missing char/friend/edge → silent drop | ✅ |
 | **W4-22** | Fresh-login ENTERSVR completion — OnEnterSvrAck now does the legacy fresh-login chain after the W4-20 identity load: build the CHARINFO_REQ composite from in-memory guild + tactics + party state (FindMember / FindTactics for the per-char castle/duty/peer) and send it back to the responder; ROUTE_REQ so the main can resolve any additional connections (answered by W6-20's MW_ROUTE_ACK); MW_FRIENDLIST_REQ (groups + non-pending friends, online state resolved live like W4-4); MW_CHATBAN_REQ when the char's chat_ban_time is still active. 2 senders (CharInfoPayload + CHARINFO_REQ, ROUTE_REQ); reuses FRIENDLIST/CHATBAN. Deferred: BR/Bow bow_release flag, RW_CHANGEMAP relay-server hop, APEX notify (TW), cluster-wide chat-ban list | ✅ |
-| W4-23+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
-| **W6-23** | CHARDATA_ACK drift fan-out — closes the W6-20 deferral. When CHARDATA_ACK arrives but some cons haven't ENTERCHAR_ACKed yet, world fans MW_ENTERCHAR_REQ (33-field composite + opaque recall-mon tail lifted verbatim from the inbound body) to each non-ready con. Each map loads the char and replies ENTERCHAR_ACK → CheckMainCon completes the loop. 1 new sender (EnterCharReqPayload + SendMwEnterCharReq); reuses GuildRegistry / PartyRegistry / CorpsRegistry for the composite | ✅ |
+| W6-23 | CHARDATA_ACK drift fan-out — closes the W6-20 deferral. When CHARDATA_ACK arrives but some cons haven't ENTERCHAR_ACKed yet, world fans MW_ENTERCHAR_REQ (33-field composite + opaque recall-mon tail lifted verbatim from the inbound body) to each non-ready con. Each map loads the char and replies ENTERCHAR_ACK → CheckMainCon completes the loop. 1 new sender (EnterCharReqPayload + SendMwEnterCharReq); reuses GuildRegistry / PartyRegistry / CorpsRegistry for the composite | ✅ |
+| **W4-23** | Fresh-login fidelity polish — closes the two W4-22 placeholder-zero defaults. (1) SendMwFriendListReq now takes a soulmate_target DWORD that both W4-4 (OnFriendListAck) and W4-22 (OnEnterSvrAck) populate from TChar.soulmate.target — clients render the soulmate slot live. (2) CharInfoPayload.bow_release is set to 1 when chg_main_id arrives as BOW_SERVER_ID or BR_SERVER_ID, matching legacy SSHandler.cpp:1456 (the chg_main_id stays after the fresh-login emit — legacy quirk preserved) | ✅ |
+| W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
 | W5-3 | Castle-occupy application reset — OnMW_CASTLEOCCUPY_ACK now runs ResetCastleApply for the winning + losing guild (clears each applicant's castle/camp + tells their map), closing W5-1's deferred reset; the guild stat-exp award stays deferred (absent constants) | ✅ |
@@ -123,7 +124,7 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-23)
+## Gaps audit — not yet ported / deferred (as of W4-23)
 
 Legacy `Server/TWorldSvr/` defines **266** message handlers
 (`CTWorldSvrModule::On*`); **~159** are ported in `handlers/dispatch.cpp`,
@@ -156,16 +157,18 @@ Intentionally not ported:
 
 ### B. Sub-branches deferred inside ported handlers
 
-- **ENTERSVR fresh-login** (W4-22 + W6-16): the bulk of the legacy
+- **ENTERSVR fresh-login** (W4-22 + W4-23 + W6-16): the legacy
   fresh-login chain is now ported (CHARINFO_REQ + ROUTE_REQ +
-  FRIENDLIST_REQ + CHATBAN_REQ when banned). Still deferred:
-  - the BR/Bow `bow_release` flag inside `MW_CHARINFO_REQ` (always
-    emitted as 0 today; legacy sets it on BR/Bow handoffs);
-  - the `RW_CHANGEMAP_ACK` hop to the relay server (handed by the
-    legacy `m_pRelay` — the asio relay wiring is a separate slice);
-  - the cluster-wide `m_mapBanChar` ban list (W4-19 already syncs
-    the per-char `chat_ban_time`, but the cluster-wide list isn't
-    a thing here yet);
+  FRIENDLIST_REQ + CHATBAN_REQ when banned). The BR/Bow
+  `bow_release` flag (W4-23) and the soulmate target in
+  FRIENDLIST_REQ (W4-23) now carry live values too. Still
+  deferred:
+  - the `RW_CHANGEMAP_ACK` hop to the relay server (handed by
+    the legacy `m_pRelay` — the asio relay wiring is a separate
+    slice);
+  - the cluster-wide `m_mapBanChar` ban list (W4-19 already
+    syncs the per-char `chat_ban_time`, but the cluster-wide
+    list isn't a thing here yet);
   - the APEX (Taiwan) notify.
   (The W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out
   shipped separately in W6-23 — it's a different 33-field
@@ -235,15 +238,60 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **Soulmate target in FRIENDLIST_REQ** — small cross-cutting fix
-   to populate the soulmate sentinel that W4-4 + W4-22 currently
-   emit as 0. The data is already in TChar.soulmate.target.
-2. **BR / Bow `bow_release` flag in CHARINFO_REQ** — small follow-up
-   that closes the W4-22 / W6-16 BR-handoff sub-case.
-3. **`TChar.soul_silence`** — model the legacy `m_dwSoulSilence`
-   field so `MW_ENTERCHAR_REQ` (W6-23) and `MW_CHARINFO_REQ`
-   (W4-22 if extended) carry it instead of always emitting 0.
-4. Then the large roadmap subsystems (BR / Bow / Tournament / …).
+1. **Bow battleground subsystem** — `ADDTOBOWQUEUE`, `CANCELBOWQUEUE`,
+   `BOWPOINTSUPDATE`. The smallest of the W6 🚧 content systems; a
+   self-contained matchmaking + points module. Good entry into the
+   "real new functionality" tranche.
+2. **`TChar.soul_silence`** — model the legacy `m_dwSoulSilence`
+   field so `MW_ENTERCHAR_REQ` (W6-23) carries it instead of
+   always emitting 0. Trivial change; can ride alongside a
+   handler that actually writes it.
+3. Then the larger roadmap subsystems (BR / Arena / BattleMode /
+   Tournament / RPS / CMGift / Cash / MonthRank).
+
+### W4-23 — what landed
+
+**Fresh-login fidelity polish** — two small but visible W4-22
+follow-ups closing the deferred zero-defaults that the bulk slice
+shipped with.
+
+1. **Soulmate target in MW_FRIENDLIST_REQ**. `SendMwFriendListReq`
+   now takes a `soulmate_target` DWORD (declared next to `groups`
+   in the signature). Both callers — `OnFriendListAck` (W4-4) and
+   the fresh-login emit in `OnEnterSvrAck` (W4-22) — populate it
+   from `TChar.soulmate.target`, so the client now renders a live
+   soulmate slot in the friend window instead of the previous
+   hardcoded sentinel-zero. Legacy parity SSSender.cpp:1723.
+
+2. **bow_release in MW_CHARINFO_REQ**. The fresh-login path now
+   sets `CharInfoPayload.bow_release = 1` when the captured
+   `chg_main_id` is `BOW_SERVER_ID` (30) or `BR_SERVER_ID` (50)
+   — i.e., the char is returning from a BR/Bow battleground (the
+   W6-16 chg_main_id branch already excluded those from the
+   normal-handoff fast-path and falls through here). Mirrors
+   legacy SSHandler.cpp:1456. The legacy quirk that `chg_main_id`
+   stays set after the fresh-login emit (no clear) is preserved
+   verbatim.
+
+No new senders or handlers; both are wire-field populations on
+existing calls. The work is the call-site updates plus the
+`SendMwFriendListReq` signature change with its two-call-site
+mechanical follow-up.
+
+Tests:
+- `test_friend_list_handlers.cpp` (W4-4) — Alice now has
+  `soulmate.target = 777` and the reply asserts `L.soulmate ==
+  777` (was `EXPECT(L.soulmate == 0)`).
+- `test_entersvr_fresh_login_handlers.cpp` (W4-22) —
+  Alice gets `soulmate.target = 88` so Test A asserts
+  `soul == 88` in her FRIENDLIST_REQ; a new **Test C** sets
+  Bob's `chg_main_id = 50` (BR), re-emits ENTERSVR_ACK, and
+  asserts `c.bow_release == 1` in the resulting CHARINFO_REQ.
+
+Build verified: cmake + ctest -R tworldsvr_asio -j 1 (80/80
+passed; the same parallel-serial flake in the W6-13 era cluster
+tests as W4-21 noted occasionally trips on tight runs, but
+re-runs reach 80/80 reliably).
 
 ### W6-23 — what landed
 

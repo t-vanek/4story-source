@@ -1664,6 +1664,7 @@ boost::asio::awaitable<void> SendMwFriendListReq(
     std::shared_ptr<PeerSession>                              peer,
     std::uint32_t                                             char_id,
     std::uint32_t                                             key,
+    std::uint32_t                                             soulmate_target,
     const std::vector<std::pair<std::uint8_t, std::string>>&  groups,
     const std::vector<FriendListRow>&                         friends);
 

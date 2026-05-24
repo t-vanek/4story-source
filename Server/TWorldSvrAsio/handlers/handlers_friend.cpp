@@ -895,13 +895,17 @@ OnFriendListAck(std::shared_ptr<PeerSession> peer,
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return;
 
-    // Snapshot the groups + non-pending friend entries.
+    // Snapshot the groups + non-pending friend entries + the soulmate
+    // target (legacy ships it inline in MW_FRIENDLIST_REQ so the client
+    // can render the soulmate slot in the friend window).
     std::vector<std::pair<std::uint8_t, std::string>> groups;
     std::vector<senders::FriendListRow> rows;
+    std::uint32_t soulmate_target = 0;
     {
         std::lock_guard g(c->lock);
         if (c->key != key) co_return;
         groups = c->friend_groups;
+        soulmate_target = c->soulmate.target;
         for (const auto& f : c->friends)
         {
             if (f.type == frnd::kTypeTarget) continue;
@@ -922,7 +926,8 @@ OnFriendListAck(std::shared_ptr<PeerSession> peer,
             row.region = fc->region;
         }
 
-    co_await senders::SendMwFriendListReq(peer, char_id, key, groups, rows);
+    co_await senders::SendMwFriendListReq(peer, char_id, key,
+        soulmate_target, groups, rows);
     co_return;
 }
 

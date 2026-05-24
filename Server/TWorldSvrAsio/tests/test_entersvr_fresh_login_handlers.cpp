@@ -249,6 +249,10 @@ int main()
         std::lock_guard g(a->lock);
         a->chat_ban_time = future;
         a->name          = "Alice";
+        // W4-23: Alice is soulmated to char 88; FRIENDLIST_REQ must
+        // ship that target inline.
+        a->soulmate.target = 88;
+        a->soulmate.name   = "Daisy";
     }
     {
         auto b = chars.Find(200);
@@ -296,7 +300,7 @@ int main()
         EXPECT(map_id == 100);
         EXPECT(x == 1.0f); EXPECT(y == 2.0f); EXPECT(z == 3.0f);
 
-        // 3) FRIENDLIST_REQ — empty roster (Alice has no friends here).
+        // 3) FRIENDLIST_REQ — empty roster + W4-23 soulmate target.
         auto [w3, b3] = ReadFramed(p1);
         EXPECT(w3 == ToUint16(MessageId::MW_FRIENDLIST_REQ));
         wire::Reader r3(b3);
@@ -306,7 +310,7 @@ int main()
         r3.Read(gc); EXPECT(gc == 0);
         r3.Read(fc); EXPECT(fc == 0);
         EXPECT(fcid == 42);
-        EXPECT(soul == 0);              // sentinel (deferred)
+        EXPECT(soul == 88);             // W4-23: live soulmate target
 
         // 4) CHATBAN_REQ — active ban enforced on the new connection.
         auto [w4, b4] = ReadFramed(p1);
@@ -379,6 +383,33 @@ int main()
         auto [w_next, _next] = ReadFramed(p1);
         EXPECT(w_next == ToUint16(MessageId::MW_CHARINFO_REQ));
         // Drain the follow-up ROUTE + FRIENDLIST so the close is clean.
+        { auto [w, _b] = ReadFramed(p1); (void)_b; (void)w; }
+        { auto [w, _b] = ReadFramed(p1); (void)_b; (void)w; }
+    }
+
+    // --- Test C: BR/Bow handoff — chg_main_id == BR sets bow_release
+    //             to 1 in the next CHARINFO_REQ (legacy parity,
+    //             SSHandler.cpp:1456). The W6-16 chg_main_id branch
+    //             excludes BR/Bow from the normal-handoff fast-path
+    //             and falls through to the W4-22 fresh-login chain;
+    //             chg_main_id stays set (not cleared by the
+    //             fresh-login path), so a follow-up ENTERSVR would
+    //             still see bow_release=1 too — that's the legacy
+    //             quirk this slice preserves.
+    {
+        {
+            auto b = chars.Find(200);
+            std::lock_guard g(b->lock);
+            b->chg_main_id = 50;          // BR_SERVER_ID (NetCode.h)
+        }
+        SendFramed(p1, ToUint16(MessageId::MW_ENTERSVR_ACK),
+                   EnterSvrBody(200, 0xB0, "Bob", 40, 9, 5, 777,
+                       11.0f, 22.0f, 33.0f, 99, 12345));
+        auto [w1, b1] = ReadFramed(p1);
+        EXPECT(w1 == ToUint16(MessageId::MW_CHARINFO_REQ));
+        CharInfo c = ParseCharInfo(b1);
+        EXPECT(c.bow_release == 1);     // W4-23
+        // Drain ROUTE + FRIENDLIST so the close is clean.
         { auto [w, _b] = ReadFramed(p1); (void)_b; (void)w; }
         { auto [w, _b] = ReadFramed(p1); (void)_b; (void)w; }
     }

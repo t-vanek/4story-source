@@ -187,6 +187,11 @@ int main()
         c->friends.push_back({300, "Carol", frnd::kTypeFriendFriend, false,
                               0, 0});
         c->friends.push_back({999, "Pending", frnd::kTypeTarget, false, 0, 0});
+        // W4-23: Alice has a soulmate (her partner is char 777,
+        // off-cluster here). The friend-list reply must inline that
+        // target so the client renders the soulmate slot.
+        c->soulmate.target = 777;
+        c->soulmate.name   = "Daisy";
     }
 
     SendFramed(p1, ToUint16(MessageId::MW_FRIENDLIST_ACK), ListBody(42, 0xA1));
@@ -195,7 +200,7 @@ int main()
         EXPECT(w == ToUint16(MessageId::MW_FRIENDLIST_REQ));
         auto L = DecodeList(b);
         EXPECT(L.char_id == 42); EXPECT(L.key == 0xA1);
-        EXPECT(L.soulmate == 0);
+        EXPECT(L.soulmate == 777);     // W4-23: live soulmate target
         EXPECT(L.groups.size() == 1);
         if (L.groups.size() == 1)
         { EXPECT(L.groups[0].first == 1);

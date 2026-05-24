@@ -412,3 +412,15 @@ target_link_libraries(test_tworldsvr_asio_corps_cmd_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_corps_cmd_handlers
     COMMAND test_tworldsvr_asio_corps_cmd_handlers)
+
+# W3c-7 wire test: the corps chief-to-chief relays (enemy-list
+# family + CORPSHP) over a four-peer loopback session — the chief's
+# payload reaches every other squad chief (tail intact, char/key
+# swapped), non-chief senders are dropped, and the per-message wID
+# mapping holds.
+add_executable(test_tworldsvr_asio_corps_enemy_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_corps_enemy_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_corps_enemy_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_corps_enemy_handlers
+    COMMAND test_tworldsvr_asio_corps_enemy_handlers)

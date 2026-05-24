@@ -4,11 +4,14 @@
 #include "../services/party_constants.h"
 #include "../wire_codec.h"
 
+#include "MessageId.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace tworldsvr::handlers {
 
@@ -824,6 +827,134 @@ OnCorpsCmdAck(std::shared_ptr<PeerSession> peer,
                 char_id, map_id, cmd, target_id, target_type, pos_x, pos_z);
     }
     co_return;
+}
+
+namespace {
+
+// Shared body for the six opaque corps-chief relays (legacy
+// BroadcastCorps + RelayCorpsMsg). Forwards the inbound payload
+// (everything after the leading char_id + key) to every other
+// squad's chief under `req_id`, with each recipient's char_id + key
+// swapped in. Fires only when the sender is the chief of a party in
+// a corps.
+boost::asio::awaitable<void>
+CorpsChiefRelay(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte> body, const HandlerContext& ctx,
+                std::uint16_t req_id)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers || !ctx.parties || !ctx.corps) co_return;
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("CorpsChiefRelay[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+    // The opaque tail = everything after the 8-byte char_id+key head.
+    std::vector<std::byte> tail(body.begin() + 8, body.end());
+
+    auto sender = ctx.chars->Find(char_id);
+    if (!sender) co_return;
+    std::uint32_t actual_key = 0, party_id = 0;
+    {
+        std::lock_guard g(sender->lock);
+        actual_key = sender->key;
+        party_id   = sender->party_id;
+    }
+    if (actual_key != key || party_id == 0) co_return;
+
+    // Sender must be the chief of a party that belongs to a corps.
+    bool          is_chief = false;
+    std::uint16_t corps_id = 0;
+    if (auto p = ctx.parties->Find(static_cast<std::uint16_t>(party_id)))
+    {
+        std::lock_guard pg(p->lock);
+        is_chief = p->IsChief(char_id);
+        corps_id = p->corps_id;
+    }
+    if (!is_chief || corps_id == 0) co_return;
+
+    auto corps = ctx.corps->Find(corps_id);
+    if (!corps) co_return;
+    std::vector<std::uint16_t> squads;
+    { std::lock_guard cg(corps->lock); squads = corps->squads; }
+
+    for (auto sid : squads)
+    {
+        if (sid == static_cast<std::uint16_t>(party_id)) continue; // skip own
+        std::uint32_t chief_id = 0;
+        if (auto sq = ctx.parties->Find(sid))
+        { std::lock_guard pg(sq->lock); chief_id = sq->chief_char_id; }
+        if (chief_id == 0) continue;
+        auto chief = ctx.chars->Find(chief_id);
+        if (!chief) continue;
+        std::uint32_t ckey = 0;
+        std::uint8_t  cmsi = 0;
+        { std::lock_guard g(chief->lock); ckey = chief->key;
+          cmsi = chief->main_server_id; }
+        if (auto p = FindMapPeer(ctx, cmsi))
+            co_await senders::SendMwCorpsChiefRelay(p, req_id, chief_id, ckey,
+                tail);
+    }
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnCorpsEnemyListAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    co_await CorpsChiefRelay(std::move(peer), std::move(body), ctx,
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CORPSENEMYLIST_REQ));
+}
+
+boost::asio::awaitable<void>
+OnMoveCorpsEnemyAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    co_await CorpsChiefRelay(std::move(peer), std::move(body), ctx,
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_MOVECORPSENEMY_REQ));
+}
+
+boost::asio::awaitable<void>
+OnMoveCorpsUnitAck(std::shared_ptr<PeerSession> peer,
+                   std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    co_await CorpsChiefRelay(std::move(peer), std::move(body), ctx,
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_MOVECORPSUNIT_REQ));
+}
+
+boost::asio::awaitable<void>
+OnAddCorpsEnemyAck(std::shared_ptr<PeerSession> peer,
+                   std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    co_await CorpsChiefRelay(std::move(peer), std::move(body), ctx,
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_ADDCORPSENEMY_REQ));
+}
+
+boost::asio::awaitable<void>
+OnDelCorpsEnemyAck(std::shared_ptr<PeerSession> peer,
+                   std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    co_await CorpsChiefRelay(std::move(peer), std::move(body), ctx,
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_DELCORPSENEMY_REQ));
+}
+
+boost::asio::awaitable<void>
+OnCorpsHpAck(std::shared_ptr<PeerSession> peer,
+             std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    co_await CorpsChiefRelay(std::move(peer), std::move(body), ctx,
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CORPSHP_REQ));
 }
 
 } // namespace tworldsvr::handlers

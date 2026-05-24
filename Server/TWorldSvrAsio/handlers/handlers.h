@@ -1281,5 +1281,42 @@ boost::asio::awaitable<void> OnCorpsCmdAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W3c-7: corps enemy-list family + HP (handlers_corps.cpp) ------
+//
+// Six opaque chief-to-chief relays (legacy BroadcastCorps): the
+// commander of a corps squad pushes a payload — the shared
+// enemy/target list (ENEMYLIST / ADD / DEL / MOVE-ENEMY), the unit
+// reorder (MOVE-UNIT), or a member-HP sync (CORPSHP) — to every
+// other squad's chief. World only forwards the body (leading
+// char_id + key swapped for each recipient); the payload tail is
+// untouched. Fires only when the sender is the chief of a party in
+// a corps.
+//
+// Wire (SSHandler.cpp:7207..): DWORD char_id, key, <opaque tail>
+boost::asio::awaitable<void> OnCorpsEnemyListAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMoveCorpsEnemyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMoveCorpsUnitAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnAddCorpsEnemyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnDelCorpsEnemyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCorpsHpAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 } // namespace handlers
 } // namespace tworldsvr

@@ -394,8 +394,28 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCorpsCmdAck(std::move(peer), std::move(body), ctx);
         co_return;
 
-    // W3c-7+ picks up the corps enemy-list family (CORPSENEMYLIST /
-    // ADD / DEL / MOVE) + CORPSHP. … README §4.
+    // ---- W3c-7: corps enemy-list family + HP (handlers_corps) ---
+    case MessageId::MW_CORPSENEMYLIST_ACK:
+        co_await OnCorpsEnemyListAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_MOVECORPSENEMY_ACK:
+        co_await OnMoveCorpsEnemyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_MOVECORPSUNIT_ACK:
+        co_await OnMoveCorpsUnitAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_ADDCORPSENEMY_ACK:
+        co_await OnAddCorpsEnemyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_DELCORPSENEMY_ACK:
+        co_await OnDelCorpsEnemyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CORPSHP_ACK:
+        co_await OnCorpsHpAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // The corps subsystem (W3c) is now feature-complete. W4 opens
+    // Friend + Chat + Soulmate. … see README §4.
 
     default:
         break;

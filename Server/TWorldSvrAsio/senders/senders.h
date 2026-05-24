@@ -1353,6 +1353,19 @@ boost::asio::awaitable<void> SendMwCorpsCmdReq(
     std::uint16_t                pos_x,
     std::uint16_t                pos_z);
 
+// Generic corps-chief relay (legacy RelayCorpsMsg) — re-frames an
+// inbound corps-chief packet to another squad's chief: the leading
+// char_id + key are replaced with the recipient's, the rest of the
+// body (`tail`) is forwarded verbatim under `msg_id`. Backs the
+// CORPSENEMYLIST / ADD / DEL / MOVE-ENEMY / MOVE-UNIT / CORPSHP
+// broadcasts, which are all opaque chief-to-chief passthroughs.
+boost::asio::awaitable<void> SendMwCorpsChiefRelay(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint16_t                  msg_id,
+    std::uint32_t                  recipient_char_id,
+    std::uint32_t                  recipient_key,
+    const std::vector<std::byte>&  tail);
+
 // MW_CHGCORPSCOMMANDER_REQ — result of the general handing the
 // commander role to another squad (CORPS_* code).
 //

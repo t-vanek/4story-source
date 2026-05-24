@@ -156,6 +156,21 @@ SendMwCorpsCmdReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwCorpsChiefRelay(std::shared_ptr<PeerSession>  peer,
+                      std::uint16_t                 msg_id,
+                      std::uint32_t                 recipient_char_id,
+                      std::uint32_t                 recipient_key,
+                      const std::vector<std::byte>& tail)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, recipient_char_id);
+    WritePOD<std::uint32_t>(body, recipient_key);
+    body.insert(body.end(), tail.begin(), tail.end());
+    co_await peer->Wire()->SendPacket(msg_id, std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwChgCorpsCommanderReq(std::shared_ptr<PeerSession> peer,
                            std::uint32_t                char_id,
                            std::uint32_t                key,

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3c-6 corps command broadcast (CORPSCMD)
+## Status — W3c-7 corps enemy-list family + HP (corps subsystem complete)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -68,12 +68,51 @@ that the four shipped Asio daemons already use.
 | W3c-3 | Corps leave/dissolve — OnMW_CORPSLEAVE_ACK + NotifyCorpsLeave (mutual DELSQUAD fan-out, commander succession, dissolve cascade on drop-to-one) + SendMwDelSquadReq | ✅ |
 | W3c-4 | Change corps commander — OnMW_CHGCORPSCOMMANDER_ACK (general hands the commander role to another squad; reply + all-squad refresh) + SendMwChgCorpsCommanderReq | ✅ |
 | W3c-5 | Corps squad reshuffle — OnMW_PARTYMOVE_ACK (general moves a member between squads / swaps two members) reusing the party Leave/Join machinery + SendMwPartyMoveReq | ✅ |
-| **W3c-6** | Corps command broadcast — OnMW_CORPSCMD_ACK (general's move/attack order relayed to every corps member, or own party when corps-less) + SendMwCorpsCmdReq | ✅ |
-| W3c-7+ | Corps enemy-list family (CORPSENEMYLIST / ADD / DEL / MOVE) + CORPSHP | ⏸ |
+| W3c-6 | Corps command broadcast — OnMW_CORPSCMD_ACK (general's move/attack order relayed to every corps member, or own party when corps-less) + SendMwCorpsCmdReq | ✅ |
+| **W3c-7** | Corps enemy-list family + HP — OnMW_CORPSENEMYLIST/ADDCORPSENEMY/DELCORPSENEMY/MOVECORPSENEMY/MOVECORPSUNIT/CORPSHP_ACK (6 chief-to-chief opaque relays via a shared CorpsChiefRelay + SendMwCorpsChiefRelay) — **corps subsystem complete** | ✅ |
+| W4 | Friend + Chat + Soulmate | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3c-7 — what landed
+
+The **corps enemy-list family + HP sync** — six chief-to-chief
+broadcasts that complete the corps subsystem. Each is an opaque
+relay: the commander of a corps squad pushes a payload (the shared
+enemy/target list — ENEMYLIST / ADD / DEL / MOVE-ENEMY; the unit
+reorder — MOVE-UNIT; or a member-HP sync — CORPSHP) to every other
+squad's chief.
+
+Handlers — `OnCorpsEnemyListAck` / `OnAddCorpsEnemyAck` /
+`OnDelCorpsEnemyAck` / `OnMoveCorpsEnemyAck` / `OnMoveCorpsUnitAck`
+/ `OnCorpsHpAck` (wIDs 0x9095/9B/9D/97/99/9F). All six are one-line
+wrappers over a shared `CorpsChiefRelay` (legacy
+BroadcastCorps + RelayCorpsMsg): validate the sender (exists + key
++ chief of a party in a corps), then forward the inbound payload —
+everything after the leading char_id + key — to each *other* squad
+chief's map, with the recipient's char_id + key swapped into the
+head. Non-chief / corps-less senders are dropped.
+
+Sender — `SendMwCorpsChiefRelay` (generic: msg_id + recipient
+head + opaque tail).
+
+Tests — `tests/test_corps_enemy_handlers.cpp` (4 scenarios,
+four-peer loopback): a chief's ENEMYLIST payload reaching both
+other squad chiefs (tail intact, char/key swapped, own squad +
+non-chief members skipped), a non-chief send dropped (proven by the
+next valid relay carrying the right payload), and a CORPSHP send
+mapping to the HP wID.
+
+Build verified: cmake + ctest -R tworldsvr_asio (32/32 passed).
+
+**The corps subsystem (W3c) is now feature-complete**: invite →
+form → leave/dissolve → change-commander → squad-reshuffle →
+command → enemy-list/HP. The only deferred corps item is the
+per-member `m_command` cache that the W3c-2 ADDSQUAD payload stubs
+(emitted as 0) and W3c-6 CORPSCMD would populate — it affects only
+a late-joiner's initial command display.
 
 ### W3c-6 — what landed
 

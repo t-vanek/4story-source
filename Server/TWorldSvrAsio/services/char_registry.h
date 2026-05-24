@@ -40,6 +40,31 @@
 
 namespace tworldsvr {
 
+// W4-1 — one entry in a character's friend list (legacy TFRIEND in
+// m_mapTFRIEND, keyed by the friend's char id). Stored in
+// TChar::friends; mutated under the owning TChar's lock.
+struct TFriend
+{
+    std::uint32_t id        = 0;     // friend's char id (m_dwID)
+    std::string   name;              // m_strName
+    std::uint8_t  type      = 0;     // m_bType (friend::FT_*)
+    bool          connected = false; // m_bConnected (online)
+    std::uint32_t region    = 0;     // m_dwRegion (last-seen zone)
+    std::uint8_t  group     = 0;     // m_bGroup (friend-group bucket)
+};
+
+// W4-6 — a character's soulmate pairing (legacy m_mapTSOULMATE
+// entry keyed by the char's own id). target = 0 means unpaired.
+struct TSoulmate
+{
+    std::uint32_t target    = 0;     // partner char id (m_dwTarget)
+    std::string   name;              // m_strName
+    std::uint8_t  level     = 0;
+    std::uint8_t  klass     = 0;
+    bool          connected = false;
+    std::uint32_t region    = 0;
+};
+
 // One inbound connection from a map server pinned to a character.
 // Mirrors the legacy TCHARCON struct (m_mapTCHARCON entry per
 // map server bServerID). Held in TChar::cons; mutated under the
@@ -119,6 +144,44 @@ struct TChar
     // from guild_id (full membership): a char can be a full
     // member of one guild AND a tactics mercenary of another.
     std::uint32_t tactics_guild_id = 0;
+
+    // W3b-1 party back-pointer. Legacy holds `CTParty* m_pParty`;
+    // we keep a `party_id` (0 = no party) and resolve the TParty
+    // through PartyRegistry on demand — same cycle-free pattern as
+    // guild_id. `party_waiter` mirrors m_bPartyWaiter: set true
+    // while an invite dialog is pending on this char's client so a
+    // second inviter is rejected with PARTY_WAITERS.
+    std::uint16_t party_id     = 0;
+    bool          party_waiter = false;
+
+    // W3b-1 combat stats. Legacy m_dwMaxHP / m_dwHP / m_dwMaxMP /
+    // m_dwMP, refreshed by SetCharStatus on every party-flow packet
+    // (the map server ships the current values so world can fan
+    // them out in the MW_PARTYJOIN_REQ / MW_PARTYMANSTAT_REQ
+    // broadcasts). Zero until the first party packet sets them.
+    std::uint32_t max_hp = 0;
+    std::uint32_t hp     = 0;
+    std::uint32_t max_mp = 0;
+    std::uint32_t mp     = 0;
+
+    // W4-1 social state. `region` mirrors legacy m_dwRegion (the
+    // char's last-known zone, shipped in friend/soulmate presence
+    // updates; 0 until a region handler ports). `friends` is the
+    // legacy m_mapTFRIEND friend list (typical size ≤ MAX_FRIEND).
+    std::uint32_t        region = 0;
+    std::vector<TFriend> friends;
+
+    // W4-3 named friend groups (legacy m_mapFRIENDGROUP, BYTE id →
+    // name), capped at MAX_FRIENDGROUP. Each TFriend.group references
+    // one of these (0 = ungrouped).
+    std::vector<std::pair<std::uint8_t, std::string>> friend_groups;
+
+    // W4-6 soulmate state. `real_sex` (legacy m_bRealSex) is the
+    // account's real-world gender, distinct from the avatar `sex`;
+    // both feed the matchmaking tiebreakers. `soulmate` is the
+    // current pairing (target = 0 when unpaired).
+    std::uint8_t real_sex = 0;
+    TSoulmate    soulmate;
 };
 
 // CharRegistry owns the cluster-wide char index. Lifetime: created

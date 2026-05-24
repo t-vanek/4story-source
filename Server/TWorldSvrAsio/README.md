@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3a-38 disband + point-reward player actions
+## Status — W4-8 region update (presence region propagation)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -57,11 +57,837 @@ that the four shipped Asio daemons already use.
 | W3a-37 | Cabinet item codec — TGuildCabinetItem model + WrapItem/CreateItem-symmetric wire codec; OnGuildCabinetPutin/TakeoutAck (stack/decrement) + LIST upgraded from the W3a-26 stub to emit real items | ✅ |
 | **W3a-38** | Disband + point-reward player actions (OnGuildDisorganization/PointRewardAck) — the map→world entry points pairing the W3a-4b/W3a-14 DB fan-ins; closes the last player-facing guild gaps | ✅ |
 | W3a-39+ | DB persistence (tactics + cabinet) + W5 castle/skill guild handlers | ⏸ |
-| W3b | Party + Corps | ⏸ |
+| W3b-1 | Party subsystem foundation — PartyRegistry + TParty + TChar party_id/party_waiter/HP-MP fields + OnMW_PARTYADD_ACK invite-relay gate + SendMwPartyAddReq | ✅ |
+| W3b-2 | Party formation — OnMW_PARTYJOIN_ACK (create new party / join existing) + PartyRegistry::GenId + JoinParty pairwise PARTYJOIN_REQ fan-out + PARTYATTR HUD push + SendMwPartyJoinReq/AttrReq | ✅ |
+| W3b-3 | Party leave/kick — OnMW_PARTYDEL_ACK + LeaveParty (chief succession, PARTYDEL fan-out, disband cascade on drop-below-two) + SendMwPartyDelReq | ✅ |
+| W3b-4 | Party attribute changes — OnMW_PARTYMANSTAT_ACK (member-stat broadcast) + OnMW_CHGPARTYCHIEF_ACK (hand off leadership) + OnMW_CHGPARTYTYPE_ACK (loot mode) + 3 senders | ✅ |
+| W3b-5 | Party member recall — OnMW_PARTYMEMBERRECALL_ACK (summon/move-to gate + RECALLANS_REQ forward) + OnMW_PARTYMEMBERRECALLANS_ACK (destination relay, same-map + meeting-room gates) + 2 senders | ✅ |
+| W3b-6 | Party round-robin loot — OnMW_PARTYORDERTAKEITEM_ACK (turn-cursor next-looter selection + item forward via the cabinet codec; stale-party MIT_NOTFOUND) + TParty order rotation (GetNextOrder/SetNextOrder/GetOrderIndex) + 2 senders | ✅ |
+| W3c-1 | Corps subsystem opener — CorpsRegistry + TCorps + corps_constants + OnMW_CORPSASK_ACK invite-relay gate (CheckCorpsJoin) + SendMwCorpsAskReq/ReplyReq | ✅ |
+| W3c-2 | Corps formation — OnMW_CORPSREPLY_ACK (create new corps / join existing) + CorpsRegistry::GenId (shared party id pool) + NotifyCorpsJoin pairwise ADDSQUAD fan-out + CORPSJOIN_REQ + commander PARTYATTR + SendMwAddSquadReq/CorpsJoinReq | ✅ |
+| W3c-3 | Corps leave/dissolve — OnMW_CORPSLEAVE_ACK + NotifyCorpsLeave (mutual DELSQUAD fan-out, commander succession, dissolve cascade on drop-to-one) + SendMwDelSquadReq | ✅ |
+| W3c-4 | Change corps commander — OnMW_CHGCORPSCOMMANDER_ACK (general hands the commander role to another squad; reply + all-squad refresh) + SendMwChgCorpsCommanderReq | ✅ |
+| W3c-5 | Corps squad reshuffle — OnMW_PARTYMOVE_ACK (general moves a member between squads / swaps two members) reusing the party Leave/Join machinery + SendMwPartyMoveReq | ✅ |
+| W3c-6 | Corps command broadcast — OnMW_CORPSCMD_ACK (general's move/attack order relayed to every corps member, or own party when corps-less) + SendMwCorpsCmdReq | ✅ |
+| W3c-7 | Corps enemy-list family + HP — OnMW_CORPSENEMYLIST/ADDCORPSENEMY/DELCORPSENEMY/MOVECORPSENEMY/MOVECORPSUNIT/CORPSHP_ACK (6 chief-to-chief opaque relays via a shared CorpsChiefRelay + SendMwCorpsChiefRelay) — **corps subsystem complete** | ✅ |
+| W4-1 | Friend subsystem opener — TChar.friends/region + TFriend + friend_constants + OnMW_FRIENDASK_ACK invite gate (relay / mutual instant-add) + SendMwFriendAddReq/AskReq | ✅ |
+| W4-2 | Friend reply + erase — OnMW_FRIENDREPLY_ACK (accept upserts mutual entries / reject relays code) + OnMW_FRIENDERASE_ACK (mutual demote / one-way remove) + SendMwFriendEraseReq | ✅ |
+| W4-3 | Friend groups — OnMW_FRIENDGROUPMAKE/DELETE/CHANGE/NAME_ACK (per-char named buckets, TChar.friend_groups + TFriend.group) + 4 senders | ✅ |
+| W4-4 | Friend list reader — OnMW_FRIENDLIST_ACK → MW_FRIENDLIST_REQ (groups + non-pending friends, per-friend level/class/connected/region resolved live) | ✅ |
+| W4-5 | Chat channel relay — OnMW_CHAT_ACK (GUILD/TACTICS/PARTY/FORCE/MAP/WORLD/SHOW/WHISPER) routed to the right audience via the guild/party/corps/peer registries + SendMwChatReq | ✅ |
+| W4-6 | Soulmate — OnMW_SOULMATESEARCH/REG/END_ACK (matchmaking + mutual pairing / register-preview / dissolve) + TChar.real_sex/soulmate + 3 senders | ✅ |
+| W4-7 | Social presence on logout — OnCloseCharAck fans FRIENDCONNECTION(DISCONNECTION) to friends + marks reverse friend/soulmate entries offline (NotifyFriends/SoulmateOnLogout) | ✅ |
+| **W4-8** | Region update — OnMW_REGION_ACK stores TChar.region + mirrors it into the soulmate + mutual-friend reverse entries (makes presence region live) | ✅ |
+| W4-9+ | Login presence (connect fan-out) + friend/soulmate DB load (repository) | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-8 — what landed
+
+**Region update** — makes the `TChar.region` field (added in W4-1
+but always 0) live, so the friend/soulmate presence views carry an
+accurate last-seen zone.
+
+`OnRegionAck` (wID 0x90BD): stores the char's `region`, then
+mirrors it into the soulmate partner's reverse entry (marking it
+connected — a region update implies online) and into each
+connected real-friend's (non-`FT_FRIEND`) reverse entry. Pure
+in-memory state propagation — no outbound packet, no DB. Lock
+discipline: the char is snapshotted/updated under its lock, then
+each partner under its own (never two at once).
+
+Tests — `tests/test_region_handlers.cpp`: a region update for a
+char that's a mutual friend + soulmate of one peer and a one-way
+friend of another; verifies the region lands on the char, on the
+soulmate + mutual-friend reverse entries, but not on the one-way
+`FT_FRIEND` entry.
+
+Build verified: cmake + ctest -R tworldsvr_asio (40/40 passed).
+
+### W4-7 — what landed
+
+**Social presence on logout** — the offline half of the
+friend/soulmate presence flow, wired into the existing char
+lifecycle.
+
+`OnCloseCharAck` now, after removing the char from the registry
+(the `shared_ptr` keeps it alive), calls:
+- `NotifyFriendsOnLogout` (handlers_friend.cpp, legacy
+  LeaveFriend): for each connected friend, marks that friend's
+  reverse entry offline and — for a real (mutual / pending) friend,
+  not a one-way `FT_FRIEND` stub — pushes
+  `MW_FRIENDCONNECTION_REQ(DISCONNECTION)` to the friend's map.
+- `NotifySoulmateOnLogout` (handlers_soulmate.cpp, legacy
+  LeaveSoulmate): marks the partner's soulmate entry offline
+  (no packet, per legacy).
+
+Both operate on the in-memory social state (set by the W4-1..6
+handlers) and snapshot-then-release per char (no two char locks
+held at once). Sender — `SendMwFriendConnectionReq` (5-field).
+
+Deferred: the **connect** side (login presence fan-out) and the
+friend/soulmate **DB load** — both need the friend/soulmate
+repository + char-load wiring, a coupled cluster for a later slice.
+
+Tests — `tests/test_friend_presence_handlers.cpp`: a mutual
+friend + soulmate + a one-way friend, all online; on logout the
+mutual friend gets the disconnect toast, all three reverse entries
+(+ the soulmate) flip offline, and the char leaves the registry.
+
+Build verified: cmake + ctest -R tworldsvr_asio (39/39 passed).
+
+### W4-6 — what landed
+
+The **soulmate** (marriage/pairing) subsystem — the last W4 social
+feature with a clean wire surface.
+
+Model — `TChar` gains `real_sex` (m_bRealSex, the account gender,
+distinct from the avatar `sex`) + `soulmate` (a `TSoulmate`: target
+id / name / level / class / connected / region; target 0 =
+unpaired).
+
+Handlers (`handlers_soulmate.cpp`):
+- `OnSoulmateSearchAck` (0x9109): matchmaking over the online
+  roster — same country, within `SOULMATE_LEVEL` (10), picking the
+  lowest-level candidate, with the legacy tiebreak chain (opposite
+  real-sex → no existing soulmate → opposite avatar-sex). On a
+  match it pairs both chars mutually + replies `SOULMATE_SUCCESS`
+  with the partner; none → `SOULMATE_NOTFOUND`.
+- `OnSoulmateRegAck` (0x910B): a named pairing — gates same country
+  + level window (`SOULMATE_FAIL`). `bReg=1` commits the mutual
+  pairing; `bReg=0` is a preview (success reply, no pairing).
+- `OnSoulmateEndAck` (0x910D): dissolves the current pairing on
+  both sides (`SOULMATE_SUCCESS` + timestamp); no pairing →
+  `SOULMATE_FAIL`.
+
+The legacy DB round-trip (`DM_SOULMATEREG/END_REQ`) is collapsed to
+an in-memory mutual pairing (consistent with the guild-establish /
+friend-mutual-add collapses); persistence is deferred. Lock
+discipline: each char's `soulmate` is mutated under its own lock,
+sequentially.
+
+Senders — `SendMwSoulmateSearch/Reg/EndReq` in the new
+`senders_soulmate.cpp`.
+
+Tests — `tests/test_soulmate_handlers.cpp` (6 scenarios,
+three-peer loopback): SEARCH match with the real-sex tiebreak +
+mutual pairing, REG preview (no pairing) vs register (pairing),
+cross-country REG FAIL, END dissolve (both cleared), and END with
+no soulmate FAIL.
+
+Build verified: cmake + ctest -R tworldsvr_asio (38/38 passed).
+
+### W4-5 — what landed
+
+The **chat channel relay** — a capstone that routes a message to
+the right audience through every social registry ported so far.
+
+Handler — `OnChatAck` (wID 0x903F), switching on the CHAT_GROUP:
+- `GUILD` / `TACTICS` — every guild member (+ hired tactics
+  members for TACTICS), via GuildRegistry.
+- `PARTY` — the target party's members, via PartyRegistry.
+- `FORCE` — the sender's corps: every member of every squad, via
+  Party + CorpsRegistry.
+- `MAP` / `WORLD` / `SHOW` — global: one `MW_CHAT_REQ` per map peer
+  (char_id/key = 0), via PeerRegistry.
+- `WHISPER` — a direct recipient (resolved by id, else by name),
+  delivered + echoed back to the sender (the echo carries the
+  recipient's name for the client's "To <name>" line), gated by
+  war-country (waived when either side is in the peace country).
+
+Each recipient is reached through `RelayToChar` (CharRegistry
+lookup → its map peer). The sender's country/aid ride on every
+`MW_CHAT_REQ`. Deferred: the operator-whisper sub-case ("/GM …"),
+which needs the operator list + server-message table.
+
+Sender — `SendMwChatReq` (11-field) in the new `senders_chat.cpp`.
+
+Tests — `tests/test_chat_handlers.cpp` (5 channels, three-peer
+loopback): GUILD (both members), PARTY (both members), WORLD
+(every peer), WHISPER (recipient + sender echo), and the
+cross-war-country whisper block (proven by a follow-up WORLD).
+
+Build verified: cmake + ctest -R tworldsvr_asio (37/37 passed).
+
+### W4-4 — what landed
+
+Friend **list reader** — the reply when a client opens its friend
+window.
+
+Handler — `OnFriendListAck` (wID 0x912F): snapshots the char's
+friend groups + every non-pending (`!= FT_TARGET`) friend, then
+resolves each friend's `level` / `class` / `region` + the online
+flag **live** from the CharRegistry (online → real values, offline
+→ 0). Replies `MW_FRIENDLIST_REQ`.
+
+This live resolution is cleaner than legacy's stored
+`m_bLevel`/`m_bConnected`/`m_dwRegion` (which drift until a
+presence update refreshes them) and keeps the reader self-contained
+— it doesn't depend on the not-yet-ported presence-notification
+flow. The soulmate slot is emitted as the "none" sentinel (DWORD 0)
+until soulmate ports.
+
+Sender — `SendMwFriendListReq` (variable-length: soulmate sentinel
++ group list + friend rows) via the new `FriendListRow` POD.
+
+Tests — `tests/test_friend_list_handlers.cpp`: a list with one
+group, an online friend (live level/class/region + connected=1),
+an offline friend (zeroed + connected=0), and an `FT_TARGET`
+pending entry correctly excluded.
+
+Build verified: cmake + ctest -R tworldsvr_asio (36/36 passed).
+
+### W4-3 — what landed
+
+Friend **groups** — the per-char named buckets a client uses to
+organise its friend list (legacy m_mapFRIENDGROUP, capped at
+MAX_FRIENDGROUP=5, names ≤ MAX_GROUPNAME=20).
+
+Model — `TChar.friend_groups` (vector of {byte id, name}); each
+`TFriend.group` references one (0 = ungrouped).
+
+Handlers (all per-char, single-lock; persistence deferred):
+- `OnFriendGroupMakeAck` (0x905B): create — gates group-id≠0 +
+  under cap (`kMax`), unique id + name (`kAlready`); over-long name
+  is a silent drop.
+- `OnFriendGroupDeleteAck` (0x905D): delete — only an *empty* group
+  (no non-pending friend references it, else `kRefuse`); unknown
+  group is a silent drop.
+- `OnFriendGroupChangeAck` (0x905F): move a friend into a group
+  (0 = ungroup); bad group / unknown friend silent-drop.
+- `OnFriendGroupNameAck` (0x9061): rename — name-unique
+  (`kRefuse`), group-exists (`kNotFound`).
+
+Senders — `SendMwFriendGroupMake/Delete/Change/NameReq`.
+
+Tests — `tests/test_friend_group_handlers.cpp` (11 checks,
+single-peer): MAKE success/id-taken/group-0, CHANGE into a group,
+DELETE occupied (REFUSE) → ungroup → DELETE empty (SUCCESS), and
+NAME rename/name-taken/unknown-group.
+
+Build verified: cmake + ctest -R tworldsvr_asio (35/35 passed).
+
+### W4-2 — what landed
+
+Friend **accept/reject + remove** — completes the add/remove core
+of the friend subsystem.
+
+Handlers
+- `OnFriendReplyAck` (wID 0x9054): the invited char's answer. On
+  ASK_YES both sides' entries are upserted to a connected
+  `FT_FRIENDFRIEND` (each other's region copied in) and both get
+  `MW_FRIENDADD_REQ` SUCCESS; on reject the inviter gets the answer
+  code. Inviter-/answerer-offline branches relay `FRIEND_NOTFOUND`.
+- `OnFriendEraseAck` (wID 0x9056): legacy round-trips the removal
+  through the DB then runs EraseFriend; the SOCI-direct port does
+  the in-memory removal inline (persistence deferred). A mutual
+  (`FT_FRIENDFRIEND`) friend is *demoted* — self → `FT_TARGET`, the
+  online other side → `FT_FRIEND`; a one-way (`FT_FRIEND`) friend is
+  fully removed from both lists (when the other is online); a
+  pending `FT_TARGET` is left as-is. Missing entry → `kNotFound`.
+
+Lock discipline: the two affected chars' lists are read/mutated
+under each char's own lock (sequential, never both held at once).
+
+Sender — `SendMwFriendEraseReq` (4-field); the reply result reuses
+the W4-1 `SendMwFriendAddReq`.
+
+Tests — `tests/test_friend_reply_handlers.cpp` (6 scenarios,
+three-peer loopback): accept (both SUCCESS + mutual entries +
+region swap), reject (inviter gets the code), inviter-offline
+NOTFOUND, mutual erase (demote to TARGET/FRIEND), erase-not-found,
+and one-way erase (both entries removed).
+
+Build verified: cmake + ctest -R tworldsvr_asio (34/34 passed).
+
+### W4-1 — what landed
+
+Opens the **friend** subsystem (the W4 social-graph phase). Unlike
+the guild/party/corps cluster entities, a friend list is per-char
+state, so this adds the model to `TChar` rather than a new
+registry.
+
+Model — `TChar` gains `friends` (the legacy m_mapTFRIEND list of
+`TFriend{ id, name, type, connected, region, group }`) + `region`
+(m_dwRegion, the last-seen zone shipped in presence updates).
+`services/friend_constants.h` mirrors NetCode.h's `FRIEND_RESULT`,
+`FRIEND_TYPE` (FT_FRIEND/TARGET/FRIENDFRIEND), `FRIEND_CONNECTION`,
+and `MAX_FRIEND` (64).
+
+Handler — `OnFriendAskAck` (wID 0x9052): a char requests to
+befriend another by name. Gates (legacy order): target online +
+same country (`kNotFound`), not already a non-pending friend
+(`kAlready`), requester under MAX_FRIEND (`kMax`). Then:
+- if both chars already hold a pending `FT_TARGET` for each other,
+  the friendship completes immediately — both upgrade to
+  `FT_FRIENDFRIEND` (connected, each other's region copied in) and
+  the requester gets `MW_FRIENDADD_REQ` SUCCESS with the new
+  friend's row;
+- else the target's own cap is checked (`kRefuse`) and
+  `MW_FRIENDASK_REQ` is forwarded to the target's map for the
+  confirm dialog (→ FRIENDREPLY, W4-2).
+
+Lock discipline: the requester's + target's friend lists are read,
+then mutated, under each char's own lock (sequential, single io
+thread — never both held at once).
+
+Deferred: friend-row persistence (legacy DM_FRIENDINSERT_REQ) is
+in-memory only — it lands with the friend repository slice.
+
+Senders — `SendMwFriendAddReq` (9-field) + `SendMwFriendAskReq`
+(4-field), in the new `senders/senders_friend.cpp`.
+
+Tests — `tests/test_friend_handlers.cpp` (5 scenarios, three-peer
+loopback): unknown-target NOTFOUND, a clean ask forwarding
+FRIENDASK_REQ to the target, ALREADY, the mutual pending-target
+instant-add (both entries upgraded + regions swapped + the SUCCESS
+row), and a different-country NOTFOUND.
+
+Build verified: cmake + ctest -R tworldsvr_asio (33/33 passed).
+
+### W3c-7 — what landed
+
+The **corps enemy-list family + HP sync** — six chief-to-chief
+broadcasts that complete the corps subsystem. Each is an opaque
+relay: the commander of a corps squad pushes a payload (the shared
+enemy/target list — ENEMYLIST / ADD / DEL / MOVE-ENEMY; the unit
+reorder — MOVE-UNIT; or a member-HP sync — CORPSHP) to every other
+squad's chief.
+
+Handlers — `OnCorpsEnemyListAck` / `OnAddCorpsEnemyAck` /
+`OnDelCorpsEnemyAck` / `OnMoveCorpsEnemyAck` / `OnMoveCorpsUnitAck`
+/ `OnCorpsHpAck` (wIDs 0x9095/9B/9D/97/99/9F). All six are one-line
+wrappers over a shared `CorpsChiefRelay` (legacy
+BroadcastCorps + RelayCorpsMsg): validate the sender (exists + key
++ chief of a party in a corps), then forward the inbound payload —
+everything after the leading char_id + key — to each *other* squad
+chief's map, with the recipient's char_id + key swapped into the
+head. Non-chief / corps-less senders are dropped.
+
+Sender — `SendMwCorpsChiefRelay` (generic: msg_id + recipient
+head + opaque tail).
+
+Tests — `tests/test_corps_enemy_handlers.cpp` (4 scenarios,
+four-peer loopback): a chief's ENEMYLIST payload reaching both
+other squad chiefs (tail intact, char/key swapped, own squad +
+non-chief members skipped), a non-chief send dropped (proven by the
+next valid relay carrying the right payload), and a CORPSHP send
+mapping to the HP wID.
+
+Build verified: cmake + ctest -R tworldsvr_asio (32/32 passed).
+
+**The corps subsystem (W3c) is now feature-complete**: invite →
+form → leave/dissolve → change-commander → squad-reshuffle →
+command → enemy-list/HP. The only deferred corps item is the
+per-member `m_command` cache that the W3c-2 ADDSQUAD payload stubs
+(emitted as 0) and W3c-6 CORPSCMD would populate — it affects only
+a late-joiner's initial command display.
+
+### W3c-6 — what landed
+
+Corps **command broadcast** — the general issues a movement/attack
+order that fans out to the whole corps so every member's client
+mirrors it.
+
+Handler — `OnCorpsCmdAck` (wID 0x9093): validates the issuer
+(exists + key match + in a party), then relays `MW_CORPSCMD_REQ`
+to every member of every squad in the corps — or, when the issuer
+is corps-less, just their own party's members. Silent drop on a
+bad issuer (legacy parity).
+
+Sender — `SendMwCorpsCmdReq` (10-field).
+
+Deferred: legacy also caches the order on the issuing squad's +
+the commander char's `m_command` so a late-joiner's ADDSQUAD shows
+the current order. That per-member command state isn't modelled
+yet (W3c-2's ADDSQUAD emits it as 0); the broadcast — the
+player-facing effect — is byte-identical without it. The cache +
+ADDSQUAD un-stub land together when the command model is ported.
+
+Tests — `tests/test_corps_cmd_handlers.cpp` (2 scenarios,
+three-peer loopback): a general's command reaching all three corps
+members across two squads/peers (asserts the relayed cmd / target /
+squad / commander / position fields), and a corps-less issuer
+reaching only their own party.
+
+Build verified: cmake + ctest -R tworldsvr_asio (31/31 passed).
+
+### W3c-5 — what landed
+
+Corps **squad reshuffle** (`PARTYMOVE`) — the handler that was the
+original reason for opening the corps subsystem. A corps general
+rebalances members across squads. It lives in `handlers_party.cpp`
+because it reuses the party `LeaveParty` + `JoinPartyFanout`
+machinery (W3b-2/3).
+
+Handler — `OnPartyMoveAck` (wID 0x90A1):
+- **Move mode** (empty dest name): the target leaves their party
+  (`is_delete=true` → the source party dissolves if it drops below
+  two) and joins party `target_party`.
+- **Swap mode** (dest name set): the target and the named dest char
+  trade parties; both parties must have ≥2 members (else
+  `CORPS_WRONG_TARGET`), each leaves with `is_delete=false` (no
+  dissolve) then cross-joins.
+
+Gates mirror legacy: the general must exist with a matching key
+(the map server pre-validates the commander authority), the target
+must be in a party, you can't move to the target's own party, and
+the swap size rule. Result via `MW_PARTYMOVE_REQ`
+(`CORPS_SUCCESS` / `CORPS_NOT_COMMANDER` / `CORPS_WRONG_TARGET`).
+
+Sender — `SendMwPartyMoveReq` (3-field). `handlers_party.cpp` now
+includes `corps_constants.h` for the CORPS_* codes.
+
+Tests — `tests/test_party_move_handlers.cpp` (5 scenarios,
+two-peer loopback with the general isolated on peer1 so it sees
+only the result): key-mismatch / no-party / own-party
+`NOT_COMMANDER`, size-1-swap `WRONG_TARGET`, and a successful move
+between squads (asserts the moved char's party_id, both squads'
+membership, and the source party's chief succession).
+
+Build verified: cmake + ctest -R tworldsvr_asio (30/30 passed).
+
+### W3c-4 — what landed
+
+Change corps commander — the corps-level analog of party
+CHGPARTYCHIEF. Only the **general** (the chief of the current
+commander party) may hand the commander role to another squad.
+
+Handler — `OnChgCorpsCommanderAck` (wID 0x90A4): gates
+`kNoParty` (requester party-less / corps-less) → `kNotCommander`
+(not the commander party's general) → `kWrongTarget` (target is
+already the commander) → `kTargetNoParty` (target not a squad of
+this corps). On success moves `commander_party_id` +
+`general_char_id` to the target squad (its chief), replies
+`kChgCommander`, and refreshes every squad's HUD via the W3c-3
+`CorpsJoinBroadcast` (CORPSJOIN + commander PARTYATTR).
+
+Sender — `SendMwChgCorpsCommanderReq` (3-field).
+
+Tests — `tests/test_corps_commander_handlers.cpp` (4 scenarios,
+three-peer loopback): non-commander reject, current-commander
+`kWrongTarget`, non-member `kTargetNoParty`, and the general's
+successful reassign (reply + all-three-squad commander refresh +
+registry commander/general update).
+
+Build verified: cmake + ctest -R tworldsvr_asio (29/29 passed).
+
+### W3c-3 — what landed
+
+Corps **leave / dissolve** — the corps-level analog of party
+PARTYDEL; completes the corps create→form→leave triangle.
+
+Handler — `OnCorpsLeaveAck` (wID 0x9073): a party chief removes a
+squad — their own (`squad_id == their party`) or, as the general,
+any squad. Gates: requester is their party's chief, in a corps, the
+target squad is a real party + a member of that corps, and the
+authority check (own squad or general).
+
+`NotifyCorpsLeave` (file-local self-recursive coroutine, mirrors
+legacy NotifyCorpsLeave): mutual `MW_DELSQUAD_REQ` (each other
+squad's members drop the leaver, the leaver's members drop each
+other squad), `TCorps::RemoveParty` + the leaving party's cleared
+`corps_id`, then —
+- **dissolve** when the corps drops to one squad: pull the last
+  squad out via a recursive `NotifyCorpsLeave` and drop the corps
+  from the registry;
+- **succession** when the leaver was the commander (and the corps
+  survives): promote the first remaining squad (+ its chief as the
+  new general) and refresh every survivor's HUD with a
+  `CorpsJoinBroadcast` (CORPSJOIN + commander PARTYATTR);
+- the leaver's members always get `CORPSJOIN_REQ(0, 0)` + a
+  cleared PARTYATTR.
+
+Sender — `SendMwDelSquadReq`. The CORPSJOIN/PARTYATTR refresh
+reuses a new file-local `CorpsJoinBroadcast`. Lock chain unchanged
+(char → party → corps, never two held at once).
+
+Tests — `tests/test_corps_leave_handlers.cpp` (3 scenarios,
+three-peer loopback on one corps): an unauthorized kick (rejected,
+corps unchanged), commander succession (3→2 squads, asserts the
+DELSQUAD fan-out + the survivors' new-commander CORPSJOIN/PARTYATTR
++ the registry commander/general flip), and the dissolve cascade
+(2→0: both squads pulled out, corps removed).
+
+Build verified: cmake + ctest -R tworldsvr_asio (28/28 passed).
+
+### W3c-2 — what landed
+
+Corps **formation** — the answer to the W3c-1 invite, the corps-
+level analog of party PARTYJOIN. First handler that mutates the
+CorpsRegistry.
+
+Registry — `CorpsRegistry::GenId(parties)` allocates a free WORD id
+skipping ids live in *either* the corps or party registry, matching
+legacy `GenPartyID`'s shared pool (corps ids never collide with
+party ids).
+
+Handler — `OnCorpsReplyAck` (wID 0x906F): the invited chief's
+answer. Relays the decline code to the inviter on a no; on
+ASK_YES re-runs the gate (both party chiefs / same war-country /
+non-arena / CheckCorpsJoin) then forms the corps — fresh TCorps
+(commander = the inviter's party, general = inviter) when neither
+side has one, else the corps-less party joins the existing corps.
+
+`NotifyCorpsJoin` (file-local coroutine, mirrors legacy
+NotifyCorpsJoin + CorpsJoin): snapshots the corps' squads, then for
+each existing squad fires the pairwise `MW_ADDSQUAD_REQ` (each
+existing-squad member learns the joining squad and vice versa),
+commits `TCorps::AddParty` + the joining party's `corps_id`
+back-link, and pushes each joining member `MW_CORPSJOIN_REQ` + a
+`MW_PARTYATTR_REQ` carrying the commander party id. Squad members
+are gathered through a `SnapshotSquad` helper.
+
+The `MW_ADDSQUAD_REQ` per-member payload includes legacy
+`m_command` real-time target/move state (target obj, target pos,
+command, move type) that the world side doesn't model — emitted as
+0 / `MOVE_NONE`; the corps-command handler (later W3c) will own it.
+
+Lock discipline holds the char → party → corps order; no two locks
+are ever held at once (snapshot-then-release).
+
+Senders — `SendMwAddSquadReq` (squad + member list via the new
+`SquadMemberInfo` POD) + `SendMwCorpsJoinReq`.
+
+Tests — `tests/test_corps_reply_handlers.cpp` (3 scenarios,
+three-peer loopback): decline relay, new-corps formation (asserts
+the pairwise ADDSQUAD + CORPSJOIN + commander PARTYATTR ordering +
+the registry's 2-squad/commander/general state), and a third party
+joining the existing corps (grows to 3).
+
+Build verified: cmake + ctest -R tworldsvr_asio (27/27 passed).
+
+### W3c-1 — what landed
+
+Opens the **corps** subsystem — the party subsystem's parent: a
+corps is a set of parties (squads) under a general. Mirrors how
+W3b-1 opened party (registry + back-pointer + first handler). The
+`TParty.corps_id` back-link already existed since W3b-1; this adds
+the registry it points into.
+
+Infrastructure
+- `services/corps_registry.{h,cpp}` — `CorpsRegistry` (16-shard,
+  same actor model as Party/GuildRegistry) + `TCorps` (id,
+  commander party id, general char id, ordered squad-id list +
+  IsParty/AddParty/RemoveParty/Size helpers). Corps creation
+  (Insert with a freshly-allocated id, sharing the party id pool)
+  + commander succession land in W3c-2/3.
+- `services/corps_constants.h` — `corps::` mirror of NetCode.h
+  `CORPS_RESULT` + `kMaxCorpsParty` (7).
+- `HandlerContext.corps`, wired in `main.cpp`.
+
+Handler — `OnCorpsAskAck` (wID 0x906D): a party chief invites
+another party's chief to ally. Validates both are party chiefs of
+the same war-country, neither party is in an arena, and the legacy
+`CheckCorpsJoin` gate (not both already in a corps → `kWrongTarget`;
+neither corps at the `MAX_CORPS_PARTY` cap → `kMaxParty`), then
+forwards `MW_CORPSASK_REQ` to the target chief's map. Failures relay
+`MW_CORPSREPLY_REQ` to the inviter. No corps is created — formation
+is the answer's job (CORPSREPLY, W3c-2).
+
+Lock discipline extends the README §5 chain to char → party →
+corps; never two held at once.
+
+Senders — `SendMwCorpsAskReq` (4-field) + `SendMwCorpsReplyReq`
+(4-field) in the new `senders/senders_corps.cpp`.
+
+Tests
+- `tests/test_corps_registry.cpp` (6 scenarios) — registry
+  lifecycle + squad-set helpers + concurrent inserts.
+- `tests/test_corps_handlers.cpp` (6 scenarios, three-peer
+  loopback) — success forward + WRONG_TARGET / NO_PARTY (not a
+  chief) / BUSY (arena) / MAX_PARTY (full corps) / both-in-corps
+  WRONG_TARGET.
+
+Build verified: cmake + ctest -R tworldsvr_asio (26/26 passed).
+
+### W3b-6 — what landed
+
+Party **round-robin loot** (PT_ORDER mode) — the last party-only
+handler; the party subsystem is now complete on the player-facing
+wire surface. A monster drop for a turn-based-loot party is handed
+to the next member in turn-order.
+
+Handler — `OnPartyOrderTakeItemAck` (wID 0x904A): reads the header
++ the eligible-member list (those in range of the drop) + the
+dropped item, then picks the next looter via the party's turn
+cursor and forwards `MW_PARTYORDERTAKEITEM_REQ` with the item to
+that looter's map. A stale party id replies
+`MW_ADDITEMRESULT_REQ(MIT_NOTFOUND)` to the reporting map.
+
+The item is read with the W3a-37 cabinet codec's `ReadCabinetItem`
+and re-emitted with `WriteCabinetItem` — that codec is exactly the
+legacy `CreateItem` / `WrapItem` pair this handler uses, so it
+round-trips byte-for-byte without a new item codec.
+
+`TParty` order rotation (ported from legacy CTParty,
+party_registry.cpp) — `GetOrderIndex` / `SetNextOrder` /
+`GetNextOrder(eligible)`: the cursor honours the current member's
+turn if eligible, else the first eligible member after the cursor
+position, else wraps to the front. Runs under the party lock.
+
+Senders — `SendMwPartyOrderTakeItemReq` (header + WrapItem) +
+`SendMwAddItemResultReq` (generic item-pickup result).
+
+Tests — `tests/test_party_order_handlers.cpp` (4 scenarios,
+three-peer loopback): the cursor walking Alice→Bob across drops,
+a single-eligible-member drop, the item round-trip through the
+cabinet codec (incl. a variable magic entry), and the stale-party
+MIT_NOTFOUND reply.
+
+Build verified: cmake + ctest -R tworldsvr_asio (24/24 passed).
+
+### W3b-5 — what landed
+
+Party member **recall** — the recall-scroll teleport flow between
+two party members (summon a member to me, or move me to a member).
+Pure relay logic; no new party state. Corps-free.
+
+Handlers
+- `OnPartyMemberRecallAck` (wID 0x9105) — the initiator's request.
+  If the wire `origin_name` equals the initiator's own name it's a
+  summon (`TP_RECALL`): the target must be in the same party + on
+  the same map. Otherwise it's a move-to (`TP_MOVETO`): the origin
+  must be on the same map + same war-country. On a passing gate
+  world forwards `MW_PARTYMEMBERRECALLANS_REQ` to the other party's
+  map so their client confirms; on a failing gate it relays
+  `MW_PARTYMEMBERRECALL_REQ(IU_TARGETBUSY)` back to the initiator
+  (matching legacy: gate-pass-but-peer-offline is a silent drop,
+  only gate-fail replies busy).
+- `OnPartyMemberRecallAnsAck` (wID 0x9115) — the confirmation
+  coming back with the destination channel/map/position. World
+  re-checks the teleported char is still on the destination map
+  and not inside a small meeting room (forcing `IU_TARGETBUSY`
+  otherwise), then relays `MW_PARTYMEMBERRECALL_REQ` to that
+  char's map.
+
+Constants (party_constants.h) — `kTpRecall`/`kTpMoveTo`,
+`kItemUseTargetBusy` (IU_TARGETBUSY), the meeting-room map range +
+`IsSmallMeetingRoom`.
+
+Senders — `SendMwPartyMemberRecallAnsReq` (6-field) +
+`SendMwPartyMemberRecallReq` (12-field; failure replies zero the
+trailing destination fields).
+
+Tests — `tests/test_party_recall_handlers.cpp` (6 scenarios,
+three-peer loopback): summon + move-to RECALLANS forwarding, the
+non-party-member busy reject, and the RECALLANS relay (success +
+map-mismatch + small-meeting-room IU_TARGETBUSY gates). Float wire
+fields (position) are round-tripped.
+
+Build verified: cmake + ctest -R tworldsvr_asio (23/23 passed).
+
+### W3b-4 — what landed
+
+Three small party-attribute mutations, each fanning a broadcast to
+the roster. All read-mostly: no new state beyond the existing
+`TParty.chief_char_id` / `obtain_type` and `TChar` combat stats.
+
+Handlers
+- `OnPartyManstatAck` (wID 0x9026) — a member's HP/MP/level
+  changed on the map side. Updates the subject member's stored
+  combat stats (legacy SetCharStatus — HP/MP only; level stays
+  owned by LEVELUP) and re-broadcasts `MW_PARTYMANSTAT_REQ` to
+  every member so their roster HUD refreshes.
+- `OnChgPartyChiefAck` (wID 0x90A2) — chief hands leadership to
+  another member. Gates (legacy order): requester online + key
+  match → target online (`kNoUser`) → both in a party
+  (`kNoParty`) → same party (`kNoUser`) → not self (`kAlready`)
+  → requester is chief (`kNotChief`). On success sets the new
+  chief, replies `kChgChief` to the requester, and re-broadcasts
+  `MW_PARTYATTR_REQ` to every member with the new chief.
+- `OnChgPartyTypeAck` (wID 0x90CC) — chief changes the loot-
+  distribution mode. Gates: requester in a party + is chief
+  (`kNotChief` reply otherwise). On success updates
+  `TParty.obtain_type` + broadcasts `MW_CHGPARTYTYPE_REQ`
+  (result=0) to every member.
+
+Senders — `SendMwPartyManstatReq` (9-field), `SendMwChgPartyChiefReq`
+(3-field), `SendMwChgPartyTypeReq` (4-field). The chief-change
+roster refresh reuses the W3b-2/3 `SendAttr` (PARTYATTR) helper.
+
+Lock discipline unchanged: member-set + chief/obtain snapshotted
+under the party lock, released before any char lock or send.
+
+Deferred (corps not ported): the MANSTAT corps-general relay, the
+CHGCHIEF `ChgSquadChief` / `ReportEnemyList` / general-reassign
+and the `RW_PARTYCHGCHIEF_ACK` relay-DB echo — all corps_id-gated
+(always 0) or relay-channel-only.
+
+Tests — `tests/test_party_attr_handlers.cpp` (6 scenarios,
+three-peer loopback on one party): MANSTAT broadcast + stored-stat
+update; CHGTYPE non-chief reject (obtain unchanged) then chief
+broadcast (obtain updated); CHGCHIEF Alice→Bob (reply + roster
+PARTYATTR with the new chief + registry chief flip), the
+now-ex-chief's CHGCHIEF rejected `kNotChief`, and a self-target
+`kAlready`.
+
+Build verified: cmake + ctest -R tworldsvr_asio (22/22 passed).
+
+### W3b-3 — what landed
+
+Party **leave / kick** — completes the party lifecycle's
+create→join→leave triangle. The map server already validated chief
+authority before sending, so the handler is symmetric for both the
+voluntary-leave (bKick=0, char removes self) and chief-kick
+(bKick=1) cases.
+
+Handler — `OnPartyDelAck` (wID 0x9024): finds the party, confirms
+the named char is a member, then runs `LeaveParty`.
+
+`LeaveParty` (file-local self-recursive coroutine, mirrors legacy
+`CTWorldSvrModule::LeaveParty`):
+- **Survives** when ≥2 members remain (party size > 2, or the
+  recursive `is_delete=false` tail). If the leaver was chief,
+  succession promotes the first other member (legacy
+  `GetNextChief`) and every member gets a `MW_PARTYATTR_REQ`
+  refresh with the new chief before the DEL fan-out.
+- **Disbands** when the leave would drop it below two: the chief
+  is zeroed and, after the leaver is removed, the last remaining
+  member is pulled out via a recursive `LeaveParty(..., is_delete
+  =false)` and the party is dropped from the registry.
+- Fan-out: every member is sent `MW_PARTYDEL_REQ` — the leaver
+  with chief_id/party_id = 0 (their client clears the HUD), the
+  survivors with the surviving chief + party id. The leaver's
+  `TChar.party_id` back-pointer is cleared and it gets a final
+  cleared `MW_PARTYATTR_REQ`.
+
+Lock discipline unchanged: party member-set + meta snapshotted
+under the party lock and released before any char lock; a char
+lock is never held across the party lock (README §5).
+
+Deferred (corps not ported): `NotifyDelCorpsUnit` /
+`NotifyCorpsLeave` / `ChgSquadChief` / `ReportEnemyList` and the
+`RW_PARTYDEL_ACK` / `RW_PARTYCHGCHIEF_ACK` relay-DB echoes — all
+corps_id-gated (always 0) or relay-channel-only.
+
+Sender — `SendMwPartyDelReq` (7-field).
+
+Tests — `tests/test_party_del_handlers.cpp` (3 scenarios,
+four-peer loopback on one progressively-shrinking party):
+chief-leave with succession to the next member (asserts the
+new-chief PARTYATTR to all + the DEL fan-out + the leaver's
+cleared PARTYATTR), a non-chief kick (flag propagation + survival),
+and the disband cascade (2→0: both members pulled out, party
+removed from the registry, both back-pointers cleared).
+
+Build verified: cmake + ctest -R tworldsvr_asio (21/21 passed).
+
+### W3b-2 — what landed
+
+Party **formation** — the invitee's answer to the W3b-1 invite
+dialog. Where W3b-1 only relayed the dialog, this is the first
+handler that actually mutates the PartyRegistry.
+
+Registry — `PartyRegistry::GenId()` allocates a free WORD party id
+(rolling cursor over [1, 65535], skipping live ids; 0 reserved as
+the TChar "no party" sentinel). Legacy pre-seeds a recycled-id
+queue (`m_qGenPartyID`); the scan is the modern equivalent.
+
+Handler — `OnPartyJoinAck` (wID 0x9022). Re-runs the gate the
+invite passed (inviter+invitee online → `kNoReqUser`/`kNoUser`;
+answer == ASK_YES else relay the decline code, which aligns
+ASK_NO/ASK_BUSY ↔ PARTY_DENY/PARTY_BUSY; invitee still unpartied
+→ `kNoUser`; same war-country → `kCountry`), stashes the
+invitee's combat stats (SetCharStatus), then:
+- inviter already in a party → invitee joins it, chief-gated
+  (`kNotChief` / `kFull` / arena `kBusy`);
+- otherwise a fresh `TParty` is created (GenId + Insert) with the
+  inviter as chief and both chars joined.
+
+`JoinParty` fan-out (file-local coroutine) mirrors legacy
+`CTWorldSvrModule::JoinParty` + `AddPartyMember`: snapshot the
+party's member ids + meta under the party lock, release it, then
+for each online member fire the pairwise `MW_PARTYJOIN_REQ` (the
+joiner learns the member, the member learns the joiner), commit
+`TParty::AddMember` + set the joiner's `TChar.party_id`, and push
+the joiner a `MW_PARTYATTR_REQ` HUD refresh. Member describe-
+fields (name / level / HP-MP / race-sex-face-hair / class / guild
+name via GuildRegistry) are snapshotted through a `SnapshotMember`
+helper. Lock discipline: a char lock is never held across the
+party lock (snapshot-then-release), per README §5.
+
+Deferred (corps not ported): the `RW_PARTYADD_ACK` relay-DB
+persistence echo, `MW_CORPSJOIN_REQ`, and `NotifyAddCorpsUnit` —
+all guarded by `corps_id != 0`, which is always 0 until the corps
+subsystem lands. The BOW/BR cross-server JoinParty guards are
+W6-territory and skipped.
+
+Senders — `SendMwPartyJoinReq` (19-field, via a `PartyMemberInfo`
+POD) + `SendMwPartyAttrReq` (6-field).
+
+Tests
+- `tests/test_party_registry.cpp` scenario 7 — GenId sequential /
+  occupied-slot-skip / non-zero.
+- `tests/test_party_join_handlers.cpp` (4 scenarios, three-peer
+  loopback) — decline relay, inviter-offline relay, new-party
+  formation (asserts the pairwise JOIN_REQ describe-fields + both
+  PARTYATTR pushes + registry 2-member state + chief + both
+  back-pointers + the stashed stats), and a third char joining the
+  existing party (grows to 3, member-order-deterministic fan-out).
+
+Build verified: cmake + ctest -R tworldsvr_asio (20/20 passed).
+
+### W3b-1 — what landed
+
+Opens the **party** vertical — the W3a guild subsystem's sibling
+and the first half of the W3b phase. Mirrors how W3a-1 opened the
+guild work: the cluster-wide registry + back-pointer + the first
+handler. The guild + tactics + cabinet vertical is functionally
+complete on the player-facing surface, so this broadens scope to
+the next subsystem rather than chasing the schema-uncertain DB
+persistence backlog.
+
+Infrastructure
+- `services/party_registry.{h,cpp}` — `PartyRegistry` (16-shard,
+  same partitioning + per-entry-mutex actor model as
+  GuildRegistry; keyed by the WORD party id) + `TParty` (the
+  subset of legacy `CTParty` the world side touches: id, loot
+  `obtain_type`, optional `corps_id`, chief + loot-turn-order
+  back-pointers, arena flag, ordered member-id list, with
+  IsChief / IsMember / Size / AddMember / RemoveMember helpers).
+  Party **creation** (Insert with a freshly-allocated id) +
+  chief succession land with the W3b-2 PARTYJOIN / W3b-3 PARTYDEL
+  flows; W3b-1 only needs the read path for the invite gate.
+- `services/party_constants.h` — `party::` mirror of the
+  NetCode.h `TPARTY_RESULT` (kAgree..kCountry) + `PARTY_TYPE`
+  loot modes (kObtain*) + kMaxPartyMember=7 + the `WarCountry`
+  helper (legacy GetWarCountry: aid_country unless neutral).
+- `TChar` gains `party_id` + `party_waiter` (legacy m_pParty /
+  m_bPartyWaiter) + `max_hp/hp/max_mp/mp` (legacy SetCharStatus
+  stash for the later JOIN/MANSTAT broadcasts).
+- `HandlerContext.parties`.
+
+Handler — `OnPartyAddAck` (wID 0x901A, the chief/solo player
+inviting another player). Runs the legacy SSHandler.cpp:2486
+gate in order: requester online (else drop) → not inviting self
+→ target online (`kNoUser`) → target not mid-invite
+(`kWaiters`) → target unpartied (`kAlready`) → same war-country
+(`kCountry`) → if the requester is already in a party they must
+be its chief (`kNotChief`) of a non-full (`kFull`), non-arena
+(silent drop) party. Failures relay back to the requester's map
+(the originating peer); success stashes the requester's combat
+stats and forwards `PARTY_AGREE` (keyed by the inviter id) to
+the target's map peer so their client pops the join dialog, then
+flags the target `party_waiter`. No party is created — formation
+happens when the target answers (PARTYJOIN, W3b-2).
+
+Sender — `SendMwPartyAddReq` (7-field: char_id, key,
+request_name, target_name, obtain_type, result, request_char_id).
+
+Tests
+- `tests/test_party_registry.cpp` (6 scenarios) — registry
+  lifecycle + the TParty member-set helpers, incl. concurrent
+  inserts.
+- `tests/test_party_handlers.cpp` (7 scenarios) — drives
+  MW_PARTYADD_ACK over a two-peer loopback session, asserting
+  each gate (NOUSER / AGREE-on-target-peer / WAITERS / ALREADY /
+  COUNTRY / NOTCHIEF / FULL), the target waiter flip, and the
+  inviter stat stash.
+
+Build verified: cmake + ctest -R tworldsvr_asio (19/19 passed).
 
 ### W3a-38 — what landed
 

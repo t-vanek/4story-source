@@ -343,8 +343,126 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             std::move(body), ctx);
         co_return;
 
-    // W3a-36+ picks up the tactics term-expiry sweep,
-    // cabinet PUTIN/TAKEOUT + item codec. … see README §4.
+    // ---- W3b-1/W3b-2: party invite + formation (handlers_party) -
+    case MessageId::MW_PARTYADD_ACK:
+        co_await OnPartyAddAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYJOIN_ACK:
+        co_await OnPartyJoinAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYDEL_ACK:
+        co_await OnPartyDelAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYMANSTAT_ACK:
+        co_await OnPartyManstatAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHGPARTYCHIEF_ACK:
+        co_await OnChgPartyChiefAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHGPARTYTYPE_ACK:
+        co_await OnChgPartyTypeAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYMEMBERRECALL_ACK:
+        co_await OnPartyMemberRecallAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYMEMBERRECALLANS_ACK:
+        co_await OnPartyMemberRecallAnsAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::MW_PARTYORDERTAKEITEM_ACK:
+        co_await OnPartyOrderTakeItemAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
+    // ---- W3c-1/2: corps invite + formation (handlers_corps.cpp) -
+    case MessageId::MW_CORPSASK_ACK:
+        co_await OnCorpsAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CORPSREPLY_ACK:
+        co_await OnCorpsReplyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CORPSLEAVE_ACK:
+        co_await OnCorpsLeaveAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CHGCORPSCOMMANDER_ACK:
+        co_await OnChgCorpsCommanderAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_PARTYMOVE_ACK:
+        co_await OnPartyMoveAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CORPSCMD_ACK:
+        co_await OnCorpsCmdAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W3c-7: corps enemy-list family + HP (handlers_corps) ---
+    case MessageId::MW_CORPSENEMYLIST_ACK:
+        co_await OnCorpsEnemyListAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_MOVECORPSENEMY_ACK:
+        co_await OnMoveCorpsEnemyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_MOVECORPSUNIT_ACK:
+        co_await OnMoveCorpsUnitAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_ADDCORPSENEMY_ACK:
+        co_await OnAddCorpsEnemyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_DELCORPSENEMY_ACK:
+        co_await OnDelCorpsEnemyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CORPSHP_ACK:
+        co_await OnCorpsHpAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W4-1: friend invite (handlers_friend.cpp) -------------
+    case MessageId::MW_FRIENDASK_ACK:
+        co_await OnFriendAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_FRIENDREPLY_ACK:
+        co_await OnFriendReplyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_FRIENDERASE_ACK:
+        co_await OnFriendEraseAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_FRIENDGROUPMAKE_ACK:
+        co_await OnFriendGroupMakeAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_FRIENDGROUPDELETE_ACK:
+        co_await OnFriendGroupDeleteAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_FRIENDGROUPCHANGE_ACK:
+        co_await OnFriendGroupChangeAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_FRIENDGROUPNAME_ACK:
+        co_await OnFriendGroupNameAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_FRIENDLIST_ACK:
+        co_await OnFriendListAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W4-5: chat relay (handlers_chat.cpp) ------------------
+    case MessageId::MW_CHAT_ACK:
+        co_await OnChatAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W4-6: soulmate (handlers_soulmate.cpp) ----------------
+    case MessageId::MW_SOULMATESEARCH_ACK:
+        co_await OnSoulmateSearchAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_SOULMATEREG_ACK:
+        co_await OnSoulmateRegAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_SOULMATEEND_ACK:
+        co_await OnSoulmateEndAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // ---- W4-8: region update (handlers_char.cpp) ---------------
+    case MessageId::MW_REGION_ACK:
+        co_await OnRegionAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W4-9+ picks up login presence (connect fan-out) + the
+    // friend/soulmate DB load. … see README §4.
 
     default:
         break;

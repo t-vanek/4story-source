@@ -17,6 +17,7 @@
 #include "db/schema_validator.h"
 #include "services/cash_item_sale_registry.h"
 #include "services/char_registry.h"
+#include "services/ctrl_svr_slot.h"
 #include "services/event_registry.h"
 #include "services/fake_guild_level_repository.h"
 #include "services/fake_guild_repository.h"
@@ -171,6 +172,7 @@ int main(int argc, char** argv)
         tworldsvr::RpsRegistry   rps;
         tworldsvr::EventRegistry events;
         tworldsvr::CashItemSaleRegistry cash_sales;
+        tworldsvr::CtrlSvrSlot          ctrl_svr;
 
         // Warm the guild-level chart from the backing store. Empty
         // on the FakeGuildLevelRepository path; SOCI returns every
@@ -215,6 +217,7 @@ int main(int argc, char** argv)
         ctx.rps          = &rps;
         ctx.events       = &events;
         ctx.cash_sales   = &cash_sales;
+        ctx.ctrl_svr     = &ctrl_svr;
         ctx.nation       = cfg.nation;
 
         tworldsvr::WorldServerConfig svr_cfg{};

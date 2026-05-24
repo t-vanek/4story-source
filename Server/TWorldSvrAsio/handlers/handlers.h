@@ -120,6 +120,28 @@ boost::asio::awaitable<void> OnCloseCharAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W4-20: login finalization (handlers_char.cpp) -----------------
+//
+// MW_ENTERSVR_ACK — the char finished loading on its map; world
+// finalizes the cluster-side identity (name + base attrs + position
+// + region, the bulk-set the incremental W3a-3/W4-8/W4-9 handlers
+// later update) and fires the friend connect-presence fan-out
+// (NotifyFriendsOnLogin) now that the name/region are known. The
+// big CHARINFO_REQ composite reply (guild/duty/peer/castle), the
+// relay CHANGEMAP, and the failure replies (DELCHAR / INVALIDCHAR /
+// CONRESULT) are deferred — this slice covers the identity store +
+// presence, which is what unblocks login presence.
+//
+// Wire (SSHandler.cpp:1218): DWORD char_id, key, STRING name,
+//   BYTE level, real_sex, class, race, sex, face, hair, helmet_hide,
+//   country, aid_country, DWORD region, BYTE channel, WORD map_id,
+//   FLOAT pos_x, pos_y, pos_z, BYTE logout, save, result,
+//   WORD title_id, DWORD rank_point, user_ip
+boost::asio::awaitable<void> OnEnterSvrAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W3a-1: guild lifecycle (handlers_guild.cpp) -------------------
 
 boost::asio::awaitable<void> OnGuildLoadAck(
@@ -1470,6 +1492,12 @@ boost::asio::awaitable<void> OnChatBanAck(
 boost::asio::awaitable<void> NotifyFriendsOnLogout(
     const HandlerContext& ctx, std::shared_ptr<TChar> who);
 boost::asio::awaitable<void> NotifySoulmateOnLogout(
+    const HandlerContext& ctx, std::shared_ptr<TChar> who);
+
+// W4-20: connect-side mirror — fired from OnEnterSvrAck once the
+// char's identity (name/region) is loaded. Tells each already-online
+// friend this char came online + flips their reverse entry connected.
+boost::asio::awaitable<void> NotifyFriendsOnLogin(
     const HandlerContext& ctx, std::shared_ptr<TChar> who);
 
 // W4-12: drop a logging-out char from every TMS conference it was

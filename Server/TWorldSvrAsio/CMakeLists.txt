@@ -623,3 +623,12 @@ target_link_libraries(test_tworldsvr_asio_chatban_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_chatban_handlers
     COMMAND test_tworldsvr_asio_chatban_handlers)
+
+# W4-20 wire test: login finalization — ENTERSVR indexes the name +
+# stores identity/region + fans the friend connect-presence toast.
+add_executable(test_tworldsvr_asio_entersvr_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_entersvr_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_entersvr_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_entersvr_handlers
+    COMMAND test_tworldsvr_asio_entersvr_handlers)

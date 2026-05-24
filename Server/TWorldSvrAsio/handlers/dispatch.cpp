@@ -34,6 +34,9 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_ADDCHAR_ACK:
         co_await OnAddCharAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::MW_ENTERSVR_ACK:
+        co_await OnEnterSvrAck(std::move(peer), std::move(body), ctx);
+        co_return;
     case MessageId::MW_CLOSECHAR_ACK:
         co_await OnCloseCharAck(std::move(peer), std::move(body), ctx);
         co_return;

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W4-19 GM chat ban (CHATBAN)
+## Status — W4-20 login finalization + connect presence (ENTERSVR)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -88,12 +88,50 @@ that the four shipped Asio daemons already use.
 | W4-16 | Friend-group write-back — IFriendRepository MakeGroup/DeleteGroup/RenameGroup/ChangeFriendGroup wired into the W4-3 group handlers via CoOffloadVoidIf (persist alongside the in-memory mutation) | ✅ |
 | W4-17 | Friend-edge write-back — IFriendRepository InsertFriend/EraseFriend wired into the accept paths (both directed edges) + erase path (forward edge) via CoOffloadVoidIf | ✅ |
 | W4-18 | Soulmate write-back — IFriendRepository RegSoulmate/DelSoulmate wired into SEARCH-pair / REG / END + the W4-9 level-gap auto-dissolve (both mutual rows) via CoOffloadVoidIf | ✅ |
-| **W4-19** | GM chat ban — OnMW_CHATBAN_ACK sets/extends/clears TChar.chat_ban_time, enforces on the target's map + echoes to the issuing GM (MW_CHATBAN_REQ) | ✅ |
-| W4-20+ | Login-presence connect fan-out (blocked on a char-identity-loaded signal); cluster-wide ban list + RW relay propagation | ⏸ |
+| W4-19 | GM chat ban — OnMW_CHATBAN_ACK sets/extends/clears TChar.chat_ban_time, enforces on the target's map + echoes to the issuing GM (MW_CHATBAN_REQ) | ✅ |
+| **W4-20** | Login finalization — OnMW_ENTERSVR_ACK indexes the char's name + bulk-sets identity/position/region, then fires NotifyFriendsOnLogin (connect-presence fan-out — now unblocked) | ✅ |
+| W4-21+ | ENTERSVR CHARINFO composite reply + relay CHANGEMAP + failure replies; cluster-wide chat-ban list | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W4-20 — what landed
+
+**Login finalization + connect presence** — `MW_ENTERSVR_ACK` is the
+"char is fully loaded on its map" signal. It was the missing piece
+that blocked the connect-side friend presence: at `OnAddCharAck` the
+char's own name/region aren't known yet (ADDCHAR carries neither), so
+any "X came online" toast would have shipped a blank name.
+
+- `OnEnterSvrAck` (handlers_char.cpp, wID 0x9009) reads the 25-field
+  login packet, validates char + key (drops on mismatch / enter
+  error — the legacy DELCHAR / INVALIDCHAR / CONRESULT replies are
+  deferred), indexes the name via `CharRegistry::Rename` (so
+  `FindByName` resolves a logged-in char without a prior rename), and
+  bulk-sets identity + position + region (the values the incremental
+  W3a-3 / W4-8 / W4-9 / W4-14 handlers later refine).
+- It then calls `NotifyFriendsOnLogin` — the connect-side mirror of
+  the W4-7 logout fan-out (reverted once in W4-16 as premature, now
+  correct). For each friend online *right now* (resolved live), it
+  flips both sides' connected flag and, for real friends (mutual /
+  target), pushes `MW_FRIENDCONNECTION_REQ(CONNECTION)` to their map.
+
+With W4-15..18 (persistence) this makes the friend subsystem behave
+across a relog: friends load, the player's arrival is announced, and
+their friends' rosters light up live.
+
+Deferred: the big `CHARINFO_REQ` composite reply (guild / duty / peer
+/ castle), the relay-server `CHANGEMAP`, and the enter-failure replies
+— client-facing pieces that don't affect the world-side identity +
+presence this slice delivers.
+
+Tests — `tests/test_entersvr_handlers.cpp`: Bob is online with Alice
+as a mutual friend; Alice's ENTERSVR indexes her name and Bob receives
+a `FRIEND_CONNECTION` toast naming her, with his roster entry flipped
+connected.
+
+Build verified: cmake + ctest -R tworldsvr_asio (52/52 passed).
 
 ### W4-19 — what landed
 

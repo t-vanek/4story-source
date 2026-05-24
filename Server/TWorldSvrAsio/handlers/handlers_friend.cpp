@@ -646,6 +646,54 @@ NotifyFriendsOnLogout(const HandlerContext& ctx, std::shared_ptr<TChar> who)
 }
 
 boost::asio::awaitable<void>
+NotifyFriendsOnLogin(const HandlerContext& ctx, std::shared_ptr<TChar> who)
+{
+    if (!ctx.chars || !ctx.peers || !who) co_return;
+
+    std::uint32_t who_id = 0, who_region = 0;
+    std::string   who_name;
+    struct FE { std::uint32_t id; std::uint8_t type; };
+    std::vector<FE> entries;
+    {
+        std::lock_guard g(who->lock);
+        who_id     = who->char_id;
+        who_name   = who->name;
+        who_region = who->region;
+        for (const auto& f : who->friends)
+            entries.push_back({f.id, f.type});
+    }
+
+    // Mirror of NotifyFriendsOnLogout, fired once the char's identity
+    // is loaded (OnEnterSvrAck). Online status is resolved live here
+    // (vs. the stored flag) so a friend who came online between this
+    // char's ADDCHAR hydrate and its ENTERSVR still gets the toast.
+    for (const auto& e : entries)
+    {
+        auto partner = ctx.chars->Find(e.id);
+        if (!partner) continue;                 // offline now → skip
+        std::uint32_t pkey = 0;
+        std::uint8_t  pmsi = 0;
+        {
+            std::lock_guard g(partner->lock);
+            for (auto& pf : partner->friends)
+                if (pf.id == who_id)
+                { pf.connected = true; pf.region = who_region; }
+            pkey = partner->key;
+            pmsi = partner->main_server_id;
+        }
+        // Reflect the now-online partner into our own entry.
+        { std::lock_guard g(who->lock);
+          for (auto& f : who->friends) if (f.id == e.id) f.connected = true; }
+        // Only a real friend (mutual / pending) gets the toast.
+        if (e.type != frnd::kTypeFriend)
+            if (auto p = FindMapPeer(ctx, pmsi))
+                co_await senders::SendMwFriendConnectionReq(p, e.id, pkey,
+                    frnd::kConnection, who_name, who_region);
+    }
+    co_return;
+}
+
+boost::asio::awaitable<void>
 OnFriendListAck(std::shared_ptr<PeerSession> peer,
                 std::vector<std::byte>       body,
                 const HandlerContext&        ctx)

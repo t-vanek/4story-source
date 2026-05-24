@@ -41,16 +41,19 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_char_base.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_guild.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_party.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_corps.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_party.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_corps.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
     ${TWORLD_ASIO_SRC}/services/guild_peerage.cpp
     ${TWORLD_ASIO_SRC}/services/guild_registry.cpp
     ${TWORLD_ASIO_SRC}/services/party_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/corps_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/guild_tactics_wanted_registry.cpp
@@ -337,3 +340,22 @@ target_link_libraries(test_tworldsvr_asio_party_order_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_party_order_handlers
     COMMAND test_tworldsvr_asio_party_order_handlers)
+
+# W3c-1 unit test: CorpsRegistry partition / lifecycle + TCorps
+# squad-set helpers.
+add_executable(test_tworldsvr_asio_corps_registry
+    ${TWORLD_ASIO_SRC}/tests/test_corps_registry.cpp)
+target_link_libraries(test_tworldsvr_asio_corps_registry PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_corps_registry
+    COMMAND test_tworldsvr_asio_corps_registry)
+
+# W3c-1 wire test: MW_CORPSASK_ACK invite-relay gate over a
+# three-peer loopback session — success forward + WRONG_TARGET /
+# NO_PARTY / BUSY / MAX_PARTY / both-in-corps reject branches.
+add_executable(test_tworldsvr_asio_corps_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_corps_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_corps_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_corps_handlers
+    COMMAND test_tworldsvr_asio_corps_handlers)

@@ -374,9 +374,13 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
-    // W3c+ opens the Corps subsystem (squads/general), which
-    // unblocks PARTYMOVE + the deferred corps branches across the
-    // party handlers. … see README §4.
+    // ---- W3c-1: corps invite relay (handlers_corps.cpp) --------
+    case MessageId::MW_CORPSASK_ACK:
+        co_await OnCorpsAskAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
+    // W3c-2+ picks up CORPSREPLY (formation) + CORPSLEAVE +
+    // CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle). … README §4.
 
     default:
         break;

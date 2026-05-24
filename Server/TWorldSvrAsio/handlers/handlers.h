@@ -23,6 +23,7 @@
 #include "../services/guild_wanted_registry.h"
 #include "../services/guild_tactics_wanted_registry.h"
 #include "../services/party_registry.h"
+#include "../services/corps_registry.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -73,6 +74,10 @@ struct HandlerContext
     // W3b-1+ deploys. Party-flow handlers consult it for the
     // requester's existing-party state (chief / size gates).
     PartyRegistry*            parties    = nullptr;
+
+    // W3c-1: cluster-wide corps index (party alliances under a
+    // general). Owned by main; non-null in W3c-1+ deploys.
+    CorpsRegistry*            corps      = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1165,6 +1170,25 @@ boost::asio::awaitable<void> OnPartyMemberRecallAnsAck(
 //   WORD temp_mon_id, BYTE member_count, DWORD member[member_count],
 //   <CreateItem>
 boost::asio::awaitable<void> OnPartyOrderTakeItemAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W3c-1: corps invite relay (handlers_corps.cpp) ----------------
+//
+// Opens the corps subsystem (the party subsystem's parent: a corps
+// is a set of parties/squads under a general). MW_CORPSASK_ACK is
+// a party chief inviting another party's chief to ally into a
+// corps. World validates both are party chiefs of the same
+// war-country, neither party is in an arena, and the CheckCorpsJoin
+// gate (not both already in a corps; neither corps at the
+// MAX_CORPS_PARTY cap), then forwards MW_CORPSASK_REQ to the target
+// chief's map so their client pops the confirm dialog. Failures
+// relay MW_CORPSREPLY_REQ back to the inviter. No corps is created
+// here — formation happens on the answer (MW_CORPSREPLY_ACK, W3c-2).
+//
+// Wire (SSHandler.cpp:6873): DWORD char_id, key, STRING target_name
+boost::asio::awaitable<void> OnCorpsAskAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

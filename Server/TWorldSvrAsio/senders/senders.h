@@ -1225,4 +1225,32 @@ boost::asio::awaitable<void> SendMwAddItemResultReq(
     std::uint8_t                 item_id,
     std::uint8_t                 result);
 
+// --- W3c-1 corps invite relay (senders_corps.cpp) -----------------
+
+// MW_CORPSASK_REQ — forwarded to the target chief's map when a
+// party chief invites them to ally into a corps. Their client pops
+// the confirm dialog keyed by the inviter.
+//
+// Wire layout (SSSender.cpp:2021):
+//   DWORD char_id, DWORD key, DWORD inviter_char_id,
+//   STRING inviter_name
+boost::asio::awaitable<void> SendMwCorpsAskReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint32_t                inviter_char_id,
+    const std::string&           inviter_name);
+
+// MW_CORPSREPLY_REQ — the corps-invite result relayed back to a
+// chief (CORPS_* code + the other chief's name).
+//
+// Wire layout (SSSender.cpp:1954):
+//   DWORD char_id, DWORD key, BYTE result, STRING name
+boost::asio::awaitable<void> SendMwCorpsReplyReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t                char_id,
+    std::uint32_t                key,
+    std::uint8_t                 result,
+    const std::string&           name);
+
 } // namespace tworldsvr::senders

@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W3b-6 party round-robin loot (PT_ORDER)
+## Status — W3c-1 corps subsystem opener (CORPSASK invite relay)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -62,12 +62,57 @@ that the four shipped Asio daemons already use.
 | W3b-3 | Party leave/kick — OnMW_PARTYDEL_ACK + LeaveParty (chief succession, PARTYDEL fan-out, disband cascade on drop-below-two) + SendMwPartyDelReq | ✅ |
 | W3b-4 | Party attribute changes — OnMW_PARTYMANSTAT_ACK (member-stat broadcast) + OnMW_CHGPARTYCHIEF_ACK (hand off leadership) + OnMW_CHGPARTYTYPE_ACK (loot mode) + 3 senders | ✅ |
 | W3b-5 | Party member recall — OnMW_PARTYMEMBERRECALL_ACK (summon/move-to gate + RECALLANS_REQ forward) + OnMW_PARTYMEMBERRECALLANS_ACK (destination relay, same-map + meeting-room gates) + 2 senders | ✅ |
-| **W3b-6** | Party round-robin loot — OnMW_PARTYORDERTAKEITEM_ACK (turn-cursor next-looter selection + item forward via the cabinet codec; stale-party MIT_NOTFOUND) + TParty order rotation (GetNextOrder/SetNextOrder/GetOrderIndex) + 2 senders | ✅ |
-| W3c | Corps subsystem (squads / general) — unblocks PARTYMOVE + the deferred corps branches | ⏸ |
+| W3b-6 | Party round-robin loot — OnMW_PARTYORDERTAKEITEM_ACK (turn-cursor next-looter selection + item forward via the cabinet codec; stale-party MIT_NOTFOUND) + TParty order rotation (GetNextOrder/SetNextOrder/GetOrderIndex) + 2 senders | ✅ |
+| **W3c-1** | Corps subsystem opener — CorpsRegistry + TCorps + corps_constants + OnMW_CORPSASK_ACK invite-relay gate (CheckCorpsJoin) + SendMwCorpsAskReq/ReplyReq | ✅ |
+| W3c-2+ | Corps formation (CORPSREPLY) + CORPSLEAVE + CHGCORPSCOMMANDER + PARTYMOVE (squad reshuffle) + corps command/enemy-list | ⏸ |
 | W4 | Friend + Chat + Soulmate | ⏸ |
 | W5 | War + Castle + Tournament / TNMT | ⏸ |
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | ⏸ |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
+
+### W3c-1 — what landed
+
+Opens the **corps** subsystem — the party subsystem's parent: a
+corps is a set of parties (squads) under a general. Mirrors how
+W3b-1 opened party (registry + back-pointer + first handler). The
+`TParty.corps_id` back-link already existed since W3b-1; this adds
+the registry it points into.
+
+Infrastructure
+- `services/corps_registry.{h,cpp}` — `CorpsRegistry` (16-shard,
+  same actor model as Party/GuildRegistry) + `TCorps` (id,
+  commander party id, general char id, ordered squad-id list +
+  IsParty/AddParty/RemoveParty/Size helpers). Corps creation
+  (Insert with a freshly-allocated id, sharing the party id pool)
+  + commander succession land in W3c-2/3.
+- `services/corps_constants.h` — `corps::` mirror of NetCode.h
+  `CORPS_RESULT` + `kMaxCorpsParty` (7).
+- `HandlerContext.corps`, wired in `main.cpp`.
+
+Handler — `OnCorpsAskAck` (wID 0x906D): a party chief invites
+another party's chief to ally. Validates both are party chiefs of
+the same war-country, neither party is in an arena, and the legacy
+`CheckCorpsJoin` gate (not both already in a corps → `kWrongTarget`;
+neither corps at the `MAX_CORPS_PARTY` cap → `kMaxParty`), then
+forwards `MW_CORPSASK_REQ` to the target chief's map. Failures relay
+`MW_CORPSREPLY_REQ` to the inviter. No corps is created — formation
+is the answer's job (CORPSREPLY, W3c-2).
+
+Lock discipline extends the README §5 chain to char → party →
+corps; never two held at once.
+
+Senders — `SendMwCorpsAskReq` (4-field) + `SendMwCorpsReplyReq`
+(4-field) in the new `senders/senders_corps.cpp`.
+
+Tests
+- `tests/test_corps_registry.cpp` (6 scenarios) — registry
+  lifecycle + squad-set helpers + concurrent inserts.
+- `tests/test_corps_handlers.cpp` (6 scenarios, three-peer
+  loopback) — success forward + WRONG_TARGET / NO_PARTY (not a
+  chief) / BUSY (arena) / MAX_PARTY (full corps) / both-in-corps
+  WRONG_TARGET.
+
+Build verified: cmake + ctest -R tworldsvr_asio (26/26 passed).
 
 ### W3b-6 — what landed
 

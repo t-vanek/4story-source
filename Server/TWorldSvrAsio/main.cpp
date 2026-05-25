@@ -95,9 +95,11 @@ int main(int argc, char** argv)
         //
         // Configure the fourstory::mapper Automapper once at startup
         // (mirrors TControlSvrAsio). GuildMappingProfile wires
-        // GuildRow→TGuild / GuildMemberRow→TGuildMember so the SOCI
-        // repository's read path maps DB rows to domain objects without
-        // hand-written field copies. Registered unconditionally — the
+        // GuildRow→TGuild / GuildMemberRow→TGuildMember and
+        // FriendMappingProfile wires Friend{Forward,Reverse}Row→FriendRow,
+        // so the SOCI repositories' read paths map DB rows to domain
+        // objects without hand-written field copies. Registered
+        // unconditionally — the
         // Fake repositories don't use it, but keeping the bootstrap
         // identical on both paths avoids a "works only with a DB" trap.
         {
@@ -105,6 +107,7 @@ int main(int argc, char** argv)
             if (!reg.Applied())
             {
                 reg.Register<tworldsvr::GuildMappingProfile>();
+                reg.Register<tworldsvr::FriendMappingProfile>();
                 reg.ApplyAll();
                 spdlog::info("mapper: {} profile(s) applied",
                     reg.Count());

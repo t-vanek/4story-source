@@ -1,6 +1,9 @@
 #include "services/soci_friend_repository.h"
 
+#include "services/friend_entities.h"
+
 #include "fourstory/db/orm/db_context.h"
+#include "fourstory/mapper/mapper.h"
 
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
@@ -8,6 +11,7 @@
 namespace tworldsvr {
 
 using fourstory::db::orm::DbContext;
+using fourstory::mapper::AdaptAll;
 
 FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id)
 {
@@ -36,46 +40,28 @@ FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id)
         }
 
         // Forward edges: friends this char added, joined to TCHARTABLE
-        // for name / class / level (legacy CTBLFriend).
-        {
-            soci::rowset<soci::row> rs = (sql.prepare <<
+        // for name / class / level (legacy CTBLFriend). The ORM maps each
+        // JOIN row → FriendForwardRow, the Automapper folds it → FriendRow.
+        out.forward = AdaptAll<FriendRow>(
+            ctx.Set<FriendForwardRow>().QueryBound(
                 "SELECT F.\"dwFriendID\", C.\"szName\", F.\"bGroup\", "
                 "C.\"bClass\", C.\"bLevel\" "
                 "FROM \"TFRIENDTABLE\" AS F "
                 "INNER JOIN \"TCHARTABLE\" AS C ON F.\"dwFriendID\" = "
                 "C.\"dwCharID\" "
                 "WHERE F.\"dwCharID\" = :id AND C.\"bDelete\" = 0",
-                soci::use(cid));
-            for (const auto& r : rs)
-            {
-                FriendRow row;
-                row.id    = static_cast<std::uint32_t>(r.get<int>("dwFriendID"));
-                row.name  = r.get<std::string>("szName");
-                row.group = static_cast<std::uint8_t>(r.get<int>("bGroup"));
-                row.klass = static_cast<std::uint8_t>(r.get<int>("bClass"));
-                row.level = static_cast<std::uint8_t>(r.get<int>("bLevel"));
-                out.forward.push_back(std::move(row));
-            }
-        }
+                soci::use(cid)));
 
         // Reverse edges: chars who added this char (legacy
         // CTBLFriendTarget — id + name only).
-        {
-            soci::rowset<soci::row> rs = (sql.prepare <<
+        out.reverse = AdaptAll<FriendRow>(
+            ctx.Set<FriendReverseRow>().QueryBound(
                 "SELECT F.\"dwCharID\", C.\"szName\" "
                 "FROM \"TFRIENDTABLE\" AS F "
                 "INNER JOIN \"TCHARTABLE\" AS C ON F.\"dwCharID\" = "
                 "C.\"dwCharID\" "
                 "WHERE F.\"dwFriendID\" = :id AND C.\"bDelete\" = 0",
-                soci::use(cid));
-            for (const auto& r : rs)
-            {
-                FriendRow row;
-                row.id   = static_cast<std::uint32_t>(r.get<int>("dwCharID"));
-                row.name = r.get<std::string>("szName");
-                out.reverse.push_back(std::move(row));
-            }
-        }
+                soci::use(cid)));
 
         // Soulmate pairing (legacy TSOULMATETABLE).
         {

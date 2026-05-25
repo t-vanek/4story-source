@@ -25,6 +25,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fourstory::db::orm {
@@ -226,6 +227,47 @@ public:
     void RawExecute(const std::string& sql)
     {
         m_sql << sql;
+    }
+
+    // Parameterized SELECT — runs `sql` with caller-supplied SOCI binders
+    // (soci::use(...)) and maps each result row via EntityMapping<T>::FromRow.
+    // This is the escape hatch for parameterized / JOIN reads that don't fit
+    // the single-table Where()/FindById() shape, while still mapping rows
+    // through the ORM instead of a hand-written rowset loop:
+    //
+    //   auto rows = repo.QueryBound(
+    //       "SELECT F.dwFriendID, C.szName FROM TFRIENDTABLE F "
+    //       "JOIN TCHARTABLE C ON F.dwFriendID = C.dwCharID "
+    //       "WHERE F.dwCharID = :id",
+    //       soci::use(char_id));
+    //
+    // Binders are bound positionally/by-name exactly as SOCI's own
+    // statement::exchange handles them, so `soci::use(x)` and
+    // `soci::use(x, "name")` both work. The bound values must outlive the
+    // call (they do — they are function arguments here).
+    template<typename... Binders>
+    std::vector<T> QueryBound(const std::string& sql, Binders&&... binders)
+    {
+        std::vector<T> out;
+        try
+        {
+            soci::statement st(m_sql);
+            st.alloc();
+            st.prepare(sql);
+            (st.exchange(std::forward<Binders>(binders)), ...);
+            soci::row row;
+            st.exchange(soci::into(row));
+            st.define_and_bind();
+            st.execute(false);
+            while (st.fetch())
+                out.push_back(Map::FromRow(row));
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::error("Repository<{}>::QueryBound: {} sql={}",
+                Map::Table, ex.what(), sql);
+        }
+        return out;
     }
 
 private:

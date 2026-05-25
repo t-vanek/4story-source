@@ -19,6 +19,8 @@
 
 #include "services/guild_entities.h"
 #include "services/guild_registry.h"
+#include "services/friend_entities.h"
+#include "services/friend_repository.h"
 
 #include "fourstory/mapper/mapper.h"
 
@@ -67,6 +69,31 @@ public:
             .Set(&TGuildMember::duty,     &GuildMemberRow::duty)
             .Set(&TGuildMember::peer,     &GuildMemberRow::peer)
             .Set(&TGuildMember::service,  &GuildMemberRow::service);
+    }
+};
+
+class FriendMappingProfile : public fourstory::mapper::MapperProfile
+{
+public:
+    const char* Name() const override { return "FriendMappingProfile"; }
+
+    void Configure() override
+    {
+        using namespace fourstory::mapper;
+
+        // Forward edge → FriendRow (full display fields).
+        MapperConfig<FriendForwardRow, FriendRow>()
+            .Set(&FriendRow::id,    &FriendForwardRow::friend_id)
+            .Set(&FriendRow::name,  &FriendForwardRow::name)
+            .Set(&FriendRow::group, &FriendForwardRow::group)
+            .Set(&FriendRow::klass, &FriendForwardRow::klass)
+            .Set(&FriendRow::level, &FriendForwardRow::level);
+
+        // Reverse edge → FriendRow (id + name only; level/class/group
+        // stay default-zero, matching legacy CTBLFriendTarget).
+        MapperConfig<FriendReverseRow, FriendRow>()
+            .Set(&FriendRow::id,   &FriendReverseRow::char_id)
+            .Set(&FriendRow::name, &FriendReverseRow::name);
     }
 };
 

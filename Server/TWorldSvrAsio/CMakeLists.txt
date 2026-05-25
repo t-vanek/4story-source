@@ -266,6 +266,15 @@ target_link_libraries(test_tworldsvr_asio_guild_level_cache PRIVATE
 add_test(NAME tworldsvr_asio_guild_level_cache
     COMMAND test_tworldsvr_asio_guild_level_cache)
 
+# Automapper profile wiring: GuildRow→TGuild, GuildMemberRow→
+# TGuildMember, Friend{Forward,Reverse}Row→FriendRow field-by-field.
+add_executable(test_tworldsvr_asio_mapper_profiles
+    ${TWORLD_ASIO_SRC}/tests/test_mapper_profiles.cpp)
+target_link_libraries(test_tworldsvr_asio_mapper_profiles PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_mapper_profiles
+    COMMAND test_tworldsvr_asio_mapper_profiles)
+
 # W3a-5 unit test: CheckPeerage gate. 7 scenarios cover every
 # branch of the legacy switch + the W3a-4d "null level_row =
 # relaxed dev gate" path.

@@ -168,3 +168,11 @@ target_link_libraries(test_tmapsvr_asio_mapper_profiles PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_mapper_profiles
     COMMAND test_tmapsvr_asio_mapper_profiles)
+
+# world_senders byte-layout suite (MW_/RW_ encoders → TWorld).
+add_executable(test_tmapsvr_asio_world_senders
+    ${TMAPSVR_ASIO_SRC}/tests/test_world_senders.cpp)
+target_link_libraries(test_tmapsvr_asio_world_senders PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_world_senders
+    COMMAND test_tmapsvr_asio_world_senders)

@@ -18,6 +18,15 @@
 
 namespace tmapsvr {
 
+// MW_ADDCHAR_ACK body — 18 bytes, mirrors SSSender.cpp:237. Sent right
+// after a CS_CONNECT_REQ clears so TWorld knows which map owns the char
+// and can route DM_/MW_ traffic to it. Parsed by TWorld's OnAddCharAck.
+std::vector<std::byte> EncodeAddCharAck(std::uint32_t char_id,
+                                        std::uint32_t key,
+                                        std::uint32_t ip_addr,
+                                        std::uint16_t port,
+                                        std::uint32_t user_id);
+
 // MW_ENTERSVR_ACK body — 24 fields, mirrors SSSender.cpp:782. The char
 // identity is taken straight from the loaded CharSnapshot; the
 // session/transient fields (key, aid_country, channel, logout, save,

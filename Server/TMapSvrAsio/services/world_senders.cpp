@@ -4,6 +4,22 @@
 
 namespace tmapsvr {
 
+std::vector<std::byte> EncodeAddCharAck(std::uint32_t char_id,
+                                        std::uint32_t key,
+                                        std::uint32_t ip_addr,
+                                        std::uint16_t port,
+                                        std::uint32_t user_id)
+{
+    std::vector<std::byte> b;
+    b.reserve(18);
+    wire::WritePOD<std::uint32_t>(b, char_id);
+    wire::WritePOD<std::uint32_t>(b, key);
+    wire::WritePOD<std::uint32_t>(b, ip_addr);
+    wire::WritePOD<std::uint16_t>(b, port);
+    wire::WritePOD<std::uint32_t>(b, user_id);
+    return b;
+}
+
 std::vector<std::byte> EncodeEnterSvrAck(const CharSnapshot& s,
                                          std::uint32_t key,
                                          std::uint8_t  aid_country,

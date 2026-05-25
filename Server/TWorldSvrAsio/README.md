@@ -138,12 +138,19 @@ that the four shipped Asio daemons already use.
 
 ## Gaps audit — not yet ported / deferred (as of W6-35)
 
-Legacy `Server/TWorldSvr/` defines **266** message handlers
-(`CTWorldSvrModule::On*`); **~181** are ported in `handlers/dispatch.cpp`,
-leaving **~85** with no port, plus a number of sub-branches deferred
-*inside* handlers that did land. (Note: the legacy source is CP949 — grep
-it with `-a`, or whole handlers appear "missing" when they are not.) This
-section is the authoritative checklist of what is still open.
+Legacy `Server/TWorldSvr/` declares **290** message handlers
+(`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
+breakdown the W2 sizing note records); **183** are ported in
+`handlers/dispatch.cpp` (138 MW + 28 DM + 10 CT + 4 SM + 3 RW), leaving
+**107** with no port. A portion of those are `DM_*` DB-thread round-trips
+replaced by the repository pattern (§D) rather than wire handlers we still
+owe; netting those out, the *owed* wire surface is ~266. Raw handler
+coverage is **≈ 63 %** (183/290); against the owed surface it is ~69 %.
+The unported remainder is the deferred subsystems in §C plus a number of
+sub-branches deferred *inside* handlers that did land. (Note: the legacy
+source is CP949 — grep it with `-a`, or whole handlers appear "missing"
+when they are not.) This section is the authoritative checklist of what
+is still open.
 
 ### A. Connection/teleport cluster — complete (W6-13 … W6-21)
 

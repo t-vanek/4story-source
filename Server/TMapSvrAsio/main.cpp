@@ -25,6 +25,7 @@
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
 #include "services/log_peer.h"
+#include "services/mapper_profiles.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/npc_service.h"
@@ -139,6 +140,23 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::IMonsterChart>         monster_chart;
         std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
         std::unique_ptr<tmapsvr::ICompanionService>     companion_service;
+
+        // Configure the fourstory::mapper Automapper once at startup
+        // (mirrors TWorldSvrAsio / TControlSvrAsio). CharMappingProfile
+        // wires CharRow→CharSnapshot so SociPlayerService maps the
+        // TCHARTABLE row to the domain snapshot without hand-written
+        // narrowing. Registered unconditionally — harmless on the no-DB
+        // dev path, keeps the bootstrap identical on both branches.
+        {
+            auto& reg = fourstory::mapper::MapperRegistry::Get();
+            if (!reg.Applied())
+            {
+                reg.Register<tmapsvr::CharMappingProfile>();
+                reg.ApplyAll();
+                spdlog::info("mapper: {} profile(s) applied", reg.Count());
+            }
+        }
+
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())

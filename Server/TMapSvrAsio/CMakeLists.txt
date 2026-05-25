@@ -158,3 +158,12 @@ set_target_properties(tmapsvr_asio_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # rest of the wiring lives inside the static library.
 add_executable(tmapsvr_asio ${TMAPSVR_ASIO_SRC}/main.cpp)
 target_link_libraries(tmapsvr_asio PRIVATE tmapsvr_asio_core)
+
+# Tests — in-process, no DB. First suite: Automapper profile wiring
+# (CharRow→CharSnapshot field-by-field + numeric narrowing).
+add_executable(test_tmapsvr_asio_mapper_profiles
+    ${TMAPSVR_ASIO_SRC}/tests/test_mapper_profiles.cpp)
+target_link_libraries(test_tmapsvr_asio_mapper_profiles PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_mapper_profiles
+    COMMAND test_tmapsvr_asio_mapper_profiles)

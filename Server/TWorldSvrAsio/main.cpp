@@ -23,6 +23,7 @@
 #include "services/fake_guild_repository.h"
 #include "services/guild_level_cache.h"
 #include "services/guild_registry.h"
+#include "services/mapper_profiles.h"
 #include "services/guild_wanted_registry.h"
 #include "services/guild_wanted_sweep.h"
 #include "services/guild_tactics_wanted_registry.h"
@@ -89,6 +90,26 @@ int main(int argc, char** argv)
             spdlog::info("received signal {}, shutting down", sig);
             io.stop();
         });
+
+        // --- Object-mapper profiles -------------------------------
+        //
+        // Configure the fourstory::mapper Automapper once at startup
+        // (mirrors TControlSvrAsio). GuildMappingProfile wires
+        // GuildRow→TGuild / GuildMemberRow→TGuildMember so the SOCI
+        // repository's read path maps DB rows to domain objects without
+        // hand-written field copies. Registered unconditionally — the
+        // Fake repositories don't use it, but keeping the bootstrap
+        // identical on both paths avoids a "works only with a DB" trap.
+        {
+            auto& reg = fourstory::mapper::MapperRegistry::Get();
+            if (!reg.Applied())
+            {
+                reg.Register<tworldsvr::GuildMappingProfile>();
+                reg.ApplyAll();
+                spdlog::info("mapper: {} profile(s) applied",
+                    reg.Count());
+            }
+        }
 
         // --- DB infrastructure (W2 + W3a-1) -----------------------
         //

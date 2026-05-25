@@ -301,9 +301,23 @@ int main(int argc, char** argv)
             world_client = std::make_unique<tmapsvr::AsioWorldClient>(
                 io, cfg.world.host, cfg.world.port,
                 std::move(on_world_packet));
+            // Map identity advertised to TWorld via RW_RELAYSVR_REQ on
+            // connect. Convention: LOBYTE = server_id, HIBYTE = group_id
+            // (TWorld derives main_server_id = LOBYTE(wID)). A zero wid
+            // (both ids unset) leaves the link anonymous — log a warning
+            // so a misconfigured deploy is visible.
+            const std::uint16_t relay_wid = static_cast<std::uint16_t>(
+                (static_cast<std::uint16_t>(cfg.cluster.group_id) << 8) |
+                 static_cast<std::uint16_t>(cfg.cluster.server_id));
+            if (relay_wid == 0)
+                spdlog::warn("world_client: [server] group_id/server_id "
+                             "unset — relay wid=0, TWorld link stays "
+                             "anonymous (no MW routing back)");
+            world_client->SetRelayWid(relay_wid);
             boost::asio::co_spawn(io, world_client->Run(), boost::asio::detached);
-            spdlog::info("world_client: dialing {}:{} (background)",
-                cfg.world.host, cfg.world.port);
+            spdlog::info("world_client: dialing {}:{} as wid=0x{:04X} "
+                         "(background)",
+                cfg.world.host, cfg.world.port, relay_wid);
         }
         else
         {

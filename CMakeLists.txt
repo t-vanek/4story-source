@@ -184,3 +184,19 @@ add_subdirectory(Server/TLogSvrAsio)
 add_subdirectory(Server/TControlSvrAsio)
 add_subdirectory(Server/TMapSvrAsio)
 add_subdirectory(Server/TWorldSvrAsio)
+
+# ── Cross-server integration tests ──────────────────────────────────
+# Registered at root so both server cores are already defined (the
+# subdirectories above are processed TMap-before-TWorld). The harness
+# links both cores and drives a real socket between them. tworldsvr is
+# listed first so any bare-named transitive includes (wire_codec.h,
+# config.h — present under both server roots) resolve to TWorld, while
+# the TMap-specific paths (services/world_client.h) stay unambiguous.
+if(TARGET tworldsvr_asio_core AND TARGET tmapsvr_asio_core)
+    add_executable(test_cluster_world_handshake
+        ${CMAKE_CURRENT_SOURCE_DIR}/Server/TMapSvrAsio/tests/test_world_handshake.cpp)
+    target_link_libraries(test_cluster_world_handshake PRIVATE
+        tworldsvr_asio_core tmapsvr_asio_core)
+    add_test(NAME cluster_world_handshake
+        COMMAND test_cluster_world_handshake)
+endif()

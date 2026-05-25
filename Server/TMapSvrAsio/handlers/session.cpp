@@ -23,6 +23,7 @@
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/world_client.h"
+#include "services/world_senders.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -79,25 +80,8 @@ std::vector<std::byte> EncodeConnectAck(ConnectResult r)
     return body;
 }
 
-// MW_ADDCHAR_ACK body — 18 bytes, mirrors
-// CTMapSvrModule::SendMW_ADDCHAR_ACK in SSSender.cpp:237. Sent on the
-// map↔world peer after a CS_CONNECT_REQ clears so the World server
-// knows where to route DM_* traffic for this character.
-std::vector<std::byte> EncodeAddCharAck(std::uint32_t dwCharID,
-                                        std::uint32_t dwKEY,
-                                        std::uint32_t dwIPAddr,
-                                        std::uint16_t wPort,
-                                        std::uint32_t dwUserID)
-{
-    std::vector<std::byte> body;
-    body.reserve(18);
-    wire::WritePOD<std::uint32_t>(body, dwCharID);
-    wire::WritePOD<std::uint32_t>(body, dwKEY);
-    wire::WritePOD<std::uint32_t>(body, dwIPAddr);
-    wire::WritePOD<std::uint16_t>(body, wPort);
-    wire::WritePOD<std::uint32_t>(body, dwUserID);
-    return body;
-}
+// MW_ADDCHAR_ACK encoding moved to services/world_senders.h so the
+// map↔world body encoders live in one place (and stay unit-testable).
 
 } // namespace
 

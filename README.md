@@ -24,9 +24,9 @@ Cluster-wide rewrite status as of 2026-05-24:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         ██████████████░░░░░░   68%   (W6-35 — event + cash-shop + ctrl-svr identification; 181/266 handlers, 89 tests)
+TWorldSvr         █████████████░░░░░░░   63%   (W6-35 — event + cash-shop + ctrl-svr identification; 183/290 handlers, 88 tests)
 ─────────────────────────────────────────
-Cluster total     ███████░░░░░░░░░░░░░  ~33%   (LOC-weighted, see below)
+Cluster total     ██████░░░░░░░░░░░░░░  ~32%   (LOC-weighted, see below)
 ```
 
 | Component | Legacy LOC | Modern LOC | Wire handlers | DB schema | Status |
@@ -36,15 +36,15 @@ Cluster total     ███████░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~33 200 | 181/266 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + cash-shop sale + CMGift result + ctrl-svr identification; BR/Bow/Arena/Tournament/Apex/MonthRank and the heavier DB-bound CMGift/Cash sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS) | 🟡 **W6-35 — event/cash-shop/CMGift result + ctrl-svr** |
+| **TWorldSvrAsio** | 38 851 | ~33 200 | 183/290 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + cash-shop sale + CMGift result + ctrl-svr identification; BR/Bow/Arena/Tournament/Apex/MonthRank and the heavier DB-bound CMGift/Cash sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS) | 🟡 **W6-35 — event/cash-shop/CMGift result + ctrl-svr** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
-LOC weighting: `(24 213 edge-complete + ~26 400 TWorldSvr functional
-[181/266 handlers ≈ 68 % of 38 851 LOC] + ~6 700 TMap scaffold) / 175 906
-legacy ≈ 33 %`.
+LOC weighting: `(24 213 edge-complete + ~24 500 TWorldSvr functional
+[183/290 handlers ≈ 63 % of 38 851 LOC] + ~6 700 TMap scaffold) / 175 906
+legacy ≈ 32 %`.
 By cluster-edge functionality, the four daemons that gate access to the
 world (auth, patching, audit, ops) are **100 %** complete, and the World
-coordinator is ~68 % ported — what's left is mostly the Map gameplay
+coordinator is ~63 % ported — what's left is mostly the Map gameplay
 surface plus the remaining World battle/event content (BR / Bow / Arena /
 Tournament / Apex / MonthRank) and the DB-bound CMGift / Cash admin
 sub-paths, ~64 % of the legacy LOC and where the architectural risk lives.
@@ -272,8 +272,8 @@ ctest --test-dir build -C Release --output-on-failure
   NOT implemented.** The 297 legacy `OnCS_*` and 300+ `DM_/MW_/SS_`
   handlers are catalogued in `CONSOLIDATION.md`; the priority signal
   is in PR #25.
-* **TWorldSvrAsio** — cluster coordinator, **~68 % ported** (181/266
-  handlers, 89 in-process wire tests). Functionally-complete verticals:
+* **TWorldSvrAsio** — cluster coordinator, **~63 % ported** (183/290
+  handlers, 88 in-process wire tests). Functionally-complete verticals:
   guild (+ tactics + cabinet), party, corps, friend / soulmate / chat /
   TMS / mail, per-character visual state, territory + castle-war
   broadcasts, combat / monster relays, the connection /

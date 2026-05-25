@@ -128,6 +128,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
+    ${TMAPSVR_ASIO_SRC}/services/world_senders.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp)
 
 target_include_directories(tmapsvr_asio_core PUBLIC

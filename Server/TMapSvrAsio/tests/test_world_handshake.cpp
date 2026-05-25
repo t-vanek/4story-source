@@ -18,6 +18,8 @@
 #include "services/peer_registry.h"   // tworldsvr::PeerRegistry
 #include "services/char_registry.h"   // tworldsvr::CharRegistry / TChar
 #include "services/world_client.h"    // tmapsvr::AsioWorldClient
+#include "services/world_senders.h"   // tmapsvr::EncodeEnterSvrAck
+#include "domain/character.h"         // tmapsvr::CharSnapshot
 
 #include "MessageId.h"
 
@@ -120,6 +122,36 @@ int main()
                 t.expires_after(10ms);
                 co_await t.async_wait(boost::asio::use_awaitable);
             }
+            // Phase 4 — char fully enters: send MW_ENTERSVR_ACK carrying
+            // the loaded identity. OnEnterSvrAck fills level/class/map/pos
+            // (and re-indexes the name). Built via the production encoder.
+            if (auto ch = chars.Find(kCharId))
+            {
+                tmapsvr::CharSnapshot snap;
+                snap.dwCharID = kCharId;
+                snap.szNAME   = "Hero";
+                snap.bLevel   = 77;
+                snap.bClass   = 3;
+                snap.bRace    = 2;
+                snap.wMapID   = 60;
+                snap.fPosX    = 100.5f;
+                snap.fPosY    = 7.0f;
+                snap.fPosZ    = -50.25f;
+                co_await client.SendPacket(
+                    static_cast<std::uint16_t>(MessageId::MW_ENTERSVR_ACK),
+                    tmapsvr::EncodeEnterSvrAck(
+                        snap, kKey, /*aid_country=*/0, /*channel=*/1,
+                        /*logout=*/0, /*save=*/0, /*result=*/0,
+                        /*title_id=*/0, /*rank_point=*/0, /*user_ip=*/0));
+                // Phase 5 — wait for the identity to land.
+                for (int i = 0; i < 200; ++i)
+                {
+                    { std::lock_guard g(ch->lock);
+                      if (ch->level == 77) break; }
+                    t.expires_after(10ms);
+                    co_await t.async_wait(boost::asio::use_awaitable);
+                }
+            }
             io.stop();
         },
         boost::asio::detached);
@@ -146,10 +178,17 @@ int main()
         EXPECT(ch->char_id == kCharId);
         EXPECT(ch->key == kKey);
         EXPECT(ch->main_server_id == kServerId);
+        // Step 3: MW_ENTERSVR_ACK filled the loaded identity.
+        std::lock_guard g(ch->lock);
+        EXPECT(ch->level == 77);
+        EXPECT(ch->klass == 3);
+        EXPECT(ch->map_id == 60);
+        EXPECT(ch->pos_x == 100.5f);
+        EXPECT(ch->name == "Hero");
     }
 
     if (g_fails == 0)
-        std::printf("test_world_handshake: register + char-add OK "
+        std::printf("test_world_handshake: register + char-add + entersvr OK "
                     "(wid=0x%04X char=0x%08X)\n", kWid, kCharId);
     return g_fails == 0 ? 0 : 1;
 }

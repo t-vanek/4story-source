@@ -35,4 +35,11 @@ std::vector<std::byte> EncodeEnterSvrAck(const CharSnapshot& s,
                                          std::uint32_t rank_point,
                                          std::uint32_t user_ip);
 
+// RW_ENTERCHAR_REQ body — dwCharID + szName. The relay/map asks TWorld
+// to resolve a char by name (and verify the id) before opening an entry;
+// TWorld answers RW_ENTERCHAR_ACK with the cluster-side guild/party/etc.
+// state. Parsed by TWorld's OnEnterCharReq (RWHandler.cpp:28).
+std::vector<std::byte> EncodeEnterCharReq(std::uint32_t      char_id,
+                                          const std::string& name);
+
 } // namespace tmapsvr

@@ -46,4 +46,13 @@ std::vector<std::byte> EncodeEnterSvrAck(const CharSnapshot& s,
     return b;
 }
 
+std::vector<std::byte> EncodeEnterCharReq(std::uint32_t      char_id,
+                                          const std::string& name)
+{
+    std::vector<std::byte> b;
+    wire::WritePOD<std::uint32_t>(b, char_id);
+    wire::WriteString(b, name);
+    return b;
+}
+
 } // namespace tmapsvr

@@ -31,6 +31,8 @@
 
 #include <chrono>
 #include <cstdio>
+#include <span>
+#include <string>
 #include <vector>
 
 namespace {
@@ -53,6 +55,38 @@ void AppendU16(std::vector<std::byte>& v, std::uint16_t x)
 {
     v.push_back(static_cast<std::byte>( x       & 0xFF));
     v.push_back(static_cast<std::byte>((x >> 8) & 0xFF));
+}
+
+// Captures the RW_ENTERCHAR_ACK the map receives back from TWorld.
+struct EnterCharAck
+{
+    bool          got     = false;
+    std::uint32_t char_id = 0;
+    std::uint8_t  result  = 0xFF;
+    std::string   name;
+};
+
+// Decode the RW_ENTERCHAR_ACK prefix: u32 char_id, length-prefixed name,
+// u8 result (the rest — guild/party/etc. — isn't needed for the proof).
+void DecodeEnterCharAck(std::span<const std::byte> b, EnterCharAck& out)
+{
+    auto u8 = [](std::byte x) { return std::to_integer<std::uint32_t>(x); };
+    std::size_t off = 0;
+    auto need = [&](std::size_t n) { return off + n <= b.size(); };
+    if (!need(4)) return;
+    out.char_id = u8(b[0]) | (u8(b[1]) << 8) | (u8(b[2]) << 16) | (u8(b[3]) << 24);
+    off = 4;
+    if (!need(4)) return;
+    const std::int32_t len = static_cast<std::int32_t>(
+        u8(b[off]) | (u8(b[off+1]) << 8) | (u8(b[off+2]) << 16) | (u8(b[off+3]) << 24));
+    off += 4;
+    if (len < 0 || !need(static_cast<std::size_t>(len))) return;
+    out.name.assign(reinterpret_cast<const char*>(b.data() + off),
+                    static_cast<std::size_t>(len));
+    off += static_cast<std::size_t>(len);
+    if (!need(1)) return;
+    out.result = static_cast<std::uint8_t>(u8(b[off]));
+    out.got = true;
 }
 } // namespace
 
@@ -85,8 +119,18 @@ int main()
     constexpr std::uint32_t kCharId    = 0xABCDEF01;
     constexpr std::uint32_t kKey       = 0x12345678;
     constexpr std::uint32_t kUserId    = 4242;
+    EnterCharAck ack;
     tmapsvr::AsioWorldClient client(
-        io, "127.0.0.1", port, /*on_packet=*/nullptr,
+        io, "127.0.0.1", port,
+        // Capture the World→Map reply we care about; ignore the rest
+        // (RW_RELAYSVR_ACK + the CharInfo/Route/FriendList fan-out
+        // OnEnterSvrAck pushes — those still prove the reverse wire
+        // decodes cleanly by not erroring the read loop).
+        [&ack](std::uint16_t wId, std::span<const std::byte> body) {
+            if (wId == static_cast<std::uint16_t>(
+                    MessageId::RW_ENTERCHAR_ACK))
+                DecodeEnterCharAck(body, ack);
+        },
         /*backoff_initial=*/20ms, /*backoff_max=*/100ms);
     client.SetRelayWid(kWid);
     boost::asio::co_spawn(io, client.Run(), boost::asio::detached);
@@ -151,6 +195,18 @@ int main()
                     t.expires_after(10ms);
                     co_await t.async_wait(boost::asio::use_awaitable);
                 }
+                // Phase 6 — relay char lookup round-trip: ask TWorld to
+                // resolve the char by name; OnEnterCharReq replies
+                // RW_ENTERCHAR_ACK(result=1) since the name now indexes.
+                // This exercises the World→Map reply direction too.
+                co_await client.SendPacket(
+                    static_cast<std::uint16_t>(MessageId::RW_ENTERCHAR_REQ),
+                    tmapsvr::EncodeEnterCharReq(kCharId, "Hero"));
+                for (int i = 0; i < 200 && !ack.got; ++i)
+                {
+                    t.expires_after(10ms);
+                    co_await t.async_wait(boost::asio::use_awaitable);
+                }
             }
             io.stop();
         },
@@ -187,8 +243,15 @@ int main()
         EXPECT(ch->name == "Hero");
     }
 
+    // Step 4: RW_ENTERCHAR round-trip — the map decoded TWorld's reply.
+    EXPECT(ack.got);
+    EXPECT(ack.result == 1);
+    EXPECT(ack.char_id == kCharId);
+    EXPECT(ack.name == "Hero");
+
     if (g_fails == 0)
-        std::printf("test_world_handshake: register + char-add + entersvr OK "
-                    "(wid=0x%04X char=0x%08X)\n", kWid, kCharId);
+        std::printf("test_world_handshake: register + char-add + entersvr + "
+                    "entercharack OK (wid=0x%04X char=0x%08X)\n",
+                    kWid, kCharId);
     return g_fails == 0 ? 0 : 1;
 }

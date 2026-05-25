@@ -1,136 +1,66 @@
 #include "services/soci_guild_repository.h"
 
+#include "services/guild_entities.h"
+
+#include "fourstory/db/orm/db_context.h"
+#include "fourstory/mapper/mapper.h"
+
 #include <soci/soci.h>
 
 #include <spdlog/spdlog.h>
 
-#include <ctime>
+#include <string>
 #include <unordered_map>
 
 namespace tworldsvr {
 
-namespace {
-
-// Map one row's columns onto the TGuild fields. SOCI's row API
-// uses 0-based numeric indices; the SELECT below pins the order so
-// the indices stay stable.
-void FillFromRow(const soci::row& r, TGuild& g)
-{
-    g.id                = static_cast<std::uint32_t>(r.get<int>("dwID"));
-    g.name              = r.get<std::string>("szName");
-    g.chief_char_id     = static_cast<std::uint32_t>(r.get<int>("dwChief"));
-    g.level             = static_cast<std::uint8_t>(r.get<int>("bLevel"));
-    g.fame              = static_cast<std::uint32_t>(r.get<int>("dwFame"));
-    g.fame_color        = static_cast<std::uint32_t>(r.get<int>("dwFameColor"));
-    g.max_cabinet       = static_cast<std::uint8_t>(r.get<int>("bMaxCabinet"));
-    g.gold              = static_cast<std::uint32_t>(r.get<int>("dwGold"));
-    g.silver            = static_cast<std::uint32_t>(r.get<int>("dwSilver"));
-    g.cooper            = static_cast<std::uint32_t>(r.get<int>("dwCooper"));
-    g.gi                = static_cast<std::uint32_t>(r.get<int>("dwGI"));
-    g.exp               = static_cast<std::uint32_t>(r.get<int>("dwExp"));
-    g.guild_points      = static_cast<std::uint8_t>(r.get<int>("bGPoint"));
-    g.status            = static_cast<std::uint8_t>(r.get<int>("bStatus"));
-    g.disorg            = static_cast<std::uint8_t>(r.get<int>("bDisorg"));
-    g.disorg_time       = static_cast<std::uint32_t>(r.get<int>("dwTime"));
-    g.pvp_total_point   = static_cast<std::uint32_t>(r.get<int>("dwPvPTotalPoint"));
-    g.pvp_useable_point = static_cast<std::uint32_t>(r.get<int>("dwPvPUseablePoint"));
-
-    // timeEstablish is SMALLDATETIME on the legacy MSSQL side. SOCI
-    // surfaces it as std::tm; convert to time_t for storage. On
-    // backends where the column is missing or NULL, fall back to 0
-    // — the legacy module treats `m_timeEstablish == 0` as "unknown
-    // start date" and renders blank in the guild-info reply.
-    try
-    {
-        auto tm = r.get<std::tm>("timeEstablish");
-        g.establish_time = static_cast<std::int64_t>(std::mktime(&tm));
-    }
-    catch (const std::exception&)
-    {
-        g.establish_time = 0;
-    }
-}
-
-std::vector<TGuildMember> LoadMembersFor(soci::session& sql,
-                                          std::uint32_t guild_id)
-{
-    std::vector<TGuildMember> out;
-    soci::rowset<soci::row> rs = (sql.prepare <<
-        "SELECT \"dwCharID\", \"dwGuildID\", \"bDuty\", \"bPeer\", "
-        "\"dwService\" "
-        "FROM \"TGUILDMEMBERTABLE\" WHERE \"dwGuildID\" = :gid",
-        soci::use(static_cast<int>(guild_id)));
-    for (const auto& r : rs)
-    {
-        TGuildMember m;
-        m.char_id  = static_cast<std::uint32_t>(r.get<int>("dwCharID"));
-        m.guild_id = static_cast<std::uint32_t>(r.get<int>("dwGuildID"));
-        m.duty     = static_cast<std::uint8_t>(r.get<int>("bDuty"));
-        m.peer     = static_cast<std::uint8_t>(r.get<int>("bPeer"));
-        m.service  = static_cast<std::uint32_t>(r.get<int>("dwService"));
-        out.push_back(std::move(m));
-    }
-    return out;
-}
-
-} // namespace
+using fourstory::db::orm::DbContext;
+using fourstory::mapper::Adapt;
+using fourstory::mapper::AdaptAll;
+using fourstory::mapper::AdaptTo;
 
 std::vector<std::shared_ptr<TGuild>> SociGuildRepository::LoadAll()
 {
     std::vector<std::shared_ptr<TGuild>> out;
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
+        DbContext ctx(m_pool);
 
-        // First pass: every non-disbanded guild row.
+        // First pass: every non-disbanded guild row via the ORM, mapped
+        // into a live TGuild by the Automapper. TGuild holds a mutex, so
+        // it is populated in place (AdaptTo) rather than constructed by
+        // value.
         std::unordered_map<std::uint32_t, std::shared_ptr<TGuild>> by_id;
-        soci::rowset<soci::row> rs = (sql.prepare <<
-            "SELECT \"dwID\", \"szName\", \"dwChief\", \"bLevel\", "
-            "\"dwFame\", \"dwFameColor\", \"bMaxCabinet\", \"dwGold\", "
-            "\"dwSilver\", \"dwCooper\", \"dwGI\", \"dwExp\", \"bGPoint\", "
-            "\"bStatus\", \"bDisorg\", \"dwTime\", \"timeEstablish\", "
-            "\"dwPvPTotalPoint\", \"dwPvPUseablePoint\" "
-            "FROM \"TGUILDTABLE\" WHERE \"bDisorg\" = 0");
-        for (const auto& r : rs)
+        for (const auto& row : ctx.Set<GuildRow>().Where("\"bDisorg\" = 0"))
         {
             auto g = std::make_shared<TGuild>();
-            FillFromRow(r, *g);
+            AdaptTo(row, *g);
             by_id.emplace(g->id, g);
             out.push_back(std::move(g));
         }
 
-        // Second pass: members in one rowset, dispatched into
-        // their guild's members vector. One DB roundtrip total
-        // beats N+1 per-guild fetches.
-        soci::rowset<soci::row> mrs = (sql.prepare <<
-            "SELECT \"dwCharID\", \"dwGuildID\", \"bDuty\", \"bPeer\", "
-            "\"dwService\" FROM \"TGUILDMEMBERTABLE\"");
-        for (const auto& r : mrs)
+        // Second pass: members in one rowset, dispatched into their
+        // guild's members vector. One DB roundtrip total beats N+1
+        // per-guild fetches.
+        for (const auto& mrow : ctx.Set<GuildMemberRow>().All())
         {
-            const auto guild_id = static_cast<std::uint32_t>(
-                r.get<int>("dwGuildID"));
-            auto it = by_id.find(guild_id);
+            auto it = by_id.find(mrow.guild_id);
             if (it == by_id.end()) continue; // orphan row, skip
-            TGuildMember m;
-            m.char_id  = static_cast<std::uint32_t>(r.get<int>("dwCharID"));
-            m.guild_id = guild_id;
-            m.duty     = static_cast<std::uint8_t>(r.get<int>("bDuty"));
-            m.peer     = static_cast<std::uint8_t>(r.get<int>("bPeer"));
-            m.service  = static_cast<std::uint32_t>(r.get<int>("dwService"));
-            it->second->members.push_back(std::move(m));
+            it->second->members.push_back(Adapt<TGuildMember>(mrow));
         }
 
-        // W3a-30 third pass: PvP point reward log, newest-first.
-        // Mirrors legacy CTBLGuildPvPointReward (DBAccess.h:710 —
-        // SELECT TOP 50 ... ORDER BY dlDate DESC). We sort across
-        // all guilds in one rowset and cap each guild's in-memory
-        // log at kPointLogMaxEntries on insert (matching the
-        // CTGuild::PointLog 50-entry bound). Optional table — a
-        // SOCI error here just leaves point_log empty (the
-        // schema validator already warns at boot).
+        // Third pass: PvP point reward log, newest-first. Mirrors legacy
+        // CTBLGuildPvPointReward (DBAccess.h:710 — SELECT TOP 50 ... ORDER
+        // BY dlDate DESC). We sort across all guilds in one rowset and cap
+        // each guild's in-memory log at kPointLogMaxEntries on insert
+        // (matching the CTGuild::PointLog 50-entry bound). The std::tm
+        // conversion + per-guild cap don't fit generic CRUD, so this pass
+        // reads through the shared session directly. Optional table — a
+        // SOCI error here just leaves point_log empty (the schema
+        // validator already warns at boot).
         try
         {
+            soci::session& sql = ctx.Session();
             soci::rowset<soci::row> prs = (sql.prepare <<
                 "SELECT \"dwGuildID\", \"szName\", \"dwPoint\", \"dlDate\" "
                 "FROM \"TGUILDPVPOINTREWARDTABLE\" "
@@ -147,8 +77,6 @@ std::vector<std::shared_ptr<TGuild>> SociGuildRepository::LoadAll()
                 e.recipient_name = r.get<std::string>("szName");
                 e.point          = static_cast<std::uint32_t>(
                     r.get<int>("dwPoint"));
-                // dlDate is a DB timestamp; SOCI maps it to
-                // std::tm. Convert to Unix epoch seconds.
                 std::tm tm = r.get<std::tm>("dlDate");
                 e.date_unix = static_cast<std::int64_t>(std::mktime(&tm));
                 log.push_back(std::move(e));
@@ -170,15 +98,39 @@ std::vector<std::shared_ptr<TGuild>> SociGuildRepository::LoadAll()
     return out;
 }
 
+std::optional<std::shared_ptr<TGuild>>
+SociGuildRepository::FindById(std::uint32_t guild_id)
+{
+    try
+    {
+        DbContext ctx(m_pool);
+
+        auto row = ctx.Set<GuildRow>().FindById(static_cast<int>(guild_id));
+        if (!row) return std::nullopt;
+
+        auto g = std::make_shared<TGuild>();
+        AdaptTo(*row, *g);
+        g->members = AdaptAll<TGuildMember>(
+            ctx.Set<GuildMemberRow>().Where(
+                "\"dwGuildID\" = " + std::to_string(guild_id)));
+        return g;
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociGuildRepository::FindById({}) failed: {}",
+            guild_id, ex.what());
+        return std::nullopt;
+    }
+}
+
 bool SociGuildRepository::SetDisorg(std::uint32_t guild_id,
                                      std::uint8_t  disorg,
                                      std::uint32_t time_unix)
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDTABLE\" SET \"bDisorg\" = :d, "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"bDisorg\" = :d, "
                "\"dwTime\" = :t WHERE \"dwID\" = :g",
             soci::use(static_cast<int>(disorg)),
             soci::use(static_cast<int>(time_unix)),
@@ -199,9 +151,8 @@ bool SociGuildRepository::UpdateMemberDuty(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDMEMBERTABLE\" SET \"bDuty\" = :d "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDMEMBERTABLE\" SET \"bDuty\" = :d "
                "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
             soci::use(static_cast<int>(new_duty)),
             soci::use(static_cast<int>(char_id)),
@@ -222,9 +173,8 @@ bool SociGuildRepository::UpdateFame(std::uint32_t guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDTABLE\" SET \"dwFame\" = :f, "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"dwFame\" = :f, "
                "\"dwFameColor\" = :c WHERE \"dwID\" = :g",
             soci::use(static_cast<int>(fame)),
             soci::use(static_cast<int>(fame_color)),
@@ -244,9 +194,8 @@ bool SociGuildRepository::RemoveMember(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "DELETE FROM \"TGUILDMEMBERTABLE\" "
+        DbContext ctx(m_pool);
+        ctx.Session() << "DELETE FROM \"TGUILDMEMBERTABLE\" "
                "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
             soci::use(static_cast<int>(char_id)),
             soci::use(static_cast<int>(guild_id));
@@ -267,8 +216,8 @@ bool SociGuildRepository::AddMember(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
         // Mirror CSPGuildMemberAdd. Legacy uses MERGE / UPDATE-or-
         // INSERT semantics via the SP — we replicate by trying
         // INSERT first and falling back to UPDATE on PK conflict.
@@ -311,9 +260,8 @@ bool SociGuildRepository::UpdateMemberPeer(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDMEMBERTABLE\" SET \"bPeer\" = :p "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDMEMBERTABLE\" SET \"bPeer\" = :p "
                "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
             soci::use(static_cast<int>(new_peer)),
             soci::use(static_cast<int>(char_id)),
@@ -333,9 +281,8 @@ bool SociGuildRepository::UpdateMaxCabinet(std::uint32_t guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDTABLE\" SET \"bMaxCabinet\" = :m "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"bMaxCabinet\" = :m "
                "WHERE \"dwID\" = :g",
             soci::use(static_cast<int>(max_cabinet)),
             soci::use(static_cast<int>(guild_id));
@@ -359,9 +306,8 @@ bool SociGuildRepository::AddArticle(std::uint32_t      guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "INSERT INTO \"TGUILDARTICLETABLE\" (\"dwGuildID\", "
+        DbContext ctx(m_pool);
+        ctx.Session() << "INSERT INTO \"TGUILDARTICLETABLE\" (\"dwGuildID\", "
                "\"dwID\", \"bDuty\", \"szWritter\", \"szTitle\", "
                "\"szArticle\", \"dwTime\") "
                "VALUES (:g, :a, :d, :w, :t, :b, :ts)",
@@ -387,9 +333,8 @@ bool SociGuildRepository::DelArticle(std::uint32_t guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "DELETE FROM \"TGUILDARTICLETABLE\" "
+        DbContext ctx(m_pool);
+        ctx.Session() << "DELETE FROM \"TGUILDARTICLETABLE\" "
                "WHERE \"dwGuildID\" = :g AND \"dwID\" = :a",
             soci::use(static_cast<int>(guild_id)),
             soci::use(static_cast<int>(article_id));
@@ -410,9 +355,8 @@ bool SociGuildRepository::UpdateArticle(std::uint32_t      guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDARTICLETABLE\" SET \"szTitle\" = :t, "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDARTICLETABLE\" SET \"szTitle\" = :t, "
                "\"szArticle\" = :b "
                "WHERE \"dwGuildID\" = :g AND \"dwID\" = :a",
             soci::use(title),
@@ -433,20 +377,16 @@ bool SociGuildRepository::DeleteGuild(std::uint32_t guild_id)
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        // Legacy CSPGuildDelete is a single-statement SP that
-        // assumes the production schema has FK CASCADE on the
-        // guild children (TGUILDMEMBERTABLE.dwGuildID,
-        // TGUILDARTICLETABLE.dwGuildID — cascading delete on the
-        // parent TGUILDTABLE row sweeps both).
-        //
-        // We issue explicit DELETEs in dependency order instead
-        // so dev / test schemas that omit the FK CASCADE clause
-        // (PostgreSQL deploys, schema-light fixtures) still get
-        // the children swept. On the production schema this is
-        // two extra round-trips on a cold path — negligible vs.
-        // the safety win on misconfigured deploys.
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
+        // Legacy CSPGuildDelete is a single-statement SP that assumes the
+        // production schema has FK CASCADE on the guild children
+        // (TGUILDMEMBERTABLE.dwGuildID, TGUILDARTICLETABLE.dwGuildID).
+        // We issue explicit DELETEs in dependency order instead so dev /
+        // test schemas that omit the FK CASCADE clause still get the
+        // children swept. On the production schema this is two extra
+        // round-trips on a cold path — negligible vs. the safety win on
+        // misconfigured deploys.
         sql << "DELETE FROM \"TGUILDARTICLETABLE\" WHERE \"dwGuildID\" = :g",
             soci::use(static_cast<int>(guild_id));
         sql << "DELETE FROM \"TGUILDMEMBERTABLE\" WHERE \"dwGuildID\" = :g",
@@ -472,12 +412,12 @@ bool SociGuildRepository::AddWanted(std::uint32_t      guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        // Upsert: legacy CSPGuildWantedAdd is a single SP that
-        // handles "row exists → UPDATE; missing → INSERT" on the
-        // DB side. We emit the same shape via DELETE + INSERT to
-        // stay portable across backends without MERGE syntax.
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
+        // Upsert: legacy CSPGuildWantedAdd is a single SP that handles
+        // "row exists → UPDATE; missing → INSERT" on the DB side. We emit
+        // the same shape via DELETE + INSERT to stay portable across
+        // backends without MERGE syntax.
         sql << "DELETE FROM \"TGUILDWANTEDTABLE\" WHERE \"dwGuildID\" = :g",
             soci::use(static_cast<int>(guild_id));
         sql << "INSERT INTO \"TGUILDWANTEDTABLE\" (\"dwGuildID\", "
@@ -503,9 +443,9 @@ bool SociGuildRepository::DeleteWanted(std::uint32_t guild_id)
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "DELETE FROM \"TGUILDWANTEDTABLE\" WHERE \"dwGuildID\" = :g",
+        DbContext ctx(m_pool);
+        ctx.Session() << "DELETE FROM \"TGUILDWANTEDTABLE\" "
+               "WHERE \"dwGuildID\" = :g",
             soci::use(static_cast<int>(guild_id));
         return true;
     }
@@ -522,12 +462,12 @@ bool SociGuildRepository::AddVolunteerApp(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        // bType column is GUILDAPP_MEMBER (legacy enum constant
-        // for "applying to join as a regular member"). Tactics
-        // applications use a different bType in W3a-13+; we just
-        // hardcode the member value here.
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
+        // bType column is GUILDAPP_MEMBER (legacy enum constant for
+        // "applying to join as a regular member"). Tactics applications
+        // use a different bType in W3a-13+; we just hardcode the member
+        // value here.
         constexpr int kAppTypeMember = 0;
         sql << "DELETE FROM \"TGUILDVOLUNTEERTABLE\" WHERE \"dwCharID\" = :c",
             soci::use(static_cast<int>(char_id));
@@ -550,9 +490,9 @@ bool SociGuildRepository::DelVolunteerApp(std::uint32_t char_id)
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "DELETE FROM \"TGUILDVOLUNTEERTABLE\" WHERE \"dwCharID\" = :c",
+        DbContext ctx(m_pool);
+        ctx.Session() << "DELETE FROM \"TGUILDVOLUNTEERTABLE\" "
+               "WHERE \"dwCharID\" = :c",
             soci::use(static_cast<int>(char_id));
         return true;
     }
@@ -571,9 +511,8 @@ bool SociGuildRepository::UpdatePvPoints(std::uint32_t guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDTABLE\" SET \"dwPvPTotalPoint\" = :t, "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"dwPvPTotalPoint\" = :t, "
                "\"dwPvPUseablePoint\" = :u, \"dwPvPMonthPoint\" = :m "
                "WHERE \"dwID\" = :g",
             soci::use(static_cast<int>(total_point)),
@@ -595,9 +534,8 @@ bool SociGuildRepository::UpdateLevel(std::uint32_t guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDTABLE\" SET \"bLevel\" = :l "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"bLevel\" = :l "
                "WHERE \"dwID\" = :g",
             soci::use(static_cast<int>(level)),
             soci::use(static_cast<int>(guild_id));
@@ -619,9 +557,9 @@ bool SociGuildRepository::LogPointReward(std::uint32_t      guild_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        soci::transaction tr(sql);
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
+        auto tr = ctx.BeginTransaction();
         sql << "INSERT INTO \"TGUILDPVPOINTREWARDTABLE\" "
                "(\"dwGuildID\", \"szName\", \"dwPoint\", \"dlDate\") "
                "VALUES (:g, :n, :p, CURRENT_TIMESTAMP)",
@@ -633,7 +571,7 @@ bool SociGuildRepository::LogPointReward(std::uint32_t      guild_id,
             soci::use(static_cast<int>(total_point)),
             soci::use(static_cast<int>(useable_point)),
             soci::use(static_cast<int>(guild_id));
-        tr.commit();
+        tr.Commit();
         return true;
     }
     catch (const std::exception& ex)
@@ -654,10 +592,10 @@ bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        // Guild totals delta (mirror CSPGuildContribution's
-        // arithmetic side).
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
+        // Guild totals delta (mirror CSPGuildContribution's arithmetic
+        // side).
         sql << "UPDATE \"TGUILDTABLE\" SET "
                "\"dwGold\" = \"dwGold\" + :gold, "
                "\"dwSilver\" = \"dwSilver\" + :silver, "
@@ -690,39 +628,6 @@ bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
     }
 }
 
-std::optional<std::shared_ptr<TGuild>>
-SociGuildRepository::FindById(std::uint32_t guild_id)
-{
-    try
-    {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        soci::indicator ind = soci::i_null;
-        soci::row r;
-        sql << "SELECT \"dwID\", \"szName\", \"dwChief\", \"bLevel\", "
-               "\"dwFame\", \"dwFameColor\", \"bMaxCabinet\", \"dwGold\", "
-               "\"dwSilver\", \"dwCooper\", \"dwGI\", \"dwExp\", \"bGPoint\", "
-               "\"bStatus\", \"bDisorg\", \"dwTime\", \"timeEstablish\", "
-               "\"dwPvPTotalPoint\", \"dwPvPUseablePoint\" "
-               "FROM \"TGUILDTABLE\" WHERE \"dwID\" = :gid",
-            soci::use(static_cast<int>(guild_id)),
-            soci::into(r, ind);
-        if (!sql.got_data()) return std::nullopt;
-        (void)ind;
-
-        auto g = std::make_shared<TGuild>();
-        FillFromRow(r, *g);
-        g->members = LoadMembersFor(sql, guild_id);
-        return g;
-    }
-    catch (const std::exception& ex)
-    {
-        spdlog::error("SociGuildRepository::FindById({}) failed: {}",
-            guild_id, ex.what());
-        return std::nullopt;
-    }
-}
-
 std::optional<std::uint32_t>
 SociGuildRepository::CreateGuild(const std::string& name,
                                   std::uint32_t      chief_id,
@@ -731,26 +636,24 @@ SociGuildRepository::CreateGuild(const std::string& name,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        soci::transaction tr(sql);
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
+        auto tr = ctx.BeginTransaction();
 
-        // Reject duplicate names — legacy CSPGuildEstablish
-        // returns bRet=2 for this. The check + INSERT live in
-        // one transaction so a concurrent attempt with the same
-        // name still fails the UNIQUE constraint at INSERT time
-        // (defensive both ways).
+        // Reject duplicate names — legacy CSPGuildEstablish returns
+        // bRet=2 for this. The check + INSERT live in one transaction so
+        // a concurrent attempt with the same name still fails the UNIQUE
+        // constraint at INSERT time (defensive both ways).
         int existing = 0;
         sql << "SELECT COUNT(*) FROM \"TGUILDTABLE\" "
                "WHERE \"szName\" = :n",
             soci::use(name), soci::into(existing);
         if (existing != 0) return std::nullopt;
 
-        // Portable next-id: SELECT MAX(dwID)+1. Production
-        // schemas use IDENTITY but our portable migration may
-        // not, so we compute it client-side under the same
-        // transaction. The legacy SP relies on the SP body to
-        // pick the id too — semantically equivalent.
+        // Portable next-id: SELECT MAX(dwID)+1. Production schemas use
+        // IDENTITY but our portable migration may not, so we compute it
+        // client-side under the same transaction. The legacy SP relies on
+        // the SP body to pick the id too — semantically equivalent.
         int next_id = 0;
         sql << "SELECT COALESCE(MAX(\"dwID\"), 0) + 1 "
                "FROM \"TGUILDTABLE\"",
@@ -765,7 +668,7 @@ SociGuildRepository::CreateGuild(const std::string& name,
             soci::use(static_cast<int>(chief_id)),
             soci::use(static_cast<int>(country)),
             soci::use(static_cast<long long>(establish_time_unix));
-        tr.commit();
+        tr.Commit();
         return static_cast<std::uint32_t>(next_id);
     }
     catch (const std::exception& ex)
@@ -791,9 +694,8 @@ bool SociGuildRepository::UpdateGuildFull(
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "UPDATE \"TGUILDTABLE\" SET "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TGUILDTABLE\" SET "
                "\"dwFame\" = :f, \"bGPoint\" = :gp, \"bLevel\" = :l, "
                "\"bStatus\" = :s, \"dwChief\" = :c, \"dwGI\" = :gi, "
                "\"dwExp\" = :e, \"dwTime\" = :t "
@@ -808,12 +710,11 @@ bool SociGuildRepository::UpdateGuildFull(
             soci::use(static_cast<int>(time_unix)),
             soci::use(static_cast<int>(guild_id));
         // Alliance + enemy IDs are kept in memory by the handler
-        // (TGuild.alliance_ids / .enemy_ids) but not persisted —
-        // the legacy szAllience / szEnemy CSV columns aren't in
-        // our portable schema yet (deferred to a future W5+
-        // migration alongside the rest of the war system). Log
-        // when non-empty so operators can spot the mismatch if
-        // they care.
+        // (TGuild.alliance_ids / .enemy_ids) but not persisted — the
+        // legacy szAllience / szEnemy CSV columns aren't in our portable
+        // schema yet (deferred to a future W5+ migration alongside the
+        // rest of the war system). Log when non-empty so operators can
+        // spot the mismatch if they care.
         if (!alliance_ids.empty() || !enemy_ids.empty())
         {
             spdlog::info("SociGuildRepository::UpdateGuildFull({}): "
@@ -841,9 +742,8 @@ bool SociGuildRepository::LogPvPRecord(
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
-        sql << "INSERT INTO \"TGUILDPVPRECORDTABLE\" "
+        DbContext ctx(m_pool);
+        ctx.Session() << "INSERT INTO \"TGUILDPVPRECORDTABLE\" "
                "(\"dwGuildID\", \"dwCharID\", \"dwDate\", \"wKillCount\", "
                " \"wDieCount\", "
                " \"dwPoint_1\", \"dwPoint_2\", \"dwPoint_3\", \"dwPoint_4\", "

@@ -1,9 +1,17 @@
 #include "services/soci_friend_repository.h"
 
+#include "services/friend_entities.h"
+
+#include "fourstory/db/orm/db_context.h"
+#include "fourstory/mapper/mapper.h"
+
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
 
 namespace tworldsvr {
+
+using fourstory::db::orm::DbContext;
+using fourstory::mapper::AdaptAll;
 
 FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id)
 {
@@ -11,8 +19,13 @@ FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id)
     const int cid = static_cast<int>(char_id);
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
+        // One DbContext = one pooled session for all four reads. The
+        // forward/reverse edges are parameterized JOINs against
+        // TCHARTABLE that don't fit the single-table Repository<T> shape,
+        // so they run through the shared session directly — same raw
+        // escape hatch the guild repo's point-log pass uses.
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
 
         // Friend groups (legacy CTBLFriendGroupTable).
         {
@@ -27,46 +40,28 @@ FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id)
         }
 
         // Forward edges: friends this char added, joined to TCHARTABLE
-        // for name / class / level (legacy CTBLFriend).
-        {
-            soci::rowset<soci::row> rs = (sql.prepare <<
+        // for name / class / level (legacy CTBLFriend). The ORM maps each
+        // JOIN row → FriendForwardRow, the Automapper folds it → FriendRow.
+        out.forward = AdaptAll<FriendRow>(
+            ctx.Set<FriendForwardRow>().QueryBound(
                 "SELECT F.\"dwFriendID\", C.\"szName\", F.\"bGroup\", "
                 "C.\"bClass\", C.\"bLevel\" "
                 "FROM \"TFRIENDTABLE\" AS F "
                 "INNER JOIN \"TCHARTABLE\" AS C ON F.\"dwFriendID\" = "
                 "C.\"dwCharID\" "
                 "WHERE F.\"dwCharID\" = :id AND C.\"bDelete\" = 0",
-                soci::use(cid));
-            for (const auto& r : rs)
-            {
-                FriendRow row;
-                row.id    = static_cast<std::uint32_t>(r.get<int>("dwFriendID"));
-                row.name  = r.get<std::string>("szName");
-                row.group = static_cast<std::uint8_t>(r.get<int>("bGroup"));
-                row.klass = static_cast<std::uint8_t>(r.get<int>("bClass"));
-                row.level = static_cast<std::uint8_t>(r.get<int>("bLevel"));
-                out.forward.push_back(std::move(row));
-            }
-        }
+                soci::use(cid)));
 
         // Reverse edges: chars who added this char (legacy
         // CTBLFriendTarget — id + name only).
-        {
-            soci::rowset<soci::row> rs = (sql.prepare <<
+        out.reverse = AdaptAll<FriendRow>(
+            ctx.Set<FriendReverseRow>().QueryBound(
                 "SELECT F.\"dwCharID\", C.\"szName\" "
                 "FROM \"TFRIENDTABLE\" AS F "
                 "INNER JOIN \"TCHARTABLE\" AS C ON F.\"dwCharID\" = "
                 "C.\"dwCharID\" "
                 "WHERE F.\"dwFriendID\" = :id AND C.\"bDelete\" = 0",
-                soci::use(cid));
-            for (const auto& r : rs)
-            {
-                FriendRow row;
-                row.id   = static_cast<std::uint32_t>(r.get<int>("dwCharID"));
-                row.name = r.get<std::string>("szName");
-                out.reverse.push_back(std::move(row));
-            }
-        }
+                soci::use(cid)));
 
         // Soulmate pairing (legacy TSOULMATETABLE).
         {
@@ -98,8 +93,8 @@ bool SociFriendRepository::MakeGroup(std::uint32_t char_id, std::uint8_t group,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        *lease << "INSERT INTO \"TFRIENDGROUPTABLE\" "
+        DbContext ctx(m_pool);
+        ctx.Session() << "INSERT INTO \"TFRIENDGROUPTABLE\" "
                   "(\"dwCharID\", \"bGroup\", \"szName\") "
                   "VALUES (:c, :g, :n)",
             soci::use(static_cast<int>(char_id)),
@@ -119,8 +114,8 @@ bool SociFriendRepository::DeleteGroup(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        *lease << "DELETE FROM \"TFRIENDGROUPTABLE\" "
+        DbContext ctx(m_pool);
+        ctx.Session() << "DELETE FROM \"TFRIENDGROUPTABLE\" "
                   "WHERE \"dwCharID\" = :c AND \"bGroup\" = :g",
             soci::use(static_cast<int>(char_id)),
             soci::use(static_cast<int>(group));
@@ -140,8 +135,8 @@ bool SociFriendRepository::RenameGroup(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        *lease << "UPDATE \"TFRIENDGROUPTABLE\" SET \"szName\" = :n "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TFRIENDGROUPTABLE\" SET \"szName\" = :n "
                   "WHERE \"dwCharID\" = :c AND \"bGroup\" = :g",
             soci::use(name), soci::use(static_cast<int>(char_id)),
             soci::use(static_cast<int>(group));
@@ -161,8 +156,8 @@ bool SociFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        *lease << "UPDATE \"TFRIENDTABLE\" SET \"bGroup\" = :g "
+        DbContext ctx(m_pool);
+        ctx.Session() << "UPDATE \"TFRIENDTABLE\" SET \"bGroup\" = :g "
                   "WHERE \"dwCharID\" = :c AND \"dwFriendID\" = :f",
             soci::use(static_cast<int>(group)),
             soci::use(static_cast<int>(char_id)),
@@ -182,8 +177,8 @@ bool SociFriendRepository::InsertFriend(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        *lease << "INSERT INTO \"TFRIENDTABLE\" "
+        DbContext ctx(m_pool);
+        ctx.Session() << "INSERT INTO \"TFRIENDTABLE\" "
                   "(\"dwCharID\", \"dwFriendID\", \"bGroup\") "
                   "VALUES (:c, :f, 0)",
             soci::use(static_cast<int>(char_id)),
@@ -203,8 +198,8 @@ bool SociFriendRepository::EraseFriend(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        *lease << "DELETE FROM \"TFRIENDTABLE\" "
+        DbContext ctx(m_pool);
+        ctx.Session() << "DELETE FROM \"TFRIENDTABLE\" "
                   "WHERE \"dwCharID\" = :c AND \"dwFriendID\" = :f",
             soci::use(static_cast<int>(char_id)),
             soci::use(static_cast<int>(friend_id));
@@ -223,8 +218,8 @@ bool SociFriendRepository::RegSoulmate(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        soci::session& sql = *lease;
+        DbContext ctx(m_pool);
+        soci::session& sql = ctx.Session();
         // dwCharID is the PK — delete-then-insert is a portable upsert
         // with the same net effect as TSoulmateReg (one row, dwTime 0).
         sql << "DELETE FROM \"TSOULMATETABLE\" WHERE \"dwCharID\" = :c",
@@ -248,8 +243,8 @@ bool SociFriendRepository::DelSoulmate(std::uint32_t char_id,
 {
     try
     {
-        auto lease = m_pool.Acquire();
-        *lease << "DELETE FROM \"TSOULMATETABLE\" "
+        DbContext ctx(m_pool);
+        ctx.Session() << "DELETE FROM \"TSOULMATETABLE\" "
                   "WHERE \"dwCharID\" = :c AND \"dwTarget\" = :t",
             soci::use(static_cast<int>(char_id)),
             soci::use(static_cast<int>(target));

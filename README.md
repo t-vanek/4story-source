@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-05-24:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         █████████████░░░░░░░   63%   (W6-35 — event + cash-shop + ctrl-svr identification; 183/290 handlers, 88 tests)
+TWorldSvr         █████████████░░░░░░░   63%   (W6-35 — event + cash-shop + ctrl-svr identification; 183/290 handlers, 89 tests)
 ─────────────────────────────────────────
 Cluster total     ██████░░░░░░░░░░░░░░  ~32%   (LOC-weighted, see below)
 ```
@@ -273,7 +273,7 @@ ctest --test-dir build -C Release --output-on-failure
   handlers are catalogued in `CONSOLIDATION.md`; the priority signal
   is in PR #25.
 * **TWorldSvrAsio** — cluster coordinator, **~63 % ported** (183/290
-  handlers, 88 in-process wire tests). Functionally-complete verticals:
+  handlers, 89 in-process tests). Functionally-complete verticals:
   guild (+ tactics + cabinet), party, corps, friend / soulmate / chat /
   TMS / mail, per-character visual state, territory + castle-war
   broadcasts, combat / monster relays, the connection /

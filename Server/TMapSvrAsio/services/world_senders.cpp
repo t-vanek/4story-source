@@ -81,4 +81,14 @@ std::vector<std::byte> EncodeEnterCharAck(std::uint32_t char_id,
     return b;
 }
 
+std::vector<std::byte> EncodeCheckMainAck(std::uint32_t char_id,
+                                          std::uint32_t key)
+{
+    std::vector<std::byte> b;
+    b.reserve(8);
+    wire::WritePOD<std::uint32_t>(b, char_id);
+    wire::WritePOD<std::uint32_t>(b, key);
+    return b;
+}
+
 } // namespace tmapsvr

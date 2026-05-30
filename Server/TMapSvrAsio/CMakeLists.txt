@@ -206,3 +206,12 @@ target_link_libraries(test_tmapsvr_asio_client_senders PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_client_senders
     COMMAND test_tmapsvr_asio_client_senders)
+
+# Inbound main-cell check: OnMW_CHECKMAIN_REQ replies MW_CHECKMAIN_ACK
+# only when the char is resident here (IsMainCell stand-in).
+add_executable(test_tmapsvr_asio_world_checkmain
+    ${TMAPSVR_ASIO_SRC}/tests/test_world_checkmain.cpp)
+target_link_libraries(test_tmapsvr_asio_world_checkmain PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_world_checkmain
+    COMMAND test_tmapsvr_asio_world_checkmain)

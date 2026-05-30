@@ -56,4 +56,11 @@ boost::asio::awaitable<void> OnMWAddConnectReq(
     std::vector<std::byte>       body,
     const HandlerContext&        ctx);
 
+// MW_CHECKMAIN_REQ (World→Map): TWorld asks whether this map owns the
+// cell the char stands in; the owner replies MW_CHECKMAIN_ACK so TWorld
+// can settle the authoritative main session. Legacy: SSHandler.cpp:1300.
+boost::asio::awaitable<void> OnMWCheckMainReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
 } // namespace tmapsvr

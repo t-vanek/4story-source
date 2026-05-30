@@ -43,7 +43,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | **Combat handlers** | ❌ | `CS_ATTACK_REQ` family not wired |
 | **Drop tables / loot** | ❌ | `TDROPCHART` loader missing |
 
-## Wired handlers (23 total)
+## Wired handlers (24 total)
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
@@ -71,6 +71,7 @@ DM_LOADCHAR_REQ  (inbound, World→Map)  handlers_world.cpp  load char snapshot 
 MW_ENTERSVR_REQ  (inbound, World→Map)  handlers_world.cpp  resolve identity → MW_ENTERSVR_ACK
 MW_ENTERCHAR_REQ (inbound, World→Map)  handlers_world.cpp  per-con entry ready → MW_ENTERCHAR_ACK
 MW_ADDCONNECT_REQ(inbound, World→Map)  handlers_world.cpp  peer-server list → client CS_ADDCONNECT_ACK
+MW_CHECKMAIN_REQ (inbound, World→Map)  handlers_world.cpp  main-cell check → MW_CHECKMAIN_ACK
 ```
 
 The remaining ~280 `CS_*` and ~300 `DM_/MW_/SS_` handlers are catalogued

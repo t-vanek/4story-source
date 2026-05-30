@@ -539,6 +539,62 @@ OnMWAddConnectReq(std::vector<std::byte> body, const HandlerContext& ctx)
 }
 
 boost::asio::awaitable<void>
+OnMWCheckMainReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:1310):
+    //   DWORD dwCharID, DWORD dwKEY, BYTE bChannel, WORD wMapID,
+    //   FLOAT fPosX, fPosY, fPosZ
+    // TWorld asks each candidate map "do you own the cell this char
+    // stands in?". Only the owner answers MW_CHECKMAIN_ACK, settling
+    // which connection is the authoritative main session.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    std::uint8_t  bChannel = 0;
+    std::uint16_t wMapID = 0;
+    float fPosX = 0.f, fPosY = 0.f, fPosZ = 0.f;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Read(bChannel) ||
+        !r.Read(wMapID) || !r.Read(fPosX) || !r.Read(fPosY) || !r.Read(fPosZ))
+    {
+        spdlog::warn("MW_CHECKMAIN_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    if (!ctx.world_client || !ctx.world_client->IsConnected())
+    {
+        spdlog::warn("MW_CHECKMAIN_REQ char={}: world peer not connected — "
+                     "ack dropped", dwCharID);
+        co_return;
+    }
+
+    // Legacy gates the ack on IsMainCell(channel, map, pos) — the cell
+    // grid that shards one logical map across server instances. The
+    // modern map hosts a whole map in-process, so cell ownership reduces
+    // to "is this char resident here?": a loaded snapshot or a live
+    // client session means this is its main map. Precise multi-instance
+    // cell ownership is a follow-up once the cell grid is modelled.
+    const bool resident =
+        (ctx.char_state  && ctx.char_state->Get(dwCharID).has_value()) ||
+        (ctx.session_reg && ctx.session_reg->Find(dwCharID) != nullptr);
+
+    if (!resident)
+    {
+        spdlog::info("MW_CHECKMAIN_REQ char={} key={} ch={} map={} — not "
+                     "resident here, no ack", dwCharID, dwKEY, bChannel, wMapID);
+        co_return;
+    }
+
+    spdlog::info("MW_CHECKMAIN_REQ char={} key={} ch={} map={} — main cell, "
+                 "ack", dwCharID, dwKEY, bChannel, wMapID);
+
+    co_await ctx.world_client->SendPacket(
+        static_cast<std::uint16_t>(MessageId::MW_CHECKMAIN_ACK),
+        EncodeCheckMainAck(dwCharID, dwKEY));
+}
+
+boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
               std::vector<std::byte> body,
               const HandlerContext&  ctx)
@@ -563,6 +619,10 @@ DispatchWorld(std::uint16_t          wId,
 
     case MessageId::MW_ADDCONNECT_REQ:
         co_await OnMWAddConnectReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_CHECKMAIN_REQ:
+        co_await OnMWCheckMainReq(std::move(body), ctx);
         break;
 
     default:

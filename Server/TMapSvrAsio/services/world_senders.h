@@ -59,4 +59,12 @@ std::vector<std::byte> EncodeEnterCharReq(std::uint32_t      char_id,
 std::vector<std::byte> EncodeEnterCharAck(std::uint32_t char_id,
                                           std::uint32_t key);
 
+// MW_CHECKMAIN_ACK body — 8 bytes (dwCharID + dwKEY), mirrors legacy
+// SSSender.cpp:742. The map's "yes, this is the char's main cell" reply
+// to MW_CHECKMAIN_REQ; only sent when the map owns the cell the char
+// stands in (legacy IsMainCell), so TWorld can settle which connection
+// is the authoritative main session.
+std::vector<std::byte> EncodeCheckMainAck(std::uint32_t char_id,
+                                          std::uint32_t key);
+
 } // namespace tmapsvr

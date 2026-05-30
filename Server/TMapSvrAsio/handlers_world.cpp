@@ -416,6 +416,72 @@ OnMWEnterSvrReq(std::vector<std::byte> body, const HandlerContext& ctx)
 }
 
 boost::asio::awaitable<void>
+OnMWEnterCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire: the fat per-connection entry composite (legacy
+    // SSHandler.cpp:1453 / TWorld SendMwEnterCharReq). It leads with the
+    // two fields the ACK echoes:
+    //   DWORD dwCharID
+    //   DWORD dwKEY
+    // followed by the identity header (below) and then the char's full
+    // cluster state — guild / party / corps / tactics / soulmate ids +
+    // an opaque recall-mon tail. Applying that state onto live char
+    // state is a follow-up increment (CharSnapshot doesn't model the
+    // guild/party fields yet); this handler completes the *ready*
+    // handshake TWorld's CheckMainCon blocks on.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY))
+    {
+        spdlog::warn("MW_ENTERCHAR_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    if (!ctx.world_client || !ctx.world_client->IsConnected())
+    {
+        spdlog::warn("MW_ENTERCHAR_REQ char={}: world peer not connected — "
+                     "ack dropped", dwCharID);
+        co_return;
+    }
+
+    // Best-effort identity header (legacy reads these straight into the
+    // CTPlayer): start_act, name, map_id, spawn pos. Used for the log
+    // line and, when the char is already resident on this map, to track
+    // the World-authoritative spawn position. A composite truncated
+    // after dwKEY still completes the ready handshake.
+    std::uint8_t  bStartAct = 0;
+    std::string   name;
+    std::uint16_t wMapID = 0;
+    float         fPosX = 0.f, fPosY = 0.f, fPosZ = 0.f;
+    const bool have_hdr =
+        r.Read(bStartAct) && r.ReadString(name) && r.Read(wMapID) &&
+        r.Read(fPosX) && r.Read(fPosY) && r.Read(fPosZ);
+
+    // Update() is a no-op when the char isn't resident, so this stays
+    // safe for the entry-before-load ordering.
+    if (have_hdr && ctx.char_state)
+    {
+        ctx.char_state->Update(dwCharID, [&](CharSnapshot& s) {
+            s.wMapID = wMapID;
+            s.fPosX  = fPosX;
+            s.fPosY  = fPosY;
+            s.fPosZ  = fPosZ;
+        });
+    }
+
+    spdlog::info("MW_ENTERCHAR_REQ char={} key={} name='{}' map={} — "
+                 "connection ready, ack",
+        dwCharID, dwKEY, have_hdr ? name : std::string("?"), wMapID);
+
+    co_await ctx.world_client->SendPacket(
+        static_cast<std::uint16_t>(MessageId::MW_ENTERCHAR_ACK),
+        EncodeEnterCharAck(dwCharID, dwKEY));
+}
+
+boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
               std::vector<std::byte> body,
               const HandlerContext&  ctx)
@@ -432,6 +498,10 @@ DispatchWorld(std::uint16_t          wId,
 
     case MessageId::MW_ENTERSVR_REQ:
         co_await OnMWEnterSvrReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_ENTERCHAR_REQ:
+        co_await OnMWEnterCharReq(std::move(body), ctx);
         break;
 
     default:

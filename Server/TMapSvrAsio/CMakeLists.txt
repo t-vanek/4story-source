@@ -186,3 +186,13 @@ target_link_libraries(test_tmapsvr_asio_world_enter PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_world_enter
     COMMAND test_tmapsvr_asio_world_enter)
+
+# Inbound per-connection entry handshake: OnMW_ENTERCHAR_REQ replies
+# MW_ENTERCHAR_ACK (char_id, key) and tracks the composite spawn
+# position. The link TWorld's CheckMainCon loop blocks on.
+add_executable(test_tmapsvr_asio_world_enterchar
+    ${TMAPSVR_ASIO_SRC}/tests/test_world_enterchar.cpp)
+target_link_libraries(test_tmapsvr_asio_world_enterchar PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_world_enterchar
+    COMMAND test_tmapsvr_asio_world_enterchar)

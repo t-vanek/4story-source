@@ -51,4 +51,12 @@ std::vector<std::byte> EncodeEnterSvrAck(const CharSnapshot& s,
 std::vector<std::byte> EncodeEnterCharReq(std::uint32_t      char_id,
                                           const std::string& name);
 
+// MW_ENTERCHAR_ACK body — 8 bytes (dwCharID + dwKEY), mirrors legacy
+// SSSender.cpp:730. The map's "this connection is ready" reply to the
+// World→Map MW_ENTERCHAR_REQ entry composite; TWorld's OnEnterCharAck
+// reads exactly these two fields to flip the con's `ready` flag and
+// drive its CheckMainCon reconcile.
+std::vector<std::byte> EncodeEnterCharAck(std::uint32_t char_id,
+                                          std::uint32_t key);
+
 } // namespace tmapsvr

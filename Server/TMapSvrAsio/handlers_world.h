@@ -39,4 +39,14 @@ boost::asio::awaitable<void> OnMWEnterSvrReq(
     std::vector<std::byte>       body,
     const HandlerContext&        ctx);
 
+// MW_ENTERCHAR_REQ (World→Map): the per-connection entry handshake.
+// TWorld pushes the char's cluster state (guild/party/corps/soulmate +
+// recall-mon tail) as a fat composite and waits for the map to confirm
+// the connection is ready. The map replies MW_ENTERCHAR_ACK; TWorld's
+// CheckMainCon stays blocked until every con has ACKed.
+// Legacy: SSHandler.cpp:1447 (OnMW_ENTERCHAR_REQ).
+boost::asio::awaitable<void> OnMWEnterCharReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
 } // namespace tmapsvr

@@ -5,8 +5,10 @@
 // SetRows() let tests populate before calling LoadInventory.
 
 #include "inventory_service.h"
+#include "inventory_slots.h"
 
 #include <cstdint>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -32,6 +34,21 @@ public:
         const auto it = m_rows.find(char_id);
         if (it == m_rows.end()) return {};
         return it->second;
+    }
+
+    std::optional<std::uint8_t>
+        AddItem(std::uint32_t char_id, const ItemInstance& it) override
+    {
+        const auto slot = FindBlankSlot(m_rows[char_id]);
+        if (!slot)
+            return std::nullopt;
+        InventoryRow row;
+        row.bInvenID = *slot;
+        row.wItemID  = it.wItemID;
+        row.dEndTime = 0;
+        row.bELD     = it.bELD;
+        m_rows[char_id].push_back(row);
+        return slot;
     }
 
 private:

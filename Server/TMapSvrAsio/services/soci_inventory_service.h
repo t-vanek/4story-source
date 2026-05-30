@@ -7,6 +7,7 @@
 #include "inventory_service.h"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace fourstory::db { class SessionPool; }
@@ -20,6 +21,9 @@ public:
 
     std::vector<InventoryRow>
         LoadInventory(std::uint32_t char_id) override;
+
+    std::optional<std::uint8_t>
+        AddItem(std::uint32_t char_id, const ItemInstance& it) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

@@ -2,6 +2,7 @@
 
 #include "db/queries.h"
 #include "db/row_helpers.h"
+#include "inventory_slots.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -57,6 +58,39 @@ SociInventoryService::LoadInventory(std::uint32_t char_id)
         out.clear();
     }
     return out;
+}
+
+std::optional<std::uint8_t>
+SociInventoryService::AddItem(std::uint32_t char_id, const ItemInstance& it)
+{
+    // Allocate the lowest free bag slot over the char's current rows, then
+    // persist (dEndTime NULL = permanent). A re-read of the rows is the
+    // simplest correct slot source — loot/pickup is infrequent, so the
+    // extra SELECT is cheap and avoids a stale in-memory cache.
+    const auto slot = FindBlankSlot(LoadInventory(char_id));
+    if (!slot)
+        return std::nullopt;   // bag full → caller replies MIT_FULLINVEN
+
+    try
+    {
+        auto lease = m_pool.Acquire();
+        auto& sql  = *lease;
+        sql << queries::InsertInventoryItem,
+            soci::use(static_cast<std::int32_t>(char_id), "cid"),
+            soci::use(static_cast<std::int32_t>(*slot),   "slot"),
+            soci::use(static_cast<std::int32_t>(it.wItemID), "item"),
+            soci::use(static_cast<std::int32_t>(it.bELD),    "eld");
+    }
+    catch (const std::exception& ex)
+    {
+        // PK (dwCharID, bInvenID) collision or write failure → treat as
+        // "couldn't place" so the corpse keeps the item (no silent loss).
+        spdlog::error("soci_inventory_service: AddItem(char={}, item={}, "
+                      "slot={}) threw: {}",
+            char_id, it.wItemID, static_cast<int>(*slot), ex.what());
+        return std::nullopt;
+    }
+    return slot;
 }
 
 } // namespace tmapsvr

@@ -295,3 +295,12 @@ target_link_libraries(test_tmapsvr_asio_loot_senders PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_loot_senders
     COMMAND test_tmapsvr_asio_loot_senders)
+
+# Inventory: FindBlankSlot (CTInven::GetBlankPos port) + the AddItem
+# loot/pickup slot allocation + bag-full failure.
+add_executable(test_tmapsvr_asio_inventory
+    ${TMAPSVR_ASIO_SRC}/tests/test_inventory.cpp)
+target_link_libraries(test_tmapsvr_asio_inventory PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_inventory
+    COMMAND test_tmapsvr_asio_inventory)

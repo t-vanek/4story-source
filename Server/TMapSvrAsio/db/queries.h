@@ -38,6 +38,14 @@ inline constexpr const char* InventoryByCharId =
     "SELECT bInvenID, wItemID, dEndTime, bELD "
     "FROM TINVENTABLE WHERE dwCharID = :cid";
 
+// TINVENTABLE — loot/pickup insert (item-loot wave). bInvenID is the
+// allocated bag slot; dEndTime is NULL (permanent — timed/cash item
+// persistence is a follow-up). PK (dwCharID, bInvenID) makes a slot
+// collision fail the insert, which the AddItem caller treats as "no slot".
+inline constexpr const char* InsertInventoryItem =
+    "INSERT INTO TINVENTABLE (dwCharID, bInvenID, wItemID, dEndTime, bELD) "
+    "VALUES (:cid, :slot, :item, NULL, :eld)";
+
 // TNPCCHART — F10 chart loader at boot. Whole table.
 inline constexpr const char* AllNpcs =
     "SELECT wID, szName, bType, bCountryID, wLocalID, bCondition, "

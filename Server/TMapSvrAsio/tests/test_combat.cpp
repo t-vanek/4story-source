@@ -5,8 +5,10 @@
 // the damage state machine + the wire encoders.
 
 #include "services/monster_registry.h"
+#include "services/monster_ai.h"
 #include "services/client_senders.h"
 #include "domain/monster.h"
+#include "domain/position.h"
 #include "wire_codec.h"
 
 #include <cstdint>
@@ -138,8 +140,40 @@ int main()
         EXPECT(r.Eof());
     }
 
+    // --- DecideMonsterMove: chase vs roam ----------------------------
+    {
+        // No players → idle roam (apply the offset).
+        auto a = DecideMonsterMove(10.f, 10.f, {}, 30.f, 2.5f, 1.f, -1.f);
+        EXPECT(!a.chasing && a.x == 11.f && a.z == 9.f);
+
+        // Player out of aggro range → roam.
+        std::vector<Position> outpl{ { 100.f, 0.f, 100.f } };
+        auto b = DecideMonsterMove(0.f, 0.f, outpl, 30.f, 2.5f, 2.f, 3.f);
+        EXPECT(!b.chasing && b.x == 2.f && b.z == 3.f);
+
+        // Player in range, farther than one step → step chase_step toward.
+        std::vector<Position> inpl{ { 0.f, 0.f, 10.f } };
+        auto c = DecideMonsterMove(0.f, 0.f, inpl, 30.f, 2.5f, 9.f, 9.f);
+        EXPECT(c.chasing && c.x == 0.f && c.z == 2.5f);
+
+        // Player closer than one step → land on it.
+        std::vector<Position> adj{ { 1.f, 0.f, 1.f } };
+        auto d = DecideMonsterMove(0.f, 0.f, adj, 30.f, 2.5f, 9.f, 9.f);
+        EXPECT(d.chasing && d.x == 1.f && d.z == 1.f);
+
+        // Player at the origin is ignored (un-positioned) → roam.
+        std::vector<Position> origin{ { 0.f, 0.f, 0.f } };
+        auto e = DecideMonsterMove(5.f, 5.f, origin, 30.f, 2.5f, 1.f, 1.f);
+        EXPECT(!e.chasing && e.x == 6.f && e.z == 6.f);
+
+        // Nearest of several is chosen.
+        std::vector<Position> many{ { 0.f, 0.f, 20.f }, { 0.f, 0.f, 5.f } };
+        auto f = DecideMonsterMove(0.f, 0.f, many, 30.f, 2.5f, 0.f, 0.f);
+        EXPECT(f.chasing && f.z == 2.5f);   // toward the z=5 one
+    }
+
     if (g_fails == 0)
         std::printf("test_combat: ApplyDamage + hpmp/delmon/exp + All/Update + "
-                    "monmove layout OK\n");
+                    "monmove + decide-move OK\n");
     return g_fails == 0 ? 0 : 1;
 }

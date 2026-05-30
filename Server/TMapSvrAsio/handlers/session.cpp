@@ -289,6 +289,13 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
         co_return;
     }
 
+    // Seed the live presence position from the loaded snapshot so AOI and
+    // the monster-chase AI have a real location before the first
+    // CS_MOVE_REQ (presence.pos otherwise sits at the origin until a move).
+    if (ctx.presence)
+        ctx.presence->UpdatePosition(cid, snap->wMapID,
+            Position{ snap->fPosX, snap->fPosY, snap->fPosZ });
+
     spdlog::info("CS_CONREADY_REQ char={} name='{}' map={} — CS_CHARINFO_ACK "
                  "(AOI flood deferred)", cid, snap->szNAME, snap->wMapID);
 

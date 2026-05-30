@@ -113,6 +113,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/npc.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/combat.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/loot.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/quest.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/social.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/bow.cpp
@@ -313,3 +314,12 @@ target_link_libraries(test_tmapsvr_asio_corpse PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_corpse
     COMMAND test_tmapsvr_asio_corpse)
+
+# Loot take: TakeCorpseItem (peek → bag add → remove), incl. the bag-full
+# invariant that leaves the item on the corpse (MIT_FULLINVEN, no loss).
+add_executable(test_tmapsvr_asio_loot_take
+    ${TMAPSVR_ASIO_SRC}/tests/test_loot_take.cpp)
+target_link_libraries(test_tmapsvr_asio_loot_take PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_loot_take
+    COMMAND test_tmapsvr_asio_loot_take)

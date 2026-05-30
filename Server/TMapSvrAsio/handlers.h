@@ -152,6 +152,30 @@ boost::asio::awaitable<void> OnRevivalReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+// CS_MONITEM* — the monster corpse loot window (handlers/loot.cpp). Drain
+// the corpse the kill left behind (services/corpse_registry.h): list its
+// money + items, take the money, take one item into the bag, or take all.
+// Legacy CS_MONITEM* family (CSHandler.cpp:6771-6910).
+boost::asio::awaitable<void> OnMonItemListReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnMonMoneyTakeReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnMonItemTakeReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnMonItemTakeAllReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
 boost::asio::awaitable<void> OnQuestExecReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,

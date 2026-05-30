@@ -39,6 +39,7 @@ struct CharSnapshot
     std::uint32_t  dwHP             = 1;
     std::uint32_t  dwMaxHP          = 1;   // = dwHP at load (real max needs the stat layer)
     std::uint32_t  dwMP             = 1;
+    std::uint8_t   bDead            = 0;   // death state (legacy m_bStatus == OS_DEAD)
     std::uint16_t  wSkillPoint      = 0;
     std::uint32_t  dwRegion         = 0;
     std::uint8_t   bGuildLeave      = 0;

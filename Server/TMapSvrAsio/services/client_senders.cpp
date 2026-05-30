@@ -302,4 +302,25 @@ std::vector<std::byte> EncodeActionAck(
     return b;
 }
 
+std::vector<std::byte> EncodeDieAck(std::uint32_t id, std::uint8_t obj_type)
+{
+    std::vector<std::byte> b;
+    b.reserve(5);
+    wire::WritePOD<std::uint32_t>(b, id);
+    wire::WritePOD<std::uint8_t> (b, obj_type);
+    return b;
+}
+
+std::vector<std::byte> EncodeRevivalAck(
+    std::uint32_t char_id, float x, float y, float z)
+{
+    std::vector<std::byte> b;
+    b.reserve(16);
+    wire::WritePOD<std::uint32_t>(b, char_id);
+    wire::WritePOD<float>        (b, x);
+    wire::WritePOD<float>        (b, y);
+    wire::WritePOD<float>        (b, z);
+    return b;
+}
+
 } // namespace tmapsvr

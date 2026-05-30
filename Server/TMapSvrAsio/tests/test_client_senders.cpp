@@ -279,8 +279,30 @@ int main()
         EXPECT(r.Eof());
     }
 
+    // --- CS_DIE_ACK: id + obj type -----------------------------------
+    {
+        auto b = EncodeDieAck(0x1234ABCD, /*OT_PC=*/1);
+        EXPECT(b.size() == 5);
+        wire::Reader r(b.data(), b.size());
+        std::uint32_t id = 0; std::uint8_t ty = 0xFF;
+        EXPECT(r.Read(id) && r.Read(ty));
+        EXPECT(id == 0x1234ABCD && ty == 1);
+        EXPECT(r.Eof());
+    }
+
+    // --- CS_REVIVAL_ACK: char id + x/y/z -----------------------------
+    {
+        auto b = EncodeRevivalAck(0x00C0FFEE, 12.5f, 1.0f, -7.25f);
+        EXPECT(b.size() == 16);
+        wire::Reader r(b.data(), b.size());
+        std::uint32_t id = 0; float x = 0, y = 0, z = 0;
+        EXPECT(r.Read(id) && r.Read(x) && r.Read(y) && r.Read(z));
+        EXPECT(id == 0x00C0FFEE && x == 12.5f && y == 1.0f && z == -7.25f);
+        EXPECT(r.Eof());
+    }
+
     if (g_fails == 0)
         std::printf("test_client_senders: addconnect + connect + charinfo + "
-                    "enter + addmon + action layout OK\n");
+                    "enter + addmon + action + die + revival layout OK\n");
     return g_fails == 0 ? 0 : 1;
 }

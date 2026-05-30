@@ -136,6 +136,14 @@ boost::asio::awaitable<void> OnDefendReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+// CS_REVIVAL_REQ — a dead player revives at a chosen position. Clears the
+// death state, restores HP, repositions, and broadcasts CS_REVIVAL_ACK.
+// Legacy OnCS_REVIVAL_REQ (CSHandler.cpp:1067). Lives in handlers/combat.cpp.
+boost::asio::awaitable<void> OnRevivalReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
 boost::asio::awaitable<void> OnQuestExecReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,

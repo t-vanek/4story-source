@@ -35,6 +35,7 @@
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/session_registry.h"
+#include "domain/position.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -314,6 +315,84 @@ OnDefendReq(std::shared_ptr<tnetlib::AsioSession> sess,
             attacker = *cid;
 
     co_await HitMonster(sess, dwTargetID, dmg, attacker, ctx);
+}
+
+// CS_REVIVAL_REQ — a dead player chooses to revive. Faithful to legacy
+// OnCS_REVIVAL_REQ (CSHandler.cpp:1067): clear the death state, restore
+// HP, move to the chosen position, and tell everyone in view the corpse
+// stood back up.
+boost::asio::awaitable<void>
+OnRevivalReq(std::shared_ptr<tnetlib::AsioSession> sess,
+             std::vector<std::byte>                body,
+             const HandlerContext&                 ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy CSHandler.cpp:1076): FLOAT x, y, z, BYTE type
+    // (REVIVAL_NPC → revive in place vs ghost-walk; the aftermath variant
+    // rides the stat/aftermath wave).
+    wire::Reader r(body.data(), body.size());
+    float x = 0, y = 0, z = 0;
+    std::uint8_t type = 0;
+    if (!r.Read(x) || !r.Read(y) || !r.Read(z) || !r.Read(type))
+    {
+        spdlog::warn("CS_REVIVAL_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    if (!ctx.session_reg || !ctx.char_state)
+        co_return;
+    const auto cid = ctx.session_reg->FindCharIdBySession(sess.get());
+    if (!cid)
+        co_return;
+
+    // Only a dead char revives; restore HP and clear the death state
+    // (legacy CTPlayer::Revival). MP / max-MP restore rides the stat wave.
+    bool revived = false;
+    std::uint32_t max_hp = 0;
+    ctx.char_state->Update(*cid, [&](CharSnapshot& s)
+    {
+        if (!s.bDead)
+            return;
+        s.bDead = 0;
+        s.dwHP  = s.dwMaxHP;
+        s.fPosX = x;
+        s.fPosY = y;
+        s.fPosZ = z;
+        max_hp  = s.dwMaxHP;
+        revived = true;
+    });
+    if (!revived)
+        co_return;
+
+    const auto rev = EncodeRevivalAck(*cid, x, y, z);
+    const auto hp  = EncodeHpMpAck(*cid, max_hp, max_hp, 0, 0);
+
+    // The reviving player always gets the ack + refilled bar directly.
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_REVIVAL_ACK), rev);
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), hp);
+
+    // Reposition in presence (so the AI sees the new spot) and broadcast to
+    // everyone else in view.
+    if (const auto e =
+            ctx.presence ? ctx.presence->FindEntry(*cid) : std::nullopt)
+    {
+        ctx.presence->UpdatePosition(*cid, e->map_id, Position{ x, y, z });
+        for (auto& w : WatchersOnChannel(ctx, e->channel))
+        {
+            if (w.get() == sess.get()) continue;   // already sent above
+            co_await w->SendPacket(
+                static_cast<std::uint16_t>(MessageId::CS_REVIVAL_ACK), rev);
+            co_await w->SendPacket(
+                static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), hp);
+        }
+    }
+
+    spdlog::info("revival: char={} revived at ({:.1f},{:.1f},{:.1f})",
+        *cid, x, y, z);
 }
 
 } // namespace tmapsvr

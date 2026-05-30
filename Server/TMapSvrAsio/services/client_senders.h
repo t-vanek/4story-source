@@ -154,4 +154,17 @@ std::vector<std::byte> EncodeActionAck(
     std::uint8_t action_id, std::uint32_t act_id, std::uint32_t ani_id,
     std::uint16_t skill_id);
 
+// CS_DIE_ACK body — an object died (DWORD id + BYTE obj type). Mirrors
+// legacy CTPlayer::SendCS_DIE_ACK (CSSender.cpp:1392), broadcast to
+// everyone in view from CTObjBase::OnDie so the death animation plays.
+std::vector<std::byte> EncodeDieAck(
+    std::uint32_t id, std::uint8_t obj_type);
+
+// CS_REVIVAL_ACK body — a player revived at a position (DWORD char id +
+// FLOAT x/y/z). Mirrors legacy CTPlayer::SendCS_REVIVAL_ACK
+// (CSSender.cpp:1404). Broadcast to everyone in view so the corpse stands
+// back up at the revival point.
+std::vector<std::byte> EncodeRevivalAck(
+    std::uint32_t char_id, float x, float y, float z);
+
 } // namespace tmapsvr

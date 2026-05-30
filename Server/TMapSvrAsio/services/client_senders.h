@@ -14,6 +14,7 @@
 // builders in Server/TMapSvrAsio/legacy_src/CSSender.cpp + SSHandler.cpp.
 
 #include "domain/character.h"
+#include "domain/monster.h"
 #include "domain/position.h"
 
 #include <cstddef>
@@ -89,6 +90,25 @@ std::vector<std::byte> EncodeCharInfoAck(
 // uses. max HP/MP default to current HP/MP.
 std::vector<std::byte> EncodeEnterAck(
     const CharSnapshot& s, const Position& pos,
+    std::uint8_t color, std::uint8_t new_member);
+
+// CS_ADDMON_ACK body — a monster becoming visible to the client (the
+// monster half of the enter-map AOI flood, and later every spawn /
+// chase into view). Mirrors legacy CTPlayer::SendCS_ADDMON_ACK
+// (CSSender.cpp:913): instance id + template id + level + hp/mp +
+// position + facing/action state + new_member + country + faction tint
+// + region, then a maintain-skill list.
+//
+// `level` is looked up from the MonsterTemplate by the caller; `country`
+// from the spawn point; `color` is the legacy TNCOLOR (PvP / faction)
+// defaulted to 0/hostile pending the combat layer; `new_member` is 1
+// when announcing a fresh spawn, 0 when listing the standing crowd to a
+// joining client. max HP/MP default to current HP / 0, and the
+// facing / action / region / maintain-skill fields ship 0 / empty until
+// the AI + combat layer drives them. The wire structure is complete so
+// the client parses cleanly.
+std::vector<std::byte> EncodeAddMonAck(
+    const MonsterInstance& m, std::uint8_t level, std::uint8_t country,
     std::uint8_t color, std::uint8_t new_member);
 
 } // namespace tmapsvr

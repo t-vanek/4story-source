@@ -195,4 +195,36 @@ std::vector<std::byte> EncodeEnterAck(
     return b;
 }
 
+std::vector<std::byte> EncodeAddMonAck(
+    const MonsterInstance& m, std::uint8_t level, std::uint8_t country,
+    std::uint8_t color, std::uint8_t new_member)
+{
+    std::vector<std::byte> b;
+    b.reserve(48);
+
+    wire::WritePOD<std::uint32_t>(b, m.dwInstanceID);
+    wire::WritePOD<std::uint16_t>(b, m.wTemplateID);
+    wire::WritePOD<std::uint8_t> (b, level);
+    wire::WritePOD<std::uint32_t>(b, m.dwHP);       // max HP → current
+    wire::WritePOD<std::uint32_t>(b, m.dwHP);
+    wire::WritePOD<std::uint32_t>(b, 0);            // max MP (not modeled)
+    wire::WritePOD<std::uint32_t>(b, 0);            // MP
+    wire::WritePOD<float>        (b, m.fPosX);
+    wire::WritePOD<float>        (b, m.fPosY);
+    wire::WritePOD<float>        (b, m.fPosZ);
+    wire::WritePOD<std::uint16_t>(b, 0);            // pitch
+    wire::WritePOD<std::uint16_t>(b, 0);            // dir (AI-driven)
+    wire::WritePOD<std::uint8_t> (b, 0);            // mouse dir
+    wire::WritePOD<std::uint8_t> (b, 0);            // key dir
+    wire::WritePOD<std::uint8_t> (b, 0);            // action
+    wire::WritePOD<std::uint8_t> (b, 0);            // mode
+    wire::WritePOD<std::uint8_t> (b, new_member);
+    wire::WritePOD<std::uint8_t> (b, country);
+    wire::WritePOD<std::uint8_t> (b, color);        // faction tint (PvP)
+    wire::WritePOD<std::uint32_t>(b, 0);            // region
+    wire::WritePOD<std::uint8_t> (b, 0);            // maintain-skill list empty
+
+    return b;
+}
+
 } // namespace tmapsvr

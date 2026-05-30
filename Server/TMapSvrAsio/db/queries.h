@@ -88,6 +88,19 @@ inline constexpr const char* AllMonAttr =
     "  wMinWAP, wMaxWAP, dwAtkSpeed "
     "FROM TMONATTRCHART";
 
+// TMONITEMCHART — per-monster drop table loaded at boot, grouped by
+// wMonID. The combat layer rolls these on death (services/loot.h):
+// weight-select by wWeight, gate on the four NORMAL probs. The legacy
+// per-monster query (DBAccess.h CTBLMonItem, WHERE wMonID = ?) is folded
+// into one whole-table load here; wMonID is the group key. Column order
+// matches SociMonItemChart's into() binding.
+inline constexpr const char* AllMonItems =
+    "SELECT wMonID, bChartType, wItemID, wItemIDMin, wItemIDMax, wWeight, "
+    "  bLevelMin, bLevelMax, bItemProb_N1, bItemProb_N2, bItemProb_N3, "
+    "  bItemProb_N4, bItemProb_M, bItemProb_S, bItemProb_R, "
+    "  bItemMagicOpt, bItemRareOpt "
+    "FROM TMONITEMCHART";
+
 // TSKILLCHART — skill templates. This slice loads only the reuse
 // cooldown (dwReuseDelay) the cooldown gate needs; the MP/HP cost and
 // effect (TSKILLDATA) columns land with later skill waves.

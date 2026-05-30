@@ -131,6 +131,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_attr_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_mon_item_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/spawn_manager.cpp
     ${TMAPSVR_ASIO_SRC}/services/monster_ai.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
@@ -275,3 +276,12 @@ target_link_libraries(test_tmapsvr_asio_skill_cooldown PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_skill_cooldown
     COMMAND test_tmapsvr_asio_skill_cooldown)
+
+# Loot: the monster item-drop roll (prob gate + weighted selection + the
+# four NORMAL gates), faithful to CTMonster::AddItem (TMonster.cpp:1102).
+add_executable(test_tmapsvr_asio_loot
+    ${TMAPSVR_ASIO_SRC}/tests/test_loot.cpp)
+target_link_libraries(test_tmapsvr_asio_loot PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_loot
+    COMMAND test_tmapsvr_asio_loot)

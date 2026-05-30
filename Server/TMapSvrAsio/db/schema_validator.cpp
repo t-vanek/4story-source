@@ -232,6 +232,25 @@ void ValidateMonsterSchema(fourstory::db::SessionPool& pool)
         { "TMONATTRCHART",  "wMinWAP" },
         { "TMONATTRCHART",  "wMaxWAP" },
         { "TMONATTRCHART",  "dwAtkSpeed" },
+        // TMONITEMCHART — per-monster drop table. wMonID is the group key;
+        // wWeight + the NORMAL/MAGIC/SET/RARE probs drive the drop roll.
+        { "TMONITEMCHART",  "wMonID" },
+        { "TMONITEMCHART",  "bChartType" },
+        { "TMONITEMCHART",  "wItemID" },
+        { "TMONITEMCHART",  "wItemIDMin" },
+        { "TMONITEMCHART",  "wItemIDMax" },
+        { "TMONITEMCHART",  "wWeight" },
+        { "TMONITEMCHART",  "bLevelMin" },
+        { "TMONITEMCHART",  "bLevelMax" },
+        { "TMONITEMCHART",  "bItemProb_N1" },
+        { "TMONITEMCHART",  "bItemProb_N2" },
+        { "TMONITEMCHART",  "bItemProb_N3" },
+        { "TMONITEMCHART",  "bItemProb_N4" },
+        { "TMONITEMCHART",  "bItemProb_M" },
+        { "TMONITEMCHART",  "bItemProb_S" },
+        { "TMONITEMCHART",  "bItemProb_R" },
+        { "TMONITEMCHART",  "bItemMagicOpt" },
+        { "TMONITEMCHART",  "bItemRareOpt" },
     });
 }
 

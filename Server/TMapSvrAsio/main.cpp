@@ -28,6 +28,7 @@
 #include "services/map_mon_chart.h"
 #include "services/mapper_profiles.h"
 #include "services/mon_attr_chart.h"
+#include "services/mon_item_chart.h"
 #include "services/monster_ai.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
@@ -47,6 +48,7 @@
 #include "services/soci_session_validator.h"
 #include "services/soci_map_mon_chart.h"
 #include "services/soci_mon_attr_chart.h"
+#include "services/soci_mon_item_chart.h"
 #include "services/soci_skill_service.h"
 #include "services/skill_chart.h"
 #include "services/skill_cooldown.h"
@@ -151,6 +153,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
         std::unique_ptr<tmapsvr::IMapMonChart>          map_mon_chart;
         std::unique_ptr<tmapsvr::IMonAttrChart>         mon_attr_chart;
+        std::unique_ptr<tmapsvr::IMonItemChart>         mon_item_chart;
         std::unique_ptr<tmapsvr::ISkillTemplateChart>   skill_chart;
         std::unique_ptr<tmapsvr::ICompanionService>     companion_service;
 
@@ -198,17 +201,19 @@ int main(int argc, char** argv)
             spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
             map_mon_chart     = std::make_unique<tmapsvr::SociMapMonChart>(*pool);
             mon_attr_chart    = std::make_unique<tmapsvr::SociMonAttrChart>(*pool);
+            mon_item_chart    = std::make_unique<tmapsvr::SociMonItemChart>(*pool);
             skill_chart       = std::make_unique<tmapsvr::SociSkillChart>(*pool);
             companion_service = std::make_unique<tmapsvr::SociCompanionService>(*pool);
             spdlog::info("schema OK ({}) — services ready: {} NPC, {} monster "
                          "template(s), {} spawn point(s), {} spawn-mon link(s), "
-                         "{} mon-attr row(s)",
+                         "{} mon-attr row(s), {} drop-table row(s)",
                 fourstory::db::BackendName(backend),
                 npc_service->Size(),
                 monster_chart->Size(),
                 spawn_chart->Size(),
                 map_mon_chart->Size(),
-                mon_attr_chart->Size());
+                mon_attr_chart->Size(),
+                mon_item_chart->Size());
         }
         else
         {
@@ -295,6 +300,7 @@ int main(int argc, char** argv)
         ctx.skill_service     = skill_service.get();
         ctx.quest_service     = quest_service.get();
         ctx.monster_chart     = monster_chart.get();
+        ctx.mon_item_chart    = mon_item_chart.get();
         ctx.skill_chart       = skill_chart.get();
         ctx.skill_cooldown    = &skill_cooldown;
         ctx.spawn_chart       = spawn_chart.get();

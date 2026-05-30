@@ -112,4 +112,40 @@ struct MapMonEntry
     std::uint8_t   bProb      = 0;     // selection weight (0..100)
 };
 
+// MONITEM_PROB — indices into MonItemEntry::bItemProb, verbatim from the
+// legacy enum (TMapType.h:395). NORMAL1..4 are the four per-item drop
+// gates; MAGIC / SET / RARE feed the special-item roll (deferred).
+enum MonItemProb : std::uint8_t
+{
+    MIP_NORMAL1 = 0,
+    MIP_NORMAL2,
+    MIP_NORMAL3,
+    MIP_NORMAL4,
+    MIP_MAGIC,
+    MIP_SET,
+    MIP_RARE,
+    MIP_COUNT      // == 7
+};
+
+// TMONITEMCHART row — one drop-table entry for a monster (keyed by wMonID;
+// a monster has N rows). Faithful to tagTMONITEM (TMapType.h:1491) minus
+// the two runtime pointer members the legacy resolves at load. On death
+// CTMonster::AddItem (TMonster.cpp:1102) rolls the table bDropCount times:
+// weight-select an entry by wWeight, then gate on the four NORMAL probs.
+// The drop roll lives in services/loot.h.
+struct MonItemEntry
+{
+    std::uint16_t  wMonID     = 0;     // → MonsterTemplate.wID (group key)
+    std::uint8_t   bChartType = 0;     // 1 = fixed chart item (wItemID); 0 = magic item (deferred)
+    std::uint16_t  wItemID    = 0;     // dropped item template id (chart-type)
+    std::uint16_t  wItemIDMin = 0;     // item-id range for MonChoiceItem pick (deferred)
+    std::uint16_t  wItemIDMax = 0;
+    std::uint16_t  wWeight    = 0;     // weighted-selection weight (TRand over the sum)
+    std::uint8_t   bLevelMin  = 0;
+    std::uint8_t   bLevelMax  = 0;
+    std::uint8_t   bItemProb[MIP_COUNT] = {};   // per-item gates, indexed by MonItemProb
+    std::uint8_t   bItemMagicOpt = 0;  // magic-option count (MakeSpecialItem, deferred)
+    std::uint8_t   bItemRareOpt  = 0;  // rare-option count  (MakeSpecialItem, deferred)
+};
+
 } // namespace tmapsvr

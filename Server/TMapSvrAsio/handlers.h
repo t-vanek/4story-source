@@ -34,6 +34,7 @@ class INpcService;
 class ISkillService;
 class IQuestService;
 class IMonsterChart;
+class IMonItemChart;
 class ISkillTemplateChart;
 class SkillCooldownTracker;
 class ISpawnChart;
@@ -62,6 +63,7 @@ struct HandlerContext
     ISkillService*         skill_service     = nullptr;
     IQuestService*         quest_service     = nullptr;
     IMonsterChart*         monster_chart     = nullptr;
+    IMonItemChart*         mon_item_chart    = nullptr;   // TMONITEMCHART (drop tables)
     ISkillTemplateChart*   skill_chart       = nullptr;   // TSKILLCHART (reuse delay)
     SkillCooldownTracker*  skill_cooldown    = nullptr;   // per-(char,skill) last-use gate
     ISpawnChart*           spawn_chart       = nullptr;

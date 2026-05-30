@@ -80,6 +80,14 @@ inline constexpr const char* AllMapMon =
     "SELECT wSpawnID, wMonID, bEssential, bLeader, bProb "
     "FROM TMAPMONCHART";
 
+// TMONATTRCHART — per-(monster, level) combat stats loaded at boot.
+// dwMaxHP is the spawn HP; wAP/wMAP/wDP/wMDP/wMinWAP/wMaxWAP feed the
+// damage formula the combat layer adds.
+inline constexpr const char* AllMonAttr =
+    "SELECT wID, bLevel, dwMaxHP, dwMaxMP, wAP, wMAP, wDP, wMDP, "
+    "  wMinWAP, wMaxWAP, dwAtkSpeed "
+    "FROM TMONATTRCHART";
+
 // TCOMPANIONTABLE — F15 per-char companion roster.
 inline constexpr const char* CompanionsByCharId =
     "SELECT bSlot, dwMonID, bLevel, strName, dwExp, wLife, "

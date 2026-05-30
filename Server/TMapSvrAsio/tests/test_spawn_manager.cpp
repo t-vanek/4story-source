@@ -6,6 +6,7 @@
 #include "services/spawn_manager.h"
 #include "services/spawn_chart.h"
 #include "services/map_mon_chart.h"
+#include "services/mon_attr_chart.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "domain/monster.h"
@@ -92,11 +93,19 @@ int main()
     monsters.Add(101, /*level=*/10);
     // 888 deliberately absent.
 
+    // Real combat stats for monster 100 @ lvl 5 only; monster 101 has no
+    // attr row → it should fall back to the level-scaled placeholder.
+    InMemoryMonAttrChart attrs;
+    MonsterAttr a100;
+    a100.wID = 100; a100.bLevel = 5; a100.dwMaxHP = 1500;
+    attrs.Add(a100);
+
     InMemoryMonsterRegistry registry;
     std::uint32_t next_id = 1000;
 
     const std::size_t spawned =
-        SpawnAllStatic(spawns, map_mon, monsters, registry, next_id, /*channel=*/0);
+        SpawnAllStatic(spawns, map_mon, monsters, attrs, registry, next_id,
+                       /*channel=*/0);
 
     // SP10 → 2, SP20 → 1, SP30 → 0 (no rows), SP40 → 0 (no template) = 3.
     EXPECT(spawned == 3);
@@ -110,7 +119,7 @@ int main()
     EXPECT(registry.ListInMap(1, 60).empty());  // wrong channel
 
     // Spot-check a realised instance: SP10 slot 0 → monster 100 (lvl 5),
-    // hp = 100 * 5 = 500, at the spawn-point position.
+    // real HP 1500 from TMONATTRCHART, at the spawn-point position.
     const auto first = registry.Find(1000);
     EXPECT(first.has_value());
     if (first)
@@ -119,17 +128,18 @@ int main()
         EXPECT(first->wSpawnID == 10);
         EXPECT(first->wMapID == 60);
         EXPECT(first->bChannel == 0);
-        EXPECT(first->dwHP == 500);
+        EXPECT(first->dwHP == 1500);     // real, from attr chart
         EXPECT(first->fPosX == 1.f);
         EXPECT(first->fPosZ == 3.f);
     }
-    // SP10 slot 1 → monster 101 (lvl 10), hp = 1000.
+    // SP10 slot 1 → monster 101 (lvl 10), no attr row → placeholder
+    // 100 * 10 = 1000.
     const auto second = registry.Find(1001);
     EXPECT(second.has_value());
     if (second)
     {
         EXPECT(second->wTemplateID == 101);
-        EXPECT(second->dwHP == 1000);
+        EXPECT(second->dwHP == 1000);    // placeholder fallback
     }
 
     if (g_fails == 0)

@@ -27,6 +27,7 @@
 #include "services/log_peer.h"
 #include "services/map_mon_chart.h"
 #include "services/mapper_profiles.h"
+#include "services/mon_attr_chart.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/npc_service.h"
@@ -44,6 +45,7 @@
 #include "services/soci_quest_service.h"
 #include "services/soci_session_validator.h"
 #include "services/soci_map_mon_chart.h"
+#include "services/soci_mon_attr_chart.h"
 #include "services/soci_skill_service.h"
 #include "services/soci_spawn_chart.h"
 #include "services/spawn_chart.h"
@@ -143,6 +145,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::IMonsterChart>         monster_chart;
         std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
         std::unique_ptr<tmapsvr::IMapMonChart>          map_mon_chart;
+        std::unique_ptr<tmapsvr::IMonAttrChart>         mon_attr_chart;
         std::unique_ptr<tmapsvr::ICompanionService>     companion_service;
 
         // Configure the fourstory::mapper Automapper once at startup
@@ -188,14 +191,17 @@ int main(int argc, char** argv)
             monster_chart     = std::make_unique<tmapsvr::SociMonsterChart>(*pool);
             spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
             map_mon_chart     = std::make_unique<tmapsvr::SociMapMonChart>(*pool);
+            mon_attr_chart    = std::make_unique<tmapsvr::SociMonAttrChart>(*pool);
             companion_service = std::make_unique<tmapsvr::SociCompanionService>(*pool);
             spdlog::info("schema OK ({}) — services ready: {} NPC, {} monster "
-                         "template(s), {} spawn point(s), {} spawn-mon link(s)",
+                         "template(s), {} spawn point(s), {} spawn-mon link(s), "
+                         "{} mon-attr row(s)",
                 fourstory::db::BackendName(backend),
                 npc_service->Size(),
                 monster_chart->Size(),
                 spawn_chart->Size(),
-                map_mon_chart->Size());
+                map_mon_chart->Size(),
+                mon_attr_chart->Size());
         }
         else
         {
@@ -216,12 +222,12 @@ int main(int argc, char** argv)
         // The CS_CONREADY enter-map flood broadcasts these via the
         // registry's ListInMap. Multi-channel replication + respawn + AI
         // are the next increments.
-        if (spawn_chart && map_mon_chart && monster_chart)
+        if (spawn_chart && map_mon_chart && monster_chart && mon_attr_chart)
         {
             std::uint32_t monster_instance_seq = 1;
             tmapsvr::SpawnAllStatic(*spawn_chart, *map_mon_chart,
-                *monster_chart, monster_reg, monster_instance_seq,
-                /*channel=*/0);
+                *monster_chart, *mon_attr_chart, monster_reg,
+                monster_instance_seq, /*channel=*/0);
         }
 
         // T3: UDP audit sink (TLogSvrAsio collector). Empty host /

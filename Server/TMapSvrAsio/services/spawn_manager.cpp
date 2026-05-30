@@ -1,6 +1,7 @@
 #include "services/spawn_manager.h"
 
 #include "services/map_mon_chart.h"
+#include "services/mon_attr_chart.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/spawn_chart.h"
@@ -14,6 +15,7 @@ namespace tmapsvr {
 std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
                            const IMapMonChart&  map_mon,
                            const IMonsterChart& monsters,
+                           const IMonAttrChart& attrs,
                            IMonsterRegistry&    registry,
                            std::uint32_t&       next_instance_id,
                            std::uint8_t         channel)
@@ -54,11 +56,16 @@ std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
             m.fPosX        = p.fPosX;
             m.fPosY        = p.fPosY;
             m.fPosZ        = p.fPosZ;
-            // Template carries no HP (real stats live in TMONATTRCHART,
-            // loaded by the combat layer). Level-scaled placeholder so a
-            // live monster shows a sane, non-zero bar (0 = dead/reaped).
+            // Real spawn HP from TMONATTRCHART (monster id + level). A
+            // monster with no stat row falls back to a level-scaled
+            // placeholder so it still shows a sane, non-zero bar
+            // (0 = dead/reaped).
             const std::uint8_t lvl = std::max<std::uint8_t>(1, tmpl->bLevel);
-            m.dwHP = 100u * static_cast<std::uint32_t>(lvl);
+            if (const auto attr = attrs.Find(e.wMonID, tmpl->bLevel);
+                attr && attr->dwMaxHP > 0)
+                m.dwHP = attr->dwMaxHP;
+            else
+                m.dwHP = 100u * static_cast<std::uint32_t>(lvl);
 
             registry.Insert(m);
             ++spawned;

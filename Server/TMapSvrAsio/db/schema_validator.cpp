@@ -219,6 +219,19 @@ void ValidateMonsterSchema(fourstory::db::SessionPool& pool)
         { "TMAPMONCHART",   "bEssential" },
         { "TMAPMONCHART",   "bLeader" },
         { "TMAPMONCHART",   "bProb" },
+        // TMONATTRCHART — per-(monster, level) combat stats. dwMaxHP is
+        // the real spawn HP; the rest feed the damage formula.
+        { "TMONATTRCHART",  "wID" },
+        { "TMONATTRCHART",  "bLevel" },
+        { "TMONATTRCHART",  "dwMaxHP" },
+        { "TMONATTRCHART",  "dwMaxMP" },
+        { "TMONATTRCHART",  "wAP" },
+        { "TMONATTRCHART",  "wMAP" },
+        { "TMONATTRCHART",  "wDP" },
+        { "TMONATTRCHART",  "wMDP" },
+        { "TMONATTRCHART",  "wMinWAP" },
+        { "TMONATTRCHART",  "wMaxWAP" },
+        { "TMONATTRCHART",  "dwAtkSpeed" },
     });
 }
 

@@ -37,6 +37,7 @@ class ISpawnChart;
 class IMonsterRegistry;
 class ICompanionService;
 class ICharStateStore;
+class IServerRouteResolver;
 class ILogPeer;
 class IRateLimiter;
 enum class Mode : std::uint8_t;
@@ -62,6 +63,7 @@ struct HandlerContext
     IMonsterRegistry*      monster_registry  = nullptr;
     ICompanionService*     companion_service = nullptr;
     ICharStateStore*       char_state        = nullptr;   // live char snapshots
+    IServerRouteResolver*  route_resolver    = nullptr;   // server_id → ip/port (MW_ROUTELIST)
     ILogPeer*              log_peer          = nullptr;   // T3 UDP transport
     audit::IAuditLog*      audit             = nullptr;   // T4 structured audit
     ops::IMetrics*         metrics           = nullptr;   // T4 counters/latency

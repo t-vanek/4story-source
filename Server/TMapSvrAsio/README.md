@@ -33,7 +33,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | Boot-time schema validators | ✅ (8 tables) | `db/schema_validator.cpp` — TCURRENTUSER / TCHARTABLE / TINVENTABLE / TNPCCHART / TSKILLTABLE / TQUESTTABLE / TQUESTTERMTABLE / TMONSTERCHART / TMONSPAWNCHART / TCOMPANIONTABLE |
 | SOCI service layer | ✅ | `soci_player_service` / `soci_inventory_service` / `soci_npc_service` / `soci_skill_service` / `soci_quest_service` / `soci_monster_chart` / `soci_spawn_chart` / `soci_companion_service` / `soci_session_validator` |
 | In-memory state stores | ✅ | session_registry / channel_presence / monster_registry |
-| World peer wire (`MW_/DM_`) | 🟡 | Outbound `MW_ADDCHAR_ACK` + `MW_ENTERSVR_ACK` + `MW_ENTERCHAR_ACK`; inbound `DM_LOADCHAR_REQ` + `MW_ENTERSVR_REQ` + `MW_ENTERCHAR_REQ` |
+| World peer wire (`MW_/DM_`) | 🟡 | Connection lifecycle wired: inbound `DM_LOADCHAR_REQ`, `MW_ENTERSVR/ENTERCHAR/ADDCONNECT/CHECKMAIN/CONRESULT/CLOSECHAR/ROUTELIST_REQ`; outbound `MW_ADDCHAR/ENTERSVR/ENTERCHAR/CHECKMAIN/ROUTE_ACK` + client relays. Gameplay MW_/DM_/SS_ traffic still TODO |
 | Log peer (UDP `_UDPPACKET`) | ✅ | `services/log_peer.{h,cpp}` |
 | Audit log + spdlog sink | ✅ | `audit/audit_log.{h,cpp}` + typed `audit/event.h` |
 | Metrics endpoint (Prometheus) | ✅ | `ops/metrics_endpoint.{h,cpp}` |
@@ -43,7 +43,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | **Combat handlers** | ❌ | `CS_ATTACK_REQ` family not wired |
 | **Drop tables / loot** | ❌ | `TDROPCHART` loader missing |
 
-## Wired handlers (26 total)
+## Wired handlers (27 total)
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
@@ -74,6 +74,7 @@ MW_ADDCONNECT_REQ(inbound, World→Map)  handlers_world.cpp  peer-server list �
 MW_CHECKMAIN_REQ (inbound, World→Map)  handlers_world.cpp  main-cell check → MW_CHECKMAIN_ACK
 MW_CONRESULT_REQ (inbound, World→Map)  handlers_world.cpp  settled verdict → client CS_CONNECT_ACK
 MW_CLOSECHAR_REQ (inbound, World→Map)  handlers_world.cpp  close order → client CS_SHUTDOWN_ACK + teardown
+MW_ROUTELIST_REQ (inbound, World→Map)  handlers_world.cpp  resolve server ids → MW_ROUTE_ACK
 ```
 
 > **Connect-ack note:** `session.cpp::OnConnectReq` still emits an

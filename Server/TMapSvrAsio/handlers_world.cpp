@@ -9,6 +9,7 @@
 #include "services/inventory_service.h"
 #include "services/player_service.h"
 #include "services/quest_service.h"
+#include "services/server_route_resolver.h"
 #include "services/session_registry.h"
 #include "services/skill_service.h"
 #include "services/world_client.h"
@@ -702,6 +703,70 @@ OnMWCloseCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
 }
 
 boost::asio::awaitable<void>
+OnMWRouteListReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:6485):
+    //   DWORD dwCharID, DWORD dwKEY, BYTE bCount, bCount × BYTE server_id
+    // TWorld asks the map to resolve a set of cluster server ids to their
+    // live endpoints. The map answers MW_ROUTE_ACK with the (ip, port,
+    // server_id) tuples — legacy fanned this through the DB-batch
+    // (DM_ROUTE_REQ → CSPRoute → DM_ROUTE_ACK → MW_ROUTE_ACK); the modern
+    // map resolves in-process via IServerRouteResolver.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    std::uint8_t  bCount = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Read(bCount))
+    {
+        spdlog::warn("MW_ROUTELIST_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    std::vector<std::uint8_t> server_ids;
+    server_ids.reserve(bCount);
+    for (std::uint8_t i = 0; i < bCount; ++i)
+    {
+        std::uint8_t sid = 0;
+        if (!r.Read(sid))
+        {
+            spdlog::warn("MW_ROUTELIST_REQ char={}: truncated id list at {}/{} "
+                         "— dropping", dwCharID, i, bCount);
+            co_return;
+        }
+        server_ids.push_back(sid);
+    }
+
+    if (!ctx.world_client || !ctx.world_client->IsConnected())
+    {
+        spdlog::warn("MW_ROUTELIST_REQ char={}: world peer not connected — "
+                     "ack dropped", dwCharID);
+        co_return;
+    }
+
+    // Resolve via the injected resolver. Without one configured (no SOCI
+    // route resolver wired yet) the map answers an empty route list so
+    // TWorld's OnRouteAck still unwinds — the production resolver against
+    // the cluster server-registry table is the documented follow-up.
+    std::vector<ServerRoute> routes;
+    if (ctx.route_resolver)
+        routes = ctx.route_resolver->Resolve(ctx.expected_group, server_ids);
+    else
+        spdlog::warn("MW_ROUTELIST_REQ char={}: no route resolver — replying "
+                     "empty MW_ROUTE_ACK ({} ids unresolved)",
+            dwCharID, server_ids.size());
+
+    spdlog::info("MW_ROUTELIST_REQ char={} key={} ids={} resolved={} — "
+                 "MW_ROUTE_ACK", dwCharID, dwKEY, server_ids.size(),
+                 routes.size());
+
+    co_await ctx.world_client->SendPacket(
+        static_cast<std::uint16_t>(MessageId::MW_ROUTE_ACK),
+        EncodeRouteAck(dwCharID, dwKEY, routes));
+}
+
+boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
               std::vector<std::byte> body,
               const HandlerContext&  ctx)
@@ -738,6 +803,10 @@ DispatchWorld(std::uint16_t          wId,
 
     case MessageId::MW_CLOSECHAR_REQ:
         co_await OnMWCloseCharReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_ROUTELIST_REQ:
+        co_await OnMWRouteListReq(std::move(body), ctx);
         break;
 
     default:

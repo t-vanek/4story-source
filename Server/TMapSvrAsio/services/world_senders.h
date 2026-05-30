@@ -11,6 +11,7 @@
 // corresponding TWorld reader byte-for-byte.
 
 #include "domain/character.h"
+#include "services/server_route_resolver.h"   // ServerRoute
 
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +44,15 @@ std::vector<std::byte> EncodeEnterSvrAck(const CharSnapshot& s,
                                          std::uint16_t title_id,
                                          std::uint32_t rank_point,
                                          std::uint32_t user_ip);
+
+// MW_ROUTE_ACK body — dwCharID + dwKEY + BYTE count + count × (DWORD ip,
+// WORD port, BYTE server_id). Mirrors legacy SSHandler.cpp:6581
+// (OnDM_ROUTE_ACK → m_world.Say). The map's answer to MW_ROUTELIST_REQ:
+// the resolved endpoints for the server ids TWorld asked about, read by
+// TWorld's OnRouteAck.
+std::vector<std::byte> EncodeRouteAck(std::uint32_t char_id,
+                                      std::uint32_t key,
+                                      const std::vector<ServerRoute>& routes);
 
 // RW_ENTERCHAR_REQ body — dwCharID + szName. The relay/map asks TWorld
 // to resolve a char by name (and verify the id) before opening an entry;

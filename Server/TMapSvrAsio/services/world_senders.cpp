@@ -62,6 +62,24 @@ std::vector<std::byte> EncodeEnterSvrAck(const CharSnapshot& s,
     return b;
 }
 
+std::vector<std::byte> EncodeRouteAck(std::uint32_t char_id,
+                                      std::uint32_t key,
+                                      const std::vector<ServerRoute>& routes)
+{
+    std::vector<std::byte> b;
+    b.reserve(9 + routes.size() * 7);
+    wire::WritePOD<std::uint32_t>(b, char_id);
+    wire::WritePOD<std::uint32_t>(b, key);
+    wire::WritePOD<std::uint8_t> (b, static_cast<std::uint8_t>(routes.size()));
+    for (const auto& r : routes)
+    {
+        wire::WritePOD<std::uint32_t>(b, r.ip_addr);
+        wire::WritePOD<std::uint16_t>(b, r.port);
+        wire::WritePOD<std::uint8_t> (b, r.server_id);
+    }
+    return b;
+}
+
 std::vector<std::byte> EncodeEnterCharReq(std::uint32_t      char_id,
                                           const std::string& name)
 {

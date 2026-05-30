@@ -79,4 +79,12 @@ boost::asio::awaitable<void> OnMWCloseCharReq(
     std::vector<std::byte>       body,
     const HandlerContext&        ctx);
 
+// MW_ROUTELIST_REQ (World→Map): TWorld asks the map to resolve a set of
+// cluster server ids to their live endpoints; the map answers
+// MW_ROUTE_ACK with the (ip, port, server_id) tuples via
+// IServerRouteResolver. Legacy: SSHandler.cpp:6478.
+boost::asio::awaitable<void> OnMWRouteListReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
 } // namespace tmapsvr

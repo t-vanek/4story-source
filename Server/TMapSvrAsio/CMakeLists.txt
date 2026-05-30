@@ -215,3 +215,12 @@ target_link_libraries(test_tmapsvr_asio_world_checkmain PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_world_checkmain
     COMMAND test_tmapsvr_asio_world_checkmain)
+
+# Inbound route resolution: OnMW_ROUTELIST_REQ resolves server ids to
+# endpoints (via IServerRouteResolver) and replies MW_ROUTE_ACK.
+add_executable(test_tmapsvr_asio_world_routelist
+    ${TMAPSVR_ASIO_SRC}/tests/test_world_routelist.cpp)
+target_link_libraries(test_tmapsvr_asio_world_routelist PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_world_routelist
+    COMMAND test_tmapsvr_asio_world_routelist)

@@ -102,15 +102,20 @@ Two design questions need decisions before the gameplay layer lands:
    data-parameterised instances of ~20 fixed action types over canonical
    DB tables, not arbitrary scripts: so a register-based, DB-sourced
    engine, *not* Lua-via-sol2 and *not* re-authored YAML.
-2. **Dispatcher shape.** The legacy `SSHandler.cpp` `switch` recompiles
-   every server when one packet ID changes. A register-based dispatch
-   (handler table indexed by `MessageId`) or a schema-versioned codec
-   (flatbuffers / protobuf) would decouple them.
+2. **Dispatcher shape.** ✅ **Resolved** — [`DISPATCH.md`](DISPATCH.md).
+   The legacy pain was the *fat* `SSHandler.cpp` switch (logic inlined);
+   the modern servers already use a *thin* switch (per-family handler
+   files), proven to 181 handlers in TWorld. Keep it for wire dispatch
+   (fixed id set, type-safe, consistent); use register tables only for
+   internal logic (quest terms / AI). Schema-versioned codec rejected —
+   the wire is byte-for-byte client-fixed.
 
-Until these are resolved, the scaffold runs handlers that decode the
-wire, validate the session, and call into services — but the
-business-rule layer between them returns "OK, broadcast" instead of
-running combat math. **Do not deploy this binary against players.**
+Both design questions are now resolved; the gameplay phase is unblocked
+on design and gated only on review of the connection-lifecycle work. The
+scaffold still runs handlers that decode the wire, validate the session,
+and call into services — but the business-rule layer between them returns
+"OK, broadcast" instead of running combat math. **Do not deploy this
+binary against players.**
 
 ## Configuration
 

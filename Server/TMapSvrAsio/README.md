@@ -224,7 +224,7 @@ Server/TMapSvrAsio/
 | **T7** | Quest VM design decision | ✅ ([`QUEST_ENGINE.md`](QUEST_ENGINE.md): data-driven, DB-sourced, register dispatch — not Lua/YAML) |
 | **T8** | Combat / damage formula port | ⏸ |
 | **T8** | Combat / damage formula port | 🟡 kill loop wired (`CS_ACTION_REQ` → monster damage → `CS_HPMP` / death `CS_DELMON` + real `wExp` via `CS_EXP`); monster stats from `TMONATTRCHART`. Damage is a level-scaled placeholder — the real `CalcDamage` (player AP/WAP vs monster DP) needs the player combat-stat + skill layer |
-| **T9** | Mob AI tick + spawn manager | 🟡 static spawn (`SpawnManager` + `TMAPMONCHART` → registry → CS_ADDMON on enter, real HP from `TMONATTRCHART`) + **timed respawn on kill** done; roam/chase/attack AI tick + per-spawn respawn delay pending |
+| **T9** | Mob AI tick + spawn manager | 🟡 static spawn (`SpawnManager` + `TMAPMONCHART` → registry → CS_ADDMON on enter, real HP from `TMONATTRCHART`) + **timed respawn on kill** + **idle-roam AI tick** (`monster_ai` → `CS_MONMOVE`, capped per tick) done; legacy host/aggro chase/attack AI (`TAICmd*`), spatial AOI + per-spawn respawn delay pending |
 | **T10** | Drop table / loot generator | ⏸ |
 | **T11** | Bulk handler port (CONSOLIDATION recipe × 280) | ⏸ |
 

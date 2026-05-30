@@ -28,6 +28,7 @@
 #include "services/map_mon_chart.h"
 #include "services/mapper_profiles.h"
 #include "services/mon_attr_chart.h"
+#include "services/monster_ai.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/npc_service.h"
@@ -372,6 +373,19 @@ int main(int argc, char** argv)
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
+
+        // Monster AI — the idle-roam tick. Detached; runs for the life of
+        // the io_context, nudging monsters so the world moves.
+        boost::asio::co_spawn(io,
+            tmapsvr::RunMonsterAi(monster_reg, presence),
+            [](std::exception_ptr ep)
+            {
+                if (!ep) return;
+                try { std::rethrow_exception(ep); }
+                catch (const std::exception& ex)
+                { spdlog::error("monster_ai tick stopped: {}", ex.what()); }
+                catch (...) { spdlog::error("monster_ai tick stopped (unknown)"); }
+            });
 
         // Optional /healthz HTTP endpoint on a separate port. Same
         // pattern as TPatchSvrAsio / TLoginSvrAsio — warn rather

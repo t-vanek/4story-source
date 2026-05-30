@@ -50,6 +50,14 @@ public:
     virtual std::vector<MonsterInstance>
         ListInMap(std::uint8_t channel, std::uint16_t map_id) const = 0;
 
+    // Snapshot of every live monster — the AI tick walks this each tick.
+    virtual std::vector<MonsterInstance> All() const = 0;
+
+    // Move a monster (no-op if it isn't in the registry). The AI roam
+    // tick uses this; combat death uses Remove.
+    virtual void UpdatePosition(std::uint32_t instance_id,
+                                float x, float y, float z) = 0;
+
     virtual std::size_t Size() const = 0;
 };
 
@@ -99,6 +107,27 @@ public:
                 out.push_back(m);
         }
         return out;
+    }
+
+    std::vector<MonsterInstance> All() const override
+    {
+        std::lock_guard<std::mutex> lk(m_mtx);
+        std::vector<MonsterInstance> out;
+        out.reserve(m_rows.size());
+        for (const auto& [_, m] : m_rows)
+            out.push_back(m);
+        return out;
+    }
+
+    void UpdatePosition(std::uint32_t instance_id,
+                        float x, float y, float z) override
+    {
+        std::lock_guard<std::mutex> lk(m_mtx);
+        const auto it = m_rows.find(instance_id);
+        if (it == m_rows.end()) return;
+        it->second.fPosX = x;
+        it->second.fPosY = y;
+        it->second.fPosZ = z;
     }
 
     std::size_t Size() const override

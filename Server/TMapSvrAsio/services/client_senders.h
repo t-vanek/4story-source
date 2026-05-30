@@ -133,4 +133,13 @@ std::vector<std::byte> EncodeExpAck(
     std::uint32_t exp, std::uint32_t prev_level_exp,
     std::uint32_t next_level_exp, std::uint32_t soul_lot_exp);
 
+// CS_MONMOVE_ACK body (single monster) — WORD count=1, then DWORD mon id,
+// BYTE type (OT_MON), pos, pitch, dir, mouse/key dir, action. Mirrors
+// legacy SendCS_MONMOVE_ACK (CSSender.cpp:1113), which is a count-prefixed
+// list; the AI roam tick sends one monster per packet. pitch / mouse /
+// key dir ship 0 (the roam doesn't drive them).
+std::vector<std::byte> EncodeMonMoveAck(
+    std::uint32_t mon_id, float x, float y, float z,
+    std::uint16_t dir, std::uint8_t action);
+
 } // namespace tmapsvr

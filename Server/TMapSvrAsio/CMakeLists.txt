@@ -176,3 +176,13 @@ target_link_libraries(test_tmapsvr_asio_world_senders PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_world_senders
     COMMAND test_tmapsvr_asio_world_senders)
+
+# Inbound enter-server handler suite: OnMW_ENTERSVR_REQ resolves the
+# char identity (cache hit / player-service load / missing) and replies
+# MW_ENTERSVR_ACK. In-process against Fake* services, no DB, no sockets.
+add_executable(test_tmapsvr_asio_world_enter
+    ${TMAPSVR_ASIO_SRC}/tests/test_world_enter.cpp)
+target_link_libraries(test_tmapsvr_asio_world_enter PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_world_enter
+    COMMAND test_tmapsvr_asio_world_enter)

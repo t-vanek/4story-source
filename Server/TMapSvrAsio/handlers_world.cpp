@@ -2,6 +2,7 @@
 
 #include "audit/audit_log.h"
 #include "audit/event.h"
+#include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
@@ -9,6 +10,7 @@
 #include "services/quest_service.h"
 #include "services/skill_service.h"
 #include "services/world_client.h"
+#include "services/world_senders.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -315,6 +317,105 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
 }
 
 boost::asio::awaitable<void>
+OnMWEnterSvrReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire layout from legacy SSHandler.cpp:3078 (9 bytes):
+    //   BYTE  bDBLoad     1 = load char from DB, 0 = snapshot embedded
+    //   DWORD dwCharID
+    //   DWORD dwKEY
+    // When bDBLoad == 0 the legacy World ships the char blob inline so
+    // the DB-batch process is spared a load. The modern map owns its DB
+    // access in-process, so the embedded fast path is intentionally not
+    // reproduced — any trailing bytes after dwKEY are ignored and the
+    // identity is resolved through the live cache / player service below.
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  bDBLoad  = 0;
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    if (!r.Read(bDBLoad) || !r.Read(dwCharID) || !r.Read(dwKEY))
+    {
+        spdlog::warn("MW_ENTERSVR_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    // No world link → nowhere to route the ack. Legacy returns
+    // EC_NOERROR with no reply when FindPlayer misses; mirror the
+    // "stay silent, the peer will retry" behavior here.
+    if (!ctx.world_client || !ctx.world_client->IsConnected())
+    {
+        spdlog::warn("MW_ENTERSVR_REQ char={}: world peer not connected — "
+                     "ack dropped", dwCharID);
+        co_return;
+    }
+
+    // Channel claimed at CS_CONNECT_REQ — presence is bound on a clean
+    // handshake. Absent means the client never connected to this map (or
+    // already tore down); 0 is the legacy default and TWorld keys the
+    // session by char id, not channel, so a 0 here only loses the
+    // cosmetic channel echo on the error path.
+    std::uint8_t channel = 0;
+    if (ctx.presence)
+    {
+        if (const auto e = ctx.presence->FindEntry(dwCharID))
+            channel = e->channel;
+    }
+
+    // Resolve the char identity. Legacy chained DM_ENTERMAPSVR_REQ (DB-
+    // batch persist) → DM_ENTERMAPSVR_ACK → DM_LOADCHAR_REQ → … →
+    // MW_ENTERSVR_ACK across two processes (SSHandler.cpp:3096-3299).
+    // In-process that collapses to: reuse the snapshot the load path
+    // already cached, else pull it through the player service.
+    std::optional<CharSnapshot> snap;
+    if (ctx.char_state)
+        snap = ctx.char_state->Get(dwCharID);
+    if (!snap && ctx.player_service)
+    {
+        snap = ctx.player_service->LoadChar(dwCharID);
+        if (snap && ctx.char_state)
+            ctx.char_state->Store(dwCharID, *snap);
+    }
+
+    // No identity → CN_INTERNAL ack carrying just the char id. Mirrors
+    // the legacy error tail (SSHandler.cpp:3281) which still emits
+    // MW_ENTERSVR_ACK so TWorld unwinds the pending enter instead of
+    // waiting out a timeout.
+    if (!snap)
+    {
+        spdlog::warn("MW_ENTERSVR_REQ char={} key={} dbload={}: no identity "
+                     "(char_state miss + no/empty player service) — ack "
+                     "INTERNAL", dwCharID, dwKEY, bDBLoad);
+        CharSnapshot empty;
+        empty.dwCharID = dwCharID;
+        co_await ctx.world_client->SendPacket(
+            static_cast<std::uint16_t>(MessageId::MW_ENTERSVR_ACK),
+            EncodeEnterSvrAck(empty, dwKEY, /*aid_country=*/0, channel,
+                              /*logout=*/0, /*save=*/0, CnInternal,
+                              /*title_id=*/0, /*rank_point=*/0,
+                              /*user_ip=*/0));
+        co_return;
+    }
+
+    // Success — the char is now resident on this map server. title_id /
+    // rank_point live on the legacy CTPlayer, not the TCHARTABLE row, so
+    // they ship 0 until the title / ranking services land (same
+    // deferral the DM_LOADCHAR_ACK trailing sections use). result = 0 is
+    // the modern "apply this identity" contract TWorld's OnEnterSvrAck
+    // reads (proven in test_world_handshake).
+    spdlog::info("MW_ENTERSVR_REQ char={} key={} name='{}' lvl={} class={} "
+                 "map={} ch={} dbload={} — entered, ack SUCCESS",
+        dwCharID, dwKEY, snap->szNAME, snap->bLevel, snap->bClass,
+        snap->wMapID, channel, bDBLoad);
+
+    co_await ctx.world_client->SendPacket(
+        static_cast<std::uint16_t>(MessageId::MW_ENTERSVR_ACK),
+        EncodeEnterSvrAck(*snap, dwKEY, /*aid_country=*/0, channel,
+                          /*logout=*/0, /*save=*/0, CnSuccess,
+                          /*title_id=*/0, /*rank_point=*/0, /*user_ip=*/0));
+}
+
+boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
               std::vector<std::byte> body,
               const HandlerContext&  ctx)
@@ -327,6 +428,10 @@ DispatchWorld(std::uint16_t          wId,
     {
     case MessageId::DM_LOADCHAR_REQ:
         co_await OnDMLoadCharReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_ENTERSVR_REQ:
+        co_await OnMWEnterSvrReq(std::move(body), ctx);
         break;
 
     default:

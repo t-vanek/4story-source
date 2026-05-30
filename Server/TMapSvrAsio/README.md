@@ -33,7 +33,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | Boot-time schema validators | ✅ (8 tables) | `db/schema_validator.cpp` — TCURRENTUSER / TCHARTABLE / TINVENTABLE / TNPCCHART / TSKILLTABLE / TQUESTTABLE / TQUESTTERMTABLE / TMONSTERCHART / TMONSPAWNCHART / TCOMPANIONTABLE |
 | SOCI service layer | ✅ | `soci_player_service` / `soci_inventory_service` / `soci_npc_service` / `soci_skill_service` / `soci_quest_service` / `soci_monster_chart` / `soci_spawn_chart` / `soci_companion_service` / `soci_session_validator` |
 | In-memory state stores | ✅ | session_registry / channel_presence / monster_registry |
-| World peer wire (`MW_/DM_`) | 🟡 | Outbound `MW_ADDCHAR_ACK` only; inbound stub |
+| World peer wire (`MW_/DM_`) | 🟡 | Outbound `MW_ADDCHAR_ACK` + `MW_ENTERSVR_ACK`; inbound `DM_LOADCHAR_REQ` + `MW_ENTERSVR_REQ` |
 | Log peer (UDP `_UDPPACKET`) | ✅ | `services/log_peer.{h,cpp}` |
 | Audit log + spdlog sink | ✅ | `audit/audit_log.{h,cpp}` + typed `audit/event.h` |
 | Metrics endpoint (Prometheus) | ✅ | `ops/metrics_endpoint.{h,cpp}` |
@@ -43,7 +43,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | **Combat handlers** | ❌ | `CS_ATTACK_REQ` family not wired |
 | **Drop tables / loot** | ❌ | `TDROPCHART` loader missing |
 
-## Wired handlers (19 total)
+## Wired handlers (21 total)
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
@@ -67,7 +67,8 @@ CT_SERVICEMONITOR_ACK     control.cpp     live counts back to TControlSvr
 CT_SERVICEDATACLEAR_ACK   control.cpp     no-op (registry is canonical)
 CT_CTRLSVR_REQ            control.cpp     heartbeat
 
-MW_LOADCHAR_ACK (inbound, World→Map)   handlers_world.cpp
+DM_LOADCHAR_REQ  (inbound, World→Map)  handlers_world.cpp  load char snapshot → DM_LOADCHAR_ACK
+MW_ENTERSVR_REQ  (inbound, World→Map)  handlers_world.cpp  resolve identity → MW_ENTERSVR_ACK
 ```
 
 The remaining ~280 `CS_*` and ~300 `DM_/MW_/SS_` handlers are catalogued

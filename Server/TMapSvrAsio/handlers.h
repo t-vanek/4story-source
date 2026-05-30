@@ -116,10 +116,22 @@ boost::asio::awaitable<void> OnSkillUseReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
-// CS_ACTION_REQ — a player action on a target (normal attack / skill on
-// a monster, recall-mon, PC, …). The combat-relevant slice (attack a
-// monster → damage → HP / death + EXP) lives in handlers/combat.cpp.
+// CS_ACTION_REQ — the *animation* half of an attack/skill. The legacy
+// OnCS_ACTION_REQ (CSHandler.cpp:1233) only broadcasts the action to
+// everyone in view (CS_ACTION_ACK); it computes no damage. Lives in
+// handlers/combat.cpp.
 boost::asio::awaitable<void> OnActionReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+// CS_DEFEND_REQ — the *damage* half of an attack. The client sends its
+// attack powers (phys/magic min/max, attack level, crit flag, skill);
+// the server rolls the final damage against the target's defense, applies
+// it, and broadcasts the result (HP / death + EXP). Legacy
+// OnCS_DEFEND_REQ (CSHandler.cpp:1438 → CTObjBase::Defend). Lives in
+// handlers/combat.cpp.
+boost::asio::awaitable<void> OnDefendReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);

@@ -285,4 +285,21 @@ std::vector<std::byte> EncodeMonMoveAck(
     return b;
 }
 
+std::vector<std::byte> EncodeActionAck(
+    std::uint8_t result, std::uint32_t obj_id, std::uint8_t obj_type,
+    std::uint8_t action_id, std::uint32_t act_id, std::uint32_t ani_id,
+    std::uint16_t skill_id)
+{
+    std::vector<std::byte> b;
+    b.reserve(16);
+    wire::WritePOD<std::uint8_t> (b, result);
+    wire::WritePOD<std::uint32_t>(b, obj_id);
+    wire::WritePOD<std::uint8_t> (b, obj_type);
+    wire::WritePOD<std::uint8_t> (b, action_id);
+    wire::WritePOD<std::uint32_t>(b, act_id);
+    wire::WritePOD<std::uint32_t>(b, ani_id);
+    wire::WritePOD<std::uint16_t>(b, skill_id);
+    return b;
+}
+
 } // namespace tmapsvr

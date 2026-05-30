@@ -247,3 +247,12 @@ target_link_libraries(test_tmapsvr_asio_combat PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_combat
     COMMAND test_tmapsvr_asio_combat)
+
+# Damage formula: PhysDamageBounds floors (5/7) + RollPhysicalDamage span,
+# the faithful port of legacy CalcDamage's A/B/rand physical core.
+add_executable(test_tmapsvr_asio_damage_formula
+    ${TMAPSVR_ASIO_SRC}/tests/test_damage_formula.cpp)
+target_link_libraries(test_tmapsvr_asio_damage_formula PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_damage_formula
+    COMMAND test_tmapsvr_asio_damage_formula)

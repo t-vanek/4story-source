@@ -4,6 +4,7 @@
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
+#include "services/damage_formula.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "asio_session.h"
@@ -39,11 +40,6 @@ int NearestPlayerIndex(float mx, float mz,
         if (d2 <= best) { best = d2; best_i = i; }
     }
     return best_i;
-}
-
-std::uint32_t MonsterDamage(std::uint8_t monster_level)
-{
-    return 10u + static_cast<std::uint32_t>(monster_level) * 2u;
 }
 
 Move2D DecideMonsterMove(float mx, float mz,
@@ -132,19 +128,30 @@ RunMonsterAi(IMonsterRegistry&         registry,
                 co_await w->SendPacket(
                     static_cast<std::uint16_t>(MessageId::CS_MONMOVE_ACK), move);
 
-            // Attack: a player now within melee reach takes damage. HP is
-            // floored at 1 — player death + revival (CS_REVIVAL) is the
-            // next increment. Damage is a level-scaled placeholder until
-            // the real CalcDamage (monster AP/WAP vs player DP) lands.
+            // Attack: a player now within melee reach takes damage. Roll
+            // the monster's real attack power (TMONATTRCHART wAP + weapon
+            // range, carried on the instance from spawn) through the same
+            // physical formula as player→monster. The player's defense is
+            // 0 until the equipment/stat layer gives players a real DP, so
+            // the formula floors (5/7) apply. HP is floored at 1 — player
+            // death + revival (CS_REVIVAL) is the next wave.
             const int ti = NearestPlayerIndex(mv.x, mv.z, player_pos,
                                               kAttackRange);
             if (ti < 0)
                 continue;
+            if (!monsters.Find(m.wTemplateID))   // no template → not a fighter
+                continue;
 
-            std::uint8_t mlevel = 0;
-            if (const auto tmpl = monsters.Find(m.wTemplateID))
-                mlevel = tmpl->bLevel;
-            const std::uint32_t dmg = MonsterDamage(mlevel);
+            auto rand_below = [&](std::uint32_t k) -> std::uint32_t
+            {
+                return k > 1
+                    ? std::uniform_int_distribution<std::uint32_t>(0, k - 1)(rng)
+                    : 0u;
+            };
+            const std::uint32_t dmg = RollPhysicalDamage(
+                static_cast<std::uint32_t>(m.wAP) + m.wMinWAP,
+                static_cast<std::uint32_t>(m.wAP) + m.wMaxWAP,
+                /*player defense=*/0u, rand_below);
             const std::uint32_t victim = player_cid[static_cast<std::size_t>(ti)];
 
             char_state.Update(victim, [&](CharSnapshot& s)

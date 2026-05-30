@@ -64,6 +64,17 @@ struct MonsterInstance
     float          fPosZ         = 0.f;
     std::uint32_t  dwMaxHP       = 0;    // spawn HP (for the health bar)
     std::uint32_t  dwHP          = 0;    // current; 0 = dead, will be reaped
+
+    // Combat stats realized at spawn from TMONATTRCHART (MonsterAttr) so
+    // the registry holds everything the damage formula needs without a
+    // per-hit chart lookup. wDP defends incoming player hits; wAP / wWAP
+    // arm the monster's own melee in the AI tick. Server-side only — not
+    // on the CS_ADDMON wire.
+    std::uint16_t  wAP           = 0;    // physical attack power
+    std::uint16_t  wMinWAP       = 0;    // weapon attack — min
+    std::uint16_t  wMaxWAP       = 0;    // weapon attack — max
+    std::uint16_t  wDP           = 0;    // physical defense
+    std::uint16_t  wMDP          = 0;    // magical defense
 };
 
 // TMONATTRCHART row — a monster's combat stats *at a given level*

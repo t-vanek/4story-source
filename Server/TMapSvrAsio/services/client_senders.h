@@ -142,4 +142,16 @@ std::vector<std::byte> EncodeMonMoveAck(
     std::uint32_t mon_id, float x, float y, float z,
     std::uint16_t dir, std::uint8_t action);
 
+// CS_ACTION_ACK body — an object performed an action / attack animation
+// (BYTE result + DWORD obj id + BYTE obj type + BYTE action id + DWORD
+// act id + DWORD ani id + WORD skill id). Mirrors legacy
+// CTPlayer::SendCS_ACTION_ACK (CSSender.cpp:1186). This is the *animation*
+// half of an attack — the legacy OnCS_ACTION_REQ broadcasts it to everyone
+// in view and computes no damage; the damage lands separately in
+// CS_DEFEND_REQ. `result` is the SKILL_* validation code (0 = success).
+std::vector<std::byte> EncodeActionAck(
+    std::uint8_t result, std::uint32_t obj_id, std::uint8_t obj_type,
+    std::uint8_t action_id, std::uint32_t act_id, std::uint32_t ani_id,
+    std::uint16_t skill_id);
+
 } // namespace tmapsvr

@@ -187,15 +187,8 @@ int main()
         EXPECT(NearestPlayerIndex(1.f, 1.f, only_origin, 99.f) == -1);
     }
 
-    // --- MonsterDamage (placeholder by level) ------------------------
-    {
-        EXPECT(MonsterDamage(0) == 10);
-        EXPECT(MonsterDamage(5) == 20);
-        EXPECT(MonsterDamage(10) == 30);
-    }
-
     if (g_fails == 0)
         std::printf("test_combat: ApplyDamage + hpmp/delmon/exp + All/Update + "
-                    "monmove + decide-move + nearest/mondmg OK\n");
+                    "monmove + decide-move + nearest OK\n");
     return g_fails == 0 ? 0 : 1;
 }

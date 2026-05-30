@@ -257,8 +257,30 @@ int main()
         EXPECT(r.Eof());
     }
 
+    // --- CS_ACTION_ACK: result + obj + type + action + act/ani + skill ---
+    {
+        auto b = EncodeActionAck(/*result=*/0, /*obj_id=*/0xCAFEBABE,
+                                 /*obj_type=*/2, /*action_id=*/7,
+                                 /*act_id=*/0x11223344, /*ani_id=*/0x55667788,
+                                 /*skill_id=*/321);
+        EXPECT(b.size() == 17);
+        wire::Reader r(b.data(), b.size());
+        auto u8  = [&](std::uint8_t  e) { std::uint8_t  v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto u16 = [&](std::uint16_t e) { std::uint16_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto u32 = [&](std::uint32_t e) { std::uint32_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+
+        u8(0);                           // result (SKILL_SUCCESS)
+        u32(0xCAFEBABE);                 // obj id
+        u8(2);                           // obj type (OT_MON)
+        u8(7);                           // action id
+        u32(0x11223344);                 // act id
+        u32(0x55667788);                 // ani id
+        u16(321);                        // skill id
+        EXPECT(r.Eof());
+    }
+
     if (g_fails == 0)
         std::printf("test_client_senders: addconnect + connect + charinfo + "
-                    "enter + addmon layout OK\n");
+                    "enter + addmon + action layout OK\n");
     return g_fails == 0 ? 0 : 1;
 }

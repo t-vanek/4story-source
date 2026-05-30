@@ -20,6 +20,7 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -661,6 +662,46 @@ OnMWConResultReq(std::vector<std::byte> body, const HandlerContext& ctx)
 }
 
 boost::asio::awaitable<void>
+OnMWCloseCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:2201): DWORD dwCharID, DWORD dwKEY
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY))
+    {
+        spdlog::warn("MW_CLOSECHAR_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    if (!sess)
+    {
+        spdlog::warn("MW_CLOSECHAR_REQ char={}: no bound client session — drop",
+            dwCharID);
+        co_return;
+    }
+
+    // Legacy (SSHandler.cpp:2196): ExitMAP + m_bExit + SendCS_SHUTDOWN_ACK.
+    // m_bCloseAll is FALSE on this path, so no MW_CLOSECHAR_ACK is sent
+    // back (that confirmation belongs to the multi-connection close-all
+    // path). Tell the client to shut down (empty-bodied ack), then close
+    // the socket — the MapServer per-connection teardown hook persists
+    // the snapshot (SaveChar) and unbinds the session / presence
+    // registries (map_server.cpp:139).
+    spdlog::info("MW_CLOSECHAR_REQ char={} key={} — CS_SHUTDOWN_ACK + close",
+        dwCharID, dwKEY);
+
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_SHUTDOWN_ACK),
+        std::span<const std::byte>{});
+
+    sess->Close();   // read loop ends → teardown hook saves + unbinds
+}
+
+boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
               std::vector<std::byte> body,
               const HandlerContext&  ctx)
@@ -693,6 +734,10 @@ DispatchWorld(std::uint16_t          wId,
 
     case MessageId::MW_CONRESULT_REQ:
         co_await OnMWConResultReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_CLOSECHAR_REQ:
+        co_await OnMWCloseCharReq(std::move(body), ctx);
         break;
 
     default:

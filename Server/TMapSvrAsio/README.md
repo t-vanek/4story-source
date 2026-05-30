@@ -43,7 +43,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | **Combat handlers** | ❌ | `CS_ATTACK_REQ` family not wired |
 | **Drop tables / loot** | ❌ | `TDROPCHART` loader missing |
 
-## Wired handlers (25 total)
+## Wired handlers (26 total)
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
@@ -73,6 +73,7 @@ MW_ENTERCHAR_REQ (inbound, World→Map)  handlers_world.cpp  per-con entry ready
 MW_ADDCONNECT_REQ(inbound, World→Map)  handlers_world.cpp  peer-server list → client CS_ADDCONNECT_ACK
 MW_CHECKMAIN_REQ (inbound, World→Map)  handlers_world.cpp  main-cell check → MW_CHECKMAIN_ACK
 MW_CONRESULT_REQ (inbound, World→Map)  handlers_world.cpp  settled verdict → client CS_CONNECT_ACK
+MW_CLOSECHAR_REQ (inbound, World→Map)  handlers_world.cpp  close order → client CS_SHUTDOWN_ACK + teardown
 ```
 
 > **Connect-ack note:** `session.cpp::OnConnectReq` still emits an

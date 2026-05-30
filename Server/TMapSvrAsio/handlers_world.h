@@ -71,4 +71,12 @@ boost::asio::awaitable<void> OnMWConResultReq(
     std::vector<std::byte>       body,
     const HandlerContext&        ctx);
 
+// MW_CLOSECHAR_REQ (World→Map): TWorld orders the char closed on this
+// map; the map shuts the client down (CS_SHUTDOWN_ACK) and closes the
+// socket, letting the teardown hook persist + unbind. Legacy:
+// SSHandler.cpp:2196.
+boost::asio::awaitable<void> OnMWCloseCharReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
 } // namespace tmapsvr

@@ -22,6 +22,8 @@
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
+#include "services/monster_chart.h"
+#include "services/monster_registry.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/world_client.h"
@@ -348,6 +350,38 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
             if (!nearby.empty())
                 spdlog::info("CS_CONREADY char={} — CS_ENTER_ACK exchanged with "
                              "{} nearby players", cid, nearby.size());
+
+            // Monster half of the enter flood: every monster on the
+            // player's channel + map. The static SpawnManager places the
+            // standing population on channel 0 at boot (see main.cpp), so
+            // a channel-0 player sees them; per-channel instances + the
+            // respawn / AI tick are the next increments. new_member = 0
+            // (listing the standing crowd, not a fresh spawn); the faction
+            // tint stays hostile-default until the combat layer.
+            if (ctx.monster_registry)
+            {
+                const auto mons =
+                    ctx.monster_registry->ListInMap(me->channel, snap->wMapID);
+                for (const auto& mon : mons)
+                {
+                    std::uint8_t level = 0;
+                    if (ctx.monster_chart)
+                    {
+                        if (const auto t = ctx.monster_chart->Find(mon.wTemplateID))
+                            level = t->bLevel;
+                    }
+                    const auto madd = EncodeAddMonAck(
+                        mon, level, /*country=*/0, /*color=*/0,
+                        /*new_member=*/0);
+                    co_await sess->SendPacket(
+                        static_cast<std::uint16_t>(MessageId::CS_ADDMON_ACK),
+                        madd);
+                }
+                if (!mons.empty())
+                    spdlog::info("CS_CONREADY char={} — CS_ADDMON for {} "
+                                 "monster(s) on ch={} map={}",
+                        cid, mons.size(), me->channel, snap->wMapID);
+            }
         }
     }
 }

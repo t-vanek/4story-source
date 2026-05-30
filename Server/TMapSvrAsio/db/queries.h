@@ -73,6 +73,13 @@ inline constexpr const char* AllSpawns =
     "  wDir, bCountry, bCount, bRange, bArea, bLink, bProb, bRoamType "
     "FROM TMONSPAWNCHART";
 
+// TMAPMONCHART — spawn-point → monster linkage loaded at boot. Each
+// spawn point (wSpawnID) lists its candidate monsters (wMonID) with the
+// essential / leader / probability flags the SpawnManager realises from.
+inline constexpr const char* AllMapMon =
+    "SELECT wSpawnID, wMonID, bEssential, bLeader, bProb "
+    "FROM TMAPMONCHART";
+
 // TCOMPANIONTABLE — F15 per-char companion roster.
 inline constexpr const char* CompanionsByCharId =
     "SELECT bSlot, dwMonID, bLevel, strName, dwExp, wLife, "

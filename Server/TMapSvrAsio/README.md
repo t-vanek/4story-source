@@ -30,7 +30,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | Pre-auth idle watchdog | ✅ | T5 — drops sockets that don't `CS_CONNECT_REQ` |
 | Per-session rate limiter | ✅ | T5 — `services/rate_limiter.{h,cpp}` |
 | Handler dispatch (counter + latency + audit) | ✅ | `handlers/dispatch.cpp` |
-| Boot-time schema validators | ✅ (8 tables) | `db/schema_validator.cpp` — TCURRENTUSER / TCHARTABLE / TINVENTABLE / TNPCCHART / TSKILLTABLE / TQUESTTABLE / TQUESTTERMTABLE / TMONSTERCHART / TMONSPAWNCHART / TCOMPANIONTABLE |
+| Boot-time schema validators | ✅ | `db/schema_validator.cpp` — TCURRENTUSER / TCHARTABLE / TINVENTABLE / TNPCCHART / TSKILLTABLE / TQUESTTABLE / TQUESTTERMTABLE / TMONSTERCHART / TMONSPAWNCHART / TMAPMONCHART / TCOMPANIONTABLE |
 | SOCI service layer | ✅ | `soci_player_service` / `soci_inventory_service` / `soci_npc_service` / `soci_skill_service` / `soci_quest_service` / `soci_monster_chart` / `soci_spawn_chart` / `soci_companion_service` / `soci_session_validator` |
 | In-memory state stores | ✅ | session_registry / channel_presence / monster_registry |
 | World peer wire (`MW_/DM_`) | 🟡 | Connection lifecycle wired: inbound `DM_LOADCHAR_REQ`, `MW_ENTERSVR/ENTERCHAR/ADDCONNECT/CHECKMAIN/CONRESULT/CLOSECHAR/ROUTELIST_REQ`; outbound `MW_ADDCHAR/ENTERSVR/ENTERCHAR/CHECKMAIN/ROUTE_ACK` + client relays. Gameplay MW_/DM_/SS_ traffic still TODO |
@@ -47,7 +47,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
-CS_CONREADY_REQ           session.cpp     post-load → CS_CHARINFO_ACK + surrounding-player CS_ENTER_ACK (monsters/NPCs deferred)
+CS_CONREADY_REQ           session.cpp     post-load → CS_CHARINFO_ACK + CS_ENTER_ACK (players) + CS_ADDMON (static-spawn monsters); NPCs are client-static
 CS_MOVE_REQ               movement.cpp    position + broadcast
 CS_NPCTALK_REQ            npc.cpp         dialogue dispatch
 CS_SKILLUSE_REQ           skill.cpp       skill cooldown + broadcast (no damage calc)
@@ -221,7 +221,7 @@ Server/TMapSvrAsio/
 | **T6** | Metrics + admin shell endpoints | ✅ |
 | **T7** | Quest VM design decision | ✅ ([`QUEST_ENGINE.md`](QUEST_ENGINE.md): data-driven, DB-sourced, register dispatch — not Lua/YAML) |
 | **T8** | Combat / damage formula port | ⏸ |
-| **T9** | Mob AI tick + spawn manager | ⏸ |
+| **T9** | Mob AI tick + spawn manager | 🟡 static spawn done (`SpawnManager` + `TMAPMONCHART` linkage → registry → CS_ADDMON on enter); respawn timer + roam/chase/attack AI tick pending |
 | **T10** | Drop table / loot generator | ⏸ |
 | **T11** | Bulk handler port (CONSOLIDATION recipe × 280) | ⏸ |
 

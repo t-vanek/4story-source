@@ -127,6 +127,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_quest_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/spawn_manager.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_senders.cpp
     ${TMAPSVR_ASIO_SRC}/services/client_senders.cpp
@@ -224,3 +226,12 @@ target_link_libraries(test_tmapsvr_asio_world_routelist PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_world_routelist
     COMMAND test_tmapsvr_asio_world_routelist)
+
+# SpawnManager: static monster population join (spawn + map-mon + monster
+# charts → registry), skip rules + channel/map filter.
+add_executable(test_tmapsvr_asio_spawn_manager
+    ${TMAPSVR_ASIO_SRC}/tests/test_spawn_manager.cpp)
+target_link_libraries(test_tmapsvr_asio_spawn_manager PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_spawn_manager
+    COMMAND test_tmapsvr_asio_spawn_manager)

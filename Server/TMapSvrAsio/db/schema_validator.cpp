@@ -211,6 +211,14 @@ void ValidateMonsterSchema(fourstory::db::SessionPool& pool)
         { "TMONSPAWNCHART", "bLink" },
         { "TMONSPAWNCHART", "bProb" },
         { "TMONSPAWNCHART", "bRoamType" },
+        // TMAPMONCHART — spawn-point → monster linkage the SpawnManager
+        // joins TMONSPAWNCHART against (TMONSPAWNCHART carries no monster
+        // id; the join key is wSpawnID = TMONSPAWNCHART.wID).
+        { "TMAPMONCHART",   "wSpawnID" },
+        { "TMAPMONCHART",   "wMonID" },
+        { "TMAPMONCHART",   "bEssential" },
+        { "TMAPMONCHART",   "bLeader" },
+        { "TMAPMONCHART",   "bProb" },
     });
 }
 

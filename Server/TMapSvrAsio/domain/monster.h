@@ -65,4 +65,18 @@ struct MonsterInstance
     std::uint32_t  dwHP          = 0;    // 0 = dead, will be reaped
 };
 
+// TMAPMONCHART row — which monster(s) a spawn point may realize. A spawn
+// point (SpawnPoint.wID) has N candidate monsters, weighted by bProb,
+// with bEssential ones always present and bLeader marking the pack lead.
+// This is the spawn-point → monster-template linkage (TMONSPAWNCHART
+// carries no monster id; the join key is wSpawnID = SpawnPoint.wID).
+struct MapMonEntry
+{
+    std::uint16_t  wSpawnID   = 0;     // → SpawnPoint.wID
+    std::uint16_t  wMonID     = 0;     // → MonsterTemplate.wID
+    std::uint8_t   bEssential = 0;     // always spawned (not prob-gated)
+    std::uint8_t   bLeader    = 0;     // pack leader
+    std::uint8_t   bProb      = 0;     // selection weight (0..100)
+};
+
 } // namespace tmapsvr

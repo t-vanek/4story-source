@@ -15,8 +15,11 @@
 // it stays bounded even with a large monster population; proper per-cell
 // AOI + per-monster AI scheduling are the refinements.
 
+#include "domain/position.h"
+
 #include <chrono>
 #include <cstddef>
+#include <vector>
 
 #include <boost/asio/awaitable.hpp>
 
@@ -24,6 +27,26 @@ namespace tmapsvr {
 
 class IMonsterRegistry;
 class IChannelPresence;
+
+// A monster's chosen next (x, z) for a tick, and whether it's chasing a
+// player (vs idle-roaming).
+struct Move2D
+{
+    float x        = 0.f;
+    float z        = 0.f;
+    bool  chasing  = false;
+};
+
+// Decide a monster's next position: chase the nearest player within
+// `aggro_range` (stepping `chase_step` toward it, or landing on it when
+// closer), else apply the roam offset (`roam_dx`, `roam_dz`). Players at
+// the exact origin are ignored (not yet positioned). Pure / synchronous
+// so the roam-vs-chase decision is unit-testable; the AI tick supplies
+// random roam offsets + the live player positions.
+Move2D DecideMonsterMove(float mx, float mz,
+                         const std::vector<Position>& players,
+                         float aggro_range, float chase_step,
+                         float roam_dx, float roam_dz);
 
 boost::asio::awaitable<void> RunMonsterAi(
     IMonsterRegistry&         registry,

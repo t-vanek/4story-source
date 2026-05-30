@@ -20,6 +20,8 @@
 #include "audit/audit_log.h"
 #include "audit/event.h"
 #include "services/channel_presence.h"
+#include "services/char_state_store.h"
+#include "services/client_senders.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/world_client.h"
@@ -32,6 +34,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <ctime>
+#include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -82,6 +88,25 @@ std::vector<std::byte> EncodeConnectAck(ConnectResult r)
 
 // MW_ADDCHAR_ACK encoding moved to services/world_senders.h so the
 // map↔world body encoders live in one place (and stay unit-testable).
+
+// "AM/PM HH:MM" server clock string CS_CHARINFO_ACK carries (legacy
+// CSSender.cpp:344 formats the wall-clock the same way). Cosmetic — the
+// client displays it; kept here so the pure encoder takes it as data.
+std::string FormatServerClock()
+{
+    const std::time_t t = std::time(nullptr);
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    const char* ampm = (tm.tm_hour < 12) ? "AM" : "PM";
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%s %02d : %02d", ampm, tm.tm_hour,
+        tm.tm_min);
+    return std::string(buf);
+}
 
 } // namespace
 
@@ -229,22 +254,45 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
               std::vector<std::byte>                body,
               const HandlerContext&                 ctx)
 {
-    // CS_CONREADY_REQ has no body fields — it's a one-shot signal
-    // from the client that it's done loading the local scene and is
-    // ready to receive game state. Legacy CSHandler.cpp:402 calls
-    // InitMap() / EnterMAP() here. F7 doesn't have the MapState yet,
-    // so we just log and let CS_MOVE_REQ start exercising the
-    // broadcast path. The CHARINFO_ACK / surrounding-entities flood
-    // lands with the F13 spawn / AI consolidation pass.
+    using tnetlib::protocol::MessageId;
+
+    // CS_CONREADY_REQ has no body fields — it's a one-shot signal from
+    // the client that it's done loading the local scene. Legacy
+    // CSHandler.cpp:402 calls InitMap() / EnterMAP(), which floods the
+    // client with its own CS_CHARINFO_ACK plus every surrounding entity
+    // (other players, monsters, NPCs). This bounded step sends the
+    // player's own CS_CHARINFO_ACK from the loaded snapshot; the
+    // surrounding-entity AOI flood lands with the gameplay / spawn pass.
     (void)body;
+
+    std::uint32_t cid = 0;
     if (ctx.session_reg)
     {
-        const auto cid = ctx.session_reg->FindCharIdBySession(sess.get());
-        spdlog::info("CS_CONREADY_REQ from char={} — F7 stub (full enter-map "
-                     "broadcast lands with F13 consolidation)",
-            cid ? *cid : 0);
+        if (const auto found = ctx.session_reg->FindCharIdBySession(sess.get()))
+            cid = *found;
     }
-    co_return;
+
+    std::optional<CharSnapshot> snap;
+    if (cid != 0 && ctx.char_state)
+        snap = ctx.char_state->Get(cid);
+
+    // No snapshot means the World load handshake (DM_LOADCHAR /
+    // MW_ENTERSVR) hasn't populated char_state for this char yet — the
+    // client readied before its data arrived. Nothing to send; the
+    // enter flood will be driven once the snapshot lands.
+    if (!snap)
+    {
+        spdlog::info("CS_CONREADY_REQ char={} — no loaded snapshot yet, "
+                     "CHARINFO_ACK skipped", cid);
+        co_return;
+    }
+
+    spdlog::info("CS_CONREADY_REQ char={} name='{}' map={} — CS_CHARINFO_ACK "
+                 "(AOI flood deferred)", cid, snap->szNAME, snap->wMapID);
+
+    const auto ack = EncodeCharInfoAck(*snap, FormatServerClock());
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK), ack);
 }
 
 } // namespace tmapsvr

@@ -13,8 +13,11 @@
 // Byte layouts mirror the legacy CTPlayer::SendCS_* / inline CS_ACK
 // builders in Server/TMapSvrAsio/legacy_src/CSSender.cpp + SSHandler.cpp.
 
+#include "domain/character.h"
+
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace tmapsvr {
@@ -45,5 +48,25 @@ std::vector<std::byte> EncodeAddConnectAck(
 // same shape with an empty server list.
 std::vector<std::byte> EncodeConnectAck(
     std::uint8_t result, const std::vector<std::uint8_t>& server_ids);
+
+// CS_CHARINFO_ACK body — the player's own full char sheet, sent on
+// CS_CONREADY_REQ once the client's scene has loaded. Mirrors legacy
+// CTPlayer::SendCS_CHARINFO_ACK (CSSender.cpp:121): the ~50 identity /
+// money / position / stat scalars, then five list sections (inventory,
+// skills, maintain-skills, hotkeys, item cooldowns), then PvP points, a
+// server-clock string, and medals.
+//
+// This bounded port emits the full wire structure so the client parses
+// cleanly, but with the lists empty (count = 0) and the fields that are
+// World-sourced cluster state (guild / party / corps / tactics / title /
+// rank), secure-code, or gameplay-derived (prev/next-level exp, max
+// HP/MP, skill-kind points, PvP, medals) shipped as 0 / "" until their
+// owning services land — the same staging the legacy DM_LOADCHAR_ACK
+// sub-sections and the .NET rewrite's CHARINFO_ACK used. `time_str` is
+// the "AM/PM HH:MM" server clock the caller formats (kept a parameter so
+// the encoder stays pure / testable). max HP/MP default to current
+// HP/MP (full bars) pending the stat formula.
+std::vector<std::byte> EncodeCharInfoAck(
+    const CharSnapshot& s, const std::string& time_str);
 
 } // namespace tmapsvr

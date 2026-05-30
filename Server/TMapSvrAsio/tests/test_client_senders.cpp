@@ -4,10 +4,12 @@
 // the tests pin (same approach as test_world_senders for the MW_ side).
 
 #include "services/client_senders.h"
+#include "domain/character.h"
 #include "wire_codec.h"
 
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 namespace {
@@ -85,8 +87,77 @@ int main()
         EXPECT(std::to_integer<int>(b[1]) == 0);   // count
     }
 
+    // --- CS_CHARINFO_ACK: full structure, scalars in slots, empty lists --
+    {
+        CharSnapshot s;
+        s.dwCharID    = 0xABCDEF01;
+        s.szNAME      = "Hero";
+        s.bStartAct   = 1;
+        s.bClass      = 3;
+        s.bRace       = 2;
+        s.bCountry    = 1;
+        s.bOriCountry = 4;
+        s.bLevel      = 77;
+        s.dwGold      = 123456;
+        s.dwSilver    = 22;
+        s.dwCooper    = 7;
+        s.dwEXP       = 999;
+        s.dwHP        = 500;
+        s.dwMP        = 250;
+        s.dwRegion    = 0x0A;
+        s.wMapID      = 60;
+        s.fPosX       = 100.5f;
+        s.fPosY       = 7.0f;
+        s.fPosZ       = -50.25f;
+        s.wDIR        = 180;
+        s.wSkillPoint = 9;
+
+        const std::string clock = "AM 09 : 05";
+        auto b = EncodeCharInfoAck(s, clock);
+
+        wire::Reader r(b.data(), b.size());
+        auto u8  = [&](std::uint8_t  e) { std::uint8_t  v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto u16 = [&](std::uint16_t e) { std::uint16_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto u32 = [&](std::uint32_t e) { std::uint32_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto f32 = [&](float         e) { float         v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto str = [&](const std::string& e) { std::string v; EXPECT(r.ReadString(v)); EXPECT(v == e); };
+
+        u32(0xABCDEF01);                 // char id
+        u8(0); u8(0); u8(0);             // secure created / unlocked / disabled
+        u16(0);                          // title id
+        str("Hero");
+        u8(1);                           // start act
+        u8(3); u8(2);                    // class, race
+        u8(1); u8(4);                    // country, aid country (bOriCountry)
+        u8(0); u8(0); u8(0); u8(0); u8(0); u8(0); u8(0); u8(0); // sex,hair,face,body,pants,hand,foot,helmet
+        u8(77);                          // level
+        u16(0);                          // party id
+        u32(0); u32(0); u32(0); u8(0); u8(0); // guild id, fame, fame color, duty, peer
+        str("");                         // guild name
+        u32(0); str("");                 // tactics id, tactics name
+        u32(123456); u32(22); u32(7);    // gold, silver, cooper
+        u32(0); u32(0);                  // prev/next exp
+        u32(999);                        // exp
+        u32(500); u32(500);              // max hp == hp
+        u32(250); u32(250);              // max mp == mp
+        u32(0); u16(0);                  // party chief, commander
+        u32(0x0A); u16(60);              // region, map id
+        f32(100.5f); f32(7.0f); f32(-50.25f);
+        u16(180); u16(9);                // dir, skill point
+        u8(0); u32(0);                   // lucky, aid left time
+        u16(0); u16(0); u16(0); u16(0);  // skill-kind points
+        u32(0);                          // rank point
+        u8(0);                           // bow-death flag
+        u8(0); u8(0); u8(0); u8(0); u8(0); // five list counts — all empty
+        u32(0); u32(0); u32(0);          // pvp total / useable / month
+        str(clock);                      // server clock
+        u32(0);                          // medals
+
+        EXPECT(r.Eof());                 // whole structure consumed
+    }
+
     if (g_fails == 0)
-        std::printf("test_client_senders: addconnect-ack + connect-ack "
+        std::printf("test_client_senders: addconnect + connect + charinfo "
                     "layout OK\n");
     return g_fails == 0 ? 0 : 1;
 }

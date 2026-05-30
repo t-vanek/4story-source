@@ -30,10 +30,10 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | Pre-auth idle watchdog | ✅ | T5 — drops sockets that don't `CS_CONNECT_REQ` |
 | Per-session rate limiter | ✅ | T5 — `services/rate_limiter.{h,cpp}` |
 | Handler dispatch (counter + latency + audit) | ✅ | `handlers/dispatch.cpp` |
-| Boot-time schema validators | ✅ (8 tables) | `db/schema_validator.cpp` — TCURRENTUSER / TCHARTABLE / TINVENTABLE / TNPCCHART / TSKILLTABLE / TQUESTTABLE / TQUESTTERMTABLE / TMONSTERCHART / TMONSPAWNCHART / TCOMPANIONTABLE |
+| Boot-time schema validators | ✅ | `db/schema_validator.cpp` — TCURRENTUSER / TCHARTABLE / TINVENTABLE / TNPCCHART / TSKILLTABLE / TQUESTTABLE / TQUESTTERMTABLE / TMONSTERCHART / TMONSPAWNCHART / TMAPMONCHART / TMONATTRCHART / TCOMPANIONTABLE |
 | SOCI service layer | ✅ | `soci_player_service` / `soci_inventory_service` / `soci_npc_service` / `soci_skill_service` / `soci_quest_service` / `soci_monster_chart` / `soci_spawn_chart` / `soci_companion_service` / `soci_session_validator` |
 | In-memory state stores | ✅ | session_registry / channel_presence / monster_registry |
-| World peer wire (`MW_/DM_`) | 🟡 | Outbound `MW_ADDCHAR_ACK` + `MW_ENTERSVR_ACK`; inbound `DM_LOADCHAR_REQ` + `MW_ENTERSVR_REQ` |
+| World peer wire (`MW_/DM_`) | 🟡 | Connection lifecycle wired: inbound `DM_LOADCHAR_REQ`, `MW_ENTERSVR/ENTERCHAR/ADDCONNECT/CHECKMAIN/CONRESULT/CLOSECHAR/ROUTELIST_REQ`; outbound `MW_ADDCHAR/ENTERSVR/ENTERCHAR/CHECKMAIN/ROUTE_ACK` + client relays. Gameplay MW_/DM_/SS_ traffic still TODO |
 | Log peer (UDP `_UDPPACKET`) | ✅ | `services/log_peer.{h,cpp}` |
 | Audit log + spdlog sink | ✅ | `audit/audit_log.{h,cpp}` + typed `audit/event.h` |
 | Metrics endpoint (Prometheus) | ✅ | `ops/metrics_endpoint.{h,cpp}` |
@@ -43,14 +43,16 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | **Combat handlers** | ❌ | `CS_ATTACK_REQ` family not wired |
 | **Drop tables / loot** | ❌ | `TDROPCHART` loader missing |
 
-## Wired handlers (21 total)
+## Wired handlers (28 total)
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
-CS_CONREADY_REQ           session.cpp     post-load handshake
+CS_CONREADY_REQ           session.cpp     post-load → CS_CHARINFO_ACK + CS_ENTER_ACK (players) + CS_ADDMON (static-spawn monsters); NPCs are client-static
 CS_MOVE_REQ               movement.cpp    position + broadcast
 CS_NPCTALK_REQ            npc.cpp         dialogue dispatch
 CS_SKILLUSE_REQ           skill.cpp       skill cooldown + broadcast (no damage calc)
+CS_ACTION_REQ             combat.cpp      attack monster → damage → CS_HPMP / death (CS_DELMON + CS_EXP); placeholder damage
+
 CS_QUESTEXEC_REQ          quest.cpp       quest progress update (no objective eval)
 CS_QUESTDROP_REQ          quest.cpp       abandon quest
 CS_CHAT_REQ               social.cpp      channel chat broadcast
@@ -69,7 +71,19 @@ CT_CTRLSVR_REQ            control.cpp     heartbeat
 
 DM_LOADCHAR_REQ  (inbound, World→Map)  handlers_world.cpp  load char snapshot → DM_LOADCHAR_ACK
 MW_ENTERSVR_REQ  (inbound, World→Map)  handlers_world.cpp  resolve identity → MW_ENTERSVR_ACK
+MW_ENTERCHAR_REQ (inbound, World→Map)  handlers_world.cpp  per-con entry ready → MW_ENTERCHAR_ACK
+MW_ADDCONNECT_REQ(inbound, World→Map)  handlers_world.cpp  peer-server list → client CS_ADDCONNECT_ACK
+MW_CHECKMAIN_REQ (inbound, World→Map)  handlers_world.cpp  main-cell check → MW_CHECKMAIN_ACK
+MW_CONRESULT_REQ (inbound, World→Map)  handlers_world.cpp  settled verdict → client CS_CONNECT_ACK
+MW_CLOSECHAR_REQ (inbound, World→Map)  handlers_world.cpp  close order → client CS_SHUTDOWN_ACK + teardown
+MW_ROUTELIST_REQ (inbound, World→Map)  handlers_world.cpp  resolve server ids → MW_ROUTE_ACK
 ```
+
+> **Connect-ack note:** `session.cpp::OnConnectReq` still emits an
+> optimistic `CS_CONNECT_ACK` at `CS_CONNECT_REQ` time so connect works
+> with no `[world]` peer configured. Once the full World connect loop is
+> proven end-to-end, that optimistic ack moves into `OnMWConResultReq`
+> (the authoritative path) to avoid a double ack.
 
 The remaining ~280 `CS_*` and ~300 `DM_/MW_/SS_` handlers are catalogued
 in `CONSOLIDATION.md`. The porting recipe (locate → verify id → pick
@@ -85,18 +99,25 @@ maintenance burden the modernization was supposed to escape.
 
 Two design questions need decisions before the gameplay layer lands:
 
-1. **Quest VM vs data-driven engine.** Lua-via-sol2 means scripting
-   without recompiles, but introduces a runtime. YAML + interpreter
-   keeps the build hermetic, but constrains quest expressiveness.
-2. **Dispatcher shape.** The legacy `SSHandler.cpp` `switch` recompiles
-   every server when one packet ID changes. A register-based dispatch
-   (handler table indexed by `MessageId`) or a schema-versioned codec
-   (flatbuffers / protobuf) would decouple them.
+1. **Quest VM vs data-driven engine.** ✅ **Resolved** —
+   [`QUEST_ENGINE.md`](QUEST_ENGINE.md). The legacy quests turn out to be
+   data-parameterised instances of ~20 fixed action types over canonical
+   DB tables, not arbitrary scripts: so a register-based, DB-sourced
+   engine, *not* Lua-via-sol2 and *not* re-authored YAML.
+2. **Dispatcher shape.** ✅ **Resolved** — [`DISPATCH.md`](DISPATCH.md).
+   The legacy pain was the *fat* `SSHandler.cpp` switch (logic inlined);
+   the modern servers already use a *thin* switch (per-family handler
+   files), proven to 181 handlers in TWorld. Keep it for wire dispatch
+   (fixed id set, type-safe, consistent); use register tables only for
+   internal logic (quest terms / AI). Schema-versioned codec rejected —
+   the wire is byte-for-byte client-fixed.
 
-Until these are resolved, the scaffold runs handlers that decode the
-wire, validate the session, and call into services — but the
-business-rule layer between them returns "OK, broadcast" instead of
-running combat math. **Do not deploy this binary against players.**
+Both design questions are now resolved; the gameplay phase is unblocked
+on design and gated only on review of the connection-lifecycle work. The
+scaffold still runs handlers that decode the wire, validate the session,
+and call into services — but the business-rule layer between them returns
+"OK, broadcast" instead of running combat math. **Do not deploy this
+binary against players.**
 
 ## Configuration
 
@@ -200,9 +221,10 @@ Server/TMapSvrAsio/
 | **T4** | Audit + metrics data plane | ✅ |
 | **T5** | Pre-auth watchdog + rate limit | ✅ |
 | **T6** | Metrics + admin shell endpoints | ✅ |
-| **T7** | Quest VM design decision | ⏸ |
+| **T7** | Quest VM design decision | ✅ ([`QUEST_ENGINE.md`](QUEST_ENGINE.md): data-driven, DB-sourced, register dispatch — not Lua/YAML) |
 | **T8** | Combat / damage formula port | ⏸ |
-| **T9** | Mob AI tick + spawn manager | ⏸ |
+| **T8** | Combat / damage formula port | 🟡 kill loop wired (`CS_ACTION_REQ` → monster damage → `CS_HPMP` / death `CS_DELMON` + real `wExp` via `CS_EXP`); monster stats from `TMONATTRCHART`. Damage is a level-scaled placeholder — the real `CalcDamage` (player AP/WAP vs monster DP) needs the player combat-stat + skill layer |
+| **T9** | Mob AI tick + spawn manager | 🟡 static spawn done (`SpawnManager` + `TMAPMONCHART` linkage → registry → CS_ADDMON on enter, real HP from `TMONATTRCHART`); respawn timer + roam/chase/attack AI tick pending |
 | **T10** | Drop table / loot generator | ⏸ |
 | **T11** | Bulk handler port (CONSOLIDATION recipe × 280) | ⏸ |
 

@@ -4,10 +4,13 @@
 #include "audit/event.h"
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
+#include "services/client_senders.h"
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
 #include "services/player_service.h"
 #include "services/quest_service.h"
+#include "services/server_route_resolver.h"
+#include "services/session_registry.h"
 #include "services/skill_service.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
@@ -18,6 +21,7 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -416,6 +420,353 @@ OnMWEnterSvrReq(std::vector<std::byte> body, const HandlerContext& ctx)
 }
 
 boost::asio::awaitable<void>
+OnMWEnterCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire: the fat per-connection entry composite (legacy
+    // SSHandler.cpp:1453 / TWorld SendMwEnterCharReq). It leads with the
+    // two fields the ACK echoes:
+    //   DWORD dwCharID
+    //   DWORD dwKEY
+    // followed by the identity header (below) and then the char's full
+    // cluster state — guild / party / corps / tactics / soulmate ids +
+    // an opaque recall-mon tail. Applying that state onto live char
+    // state is a follow-up increment (CharSnapshot doesn't model the
+    // guild/party fields yet); this handler completes the *ready*
+    // handshake TWorld's CheckMainCon blocks on.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY))
+    {
+        spdlog::warn("MW_ENTERCHAR_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    if (!ctx.world_client || !ctx.world_client->IsConnected())
+    {
+        spdlog::warn("MW_ENTERCHAR_REQ char={}: world peer not connected — "
+                     "ack dropped", dwCharID);
+        co_return;
+    }
+
+    // Best-effort identity header (legacy reads these straight into the
+    // CTPlayer): start_act, name, map_id, spawn pos. Used for the log
+    // line and, when the char is already resident on this map, to track
+    // the World-authoritative spawn position. A composite truncated
+    // after dwKEY still completes the ready handshake.
+    std::uint8_t  bStartAct = 0;
+    std::string   name;
+    std::uint16_t wMapID = 0;
+    float         fPosX = 0.f, fPosY = 0.f, fPosZ = 0.f;
+    const bool have_hdr =
+        r.Read(bStartAct) && r.ReadString(name) && r.Read(wMapID) &&
+        r.Read(fPosX) && r.Read(fPosY) && r.Read(fPosZ);
+
+    // Update() is a no-op when the char isn't resident, so this stays
+    // safe for the entry-before-load ordering.
+    if (have_hdr && ctx.char_state)
+    {
+        ctx.char_state->Update(dwCharID, [&](CharSnapshot& s) {
+            s.wMapID = wMapID;
+            s.fPosX  = fPosX;
+            s.fPosY  = fPosY;
+            s.fPosZ  = fPosZ;
+        });
+    }
+
+    spdlog::info("MW_ENTERCHAR_REQ char={} key={} name='{}' map={} — "
+                 "connection ready, ack",
+        dwCharID, dwKEY, have_hdr ? name : std::string("?"), wMapID);
+
+    co_await ctx.world_client->SendPacket(
+        static_cast<std::uint16_t>(MessageId::MW_ENTERCHAR_ACK),
+        EncodeEnterCharAck(dwCharID, dwKEY));
+}
+
+boost::asio::awaitable<void>
+OnMWAddConnectReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:6785):
+    //   DWORD dwCharID, DWORD dwKEY, BYTE bCount,
+    //   bCount × { DWORD ip_addr, WORD port, BYTE server_id }
+    // TWorld hands the map the peer-server list the client should open
+    // cross-server connections to; the map relays it straight down as
+    // CS_ADDCONNECT_ACK (legacy pPlayer->Say).
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    std::uint8_t  bCount = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Read(bCount))
+    {
+        spdlog::warn("MW_ADDCONNECT_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    std::vector<ConnectRoute> routes;
+    routes.reserve(bCount);
+    for (std::uint8_t i = 0; i < bCount; ++i)
+    {
+        ConnectRoute cr;
+        if (!r.Read(cr.ip_addr) || !r.Read(cr.port) || !r.Read(cr.server_id))
+        {
+            spdlog::warn("MW_ADDCONNECT_REQ char={}: truncated route list at "
+                         "{}/{} — dropping", dwCharID, i, bCount);
+            co_return;
+        }
+        routes.push_back(cr);
+    }
+
+    // Relay to the client. The char must already be bound from its
+    // CS_CONNECT_REQ; an unknown char means the socket dropped between
+    // the world push and now — nothing to forward to (legacy FindPlayer
+    // miss → silent return).
+    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    if (!sess)
+    {
+        spdlog::warn("MW_ADDCONNECT_REQ char={}: no bound client session — "
+                     "drop ({} routes)", dwCharID, routes.size());
+        co_return;
+    }
+
+    spdlog::info("MW_ADDCONNECT_REQ char={} key={} routes={} — relaying "
+                 "CS_ADDCONNECT_ACK", dwCharID, dwKEY, routes.size());
+
+    const auto ack = EncodeAddConnectAck(routes);
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_ADDCONNECT_ACK), ack);
+}
+
+boost::asio::awaitable<void>
+OnMWCheckMainReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:1310):
+    //   DWORD dwCharID, DWORD dwKEY, BYTE bChannel, WORD wMapID,
+    //   FLOAT fPosX, fPosY, fPosZ
+    // TWorld asks each candidate map "do you own the cell this char
+    // stands in?". Only the owner answers MW_CHECKMAIN_ACK, settling
+    // which connection is the authoritative main session.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    std::uint8_t  bChannel = 0;
+    std::uint16_t wMapID = 0;
+    float fPosX = 0.f, fPosY = 0.f, fPosZ = 0.f;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Read(bChannel) ||
+        !r.Read(wMapID) || !r.Read(fPosX) || !r.Read(fPosY) || !r.Read(fPosZ))
+    {
+        spdlog::warn("MW_CHECKMAIN_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    if (!ctx.world_client || !ctx.world_client->IsConnected())
+    {
+        spdlog::warn("MW_CHECKMAIN_REQ char={}: world peer not connected — "
+                     "ack dropped", dwCharID);
+        co_return;
+    }
+
+    // Legacy gates the ack on IsMainCell(channel, map, pos) — the cell
+    // grid that shards one logical map across server instances. The
+    // modern map hosts a whole map in-process, so cell ownership reduces
+    // to "is this char resident here?": a loaded snapshot or a live
+    // client session means this is its main map. Precise multi-instance
+    // cell ownership is a follow-up once the cell grid is modelled.
+    const bool resident =
+        (ctx.char_state  && ctx.char_state->Get(dwCharID).has_value()) ||
+        (ctx.session_reg && ctx.session_reg->Find(dwCharID) != nullptr);
+
+    if (!resident)
+    {
+        spdlog::info("MW_CHECKMAIN_REQ char={} key={} ch={} map={} — not "
+                     "resident here, no ack", dwCharID, dwKEY, bChannel, wMapID);
+        co_return;
+    }
+
+    spdlog::info("MW_CHECKMAIN_REQ char={} key={} ch={} map={} — main cell, "
+                 "ack", dwCharID, dwKEY, bChannel, wMapID);
+
+    co_await ctx.world_client->SendPacket(
+        static_cast<std::uint16_t>(MessageId::MW_CHECKMAIN_ACK),
+        EncodeCheckMainAck(dwCharID, dwKEY));
+}
+
+boost::asio::awaitable<void>
+OnMWConResultReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:1341):
+    //   DWORD dwCharID, DWORD dwKEY, BYTE bResult, BYTE bCount,
+    //   bCount × BYTE server_id
+    // TWorld's settled connect verdict plus the cross-server id list.
+    // The map forwards it to the client as the authoritative
+    // CS_CONNECT_ACK and, on rejection, tears the session down.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    std::uint8_t  bResult = 0, bCount = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Read(bResult) ||
+        !r.Read(bCount))
+    {
+        spdlog::warn("MW_CONRESULT_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    std::vector<std::uint8_t> server_ids;
+    server_ids.reserve(bCount);
+    for (std::uint8_t i = 0; i < bCount; ++i)
+    {
+        std::uint8_t sid = 0;
+        if (!r.Read(sid))
+        {
+            spdlog::warn("MW_CONRESULT_REQ char={}: truncated server list at "
+                         "{}/{} — dropping", dwCharID, i, bCount);
+            co_return;
+        }
+        server_ids.push_back(sid);
+    }
+
+    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    if (!sess)
+    {
+        spdlog::warn("MW_CONRESULT_REQ char={}: no bound client session — drop",
+            dwCharID);
+        co_return;
+    }
+
+    // Transitional: session.cpp::OnConnectReq still sends an optimistic
+    // CS_CONNECT_ACK at CS_CONNECT_REQ time, so a fully wired world loop
+    // makes this the second send. The optimistic ack moves here once the
+    // connect loop is proven end-to-end; today it keeps connect working
+    // when no world peer is configured. See README world-peer note.
+    const auto ack = EncodeConnectAck(bResult, server_ids);
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK), ack);
+
+    if (bResult != CnSuccess)
+    {
+        spdlog::info("MW_CONRESULT_REQ char={} result={} — connect rejected, "
+                     "closing session", dwCharID, bResult);
+        sess->Close();   // per-connection teardown hook unbinds registries
+    }
+    else
+    {
+        spdlog::info("MW_CONRESULT_REQ char={} result=SUCCESS servers={} — "
+                     "CS_CONNECT_ACK relayed", dwCharID, server_ids.size());
+    }
+}
+
+boost::asio::awaitable<void>
+OnMWCloseCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:2201): DWORD dwCharID, DWORD dwKEY
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY))
+    {
+        spdlog::warn("MW_CLOSECHAR_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    if (!sess)
+    {
+        spdlog::warn("MW_CLOSECHAR_REQ char={}: no bound client session — drop",
+            dwCharID);
+        co_return;
+    }
+
+    // Legacy (SSHandler.cpp:2196): ExitMAP + m_bExit + SendCS_SHUTDOWN_ACK.
+    // m_bCloseAll is FALSE on this path, so no MW_CLOSECHAR_ACK is sent
+    // back (that confirmation belongs to the multi-connection close-all
+    // path). Tell the client to shut down (empty-bodied ack), then close
+    // the socket — the MapServer per-connection teardown hook persists
+    // the snapshot (SaveChar) and unbinds the session / presence
+    // registries (map_server.cpp:139).
+    spdlog::info("MW_CLOSECHAR_REQ char={} key={} — CS_SHUTDOWN_ACK + close",
+        dwCharID, dwKEY);
+
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_SHUTDOWN_ACK),
+        std::span<const std::byte>{});
+
+    sess->Close();   // read loop ends → teardown hook saves + unbinds
+}
+
+boost::asio::awaitable<void>
+OnMWRouteListReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:6485):
+    //   DWORD dwCharID, DWORD dwKEY, BYTE bCount, bCount × BYTE server_id
+    // TWorld asks the map to resolve a set of cluster server ids to their
+    // live endpoints. The map answers MW_ROUTE_ACK with the (ip, port,
+    // server_id) tuples — legacy fanned this through the DB-batch
+    // (DM_ROUTE_REQ → CSPRoute → DM_ROUTE_ACK → MW_ROUTE_ACK); the modern
+    // map resolves in-process via IServerRouteResolver.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    std::uint8_t  bCount = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Read(bCount))
+    {
+        spdlog::warn("MW_ROUTELIST_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    std::vector<std::uint8_t> server_ids;
+    server_ids.reserve(bCount);
+    for (std::uint8_t i = 0; i < bCount; ++i)
+    {
+        std::uint8_t sid = 0;
+        if (!r.Read(sid))
+        {
+            spdlog::warn("MW_ROUTELIST_REQ char={}: truncated id list at {}/{} "
+                         "— dropping", dwCharID, i, bCount);
+            co_return;
+        }
+        server_ids.push_back(sid);
+    }
+
+    if (!ctx.world_client || !ctx.world_client->IsConnected())
+    {
+        spdlog::warn("MW_ROUTELIST_REQ char={}: world peer not connected — "
+                     "ack dropped", dwCharID);
+        co_return;
+    }
+
+    // Resolve via the injected resolver. Without one configured (no SOCI
+    // route resolver wired yet) the map answers an empty route list so
+    // TWorld's OnRouteAck still unwinds — the production resolver against
+    // the cluster server-registry table is the documented follow-up.
+    std::vector<ServerRoute> routes;
+    if (ctx.route_resolver)
+        routes = ctx.route_resolver->Resolve(ctx.expected_group, server_ids);
+    else
+        spdlog::warn("MW_ROUTELIST_REQ char={}: no route resolver — replying "
+                     "empty MW_ROUTE_ACK ({} ids unresolved)",
+            dwCharID, server_ids.size());
+
+    spdlog::info("MW_ROUTELIST_REQ char={} key={} ids={} resolved={} — "
+                 "MW_ROUTE_ACK", dwCharID, dwKEY, server_ids.size(),
+                 routes.size());
+
+    co_await ctx.world_client->SendPacket(
+        static_cast<std::uint16_t>(MessageId::MW_ROUTE_ACK),
+        EncodeRouteAck(dwCharID, dwKEY, routes));
+}
+
+boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
               std::vector<std::byte> body,
               const HandlerContext&  ctx)
@@ -432,6 +783,30 @@ DispatchWorld(std::uint16_t          wId,
 
     case MessageId::MW_ENTERSVR_REQ:
         co_await OnMWEnterSvrReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_ENTERCHAR_REQ:
+        co_await OnMWEnterCharReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_ADDCONNECT_REQ:
+        co_await OnMWAddConnectReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_CHECKMAIN_REQ:
+        co_await OnMWCheckMainReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_CONRESULT_REQ:
+        co_await OnMWConResultReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_CLOSECHAR_REQ:
+        co_await OnMWCloseCharReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_ROUTELIST_REQ:
+        co_await OnMWRouteListReq(std::move(body), ctx);
         break;
 
     default:

@@ -112,6 +112,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/movement.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/npc.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/combat.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/quest.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/social.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/bow.cpp
@@ -127,8 +128,12 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_quest_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_mon_attr_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/spawn_manager.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_senders.cpp
+    ${TMAPSVR_ASIO_SRC}/services/client_senders.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp)
 
 target_include_directories(tmapsvr_asio_core PUBLIC
@@ -186,3 +191,58 @@ target_link_libraries(test_tmapsvr_asio_world_enter PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_world_enter
     COMMAND test_tmapsvr_asio_world_enter)
+
+# Inbound per-connection entry handshake: OnMW_ENTERCHAR_REQ replies
+# MW_ENTERCHAR_ACK (char_id, key) and tracks the composite spawn
+# position. The link TWorld's CheckMainCon loop blocks on.
+add_executable(test_tmapsvr_asio_world_enterchar
+    ${TMAPSVR_ASIO_SRC}/tests/test_world_enterchar.cpp)
+target_link_libraries(test_tmapsvr_asio_world_enterchar PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_world_enterchar
+    COMMAND test_tmapsvr_asio_world_enterchar)
+
+# client_senders byte-layout suite (CS_ acks the map relays to the
+# client off inbound MW_ cluster traffic).
+add_executable(test_tmapsvr_asio_client_senders
+    ${TMAPSVR_ASIO_SRC}/tests/test_client_senders.cpp)
+target_link_libraries(test_tmapsvr_asio_client_senders PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_client_senders
+    COMMAND test_tmapsvr_asio_client_senders)
+
+# Inbound main-cell check: OnMW_CHECKMAIN_REQ replies MW_CHECKMAIN_ACK
+# only when the char is resident here (IsMainCell stand-in).
+add_executable(test_tmapsvr_asio_world_checkmain
+    ${TMAPSVR_ASIO_SRC}/tests/test_world_checkmain.cpp)
+target_link_libraries(test_tmapsvr_asio_world_checkmain PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_world_checkmain
+    COMMAND test_tmapsvr_asio_world_checkmain)
+
+# Inbound route resolution: OnMW_ROUTELIST_REQ resolves server ids to
+# endpoints (via IServerRouteResolver) and replies MW_ROUTE_ACK.
+add_executable(test_tmapsvr_asio_world_routelist
+    ${TMAPSVR_ASIO_SRC}/tests/test_world_routelist.cpp)
+target_link_libraries(test_tmapsvr_asio_world_routelist PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_world_routelist
+    COMMAND test_tmapsvr_asio_world_routelist)
+
+# SpawnManager: static monster population join (spawn + map-mon + monster
+# charts → registry), skip rules + channel/map filter.
+add_executable(test_tmapsvr_asio_spawn_manager
+    ${TMAPSVR_ASIO_SRC}/tests/test_spawn_manager.cpp)
+target_link_libraries(test_tmapsvr_asio_spawn_manager PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_spawn_manager
+    COMMAND test_tmapsvr_asio_spawn_manager)
+
+# Combat: registry ApplyDamage (clamp + death + miss) + the HP / DelMon /
+# Exp ack byte layouts.
+add_executable(test_tmapsvr_asio_combat
+    ${TMAPSVR_ASIO_SRC}/tests/test_combat.cpp)
+target_link_libraries(test_tmapsvr_asio_combat PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_combat
+    COMMAND test_tmapsvr_asio_combat)

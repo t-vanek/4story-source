@@ -37,6 +37,7 @@ class ISpawnChart;
 class IMonsterRegistry;
 class ICompanionService;
 class ICharStateStore;
+class IServerRouteResolver;
 class ILogPeer;
 class IRateLimiter;
 enum class Mode : std::uint8_t;
@@ -62,6 +63,7 @@ struct HandlerContext
     IMonsterRegistry*      monster_registry  = nullptr;
     ICompanionService*     companion_service = nullptr;
     ICharStateStore*       char_state        = nullptr;   // live char snapshots
+    IServerRouteResolver*  route_resolver    = nullptr;   // server_id → ip/port (MW_ROUTELIST)
     ILogPeer*              log_peer          = nullptr;   // T3 UDP transport
     audit::IAuditLog*      audit             = nullptr;   // T4 structured audit
     ops::IMetrics*         metrics           = nullptr;   // T4 counters/latency
@@ -108,6 +110,14 @@ boost::asio::awaitable<void> OnNpcTalkReq(
     const HandlerContext&                 ctx);
 
 boost::asio::awaitable<void> OnSkillUseReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+// CS_ACTION_REQ — a player action on a target (normal attack / skill on
+// a monster, recall-mon, PC, …). The combat-relevant slice (attack a
+// monster → damage → HP / death + EXP) lives in handlers/combat.cpp.
+boost::asio::awaitable<void> OnActionReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);

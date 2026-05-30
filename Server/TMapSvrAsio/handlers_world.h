@@ -39,4 +39,52 @@ boost::asio::awaitable<void> OnMWEnterSvrReq(
     std::vector<std::byte>       body,
     const HandlerContext&        ctx);
 
+// MW_ENTERCHAR_REQ (World→Map): the per-connection entry handshake.
+// TWorld pushes the char's cluster state (guild/party/corps/soulmate +
+// recall-mon tail) as a fat composite and waits for the map to confirm
+// the connection is ready. The map replies MW_ENTERCHAR_ACK; TWorld's
+// CheckMainCon stays blocked until every con has ACKed.
+// Legacy: SSHandler.cpp:1447 (OnMW_ENTERCHAR_REQ).
+boost::asio::awaitable<void> OnMWEnterCharReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
+// MW_ADDCONNECT_REQ (World→Map): TWorld hands the map the peer-server
+// list for a char's cross-server connections; the map relays it down to
+// the client as CS_ADDCONNECT_ACK. Legacy: SSHandler.cpp:6779.
+boost::asio::awaitable<void> OnMWAddConnectReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
+// MW_CHECKMAIN_REQ (World→Map): TWorld asks whether this map owns the
+// cell the char stands in; the owner replies MW_CHECKMAIN_ACK so TWorld
+// can settle the authoritative main session. Legacy: SSHandler.cpp:1300.
+boost::asio::awaitable<void> OnMWCheckMainReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
+// MW_CONRESULT_REQ (World→Map): TWorld's settled connect verdict + the
+// cross-server id list; the map relays it to the client as the
+// authoritative CS_CONNECT_ACK and closes the session on rejection.
+// Legacy: SSHandler.cpp:1332.
+boost::asio::awaitable<void> OnMWConResultReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
+// MW_CLOSECHAR_REQ (World→Map): TWorld orders the char closed on this
+// map; the map shuts the client down (CS_SHUTDOWN_ACK) and closes the
+// socket, letting the teardown hook persist + unbind. Legacy:
+// SSHandler.cpp:2196.
+boost::asio::awaitable<void> OnMWCloseCharReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
+// MW_ROUTELIST_REQ (World→Map): TWorld asks the map to resolve a set of
+// cluster server ids to their live endpoints; the map answers
+// MW_ROUTE_ACK with the (ip, port, server_id) tuples via
+// IServerRouteResolver. Legacy: SSHandler.cpp:6478.
+boost::asio::awaitable<void> OnMWRouteListReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
 } // namespace tmapsvr

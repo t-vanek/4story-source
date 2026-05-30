@@ -36,6 +36,14 @@ public:
     virtual std::optional<MonsterInstance>
         Find(std::uint32_t instance_id) const = 0;
 
+    // Subtract `dmg` from the monster's HP (clamped at 0) and return the
+    // updated instance — dwHP == 0 means it just died and the caller
+    // should Remove it + award the kill. Returns nullopt when the
+    // instance isn't in the registry (already gone / never existed). The
+    // mutation is atomic under the registry lock.
+    virtual std::optional<MonsterInstance>
+        ApplyDamage(std::uint32_t instance_id, std::uint32_t dmg) = 0;
+
     // Snapshot of all monsters on (channel, map_id). Used by the
     // CS_CONREADY enter-map broadcast (once that lands) to spam the
     // joining client with one CS_MONSPAWN_REQ per monster in view.
@@ -67,6 +75,17 @@ public:
         const auto it = m_rows.find(instance_id);
         if (it == m_rows.end()) return std::nullopt;
         return it->second;
+    }
+
+    std::optional<MonsterInstance>
+        ApplyDamage(std::uint32_t instance_id, std::uint32_t dmg) override
+    {
+        std::lock_guard<std::mutex> lk(m_mtx);
+        const auto it = m_rows.find(instance_id);
+        if (it == m_rows.end()) return std::nullopt;
+        auto& m = it->second;
+        m.dwHP = (dmg >= m.dwHP) ? 0u : (m.dwHP - dmg);
+        return m;
     }
 
     std::vector<MonsterInstance>

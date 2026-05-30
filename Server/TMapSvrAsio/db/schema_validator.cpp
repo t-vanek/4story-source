@@ -211,6 +211,27 @@ void ValidateMonsterSchema(fourstory::db::SessionPool& pool)
         { "TMONSPAWNCHART", "bLink" },
         { "TMONSPAWNCHART", "bProb" },
         { "TMONSPAWNCHART", "bRoamType" },
+        // TMAPMONCHART — spawn-point → monster linkage the SpawnManager
+        // joins TMONSPAWNCHART against (TMONSPAWNCHART carries no monster
+        // id; the join key is wSpawnID = TMONSPAWNCHART.wID).
+        { "TMAPMONCHART",   "wSpawnID" },
+        { "TMAPMONCHART",   "wMonID" },
+        { "TMAPMONCHART",   "bEssential" },
+        { "TMAPMONCHART",   "bLeader" },
+        { "TMAPMONCHART",   "bProb" },
+        // TMONATTRCHART — per-(monster, level) combat stats. dwMaxHP is
+        // the real spawn HP; the rest feed the damage formula.
+        { "TMONATTRCHART",  "wID" },
+        { "TMONATTRCHART",  "bLevel" },
+        { "TMONATTRCHART",  "dwMaxHP" },
+        { "TMONATTRCHART",  "dwMaxMP" },
+        { "TMONATTRCHART",  "wAP" },
+        { "TMONATTRCHART",  "wMAP" },
+        { "TMONATTRCHART",  "wDP" },
+        { "TMONATTRCHART",  "wMDP" },
+        { "TMONATTRCHART",  "wMinWAP" },
+        { "TMONATTRCHART",  "wMaxWAP" },
+        { "TMONATTRCHART",  "dwAtkSpeed" },
     });
 }
 

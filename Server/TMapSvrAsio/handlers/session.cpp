@@ -20,6 +20,10 @@
 #include "audit/audit_log.h"
 #include "audit/event.h"
 #include "services/channel_presence.h"
+#include "services/char_state_store.h"
+#include "services/client_senders.h"
+#include "services/monster_chart.h"
+#include "services/monster_registry.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/world_client.h"
@@ -32,6 +36,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <ctime>
+#include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -82,6 +90,25 @@ std::vector<std::byte> EncodeConnectAck(ConnectResult r)
 
 // MW_ADDCHAR_ACK encoding moved to services/world_senders.h so the
 // map↔world body encoders live in one place (and stay unit-testable).
+
+// "AM/PM HH:MM" server clock string CS_CHARINFO_ACK carries (legacy
+// CSSender.cpp:344 formats the wall-clock the same way). Cosmetic — the
+// client displays it; kept here so the pure encoder takes it as data.
+std::string FormatServerClock()
+{
+    const std::time_t t = std::time(nullptr);
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    const char* ampm = (tm.tm_hour < 12) ? "AM" : "PM";
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%s %02d : %02d", ampm, tm.tm_hour,
+        tm.tm_min);
+    return std::string(buf);
+}
 
 } // namespace
 
@@ -229,22 +256,134 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
               std::vector<std::byte>                body,
               const HandlerContext&                 ctx)
 {
-    // CS_CONREADY_REQ has no body fields — it's a one-shot signal
-    // from the client that it's done loading the local scene and is
-    // ready to receive game state. Legacy CSHandler.cpp:402 calls
-    // InitMap() / EnterMAP() here. F7 doesn't have the MapState yet,
-    // so we just log and let CS_MOVE_REQ start exercising the
-    // broadcast path. The CHARINFO_ACK / surrounding-entities flood
-    // lands with the F13 spawn / AI consolidation pass.
+    using tnetlib::protocol::MessageId;
+
+    // CS_CONREADY_REQ has no body fields — it's a one-shot signal from
+    // the client that it's done loading the local scene. Legacy
+    // CSHandler.cpp:402 calls InitMap() / EnterMAP(), which floods the
+    // client with its own CS_CHARINFO_ACK plus every surrounding entity
+    // (other players, monsters, NPCs). This bounded step sends the
+    // player's own CS_CHARINFO_ACK from the loaded snapshot; the
+    // surrounding-entity AOI flood lands with the gameplay / spawn pass.
     (void)body;
+
+    std::uint32_t cid = 0;
     if (ctx.session_reg)
     {
-        const auto cid = ctx.session_reg->FindCharIdBySession(sess.get());
-        spdlog::info("CS_CONREADY_REQ from char={} — F7 stub (full enter-map "
-                     "broadcast lands with F13 consolidation)",
-            cid ? *cid : 0);
+        if (const auto found = ctx.session_reg->FindCharIdBySession(sess.get()))
+            cid = *found;
     }
-    co_return;
+
+    std::optional<CharSnapshot> snap;
+    if (cid != 0 && ctx.char_state)
+        snap = ctx.char_state->Get(cid);
+
+    // No snapshot means the World load handshake (DM_LOADCHAR /
+    // MW_ENTERSVR) hasn't populated char_state for this char yet — the
+    // client readied before its data arrived. Nothing to send; the
+    // enter flood will be driven once the snapshot lands.
+    if (!snap)
+    {
+        spdlog::info("CS_CONREADY_REQ char={} — no loaded snapshot yet, "
+                     "CHARINFO_ACK skipped", cid);
+        co_return;
+    }
+
+    spdlog::info("CS_CONREADY_REQ char={} name='{}' map={} — CS_CHARINFO_ACK "
+                 "(AOI flood deferred)", cid, snap->szNAME, snap->wMapID);
+
+    const auto ack = EncodeCharInfoAck(*snap, FormatServerClock());
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK), ack);
+
+    // Enter-map AOI exchange: show the newcomer everyone already on its
+    // channel, and announce the newcomer to them. The presence visitor
+    // is synchronous, so collect the (snapshot, session) pairs first and
+    // co_await the sends afterwards. Monsters + NPCs join this flood once
+    // the spawn / NPC-visibility layer lands.
+    //
+    // Positions come from each char's snapshot (its loaded spawn point):
+    // ChannelPresence.pos is only seeded on the first CS_MOVE_REQ, so for
+    // a just-entered crowd the snapshot is the authoritative location.
+    // Live presence-position tracking is a follow-up.
+    if (ctx.presence && ctx.char_state)
+    {
+        const auto me = ctx.presence->FindEntry(cid);
+        if (me)
+        {
+            struct Nearby
+            {
+                CharSnapshot                          snap;
+                std::shared_ptr<tnetlib::AsioSession> sess;
+            };
+            std::vector<Nearby> nearby;
+            ctx.presence->ForEachInChannel(me->channel, cid,
+                [&](const ChannelPresenceEntry& e,
+                    std::shared_ptr<tnetlib::AsioSession> osess)
+                {
+                    if (auto osnap = ctx.char_state->Get(e.char_id))
+                        nearby.push_back({ std::move(*osnap), std::move(osess) });
+                });
+
+            // Faction tint (legacy CanFight / TNCOLOR) is PvP gameplay —
+            // default friendly until the combat layer lands.
+            constexpr std::uint8_t kColorFriendly = 0;
+            const Position my_pos{ snap->fPosX, snap->fPosY, snap->fPosZ };
+            const auto my_enter =
+                EncodeEnterAck(*snap, my_pos, kColorFriendly, /*new_member=*/1);
+
+            for (auto& n : nearby)
+            {
+                const Position their_pos{ n.snap.fPosX, n.snap.fPosY,
+                                          n.snap.fPosZ };
+                const auto their =
+                    EncodeEnterAck(n.snap, their_pos, kColorFriendly,
+                                   /*new_member=*/0);
+                co_await sess->SendPacket(                 // I see them
+                    static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK), their);
+                if (n.sess)
+                    co_await n.sess->SendPacket(           // they see me arrive
+                        static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK),
+                        my_enter);
+            }
+
+            if (!nearby.empty())
+                spdlog::info("CS_CONREADY char={} — CS_ENTER_ACK exchanged with "
+                             "{} nearby players", cid, nearby.size());
+
+            // Monster half of the enter flood: every monster on the
+            // player's channel + map. The static SpawnManager places the
+            // standing population on channel 0 at boot (see main.cpp), so
+            // a channel-0 player sees them; per-channel instances + the
+            // respawn / AI tick are the next increments. new_member = 0
+            // (listing the standing crowd, not a fresh spawn); the faction
+            // tint stays hostile-default until the combat layer.
+            if (ctx.monster_registry)
+            {
+                const auto mons =
+                    ctx.monster_registry->ListInMap(me->channel, snap->wMapID);
+                for (const auto& mon : mons)
+                {
+                    std::uint8_t level = 0;
+                    if (ctx.monster_chart)
+                    {
+                        if (const auto t = ctx.monster_chart->Find(mon.wTemplateID))
+                            level = t->bLevel;
+                    }
+                    const auto madd = EncodeAddMonAck(
+                        mon, level, /*country=*/0, /*color=*/0,
+                        /*new_member=*/0);
+                    co_await sess->SendPacket(
+                        static_cast<std::uint16_t>(MessageId::CS_ADDMON_ACK),
+                        madd);
+                }
+                if (!mons.empty())
+                    spdlog::info("CS_CONREADY char={} — CS_ADDMON for {} "
+                                 "monster(s) on ch={} map={}",
+                        cid, mons.size(), me->channel, snap->wMapID);
+            }
+        }
+    }
 }
 
 } // namespace tmapsvr

@@ -11,6 +11,7 @@
 // corresponding TWorld reader byte-for-byte.
 
 #include "domain/character.h"
+#include "services/server_route_resolver.h"   // ServerRoute
 
 #include <cstddef>
 #include <cstdint>
@@ -44,11 +45,36 @@ std::vector<std::byte> EncodeEnterSvrAck(const CharSnapshot& s,
                                          std::uint32_t rank_point,
                                          std::uint32_t user_ip);
 
+// MW_ROUTE_ACK body — dwCharID + dwKEY + BYTE count + count × (DWORD ip,
+// WORD port, BYTE server_id). Mirrors legacy SSHandler.cpp:6581
+// (OnDM_ROUTE_ACK → m_world.Say). The map's answer to MW_ROUTELIST_REQ:
+// the resolved endpoints for the server ids TWorld asked about, read by
+// TWorld's OnRouteAck.
+std::vector<std::byte> EncodeRouteAck(std::uint32_t char_id,
+                                      std::uint32_t key,
+                                      const std::vector<ServerRoute>& routes);
+
 // RW_ENTERCHAR_REQ body — dwCharID + szName. The relay/map asks TWorld
 // to resolve a char by name (and verify the id) before opening an entry;
 // TWorld answers RW_ENTERCHAR_ACK with the cluster-side guild/party/etc.
 // state. Parsed by TWorld's OnEnterCharReq (RWHandler.cpp:28).
 std::vector<std::byte> EncodeEnterCharReq(std::uint32_t      char_id,
                                           const std::string& name);
+
+// MW_ENTERCHAR_ACK body — 8 bytes (dwCharID + dwKEY), mirrors legacy
+// SSSender.cpp:730. The map's "this connection is ready" reply to the
+// World→Map MW_ENTERCHAR_REQ entry composite; TWorld's OnEnterCharAck
+// reads exactly these two fields to flip the con's `ready` flag and
+// drive its CheckMainCon reconcile.
+std::vector<std::byte> EncodeEnterCharAck(std::uint32_t char_id,
+                                          std::uint32_t key);
+
+// MW_CHECKMAIN_ACK body — 8 bytes (dwCharID + dwKEY), mirrors legacy
+// SSSender.cpp:742. The map's "yes, this is the char's main cell" reply
+// to MW_CHECKMAIN_REQ; only sent when the map owns the cell the char
+// stands in (legacy IsMainCell), so TWorld can settle which connection
+// is the authoritative main session.
+std::vector<std::byte> EncodeCheckMainAck(std::uint32_t char_id,
+                                          std::uint32_t key);
 
 } // namespace tmapsvr

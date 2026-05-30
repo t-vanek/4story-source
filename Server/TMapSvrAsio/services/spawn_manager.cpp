@@ -63,9 +63,10 @@ std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
             const std::uint8_t lvl = std::max<std::uint8_t>(1, tmpl->bLevel);
             if (const auto attr = attrs.Find(e.wMonID, tmpl->bLevel);
                 attr && attr->dwMaxHP > 0)
-                m.dwHP = attr->dwMaxHP;
+                m.dwMaxHP = attr->dwMaxHP;
             else
-                m.dwHP = 100u * static_cast<std::uint32_t>(lvl);
+                m.dwMaxHP = 100u * static_cast<std::uint32_t>(lvl);
+            m.dwHP = m.dwMaxHP;   // spawns at full health
 
             registry.Insert(m);
             ++spawned;

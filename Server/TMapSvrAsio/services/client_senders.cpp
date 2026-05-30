@@ -205,8 +205,8 @@ std::vector<std::byte> EncodeAddMonAck(
     wire::WritePOD<std::uint32_t>(b, m.dwInstanceID);
     wire::WritePOD<std::uint16_t>(b, m.wTemplateID);
     wire::WritePOD<std::uint8_t> (b, level);
-    wire::WritePOD<std::uint32_t>(b, m.dwHP);       // max HP → current
-    wire::WritePOD<std::uint32_t>(b, m.dwHP);
+    wire::WritePOD<std::uint32_t>(b, m.dwMaxHP);    // max HP
+    wire::WritePOD<std::uint32_t>(b, m.dwHP);       // current HP
     wire::WritePOD<std::uint32_t>(b, 0);            // max MP (not modeled)
     wire::WritePOD<std::uint32_t>(b, 0);            // MP
     wire::WritePOD<float>        (b, m.fPosX);
@@ -224,6 +224,43 @@ std::vector<std::byte> EncodeAddMonAck(
     wire::WritePOD<std::uint32_t>(b, 0);            // region
     wire::WritePOD<std::uint8_t> (b, 0);            // maintain-skill list empty
 
+    return b;
+}
+
+std::vector<std::byte> EncodeHpMpAck(
+    std::uint32_t id, std::uint32_t max_hp, std::uint32_t hp,
+    std::uint32_t max_mp, std::uint32_t mp)
+{
+    std::vector<std::byte> b;
+    b.reserve(20);
+    wire::WritePOD<std::uint32_t>(b, id);
+    wire::WritePOD<std::uint32_t>(b, max_hp);
+    wire::WritePOD<std::uint32_t>(b, hp);
+    wire::WritePOD<std::uint32_t>(b, max_mp);
+    wire::WritePOD<std::uint32_t>(b, mp);
+    return b;
+}
+
+std::vector<std::byte> EncodeDelMonAck(
+    std::uint32_t mon_id, std::uint8_t exit_map)
+{
+    std::vector<std::byte> b;
+    b.reserve(5);
+    wire::WritePOD<std::uint32_t>(b, mon_id);
+    wire::WritePOD<std::uint8_t> (b, exit_map);
+    return b;
+}
+
+std::vector<std::byte> EncodeExpAck(
+    std::uint32_t exp, std::uint32_t prev_level_exp,
+    std::uint32_t next_level_exp, std::uint32_t soul_lot_exp)
+{
+    std::vector<std::byte> b;
+    b.reserve(16);
+    wire::WritePOD<std::uint32_t>(b, exp);
+    wire::WritePOD<std::uint32_t>(b, prev_level_exp);
+    wire::WritePOD<std::uint32_t>(b, next_level_exp);
+    wire::WritePOD<std::uint32_t>(b, soul_lot_exp);
     return b;
 }
 

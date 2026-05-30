@@ -114,6 +114,14 @@ boost::asio::awaitable<void> OnSkillUseReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+// CS_ACTION_REQ — a player action on a target (normal attack / skill on
+// a monster, recall-mon, PC, …). The combat-relevant slice (attack a
+// monster → damage → HP / death + EXP) lives in handlers/combat.cpp.
+boost::asio::awaitable<void> OnActionReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
 boost::asio::awaitable<void> OnQuestExecReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,

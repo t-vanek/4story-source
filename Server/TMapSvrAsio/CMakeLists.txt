@@ -112,6 +112,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/movement.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/npc.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/combat.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/quest.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/social.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/bow.cpp
@@ -236,3 +237,12 @@ target_link_libraries(test_tmapsvr_asio_spawn_manager PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_spawn_manager
     COMMAND test_tmapsvr_asio_spawn_manager)
+
+# Combat: registry ApplyDamage (clamp + death + miss) + the HP / DelMon /
+# Exp ack byte layouts.
+add_executable(test_tmapsvr_asio_combat
+    ${TMAPSVR_ASIO_SRC}/tests/test_combat.cpp)
+target_link_libraries(test_tmapsvr_asio_combat PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_combat
+    COMMAND test_tmapsvr_asio_combat)

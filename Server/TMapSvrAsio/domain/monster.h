@@ -62,7 +62,8 @@ struct MonsterInstance
     float          fPosX         = 0.f;
     float          fPosY         = 0.f;
     float          fPosZ         = 0.f;
-    std::uint32_t  dwHP          = 0;    // 0 = dead, will be reaped
+    std::uint32_t  dwMaxHP       = 0;    // spawn HP (for the health bar)
+    std::uint32_t  dwHP          = 0;    // current; 0 = dead, will be reaped
 };
 
 // TMONATTRCHART row — a monster's combat stats *at a given level*

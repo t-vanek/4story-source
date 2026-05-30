@@ -43,7 +43,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | **Combat handlers** | ❌ | `CS_ATTACK_REQ` family not wired |
 | **Drop tables / loot** | ❌ | `TDROPCHART` loader missing |
 
-## Wired handlers (27 total)
+## Wired handlers (28 total)
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
@@ -51,6 +51,8 @@ CS_CONREADY_REQ           session.cpp     post-load → CS_CHARINFO_ACK + CS_ENT
 CS_MOVE_REQ               movement.cpp    position + broadcast
 CS_NPCTALK_REQ            npc.cpp         dialogue dispatch
 CS_SKILLUSE_REQ           skill.cpp       skill cooldown + broadcast (no damage calc)
+CS_ACTION_REQ             combat.cpp      attack monster → damage → CS_HPMP / death (CS_DELMON + CS_EXP); placeholder damage
+
 CS_QUESTEXEC_REQ          quest.cpp       quest progress update (no objective eval)
 CS_QUESTDROP_REQ          quest.cpp       abandon quest
 CS_CHAT_REQ               social.cpp      channel chat broadcast
@@ -221,7 +223,7 @@ Server/TMapSvrAsio/
 | **T6** | Metrics + admin shell endpoints | ✅ |
 | **T7** | Quest VM design decision | ✅ ([`QUEST_ENGINE.md`](QUEST_ENGINE.md): data-driven, DB-sourced, register dispatch — not Lua/YAML) |
 | **T8** | Combat / damage formula port | ⏸ |
-| **T8** | Combat / damage formula port | 🟡 monster combat stats loaded (`TMONATTRCHART` → real spawn HP + AP/DP/WAP for the damage formula); attack handler + damage calc pending |
+| **T8** | Combat / damage formula port | 🟡 kill loop wired (`CS_ACTION_REQ` → monster damage → `CS_HPMP` / death `CS_DELMON` + real `wExp` via `CS_EXP`); monster stats from `TMONATTRCHART`. Damage is a level-scaled placeholder — the real `CalcDamage` (player AP/WAP vs monster DP) needs the player combat-stat + skill layer |
 | **T9** | Mob AI tick + spawn manager | 🟡 static spawn done (`SpawnManager` + `TMAPMONCHART` linkage → registry → CS_ADDMON on enter, real HP from `TMONATTRCHART`); respawn timer + roam/chase/attack AI tick pending |
 | **T10** | Drop table / loot generator | ⏸ |
 | **T11** | Bulk handler port (CONSOLIDATION recipe × 280) | ⏸ |

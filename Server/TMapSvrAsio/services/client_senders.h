@@ -111,4 +111,26 @@ std::vector<std::byte> EncodeAddMonAck(
     const MonsterInstance& m, std::uint8_t level, std::uint8_t country,
     std::uint8_t color, std::uint8_t new_member);
 
+// CS_HPMP_ACK body — an object's HP/MP changed (DWORD id + maxHP + HP +
+// maxMP + MP). Mirrors legacy SendCS_HPMP_ACK (CSSender.cpp:1315; the
+// bType/bLevel args drive the party relay, not this packet). Broadcast
+// to everyone who can see the object so health bars update.
+std::vector<std::byte> EncodeHpMpAck(
+    std::uint32_t id, std::uint32_t max_hp, std::uint32_t hp,
+    std::uint32_t max_mp, std::uint32_t mp);
+
+// CS_DELMON_ACK body — a monster left view (DWORD mon id + BYTE
+// exit_map: 1 = walked off the map, 0 = died). Mirrors legacy
+// SendCS_DELMON_ACK (CSSender.cpp:1011).
+std::vector<std::byte> EncodeDelMonAck(
+    std::uint32_t mon_id, std::uint8_t exit_map);
+
+// CS_EXP_ACK body — the player's EXP changed (DWORD exp + prev-level
+// threshold + next-level threshold + soul-lot exp). Mirrors legacy
+// SendCS_EXP_ACK (CSSender.cpp:1375). The level thresholds need the
+// level chart (not modelled yet) and ship 0 until it lands.
+std::vector<std::byte> EncodeExpAck(
+    std::uint32_t exp, std::uint32_t prev_level_exp,
+    std::uint32_t next_level_exp, std::uint32_t soul_lot_exp);
+
 } // namespace tmapsvr

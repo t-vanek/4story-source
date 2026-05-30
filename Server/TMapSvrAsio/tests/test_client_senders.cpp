@@ -156,8 +156,70 @@ int main()
         EXPECT(r.Eof());                 // whole structure consumed
     }
 
+    // --- CS_ENTER_ACK: appearance + live pos + empty lists + new flag ---
+    {
+        CharSnapshot s;
+        s.dwCharID    = 0x00C0FFEE;
+        s.szNAME      = "Mage";
+        s.bClass      = 5;
+        s.bRace       = 1;
+        s.bCountry    = 2;
+        s.bOriCountry = 3;
+        s.bSex        = 1;
+        s.bHair       = 7;
+        s.bFace       = 4;
+        s.bLevel      = 42;
+        s.bHelmetHide = 1;
+        s.dwHP        = 300;
+        s.dwMP        = 800;
+        s.wDIR        = 90;
+        s.dwRegion    = 0x11;
+        s.bAftermath  = 2;
+
+        const Position pos{ 12.5f, 3.0f, -4.25f };
+        auto b = EncodeEnterAck(s, pos, /*color=*/2, /*new_member=*/1);
+
+        wire::Reader r(b.data(), b.size());
+        auto u8  = [&](std::uint8_t  e) { std::uint8_t  v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto u16 = [&](std::uint16_t e) { std::uint16_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto u32 = [&](std::uint32_t e) { std::uint32_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto f32 = [&](float         e) { float         v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto str = [&](const std::string& e) { std::string v; EXPECT(r.ReadString(v)); EXPECT(v == e); };
+
+        u32(0x00C0FFEE);                 // char id
+        str("Mage");
+        u16(0);                          // title
+        str("");                         // comment
+        u32(0); u32(0); u32(0);          // guild id, fame, fame color
+        str("");                         // guild name
+        u8(0);                           // guild peer
+        u32(0); str("");                 // tactics id, name
+        u8(0); str("");                  // store, store name
+        u32(0);                          // riding
+        u8(5); u8(1);                    // class, race
+        u8(2); u8(3);                    // country, aid (bOriCountry)
+        u8(1); u8(7); u8(4);             // sex, hair, face
+        u8(0); u8(0); u8(0); u8(0);      // body, pants, hand, foot
+        u8(42); u8(1);                   // level, helmet hide
+        u32(300); u32(300);              // max hp == hp
+        u32(800); u32(800);              // max mp == mp
+        u32(0); u16(0); u16(0);          // party chief, party id, commander
+        f32(12.5f); f32(3.0f); f32(-4.25f);
+        u8(0); u8(0); u8(0);             // action, block, mode
+        u16(0); u16(90);                 // pitch, dir
+        u8(0); u8(0);                    // mouse dir, key dir
+        u8(2);                           // color (param)
+        u32(0x11);                       // region
+        u8(0); u8(2);                    // pc-bang, aftermath step
+        u32(0); u16(0); u8(0); u16(0);   // rank, castle, camp, god ball
+        u8(0); u8(0);                    // maintain-skill + equip lists empty
+        u8(1);                           // new_member
+
+        EXPECT(r.Eof());
+    }
+
     if (g_fails == 0)
-        std::printf("test_client_senders: addconnect + connect + charinfo "
-                    "layout OK\n");
+        std::printf("test_client_senders: addconnect + connect + charinfo + "
+                    "enter layout OK\n");
     return g_fails == 0 ? 0 : 1;
 }

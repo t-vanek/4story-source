@@ -120,4 +120,79 @@ std::vector<std::byte> EncodeCharInfoAck(
     return b;
 }
 
+std::vector<std::byte> EncodeEnterAck(
+    const CharSnapshot& s, const Position& pos,
+    std::uint8_t color, std::uint8_t new_member)
+{
+    std::vector<std::byte> b;
+    b.reserve(160);
+
+    // --- identity + World-sourced cluster state (→ 0/"") -------------
+    wire::WritePOD<std::uint32_t>(b, s.dwCharID);
+    wire::WriteString            (b, s.szNAME);
+    wire::WritePOD<std::uint16_t>(b, 0);            // title id
+    wire::WriteString            (b, std::string{});// comment (ally-only)
+    wire::WritePOD<std::uint32_t>(b, 0);            // guild id
+    wire::WritePOD<std::uint32_t>(b, 0);            // fame
+    wire::WritePOD<std::uint32_t>(b, 0);            // fame color
+    wire::WriteString            (b, std::string{});// guild name
+    wire::WritePOD<std::uint8_t> (b, 0);            // guild peer
+    wire::WritePOD<std::uint32_t>(b, 0);            // tactics id
+    wire::WriteString            (b, std::string{});// tactics name
+    wire::WritePOD<std::uint8_t> (b, 0);            // store open
+    wire::WriteString            (b, std::string{});// store name
+    wire::WritePOD<std::uint32_t>(b, 0);            // riding mount
+
+    // --- appearance ---------------------------------------------------
+    wire::WritePOD<std::uint8_t> (b, s.bClass);
+    wire::WritePOD<std::uint8_t> (b, s.bRace);
+    wire::WritePOD<std::uint8_t> (b, s.bCountry);
+    wire::WritePOD<std::uint8_t> (b, s.bOriCountry);   // aid country
+    wire::WritePOD<std::uint8_t> (b, s.bSex);
+    wire::WritePOD<std::uint8_t> (b, s.bHair);
+    wire::WritePOD<std::uint8_t> (b, s.bFace);
+    wire::WritePOD<std::uint8_t> (b, s.bBody);
+    wire::WritePOD<std::uint8_t> (b, s.bPants);
+    wire::WritePOD<std::uint8_t> (b, s.bHand);
+    wire::WritePOD<std::uint8_t> (b, s.bFoot);
+    wire::WritePOD<std::uint8_t> (b, s.bLevel);
+    wire::WritePOD<std::uint8_t> (b, s.bHelmetHide);
+
+    // --- hp/mp + party/corps (party World-sourced → 0) ---------------
+    wire::WritePOD<std::uint32_t>(b, s.dwHP);       // max HP → current
+    wire::WritePOD<std::uint32_t>(b, s.dwHP);
+    wire::WritePOD<std::uint32_t>(b, s.dwMP);       // max MP → current
+    wire::WritePOD<std::uint32_t>(b, s.dwMP);
+    wire::WritePOD<std::uint32_t>(b, 0);            // party chief id
+    wire::WritePOD<std::uint16_t>(b, 0);            // party id
+    wire::WritePOD<std::uint16_t>(b, 0);            // commander id
+
+    // --- live position + movement/action state -----------------------
+    wire::WritePOD<float>        (b, pos.x);
+    wire::WritePOD<float>        (b, pos.y);
+    wire::WritePOD<float>        (b, pos.z);
+    wire::WritePOD<std::uint8_t> (b, 0);            // action
+    wire::WritePOD<std::uint8_t> (b, 0);            // block
+    wire::WritePOD<std::uint8_t> (b, 0);            // mode
+    wire::WritePOD<std::uint16_t>(b, 0);            // pitch
+    wire::WritePOD<std::uint16_t>(b, s.wDIR);
+    wire::WritePOD<std::uint8_t> (b, 0);            // mouse dir
+    wire::WritePOD<std::uint8_t> (b, 0);            // key dir
+    wire::WritePOD<std::uint8_t> (b, color);        // faction tint (PvP)
+    wire::WritePOD<std::uint32_t>(b, s.dwRegion);
+    wire::WritePOD<std::uint8_t> (b, 0);            // in PC-bang
+    wire::WritePOD<std::uint8_t> (b, s.bAftermath); // aftermath step
+    wire::WritePOD<std::uint32_t>(b, 0);            // rank point
+    wire::WritePOD<std::uint16_t>(b, 0);            // castle id
+    wire::WritePOD<std::uint8_t> (b, 0);            // camp
+    wire::WritePOD<std::uint16_t>(b, 0);            // god ball
+
+    // --- maintain-skill list + equip-item list (both empty) ----------
+    wire::WritePOD<std::uint8_t> (b, 0);            // maintain skills
+    wire::WritePOD<std::uint8_t> (b, 0);            // equipped items
+    wire::WritePOD<std::uint8_t> (b, new_member);
+
+    return b;
+}
+
 } // namespace tmapsvr

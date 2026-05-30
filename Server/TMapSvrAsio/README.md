@@ -47,7 +47,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
-CS_CONREADY_REQ           session.cpp     post-load → CS_CHARINFO_ACK (own char; AOI flood deferred)
+CS_CONREADY_REQ           session.cpp     post-load → CS_CHARINFO_ACK + surrounding-player CS_ENTER_ACK (monsters/NPCs deferred)
 CS_MOVE_REQ               movement.cpp    position + broadcast
 CS_NPCTALK_REQ            npc.cpp         dialogue dispatch
 CS_SKILLUSE_REQ           skill.cpp       skill cooldown + broadcast (no damage calc)

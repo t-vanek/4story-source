@@ -293,6 +293,63 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
     const auto ack = EncodeCharInfoAck(*snap, FormatServerClock());
     co_await sess->SendPacket(
         static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK), ack);
+
+    // Enter-map AOI exchange: show the newcomer everyone already on its
+    // channel, and announce the newcomer to them. The presence visitor
+    // is synchronous, so collect the (snapshot, session) pairs first and
+    // co_await the sends afterwards. Monsters + NPCs join this flood once
+    // the spawn / NPC-visibility layer lands.
+    //
+    // Positions come from each char's snapshot (its loaded spawn point):
+    // ChannelPresence.pos is only seeded on the first CS_MOVE_REQ, so for
+    // a just-entered crowd the snapshot is the authoritative location.
+    // Live presence-position tracking is a follow-up.
+    if (ctx.presence && ctx.char_state)
+    {
+        const auto me = ctx.presence->FindEntry(cid);
+        if (me)
+        {
+            struct Nearby
+            {
+                CharSnapshot                          snap;
+                std::shared_ptr<tnetlib::AsioSession> sess;
+            };
+            std::vector<Nearby> nearby;
+            ctx.presence->ForEachInChannel(me->channel, cid,
+                [&](const ChannelPresenceEntry& e,
+                    std::shared_ptr<tnetlib::AsioSession> osess)
+                {
+                    if (auto osnap = ctx.char_state->Get(e.char_id))
+                        nearby.push_back({ std::move(*osnap), std::move(osess) });
+                });
+
+            // Faction tint (legacy CanFight / TNCOLOR) is PvP gameplay —
+            // default friendly until the combat layer lands.
+            constexpr std::uint8_t kColorFriendly = 0;
+            const Position my_pos{ snap->fPosX, snap->fPosY, snap->fPosZ };
+            const auto my_enter =
+                EncodeEnterAck(*snap, my_pos, kColorFriendly, /*new_member=*/1);
+
+            for (auto& n : nearby)
+            {
+                const Position their_pos{ n.snap.fPosX, n.snap.fPosY,
+                                          n.snap.fPosZ };
+                const auto their =
+                    EncodeEnterAck(n.snap, their_pos, kColorFriendly,
+                                   /*new_member=*/0);
+                co_await sess->SendPacket(                 // I see them
+                    static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK), their);
+                if (n.sess)
+                    co_await n.sess->SendPacket(           // they see me arrive
+                        static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK),
+                        my_enter);
+            }
+
+            if (!nearby.empty())
+                spdlog::info("CS_CONREADY char={} — CS_ENTER_ACK exchanged with "
+                             "{} nearby players", cid, nearby.size());
+        }
+    }
 }
 
 } // namespace tmapsvr

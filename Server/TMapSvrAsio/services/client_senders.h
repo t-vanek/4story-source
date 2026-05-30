@@ -14,6 +14,7 @@
 // builders in Server/TMapSvrAsio/legacy_src/CSSender.cpp + SSHandler.cpp.
 
 #include "domain/character.h"
+#include "domain/position.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -68,5 +69,26 @@ std::vector<std::byte> EncodeConnectAck(
 // HP/MP (full bars) pending the stat formula.
 std::vector<std::byte> EncodeCharInfoAck(
     const CharSnapshot& s, const std::string& time_str);
+
+// CS_ENTER_ACK body — another character becoming visible to the client
+// (the enter-map AOI exchange on CS_CONREADY, and later every time
+// someone walks into view). Mirrors legacy CTPlayer::SendCS_ENTER_ACK
+// (CSSender.cpp:395): ~50 identity / appearance / position / state
+// scalars, then a maintain-skill list, an equipped-item list, and the
+// `new_member` flag.
+//
+// Appearance + level + region come from the visible char's snapshot;
+// `pos` is its live ChannelPresence position (which moves diverge from
+// the snapshot spawn point). `color` is the legacy TNCOLOR faction tint
+// (CanFight) — a PvP/gameplay value defaulted to 0/friendly here.
+// `new_member` is 1 when announcing a just-entered char to the people
+// already in view, 0 when listing the existing crowd to the newcomer.
+// World-sourced cluster fields (title/guild/fame/tactics/party/corps/
+// rank/castle), store, riding, and the two lists ship 0 / "" / empty
+// until their owning services land — the same staging CS_CHARINFO_ACK
+// uses. max HP/MP default to current HP/MP.
+std::vector<std::byte> EncodeEnterAck(
+    const CharSnapshot& s, const Position& pos,
+    std::uint8_t color, std::uint8_t new_member);
 
 } // namespace tmapsvr

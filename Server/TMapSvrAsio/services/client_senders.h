@@ -167,4 +167,10 @@ std::vector<std::byte> EncodeDieAck(
 std::vector<std::byte> EncodeRevivalAck(
     std::uint32_t char_id, float x, float y, float z);
 
+// CS_MONEY_ACK body — the player's purse changed (DWORD gold + silver +
+// cooper). Mirrors legacy CTPlayer::SendCS_MONEY_ACK (CSSender.cpp:3183).
+// Sent to the owner only (private state).
+std::vector<std::byte> EncodeMoneyAck(
+    std::uint32_t gold, std::uint32_t silver, std::uint32_t cooper);
+
 } // namespace tmapsvr

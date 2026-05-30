@@ -32,6 +32,7 @@
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
 #include "services/damage_formula.h"
+#include "services/money.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/session_registry.h"
@@ -156,32 +157,51 @@ HitMonster(std::shared_ptr<tnetlib::AsioSession> sess,
     // Died — remove it, tell everyone in view, award the kill.
     ctx.monster_registry->Remove(obj_id);
 
+    // EXP + money drop both come from the monster template.
     std::uint16_t exp = 0;
+    std::uint32_t money = 0;   // cooper
     if (ctx.monster_chart)
         if (const auto t = ctx.monster_chart->Find(after->wTemplateID))
-            exp = t->wExp;
+        {
+            exp   = t->wExp;
+            money = RollMoneyDrop(t->bMoneyProb, t->dwMinMoney,
+                                  t->dwMaxMoney, RandBelow);
+        }
 
     const auto del = EncodeDelMonAck(obj_id, /*exit_map=*/0);
     for (auto& w : watchers)
         co_await w->SendPacket(
             static_cast<std::uint16_t>(MessageId::CS_DELMON_ACK), del);
 
-    // EXP to the killer. The level chart that would trigger a level-up
-    // isn't modelled, so this accrues EXP and echoes it back only.
+    // EXP + money to the killer. Money auto-loots to the killer — the
+    // legacy corpse-take (CS_MONMONEYTAKE_REQ against a retained corpse) is
+    // a follow-up. The level chart that would trigger a level-up isn't
+    // modelled, so EXP just accrues and echoes back.
     if (attacker && ctx.char_state)
     {
-        ctx.char_state->Update(attacker,
-            [&](CharSnapshot& s) { s.dwEXP += exp; });
+        ctx.char_state->Update(attacker, [&](CharSnapshot& s)
+        {
+            s.dwEXP += exp;
+            if (money) AddMoneyToChar(s, money);
+        });
         if (const auto s = ctx.char_state->Get(attacker))
         {
             const auto exp_ack = EncodeExpAck(s->dwEXP, 0, 0, 0);
             co_await sess->SendPacket(
                 static_cast<std::uint16_t>(MessageId::CS_EXP_ACK), exp_ack);
+            if (money)
+            {
+                const auto money_ack =
+                    EncodeMoneyAck(s->dwGold, s->dwSilver, s->dwCooper);
+                co_await sess->SendPacket(
+                    static_cast<std::uint16_t>(MessageId::CS_MONEY_ACK),
+                    money_ack);
+            }
         }
     }
 
-    spdlog::info("defend: char={} killed mon={} (tmpl={}) → +{} EXP",
-        attacker, obj_id, after->wTemplateID, exp);
+    spdlog::info("defend: char={} killed mon={} (tmpl={}) → +{} EXP +{} cooper",
+        attacker, obj_id, after->wTemplateID, exp, money);
 
     // Schedule its return so the world doesn't empty out as players grind.
     // A fresh instance (new id, full HP) at the same spawn point.

@@ -323,4 +323,15 @@ std::vector<std::byte> EncodeRevivalAck(
     return b;
 }
 
+std::vector<std::byte> EncodeMoneyAck(
+    std::uint32_t gold, std::uint32_t silver, std::uint32_t cooper)
+{
+    std::vector<std::byte> b;
+    b.reserve(12);
+    wire::WritePOD<std::uint32_t>(b, gold);
+    wire::WritePOD<std::uint32_t>(b, silver);
+    wire::WritePOD<std::uint32_t>(b, cooper);
+    return b;
+}
+
 } // namespace tmapsvr

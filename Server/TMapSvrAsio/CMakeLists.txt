@@ -256,3 +256,12 @@ target_link_libraries(test_tmapsvr_asio_damage_formula PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_damage_formula
     COMMAND test_tmapsvr_asio_damage_formula)
+
+# Money: gold/silver/cooper CalcMoney/SplitMoney carry + the monster
+# money-drop roll (NetCode.h MONEY_MULTIPLY + TMonster.cpp:1085).
+add_executable(test_tmapsvr_asio_money
+    ${TMAPSVR_ASIO_SRC}/tests/test_money.cpp)
+target_link_libraries(test_tmapsvr_asio_money PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_money
+    COMMAND test_tmapsvr_asio_money)

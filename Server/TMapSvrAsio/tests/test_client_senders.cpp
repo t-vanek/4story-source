@@ -301,8 +301,19 @@ int main()
         EXPECT(r.Eof());
     }
 
+    // --- CS_MONEY_ACK: gold + silver + cooper ------------------------
+    {
+        auto b = EncodeMoneyAck(7, 42, 999);
+        EXPECT(b.size() == 12);
+        wire::Reader r(b.data(), b.size());
+        std::uint32_t g = 0, s = 0, c = 0;
+        EXPECT(r.Read(g) && r.Read(s) && r.Read(c));
+        EXPECT(g == 7 && s == 42 && c == 999);
+        EXPECT(r.Eof());
+    }
+
     if (g_fails == 0)
         std::printf("test_client_senders: addconnect + connect + charinfo + "
-                    "enter + addmon + action + die + revival layout OK\n");
+                    "enter + addmon + action + die + revival + money layout OK\n");
     return g_fails == 0 ? 0 : 1;
 }

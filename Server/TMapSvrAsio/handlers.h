@@ -34,10 +34,12 @@ class INpcService;
 class ISkillService;
 class IQuestService;
 class IMonsterChart;
+class IMonItemChart;
 class ISkillTemplateChart;
 class SkillCooldownTracker;
 class ISpawnChart;
 class IMonsterRegistry;
+class ICorpseRegistry;
 class ICompanionService;
 class ICharStateStore;
 class IServerRouteResolver;
@@ -62,10 +64,12 @@ struct HandlerContext
     ISkillService*         skill_service     = nullptr;
     IQuestService*         quest_service     = nullptr;
     IMonsterChart*         monster_chart     = nullptr;
+    IMonItemChart*         mon_item_chart    = nullptr;   // TMONITEMCHART (drop tables)
     ISkillTemplateChart*   skill_chart       = nullptr;   // TSKILLCHART (reuse delay)
     SkillCooldownTracker*  skill_cooldown    = nullptr;   // per-(char,skill) last-use gate
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;
+    ICorpseRegistry*       corpse_registry   = nullptr;   // monster loot (money + items)
     ICompanionService*     companion_service = nullptr;
     ICharStateStore*       char_state        = nullptr;   // live char snapshots
     IServerRouteResolver*  route_resolver    = nullptr;   // server_id → ip/port (MW_ROUTELIST)
@@ -144,6 +148,30 @@ boost::asio::awaitable<void> OnDefendReq(
 // death state, restores HP, repositions, and broadcasts CS_REVIVAL_ACK.
 // Legacy OnCS_REVIVAL_REQ (CSHandler.cpp:1067). Lives in handlers/combat.cpp.
 boost::asio::awaitable<void> OnRevivalReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+// CS_MONITEM* — the monster corpse loot window (handlers/loot.cpp). Drain
+// the corpse the kill left behind (services/corpse_registry.h): list its
+// money + items, take the money, take one item into the bag, or take all.
+// Legacy CS_MONITEM* family (CSHandler.cpp:6771-6910).
+boost::asio::awaitable<void> OnMonItemListReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnMonMoneyTakeReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnMonItemTakeReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+boost::asio::awaitable<void> OnMonItemTakeAllReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);

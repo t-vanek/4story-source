@@ -67,6 +67,14 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnDefendReq(sess, std::move(body), ctx); break;
     case MessageId::CS_REVIVAL_REQ:
         co_await OnRevivalReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_MONITEMLIST_REQ:
+        co_await OnMonItemListReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_MONMONEYTAKE_REQ:
+        co_await OnMonMoneyTakeReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_MONITEMTAKE_REQ:
+        co_await OnMonItemTakeReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_MONITEMTAKEALL_REQ:
+        co_await OnMonItemTakeAllReq(sess, std::move(body), ctx); break;
     case MessageId::CS_QUESTEXEC_REQ:
         co_await OnQuestExecReq(sess, std::move(body), ctx); break;
     case MessageId::CS_QUESTDROP_REQ:

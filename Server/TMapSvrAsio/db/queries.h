@@ -38,6 +38,14 @@ inline constexpr const char* InventoryByCharId =
     "SELECT bInvenID, wItemID, dEndTime, bELD "
     "FROM TINVENTABLE WHERE dwCharID = :cid";
 
+// TINVENTABLE — loot/pickup insert (item-loot wave). bInvenID is the
+// allocated bag slot; dEndTime is NULL (permanent — timed/cash item
+// persistence is a follow-up). PK (dwCharID, bInvenID) makes a slot
+// collision fail the insert, which the AddItem caller treats as "no slot".
+inline constexpr const char* InsertInventoryItem =
+    "INSERT INTO TINVENTABLE (dwCharID, bInvenID, wItemID, dEndTime, bELD) "
+    "VALUES (:cid, :slot, :item, NULL, :eld)";
+
 // TNPCCHART — F10 chart loader at boot. Whole table.
 inline constexpr const char* AllNpcs =
     "SELECT wID, szName, bType, bCountryID, wLocalID, bCondition, "
@@ -87,6 +95,19 @@ inline constexpr const char* AllMonAttr =
     "SELECT wID, bLevel, dwMaxHP, dwMaxMP, wAP, wMAP, wDP, wMDP, "
     "  wMinWAP, wMaxWAP, dwAtkSpeed "
     "FROM TMONATTRCHART";
+
+// TMONITEMCHART — per-monster drop table loaded at boot, grouped by
+// wMonID. The combat layer rolls these on death (services/loot.h):
+// weight-select by wWeight, gate on the four NORMAL probs. The legacy
+// per-monster query (DBAccess.h CTBLMonItem, WHERE wMonID = ?) is folded
+// into one whole-table load here; wMonID is the group key. Column order
+// matches SociMonItemChart's into() binding.
+inline constexpr const char* AllMonItems =
+    "SELECT wMonID, bChartType, wItemID, wItemIDMin, wItemIDMax, wWeight, "
+    "  bLevelMin, bLevelMax, bItemProb_N1, bItemProb_N2, bItemProb_N3, "
+    "  bItemProb_N4, bItemProb_M, bItemProb_S, bItemProb_R, "
+    "  bItemMagicOpt, bItemRareOpt "
+    "FROM TMONITEMCHART";
 
 // TSKILLCHART — skill templates. This slice loads only the reuse
 // cooldown (dwReuseDelay) the cooldown gate needs; the MP/HP cost and

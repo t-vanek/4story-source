@@ -334,4 +334,74 @@ std::vector<std::byte> EncodeMoneyAck(
     return b;
 }
 
+std::vector<std::byte> EncodeItemDescriptor(
+    const ItemInstance& it, std::uint32_t viewer_char_id, bool add_item_id)
+{
+    // Faithful field order from CTItem::WrapPacketClient (TItem.cpp:514-547).
+    // Non-cash path (m_dEndTime, the 8-byte __int64 — verified against
+    // CPacket::operator<<(__int64), Packet.cpp:500). 38 bytes with the slot
+    // id + zero magic options.
+    std::vector<std::byte> b;
+    b.reserve(40);
+    if (add_item_id)
+        wire::WritePOD<std::uint8_t>(b, it.bItemID);
+    wire::WritePOD<std::uint16_t>(b, it.wItemID);
+    wire::WritePOD<std::uint8_t> (b, it.bLevel);
+    wire::WritePOD<std::uint8_t> (b, it.bGem);
+    wire::WritePOD<std::uint16_t>(b, it.wMoggItemID);
+    wire::WritePOD<std::uint16_t>(b, it.wCompanion);     // WORD(IEV_COMPANION)
+    wire::WritePOD<std::uint8_t> (b, it.bCount);
+    wire::WritePOD<std::uint32_t>(b, it.dwDuraMax);
+    wire::WritePOD<std::uint32_t>(b, it.dwDuraCur);
+    wire::WritePOD<std::uint8_t> (b, it.bRefineMax);
+    wire::WritePOD<std::uint8_t> (b, it.bRefineCur);
+    wire::WritePOD<std::uint8_t> (b, it.bGLevel);
+    wire::WritePOD<std::int64_t> (b, it.dEndTime);       // __int64 m_dEndTime
+    wire::WritePOD<std::uint8_t> (b, it.bGradeEffect);
+    wire::WritePOD<std::uint8_t> (b, it.bELD);           // BYTE(IEV_ELD)
+    wire::WritePOD<std::uint8_t> (b, it.bWrap);          // BYTE(IEV_WRAP)
+    wire::WritePOD<std::uint16_t>(b, it.wColor);         // WORD(IEV_COLOR)
+    wire::WritePOD<std::uint16_t>(b, it.wCustomTex);     // WORD(IEV_CUSTOMTEX)
+    const std::uint8_t reg_guild =
+        (it.dwGuildBound != 0 && it.dwGuildBound == viewer_char_id) ? 1u : 0u;
+    wire::WritePOD<std::uint8_t> (b, reg_guild);
+    wire::WritePOD<std::uint8_t> (b, static_cast<std::uint8_t>(0));  // magic count — deferred
+    return b;
+}
+
+std::vector<std::byte> EncodeMonItemListAck(
+    std::uint8_t ret, std::uint8_t update, std::uint32_t mon_id,
+    std::uint32_t gold, std::uint32_t silver, std::uint32_t cooper,
+    const std::vector<ItemInstance>& items, std::uint32_t viewer_char_id)
+{
+    std::vector<std::byte> b;
+    b.reserve(16 + items.size() * 40);
+    wire::WritePOD<std::uint8_t> (b, ret);
+    wire::WritePOD<std::uint8_t> (b, update);
+    wire::WritePOD<std::uint32_t>(b, mon_id);
+    wire::WritePOD<std::uint32_t>(b, gold);
+    wire::WritePOD<std::uint32_t>(b, silver);
+    wire::WritePOD<std::uint32_t>(b, cooper);
+    if (ret == 0)   // MIL_SUCCESS — the corpse contents follow
+    {
+        wire::WritePOD<std::uint8_t>(
+            b, static_cast<std::uint8_t>(items.size()));
+        for (const auto& it : items)
+        {
+            const auto d = EncodeItemDescriptor(it, viewer_char_id,
+                                                /*add_item_id=*/true);
+            b.insert(b.end(), d.begin(), d.end());
+        }
+    }
+    return b;
+}
+
+std::vector<std::byte> EncodeMonItemTakeAck(std::uint8_t result)
+{
+    std::vector<std::byte> b;
+    b.reserve(1);
+    wire::WritePOD<std::uint8_t>(b, result);
+    return b;
+}
+
 } // namespace tmapsvr

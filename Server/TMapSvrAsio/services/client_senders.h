@@ -14,6 +14,7 @@
 // builders in Server/TMapSvrAsio/legacy_src/CSSender.cpp + SSHandler.cpp.
 
 #include "domain/character.h"
+#include "domain/inventory.h"
 #include "domain/monster.h"
 #include "domain/position.h"
 
@@ -172,5 +173,33 @@ std::vector<std::byte> EncodeRevivalAck(
 // Sent to the owner only (private state).
 std::vector<std::byte> EncodeMoneyAck(
     std::uint32_t gold, std::uint32_t silver, std::uint32_t cooper);
+
+// One item descriptor — the faithful port of CTItem::WrapPacketClient
+// (TItem.cpp:502). Emitted inside CS_MONITEMLIST_ACK / CS_GETITEM_ACK /
+// CS_ADDITEM_ACK. Layout (non-cash item):
+//   [add_item_id] BYTE slot, WORD itemID, BYTE level, BYTE gem,
+//   WORD mogg, WORD companion, BYTE count, DWORD duraMax, DWORD duraCur,
+//   BYTE refineMax, BYTE refineCur, BYTE gLevel, INT64 endTime,
+//   BYTE gradeEffect, BYTE eld, BYTE wrap, WORD color, WORD customTex,
+//   BYTE regGuild, BYTE magicCount, magicCount×(BYTE id, WORD value).
+// `bRegGuild` is set when the item is guild-bound to `viewer_char_id`
+// (legacy IEV_GUILD == dwCharID check). Magic options are deferred → 0.
+std::vector<std::byte> EncodeItemDescriptor(
+    const ItemInstance& it, std::uint32_t viewer_char_id, bool add_item_id);
+
+// CS_MONITEMLIST_ACK body — the loot window for a monster corpse. Mirrors
+// legacy CTPlayer::SendCS_MONITEMLIST_ACK (CSSender.cpp:2991): BYTE ret,
+// BYTE update, DWORD monID, DWORD gold/silver/cooper (the corpse purse
+// split from its cooper total), then — only on ret == 0 (MIL_SUCCESS) —
+// BYTE count + one item descriptor (add_item_id = true) per corpse item.
+std::vector<std::byte> EncodeMonItemListAck(
+    std::uint8_t ret, std::uint8_t update, std::uint32_t mon_id,
+    std::uint32_t gold, std::uint32_t silver, std::uint32_t cooper,
+    const std::vector<ItemInstance>& items, std::uint32_t viewer_char_id);
+
+// CS_MONITEMTAKE_ACK body — BYTE result (MONITEMTAKE_RESULT: 0 = success,
+// 1 = full inven, 2 = not found, …). Mirrors legacy
+// CTPlayer::SendCS_MONITEMTAKE_ACK (CSSender.cpp:2982).
+std::vector<std::byte> EncodeMonItemTakeAck(std::uint8_t result);
 
 } // namespace tmapsvr

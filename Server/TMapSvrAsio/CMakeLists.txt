@@ -113,6 +113,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/npc.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/combat.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/loot.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/quest.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/social.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/bow.cpp
@@ -131,6 +132,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_attr_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_mon_item_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/spawn_manager.cpp
     ${TMAPSVR_ASIO_SRC}/services/monster_ai.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
@@ -275,3 +277,49 @@ target_link_libraries(test_tmapsvr_asio_skill_cooldown PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_skill_cooldown
     COMMAND test_tmapsvr_asio_skill_cooldown)
+
+# Loot: the monster item-drop roll (prob gate + weighted selection + the
+# four NORMAL gates), faithful to CTMonster::AddItem (TMonster.cpp:1102).
+add_executable(test_tmapsvr_asio_loot
+    ${TMAPSVR_ASIO_SRC}/tests/test_loot.cpp)
+target_link_libraries(test_tmapsvr_asio_loot PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_loot
+    COMMAND test_tmapsvr_asio_loot)
+
+# Loot senders: the item descriptor (CTItem::WrapPacketClient port) +
+# CS_MONITEMLIST_ACK / CS_MONITEMTAKE_ACK byte layouts — the client wire
+# contract for every item shown in the corpse loot window.
+add_executable(test_tmapsvr_asio_loot_senders
+    ${TMAPSVR_ASIO_SRC}/tests/test_loot_senders.cpp)
+target_link_libraries(test_tmapsvr_asio_loot_senders PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_loot_senders
+    COMMAND test_tmapsvr_asio_loot_senders)
+
+# Inventory: FindBlankSlot (CTInven::GetBlankPos port) + the AddItem
+# loot/pickup slot allocation + bag-full failure.
+add_executable(test_tmapsvr_asio_inventory
+    ${TMAPSVR_ASIO_SRC}/tests/test_inventory.cpp)
+target_link_libraries(test_tmapsvr_asio_inventory PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_inventory
+    COMMAND test_tmapsvr_asio_inventory)
+
+# Corpse: MakeCorpse (drop roll → corpse slots) + the corpse-registry
+# operations (put / find / take money / item peek+remove / empty / remove).
+add_executable(test_tmapsvr_asio_corpse
+    ${TMAPSVR_ASIO_SRC}/tests/test_corpse.cpp)
+target_link_libraries(test_tmapsvr_asio_corpse PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_corpse
+    COMMAND test_tmapsvr_asio_corpse)
+
+# Loot take: TakeCorpseItem (peek → bag add → remove), incl. the bag-full
+# invariant that leaves the item on the corpse (MIT_FULLINVEN, no loss).
+add_executable(test_tmapsvr_asio_loot_take
+    ${TMAPSVR_ASIO_SRC}/tests/test_loot_take.cpp)
+target_link_libraries(test_tmapsvr_asio_loot_take PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_loot_take
+    COMMAND test_tmapsvr_asio_loot_take)

@@ -12,6 +12,7 @@
 #include "domain/inventory.h"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace tmapsvr {
@@ -28,6 +29,19 @@ public:
     // `m_bLoadCharError` branch in SSHandler.cpp:3567 did).
     virtual std::vector<InventoryRow>
         LoadInventory(std::uint32_t char_id) = 0;
+
+    // Acquire an item into the char's bag (the loot / pickup path).
+    // Allocates the lowest free bag slot (FindBlankSlot over the char's
+    // current TINVENTABLE rows) and persists a row, returning the assigned
+    // slot — or nullopt when the bag is full or the write fails (caller
+    // replies MIT_FULLINVEN). Faithful to CTPlayer::PushTItem's
+    // GetBlankPos + insert; only the 5 persisted columns are written
+    // (dwCharID, bInvenID, wItemID, dEndTime, bELD), so durability /
+    // refine / magic are template-derived on the next load, and the
+    // looted item is treated as permanent (dEndTime NULL) — timed / cash
+    // items are a follow-up. `it.wItemID` / `it.bELD` are the inputs.
+    virtual std::optional<std::uint8_t>
+        AddItem(std::uint32_t char_id, const ItemInstance& it) = 0;
 };
 
 } // namespace tmapsvr

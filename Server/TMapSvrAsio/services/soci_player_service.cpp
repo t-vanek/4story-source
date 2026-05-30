@@ -34,7 +34,12 @@ SociPlayerService::LoadChar(std::uint32_t char_id)
         auto row = ctx.Set<CharRow>().FindById(static_cast<int>(char_id));
         if (!row)
             return std::nullopt;
-        return Adapt<CharSnapshot>(*row);
+        auto snap = Adapt<CharSnapshot>(*row);
+        // TCHARTABLE stores current HP; the real max needs the stat layer,
+        // so load at full health (max = current). Combat damage drives
+        // dwHP below dwMaxHP from here.
+        snap.dwMaxHP = snap.dwHP;
+        return snap;
     }
     catch (const std::exception& ex)
     {

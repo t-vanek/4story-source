@@ -172,8 +172,30 @@ int main()
         EXPECT(f.chasing && f.z == 2.5f);   // toward the z=5 one
     }
 
+    // --- NearestPlayerIndex (attack/aggro target selection) ----------
+    {
+        EXPECT(NearestPlayerIndex(0.f, 0.f, {}, 10.f) == -1);   // none
+
+        std::vector<Position> p3{ { 0.f, 0.f, 20.f },    // far
+                                  { 0.f, 0.f, 3.f },     // nearest
+                                  { 0.f, 0.f, 0.f } };   // origin → ignored
+        EXPECT(NearestPlayerIndex(0.f, 0.f, p3, 5.f) == 1);     // the z=3 one
+        EXPECT(NearestPlayerIndex(0.f, 0.f, p3, 2.f) == -1);    // none within 2
+        EXPECT(NearestPlayerIndex(0.f, 0.f, p3, 50.f) == 1);    // still z=3 (nearer than z=20)
+
+        std::vector<Position> only_origin{ { 0.f, 0.f, 0.f } };
+        EXPECT(NearestPlayerIndex(1.f, 1.f, only_origin, 99.f) == -1);
+    }
+
+    // --- MonsterDamage (placeholder by level) ------------------------
+    {
+        EXPECT(MonsterDamage(0) == 10);
+        EXPECT(MonsterDamage(5) == 20);
+        EXPECT(MonsterDamage(10) == 30);
+    }
+
     if (g_fails == 0)
         std::printf("test_combat: ApplyDamage + hpmp/delmon/exp + All/Update + "
-                    "monmove + decide-move OK\n");
+                    "monmove + decide-move + nearest/mondmg OK\n");
     return g_fails == 0 ? 0 : 1;
 }

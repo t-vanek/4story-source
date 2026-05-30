@@ -374,18 +374,24 @@ int main(int argc, char** argv)
                      crypto_on ? "on" : "off");
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
 
-        // Monster AI — the idle-roam tick. Detached; runs for the life of
-        // the io_context, nudging monsters so the world moves.
-        boost::asio::co_spawn(io,
-            tmapsvr::RunMonsterAi(monster_reg, presence),
-            [](std::exception_ptr ep)
-            {
-                if (!ep) return;
-                try { std::rethrow_exception(ep); }
-                catch (const std::exception& ex)
-                { spdlog::error("monster_ai tick stopped: {}", ex.what()); }
-                catch (...) { spdlog::error("monster_ai tick stopped (unknown)"); }
-            });
+        // Monster AI — the roam / chase / attack tick. Detached; runs for
+        // the life of the io_context. Needs the monster chart (attack
+        // level) + char state (player HP); without a DB there are no
+        // monsters anyway, so it's only spun up when the chart loaded.
+        if (monster_chart)
+        {
+            boost::asio::co_spawn(io,
+                tmapsvr::RunMonsterAi(monster_reg, presence, char_state,
+                    *monster_chart),
+                [](std::exception_ptr ep)
+                {
+                    if (!ep) return;
+                    try { std::rethrow_exception(ep); }
+                    catch (const std::exception& ex)
+                    { spdlog::error("monster_ai tick stopped: {}", ex.what()); }
+                    catch (...) { spdlog::error("monster_ai tick stopped (unknown)"); }
+                });
+        }
 
         // Optional /healthz HTTP endpoint on a separate port. Same
         // pattern as TPatchSvrAsio / TLoginSvrAsio — warn rather

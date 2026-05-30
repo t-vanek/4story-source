@@ -19,6 +19,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include <boost/asio/awaitable.hpp>
@@ -27,6 +28,17 @@ namespace tmapsvr {
 
 class IMonsterRegistry;
 class IChannelPresence;
+class ICharStateStore;
+class IMonsterChart;
+
+// Index of the nearest player to (mx, mz) within `range`, or -1 if none.
+// Players at the exact origin are ignored (not yet positioned). Pure.
+int NearestPlayerIndex(float mx, float mz,
+                       const std::vector<Position>& players, float range);
+
+// Placeholder monster melee damage by level, until the real CalcDamage
+// (monster AP/WAP vs player DP) lands with the combat-stat layer.
+std::uint32_t MonsterDamage(std::uint8_t monster_level);
 
 // A monster's chosen next (x, z) for a tick, and whether it's chasing a
 // player (vs idle-roaming).
@@ -51,6 +63,8 @@ Move2D DecideMonsterMove(float mx, float mz,
 boost::asio::awaitable<void> RunMonsterAi(
     IMonsterRegistry&         registry,
     IChannelPresence&         presence,
+    ICharStateStore&          char_state,
+    IMonsterChart&            monsters,
     std::chrono::milliseconds interval     = std::chrono::seconds(2),
     std::size_t               max_per_tick = 256);
 

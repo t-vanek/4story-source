@@ -4,6 +4,7 @@
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
+#include "services/damage_formula.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "asio_session.h"
@@ -39,11 +40,6 @@ int NearestPlayerIndex(float mx, float mz,
         if (d2 <= best) { best = d2; best_i = i; }
     }
     return best_i;
-}
-
-std::uint32_t MonsterDamage(std::uint8_t monster_level)
-{
-    return 10u + static_cast<std::uint32_t>(monster_level) * 2u;
 }
 
 Move2D DecideMonsterMove(float mx, float mz,
@@ -105,8 +101,10 @@ RunMonsterAi(IMonsterRegistry&         registry,
         {
             const auto& m = mons[i];
 
-            // Watchers (char id + position + session) on the monster's
-            // channel. Only bother with monsters someone can see.
+            // Watchers = every session on the channel (the dead still see
+            // the world). Live targets = the non-dead, which feed chase +
+            // attack so a corpse is neither chased nor hit (and isn't
+            // re-killed every tick).
             std::vector<Position>      player_pos;
             std::vector<std::uint32_t> player_cid;
             std::vector<std::shared_ptr<tnetlib::AsioSession>> watchers;
@@ -114,9 +112,12 @@ RunMonsterAi(IMonsterRegistry&         registry,
                 [&](const ChannelPresenceEntry& e,
                     std::shared_ptr<tnetlib::AsioSession> ws)
                 {
+                    watchers.push_back(std::move(ws));
+                    const auto cs = char_state.Get(e.char_id);
+                    if (cs && cs->bDead)
+                        return;                        // corpse — not a target
                     player_pos.push_back(e.pos);
                     player_cid.push_back(e.char_id);
-                    watchers.push_back(std::move(ws));
                 });
             if (watchers.empty())
                 continue;
@@ -132,31 +133,65 @@ RunMonsterAi(IMonsterRegistry&         registry,
                 co_await w->SendPacket(
                     static_cast<std::uint16_t>(MessageId::CS_MONMOVE_ACK), move);
 
-            // Attack: a player now within melee reach takes damage. HP is
-            // floored at 1 — player death + revival (CS_REVIVAL) is the
-            // next increment. Damage is a level-scaled placeholder until
-            // the real CalcDamage (monster AP/WAP vs player DP) lands.
+            // Attack: a live player within melee reach takes damage. Roll
+            // the monster's real attack power (TMONATTRCHART wAP + weapon
+            // range, carried on the instance from spawn) through the same
+            // physical formula as player→monster. The player's defense is
+            // 0 until the equipment/stat layer gives players a real DP, so
+            // the formula floors (5/7) apply.
             const int ti = NearestPlayerIndex(mv.x, mv.z, player_pos,
                                               kAttackRange);
             if (ti < 0)
                 continue;
+            if (!monsters.Find(m.wTemplateID))   // no template → not a fighter
+                continue;
 
-            std::uint8_t mlevel = 0;
-            if (const auto tmpl = monsters.Find(m.wTemplateID))
-                mlevel = tmpl->bLevel;
-            const std::uint32_t dmg = MonsterDamage(mlevel);
+            auto rand_below = [&](std::uint32_t k) -> std::uint32_t
+            {
+                return k > 1
+                    ? std::uniform_int_distribution<std::uint32_t>(0, k - 1)(rng)
+                    : 0u;
+            };
+            const std::uint32_t dmg = RollPhysicalDamage(
+                static_cast<std::uint32_t>(m.wAP) + m.wMinWAP,
+                static_cast<std::uint32_t>(m.wAP) + m.wMaxWAP,
+                /*player defense=*/0u, rand_below);
             const std::uint32_t victim = player_cid[static_cast<std::size_t>(ti)];
 
+            // Apply the hit atomically; HP reaching 0 flips the death state
+            // (legacy CTObjBase::OnDie — m_bStatus = OS_DEAD, HP/MP = 0).
+            bool died = false;
+            std::uint32_t max_hp = 0, cur_hp = 0;
             char_state.Update(victim, [&](CharSnapshot& s)
-                { s.dwHP = (s.dwHP > dmg) ? (s.dwHP - dmg) : 1u; });
-
-            const auto vs = char_state.Get(victim);
-            if (!vs || vs->dwMaxHP == 0)
+            {
+                if (s.dwHP > dmg)
+                    s.dwHP -= dmg;
+                else
+                {
+                    s.dwHP  = 0;
+                    s.bDead = 1;
+                    died    = true;
+                }
+                max_hp = s.dwMaxHP;
+                cur_hp = s.dwHP;
+            });
+            if (max_hp == 0)                 // char gone / not loaded
                 continue;
-            const auto hp = EncodeHpMpAck(victim, vs->dwMaxHP, vs->dwHP, 0, 0);
+
+            const auto hp = EncodeHpMpAck(victim, max_hp, cur_hp, 0, 0);
             for (auto& w : watchers)
                 co_await w->SendPacket(
                     static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), hp);
+
+            if (died)
+            {
+                const auto die = EncodeDieAck(victim, /*OT_PC=*/1);
+                for (auto& w : watchers)
+                    co_await w->SendPacket(
+                        static_cast<std::uint16_t>(MessageId::CS_DIE_ACK), die);
+                spdlog::info("monster_ai: mon {} killed player {} → dead",
+                    m.dwInstanceID, victim);
+            }
         }
     }
 }

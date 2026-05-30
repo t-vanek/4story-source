@@ -228,6 +228,7 @@ int main()
         m.fPosX        = 50.5f;
         m.fPosY        = 1.0f;
         m.fPosZ        = -8.75f;
+        m.dwMaxHP      = 4200;
         m.dwHP         = 4200;
 
         auto b = EncodeAddMonAck(m, /*level=*/33, /*country=*/2,
@@ -256,8 +257,63 @@ int main()
         EXPECT(r.Eof());
     }
 
+    // --- CS_ACTION_ACK: result + obj + type + action + act/ani + skill ---
+    {
+        auto b = EncodeActionAck(/*result=*/0, /*obj_id=*/0xCAFEBABE,
+                                 /*obj_type=*/2, /*action_id=*/7,
+                                 /*act_id=*/0x11223344, /*ani_id=*/0x55667788,
+                                 /*skill_id=*/321);
+        EXPECT(b.size() == 17);
+        wire::Reader r(b.data(), b.size());
+        auto u8  = [&](std::uint8_t  e) { std::uint8_t  v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto u16 = [&](std::uint16_t e) { std::uint16_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto u32 = [&](std::uint32_t e) { std::uint32_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+
+        u8(0);                           // result (SKILL_SUCCESS)
+        u32(0xCAFEBABE);                 // obj id
+        u8(2);                           // obj type (OT_MON)
+        u8(7);                           // action id
+        u32(0x11223344);                 // act id
+        u32(0x55667788);                 // ani id
+        u16(321);                        // skill id
+        EXPECT(r.Eof());
+    }
+
+    // --- CS_DIE_ACK: id + obj type -----------------------------------
+    {
+        auto b = EncodeDieAck(0x1234ABCD, /*OT_PC=*/1);
+        EXPECT(b.size() == 5);
+        wire::Reader r(b.data(), b.size());
+        std::uint32_t id = 0; std::uint8_t ty = 0xFF;
+        EXPECT(r.Read(id) && r.Read(ty));
+        EXPECT(id == 0x1234ABCD && ty == 1);
+        EXPECT(r.Eof());
+    }
+
+    // --- CS_REVIVAL_ACK: char id + x/y/z -----------------------------
+    {
+        auto b = EncodeRevivalAck(0x00C0FFEE, 12.5f, 1.0f, -7.25f);
+        EXPECT(b.size() == 16);
+        wire::Reader r(b.data(), b.size());
+        std::uint32_t id = 0; float x = 0, y = 0, z = 0;
+        EXPECT(r.Read(id) && r.Read(x) && r.Read(y) && r.Read(z));
+        EXPECT(id == 0x00C0FFEE && x == 12.5f && y == 1.0f && z == -7.25f);
+        EXPECT(r.Eof());
+    }
+
+    // --- CS_MONEY_ACK: gold + silver + cooper ------------------------
+    {
+        auto b = EncodeMoneyAck(7, 42, 999);
+        EXPECT(b.size() == 12);
+        wire::Reader r(b.data(), b.size());
+        std::uint32_t g = 0, s = 0, c = 0;
+        EXPECT(r.Read(g) && r.Read(s) && r.Read(c));
+        EXPECT(g == 7 && s == 42 && c == 999);
+        EXPECT(r.Eof());
+    }
+
     if (g_fails == 0)
         std::printf("test_client_senders: addconnect + connect + charinfo + "
-                    "enter + addmon layout OK\n");
+                    "enter + addmon + action + die + revival + money layout OK\n");
     return g_fails == 0 ? 0 : 1;
 }

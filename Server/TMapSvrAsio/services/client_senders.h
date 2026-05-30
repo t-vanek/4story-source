@@ -142,4 +142,35 @@ std::vector<std::byte> EncodeMonMoveAck(
     std::uint32_t mon_id, float x, float y, float z,
     std::uint16_t dir, std::uint8_t action);
 
+// CS_ACTION_ACK body — an object performed an action / attack animation
+// (BYTE result + DWORD obj id + BYTE obj type + BYTE action id + DWORD
+// act id + DWORD ani id + WORD skill id). Mirrors legacy
+// CTPlayer::SendCS_ACTION_ACK (CSSender.cpp:1186). This is the *animation*
+// half of an attack — the legacy OnCS_ACTION_REQ broadcasts it to everyone
+// in view and computes no damage; the damage lands separately in
+// CS_DEFEND_REQ. `result` is the SKILL_* validation code (0 = success).
+std::vector<std::byte> EncodeActionAck(
+    std::uint8_t result, std::uint32_t obj_id, std::uint8_t obj_type,
+    std::uint8_t action_id, std::uint32_t act_id, std::uint32_t ani_id,
+    std::uint16_t skill_id);
+
+// CS_DIE_ACK body — an object died (DWORD id + BYTE obj type). Mirrors
+// legacy CTPlayer::SendCS_DIE_ACK (CSSender.cpp:1392), broadcast to
+// everyone in view from CTObjBase::OnDie so the death animation plays.
+std::vector<std::byte> EncodeDieAck(
+    std::uint32_t id, std::uint8_t obj_type);
+
+// CS_REVIVAL_ACK body — a player revived at a position (DWORD char id +
+// FLOAT x/y/z). Mirrors legacy CTPlayer::SendCS_REVIVAL_ACK
+// (CSSender.cpp:1404). Broadcast to everyone in view so the corpse stands
+// back up at the revival point.
+std::vector<std::byte> EncodeRevivalAck(
+    std::uint32_t char_id, float x, float y, float z);
+
+// CS_MONEY_ACK body — the player's purse changed (DWORD gold + silver +
+// cooper). Mirrors legacy CTPlayer::SendCS_MONEY_ACK (CSSender.cpp:3183).
+// Sent to the owner only (private state).
+std::vector<std::byte> EncodeMoneyAck(
+    std::uint32_t gold, std::uint32_t silver, std::uint32_t cooper);
+
 } // namespace tmapsvr

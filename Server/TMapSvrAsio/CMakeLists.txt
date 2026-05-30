@@ -127,6 +127,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_player_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_quest_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_skill_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_attr_chart.cpp
@@ -247,3 +248,30 @@ target_link_libraries(test_tmapsvr_asio_combat PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_combat
     COMMAND test_tmapsvr_asio_combat)
+
+# Damage formula: PhysDamageBounds floors (5/7) + RollPhysicalDamage span,
+# the faithful port of legacy CalcDamage's A/B/rand physical core.
+add_executable(test_tmapsvr_asio_damage_formula
+    ${TMAPSVR_ASIO_SRC}/tests/test_damage_formula.cpp)
+target_link_libraries(test_tmapsvr_asio_damage_formula PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_damage_formula
+    COMMAND test_tmapsvr_asio_damage_formula)
+
+# Money: gold/silver/cooper CalcMoney/SplitMoney carry + the monster
+# money-drop roll (NetCode.h MONEY_MULTIPLY + TMonster.cpp:1085).
+add_executable(test_tmapsvr_asio_money
+    ${TMAPSVR_ASIO_SRC}/tests/test_money.cpp)
+target_link_libraries(test_tmapsvr_asio_money PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_money
+    COMMAND test_tmapsvr_asio_money)
+
+# Skill cooldown: reuse-remain / can-use math + the per-(char,skill)
+# tracker gate (faithful CTSkill::CanUse / GetReuseRemainTick).
+add_executable(test_tmapsvr_asio_skill_cooldown
+    ${TMAPSVR_ASIO_SRC}/tests/test_skill_cooldown.cpp)
+target_link_libraries(test_tmapsvr_asio_skill_cooldown PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_skill_cooldown
+    COMMAND test_tmapsvr_asio_skill_cooldown)

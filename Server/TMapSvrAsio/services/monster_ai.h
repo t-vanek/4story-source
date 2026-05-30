@@ -36,10 +36,6 @@ class IMonsterChart;
 int NearestPlayerIndex(float mx, float mz,
                        const std::vector<Position>& players, float range);
 
-// Placeholder monster melee damage by level, until the real CalcDamage
-// (monster AP/WAP vs player DP) lands with the combat-stat layer.
-std::uint32_t MonsterDamage(std::uint8_t monster_level);
-
 // A monster's chosen next (x, z) for a tick, and whether it's chasing a
 // player (vs idle-roaming).
 struct Move2D

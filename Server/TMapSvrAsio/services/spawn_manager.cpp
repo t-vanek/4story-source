@@ -56,16 +56,27 @@ std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
             m.fPosX        = p.fPosX;
             m.fPosY        = p.fPosY;
             m.fPosZ        = p.fPosZ;
-            // Real spawn HP from TMONATTRCHART (monster id + level). A
-            // monster with no stat row falls back to a level-scaled
-            // placeholder so it still shows a sane, non-zero bar
-            // (0 = dead/reaped).
+            // Real spawn HP + combat stats from TMONATTRCHART (monster id +
+            // level). A monster with no stat row falls back to a
+            // level-scaled placeholder HP so it still shows a sane, non-zero
+            // bar (0 = dead/reaped); its attack/defense then default to 0,
+            // which the damage formula floors to the legacy 5/7 minimums.
             const std::uint8_t lvl = std::max<std::uint8_t>(1, tmpl->bLevel);
-            if (const auto attr = attrs.Find(e.wMonID, tmpl->bLevel);
-                attr && attr->dwMaxHP > 0)
-                m.dwMaxHP = attr->dwMaxHP;
+            if (const auto attr = attrs.Find(e.wMonID, tmpl->bLevel))
+            {
+                m.dwMaxHP  = attr->dwMaxHP > 0
+                                 ? attr->dwMaxHP
+                                 : 100u * static_cast<std::uint32_t>(lvl);
+                m.wAP      = attr->wAP;
+                m.wMinWAP  = attr->wMinWAP;
+                m.wMaxWAP  = attr->wMaxWAP;
+                m.wDP      = attr->wDP;
+                m.wMDP     = attr->wMDP;
+            }
             else
+            {
                 m.dwMaxHP = 100u * static_cast<std::uint32_t>(lvl);
+            }
             m.dwHP = m.dwMaxHP;   // spawns at full health
 
             registry.Insert(m);

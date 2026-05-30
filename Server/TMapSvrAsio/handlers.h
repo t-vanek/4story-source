@@ -34,6 +34,8 @@ class INpcService;
 class ISkillService;
 class IQuestService;
 class IMonsterChart;
+class ISkillTemplateChart;
+class SkillCooldownTracker;
 class ISpawnChart;
 class IMonsterRegistry;
 class ICompanionService;
@@ -60,6 +62,8 @@ struct HandlerContext
     ISkillService*         skill_service     = nullptr;
     IQuestService*         quest_service     = nullptr;
     IMonsterChart*         monster_chart     = nullptr;
+    ISkillTemplateChart*   skill_chart       = nullptr;   // TSKILLCHART (reuse delay)
+    SkillCooldownTracker*  skill_cooldown    = nullptr;   // per-(char,skill) last-use gate
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;
     ICompanionService*     companion_service = nullptr;
@@ -116,10 +120,30 @@ boost::asio::awaitable<void> OnSkillUseReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
-// CS_ACTION_REQ — a player action on a target (normal attack / skill on
-// a monster, recall-mon, PC, …). The combat-relevant slice (attack a
-// monster → damage → HP / death + EXP) lives in handlers/combat.cpp.
+// CS_ACTION_REQ — the *animation* half of an attack/skill. The legacy
+// OnCS_ACTION_REQ (CSHandler.cpp:1233) only broadcasts the action to
+// everyone in view (CS_ACTION_ACK); it computes no damage. Lives in
+// handlers/combat.cpp.
 boost::asio::awaitable<void> OnActionReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+// CS_DEFEND_REQ — the *damage* half of an attack. The client sends its
+// attack powers (phys/magic min/max, attack level, crit flag, skill);
+// the server rolls the final damage against the target's defense, applies
+// it, and broadcasts the result (HP / death + EXP). Legacy
+// OnCS_DEFEND_REQ (CSHandler.cpp:1438 → CTObjBase::Defend). Lives in
+// handlers/combat.cpp.
+boost::asio::awaitable<void> OnDefendReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte>                body,
+    const HandlerContext&                 ctx);
+
+// CS_REVIVAL_REQ — a dead player revives at a chosen position. Clears the
+// death state, restores HP, repositions, and broadcasts CS_REVIVAL_ACK.
+// Legacy OnCS_REVIVAL_REQ (CSHandler.cpp:1067). Lives in handlers/combat.cpp.
+boost::asio::awaitable<void> OnRevivalReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);

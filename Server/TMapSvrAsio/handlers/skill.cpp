@@ -11,10 +11,13 @@
 #include "handlers.h"
 
 #include "services/session_registry.h"
+#include "services/skill_chart.h"
+#include "services/skill_cooldown.h"
 #include "wire_codec.h"
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -64,9 +67,37 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
             cid = *found;
     }
 
+    // Server-side reuse-cooldown gate (legacy CTSkill::CanUse): drop a
+    // re-use that arrives faster than the skill's TSKILLCHART reuse delay.
+    // Only gates when we know the char and have a non-zero delay; an
+    // unknown skill (no chart row) passes through. The reject ack
+    // (CS_SKILLUSE_ACK SKILL_SPEEDYUSE) is a follow-up — for now the cast
+    // is dropped server-side (the client runs its own cooldown UI). Damage
+    // / defender resolution / the CS_SKILLUSE_ACK broadcast still need the
+    // skill-data + MP cost (max-MP) layer.
+    if (cid && ctx.skill_chart && ctx.skill_cooldown)
+    {
+        if (const auto tmpl = ctx.skill_chart->Find(wSkillID);
+            tmpl && tmpl->dwReuseDelay > 0)
+        {
+            const auto now_ms = static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch())
+                    .count());
+            if (!ctx.skill_cooldown->TryUse(cid, wSkillID, now_ms,
+                                            tmpl->dwReuseDelay))
+            {
+                spdlog::info("CS_SKILLUSE_REQ char={} skill={} on cooldown "
+                             "(reuse={}ms) — dropped",
+                    cid, wSkillID, tmpl->dwReuseDelay);
+                co_return;
+            }
+        }
+    }
+
     spdlog::info("CS_SKILLUSE_REQ char={} skill={} action={} target={} type={} "
-                 "ch={} map={} pos=({:.1f},{:.1f},{:.1f}) — F11 stub (damage / "
-                 "ack broadcast lands with skill-template phase)",
+                 "ch={} map={} pos=({:.1f},{:.1f},{:.1f}) — cooldown OK (damage "
+                 "/ ack broadcast pend the skill-data + MP layer)",
         cid, wSkillID, bActionID, dwAttackID, bAttackType,
         bChannel, wMapID, fPosX, fPosY, fPosZ);
 

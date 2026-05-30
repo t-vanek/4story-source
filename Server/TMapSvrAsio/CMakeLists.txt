@@ -304,3 +304,12 @@ target_link_libraries(test_tmapsvr_asio_inventory PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_inventory
     COMMAND test_tmapsvr_asio_inventory)
+
+# Corpse: MakeCorpse (drop roll → corpse slots) + the corpse-registry
+# operations (put / find / take money / item peek+remove / empty / remove).
+add_executable(test_tmapsvr_asio_corpse
+    ${TMAPSVR_ASIO_SRC}/tests/test_corpse.cpp)
+target_link_libraries(test_tmapsvr_asio_corpse PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_corpse
+    COMMAND test_tmapsvr_asio_corpse)

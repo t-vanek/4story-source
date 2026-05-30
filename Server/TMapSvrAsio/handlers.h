@@ -39,6 +39,7 @@ class ISkillTemplateChart;
 class SkillCooldownTracker;
 class ISpawnChart;
 class IMonsterRegistry;
+class ICorpseRegistry;
 class ICompanionService;
 class ICharStateStore;
 class IServerRouteResolver;
@@ -68,6 +69,7 @@ struct HandlerContext
     SkillCooldownTracker*  skill_cooldown    = nullptr;   // per-(char,skill) last-use gate
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;
+    ICorpseRegistry*       corpse_registry   = nullptr;   // monster loot (money + items)
     ICompanionService*     companion_service = nullptr;
     ICharStateStore*       char_state        = nullptr;   // live char snapshots
     IServerRouteResolver*  route_resolver    = nullptr;   // server_id → ip/port (MW_ROUTELIST)

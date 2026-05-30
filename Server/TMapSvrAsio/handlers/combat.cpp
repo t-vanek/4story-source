@@ -31,7 +31,10 @@
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
+#include "services/corpse_registry.h"
 #include "services/damage_formula.h"
+#include "services/loot.h"
+#include "services/mon_item_chart.h"
 #include "services/money.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
@@ -157,15 +160,25 @@ HitMonster(std::shared_ptr<tnetlib::AsioSession> sess,
     // Died — remove it, tell everyone in view, award the kill.
     ctx.monster_registry->Remove(obj_id);
 
-    // EXP + money drop both come from the monster template.
+    // EXP is awarded on the kill; money + items are left on the corpse for
+    // the player to loot (faithful CTMonster::AddItem on death fills the
+    // corpse's INVEN_DEFAULT — 4Story loots via the corpse window, it does
+    // not auto-loot or drop on the ground). All three come from the monster
+    // template + its drop table.
     std::uint16_t exp = 0;
-    std::uint32_t money = 0;   // cooper
+    std::uint32_t money = 0;            // cooper, left on the corpse
+    std::vector<std::uint16_t> drops;   // dropped item template ids
     if (ctx.monster_chart)
         if (const auto t = ctx.monster_chart->Find(after->wTemplateID))
         {
             exp   = t->wExp;
             money = RollMoneyDrop(t->bMoneyProb, t->dwMinMoney,
                                   t->dwMaxMoney, RandBelow);
+            if (ctx.mon_item_chart)
+                drops = RollItemDrops(
+                    ctx.mon_item_chart->ForMon(after->wTemplateID),
+                    t->bItemProb, t->bDropCount, /*add_item_drop=*/0,
+                    RandBelow);
         }
 
     const auto del = EncodeDelMonAck(obj_id, /*exit_map=*/0);
@@ -173,35 +186,31 @@ HitMonster(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await w->SendPacket(
             static_cast<std::uint16_t>(MessageId::CS_DELMON_ACK), del);
 
-    // EXP + money to the killer. Money auto-loots to the killer — the
-    // legacy corpse-take (CS_MONMONEYTAKE_REQ against a retained corpse) is
-    // a follow-up. The level chart that would trigger a level-up isn't
-    // modelled, so EXP just accrues and echoes back.
+    // Stash the loot on the corpse, keyed by the dead instance id the
+    // client passes in CS_MONITEMLIST_REQ. Skip an empty corpse (nothing
+    // dropped → no loot window). The take handlers (CS_MONMONEYTAKE /
+    // CS_MONITEMTAKE) drain it into the player's purse / bag.
+    if (ctx.corpse_registry && (money > 0 || !drops.empty()))
+        ctx.corpse_registry->Put(obj_id, MakeCorpse(money, drops));
+
+    // EXP to the killer now (no level chart yet → it just accrues + echoes).
     if (attacker && ctx.char_state)
     {
         ctx.char_state->Update(attacker, [&](CharSnapshot& s)
         {
             s.dwEXP += exp;
-            if (money) AddMoneyToChar(s, money);
         });
         if (const auto s = ctx.char_state->Get(attacker))
         {
             const auto exp_ack = EncodeExpAck(s->dwEXP, 0, 0, 0);
             co_await sess->SendPacket(
                 static_cast<std::uint16_t>(MessageId::CS_EXP_ACK), exp_ack);
-            if (money)
-            {
-                const auto money_ack =
-                    EncodeMoneyAck(s->dwGold, s->dwSilver, s->dwCooper);
-                co_await sess->SendPacket(
-                    static_cast<std::uint16_t>(MessageId::CS_MONEY_ACK),
-                    money_ack);
-            }
         }
     }
 
-    spdlog::info("defend: char={} killed mon={} (tmpl={}) → +{} EXP +{} cooper",
-        attacker, obj_id, after->wTemplateID, exp, money);
+    spdlog::info("defend: char={} killed mon={} (tmpl={}) → +{} EXP; corpse "
+        "= {} cooper + {} item(s)", attacker, obj_id, after->wTemplateID,
+        exp, money, drops.size());
 
     // Schedule its return so the world doesn't empty out as players grind.
     // A fresh instance (new id, full HP) at the same spawn point.

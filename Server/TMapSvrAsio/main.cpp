@@ -23,6 +23,7 @@
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/companion_service.h"
+#include "services/corpse_registry.h"
 #include "services/inventory_service.h"
 #include "services/log_peer.h"
 #include "services/map_mon_chart.h"
@@ -229,6 +230,10 @@ int main(int argc, char** argv)
         // the next phase. Empty when no DB is configured.
         tmapsvr::InMemoryMonsterRegistry monster_reg;
 
+        // Monster corpse loot — money + items a kill leaves behind, keyed
+        // by the dead monster instance id, drained by the loot handlers.
+        tmapsvr::InMemoryCorpseRegistry  corpse_reg;
+
         // Static monster spawn — realise the world's standing monster
         // population on channel 0. Needs all three charts (DB path only).
         // The CS_CONREADY enter-map flood broadcasts these via the
@@ -305,6 +310,7 @@ int main(int argc, char** argv)
         ctx.skill_cooldown    = &skill_cooldown;
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;
+        ctx.corpse_registry   = &corpse_reg;
         ctx.monster_seq       = &monster_seq;
         ctx.companion_service = companion_service.get();
         ctx.char_state        = &char_state;

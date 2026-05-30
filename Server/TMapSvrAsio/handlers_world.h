@@ -63,4 +63,12 @@ boost::asio::awaitable<void> OnMWCheckMainReq(
     std::vector<std::byte>       body,
     const HandlerContext&        ctx);
 
+// MW_CONRESULT_REQ (World→Map): TWorld's settled connect verdict + the
+// cross-server id list; the map relays it to the client as the
+// authoritative CS_CONNECT_ACK and closes the session on rejection.
+// Legacy: SSHandler.cpp:1332.
+boost::asio::awaitable<void> OnMWConResultReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
 } // namespace tmapsvr

@@ -43,7 +43,7 @@ Game logic (damage / AI / quest)    ░░░░░░░░░░░░░░�
 | **Combat handlers** | ❌ | `CS_ATTACK_REQ` family not wired |
 | **Drop tables / loot** | ❌ | `TDROPCHART` loader missing |
 
-## Wired handlers (24 total)
+## Wired handlers (25 total)
 
 ```
 CS_CONNECT_REQ            session.cpp     enter map, presence broadcast
@@ -72,7 +72,14 @@ MW_ENTERSVR_REQ  (inbound, World→Map)  handlers_world.cpp  resolve identity �
 MW_ENTERCHAR_REQ (inbound, World→Map)  handlers_world.cpp  per-con entry ready → MW_ENTERCHAR_ACK
 MW_ADDCONNECT_REQ(inbound, World→Map)  handlers_world.cpp  peer-server list → client CS_ADDCONNECT_ACK
 MW_CHECKMAIN_REQ (inbound, World→Map)  handlers_world.cpp  main-cell check → MW_CHECKMAIN_ACK
+MW_CONRESULT_REQ (inbound, World→Map)  handlers_world.cpp  settled verdict → client CS_CONNECT_ACK
 ```
+
+> **Connect-ack note:** `session.cpp::OnConnectReq` still emits an
+> optimistic `CS_CONNECT_ACK` at `CS_CONNECT_REQ` time so connect works
+> with no `[world]` peer configured. Once the full World connect loop is
+> proven end-to-end, that optimistic ack moves into `OnMWConResultReq`
+> (the authoritative path) to avoid a double ack.
 
 The remaining ~280 `CS_*` and ~300 `DM_/MW_/SS_` handlers are catalogued
 in `CONSOLIDATION.md`. The porting recipe (locate → verify id → pick

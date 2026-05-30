@@ -19,4 +19,16 @@ std::vector<std::byte> EncodeAddConnectAck(
     return b;
 }
 
+std::vector<std::byte> EncodeConnectAck(
+    std::uint8_t result, const std::vector<std::uint8_t>& server_ids)
+{
+    std::vector<std::byte> b;
+    b.reserve(2 + server_ids.size());
+    wire::WritePOD<std::uint8_t>(b, result);
+    wire::WritePOD<std::uint8_t>(b, static_cast<std::uint8_t>(server_ids.size()));
+    for (const auto id : server_ids)
+        wire::WritePOD<std::uint8_t>(b, id);
+    return b;
+}
+
 } // namespace tmapsvr

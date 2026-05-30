@@ -63,7 +63,30 @@ int main()
         EXPECT(std::to_integer<int>(b[0]) == 0);
     }
 
+    // --- CS_CONNECT_ACK: BYTE result + BYTE count + count×BYTE id -------
+    {
+        auto b = EncodeConnectAck(/*result=*/0, { 0x05, 0x42, 0x07 });
+        EXPECT(b.size() == 5);   // 1 + 1 + 3
+        wire::Reader r(b.data(), b.size());
+        std::uint8_t result = 0xFF, count = 0, id0 = 0, id1 = 0, id2 = 0;
+        EXPECT(r.Read(result) && r.Read(count));
+        EXPECT(result == 0);
+        EXPECT(count == 3);
+        EXPECT(r.Read(id0) && r.Read(id1) && r.Read(id2));
+        EXPECT(id0 == 0x05 && id1 == 0x42 && id2 == 0x07);
+        EXPECT(r.Eof());
+    }
+
+    // --- rejection result, empty server list ---------------------------
+    {
+        auto b = EncodeConnectAck(/*result=*/3, {});
+        EXPECT(b.size() == 2);
+        EXPECT(std::to_integer<int>(b[0]) == 3);   // result
+        EXPECT(std::to_integer<int>(b[1]) == 0);   // count
+    }
+
     if (g_fails == 0)
-        std::printf("test_client_senders: addconnect-ack layout OK\n");
+        std::printf("test_client_senders: addconnect-ack + connect-ack "
+                    "layout OK\n");
     return g_fails == 0 ? 0 : 1;
 }

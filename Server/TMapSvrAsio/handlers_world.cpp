@@ -595,6 +595,72 @@ OnMWCheckMainReq(std::vector<std::byte> body, const HandlerContext& ctx)
 }
 
 boost::asio::awaitable<void>
+OnMWConResultReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:1341):
+    //   DWORD dwCharID, DWORD dwKEY, BYTE bResult, BYTE bCount,
+    //   bCount × BYTE server_id
+    // TWorld's settled connect verdict plus the cross-server id list.
+    // The map forwards it to the client as the authoritative
+    // CS_CONNECT_ACK and, on rejection, tears the session down.
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    std::uint8_t  bResult = 0, bCount = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Read(bResult) ||
+        !r.Read(bCount))
+    {
+        spdlog::warn("MW_CONRESULT_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    std::vector<std::uint8_t> server_ids;
+    server_ids.reserve(bCount);
+    for (std::uint8_t i = 0; i < bCount; ++i)
+    {
+        std::uint8_t sid = 0;
+        if (!r.Read(sid))
+        {
+            spdlog::warn("MW_CONRESULT_REQ char={}: truncated server list at "
+                         "{}/{} — dropping", dwCharID, i, bCount);
+            co_return;
+        }
+        server_ids.push_back(sid);
+    }
+
+    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    if (!sess)
+    {
+        spdlog::warn("MW_CONRESULT_REQ char={}: no bound client session — drop",
+            dwCharID);
+        co_return;
+    }
+
+    // Transitional: session.cpp::OnConnectReq still sends an optimistic
+    // CS_CONNECT_ACK at CS_CONNECT_REQ time, so a fully wired world loop
+    // makes this the second send. The optimistic ack moves here once the
+    // connect loop is proven end-to-end; today it keeps connect working
+    // when no world peer is configured. See README world-peer note.
+    const auto ack = EncodeConnectAck(bResult, server_ids);
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK), ack);
+
+    if (bResult != CnSuccess)
+    {
+        spdlog::info("MW_CONRESULT_REQ char={} result={} — connect rejected, "
+                     "closing session", dwCharID, bResult);
+        sess->Close();   // per-connection teardown hook unbinds registries
+    }
+    else
+    {
+        spdlog::info("MW_CONRESULT_REQ char={} result=SUCCESS servers={} — "
+                     "CS_CONNECT_ACK relayed", dwCharID, server_ids.size());
+    }
+}
+
+boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
               std::vector<std::byte> body,
               const HandlerContext&  ctx)
@@ -623,6 +689,10 @@ DispatchWorld(std::uint16_t          wId,
 
     case MessageId::MW_CHECKMAIN_REQ:
         co_await OnMWCheckMainReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_CONRESULT_REQ:
+        co_await OnMWConResultReq(std::move(body), ctx);
         break;
 
     default:

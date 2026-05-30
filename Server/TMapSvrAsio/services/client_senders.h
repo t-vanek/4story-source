@@ -37,4 +37,13 @@ struct ConnectRoute
 std::vector<std::byte> EncodeAddConnectAck(
     const std::vector<ConnectRoute>& routes);
 
+// CS_CONNECT_ACK body — BYTE result + BYTE count + count × BYTE
+// server_id. Mirrors legacy CTPlayer::SendCS_CONNECT_ACK
+// (CSSender.cpp:78). The authoritative connect result the map forwards
+// to the client once TWorld settles it via MW_CONRESULT_REQ (result 0 =
+// CN_SUCCESS). The transport-only handshake in session.cpp sends the
+// same shape with an empty server list.
+std::vector<std::byte> EncodeConnectAck(
+    std::uint8_t result, const std::vector<std::uint8_t>& server_ids);
+
 } // namespace tmapsvr

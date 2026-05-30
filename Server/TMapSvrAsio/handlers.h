@@ -15,6 +15,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/thread_pool.hpp>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -64,6 +65,7 @@ struct HandlerContext
     ICompanionService*     companion_service = nullptr;
     ICharStateStore*       char_state        = nullptr;   // live char snapshots
     IServerRouteResolver*  route_resolver    = nullptr;   // server_id → ip/port (MW_ROUTELIST)
+    std::atomic<std::uint32_t>* monster_seq   = nullptr;   // runtime monster instance-id allocator (respawn)
     ILogPeer*              log_peer          = nullptr;   // T3 UDP transport
     audit::IAuditLog*      audit             = nullptr;   // T4 structured audit
     ops::IMetrics*         metrics           = nullptr;   // T4 counters/latency

@@ -264,4 +264,25 @@ std::vector<std::byte> EncodeExpAck(
     return b;
 }
 
+std::vector<std::byte> EncodeMonMoveAck(
+    std::uint32_t mon_id, float x, float y, float z,
+    std::uint16_t dir, std::uint8_t action)
+{
+    constexpr std::uint8_t kOtMon = 2;   // OBJ_TYPE::OT_MON
+    std::vector<std::byte> b;
+    b.reserve(24);
+    wire::WritePOD<std::uint16_t>(b, 1);            // count
+    wire::WritePOD<std::uint32_t>(b, mon_id);
+    wire::WritePOD<std::uint8_t> (b, kOtMon);
+    wire::WritePOD<float>        (b, x);
+    wire::WritePOD<float>        (b, y);
+    wire::WritePOD<float>        (b, z);
+    wire::WritePOD<std::uint16_t>(b, 0);            // pitch
+    wire::WritePOD<std::uint16_t>(b, dir);
+    wire::WritePOD<std::uint8_t> (b, 0);            // mouse dir
+    wire::WritePOD<std::uint8_t> (b, 0);            // key dir
+    wire::WritePOD<std::uint8_t> (b, action);
+    return b;
+}
+
 } // namespace tmapsvr

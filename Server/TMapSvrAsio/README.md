@@ -51,7 +51,7 @@ CS_CONREADY_REQ           session.cpp     post-load → CS_CHARINFO_ACK + CS_ENT
 CS_MOVE_REQ               movement.cpp    position + broadcast
 CS_NPCTALK_REQ            npc.cpp         dialogue dispatch
 CS_SKILLUSE_REQ           skill.cpp       skill cooldown + broadcast (no damage calc)
-CS_ACTION_REQ             combat.cpp      attack monster → damage → CS_HPMP / death (CS_DELMON + CS_EXP); placeholder damage
+CS_ACTION_REQ             combat.cpp      attack monster → damage → CS_HPMP / death (CS_DELMON + CS_EXP) + timed respawn; placeholder damage
 
 CS_QUESTEXEC_REQ          quest.cpp       quest progress update (no objective eval)
 CS_QUESTDROP_REQ          quest.cpp       abandon quest
@@ -224,7 +224,7 @@ Server/TMapSvrAsio/
 | **T7** | Quest VM design decision | ✅ ([`QUEST_ENGINE.md`](QUEST_ENGINE.md): data-driven, DB-sourced, register dispatch — not Lua/YAML) |
 | **T8** | Combat / damage formula port | ⏸ |
 | **T8** | Combat / damage formula port | 🟡 kill loop wired (`CS_ACTION_REQ` → monster damage → `CS_HPMP` / death `CS_DELMON` + real `wExp` via `CS_EXP`); monster stats from `TMONATTRCHART`. Damage is a level-scaled placeholder — the real `CalcDamage` (player AP/WAP vs monster DP) needs the player combat-stat + skill layer |
-| **T9** | Mob AI tick + spawn manager | 🟡 static spawn done (`SpawnManager` + `TMAPMONCHART` linkage → registry → CS_ADDMON on enter, real HP from `TMONATTRCHART`); respawn timer + roam/chase/attack AI tick pending |
+| **T9** | Mob AI tick + spawn manager | 🟡 static spawn (`SpawnManager` + `TMAPMONCHART` → registry → CS_ADDMON on enter, real HP from `TMONATTRCHART`) + **timed respawn on kill** + **idle-roam AI tick** (`monster_ai` → `CS_MONMOVE`, capped per tick) done; legacy host/aggro chase/attack AI (`TAICmd*`), spatial AOI + per-spawn respawn delay pending |
 | **T10** | Drop table / loot generator | ⏸ |
 | **T11** | Bulk handler port (CONSOLIDATION recipe × 280) | ⏸ |
 

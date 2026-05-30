@@ -94,7 +94,52 @@ int main()
         EXPECT(r.Eof());
     }
 
+    // --- registry All() + UpdatePosition (AI roam mechanics) ----------
+    {
+        InMemoryMonsterRegistry reg;
+        MonsterInstance a; a.dwInstanceID = 1; a.bChannel = 0; a.fPosX = 1.f;
+        MonsterInstance b; b.dwInstanceID = 2; b.bChannel = 0; b.fPosX = 2.f;
+        reg.Insert(a);
+        reg.Insert(b);
+
+        EXPECT(reg.All().size() == 2);
+
+        reg.UpdatePosition(1, 10.f, 11.f, 12.f);
+        const auto moved = reg.Find(1);
+        EXPECT(moved.has_value());
+        if (moved)
+        {
+            EXPECT(moved->fPosX == 10.f);
+            EXPECT(moved->fPosY == 11.f);
+            EXPECT(moved->fPosZ == 12.f);
+        }
+        reg.UpdatePosition(999, 5.f, 5.f, 5.f);   // unknown → no-op, no crash
+        EXPECT(reg.All().size() == 2);
+    }
+
+    // --- CS_MONMOVE_ACK: count + mon id + type + pos + facing ----------
+    {
+        auto b = EncodeMonMoveAck(0x1234, 7.5f, 1.0f, -3.25f, /*dir=*/180,
+                                  /*action=*/0);
+        wire::Reader r(b.data(), b.size());
+        std::uint16_t count = 0, pitch = 0xFF, dir = 0; std::uint32_t id = 0;
+        std::uint8_t type = 0, mouse = 0xFF, key = 0xFF, action = 0xFF;
+        float x = 0, y = 0, z = 0;
+        EXPECT(r.Read(count) && count == 1);
+        EXPECT(r.Read(id) && id == 0x1234);
+        EXPECT(r.Read(type) && type == 2);          // OT_MON
+        EXPECT(r.Read(x) && r.Read(y) && r.Read(z));
+        EXPECT(x == 7.5f && y == 1.0f && z == -3.25f);
+        EXPECT(r.Read(pitch) && pitch == 0);
+        EXPECT(r.Read(dir) && dir == 180);
+        EXPECT(r.Read(mouse) && mouse == 0);
+        EXPECT(r.Read(key) && key == 0);
+        EXPECT(r.Read(action) && action == 0);
+        EXPECT(r.Eof());
+    }
+
     if (g_fails == 0)
-        std::printf("test_combat: ApplyDamage + hpmp/delmon/exp layout OK\n");
+        std::printf("test_combat: ApplyDamage + hpmp/delmon/exp + All/Update + "
+                    "monmove layout OK\n");
     return g_fails == 0 ? 0 : 1;
 }

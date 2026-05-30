@@ -26,9 +26,16 @@
 
 #include "MessageId.h"
 
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
+
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -45,6 +52,47 @@ constexpr std::uint8_t OtMon = 2;   // OBJ_TYPE::OT_MON (NetCode.h:1031)
 std::uint32_t PlaceholderDamage(std::uint8_t attacker_level)
 {
     return 50u + static_cast<std::uint32_t>(attacker_level) * 10u;
+}
+
+// Detached coroutine: after a fixed delay, re-insert a fresh copy of a
+// killed monster (full HP, the new instance id already assigned) and
+// announce it (CS_ADDMON) to everyone in view. Keeps the world from
+// emptying out as players grind. The real per-spawn respawn delay (a
+// TMONSPAWNCHART column not yet loaded) is a follow-up; a fixed 15s
+// stands in. `ctx` outlives this (it's the process-lifetime context).
+boost::asio::awaitable<void>
+RespawnMonster(MonsterInstance m, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    boost::asio::steady_timer t(co_await boost::asio::this_coro::executor);
+    t.expires_after(std::chrono::seconds(15));
+    co_await t.async_wait(boost::asio::use_awaitable);
+
+    if (!ctx.monster_registry)
+        co_return;
+    ctx.monster_registry->Insert(m);
+
+    if (!ctx.presence)
+        co_return;
+    std::uint8_t level = 0;
+    if (ctx.monster_chart)
+        if (const auto tmpl = ctx.monster_chart->Find(m.wTemplateID))
+            level = tmpl->bLevel;
+
+    const auto add = EncodeAddMonAck(m, level, /*country=*/0, /*color=*/0,
+                                     /*new_member=*/1);
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> watchers;
+    ctx.presence->ForEachInChannel(m.bChannel, /*skip=*/0,
+        [&](const ChannelPresenceEntry&,
+            std::shared_ptr<tnetlib::AsioSession> ws)
+        { watchers.push_back(std::move(ws)); });
+    for (auto& w : watchers)
+        co_await w->SendPacket(
+            static_cast<std::uint16_t>(MessageId::CS_ADDMON_ACK), add);
+
+    spdlog::info("respawn: mon tmpl={} reborn id={} on ch={} map={}",
+        m.wTemplateID, m.dwInstanceID, m.bChannel, m.wMapID);
 }
 
 } // namespace
@@ -143,6 +191,26 @@ OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
 
     spdlog::info("CS_ACTION_REQ char={} killed mon={} (tmpl={}) → +{} EXP",
         attacker, obj_id, after->wTemplateID, exp);
+
+    // Schedule its return so the world doesn't empty out as players grind.
+    // A fresh instance (new id, full HP) at the same spawn point.
+    if (ctx.monster_seq)
+    {
+        MonsterInstance reborn = *after;
+        reborn.dwInstanceID =
+            ctx.monster_seq->fetch_add(1, std::memory_order_relaxed);
+        reborn.dwHP = reborn.dwMaxHP;
+        auto exec = co_await boost::asio::this_coro::executor;
+        boost::asio::co_spawn(exec, RespawnMonster(reborn, ctx),
+            [](std::exception_ptr ep)
+            {
+                if (!ep) return;
+                try { std::rethrow_exception(ep); }
+                catch (const std::exception& e)
+                { spdlog::error("respawn coroutine threw: {}", e.what()); }
+                catch (...) { spdlog::error("respawn coroutine threw unknown"); }
+            });
+    }
 }
 
 } // namespace tmapsvr

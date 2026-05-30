@@ -97,9 +97,11 @@ maintenance burden the modernization was supposed to escape.
 
 Two design questions need decisions before the gameplay layer lands:
 
-1. **Quest VM vs data-driven engine.** Lua-via-sol2 means scripting
-   without recompiles, but introduces a runtime. YAML + interpreter
-   keeps the build hermetic, but constrains quest expressiveness.
+1. **Quest VM vs data-driven engine.** ✅ **Resolved** —
+   [`QUEST_ENGINE.md`](QUEST_ENGINE.md). The legacy quests turn out to be
+   data-parameterised instances of ~20 fixed action types over canonical
+   DB tables, not arbitrary scripts: so a register-based, DB-sourced
+   engine, *not* Lua-via-sol2 and *not* re-authored YAML.
 2. **Dispatcher shape.** The legacy `SSHandler.cpp` `switch` recompiles
    every server when one packet ID changes. A register-based dispatch
    (handler table indexed by `MessageId`) or a schema-versioned codec
@@ -212,7 +214,7 @@ Server/TMapSvrAsio/
 | **T4** | Audit + metrics data plane | ✅ |
 | **T5** | Pre-auth watchdog + rate limit | ✅ |
 | **T6** | Metrics + admin shell endpoints | ✅ |
-| **T7** | Quest VM design decision | ⏸ |
+| **T7** | Quest VM design decision | ✅ ([`QUEST_ENGINE.md`](QUEST_ENGINE.md): data-driven, DB-sourced, register dispatch — not Lua/YAML) |
 | **T8** | Combat / damage formula port | ⏸ |
 | **T9** | Mob AI tick + spawn manager | ⏸ |
 | **T10** | Drop table / loot generator | ⏸ |

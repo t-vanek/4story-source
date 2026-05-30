@@ -34,6 +34,8 @@ class INpcService;
 class ISkillService;
 class IQuestService;
 class IMonsterChart;
+class ISkillTemplateChart;
+class SkillCooldownTracker;
 class ISpawnChart;
 class IMonsterRegistry;
 class ICompanionService;
@@ -60,6 +62,8 @@ struct HandlerContext
     ISkillService*         skill_service     = nullptr;
     IQuestService*         quest_service     = nullptr;
     IMonsterChart*         monster_chart     = nullptr;
+    ISkillTemplateChart*   skill_chart       = nullptr;   // TSKILLCHART (reuse delay)
+    SkillCooldownTracker*  skill_cooldown    = nullptr;   // per-(char,skill) last-use gate
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;
     ICompanionService*     companion_service = nullptr;

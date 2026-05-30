@@ -48,6 +48,9 @@
 #include "services/soci_map_mon_chart.h"
 #include "services/soci_mon_attr_chart.h"
 #include "services/soci_skill_service.h"
+#include "services/skill_chart.h"
+#include "services/skill_cooldown.h"
+#include "services/soci_skill_chart.h"
 #include "services/soci_spawn_chart.h"
 #include "services/spawn_chart.h"
 #include "services/spawn_manager.h"
@@ -148,6 +151,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
         std::unique_ptr<tmapsvr::IMapMonChart>          map_mon_chart;
         std::unique_ptr<tmapsvr::IMonAttrChart>         mon_attr_chart;
+        std::unique_ptr<tmapsvr::ISkillTemplateChart>   skill_chart;
         std::unique_ptr<tmapsvr::ICompanionService>     companion_service;
 
         // Configure the fourstory::mapper Automapper once at startup
@@ -194,6 +198,7 @@ int main(int argc, char** argv)
             spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
             map_mon_chart     = std::make_unique<tmapsvr::SociMapMonChart>(*pool);
             mon_attr_chart    = std::make_unique<tmapsvr::SociMonAttrChart>(*pool);
+            skill_chart       = std::make_unique<tmapsvr::SociSkillChart>(*pool);
             companion_service = std::make_unique<tmapsvr::SociCompanionService>(*pool);
             spdlog::info("schema OK ({}) — services ready: {} NPC, {} monster "
                          "template(s), {} spawn point(s), {} spawn-mon link(s), "
@@ -272,6 +277,11 @@ int main(int argc, char** argv)
         // read by the MapServer teardown hook to call SaveChar.
         tmapsvr::InMemoryCharStateStore char_state;
 
+        // Per-(char, skill) cooldown gate — records last-use stamps so the
+        // skill handler rejects re-uses faster than TSKILLCHART's reuse
+        // delay (legacy CTSkill::CanUse). Lives for the io.run() duration.
+        tmapsvr::SkillCooldownTracker skill_cooldown;
+
         // Build the HandlerContext now so the world inbound dispatch
         // lambda can capture it by reference (the context's pointer
         // fields are filled in below as each service comes online).
@@ -285,6 +295,8 @@ int main(int argc, char** argv)
         ctx.skill_service     = skill_service.get();
         ctx.quest_service     = quest_service.get();
         ctx.monster_chart     = monster_chart.get();
+        ctx.skill_chart       = skill_chart.get();
+        ctx.skill_cooldown    = &skill_cooldown;
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;
         ctx.monster_seq       = &monster_seq;

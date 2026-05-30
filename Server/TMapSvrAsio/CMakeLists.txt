@@ -127,6 +127,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_player_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_quest_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_skill_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_attr_chart.cpp

@@ -285,3 +285,13 @@ target_link_libraries(test_tmapsvr_asio_loot PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_loot
     COMMAND test_tmapsvr_asio_loot)
+
+# Loot senders: the item descriptor (CTItem::WrapPacketClient port) +
+# CS_MONITEMLIST_ACK / CS_MONITEMTAKE_ACK byte layouts — the client wire
+# contract for every item shown in the corpse loot window.
+add_executable(test_tmapsvr_asio_loot_senders
+    ${TMAPSVR_ASIO_SRC}/tests/test_loot_senders.cpp)
+target_link_libraries(test_tmapsvr_asio_loot_senders PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_loot_senders
+    COMMAND test_tmapsvr_asio_loot_senders)

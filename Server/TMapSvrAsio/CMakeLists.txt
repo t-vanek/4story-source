@@ -265,3 +265,12 @@ target_link_libraries(test_tmapsvr_asio_money PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_money
     COMMAND test_tmapsvr_asio_money)
+
+# Skill cooldown: reuse-remain / can-use math + the per-(char,skill)
+# tracker gate (faithful CTSkill::CanUse / GetReuseRemainTick).
+add_executable(test_tmapsvr_asio_skill_cooldown
+    ${TMAPSVR_ASIO_SRC}/tests/test_skill_cooldown.cpp)
+target_link_libraries(test_tmapsvr_asio_skill_cooldown PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_skill_cooldown
+    COMMAND test_tmapsvr_asio_skill_cooldown)

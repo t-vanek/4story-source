@@ -31,4 +31,12 @@ boost::asio::awaitable<void> OnDMLoadCharReq(
     std::vector<std::byte>       body,
     const HandlerContext&        ctx);
 
+// MW_ENTERSVR_REQ (World→Map): TWorld asks this map to bring a char
+// fully resident. The map resolves the char identity and replies
+// MW_ENTERSVR_ACK so TWorld can fan out the char's CharInfo / route /
+// friend-list. Legacy: SSHandler.cpp:3072 (OnMW_ENTERSVR_REQ).
+boost::asio::awaitable<void> OnMWEnterSvrReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
 } // namespace tmapsvr

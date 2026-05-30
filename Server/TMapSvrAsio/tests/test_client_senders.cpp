@@ -228,6 +228,7 @@ int main()
         m.fPosX        = 50.5f;
         m.fPosY        = 1.0f;
         m.fPosZ        = -8.75f;
+        m.dwMaxHP      = 4200;
         m.dwHP         = 4200;
 
         auto b = EncodeAddMonAck(m, /*level=*/33, /*country=*/2,

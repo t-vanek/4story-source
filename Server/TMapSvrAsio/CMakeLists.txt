@@ -129,6 +129,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_senders.cpp
+    ${TMAPSVR_ASIO_SRC}/services/client_senders.cpp
     ${TMAPSVR_ASIO_SRC}/db/schema_validator.cpp)
 
 target_include_directories(tmapsvr_asio_core PUBLIC
@@ -196,3 +197,12 @@ target_link_libraries(test_tmapsvr_asio_world_enterchar PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_world_enterchar
     COMMAND test_tmapsvr_asio_world_enterchar)
+
+# client_senders byte-layout suite (CS_ acks the map relays to the
+# client off inbound MW_ cluster traffic).
+add_executable(test_tmapsvr_asio_client_senders
+    ${TMAPSVR_ASIO_SRC}/tests/test_client_senders.cpp)
+target_link_libraries(test_tmapsvr_asio_client_senders PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_client_senders
+    COMMAND test_tmapsvr_asio_client_senders)

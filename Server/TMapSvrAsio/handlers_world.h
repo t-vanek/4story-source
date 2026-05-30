@@ -49,4 +49,11 @@ boost::asio::awaitable<void> OnMWEnterCharReq(
     std::vector<std::byte>       body,
     const HandlerContext&        ctx);
 
+// MW_ADDCONNECT_REQ (World→Map): TWorld hands the map the peer-server
+// list for a char's cross-server connections; the map relays it down to
+// the client as CS_ADDCONNECT_ACK. Legacy: SSHandler.cpp:6779.
+boost::asio::awaitable<void> OnMWAddConnectReq(
+    std::vector<std::byte>       body,
+    const HandlerContext&        ctx);
+
 } // namespace tmapsvr

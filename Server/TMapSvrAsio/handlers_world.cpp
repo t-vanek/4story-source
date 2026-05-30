@@ -4,10 +4,12 @@
 #include "audit/event.h"
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
+#include "services/client_senders.h"
 #include "services/companion_service.h"
 #include "services/inventory_service.h"
 #include "services/player_service.h"
 #include "services/quest_service.h"
+#include "services/session_registry.h"
 #include "services/skill_service.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
@@ -482,6 +484,61 @@ OnMWEnterCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
 }
 
 boost::asio::awaitable<void>
+OnMWAddConnectReq(std::vector<std::byte> body, const HandlerContext& ctx)
+{
+    using tnetlib::protocol::MessageId;
+
+    // Wire (legacy SSHandler.cpp:6785):
+    //   DWORD dwCharID, DWORD dwKEY, BYTE bCount,
+    //   bCount × { DWORD ip_addr, WORD port, BYTE server_id }
+    // TWorld hands the map the peer-server list the client should open
+    // cross-server connections to; the map relays it straight down as
+    // CS_ADDCONNECT_ACK (legacy pPlayer->Say).
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dwCharID = 0, dwKEY = 0;
+    std::uint8_t  bCount = 0;
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Read(bCount))
+    {
+        spdlog::warn("MW_ADDCONNECT_REQ: short body ({} bytes) — dropping",
+            body.size());
+        co_return;
+    }
+
+    std::vector<ConnectRoute> routes;
+    routes.reserve(bCount);
+    for (std::uint8_t i = 0; i < bCount; ++i)
+    {
+        ConnectRoute cr;
+        if (!r.Read(cr.ip_addr) || !r.Read(cr.port) || !r.Read(cr.server_id))
+        {
+            spdlog::warn("MW_ADDCONNECT_REQ char={}: truncated route list at "
+                         "{}/{} — dropping", dwCharID, i, bCount);
+            co_return;
+        }
+        routes.push_back(cr);
+    }
+
+    // Relay to the client. The char must already be bound from its
+    // CS_CONNECT_REQ; an unknown char means the socket dropped between
+    // the world push and now — nothing to forward to (legacy FindPlayer
+    // miss → silent return).
+    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    if (!sess)
+    {
+        spdlog::warn("MW_ADDCONNECT_REQ char={}: no bound client session — "
+                     "drop ({} routes)", dwCharID, routes.size());
+        co_return;
+    }
+
+    spdlog::info("MW_ADDCONNECT_REQ char={} key={} routes={} — relaying "
+                 "CS_ADDCONNECT_ACK", dwCharID, dwKEY, routes.size());
+
+    const auto ack = EncodeAddConnectAck(routes);
+    co_await sess->SendPacket(
+        static_cast<std::uint16_t>(MessageId::CS_ADDCONNECT_ACK), ack);
+}
+
+boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
               std::vector<std::byte> body,
               const HandlerContext&  ctx)
@@ -502,6 +559,10 @@ DispatchWorld(std::uint16_t          wId,
 
     case MessageId::MW_ENTERCHAR_REQ:
         co_await OnMWEnterCharReq(std::move(body), ctx);
+        break;
+
+    case MessageId::MW_ADDCONNECT_REQ:
+        co_await OnMWAddConnectReq(std::move(body), ctx);
         break;
 
     default:

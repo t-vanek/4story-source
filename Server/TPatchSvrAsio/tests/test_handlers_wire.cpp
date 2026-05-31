@@ -24,6 +24,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/read.hpp>
+#include <boost/asio/write.hpp>
 
 #include <cstdio>
 #include <cstring>
@@ -35,6 +36,20 @@
 namespace asio = boost::asio;
 
 namespace {
+
+// Connect a client socket to a just-bound acceptor. The acceptor binds to
+// 0.0.0.0:0 (tcp::v4(), OS-assigned port); `local_endpoint()` therefore
+// carries 0.0.0.0, which is a valid bind address but NOT a valid *connect*
+// target on Windows (connect → WSAEADDRNOTAVAIL 10049). Rewrite the address
+// to loopback, keeping the assigned port — matches the connect pattern the
+// TWorld/TControl socket tests use.
+void ConnectLoopback(asio::ip::tcp::socket& client,
+                     const asio::ip::tcp::acceptor& acc)
+{
+    client.connect(asio::ip::tcp::endpoint(
+        asio::ip::make_address_v4("127.0.0.1"),
+        acc.local_endpoint().port()));
+}
 
 int g_passed = 0;
 int g_failed = 0;
@@ -99,7 +114,7 @@ struct LoopbackPair
     {
         asio::ip::tcp::acceptor acc(io,
             asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 0));
-        client.connect(acc.local_endpoint());
+        ConnectLoopback(client, acc);
         acc.accept(server);
     }
 };
@@ -387,7 +402,7 @@ void TestOnPrePatchCompleteCallsRepoAndCloses()
     asio::ip::tcp::acceptor acc(io,
         asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 0));
     asio::ip::tcp::socket client(io);
-    client.connect(acc.local_endpoint());
+    ConnectLoopback(client, acc);
     asio::ip::tcp::socket server_sock(io);
     acc.accept(server_sock);
 
@@ -422,7 +437,7 @@ void TestChecksumMismatchClosesSession()
     asio::ip::tcp::acceptor acc(io,
         asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 0));
     asio::ip::tcp::socket client(io);
-    client.connect(acc.local_endpoint());
+    ConnectLoopback(client, acc);
     asio::ip::tcp::socket server_sock(io);
     acc.accept(server_sock);
 

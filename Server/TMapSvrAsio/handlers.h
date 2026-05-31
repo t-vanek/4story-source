@@ -33,6 +33,8 @@ class IInventoryService;
 class INpcService;
 class ISkillService;
 class IQuestService;
+class IQuestChart;
+class IQuestLog;
 class IMonsterChart;
 class IMonItemChart;
 class ISkillTemplateChart;
@@ -63,6 +65,8 @@ struct HandlerContext
     INpcService*           npc_service       = nullptr;
     ISkillService*         skill_service     = nullptr;
     IQuestService*         quest_service     = nullptr;
+    IQuestChart*           quest_chart       = nullptr;   // TQUESTCHART defs
+    IQuestLog*             quest_log         = nullptr;   // live per-char quests
     IMonsterChart*         monster_chart     = nullptr;
     IMonItemChart*         mon_item_chart    = nullptr;   // TMONITEMCHART (drop tables)
     ISkillTemplateChart*   skill_chart       = nullptr;   // TSKILLCHART (reuse delay)

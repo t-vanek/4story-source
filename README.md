@@ -19,11 +19,11 @@ and can be reasoned about without the original Win32-only build farm.
 
 ## Overall progress
 
-Cluster-wide rewrite status as of 2026-05-24:
+Cluster-wide rewrite status as of 2026-05-31:
 
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
-TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
+TMapSvr           ███░░░░░░░░░░░░░░░░░   ~18% (combat/loot/AI grind loop + kill-quest slice; quests/shops mostly TODO)
 TWorldSvr         █████████████░░░░░░░   63%   (W6-35 — event + cash-shop + ctrl-svr identification; 183/290 handlers, 89 tests)
 ─────────────────────────────────────────
 Cluster total     ██████░░░░░░░░░░░░░░  ~32%   (LOC-weighted, see below)
@@ -35,7 +35,7 @@ Cluster total     ██████░░░░░░░░░░░░░░  
 | **TPatchSvrAsio** | 3 824 | 2 813 | 9/9 CT | ✅ validator | **✅ Production complete** |
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
-| **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
+| **TMapSvrAsio** | 112 842 | 7 458 | 23 CS + 5 CT (vertical slice) | ✅ 12 validators | 🟡 **Grind loop: combat/loot/AI + kill-quests; shops/skill-fx TODO** |
 | **TWorldSvrAsio** | 38 851 | ~33 200 | 183/290 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + cash-shop sale + CMGift result + ctrl-svr identification; BR/Bow/Arena/Tournament/Apex/MonthRank and the heavier DB-bound CMGift/Cash sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS) | 🟡 **W6-35 — event/cash-shop/CMGift result + ctrl-svr** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
@@ -136,7 +136,7 @@ Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
 │   ├── TControlSvr/                # legacy control server (reference, unmodified)
 │   ├── TControlSvrAsio/            # ✅ emulator control / orchestration server
 │   ├── TMapSvr/                    # legacy gameplay engine (reference, unmodified)
-│   ├── TMapSvrAsio/                # 🟡 emulator map server — scaffold only
+│   ├── TMapSvrAsio/                # 🟡 emulator map server — combat/loot/AI grind loop + kill-quests
 │   ├── TWorldSvr/                  # legacy cluster coordinator (reference)
 │   ├── TWorldSvrAsio/              # 🟡 cluster coordinator — W6-35 (event/cash-shop/CMGift result + ctrl-svr identification)
 │   ├── TBRSvr/  TBoWSvr/           # legacy empty shells (BR/BoW compile flags)
@@ -152,7 +152,7 @@ mapping, configuration schema, and bring-up notes:
 * [`Server/TPatchSvrAsio/README.md`](Server/TPatchSvrAsio/README.md) — ✅ complete
 * [`Server/TLogSvrAsio/README.md`](Server/TLogSvrAsio/README.md) — ✅ complete
 * [`Server/TControlSvrAsio/README.md`](Server/TControlSvrAsio/README.md) — ✅ complete
-* [`Server/TMapSvrAsio/README.md`](Server/TMapSvrAsio/README.md) — 🟡 scaffold (see also `ARCHITECTURE.md` / `CONSOLIDATION.md`)
+* [`Server/TMapSvrAsio/README.md`](Server/TMapSvrAsio/README.md) — 🟡 grind loop: combat/loot/AI + kill-quests (see also `ARCHITECTURE.md` / `CONSOLIDATION.md`)
 * [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W6-35 (guild/party/corps/social/territory/combat + connection/teleport + event/cash-shop/CMGift result + ctrl-svr; gaps audit inside)
 * [`Lib/Own/FourStoryCommon/README.md`](Lib/Own/FourStoryCommon/README.md) — ✅ shared infrastructure
 
@@ -263,15 +263,17 @@ ctest --test-dir build -C Release --output-on-failure
 ### In progress (cluster core)
 
 * **TMapSvrAsio** — Layered scaffold (transport → dispatch → handlers
-  → services → persistence) is built and ships 14 `CS_*` + 5 `CT_*`
-  handlers wired through the dispatcher. Eight `Validate*Schema`
-  validators gate boot against `TCHARTABLE` / `TINVENTABLE` /
-  `TNPCCHART` / `TSKILLTABLE` / `TQUESTTABLE` / `TQUESTTERMTABLE` /
-  `TMONSTERCHART` / `TMONSPAWNCHART` / `TCOMPANIONTABLE`. **Game
-  logic — damage formulas, AI ticks, quest VM, drop tables — is
-  NOT implemented.** The 297 legacy `OnCS_*` and 300+ `DM_/MW_/SS_`
-  handlers are catalogued in `CONSOLIDATION.md`; the priority signal
-  is in PR #25.
+  → services → persistence) is built, and on top of it a vertical slice
+  of real gameplay: the connection lifecycle plus an end-to-end
+  **combat / loot / mob-AI grind loop** and a first **kill-count quest**
+  slice (accept → kill-progress → turn-in → gold/EXP reward). It ships
+  23 `CS_*` + 5 `CT_*` handlers wired through the dispatcher; twelve
+  `Validate*Schema` validators gate boot (incl. `TMONATTRCHART` /
+  `TMONITEMCHART` / `TMAPMONCHART`). **The large content subsystems —
+  NPC shops, skill effects (heal/buff/debuff), trade/guild/PvP, and the
+  rest of the quest catalogue — are NOT yet ported.** The 297 legacy
+  `OnCS_*` and 300+ `DM_/MW_/SS_` handlers are catalogued in
+  `CONSOLIDATION.md`.
 * **TWorldSvrAsio** — cluster coordinator, **~63 % ported** (183/290
   handlers, 89 in-process tests). Functionally-complete verticals:
   guild (+ tactics + cabinet), party, corps, friend / soulmate / chat /

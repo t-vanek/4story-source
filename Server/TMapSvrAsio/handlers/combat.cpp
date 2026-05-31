@@ -38,6 +38,10 @@
 #include "services/money.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
+#include "services/quest_chart.h"
+#include "services/quest_engine.h"
+#include "services/quest_log.h"
+#include "services/quest_service.h"
 #include "services/session_registry.h"
 #include "domain/position.h"
 #include "wire_codec.h"
@@ -166,12 +170,14 @@ HitMonster(std::shared_ptr<tnetlib::AsioSession> sess,
     // not auto-loot or drop on the ground). All three come from the monster
     // template + its drop table.
     std::uint16_t exp = 0;
+    std::uint16_t mon_kind = 0;         // TMONSTERCHART.wKind — quest HUNT key
     std::uint32_t money = 0;            // cooper, left on the corpse
     std::vector<std::uint16_t> drops;   // dropped item template ids
     if (ctx.monster_chart)
         if (const auto t = ctx.monster_chart->Find(after->wTemplateID))
         {
-            exp   = t->wExp;
+            exp      = t->wExp;
+            mon_kind = t->wKind;
             money = RollMoneyDrop(t->bMoneyProb, t->dwMinMoney,
                                   t->dwMaxMoney, RandBelow);
             if (ctx.mon_item_chart)
@@ -211,6 +217,29 @@ HitMonster(std::shared_ptr<tnetlib::AsioSession> sess,
     spdlog::info("defend: char={} killed mon={} (tmpl={}) → +{} EXP; corpse "
         "= {} cooper + {} item(s)", attacker, obj_id, after->wTemplateID,
         exp, money, drops.size());
+
+    // Quest kill-progress — advance any QTT_HUNT term the killer has for
+    // this monster kind (legacy TMonster.cpp:683 CheckQuest(..., m_wKind,
+    // QTT_HUNT, TT_KILLMON, 1)). Each advance echoes CS_QUESTUPDATE_ACK to
+    // the killer; the turn-in (CS_QUESTEXEC_REQ → QT_COMPLETE) pays out.
+    if (attacker && ctx.quest_log && ctx.quest_chart && ctx.quest_service)
+    {
+        EnsureQuestsLoaded(*ctx.quest_log, *ctx.quest_service, attacker);
+        for (auto& prog : ctx.quest_log->ForChar(attacker))
+        {
+            const QuestDef* qdef = ctx.quest_chart->Find(prog.dwQuestID);
+            if (!qdef) continue;
+            const auto adv = quest_engine::AdvanceHunt(prog, *qdef, mon_kind);
+            if (!adv.advanced) continue;
+            co_await sess->SendPacket(
+                static_cast<std::uint16_t>(MessageId::CS_QUESTUPDATE_ACK),
+                EncodeQuestUpdateAck(prog.dwQuestID, adv.term_id,
+                    QTT_HUNT, adv.count, adv.status));
+            spdlog::info("quest: char={} hunt quest={} term={} {}/{}{}",
+                attacker, prog.dwQuestID, adv.term_id, adv.count, adv.goal,
+                adv.status == QTS_SUCCESS ? " (complete)" : "");
+        }
+    }
 
     // Schedule its return so the world doesn't empty out as players grind.
     // A fresh instance (new id, full HP) at the same spawn point.

@@ -133,6 +133,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_attr_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_item_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_quest_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/spawn_manager.cpp
     ${TMAPSVR_ASIO_SRC}/services/monster_ai.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
@@ -323,3 +324,23 @@ target_link_libraries(test_tmapsvr_asio_loot_take PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_loot_take
     COMMAND test_tmapsvr_asio_loot_take)
+
+# Quest engine: the pure kill-count core — AdvanceHunt term increment +
+# cap + SUCCESS status, IsComplete / FirstIncompleteTerm, and the
+# in-memory quest-def chart lookup. Faithful to CQuest::FindRunningTerm /
+# CheckComplete (Quest.cpp / QuestComplete.cpp).
+add_executable(test_tmapsvr_asio_quest_engine
+    ${TMAPSVR_ASIO_SRC}/tests/test_quest_engine.cpp)
+target_link_libraries(test_tmapsvr_asio_quest_engine PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_quest_engine
+    COMMAND test_tmapsvr_asio_quest_engine)
+
+# Quest senders + log: the CS_QUESTUPDATE_ACK / CS_QUESTCOMPLETE_ACK byte
+# layouts + the in-memory active-quest log (seed / find / add / remove).
+add_executable(test_tmapsvr_asio_quest_senders
+    ${TMAPSVR_ASIO_SRC}/tests/test_quest_senders.cpp)
+target_link_libraries(test_tmapsvr_asio_quest_senders PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_quest_senders
+    COMMAND test_tmapsvr_asio_quest_senders)

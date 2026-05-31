@@ -48,6 +48,8 @@
 #include "services/soci_quest_service.h"
 #include "services/quest_chart.h"
 #include "services/soci_quest_chart.h"
+#include "services/stat_chart.h"
+#include "services/soci_stat_chart.h"
 #include "services/quest_log.h"
 #include "services/soci_session_validator.h"
 #include "services/soci_map_mon_chart.h"
@@ -154,6 +156,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::ISkillService>         skill_service;
         std::unique_ptr<tmapsvr::IQuestService>         quest_service;
         std::unique_ptr<tmapsvr::IQuestChart>           quest_chart;
+        std::unique_ptr<tmapsvr::IStatChart>            stat_chart;
         std::unique_ptr<tmapsvr::IMonsterChart>         monster_chart;
         std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
         std::unique_ptr<tmapsvr::IMapMonChart>          map_mon_chart;
@@ -197,7 +200,11 @@ int main(int argc, char** argv)
             tmapsvr::db::ValidateMonsterSchema(*pool);
             tmapsvr::db::ValidateCompanionSchema(*pool);
             validator         = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
-            player_service    = std::make_unique<tmapsvr::SociPlayerService>(*pool);
+            // Stat chart first — the player service reads it to derive
+            // max-HP/MP at char load (must outlive + precede it).
+            stat_chart        = std::make_unique<tmapsvr::SociStatChart>(*pool);
+            player_service    = std::make_unique<tmapsvr::SociPlayerService>(
+                                    *pool, stat_chart.get());
             inventory_service = std::make_unique<tmapsvr::SociInventoryService>(*pool);
             npc_service       = std::make_unique<tmapsvr::SociNpcService>(*pool);
             skill_service     = std::make_unique<tmapsvr::SociSkillService>(*pool);

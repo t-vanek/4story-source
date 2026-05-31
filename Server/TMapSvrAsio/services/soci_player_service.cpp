@@ -1,6 +1,8 @@
 #include "soci_player_service.h"
 
 #include "services/char_entities.h"
+#include "services/stat_chart.h"
+#include "services/stat_engine.h"
 #include "db/queries.h"
 
 #include "fourstory/db/orm/db_context.h"
@@ -9,6 +11,7 @@
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <string>
 
 namespace tmapsvr {
@@ -16,8 +19,9 @@ namespace tmapsvr {
 using fourstory::db::orm::DbContext;
 using fourstory::mapper::Adapt;
 
-SociPlayerService::SociPlayerService(fourstory::db::SessionPool& pool)
-    : m_pool(pool)
+SociPlayerService::SociPlayerService(fourstory::db::SessionPool& pool,
+                                     const IStatChart* stat)
+    : m_pool(pool), m_stat(stat)
 {
 }
 
@@ -35,10 +39,31 @@ SociPlayerService::LoadChar(std::uint32_t char_id)
         if (!row)
             return std::nullopt;
         auto snap = Adapt<CharSnapshot>(*row);
-        // TCHARTABLE stores current HP; the real max needs the stat layer,
-        // so load at full health (max = current). Combat damage drives
-        // dwHP below dwMaxHP from here.
-        snap.dwMaxHP = snap.dwHP;
+        // Max HP/MP — TCHARTABLE stores only *current* HP/MP, so the max
+        // is derived from the stat layer (class+race base × level growth ×
+        // TFORMULACHART rate; faithful to TObjBase::GetPureMaxHP/MP). With
+        // no chart wired (no-DB / unit-test path) fall back to the legacy
+        // placeholder max = current. Equipment/buff bonuses are a later
+        // wave. Current HP/MP is clamped to the derived max so a stale or
+        // oversized stored value can't exceed the bar.
+        if (m_stat)
+        {
+            snap.dwMaxHP = stat_engine::MaxHP(*m_stat, snap.bClass,
+                                              snap.bRace, snap.bLevel);
+            snap.dwMaxMP = stat_engine::MaxMP(*m_stat, snap.bClass,
+                                              snap.bRace, snap.bLevel);
+            // A stored current of 0 on a live (non-dead) char means the dump
+            // never tracked it — start full rather than at-death.
+            if (snap.dwHP == 0) snap.dwHP = snap.dwMaxHP;
+            if (snap.dwMP == 0) snap.dwMP = snap.dwMaxMP;
+            snap.dwHP = std::min(snap.dwHP, snap.dwMaxHP);
+            snap.dwMP = std::min(snap.dwMP, snap.dwMaxMP);
+        }
+        else
+        {
+            snap.dwMaxHP = snap.dwHP;   // legacy placeholder
+            snap.dwMaxMP = snap.dwMP;
+        }
         return snap;
     }
     catch (const std::exception& ex)

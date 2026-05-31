@@ -128,6 +128,20 @@ inline constexpr const char* AllMonItems =
     "  bItemMagicOpt, bItemRareOpt "
     "FROM TMONITEMCHART";
 
+// TFORMULACHART — per-FTYPE_ formula coefficients (bID == FTYPE_
+// ordinal). The stat engine reads FTYPE_HP(8)/MP(19)/1ST(34) for the
+// max-HP/MP derivation. Column is `dwinit` (lowercase i in the dump).
+inline constexpr const char* AllFormula =
+    "SELECT bID, dwinit, fRateX, fRateY FROM TFORMULACHART";
+
+// TCLASSCHART — per-class base stats (bClassID → STR/DEX/CON/INT/WIS/MEN).
+inline constexpr const char* AllClassStats =
+    "SELECT bClassID, wSTR, wDEX, wCON, wINT, wWIS, wMEN FROM TCLASSCHART";
+
+// TRACECHART — per-race base stats, same column shape as TCLASSCHART.
+inline constexpr const char* AllRaceStats =
+    "SELECT bRaceID, wSTR, wDEX, wCON, wINT, wWIS, wMEN FROM TRACECHART";
+
 // TSKILLCHART — skill templates. This slice loads only the reuse
 // cooldown (dwReuseDelay) the cooldown gate needs; the MP/HP cost and
 // effect (TSKILLDATA) columns land with later skill waves.

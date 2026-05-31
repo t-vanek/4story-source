@@ -202,4 +202,22 @@ std::vector<std::byte> EncodeMonItemListAck(
 // CTPlayer::SendCS_MONITEMTAKE_ACK (CSSender.cpp:2982).
 std::vector<std::byte> EncodeMonItemTakeAck(std::uint8_t result);
 
+// CS_QUESTUPDATE_ACK body — one quest term advanced (DWORD quest id + DWORD
+// term id + BYTE term type + BYTE count + BYTE status). 11 bytes. Mirrors
+// legacy CTPlayer::SendCS_QUESTUPDATE_ACK (CSSender.cpp:1825). Sent to the
+// owner as a hunt/collect objective progresses; `status` is QTS_RUN until
+// the goal is met, then QTS_SUCCESS.
+std::vector<std::byte> EncodeQuestUpdateAck(
+    std::uint32_t quest_id, std::uint32_t term_id, std::uint8_t type,
+    std::uint8_t count, std::uint8_t status);
+
+// CS_QUESTCOMPLETE_ACK body — a quest turn-in resolved (BYTE result + DWORD
+// quest id + DWORD term id + BYTE term type + DWORD drop id). 14 bytes.
+// Mirrors legacy CTPlayer::SendCS_QUESTCOMPLETE_ACK (CSSender.cpp:1843).
+// `result` is QR_SUCCESS on completion, QR_TERM (with the unmet term id /
+// type) when objectives remain, or QR_DROP on abandon.
+std::vector<std::byte> EncodeQuestCompleteAck(
+    std::uint8_t result, std::uint32_t quest_id, std::uint32_t term_id,
+    std::uint8_t type, std::uint32_t drop_id);
+
 } // namespace tmapsvr

@@ -404,4 +404,32 @@ std::vector<std::byte> EncodeMonItemTakeAck(std::uint8_t result)
     return b;
 }
 
+std::vector<std::byte> EncodeQuestUpdateAck(
+    std::uint32_t quest_id, std::uint32_t term_id, std::uint8_t type,
+    std::uint8_t count, std::uint8_t status)
+{
+    std::vector<std::byte> b;
+    b.reserve(11);
+    wire::WritePOD<std::uint32_t>(b, quest_id);
+    wire::WritePOD<std::uint32_t>(b, term_id);
+    wire::WritePOD<std::uint8_t> (b, type);
+    wire::WritePOD<std::uint8_t> (b, count);
+    wire::WritePOD<std::uint8_t> (b, status);
+    return b;
+}
+
+std::vector<std::byte> EncodeQuestCompleteAck(
+    std::uint8_t result, std::uint32_t quest_id, std::uint32_t term_id,
+    std::uint8_t type, std::uint32_t drop_id)
+{
+    std::vector<std::byte> b;
+    b.reserve(14);
+    wire::WritePOD<std::uint8_t> (b, result);
+    wire::WritePOD<std::uint32_t>(b, quest_id);
+    wire::WritePOD<std::uint32_t>(b, term_id);
+    wire::WritePOD<std::uint8_t> (b, type);
+    wire::WritePOD<std::uint32_t>(b, drop_id);
+    return b;
+}
+
 } // namespace tmapsvr

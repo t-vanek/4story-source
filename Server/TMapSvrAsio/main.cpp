@@ -46,6 +46,9 @@
 #include "services/soci_npc_service.h"
 #include "services/soci_player_service.h"
 #include "services/soci_quest_service.h"
+#include "services/quest_chart.h"
+#include "services/soci_quest_chart.h"
+#include "services/quest_log.h"
 #include "services/soci_session_validator.h"
 #include "services/soci_map_mon_chart.h"
 #include "services/soci_mon_attr_chart.h"
@@ -150,6 +153,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::INpcService>           npc_service;
         std::unique_ptr<tmapsvr::ISkillService>         skill_service;
         std::unique_ptr<tmapsvr::IQuestService>         quest_service;
+        std::unique_ptr<tmapsvr::IQuestChart>           quest_chart;
         std::unique_ptr<tmapsvr::IMonsterChart>         monster_chart;
         std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
         std::unique_ptr<tmapsvr::IMapMonChart>          map_mon_chart;
@@ -198,6 +202,7 @@ int main(int argc, char** argv)
             npc_service       = std::make_unique<tmapsvr::SociNpcService>(*pool);
             skill_service     = std::make_unique<tmapsvr::SociSkillService>(*pool);
             quest_service     = std::make_unique<tmapsvr::SociQuestService>(*pool);
+            quest_chart       = std::make_unique<tmapsvr::SociQuestChart>(*pool);
             monster_chart     = std::make_unique<tmapsvr::SociMonsterChart>(*pool);
             spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
             map_mon_chart     = std::make_unique<tmapsvr::SociMapMonChart>(*pool);
@@ -292,6 +297,11 @@ int main(int argc, char** argv)
         // delay (legacy CTSkill::CanUse). Lives for the io.run() duration.
         tmapsvr::SkillCooldownTracker skill_cooldown;
 
+        // In-memory active-quest log — per-char quest progress for the
+        // session, seeded lazily from the quest service by the kill hook
+        // and quest handlers. DB persistence of progress is a follow-up.
+        tmapsvr::InMemoryQuestLog quest_log;
+
         // Build the HandlerContext now so the world inbound dispatch
         // lambda can capture it by reference (the context's pointer
         // fields are filled in below as each service comes online).
@@ -304,6 +314,8 @@ int main(int argc, char** argv)
         ctx.npc_service       = npc_service.get();
         ctx.skill_service     = skill_service.get();
         ctx.quest_service     = quest_service.get();
+        ctx.quest_chart       = quest_chart.get();
+        ctx.quest_log         = &quest_log;
         ctx.monster_chart     = monster_chart.get();
         ctx.mon_item_chart    = mon_item_chart.get();
         ctx.skill_chart       = skill_chart.get();

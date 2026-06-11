@@ -20,7 +20,7 @@ are **mostly not ported** (a kill-count quest slice is the first quest vertical)
 ```
 Transport (Asio + RC4 + framing)    ████████████████████  100%
 Dispatch + rate-limit + metrics     ████████████████████  100%
-Schema validators (12 tables)       ████████████████████  100%
+Schema validators (13 tables)       ████████████████████  100%
 SOCI services (player/inv/npc/…)    ████████████████████  100%
 Chart loaders (mon/spawn/attr/…)    ██████████████░░░░░░   ~70%
 Connection lifecycle (login→enter)  ████████████████████  100%
@@ -34,7 +34,7 @@ CS_* wire handlers ported           ██░░░░░░░░░░░░�
 | Boost.Asio accept loop + per-session coroutine | ✅ | `map_server.{h,cpp}`; max-connections gate, RC4 optional |
 | Pre-auth idle watchdog + per-session rate limiter | ✅ | `services/rate_limiter.{h,cpp}` |
 | Handler dispatch (counter + latency + audit) | ✅ | `handlers/dispatch.cpp` |
-| Boot-time schema validators (12 tables) | ✅ | `db/schema_validator.cpp` |
+| Boot-time schema validators (13 tables) | ✅ | `db/schema_validator.cpp` |
 | SOCI service layer + chart loaders | ✅ | player / inv / npc / skill / quest / monster / spawn / attr / drop / map-mon |
 | In-memory state stores | ✅ | session_registry / channel_presence / monster_registry / char_state / corpse_registry |
 | **Connection lifecycle** (login→world→map→enter→charinfo) | ✅ | `handlers_world.cpp` + `session.cpp`; `CS_CHARINFO_ACK` own-char sheet |
@@ -46,11 +46,11 @@ CS_* wire handlers ported           ██░░░░░░░░░░░░�
 | **Corpse loot window** | ✅ | `CS_MONITEMLIST/MONMONEYTAKE/MONITEMTAKE/TAKEALL` → bag + purse (persisted) |
 | **Item drop tables** | ✅ | `TMONITEMCHART` roll (`services/loot.h`) + 38-byte item descriptor wire |
 | **Stat layer** (max-HP/MP from class/race/level) | ✅ | `TFORMULACHART`/`TCLASSCHART`/`TRACECHART` → `services/stat_engine.h` (faithful `GetPureMaxHP/MP`); `SociPlayerService` derives `dwMaxHP`/`dwMaxMP` at load |
-| Skill gates: reuse-cooldown + MP/HP cost | 🟡 | `CS_SKILLUSE` drops too-fast re-use (`TSKILLCHART.dwReuseDelay`) and unaffordable casts (`skill_engine.h`; type-2 %-of-max exact, type-1 deferred); charges + `CS_HPMP` echo. No effects/damage ack yet |
+| Skill gates: reuse-cooldown + MP/HP cost | ✅ | `CS_SKILLUSE` rejects too-fast re-use / unaffordable casts with the short `CS_SKILLUSE_ACK` (SPEEDYUSE / NEEDMP / NEEDHP); success charges, broadcasts the fat `SKILL_SUCCESS` ack (defender list) + `CS_HPMP` echo. Type-1 cost deferred (rank layer); attacker powers in the ack ship 0 (AP/WAP/DP wave) |
 | World peer wire (`MW_/DM_`) | 🟡 | Connection lifecycle wired (see Wired handlers); gameplay MW_/DM_/SS_ traffic still TODO |
 | **Quest engine** (kill-count slice) | 🟡 | accept → kill-progress → turn-in → reward (gold/EXP); engine per [`QUEST_ENGINE.md`](QUEST_ENGINE.md). Item/skill rewards, accept-conditions, DB-persist of progress pending |
 | **NPC dialogue / shops / storage** | ❌ | `OnNpcTalkReq` returns trigger 0; no buy/sell/cabinet |
-| **Skill effects** | ❌ | heal/buff/debuff (SDT_/MTYPE_), `CS_SKILLUSE_ACK` damage broadcast, reject acks (SKILL_NEEDMP/SPEEDYUSE) |
+| **Skill effects** (TSKILLDATA) | 🟡 | **SDT_CURE heal (SCT_HP/MP) works** — `skill_effect.h` ports `GetValue`/`Calculate`/`CalcValue` (all 4 calc modes incl. exponential via `f1stRateX`) + the 0–15 % cure roll, applied in the Defend path on PC targets. DOT/buff/status (SA_DOT/SA_BUFF, SDT_STATUS), mon/recall cures, `CS_DEFEND_ACK` relay pending |
 | Real player AP/WAP/DP from stats + gear | ❌ | combat uses client-sent powers vs monster DP; player defense = 0 placeholder |
 | Chat / party / BR-BoW / operator control | ❌ | `OnChatReq` / `OnParty*` / `OnRegisterBow*` / `OnCt*` decode+log only |
 
@@ -63,13 +63,14 @@ CS_CONNECT_REQ        session.cpp   validate TCURRENTUSER, bind registry, optimi
 CS_CONREADY_REQ       session.cpp   → CS_CHARINFO_ACK + CS_ENTER (players) + CS_ADDMON (monsters)
 CS_MOVE_REQ           movement.cpp  position update + channel broadcast
 CS_ACTION_REQ         combat.cpp    attack animation broadcast (CS_ACTION_ACK)
-CS_DEFEND_REQ         combat.cpp    real damage (CalcDamage) → CS_HPMP / death → CS_DELMON + CS_EXP + loot + respawn
+CS_DEFEND_REQ         combat.cpp    real damage (CalcDamage) → CS_HPMP / death → CS_DELMON + CS_EXP + loot + respawn;
+                                    SDT_CURE heal (TSKILLDATA) on PC targets → CS_HPMP
 CS_REVIVAL_REQ        combat.cpp    clear death, refill HP, reposition → CS_REVIVAL_ACK
 CS_MONITEMLIST_REQ    loot.cpp      open corpse loot window (money + items)
 CS_MONMONEYTAKE_REQ   loot.cpp      take corpse money → purse → CS_MONEY_ACK
 CS_MONITEMTAKE_REQ    loot.cpp      take one corpse item → bag (persisted) → CS_GETITEM_ACK
 CS_MONITEMTAKEALL_REQ loot.cpp      take all that fits (partial on full bag)
-CS_SKILLUSE_REQ       skill.cpp     reuse-cooldown + MP/HP cost gates → charge + CS_HPMP echo; no damage/effects yet
+CS_SKILLUSE_REQ       skill.cpp     gates (cooldown+MP/HP) → reject CS_SKILLUSE_ACK, or charge + fat SKILL_SUCCESS broadcast + CS_HPMP echo
 CS_QUESTEXEC_REQ      quest.cpp     accept quest / turn-in (QT_COMPLETE) → reward gold+EXP
 CS_QUESTDROP_REQ      quest.cpp     abandon active quest → CS_QUESTCOMPLETE_ACK(QR_DROP)
 ```
@@ -189,11 +190,12 @@ Links `fourstory_common` + `tnetlib_portable`.
 ctest --test-dir build -R tmapsvr_asio --output-on-failure
 ```
 
-In-process tests (21 suites) cover the wire codec, dispatch path, combat /
+In-process tests (22 suites) cover the wire codec, dispatch path, combat /
 damage / loot / money / inventory / corpse logic, the skill-cooldown +
-resource-cost gates, the stat (max-HP/MP) engine, the world-peer handshake,
-and the byte layout of every ack encoder. The SOCI integration suites skip
-when `TMAPSVR_TEST_MSSQL_CONN` is unset.
+resource-cost gates, the skill-effect engine (calc modes + cure roll +
+`CS_SKILLUSE_ACK` layout), the stat (max-HP/MP) engine, the world-peer
+handshake, and the byte layout of every ack encoder. The SOCI integration
+suites skip when `TMAPSVR_TEST_MSSQL_CONN` is unset.
 
 ## Files
 
@@ -217,7 +219,7 @@ Server/TMapSvrAsio/
 │   ├── combat.cpp                  — action / defend / revival
 │   ├── loot.cpp                    — corpse loot window
 │   ├── npc.cpp                     — NPC interaction (stub)
-│   ├── skill.cpp                   — skill cast (cooldown + MP/HP cost gates)
+│   ├── skill.cpp                   — skill cast (gates + reject/success acks)
 │   ├── quest.cpp                   — quest exec / drop (stub)
 │   ├── social.cpp                  — chat / party (stub)
 │   ├── bow.cpp                     — BR / BoW queue (stub)
@@ -230,7 +232,7 @@ Server/TMapSvrAsio/
 ├── audit/                          — typed events + emitter
 ├── ops/                            — metrics + admin shell + endpoint
 ├── legacy_src/                     — verbatim Server/TMapSvr/ (reference)
-└── tests/                          — 21 unit + integration suites
+└── tests/                          — 22 unit + integration suites
 ```
 
 ## Roadmap
@@ -249,7 +251,7 @@ Server/TMapSvrAsio/
 | **T10** | Mob AI tick (roam → chase → melee) + timed respawn | ✅ |
 | **T11** | Player death & revival | ✅ |
 | **T12** | Monster drops → corpse loot window + inventory persist | ✅ |
-| **T13** | Skill gates: reuse-cooldown + MP/HP cost (`skill_engine`) + `CS_HPMP` echo | 🟡 (effects + `CS_SKILLUSE_ACK` pending) |
+| **T13** | Skills: gates (cooldown + MP/HP cost) + `CS_SKILLUSE_ACK` reject/success + SDT_CURE heal | 🟡 (DOT/buff/status + `CS_DEFEND_ACK` relay pending) |
 | **T14** | Quest engine — kill-count slice (accept→kill→turn-in→reward) | 🟡 |
 | **T15** | NPC shops (buy/sell) + storage | ⏸ |
 | **T16** | Player stats: max-HP/MP from class/race/level (`stat_engine`) ✅; AP/WAP/DP from base + gear | 🟡 |

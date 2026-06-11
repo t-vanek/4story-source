@@ -158,6 +158,61 @@ std::vector<std::byte> EncodeActionAck(
     std::uint8_t action_id, std::uint32_t act_id, std::uint32_t ani_id,
     std::uint16_t skill_id);
 
+// CS_SKILLUSE_ACK — the verdict on a skill cast, broadcast to everyone in
+// view on success and echoed to the caster alone on rejection. Mirrors
+// legacy CTPlayer::SendCS_SKILLUSE_ACK (CSSender.cpp:1518): the SAME
+// fixed layout serves both forms — the legacy reject calls pass only the
+// echo fields and default the rest to 0 with no target list.
+//
+// Body: BYTE result + DWORD attack_id + BYTE attack_type + WORD skill_id +
+// WORD back_skill + BYTE action_id + DWORD act_id + DWORD ani_id +
+// BYTE skill_level + WORD attack_level + BYTE attacker_level +
+// DWORD pys_min/pys_max/mg_min/mg_max powers + WORD trans_hp/trans_mp +
+// BYTE curse_prob/equip_special/can_select/country/aid_country/cp +
+// FLOAT gnd x/y/z + BYTE count + count × { DWORD target, BYTE type }.
+//
+// The attacker combat stats (powers / crit / attack level) are what the
+// defenders' clients later echo back in CS_DEFEND_REQ — they ship 0 until
+// the player AP/WAP/DP wave models them server-side.
+struct SkillUseAckFields
+{
+    std::uint8_t  result          = 0;   // TSKILL_RESULT (domain/skill_data.h)
+    std::uint32_t attack_id       = 0;   // caster object id
+    std::uint8_t  attack_type     = 0;   // caster OBJ_TYPE
+    std::uint16_t skill_id        = 0;
+    std::uint16_t back_skill      = 0;
+    std::uint8_t  action_id       = 0;
+    std::uint32_t act_id          = 0;
+    std::uint32_t ani_id          = 0;
+    std::uint8_t  skill_level     = 0;
+    std::uint16_t attack_level    = 0;
+    std::uint8_t  attacker_level  = 0;
+    std::uint32_t pys_min_power   = 0;
+    std::uint32_t pys_max_power   = 0;
+    std::uint32_t mg_min_power    = 0;
+    std::uint32_t mg_max_power    = 0;
+    std::uint16_t trans_hp        = 0;
+    std::uint16_t trans_mp        = 0;
+    std::uint8_t  curse_prob      = 0;
+    std::uint8_t  equip_special   = 0;
+    std::uint8_t  can_select      = 1;   // legacy default TRUE
+    std::uint8_t  country         = 0;
+    std::uint8_t  aid_country     = 0;
+    std::uint8_t  cp              = 0;   // critical prob
+    float         gnd_x           = 0.f;
+    float         gnd_y           = 0.f;
+    float         gnd_z           = 0.f;
+};
+
+struct SkillTarget
+{
+    std::uint32_t id   = 0;
+    std::uint8_t  type = 0;   // OBJ_TYPE
+};
+
+std::vector<std::byte> EncodeSkillUseAck(
+    const SkillUseAckFields& f, const std::vector<SkillTarget>& targets);
+
 // CS_DIE_ACK body — an object died (DWORD id + BYTE obj type). Mirrors
 // legacy CTPlayer::SendCS_DIE_ACK (CSSender.cpp:1392), broadcast to
 // everyone in view from CTObjBase::OnDie so the death animation plays.

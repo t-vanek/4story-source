@@ -142,12 +142,19 @@ inline constexpr const char* AllClassStats =
 inline constexpr const char* AllRaceStats =
     "SELECT bRaceID, wSTR, wDEX, wCON, wINT, wWIS, wMEN FROM TRACECHART";
 
-// TSKILLCHART — skill templates. This slice loads only the reuse
-// cooldown (dwReuseDelay) the cooldown gate needs; the MP/HP cost and
-// effect (TSKILLDATA) columns land with later skill waves.
+// TSKILLCHART — skill templates: the reuse cooldown, the MP/HP cost
+// columns, and the level-scale coefficients (bLevel = start level,
+// bNextLevel, bMaxLevel) the exponential calc mode needs.
 inline constexpr const char* AllSkillTemplate =
-    "SELECT wID, dwReuseDelay, dwUseMP, bUseMPType, dwUseHP, bUseHPType "
+    "SELECT wID, dwReuseDelay, dwUseMP, bUseMPType, dwUseHP, bUseHPType, "
+    "bLevel, bNextLevel, bMaxLevel "
     "FROM TSKILLCHART";
+
+// TSKILLDATA — per-skill effect rows (heal / damage / status), grouped by
+// wSkillID at load (legacy CTSkillTemp::m_vData).
+inline constexpr const char* AllSkillData =
+    "SELECT wSkillID, bAction, bType, bAttr, bExec, bInc, wValue, "
+    "wValueInc, bCalc FROM TSKILLDATA";
 
 // TCOMPANIONTABLE — F15 per-char companion roster.
 inline constexpr const char* CompanionsByCharId =

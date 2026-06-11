@@ -129,6 +129,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_quest_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_skill_data_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_attr_chart.cpp
@@ -365,3 +366,12 @@ target_link_libraries(test_tmapsvr_asio_skill_engine PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_skill_engine
     COMMAND test_tmapsvr_asio_skill_engine)
+
+# Skill-effect engine (CTSkillTemp::GetValue/Calculate/CalcValue + the
+# SCT_HP/MP cure roll) + the CS_SKILLUSE_ACK byte layout.
+add_executable(test_tmapsvr_asio_skill_effect
+    ${TMAPSVR_ASIO_SRC}/tests/test_skill_effect.cpp)
+target_link_libraries(test_tmapsvr_asio_skill_effect PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_skill_effect
+    COMMAND test_tmapsvr_asio_skill_effect)

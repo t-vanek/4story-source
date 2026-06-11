@@ -228,12 +228,14 @@ std::vector<std::byte> EncodeAddMonAck(
 }
 
 std::vector<std::byte> EncodeHpMpAck(
-    std::uint32_t id, std::uint32_t max_hp, std::uint32_t hp,
+    std::uint32_t id, std::uint8_t obj_type,
+    std::uint32_t max_hp, std::uint32_t hp,
     std::uint32_t max_mp, std::uint32_t mp)
 {
     std::vector<std::byte> b;
-    b.reserve(20);
+    b.reserve(21);
     wire::WritePOD<std::uint32_t>(b, id);
+    wire::WritePOD<std::uint8_t> (b, obj_type);
     wire::WritePOD<std::uint32_t>(b, max_hp);
     wire::WritePOD<std::uint32_t>(b, hp);
     wire::WritePOD<std::uint32_t>(b, max_mp);

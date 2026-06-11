@@ -67,6 +67,7 @@ namespace tmapsvr {
 
 namespace {
 
+constexpr std::uint8_t OtPc        = 1;   // OBJ_TYPE::OT_PC   (NetCode.h:1030)
 constexpr std::uint8_t OtMon       = 2;   // OBJ_TYPE::OT_MON  (NetCode.h:1031)
 constexpr std::uint8_t kSkillOk    = 0;   // SKILL_SUCCESS — action validated
 
@@ -151,8 +152,10 @@ HitMonster(std::shared_ptr<tnetlib::AsioSession> sess,
 
     if (after->dwHP > 0)
     {
+        // Monster MP isn't modelled on MonsterInstance yet — ship 0/0
+        // (cosmetic only; the target window reads the HP pair).
         const auto hp =
-            EncodeHpMpAck(obj_id, after->dwMaxHP, after->dwHP, 0, 0);
+            EncodeHpMpAck(obj_id, OtMon, after->dwMaxHP, after->dwHP, 0, 0);
         for (auto& w : watchers)
             co_await w->SendPacket(
                 static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), hp);
@@ -405,27 +408,31 @@ OnRevivalReq(std::shared_ptr<tnetlib::AsioSession> sess,
     if (!cid)
         co_return;
 
-    // Only a dead char revives; restore HP and clear the death state
-    // (legacy CTPlayer::Revival). MP / max-MP restore rides the stat wave.
+    // Only a dead char revives; restore HP + MP and clear the death state.
+    // Full refill = the AFTERMATH_NONE branch of legacy CTPlayer::Revival
+    // (TPlayer.cpp:3735 — HP=maxHP, MP=maxMP); the 30/40 % ghost-walk /
+    // at-once aftermath variants ride a later wave.
     bool revived = false;
-    std::uint32_t max_hp = 0;
+    std::uint32_t max_hp = 0, max_mp = 0;
     ctx.char_state->Update(*cid, [&](CharSnapshot& s)
     {
         if (!s.bDead)
             return;
         s.bDead = 0;
         s.dwHP  = s.dwMaxHP;
+        s.dwMP  = s.dwMaxMP;
         s.fPosX = x;
         s.fPosY = y;
         s.fPosZ = z;
         max_hp  = s.dwMaxHP;
+        max_mp  = s.dwMaxMP;
         revived = true;
     });
     if (!revived)
         co_return;
 
     const auto rev = EncodeRevivalAck(*cid, x, y, z);
-    const auto hp  = EncodeHpMpAck(*cid, max_hp, max_hp, 0, 0);
+    const auto hp  = EncodeHpMpAck(*cid, OtPc, max_hp, max_hp, max_mp, max_mp);
 
     // The reviving player always gets the ack + refilled bar directly.
     co_await sess->SendPacket(

@@ -112,12 +112,15 @@ std::vector<std::byte> EncodeAddMonAck(
     const MonsterInstance& m, std::uint8_t level, std::uint8_t country,
     std::uint8_t color, std::uint8_t new_member);
 
-// CS_HPMP_ACK body — an object's HP/MP changed (DWORD id + maxHP + HP +
-// maxMP + MP). Mirrors legacy SendCS_HPMP_ACK (CSSender.cpp:1315; the
-// bType/bLevel args drive the party relay, not this packet). Broadcast
-// to everyone who can see the object so health bars update.
+// CS_HPMP_ACK body — an object's HP/MP changed (DWORD id + BYTE objType +
+// maxHP + HP + maxMP + MP). Mirrors legacy SendCS_HPMP_ACK
+// (CSSender.cpp:1315): bType streams into the packet right after the id —
+// only bLevel is party-relay-only. obj_type is OBJ_TYPE (OT_PC=1 /
+// OT_MON=2, NetCode.h:1030). Broadcast to everyone who can see the object
+// so health bars update.
 std::vector<std::byte> EncodeHpMpAck(
-    std::uint32_t id, std::uint32_t max_hp, std::uint32_t hp,
+    std::uint32_t id, std::uint8_t obj_type,
+    std::uint32_t max_hp, std::uint32_t hp,
     std::uint32_t max_mp, std::uint32_t mp);
 
 // CS_DELMON_ACK body — a monster left view (DWORD mon id + BYTE

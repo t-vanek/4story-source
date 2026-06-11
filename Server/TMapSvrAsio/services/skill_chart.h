@@ -1,9 +1,10 @@
 #pragma once
 
 // Skill template chart — loaded once at boot from TSKILLCHART, keyed by
-// skill id. This slice carries the reuse cooldown (SkillTemplate.dwReuseDelay)
-// the cooldown gate needs; the MP/HP cost + effect columns land with the
-// later skill waves (they also need the char's max-MP, not yet modelled).
+// skill id. Carries the reuse cooldown (dwReuseDelay) for the cooldown gate
+// and the Wave-4b MP/HP cost columns (dwUseMP/bUseMPType/dwUseHP/bUseHPType)
+// for the resource gate (skill_engine.h); the effect columns (TSKILLDATA)
+// land with the later skill waves.
 //
 // Read-only static content like the other charts — the SOCI impl loads
 // every row once; Find is an O(1) lookup.

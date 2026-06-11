@@ -145,8 +145,9 @@ inline constexpr const char* AllRaceStats =
 // TSKILLCHART — skill templates. This slice loads only the reuse
 // cooldown (dwReuseDelay) the cooldown gate needs; the MP/HP cost and
 // effect (TSKILLDATA) columns land with later skill waves.
-inline constexpr const char* AllSkillReuse =
-    "SELECT wID, dwReuseDelay FROM TSKILLCHART";
+inline constexpr const char* AllSkillTemplate =
+    "SELECT wID, dwReuseDelay, dwUseMP, bUseMPType, dwUseHP, bUseHPType "
+    "FROM TSKILLCHART";
 
 // TCOMPANIONTABLE — F15 per-char companion roster.
 inline constexpr const char* CompanionsByCharId =

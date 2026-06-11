@@ -45,11 +45,12 @@ CS_* wire handlers ported           ██░░░░░░░░░░░░�
 | **Monster AI** (idle roam → aggro chase → melee attack) | ✅ | `services/monster_ai`; capped per tick; floors player HP at 1 |
 | **Corpse loot window** | ✅ | `CS_MONITEMLIST/MONMONEYTAKE/MONITEMTAKE/TAKEALL` → bag + purse (persisted) |
 | **Item drop tables** | ✅ | `TMONITEMCHART` roll (`services/loot.h`) + 38-byte item descriptor wire |
-| Skill reuse-cooldown gate | 🟡 | `CS_SKILLUSE` drops re-use faster than `TSKILLCHART.dwReuseDelay`; no MP/effects |
+| **Stat layer** (max-HP/MP from class/race/level) | ✅ | `TFORMULACHART`/`TCLASSCHART`/`TRACECHART` → `services/stat_engine.h` (faithful `GetPureMaxHP/MP`); `SociPlayerService` derives `dwMaxHP`/`dwMaxMP` at load |
+| Skill gates: reuse-cooldown + MP/HP cost | 🟡 | `CS_SKILLUSE` drops too-fast re-use (`TSKILLCHART.dwReuseDelay`) and unaffordable casts (`skill_engine.h`; type-2 %-of-max exact, type-1 deferred); charges + `CS_HPMP` echo. No effects/damage ack yet |
 | World peer wire (`MW_/DM_`) | 🟡 | Connection lifecycle wired (see Wired handlers); gameplay MW_/DM_/SS_ traffic still TODO |
 | **Quest engine** (kill-count slice) | 🟡 | accept → kill-progress → turn-in → reward (gold/EXP); engine per [`QUEST_ENGINE.md`](QUEST_ENGINE.md). Item/skill rewards, accept-conditions, DB-persist of progress pending |
 | **NPC dialogue / shops / storage** | ❌ | `OnNpcTalkReq` returns trigger 0; no buy/sell/cabinet |
-| **Skill effects + MP cost** | ❌ | heal/buff/debuff (SDT_/MTYPE_), `GetRequiredMP`, `CS_SKILLUSE_ACK` damage |
+| **Skill effects** | ❌ | heal/buff/debuff (SDT_/MTYPE_), `CS_SKILLUSE_ACK` damage broadcast, reject acks (SKILL_NEEDMP/SPEEDYUSE) |
 | Real player AP/WAP/DP from stats + gear | ❌ | combat uses client-sent powers vs monster DP; player defense = 0 placeholder |
 | Chat / party / BR-BoW / operator control | ❌ | `OnChatReq` / `OnParty*` / `OnRegisterBow*` / `OnCt*` decode+log only |
 
@@ -68,7 +69,7 @@ CS_MONITEMLIST_REQ    loot.cpp      open corpse loot window (money + items)
 CS_MONMONEYTAKE_REQ   loot.cpp      take corpse money → purse → CS_MONEY_ACK
 CS_MONITEMTAKE_REQ    loot.cpp      take one corpse item → bag (persisted) → CS_GETITEM_ACK
 CS_MONITEMTAKEALL_REQ loot.cpp      take all that fits (partial on full bag)
-CS_SKILLUSE_REQ       skill.cpp     reuse-cooldown gate (TSKILLCHART); no damage/MP/effect yet
+CS_SKILLUSE_REQ       skill.cpp     reuse-cooldown + MP/HP cost gates → charge + CS_HPMP echo; no damage/effects yet
 CS_QUESTEXEC_REQ      quest.cpp     accept quest / turn-in (QT_COMPLETE) → reward gold+EXP
 CS_QUESTDROP_REQ      quest.cpp     abandon active quest → CS_QUESTCOMPLETE_ACK(QR_DROP)
 ```
@@ -188,10 +189,11 @@ Links `fourstory_common` + `tnetlib_portable`.
 ctest --test-dir build -R tmapsvr_asio --output-on-failure
 ```
 
-In-process tests (18 suites) cover the wire codec, dispatch path, combat /
-damage / loot / money / inventory / corpse / skill-cooldown logic, the
-world-peer handshake, and the byte layout of every ack encoder. The SOCI
-integration suites skip when `TMAPSVR_TEST_MSSQL_CONN` is unset.
+In-process tests (21 suites) cover the wire codec, dispatch path, combat /
+damage / loot / money / inventory / corpse logic, the skill-cooldown +
+resource-cost gates, the stat (max-HP/MP) engine, the world-peer handshake,
+and the byte layout of every ack encoder. The SOCI integration suites skip
+when `TMAPSVR_TEST_MSSQL_CONN` is unset.
 
 ## Files
 
@@ -215,7 +217,7 @@ Server/TMapSvrAsio/
 │   ├── combat.cpp                  — action / defend / revival
 │   ├── loot.cpp                    — corpse loot window
 │   ├── npc.cpp                     — NPC interaction (stub)
-│   ├── skill.cpp                   — skill cast (cooldown gate)
+│   ├── skill.cpp                   — skill cast (cooldown + MP/HP cost gates)
 │   ├── quest.cpp                   — quest exec / drop (stub)
 │   ├── social.cpp                  — chat / party (stub)
 │   ├── bow.cpp                     — BR / BoW queue (stub)
@@ -228,7 +230,7 @@ Server/TMapSvrAsio/
 ├── audit/                          — typed events + emitter
 ├── ops/                            — metrics + admin shell + endpoint
 ├── legacy_src/                     — verbatim Server/TMapSvr/ (reference)
-└── tests/                          — 18 unit + integration suites
+└── tests/                          — 21 unit + integration suites
 ```
 
 ## Roadmap
@@ -247,10 +249,10 @@ Server/TMapSvrAsio/
 | **T10** | Mob AI tick (roam → chase → melee) + timed respawn | ✅ |
 | **T11** | Player death & revival | ✅ |
 | **T12** | Monster drops → corpse loot window + inventory persist | ✅ |
-| **T13** | Skill reuse-cooldown gate | 🟡 (MP cost + effects pending) |
+| **T13** | Skill gates: reuse-cooldown + MP/HP cost (`skill_engine`) + `CS_HPMP` echo | 🟡 (effects + `CS_SKILLUSE_ACK` pending) |
 | **T14** | Quest engine — kill-count slice (accept→kill→turn-in→reward) | 🟡 |
 | **T15** | NPC shops (buy/sell) + storage | ⏸ |
-| **T16** | Real player combat stats (AP/WAP/DP from base + gear) | ⏸ |
+| **T16** | Player stats: max-HP/MP from class/race/level (`stat_engine`) ✅; AP/WAP/DP from base + gear | 🟡 |
 | **T17** | Bulk handler port (CONSOLIDATION recipe × ~280) | ⏸ |
 
 See `_rewrite/docs/MODERNIZATION_PLAN.md` for the cluster-wide position of

@@ -63,14 +63,20 @@ int main()
         EXPECT(!reg.ApplyDamage(7777, 10).has_value());
     }
 
-    // --- CS_HPMP_ACK: id + maxHP + HP + maxMP + MP --------------------
+    // --- CS_HPMP_ACK: id + objType + maxHP + HP + maxMP + MP ----------
+    // The BYTE objType (OT_PC=1 / OT_MON=2) streams right after the id,
+    // faithful to legacy SendCS_HPMP_ACK (CSSender.cpp:1315) — only bLevel
+    // is party-relay-only.
     {
-        auto b = EncodeHpMpAck(0xABCD, 1500, 1200, 0, 0);
-        EXPECT(b.size() == 20);
+        auto b = EncodeHpMpAck(0xABCD, /*OT_MON=*/2, 1500, 1200, 300, 250);
+        EXPECT(b.size() == 21);
         wire::Reader r(b.data(), b.size());
         std::uint32_t id = 0, mh = 0, h = 0, mm = 0, mp = 0;
-        EXPECT(r.Read(id) && r.Read(mh) && r.Read(h) && r.Read(mm) && r.Read(mp));
-        EXPECT(id == 0xABCD && mh == 1500 && h == 1200 && mm == 0 && mp == 0);
+        std::uint8_t  ot = 0;
+        EXPECT(r.Read(id) && r.Read(ot) && r.Read(mh) && r.Read(h) &&
+               r.Read(mm) && r.Read(mp));
+        EXPECT(id == 0xABCD && ot == 2 && mh == 1500 && h == 1200 &&
+               mm == 300 && mp == 250);
         EXPECT(r.Eof());
     }
 

@@ -1,0 +1,34 @@
+# tcontrolsvr.local.toml — local dev config against restored MSSQL.
+# Enables the SOCI repos (TGLOBAL_RAGEZONE) instead of the in-memory
+# F1 fakes, so the operator inventory (TMACHINE / TGROUP / TSVRTYPE /
+# TSERVER / TIPADDR) + operator auth load from the live DB.
+
+[server]
+port       = 12000
+auto_start = 0
+
+[discovery]
+enabled = true
+
+[database]
+backend           = "odbc"
+connection_string = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=TGLOBAL_RAGEZONE;Trusted_Connection=yes;TrustServerCertificate=yes"
+pool_size         = 4
+worker_threads    = 2
+
+[health]
+port = 18086
+
+[admin]
+bind = "127.0.0.1"
+port = 18186
+
+[login_rate]
+burst          = 5
+refill_seconds = 10
+
+[inventory]
+refresh_seconds = 30
+
+[log]
+level = "debug"

@@ -228,16 +228,58 @@ std::vector<std::byte> EncodeAddMonAck(
 }
 
 std::vector<std::byte> EncodeHpMpAck(
-    std::uint32_t id, std::uint32_t max_hp, std::uint32_t hp,
+    std::uint32_t id, std::uint8_t obj_type,
+    std::uint32_t max_hp, std::uint32_t hp,
     std::uint32_t max_mp, std::uint32_t mp)
 {
     std::vector<std::byte> b;
-    b.reserve(20);
+    b.reserve(21);
     wire::WritePOD<std::uint32_t>(b, id);
+    wire::WritePOD<std::uint8_t> (b, obj_type);
     wire::WritePOD<std::uint32_t>(b, max_hp);
     wire::WritePOD<std::uint32_t>(b, hp);
     wire::WritePOD<std::uint32_t>(b, max_mp);
     wire::WritePOD<std::uint32_t>(b, mp);
+    return b;
+}
+
+std::vector<std::byte> EncodeSkillUseAck(
+    const SkillUseAckFields& f, const std::vector<SkillTarget>& targets)
+{
+    std::vector<std::byte> b;
+    b.reserve(62 + targets.size() * 5);
+    wire::WritePOD<std::uint8_t> (b, f.result);
+    wire::WritePOD<std::uint32_t>(b, f.attack_id);
+    wire::WritePOD<std::uint8_t> (b, f.attack_type);
+    wire::WritePOD<std::uint16_t>(b, f.skill_id);
+    wire::WritePOD<std::uint16_t>(b, f.back_skill);
+    wire::WritePOD<std::uint8_t> (b, f.action_id);
+    wire::WritePOD<std::uint32_t>(b, f.act_id);
+    wire::WritePOD<std::uint32_t>(b, f.ani_id);
+    wire::WritePOD<std::uint8_t> (b, f.skill_level);
+    wire::WritePOD<std::uint16_t>(b, f.attack_level);
+    wire::WritePOD<std::uint8_t> (b, f.attacker_level);
+    wire::WritePOD<std::uint32_t>(b, f.pys_min_power);
+    wire::WritePOD<std::uint32_t>(b, f.pys_max_power);
+    wire::WritePOD<std::uint32_t>(b, f.mg_min_power);
+    wire::WritePOD<std::uint32_t>(b, f.mg_max_power);
+    wire::WritePOD<std::uint16_t>(b, f.trans_hp);
+    wire::WritePOD<std::uint16_t>(b, f.trans_mp);
+    wire::WritePOD<std::uint8_t> (b, f.curse_prob);
+    wire::WritePOD<std::uint8_t> (b, f.equip_special);
+    wire::WritePOD<std::uint8_t> (b, f.can_select);
+    wire::WritePOD<std::uint8_t> (b, f.country);
+    wire::WritePOD<std::uint8_t> (b, f.aid_country);
+    wire::WritePOD<std::uint8_t> (b, f.cp);
+    wire::WritePOD<float>        (b, f.gnd_x);
+    wire::WritePOD<float>        (b, f.gnd_y);
+    wire::WritePOD<float>        (b, f.gnd_z);
+    wire::WritePOD<std::uint8_t> (b, static_cast<std::uint8_t>(targets.size()));
+    for (const auto& t : targets)
+    {
+        wire::WritePOD<std::uint32_t>(b, t.id);
+        wire::WritePOD<std::uint8_t> (b, t.type);
+    }
     return b;
 }
 

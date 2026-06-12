@@ -129,11 +129,13 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_quest_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_skill_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_skill_data_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_spawn_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_map_mon_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_attr_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_item_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_quest_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/soci_stat_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/spawn_manager.cpp
     ${TMAPSVR_ASIO_SRC}/services/monster_ai.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
@@ -344,3 +346,32 @@ target_link_libraries(test_tmapsvr_asio_quest_senders PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_quest_senders
     COMMAND test_tmapsvr_asio_quest_senders)
+
+# Stat engine: the pure max-HP/MP derivation (init + stat*rateX, level
+# growth pow(rate1ST, lvl-1)), faithful to TObjBase GetPureMaxHP/MP with
+# the live-DB coefficients (rateX 20.66, rate1ST 1.03, BASE_STAT 1).
+add_executable(test_tmapsvr_asio_stat_engine
+    ${TMAPSVR_ASIO_SRC}/tests/test_stat_engine.cpp)
+target_link_libraries(test_tmapsvr_asio_stat_engine PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_stat_engine
+    COMMAND test_tmapsvr_asio_stat_engine)
+
+# Skill resource-cost engine: RequiredMP/HP (CTSkill::GetRequiredMP/HP) —
+# type-2 (%-of-max) exact, type-1 deferred to 0 until the level-scale base
+# + per-skill rank layer land (see services/skill_engine.h).
+add_executable(test_tmapsvr_asio_skill_engine
+    ${TMAPSVR_ASIO_SRC}/tests/test_skill_engine.cpp)
+target_link_libraries(test_tmapsvr_asio_skill_engine PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_skill_engine
+    COMMAND test_tmapsvr_asio_skill_engine)
+
+# Skill-effect engine (CTSkillTemp::GetValue/Calculate/CalcValue + the
+# SCT_HP/MP cure roll) + the CS_SKILLUSE_ACK byte layout.
+add_executable(test_tmapsvr_asio_skill_effect
+    ${TMAPSVR_ASIO_SRC}/tests/test_skill_effect.cpp)
+target_link_libraries(test_tmapsvr_asio_skill_effect PRIVATE
+    tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_skill_effect
+    COMMAND test_tmapsvr_asio_skill_effect)

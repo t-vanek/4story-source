@@ -28,11 +28,15 @@
 
 #include "domain/character.h"
 #include "domain/monster.h"
+#include "domain/skill_data.h"
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
 #include "services/corpse_registry.h"
 #include "services/damage_formula.h"
+#include "services/skill_chart.h"
+#include "services/skill_data_chart.h"
+#include "services/skill_effect.h"
 #include "services/loot.h"
 #include "services/mon_item_chart.h"
 #include "services/money.h"
@@ -55,6 +59,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <exception>
@@ -67,6 +72,7 @@ namespace tmapsvr {
 
 namespace {
 
+constexpr std::uint8_t OtPc        = 1;   // OBJ_TYPE::OT_PC   (NetCode.h:1030)
 constexpr std::uint8_t OtMon       = 2;   // OBJ_TYPE::OT_MON  (NetCode.h:1031)
 constexpr std::uint8_t kSkillOk    = 0;   // SKILL_SUCCESS — action validated
 
@@ -151,8 +157,10 @@ HitMonster(std::shared_ptr<tnetlib::AsioSession> sess,
 
     if (after->dwHP > 0)
     {
+        // Monster MP isn't modelled on MonsterInstance yet — ship 0/0
+        // (cosmetic only; the target window reads the HP pair).
         const auto hp =
-            EncodeHpMpAck(obj_id, after->dwMaxHP, after->dwHP, 0, 0);
+            EncodeHpMpAck(obj_id, OtMon, after->dwMaxHP, after->dwHP, 0, 0);
         for (auto& w : watchers)
             co_await w->SendPacket(
                 static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), hp);
@@ -349,6 +357,80 @@ OnDefendReq(std::shared_ptr<tnetlib::AsioSession> sess,
         co_return;
     }
 
+    // Skill-data effects (Wave 4c): a cast whose skill carries SDT_CURE
+    // rows heals the TARGET of this defend report — the legacy Defend →
+    // PerformSkill path (TObjBase.cpp:3555) where the defender object is
+    // the heal recipient; a self-heal arrives with the caster as target.
+    // Faithful pieces: CalcValue over the rows against the target's
+    // max-HP/MP, the +0..15 % CureRoll variance, and the post-perform
+    // clamp to max (TObjBase.cpp:1038-1041). Divergence: a net-negative
+    // cure floors at 1 HP instead of reproducing the legacy DWORD
+    // underflow (which wrapped huge and clamped to max — a full-heal
+    // artifact content never relied on). Only PC targets are modelled;
+    // mon/recall cures, DOT/buff rows (SA_DOT/SA_BUFF), SDT_STATUS, and
+    // the CS_DEFEND_ACK relay stay with later waves — bars announce via
+    // CS_HPMP.
+    if (wSkillID != 0 && bTargetType == OtPc &&
+        ctx.skill_data_chart && ctx.skill_chart && ctx.char_state)
+    {
+        const auto& rows = ctx.skill_data_chart->ForSkill(wSkillID);
+        const auto  tmpl = ctx.skill_chart->Find(wSkillID);
+        if (!rows.empty() && tmpl)
+        {
+            // Client-sent skill rank, clamped to the template cap.
+            std::uint8_t lvl = bSkillLevel == 0 ? 1 : bSkillLevel;
+            if (tmpl->bMaxLevel > 0 && lvl > tmpl->bMaxLevel)
+                lvl = tmpl->bMaxLevel;
+
+            bool changed = false;
+            std::uint32_t nhp = 0, nmp = 0, nmax_hp = 0, nmax_mp = 0;
+            ctx.char_state->Update(dwTargetID, [&](CharSnapshot& cs)
+            {
+                if (cs.bDead)
+                    return;   // a cure is not a revival (SCT_REVIVAL later)
+
+                const int hp_add = skill_effect::CalcValue(
+                    rows, *tmpl, lvl, SDT_CURE, SCT_HP, cs.dwMaxHP);
+                const int mp_add = skill_effect::CalcValue(
+                    rows, *tmpl, lvl, SDT_CURE, SCT_MP, cs.dwMaxMP);
+                if (hp_add == 0 && mp_add == 0)
+                    return;
+
+                const int hp_new = static_cast<int>(cs.dwHP)
+                                 + skill_effect::CureRoll(hp_add, RandBelow);
+                const int mp_new = static_cast<int>(cs.dwMP)
+                                 + skill_effect::CureRoll(mp_add, RandBelow);
+                cs.dwHP = static_cast<std::uint32_t>(std::clamp(
+                    hp_new, 1, static_cast<int>(cs.dwMaxHP)));
+                cs.dwMP = static_cast<std::uint32_t>(std::clamp(
+                    mp_new, 0, static_cast<int>(cs.dwMaxMP)));
+                nhp = cs.dwHP; nmp = cs.dwMP;
+                nmax_hp = cs.dwMaxHP; nmax_mp = cs.dwMaxMP;
+                changed = true;
+            });
+
+            if (changed)
+            {
+                // Announce the target's new bars to everyone in view —
+                // channel from the target's presence entry, falling back
+                // to the request's channel field.
+                std::uint8_t ch = bChannel;
+                if (ctx.presence)
+                    if (const auto e = ctx.presence->FindEntry(dwTargetID))
+                        ch = e->channel;
+                const auto bars = EncodeHpMpAck(dwTargetID, OtPc,
+                                                nmax_hp, nhp, nmax_mp, nmp);
+                for (auto& w : WatchersOnChannel(ctx, ch))
+                    co_await w->SendPacket(
+                        static_cast<std::uint16_t>(
+                            tnetlib::protocol::MessageId::CS_HPMP_ACK), bars);
+                spdlog::info("defend: skill={} lvl={} cured char={} → "
+                             "{}/{} HP {}/{} MP",
+                    wSkillID, lvl, dwTargetID, nhp, nmax_hp, nmp, nmax_mp);
+            }
+        }
+    }
+
     // This wave resolves physical hits on monsters. PvP (OT_PC defender),
     // recall-mon / companion targets, and magic damage route through the
     // not-yet-ported PvP + skill subsystems.
@@ -405,27 +487,31 @@ OnRevivalReq(std::shared_ptr<tnetlib::AsioSession> sess,
     if (!cid)
         co_return;
 
-    // Only a dead char revives; restore HP and clear the death state
-    // (legacy CTPlayer::Revival). MP / max-MP restore rides the stat wave.
+    // Only a dead char revives; restore HP + MP and clear the death state.
+    // Full refill = the AFTERMATH_NONE branch of legacy CTPlayer::Revival
+    // (TPlayer.cpp:3735 — HP=maxHP, MP=maxMP); the 30/40 % ghost-walk /
+    // at-once aftermath variants ride a later wave.
     bool revived = false;
-    std::uint32_t max_hp = 0;
+    std::uint32_t max_hp = 0, max_mp = 0;
     ctx.char_state->Update(*cid, [&](CharSnapshot& s)
     {
         if (!s.bDead)
             return;
         s.bDead = 0;
         s.dwHP  = s.dwMaxHP;
+        s.dwMP  = s.dwMaxMP;
         s.fPosX = x;
         s.fPosY = y;
         s.fPosZ = z;
         max_hp  = s.dwMaxHP;
+        max_mp  = s.dwMaxMP;
         revived = true;
     });
     if (!revived)
         co_return;
 
     const auto rev = EncodeRevivalAck(*cid, x, y, z);
-    const auto hp  = EncodeHpMpAck(*cid, max_hp, max_hp, 0, 0);
+    const auto hp  = EncodeHpMpAck(*cid, OtPc, max_hp, max_hp, max_mp, max_mp);
 
     // The reviving player always gets the ack + refilled bar directly.
     co_await sess->SendPacket(

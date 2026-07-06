@@ -111,6 +111,11 @@ struct TnmtPlayer
     std::uint8_t  result[tournament::kMatchCount] = {};
 
     std::map<std::uint32_t, std::shared_ptr<TnmtPlayer>> party;
+
+    // Spectator-betting ledger (legacy m_mapBatting on TNMTPLAYER +
+    // m_dwSum): batter char id → the ticket count they staked.
+    std::map<std::uint32_t, std::uint32_t> batting;
+    std::uint32_t bet_sum = 0;
 };
 
 // (char_id, country, name, level, class) — the CTBLGetCharInfo row
@@ -468,6 +473,115 @@ public:
     // non-zero period (legacy b1St, TWorldSvr.cpp:1801)?
     bool CurrentHasFirstStep() const;
 
+    // ---- W6-53 match / result / betting engine --------------------
+
+    bool CurrentSelected() const;
+
+    // TournamentSelectPlayer (TWorldSvr.cpp:6033): per entry, seed
+    // the 1st-pool players + a weighted-by-level lottery over the
+    // normal pool into up to 8 bracket slots (TNMTMatch seeding
+    // order {0,6,4,2,3,5,7,1} with the rival-country preference on
+    // odd slots), then drop everyone unselected. Returns the
+    // fee-back paybacks the caller persists + mails (legacy
+    // SendDM_TOURNAMENTPAYBACK fan-out).
+    struct PaybackDue
+    {
+        std::uint32_t char_id  = 0;
+        std::uint32_t fee_back = 0;
+    };
+    std::vector<PaybackDue> SelectPlayers();
+
+    // MW_TOURNAMENTMATCH_REQ payload (SSSender.cpp:3560) + its
+    // TournamentMatch gate (step >= MATCH && entries known).
+    struct MatchBroadcastRow
+    {
+        std::uint8_t  entry_id = 0;
+        std::uint8_t  slot_id  = 0;
+        PlayerRosterRow row;                       // id..cls (+0 ranks)
+        std::uint32_t chief_id = 0;
+        std::uint8_t  result[tournament::kMatchCount] = {};
+    };
+    struct MatchBroadcast
+    {
+        bool ok = false;
+        std::vector<MatchBroadcastRow> rows;
+    };
+    MatchBroadcast MatchReply() const;
+
+    // The OnSM_TOURNAMENT_REQ MATCH-branch gate (SSHandler.cpp:11450):
+    // the first (MATCH, i<=group) step found must belong to `group`.
+    bool ShouldBroadcastMatch(std::uint8_t group) const;
+
+    // OnMW_TOURNAMENTRESULT_ACK state leg (SSHandler.cpp:11811):
+    // marks the win/lose sides' per-match results, collects the
+    // party-member id fan-out list, and — on a confirmed FINAL win —
+    // computes the batting payouts (integer-division rate quirk
+    // kept: rate = float(sum / bet_sum)).
+    struct BatPayout
+    {
+        std::uint32_t char_id = 0;
+        std::uint32_t amount  = 0;
+    };
+    struct ResultOutcome
+    {
+        bool relevant = false;      // step ∈ {QFINAL, SFINAL, FINAL}
+        std::vector<std::uint32_t> v_player;   // party members, both sides
+        std::vector<BatPayout>     payouts;    // FINAL win only
+    };
+    ResultOutcome ApplyResult(std::uint8_t step, std::uint8_t ret,
+                              std::uint32_t win_id,
+                              std::uint32_t lose_id);
+
+    // TNMTEnterGate (TWorldSvr.cpp:7039): clears the char's standing
+    // bets, then banks money/100 tickets when entering during
+    // step >= ENTER of a live tournament.
+    void EnterGate(std::uint32_t char_id, std::uint32_t money,
+                   bool enter);
+
+    // MW_TOURNAMENTEVENTLIST_REQ data (TWorldSvr.cpp:6724).
+    struct EventListRow
+    {
+        std::uint8_t  entry_id = 0;
+        std::string   name;
+        std::uint8_t  type     = 0;
+        std::string   batter_name;                     // "" = no bet
+        std::uint8_t  batter_country = tournament::kCountryN;
+        float         rate     = 0.f;
+        std::uint32_t amount   = 0;
+    };
+    struct EventListSnapshot
+    {
+        bool ok = false;            // entries exist && base != 0
+        std::uint8_t  base  = 0;
+        std::uint32_t sum   = 0;
+        std::uint8_t  entry_count = 0;   // group-filtered count
+        std::vector<EventListRow> rows;
+    };
+    EventListSnapshot EventListReply(std::uint32_t char_id) const;
+
+    // MW_TOURNAMENTEVENTINFO_REQ data (TWorldSvr.cpp:6768).
+    struct EventInfoPlayer
+    {
+        PlayerRosterRow row;
+        std::string     guild_name;
+        float           rate = 0.f;
+        std::vector<std::pair<PlayerRosterRow, std::string>> party;
+    };
+    struct EventInfoSnapshot
+    {
+        bool ok = false;   // entry + char ticket + CanDo(ENTER, group)
+        std::uint8_t  base = 0;
+        std::uint32_t sum  = 0;
+        std::vector<EventInfoPlayer> players;
+    };
+    EventInfoSnapshot EventInfoReply(std::uint32_t char_id,
+                                     std::uint8_t entry_id) const;
+
+    // TournamentEventJoin (TWorldSvr.cpp:6689): re-point the char's
+    // bet for that entry at `target_id`. False = silently gated.
+    bool EventJoin(std::uint32_t char_id, std::uint8_t entry_id,
+                   std::uint32_t target_id);
+
     // TET_PLAYERDEL (SSHandler.cpp:12233): name scan over the
     // registered players, gated on tid being current + the entry
     // existing. Returns the removed char id (caller persists).
@@ -573,6 +687,32 @@ private:
                                std::uint8_t group) const;
     std::uint8_t EntryOfLocked(std::uint32_t char_id) const;
     static PlayerRosterRow RosterOf(const TnmtPlayer& p);
+
+    // W6-53 locked helpers.
+    struct Batter
+    {
+        std::uint32_t ticket = 0;
+        // target char id → the bet-on player (legacy TCHARACTER::
+        // m_mapBatting holds LPTNMTPLAYER refs).
+        std::map<std::uint32_t, std::shared_ptr<TnmtPlayer>> targets;
+    };
+    using PlayerMap =
+        std::map<std::uint32_t, std::shared_ptr<TnmtPlayer>>;
+    void TnmtMatchLocked(
+        Entry& entry,
+        PlayerMap (&map_1st)[tournament::kCountryCount],
+        PlayerMap (&map_normal)[tournament::kCountryCount],
+        std::uint8_t total);
+    std::shared_ptr<TnmtPlayer>
+        FindBatterLocked(const Batter& batter,
+                         std::uint8_t entry_id) const;
+    void ResetBattingLocked(TnmtPlayer& target, std::uint32_t char_id,
+                            Batter& batter);
+    void GetBattingAmountLocked(const TnmtPlayer* target,
+                                std::uint32_t char_id, float& rate,
+                                std::uint32_t& amount) const;
+
+    std::map<std::uint32_t, Batter> batters_;
 
     mutable std::mutex m_lock;
 

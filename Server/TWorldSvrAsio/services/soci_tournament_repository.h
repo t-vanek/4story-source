@@ -46,6 +46,12 @@ public:
     void ClearPersisted() override;
     void SaveStatus(std::uint16_t id, std::uint8_t group,
                     std::uint8_t step) override;
+    std::optional<std::uint32_t> Payback(
+        std::uint32_t char_id, std::uint32_t gold,
+        std::uint32_t silver, std::uint32_t copper) override;
+    void SaveResult(std::uint8_t step, std::uint8_t ret,
+                    std::uint32_t win_id,
+                    std::uint32_t lose_id) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

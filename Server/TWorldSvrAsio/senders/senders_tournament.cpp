@@ -38,6 +38,82 @@ SendMwTournamentEnableReq(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
+SendMwTournamentMatchReq(
+    std::shared_ptr<PeerSession>                              peer,
+    const std::vector<TournamentRegistry::MatchBroadcastRow>& rows)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body,
+        static_cast<std::uint8_t>(rows.size()));
+    for (const auto& r : rows)
+    {
+        WritePOD<std::uint8_t>(body, r.entry_id);
+        WritePOD<std::uint8_t>(body, r.slot_id);
+        WritePOD<std::uint32_t>(body, r.row.char_id);
+        WritePOD<std::uint8_t>(body, r.row.country);
+        WriteString(body, r.row.name);
+        WritePOD<std::uint8_t>(body, r.row.level);
+        WritePOD<std::uint8_t>(body, r.row.cls);
+        WritePOD<std::uint32_t>(body, r.chief_id);
+        WritePOD<std::uint8_t>(body, r.result[0]);
+        WritePOD<std::uint8_t>(body, r.result[1]);
+        WritePOD<std::uint8_t>(body, r.result[2]);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_TOURNAMENTMATCH_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwTournamentResultReq(std::shared_ptr<PeerSession>       peer,
+                          std::uint16_t                      tournament_id,
+                          std::uint8_t                       step,
+                          std::uint8_t                       ret,
+                          std::uint32_t                      win_id,
+                          std::uint32_t                      lose_id,
+                          std::uint32_t                      blue_hide_tick,
+                          std::uint32_t                      red_hide_tick,
+                          const std::vector<std::uint32_t>&  party_members)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint16_t>(body, tournament_id);
+    WritePOD<std::uint8_t>(body, step);
+    WritePOD<std::uint8_t>(body, ret);
+    WritePOD<std::uint32_t>(body, win_id);
+    WritePOD<std::uint32_t>(body, lose_id);
+    WritePOD<std::uint32_t>(body, blue_hide_tick);
+    WritePOD<std::uint32_t>(body, red_hide_tick);
+    WritePOD<std::uint8_t>(body,
+        static_cast<std::uint8_t>(party_members.size()));
+    for (const std::uint32_t id : party_members)
+        WritePOD<std::uint32_t>(body, id);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_TOURNAMENTRESULT_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwTournamentBatPointReq(std::shared_ptr<PeerSession> peer,
+                            std::uint32_t                char_id,
+                            const std::string&           name,
+                            std::uint32_t                amount)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WriteString(body, name);
+    WritePOD<std::uint32_t>(body, amount);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_TOURNAMENTBATPOINT_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwTournamentInfoReq(std::shared_ptr<PeerSession>            peer,
                         const TournamentRegistry::InfoSnapshot& info)
 {

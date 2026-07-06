@@ -87,6 +87,109 @@ void WriteEntryTail(std::vector<std::byte>& out,
     }
 }
 
+// Walk the peer registry for the map server with LOBYTE(wid) == msi
+// (same file-local helper shape as handlers_cashshop.cpp).
+std::shared_ptr<PeerSession>
+FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
+{
+    if (msi == 0 || !ctx.peers)
+        return nullptr;
+    for (auto& p : ctx.peers->Snapshot())
+        if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
+            return p;
+    return nullptr;
+}
+
+// TournamentMatch (TWorldSvr.cpp:6914): the full bracket roster to
+// one peer / every peer, gated inside MatchReply (step >= MATCH +
+// entries known).
+boost::asio::awaitable<void>
+BroadcastTournamentMatch(const HandlerContext&        ctx,
+                         std::shared_ptr<PeerSession> only)
+{
+    const auto match = ctx.tournaments->MatchReply();
+    if (!match.ok)
+        co_return;
+    if (only)
+        co_await senders::SendMwTournamentMatchReq(only, match.rows);
+    else if (ctx.peers)
+        for (auto& p : ctx.peers->Snapshot())
+            co_await senders::SendMwTournamentMatchReq(p, match.rows);
+    co_return;
+}
+
+// The SelectPlayer fee-back fan-out (collapsed
+// DM_TOURNAMENTPAYBACK_REQ/_ACK, SSHandler.cpp:11902): split the
+// refund via CalcMoney (MONEY_MULTIPLY = 1000), bank it through the
+// TTournamentPayback SP, then notify the char's main map with the
+// MW_POSTRECV mail. The operator name + title/message come from the
+// legacy server-message table — the same deferred gap as the W6-30
+// operator lines, so the NetString frames carry empty bodies.
+boost::asio::awaitable<void>
+RunTournamentPaybacks(
+    const HandlerContext&                                ctx,
+    const std::vector<TournamentRegistry::PaybackDue>&   dues)
+{
+    if (!ctx.tournament_repo)
+        co_return;
+    for (const auto& due : dues)
+    {
+        const std::uint32_t copper = due.fee_back % 1000;
+        const std::uint32_t silver = (due.fee_back / 1000) % 1000;
+        const std::uint32_t gold   = due.fee_back / 1000 / 1000;
+
+        const auto post_id = co_await fourstory::db::CoOffloadIf(
+            ctx.db_pool,
+            [repo = ctx.tournament_repo, due, gold, silver, copper]
+            { return repo->Payback(due.char_id, gold, silver,
+                  copper); });
+        if (!post_id || !*post_id)
+            continue;
+
+        // Mail only reaches online chars (legacy m_mapTCHAR gate).
+        if (!ctx.chars)
+            continue;
+        auto c = ctx.chars->Find(due.char_id);
+        if (!c)
+            continue;
+        std::string  name;
+        std::uint8_t msi = 0;
+        {
+            std::lock_guard lk(c->lock);
+            name = c->name;
+            msi  = c->main_server_id;
+        }
+        auto peer = FindMapPeer(ctx, msi);
+        if (!peer)
+            continue;
+
+        // Legacy body (SSHandler.cpp:11965): the BuildNetString
+        // "%04X%04X" framing with empty header + (deferred) body.
+        std::vector<std::byte> body;
+        wire::WritePOD<std::uint32_t>(body, *post_id);
+        wire::WritePOD<std::uint32_t>(body, 0);
+        wire::WriteString(body, std::string{});      // operator name
+        wire::WriteString(body, name);
+        wire::WriteString(body, "00000000");         // netstr title
+        wire::WriteString(body, "00000000");         // netstr message
+        wire::WritePOD<std::uint8_t>(body, 1);       // POST_PACKATE
+        wire::WritePOD<std::uint32_t>(body, gold);
+        wire::WritePOD<std::uint32_t>(body, silver);
+        wire::WritePOD<std::uint32_t>(body, copper);
+        wire::WritePOD<std::uint8_t>(body, 0);
+        co_await senders::SendMwPostRecvReq(peer, body);
+    }
+    co_return;
+}
+
+boost::asio::awaitable<void>
+RunSelectAndPaybacks(const HandlerContext& ctx)
+{
+    const auto dues = ctx.tournaments->SelectPlayers();
+    co_await RunTournamentPaybacks(ctx, dues);
+    co_return;
+}
+
 // ---- ctrl-svr echo -------------------------------------------------
 
 boost::asio::awaitable<void>
@@ -114,15 +217,18 @@ BroadcastTournamentInfo(const HandlerContext&        ctx,
         co_return;
     const auto info = ctx.tournaments->Info();
     if (only)
+    {
         co_await senders::SendMwTournamentInfoReq(only, info);
+        // Legacy asymmetry (TWorldSvr.cpp:6898-6911): the
+        // single-peer TournamentInfo re-fires TournamentMatch()
+        // with its default NULL — a broadcast to EVERY map — while
+        // the broadcast branch sends no match packets at all.
+        if (info.step >= tnmt::kStepMatch)
+            co_await BroadcastTournamentMatch(ctx, nullptr);
+    }
     else if (ctx.peers)
         for (auto& p : ctx.peers->Snapshot())
             co_await senders::SendMwTournamentInfoReq(p, info);
-    // Legacy also re-fires TournamentMatch() when step >= MATCH —
-    // the match engine is a later slice.
-    if (info.step >= tnmt::kStepMatch)
-        spdlog::debug("tournament: TournamentMatch() fan-out "
-                      "deferred (step={})", info.step);
     co_return;
 }
 
@@ -672,12 +778,12 @@ OnCtTournamentEventReq(std::shared_ptr<PeerSession> peer,
     }
     case tnmt::kTetPlayerEnd:
     {
-        // TournamentSelectPlayer / TournamentMatch triggers are the
-        // match-engine slice; the ack ships now.
+        // SSHandler.cpp:12266: unconditional re-select past the
+        // PARTY step + a roster re-assert past MATCH.
         if (ctx.tournaments->CurrentStep() >= tnmt::kStepParty)
-            spdlog::info("OnCtTournamentEventReq[{}]: TET_PLAYEREND "
-                         "select/match triggers deferred (step={})",
-                ip, ctx.tournaments->CurrentStep());
+            co_await RunSelectAndPaybacks(ctx);
+        if (ctx.tournaments->CurrentStep() >= tnmt::kStepMatch)
+            co_await BroadcastTournamentMatch(ctx, nullptr);
         std::vector<std::byte> ack;
         wire::WritePOD<std::uint32_t>(ack, mgid);
         wire::WritePOD<std::uint8_t>(ack, type);
@@ -708,13 +814,14 @@ SmTournamentReqLogic(const HandlerContext& ctx, std::uint16_t id,
             co_await senders::SendMwTournamentEnableReq(p, group,
                 step, period, adv->next_step_start);
 
-    // Legacy follow-ups (TournamentSelectPlayer when !selected at
-    // PARTY/MATCH, TournamentMatch at MATCH) are the match-engine
-    // slice.
-    if (step == tnmt::kStepParty || step == tnmt::kStepMatch)
-        spdlog::info("tournament: step {} reached - select/match "
-                     "triggers deferred to the match-engine slice",
-            step);
+    // SSHandler.cpp:11446: seed the bracket once when the PARTY /
+    // MATCH step opens, then re-assert the roster at MATCH.
+    if (!ctx.tournaments->CurrentSelected() &&
+        (step == tnmt::kStepParty || step == tnmt::kStepMatch))
+        co_await RunSelectAndPaybacks(ctx);
+    if (step == tnmt::kStepMatch &&
+        ctx.tournaments->ShouldBroadcastMatch(group))
+        co_await BroadcastTournamentMatch(ctx, nullptr);
     co_return;
 }
 
@@ -1250,18 +1357,197 @@ OnMwTournamentAck(std::shared_ptr<PeerSession> peer,
         break;
     }
     case ToUint16(MessageId::MW_TOURNAMENTEVENTLIST_ACK):
-    case ToUint16(MessageId::MW_TOURNAMENTEVENTINFO_ACK):
-    case ToUint16(MessageId::MW_TOURNAMENTEVENTJOIN_ACK):
-        // The spectator-betting trio needs the ticket/batting model
-        // (TNMTEnterGate + GetBattingAmount) — the match/betting
-        // slice owns it.
-        spdlog::info("OnMwTournamentAck[{}]: betting op {:#06x} "
-                     "deferred to the match-engine slice", ip,
-            protocol);
+    {
+        // TournamentEventList (TWorldSvr.cpp:6724).
+        const auto snap = ctx.tournaments->EventListReply(ch.char_id);
+        if (!snap.ok)
+            co_return;
+        auto out = TnmtHead(ch.char_id, ch.key,
+            ToUint16(MessageId::MW_TOURNAMENTEVENTLIST_REQ));
+        wire::WritePOD<std::uint8_t>(out, snap.base);
+        wire::WritePOD<std::uint32_t>(out, snap.sum);
+        wire::WritePOD<std::uint8_t>(out, snap.entry_count);
+        for (const auto& row : snap.rows)
+        {
+            wire::WritePOD<std::uint8_t>(out, row.entry_id);
+            wire::WriteString(out, row.name);
+            wire::WritePOD<std::uint8_t>(out, row.type);
+            wire::WriteString(out, row.batter_name);
+            wire::WritePOD<std::uint8_t>(out, row.batter_country);
+            wire::WritePOD<float>(out, row.rate);
+            wire::WritePOD<std::uint32_t>(out, row.amount);
+        }
+        co_await senders::SendMwTournamentReq(peer, std::move(out));
         break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTEVENTINFO_ACK):
+    {
+        // TournamentEventInfo (TWorldSvr.cpp:6768).
+        std::uint8_t entry_id = 0;
+        if (!r.Read(entry_id))
+            co_return;
+        const auto snap = ctx.tournaments->EventInfoReply(ch.char_id,
+            entry_id);
+        if (!snap.ok)
+            co_return;
+        auto out = TnmtHead(ch.char_id, ch.key,
+            ToUint16(MessageId::MW_TOURNAMENTEVENTINFO_REQ));
+        wire::WritePOD<std::uint8_t>(out, entry_id);
+        wire::WritePOD<std::uint8_t>(out, snap.base);
+        wire::WritePOD<std::uint32_t>(out, snap.sum);
+        wire::WritePOD<std::uint8_t>(out,
+            static_cast<std::uint8_t>(snap.players.size()));
+        for (const auto& pl : snap.players)
+        {
+            wire::WritePOD<std::uint32_t>(out, pl.row.char_id);
+            wire::WritePOD<std::uint8_t>(out, pl.row.country);
+            wire::WriteString(out, pl.guild_name);
+            wire::WriteString(out, pl.row.name);
+            wire::WritePOD<std::uint8_t>(out, pl.row.level);
+            wire::WritePOD<std::uint8_t>(out, pl.row.cls);
+            wire::WritePOD<std::uint32_t>(out, pl.row.rank);
+            wire::WritePOD<std::uint32_t>(out, pl.row.month_rank);
+            wire::WritePOD<float>(out, pl.rate);
+            wire::WritePOD<std::uint8_t>(out,
+                static_cast<std::uint8_t>(pl.party.size()));
+            for (const auto& [m, guild] : pl.party)
+            {
+                wire::WritePOD<std::uint32_t>(out, m.char_id);
+                wire::WritePOD<std::uint8_t>(out, m.country);
+                wire::WriteString(out, guild);
+                wire::WriteString(out, m.name);
+                wire::WritePOD<std::uint8_t>(out, m.level);
+                wire::WritePOD<std::uint8_t>(out, m.cls);
+                wire::WritePOD<std::uint32_t>(out, m.rank);
+                wire::WritePOD<std::uint32_t>(out, m.month_rank);
+            }
+        }
+        co_await senders::SendMwTournamentReq(peer, std::move(out));
+        break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTEVENTJOIN_ACK):
+    {
+        // TournamentEventJoin (TWorldSvr.cpp:6689).
+        std::uint8_t  entry_id  = 0;
+        std::uint32_t target_id = 0;
+        if (!r.Read(entry_id) || !r.Read(target_id))
+            co_return;
+        if (!ctx.tournaments->EventJoin(ch.char_id, entry_id,
+                target_id))
+            co_return;                       // legacy silent gates
+        co_await SendTnmtResult(peer, ch.char_id, ch.key,
+            ToUint16(MessageId::MW_TOURNAMENTEVENTJOIN_REQ),
+            tnmt::kResultSuccess);
+        break;
+    }
     default:
         break;
     }
+    co_return;
+}
+
+// ---- MW_TOURNAMENTRESULT_ACK (SSHandler.cpp:11811) -----------------
+
+boost::asio::awaitable<void>
+OnMwTournamentResultAck(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.tournaments)
+    {
+        spdlog::warn("OnMwTournamentResultAck[{}]: tournaments not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  step = 0, ret = 0;
+    std::uint32_t win_id = 0, lose_id = 0;
+    std::uint32_t blue_tick = 0, red_tick = 0;
+    if (!r.Read(step) || !r.Read(ret) || !r.Read(win_id) ||
+        !r.Read(lose_id) || !r.Read(blue_tick) || !r.Read(red_tick))
+    {
+        spdlog::warn("OnMwTournamentResultAck[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    const auto out = ctx.tournaments->ApplyResult(step, ret, win_id,
+        lose_id);
+    if (!out.relevant)
+        co_return;
+
+    if (ctx.peers)
+        for (auto& p : ctx.peers->Snapshot())
+            co_await senders::SendMwTournamentResultReq(p,
+                ctx.tournaments->CurrentId(), step, ret, win_id,
+                lose_id, blue_tick, red_tick, out.v_player);
+
+    // FINAL-win batting payouts route to each online batter's main
+    // map (SSHandler.cpp:11870).
+    for (const auto& payout : out.payouts)
+    {
+        if (!payout.amount || !ctx.chars)
+            continue;
+        auto c = ctx.chars->Find(payout.char_id);
+        if (!c)
+            continue;
+        std::string  name;
+        std::uint8_t msi = 0;
+        {
+            std::lock_guard lk(c->lock);
+            name = c->name;
+            msi  = c->main_server_id;
+        }
+        if (auto p = FindMapPeer(ctx, msi))
+            co_await senders::SendMwTournamentBatPointReq(p,
+                payout.char_id, name, payout.amount);
+    }
+
+    // Collapsed DM_TOURNAMENTRESULT_REQ (SSHandler.cpp:11986).
+    if (ctx.tournament_repo)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.tournament_repo, step, ret, win_id, lose_id]
+            { repo->SaveResult(step, ret, win_id, lose_id); });
+    co_return;
+}
+
+// ---- MW_TOURNAMENTENTERGATE_ACK (SSHandler.cpp:11789) --------------
+
+boost::asio::awaitable<void>
+OnMwTournamentEnterGateAck(std::shared_ptr<PeerSession> peer,
+                           std::vector<std::byte>       body,
+                           const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.tournaments || !ctx.chars)
+    {
+        spdlog::warn("OnMwTournamentEnterGateAck[{}]: tournaments/"
+                     "chars not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, money = 0;
+    std::uint8_t  enter = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(money) ||
+        !r.Read(enter))
+    {
+        spdlog::warn("OnMwTournamentEnterGateAck[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c)
+        co_return;
+    {
+        std::lock_guard lk(c->lock);
+        if (c->key != key)
+            co_return;
+    }
+    ctx.tournaments->EnterGate(char_id, money, enter != 0);
     co_return;
 }
 

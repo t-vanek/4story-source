@@ -294,6 +294,13 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                      "won't persist the mid-flight step (boot resume "
                      "degrades).");
     }
+    for (const char* rn : {"TTournamentPayback", "TTournamentResult"})
+    {
+        if (!routine_exists(rn))
+            spdlog::warn("schema_validator (world): {} SP not deployed "
+                         "- the tournament match engine (W6-53) will "
+                         "skip that persist.", rn);
+    }
 }
 
 } // namespace tworldsvr::db

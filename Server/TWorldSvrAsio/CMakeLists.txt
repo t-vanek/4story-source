@@ -771,6 +771,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
 
+# W6-53 wire test: tournament match/result/betting - bracket select
+# + rival-country seeding, fee-back payback mail, EnterGate tickets,
+# the betting trio, FINAL result marks + BATPOINT payout.
+add_executable(test_tworldsvr_asio_tournament_match_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_tournament_match_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_tournament_match_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tournament_match_handlers
+    COMMAND test_tworldsvr_asio_tournament_match_handlers)
+
 # W6-52 wire test: tournament player vertical - MW_TOURNAMENT_ACK
 # 8-op switch, apply gate chain, party management incl. the offline
 # DB lookup, class-filtered reward blocks, boot player reload.

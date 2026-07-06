@@ -2974,6 +2974,31 @@ boost::asio::awaitable<void> OnMwTournamentAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-53: tournament match/result/betting (handlers_tournament.cpp)
+//
+// MW_TOURNAMENTRESULT_ACK — a map reports a finished bracket match
+// (legacy SSHandler.cpp:11811): mark both sides' per-match results,
+// fan MW_TOURNAMENTRESULT_REQ (incl. the party-member id list) to
+// every map, pay the winning bets on a confirmed FINAL
+// (MW_TOURNAMENTBATPOINT_REQ to each online batter's main map), and
+// persist through the collapsed DM_TOURNAMENTRESULT leg.
+//   Wire: BYTE step, BYTE ret, DWORD win, DWORD lose,
+//         DWORD blue_hide_tick, DWORD red_hide_tick
+boost::asio::awaitable<void> OnMwTournamentResultAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// MW_TOURNAMENTENTERGATE_ACK — a char walks through the tournament
+// gate (legacy SSHandler.cpp:11789 → TNMTEnterGate): standing bets
+// reset, then money/100 (TOURNAMENT_BASEPRIZE) tickets bank when
+// entering during step >= ENTER of a live tournament.
+//   Wire: DWORD char_id, DWORD key, DWORD money, BYTE enter
+boost::asio::awaitable<void> OnMwTournamentEnterGateAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
 // count==0 ROUTE branch (or when world otherwise asked for a CHARDATA
 // round-trip). World refreshes the char's level + HP/MP from the

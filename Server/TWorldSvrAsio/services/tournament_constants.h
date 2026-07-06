@@ -60,9 +60,10 @@ constexpr std::uint8_t kTournamentBasePrize = 100;  // TOURNAMENT_BASEPRIZE
 
 // TET_PLAYERADD error-echo fillers (SSHandler.cpp:12204-12205 /
 // 12607-12610): TCLASS_COUNT / TCONTRY_N from NetCode.h:1091+.
-constexpr std::uint8_t kClassCount = 6;   // TCLASS_COUNT
-constexpr std::uint8_t kCountryB   = 2;   // TCONTRY_B (last playable)
-constexpr std::uint8_t kCountryN   = 3;   // TCONTRY_N
+constexpr std::uint8_t kClassCount   = 6;   // TCLASS_COUNT
+constexpr std::uint8_t kCountryB     = 2;   // TCONTRY_B (last playable)
+constexpr std::uint8_t kCountryN     = 3;   // TCONTRY_N
+constexpr std::uint8_t kCountryCount = 5;   // TCONTRY_COUNT
 
 // TOURNAMENT_RESULT (NetCode.h:2530 region, values confirmed at
 // NetCode.h:830-843).

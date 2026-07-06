@@ -367,6 +367,9 @@ int main()
         RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
+    // W6-53: every joining map replays the current tournament info.
+    { auto [w, _] = ReadFramed(p1);
+      EXPECT(w == ToUint16(MessageId::MW_TOURNAMENTINFO_REQ)); }
     SendFramed(pc, ToUint16(MessageId::CT_CTRLSVR_REQ), {});
     std::this_thread::sleep_for(20ms);
     EXPECT(ctrl_svr.Get() != nullptr);

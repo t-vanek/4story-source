@@ -555,6 +555,59 @@ void SociTournamentRepository::ClearPersisted()
     }
 }
 
+std::optional<std::uint32_t> SociTournamentRepository::Payback(
+    std::uint32_t char_id, std::uint32_t gold, std::uint32_t silver,
+    std::uint32_t copper)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        // CSPTournamentPayback (DBAccess.h:2674): OUT post id first.
+        soci::rowset<soci::row> rs = (lease->prepare <<
+            "DECLARE @pid INT; EXEC dbo.TTournamentPayback "
+            "@pid OUTPUT, " +
+            std::to_string(static_cast<long long>(char_id)) + ", " +
+            std::to_string(static_cast<long long>(gold)) + ", " +
+            std::to_string(static_cast<long long>(silver)) + ", " +
+            std::to_string(static_cast<long long>(copper)) +
+            "; SELECT @pid;");
+        for (const auto& row : rs)
+        {
+            if (row.get_indicator(0) == soci::i_ok)
+                return Num<std::uint32_t>(row, 0);
+            break;
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociTournamentRepository::Payback(char={}) "
+                      "failed: {}", char_id, ex.what());
+    }
+    return std::nullopt;
+}
+
+void SociTournamentRepository::SaveResult(std::uint8_t step,
+                                          std::uint8_t ret,
+                                          std::uint32_t win_id,
+                                          std::uint32_t lose_id)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        // CSPTournamentResult (DBAccess.h:2694).
+        *lease << "EXEC dbo.TTournamentResult " +
+            std::to_string(static_cast<int>(step)) + ", " +
+            std::to_string(static_cast<int>(ret)) + ", " +
+            std::to_string(static_cast<long long>(win_id)) + ", " +
+            std::to_string(static_cast<long long>(lose_id));
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociTournamentRepository::SaveResult failed: "
+                      "{}", ex.what());
+    }
+}
+
 void SociTournamentRepository::SaveStatus(std::uint16_t id,
                                           std::uint8_t group,
                                           std::uint8_t step)

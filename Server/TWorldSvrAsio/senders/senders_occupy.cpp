@@ -250,4 +250,46 @@ SendCtCastleGuildChgAck(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwCastleWarInfoReq(std::shared_ptr<PeerSession>     peer,
+                       const CastleWarBroadcastRow&     row)
+{
+    using namespace wire;
+    const auto& c = row.info;
+    std::vector<std::byte> body;
+    WritePOD<std::uint16_t>(body, c.id);
+    WritePOD<std::uint32_t>(body, row.def_id);
+    WriteString(body, row.def_name);
+    WritePOD<std::uint8_t>(body, c.def_country);
+    WritePOD<std::uint16_t>(body, c.country_point[0]);
+    WritePOD<std::uint32_t>(body, row.atk_id);
+    WriteString(body, row.atk_name);
+    WritePOD<std::uint16_t>(body, c.country_point[1]);
+    WritePOD<std::uint32_t>(body,
+        static_cast<std::uint32_t>(c.guild_points.size()));
+    for (const auto& [gid, points] : c.guild_points)
+    {
+        WritePOD<std::uint32_t>(body, gid);
+        WritePOD<std::uint32_t>(body, points);
+    }
+    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(
+        c.top3[0].size() + c.top3[1].size()));
+    for (const auto& [rank, entry] : c.top3[0])
+    {
+        WritePOD<std::uint8_t>(body, 0);
+        WriteString(body, entry.name);
+        WritePOD<std::uint16_t>(body, entry.point);
+    }
+    for (const auto& [rank, entry] : c.top3[1])
+    {
+        WritePOD<std::uint8_t>(body, 1);
+        WriteString(body, entry.name);
+        WritePOD<std::uint16_t>(body, entry.point);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CASTLEWARINFO_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

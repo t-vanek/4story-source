@@ -83,6 +83,13 @@ AppConfig LoadConfig(const std::string& path)
             cfg.war_index_refresh_period_sec =
                 static_cast<std::uint32_t>(*wi);
         }
+        if (auto cw = (*srv)["castle_war_day"].value<std::int64_t>())
+        {
+            if (*cw < 1 || *cw > 7)
+                throw std::runtime_error(
+                    "server.castle_war_day out of range (1..7)");
+            cfg.castle_war_day = static_cast<std::uint8_t>(*cw);
+        }
     }
     if (auto db = tbl["database"].as_table())
     {

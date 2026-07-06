@@ -39,6 +39,7 @@
 #include "../services/month_rank_repository.h"
 #include "../services/war_country_index.h"
 #include "../services/war_ops_repository.h"
+#include "../services/castle_war_registry.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -166,6 +167,13 @@ struct HandlerContext
     // (TACTIVECHARTABLE load, TSaveCastleApplicant).
     WarCountryIndex*          war_index = nullptr;
     IWarOpsRepository*        war_ops   = nullptr;
+
+    // W6-44: castle-war occupation scoreboard + attacker/defender
+    // election engine (legacy m_mapCastleWarInfo). castle_war_day =
+    // m_battletime[BT_CASTLE].m_bDay (drives the occupation
+    // tiebreaker; the full battle-time chart is future work).
+    CastleWarRegistry*        castle_war = nullptr;
+    std::uint8_t              castle_war_day = 7;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1798,6 +1806,23 @@ boost::asio::awaitable<void> OnCtCtrlsvrReq(
 //
 //   Wire (SSHandler.cpp:10559): DWORD dw_index, WORD value, BYTE ret
 boost::asio::awaitable<void> OnMwCashItemSaleAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-44: castle-war info engine (handlers_occupy.cpp) -----------
+//
+// MW_CASTLEWARINFO_ACK (SSHandler.cpp:9579). castle==0 -> replay the
+// current scoreboard to the asking map only. Otherwise parse the
+// occupation report (per local 6 slots of (guild, occupy_type);
+// DEFEND=11 / ACCEPT=10 bonus; unknown guilds skipped; ACCEPT slots
+// also feed the per-slot occupation history), Store, run the full
+// recompute (country points, per-country top-3 with occupation +
+// guild-rank tiebreakers, defender election with recursive
+// cross-castle stealing, cross-castle defender exclusion, attacker
+// election) and broadcast MW_CASTLEWARINFO_REQ per castle to every
+// map.
+boost::asio::awaitable<void> OnMwCastleWarInfoAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

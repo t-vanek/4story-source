@@ -53,6 +53,12 @@ struct AppConfig
     // 0 disables the sweeper (tests drive the rollover by wire).
     std::uint32_t month_rollover_check_period_sec = 300;
 
+    // W6-44: weekday the castle war runs (1..7). Legacy reads
+    // m_battletime[BT_CASTLE].m_bDay from the battle-time chart;
+    // operators set this to match until the chart loader ports.
+    // Drives the castle-war occupation tiebreaker only.
+    std::uint8_t  castle_war_day = 7;
+
     // W6-43: TACTIVECHARTABLE -> WarCountryIndex refresh cadence
     // (legacy re-derives on the day-change tick). 0 disables.
     std::uint32_t war_index_refresh_period_sec = 3600;

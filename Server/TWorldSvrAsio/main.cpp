@@ -226,6 +226,7 @@ int main(int argc, char** argv)
         tworldsvr::CtrlSvrSlot          ctrl_svr;
         tworldsvr::MonthRankRegistry    month_rank;
         tworldsvr::WarCountryIndex      war_index;
+        tworldsvr::CastleWarRegistry    castle_war;
         {
             // Legacy TWorldSvr.cpp:1894 - the rank month boots from
             // the local clock; the table itself starts empty and
@@ -292,6 +293,8 @@ int main(int argc, char** argv)
         ctx.month_rank_repo = month_rank_repo.get();
         ctx.war_index       = &war_index;
         ctx.war_ops         = war_ops_repo.get();
+        ctx.castle_war      = &castle_war;
+        ctx.castle_war_day  = cfg.castle_war_day;
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;
 

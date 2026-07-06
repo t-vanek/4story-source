@@ -190,7 +190,8 @@ int main()
 
         // chg_main_id records the old main (0x42).
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        // 10 s window — 2 s flaked under full-suite parallel load.
+        for (int i = 0; i < 1000; ++i)
         {
             auto c = chars.Find(100);
             std::lock_guard g(c->lock);

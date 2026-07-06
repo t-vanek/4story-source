@@ -30,6 +30,10 @@ namespace tworldsvr {
 
 inline constexpr std::size_t kMonthRankCountryCount = 3;  // COUNTRY_COUNT
 inline constexpr std::size_t kMonthRankCount        = 33; // MONTHRANKCOUNT
+inline constexpr std::size_t kFameRankCount         = 9;  // FAMERANKCOUNT
+inline constexpr std::size_t kFirstGradeGroupCount  = 17; // FIRSTGRADEGROUPCOUNT
+inline constexpr std::size_t kTotalMonthRankCount   =
+    kFirstGradeGroupCount * kMonthRankCountryCount;       // 51
 
 // One ranked character (legacy MONTHRANKER, TWorldType.h:935).
 // Field order here == WrapPacketIn/Out wire order.
@@ -99,11 +103,41 @@ public:
     // Test / W6-42 helper: read one slot.
     MonthRanker Get(std::uint8_t country, std::uint8_t rank) const;
 
+    // --- W6-42 month-rollover state -------------------------------
+
+    using Table =
+        std::array<std::array<MonthRanker, kMonthRankCount>,
+                   kMonthRankCountryCount>;
+    using FameRank  = std::array<MonthRanker, kFameRankCount>;
+    using FirstGrade =
+        std::array<std::array<MonthRanker, kFirstGradeGroupCount>,
+                   kMonthRankCountryCount>;
+
+    // Full-table copy for the SM_MONTHRANKSAVE computation.
+    Table SnapshotTable() const;
+
+    // m_arLastFameRank (fed by the rollover; [0] refreshed from the
+    // TInitMonthPvPoint new-top result).
+    FameRank LastFameRank() const;
+    void SetLastFameRank(const FameRank& fame);
+
+    // m_arFirstGradeGroup — the frozen previous-month top-17 per
+    // country, broadcast as MW_FIRSTGRADEGROUP_REQ.
+    FirstGrade FirstGradeGroup() const;
+    void SetFirstGradeGroup(const FirstGrade& group);
+
+    // Legacy MonthRankReset (TWorldSvr.cpp:5598) + month advance:
+    // slots 1..32 reset, **slot 0 (warlord) survives**; month wraps
+    // 12 -> 1 (legacy `if(m_bRankMonth > 12) -= 12`).
+    void ResetForNewMonth();
+
 private:
     mutable std::mutex m_mtx;
     std::uint8_t       m_rank_month = 0;
     std::array<std::array<MonthRanker, kMonthRankCount>,
                kMonthRankCountryCount> m_table{};
+    FameRank           m_last_fame{};
+    FirstGrade         m_first_grade{};
 };
 
 } // namespace tworldsvr

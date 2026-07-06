@@ -38,6 +38,7 @@
 #include "services/soci_item_state_repository.h"
 #include "services/soci_cash_sale_repository.h"
 #include "services/soci_service_ops_repository.h"
+#include "services/soci_month_rank_repository.h"
 #include "world_server.h"
 
 #include "fourstory/db/session_pool.h"
@@ -135,6 +136,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IItemStateRepository> item_state_repo;
         std::unique_ptr<tworldsvr::ICashSaleRepository>  cash_sale_repo;
         std::unique_ptr<tworldsvr::IServiceOpsRepository> service_ops_repo;
+        std::unique_ptr<tworldsvr::IMonthRankRepository> month_rank_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -180,6 +182,9 @@ int main(int argc, char** argv)
                     *db_pool_owner);
             service_ops_repo =
                 std::make_unique<tworldsvr::SociServiceOpsRepository>(
+                    *db_pool_owner);
+            month_rank_repo =
+                std::make_unique<tworldsvr::SociMonthRankRepository>(
                     *db_pool_owner);
         }
         else
@@ -277,6 +282,7 @@ int main(int argc, char** argv)
         ctx.cash_sale_repo  = cash_sale_repo.get();
         ctx.service_ops     = service_ops_repo.get();
         ctx.month_rank      = &month_rank;
+        ctx.month_rank_repo = month_rank_repo.get();
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;
 
@@ -330,6 +336,36 @@ int main(int argc, char** argv)
             spdlog::info("wanted-board expiry sweep enabled "
                          "(period={}s)",
                 cfg.wanted_sweep_period_sec);
+        }
+
+        // W6-42: month-boundary rollover check (legacy world timer,
+        // TWorldSvr.cpp:4065 - posts SM_MONTHRANKSAVE to itself when
+        // the local month leaves m_bRankMonth). period_sec=0 disables.
+        std::shared_ptr<fourstory::ops::RegistryRefresher> month_sweeper;
+        if (cfg.month_rollover_check_period_sec != 0)
+        {
+            month_sweeper = fourstory::ops::RegistryRefresher::Make(
+                io, std::chrono::seconds(
+                        cfg.month_rollover_check_period_sec));
+            month_sweeper->AddCoroutineHook(
+                [ctx]() -> boost::asio::awaitable<void> {
+                    std::time_t now = std::time(nullptr);
+                    std::tm     lt{};
+#ifdef _WIN32
+                    localtime_s(&lt, &now);
+#else
+                    localtime_r(&now, &lt);
+#endif
+                    const auto cur =
+                        static_cast<std::uint8_t>(lt.tm_mon + 1);
+                    if (ctx.month_rank &&
+                        cur != ctx.month_rank->RankMonth())
+                        co_await tworldsvr::handlers::
+                            RunMonthRankRollover(ctx);
+                });
+            month_sweeper->Start();
+            spdlog::info("month-rollover check enabled (period={}s)",
+                cfg.month_rollover_check_period_sec);
         }
 
         // W3a-36: periodic tactics-contract expiry sweep. Ends

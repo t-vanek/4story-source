@@ -48,6 +48,11 @@ struct AppConfig
     // map's TCURRENTUSER rows (TClearMapCurrentUser SP).
     std::uint8_t  group_id = 0;
 
+    // W6-42: how often to compare the local month against the
+    // MonthRank registry month (legacy checks every timer tick).
+    // 0 disables the sweeper (tests drive the rollover by wire).
+    std::uint32_t month_rollover_check_period_sec = 300;
+
     DbConfig      database;
 
     // Health endpoint shape mirrors the four shipped Asio daemons.

@@ -116,4 +116,41 @@ SendMwWarLordSayReq(std::shared_ptr<PeerSession>   peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwMonthRankResetReq(std::shared_ptr<PeerSession>          peer,
+                        std::uint8_t                          rank_month,
+                        const MonthRankRegistry::FameRank&    fame)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, rank_month);
+    WritePOD<std::uint8_t>(body,
+        static_cast<std::uint8_t>(kFameRankCount));
+    for (const auto& ranker : fame)
+        WriteMonthRanker(body, ranker);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_MONTHRANKRESET_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwFirstGradeGroupReq(std::shared_ptr<PeerSession>          peer,
+                         std::uint8_t                          rank_month,
+                         const MonthRankRegistry::FirstGrade&  group)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, rank_month);
+    WritePOD<std::uint8_t>(body,
+        static_cast<std::uint8_t>(kFirstGradeGroupCount));
+    for (const auto& row : group)
+        for (const auto& ranker : row)
+            WriteMonthRanker(body, ranker);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_FIRSTGRADEGROUP_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

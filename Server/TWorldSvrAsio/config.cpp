@@ -67,6 +67,14 @@ AppConfig LoadConfig(const std::string& path)
                 throw std::runtime_error("server.group_id out of range (0..255)");
             cfg.group_id = static_cast<std::uint8_t>(*g);
         }
+        if (auto mr = (*srv)["month_rollover_check_period_sec"].value<std::int64_t>())
+        {
+            if (*mr < 0 || *mr > 86400)
+                throw std::runtime_error(
+                    "server.month_rollover_check_period_sec out of range");
+            cfg.month_rollover_check_period_sec =
+                static_cast<std::uint32_t>(*mr);
+        }
     }
     if (auto db = tbl["database"].as_table())
     {

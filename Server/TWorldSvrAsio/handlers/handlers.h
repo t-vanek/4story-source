@@ -43,6 +43,8 @@
 #include "../services/cmgift_registry.h"
 #include "../services/cmgift_repository.h"
 #include "../services/lucky_event_repository.h"
+#include "../services/event_quarter_scheduler.h"
+#include "../services/expired_buffer.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -186,6 +188,11 @@ struct HandlerContext
     // W6-46: EVENTQUARTER ("lucky event") operator tools —
     // TEVENTQUARTERCHART listing + the TEventQuarterUpdate editor.
     ILuckyEventRepository*    lucky_repo = nullptr;
+
+    // W6-48: the lucky-event runtime scheduler (legacy m_mapEVQT)
+    // and the event-expiry queue (legacy m_vExpired).
+    EventQuarterScheduler*    evqt    = nullptr;
+    ExpiredBuffer*            expired = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1818,6 +1825,38 @@ boost::asio::awaitable<void> OnCtCtrlsvrReq(
 //
 //   Wire (SSHandler.cpp:10559): DWORD dw_index, WORD value, BYTE ret
 boost::asio::awaitable<void> OnMwCashItemSaleAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-48: lucky-event runtime + expiry queue (handlers_event.cpp)
+//
+// RunEventQuarterTick - the CheckEventQuarter port (TWorldSvr.cpp:
+// 7800): five minutes before the head entry's slot the announce
+// line broadcasts once (world-chat, same path as
+// SM_EVENTQUARTERNOTIFY_REQ); at the slot the present handout
+// broadcasts (same path as SM_EVENTQUARTER_REQ) and the entry
+// reschedules a week ahead. Driven by an event_quarter sweeper.
+//
+// SM_EVENTEXPIRED_REQ - (BYTE insert, BYTE type, INT64 time,
+// DWORD v1, DWORD v2): maintain the sorted expiry queue (legacy
+// remove-miss-inserts quirk kept). SM_EVENTEXPIRED_ACK - dispatch
+// one expiry NOW: EXPIRED_GMW -> wanted-board delete (+ repo),
+// EXPIRED_GTW -> tactics-wanted delete (registry only - the DB
+// table is the deferred guild-extras item), EXPIRED_GT -> targeted
+// tactics-contract end. A sweeper pops due entries through the same
+// dispatch (legacy CheckEventExpired -> self-posted ACK).
+boost::asio::awaitable<void> RunEventQuarterTick(
+    const HandlerContext& ctx);
+boost::asio::awaitable<void> DispatchExpiredEntry(
+    const HandlerContext& ctx, const ExpiredEntry& entry);
+boost::asio::awaitable<void> RunExpiredSweep(
+    const HandlerContext& ctx);
+boost::asio::awaitable<void> OnSmEventExpiredReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnSmEventExpiredAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

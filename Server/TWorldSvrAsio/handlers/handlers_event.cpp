@@ -12,6 +12,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
+#include <ctime>
 #include <random>
 #include <cstdlib>
 #include <string>
@@ -451,6 +452,28 @@ OnCtEventQuarterUpdateReq(std::shared_ptr<PeerSession> peer,
     {
         ret  = res->ret;
         echo = res->event;
+
+        // W6-48: mirror the successful edit into the running
+        // scheduler (legacy OnDM_EVENTQUARTERUPDATE_ACK m_mapEVQT
+        // maintenance).
+        if (ctx.evqt)
+        {
+            const auto now =
+                static_cast<std::int64_t>(std::time(nullptr));
+            EventQuarterEntry entry{};
+            entry.id = echo.id;
+            entry.day = echo.day;
+            entry.hour = echo.hour;
+            entry.minute = echo.minute;
+            entry.present = echo.present;
+            entry.announce = echo.announce;
+            if (type == kEkDel)
+                ctx.evqt->ApplyDel(echo.id);
+            else if (type == kEkAdd)
+                ctx.evqt->ApplyAdd(entry, now);
+            else if (type == kEkUpdate)
+                ctx.evqt->ApplyUpdate(entry, now);
+        }
     }
     if (auto cs = ctx.ctrl_svr->Get())
         co_await senders::SendCtEventQuarterUpdateAck(cs, ret, manager,
@@ -458,6 +481,177 @@ OnCtEventQuarterUpdateReq(std::shared_ptr<PeerSession> peer,
     else
         spdlog::info("OnCtEventQuarterUpdateReq[{}]: ctrl-svr offline "
                      "- update ack dropped", ip);
+    co_return;
+}
+
+namespace {
+
+// Shared with OnEventQuarterReq: broadcast the present handout.
+boost::asio::awaitable<void>
+BroadcastEventQuarterPresent(const HandlerContext& ctx,
+                             std::uint8_t day, std::uint8_t hour,
+                             std::uint8_t minute,
+                             const std::string& present)
+{
+    if (!ctx.peers) co_return;
+    const std::uint8_t select =
+        static_cast<std::uint8_t>(std::rand() % 100);
+    for (auto& p : ctx.peers->Snapshot())
+        co_await senders::SendMwEventQuarterReq(p, day, hour, minute,
+            select, present);
+    co_return;
+}
+
+// Shared with OnEventQuarterNotifyReq: world-chat announce line.
+boost::asio::awaitable<void>
+BroadcastEventQuarterNotify(const HandlerContext& ctx,
+                            const std::string& announce)
+{
+    if (!ctx.peers) co_return;
+    for (auto& p : ctx.peers->Snapshot())
+        co_await senders::SendMwChatReq(p, 0, 0, 0, 0, std::string{},
+            kCountryNeutral, kCountryNeutral, chat::kWorld,
+            chat::kWorld, 0, announce);
+    co_return;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+RunEventQuarterTick(const HandlerContext& ctx)
+{
+    if (!ctx.evqt || !ctx.peers)
+        co_return;
+    const auto now =
+        static_cast<std::int64_t>(std::time(nullptr));
+    const auto actions = ctx.evqt->Tick(now);
+    if (actions.announce)
+        co_await BroadcastEventQuarterNotify(ctx, *actions.announce);
+    if (actions.present)
+        co_await BroadcastEventQuarterPresent(ctx,
+            actions.present->day, actions.present->hour,
+            actions.present->minute, actions.present->present);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+DispatchExpiredEntry(const HandlerContext& ctx,
+                     const ExpiredEntry& entry)
+{
+    switch (entry.type)
+    {
+    case kExpiredGuildWanted:
+    {
+        // Legacy: DelGuildWanted + DM_GUILDWANTEDDEL (SSHandler.cpp:
+        // 10712) - same actions as the W3a-19 sweep.
+        if (ctx.guild_wanted)
+            ctx.guild_wanted->Remove(entry.value1);
+        if (ctx.guild_repo)
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.guild_repo, gid = entry.value1]
+                { repo->DeleteWanted(gid); });
+        break;
+    }
+    case kExpiredTacticsWanted:
+    {
+        // Legacy: DelGuildTacticsWanted + the DM del. The tactics-
+        // wanted DB table is the deferred guild-extras item, so the
+        // registry mutation is the whole action here.
+        if (ctx.guild_tactics_wanted)
+            ctx.guild_tactics_wanted->Remove(entry.value1,
+                entry.value2);
+        break;
+    }
+    case kExpiredTactics:
+    {
+        // Legacy: GuildTacticsDel(guild, member, 3) - targeted
+        // contract end (the W3a-36 sweep does the same by deadline).
+        if (!ctx.guilds)
+            break;
+        auto guild = ctx.guilds->Find(entry.value1);
+        if (!guild)
+            break;
+        bool ended = false;
+        {
+            std::lock_guard g(guild->lock);
+            auto& roster = guild->tactics_members;
+            for (auto it = roster.begin(); it != roster.end(); ++it)
+                if (it->id == entry.value2)
+                {
+                    roster.erase(it);
+                    ended = true;
+                    break;
+                }
+        }
+        if (ended && ctx.chars)
+            if (auto c = ctx.chars->Find(entry.value2))
+            {
+                std::lock_guard g(c->lock);
+                if (c->tactics_guild_id == entry.value1)
+                    c->tactics_guild_id = 0;
+            }
+        break;
+    }
+    default:
+        break;                          // legacy default: ignore
+    }
+    co_return;
+}
+
+boost::asio::awaitable<void>
+RunExpiredSweep(const HandlerContext& ctx)
+{
+    if (!ctx.expired)
+        co_return;
+    const auto now =
+        static_cast<std::int64_t>(std::time(nullptr));
+    for (const auto& entry : ctx.expired->PopDue(now))
+        co_await DispatchExpiredEntry(ctx, entry);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnSmEventExpiredReq(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.expired)
+    {
+        spdlog::warn("OnSmEventExpiredReq[{}]: expired buffer not "
+                     "wired", ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t insert = 0;
+    ExpiredEntry e{};
+    if (!r.Read(insert) || !r.Read(e.type) || !r.Read(e.time) ||
+        !r.Read(e.value1) || !r.Read(e.value2))
+    {
+        spdlog::warn("OnSmEventExpiredReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    ctx.expired->InsertOrRemove(insert != 0, e);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnSmEventExpiredAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    wire::Reader r(body.data(), body.size());
+    ExpiredEntry e{};
+    if (!r.Read(e.type) || !r.Read(e.time) || !r.Read(e.value1) ||
+        !r.Read(e.value2))
+    {
+        spdlog::warn("OnSmEventExpiredAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    co_await DispatchExpiredEntry(ctx, e);
     co_return;
 }
 

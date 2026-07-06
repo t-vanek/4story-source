@@ -83,6 +83,14 @@ AppConfig LoadConfig(const std::string& path)
             cfg.war_index_refresh_period_sec =
                 static_cast<std::uint32_t>(*wi);
         }
+        if (auto eq = (*srv)["event_quarter_check_period_sec"].value<std::int64_t>())
+        {
+            if (*eq < 0 || *eq > 3600)
+                throw std::runtime_error(
+                    "server.event_quarter_check_period_sec out of range");
+            cfg.event_quarter_check_period_sec =
+                static_cast<std::uint32_t>(*eq);
+        }
         if (auto cw = (*srv)["castle_war_day"].value<std::int64_t>())
         {
             if (*cw < 1 || *cw > 7)

@@ -121,6 +121,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/war_country_index.cpp
     ${TWORLD_ASIO_SRC}/services/castle_war_registry.cpp
     ${TWORLD_ASIO_SRC}/services/cmgift_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/event_quarter_scheduler.cpp
+    ${TWORLD_ASIO_SRC}/services/expired_buffer.cpp
     ${TWORLD_ASIO_SRC}/services/fake_lucky_event_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_lucky_event_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_cmgift_repository.cpp
@@ -760,6 +762,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-48 wire test: lucky-event scheduler tick (notice + present +
+# weekly reschedule) and the expiry queue (REQ maintenance, ACK
+# dispatch for wanted/tactics-wanted/tactics-end, due-pop sweep).
+add_executable(test_tworldsvr_asio_evqt_expired_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_evqt_expired_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_evqt_expired_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_evqt_expired_handlers
+    COMMAND test_tworldsvr_asio_evqt_expired_handlers)
 
 # W6-47 wire test: LOTTERY / GIFTTIME rewards - no-repeat draw pool,
 # per-winner mail via the first map, winner-board broadcast,

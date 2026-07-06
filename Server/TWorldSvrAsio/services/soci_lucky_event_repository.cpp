@@ -145,4 +145,38 @@ SociLuckyEventRepository::Update(std::uint8_t type,
     }
 }
 
+std::vector<LuckyEvent> SociLuckyEventRepository::ListAll()
+{
+    std::vector<LuckyEvent> out;
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::session& sql = *lease;
+        soci::rowset<soci::row> rs = (sql.prepare <<
+            "SELECT \"wID\", \"bDay\", \"bHour\", \"bMinute\", "
+            "\"szPresent\", \"szAnnounce\" "
+            "FROM \"TEVENTQUARTERCHART\"");
+        for (const auto& row : rs)
+        {
+            LuckyEvent e{};
+            e.id     = static_cast<std::uint16_t>(row.get<int>(0));
+            e.day    = static_cast<std::uint8_t>(row.get<int>(1));
+            e.hour   = static_cast<std::uint8_t>(row.get<int>(2));
+            e.minute = static_cast<std::uint8_t>(row.get<int>(3));
+            e.present  = row.get_indicator(4) == soci::i_ok
+                             ? row.get<std::string>(4) : "";
+            e.announce = row.get_indicator(5) == soci::i_ok
+                             ? row.get<std::string>(5) : "";
+            out.push_back(std::move(e));
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociLuckyEventRepository::ListAll failed: {}",
+            ex.what());
+        out.clear();
+    }
+    return out;
+}
+
 } // namespace tworldsvr

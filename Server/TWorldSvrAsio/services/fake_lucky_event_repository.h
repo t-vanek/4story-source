@@ -17,6 +17,7 @@ public:
     static std::string NameOf(std::uint16_t id);
 
     std::vector<LuckyEvent> List(std::uint8_t day) override;
+    std::vector<LuckyEvent> ListAll() override;
     std::optional<LuckyEventUpdateResult>
         Update(std::uint8_t type, const LuckyEvent& event) override;
 

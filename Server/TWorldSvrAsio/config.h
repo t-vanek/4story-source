@@ -59,6 +59,10 @@ struct AppConfig
     // Drives the castle-war occupation tiebreaker only.
     std::uint8_t  castle_war_day = 7;
 
+    // W6-48: lucky-event scheduler tick + expiry-queue pop cadence
+    // (legacy ran both on the 1-second world timer). 0 disables.
+    std::uint32_t event_quarter_check_period_sec = 30;
+
     // W6-43: TACTIVECHARTABLE -> WarCountryIndex refresh cadence
     // (legacy re-derives on the day-change tick). 0 disables.
     std::uint32_t war_index_refresh_period_sec = 3600;

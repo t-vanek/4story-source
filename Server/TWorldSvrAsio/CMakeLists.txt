@@ -116,6 +116,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/soci_cash_sale_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_service_ops_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_service_ops_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/month_rank_registry.cpp
     ${TWORLD_ASIO_SRC}/services/peer_registry.cpp)
 
 target_include_directories(tworldsvr_asio_core PUBLIC
@@ -747,6 +748,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-41 wire test: MonthRank live table - UPDATE re-rank + dirty-range
+# broadcast + warlord flag, RESETCHAR other-con mirror, WARLORDSAY
+# broadcast, full-table replay on peer connect.
+add_executable(test_tworldsvr_asio_monthrank_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_monthrank_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_monthrank_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_monthrank_handlers
+    COMMAND test_tworldsvr_asio_monthrank_handlers)
 
 # W6-40 wire test: GM item tools — CT_ITEMFIND search (LIKE/id/empty,
 # ctrl-slot routing) + MW_ADDITEM verbatim forward / MIT_NOTFOUND.

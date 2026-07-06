@@ -54,6 +54,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <memory>
 #include <string>
 
@@ -212,6 +213,21 @@ int main(int argc, char** argv)
         tworldsvr::EventRegistry events;
         tworldsvr::CashItemSaleRegistry cash_sales;
         tworldsvr::CtrlSvrSlot          ctrl_svr;
+        tworldsvr::MonthRankRegistry    month_rank;
+        {
+            // Legacy TWorldSvr.cpp:1894 - the rank month boots from
+            // the local clock; the table itself starts empty and
+            // fills from live MW_MONTHRANKUPDATE_ACK reports.
+            std::time_t now = std::time(nullptr);
+            std::tm     lt{};
+#ifdef _WIN32
+            localtime_s(&lt, &now);
+#else
+            localtime_r(&now, &lt);
+#endif
+            month_rank.SetRankMonth(
+                static_cast<std::uint8_t>(lt.tm_mon + 1));
+        }
 
         // Warm the guild-level chart from the backing store. Empty
         // on the FakeGuildLevelRepository path; SOCI returns every
@@ -260,6 +276,7 @@ int main(int argc, char** argv)
         ctx.item_state_repo = item_state_repo.get();
         ctx.cash_sale_repo  = cash_sale_repo.get();
         ctx.service_ops     = service_ops_repo.get();
+        ctx.month_rank      = &month_rank;
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;
 

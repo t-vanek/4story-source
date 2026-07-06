@@ -129,6 +129,12 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
                          "campaign(s) to wID={}",
                 ip, sales.size(), wid);
     }
+
+    // W6-41: the joining map gets the full monthly ranking table
+    // (legacy SSHandler.cpp:698 SendMW_MONTHRANKLIST_REQ).
+    if (ctx.month_rank)
+        co_await senders::SendMwMonthRankListReq(
+            peer, ctx.month_rank->RankMonth(), *ctx.month_rank);
     co_return;
 }
 

@@ -631,6 +631,17 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-41: MonthRank live table (handlers_rank.cpp) ------------
+    case MessageId::MW_MONTHRANKUPDATE_ACK:
+        co_await OnMwMonthRankUpdateAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_MONTHRANKRESETCHAR_ACK:
+        co_await OnMwMonthRankResetCharAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_WARLORDSAY_ACK:
+        co_await OnMwWarLordSayAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-40: GM item tools ---------------------------------------
     case MessageId::CT_ITEMFIND_REQ:
         co_await OnCtItemFindReq(std::move(peer), std::move(body), ctx);

@@ -161,7 +161,7 @@ RunMonsterAi(IMonsterRegistry&         registry,
             // Apply the hit atomically; HP reaching 0 flips the death state
             // (legacy CTObjBase::OnDie — m_bStatus = OS_DEAD, HP/MP = 0).
             bool died = false;
-            std::uint32_t max_hp = 0, cur_hp = 0;
+            std::uint32_t max_hp = 0, cur_hp = 0, max_mp = 0, cur_mp = 0;
             char_state.Update(victim, [&](CharSnapshot& s)
             {
                 if (s.dwHP > dmg)
@@ -174,11 +174,14 @@ RunMonsterAi(IMonsterRegistry&         registry,
                 }
                 max_hp = s.dwMaxHP;
                 cur_hp = s.dwHP;
+                max_mp = s.dwMaxMP;
+                cur_mp = s.dwMP;
             });
             if (max_hp == 0)                 // char gone / not loaded
                 continue;
 
-            const auto hp = EncodeHpMpAck(victim, max_hp, cur_hp, 0, 0);
+            const auto hp = EncodeHpMpAck(victim, /*OT_PC=*/1,
+                                          max_hp, cur_hp, max_mp, cur_mp);
             for (auto& w : watchers)
                 co_await w->SendPacket(
                     static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), hp);

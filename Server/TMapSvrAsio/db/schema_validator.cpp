@@ -137,11 +137,35 @@ void ValidateSkillSchema(fourstory::db::SessionPool& pool)
     // TSKILLTABLE — F11 per-char learned skill list. Four columns;
     // dwCharID is the WHERE filter, the other three encode onto the
     // wire.
+    // TSKILLCHART — the skill-template chart the boot loader reads
+    // (soci_skill_chart): reuse-cooldown gate, Wave-4b MP/HP resource-cost
+    // gate, Wave-4c level-scale coefficients.
+    // TSKILLDATA — per-skill effect rows (soci_skill_data_chart).
+    // Validated here so a missing column fails fast at the validator
+    // instead of throwing inside the loaders.
     fourstory::db::CheckColumns(*lease, "map_skill", {
         { "TSKILLTABLE", "dwCharID" },
         { "TSKILLTABLE", "wSkillID" },
         { "TSKILLTABLE", "bLevel" },
         { "TSKILLTABLE", "dwRemainTick" },
+        { "TSKILLCHART", "wID" },
+        { "TSKILLCHART", "dwReuseDelay" },
+        { "TSKILLCHART", "dwUseMP" },
+        { "TSKILLCHART", "bUseMPType" },
+        { "TSKILLCHART", "dwUseHP" },
+        { "TSKILLCHART", "bUseHPType" },
+        { "TSKILLCHART", "bLevel" },
+        { "TSKILLCHART", "bNextLevel" },
+        { "TSKILLCHART", "bMaxLevel" },
+        { "TSKILLDATA",  "wSkillID" },
+        { "TSKILLDATA",  "bAction" },
+        { "TSKILLDATA",  "bType" },
+        { "TSKILLDATA",  "bAttr" },
+        { "TSKILLDATA",  "bExec" },
+        { "TSKILLDATA",  "bInc" },
+        { "TSKILLDATA",  "wValue" },
+        { "TSKILLDATA",  "wValueInc" },
+        { "TSKILLDATA",  "bCalc" },
     });
 }
 

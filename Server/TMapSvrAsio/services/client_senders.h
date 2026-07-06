@@ -112,12 +112,15 @@ std::vector<std::byte> EncodeAddMonAck(
     const MonsterInstance& m, std::uint8_t level, std::uint8_t country,
     std::uint8_t color, std::uint8_t new_member);
 
-// CS_HPMP_ACK body — an object's HP/MP changed (DWORD id + maxHP + HP +
-// maxMP + MP). Mirrors legacy SendCS_HPMP_ACK (CSSender.cpp:1315; the
-// bType/bLevel args drive the party relay, not this packet). Broadcast
-// to everyone who can see the object so health bars update.
+// CS_HPMP_ACK body — an object's HP/MP changed (DWORD id + BYTE objType +
+// maxHP + HP + maxMP + MP). Mirrors legacy SendCS_HPMP_ACK
+// (CSSender.cpp:1315): bType streams into the packet right after the id —
+// only bLevel is party-relay-only. obj_type is OBJ_TYPE (OT_PC=1 /
+// OT_MON=2, NetCode.h:1030). Broadcast to everyone who can see the object
+// so health bars update.
 std::vector<std::byte> EncodeHpMpAck(
-    std::uint32_t id, std::uint32_t max_hp, std::uint32_t hp,
+    std::uint32_t id, std::uint8_t obj_type,
+    std::uint32_t max_hp, std::uint32_t hp,
     std::uint32_t max_mp, std::uint32_t mp);
 
 // CS_DELMON_ACK body — a monster left view (DWORD mon id + BYTE
@@ -154,6 +157,61 @@ std::vector<std::byte> EncodeActionAck(
     std::uint8_t result, std::uint32_t obj_id, std::uint8_t obj_type,
     std::uint8_t action_id, std::uint32_t act_id, std::uint32_t ani_id,
     std::uint16_t skill_id);
+
+// CS_SKILLUSE_ACK — the verdict on a skill cast, broadcast to everyone in
+// view on success and echoed to the caster alone on rejection. Mirrors
+// legacy CTPlayer::SendCS_SKILLUSE_ACK (CSSender.cpp:1518): the SAME
+// fixed layout serves both forms — the legacy reject calls pass only the
+// echo fields and default the rest to 0 with no target list.
+//
+// Body: BYTE result + DWORD attack_id + BYTE attack_type + WORD skill_id +
+// WORD back_skill + BYTE action_id + DWORD act_id + DWORD ani_id +
+// BYTE skill_level + WORD attack_level + BYTE attacker_level +
+// DWORD pys_min/pys_max/mg_min/mg_max powers + WORD trans_hp/trans_mp +
+// BYTE curse_prob/equip_special/can_select/country/aid_country/cp +
+// FLOAT gnd x/y/z + BYTE count + count × { DWORD target, BYTE type }.
+//
+// The attacker combat stats (powers / crit / attack level) are what the
+// defenders' clients later echo back in CS_DEFEND_REQ — they ship 0 until
+// the player AP/WAP/DP wave models them server-side.
+struct SkillUseAckFields
+{
+    std::uint8_t  result          = 0;   // TSKILL_RESULT (domain/skill_data.h)
+    std::uint32_t attack_id       = 0;   // caster object id
+    std::uint8_t  attack_type     = 0;   // caster OBJ_TYPE
+    std::uint16_t skill_id        = 0;
+    std::uint16_t back_skill      = 0;
+    std::uint8_t  action_id       = 0;
+    std::uint32_t act_id          = 0;
+    std::uint32_t ani_id          = 0;
+    std::uint8_t  skill_level     = 0;
+    std::uint16_t attack_level    = 0;
+    std::uint8_t  attacker_level  = 0;
+    std::uint32_t pys_min_power   = 0;
+    std::uint32_t pys_max_power   = 0;
+    std::uint32_t mg_min_power    = 0;
+    std::uint32_t mg_max_power    = 0;
+    std::uint16_t trans_hp        = 0;
+    std::uint16_t trans_mp        = 0;
+    std::uint8_t  curse_prob      = 0;
+    std::uint8_t  equip_special   = 0;
+    std::uint8_t  can_select      = 1;   // legacy default TRUE
+    std::uint8_t  country         = 0;
+    std::uint8_t  aid_country     = 0;
+    std::uint8_t  cp              = 0;   // critical prob
+    float         gnd_x           = 0.f;
+    float         gnd_y           = 0.f;
+    float         gnd_z           = 0.f;
+};
+
+struct SkillTarget
+{
+    std::uint32_t id   = 0;
+    std::uint8_t  type = 0;   // OBJ_TYPE
+};
+
+std::vector<std::byte> EncodeSkillUseAck(
+    const SkillUseAckFields& f, const std::vector<SkillTarget>& targets);
 
 // CS_DIE_ACK body — an object died (DWORD id + BYTE obj type). Mirrors
 // legacy CTPlayer::SendCS_DIE_ACK (CSSender.cpp:1392), broadcast to
@@ -201,5 +259,23 @@ std::vector<std::byte> EncodeMonItemListAck(
 // 1 = full inven, 2 = not found, …). Mirrors legacy
 // CTPlayer::SendCS_MONITEMTAKE_ACK (CSSender.cpp:2982).
 std::vector<std::byte> EncodeMonItemTakeAck(std::uint8_t result);
+
+// CS_QUESTUPDATE_ACK body — one quest term advanced (DWORD quest id + DWORD
+// term id + BYTE term type + BYTE count + BYTE status). 11 bytes. Mirrors
+// legacy CTPlayer::SendCS_QUESTUPDATE_ACK (CSSender.cpp:1825). Sent to the
+// owner as a hunt/collect objective progresses; `status` is QTS_RUN until
+// the goal is met, then QTS_SUCCESS.
+std::vector<std::byte> EncodeQuestUpdateAck(
+    std::uint32_t quest_id, std::uint32_t term_id, std::uint8_t type,
+    std::uint8_t count, std::uint8_t status);
+
+// CS_QUESTCOMPLETE_ACK body — a quest turn-in resolved (BYTE result + DWORD
+// quest id + DWORD term id + BYTE term type + DWORD drop id). 14 bytes.
+// Mirrors legacy CTPlayer::SendCS_QUESTCOMPLETE_ACK (CSSender.cpp:1843).
+// `result` is QR_SUCCESS on completion, QR_TERM (with the unmet term id /
+// type) when objectives remain, or QR_DROP on abandon.
+std::vector<std::byte> EncodeQuestCompleteAck(
+    std::uint8_t result, std::uint32_t quest_id, std::uint32_t term_id,
+    std::uint8_t type, std::uint32_t drop_id);
 
 } // namespace tmapsvr

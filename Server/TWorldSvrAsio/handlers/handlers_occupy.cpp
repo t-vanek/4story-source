@@ -535,4 +535,118 @@ RefreshWarCountryIndex(const HandlerContext& ctx)
     co_return;
 }
 
+namespace {
+
+// Resolve the guild facts the castle-war engine needs. Country /
+// name / rank fields read under the guild lock.
+CastleGuildFacts CastleFactsOf(const HandlerContext& ctx,
+                               std::uint32_t guild_id)
+{
+    CastleGuildFacts f{};
+    if (guild_id == 0 || !ctx.guilds)
+        return f;
+    auto g = ctx.guilds->Find(guild_id);
+    if (!g)
+        return f;
+    std::lock_guard lk(g->lock);
+    f.found        = true;
+    f.country      = g->country;
+    f.name         = g->name;
+    f.pvp_total    = g->pvp_total_point;
+    f.member_count = g->members.size();
+    f.establish    = g->establish_time;
+    return f;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnMwCastleWarInfoAck(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.castle_war || !ctx.peers || !ctx.guilds)
+    {
+        spdlog::warn("OnMwCastleWarInfoAck[{}]: castle_war/peers/"
+                     "guilds not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint16_t castle = 0;
+    if (!r.Read(castle))
+    {
+        spdlog::warn("OnMwCastleWarInfoAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    const auto facts = [&ctx](std::uint32_t gid)
+    { return CastleFactsOf(ctx, gid); };
+
+    // castle==0: replay the current scoreboard to the asking map
+    // (legacy NotifyCastleWarInfo(pSERVER)).
+    if (castle == 0)
+    {
+        for (const auto& row : ctx.castle_war->Snapshot(facts))
+            co_await senders::SendMwCastleWarInfoReq(peer, row);
+        co_return;
+    }
+
+    std::uint32_t report_guild = 0;
+    std::uint8_t  local_cnt = 0;
+    if (!r.Read(report_guild) || !r.Read(local_cnt))
+    {
+        spdlog::warn("OnMwCastleWarInfoAck[{}]: short header "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    CastleWarInfo cwi{};
+    cwi.id = castle;
+    for (std::uint8_t i = 0; i < local_cnt; ++i)
+    {
+        std::uint16_t local_id = 0;
+        if (!r.Read(local_id))
+        {
+            spdlog::warn("OnMwCastleWarInfoAck[{}]: truncated local "
+                         "{}/{}", ip, i, local_cnt);
+            co_return;
+        }
+        for (std::uint8_t j = 0; j < kCastleOccupySlots; ++j)
+        {
+            std::uint32_t occ_guild = 0;
+            std::uint8_t  occ_type  = 0;
+            if (!r.Read(occ_guild) || !r.Read(occ_type))
+            {
+                spdlog::warn("OnMwCastleWarInfoAck[{}]: truncated "
+                             "slot {}/{} of local {}", ip, j,
+                    kCastleOccupySlots, i);
+                co_return;
+            }
+            const std::uint16_t bonus =
+                occ_type == 0 /*OCCUPY_DEFEND*/ ? kOccupyDefendBonus
+                                                : kOccupyAcceptBonus;
+            if (!facts(occ_guild).found)
+                continue;                     // legacy FindTGuild gate
+            cwi.guild_points[occ_guild] += bonus;
+            if (occ_type == 1 /*OCCUPY_ACCEPT*/)
+            {
+                auto& slots = cwi.occupy[occ_guild];
+                slots[j] = static_cast<std::uint16_t>(slots[j] + bonus);
+            }
+        }
+    }
+
+    ctx.castle_war->Store(std::move(cwi));
+
+    const auto rows = ctx.castle_war->Recompute(facts,
+        ctx.castle_war_day);
+    for (auto& p : ctx.peers->Snapshot())
+        for (const auto& row : rows)
+            co_await senders::SendMwCastleWarInfoReq(p, row);
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

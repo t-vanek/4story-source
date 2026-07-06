@@ -23,6 +23,7 @@
 #include "../services/cash_item_sale_registry.h"
 #include "../services/guild_registry.h"
 #include "../services/item_state_repository.h"
+#include "../services/castle_war_registry.h"
 #include "../services/month_rank_registry.h"
 #include "../services/rps_registry.h"
 
@@ -2089,6 +2090,20 @@ boost::asio::awaitable<void> SendCtCashItemSaleAck(
     std::shared_ptr<PeerSession>   peer,
     std::uint32_t                  dw_index,
     std::uint16_t                  value);
+
+// --- W6-44 castle-war info broadcast (senders_occupy.cpp) ----------
+
+// MW_CASTLEWARINFO_REQ - one castle scoreboard row. Legacy
+// SSSender.cpp:2935.
+//   Wire: WORD castle, DWORD def_id, STRING def_name,
+//         BYTE def_country, WORD point_d, DWORD atk_id,
+//         STRING atk_name, WORD point_c, DWORD guild_count,
+//         N x (DWORD guild, DWORD points), BYTE top3_total,
+//         D-entries (BYTE 0, STRING name, WORD point),
+//         C-entries (BYTE 1, STRING name, WORD point)
+boost::asio::awaitable<void> SendMwCastleWarInfoReq(
+    std::shared_ptr<PeerSession>     peer,
+    const CastleWarBroadcastRow&     row);
 
 // --- W6-43 war/castle extras (senders_occupy.cpp) ------------------
 

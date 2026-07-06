@@ -118,6 +118,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/soci_service_ops_repository.cpp
     ${TWORLD_ASIO_SRC}/services/month_rank_registry.cpp
     ${TWORLD_ASIO_SRC}/services/war_country_index.cpp
+    ${TWORLD_ASIO_SRC}/services/castle_war_registry.cpp
     ${TWORLD_ASIO_SRC}/services/fake_war_ops_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_war_ops_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_month_rank_repository.cpp
@@ -753,6 +754,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-44 wire test: castle-war info engine - report aggregation,
+# top-3 + country points, defender/attacker election, cross-castle
+# defender stealing, replay-on-request.
+add_executable(test_tworldsvr_asio_castlewarinfo_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_castlewarinfo_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_castlewarinfo_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_castlewarinfo_handlers
+    COMMAND test_tworldsvr_asio_castlewarinfo_handlers)
 
 # W6-43 wire test: war/castle extras - ENDWAR + SKYGARDEN broadcasts,
 # WARCOUNTRYBALANCE reply off the WarCountryIndex, CASTLEGUILDCHG

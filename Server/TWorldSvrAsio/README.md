@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-43 War/castle extras (war-country index + castle ops)
+## Status — W6-44 Castle-war info engine — War/Castle extras complete
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -114,6 +114,7 @@ that the four shipped Asio daemons already use.
 | **W6-41** | MonthRank live table — new `MonthRankRegistry` ports `m_arMonthRank[3][33]` + `m_bRankMonth` (boots from the local clock — TWorldSvr.cpp:1894 — and an empty table; legacy has no boot DB load, rankers stream in live). `OnMwMonthRankUpdateAck` runs the verbatim re-rank ladder (SSHandler.cpp:11263): warlord pre-select on TotalPoint (or same-char refresh) → old/new slot scan (MonthPoint, MonthWin, MonthLose, char-id tiebreakers) → slot shift → warlord re-select; broadcasts `MW_MONTHRANKUPDATE_REQ(month, country, start, end, slots[start..end], warlord_flag [+ slot0])` to every map; stale-month / bogus-country / lands-nowhere all drop. `OnMwMonthRankResetCharAck` mirrors a char's rank reset to every **other** map it is connected to (reporter skipped — SSHandler.cpp:13324). `OnMwWarLordSayAck` re-broadcasts the warlord line verbatim (SSHandler.cpp:11386; also retires the WARLORDSAY entry from the War/Castle extras list). `OnRelaysvrReq` gains the full-table `MW_MONTHRANKLIST_REQ` replay (SSHandler.cpp:698). Shared `month_rank_codec.h` = byte-exact 19-field MONTHRANKER WrapPacketIn/Out. Known legacy quirk NOT kept: `MONTHRANKER::operator=` copied TotalRank into MonthRank on every table shuffle (TWorldType.h:962) — we copy field-for-field. The W6-42 month-rollover chain (SM_MONTHRANKSAVE → 3 SPs → reset + FIRSTGRADEGROUP/MONTHRANKRESET broadcasts) stays deferred | ✅ |
 | **W6-42** | MonthRank rollover — `OnSmMonthRankSaveReq` + the shared `RunMonthRankRollover` coroutine collapse the legacy SM → DM_REQ → DM_ACK chain (SSHandler.cpp:11015/11088/11200): ① zero every guild `pvp_month_point`/`rank_month`; ② build the cross-country total-rank array (`MonthRankDesc` sort over slots 1..16 + the three warlords, **including** the legacy slot-collision quirk when the top warlord is country 0) and refresh `LastFameRank` (mutates even if the persist later fails — legacy SM-phase parity); ③ persist via new `IMonthRankRepository` — `TInitMonthRank(month)`, per-row `TSaveMonthRank` (legacy skip rules: `char_id==0`, `j!=0 && month_point==0`; first failure aborts; divergence note: legacy kept mis-reading the packet after a failed row, we stop cleanly — same observable outcome), on success `TInitMonthRank(month+1)` + `TInitMonthPvPoint(month, top_point)` whose 16-OUTPUT-param result becomes the new fame slot 0; ④ freeze `FirstGradeGroup` (3×17), broadcast `MW_MONTHRANKRESET_REQ`(fame top-9) + `MW_FIRSTGRADEGROUP_REQ`(3×17) to every map, then `ResetForNewMonth` — slots 1..32 clear, **warlord slot 0 survives** (legacy MonthRankReset), month wraps 12→1. A `month_rollover_check_period_sec` sweeper (RegistryRefresher) replaces the legacy self-posted timer tick (TWorldSvr.cpp:4065). `DM_MONTHRANKSAVE_REQ/_ACK` repository-collapsed (§D). MonthRank subsystem is **complete** | ✅ |
 | **W6-43** | War/castle extras — four handlers + two repository collapses. `OnMwEndWarAck` / `OnMwSkyGardenOccupyAck` are field-checked broadcasts (SSHandler.cpp:9664 / 7819; `SKYGARDEN` **is** defined in StdAfx.h:9, so the body is compiled in). `OnMwWarCountryBalanceAck` replies the D/C population of the char's level bucket from the new `WarCountryIndex` (legacy `m_mapWarCountry[2][5]`; `WarCountryGapOf` = `(level-130)/10`, sub-130 invalid) — the index loads from `TACTIVECHARTABLE` at boot + on a `war_index_refresh_period_sec` sweeper with the legacy 1-week prune, collapsing the `DM_ACTIVECHARUPDATE_REQ/_ACK` day-tick round-trip (§D; classification incl. the TAIDTABLE aid-country fallback + neutral skip). `OnCtCastleGuildChgReq` ports the operator castle def/atk reassignment (SSHandler.cpp:217): unknown guild → full-layout fail ACK to the **sender**, else `MW_CASTLEGUILDCHG_REQ` broadcast + success ACK. The W5-2/W5-3 castle-apply persistence gap closes via `IWarOpsRepository::SaveCastleApplicant` (`TSaveCastleApplicant` SP) wired into `OnCastleApplyAck` (effective toggled values — SSHandler.cpp:7996) and `ResetCastleApply` (`(0, member, 0)` per cleared row — TWorldSvr.cpp:5425), collapsing `DM_CASTLEAPPLY_REQ` (§D). 5 senders + 2 warn-only probes. War/Castle extras now reduce to `MW_CASTLEWARINFO` (the top-3/atk-def engine — next slice) | ✅ |
+| **W6-44** | Castle-war info engine — `OnMwCastleWarInfoAck` + the new `CastleWarRegistry` port the last War/Castle-extras handler (SSHandler.cpp:9579 + TWorldSvr.cpp:7292-7620). Report parse: per local 6 slots of `(guild, occupy_type)` — DEFEND=11 / ACCEPT=10 bonus, unknown-guild skip, ACCEPT slots feed the per-slot occupation history; `castle==0` replays the current scoreboard to the asking map only. Recompute pipeline (verbatim legacy): scratch reset → country points + per-country top-3 (insertion with the occupation-history tiebreaker `CompareOccupation` — war-day-relative slot walk with the castle-id fallback — then `CompareGuildRank`: PvP total desc / member count desc / establish asc) → defender election with the **recursive cross-castle stealing** (a guild champion of two castles keeps the higher-scoring one; the loser castle re-elects — incl. the legacy dead-branch quirk in the equal-points arm, kept + documented) → cross-castle defender exclusion → attacker election (defender-country filter + country-point tiebreak) → per-castle `MW_CASTLEWARINFO_REQ` broadcast (guild-point rows + merged D/C top-3 wire tail). `castle_war_day` config (1..7) stands in for `m_battletime[BT_CASTLE].m_bDay` until the battle-time chart loader ports. Ordered `std::map`s kept for byte-identical tie behavior | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -144,13 +145,13 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-43)
+## Gaps audit — not yet ported / deferred (as of W6-44)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **204** are ported in
-`handlers/dispatch.cpp` (148 MW + 28 DM + 16 CT + 9 SM + 3 RW), leaving
-**86** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
+breakdown the W2 sizing note records); **205** are ported in
+`handlers/dispatch.cpp` (149 MW + 28 DM + 16 CT + 9 SM + 3 RW), leaving
+**85** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
 `DM_ITEMSTATE_REQ/_ACK` pair, W6-37's `MW_CASHITEMSALE_ACK` absorbs
 `DM_CASHITEMSALE_REQ/_ACK`, and W6-38's CT_HELPMESSAGE / SM_DELSESSION
 absorb `DM_HELPMESSAGE_REQ` / `DM_CLEARMAPCURRENTUSER_REQ` —
@@ -158,7 +159,7 @@ repository-collapsed, counted under §D.)
 A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
 owe; netting those out, the *owed* wire surface is ~266. Raw handler
-coverage is **≈ 70 %** (204/290); against the owed surface it is ~77 %.
+coverage is **≈ 71 %** (205/290); against the owed surface it is ~77 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -277,10 +278,10 @@ Intentionally not ported:
   `CT_ITEMFIND` search + `MW_ADDITEM` grant route (`DM_ITEMSTATE` /
   `DM_ITEMFIND` pairs repository-collapsed, see §D)
 
-**War/Castle extras (W5+):** only `MW_CASTLEWARINFO` remains (the
-top-3 / attacker-defender selection engine). W6-41 landed WARLORDSAY;
-W6-43 landed ENDWAR + SKYGARDENOCCUPY + WARCOUNTRYBALANCE (+ the
-war-country index) + CT_CASTLEGUILDCHG + the DM_CASTLEAPPLY persist.
+**War/Castle extras (W5+): complete.** W6-41 WARLORDSAY, W6-43
+ENDWAR + SKYGARDENOCCUPY + WARCOUNTRYBALANCE (+ war-country index) +
+CT_CASTLEGUILDCHG + DM_CASTLEAPPLY persist, W6-44 the
+MW_CASTLEWARINFO top-3 / attacker-defender engine.
 
 **Guild extras (blocked on absent constants/model):** `MW_GUILDSKILLACTION`,
 `MW_MEETINGROOM`, `MW_UPDATEGUILDCOOLDOWN`,
@@ -323,6 +324,17 @@ collapsed into `RefreshWarCountryIndex` / the castle-apply paths via
    ctrl-svr echo, same slot pattern as W6-36) + `MW_ADDITEM`.
 4. Larger roadmap subsystems (Tournament / MonthRank / CMGift DB
    family).
+
+### W6-44 — what landed
+
+**Castle-war info engine** — the occupation scoreboard + election
+engine, the deepest single handler in the war family. The wire test
+drives a two-guild report through aggregation (21/20 points, country
+points, both top-3 rows), the defender/attacker election, then a
+second castle whose richer G1 score triggers the recursive
+cross-castle steal (castle 1 re-elects G2, both attacker slots empty
+out), and the castle==0 replay path (asking map only,
+sentinel-verified). 98 wire tests, all green.
 
 ### W6-43 — what landed
 

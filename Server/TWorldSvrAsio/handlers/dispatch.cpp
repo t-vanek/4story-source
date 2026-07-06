@@ -631,6 +631,11 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-44: castle-war info engine (handlers_occupy.cpp) --------
+    case MessageId::MW_CASTLEWARINFO_ACK:
+        co_await OnMwCastleWarInfoAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-43: war/castle extras (handlers_occupy.cpp) -------------
     case MessageId::MW_ENDWAR_ACK:
         co_await OnMwEndWarAck(std::move(peer), std::move(body), ctx);

@@ -9,6 +9,25 @@
 namespace tworldsvr::senders {
 
 boost::asio::awaitable<void>
+SendMwTournamentEnableReq(std::shared_ptr<PeerSession> peer,
+                          std::uint8_t                 group,
+                          std::uint8_t                 step,
+                          std::uint32_t                period,
+                          std::int64_t                 next_step_start)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, group);
+    WritePOD<std::uint8_t>(body, step);
+    WritePOD<std::uint32_t>(body, period);
+    WritePOD<std::int64_t>(body, next_step_start);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_TOURNAMENTENABLE_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
 SendMwTournamentInfoReq(std::shared_ptr<PeerSession>            peer,
                         const TournamentRegistry::InfoSnapshot& info)
 {

@@ -690,7 +690,115 @@ OnCtTournamentEventReq(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+// ---- SM_TOURNAMENT_REQ step advance (SSHandler.cpp:11406) ----------
+
+namespace {
+
+boost::asio::awaitable<void>
+SmTournamentReqLogic(const HandlerContext& ctx, std::uint16_t id,
+                     std::uint8_t group, std::uint8_t step,
+                     std::uint32_t period)
+{
+    const auto adv = ctx.tournaments->AdvanceStep(id, group, step);
+    if (!adv)
+        co_return;              // catalogue guard — legacy silent drop
+
+    if (ctx.peers)
+        for (auto& p : ctx.peers->Snapshot())
+            co_await senders::SendMwTournamentEnableReq(p, group,
+                step, period, adv->next_step_start);
+
+    // Legacy follow-ups (TournamentSelectPlayer when !selected at
+    // PARTY/MATCH, TournamentMatch at MATCH) are the match-engine
+    // slice.
+    if (step == tnmt::kStepParty || step == tnmt::kStepMatch)
+        spdlog::info("tournament: step {} reached - select/match "
+                     "triggers deferred to the match-engine slice",
+            step);
+    co_return;
+}
+
+} // namespace
+
+// ---- scheduler tick (TWorldSvr.cpp:4012) ---------------------------
+
+boost::asio::awaitable<void>
+RunTournamentTick(const HandlerContext& ctx, std::int64_t now)
+{
+    if (!ctx.tournaments)
+        co_return;
+
+    // The legacy walks once per second and consumes one due entry
+    // per pass; a coarser sweep period drains the whole backlog in
+    // order (every consumed entry zeroes its clock, so this always
+    // terminates).
+    for (;;)
+    {
+        using Kind = TournamentRegistry::DueAction::Kind;
+        const auto due = ctx.tournaments->PopDueTick(now);
+        if (due.kind == Kind::kNone)
+            co_return;
+
+        if (due.kind == Kind::kStep)
+        {
+            // SM_TOURNAMENT_REQ self-post + the DM_TOURNAMENTSTATUS
+            // persist (SSHandler.cpp:4033-4042).
+            co_await SmTournamentReqLogic(ctx, due.id, due.group,
+                due.step, due.period);
+            if (ctx.tournament_repo)
+                co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                    [repo = ctx.tournament_repo, due]
+                    { repo->SaveStatus(due.id, due.group, due.step); });
+            continue;
+        }
+
+        // kReschedule (TWorldSvr.cpp:4047): the final group's END
+        // elapsed — recompute next month's window (only when the
+        // battle-time row still exists), then re-elect either way.
+        if (const auto bt = ctx.tournaments->TimeFor(due.id))
+        {
+            auto steps = ctx.tournaments->StepsFor(due.id);
+            if (!steps.empty())
+            {
+                const auto res = ctx.tournaments->SetTournamentTime(
+                    std::move(steps), *bt, due.id,
+                    /*month_base=*/true, /*enable=*/true, now);
+                co_await HandleEvictions(ctx, res.evicted);
+            }
+        }
+        co_await RunTournamentElection(ctx, due.id);
+    }
+}
+
 // ---- SM wire handlers (parity with the legacy self-posts) ---------
+
+boost::asio::awaitable<void>
+OnSmTournamentReq(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.tournaments)
+    {
+        spdlog::warn("OnSmTournamentReq[{}]: tournaments not wired",
+            ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint16_t id     = 0;
+    std::uint8_t  group  = 0;
+    std::uint8_t  step   = 0;
+    std::uint32_t period = 0;
+    if (!r.Read(id) || !r.Read(group) || !r.Read(step) ||
+        !r.Read(period))
+    {
+        spdlog::warn("OnSmTournamentReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    co_await SmTournamentReqLogic(ctx, id, group, step, period);
+    co_return;
+}
 
 boost::asio::awaitable<void>
 OnSmTournamentEventReq(std::shared_ptr<PeerSession> peer,

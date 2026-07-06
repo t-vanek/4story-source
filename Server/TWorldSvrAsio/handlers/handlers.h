@@ -2933,6 +2933,28 @@ boost::asio::awaitable<void> OnSmTournamentUpdateReq(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-51: tournament scheduler tick (handlers_tournament.cpp) ----
+//
+// SM_TOURNAMENT_REQ — step advance (legacy SSHandler.cpp:11406):
+// catalogue guard, group-change base reset, step set, then the
+// MW_TOURNAMENTENABLE_REQ broadcast carrying the next step's start.
+// The TournamentSelectPlayer / TournamentMatch follow-ups are the
+// match-engine slice.
+//   Wire: WORD tournament_id, BYTE group, BYTE step, DWORD period
+boost::asio::awaitable<void> OnSmTournamentReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// One pass of the legacy per-second tournament timer
+// (TWorldSvr.cpp:4012), driven by a RegistryRefresher sweeper in
+// main (tournament_check_period_sec): fires due step advances (+ the
+// DM_TOURNAMENTSTATUS persist) and the final END's next-month
+// reschedule + re-election. Drains every entry due at `now`.
+boost::asio::awaitable<void> RunTournamentTick(
+    const HandlerContext&         ctx,
+    std::int64_t                  now);
+
 // MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
 // count==0 ROUTE branch (or when world otherwise asked for a CHARDATA
 // round-trip). World refreshes the char's level + HP/MP from the

@@ -215,6 +215,48 @@ public:
     // the match/result slice.)
     void ClearCurrent();
 
+    // ---- scheduler tick (TWorldSvr.cpp:4012) ---------------------
+    //
+    // One pass of the legacy per-second walk over the ACTIVE
+    // schedule's steps: zero-period steps are skipped, a future
+    // start stops the walk, a due start is consumed (zeroed) and
+    // surfaces as kStep (the caller runs the SM_TOURNAMENT_REQ
+    // step-advance + the DM_TOURNAMENTSTATUS persist), and the
+    // last group's END step whose `end` elapsed is consumed and
+    // surfaces as kReschedule (the caller re-runs SetTournamentTime
+    // for next month + the update election).
+    struct DueAction
+    {
+        enum class Kind { kNone, kStep, kReschedule };
+        Kind          kind   = Kind::kNone;
+        std::uint16_t id     = 0;
+        std::uint8_t  group  = 0;
+        std::uint8_t  step   = 0;
+        std::uint32_t period = 0;
+    };
+    DueAction PopDueTick(std::int64_t now);
+
+    // ---- OnSM_TOURNAMENT_REQ state leg (SSHandler.cpp:11406) -----
+    //
+    // Catalogue guard (id known + non-empty), the group-change
+    // reset (sum=0 + base recompute over the CURRENT tournament's
+    // entries — legacy quirk: the guard checks wTournamentID but
+    // the mutation always hits m_tournament), the step set, and the
+    // next-step start lookup (MAKEWORD(step+1, group) in the
+    // current status steps). nullopt = guard failed (drop).
+    struct AdvanceResult
+    {
+        std::int64_t next_step_start = 0;
+    };
+    std::optional<AdvanceResult> AdvanceStep(std::uint16_t id,
+                                             std::uint8_t group,
+                                             std::uint8_t step);
+
+    // Month-end reschedule inputs (legacy m_mapTournamentTime /
+    // schedule-map reads inside the tick).
+    std::optional<TournamentBattleTime> TimeFor(std::uint16_t id) const;
+    StepMap StepsFor(std::uint16_t id) const;
+
     // ---- catalogue ----------------------------------------------
     //
     // TET_ENTRYADD replace (SSHandler.cpp:12142): evicts the old

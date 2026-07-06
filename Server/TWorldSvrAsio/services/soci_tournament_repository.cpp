@@ -518,4 +518,24 @@ void SociTournamentRepository::ClearPersisted()
     }
 }
 
+void SociTournamentRepository::SaveStatus(std::uint16_t id,
+                                          std::uint8_t group,
+                                          std::uint8_t step)
+{
+    try
+    {
+        auto lease = m_pool.Acquire();
+        // CSPTournamentStatus (DBAccess.h:2746).
+        *lease << "EXEC dbo.TTournamentStatus " +
+            std::to_string(static_cast<int>(id)) + ", " +
+            std::to_string(static_cast<int>(group)) + ", " +
+            std::to_string(static_cast<int>(step));
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociTournamentRepository::SaveStatus({},{},{}) "
+                      "failed: {}", id, group, step, ex.what());
+    }
+}
+
 } // namespace tworldsvr

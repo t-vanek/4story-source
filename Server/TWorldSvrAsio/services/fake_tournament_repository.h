@@ -55,6 +55,8 @@ public:
         FindCharInfoByName(const std::string& name) override;
     void ApplyPlayer(const TnmtApplyOp& op) override;
     void ClearPersisted() override;
+    void SaveStatus(std::uint16_t id, std::uint8_t group,
+                    std::uint8_t step) override;
 
     // ---- write-side call traces ------------------------------------
     struct SaveScheduleCall
@@ -73,6 +75,7 @@ public:
     std::vector<SaveEntriesCall>  SaveEntriesCalls() const;
     std::vector<TnmtApplyOp>      ApplyCalls() const;
     int                           ClearCalls() const;
+    std::vector<TnmtCurrentStep>  SaveStatusCalls() const;
 
 private:
     mutable std::mutex m_mtx;
@@ -97,6 +100,7 @@ private:
     std::vector<SaveEntriesCall>  m_save_entries_calls;
     std::vector<TnmtApplyOp>      m_apply_calls;
     int                           m_clear_calls = 0;
+    std::vector<TnmtCurrentStep>  m_save_status_calls;
 };
 
 } // namespace tworldsvr

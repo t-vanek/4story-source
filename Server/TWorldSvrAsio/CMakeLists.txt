@@ -771,6 +771,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
 
+# W6-51 wire test: tournament scheduler tick - PopDueTick walk,
+# SM_TOURNAMENT_REQ step advance + MW_TOURNAMENTENABLE broadcast,
+# multi-due drain, END reschedule + election rebuild.
+add_executable(test_tworldsvr_asio_tournament_tick_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_tournament_tick_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_tournament_tick_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tournament_tick_handlers
+    COMMAND test_tworldsvr_asio_tournament_tick_handlers)
+
 # W6-50 wire test: tournament state core + operator tools -
 # SetTournamentTime month math / resume graft / evictions, boot
 # hydrate, TET_* op verticals with persist traces, and the

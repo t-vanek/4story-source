@@ -63,6 +63,11 @@ struct AppConfig
     // (legacy ran both on the 1-second world timer). 0 disables.
     std::uint32_t event_quarter_check_period_sec = 30;
 
+    // W6-51: tournament step-advance tick cadence (legacy ran on the
+    // 1-second world timer; steps are minute-scale so 5 s keeps the
+    // advance visibly on time). 0 disables.
+    std::uint32_t tournament_check_period_sec = 5;
+
     // W6-43: TACTIVECHARTABLE -> WarCountryIndex refresh cadence
     // (legacy re-derives on the day-change tick). 0 disables.
     std::uint32_t war_index_refresh_period_sec = 3600;

@@ -500,6 +500,28 @@ int main(int argc, char** argv)
                 cfg.event_quarter_check_period_sec);
         }
 
+        // W6-51: tournament step-advance tick (legacy per-second
+        // walk over the active schedule, TWorldSvr.cpp:4012).
+        // period_sec=0 disables.
+        std::shared_ptr<fourstory::ops::RegistryRefresher>
+            tournament_sweeper;
+        if (cfg.tournament_check_period_sec != 0)
+        {
+            tournament_sweeper = fourstory::ops::RegistryRefresher::Make(
+                io, std::chrono::seconds(
+                        cfg.tournament_check_period_sec));
+            tournament_sweeper->AddCoroutineHook(
+                [ctx]() -> boost::asio::awaitable<void> {
+                    co_await tworldsvr::handlers::RunTournamentTick(
+                        ctx,
+                        static_cast<std::int64_t>(std::time(nullptr)));
+                });
+            tournament_sweeper->Start();
+            spdlog::info("tournament tick sweeper enabled "
+                         "(period={}s)",
+                cfg.tournament_check_period_sec);
+        }
+
         // W3a-36: periodic tactics-contract expiry sweep. Ends
         // tactics-member contracts whose end_time has elapsed
         // (legacy EXPIRED_GT path) without the timer-service

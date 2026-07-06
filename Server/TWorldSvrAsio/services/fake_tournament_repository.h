@@ -28,6 +28,7 @@ public:
     void SeedEventRewards(std::uint16_t tour_id,
                           std::vector<TnmtRewardRow> rows);
     void SeedChar(const TnmtPlayerBrief& info);
+    void SeedPlayerRow(const TnmtPlayerRow& row);
 
     // ---- ITournamentRepository ------------------------------------
     std::optional<TournamentBattleTime> LoadBattleTime() override;
@@ -43,6 +44,7 @@ public:
         LoadEventEntries(std::uint16_t tour_id) override;
     std::vector<TnmtRewardRow>
         LoadEventRewards(std::uint16_t tour_id) override;
+    std::vector<TnmtPlayerRow>          LoadPlayers() override;
 
     void SaveEventSchedule(
         std::uint16_t tour_id, const TournamentBattleTime& time,
@@ -94,6 +96,7 @@ private:
     std::map<std::uint16_t, std::vector<TnmtRewardRow>>
         m_event_rewards;
     std::vector<TnmtPlayerBrief>        m_chars;
+    std::vector<TnmtPlayerRow>          m_player_rows;
 
     std::vector<SaveScheduleCall> m_save_schedule_calls;
     std::vector<std::uint16_t>    m_delete_event_calls;

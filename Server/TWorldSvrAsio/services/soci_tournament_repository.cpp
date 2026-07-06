@@ -356,6 +356,43 @@ SociTournamentRepository::LoadEventRewards(std::uint16_t tour_id)
     return out;
 }
 
+std::vector<TnmtPlayerRow> SociTournamentRepository::LoadPlayers()
+{
+    std::vector<TnmtPlayerRow> out;
+    try
+    {
+        auto lease = m_pool.Acquire();
+        soci::rowset<soci::row> rs = (lease->prepare <<
+            "SELECT \"dwCharID\", \"szName\", \"dwChiefID\", "
+            "\"bClass\", \"bCountry\", \"bLevel\", \"bEntry\", "
+            "\"bStep\", \"bResult\", \"szHWID\", \"dwIPAddr\" "
+            "FROM \"TVIEW_TOURNAMENTPLAYER\"");
+        for (const auto& row : rs)
+        {
+            TnmtPlayerRow r;
+            r.char_id  = Num<std::uint32_t>(row, 0);
+            r.name     = StrCol(row, 1);
+            r.chief_id = Num<std::uint32_t>(row, 2);
+            r.cls      = Num<std::uint8_t>(row, 3);
+            r.country  = Num<std::uint8_t>(row, 4);
+            r.level    = Num<std::uint8_t>(row, 5);
+            r.entry_id = Num<std::uint8_t>(row, 6);
+            r.step     = Num<std::uint8_t>(row, 7);
+            r.result   = Num<std::uint8_t>(row, 8);
+            r.hwid     = StrCol(row, 9);
+            r.ip_addr  = Num<std::uint32_t>(row, 10);
+            out.push_back(std::move(r));
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        spdlog::error("SociTournamentRepository::LoadPlayers failed: "
+                      "{}", ex.what());
+        out.clear();
+    }
+    return out;
+}
+
 void SociTournamentRepository::SaveEventSchedule(
     std::uint16_t tour_id, const TournamentBattleTime& time,
     const std::vector<TnmtEventStepRow>& steps)

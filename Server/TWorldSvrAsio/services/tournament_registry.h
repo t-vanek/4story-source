@@ -302,6 +302,172 @@ public:
                       const TnmtPlayerBrief& info,
                       const std::string& guild_name);
 
+    // ---- players (W6-52 player vertical) --------------------------
+
+    // CanDoTournament (TWorldSvr.cpp:5880): catalogue knows the
+    // current tournament AND the current step equals `step` (and the
+    // group matches when non-zero).
+    bool CanDoTournament(std::uint8_t step,
+                         std::uint8_t group = 0) const;
+
+    std::uint8_t FirstGroupCount() const;
+
+    // Full AddTNMTPlayer port (TWorldSvr.cpp:5913) — routes into the
+    // 1st / normal / party / player pool by step, wires the chief
+    // back-pointer + slot inheritance. Boot reload + the operator
+    // path + TryApply/TryPartyAdd all funnel through here. Fails on
+    // unknown entry / unknown chief / already-registered char / a
+    // step outside the four pool steps.
+    struct TnmtPlayerSeed
+    {
+        TnmtPlayerBrief brief;
+        std::string     guild_name;
+        std::string     hwid;
+        std::uint32_t   ip_addr = 0;
+        std::uint8_t    result[tournament::kMatchCount] = {};
+    };
+    bool AddPlayerAtStep(std::uint8_t entry_id,
+                         const TnmtPlayerSeed& seed,
+                         std::uint8_t step, std::uint32_t chief_id);
+
+    // TournamentApply gate chain (TWorldSvr.cpp:6290). The
+    // first-grade membership is the caller's lookup (legacy
+    // m_arFirstGradeGroup — the MonthRankRegistry owns it in the
+    // port). `already` = the legacy quirk where a registered char
+    // gets the short-form SUCCESS echo without re-adding.
+    struct ApplyOutcome
+    {
+        std::uint8_t result  = 0;   // TOURNAMENT_* result code
+        bool         added   = false;
+        bool         already = false;
+    };
+    ApplyOutcome TryApply(const TnmtPlayerBrief& info,
+                          const std::string& guild_name,
+                          std::uint8_t entry_id,
+                          const std::string& hwid,
+                          std::uint32_t ip_addr,
+                          bool in_first_grade);
+
+    // TournamentPartyAdd gate chain (TWorldSvr.cpp:6537). `silent`
+    // = the legacy paths that return without any reply (step gate,
+    // no entries, no party entry, chief unregistered).
+    struct PartyAddOutcome
+    {
+        bool          silent   = true;
+        std::uint8_t  result   = 0;    // TOURNAMENT_* when !silent
+        bool          added    = false;
+        std::uint8_t  entry_id = 0;
+        std::uint32_t chief_id = 0;
+    };
+    PartyAddOutcome TryPartyAdd(std::uint32_t chief_char_id,
+                                std::uint8_t chief_country,
+                                const TnmtPlayerBrief& target,
+                                const std::string& target_guild);
+
+    // TournamentPartyDel (TWorldSvr.cpp:6634): silent unless the
+    // step + membership + authority gates pass; on success removes
+    // the member and returns the chief id for the PARTYLIST echo
+    // (the caller persists the removal).
+    struct PartyDelOutcome
+    {
+        bool          removed  = false;
+        std::uint32_t chief_id = 0;
+    };
+    PartyDelOutcome PartyDel(std::uint32_t requester_char_id,
+                             std::uint32_t target_char_id);
+
+    // ---- player-vertical reply snapshots --------------------------
+
+    // Roster row shared by the APPLYINFO / JOINLIST / PARTYLIST
+    // replies (rank / month_rank mirror the legacy GetRanking maps,
+    // which the shipped binary never fills — always 0).
+    struct PlayerRosterRow
+    {
+        std::uint32_t char_id    = 0;
+        std::uint8_t  country    = 0;
+        std::string   name;
+        std::uint8_t  level      = 0;
+        std::uint8_t  cls        = 0;
+        std::uint32_t rank       = 0;
+        std::uint32_t month_rank = 0;
+    };
+    struct MatchRosterRow
+    {
+        std::uint8_t    slot_id = tournament::kTournamentSlot;
+        PlayerRosterRow row;
+        std::uint8_t    result[tournament::kMatchCount] = {};
+    };
+
+    // MW_TOURNAMENTSCHEDULE_REQ data (TWorldSvr.cpp:7002): current
+    // group/step + the status steps (the caller filters period!=0).
+    struct ScheduleSnapshot
+    {
+        bool ok = false;              // false = empty step map
+        std::uint8_t group = 0;
+        std::uint8_t step  = 0;
+        std::vector<TournamentStep> steps;
+    };
+    ScheduleSnapshot ScheduleReply() const;
+
+    // MW_TOURNAMENTAPPLYINFO_REQ data (TWorldSvr.cpp:6379).
+    struct ApplyInfoEntry
+    {
+        TournamentEntrySeed seed;
+        bool          applied      = false;   // char's entry?
+        std::uint8_t  free_first   = 0;       // 8 - |1st pool|
+        std::uint16_t normal_count = 0;
+        std::vector<PlayerRosterRow> first_pool;
+    };
+    struct ApplyInfoSnapshot
+    {
+        bool ok = false;   // entries exist && step <= NORMAL
+        std::uint8_t max_level = 0;   // 0xFF translation source
+        std::vector<ApplyInfoEntry> entries;
+    };
+    ApplyInfoSnapshot ApplyInfoReply(std::uint32_t char_id) const;
+
+    // MW_TOURNAMENTJOINLIST_REQ data (TWorldSvr.cpp:6461) — gate =
+    // entries exist && CanDo(PARTY).
+    struct JoinListEntry
+    {
+        TournamentEntrySeed seed;
+        bool applied = false;
+        std::vector<PlayerRosterRow> players;   // mapPlayer pool
+    };
+    struct JoinListSnapshot
+    {
+        bool ok = false;
+        std::vector<JoinListEntry> entries;
+    };
+    JoinListSnapshot JoinListReply(std::uint32_t char_id) const;
+
+    // MW_TOURNAMENTPARTYLIST_REQ data (TWorldSvr.cpp:6658).
+    struct PartyListSnapshot
+    {
+        bool ok = false;              // chief registered?
+        std::uint32_t chief_id = 0;
+        std::vector<PlayerRosterRow> members;
+    };
+    PartyListSnapshot PartyListReply(std::uint32_t chief_id) const;
+
+    // MW_TOURNAMENTMATCHLIST_REQ data (TWorldSvr.cpp:6822).
+    struct MatchListEntry
+    {
+        TournamentEntrySeed seed;
+        bool applied = false;
+        std::vector<MatchRosterRow> players;    // mapPlayer pool
+    };
+    struct MatchListSnapshot
+    {
+        bool ok = false;
+        std::vector<MatchListEntry> entries;
+    };
+    MatchListSnapshot MatchListReply(std::uint32_t char_id) const;
+
+    // Boot reload helper: does the group-0 1st step exist with a
+    // non-zero period (legacy b1St, TWorldSvr.cpp:1801)?
+    bool CurrentHasFirstStep() const;
+
     // TET_PLAYERDEL (SSHandler.cpp:12233): name scan over the
     // registered players, gated on tid being current + the entry
     // existing. Returns the removed char id (caller persists).
@@ -399,6 +565,14 @@ private:
     void RemovePlayerLocked(Entry& entry,
                             const std::shared_ptr<TnmtPlayer>& p);
     std::uint8_t CurrentEntryCountLocked() const;
+    bool AddPlayerAtStepLocked(std::uint8_t entry_id,
+                               const TnmtPlayerSeed& seed,
+                               std::uint8_t step,
+                               std::uint32_t chief_id);
+    bool CanDoTournamentLocked(std::uint8_t step,
+                               std::uint8_t group) const;
+    std::uint8_t EntryOfLocked(std::uint32_t char_id) const;
+    static PlayerRosterRow RosterOf(const TnmtPlayer& p);
 
     mutable std::mutex m_lock;
 

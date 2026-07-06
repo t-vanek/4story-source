@@ -2955,6 +2955,25 @@ boost::asio::awaitable<void> RunTournamentTick(
     const HandlerContext&         ctx,
     std::int64_t                  now);
 
+// --- W6-52: tournament player vertical (handlers_tournament.cpp) ---
+//
+// MW_TOURNAMENT_ACK — a map relays a char's tournament UI request
+// (legacy SSHandler.cpp:11520). The sub-protocol WORD selects the
+// op: SCHEDULE (current ladder), APPLYINFO (entry catalogue +
+// 1st-pool roster, class-filtered rewards), APPLY (the registration
+// gate chain: country / entry / step / fame first-grade / HWID+IP
+// dup / slot cap), JOINLIST (party-step listing), PARTYLIST /
+// PARTYADD / PARTYDEL (chief party management; the offline-target
+// lookup collapses the DM_GETCHARINFO round-trip into
+// ITournamentRepository::FindCharInfoByName), MATCHLIST (bracket
+// roster with slots + per-match results). The EVENTLIST / EVENTINFO
+// / EVENTJOIN spectator-betting trio is the match-engine slice.
+//   Wire: DWORD char_id, DWORD key, WORD sub_protocol, <op tail>
+boost::asio::awaitable<void> OnMwTournamentAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
 // count==0 ROUTE branch (or when world otherwise asked for a CHARDATA
 // round-trip). World refreshes the char's level + HP/MP from the

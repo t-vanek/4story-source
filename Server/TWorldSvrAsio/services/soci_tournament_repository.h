@@ -31,6 +31,7 @@ public:
         LoadEventEntries(std::uint16_t tour_id) override;
     std::vector<TnmtRewardRow>
         LoadEventRewards(std::uint16_t tour_id) override;
+    std::vector<TnmtPlayerRow>          LoadPlayers() override;
 
     void SaveEventSchedule(
         std::uint16_t tour_id, const TournamentBattleTime& time,

@@ -771,6 +771,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
 
+# W6-52 wire test: tournament player vertical - MW_TOURNAMENT_ACK
+# 8-op switch, apply gate chain, party management incl. the offline
+# DB lookup, class-filtered reward blocks, boot player reload.
+add_executable(test_tworldsvr_asio_tournament_player_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_tournament_player_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_tournament_player_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tournament_player_handlers
+    COMMAND test_tworldsvr_asio_tournament_player_handlers)
+
 # W6-51 wire test: tournament scheduler tick - PopDueTick walk,
 # SM_TOURNAMENT_REQ step advance + MW_TOURNAMENTENABLE broadcast,
 # multi-due drain, END reschedule + election rebuild.

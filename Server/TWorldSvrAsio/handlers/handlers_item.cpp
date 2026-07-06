@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/party_constants.h"
 #include "../wire_codec.h"
 
 #include <spdlog/spdlog.h>
@@ -85,6 +86,59 @@ OnDealItemErrorAck(std::shared_ptr<PeerSession> peer,
     { std::lock_guard g(tgt->lock); msi = tgt->main_server_id; }
     if (auto p = FindMapPeer(ctx, msi))
         co_await senders::SendMwDealItemErrorReq(p, target, error_char, error);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnMwAddItemAck(std::shared_ptr<PeerSession> peer,
+               std::vector<std::byte>       body,
+               const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.peers)
+    {
+        spdlog::warn("OnMwAddItemAck[{}]: registries not wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0, mon_id = 0;
+    std::uint8_t  server_id = 0, channel = 0, inven = 0, slot = 0,
+                  item_id = 0;
+    std::uint16_t map_id = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(server_id) ||
+        !r.Read(channel) || !r.Read(map_id) || !r.Read(mon_id) ||
+        !r.Read(inven) || !r.Read(slot) || !r.Read(item_id))
+    {
+        spdlog::warn("OnMwAddItemAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+
+    // FindTChar(id, key) — missing char or key mismatch replies
+    // MIT_NOTFOUND to the reporting map (SSHandler.cpp:5673).
+    std::uint8_t main_server_id = 0;
+    bool found = false;
+    if (auto c = ctx.chars->Find(char_id))
+    {
+        std::lock_guard g(c->lock);
+        if (c->key == key)
+        {
+            found = true;
+            main_server_id = c->main_server_id;
+        }
+    }
+    if (!found)
+    {
+        co_await senders::SendMwAddItemResultReq(peer, char_id, key,
+            channel, map_id, mon_id, item_id, party::kMonItemTakeNotFound);
+        co_return;
+    }
+
+    // Forward the original payload verbatim to the char's main map
+    // (legacy SendMW_ADDITEM_REQ(&packet) — copy + swap wire id).
+    if (auto p = FindMapPeer(ctx, main_server_id))
+        co_await senders::SendMwAddItemReq(p, body);
     co_return;
 }
 

@@ -121,4 +121,49 @@ OnCtItemStateReq(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+boost::asio::awaitable<void>
+OnCtItemFindReq(std::shared_ptr<PeerSession> peer,
+                std::vector<std::byte>       body,
+                const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.item_state_repo)
+    {
+        spdlog::warn("OnCtItemFindReq[{}]: item_state_repo not wired "
+                     "— dropping (no DB configured)", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t manager_id = 0;
+    std::uint16_t item_id    = 0;
+    std::string   pattern;
+    if (!r.Read(manager_id) || !r.Read(item_id) || !r.ReadString(pattern))
+    {
+        spdlog::warn("OnCtItemFindReq[{}]: malformed body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    auto rows = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+        [repo = ctx.item_state_repo, item_id, pattern]
+        { return repo->FindItems(item_id, pattern); });
+
+    // Legacy sends the ACK to the identified ctrl-svr slot (not
+    // necessarily the request's sender) and silently drops it when
+    // no ctrl-svr is known (SSHandler.cpp:10018 `if(m_pCtrlSvr)`).
+    if (!ctx.ctrl_svr)
+    {
+        spdlog::info("OnCtItemFindReq[{}]: ctrl_svr slot not wired — "
+                     "{} row(s) dropped", ip, rows.size());
+        co_return;
+    }
+    if (auto cs = ctx.ctrl_svr->Get())
+        co_await senders::SendCtItemFindAck(cs, manager_id, rows);
+    else
+        spdlog::info("OnCtItemFindReq[{}]: ctrl-svr offline — {} row(s) "
+                     "dropped", ip, rows.size());
+    co_return;
+}
+
 } // namespace tworldsvr::handlers

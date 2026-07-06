@@ -14,6 +14,8 @@
 // single-item primitive.
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace tworldsvr {
 
@@ -23,6 +25,15 @@ struct ItemStateChange
 {
     std::uint16_t item_id    = 0;
     std::uint8_t  init_state = 0;
+};
+
+// One TITEMCHART row as returned by the W6-40 operator item search
+// (legacy CTBLItemFind, DBAccess.h:679).
+struct ItemFindRow
+{
+    std::uint16_t item_id    = 0;
+    std::uint8_t  init_state = 0;
+    std::string   name;
 };
 
 class IItemStateRepository
@@ -36,6 +47,15 @@ public:
     // CoOffloadIf so SOCI never blocks the io_context.
     virtual bool ChangeState(std::uint16_t item_id,
                              std::uint8_t  init_state) = 0;
+
+    // W6-40: SELECT wItemID, bInitState, szName FROM TITEMCHART WHERE
+    // szName LIKE :name OR wItemID = :id — the operator item search
+    // behind CT_ITEMFIND_REQ. `name_pattern` is passed to LIKE as-is
+    // (the operator console supplies its own % wildcards — legacy
+    // parity). Empty result → empty vector (the ACK still fires with
+    // count=0).
+    virtual std::vector<ItemFindRow> FindItems(
+        std::uint16_t item_id, const std::string& name_pattern) = 0;
 };
 
 } // namespace tworldsvr

@@ -631,6 +631,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-48: event-expiry queue (handlers_event.cpp) -------------
+    case MessageId::SM_EVENTEXPIRED_REQ:
+        co_await OnSmEventExpiredReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::SM_EVENTEXPIRED_ACK:
+        co_await OnSmEventExpiredAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-46: EVENTQUARTER operator tools (handlers_event.cpp) ----
     case MessageId::CT_EVENTQUARTERLIST_REQ:
         co_await OnCtEventQuarterListReq(std::move(peer), std::move(body), ctx);

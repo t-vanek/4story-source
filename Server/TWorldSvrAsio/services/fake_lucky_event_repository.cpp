@@ -57,4 +57,10 @@ FakeLuckyEventRepository::UpdateCalls() const
     return m_update_calls;
 }
 
+std::vector<LuckyEvent> FakeLuckyEventRepository::ListAll()
+{
+    std::lock_guard g(m_mtx);
+    return m_rows;
+}
+
 } // namespace tworldsvr

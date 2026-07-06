@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-47 LOTTERY / GIFTTIME rewards (full EVENTINFO parse + draw + mail)
+## Status — W6-48 Lucky-event scheduler + expiry queue — event subsystem complete
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -118,6 +118,7 @@ that the four shipped Asio daemons already use.
 | **W6-45** | CMGift family — `CmGiftRegistry` (TCMGIFTCHART boot load) + `ICmGiftRepository` (TCMGiftCanTake/Add/Set/Del) + four handlers close the whole family. `OnCtCmGiftReq` (tool=1) / `OnMwCmGiftAck` (tool=0) feed the shared `DeliverCmGift` pipeline — the collapsed CT/MW → DM_CMGIFT_REQ → DM_CMGIFT_ACK chain (SSHandler.cpp:456/13610/13634/13670): catalogue miss → `CMGIFT_ID`; take-type gifts run the per-target `TCMGiftCanTake`; `DUPLICATE` swaps to the `err_gift_id` fallback (missing fallback → report DUPLICATE; present → deliver as `CMGIFT_ERRPOST` with `(requested, actual)` ids); the `tool_only <= tool` gate → `CMGIFT_FAIL`; offline target → `CMGIFT_TARGET`; else `MW_CMGIFT_REQ` (11-field payload) to the target's main map. Error replies: `CT_CMGIFT_ACK` to the ctrl slot (legacy dereferenced `m_pCtrlSvr` **unguarded** — we guard + drop) or `MW_CMGIFTRESULT_REQ` to the GM's main map. `OnCtCmGiftListReq` → full catalogue (`CT_CMGIFTLIST_ACK`). `OnCtCmGiftChartUpdateReq` → per-entry ADD (adopts the SP-assigned id) / UPDATE / DEL with legacy skip-on-failure semantics, registry apply, refreshed catalogue ack. `DM_CMGIFT*` + `DM_CMGIFTCHARTUPDATE*` repository-collapsed (§D); 4 warn-only SP probes + TCMGIFTCHART probe | ✅ |
 | **W6-46** | EVENTQUARTER operator tools — `ILuckyEventRepository` + two handlers collapse the CT → DataSvr hops (SSHandler.cpp:410/422 → 12873/12949/13009). `OnCtEventQuarterListReq` (manager, day) lists TEVENTQUARTERCHART for the day with per-row `TGetItemName` resolution → `CT_EVENTQUARTERLIST_ACK(manager, count, N×LUCKYEVENT)` to the ctrl slot. `OnCtEventQuarterUpdateReq` (manager, type, LUCKYEVENT) runs `TEventQuarterUpdate` — EK_ADD adopts the SP-assigned `wOutID`, the five item names come back as OUTPUT params (all captured via a DECLARE/EXEC/SELECT batch) → `CT_EVENTQUARTERUPDATE_ACK(ret, manager, type, LUCKYEVENT)`. Shared byte-exact `lucky_event_codec.h` (19-field WrapPacketIn/Out order). The in-memory quarter-event scheduler mirror (`m_mapEVQT` reschedule + timer fire + announce/handout) stays with the lucky-event runtime slice (W6-47, together with LOTTERY/GIFTTIME). `DM_EVENTQUARTERLIST/UPDATE` pairs repository-collapsed (§D); 2 SP + 1 table warn-only probes | ✅ |
 | **W6-47** | LOTTERY / GIFTTIME rewards — the `OnCtEventUpdateReq` LOTTERY/GIFTTIME short-circuit now runs the real reward subsystems instead of the deferred drop (legacy SSHandler.cpp:279-292 → `LotteryItem` TWorldSvr.cpp:7115 / `GiftTime` :7273). New `event_info_codec.h` parses the **full EVENTINFO tail** (state → cash/mon/regen/lottery vectors; the `b*Alarm` bytes are not on the wire — legacy quirk). LOTTERY: `state` gate, `lot_msg` "title\|message" split, candidate pool = whole population or the `CheckEventMapId` map band (type 1 = tournament 500..532; byte-truncated map id — legacy parity), **no-repeat draw across all rows**, per-winner `WPT_LOTITEM` mail via `MW_WORLDPOSTSEND_REQ` on the **first** registered map (the post table is DB-backed), pool-exhaustion flushes the partial board early, then the `MW_EVENTMSGLOTTERY_REQ` winner board fans to every map. GIFTTIME: `[HIBYTE, LOBYTE]` level band, first lottery row mailed to every qualifying char with `use_time = winner` (legacy `.at(0)` unguarded — we guard + log). Neither path stores nor broadcasts the event (legacy early return). 2 senders | ✅ |
+| **W6-48** | Lucky-event scheduler + expiry queue — the last two event-subsystem items. `EventQuarterScheduler` ports `m_mapEVQT`/`m_mapTimeEVQT` + `CheckEventQuarter` (TWorldSvr.cpp:882/7776/7800): boot load from TEVENTQUARTERCHART (`ILuckyEventRepository::ListAll`), announce pre-wrapped in the legacy NetString framing (`"%04X%04X"+header+body`, empty header — `BuildNetString` :5490), weekly `NextEventQuarterTime` local-time math (CTime weekday 1=Sun), head-entry-only tick: announce once 5 min before the slot (at the slot itself for present-less entries), present handout at the slot + weekly reschedule (exact-boundary re-slot quirk kept). Fires reuse the W6-1 broadcast paths (world-chat notify + `MW_EVENTQUARTER_REQ` fan-out); the W6-46 chart editor now mirrors successful ADD/UPDATE/DEL edits into the running scheduler (legacy `OnDM_EVENTQUARTERUPDATE_ACK`). `ExpiredBuffer` ports `m_vExpired` + `CheckEventExpired` (SSHandler.cpp:10668, TWorldSvr.cpp:5280): `SM_EVENTEXPIRED_REQ` sorted insert/remove (**remove-miss-inserts quirk kept + documented**), `SM_EVENTEXPIRED_ACK` immediate dispatch, due-pop sweep through the same dispatch — `EXPIRED_GMW` → wanted-board delete (+`DeleteWanted` repo), `EXPIRED_GTW` → tactics-wanted registry delete (DB table = the deferred guild-extras item), `EXPIRED_GT` → targeted tactics-contract end (+ back-pointer clear). One `event_quarter_check_period_sec` sweeper (default 30 s) drives both ticks | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -148,14 +149,13 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-47)
+## Gaps audit — not yet ported / deferred (as of W6-48)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **211** are ported in
-`handlers/dispatch.cpp` (150 MW + 28 DM + 21 CT + 9 SM + 3 RW), leaving
-**79** with no port. (W6-47 deepens `CT_EVENTUPDATE_REQ` — the
-LOTTERY/GIFTTIME reward branches — without adding a dispatch entry.) (W6-36's `CT_ITEMSTATE_REQ` absorbs the
+breakdown the W2 sizing note records); **213** are ported in
+`handlers/dispatch.cpp` (150 MW + 28 DM + 21 CT + 11 SM + 3 RW), leaving
+**77** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
 `DM_ITEMSTATE_REQ/_ACK` pair, W6-37's `MW_CASHITEMSALE_ACK` absorbs
 `DM_CASHITEMSALE_REQ/_ACK`, and W6-38's CT_HELPMESSAGE / SM_DELSESSION
 absorb `DM_HELPMESSAGE_REQ` / `DM_CLEARMAPCURRENTUSER_REQ` —
@@ -163,7 +163,7 @@ repository-collapsed, counted under §D.)
 A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
 owe; netting those out, the *owed* wire surface is ~266. Raw handler
-coverage is **≈ 73 %** (211/290); against the owed surface it is ~79 %.
+coverage is **≈ 73 %** (213/290); against the owed surface it is ~80 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -258,11 +258,9 @@ Intentionally not ported:
   active event to a joining peer — legacy SSHandler.cpp:662-664); W6-46
   ports the `CT_EVENTQUARTERLIST/UPDATE` operator tools (`DM_*` pairs
   repository-collapsed, §D); W6-47 ports the LOTTERY/GIFTTIME reward
-  runs (full EVENTINFO parse + no-repeat draw + WPT_LOTITEM mail +
-  winner-board fan-out). Still deferred: the quarter-event scheduler
-  runtime (`m_mapEVQT` fire/announce/handout) and
-  `SM_EVENTEXPIRED_REQ/_ACK` (W3a-19/W3a-36 sweepers already cover the
-  wanted/tactics expiry paths) — the W6-48 slice
+  runs; W6-48 closes the subsystem with the quarter-event scheduler
+  runtime and the `SM_EVENTEXPIRED_REQ/_ACK` queue. **The event
+  subsystem is complete.**
 
 **Roadmap W7 ⏸ (cash / item / rank):**
 - CMGift: **complete** — W6-34 result relay, W6-35 admin path,
@@ -332,6 +330,18 @@ is the W6-47 runtime slice).
    ctrl-svr echo, same slot pattern as W6-36) + `MW_ADDITEM`.
 4. Larger roadmap subsystems (Tournament / MonthRank / CMGift DB
    family).
+
+### W6-48 — what landed
+
+**Lucky-event scheduler + expiry queue** — the event subsystem's
+last two pieces. Tests: a controlled-clock scheduler pass (notice
+once inside the 5-minute window with the NetString prefix, present
+fire + weekly reschedule just past the slot, announce-only entries
+noticing at the slot) and a wire pass over the expiry queue
+(insert/remove maintenance incl. the legacy remove-miss-inserts
+quirk, a due-pop sweep ending a tactics contract + clearing the
+char back-pointer, and the ACK immediate-dispatch path). 102 wire
+tests, all green.
 
 ### W6-47 — what landed
 

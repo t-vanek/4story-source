@@ -52,6 +52,11 @@ public:
     // TEVENTQUARTERCHART WHERE bDay = :day + TGetItemName per row.
     virtual std::vector<LuckyEvent> List(std::uint8_t day) = 0;
 
+    // Whole-chart scan for the W6-48 scheduler boot load (legacy
+    // CTBLEventQuarterChart, TWorldSvr.cpp:885). Only id / day /
+    // hour / minute / present / announce are consumed.
+    virtual std::vector<LuckyEvent> ListAll() = 0;
+
     // TEventQuarterUpdate(type, event) — nullopt on a DB error
     // (legacy keeps bRet=TRUE and echoes the unresolved event).
     virtual std::optional<LuckyEventUpdateResult>

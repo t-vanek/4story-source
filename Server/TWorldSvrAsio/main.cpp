@@ -238,11 +238,29 @@ int main(int argc, char** argv)
         tworldsvr::WarCountryIndex      war_index;
         tworldsvr::CastleWarRegistry    castle_war;
         tworldsvr::CmGiftRegistry       cmgifts;
+        tworldsvr::EventQuarterScheduler evqt;
+        tworldsvr::ExpiredBuffer        expired;
         if (cmgift_repo)
         {
             cmgifts.LoadFrom(cmgift_repo->LoadChart());
             spdlog::info("cmgift catalogue: {} gift(s) loaded",
                 cmgifts.Size());
+        }
+        if (lucky_repo)
+        {
+            std::vector<tworldsvr::EventQuarterEntry> rows;
+            for (const auto& e : lucky_repo->ListAll())
+            {
+                tworldsvr::EventQuarterEntry q{};
+                q.id = e.id; q.day = e.day; q.hour = e.hour;
+                q.minute = e.minute;
+                q.present = e.present; q.announce = e.announce;
+                rows.push_back(std::move(q));
+            }
+            evqt.LoadFrom(rows,
+                static_cast<std::int64_t>(std::time(nullptr)));
+            spdlog::info("event-quarter scheduler: {} entrie(s) "
+                         "loaded", evqt.Size());
         }
         {
             // Legacy TWorldSvr.cpp:1894 - the rank month boots from
@@ -314,6 +332,8 @@ int main(int argc, char** argv)
         ctx.cmgifts         = &cmgifts;
         ctx.cmgift_repo     = cmgift_repo.get();
         ctx.lucky_repo      = lucky_repo.get();
+        ctx.evqt            = &evqt;
+        ctx.expired         = &expired;
         ctx.castle_war_day  = cfg.castle_war_day;
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;
@@ -424,6 +444,27 @@ int main(int argc, char** argv)
             spdlog::info("war-country index refresh enabled "
                          "(period={}s)",
                 cfg.war_index_refresh_period_sec);
+        }
+
+        // W6-48: lucky-event scheduler tick + expiry-queue pop
+        // (legacy CheckEventQuarter / CheckEventExpired timer work).
+        // period_sec=0 disables.
+        std::shared_ptr<fourstory::ops::RegistryRefresher> evqt_sweeper;
+        if (cfg.event_quarter_check_period_sec != 0)
+        {
+            evqt_sweeper = fourstory::ops::RegistryRefresher::Make(
+                io, std::chrono::seconds(
+                        cfg.event_quarter_check_period_sec));
+            evqt_sweeper->AddCoroutineHook(
+                [ctx]() -> boost::asio::awaitable<void> {
+                    co_await tworldsvr::handlers::RunEventQuarterTick(
+                        ctx);
+                    co_await tworldsvr::handlers::RunExpiredSweep(ctx);
+                });
+            evqt_sweeper->Start();
+            spdlog::info("event-quarter/expiry sweeper enabled "
+                         "(period={}s)",
+                cfg.event_quarter_check_period_sec);
         }
 
         // W3a-36: periodic tactics-contract expiry sweep. Ends

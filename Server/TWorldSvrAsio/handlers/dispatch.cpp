@@ -631,6 +631,23 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-38: service / control plane (handlers_service.cpp) ------
+    case MessageId::CT_SERVICEMONITOR_ACK:
+        co_await OnCtServiceMonitorAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_SERVICEDATACLEAR_ACK:
+        co_await OnCtServiceDataClearAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_HELPMESSAGE_REQ:
+        co_await OnCtHelpMessageReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::SM_QUITSERVICE_REQ:
+        co_await OnSmQuitServiceReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::SM_DELSESSION_REQ:
+        co_await OnSmDelSessionReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-36: operator item-state tool (handlers_ctrlsvr.cpp) -----
     case MessageId::CT_ITEMSTATE_REQ:
         co_await OnCtItemStateReq(std::move(peer), std::move(body), ctx);

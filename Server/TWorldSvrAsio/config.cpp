@@ -61,6 +61,12 @@ AppConfig LoadConfig(const std::string& path)
                 throw std::runtime_error("server.nation out of range (0..255)");
             cfg.nation = static_cast<std::uint8_t>(*n);
         }
+        if (auto g = (*srv)["group_id"].value<std::int64_t>())
+        {
+            if (*g < 0 || *g > 255)
+                throw std::runtime_error("server.group_id out of range (0..255)");
+            cfg.group_id = static_cast<std::uint8_t>(*g);
+        }
     }
     if (auto db = tbl["database"].as_table())
     {

@@ -2089,6 +2089,28 @@ boost::asio::awaitable<void> SendCtCashItemSaleAck(
     std::uint32_t                  dw_index,
     std::uint16_t                  value);
 
+// --- W6-38 service-plane senders (senders_admin.cpp) ---------------
+
+// CT_SERVICEMONITOR_REQ — monitoring echo back to the probe sender.
+// Legacy SSSender.cpp:24.
+//   Wire: DWORD tick, DWORD sessions, DWORD chars, DWORD active_users
+boost::asio::awaitable<void> SendCtServiceMonitorReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint32_t                  tick,
+    std::uint32_t                  sessions,
+    std::uint32_t                  chars,
+    std::uint32_t                  active_users);
+
+// MW_HELPMESSAGE_REQ — operator help-message line fan-out. Legacy
+// SSSender.cpp:135.
+//   Wire: BYTE id, INT64 start, INT64 end, STRING message
+boost::asio::awaitable<void> SendMwHelpMessageReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   id,
+    std::int64_t                   start_unix,
+    std::int64_t                   end_unix,
+    const std::string&             message);
+
 // --- W6-36 item-state relays (senders_item.cpp) --------------------
 //
 // Both carry the payload the legacy DM_ITEMSTATE_ACK built

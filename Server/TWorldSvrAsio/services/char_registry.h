@@ -302,6 +302,12 @@ public:
 
     void MarkUserActive(std::uint32_t user_id);
     void MarkUserInactive(std::uint32_t user_id);
+
+    // W6-38: drop the whole active-user set and re-derive it from the
+    // chars currently registered (one entry per distinct user_id).
+    // Ports legacy OnCT_SERVICEDATACLEAR_ACK (SSHandler.cpp:133) —
+    // the operator's "resync the CCU counter" tool.
+    void RebuildActiveUsers();
     bool IsUserActive(std::uint32_t user_id) const;
     std::size_t ActiveUserCount() const;
 

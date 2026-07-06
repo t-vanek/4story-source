@@ -49,4 +49,42 @@ SendCtUserMoveAck(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendCtServiceMonitorReq(std::shared_ptr<PeerSession>   peer,
+                        std::uint32_t                  tick,
+                        std::uint32_t                  sessions,
+                        std::uint32_t                  chars,
+                        std::uint32_t                  active_users)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, tick);
+    WritePOD<std::uint32_t>(body, sessions);
+    WritePOD<std::uint32_t>(body, chars);
+    WritePOD<std::uint32_t>(body, active_users);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::CT_SERVICEMONITOR_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwHelpMessageReq(std::shared_ptr<PeerSession>   peer,
+                     std::uint8_t                   id,
+                     std::int64_t                   start_unix,
+                     std::int64_t                   end_unix,
+                     const std::string&             message)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, id);
+    WritePOD<std::int64_t>(body, start_unix);
+    WritePOD<std::int64_t>(body, end_unix);
+    WriteString(body, message);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_HELPMESSAGE_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

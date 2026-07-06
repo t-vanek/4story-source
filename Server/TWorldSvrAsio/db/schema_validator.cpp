@@ -152,31 +152,44 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                      "(CT_ITEMSTATE_REQ, W6-36) will report 0 applied "
                      "rows per batch.");
     }
+    // Warn-only stored-procedure probes. W6-37 persists cash-sale
+    // campaigns via the TCashItemSale TGAME wrapper (hops into
+    // TGLOBAL_GSP — the cross-DB target can't be validated from this
+    // pool); W6-38 uses THelpMessage + TClearMapCurrentUser.
+    auto routine_exists = [&lease](const char* name) -> bool
     {
-        // W6-37 persists cash-sale campaigns via the legacy
-        // TCashItemSale SP (a TGAME wrapper that hops into
-        // TGLOBAL_GSP.dbo.TCashItemSale). Probe the wrapper's
-        // existence only — the cross-DB target can't be validated
-        // from this pool.
         int hits = 0;
         try
         {
             *lease << "SELECT COUNT(*) FROM INFORMATION_SCHEMA.ROUTINES "
-                      "WHERE ROUTINE_NAME = 'TCashItemSale'",
+                      "WHERE ROUTINE_NAME = '" + std::string(name) + "'",
                 soci::into(hits);
         }
         catch (const std::exception& ex)
         {
-            spdlog::debug("schema_validator (world): routine probe "
-                          "skipped: {}", ex.what());
+            spdlog::debug("schema_validator (world): routine probe '{}' "
+                          "skipped: {}", name, ex.what());
         }
-        if (hits == 0)
-        {
-            spdlog::warn("schema_validator (world): TCashItemSale SP "
-                         "not deployed — the cash-sale confirm barrier "
-                         "(MW_CASHITEMSALE_ACK, W6-37) will fail the "
-                         "persist and skip the stop broadcast.");
-        }
+        return hits > 0;
+    };
+    if (!routine_exists("TCashItemSale"))
+    {
+        spdlog::warn("schema_validator (world): TCashItemSale SP not "
+                     "deployed — the cash-sale confirm barrier "
+                     "(MW_CASHITEMSALE_ACK, W6-37) will fail the "
+                     "persist and skip the stop broadcast.");
+    }
+    if (!routine_exists("THelpMessage"))
+    {
+        spdlog::warn("schema_validator (world): THelpMessage SP not "
+                     "deployed — CT_HELPMESSAGE_REQ (W6-38) will "
+                     "broadcast without persisting.");
+    }
+    if (!routine_exists("TClearMapCurrentUser"))
+    {
+        spdlog::warn("schema_validator (world): TClearMapCurrentUser SP "
+                     "not deployed — SM_DELSESSION_REQ (W6-38) will "
+                     "skip the current-user clear.");
     }
 }
 

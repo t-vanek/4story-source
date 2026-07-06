@@ -37,6 +37,7 @@
 #include "services/soci_friend_repository.h"
 #include "services/soci_item_state_repository.h"
 #include "services/soci_cash_sale_repository.h"
+#include "services/soci_service_ops_repository.h"
 #include "world_server.h"
 
 #include "fourstory/db/session_pool.h"
@@ -132,6 +133,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IFriendRepository>    friend_repo;
         std::unique_ptr<tworldsvr::IItemStateRepository> item_state_repo;
         std::unique_ptr<tworldsvr::ICashSaleRepository>  cash_sale_repo;
+        std::unique_ptr<tworldsvr::IServiceOpsRepository> service_ops_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -174,6 +176,9 @@ int main(int argc, char** argv)
                     *db_pool_owner);
             cash_sale_repo =
                 std::make_unique<tworldsvr::SociCashSaleRepository>(
+                    *db_pool_owner);
+            service_ops_repo =
+                std::make_unique<tworldsvr::SociServiceOpsRepository>(
                     *db_pool_owner);
         }
         else
@@ -254,6 +259,8 @@ int main(int argc, char** argv)
         ctx.ctrl_svr     = &ctrl_svr;
         ctx.item_state_repo = item_state_repo.get();
         ctx.cash_sale_repo  = cash_sale_repo.get();
+        ctx.service_ops     = service_ops_repo.get();
+        ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;
 
         tworldsvr::WorldServerConfig svr_cfg{};

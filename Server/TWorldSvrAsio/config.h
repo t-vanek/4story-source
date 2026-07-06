@@ -43,6 +43,11 @@ struct AppConfig
     // the regional shard's identity.
     std::uint8_t  nation = 0;
 
+    // Cluster group id (legacy CTWorldSvrModule::m_bGroupID). Used by
+    // the W6-38 SM_DELSESSION teardown when clearing the departing
+    // map's TCURRENTUSER rows (TClearMapCurrentUser SP).
+    std::uint8_t  group_id = 0;
+
     DbConfig      database;
 
     // Health endpoint shape mirrors the four shipped Asio daemons.

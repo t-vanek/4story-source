@@ -178,6 +178,32 @@ void CharRegistry::MarkUserInactive(std::uint32_t user_id)
     shard.users.erase(user_id);
 }
 
+void CharRegistry::RebuildActiveUsers()
+{
+    // Collect the distinct user ids of every registered char first,
+    // then swap them into the user shards — no cross-shard lock
+    // nesting (char-shard locks release before user-shard locks are
+    // taken).
+    std::vector<std::uint32_t> users;
+    for (auto& shard : m_shards)
+    {
+        std::shared_lock lock(shard.mtx);
+        users.reserve(users.size() + shard.chars.size());
+        for (const auto& [_, ch] : shard.chars)
+        {
+            std::lock_guard g(ch->lock);
+            users.push_back(ch->user_id);
+        }
+    }
+    for (auto& us : m_user_shards)
+    {
+        std::unique_lock lock(us.mtx);
+        us.users.clear();
+    }
+    for (std::uint32_t uid : users)
+        MarkUserActive(uid);
+}
+
 bool CharRegistry::IsUserActive(std::uint32_t user_id) const
 {
     const auto& shard = m_user_shards[ShardOf(user_id)];

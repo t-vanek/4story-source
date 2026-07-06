@@ -34,6 +34,7 @@
 #include "../services/friend_repository.h"
 #include "../services/item_state_repository.h"
 #include "../services/cash_sale_repository.h"
+#include "../services/service_ops_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -137,6 +138,15 @@ struct HandlerContext
     // fired once every map confirmed the campaign broadcast.
     // nullptr → the confirm handler logs + drops (no DB configured).
     ICashSaleRepository*      cash_sale_repo = nullptr;
+
+    // W6-38: service-plane DB writes (THelpMessage +
+    // TClearMapCurrentUser SPs). nullptr → broadcast-only /
+    // clear-skipped.
+    IServiceOpsRepository*    service_ops = nullptr;
+
+    // W6-38: cluster group id (legacy CTWorldSvrModule::m_bGroupID),
+    // fed into TClearMapCurrentUser during SM_DELSESSION teardown.
+    std::uint8_t              group_id   = 0;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1769,6 +1779,54 @@ boost::asio::awaitable<void> OnCtCtrlsvrReq(
 //
 //   Wire (SSHandler.cpp:10559): DWORD dw_index, WORD value, BYTE ret
 boost::asio::awaitable<void> OnMwCashItemSaleAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-38: service / control plane (handlers_service.cpp) --------
+//
+// CT_SERVICEMONITOR_ACK — the monitoring probe echo. The peer sends a
+// tick; world replies CT_SERVICEMONITOR_REQ(tick, sessions, chars,
+// active_users) on the same socket (legacy SSHandler.cpp:5; counters
+// were m_mapSESSION/m_mapTCHAR/m_mapACTIVEUSER sizes — ours counts
+// registered peers + the ctrl-svr slot for `sessions`).
+//
+// CT_SERVICEDATACLEAR_ACK — operator CCU resync: rebuild the
+// active-user set from the chars actually registered (legacy
+// SSHandler.cpp:133).
+//
+// CT_HELPMESSAGE_REQ — operator help-message line: broadcast
+// MW_HELPMESSAGE_REQ(id, start, end, text) to every map peer +
+// persist via IServiceOpsRepository (legacy SSHandler.cpp:433; the
+// DM_HELPMESSAGE_REQ -> THelpMessage hop is repository-collapsed).
+//   Wire: BYTE id, INT64 start, INT64 end, STRING message
+//
+// SM_QUITSERVICE_REQ — log-only stub; the legacy body (SCM stop +
+// WM_QUIT) is commented out in the shipped build (SSHandler.cpp:502).
+//
+// SM_DELSESSION_REQ — a map server announces it is going away: world
+// CloseChar()s every char holding a connection on that map, fires
+// TClearMapCurrentUser(group_id, LOBYTE(wID), SVRGRP_MAPSVR), then
+// force-closes the sender's socket. Non-map senders skip the sweep +
+// clear but still get their socket closed (legacy SSHandler.cpp:512
+// runs COMP_CLOSE unconditionally).
+boost::asio::awaitable<void> OnCtServiceMonitorAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCtServiceDataClearAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCtHelpMessageReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnSmQuitServiceReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnSmDelSessionReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

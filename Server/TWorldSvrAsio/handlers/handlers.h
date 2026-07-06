@@ -33,6 +33,7 @@
 #include "../services/tms_registry.h"
 #include "../services/friend_repository.h"
 #include "../services/item_state_repository.h"
+#include "../services/cash_sale_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -131,6 +132,11 @@ struct HandlerContext
     // item-state tool (CT_ITEMSTATE_REQ). nullptr → the handler
     // logs + drops (no DB configured).
     IItemStateRepository*     item_state_repo = nullptr;
+
+    // W6-37: cash-shop sale persistence (legacy TCashItemSale SP)
+    // fired once every map confirmed the campaign broadcast.
+    // nullptr → the confirm handler logs + drops (no DB configured).
+    ICashSaleRepository*      cash_sale_repo = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1742,6 +1748,27 @@ boost::asio::awaitable<void> OnCmGiftResultAck(
 // CT_*_ACK / DM_*_ACK replies can be routed back. Legacy parity
 // SSHandler.cpp:207-215 (`m_pCtrlSvr = pSERVER;`).
 boost::asio::awaitable<void> OnCtCtrlsvrReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// W6-37: MW_CASHITEMSALE_ACK — a map server confirms it applied the
+// cash-shop sale broadcast. Ports the legacy confirmation barrier +
+// persistence chain (SSHandler.cpp:10559 OnMW_CASHITEMSALE_ACK →
+// 10595 OnDM_CASHITEMSALE_REQ → 10637 OnDM_CASHITEMSALE_ACK) into
+// one coroutine: flip the sender's per-peer CashSaleConfirmed flag;
+// once EVERY registered peer confirmed, persist each campaign item
+// via ICashSaleRepository (first failure aborts — legacy bRet=FALSE
+// drop), then on success erase the campaign when value==0 (this is
+// where deactivated rows actually leave the registry — the W6-33
+// zero-in-place keeps them until here), broadcast
+// MW_CASHSHOPSTOP_REQ(0, 0) to every map (cash-shop refresh signal),
+// and echo CT_CASHITEMSALE_ACK(dw_index, value) to the ctrl-svr on
+// the value==0 path only (legacy `if(wValue==0 && m_pCtrlSvr)`).
+// The wire bRet is read + logged but ignored (legacy parity).
+//
+//   Wire (SSHandler.cpp:10559): DWORD dw_index, WORD value, BYTE ret
+boost::asio::awaitable<void> OnMwCashItemSaleAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

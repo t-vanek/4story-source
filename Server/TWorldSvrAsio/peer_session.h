@@ -67,9 +67,20 @@ public:
         m_nation = n;
     }
 
+    // W6-37: per-peer cash-sale confirmation flag (legacy
+    // TServer::m_bCashSale, TServer.cpp:8 inits FALSE). Armed to
+    // false on every CT_CASHITEMSALE_REQ broadcast; flipped true by
+    // the peer's MW_CASHITEMSALE_ACK. The DB persist fires once
+    // every registered peer reads true (barrier recomputed per ACK
+    // — a late-joining map that ACKs its replay re-triggers the
+    // persist, same as legacy; the SP is an idempotent UPDATE).
+    bool CashSaleConfirmed() const { return m_cash_sale.load(); }
+    void SetCashSaleConfirmed(bool v) { m_cash_sale.store(v); }
+
 private:
     std::shared_ptr<WorldSession> m_wire;
     std::atomic<std::uint16_t>    m_wid{0};
+    std::atomic<bool>             m_cash_sale{false};
     mutable std::mutex            m_mtx;
     std::uint8_t                  m_nation = 0;
 };

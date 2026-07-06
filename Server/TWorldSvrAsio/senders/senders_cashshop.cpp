@@ -72,4 +72,19 @@ SendCtCmGiftAck(std::shared_ptr<PeerSession>   peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendCtCashItemSaleAck(std::shared_ptr<PeerSession>   peer,
+                      std::uint32_t                  dw_index,
+                      std::uint16_t                  value)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, dw_index);
+    WritePOD<std::uint16_t>(body, value);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::CT_CASHITEMSALE_ACK),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

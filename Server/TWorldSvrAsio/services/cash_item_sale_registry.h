@@ -55,7 +55,14 @@ public:
     // Order is unordered_map iteration order.
     std::vector<TCashItemSaleEvent> Snapshot() const;
 
-    // Drop the entry under `dw_index`. Idempotent. Tests use this.
+    // Copy out the entry under `dw_index`. Returns false on a miss.
+    // W6-37's confirm barrier reads the stored item list to persist
+    // it (legacy OnMW_CASHITEMSALE_ACK re-reads m_mapTCashItemSale).
+    bool Get(std::uint32_t dw_index, TCashItemSaleEvent& out) const;
+
+    // Drop the entry under `dw_index`. Idempotent. W6-37's confirm
+    // handler erases deactivated (value==0) campaigns after the DB
+    // persist succeeds (legacy OnDM_CASHITEMSALE_ACK erase).
     bool Erase(std::uint32_t dw_index);
 
     std::size_t Size() const;

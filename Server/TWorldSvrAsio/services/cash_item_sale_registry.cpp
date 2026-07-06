@@ -35,6 +35,17 @@ std::vector<TCashItemSaleEvent> CashItemSaleRegistry::Snapshot() const
     return out;
 }
 
+bool CashItemSaleRegistry::Get(std::uint32_t dw_index,
+                               TCashItemSaleEvent& out) const
+{
+    std::shared_lock lk(m_lock);
+    auto it = m_events.find(dw_index);
+    if (it == m_events.end())
+        return false;
+    out = it->second;
+    return true;
+}
+
 bool CashItemSaleRegistry::Erase(std::uint32_t dw_index)
 {
     std::unique_lock lk(m_lock);

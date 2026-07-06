@@ -2,6 +2,8 @@
 #include "../senders/senders.h"
 #include "../wire_codec.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
@@ -92,9 +94,115 @@ OnCtCashItemSaleReq(std::shared_ptr<PeerSession> peer,
         }
     }
 
+    // W6-37: arm the per-peer confirmation barrier before the
+    // broadcast (legacy SSHandler.cpp:402 clears m_bCashSale in the
+    // same loop that sends). The DB persist fires only after every
+    // armed peer answers MW_CASHITEMSALE_ACK.
     for (auto& p : ctx.peers->Snapshot())
+    {
+        p->SetCashSaleConfirmed(false);
         co_await senders::SendMwCashItemSaleReq(p, broadcast.dw_index,
             broadcast.value, broadcast.items);
+    }
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnMwCashItemSaleAck(std::shared_ptr<PeerSession> peer,
+                    std::vector<std::byte>       body,
+                    const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t dw_index = 0;
+    std::uint16_t value    = 0;
+    std::uint8_t  ret      = 0;
+    if (!r.Read(dw_index) || !r.Read(value) || !r.Read(ret))
+    {
+        spdlog::warn("OnMwCashItemSaleAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    // Legacy reads bRet but never branches on it (SSHandler.cpp:
+    // 10565-10573) — the per-map result is informational only.
+    peer->SetCashSaleConfirmed(true);
+
+    if (!ctx.peers || !ctx.cash_sales)
+    {
+        spdlog::warn("OnMwCashItemSaleAck[{}]: peers/cash_sales not "
+                     "wired", ip);
+        co_return;
+    }
+
+    // Barrier: every registered map must have confirmed. Recomputed
+    // on every ACK (legacy parity — a late-joining peer that ACKs
+    // its replay re-runs the persist; the SP is an idempotent
+    // UPDATE so the repeat is harmless).
+    for (auto& p : ctx.peers->Snapshot())
+        if (!p->CashSaleConfirmed())
+            co_return;
+
+    TCashItemSaleEvent ev{};
+    if (!ctx.cash_sales->Get(dw_index, ev))
+    {
+        // Unknown campaign — legacy finds nothing in
+        // m_mapTCashItemSale and never fires the DM chain.
+        spdlog::info("OnMwCashItemSaleAck[{}]: dw_index={} not in "
+                     "registry — persist skipped", ip, dw_index);
+        co_return;
+    }
+
+    if (!ctx.cash_sale_repo)
+    {
+        spdlog::warn("OnMwCashItemSaleAck[{}]: cash_sale_repo not "
+                     "wired — dropping persist (no DB configured)", ip);
+        co_return;
+    }
+
+    // Persist each (id, sale_value) via the TCashItemSale SP; first
+    // failure aborts the batch (legacy OnDM_CASHITEMSALE_REQ breaks
+    // and replies bRet=FALSE, which OnDM_CASHITEMSALE_ACK drops).
+    const bool ok = co_await fourstory::db::CoOffloadIf(
+        ctx.db_pool,
+        [repo = ctx.cash_sale_repo, items = ev.items]() -> bool
+        {
+            for (const auto& it : items)
+                if (!repo->PersistSaleValue(it.id, it.sale_value))
+                    return false;
+            return true;
+        });
+    if (!ok)
+    {
+        spdlog::warn("OnMwCashItemSaleAck[{}]: dw_index={} persist "
+                     "failed — no stop broadcast (legacy bRet=FALSE "
+                     "drop)", ip, dw_index);
+        co_return;
+    }
+
+    // value==0 → the deactivated campaign now actually leaves the
+    // registry (the W6-33 zero-in-place kept it visible until the
+    // cluster + DB confirmed — legacy OnDM_CASHITEMSALE_ACK erase).
+    if (value == 0)
+        ctx.cash_sales->Erase(dw_index);
+
+    // Cash-shop refresh signal to every map: legacy sends
+    // SendMW_CASHSHOPSTOP_REQ(FALSE, FALSE).
+    for (auto& p : ctx.peers->Snapshot())
+        co_await senders::SendMwCashShopStopReq(p, /*type=*/0,
+            /*send_player=*/0);
+
+    // Operator echo only on the deactivate path (legacy
+    // `if(wValue == 0 && m_pCtrlSvr)`).
+    if (value == 0 && ctx.ctrl_svr)
+    {
+        if (auto cs = ctx.ctrl_svr->Get())
+            co_await senders::SendCtCashItemSaleAck(cs, dw_index, value);
+        else
+            spdlog::info("OnMwCashItemSaleAck[{}]: ctrl-svr offline — "
+                         "CT_CASHITEMSALE_ACK dropped", ip);
+    }
     co_return;
 }
 

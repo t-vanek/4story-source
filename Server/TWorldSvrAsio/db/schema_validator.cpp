@@ -152,6 +152,32 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                      "(CT_ITEMSTATE_REQ, W6-36) will report 0 applied "
                      "rows per batch.");
     }
+    {
+        // W6-37 persists cash-sale campaigns via the legacy
+        // TCashItemSale SP (a TGAME wrapper that hops into
+        // TGLOBAL_GSP.dbo.TCashItemSale). Probe the wrapper's
+        // existence only — the cross-DB target can't be validated
+        // from this pool.
+        int hits = 0;
+        try
+        {
+            *lease << "SELECT COUNT(*) FROM INFORMATION_SCHEMA.ROUTINES "
+                      "WHERE ROUTINE_NAME = 'TCashItemSale'",
+                soci::into(hits);
+        }
+        catch (const std::exception& ex)
+        {
+            spdlog::debug("schema_validator (world): routine probe "
+                          "skipped: {}", ex.what());
+        }
+        if (hits == 0)
+        {
+            spdlog::warn("schema_validator (world): TCashItemSale SP "
+                         "not deployed — the cash-sale confirm barrier "
+                         "(MW_CASHITEMSALE_ACK, W6-37) will fail the "
+                         "persist and skip the stop broadcast.");
+        }
+    }
 }
 
 } // namespace tworldsvr::db

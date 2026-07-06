@@ -616,6 +616,11 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCashShopStopReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-37: cash-sale confirm barrier (handlers_cashshop.cpp) ---
+    case MessageId::MW_CASHITEMSALE_ACK:
+        co_await OnMwCashItemSaleAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-34: CMGift result relay (handlers_cashshop.cpp) ---------
     case MessageId::MW_CMGIFTRESULT_ACK:
         co_await OnCmGiftResultAck(std::move(peer), std::move(body), ctx);

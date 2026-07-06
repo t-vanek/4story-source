@@ -2090,6 +2090,61 @@ boost::asio::awaitable<void> SendCtCashItemSaleAck(
     std::uint32_t                  dw_index,
     std::uint16_t                  value);
 
+// --- W6-43 war/castle extras (senders_occupy.cpp) ------------------
+
+// MW_ENDWAR_REQ - siege end broadcast. Legacy SSSender.
+//   Wire: WORD castle
+boost::asio::awaitable<void> SendMwEndWarReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint16_t                  castle);
+
+// MW_SKYGARDENOCCUPY_REQ - Sky Garden occupation broadcast.
+//   Wire: BYTE type, WORD id, BYTE country
+boost::asio::awaitable<void> SendMwSkyGardenOccupyReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   type,
+    std::uint16_t                  id,
+    std::uint8_t                   country);
+
+// MW_WARCOUNTRYBALANCE_REQ - D/C population reply. Legacy
+// SSSender.cpp:3658.
+//   Wire: DWORD char_id, key, count_d, count_c, BYTE gap
+boost::asio::awaitable<void> SendMwWarCountryBalanceReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint32_t                  char_id,
+    std::uint32_t                  key,
+    std::uint32_t                  count_d,
+    std::uint32_t                  count_c,
+    std::uint8_t                   gap);
+
+// MW_CASTLEGUILDCHG_REQ - operator castle def/atk reassignment
+// broadcast. Legacy SSSender.cpp:3251.
+//   Wire: WORD castle, DWORD def_id, STRING def, DWORD atk_id,
+//         STRING atk, INT64 time
+boost::asio::awaitable<void> SendMwCastleGuildChgReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint16_t                  castle,
+    std::uint32_t                  def_id,
+    const std::string&             def_name,
+    std::uint32_t                  atk_id,
+    const std::string&             atk_name,
+    std::int64_t                   when);
+
+// CT_CASTLEGUILDCHG_ACK - operator reply (full layout even on
+// failure - legacy default args). Legacy SSSender.cpp:3101.
+//   Wire: DWORD manager, BYTE ret, WORD castle, DWORD def_id,
+//         STRING def, DWORD atk_id, STRING atk, INT64 time
+boost::asio::awaitable<void> SendCtCastleGuildChgAck(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint32_t                  manager,
+    std::uint8_t                   ret,
+    std::uint16_t                  castle,
+    std::uint32_t                  def_id,
+    const std::string&             def_name,
+    std::uint32_t                  atk_id,
+    const std::string&             atk_name,
+    std::int64_t                   when);
+
 // --- W6-41 MonthRank senders (senders_rank.cpp) --------------------
 
 // MW_MONTHRANKLIST_REQ - full-table replay to a joining map peer.

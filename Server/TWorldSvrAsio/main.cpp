@@ -39,6 +39,8 @@
 #include "services/soci_cash_sale_repository.h"
 #include "services/soci_service_ops_repository.h"
 #include "services/soci_month_rank_repository.h"
+#include "services/soci_war_ops_repository.h"
+#include "services/war_country_index.h"
 #include "world_server.h"
 
 #include "fourstory/db/session_pool.h"
@@ -137,6 +139,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::ICashSaleRepository>  cash_sale_repo;
         std::unique_ptr<tworldsvr::IServiceOpsRepository> service_ops_repo;
         std::unique_ptr<tworldsvr::IMonthRankRepository> month_rank_repo;
+        std::unique_ptr<tworldsvr::IWarOpsRepository>    war_ops_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -186,6 +189,9 @@ int main(int argc, char** argv)
             month_rank_repo =
                 std::make_unique<tworldsvr::SociMonthRankRepository>(
                     *db_pool_owner);
+            war_ops_repo =
+                std::make_unique<tworldsvr::SociWarOpsRepository>(
+                    *db_pool_owner);
         }
         else
         {
@@ -219,6 +225,7 @@ int main(int argc, char** argv)
         tworldsvr::CashItemSaleRegistry cash_sales;
         tworldsvr::CtrlSvrSlot          ctrl_svr;
         tworldsvr::MonthRankRegistry    month_rank;
+        tworldsvr::WarCountryIndex      war_index;
         {
             // Legacy TWorldSvr.cpp:1894 - the rank month boots from
             // the local clock; the table itself starts empty and
@@ -283,6 +290,8 @@ int main(int argc, char** argv)
         ctx.service_ops     = service_ops_repo.get();
         ctx.month_rank      = &month_rank;
         ctx.month_rank_repo = month_rank_repo.get();
+        ctx.war_index       = &war_index;
+        ctx.war_ops         = war_ops_repo.get();
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;
 
@@ -366,6 +375,32 @@ int main(int argc, char** argv)
             month_sweeper->Start();
             spdlog::info("month-rollover check enabled (period={}s)",
                 cfg.month_rollover_check_period_sec);
+        }
+
+        // W6-43: war-country index - boot load + periodic refresh
+        // (legacy: boot init at TWorldSvr.cpp:820 + the day-change
+        // DM_ACTIVECHARUPDATE round-trip). period_sec=0 disables.
+        if (war_ops_repo)
+        {
+            boost::asio::co_spawn(io,
+                tworldsvr::handlers::RefreshWarCountryIndex(ctx),
+                boost::asio::detached);
+        }
+        std::shared_ptr<fourstory::ops::RegistryRefresher> war_index_sweeper;
+        if (cfg.war_index_refresh_period_sec != 0 && war_ops_repo)
+        {
+            war_index_sweeper = fourstory::ops::RegistryRefresher::Make(
+                io, std::chrono::seconds(
+                        cfg.war_index_refresh_period_sec));
+            war_index_sweeper->AddCoroutineHook(
+                [ctx]() -> boost::asio::awaitable<void> {
+                    co_await tworldsvr::handlers::
+                        RefreshWarCountryIndex(ctx);
+                });
+            war_index_sweeper->Start();
+            spdlog::info("war-country index refresh enabled "
+                         "(period={}s)",
+                cfg.war_index_refresh_period_sec);
         }
 
         // W3a-36: periodic tactics-contract expiry sweep. Ends

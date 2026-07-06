@@ -631,6 +631,20 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-43: war/castle extras (handlers_occupy.cpp) -------------
+    case MessageId::MW_ENDWAR_ACK:
+        co_await OnMwEndWarAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_SKYGARDENOCCUPY_ACK:
+        co_await OnMwSkyGardenOccupyAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_WARCOUNTRYBALANCE_ACK:
+        co_await OnMwWarCountryBalanceAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_CASTLEGUILDCHG_REQ:
+        co_await OnCtCastleGuildChgReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-42: MonthRank month-rollover (handlers_rank.cpp) --------
     case MessageId::SM_MONTHRANKSAVE_REQ:
         co_await OnSmMonthRankSaveReq(std::move(peer), std::move(body), ctx);

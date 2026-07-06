@@ -37,6 +37,8 @@
 #include "../services/service_ops_repository.h"
 #include "../services/month_rank_registry.h"
 #include "../services/month_rank_repository.h"
+#include "../services/war_country_index.h"
+#include "../services/war_ops_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -158,6 +160,12 @@ struct HandlerContext
     // TSaveMonthRank / TInitMonthPvPoint SPs). nullptr -> the
     // rollover logs + aborts before mutating anything DB-side.
     IMonthRankRepository*     month_rank_repo = nullptr;
+
+    // W6-43: war-country level-gap matchmaking index (legacy
+    // m_mapWarCountry) + the war/castle DB surface
+    // (TACTIVECHARTABLE load, TSaveCastleApplicant).
+    WarCountryIndex*          war_index = nullptr;
+    IWarOpsRepository*        war_ops   = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1793,6 +1801,51 @@ boost::asio::awaitable<void> OnMwCashItemSaleAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
+
+// --- W6-43: war/castle extras (handlers_occupy.cpp) ----------------
+//
+// MW_ENDWAR_ACK - siege end; pure broadcast of MW_ENDWAR_REQ(castle)
+// to every map (SSHandler.cpp:9664).
+//
+// MW_SKYGARDENOCCUPY_ACK - Sky Garden occupation flip; broadcast of
+// MW_SKYGARDENOCCUPY_REQ(type, id, country) (SSHandler.cpp:7819;
+// StdAfx.h:9 defines SKYGARDEN, so the body is compiled in).
+//
+// MW_WARCOUNTRYBALANCE_ACK - a char asks for the D/C population
+// balance of its level bucket; replies
+// MW_WARCOUNTRYBALANCE_REQ(char, key, countD, countC, gap) on the
+// sender when the char exists and its gap is valid
+// (SSHandler.cpp:13351; the index is the W6-43 WarCountryIndex fed
+// from TACTIVECHARTABLE - boot load + periodic refresh replacing
+// the legacy day-change DM_ACTIVECHARUPDATE round-trip).
+//
+// CT_CASTLEGUILDCHG_REQ - operator reassigns a castle's defender /
+// attacker pair. Unknown guild -> short-fail
+// CT_CASTLEGUILDCHG_ACK(manager, FALSE, zeros) to the SENDER; else
+// MW_CASTLEGUILDCHG_REQ(castle, def id+name, atk id+name, time)
+// broadcast + full success ACK to the sender (SSHandler.cpp:217).
+boost::asio::awaitable<void> OnMwEndWarAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMwSkyGardenOccupyAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMwWarCountryBalanceAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCtCastleGuildChgReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// W6-43: rebuild the WarCountryIndex from TACTIVECHARTABLE (boot +
+// periodic sweeper; legacy DM_ACTIVECHARUPDATE collapse). Prunes
+// rows older than one week (legacy WEEK_ONE).
+boost::asio::awaitable<void> RefreshWarCountryIndex(
+    const HandlerContext& ctx);
 
 // --- W6-42: MonthRank month-rollover (handlers_rank.cpp) -----------
 //

@@ -158,4 +158,96 @@ SendMwMissionEnableReq(std::shared_ptr<PeerSession> peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwEndWarReq(std::shared_ptr<PeerSession> peer, std::uint16_t castle)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint16_t>(body, castle);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_ENDWAR_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwSkyGardenOccupyReq(std::shared_ptr<PeerSession> peer,
+                         std::uint8_t type, std::uint16_t id,
+                         std::uint8_t country)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, type);
+    WritePOD<std::uint16_t>(body, id);
+    WritePOD<std::uint8_t>(body, country);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_SKYGARDENOCCUPY_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwWarCountryBalanceReq(std::shared_ptr<PeerSession> peer,
+                           std::uint32_t char_id, std::uint32_t key,
+                           std::uint32_t count_d, std::uint32_t count_c,
+                           std::uint8_t gap)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, char_id);
+    WritePOD<std::uint32_t>(body, key);
+    WritePOD<std::uint32_t>(body, count_d);
+    WritePOD<std::uint32_t>(body, count_c);
+    WritePOD<std::uint8_t>(body, gap);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_WARCOUNTRYBALANCE_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwCastleGuildChgReq(std::shared_ptr<PeerSession> peer,
+                        std::uint16_t castle, std::uint32_t def_id,
+                        const std::string& def_name,
+                        std::uint32_t atk_id,
+                        const std::string& atk_name, std::int64_t when)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint16_t>(body, castle);
+    WritePOD<std::uint32_t>(body, def_id);
+    WriteString(body, def_name);
+    WritePOD<std::uint32_t>(body, atk_id);
+    WriteString(body, atk_name);
+    WritePOD<std::int64_t>(body, when);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_CASTLEGUILDCHG_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendCtCastleGuildChgAck(std::shared_ptr<PeerSession> peer,
+                        std::uint32_t manager, std::uint8_t ret,
+                        std::uint16_t castle, std::uint32_t def_id,
+                        const std::string& def_name,
+                        std::uint32_t atk_id,
+                        const std::string& atk_name, std::int64_t when)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, manager);
+    WritePOD<std::uint8_t>(body, ret);
+    WritePOD<std::uint16_t>(body, castle);
+    WritePOD<std::uint32_t>(body, def_id);
+    WriteString(body, def_name);
+    WritePOD<std::uint32_t>(body, atk_id);
+    WriteString(body, atk_name);
+    WritePOD<std::int64_t>(body, when);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::CT_CASTLEGUILDCHG_ACK),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

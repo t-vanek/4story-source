@@ -110,6 +110,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/soci_guild_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_item_state_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_item_state_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_cash_sale_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_cash_sale_repository.cpp
     ${TWORLD_ASIO_SRC}/services/peer_registry.cpp)
 
 target_include_directories(tworldsvr_asio_core PUBLIC
@@ -741,6 +743,17 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-37 wire test: cash-sale confirm barrier — MW_CASHITEMSALE_ACK
+# flips the per-peer flag; all-confirmed → persist via repo (first
+# failure aborts), erase deactivated campaigns, MW_CASHSHOPSTOP(0,0)
+# broadcast, CT_CASHITEMSALE_ACK to ctrl-svr on value==0 only.
+add_executable(test_tworldsvr_asio_cashsale_confirm_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_cashsale_confirm_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_cashsale_confirm_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_cashsale_confirm_handlers
+    COMMAND test_tworldsvr_asio_cashsale_confirm_handlers)
 
 # W6-36 wire test: operator item-state tool — CT_ITEMSTATE_REQ applies
 # TITEMCHART.bInitState rows via the repo (stop at first failure),

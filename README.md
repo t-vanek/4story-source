@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-05-24:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           █░░░░░░░░░░░░░░░░░░░    6%   (19 / ~300 handlers scaffolded)
-TWorldSvr         █████████████░░░░░░░   63%   (W6-36 — item-state ops relay; 184/290 handlers, 90 tests)
+TWorldSvr         █████████████░░░░░░░   64%   (W6-37 — cash-sale confirm barrier; 185/290 handlers, 91 tests)
 ─────────────────────────────────────────
 Cluster total     ██████░░░░░░░░░░░░░░  ~32%   (LOC-weighted, see below)
 ```
@@ -36,11 +36,11 @@ Cluster total     ██████░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 14 CS + 5 CT (scaffold) | ✅ 8 validators | 🟡 **Scaffold only — no gameplay logic** |
-| **TWorldSvrAsio** | 38 851 | ~33 500 | 184/290 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + cash-shop sale + CMGift result + ctrl-svr identification + item-state ops tool; BR/Bow/Arena/Tournament/Apex/MonthRank and the heavier DB-bound CMGift/Cash sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS + TITEMCHART probe) | 🟡 **W6-36 — item-state ops relay** |
+| **TWorldSvrAsio** | 38 851 | ~33 900 | 185/290 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + full cash-shop sale family (incl. confirm barrier + DB persist) + CMGift result + ctrl-svr identification + item-state ops tool; BR/Bow/Arena/Tournament/Apex/MonthRank and the DB-bound CMGift sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS + TITEMCHART/TCashItemSale probes) | 🟡 **W6-37 — cash-sale confirm barrier** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
-LOC weighting: `(24 213 edge-complete + ~24 700 TWorldSvr functional
-[184/290 handlers ≈ 63 % of 38 851 LOC] + ~6 700 TMap scaffold) / 175 906
+LOC weighting: `(24 213 edge-complete + ~24 800 TWorldSvr functional
+[185/290 handlers ≈ 64 % of 38 851 LOC] + ~6 700 TMap scaffold) / 175 906
 legacy ≈ 32 %`.
 By cluster-edge functionality, the four daemons that gate access to the
 world (auth, patching, audit, ops) are **100 %** complete, and the World
@@ -138,7 +138,7 @@ Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
 │   ├── TMapSvr/                    # legacy gameplay engine (reference, unmodified)
 │   ├── TMapSvrAsio/                # 🟡 emulator map server — scaffold only
 │   ├── TWorldSvr/                  # legacy cluster coordinator (reference)
-│   ├── TWorldSvrAsio/              # 🟡 cluster coordinator — W6-36 (event/cash-shop/CMGift + ctrl-svr + item-state ops)
+│   ├── TWorldSvrAsio/              # 🟡 cluster coordinator — W6-37 (event/cash-shop incl. persist + CMGift + ctrl-svr + item-state)
 │   ├── TBRSvr/  TBoWSvr/           # legacy empty shells (BR/BoW compile flags)
 │   └── Tools/                      # legacy ops tools (unmodified)
 ├── _rewrite/docs/                  # plan + analysis + patch catalog
@@ -153,7 +153,7 @@ mapping, configuration schema, and bring-up notes:
 * [`Server/TLogSvrAsio/README.md`](Server/TLogSvrAsio/README.md) — ✅ complete
 * [`Server/TControlSvrAsio/README.md`](Server/TControlSvrAsio/README.md) — ✅ complete
 * [`Server/TMapSvrAsio/README.md`](Server/TMapSvrAsio/README.md) — 🟡 scaffold (see also `ARCHITECTURE.md` / `CONSOLIDATION.md`)
-* [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W6-36 (guild/party/corps/social/territory/combat + connection/teleport + event/cash-shop/CMGift + ctrl-svr + item-state ops; gaps audit inside)
+* [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W6-37 (guild/party/corps/social/territory/combat + connection/teleport + event + full cash-shop family + CMGift + ctrl-svr + item-state ops; gaps audit inside)
 * [`Lib/Own/FourStoryCommon/README.md`](Lib/Own/FourStoryCommon/README.md) — ✅ shared infrastructure
 
 ## Build
@@ -272,8 +272,8 @@ ctest --test-dir build -C Release --output-on-failure
   NOT implemented.** The 297 legacy `OnCS_*` and 300+ `DM_/MW_/SS_`
   handlers are catalogued in `CONSOLIDATION.md`; the priority signal
   is in PR #25.
-* **TWorldSvrAsio** — cluster coordinator, **~63 % ported** (184/290
-  handlers, 90 in-process tests). Functionally-complete verticals:
+* **TWorldSvrAsio** — cluster coordinator, **~64 % ported** (185/290
+  handlers, 91 in-process tests). Functionally-complete verticals:
   guild (+ tactics + cabinet), party, corps, friend / soulmate / chat /
   TMS / mail, per-character visual state, territory + castle-war
   broadcasts, combat / monster relays, the connection /
@@ -282,13 +282,15 @@ ctest --test-dir build -C Release --output-on-failure
   openers + leave-battlefield + BattleMode / Arena trio, the RPS
   event game, the event subsystem (timed-event broadcast +
   CT_EVENTMSG + CT_EVENTUPDATE store/broadcast + replay-on-connect),
-  the cash-shop sale family (CT_CASHITEMSALE + CT_CASHSHOPSTOP +
-  replay-on-connect), the CMGift result relay (in-game GM + admin
-  paths), ctrl-svr peer identification, and the operator item-state
-  tool (CT_ITEMSTATE → TITEMCHART via repo → cluster broadcast).
+  the **full cash-shop sale family** (CT_CASHITEMSALE +
+  CT_CASHSHOPSTOP + replay-on-connect + the W6-37 per-map confirm
+  barrier persisting through the TCashItemSale SP), the CMGift
+  result relay (in-game GM + admin paths), ctrl-svr peer
+  identification, and the operator item-state tool (CT_ITEMSTATE →
+  TITEMCHART via repo → cluster broadcast).
   Remaining: the heavier battle/event subsystems (Bow/BR matchmaking
-  + Tournament + Apex + MonthRank) and the DB-bound CMGift / Cash
-  admin sub-paths. Full not-yet-ported checklist lives in the
+  + Tournament + Apex + MonthRank) and the DB-bound CMGift admin
+  sub-paths. Full not-yet-ported checklist lives in the
   sub-README's **gaps audit**.
   Until the rest lands, the legacy `TWorldSvr` binary remains canonical.
 

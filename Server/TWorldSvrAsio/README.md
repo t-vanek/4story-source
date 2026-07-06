@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-36 Item-state ops relay (first ctrl-svr tool on the W6-35 slot)
+## Status — W6-37 Cash-sale confirm barrier (closes the W6-33 persistence gap)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -107,6 +107,7 @@ that the four shipped Asio daemons already use.
 | W6-34 | CMGift result relay — `OnCmGiftResultAck` ports the in-game GM-issued cash-gift completion handler (SSHandler.cpp:13988). Map server reports `(result, tool, gm_id)` after firing the gift transaction; world routes `MW_CMGIFTRESULT_REQ(result, gm_id)` to the GM's main map so the client renders the success/failure dialog. The tool=1 admin path was deferred in W6-34 (closed in W6-35). Missing GM char / `main_server_id=0` / target peer offline are silent drops (legacy SSHandler.cpp:13769-13783). Wire ID quirk: `MW_CMGIFTRESULT_REQ` and `MW_CMGIFTRESULT_ACK` share `0x9178` (MWProtocol.h:522-523) — dispatcher keys on the `_ACK` enum, sender targets the `_REQ` enum, both resolve to the same uint16. 1 new sender (`SendMwCmGiftResultReq`). The rest of the CMGift family (`CT_CMGIFT_REQ/LIST/CHARTUPDATE` + `DM_CMGIFT*` + `CMGiftRegistry` + the SOCI repo) stays deferred — see README §C | ✅ |
 | W6-35 | Ctrl-svr peer identification — `OnCtCtrlsvrReq` ports the legacy ctrl-svr handshake (SSHandler.cpp:207). Pure single-cell store: the connecting peer fires an empty `CT_CTRLSVR_REQ`, world stashes the inbound `peer` in a new `CtrlSvrSlot` (weak_ptr-backed so a dropped session naturally expires the slot — better than legacy's dangling-pointer behaviour). Unlocks the W6-34 tool=1 admin path: `OnCmGiftResultAck` now consults `ctx.ctrl_svr->Get()` and fires `SendCtCmGiftAck(result, gm_id)` when the slot is live; empty slot or expired weak_ptr both silently drop (matches legacy `if(m_pCtrlSvr) ...`). New `services/ctrl_svr_slot.h/.cpp` + `handlers/handlers_ctrlsvr.cpp` + 1 sender (`SendCtCmGiftAck`). Same hook will land the deferred CT-bound replies in `OnCT_CMGIFTLIST_ACK`, `OnCT_CASHITEMSALE_ACK`, etc. when those subsystems get ported | ✅ |
 | **W6-36** | Item-state ops relay — `OnCtItemStateReq` ports the operator item-availability tool, collapsing the legacy CT→DM→SP→DM→broadcast round-trip (SSHandler.cpp:173 → 10023 → 10076) into one coroutine. Parses `(id, count, count × (wItemID, bInitState))`, applies each row via the new `IItemStateRepository::ChangeState` (SOCI impl = single `UPDATE TITEMCHART SET bInitState … WHERE wItemID …` with an affected-rows check — same net effect as the legacy `TItemStateChange` SP's probe+update), **stopping at the first failing item** (legacy per-item `break`), then fans `MW_ITEMSTATE_REQ(id, succeeded-prefix)` to every map peer and echoes `CT_ITEMSTATE_ACK` (same payload) to the W6-35 ctrl-svr slot — both fire even with zero successes (legacy sends unconditionally). Whole batch runs in one `CoOffloadIf` task, mirroring the single DM round-trip. New `services/item_state_repository.h` + `soci_item_state_repository.h/.cpp` + `fake_item_state_repository.h/.cpp` + 2 senders (`SendMwItemStateReq` / `SendCtItemStateAck`) + optional TITEMCHART schema probe (warn-only). First of the §C "GM item tools" family; `CT/DM_ITEMFIND` + `MW_ADDITEM` stay deferred | ✅ |
+| **W6-37** | Cash-sale confirm barrier — `OnMwCashItemSaleAck` ports the legacy confirmation + persistence chain (SSHandler.cpp:10559 → 10595 → 10637) into one coroutine, closing the W6-33 "DB persistence deferred" gap. Each map's `MW_CASHITEMSALE_ACK` flips a new per-peer `PeerSession::CashSaleConfirmed` flag (legacy `TServer::m_bCashSale`; armed false in the `OnCtCashItemSaleReq` broadcast loop — SSHandler.cpp:402). Once **every** registered peer confirmed: persist each campaign item via the new `ICashSaleRepository::PersistSaleValue` (SOCI impl = `EXEC dbo.TCashItemSale` — the TGAME wrapper SP that hops into `TGLOBAL_GSP.dbo.TCashItemSale`'s `UPDATE TCASHSHOPITEMCHART`; called on the world pool exactly like legacy `DEFINE_QUERY(&m_db,…)`), first failure aborts (legacy bRet=FALSE drop). On success: `value==0` → the campaign **actually leaves the registry** (W6-33's zero-in-place kept it until this confirm — legacy `OnDM_CASHITEMSALE_ACK` erase), `MW_CASHSHOPSTOP_REQ(0,0)` refresh broadcast to every map, and `CT_CASHITEMSALE_ACK(dw_index, value)` to the ctrl-svr on the deactivate path only (`if(wValue==0 && m_pCtrlSvr)`). Wire `bRet` read + ignored (legacy parity). Barrier recomputed per ACK — a late joiner ACKing its replay re-runs the idempotent persist, same as legacy. New `services/cash_sale_repository.h` + `soci_cash_sale_repository.h/.cpp` + `fake_cash_sale_repository.h/.cpp` + `CashItemSaleRegistry::Get` + 1 sender (`SendCtCashItemSaleAck`) + warn-only `TCashItemSale` routine probe. Absorbs `DM_CASHITEMSALE_REQ/_ACK` (repository-collapsed, §D) | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -137,18 +138,19 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-36)
+## Gaps audit — not yet ported / deferred (as of W6-37)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **184** are ported in
-`handlers/dispatch.cpp` (138 MW + 28 DM + 11 CT + 4 SM + 3 RW), leaving
-**106** with no port. (W6-36's `CT_ITEMSTATE_REQ` also absorbs the
-`DM_ITEMSTATE_REQ/_ACK` pair — repository-collapsed, counted under §D.)
+breakdown the W2 sizing note records); **185** are ported in
+`handlers/dispatch.cpp` (139 MW + 28 DM + 11 CT + 4 SM + 3 RW), leaving
+**105** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
+`DM_ITEMSTATE_REQ/_ACK` pair and W6-37's `MW_CASHITEMSALE_ACK` absorbs
+`DM_CASHITEMSALE_REQ/_ACK` — repository-collapsed, counted under §D.)
 A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
 owe; netting those out, the *owed* wire surface is ~266. Raw handler
-coverage is **≈ 63 %** (184/290); against the owed surface it is ~69 %.
+coverage is **≈ 64 %** (185/290); against the owed surface it is ~70 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -256,10 +258,11 @@ Intentionally not ported:
   `OnDM_CMGIFT_REQ`/`_ACK` and
   `OnDM_CMGIFTCHARTUPDATE_REQ`/`_ACK` (SOCI repository — no
   `ICmGiftRepository` yet)
-- Cash-item sale: W6-33 ports `CT_CASHITEMSALE` (admin sale activation/deactivation) +
-  `CT_CASHSHOPSTOP` (operator emergency-stop) + replay-on-connect. Still deferred:
-  `MW_CASHITEMSALE_ACK` (the map's reply confirming a campaign landed) and
-  `DM_CASHITEMSALE` (DB persistence of campaign rows — no IcashSaleRepository yet)
+- Cash-item sale: **complete.** W6-33 ports `CT_CASHITEMSALE` (admin sale
+  activation/deactivation) + `CT_CASHSHOPSTOP` (operator emergency-stop) +
+  replay-on-connect; W6-37 closes the family with `MW_CASHITEMSALE_ACK`
+  (per-map confirm barrier → `ICashSaleRepository` persist → erase/stop/
+  ctrl-echo; `DM_CASHITEMSALE` repository-collapsed, §D)
 - MonthRank: `MW_MONTHRANKUPDATE/RESETCHAR`, `DM/SM_MONTHRANKSAVE`
 - GM item tools: `MW_ADDITEM`, `CT/DM_ITEMFIND` (W6-36 landed the
   `CT_ITEMSTATE` vertical — REQ → repo → MW broadcast + CT ack; the
@@ -285,21 +288,61 @@ so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 `DM_SOULMATELIST/REG/DEL/END` (soulmate persistence still in-memory),
 `DM_TACTICSPOINT`, `DM_RESERVEDPOSTSEND` (generator poll — deferred),
 `DM_ITEMSTATE_REQ/_ACK` (W6-36 — collapsed into the `OnCtItemStateReq`
-coroutine via `IItemStateRepository`).
+coroutine via `IItemStateRepository`), `DM_CASHITEMSALE_REQ/_ACK`
+(W6-37 — collapsed into the `OnMwCashItemSaleAck` confirm barrier via
+`ICashSaleRepository`).
 `DM_GUILDLOAD` and `DM_PVPRECORD` *are* ported (as `_ACK`/`_REQ`).
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **MW_CASHITEMSALE_ACK deactivate echo** — the remaining half of
-   the W6-35-unlocked ops-relay pair: SSHandler.cpp:10662
-   `OnDM_CASHITEMSALE_ACK` sends `CT_CASHITEMSALE_ACK` to the
-   ctrl-svr on the wValue==0 deactivate path (the W6-36 ITEMSTATE
-   half landed).
-2. **APEX (Taiwan)** — small notify hook from W4-22 fresh-login.
-3. **`TChar.soul_silence`** — trivial field add for the W6-23
+1. **APEX (Taiwan)** — small notify hook from W4-22 fresh-login.
+2. **`TChar.soul_silence`** — trivial field add for the W6-23
    composite.
-4. Larger roadmap subsystems (Tournament / MonthRank / the rest of
-   the GM item tools: `MW_ADDITEM`, `CT/DM_ITEMFIND`).
+3. **GM item tools remainder** — `CT/DM_ITEMFIND` (name/id lookup →
+   ctrl-svr echo, same slot pattern as W6-36) + `MW_ADDITEM`.
+4. Larger roadmap subsystems (Tournament / MonthRank / CMGift DB
+   family).
+
+### W6-37 — what landed
+
+**Cash-sale confirm barrier** — `OnMwCashItemSaleAck` ports the
+legacy three-hop confirmation + persistence chain into one
+coroutine, closing the W6-33 "DB persistence deferred" gap:
+
+- `OnMW_CASHITEMSALE_ACK` (SSHandler.cpp:10559) sets the replying
+  map's `m_bCashSale` and, once every registered map reads TRUE,
+  fires `DM_CASHITEMSALE_REQ` → our port flips the new per-peer
+  `PeerSession::CashSaleConfirmed` flag (armed false in the W6-33
+  broadcast loop — legacy SSHandler.cpp:402) and recomputes the
+  barrier per ACK.
+- `OnDM_CASHITEMSALE_REQ` (SSHandler.cpp:10595) calls the
+  `TCashItemSale` SP per item, breaking at the first failure → our
+  `ICashSaleRepository::PersistSaleValue` loop inside one
+  `CoOffloadIf` task. The SOCI impl calls the TGAME wrapper SP
+  (`EXEC dbo.TCashItemSale`) because the wrapper hops databases
+  (`TGLOBAL_GSP.dbo.TCashItemSale` → `UPDATE TCASHSHOPITEMCHART`,
+  `@wID=0` = every row) and the world server doesn't own a global
+  pool — same single-connection shape as legacy.
+- `OnDM_CASHITEMSALE_ACK` (SSHandler.cpp:10637): failure → drop;
+  success → erase the campaign when `wValue==0` (**this** is where
+  deactivated rows actually leave `m_mapTCashItemSale` — W6-33's
+  zero-in-place kept them visible until the cluster + DB
+  confirmed), `SendMW_CASHSHOPSTOP_REQ(FALSE, FALSE)` refresh to
+  every map, and `SendCT_CASHITEMSALE_ACK(dwIndex, wValue)` to the
+  operator console on the deactivate path only.
+
+Known legacy quirks kept for parity: the wire `bRet` is read but
+never branched on; a late-joining map that ACKs its replay re-runs
+the (idempotent) persist.
+
+Tests — `tests/test_cashsale_confirm_handlers.cpp` (4 scenarios):
+partial confirm does nothing until the last map ACKs (fake call log
+proves it), then persist + stop broadcast; deactivate → zeroed
+values persisted, row erased, ctrl-svr echo is the ctrl socket's
+first-ever frame (proving the activate path skipped it);
+seeded persist failure → attempts stop at the failing item, no
+stop broadcast / erase / echo; unknown-campaign ACK → silent.
+91 wire tests total, all green.
 
 ### W6-36 — what landed
 

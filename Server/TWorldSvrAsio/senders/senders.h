@@ -2080,6 +2080,15 @@ boost::asio::awaitable<void> SendCtCmGiftAck(
     std::uint8_t                   result,
     std::uint32_t                  gm_id);
 
+// W6-37: CT_CASHITEMSALE_ACK — operator echo after the cluster +
+// DB confirmed a cash-sale deactivation. Legacy SSSender.cpp:65
+// (2-field body — unlike the ITEMSTATE ack there is no item list).
+//   Wire: DWORD dw_index, WORD value
+boost::asio::awaitable<void> SendCtCashItemSaleAck(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint32_t                  dw_index,
+    std::uint16_t                  value);
+
 // --- W6-36 item-state relays (senders_item.cpp) --------------------
 //
 // Both carry the payload the legacy DM_ITEMSTATE_ACK built

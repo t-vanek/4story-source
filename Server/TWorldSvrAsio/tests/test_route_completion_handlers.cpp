@@ -209,7 +209,7 @@ int main()
     // Char A (100) on p1's connection (main=0x42).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(/*char_id=*/100, /*key=*/0xA1));
-    for (int i = 0; i < 200 && !chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     {
         auto a = chars.Find(100);
@@ -260,7 +260,7 @@ int main()
 
         // Char A's cons now carries the pending 0x44 con.
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             auto a = chars.Find(100);
             std::lock_guard g(a->lock);
@@ -358,7 +358,7 @@ int main()
         EXPECT(w3 == ToUint16(MessageId::MW_CHECKMAIN_REQ));
 
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             auto a = chars.Find(100);
             std::lock_guard g(a->lock);

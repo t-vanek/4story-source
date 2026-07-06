@@ -132,7 +132,7 @@ int main()
         wire::WritePOD<std::uint32_t>(b, 500);         // user_id
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), b);
     }
-    for (int i = 0; i < 200 && !chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Size() == 1);
 

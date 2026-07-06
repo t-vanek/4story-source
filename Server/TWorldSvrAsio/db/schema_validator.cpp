@@ -193,6 +193,18 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                          "- the MonthRank rollover (SM_MONTHRANKSAVE, "
                          "W6-42) will abort its persist.", rn);
     }
+    if (!routine_exists("TRPSGameRecord"))
+    {
+        spdlog::warn("schema_validator (world): TRPSGameRecord SP not "
+                     "deployed - RPS win-ledger persistence (W6-49) "
+                     "will log SOCI errors.");
+    }
+    if (!TableHasColumns(*lease, "TRPSGAMECHART",
+            {"bType","bWinCount","bProb_Win","wWinKeep","wWinPeriod"}))
+    {
+        spdlog::warn("schema_validator (world): TRPSGAMECHART not "
+                     "deployed - the RPS game config boots empty.");
+    }
     for (const char* rn : {"TEventQuarterUpdate", "TGetItemName"})
     {
         if (!routine_exists(rn))

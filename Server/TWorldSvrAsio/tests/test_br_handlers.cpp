@@ -242,7 +242,7 @@ int main()
                AddCharBody(42, 0xA1, /*user_id=*/1001));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0, /*user_id=*/2002));
-    for (int i = 0; i < 200 && (!chars.Find(42) || !chars.Find(200)); ++i)
+    for (int i = 0; i < 1000 && (!chars.Find(42) || !chars.Find(200)); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(42) != nullptr);
     EXPECT(chars.Find(200) != nullptr);
@@ -393,7 +393,7 @@ int main()
                    NameBody(42, 0xA1, "Bob"));
         // Poll for registry state — no wire reply (legacy parity).
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             if (!br.FindPlayerInPremade(200)) { ok = true; break; }
             std::this_thread::sleep_for(10ms);
@@ -410,7 +410,7 @@ int main()
         SendFramed(p2, ToUint16(MessageId::MW_VOTEFORBRMAP_REQ),
                    VoteBody(200, 0xB0, /*map=*/"", /*mode=*/0));
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             if (br.MapVoteCount() == 1 && br.ModeVoteCount() == 1)
             { ok = true; break; }

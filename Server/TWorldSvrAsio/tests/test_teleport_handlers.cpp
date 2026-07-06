@@ -166,10 +166,10 @@ int main()
     };
     // Char 100, main 0x42, con on 0x43 (serialise the inserts).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(100, 0xA1));
-    for (int i = 0; i < 200 && !chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(100, 0xA1));
-    for (int i = 0; i < 200 && cons_size(100) != 2; ++i)
+    for (int i = 0; i < 1000 && cons_size(100) != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(100) == 2);
 
@@ -202,7 +202,7 @@ int main()
                    BeginTeleportBody(100, 0xA1, /*same=*/1, /*channel=*/7,
                                      0, 0, 0, 0));
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         { if (cur_channel() == 7) { ok = true; break; }
           std::this_thread::sleep_for(10ms); }
         EXPECT(ok);
@@ -224,7 +224,7 @@ int main()
                    BeginTeleportBody(100, 0xA1, /*same=*/0, /*channel=*/3,
                                      /*map=*/400, 4.0f, 5.0f, 6.0f));
         bool deferred = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         { if (cess_size() == 2) { deferred = true; break; }
           std::this_thread::sleep_for(10ms); }
         EXPECT(deferred);   // A (in flight) + B (waiting)
@@ -242,7 +242,7 @@ int main()
 
         // A popped; B now the in-flight front.
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         { if (cess_size() == 1) { ok = true; break; }
           std::this_thread::sleep_for(10ms); }
         EXPECT(ok);

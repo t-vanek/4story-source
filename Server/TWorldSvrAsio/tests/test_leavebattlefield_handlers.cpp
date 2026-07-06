@@ -110,7 +110,7 @@ template <class Pred>
 bool WaitFor(Pred p)
 {
     using namespace std::chrono_literals;
-    for (int i = 0; i < 200; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         if (p()) return true;
         std::this_thread::sleep_for(10ms);

@@ -233,7 +233,7 @@ int main()
         wire::WritePOD<std::uint32_t>(b, 700);
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), b);
     }
-    for (int i = 0; i < 200 && !chars.Find(900); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(900); ++i)
         std::this_thread::sleep_for(10ms);
 
     const auto payload = AddItemBody(900, 0xC3);

@@ -229,7 +229,7 @@ int main()
         return c->party_id;
     };
     auto poll = [&](auto pred) {
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         { if (pred()) return true; std::this_thread::sleep_for(5ms); }
         return pred();
     };

@@ -42,6 +42,7 @@
 #include "services/soci_war_ops_repository.h"
 #include "services/soci_cmgift_repository.h"
 #include "services/soci_lucky_event_repository.h"
+#include "services/soci_rps_repository.h"
 #include "services/war_country_index.h"
 #include "world_server.h"
 
@@ -144,6 +145,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IWarOpsRepository>    war_ops_repo;
         std::unique_ptr<tworldsvr::ICmGiftRepository>    cmgift_repo;
         std::unique_ptr<tworldsvr::ILuckyEventRepository> lucky_repo;
+        std::unique_ptr<tworldsvr::IRpsRepository>       rps_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -201,6 +203,9 @@ int main(int argc, char** argv)
                     *db_pool_owner);
             lucky_repo =
                 std::make_unique<tworldsvr::SociLuckyEventRepository>(
+                    *db_pool_owner);
+            rps_repo =
+                std::make_unique<tworldsvr::SociRpsRepository>(
                     *db_pool_owner);
         }
         else
@@ -262,6 +267,17 @@ int main(int argc, char** argv)
             spdlog::info("event-quarter scheduler: {} entrie(s) "
                          "loaded", evqt.Size());
         }
+        if (rps_repo)
+        {
+            std::size_t dates = 0;
+            for (const auto& g : rps_repo->LoadGames())
+                rps.Insert(g);
+            for (const auto& d : rps_repo->LoadWinDates())
+                if (rps.HydrateWinDate(d.type, d.win_count, d.date_unix))
+                    ++dates;
+            spdlog::info("rps games: {} config row(s), {} win date(s) "
+                         "loaded", rps.Size(), dates);
+        }
         {
             // Legacy TWorldSvr.cpp:1894 - the rank month boots from
             // the local clock; the table itself starts empty and
@@ -318,6 +334,7 @@ int main(int argc, char** argv)
         ctx.bow          = &bow;
         ctx.br           = &br;
         ctx.rps          = &rps;
+        ctx.rps_repo     = rps_repo.get();
         ctx.events       = &events;
         ctx.cash_sales   = &cash_sales;
         ctx.ctrl_svr     = &ctrl_svr;

@@ -169,11 +169,11 @@ int main()
     auto establish = [&](std::uint32_t id, std::uint32_t key) {
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
-        for (int i = 0; i < 200 && !chars.Find(id); ++i)
+        for (int i = 0; i < 1000 && !chars.Find(id); ++i)
             std::this_thread::sleep_for(10ms);
         SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
-        for (int i = 0; i < 200 && cons_size(id) != 2; ++i)
+        for (int i = 0; i < 1000 && cons_size(id) != 2; ++i)
             std::this_thread::sleep_for(10ms);
     };
     establish(100, 0xA1);
@@ -203,7 +203,7 @@ int main()
 
         // 0x43 was dropped to dead_cons; only 0x42 remains a con.
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             auto c = chars.Find(100);
             std::lock_guard g(c->lock);

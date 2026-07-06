@@ -196,7 +196,7 @@ int main()
         wire::WritePOD<std::uint32_t>(b, 500);
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), b);
     }
-    for (int i = 0; i < 200 && !chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     if (auto c = chars.Find(100))
     { std::lock_guard g(c->lock); c->level = 149; }
@@ -324,7 +324,7 @@ int main()
         auto [w, _] = ReadFramed(*s);
         EXPECT(w == ToUint16(MessageId::MW_CASTLEAPPLICANTCOUNT_REQ));
     }
-    for (int i = 0; i < 200 && war_ops.SaveCalls().empty(); ++i)
+    for (int i = 0; i < 1000 && war_ops.SaveCalls().empty(); ++i)
         std::this_thread::sleep_for(10ms);
     {
         const auto calls = war_ops.SaveCalls();

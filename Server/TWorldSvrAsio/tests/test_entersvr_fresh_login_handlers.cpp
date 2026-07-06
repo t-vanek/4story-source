@@ -238,7 +238,7 @@ int main()
     // chat_ban_time + Bob's guild_id / party_id back-pointers.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, 0xA1));
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
-    for (int i = 0; i < 200 && (!chars.Find(42) || !chars.Find(200)); ++i)
+    for (int i = 0; i < 1000 && (!chars.Find(42) || !chars.Find(200)); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(42) != nullptr);
     EXPECT(chars.Find(200) != nullptr);

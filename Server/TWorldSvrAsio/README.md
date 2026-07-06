@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-48 Lucky-event scheduler + expiry queue — event subsystem complete
+## Status — W6-49 RPS persistence — RPS subsystem complete
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -119,6 +119,7 @@ that the four shipped Asio daemons already use.
 | **W6-46** | EVENTQUARTER operator tools — `ILuckyEventRepository` + two handlers collapse the CT → DataSvr hops (SSHandler.cpp:410/422 → 12873/12949/13009). `OnCtEventQuarterListReq` (manager, day) lists TEVENTQUARTERCHART for the day with per-row `TGetItemName` resolution → `CT_EVENTQUARTERLIST_ACK(manager, count, N×LUCKYEVENT)` to the ctrl slot. `OnCtEventQuarterUpdateReq` (manager, type, LUCKYEVENT) runs `TEventQuarterUpdate` — EK_ADD adopts the SP-assigned `wOutID`, the five item names come back as OUTPUT params (all captured via a DECLARE/EXEC/SELECT batch) → `CT_EVENTQUARTERUPDATE_ACK(ret, manager, type, LUCKYEVENT)`. Shared byte-exact `lucky_event_codec.h` (19-field WrapPacketIn/Out order). The in-memory quarter-event scheduler mirror (`m_mapEVQT` reschedule + timer fire + announce/handout) stays with the lucky-event runtime slice (W6-47, together with LOTTERY/GIFTTIME). `DM_EVENTQUARTERLIST/UPDATE` pairs repository-collapsed (§D); 2 SP + 1 table warn-only probes | ✅ |
 | **W6-47** | LOTTERY / GIFTTIME rewards — the `OnCtEventUpdateReq` LOTTERY/GIFTTIME short-circuit now runs the real reward subsystems instead of the deferred drop (legacy SSHandler.cpp:279-292 → `LotteryItem` TWorldSvr.cpp:7115 / `GiftTime` :7273). New `event_info_codec.h` parses the **full EVENTINFO tail** (state → cash/mon/regen/lottery vectors; the `b*Alarm` bytes are not on the wire — legacy quirk). LOTTERY: `state` gate, `lot_msg` "title\|message" split, candidate pool = whole population or the `CheckEventMapId` map band (type 1 = tournament 500..532; byte-truncated map id — legacy parity), **no-repeat draw across all rows**, per-winner `WPT_LOTITEM` mail via `MW_WORLDPOSTSEND_REQ` on the **first** registered map (the post table is DB-backed), pool-exhaustion flushes the partial board early, then the `MW_EVENTMSGLOTTERY_REQ` winner board fans to every map. GIFTTIME: `[HIBYTE, LOBYTE]` level band, first lottery row mailed to every qualifying char with `use_time = winner` (legacy `.at(0)` unguarded — we guard + log). Neither path stores nor broadcasts the event (legacy early return). 2 senders | ✅ |
 | **W6-48** | Lucky-event scheduler + expiry queue — the last two event-subsystem items. `EventQuarterScheduler` ports `m_mapEVQT`/`m_mapTimeEVQT` + `CheckEventQuarter` (TWorldSvr.cpp:882/7776/7800): boot load from TEVENTQUARTERCHART (`ILuckyEventRepository::ListAll`), announce pre-wrapped in the legacy NetString framing (`"%04X%04X"+header+body`, empty header — `BuildNetString` :5490), weekly `NextEventQuarterTime` local-time math (CTime weekday 1=Sun), head-entry-only tick: announce once 5 min before the slot (at the slot itself for present-less entries), present handout at the slot + weekly reschedule (exact-boundary re-slot quirk kept). Fires reuse the W6-1 broadcast paths (world-chat notify + `MW_EVENTQUARTER_REQ` fan-out); the W6-46 chart editor now mirrors successful ADD/UPDATE/DEL edits into the running scheduler (legacy `OnDM_EVENTQUARTERUPDATE_ACK`). `ExpiredBuffer` ports `m_vExpired` + `CheckEventExpired` (SSHandler.cpp:10668, TWorldSvr.cpp:5280): `SM_EVENTEXPIRED_REQ` sorted insert/remove (**remove-miss-inserts quirk kept + documented**), `SM_EVENTEXPIRED_ACK` immediate dispatch, due-pop sweep through the same dispatch — `EXPIRED_GMW` → wanted-board delete (+`DeleteWanted` repo), `EXPIRED_GTW` → tactics-wanted registry delete (DB table = the deferred guild-extras item), `EXPIRED_GT` → targeted tactics-contract end (+ back-pointer clear). One `event_quarter_check_period_sec` sweeper (default 30 s) drives both ticks | ✅ |
+| **W6-49** | RPS persistence — new `IRpsRepository` closes the last W6-29 deferral. Boot: `TRPSGAMECHART` configs (`LoadGames` → `RpsRegistry::Insert`) + `TRPSGAMERECORDTABLE` win dates (`LoadWinDates` → new `HydrateWinDate`, unknown keys silently skipped — legacy parity). Runtime: `OnRpsGameAck`'s ledger mutations (the 30-day prune deletes + the fresh-win insert the W6-29 `PersistOp` hook already emitted) now really persist through the `TRPSGameRecord` SP in one offload batch; `OnRpsGameRecordReq` (hybrid DM fan-in) upgraded from a logged stub to a real repo write. Warn-only probes for the SP + `TRPSGAMECHART`. Drive-by: every test polling window raised 2 s → 10 s (the recurring full-suite flake class — route_completion / releasemain / guild_mut were all the same 200×10 ms pattern) | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -149,7 +150,7 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-48)
+## Gaps audit — not yet ported / deferred (as of W6-49)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
@@ -248,9 +249,9 @@ Intentionally not ported:
 - Tournament: `MW_TOURNAMENT/ENTERGATE/RESULT`, `DM_TOURNAMENT*` (6),
   `DM_TNMTEVENT*` (3), `SM_TOURNAMENT*` (3), `CT_TOURNAMENTEVENT`
   (blocked on `TNMTSTEP_*`)
-- RPS event: all four handlers landed in W6-29; DB persistence
-  (TRPSGAMERECORDTABLE via the legacy CSPRPSGameRecord SP) is
-  deferred — no IRpsRepository yet (logged stub)
+- RPS event: **complete** — W6-29 wire handlers + W6-49 persistence
+  (`IRpsRepository`: TRPSGAMECHART/TRPSGAMERECORDTABLE boot load +
+  the TRPSGameRecord SP behind the win-cap ledger)
 - Event subsystem (broader): W6-1 ported the `SM_EVENTQUARTER*` broadcasts;
   W6-30 ports `CT_EVENTMSG_REQ` (operator event-message line); W6-31 ports
   `CT_EVENTUPDATE_REQ` via an opaque-tail `EventRegistry` + broadcast;
@@ -330,6 +331,16 @@ is the W6-47 runtime slice).
    ctrl-svr echo, same slot pattern as W6-36) + `MW_ADDITEM`.
 4. Larger roadmap subsystems (Tournament / MonthRank / CMGift DB
    family).
+
+### W6-49 — what landed
+
+**RPS persistence** — the win-cap ledger's DB leg. The wire test
+hydrates a game + a 36-day-old win row through the repo shapes,
+then: an allowed win emits the prune delete (record=0, char 0) and
+the fresh insert (record=1, char 42) in order; the exhausted cap
+answers result=0 with no extra records; the hybrid
+`DM_RPSGAMERECORD_REQ` fan-in lands a direct repo write. 103 wire
+tests, all green.
 
 ### W6-48 — what landed
 

@@ -219,7 +219,7 @@ int main()
     // Alice lvl 50 map 10; Bob lvl 90 map 505 (tournament band).
     AddChar(p1, 200, 0xA1, 500);
     AddChar(p2, 300, 0xB2, 501);
-    for (int i = 0; i < 200 && (!chars.Find(200) || !chars.Find(300));
+    for (int i = 0; i < 1000 && (!chars.Find(200) || !chars.Find(300));
          ++i)
         std::this_thread::sleep_for(10ms);
     chars.Rename(200, "Alice");

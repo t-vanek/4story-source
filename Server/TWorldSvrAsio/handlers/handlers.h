@@ -40,6 +40,8 @@
 #include "../services/war_country_index.h"
 #include "../services/war_ops_repository.h"
 #include "../services/castle_war_registry.h"
+#include "../services/cmgift_registry.h"
+#include "../services/cmgift_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -174,6 +176,11 @@ struct HandlerContext
     // tiebreaker; the full battle-time chart is future work).
     CastleWarRegistry*        castle_war = nullptr;
     std::uint8_t              castle_war_day = 7;
+
+    // W6-45: cash-gift catalogue (legacy m_mapCMGift, boot-loaded
+    // from TCMGIFTCHART) + the CMGift SP surface.
+    CmGiftRegistry*           cmgifts = nullptr;
+    ICmGiftRepository*        cmgift_repo = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1806,6 +1813,47 @@ boost::asio::awaitable<void> OnCtCtrlsvrReq(
 //
 //   Wire (SSHandler.cpp:10559): DWORD dw_index, WORD value, BYTE ret
 boost::asio::awaitable<void> OnMwCashItemSaleAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-45: CMGift family (handlers_cmgift.cpp) --------------------
+//
+// The cash-gift delivery pipeline, collapsed from the legacy
+// CT/MW -> DM_CMGIFT_REQ -> DM_CMGIFT_ACK chain (SSHandler.cpp:456 /
+// 13610 / 13634 / 13670):
+//   CT_CMGIFT_REQ (operator, tool=1): STRING target, WORD gift,
+//     DWORD manager. MW_CMGIFT_ACK (in-game GM, tool=0): STRING
+//     target, WORD gift, DWORD gm_char.
+//   Pipeline: catalogue lookup (miss -> CMGIFT_ID reply); take-type
+//     gifts run TCMGiftCanTake; SUCCESS/DUPLICATE -> the DUPLICATE
+//     err-gift swap (missing fallback -> report DUPLICATE as-is,
+//     else deliver the err gift as CMGIFT_ERRPOST), the
+//     tool_only <= tool gate (fail -> CMGIFT_FAIL), the online
+//     target lookup by name (miss -> CMGIFT_TARGET) and the
+//     MW_CMGIFT_REQ delivery to the target's main map. Error paths
+//     reply CT_CMGIFT_ACK (ctrl slot; legacy dereferenced m_pCtrlSvr
+//     unguarded - we guard + drop) or MW_CMGIFTRESULT_REQ to the
+//     GM's main map.
+//
+// CT_CMGIFTLIST_REQ - DWORD manager; full catalogue to the ctrl slot.
+// CT_CMGIFTCHARTUPDATE_REQ - WORD count x (BYTE type, gift|del_id) +
+//   trailing DWORD manager. Per-entry TCMGiftAdd/Set/Del (failures
+//   skipped, ADD adopts the SP-assigned id), registry apply, then
+//   the refreshed catalogue to the ctrl slot.
+boost::asio::awaitable<void> OnCtCmGiftReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMwCmGiftAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCtCmGiftListReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCtCmGiftChartUpdateReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

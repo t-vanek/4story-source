@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-44 Castle-war info engine — War/Castle extras complete
+## Status — W6-45 CMGift family complete (delivery pipeline + catalogue tools)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -115,6 +115,7 @@ that the four shipped Asio daemons already use.
 | **W6-42** | MonthRank rollover — `OnSmMonthRankSaveReq` + the shared `RunMonthRankRollover` coroutine collapse the legacy SM → DM_REQ → DM_ACK chain (SSHandler.cpp:11015/11088/11200): ① zero every guild `pvp_month_point`/`rank_month`; ② build the cross-country total-rank array (`MonthRankDesc` sort over slots 1..16 + the three warlords, **including** the legacy slot-collision quirk when the top warlord is country 0) and refresh `LastFameRank` (mutates even if the persist later fails — legacy SM-phase parity); ③ persist via new `IMonthRankRepository` — `TInitMonthRank(month)`, per-row `TSaveMonthRank` (legacy skip rules: `char_id==0`, `j!=0 && month_point==0`; first failure aborts; divergence note: legacy kept mis-reading the packet after a failed row, we stop cleanly — same observable outcome), on success `TInitMonthRank(month+1)` + `TInitMonthPvPoint(month, top_point)` whose 16-OUTPUT-param result becomes the new fame slot 0; ④ freeze `FirstGradeGroup` (3×17), broadcast `MW_MONTHRANKRESET_REQ`(fame top-9) + `MW_FIRSTGRADEGROUP_REQ`(3×17) to every map, then `ResetForNewMonth` — slots 1..32 clear, **warlord slot 0 survives** (legacy MonthRankReset), month wraps 12→1. A `month_rollover_check_period_sec` sweeper (RegistryRefresher) replaces the legacy self-posted timer tick (TWorldSvr.cpp:4065). `DM_MONTHRANKSAVE_REQ/_ACK` repository-collapsed (§D). MonthRank subsystem is **complete** | ✅ |
 | **W6-43** | War/castle extras — four handlers + two repository collapses. `OnMwEndWarAck` / `OnMwSkyGardenOccupyAck` are field-checked broadcasts (SSHandler.cpp:9664 / 7819; `SKYGARDEN` **is** defined in StdAfx.h:9, so the body is compiled in). `OnMwWarCountryBalanceAck` replies the D/C population of the char's level bucket from the new `WarCountryIndex` (legacy `m_mapWarCountry[2][5]`; `WarCountryGapOf` = `(level-130)/10`, sub-130 invalid) — the index loads from `TACTIVECHARTABLE` at boot + on a `war_index_refresh_period_sec` sweeper with the legacy 1-week prune, collapsing the `DM_ACTIVECHARUPDATE_REQ/_ACK` day-tick round-trip (§D; classification incl. the TAIDTABLE aid-country fallback + neutral skip). `OnCtCastleGuildChgReq` ports the operator castle def/atk reassignment (SSHandler.cpp:217): unknown guild → full-layout fail ACK to the **sender**, else `MW_CASTLEGUILDCHG_REQ` broadcast + success ACK. The W5-2/W5-3 castle-apply persistence gap closes via `IWarOpsRepository::SaveCastleApplicant` (`TSaveCastleApplicant` SP) wired into `OnCastleApplyAck` (effective toggled values — SSHandler.cpp:7996) and `ResetCastleApply` (`(0, member, 0)` per cleared row — TWorldSvr.cpp:5425), collapsing `DM_CASTLEAPPLY_REQ` (§D). 5 senders + 2 warn-only probes. War/Castle extras now reduce to `MW_CASTLEWARINFO` (the top-3/atk-def engine — next slice) | ✅ |
 | **W6-44** | Castle-war info engine — `OnMwCastleWarInfoAck` + the new `CastleWarRegistry` port the last War/Castle-extras handler (SSHandler.cpp:9579 + TWorldSvr.cpp:7292-7620). Report parse: per local 6 slots of `(guild, occupy_type)` — DEFEND=11 / ACCEPT=10 bonus, unknown-guild skip, ACCEPT slots feed the per-slot occupation history; `castle==0` replays the current scoreboard to the asking map only. Recompute pipeline (verbatim legacy): scratch reset → country points + per-country top-3 (insertion with the occupation-history tiebreaker `CompareOccupation` — war-day-relative slot walk with the castle-id fallback — then `CompareGuildRank`: PvP total desc / member count desc / establish asc) → defender election with the **recursive cross-castle stealing** (a guild champion of two castles keeps the higher-scoring one; the loser castle re-elects — incl. the legacy dead-branch quirk in the equal-points arm, kept + documented) → cross-castle defender exclusion → attacker election (defender-country filter + country-point tiebreak) → per-castle `MW_CASTLEWARINFO_REQ` broadcast (guild-point rows + merged D/C top-3 wire tail). `castle_war_day` config (1..7) stands in for `m_battletime[BT_CASTLE].m_bDay` until the battle-time chart loader ports. Ordered `std::map`s kept for byte-identical tie behavior | ✅ |
+| **W6-45** | CMGift family — `CmGiftRegistry` (TCMGIFTCHART boot load) + `ICmGiftRepository` (TCMGiftCanTake/Add/Set/Del) + four handlers close the whole family. `OnCtCmGiftReq` (tool=1) / `OnMwCmGiftAck` (tool=0) feed the shared `DeliverCmGift` pipeline — the collapsed CT/MW → DM_CMGIFT_REQ → DM_CMGIFT_ACK chain (SSHandler.cpp:456/13610/13634/13670): catalogue miss → `CMGIFT_ID`; take-type gifts run the per-target `TCMGiftCanTake`; `DUPLICATE` swaps to the `err_gift_id` fallback (missing fallback → report DUPLICATE; present → deliver as `CMGIFT_ERRPOST` with `(requested, actual)` ids); the `tool_only <= tool` gate → `CMGIFT_FAIL`; offline target → `CMGIFT_TARGET`; else `MW_CMGIFT_REQ` (11-field payload) to the target's main map. Error replies: `CT_CMGIFT_ACK` to the ctrl slot (legacy dereferenced `m_pCtrlSvr` **unguarded** — we guard + drop) or `MW_CMGIFTRESULT_REQ` to the GM's main map. `OnCtCmGiftListReq` → full catalogue (`CT_CMGIFTLIST_ACK`). `OnCtCmGiftChartUpdateReq` → per-entry ADD (adopts the SP-assigned id) / UPDATE / DEL with legacy skip-on-failure semantics, registry apply, refreshed catalogue ack. `DM_CMGIFT*` + `DM_CMGIFTCHARTUPDATE*` repository-collapsed (§D); 4 warn-only SP probes + TCMGIFTCHART probe | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -145,13 +146,13 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-44)
+## Gaps audit — not yet ported / deferred (as of W6-45)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **205** are ported in
-`handlers/dispatch.cpp` (149 MW + 28 DM + 16 CT + 9 SM + 3 RW), leaving
-**85** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
+breakdown the W2 sizing note records); **209** are ported in
+`handlers/dispatch.cpp` (150 MW + 28 DM + 19 CT + 9 SM + 3 RW), leaving
+**81** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
 `DM_ITEMSTATE_REQ/_ACK` pair, W6-37's `MW_CASHITEMSALE_ACK` absorbs
 `DM_CASHITEMSALE_REQ/_ACK`, and W6-38's CT_HELPMESSAGE / SM_DELSESSION
 absorb `DM_HELPMESSAGE_REQ` / `DM_CLEARMAPCURRENTUSER_REQ` —
@@ -159,7 +160,7 @@ repository-collapsed, counted under §D.)
 A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
 owe; netting those out, the *owed* wire surface is ~266. Raw handler
-coverage is **≈ 71 %** (205/290); against the owed surface it is ~77 %.
+coverage is **≈ 72 %** (209/290); against the owed surface it is ~79 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -258,16 +259,11 @@ Intentionally not ported:
   already cover the wanted/tactics expiry paths)
 
 **Roadmap W7 ⏸ (cash / item / rank):**
-- CMGift: W6-34 ports `OnMW_CMGIFTRESULT_ACK` in-game GM path (relays
-  `MW_CMGIFTRESULT_REQ` to the GM's main map); W6-35 wires the
-  tool=1 admin path via the new `CtrlSvrSlot` (now fires
-  `SendCtCmGiftAck` back to the ctrl-svr). Still deferred:
-  `OnCT_CMGIFT_REQ`/`OnCT_CMGIFTLIST_REQ` (need
-  `CMGiftRegistry` + `m_mapCMGift` boot-load),
-  `OnCT_CMGIFTCHARTUPDATE_REQ` (DataSvr forwarder),
-  `OnDM_CMGIFT_REQ`/`_ACK` and
-  `OnDM_CMGIFTCHARTUPDATE_REQ`/`_ACK` (SOCI repository — no
-  `ICmGiftRepository` yet)
+- CMGift: **complete** — W6-34 result relay, W6-35 admin path,
+  W6-45 the delivery pipeline (`CT_CMGIFT_REQ` + `MW_CMGIFT_ACK` →
+  `DeliverCmGift`), the catalogue (`CmGiftRegistry` boot-loaded from
+  TCMGIFTCHART), `CT_CMGIFTLIST_REQ` and the `CT_CMGIFTCHARTUPDATE`
+  ADD/UPDATE/DEL flow (`DM_CMGIFT*` pairs repository-collapsed, §D)
 - Cash-item sale: **complete.** W6-33 ports `CT_CASHITEMSALE` (admin sale
   activation/deactivation) + `CT_CASHSHOPSTOP` (operator emergency-stop) +
   replay-on-connect; W6-37 closes the family with `MW_CASHITEMSALE_ACK`
@@ -312,7 +308,9 @@ coroutine via `IItemStateRepository`), `DM_CASHITEMSALE_REQ/_ACK`
 `RunMonthRankRollover` via `IMonthRankRepository`),
 `DM_ACTIVECHARUPDATE_REQ/_ACK` + `DM_CASTLEAPPLY_REQ` (W6-43 —
 collapsed into `RefreshWarCountryIndex` / the castle-apply paths via
-`IWarOpsRepository`).
+`IWarOpsRepository`), `DM_CMGIFT_REQ/_ACK` +
+`DM_CMGIFTCHARTUPDATE_REQ/_ACK` (W6-45 — collapsed into
+`DeliverCmGift` / `OnCtCmGiftChartUpdateReq` via `ICmGiftRepository`).
 `DM_GUILDLOAD` and `DM_PVPRECORD` *are* ported (as `_ACK`/`_REQ`).
 
 ### Suggested next slices (by value / self-containedness)
@@ -324,6 +322,17 @@ collapsed into `RefreshWarCountryIndex` / the castle-apply paths via
    ctrl-svr echo, same slot pattern as W6-36) + `MW_ADDITEM`.
 4. Larger roadmap subsystems (Tournament / MonthRank / CMGift DB
    family).
+
+### W6-45 — what landed
+
+**CMGift family** — the cash-gift delivery pipeline and catalogue
+tools, closing the last Roadmap-W7 CMGift items. The wire test
+walks: operator direct gift (11-field payload byte-checked on the
+target's map), unknown-gift `CMGIFT_ID` ack, the take-type
+DUPLICATE → err-gift `ERRPOST` swap (with the CanTake call trace),
+offline-target `CMGIFT_TARGET` routed to the GM's main map, the
+catalogue list, and the chart update where ADD adopts the
+repo-assigned id and DEL drops the row. 99 wire tests, all green.
 
 ### W6-44 — what landed
 

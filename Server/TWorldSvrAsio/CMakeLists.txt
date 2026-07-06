@@ -59,6 +59,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_br.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_rps.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_cashshop.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_cmgift.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_ctrlsvr.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_service.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_apex.cpp
@@ -119,6 +120,9 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/month_rank_registry.cpp
     ${TWORLD_ASIO_SRC}/services/war_country_index.cpp
     ${TWORLD_ASIO_SRC}/services/castle_war_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/cmgift_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_cmgift_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_cmgift_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_war_ops_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_war_ops_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_month_rank_repository.cpp
@@ -754,6 +758,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-45 wire test: CMGift family - delivery pipeline (direct,
+# take-type + DUPLICATE err-gift swap, offline target, unknown gift),
+# catalogue list, chart update (ADD id adoption / UPDATE / DEL).
+add_executable(test_tworldsvr_asio_cmgift_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_cmgift_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_cmgift_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_cmgift_handlers
+    COMMAND test_tworldsvr_asio_cmgift_handlers)
 
 # W6-44 wire test: castle-war info engine - report aggregation,
 # top-3 + country points, defender/attacker election, cross-castle

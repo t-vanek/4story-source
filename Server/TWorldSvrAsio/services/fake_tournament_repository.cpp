@@ -263,4 +263,45 @@ FakeTournamentRepository::SaveStatusCalls() const
     return m_save_status_calls;
 }
 
+void FakeTournamentRepository::SetNextPostId(std::uint32_t id)
+{
+    std::lock_guard g(m_mtx);
+    m_next_post_id = id;
+}
+
+std::optional<std::uint32_t> FakeTournamentRepository::Payback(
+    std::uint32_t char_id, std::uint32_t gold, std::uint32_t silver,
+    std::uint32_t copper)
+{
+    std::lock_guard g(m_mtx);
+    m_payback_calls.push_back(
+        PaybackCall{char_id, gold, silver, copper});
+    if (!m_next_post_id)
+        return std::nullopt;
+    return m_next_post_id++;
+}
+
+void FakeTournamentRepository::SaveResult(std::uint8_t step,
+                                          std::uint8_t ret,
+                                          std::uint32_t win_id,
+                                          std::uint32_t lose_id)
+{
+    std::lock_guard g(m_mtx);
+    m_result_calls.push_back(ResultCall{step, ret, win_id, lose_id});
+}
+
+std::vector<FakeTournamentRepository::PaybackCall>
+FakeTournamentRepository::PaybackCalls() const
+{
+    std::lock_guard g(m_mtx);
+    return m_payback_calls;
+}
+
+std::vector<FakeTournamentRepository::ResultCall>
+FakeTournamentRepository::ResultCalls() const
+{
+    std::lock_guard g(m_mtx);
+    return m_result_calls;
+}
+
 } // namespace tworldsvr

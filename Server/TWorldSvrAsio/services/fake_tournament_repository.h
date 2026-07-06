@@ -59,6 +59,15 @@ public:
     void ClearPersisted() override;
     void SaveStatus(std::uint16_t id, std::uint8_t group,
                     std::uint8_t step) override;
+    std::optional<std::uint32_t> Payback(
+        std::uint32_t char_id, std::uint32_t gold,
+        std::uint32_t silver, std::uint32_t copper) override;
+    void SaveResult(std::uint8_t step, std::uint8_t ret,
+                    std::uint32_t win_id,
+                    std::uint32_t lose_id) override;
+
+    // Next post id handed out by Payback (0 = fail/no post).
+    void SetNextPostId(std::uint32_t id);
 
     // ---- write-side call traces ------------------------------------
     struct SaveScheduleCall
@@ -78,6 +87,18 @@ public:
     std::vector<TnmtApplyOp>      ApplyCalls() const;
     int                           ClearCalls() const;
     std::vector<TnmtCurrentStep>  SaveStatusCalls() const;
+    struct PaybackCall
+    {
+        std::uint32_t char_id = 0;
+        std::uint32_t gold = 0, silver = 0, copper = 0;
+    };
+    std::vector<PaybackCall>      PaybackCalls() const;
+    struct ResultCall
+    {
+        std::uint8_t  step = 0, ret = 0;
+        std::uint32_t win_id = 0, lose_id = 0;
+    };
+    std::vector<ResultCall>       ResultCalls() const;
 
 private:
     mutable std::mutex m_mtx;
@@ -104,6 +125,9 @@ private:
     std::vector<TnmtApplyOp>      m_apply_calls;
     int                           m_clear_calls = 0;
     std::vector<TnmtCurrentStep>  m_save_status_calls;
+    std::vector<PaybackCall>      m_payback_calls;
+    std::vector<ResultCall>       m_result_calls;
+    std::uint32_t                 m_next_post_id = 9000;
 };
 
 } // namespace tworldsvr

@@ -159,10 +159,14 @@ void LoadTournamentState(TournamentRegistry&    registry,
     }
 
     // ---- resume follow-up (TWorldSvr.cpp:1787) -------------------
-    if (registry.CurrentId())
+    //
+    // The legacy gates the player reload only on the catalogue row
+    // existing (GetTournament != NULL); the group-filtered entry
+    // count feeds nothing but the base prize.
+    if (registry.CurrentId() &&
+        registry.HasTournament(registry.CurrentId()))
     {
         const std::uint8_t ec = registry.RecomputeCurrentBase();
-        if (ec)
         {
             // TVIEW_TOURNAMENTPLAYER reload (TWorldSvr.cpp:1807):
             // chief rows re-register into the 1st / normal pool
@@ -203,10 +207,21 @@ void LoadTournamentState(TournamentRegistry&    registry,
                     ++chiefs;
             }
             if (registry.CurrentStep() >= tournament::kStepParty)
-                spdlog::info("tournament boot: step {} resume - "
-                             "TournamentSelectPlayer re-run deferred "
-                             "to the match-engine slice",
-                    registry.CurrentStep());
+            {
+                // TWorldSvr.cpp:1867: re-seed the bracket before the
+                // member pass re-attaches parties. Fee-back paybacks
+                // persist; the mail leg is a no-op at boot (no chars
+                // online — legacy m_mapTCHAR is empty here too).
+                for (const auto& due : registry.SelectPlayers())
+                {
+                    const std::uint32_t copper = due.fee_back % 1000;
+                    const std::uint32_t silver =
+                        (due.fee_back / 1000) % 1000;
+                    const std::uint32_t gold =
+                        due.fee_back / 1000 / 1000;
+                    repo.Payback(due.char_id, gold, silver, copper);
+                }
+            }
             std::size_t attached = 0;
             for (const auto& row : members)
             {

@@ -225,9 +225,12 @@ int main()
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     // W6-41 replays the month-rank table to every joining peer when
-    // ctx.month_rank is wired — drain it.
+    // ctx.month_rank is wired; W6-53 follows with the tournament
+    // info replay — drain both.
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::MW_MONTHRANKLIST_REQ)); }
+    { auto [w, _] = ReadFramed(p1);
+      EXPECT(w == ToUint16(MessageId::MW_TOURNAMENTINFO_REQ)); }
 
     const auto kAck = ToUint16(MessageId::MW_TOURNAMENT_ACK);
     const auto kReq = ToUint16(MessageId::MW_TOURNAMENT_REQ);
@@ -766,18 +769,27 @@ int main()
         EXPECT(party.members.size() == 1);
         if (!party.members.empty())
             EXPECT(party.members[0].char_id == 61);
-        // Hana routed into the 1st pool (fame + 1st step present).
+        // The ENTER (>= PARTY) resume re-ran the select (W6-53):
+        // Hana's 1st-pool row moved into the bracket, the pool
+        // drained.
+        EXPECT(reg2.CurrentSelected());
         EXPECT(reg2.AdvanceStep(7, 0, tnmt::kStepNormal).has_value());
         const auto info = reg2.ApplyInfoReply(60);
         EXPECT(info.ok);
         EXPECT(info.entries.size() == 1);
         if (!info.entries.empty())
         {
-            EXPECT(info.entries[0].free_first == 7);
-            EXPECT(info.entries[0].first_pool.size() == 1);
-            if (!info.entries[0].first_pool.empty())
-                EXPECT(info.entries[0].first_pool[0].char_id == 60);
+            EXPECT(info.entries[0].free_first == 8);
+            EXPECT(info.entries[0].first_pool.empty());
         }
+        EXPECT(reg2.AdvanceStep(7, 0, tnmt::kStepMatch).has_value());
+        const auto match2 = reg2.MatchReply();
+        EXPECT(match2.ok);
+        bool hana_matched = false;
+        for (const auto& row : match2.rows)
+            if (row.row.char_id == 60)
+                hana_matched = true;
+        EXPECT(hana_matched);
     }
 
     io.stop();

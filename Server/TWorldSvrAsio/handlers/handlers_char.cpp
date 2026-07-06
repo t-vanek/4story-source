@@ -581,6 +581,13 @@ CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
                 static_cast<std::uint8_t>(sid == main_id && logout ? 1 : 0),
                 static_cast<std::uint8_t>(sid == main_id && saving ? 1 : 0));
 
+    // W6-53: retire the char's tournament bets + gate ticket (legacy
+    // CloseChar's `if(m_dwTicket) TNMTEnterGate(pTCHAR, 0, FALSE)`,
+    // TWorldSvr.cpp:3124-3126 — every bet-on player's bet_sum drops
+    // by the stake). A no-op for chars with no batter state.
+    if (ctx.tournaments)
+        ctx.tournaments->EnterGate(char_id, 0, false);
+
     // Drop from the registry (also clears the name index).
     ctx.chars->Remove(char_id);
 

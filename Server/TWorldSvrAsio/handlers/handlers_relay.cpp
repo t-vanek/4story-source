@@ -135,6 +135,25 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
     if (ctx.month_rank)
         co_await senders::SendMwMonthRankListReq(
             peer, ctx.month_rank->RankMonth(), *ctx.month_rank);
+
+    // W6-53: TournamentInfo(pSERVER) replay (legacy
+    // SSHandler.cpp:699): the joining map gets the current
+    // tournament catalogue unconditionally, and — the legacy
+    // single-peer asymmetry (TWorldSvr.cpp:6898-6905) — a step past
+    // MATCH re-broadcasts the bracket roster to EVERY map.
+    if (ctx.tournaments)
+    {
+        const auto info = ctx.tournaments->Info();
+        co_await senders::SendMwTournamentInfoReq(peer, info);
+        if (info.step >= tournament::kStepMatch)
+        {
+            const auto match = ctx.tournaments->MatchReply();
+            if (match.ok)
+                for (auto& p : ctx.peers->Snapshot())
+                    co_await senders::SendMwTournamentMatchReq(p,
+                        match.rows);
+        }
+    }
     co_return;
 }
 

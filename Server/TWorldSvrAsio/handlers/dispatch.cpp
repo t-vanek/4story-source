@@ -669,6 +669,16 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
+    // ---- W6-53: tournament match/result/betting ----------------------
+    case MessageId::MW_TOURNAMENTRESULT_ACK:
+        co_await OnMwTournamentResultAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+    case MessageId::MW_TOURNAMENTENTERGATE_ACK:
+        co_await OnMwTournamentEnterGateAck(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+
     // ---- W6-46: EVENTQUARTER operator tools (handlers_event.cpp) ----
     case MessageId::CT_EVENTQUARTERLIST_REQ:
         co_await OnCtEventQuarterListReq(std::move(peer), std::move(body), ctx);

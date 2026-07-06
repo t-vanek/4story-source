@@ -2336,6 +2336,41 @@ boost::asio::awaitable<void> SendMwTournamentEnableReq(
     std::uint32_t                  period,
     std::int64_t                   next_step_start);
 
+// MW_TOURNAMENTMATCH_REQ - the full bracket roster, broadcast to map
+// servers when the match phase begins / re-asserts (legacy
+// SSSender.cpp:3560).
+//   Wire: BYTE count, N x (BYTE entry, BYTE slot, DWORD char_id,
+//         BYTE country, STRING name, BYTE level, BYTE class,
+//         DWORD chief_id, BYTE r_qfinal, BYTE r_sfinal, BYTE r_final)
+boost::asio::awaitable<void> SendMwTournamentMatchReq(
+    std::shared_ptr<PeerSession>                              peer,
+    const std::vector<TournamentRegistry::MatchBroadcastRow>& rows);
+
+// MW_TOURNAMENTRESULT_REQ - a finished bracket match fanned to every
+// map (legacy SSSender.cpp:3587).
+//   Wire: WORD tournament_id, BYTE step, BYTE ret, DWORD win,
+//         DWORD lose, DWORD blue_hide_tick, DWORD red_hide_tick,
+//         BYTE count, N x DWORD party_member_id
+boost::asio::awaitable<void> SendMwTournamentResultReq(
+    std::shared_ptr<PeerSession>       peer,
+    std::uint16_t                      tournament_id,
+    std::uint8_t                       step,
+    std::uint8_t                       ret,
+    std::uint32_t                      win_id,
+    std::uint32_t                      lose_id,
+    std::uint32_t                      blue_hide_tick,
+    std::uint32_t                      red_hide_tick,
+    const std::vector<std::uint32_t>&  party_members);
+
+// MW_TOURNAMENTBATPOINT_REQ - a winning bet payout routed to the
+// batter's main map (legacy SSSender.cpp:3613).
+//   Wire: DWORD char_id, STRING name, DWORD amount
+boost::asio::awaitable<void> SendMwTournamentBatPointReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint32_t                  char_id,
+    const std::string&             name,
+    std::uint32_t                  amount);
+
 // MW_TOURNAMENTINFO_REQ - the current tournament's entry catalogue,
 // broadcast to map servers whenever the current tournament re-points
 // (legacy SSSender.cpp:3512; its bMaxLevel parameter is never

@@ -159,6 +159,21 @@ public:
     // LoadCurrentStep reads back at boot).
     virtual void SaveStatus(std::uint16_t id, std::uint8_t group,
                             std::uint8_t step) = 0;
+
+    // DM_TOURNAMENTPAYBACK_REQ (SSHandler.cpp:11902):
+    // TTournamentPayback(OUT post_id, char, gold, silver, copper) —
+    // banks the unselected player's fee-back into a mail post; the
+    // returned post id drives the MW_POSTRECV notification. nullopt
+    // / 0 = no post created (the legacy skips the mail then).
+    virtual std::optional<std::uint32_t> Payback(
+        std::uint32_t char_id, std::uint32_t gold,
+        std::uint32_t silver, std::uint32_t copper) = 0;
+
+    // DM_TOURNAMENTRESULT_REQ (SSHandler.cpp:11986):
+    // TTournamentResult(step, ret, win, lose).
+    virtual void SaveResult(std::uint8_t step, std::uint8_t ret,
+                            std::uint32_t win_id,
+                            std::uint32_t lose_id) = 0;
 };
 
 } // namespace tworldsvr

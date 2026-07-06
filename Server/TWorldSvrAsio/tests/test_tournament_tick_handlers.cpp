@@ -251,14 +251,31 @@ int main()
         RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
+    // W6-53 join replays: the grafted resume sits at ENTER (>= MATCH)
+    // with a seeded catalogue, so the join emits the info + an
+    // all-peer bracket re-assert (empty roster pre-select).
+    { auto [w, _] = ReadFramed(p1);
+      EXPECT(w == ToUint16(MessageId::MW_TOURNAMENTINFO_REQ)); }
+    { auto [w, b] = ReadFramed(p1);
+      EXPECT(w == ToUint16(MessageId::MW_TOURNAMENTMATCH_REQ));
+      wire::Reader r(b);
+      std::uint8_t count = 0xFF;
+      r.Read(count);
+      EXPECT(count == 0); }
     SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ),
         RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
+    { auto [w, _] = ReadFramed(p2);
+      EXPECT(w == ToUint16(MessageId::MW_TOURNAMENTINFO_REQ)); }
+    { auto [w, _] = ReadFramed(p2);
+      EXPECT(w == ToUint16(MessageId::MW_TOURNAMENTMATCH_REQ)); }
     // p2's registration fans MW_RELAYCONNECT_REQ to the already-
-    // registered p1 (W3a-2) — drain it so the tick frames line up.
+    // registered p1 (W3a-2) + the join-time bracket re-assert.
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
+    { auto [w, _] = ReadFramed(p1);
+      EXPECT(w == ToUint16(MessageId::MW_TOURNAMENTMATCH_REQ)); }
 
     // --- W6-51a: SM_TOURNAMENT_REQ catalogue-miss drop ---------------
     {

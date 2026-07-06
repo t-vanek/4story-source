@@ -1,5 +1,6 @@
 #include "services/tournament_registry.h"
 
+#include <cstdlib>
 #include <ctime>
 #include <utility>
 
@@ -38,6 +39,23 @@ std::int64_t MakeLocalMidnight(int year, int month, int day)
 int WeekdayOf(std::int64_t unix_sec)
 {
     return LocalTm(unix_sec).tm_wday + 1;
+}
+
+// TRand(max) (TNetDef.h:86): a uniform draw in [0, max), 0 when
+// max <= 1. The exact legacy word-composition isn't wire-relevant,
+// but the RANGE contract is: MSVC's rand() yields only 15 bits, so
+// a bare rand()%max would cap draws at 32767 and starve the tail of
+// large lottery ladders (the legacy composes multiple rand() words
+// for exactly this reason). 30 composed bits cover any cumulative
+// level sum a ladder can reach.
+std::uint32_t TnmtRand(std::uint32_t max)
+{
+    if (max <= 1)
+        return 0;
+    const std::uint32_t r =
+        (static_cast<std::uint32_t>(std::rand() & 0x7FFF) << 15) |
+        static_cast<std::uint32_t>(std::rand() & 0x7FFF);
+    return r % max;
 }
 
 } // namespace
@@ -422,6 +440,17 @@ void TournamentRegistry::ClearCurrent()
 
     current_ = Status{};
     players_.clear();
+    // Legacy TournamentClear (TWorldSvr.cpp:6272) wipes every char's
+    // batting map but the gate ticket (m_dwTicket) lives on the
+    // TCHARACTER and survives — only TNMTEnterGate / logout reset it.
+    for (auto it_b = batters_.begin(); it_b != batters_.end();)
+    {
+        it_b->second.targets.clear();
+        if (!it_b->second.ticket)
+            it_b = batters_.erase(it_b);
+        else
+            ++it_b;
+    }
 
     auto it = catalogue_.find(old_id);
     if (it == catalogue_.end())
@@ -444,6 +473,14 @@ bool TournamentRegistry::RebuildCurrent(
         const std::uint16_t old_id = current_.id;
         current_ = Status{};
         players_.clear();
+        for (auto it_b = batters_.begin(); it_b != batters_.end();)
+        {
+            it_b->second.targets.clear();     // bets die, tickets stay
+            if (!it_b->second.ticket)
+                it_b = batters_.erase(it_b);
+            else
+                ++it_b;
+        }
         auto it = catalogue_.find(old_id);
         if (it != catalogue_.end())
             for (auto& [entry_id, entry] : it->second)
@@ -1171,6 +1208,497 @@ TournamentRegistry::InfoSnapshot TournamentRegistry::Info() const
         for (const auto& [eid, entry] : it->second)
             snap.entries.push_back(entry.seed);
     return snap;
+}
+
+// ---- W6-53 match / result / betting engine -------------------------
+
+bool TournamentRegistry::CurrentSelected() const
+{
+    std::lock_guard g(m_lock);
+    return current_.selected;
+}
+
+// TournamentSelectPlayer (TWorldSvr.cpp:6033).
+std::vector<TournamentRegistry::PaybackDue>
+TournamentRegistry::SelectPlayers()
+{
+    namespace tnmt = tournament;
+    std::lock_guard g(m_lock);
+    std::vector<PaybackDue> paybacks;
+
+    auto it_t = catalogue_.find(current_.id);
+    if (current_.id == 0 || it_t == catalogue_.end())
+        return paybacks;
+
+    current_.selected = true;
+
+    PlayerMap tp = players_;
+    players_.clear();
+
+    for (auto& [eid, entry] : it_t->second)
+    {
+        entry.player.clear();
+
+        PlayerMap map_cpl1[tnmt::kCountryCount];
+        PlayerMap map_cpln[tnmt::kCountryCount];
+        // Weighted-by-level lottery ladder: cumulative level → char
+        // id. Legacy MAPDWORD insert semantics kept — a duplicate
+        // cumulative key silently drops the row (that player falls
+        // out of the ladder and takes the fee-back path).
+        std::map<std::uint32_t, std::uint32_t>
+            map_pl[tnmt::kCountryCount];
+        std::uint32_t level_sum[tnmt::kCountryCount] = {};
+
+        for (auto& [cid, p] : entry.first)
+        {
+            map_cpl1[p->country].emplace(cid, p);
+            tp.erase(cid);
+        }
+        entry.first.clear();
+
+        for (auto& [cid, p] : entry.normal)
+        {
+            level_sum[p->country] += p->level;
+            map_pl[p->country].insert({level_sum[p->country], cid});
+        }
+        entry.normal.clear();
+
+        std::uint8_t bnc[tnmt::kCountryCount] = {};
+        std::uint8_t sum = static_cast<std::uint8_t>(
+            map_cpl1[0].size() + map_cpl1[1].size() +
+            map_cpl1[2].size());
+
+        for (std::uint8_t sm = 0; sm < tnmt::kTournamentSlot; ++sm)
+        {
+            if (sum >= tnmt::kTournamentSlot)
+                break;
+            if (sum > sm)
+                continue;
+
+            std::uint8_t min_c = tnmt::kCountryCount;
+            for (std::uint8_t c = 0; c <= tnmt::kCountryB; ++c)
+            {
+                if (map_pl[c].empty())
+                    continue;
+                if (min_c == tnmt::kCountryCount ||
+                    map_cpl1[c].size() + bnc[c] <
+                        map_cpl1[min_c].size() + bnc[min_c])
+                    min_c = c;
+                else if (map_cpl1[c].size() + bnc[c] ==
+                         map_cpl1[min_c].size() + bnc[min_c])
+                    min_c = (std::rand() % 2) ? c : min_c;
+            }
+            if (min_c == tnmt::kCountryCount)
+                break;
+
+            std::map<std::uint32_t, std::uint32_t> recalc;
+            std::uint32_t recalc_sum = 0;
+            const std::uint32_t roll = TnmtRand(level_sum[min_c]);
+            bool selected = false;
+
+            for (const auto& [cum, cid] : map_pl[min_c])
+            {
+                auto it_p = tp.find(cid);
+                if (it_p == tp.end())
+                    continue;
+                auto p = it_p->second;
+                if (cum > roll && !selected)
+                {
+                    map_cpln[p->country].emplace(cid, p);
+                    tp.erase(cid);
+                    selected = true;
+                    continue;
+                }
+                recalc_sum += p->level;
+                recalc.insert({recalc_sum, cid});
+            }
+            level_sum[min_c] = recalc_sum;
+            map_pl[min_c]    = std::move(recalc);
+            ++bnc[min_c];
+            ++sum;
+        }
+
+        TnmtMatchLocked(entry, map_cpl1, map_cpln, sum);
+    }
+
+    // Unselected leftovers: fee-back payback + drop
+    // (TWorldSvr.cpp:6149). Party members ride along here too —
+    // their refs live on only through their chief's party map.
+    for (const auto& [cid, p] : tp)
+    {
+        const Entry* entry = CurrentEntryLocked(p->entry_id);
+        if (entry)
+            paybacks.push_back(PaybackDue{cid, entry->seed.fee_back});
+        players_.erase(cid);
+    }
+
+    // Defensive slot sweep (TWorldSvr.cpp:6160).
+    for (auto it = players_.begin(); it != players_.end();)
+    {
+        if (it->second->slot_id == tnmt::kTournamentSlot)
+            it = players_.erase(it);
+        else
+            ++it;
+    }
+    return paybacks;
+}
+
+// TNMTMatch (TWorldSvr.cpp:6172): bracket seeding in the
+// {0,6,4,2,3,5,7,1} order. The month-rank preference is ported
+// verbatim — with the (dead) rank maps always zero it degenerates to
+// "last player scanned wins", exactly like the shipped binary.
+void TournamentRegistry::TnmtMatchLocked(
+    Entry& entry, PlayerMap (&map_1st)[tournament::kCountryCount],
+    PlayerMap (&map_normal)[tournament::kCountryCount],
+    std::uint8_t total)
+{
+    namespace tnmt = tournament;
+    if (!total)
+        return;
+
+    static const std::uint8_t kOrder[tnmt::kTournamentSlot] =
+        {0, 6, 4, 2, 3, 5, 7, 1};
+    std::shared_ptr<TnmtPlayer> slots[tnmt::kTournamentSlot];
+
+    auto place = [&](const std::shared_ptr<TnmtPlayer>& p,
+                     std::uint8_t slot) {
+        p->slot_id  = slot;
+        // AddTNMTPlayer(entry, p, TNMTSTEP_MATCH, chief = self).
+        p->entry_id = entry.seed.entry_id;
+        p->chief_id = p->char_id;
+        entry.player.emplace(p->char_id, p);
+        players_.emplace(p->char_id, p);
+        slots[slot] = p;
+    };
+
+    for (std::uint8_t seed = 0; seed < tnmt::kTournamentSlot; ++seed)
+    {
+        const std::uint8_t slot = kOrder[seed];
+        std::shared_ptr<TnmtPlayer> pick;
+        std::shared_ptr<TnmtPlayer> rival;
+
+        auto scan = [&](PlayerMap (&pool)[tnmt::kCountryCount]) {
+            for (std::uint8_t c = 0; c < tnmt::kCountryCount; ++c)
+                for (const auto& [cid, p] : pool[c])
+                {
+                    if (!pick || !pick->month_rank ||
+                        (p->month_rank &&
+                         pick->month_rank > p->month_rank))
+                        pick = p;
+                    if ((slot % 2) && slots[slot - 1] &&
+                        slots[slot - 1]->country != p->country &&
+                        (!rival || !rival->month_rank ||
+                         (p->month_rank &&
+                          rival->month_rank > p->month_rank)))
+                        rival = p;
+                }
+        };
+
+        scan(map_1st);
+        if (rival)
+            pick = rival;
+        if (pick)
+        {
+            map_1st[pick->country].erase(pick->char_id);
+            place(pick, slot);
+            continue;
+        }
+
+        scan(map_normal);
+        if (rival)
+            pick = rival;
+        if (pick)
+        {
+            map_normal[pick->country].erase(pick->char_id);
+            place(pick, slot);
+        }
+    }
+}
+
+TournamentRegistry::MatchBroadcast
+TournamentRegistry::MatchReply() const
+{
+    namespace tnmt = tournament;
+    std::lock_guard g(m_lock);
+    MatchBroadcast out{};
+
+    // TournamentMatch gates (TWorldSvr.cpp:6914).
+    if (current_.step < tnmt::kStepMatch)
+        return out;
+    if (current_.id == 0 ||
+        catalogue_.find(current_.id) == catalogue_.end())
+        return out;
+
+    out.ok = true;
+    for (const auto& [cid, p] : players_)
+    {
+        MatchBroadcastRow row;
+        row.entry_id = p->entry_id;
+        row.slot_id  = p->slot_id;
+        row.row      = RosterOf(*p);
+        row.chief_id = p->chief_id;
+        for (std::size_t i = 0; i < tnmt::kMatchCount; ++i)
+            row.result[i] = p->result[i];
+        out.rows.push_back(std::move(row));
+    }
+    return out;
+}
+
+bool TournamentRegistry::ShouldBroadcastMatch(std::uint8_t group) const
+{
+    namespace tnmt = tournament;
+    std::lock_guard g(m_lock);
+    for (std::uint8_t i = 0; i <= group; ++i)
+    {
+        auto it = current_.steps.find(
+            StepKey(tnmt::kStepMatch, i));
+        if (it != current_.steps.end())
+            return group == it->second.group;
+    }
+    return false;
+}
+
+TournamentRegistry::ResultOutcome
+TournamentRegistry::ApplyResult(std::uint8_t step, std::uint8_t ret,
+                                std::uint32_t win_id,
+                                std::uint32_t lose_id)
+{
+    namespace tnmt = tournament;
+    std::lock_guard g(m_lock);
+    ResultOutcome out{};
+
+    if (step != tnmt::kStepQFinal && step != tnmt::kStepSFinal &&
+        step != tnmt::kStepFinal)
+        return out;
+    out.relevant = true;
+
+    std::uint8_t idx = tnmt::kMatchQFinal;
+    if (step == tnmt::kStepFinal)
+        idx = tnmt::kMatchFinal;
+    else if (step == tnmt::kStepSFinal)
+        idx = tnmt::kMatchSFinal;
+
+    auto it_win  = players_.find(win_id);
+    auto it_lose = players_.find(lose_id);
+    const auto win =
+        it_win != players_.end() ? it_win->second : nullptr;
+    const auto lose =
+        it_lose != players_.end() ? it_lose->second : nullptr;
+
+    if (win)
+    {
+        for (auto& [cid, member] : win->party)
+        {
+            member->result[idx] =
+                ret ? tnmt::kWinWin : tnmt::kWinLose;
+            out.v_player.push_back(cid);
+        }
+        win->result[idx] = ret ? tnmt::kWinWin : tnmt::kWinLose;
+    }
+    if (lose)
+    {
+        for (auto& [cid, member] : lose->party)
+        {
+            member->result[idx] = tnmt::kWinLose;
+            out.v_player.push_back(cid);
+        }
+        lose->result[idx] = tnmt::kWinLose;
+    }
+
+    // FINAL win → batting payouts (SSHandler.cpp:11870). Amounts
+    // use the legacy integer-division rate; the caller filters the
+    // online chars + zero amounts.
+    if (step == tnmt::kStepFinal && win && ret)
+        for (const auto& [batter_id, ticket] : win->batting)
+        {
+            float rate = 0.f;
+            std::uint32_t amount = 0;
+            GetBattingAmountLocked(win.get(), batter_id, rate,
+                amount);
+            out.payouts.push_back(BatPayout{batter_id, amount});
+        }
+    return out;
+}
+
+std::shared_ptr<TnmtPlayer>
+TournamentRegistry::FindBatterLocked(const Batter& batter,
+                                     std::uint8_t entry_id) const
+{
+    for (const auto& [tid, target] : batter.targets)
+        if (target->entry_id == entry_id)
+            return target;
+    return nullptr;
+}
+
+void TournamentRegistry::ResetBattingLocked(TnmtPlayer& target,
+                                            std::uint32_t char_id,
+                                            Batter& batter)
+{
+    auto it = target.batting.find(char_id);
+    if (it != target.batting.end())
+    {
+        target.bet_sum -= it->second;
+        target.batting.erase(it);
+    }
+    batter.targets.erase(target.char_id);
+}
+
+void TournamentRegistry::GetBattingAmountLocked(
+    const TnmtPlayer* target, std::uint32_t char_id, float& rate,
+    std::uint32_t& amount) const
+{
+    rate   = 0.f;
+    amount = 0;
+    if (!target)
+        return;
+    auto it = target->batting.find(char_id);
+    if (it == target->batting.end())
+        return;
+    // Legacy integer division before the float cast
+    // (TWorldSvr.cpp:6028).
+    rate = static_cast<float>(
+        target->bet_sum ? current_.sum / target->bet_sum : 0);
+    amount = static_cast<std::uint32_t>(
+        current_.base * it->second * rate);
+}
+
+void TournamentRegistry::EnterGate(std::uint32_t char_id,
+                                   std::uint32_t money, bool enter)
+{
+    namespace tnmt = tournament;
+    std::lock_guard g(m_lock);
+
+    auto& batter = batters_[char_id];
+    for (auto& [tid, target] : batter.targets)
+    {
+        auto it = target->batting.find(char_id);
+        if (it != target->batting.end())
+        {
+            target->bet_sum -= it->second;
+            target->batting.erase(it);
+        }
+    }
+    batter.ticket = 0;
+    batter.targets.clear();
+
+    const std::uint32_t ticket =
+        money / tnmt::kTournamentBasePrize;
+    if (enter && ticket && current_.id &&
+        current_.step >= tnmt::kStepEnter)
+    {
+        current_.sum += ticket;
+        batter.ticket = ticket;
+    }
+    if (!batter.ticket && batter.targets.empty())
+        batters_.erase(char_id);
+}
+
+TournamentRegistry::EventListSnapshot
+TournamentRegistry::EventListReply(std::uint32_t char_id) const
+{
+    namespace tnmt = tournament;
+    std::lock_guard g(m_lock);
+    EventListSnapshot snap{};
+
+    auto it_t = catalogue_.find(current_.id);
+    if (current_.id == 0 || it_t == catalogue_.end() ||
+        !current_.base)
+        return snap;
+    snap.ok          = true;
+    snap.base        = current_.base;
+    snap.sum         = current_.sum;
+    snap.entry_count = CurrentEntryCountLocked();
+
+    auto it_b = batters_.find(char_id);
+    for (const auto& [eid, entry] : it_t->second)
+    {
+        if (entry.seed.group != current_.group)
+            continue;
+        EventListRow row;
+        row.entry_id = entry.seed.entry_id;
+        row.name     = entry.seed.name;
+        row.type     = entry.seed.type;
+        std::shared_ptr<TnmtPlayer> target;
+        if (it_b != batters_.end())
+            target = FindBatterLocked(it_b->second,
+                entry.seed.entry_id);
+        if (target)
+        {
+            row.batter_name    = target->name;
+            row.batter_country = target->country;
+        }
+        GetBattingAmountLocked(target.get(), char_id, row.rate,
+            row.amount);
+        snap.rows.push_back(std::move(row));
+    }
+    return snap;
+}
+
+TournamentRegistry::EventInfoSnapshot
+TournamentRegistry::EventInfoReply(std::uint32_t char_id,
+                                   std::uint8_t entry_id) const
+{
+    namespace tnmt = tournament;
+    std::lock_guard g(m_lock);
+    EventInfoSnapshot snap{};
+
+    const Entry* entry = CurrentEntryLocked(entry_id);
+    auto it_b = batters_.find(char_id);
+    const std::uint32_t ticket =
+        it_b != batters_.end() ? it_b->second.ticket : 0;
+    if (!entry || !ticket)
+        return snap;
+    if (!CanDoTournamentLocked(tnmt::kStepEnter, entry->seed.group))
+        return snap;
+
+    snap.ok   = true;
+    snap.base = current_.base;
+    snap.sum  = current_.sum;
+    for (const auto& [cid, p] : entry->player)
+    {
+        EventInfoPlayer row;
+        row.row        = RosterOf(*p);
+        row.guild_name = p->guild_name;
+        // Same integer-division quirk (TWorldSvr.cpp:6801).
+        row.rate = static_cast<float>(
+            p->bet_sum ? current_.sum / p->bet_sum : 0);
+        for (const auto& [mid, member] : p->party)
+            row.party.emplace_back(RosterOf(*member),
+                member->guild_name);
+        snap.players.push_back(std::move(row));
+    }
+    return snap;
+}
+
+bool TournamentRegistry::EventJoin(std::uint32_t char_id,
+                                   std::uint8_t entry_id,
+                                   std::uint32_t target_id)
+{
+    namespace tnmt = tournament;
+    std::lock_guard g(m_lock);
+
+    auto it_target = players_.find(target_id);
+    if (it_target == players_.end())
+        return false;
+    const auto target = it_target->second;
+    const Entry* entry = CurrentEntryLocked(entry_id);
+    if (!entry)
+        return false;
+    if (!CanDoTournamentLocked(tnmt::kStepEnter, entry->seed.group))
+        return false;
+    if (entry->seed.entry_id != target->entry_id)
+        return false;
+
+    auto& batter = batters_[char_id];
+    if (auto old = FindBatterLocked(batter, entry_id))
+        ResetBattingLocked(*old, char_id, batter);
+
+    // JoinBatting (TWorldSvr.cpp:6010) — a zero-ticket join is
+    // legal (the legacy has no ticket gate here).
+    batter.targets.emplace(target_id, target);
+    target->batting[char_id] = batter.ticket;
+    target->bet_sum += batter.ticket;
+    return true;
 }
 
 // ---- status scalars ----------------------------------------------

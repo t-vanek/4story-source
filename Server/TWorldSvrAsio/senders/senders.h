@@ -25,6 +25,7 @@
 #include "../services/item_state_repository.h"
 #include "../services/castle_war_registry.h"
 #include "../services/cmgift_registry.h"
+#include "../services/lucky_event_repository.h"
 #include "../services/month_rank_registry.h"
 #include "../services/rps_registry.h"
 
@@ -2207,7 +2208,7 @@ boost::asio::awaitable<void> SendMwWarLordSayReq(
 
 // --- W6-42 MonthRank rollover senders (senders_rank.cpp) -----------
 
-// MW_MONTHRANKRESET_REQ - the previous month\'s fame top-9 at
+// MW_MONTHRANKRESET_REQ - the previous month's fame top-9 at
 // rollover. Legacy SSSender.cpp:3392.
 //   Wire: BYTE rank_month, BYTE count(=9), 9 x <MONTHRANKER>
 boost::asio::awaitable<void> SendMwMonthRankResetReq(
@@ -2262,6 +2263,25 @@ boost::asio::awaitable<void> SendMwHelpMessageReq(
     std::int64_t                   start_unix,
     std::int64_t                   end_unix,
     const std::string&             message);
+
+// --- W6-46 EVENTQUARTER senders (senders_event.cpp) ----------------
+
+// CT_EVENTQUARTERLIST_ACK - the day listing with resolved item
+// names. Legacy OnDM_EVENTQUARTERLIST_REQ inline build.
+//   Wire: DWORD manager, WORD count, N x <LUCKYEVENT>
+boost::asio::awaitable<void> SendCtEventQuarterListAck(
+    std::shared_ptr<PeerSession>     peer,
+    std::uint32_t                    manager,
+    const std::vector<LuckyEvent>&   rows);
+
+// CT_EVENTQUARTERUPDATE_ACK - editor result echo.
+//   Wire: BYTE ret, DWORD manager, BYTE type, <LUCKYEVENT>
+boost::asio::awaitable<void> SendCtEventQuarterUpdateAck(
+    std::shared_ptr<PeerSession>     peer,
+    std::uint8_t                     ret,
+    std::uint32_t                    manager,
+    std::uint8_t                     type,
+    const LuckyEvent&                event);
 
 // --- W6-45 CMGift senders (senders_cashshop.cpp) -------------------
 

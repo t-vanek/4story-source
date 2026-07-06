@@ -3,7 +3,10 @@
 #include "../services/chat_constants.h"
 #include "../services/event_constants.h"
 #include "../services/event_registry.h"
+#include "../services/lucky_event_codec.h"
 #include "../wire_codec.h"
+
+#include "fourstory/db/co_offload.h"
 
 #include <spdlog/spdlog.h>
 
@@ -191,6 +194,96 @@ OnCtEventUpdateReq(std::shared_ptr<PeerSession> peer,
     for (auto& p : ctx.peers->Snapshot())
         co_await senders::SendMwEventUpdateReq(p, event_id, value,
             event_body);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnCtEventQuarterListReq(std::shared_ptr<PeerSession> peer,
+                        std::vector<std::byte>       body,
+                        const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.ctrl_svr)
+    {
+        spdlog::warn("OnCtEventQuarterListReq[{}]: ctrl_svr not wired",
+            ip);
+        co_return;
+    }
+    if (!ctx.lucky_repo)
+    {
+        spdlog::warn("OnCtEventQuarterListReq[{}]: lucky_repo not "
+                     "wired - dropping (no DB configured)", ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t manager = 0;
+    std::uint8_t  day = 0;
+    if (!r.Read(manager) || !r.Read(day))
+    {
+        spdlog::warn("OnCtEventQuarterListReq[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+    const auto rows = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+        [repo = ctx.lucky_repo, day] { return repo->List(day); });
+    if (auto cs = ctx.ctrl_svr->Get())
+        co_await senders::SendCtEventQuarterListAck(cs, manager, rows);
+    else
+        spdlog::info("OnCtEventQuarterListReq[{}]: ctrl-svr offline - "
+                     "{} row(s) dropped", ip, rows.size());
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnCtEventQuarterUpdateReq(std::shared_ptr<PeerSession> peer,
+                          std::vector<std::byte>       body,
+                          const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.ctrl_svr)
+    {
+        spdlog::warn("OnCtEventQuarterUpdateReq[{}]: ctrl_svr not "
+                     "wired", ip);
+        co_return;
+    }
+    if (!ctx.lucky_repo)
+    {
+        spdlog::warn("OnCtEventQuarterUpdateReq[{}]: lucky_repo not "
+                     "wired - dropping (no DB configured)", ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t manager = 0;
+    std::uint8_t  type = 0;
+    LuckyEvent    event{};
+    if (!r.Read(manager) || !r.Read(type) || !ReadLuckyEvent(r, event))
+    {
+        spdlog::warn("OnCtEventQuarterUpdateReq[{}]: malformed body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    const auto res = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+        [repo = ctx.lucky_repo, type, event]
+        { return repo->Update(type, event); });
+
+    // Legacy keeps bRet=TRUE and echoes the unresolved event when
+    // the SP never ran; the ADD id adoption + name fill come from
+    // the SP outputs. The in-memory EVQT scheduler mirror is the
+    // lucky-event runtime slice.
+    std::uint8_t ret = 1;
+    LuckyEvent   echo = event;
+    if (res)
+    {
+        ret  = res->ret;
+        echo = res->event;
+    }
+    if (auto cs = ctx.ctrl_svr->Get())
+        co_await senders::SendCtEventQuarterUpdateAck(cs, ret, manager,
+            type, echo);
+    else
+        spdlog::info("OnCtEventQuarterUpdateReq[{}]: ctrl-svr offline "
+                     "- update ack dropped", ip);
     co_return;
 }
 

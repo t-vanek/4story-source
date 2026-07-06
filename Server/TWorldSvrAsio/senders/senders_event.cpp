@@ -1,5 +1,6 @@
 #include "senders/senders.h"
 #include "wire_codec.h"
+#include "services/lucky_event_codec.h"
 
 #include "MessageId.h"
 
@@ -59,6 +60,43 @@ SendMwEventUpdateReq(std::shared_ptr<PeerSession>   peer,
     co_await peer->Wire()->SendPacket(
         tnetlib::protocol::ToUint16(
             tnetlib::protocol::MessageId::MW_EVENTUPDATE_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendCtEventQuarterListAck(std::shared_ptr<PeerSession>     peer,
+                          std::uint32_t                    manager,
+                          const std::vector<LuckyEvent>&   rows)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint32_t>(body, manager);
+    WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(rows.size()));
+    for (const auto& e : rows)
+        WriteLuckyEvent(body, e);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::CT_EVENTQUARTERLIST_ACK),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendCtEventQuarterUpdateAck(std::shared_ptr<PeerSession>     peer,
+                            std::uint8_t                     ret,
+                            std::uint32_t                    manager,
+                            std::uint8_t                     type,
+                            const LuckyEvent&                event)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, ret);
+    WritePOD<std::uint32_t>(body, manager);
+    WritePOD<std::uint8_t>(body, type);
+    WriteLuckyEvent(body, event);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::CT_EVENTQUARTERUPDATE_ACK),
         std::move(body));
 }
 

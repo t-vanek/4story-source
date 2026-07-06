@@ -631,6 +631,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-46: EVENTQUARTER operator tools (handlers_event.cpp) ----
+    case MessageId::CT_EVENTQUARTERLIST_REQ:
+        co_await OnCtEventQuarterListReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_EVENTQUARTERUPDATE_REQ:
+        co_await OnCtEventQuarterUpdateReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-45: CMGift family (handlers_cmgift.cpp) -----------------
     case MessageId::CT_CMGIFT_REQ:
         co_await OnCtCmGiftReq(std::move(peer), std::move(body), ctx);

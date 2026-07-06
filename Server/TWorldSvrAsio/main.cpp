@@ -41,6 +41,7 @@
 #include "services/soci_month_rank_repository.h"
 #include "services/soci_war_ops_repository.h"
 #include "services/soci_cmgift_repository.h"
+#include "services/soci_lucky_event_repository.h"
 #include "services/war_country_index.h"
 #include "world_server.h"
 
@@ -142,6 +143,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IMonthRankRepository> month_rank_repo;
         std::unique_ptr<tworldsvr::IWarOpsRepository>    war_ops_repo;
         std::unique_ptr<tworldsvr::ICmGiftRepository>    cmgift_repo;
+        std::unique_ptr<tworldsvr::ILuckyEventRepository> lucky_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -196,6 +198,9 @@ int main(int argc, char** argv)
                     *db_pool_owner);
             cmgift_repo =
                 std::make_unique<tworldsvr::SociCmGiftRepository>(
+                    *db_pool_owner);
+            lucky_repo =
+                std::make_unique<tworldsvr::SociLuckyEventRepository>(
                     *db_pool_owner);
         }
         else
@@ -308,6 +313,7 @@ int main(int argc, char** argv)
         ctx.castle_war      = &castle_war;
         ctx.cmgifts         = &cmgifts;
         ctx.cmgift_repo     = cmgift_repo.get();
+        ctx.lucky_repo      = lucky_repo.get();
         ctx.castle_war_day  = cfg.castle_war_day;
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;

@@ -63,6 +63,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_ctrlsvr.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_service.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_apex.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_tournament.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -85,6 +86,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/senders/senders_br.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_rps.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_cashshop.cpp
+    ${TWORLD_ASIO_SRC}/senders/senders_tournament.cpp
     ${TWORLD_ASIO_SRC}/services/char_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_broadcast.cpp
     ${TWORLD_ASIO_SRC}/services/guild_level_cache.cpp
@@ -133,6 +135,10 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/soci_war_ops_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_month_rank_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_month_rank_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/tournament_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/tournament_boot.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_tournament_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_tournament_repository.cpp
     ${TWORLD_ASIO_SRC}/services/peer_registry.cpp)
 
 target_include_directories(tworldsvr_asio_core PUBLIC
@@ -764,6 +770,17 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-50 wire test: tournament state core + operator tools -
+# SetTournamentTime month math / resume graft / evictions, boot
+# hydrate, TET_* op verticals with persist traces, and the
+# SM_TOURNAMENTUPDATE rebuild + MW_TOURNAMENTINFO broadcast.
+add_executable(test_tworldsvr_asio_tournament_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_tournament_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_tournament_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_tournament_handlers
+    COMMAND test_tworldsvr_asio_tournament_handlers)
 
 # W6-49 wire test: RPS win-ledger persistence - insert on allowed
 # win, delete on 30-day prune, hybrid DM record fan-in, boot hydrate.

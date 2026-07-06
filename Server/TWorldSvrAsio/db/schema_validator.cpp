@@ -254,6 +254,39 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                      "not deployed — SM_DELSESSION_REQ (W6-38) will "
                      "skip the current-user clear.");
     }
+    // W6-50: tournament core. Charts feed the boot load; the SPs
+    // back the operator tools (TET_SCHEDULEADD/DEL, TET_ENTRYADD,
+    // TET_PLAYERADD/DEL persistence).
+    if (!TableHasColumns(*lease, "TTOURNAMENTSCHEDULECHART",
+            {"bGroup","bStep","dwPeriod"}))
+    {
+        spdlog::warn("schema_validator (world): TTOURNAMENTSCHEDULECHART "
+                     "not deployed - the main tournament boots "
+                     "unscheduled (W6-50).");
+    }
+    if (!TableHasColumns(*lease, "TTOURNAMENTCHART",
+            {"bGroup","bEntryID","szName","bType","dwFee","bEnable"}))
+    {
+        spdlog::warn("schema_validator (world): TTOURNAMENTCHART not "
+                     "deployed - the main tournament has no entries "
+                     "(W6-50).");
+    }
+    if (!TableHasColumns(*lease, "TTNMTEVENTTIMETABLE",
+            {"wTournamentID","bWeek","bDay","dwStart"}))
+    {
+        spdlog::warn("schema_validator (world): TTNMTEVENTTIMETABLE not "
+                     "deployed - operator tournament events boot empty "
+                     "(W6-50).");
+    }
+    for (const char* rn : {"TTnmtEventTime", "TTnmtEventSchedule",
+                           "TTnmtEventDel", "TTnmtEventEntry",
+                           "TTnmtEventReward", "TTournamentApply"})
+    {
+        if (!routine_exists(rn))
+            spdlog::warn("schema_validator (world): {} SP not deployed "
+                         "- the tournament operator tools (W6-50) "
+                         "will log SOCI errors on persist.", rn);
+    }
 }
 
 } // namespace tworldsvr::db

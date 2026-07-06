@@ -639,6 +639,24 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnSmEventExpiredAck(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-50: tournament operator tools (handlers_tournament.cpp) -
+    case MessageId::CT_TOURNAMENTEVENT_REQ:
+        co_await OnCtTournamentEventReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::SM_TOURNAMENTEVENT_REQ:
+        co_await OnSmTournamentEventReq(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::SM_TOURNAMENTEVENT_ACK:
+        co_await OnSmTournamentEventAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+    case MessageId::SM_TOURNAMENTUPDATE_REQ:
+        co_await OnSmTournamentUpdateReq(std::move(peer),
+            std::move(body), ctx);
+        co_return;
+
     // ---- W6-46: EVENTQUARTER operator tools (handlers_event.cpp) ----
     case MessageId::CT_EVENTQUARTERLIST_REQ:
         co_await OnCtEventQuarterListReq(std::move(peer), std::move(body), ctx);

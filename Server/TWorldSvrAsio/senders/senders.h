@@ -28,6 +28,7 @@
 #include "../services/lucky_event_repository.h"
 #include "../services/month_rank_registry.h"
 #include "../services/rps_registry.h"
+#include "../services/tournament_registry.h"
 
 #include <boost/asio/awaitable.hpp>
 
@@ -2313,6 +2314,22 @@ boost::asio::awaitable<void> SendCtEventQuarterUpdateAck(
     std::uint32_t                    manager,
     std::uint8_t                     type,
     const LuckyEvent&                event);
+
+// --- W6-50 tournament senders (senders_tournament.cpp) -------------
+
+// MW_TOURNAMENTINFO_REQ - the current tournament's entry catalogue,
+// broadcast to map servers whenever the current tournament re-points
+// (legacy SSSender.cpp:3512; its bMaxLevel parameter is never
+// serialized).
+//   Wire: BYTE first_group_count, BYTE group, BYTE step,
+//         BYTE entry_count, N x (BYTE group, BYTE entry_id,
+//         STRING name, BYTE type, DWORD class, DWORD fee,
+//         DWORD fee_back, WORD permit_item, BYTE permit_count,
+//         BYTE min_level, BYTE max_level, BYTE reward_count,
+//         R x (BYTE chart_type, WORD item_id, BYTE count))
+boost::asio::awaitable<void> SendMwTournamentInfoReq(
+    std::shared_ptr<PeerSession>                peer,
+    const TournamentRegistry::InfoSnapshot&     info);
 
 // --- W6-45 CMGift senders (senders_cashshop.cpp) -------------------
 

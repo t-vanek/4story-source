@@ -43,6 +43,8 @@
 #include "services/soci_cmgift_repository.h"
 #include "services/soci_lucky_event_repository.h"
 #include "services/soci_rps_repository.h"
+#include "services/soci_tournament_repository.h"
+#include "services/tournament_boot.h"
 #include "services/war_country_index.h"
 #include "world_server.h"
 
@@ -146,6 +148,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::ICmGiftRepository>    cmgift_repo;
         std::unique_ptr<tworldsvr::ILuckyEventRepository> lucky_repo;
         std::unique_ptr<tworldsvr::IRpsRepository>       rps_repo;
+        std::unique_ptr<tworldsvr::ITournamentRepository> tournament_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -207,6 +210,9 @@ int main(int argc, char** argv)
             rps_repo =
                 std::make_unique<tworldsvr::SociRpsRepository>(
                     *db_pool_owner);
+            tournament_repo =
+                std::make_unique<tworldsvr::SociTournamentRepository>(
+                    *db_pool_owner);
         }
         else
         {
@@ -245,6 +251,7 @@ int main(int argc, char** argv)
         tworldsvr::CmGiftRegistry       cmgifts;
         tworldsvr::EventQuarterScheduler evqt;
         tworldsvr::ExpiredBuffer        expired;
+        tworldsvr::TournamentRegistry   tournaments;
         if (cmgift_repo)
         {
             cmgifts.LoadFrom(cmgift_repo->LoadChart());
@@ -277,6 +284,13 @@ int main(int argc, char** argv)
                     ++dates;
             spdlog::info("rps games: {} config row(s), {} win date(s) "
                          "loaded", rps.Size(), dates);
+        }
+        if (tournament_repo)
+        {
+            // W6-50: main tournament + operator lucky events +
+            // mid-flight resume (TWorldSvr.cpp:1574-1889).
+            tworldsvr::LoadTournamentState(tournaments, *tournament_repo,
+                static_cast<std::int64_t>(std::time(nullptr)));
         }
         {
             // Legacy TWorldSvr.cpp:1894 - the rank month boots from
@@ -351,6 +365,8 @@ int main(int argc, char** argv)
         ctx.lucky_repo      = lucky_repo.get();
         ctx.evqt            = &evqt;
         ctx.expired         = &expired;
+        ctx.tournaments     = &tournaments;
+        ctx.tournament_repo = tournament_repo.get();
         ctx.castle_war_day  = cfg.castle_war_day;
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;

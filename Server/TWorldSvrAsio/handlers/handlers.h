@@ -46,6 +46,8 @@
 #include "../services/event_quarter_scheduler.h"
 #include "../services/expired_buffer.h"
 #include "../services/rps_repository.h"
+#include "../services/tournament_registry.h"
+#include "../services/tournament_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -198,6 +200,13 @@ struct HandlerContext
     // W6-49: RPS win-ledger persistence (TRPSGameRecord SP +
     // TRPSGAMECHART / TRPSGAMERECORDTABLE boot load).
     IRpsRepository*           rps_repo = nullptr;
+
+    // W6-50: tournament state core (legacy m_mapTournament /
+    // m_mapTournamentSchedule / m_mapTournamentTime / m_tournament /
+    // m_mapTNMTPlayer) + its DB surface (boot charts, the TTnmtEvent*
+    // operator SPs, TTournamentApply, the CTBLGetCharInfo lookup).
+    TournamentRegistry*       tournaments     = nullptr;
+    ITournamentRepository*    tournament_repo = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -2868,6 +2877,58 @@ boost::asio::awaitable<void> OnRpsGameDataReq(
 //     BYTE type, BYTE win_count, BYTE win_prob, draw_prob,
 //     lose_prob, WORD win_keep, win_period }
 boost::asio::awaitable<void> OnRpsGameChangeReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-50: tournament operator tools (handlers_tournament.cpp) ----
+//
+// CT_TOURNAMENTEVENT_REQ — the operator console's tournament editor
+// (legacy SSHandler.cpp:12072). Eight TET_* ops: LIST / SCHEDULEADD /
+// SCHEDULEDEL route through the SM_TOURNAMENTEVENT_REQ leg (the
+// legacy SayToTIMER hop, collapsed to a direct call on the strand);
+// ENTRYADD replaces a tournament's entry chart (+ persists it);
+// ENTRYDEL drops one entry; PLAYERADD looks the target up by name
+// through ITournamentRepository (the DM_TOURNAMENTEVENTCHARINFO
+// round-trip, repository-collapsed) and registers them; PLAYERDEL
+// unregisters by name; PLAYEREND acks (its select/match triggers
+// land with the match-engine slice).
+//   Wire: DWORD manager_id, BYTE type, <op-dependent tail>
+boost::asio::awaitable<void> OnCtTournamentEventReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// SM_TOURNAMENTEVENT_REQ — the timer-thread leg of the operator ops
+// (legacy SSHandler.cpp:12292): LIST builds the schedule listing,
+// SCHEDULEADD runs SetTournamentTime (+ persists via the collapsed
+// DM_TNMTEVENTSCHEDULEADD), SCHEDULEDEL deletes (+ persists),
+// ENTRYADD re-elects the schedule. Kept wire-dispatchable for
+// parity with the legacy self-post.
+boost::asio::awaitable<void> OnSmTournamentEventReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// SM_TOURNAMENTEVENT_ACK — the batch-thread leg (legacy
+// SSHandler.cpp:12442): LIST appends the entry catalogue + rosters
+// and echoes CT_TOURNAMENTEVENT_ACK, SCHEDULEADD/ENTRYADD echo,
+// SCHEDULEDEL drops the catalogue row (+ echo when manager != 0),
+// PLAYERADD registers the looked-up char (+ persists TTournamentApply)
+// and echoes the char info.
+boost::asio::awaitable<void> OnSmTournamentEventAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// SM_TOURNAMENTUPDATE_REQ — re-point the current tournament at the
+// elected schedule (legacy SSHandler.cpp:11468): TournamentClear +
+// adopt the step list + recompute the base prize, then broadcast
+// MW_TOURNAMENTINFO_REQ to every map (TournamentInfo). The legacy
+// step>=MATCH TournamentMatch() fan-out is the match-engine slice.
+//   Wire: WORD tournament_id, BYTE count,
+//         N x (BYTE group, BYTE step, DWORD period, INT64 start)
+boost::asio::awaitable<void> OnSmTournamentUpdateReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

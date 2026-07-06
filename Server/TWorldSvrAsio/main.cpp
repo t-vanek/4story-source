@@ -40,6 +40,7 @@
 #include "services/soci_service_ops_repository.h"
 #include "services/soci_month_rank_repository.h"
 #include "services/soci_war_ops_repository.h"
+#include "services/soci_cmgift_repository.h"
 #include "services/war_country_index.h"
 #include "world_server.h"
 
@@ -140,6 +141,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IServiceOpsRepository> service_ops_repo;
         std::unique_ptr<tworldsvr::IMonthRankRepository> month_rank_repo;
         std::unique_ptr<tworldsvr::IWarOpsRepository>    war_ops_repo;
+        std::unique_ptr<tworldsvr::ICmGiftRepository>    cmgift_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -192,6 +194,9 @@ int main(int argc, char** argv)
             war_ops_repo =
                 std::make_unique<tworldsvr::SociWarOpsRepository>(
                     *db_pool_owner);
+            cmgift_repo =
+                std::make_unique<tworldsvr::SociCmGiftRepository>(
+                    *db_pool_owner);
         }
         else
         {
@@ -227,6 +232,13 @@ int main(int argc, char** argv)
         tworldsvr::MonthRankRegistry    month_rank;
         tworldsvr::WarCountryIndex      war_index;
         tworldsvr::CastleWarRegistry    castle_war;
+        tworldsvr::CmGiftRegistry       cmgifts;
+        if (cmgift_repo)
+        {
+            cmgifts.LoadFrom(cmgift_repo->LoadChart());
+            spdlog::info("cmgift catalogue: {} gift(s) loaded",
+                cmgifts.Size());
+        }
         {
             // Legacy TWorldSvr.cpp:1894 - the rank month boots from
             // the local clock; the table itself starts empty and
@@ -294,6 +306,8 @@ int main(int argc, char** argv)
         ctx.war_index       = &war_index;
         ctx.war_ops         = war_ops_repo.get();
         ctx.castle_war      = &castle_war;
+        ctx.cmgifts         = &cmgifts;
+        ctx.cmgift_repo     = cmgift_repo.get();
         ctx.castle_war_day  = cfg.castle_war_day;
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;

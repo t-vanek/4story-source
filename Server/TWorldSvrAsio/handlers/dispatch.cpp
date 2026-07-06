@@ -631,6 +631,20 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-45: CMGift family (handlers_cmgift.cpp) -----------------
+    case MessageId::CT_CMGIFT_REQ:
+        co_await OnCtCmGiftReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_CMGIFT_ACK:
+        co_await OnMwCmGiftAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_CMGIFTLIST_REQ:
+        co_await OnCtCmGiftListReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::CT_CMGIFTCHARTUPDATE_REQ:
+        co_await OnCtCmGiftChartUpdateReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-44: castle-war info engine (handlers_occupy.cpp) --------
     case MessageId::MW_CASTLEWARINFO_ACK:
         co_await OnMwCastleWarInfoAck(std::move(peer), std::move(body), ctx);

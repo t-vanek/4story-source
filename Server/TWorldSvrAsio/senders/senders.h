@@ -24,6 +24,7 @@
 #include "../services/guild_registry.h"
 #include "../services/item_state_repository.h"
 #include "../services/castle_war_registry.h"
+#include "../services/cmgift_registry.h"
 #include "../services/month_rank_registry.h"
 #include "../services/rps_registry.h"
 
@@ -2261,6 +2262,32 @@ boost::asio::awaitable<void> SendMwHelpMessageReq(
     std::int64_t                   start_unix,
     std::int64_t                   end_unix,
     const std::string&             message);
+
+// --- W6-45 CMGift senders (senders_cashshop.cpp) -------------------
+
+// MW_CMGIFT_REQ - deliver a gift to the target's main map. Legacy
+// OnDM_CMGIFT_ACK inline build (SSHandler.cpp:13736).
+//   Wire: DWORD target_char, BYTE gift_type, DWORD value, BYTE count,
+//         STRING title, STRING msg, DWORD gm_id, BYTE tool,
+//         WORD requested_gift_id, WORD actual_gift_id, BYTE result
+boost::asio::awaitable<void> SendMwCmGiftReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint32_t                  target_char_id,
+    const CmGift&                  gift,
+    std::uint32_t                  gm_id,
+    std::uint8_t                   tool,
+    std::uint16_t                  requested_gift_id,
+    std::uint8_t                   result);
+
+// CT_CMGIFTLIST_ACK - the full gift catalogue to the operator.
+// Legacy SSSender.cpp:101.
+//   Wire: DWORD manager, WORD count, N x (WORD id, BYTE type,
+//         DWORD value, BYTE count, BYTE take_type, BYTE max_take,
+//         BYTE tool_only, WORD err_id, STRING title, STRING msg)
+boost::asio::awaitable<void> SendCtCmGiftListAck(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint32_t                  manager,
+    const std::vector<CmGift>&     gifts);
 
 // --- W6-36 item-state relays (senders_item.cpp) --------------------
 //

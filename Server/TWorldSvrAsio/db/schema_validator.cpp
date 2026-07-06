@@ -193,6 +193,22 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                          "- the MonthRank rollover (SM_MONTHRANKSAVE, "
                          "W6-42) will abort its persist.", rn);
     }
+    for (const char* rn : {"TCMGiftCanTake", "TCMGiftAdd",
+                           "TCMGiftSet", "TCMGiftDel"})
+    {
+        if (!routine_exists(rn))
+            spdlog::warn("schema_validator (world): {} SP not deployed "
+                         "- the CMGift family (W6-45) degrades (FAIL "
+                         "results / skipped chart updates).", rn);
+    }
+    if (!TableHasColumns(*lease, "TCMGIFTCHART",
+            {"wGiftID","bGiftType","dwValue","bCount","bTakeType",
+             "bMaxTakeCount","bToolOnly","wErrGiftID"}))
+    {
+        spdlog::warn("schema_validator (world): TCMGIFTCHART not "
+                     "deployed - the gift catalogue boots empty; "
+                     "CT_CMGIFT_REQ replies CMGIFT_ID.");
+    }
     if (!routine_exists("TSaveCastleApplicant"))
     {
         spdlog::warn("schema_validator (world): TSaveCastleApplicant SP "

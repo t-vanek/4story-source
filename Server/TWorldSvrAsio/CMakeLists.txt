@@ -108,6 +108,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/fake_guild_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_guild_level_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_guild_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_item_state_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_item_state_repository.cpp
     ${TWORLD_ASIO_SRC}/services/peer_registry.cpp)
 
 target_include_directories(tworldsvr_asio_core PUBLIC
@@ -739,6 +741,17 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-36 wire test: operator item-state tool — CT_ITEMSTATE_REQ applies
+# TITEMCHART.bInitState rows via the repo (stop at first failure),
+# broadcasts MW_ITEMSTATE_REQ to map peers, echoes CT_ITEMSTATE_ACK to
+# the identified ctrl-svr.
+add_executable(test_tworldsvr_asio_itemstate_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_itemstate_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_itemstate_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_itemstate_handlers
+    COMMAND test_tworldsvr_asio_itemstate_handlers)
 
 # W6-2 wire test: combat / taming cross-server relays — MAGICMIRROR /
 # MONTEMPT / MONTEMPTEVO route to the attacker char's map.

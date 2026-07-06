@@ -22,6 +22,7 @@
 #include "../peer_session.h"
 #include "../services/cash_item_sale_registry.h"
 #include "../services/guild_registry.h"
+#include "../services/item_state_repository.h"
 #include "../services/rps_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -2078,6 +2079,26 @@ boost::asio::awaitable<void> SendCtCmGiftAck(
     std::shared_ptr<PeerSession>   peer,
     std::uint8_t                   result,
     std::uint32_t                  gm_id);
+
+// --- W6-36 item-state relays (senders_item.cpp) --------------------
+//
+// Both carry the payload the legacy DM_ITEMSTATE_ACK built
+// (SSHandler.cpp:10037): the operator id echo + the prefix of rows
+// that applied before the first failure. MW fans to every map peer
+// so their in-memory TITEMCHART mirrors flip; CT echoes to the
+// ctrl-svr console. Legacy SSSender.cpp:3083/3092 copy the packet
+// verbatim and only swap the wire id.
+//   Wire: DWORD id, WORD success_count,
+//         N x (WORD item_id, BYTE init_state)
+boost::asio::awaitable<void> SendMwItemStateReq(
+    std::shared_ptr<PeerSession>          peer,
+    std::uint32_t                         id,
+    const std::vector<ItemStateChange>&   items);
+
+boost::asio::awaitable<void> SendCtItemStateAck(
+    std::shared_ptr<PeerSession>          peer,
+    std::uint32_t                         id,
+    const std::vector<ItemStateChange>&   items);
 
 // --- W6-2 combat / taming cross-server relays (senders_combat.cpp)-
 

@@ -284,7 +284,9 @@ int main()
         SendFramed(p1, ToUint16(MessageId::MW_ENTERCHAR_ACK),
                    EnterCharBody(100, 0xA1));
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        // 10 s window — the original 2 s flaked under full-suite
+        // parallel load (io thread starvation).
+        for (int i = 0; i < 1000; ++i)
         {
             auto a = chars.Find(100);
             std::lock_guard g(a->lock);

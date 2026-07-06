@@ -35,6 +35,7 @@
 #include "../services/item_state_repository.h"
 #include "../services/cash_sale_repository.h"
 #include "../services/service_ops_repository.h"
+#include "../services/month_rank_registry.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -147,6 +148,10 @@ struct HandlerContext
     // W6-38: cluster group id (legacy CTWorldSvrModule::m_bGroupID),
     // fed into TClearMapCurrentUser during SM_DELSESSION teardown.
     std::uint8_t              group_id   = 0;
+
+    // W6-41: monthly PvP ranking table (legacy m_arMonthRank +
+    // m_bRankMonth). Owned by main; non-null in W6-41+ deploys.
+    MonthRankRegistry*        month_rank = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1779,6 +1784,37 @@ boost::asio::awaitable<void> OnCtCtrlsvrReq(
 //
 //   Wire (SSHandler.cpp:10559): DWORD dw_index, WORD value, BYTE ret
 boost::asio::awaitable<void> OnMwCashItemSaleAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-41: MonthRank live table (handlers_rank.cpp) ---------------
+//
+// MW_MONTHRANKUPDATE_ACK — a map reports one ranker’s new stats.
+// World gates on (month == RankMonth, country < 3), runs the legacy
+// re-rank ladder (warlord pre-select → old/new slot scan → shift →
+// warlord re-select; SSHandler.cpp:11263) and broadcasts
+// MW_MONTHRANKUPDATE_REQ(month, country, start, end, slots[start..end],
+// warlord_flag [+ slot0]) to every map peer. Nowhere-to-land drops.
+//   Wire in: BYTE month, country, <MONTHRANKER>
+//
+// MW_MONTHRANKRESETCHAR_ACK — mirror a char’s rank-reset to every
+// OTHER map the char is connected to (legacy SSHandler.cpp:13324
+// skips the reporting peer).
+//   Wire: DWORD char_id
+//
+// MW_WARLORDSAY_ACK — warlord announcement; pure broadcast of
+// MW_WARLORDSAY_REQ(type, rank_month, char_id, say) to every map
+// (legacy SSHandler.cpp:11386).
+boost::asio::awaitable<void> OnMwMonthRankUpdateAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMwMonthRankResetCharAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMwWarLordSayAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

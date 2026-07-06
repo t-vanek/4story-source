@@ -23,6 +23,7 @@
 #include "../services/cash_item_sale_registry.h"
 #include "../services/guild_registry.h"
 #include "../services/item_state_repository.h"
+#include "../services/month_rank_registry.h"
 #include "../services/rps_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -2088,6 +2089,50 @@ boost::asio::awaitable<void> SendCtCashItemSaleAck(
     std::shared_ptr<PeerSession>   peer,
     std::uint32_t                  dw_index,
     std::uint16_t                  value);
+
+// --- W6-41 MonthRank senders (senders_rank.cpp) --------------------
+
+// MW_MONTHRANKLIST_REQ - full-table replay to a joining map peer.
+// Legacy SSSender.cpp:3378.
+//   Wire: BYTE rank_month, BYTE count(=33), 3 x 33 x <MONTHRANKER>
+boost::asio::awaitable<void> SendMwMonthRankListReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   rank_month,
+    const MonthRankRegistry&       registry);
+
+// MW_MONTHRANKUPDATE_REQ - dirty-range broadcast after a rank
+// update. Legacy SSSender.cpp:3415: the range serializes only when
+// both bounds are non-zero; the trailing warlord flag carries slot 0
+// when set.
+//   Wire: BYTE month, country, start, end,
+//         [start..end] x <MONTHRANKER>, BYTE warlord_flag,
+//         [<MONTHRANKER> slot0 if flag]
+boost::asio::awaitable<void> SendMwMonthRankUpdateReq(
+    std::shared_ptr<PeerSession>     peer,
+    std::uint8_t                     month,
+    std::uint8_t                     country,
+    std::uint8_t                     start_rank,
+    std::uint8_t                     end_rank,
+    const std::vector<MonthRanker>&  slots,
+    bool                             new_warlord,
+    const MonthRanker&               warlord);
+
+// MW_MONTHRANKRESETCHAR_REQ - mirror a char rank-reset to one of
+// its other maps. Legacy SSSender.cpp:126.
+//   Wire: DWORD char_id
+boost::asio::awaitable<void> SendMwMonthRankResetCharReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint32_t                  char_id);
+
+// MW_WARLORDSAY_REQ - warlord announcement broadcast. Legacy
+// SSSender.cpp:3444.
+//   Wire: BYTE type, BYTE rank_month, DWORD char_id, STRING say
+boost::asio::awaitable<void> SendMwWarLordSayReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   type,
+    std::uint8_t                   rank_month,
+    std::uint32_t                  char_id,
+    const std::string&             say);
 
 // --- W6-40 GM item tools (senders_item.cpp) ------------------------
 

@@ -61,6 +61,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_cashshop.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_ctrlsvr.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_service.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_apex.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_relay.cpp
     ${TWORLD_ASIO_SRC}/senders/senders_guild.cpp
@@ -746,6 +747,14 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-39 wire test: APEX stubs accept + drop (no relay, no CloseChar).
+add_executable(test_tworldsvr_asio_apex_stub_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_apex_stub_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_apex_stub_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_apex_stub_handlers
+    COMMAND test_tworldsvr_asio_apex_stub_handlers)
 
 # W6-38 wire test: service/control plane — SERVICEMONITOR echo,
 # SERVICEDATACLEAR active-user rebuild, HELPMESSAGE broadcast+persist,

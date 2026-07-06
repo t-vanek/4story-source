@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-38 Service / control plane (monitor echo + CCU resync + help-message + map teardown)
+## Status — W6-39 APEX stubs (shipped-build parity; SDK callout out of scope)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -109,6 +109,7 @@ that the four shipped Asio daemons already use.
 | **W6-36** | Item-state ops relay — `OnCtItemStateReq` ports the operator item-availability tool, collapsing the legacy CT→DM→SP→DM→broadcast round-trip (SSHandler.cpp:173 → 10023 → 10076) into one coroutine. Parses `(id, count, count × (wItemID, bInitState))`, applies each row via the new `IItemStateRepository::ChangeState` (SOCI impl = single `UPDATE TITEMCHART SET bInitState … WHERE wItemID …` with an affected-rows check — same net effect as the legacy `TItemStateChange` SP's probe+update), **stopping at the first failing item** (legacy per-item `break`), then fans `MW_ITEMSTATE_REQ(id, succeeded-prefix)` to every map peer and echoes `CT_ITEMSTATE_ACK` (same payload) to the W6-35 ctrl-svr slot — both fire even with zero successes (legacy sends unconditionally). Whole batch runs in one `CoOffloadIf` task, mirroring the single DM round-trip. New `services/item_state_repository.h` + `soci_item_state_repository.h/.cpp` + `fake_item_state_repository.h/.cpp` + 2 senders (`SendMwItemStateReq` / `SendCtItemStateAck`) + optional TITEMCHART schema probe (warn-only). First of the §C "GM item tools" family; `CT/DM_ITEMFIND` + `MW_ADDITEM` stay deferred | ✅ |
 | **W6-37** | Cash-sale confirm barrier — `OnMwCashItemSaleAck` ports the legacy confirmation + persistence chain (SSHandler.cpp:10559 → 10595 → 10637) into one coroutine, closing the W6-33 "DB persistence deferred" gap. Each map's `MW_CASHITEMSALE_ACK` flips a new per-peer `PeerSession::CashSaleConfirmed` flag (legacy `TServer::m_bCashSale`; armed false in the `OnCtCashItemSaleReq` broadcast loop — SSHandler.cpp:402). Once **every** registered peer confirmed: persist each campaign item via the new `ICashSaleRepository::PersistSaleValue` (SOCI impl = `EXEC dbo.TCashItemSale` — the TGAME wrapper SP that hops into `TGLOBAL_GSP.dbo.TCashItemSale`'s `UPDATE TCASHSHOPITEMCHART`; called on the world pool exactly like legacy `DEFINE_QUERY(&m_db,…)`), first failure aborts (legacy bRet=FALSE drop). On success: `value==0` → the campaign **actually leaves the registry** (W6-33's zero-in-place kept it until this confirm — legacy `OnDM_CASHITEMSALE_ACK` erase), `MW_CASHSHOPSTOP_REQ(0,0)` refresh broadcast to every map, and `CT_CASHITEMSALE_ACK(dw_index, value)` to the ctrl-svr on the deactivate path only (`if(wValue==0 && m_pCtrlSvr)`). Wire `bRet` read + ignored (legacy parity). Barrier recomputed per ACK — a late joiner ACKing its replay re-runs the idempotent persist, same as legacy. New `services/cash_sale_repository.h` + `soci_cash_sale_repository.h/.cpp` + `fake_cash_sale_repository.h/.cpp` + `CashItemSaleRegistry::Get` + 1 sender (`SendCtCashItemSaleAck`) + warn-only `TCashItemSale` routine probe. Absorbs `DM_CASHITEMSALE_REQ/_ACK` (repository-collapsed, §D) | ✅ |
 | **W6-38** | Service / control plane — four operator/cluster lifecycle handlers + one stub. `OnCtServiceMonitorAck` echoes `CT_SERVICEMONITOR_REQ(tick, sessions, chars, active_users)` on the probing socket (SSHandler.cpp:5; `sessions` counts registered peers + the ctrl-svr slot — un-handshaked sockets aren't counted, noted divergence). `OnCtServiceDataClearAck` rebuilds the active-user set from live chars via new `CharRegistry::RebuildActiveUsers` (SSHandler.cpp:133). `OnCtHelpMessageReq` broadcasts `MW_HELPMESSAGE_REQ(id, start, end, text)` to every map + persists via new `IServiceOpsRepository::SaveHelpMessage` (`THelpMessage` SP; the `DM_HELPMESSAGE_REQ` hop is repository-collapsed, §D). `OnSmQuitServiceReq` is a log-only stub (the legacy SCM-stop body is commented out — SSHandler.cpp:502). `OnSmDelSessionReq` ports the map-departure teardown (SSHandler.cpp:512): gate on `HIBYTE(wID)==SVRGRP_MAPSVR`, `CloseChar` every char holding a con on the departing map (W6-19 helper — DELCHAR fan-out incl. to the departing map itself), fire `TClearMapCurrentUser(group_id, LOBYTE, 4)` (repository-collapsed `DM_CLEARMAPCURRENTUSER_REQ`, §D), then force-close the sender's socket; non-map senders skip sweep+clear but still get closed (legacy runs COMP_CLOSE unconditionally). New `services/service_ops_repository.h` + SOCI/Fake impls + `config group_id` (legacy `m_bGroupID`) + 2 senders + 2 warn-only routine probes. `DM_CLEARDATA_REQ/_ACK` intentionally not ported — magic-key (720809425) dev backdoor no-op echo, same policy as `OnMW_TERMINATE_ACK` | ✅ |
+| **W6-39** | APEX (Taiwan) stubs — `OnSmApexDataReq` / `OnSmApexKillUserReq` / `OnMwApexDataAck` / `OnMwApexStartAck` accept + log + drop. The legacy bodies (SSHandler.cpp:14538-14616) are wrapped in `#ifdef __TW_APEX` and the define is **commented out** in TWorldType.h:157 — the shipped reference binary compiles them as empty no-ops, which is exactly what we reproduce. The enabled variant relays opaque Apex-SDK blobs to the char's main map, force-closes over-limit users, and calls `ApexNotifyUserData/Return` into the third-party anti-addiction SDK (ApexProxy.h) — out of scope per the anti-cheat-callout policy; the W4-22 fresh-login "APEX notify" deferred item is the same `#ifdef` and closes with this slice. Wire test proves inertness (incl. that KILLUSER does **not** CloseChar) | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -139,13 +140,13 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-38)
+## Gaps audit — not yet ported / deferred (as of W6-39)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **190** are ported in
-`handlers/dispatch.cpp` (139 MW + 28 DM + 14 CT + 6 SM + 3 RW), leaving
-**100** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
+breakdown the W2 sizing note records); **194** are ported in
+`handlers/dispatch.cpp` (141 MW + 28 DM + 14 CT + 8 SM + 3 RW), leaving
+**96** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
 `DM_ITEMSTATE_REQ/_ACK` pair, W6-37's `MW_CASHITEMSALE_ACK` absorbs
 `DM_CASHITEMSALE_REQ/_ACK`, and W6-38's CT_HELPMESSAGE / SM_DELSESSION
 absorb `DM_HELPMESSAGE_REQ` / `DM_CLEARMAPCURRENTUSER_REQ` —
@@ -153,7 +154,7 @@ repository-collapsed, counted under §D.)
 A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
 owe; netting those out, the *owed* wire surface is ~266. Raw handler
-coverage is **≈ 66 %** (190/290); against the owed surface it is ~71 %.
+coverage is **≈ 67 %** (194/290); against the owed surface it is ~73 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -196,7 +197,8 @@ Intentionally not ported:
   - the cluster-wide `m_mapBanChar` ban list (W4-19 already
     syncs the per-char `chat_ban_time`, but the cluster-wide
     list isn't a thing here yet);
-  - the APEX (Taiwan) notify.
+  - ~~the APEX (Taiwan) notify~~ — closed with W6-39 (same
+    `#ifdef __TW_APEX` as the four stub handlers).
   (The W6-20 `CHARDATA_ACK` non-ready `ENTERCHAR_REQ` fan-out
   shipped separately in W6-23 — it's a different 33-field
   composite, distinct from `CHARINFO_REQ`.)
@@ -233,7 +235,7 @@ Intentionally not ported:
 - Arena / BattleMode: all three handlers landed (W6-27 status +
   CM teleport; W6-28 ARENAJOIN). The Arena/BattleMode trio is
   complete.
-- APEX (Taiwan): `MW_APEXDATA/APEXSTART`, `SM_APEXDATA/APEXKILLUSER`
+- APEX (Taiwan): **closed as stubs** (W6-39) — the shipped binary compiles the bodies out (`__TW_APEX` off); the Apex SDK callout is out of scope like anti-cheat
 - Tournament: `MW_TOURNAMENT/ENTERGATE/RESULT`, `DM_TOURNAMENT*` (6),
   `DM_TNMTEVENT*` (3), `SM_TOURNAMENT*` (3), `CT_TOURNAMENTEVENT`
   (blocked on `TNMTSTEP_*`)
@@ -311,6 +313,17 @@ coroutine via `IItemStateRepository`), `DM_CASHITEMSALE_REQ/_ACK`
    ctrl-svr echo, same slot pattern as W6-36) + `MW_ADDITEM`.
 4. Larger roadmap subsystems (Tournament / MonthRank / CMGift DB
    family).
+
+### W6-39 — what landed
+
+**APEX stubs** — the four Taiwan anti-addiction handlers accept +
+log + drop, byte-matching the shipped `__TW_APEX`-disabled binary
+(empty `#ifdef` bodies). The enabled variant is a third-party SDK
+callout (ApexProxy) — out of scope per the anti-cheat policy. The
+wire test seeds a char, fires all four packets (arbitrary payloads),
+asserts the char survives (no KILLUSER CloseChar) and nothing is
+emitted (sentinel-verified). Closes the W4-22 fresh-login APEX
+notify deferred item too. 93 wire tests, all green.
 
 ### W6-38 — what landed
 

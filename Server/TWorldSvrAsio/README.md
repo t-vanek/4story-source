@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-45 CMGift family complete (delivery pipeline + catalogue tools)
+## Status — W6-46 EVENTQUARTER operator tools (lucky-event list + editor)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -116,6 +116,7 @@ that the four shipped Asio daemons already use.
 | **W6-43** | War/castle extras — four handlers + two repository collapses. `OnMwEndWarAck` / `OnMwSkyGardenOccupyAck` are field-checked broadcasts (SSHandler.cpp:9664 / 7819; `SKYGARDEN` **is** defined in StdAfx.h:9, so the body is compiled in). `OnMwWarCountryBalanceAck` replies the D/C population of the char's level bucket from the new `WarCountryIndex` (legacy `m_mapWarCountry[2][5]`; `WarCountryGapOf` = `(level-130)/10`, sub-130 invalid) — the index loads from `TACTIVECHARTABLE` at boot + on a `war_index_refresh_period_sec` sweeper with the legacy 1-week prune, collapsing the `DM_ACTIVECHARUPDATE_REQ/_ACK` day-tick round-trip (§D; classification incl. the TAIDTABLE aid-country fallback + neutral skip). `OnCtCastleGuildChgReq` ports the operator castle def/atk reassignment (SSHandler.cpp:217): unknown guild → full-layout fail ACK to the **sender**, else `MW_CASTLEGUILDCHG_REQ` broadcast + success ACK. The W5-2/W5-3 castle-apply persistence gap closes via `IWarOpsRepository::SaveCastleApplicant` (`TSaveCastleApplicant` SP) wired into `OnCastleApplyAck` (effective toggled values — SSHandler.cpp:7996) and `ResetCastleApply` (`(0, member, 0)` per cleared row — TWorldSvr.cpp:5425), collapsing `DM_CASTLEAPPLY_REQ` (§D). 5 senders + 2 warn-only probes. War/Castle extras now reduce to `MW_CASTLEWARINFO` (the top-3/atk-def engine — next slice) | ✅ |
 | **W6-44** | Castle-war info engine — `OnMwCastleWarInfoAck` + the new `CastleWarRegistry` port the last War/Castle-extras handler (SSHandler.cpp:9579 + TWorldSvr.cpp:7292-7620). Report parse: per local 6 slots of `(guild, occupy_type)` — DEFEND=11 / ACCEPT=10 bonus, unknown-guild skip, ACCEPT slots feed the per-slot occupation history; `castle==0` replays the current scoreboard to the asking map only. Recompute pipeline (verbatim legacy): scratch reset → country points + per-country top-3 (insertion with the occupation-history tiebreaker `CompareOccupation` — war-day-relative slot walk with the castle-id fallback — then `CompareGuildRank`: PvP total desc / member count desc / establish asc) → defender election with the **recursive cross-castle stealing** (a guild champion of two castles keeps the higher-scoring one; the loser castle re-elects — incl. the legacy dead-branch quirk in the equal-points arm, kept + documented) → cross-castle defender exclusion → attacker election (defender-country filter + country-point tiebreak) → per-castle `MW_CASTLEWARINFO_REQ` broadcast (guild-point rows + merged D/C top-3 wire tail). `castle_war_day` config (1..7) stands in for `m_battletime[BT_CASTLE].m_bDay` until the battle-time chart loader ports. Ordered `std::map`s kept for byte-identical tie behavior | ✅ |
 | **W6-45** | CMGift family — `CmGiftRegistry` (TCMGIFTCHART boot load) + `ICmGiftRepository` (TCMGiftCanTake/Add/Set/Del) + four handlers close the whole family. `OnCtCmGiftReq` (tool=1) / `OnMwCmGiftAck` (tool=0) feed the shared `DeliverCmGift` pipeline — the collapsed CT/MW → DM_CMGIFT_REQ → DM_CMGIFT_ACK chain (SSHandler.cpp:456/13610/13634/13670): catalogue miss → `CMGIFT_ID`; take-type gifts run the per-target `TCMGiftCanTake`; `DUPLICATE` swaps to the `err_gift_id` fallback (missing fallback → report DUPLICATE; present → deliver as `CMGIFT_ERRPOST` with `(requested, actual)` ids); the `tool_only <= tool` gate → `CMGIFT_FAIL`; offline target → `CMGIFT_TARGET`; else `MW_CMGIFT_REQ` (11-field payload) to the target's main map. Error replies: `CT_CMGIFT_ACK` to the ctrl slot (legacy dereferenced `m_pCtrlSvr` **unguarded** — we guard + drop) or `MW_CMGIFTRESULT_REQ` to the GM's main map. `OnCtCmGiftListReq` → full catalogue (`CT_CMGIFTLIST_ACK`). `OnCtCmGiftChartUpdateReq` → per-entry ADD (adopts the SP-assigned id) / UPDATE / DEL with legacy skip-on-failure semantics, registry apply, refreshed catalogue ack. `DM_CMGIFT*` + `DM_CMGIFTCHARTUPDATE*` repository-collapsed (§D); 4 warn-only SP probes + TCMGIFTCHART probe | ✅ |
+| **W6-46** | EVENTQUARTER operator tools — `ILuckyEventRepository` + two handlers collapse the CT → DataSvr hops (SSHandler.cpp:410/422 → 12873/12949/13009). `OnCtEventQuarterListReq` (manager, day) lists TEVENTQUARTERCHART for the day with per-row `TGetItemName` resolution → `CT_EVENTQUARTERLIST_ACK(manager, count, N×LUCKYEVENT)` to the ctrl slot. `OnCtEventQuarterUpdateReq` (manager, type, LUCKYEVENT) runs `TEventQuarterUpdate` — EK_ADD adopts the SP-assigned `wOutID`, the five item names come back as OUTPUT params (all captured via a DECLARE/EXEC/SELECT batch) → `CT_EVENTQUARTERUPDATE_ACK(ret, manager, type, LUCKYEVENT)`. Shared byte-exact `lucky_event_codec.h` (19-field WrapPacketIn/Out order). The in-memory quarter-event scheduler mirror (`m_mapEVQT` reschedule + timer fire + announce/handout) stays with the lucky-event runtime slice (W6-47, together with LOTTERY/GIFTTIME). `DM_EVENTQUARTERLIST/UPDATE` pairs repository-collapsed (§D); 2 SP + 1 table warn-only probes | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -146,13 +147,13 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-45)
+## Gaps audit — not yet ported / deferred (as of W6-46)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **209** are ported in
-`handlers/dispatch.cpp` (150 MW + 28 DM + 19 CT + 9 SM + 3 RW), leaving
-**81** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
+breakdown the W2 sizing note records); **211** are ported in
+`handlers/dispatch.cpp` (150 MW + 28 DM + 21 CT + 9 SM + 3 RW), leaving
+**79** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
 `DM_ITEMSTATE_REQ/_ACK` pair, W6-37's `MW_CASHITEMSALE_ACK` absorbs
 `DM_CASHITEMSALE_REQ/_ACK`, and W6-38's CT_HELPMESSAGE / SM_DELSESSION
 absorb `DM_HELPMESSAGE_REQ` / `DM_CLEARMAPCURRENTUSER_REQ` —
@@ -160,7 +161,7 @@ repository-collapsed, counted under §D.)
 A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
 owe; netting those out, the *owed* wire surface is ~266. Raw handler
-coverage is **≈ 72 %** (209/290); against the owed surface it is ~79 %.
+coverage is **≈ 73 %** (211/290); against the owed surface it is ~79 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -252,11 +253,14 @@ Intentionally not ported:
   W6-30 ports `CT_EVENTMSG_REQ` (operator event-message line); W6-31 ports
   `CT_EVENTUPDATE_REQ` via an opaque-tail `EventRegistry` + broadcast;
   W6-32 closes the replay-on-connect loop (`OnRelaysvrReq` re-emits every
-  active event to a joining peer — legacy SSHandler.cpp:662-664). Still
-  deferred: LOTTERY/GIFTTIME reward subsystems (random char pick + in-game
-  mail via SendPost + `MW_EVENTMSGLOTTERY_REQ`), `CT/DM_EVENTQUARTERLIST/UPDATE`
-  (DataSvr forwarding), `SM_EVENTEXPIRED_REQ/_ACK` (W3a-19/W3a-36 sweepers
-  already cover the wanted/tactics expiry paths)
+  active event to a joining peer — legacy SSHandler.cpp:662-664); W6-46
+  ports the `CT_EVENTQUARTERLIST/UPDATE` operator tools (`DM_*` pairs
+  repository-collapsed, §D). Still deferred: LOTTERY/GIFTTIME reward
+  subsystems (random char pick + in-game mail via SendPost +
+  `MW_EVENTMSGLOTTERY_REQ`) + the quarter-event scheduler runtime
+  (`m_mapEVQT` fire/announce/handout) — the W6-47 slice;
+  `SM_EVENTEXPIRED_REQ/_ACK` (W3a-19/W3a-36 sweepers already cover the
+  wanted/tactics expiry paths; the wire pair itself is the same slice)
 
 **Roadmap W7 ⏸ (cash / item / rank):**
 - CMGift: **complete** — W6-34 result relay, W6-35 admin path,
@@ -310,7 +314,11 @@ coroutine via `IItemStateRepository`), `DM_CASHITEMSALE_REQ/_ACK`
 collapsed into `RefreshWarCountryIndex` / the castle-apply paths via
 `IWarOpsRepository`), `DM_CMGIFT_REQ/_ACK` +
 `DM_CMGIFTCHARTUPDATE_REQ/_ACK` (W6-45 — collapsed into
-`DeliverCmGift` / `OnCtCmGiftChartUpdateReq` via `ICmGiftRepository`).
+`DeliverCmGift` / `OnCtCmGiftChartUpdateReq` via `ICmGiftRepository`),
+`DM_EVENTQUARTERLIST_REQ` + `DM_EVENTQUARTERUPDATE_REQ/_ACK` (W6-46 —
+collapsed into the CT_EVENTQUARTER* handlers via
+`ILuckyEventRepository`; the `_ACK`-side `m_mapEVQT` scheduler mirror
+is the W6-47 runtime slice).
 `DM_GUILDLOAD` and `DM_PVPRECORD` *are* ported (as `_ACK`/`_REQ`).
 
 ### Suggested next slices (by value / self-containedness)
@@ -322,6 +330,18 @@ collapsed into `RefreshWarCountryIndex` / the castle-apply paths via
    ctrl-svr echo, same slot pattern as W6-36) + `MW_ADDITEM`.
 4. Larger roadmap subsystems (Tournament / MonthRank / CMGift DB
    family).
+
+### W6-46 — what landed
+
+**EVENTQUARTER operator tools** — the lucky-event day listing (item
+names resolved through `TGetItemName`) and the ADD/UPDATE/DEL editor
+(`TEventQuarterUpdate`, EK_ADD id adoption via the OUTPUT param),
+both replying on the identified ctrl-svr slot. Wire test:
+unidentified-slot drop (sentinel = the next ACK being the ctrl
+socket's first frame), day listing with the byte-exact 19-field
+LUCKYEVENT codec round-trip, empty-day count=0, EK_ADD id adoption
+(70) + resolved names + the repo call trace. 100 wire tests, all
+green.
 
 ### W6-45 — what landed
 

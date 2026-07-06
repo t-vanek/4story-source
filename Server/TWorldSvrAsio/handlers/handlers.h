@@ -42,6 +42,7 @@
 #include "../services/castle_war_registry.h"
 #include "../services/cmgift_registry.h"
 #include "../services/cmgift_repository.h"
+#include "../services/lucky_event_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -181,6 +182,10 @@ struct HandlerContext
     // from TCMGIFTCHART) + the CMGift SP surface.
     CmGiftRegistry*           cmgifts = nullptr;
     ICmGiftRepository*        cmgift_repo = nullptr;
+
+    // W6-46: EVENTQUARTER ("lucky event") operator tools —
+    // TEVENTQUARTERCHART listing + the TEventQuarterUpdate editor.
+    ILuckyEventRepository*    lucky_repo = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1813,6 +1818,30 @@ boost::asio::awaitable<void> OnCtCtrlsvrReq(
 //
 //   Wire (SSHandler.cpp:10559): DWORD dw_index, WORD value, BYTE ret
 boost::asio::awaitable<void> OnMwCashItemSaleAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// --- W6-46: EVENTQUARTER operator tools (handlers_event.cpp) -------
+//
+// CT_EVENTQUARTERLIST_REQ - (DWORD manager, BYTE day): list the
+// day's lucky events with resolved item names; reply
+// CT_EVENTQUARTERLIST_ACK(manager, WORD count, N x <LUCKYEVENT>) to
+// the ctrl-svr slot. Collapses the CT -> DM_EVENTQUARTERLIST_REQ
+// DataSvr hop (SSHandler.cpp:410 / 12873).
+//
+// CT_EVENTQUARTERUPDATE_REQ - (DWORD manager, BYTE type,
+// <LUCKYEVENT>): run TEventQuarterUpdate (EK_ADD adopts the
+// SP-assigned id; names resolved by the SP); reply
+// CT_EVENTQUARTERUPDATE_ACK(ret, manager, type, <LUCKYEVENT>) to the
+// ctrl-svr slot. Collapses SSHandler.cpp:422 / 12949 / 13009. The
+// in-memory quarter-event scheduler mirror (m_mapEVQT reschedule)
+// stays with the lucky-event runtime slice.
+boost::asio::awaitable<void> OnCtEventQuarterListReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCtEventQuarterUpdateReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

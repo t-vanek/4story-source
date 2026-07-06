@@ -121,6 +121,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/war_country_index.cpp
     ${TWORLD_ASIO_SRC}/services/castle_war_registry.cpp
     ${TWORLD_ASIO_SRC}/services/cmgift_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_lucky_event_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_lucky_event_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_cmgift_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_cmgift_repository.cpp
     ${TWORLD_ASIO_SRC}/services/fake_war_ops_repository.cpp
@@ -758,6 +760,15 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-46 wire test: EVENTQUARTER operator tools - day listing with
+# resolved item names, ADD id adoption, ctrl-slot gating.
+add_executable(test_tworldsvr_asio_eventquarter_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_eventquarter_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_eventquarter_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_eventquarter_handlers
+    COMMAND test_tworldsvr_asio_eventquarter_handlers)
 
 # W6-45 wire test: CMGift family - delivery pipeline (direct,
 # take-type + DUPLICATE err-gift swap, offline target, unknown gift),

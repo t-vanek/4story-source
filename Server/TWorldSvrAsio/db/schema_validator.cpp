@@ -193,6 +193,20 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                          "- the MonthRank rollover (SM_MONTHRANKSAVE, "
                          "W6-42) will abort its persist.", rn);
     }
+    for (const char* rn : {"TEventQuarterUpdate", "TGetItemName"})
+    {
+        if (!routine_exists(rn))
+            spdlog::warn("schema_validator (world): {} SP not deployed "
+                         "- the EVENTQUARTER operator tools (W6-46) "
+                         "degrade.", rn);
+    }
+    if (!TableHasColumns(*lease, "TEVENTQUARTERCHART",
+            {"wID","bDay","bHour","bMinute","wItemID1","bCount"}))
+    {
+        spdlog::warn("schema_validator (world): TEVENTQUARTERCHART not "
+                     "deployed - CT_EVENTQUARTERLIST_REQ returns an "
+                     "empty listing.");
+    }
     for (const char* rn : {"TCMGiftCanTake", "TCMGiftAdd",
                            "TCMGiftSet", "TCMGiftDel"})
     {

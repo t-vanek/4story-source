@@ -144,6 +144,14 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                      "SOCI error per row and drop the batch; no in-memory "
                      "fallback (audit-log only).");
     }
+    if (!TableHasColumns(*lease, "TITEMCHART",
+            {"wItemID","bInitState"}))
+    {
+        spdlog::warn("schema_validator (world): TITEMCHART missing "
+                     "wItemID/bInitState — the operator item-state tool "
+                     "(CT_ITEMSTATE_REQ, W6-36) will report 0 applied "
+                     "rows per batch.");
+    }
 }
 
 } // namespace tworldsvr::db

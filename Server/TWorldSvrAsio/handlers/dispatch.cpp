@@ -626,6 +626,11 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-36: operator item-state tool (handlers_ctrlsvr.cpp) -----
+    case MessageId::CT_ITEMSTATE_REQ:
+        co_await OnCtItemStateReq(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-2: combat / taming relays (handlers_combat.cpp) ----
     case MessageId::MW_MAGICMIRROR_ACK:
         co_await OnMagicMirrorAck(std::move(peer), std::move(body), ctx);

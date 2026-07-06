@@ -32,6 +32,7 @@
 #include "../services/corps_registry.h"
 #include "../services/tms_registry.h"
 #include "../services/friend_repository.h"
+#include "../services/item_state_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -125,6 +126,11 @@ struct HandlerContext
     // (W6-34's CMGift admin path is the first user). Owned by
     // main; non-null in W6-35+ deploys.
     CtrlSvrSlot*              ctrl_svr   = nullptr;
+
+    // W6-36: TITEMCHART.bInitState write path for the operator
+    // item-state tool (CT_ITEMSTATE_REQ). nullptr → the handler
+    // logs + drops (no DB configured).
+    IItemStateRepository*     item_state_repo = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1736,6 +1742,25 @@ boost::asio::awaitable<void> OnCmGiftResultAck(
 // CT_*_ACK / DM_*_ACK replies can be routed back. Legacy parity
 // SSHandler.cpp:207-215 (`m_pCtrlSvr = pSERVER;`).
 boost::asio::awaitable<void> OnCtCtrlsvrReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// W6-36: CT_ITEMSTATE_REQ — operator batch-toggles item availability
+// (TITEMCHART.bInitState). Legacy runs the CT→DM→SP→DM→broadcast
+// round-trip (SSHandler.cpp:173 → 10023 → 10076); our SOCI-direct
+// port collapses it into one coroutine: apply each row via
+// IItemStateRepository::ChangeState, stop at the first failure
+// (legacy per-item `break`), then broadcast MW_ITEMSTATE_REQ with
+// the succeeded prefix to every map peer and echo CT_ITEMSTATE_ACK
+// (same payload) to the W6-35 ctrl-svr slot when it's live. Both go
+// out even with zero successes (legacy sends unconditionally).
+//
+//   Wire in  (SSHandler.cpp:173) : DWORD id, WORD count,
+//                                  N x (WORD item_id, BYTE init_state)
+//   Wire out (SSHandler.cpp:10037): DWORD id, WORD success_count,
+//                                  N x (WORD item_id, BYTE init_state)
+boost::asio::awaitable<void> OnCtItemStateReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);

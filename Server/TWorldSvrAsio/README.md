@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-35 Ctrl-svr identification (closes W6-34 admin path)
+## Status — W6-36 Item-state ops relay (first ctrl-svr tool on the W6-35 slot)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -105,7 +105,8 @@ that the four shipped Asio daemons already use.
 | W6-32 | Event replay-on-connect — wires `EventRegistry::Snapshot()` into `OnRelaysvrReq`. After the joining peer is registered + RELAYSVR_ACK'd and the cluster gets its RELAYCONNECT broadcast, the handler walks the active-event snapshot and re-fires `SendMwEventUpdateReq` (W6-31's verbatim relay) on this peer only. Closes legacy SSHandler.cpp:662-664 ("for each event in m_mapEVENT, re-send to this server"). The other legacy replays at the same site (CASHITEMSALE, castle applicant counts) stay deferred — they touch state we haven't ported yet | ✅ |
 | W6-33 | Cash-shop sale — `OnCtCashItemSaleReq` ports the admin-driven cash-shop sale campaign (SSHandler.cpp:342). value!=0 stores a new (dw_index → items[]) row; value==0 deactivates an existing row in-place (zero `sale_value` on every item, keep the entry so replay-on-connect still shows it — legacy parity SSHandler.cpp:372-385); deactivate-miss is silently dropped (no broadcast — legacy SSHandler.cpp:393-397 logs an error and returns). Then fans `MW_CASHITEMSALE_REQ(dw_index, value, count, items[])` to every map peer. `OnCtCashShopStopReq` is the operator emergency-stop relay (SSHandler.cpp:328) — pure broadcast of `MW_CASHSHOPSTOP_REQ(type, send_player=1)`. Replay-on-connect: `OnRelaysvrReq` extension walks `CashItemSaleRegistry::Snapshot()` (mirrors W6-32 for events) and re-fires `SendMwCashItemSaleReq` per row — closes legacy SSHandler.cpp:666-668. New `cash_item_sale_registry.h/.cpp` + `handlers_cashshop.cpp` + `senders_cashshop.cpp` (2 senders). Castle-applicant replay (SSHandler.cpp:670-680) and expired-buffer init (:682+) at the same site stay deferred | ✅ |
 | W6-34 | CMGift result relay — `OnCmGiftResultAck` ports the in-game GM-issued cash-gift completion handler (SSHandler.cpp:13988). Map server reports `(result, tool, gm_id)` after firing the gift transaction; world routes `MW_CMGIFTRESULT_REQ(result, gm_id)` to the GM's main map so the client renders the success/failure dialog. The tool=1 admin path was deferred in W6-34 (closed in W6-35). Missing GM char / `main_server_id=0` / target peer offline are silent drops (legacy SSHandler.cpp:13769-13783). Wire ID quirk: `MW_CMGIFTRESULT_REQ` and `MW_CMGIFTRESULT_ACK` share `0x9178` (MWProtocol.h:522-523) — dispatcher keys on the `_ACK` enum, sender targets the `_REQ` enum, both resolve to the same uint16. 1 new sender (`SendMwCmGiftResultReq`). The rest of the CMGift family (`CT_CMGIFT_REQ/LIST/CHARTUPDATE` + `DM_CMGIFT*` + `CMGiftRegistry` + the SOCI repo) stays deferred — see README §C | ✅ |
-| **W6-35** | Ctrl-svr peer identification — `OnCtCtrlsvrReq` ports the legacy ctrl-svr handshake (SSHandler.cpp:207). Pure single-cell store: the connecting peer fires an empty `CT_CTRLSVR_REQ`, world stashes the inbound `peer` in a new `CtrlSvrSlot` (weak_ptr-backed so a dropped session naturally expires the slot — better than legacy's dangling-pointer behaviour). Unlocks the W6-34 tool=1 admin path: `OnCmGiftResultAck` now consults `ctx.ctrl_svr->Get()` and fires `SendCtCmGiftAck(result, gm_id)` when the slot is live; empty slot or expired weak_ptr both silently drop (matches legacy `if(m_pCtrlSvr) ...`). New `services/ctrl_svr_slot.h/.cpp` + `handlers/handlers_ctrlsvr.cpp` + 1 sender (`SendCtCmGiftAck`). Same hook will land the deferred CT-bound replies in `OnCT_ITEMSTATE_ACK`, `OnCT_CMGIFTLIST_ACK`, `OnCT_CASHITEMSALE_ACK`, etc. when those subsystems get ported | ✅ |
+| W6-35 | Ctrl-svr peer identification — `OnCtCtrlsvrReq` ports the legacy ctrl-svr handshake (SSHandler.cpp:207). Pure single-cell store: the connecting peer fires an empty `CT_CTRLSVR_REQ`, world stashes the inbound `peer` in a new `CtrlSvrSlot` (weak_ptr-backed so a dropped session naturally expires the slot — better than legacy's dangling-pointer behaviour). Unlocks the W6-34 tool=1 admin path: `OnCmGiftResultAck` now consults `ctx.ctrl_svr->Get()` and fires `SendCtCmGiftAck(result, gm_id)` when the slot is live; empty slot or expired weak_ptr both silently drop (matches legacy `if(m_pCtrlSvr) ...`). New `services/ctrl_svr_slot.h/.cpp` + `handlers/handlers_ctrlsvr.cpp` + 1 sender (`SendCtCmGiftAck`). Same hook will land the deferred CT-bound replies in `OnCT_CMGIFTLIST_ACK`, `OnCT_CASHITEMSALE_ACK`, etc. when those subsystems get ported | ✅ |
+| **W6-36** | Item-state ops relay — `OnCtItemStateReq` ports the operator item-availability tool, collapsing the legacy CT→DM→SP→DM→broadcast round-trip (SSHandler.cpp:173 → 10023 → 10076) into one coroutine. Parses `(id, count, count × (wItemID, bInitState))`, applies each row via the new `IItemStateRepository::ChangeState` (SOCI impl = single `UPDATE TITEMCHART SET bInitState … WHERE wItemID …` with an affected-rows check — same net effect as the legacy `TItemStateChange` SP's probe+update), **stopping at the first failing item** (legacy per-item `break`), then fans `MW_ITEMSTATE_REQ(id, succeeded-prefix)` to every map peer and echoes `CT_ITEMSTATE_ACK` (same payload) to the W6-35 ctrl-svr slot — both fire even with zero successes (legacy sends unconditionally). Whole batch runs in one `CoOffloadIf` task, mirroring the single DM round-trip. New `services/item_state_repository.h` + `soci_item_state_repository.h/.cpp` + `fake_item_state_repository.h/.cpp` + 2 senders (`SendMwItemStateReq` / `SendCtItemStateAck`) + optional TITEMCHART schema probe (warn-only). First of the §C "GM item tools" family; `CT/DM_ITEMFIND` + `MW_ADDITEM` stay deferred | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -136,16 +137,18 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-35)
+## Gaps audit — not yet ported / deferred (as of W6-36)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **183** are ported in
-`handlers/dispatch.cpp` (138 MW + 28 DM + 10 CT + 4 SM + 3 RW), leaving
-**107** with no port. A portion of those are `DM_*` DB-thread round-trips
+breakdown the W2 sizing note records); **184** are ported in
+`handlers/dispatch.cpp` (138 MW + 28 DM + 11 CT + 4 SM + 3 RW), leaving
+**106** with no port. (W6-36's `CT_ITEMSTATE_REQ` also absorbs the
+`DM_ITEMSTATE_REQ/_ACK` pair — repository-collapsed, counted under §D.)
+A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
 owe; netting those out, the *owed* wire surface is ~266. Raw handler
-coverage is **≈ 63 %** (183/290); against the owed surface it is ~69 %.
+coverage is **≈ 63 %** (184/290); against the owed surface it is ~69 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -258,7 +261,9 @@ Intentionally not ported:
   `MW_CASHITEMSALE_ACK` (the map's reply confirming a campaign landed) and
   `DM_CASHITEMSALE` (DB persistence of campaign rows — no IcashSaleRepository yet)
 - MonthRank: `MW_MONTHRANKUPDATE/RESETCHAR`, `DM/SM_MONTHRANKSAVE`
-- GM item tools: `MW_ADDITEM`, `CT/DM_ITEMFIND`, `CT/DM_ITEMSTATE`
+- GM item tools: `MW_ADDITEM`, `CT/DM_ITEMFIND` (W6-36 landed the
+  `CT_ITEMSTATE` vertical — REQ → repo → MW broadcast + CT ack; the
+  `DM_ITEMSTATE` pair is repository-collapsed, see §D)
 
 **War/Castle extras (W5+):** `MW_CASTLEWARINFO`, `MW_ENDWAR`,
 `MW_WARCOUNTRYBALANCE`, `MW_WARLORDSAY`, `MW_SKYGARDENOCCUPY`,
@@ -278,22 +283,61 @@ Intentionally not ported:
 The legacy DB-thread round-trips are replaced by the repository pattern,
 so these are not wire handlers we owe: `DM_FRIENDLIST/INSERT/ERASE/GROUP*`,
 `DM_SOULMATELIST/REG/DEL/END` (soulmate persistence still in-memory),
-`DM_TACTICSPOINT`, `DM_RESERVEDPOSTSEND` (generator poll — deferred).
+`DM_TACTICSPOINT`, `DM_RESERVEDPOSTSEND` (generator poll — deferred),
+`DM_ITEMSTATE_REQ/_ACK` (W6-36 — collapsed into the `OnCtItemStateReq`
+coroutine via `IItemStateRepository`).
 `DM_GUILDLOAD` and `DM_PVPRECORD` *are* ported (as `_ACK`/`_REQ`).
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **CT_ITEMSTATE_ACK / CT_USERPROTECTED_REQ family** — small ops
-   relays that the W6-35 CtrlSvrSlot now unlocks. SSHandler.cpp:
-   10079 `OnDM_ITEMSTATE_ACK` forwards `CT_ITEMSTATE_ACK` to
-   ctrl-svr verbatim; SSHandler.cpp:10662 `OnDM_CASHITEMSALE_ACK`
-   sends `CT_CASHITEMSALE_ACK` on the wValue==0 deactivate path.
-   Both are 1-2 line handlers now that the slot is live.
+1. **MW_CASHITEMSALE_ACK deactivate echo** — the remaining half of
+   the W6-35-unlocked ops-relay pair: SSHandler.cpp:10662
+   `OnDM_CASHITEMSALE_ACK` sends `CT_CASHITEMSALE_ACK` to the
+   ctrl-svr on the wValue==0 deactivate path (the W6-36 ITEMSTATE
+   half landed).
 2. **APEX (Taiwan)** — small notify hook from W4-22 fresh-login.
 3. **`TChar.soul_silence`** — trivial field add for the W6-23
    composite.
-4. Larger roadmap subsystems (Tournament / MonthRank / GM item
-   tools).
+4. Larger roadmap subsystems (Tournament / MonthRank / the rest of
+   the GM item tools: `MW_ADDITEM`, `CT/DM_ITEMFIND`).
+
+### W6-36 — what landed
+
+**Item-state ops relay** — `OnCtItemStateReq` ports the operator
+item-availability tool. Legacy splits it across three hops:
+`OnCT_ITEMSTATE_REQ` (SSHandler.cpp:173) repacks the batch as
+`DM_ITEMSTATE_REQ` to the DB thread; `OnDM_ITEMSTATE_REQ`
+(SSHandler.cpp:10023) calls the `TItemStateChange` SP per row,
+breaking at the first failure and patching the success count into
+the ACK; `OnDM_ITEMSTATE_ACK` (SSHandler.cpp:10076) broadcasts
+`MW_ITEMSTATE_REQ` to every map server + `CT_ITEMSTATE_ACK` to the
+ctrl-svr. Our port collapses all three into one coroutine.
+
+- `IItemStateRepository::ChangeState(item_id, init_state)` — the
+  single-item primitive. SOCI impl = one
+  `UPDATE TITEMCHART SET bInitState … WHERE wItemID …` with an
+  affected-rows check (the legacy SP is a SELECT-probe + UPDATE
+  returning 1 on a missing id — same net effect, no SP dependency).
+- The handler applies rows sequentially inside **one** `CoOffloadIf`
+  task (mirrors the single DM round-trip), stops at the first
+  failure, and keeps the succeeded prefix — byte-for-byte the
+  legacy ACK payload `(DWORD id, WORD success_count, N×(WORD, BYTE))`.
+- Fan-out fires even with `success_count == 0` (legacy sends
+  unconditionally): `SendMwItemStateReq` to every registered map
+  peer, `SendCtItemStateAck` to the W6-35 `CtrlSvrSlot` when live
+  (empty / expired slot → silent skip, matching `if(m_pCtrlSvr)`).
+- Schema validator gains a warn-only `TITEMCHART(wItemID,
+  bInitState)` probe — missing table downgrades the tool to
+  "0 applied rows" instead of failing boot.
+
+Tests — `tests/test_itemstate_handlers.cpp` (5 scenarios over a live
+in-process WorldServer + `FakeItemStateRepository`): all-success
+broadcast to both map peers while the un-identified ctrl socket gets
+nothing; ctrl-svr identifies → stop-at-first-failure prefix lands on
+maps + ctrl (and the fake's call log proves the post-failure row was
+never attempted); first-row failure → empty-but-present broadcast +
+ack; truncated row → silent drop (sentinel-verified). 90 wire tests
+total, all green.
 
 ### W6-35 — what landed
 

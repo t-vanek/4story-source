@@ -193,6 +193,19 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                          "- the MonthRank rollover (SM_MONTHRANKSAVE, "
                          "W6-42) will abort its persist.", rn);
     }
+    if (!routine_exists("TSaveCastleApplicant"))
+    {
+        spdlog::warn("schema_validator (world): TSaveCastleApplicant SP "
+                     "not deployed - castle-apply persistence (W6-43) "
+                     "will log SOCI errors.");
+    }
+    if (!TableHasColumns(*lease, "TACTIVECHARTABLE",
+            {"dwCharID","dateEnter"}))
+    {
+        spdlog::warn("schema_validator (world): TACTIVECHARTABLE not "
+                     "deployed - the war-country index (W6-43) stays "
+                     "empty; MW_WARCOUNTRYBALANCE replies report 0.");
+    }
     if (!routine_exists("TClearMapCurrentUser"))
     {
         spdlog::warn("schema_validator (world): TClearMapCurrentUser SP "

@@ -4,9 +4,12 @@
 #include "../services/castle_constants.h"
 #include "../wire_codec.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
+#include <ctime>
 #include <mutex>
 #include <string>
 
@@ -72,6 +75,17 @@ ResetCastleApply(const HandlerContext& ctx, std::uint32_t guild_id,
             co_await senders::SendMwCastleApplyReq(p, cid, key,
                 castle::kSuccess, /*castle=*/0, /*target=*/cid, /*camp=*/0);
     }
+
+    // Legacy ResetCastleApply persists the cleared rows too
+    // (TWorldSvr.cpp:5425 SendDM_CASTLEAPPLY_REQ(0, member, 0)) —
+    // repository-collapsed (W6-43).
+    if (ctx.war_ops && !affected.empty())
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.war_ops, affected]
+            {
+                for (auto cid : affected)
+                    repo->SaveCastleApplicant(0, cid, 0);
+            });
 }
 
 } // namespace
@@ -290,9 +304,16 @@ OnCastleApplyAck(std::shared_ptr<PeerSession> peer,
                     castle::kSuccess, eff_castle, target, eff_camp);
         }
 
+    // Persist the (possibly toggled-to-zero) application — legacy
+    // SendDM_CASTLEAPPLY_REQ(wCastle, dwTarget, bCamp) on the success
+    // path (SSHandler.cpp:7996), repository-collapsed (W6-43).
+    if (ctx.war_ops)
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [repo = ctx.war_ops, eff_castle, target, eff_camp]
+            { repo->SaveCastleApplicant(eff_castle, target, eff_camp); });
+
     // Re-broadcast the applicant count for the vacated + joined castle
-    // (legacy NotifyCastleApply). Persistence (DM_CASTLEAPPLY_REQ) is
-    // deferred — castle/camp aren't in the guild-member load query yet.
+    // (legacy NotifyCastleApply).
     auto snapshot = ctx.peers->Snapshot();
     if (prev_castle)
         for (auto& p : snapshot)
@@ -349,6 +370,168 @@ OnBattleStatusReq(std::shared_ptr<PeerSession> peer,
             break;
         }
     }
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnMwEndWarAck(std::shared_ptr<PeerSession> peer,
+              std::vector<std::byte>       body,
+              const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.peers)
+    {
+        spdlog::warn("OnMwEndWarAck[{}]: peers not wired", ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint16_t castle = 0;
+    if (!r.Read(castle))
+    {
+        spdlog::warn("OnMwEndWarAck[{}]: short body ({} bytes)", ip,
+            body.size());
+        co_return;
+    }
+    for (auto& p : ctx.peers->Snapshot())
+        co_await senders::SendMwEndWarReq(p, castle);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnMwSkyGardenOccupyAck(std::shared_ptr<PeerSession> peer,
+                       std::vector<std::byte>       body,
+                       const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.peers)
+    {
+        spdlog::warn("OnMwSkyGardenOccupyAck[{}]: peers not wired", ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint8_t  type = 0, country = 0;
+    std::uint16_t id = 0;
+    if (!r.Read(type) || !r.Read(id) || !r.Read(country))
+    {
+        spdlog::warn("OnMwSkyGardenOccupyAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+    for (auto& p : ctx.peers->Snapshot())
+        co_await senders::SendMwSkyGardenOccupyReq(p, type, id, country);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnMwWarCountryBalanceAck(std::shared_ptr<PeerSession> peer,
+                         std::vector<std::byte>       body,
+                         const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.chars || !ctx.war_index)
+    {
+        spdlog::warn("OnMwWarCountryBalanceAck[{}]: chars/war_index "
+                     "not wired", ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id = 0, key = 0;
+    if (!r.Read(char_id) || !r.Read(key))
+    {
+        spdlog::warn("OnMwWarCountryBalanceAck[{}]: short body "
+                     "({} bytes)", ip, body.size());
+        co_return;
+    }
+
+    auto c = ctx.chars->Find(char_id);
+    if (!c) co_return;
+    std::uint8_t level = 0;
+    {
+        std::lock_guard g(c->lock);
+        if (c->key != key) co_return;
+        level = c->level;
+    }
+    const std::uint8_t gap = WarCountryGapOf(level);
+    if (gap >= kWarCountryMaxGap)
+        co_return;                    // legacy: no reply out of range
+
+    co_await senders::SendMwWarCountryBalanceReq(peer, char_id, key,
+        static_cast<std::uint32_t>(ctx.war_index->Count(0, gap)),
+        static_cast<std::uint32_t>(ctx.war_index->Count(1, gap)),
+        gap);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnCtCastleGuildChgReq(std::shared_ptr<PeerSession> peer,
+                      std::vector<std::byte>       body,
+                      const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.guilds || !ctx.peers)
+    {
+        spdlog::warn("OnCtCastleGuildChgReq[{}]: registries not wired",
+            ip);
+        co_return;
+    }
+    wire::Reader r(body.data(), body.size());
+    std::uint16_t castle = 0;
+    std::uint32_t def_id = 0, atk_id = 0, manager = 0;
+    std::int64_t  when = 0;
+    if (!r.Read(castle) || !r.Read(def_id) || !r.Read(atk_id) ||
+        !r.Read(manager) || !r.Read(when))
+    {
+        spdlog::warn("OnCtCastleGuildChgReq[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    std::string def_name, atk_name;
+    if (auto g = ctx.guilds->Find(def_id))
+    {
+        std::lock_guard lk(g->lock);
+        def_name = g->name;
+    }
+    if (auto g = ctx.guilds->Find(atk_id))
+    {
+        std::lock_guard lk(g->lock);
+        atk_name = g->name;
+    }
+
+    // Legacy short-fails when either guild is unknown - the ACK still
+    // carries the full field layout with defaults (SSSender.cpp:3101
+    // has default args; the wire always has 8 fields).
+    if (def_name.empty() || atk_name.empty())
+    {
+        co_await senders::SendCtCastleGuildChgAck(peer, manager,
+            /*ret=*/0, 0, 0, "", 0, "", 0);
+        co_return;
+    }
+
+    for (auto& p : ctx.peers->Snapshot())
+        co_await senders::SendMwCastleGuildChgReq(p, castle, def_id,
+            def_name, atk_id, atk_name, when);
+
+    co_await senders::SendCtCastleGuildChgAck(peer, manager, /*ret=*/1,
+        castle, def_id, def_name, atk_id, atk_name, when);
+    co_return;
+}
+
+boost::asio::awaitable<void>
+RefreshWarCountryIndex(const HandlerContext& ctx)
+{
+    if (!ctx.war_index || !ctx.war_ops)
+        co_return;
+    // Legacy prunes entries older than WEEK_ONE before the reload.
+    const std::int64_t week = 7 * 24 * 60 * 60;
+    const std::int64_t cutoff =
+        static_cast<std::int64_t>(std::time(nullptr)) - week;
+    auto rows = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+        [repo = ctx.war_ops, cutoff]
+        { return repo->LoadActiveChars(cutoff); });
+    ctx.war_index->Rebuild(rows);
+    spdlog::info("RefreshWarCountryIndex: {} active char(s) indexed",
+        ctx.war_index->TotalSize());
     co_return;
 }
 

@@ -75,6 +75,14 @@ AppConfig LoadConfig(const std::string& path)
             cfg.month_rollover_check_period_sec =
                 static_cast<std::uint32_t>(*mr);
         }
+        if (auto wi = (*srv)["war_index_refresh_period_sec"].value<std::int64_t>())
+        {
+            if (*wi < 0 || *wi > 86400)
+                throw std::runtime_error(
+                    "server.war_index_refresh_period_sec out of range");
+            cfg.war_index_refresh_period_sec =
+                static_cast<std::uint32_t>(*wi);
+        }
     }
     if (auto db = tbl["database"].as_table())
     {

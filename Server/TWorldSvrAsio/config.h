@@ -53,6 +53,10 @@ struct AppConfig
     // 0 disables the sweeper (tests drive the rollover by wire).
     std::uint32_t month_rollover_check_period_sec = 300;
 
+    // W6-43: TACTIVECHARTABLE -> WarCountryIndex refresh cadence
+    // (legacy re-derives on the day-change tick). 0 disables.
+    std::uint32_t war_index_refresh_period_sec = 3600;
+
     DbConfig      database;
 
     // Health endpoint shape mirrors the four shipped Asio daemons.

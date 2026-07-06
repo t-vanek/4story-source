@@ -46,6 +46,11 @@
 #include "services/soci_npc_service.h"
 #include "services/soci_player_service.h"
 #include "services/soci_quest_service.h"
+#include "services/quest_chart.h"
+#include "services/soci_quest_chart.h"
+#include "services/stat_chart.h"
+#include "services/soci_stat_chart.h"
+#include "services/quest_log.h"
 #include "services/soci_session_validator.h"
 #include "services/soci_map_mon_chart.h"
 #include "services/soci_mon_attr_chart.h"
@@ -53,7 +58,9 @@
 #include "services/soci_skill_service.h"
 #include "services/skill_chart.h"
 #include "services/skill_cooldown.h"
+#include "services/skill_data_chart.h"
 #include "services/soci_skill_chart.h"
+#include "services/soci_skill_data_chart.h"
 #include "services/soci_spawn_chart.h"
 #include "services/spawn_chart.h"
 #include "services/spawn_manager.h"
@@ -150,12 +157,15 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::INpcService>           npc_service;
         std::unique_ptr<tmapsvr::ISkillService>         skill_service;
         std::unique_ptr<tmapsvr::IQuestService>         quest_service;
+        std::unique_ptr<tmapsvr::IQuestChart>           quest_chart;
+        std::unique_ptr<tmapsvr::IStatChart>            stat_chart;
         std::unique_ptr<tmapsvr::IMonsterChart>         monster_chart;
         std::unique_ptr<tmapsvr::ISpawnChart>           spawn_chart;
         std::unique_ptr<tmapsvr::IMapMonChart>          map_mon_chart;
         std::unique_ptr<tmapsvr::IMonAttrChart>         mon_attr_chart;
         std::unique_ptr<tmapsvr::IMonItemChart>         mon_item_chart;
         std::unique_ptr<tmapsvr::ISkillTemplateChart>   skill_chart;
+        std::unique_ptr<tmapsvr::ISkillDataChart>       skill_data_chart;
         std::unique_ptr<tmapsvr::ICompanionService>     companion_service;
 
         // Configure the fourstory::mapper Automapper once at startup
@@ -193,17 +203,28 @@ int main(int argc, char** argv)
             tmapsvr::db::ValidateMonsterSchema(*pool);
             tmapsvr::db::ValidateCompanionSchema(*pool);
             validator         = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
-            player_service    = std::make_unique<tmapsvr::SociPlayerService>(*pool);
+            // Stat chart first — the player service reads it to derive
+            // max-HP/MP at char load (must outlive + precede it).
+            stat_chart        = std::make_unique<tmapsvr::SociStatChart>(*pool);
+            player_service    = std::make_unique<tmapsvr::SociPlayerService>(
+                                    *pool, stat_chart.get());
             inventory_service = std::make_unique<tmapsvr::SociInventoryService>(*pool);
             npc_service       = std::make_unique<tmapsvr::SociNpcService>(*pool);
             skill_service     = std::make_unique<tmapsvr::SociSkillService>(*pool);
             quest_service     = std::make_unique<tmapsvr::SociQuestService>(*pool);
+            quest_chart       = std::make_unique<tmapsvr::SociQuestChart>(*pool);
             monster_chart     = std::make_unique<tmapsvr::SociMonsterChart>(*pool);
             spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
             map_mon_chart     = std::make_unique<tmapsvr::SociMapMonChart>(*pool);
             mon_attr_chart    = std::make_unique<tmapsvr::SociMonAttrChart>(*pool);
             mon_item_chart    = std::make_unique<tmapsvr::SociMonItemChart>(*pool);
-            skill_chart       = std::make_unique<tmapsvr::SociSkillChart>(*pool);
+            // The skill templates carry the level-scale base the legacy
+            // loader stamps from the formula chart (TMapSvr.cpp:2730) —
+            // TFORMULACHART[FTYPE_1ST].fRateX, already loaded above.
+            skill_chart       = std::make_unique<tmapsvr::SociSkillChart>(
+                                    *pool,
+                                    stat_chart->Formula(tmapsvr::FTYPE_1ST).fRateX);
+            skill_data_chart  = std::make_unique<tmapsvr::SociSkillDataChart>(*pool);
             companion_service = std::make_unique<tmapsvr::SociCompanionService>(*pool);
             spdlog::info("schema OK ({}) — services ready: {} NPC, {} monster "
                          "template(s), {} spawn point(s), {} spawn-mon link(s), "
@@ -292,6 +313,11 @@ int main(int argc, char** argv)
         // delay (legacy CTSkill::CanUse). Lives for the io.run() duration.
         tmapsvr::SkillCooldownTracker skill_cooldown;
 
+        // In-memory active-quest log — per-char quest progress for the
+        // session, seeded lazily from the quest service by the kill hook
+        // and quest handlers. DB persistence of progress is a follow-up.
+        tmapsvr::InMemoryQuestLog quest_log;
+
         // Build the HandlerContext now so the world inbound dispatch
         // lambda can capture it by reference (the context's pointer
         // fields are filled in below as each service comes online).
@@ -304,9 +330,12 @@ int main(int argc, char** argv)
         ctx.npc_service       = npc_service.get();
         ctx.skill_service     = skill_service.get();
         ctx.quest_service     = quest_service.get();
+        ctx.quest_chart       = quest_chart.get();
+        ctx.quest_log         = &quest_log;
         ctx.monster_chart     = monster_chart.get();
         ctx.mon_item_chart    = mon_item_chart.get();
         ctx.skill_chart       = skill_chart.get();
+        ctx.skill_data_chart  = skill_data_chart.get();
         ctx.skill_cooldown    = &skill_cooldown;
         ctx.spawn_chart       = spawn_chart.get();
         ctx.monster_registry  = &monster_reg;

@@ -67,6 +67,25 @@ inline constexpr const char* QuestTermsByCharId =
     "SELECT dwQuestID, dwTermID, bTermType, bCount "
     "FROM TQUESTTERMTABLE WHERE dwCharID = :cid";
 
+// TQUESTCHART — quest definition headers, loaded once at boot. dwParentID
+// links chained quests; bType is the QT_ action, bTriggerType the TT_
+// trigger. (Legacy CTBLQuestChart, DBAccess.h:2033.) bForceRun / bMain /
+// bConditionCheck are not read by the kill-count slice.
+inline constexpr const char* AllQuestChart =
+    "SELECT dwQuestID, dwParentID, bType, bTriggerType, dwTriggerID, "
+    "  bCountMax, bLevel FROM TQUESTCHART";
+
+// TQUESTTERMCHART — quest objective rows, grouped by quest id. For a
+// QTT_HUNT term, dwTermID is the monster kind and bCount the goal.
+inline constexpr const char* AllQuestTermChart =
+    "SELECT dwQuestID, bTermType, dwTermID, bCount FROM TQUESTTERMCHART";
+
+// TQREWARDCHART — quest reward rows, grouped by quest id. bRewardType
+// selects gold / item / skill; dwRewardID is the gold amount or item id.
+inline constexpr const char* AllQuestRewardChart =
+    "SELECT dwQuestID, bRewardType, dwRewardID, bTakeMethod, bTakeData, "
+    "  bCount FROM TQREWARDCHART";
+
 // TMONSTERCHART — F13 monster template chart loaded at boot.
 inline constexpr const char* AllMonsters =
     "SELECT wID, szName, bRace, bClass, wKind, bLevel, bAIType, "
@@ -109,11 +128,33 @@ inline constexpr const char* AllMonItems =
     "  bItemMagicOpt, bItemRareOpt "
     "FROM TMONITEMCHART";
 
-// TSKILLCHART — skill templates. This slice loads only the reuse
-// cooldown (dwReuseDelay) the cooldown gate needs; the MP/HP cost and
-// effect (TSKILLDATA) columns land with later skill waves.
-inline constexpr const char* AllSkillReuse =
-    "SELECT wID, dwReuseDelay FROM TSKILLCHART";
+// TFORMULACHART — per-FTYPE_ formula coefficients (bID == FTYPE_
+// ordinal). The stat engine reads FTYPE_HP(8)/MP(19)/1ST(34) for the
+// max-HP/MP derivation. Column is `dwinit` (lowercase i in the dump).
+inline constexpr const char* AllFormula =
+    "SELECT bID, dwinit, fRateX, fRateY FROM TFORMULACHART";
+
+// TCLASSCHART — per-class base stats (bClassID → STR/DEX/CON/INT/WIS/MEN).
+inline constexpr const char* AllClassStats =
+    "SELECT bClassID, wSTR, wDEX, wCON, wINT, wWIS, wMEN FROM TCLASSCHART";
+
+// TRACECHART — per-race base stats, same column shape as TCLASSCHART.
+inline constexpr const char* AllRaceStats =
+    "SELECT bRaceID, wSTR, wDEX, wCON, wINT, wWIS, wMEN FROM TRACECHART";
+
+// TSKILLCHART — skill templates: the reuse cooldown, the MP/HP cost
+// columns, and the level-scale coefficients (bLevel = start level,
+// bNextLevel, bMaxLevel) the exponential calc mode needs.
+inline constexpr const char* AllSkillTemplate =
+    "SELECT wID, dwReuseDelay, dwUseMP, bUseMPType, dwUseHP, bUseHPType, "
+    "bLevel, bNextLevel, bMaxLevel "
+    "FROM TSKILLCHART";
+
+// TSKILLDATA — per-skill effect rows (heal / damage / status), grouped by
+// wSkillID at load (legacy CTSkillTemp::m_vData).
+inline constexpr const char* AllSkillData =
+    "SELECT wSkillID, bAction, bType, bAttr, bExec, bInc, wValue, "
+    "wValueInc, bCalc FROM TSKILLDATA";
 
 // TCOMPANIONTABLE — F15 per-char companion roster.
 inline constexpr const char* CompanionsByCharId =

@@ -33,13 +33,18 @@ void Check(bool ok, const char* label)
     else    { ++g_failed; std::printf("  FAIL  %s\n", label); }
 }
 
-// Connect a loopback client to `acc.local_endpoint()` and accept on
-// `acc`. Returns the server-side socket (open, peer connected).
+// Connect a loopback client to `acc` and accept on `acc`. Returns the
+// server-side socket (open, peer connected). The acceptor binds to
+// tcp::v4():0 (0.0.0.0), so `local_endpoint()` carries 0.0.0.0 — a valid
+// bind but an invalid *connect* target on Windows (connect →
+// WSAEADDRNOTAVAIL 10049). Connect to loopback on the assigned port.
 asio::ip::tcp::socket
 LoopbackAccept(asio::io_context& io, asio::ip::tcp::acceptor& acc)
 {
     asio::ip::tcp::socket client(io);
-    client.connect(acc.local_endpoint());
+    client.connect(asio::ip::tcp::endpoint(
+        asio::ip::make_address_v4("127.0.0.1"),
+        acc.local_endpoint().port()));
     asio::ip::tcp::socket server(io);
     acc.accept(server);
     // We don't need the client side past accept — leak it as a

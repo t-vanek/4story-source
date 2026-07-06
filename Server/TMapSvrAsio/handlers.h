@@ -33,9 +33,12 @@ class IInventoryService;
 class INpcService;
 class ISkillService;
 class IQuestService;
+class IQuestChart;
+class IQuestLog;
 class IMonsterChart;
 class IMonItemChart;
 class ISkillTemplateChart;
+class ISkillDataChart;
 class SkillCooldownTracker;
 class ISpawnChart;
 class IMonsterRegistry;
@@ -63,9 +66,12 @@ struct HandlerContext
     INpcService*           npc_service       = nullptr;
     ISkillService*         skill_service     = nullptr;
     IQuestService*         quest_service     = nullptr;
+    IQuestChart*           quest_chart       = nullptr;   // TQUESTCHART defs
+    IQuestLog*             quest_log         = nullptr;   // live per-char quests
     IMonsterChart*         monster_chart     = nullptr;
     IMonItemChart*         mon_item_chart    = nullptr;   // TMONITEMCHART (drop tables)
-    ISkillTemplateChart*   skill_chart       = nullptr;   // TSKILLCHART (reuse delay)
+    ISkillTemplateChart*   skill_chart       = nullptr;   // TSKILLCHART (cooldown + cost + level scale)
+    ISkillDataChart*       skill_data_chart  = nullptr;   // TSKILLDATA (per-skill effect rows)
     SkillCooldownTracker*  skill_cooldown    = nullptr;   // per-(char,skill) last-use gate
     ISpawnChart*           spawn_chart       = nullptr;
     IMonsterRegistry*      monster_registry  = nullptr;

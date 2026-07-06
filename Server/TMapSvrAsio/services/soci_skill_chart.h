@@ -13,7 +13,12 @@ namespace tmapsvr {
 class SociSkillChart final : public ISkillTemplateChart
 {
 public:
-    explicit SociSkillChart(fourstory::db::SessionPool& pool);
+    // `f1st_rate_x` is TFORMULACHART[FTYPE_1ST].fRateX — the stat chart
+    // loads it; main passes it through so every template carries the
+    // level-scale base the way TMapSvr.cpp:2730 stamps it. Defaults to 1
+    // (no growth) for the no-stat-chart path.
+    explicit SociSkillChart(fourstory::db::SessionPool& pool,
+                            float f1st_rate_x = 1.0f);
 
     std::optional<SkillTemplate>
         Find(std::uint16_t skill_id) const override

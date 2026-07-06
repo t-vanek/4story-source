@@ -56,6 +56,23 @@ struct TnmtRewardRow
     TnmtReward   reward;
 };
 
+// TVIEW_TOURNAMENTPLAYER row (CTBLTournamentPlayer, DBAccess.h:1286)
+// — the mid-flight registration reload for boot resume.
+struct TnmtPlayerRow
+{
+    std::uint32_t char_id  = 0;
+    std::string   name;
+    std::uint32_t chief_id = 0;
+    std::uint8_t  cls      = 0;
+    std::uint8_t  country  = 0;
+    std::uint8_t  level    = 0;
+    std::uint8_t  entry_id = 0;
+    std::uint8_t  step     = 0;   // persisted TNMTSTEP_* watermark
+    std::uint8_t  result   = 0;   // that step's TNMTWIN_*
+    std::string   hwid;
+    std::uint32_t ip_addr  = 0;
+};
+
 // TTournamentApply parameters (CSPTournamentApply, DBAccess.h:2712).
 // The remove path uses the legacy defaults (entry/chief/hwid/ip all
 // zero — DMSender.cpp:551 default args).
@@ -99,6 +116,10 @@ public:
         LoadEventEntries(std::uint16_t tour_id) = 0;
     virtual std::vector<TnmtRewardRow>
         LoadEventRewards(std::uint16_t tour_id) = 0;
+
+    // TVIEW_TOURNAMENTPLAYER (boot resume of the mid-flight
+    // registrations, TWorldSvr.cpp:1807).
+    virtual std::vector<TnmtPlayerRow> LoadPlayers() = 0;
 
     // ---- operator persists (repository-collapsed DM legs) --------
 

@@ -770,6 +770,501 @@ RunTournamentTick(const HandlerContext& ctx, std::int64_t now)
     }
 }
 
+// ---- MW_TOURNAMENT_ACK player vertical (SSHandler.cpp:11520) -------
+
+namespace {
+
+// Reply head shared by every MW_TOURNAMENT_REQ echo: the char
+// identity + the sub-protocol id.
+std::vector<std::byte> TnmtHead(std::uint32_t char_id,
+                                std::uint32_t key,
+                                std::uint16_t protocol)
+{
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body, char_id);
+    wire::WritePOD<std::uint32_t>(body, key);
+    wire::WritePOD<std::uint16_t>(body, protocol);
+    return body;
+}
+
+// Short-form result echo (SSSender.cpp:3500).
+boost::asio::awaitable<void>
+SendTnmtResult(std::shared_ptr<PeerSession> peer,
+               std::uint32_t char_id, std::uint32_t key,
+               std::uint16_t protocol, std::uint8_t result)
+{
+    auto body = TnmtHead(char_id, key, protocol);
+    wire::WritePOD<std::uint8_t>(body, result);
+    co_await senders::SendMwTournamentReq(peer, std::move(body));
+    co_return;
+}
+
+// Class-filtered reward block with the post-hoc count byte (legacy
+// memcpy patch): {BYTE shield, BYTE chart, WORD item, BYTE count}.
+void WriteFilteredRewards(std::vector<std::byte>&        out,
+                          const std::vector<TnmtReward>& rewards,
+                          std::uint8_t                   char_class)
+{
+    const std::size_t count_at = out.size();
+    wire::WritePOD<std::uint8_t>(out, 0);
+    std::uint8_t count = 0;
+    for (const auto& w : rewards)
+    {
+        if (!(w.cls & (1u << char_class)))
+            continue;
+        wire::WritePOD<std::uint8_t>(out, w.check_shield);
+        wire::WritePOD<std::uint8_t>(out, w.chart_type);
+        wire::WritePOD<std::uint16_t>(out, w.item_id);
+        wire::WritePOD<std::uint8_t>(out, w.count);
+        ++count;
+    }
+    out[count_at] = std::byte{count};
+}
+
+void WriteRosterRow(std::vector<std::byte>& out,
+                    const TournamentRegistry::PlayerRosterRow& r)
+{
+    wire::WritePOD<std::uint32_t>(out, r.char_id);
+    wire::WritePOD<std::uint8_t>(out, r.country);
+    wire::WriteString(out, r.name);
+    wire::WritePOD<std::uint8_t>(out, r.level);
+    wire::WritePOD<std::uint8_t>(out, r.cls);
+    wire::WritePOD<std::uint32_t>(out, r.rank);
+    wire::WritePOD<std::uint32_t>(out, r.month_rank);
+}
+
+// Live-char snapshot the switch works from.
+struct TnmtCharView
+{
+    std::uint32_t char_id = 0;
+    std::uint32_t key     = 0;
+    std::uint8_t  country = 0;
+    std::uint8_t  level   = 0;
+    std::uint8_t  cls     = 0;
+    std::string   name;
+    std::string   guild_name;
+};
+
+std::string GuildNameOf(const HandlerContext& ctx,
+                        std::uint32_t guild_id)
+{
+    if (!guild_id || !ctx.guilds)
+        return {};
+    auto g = ctx.guilds->Find(guild_id);
+    if (!g)
+        return {};
+    std::lock_guard lk(g->lock);
+    return g->name;
+}
+
+// IsFirstGroup / the TournamentApply first-grade scan
+// (TWorldSvr.cpp:5645 / 6310): slots 1..first_group_count-1 of the
+// fame first-grade array (MonthRankRegistry owns it in the port;
+// empty until the first month rollover).
+bool InFirstGradeGroup(const HandlerContext& ctx,
+                       std::uint8_t country, std::uint32_t char_id)
+{
+    if (!ctx.month_rank || country > tnmt::kCountryB)
+        return false;
+    const auto  group = ctx.month_rank->FirstGradeGroup();
+    const std::uint8_t count = ctx.tournaments->FirstGroupCount();
+    for (std::uint8_t j = 1; j < count &&
+         j < kFirstGradeGroupCount; ++j)
+        if (group[country][j].char_id == char_id)
+            return true;
+    return false;
+}
+
+// TournamentApplyInfo (TWorldSvr.cpp:6379).
+boost::asio::awaitable<void>
+SendTnmtApplyInfo(const HandlerContext&        ctx,
+                  std::shared_ptr<PeerSession> peer,
+                  const TnmtCharView&          ch)
+{
+    const auto snap = ctx.tournaments->ApplyInfoReply(ch.char_id);
+    if (!snap.ok)
+        co_return;
+
+    auto body = TnmtHead(ch.char_id, ch.key,
+        ToUint16(MessageId::MW_TOURNAMENTAPPLYINFO_REQ));
+    wire::WritePOD<std::uint8_t>(body,
+        static_cast<std::uint8_t>(snap.entries.size()));
+    for (const auto& e : snap.entries)
+    {
+        wire::WritePOD<std::uint8_t>(body, e.seed.group);
+        wire::WritePOD<std::uint8_t>(body, e.seed.entry_id);
+        wire::WriteString(body, e.seed.name);
+        wire::WritePOD<std::uint8_t>(body, e.seed.type);
+        wire::WritePOD<std::uint32_t>(body, e.seed.cls);
+        wire::WritePOD<std::uint8_t>(body, e.applied ? 1 : 0);
+        wire::WritePOD<std::uint32_t>(body, e.seed.fee);
+        wire::WritePOD<std::uint32_t>(body, e.seed.fee_back);
+        wire::WritePOD<std::uint8_t>(body, e.seed.permit_count);
+        wire::WritePOD<std::uint8_t>(body, e.seed.min_level);
+        wire::WritePOD<std::uint8_t>(body,
+            e.seed.max_level == 0xFF ? snap.max_level
+                                     : e.seed.max_level);
+        wire::WritePOD<std::uint8_t>(body, e.free_first);
+        wire::WritePOD<std::uint16_t>(body, e.normal_count);
+        WriteFilteredRewards(body, e.seed.rewards, ch.cls);
+        wire::WritePOD<std::uint8_t>(body,
+            static_cast<std::uint8_t>(e.first_pool.size()));
+        for (const auto& r : e.first_pool)
+            WriteRosterRow(body, r);
+    }
+    co_await senders::SendMwTournamentReq(peer, std::move(body));
+    co_return;
+}
+
+// TournamentPartyList (TWorldSvr.cpp:6658).
+boost::asio::awaitable<void>
+SendTnmtPartyList(const HandlerContext&        ctx,
+                  std::shared_ptr<PeerSession> peer,
+                  const TnmtCharView&          ch,
+                  std::uint32_t                chief_id)
+{
+    const auto snap = ctx.tournaments->PartyListReply(chief_id);
+    if (!snap.ok)
+        co_return;
+
+    auto body = TnmtHead(ch.char_id, ch.key,
+        ToUint16(MessageId::MW_TOURNAMENTPARTYLIST_REQ));
+    wire::WritePOD<std::uint32_t>(body, snap.chief_id);
+    wire::WritePOD<std::uint8_t>(body,
+        static_cast<std::uint8_t>(snap.members.size()));
+    for (const auto& r : snap.members)
+        WriteRosterRow(body, r);
+    co_await senders::SendMwTournamentReq(peer, std::move(body));
+    co_return;
+}
+
+// TournamentPartyAdd tail (TWorldSvr.cpp:6537) shared by the
+// online-target and DB-looked-up paths.
+boost::asio::awaitable<void>
+RunTnmtPartyAdd(const HandlerContext&        ctx,
+                std::shared_ptr<PeerSession> peer,
+                const TnmtCharView&          ch,
+                const TnmtPlayerBrief&       target,
+                const std::string&           target_guild)
+{
+    const auto out = ctx.tournaments->TryPartyAdd(ch.char_id,
+        ch.country, target, target_guild);
+    if (out.silent)
+        co_return;
+
+    const std::uint16_t proto =
+        ToUint16(MessageId::MW_TOURNAMENTPARTYADD_REQ);
+    if (out.added)
+    {
+        if (ctx.tournament_repo)
+        {
+            TnmtApplyOp op{};
+            op.add      = true;
+            op.char_id  = target.char_id;
+            op.entry_id = out.entry_id;
+            op.chief_id = out.chief_id;
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.tournament_repo, op]
+                { repo->ApplyPlayer(op); });
+        }
+        auto body = TnmtHead(ch.char_id, ch.key, proto);
+        wire::WritePOD<std::uint8_t>(body,
+            tnmt::kResultSuccess);
+        wire::WriteString(body, target.name);
+        wire::WritePOD<std::uint32_t>(body, target.char_id);
+        co_await senders::SendMwTournamentReq(peer, std::move(body));
+        co_await SendTnmtPartyList(ctx, peer, ch, ch.char_id);
+        co_return;
+    }
+    if (out.result == tnmt::kResultLevel)
+    {
+        // Level-band refusal carries the target's name
+        // (TWorldSvr.cpp:6579).
+        auto body = TnmtHead(ch.char_id, ch.key, proto);
+        wire::WritePOD<std::uint8_t>(body, tnmt::kResultLevel);
+        wire::WriteString(body, target.name);
+        co_await senders::SendMwTournamentReq(peer, std::move(body));
+        co_return;
+    }
+    co_await SendTnmtResult(peer, ch.char_id, ch.key, proto,
+        out.result);
+    co_return;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+OnMwTournamentAck(std::shared_ptr<PeerSession> peer,
+                  std::vector<std::byte>       body,
+                  const HandlerContext&        ctx)
+{
+    const std::string& ip = peer->Wire()->RemoteIPv4();
+    if (!ctx.tournaments || !ctx.chars)
+    {
+        spdlog::warn("OnMwTournamentAck[{}]: tournaments/chars not "
+                     "wired", ip);
+        co_return;
+    }
+
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t char_id  = 0;
+    std::uint32_t key      = 0;
+    std::uint16_t protocol = 0;
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(protocol))
+    {
+        spdlog::warn("OnMwTournamentAck[{}]: short body ({} bytes)",
+            ip, body.size());
+        co_return;
+    }
+
+    // FindTChar(id, key) — mismatch is a silent drop.
+    auto c = ctx.chars->Find(char_id);
+    if (!c)
+        co_return;
+    TnmtCharView ch{};
+    std::uint32_t guild_id = 0;
+    {
+        std::lock_guard lk(c->lock);
+        if (c->key != key)
+            co_return;
+        ch.char_id = char_id;
+        ch.key     = key;
+        ch.country = c->country;
+        ch.level   = c->level;
+        ch.cls     = c->klass;
+        ch.name    = c->name;
+        guild_id   = c->guild_id;
+    }
+    ch.guild_name = GuildNameOf(ctx, guild_id);
+
+    switch (protocol)
+    {
+    case ToUint16(MessageId::MW_TOURNAMENTSCHEDULE_ACK):
+    {
+        // TournamentSchedule (TWorldSvr.cpp:7002).
+        const auto snap = ctx.tournaments->ScheduleReply();
+        if (!snap.ok)
+            co_return;
+        auto out = TnmtHead(ch.char_id, ch.key,
+            ToUint16(MessageId::MW_TOURNAMENTSCHEDULE_REQ));
+        wire::WritePOD<std::uint8_t>(out, snap.group);
+        wire::WritePOD<std::uint8_t>(out, snap.step);
+        const std::size_t count_at = out.size();
+        wire::WritePOD<std::uint8_t>(out, 0);
+        std::uint8_t count = 0;
+        for (const auto& s : snap.steps)
+        {
+            if (!s.period)
+                continue;
+            wire::WritePOD<std::uint8_t>(out, s.group);
+            wire::WritePOD<std::uint8_t>(out, s.step);
+            wire::WritePOD<std::int64_t>(out, s.start);
+            ++count;
+        }
+        out[count_at] = std::byte{count};
+        co_await senders::SendMwTournamentReq(peer, std::move(out));
+        break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTAPPLYINFO_ACK):
+        co_await SendTnmtApplyInfo(ctx, peer, ch);
+        break;
+    case ToUint16(MessageId::MW_TOURNAMENTAPPLY_ACK):
+    {
+        // TournamentApply (TWorldSvr.cpp:6290).
+        std::uint8_t  entry_id = 0;
+        std::string   hwid;
+        std::uint32_t ip_addr = 0;
+        if (!r.Read(entry_id) || !r.ReadString(hwid) ||
+            !r.Read(ip_addr))
+            co_return;
+
+        TnmtPlayerBrief info{ch.char_id, ch.country, ch.name,
+            ch.level, ch.cls};
+        const auto out = ctx.tournaments->TryApply(info,
+            ch.guild_name, entry_id, hwid, ip_addr,
+            InFirstGradeGroup(ctx, ch.country, ch.char_id));
+
+        const std::uint16_t proto =
+            ToUint16(MessageId::MW_TOURNAMENTAPPLY_REQ);
+        if (!out.added)
+        {
+            // Errors and the already-registered SUCCESS quirk both
+            // take the short form.
+            co_await SendTnmtResult(peer, ch.char_id, ch.key, proto,
+                out.result);
+            co_return;
+        }
+        if (ctx.tournament_repo)
+        {
+            TnmtApplyOp op{};
+            op.add      = true;
+            op.char_id  = ch.char_id;
+            op.entry_id = entry_id;
+            op.chief_id = ch.char_id;
+            op.hwid     = hwid;
+            op.ip_addr  = ip_addr;
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.tournament_repo, op]
+                { repo->ApplyPlayer(op); });
+        }
+        auto reply = TnmtHead(ch.char_id, ch.key, proto);
+        wire::WritePOD<std::uint8_t>(reply, tnmt::kResultSuccess);
+        wire::WritePOD<std::uint8_t>(reply, entry_id);
+        co_await senders::SendMwTournamentReq(peer, std::move(reply));
+        co_await SendTnmtApplyInfo(ctx, peer, ch);
+        break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTJOINLIST_ACK):
+    {
+        // TournamentJoinList (TWorldSvr.cpp:6461).
+        const auto snap = ctx.tournaments->JoinListReply(ch.char_id);
+        if (!snap.ok)
+            co_return;
+        auto out = TnmtHead(ch.char_id, ch.key,
+            ToUint16(MessageId::MW_TOURNAMENTJOINLIST_REQ));
+        wire::WritePOD<std::uint8_t>(out,
+            static_cast<std::uint8_t>(snap.entries.size()));
+        for (const auto& e : snap.entries)
+        {
+            wire::WritePOD<std::uint8_t>(out, e.seed.group);
+            wire::WritePOD<std::uint8_t>(out, e.seed.entry_id);
+            wire::WriteString(out, e.seed.name);
+            wire::WritePOD<std::uint8_t>(out, e.seed.type);
+            wire::WritePOD<std::uint32_t>(out, e.seed.cls);
+            wire::WritePOD<std::uint8_t>(out, e.applied ? 1 : 0);
+            WriteFilteredRewards(out, e.seed.rewards, ch.cls);
+            wire::WritePOD<std::uint8_t>(out,
+                static_cast<std::uint8_t>(e.players.size()));
+            for (const auto& p : e.players)
+                WriteRosterRow(out, p);
+        }
+        co_await senders::SendMwTournamentReq(peer, std::move(out));
+        break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTPARTYLIST_ACK):
+    {
+        std::uint32_t chief_id = 0;
+        if (!r.Read(chief_id))
+            co_return;
+        co_await SendTnmtPartyList(ctx, peer, ch, chief_id);
+        break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTPARTYADD_ACK):
+    {
+        // Online target → live TChar fields; offline → the collapsed
+        // DM_GETCHARINFO lookup (SSHandler.cpp:11575 + 11689).
+        std::string target;
+        if (!r.ReadString(target))
+            co_return;
+
+        if (auto t = ctx.chars->FindByName(target))
+        {
+            TnmtPlayerBrief brief{};
+            std::uint32_t t_guild = 0;
+            {
+                std::lock_guard lk(t->lock);
+                brief.char_id = t->char_id;
+                brief.country = t->country;
+                brief.name    = t->name;
+                brief.level   = t->level;
+                brief.cls     = t->klass;
+                t_guild       = t->guild_id;
+            }
+            co_await RunTnmtPartyAdd(ctx, peer, ch, brief,
+                GuildNameOf(ctx, t_guild));
+            co_return;
+        }
+
+        if (!ctx.tournament_repo)
+        {
+            spdlog::warn("OnMwTournamentAck[{}]: tournament_repo "
+                         "not wired - PARTYADD lookup dropped", ip);
+            co_return;
+        }
+        const auto rows = co_await fourstory::db::CoOffloadIf(
+            ctx.db_pool,
+            [repo = ctx.tournament_repo, target]
+            { return repo->FindCharInfoByName(target); });
+        if (rows.size() > 1)
+            co_return;              // legacy multi-hit silent drop
+        TnmtPlayerBrief brief{};    // 0-hit → char_id 0 → NOTFOUND
+        if (!rows.empty())
+            brief = rows.front();
+        co_await RunTnmtPartyAdd(ctx, peer, ch, brief,
+            /*target_guild=*/{});
+        break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTPARTYDEL_ACK):
+    {
+        // TournamentPartyDel (TWorldSvr.cpp:6634).
+        std::uint32_t target_id = 0;
+        if (!r.Read(target_id))
+            co_return;
+        const auto out = ctx.tournaments->PartyDel(ch.char_id,
+            target_id);
+        if (!out.removed)
+            co_return;
+        if (ctx.tournament_repo)
+        {
+            TnmtApplyOp op{};
+            op.add     = false;
+            op.char_id = target_id;
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.tournament_repo, op]
+                { repo->ApplyPlayer(op); });
+        }
+        co_await SendTnmtPartyList(ctx, peer, ch, out.chief_id);
+        break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTMATCHLIST_ACK):
+    {
+        // TournamentMatchList (TWorldSvr.cpp:6822).
+        const auto snap = ctx.tournaments->MatchListReply(ch.char_id);
+        if (!snap.ok)
+            co_return;
+        auto out = TnmtHead(ch.char_id, ch.key,
+            ToUint16(MessageId::MW_TOURNAMENTMATCHLIST_REQ));
+        wire::WritePOD<std::uint8_t>(out,
+            static_cast<std::uint8_t>(snap.entries.size()));
+        for (const auto& e : snap.entries)
+        {
+            wire::WritePOD<std::uint8_t>(out, e.seed.group);
+            wire::WritePOD<std::uint8_t>(out, e.seed.entry_id);
+            wire::WriteString(out, e.seed.name);
+            wire::WritePOD<std::uint8_t>(out, e.seed.type);
+            wire::WritePOD<std::uint32_t>(out, e.seed.cls);
+            wire::WritePOD<std::uint8_t>(out, e.applied ? 1 : 0);
+            WriteFilteredRewards(out, e.seed.rewards, ch.cls);
+            wire::WritePOD<std::uint8_t>(out,
+                static_cast<std::uint8_t>(e.players.size()));
+            for (const auto& m : e.players)
+            {
+                wire::WritePOD<std::uint8_t>(out, m.slot_id);
+                WriteRosterRow(out, m.row);
+                wire::WritePOD<std::uint8_t>(out, m.result[0]);
+                wire::WritePOD<std::uint8_t>(out, m.result[1]);
+                wire::WritePOD<std::uint8_t>(out, m.result[2]);
+            }
+        }
+        co_await senders::SendMwTournamentReq(peer, std::move(out));
+        break;
+    }
+    case ToUint16(MessageId::MW_TOURNAMENTEVENTLIST_ACK):
+    case ToUint16(MessageId::MW_TOURNAMENTEVENTINFO_ACK):
+    case ToUint16(MessageId::MW_TOURNAMENTEVENTJOIN_ACK):
+        // The spectator-betting trio needs the ticket/batting model
+        // (TNMTEnterGate + GetBattingAmount) — the match/betting
+        // slice owns it.
+        spdlog::info("OnMwTournamentAck[{}]: betting op {:#06x} "
+                     "deferred to the match-engine slice", ip,
+            protocol);
+        break;
+    default:
+        break;
+    }
+    co_return;
+}
+
 // ---- SM wire handlers (parity with the legacy self-posts) ---------
 
 boost::asio::awaitable<void>

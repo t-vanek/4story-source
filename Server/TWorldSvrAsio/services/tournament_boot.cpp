@@ -26,6 +26,28 @@ void AttachRewards(std::vector<TournamentEntrySeed>&  entries,
             }
 }
 
+// Persisted step watermark → per-match result array
+// (TWorldSvr.cpp:1831): a row that reached SFINAL implies the
+// QFINAL was won, FINAL implies both.
+void MapPersistedResult(const TnmtPlayerRow& row,
+                        std::uint8_t (&result)[tournament::kMatchCount])
+{
+    namespace tnmt = tournament;
+    if (row.step == tnmt::kStepQFinal)
+        result[tnmt::kMatchQFinal] = row.result;
+    else if (row.step == tnmt::kStepSFinal)
+    {
+        result[tnmt::kMatchQFinal] = tnmt::kWinWin;
+        result[tnmt::kMatchSFinal] = row.result;
+    }
+    else if (row.step == tnmt::kStepFinal)
+    {
+        result[tnmt::kMatchQFinal] = tnmt::kWinWin;
+        result[tnmt::kMatchSFinal] = tnmt::kWinWin;
+        result[tnmt::kMatchFinal]  = row.result;
+    }
+}
+
 // Boot-shaped eviction fan-out: catalogue drop + persist delete.
 // (No peers are connected during boot, so the legacy SM ACK /
 // TournamentUpdate broadcast legs have no observable effect beyond
@@ -46,7 +68,8 @@ void HandleBootEvictions(TournamentRegistry&               registry,
 
 void LoadTournamentState(TournamentRegistry&    registry,
                          ITournamentRepository& repo,
-                         std::int64_t           now)
+                         std::int64_t           now,
+                         const TnmtFirstGroupFn& is_first_group)
 {
     namespace tnmt = tournament;
 
@@ -140,10 +163,68 @@ void LoadTournamentState(TournamentRegistry&    registry,
     {
         const std::uint8_t ec = registry.RecomputeCurrentBase();
         if (ec)
+        {
+            // TVIEW_TOURNAMENTPLAYER reload (TWorldSvr.cpp:1807):
+            // chief rows re-register into the 1st / normal pool
+            // (fame first-grade membership picks 1st when the
+            // group-0 1st step exists with a period), member rows
+            // stash for the second pass and re-attach to their
+            // chief's party (dropped when the chief vanished —
+            // legacy parity). The persisted step watermark maps
+            // onto the per-match result array. Guild names deferred
+            // (legacy m_mapCharGuild boots from the guild-member
+            // tables; the port's chars connect later — display-only
+            // gap until the char interacts). The legacy
+            // step>=PARTY TournamentSelectPlayer() re-run is the
+            // match-engine slice.
+            const bool b1st = registry.CurrentHasFirstStep();
+            std::vector<TnmtPlayerRow> members;
+            std::size_t chiefs = 0;
+            for (const auto& row : repo.LoadPlayers())
+            {
+                if (row.char_id != row.chief_id)
+                {
+                    members.push_back(row);
+                    continue;
+                }
+                TournamentRegistry::TnmtPlayerSeed seed{};
+                seed.brief = TnmtPlayerBrief{row.char_id, row.country,
+                    row.name, row.level, row.cls};
+                seed.hwid    = row.hwid;
+                seed.ip_addr = row.ip_addr;
+                MapPersistedResult(row, seed.result);
+                const std::uint8_t step =
+                    (b1st && is_first_group &&
+                     is_first_group(row.country, row.char_id))
+                        ? tournament::kStep1st
+                        : tournament::kStepNormal;
+                if (registry.AddPlayerAtStep(row.entry_id, seed,
+                        step, row.char_id))
+                    ++chiefs;
+            }
+            if (registry.CurrentStep() >= tournament::kStepParty)
+                spdlog::info("tournament boot: step {} resume - "
+                             "TournamentSelectPlayer re-run deferred "
+                             "to the match-engine slice",
+                    registry.CurrentStep());
+            std::size_t attached = 0;
+            for (const auto& row : members)
+            {
+                TournamentRegistry::TnmtPlayerSeed seed{};
+                seed.brief = TnmtPlayerBrief{row.char_id, row.country,
+                    row.name, row.level, row.cls};
+                seed.hwid    = row.hwid;
+                seed.ip_addr = row.ip_addr;
+                MapPersistedResult(row, seed.result);
+                if (registry.AddPlayerAtStep(row.entry_id, seed,
+                        tournament::kStepParty, row.chief_id))
+                    ++attached;
+            }
             spdlog::info("tournament boot: resumed tournament {} at "
-                         "step {} ({} entrie(s); player reload is a "
-                         "later slice)", registry.CurrentId(),
-                registry.CurrentStep(), ec);
+                         "step {} ({} entrie(s), {} chief(s) + {} "
+                         "member(s) reloaded)", registry.CurrentId(),
+                registry.CurrentStep(), ec, chiefs, attached);
+        }
     }
 
     // ---- initial election (TWorldSvr.cpp:230) --------------------

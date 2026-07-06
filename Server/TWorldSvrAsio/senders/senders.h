@@ -2315,7 +2315,15 @@ boost::asio::awaitable<void> SendCtEventQuarterUpdateAck(
     std::uint8_t                     type,
     const LuckyEvent&                event);
 
-// --- W6-50/51 tournament senders (senders_tournament.cpp) ----------
+// --- W6-50/51/52 tournament senders (senders_tournament.cpp) -------
+
+// MW_TOURNAMENT_REQ - the player-vertical reply envelope: handlers
+// build the {DWORD char_id, DWORD key, WORD sub-protocol, tail}
+// body per op (legacy CTServer::SendMW_TOURNAMENT_REQ raw form,
+// SSSender.cpp:3494).
+boost::asio::awaitable<void> SendMwTournamentReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::vector<std::byte>         body);
 
 // MW_TOURNAMENTENABLE_REQ - step-advance broadcast the scheduler tick
 // fans to every map when a step's start elapses (legacy

@@ -287,10 +287,26 @@ int main(int argc, char** argv)
         }
         if (tournament_repo)
         {
-            // W6-50: main tournament + operator lucky events +
-            // mid-flight resume (TWorldSvr.cpp:1574-1889).
+            // W6-50/52: main tournament + operator lucky events +
+            // mid-flight resume incl. the player reload
+            // (TWorldSvr.cpp:1574-1889). The first-grade predicate
+            // reads the fame array (empty until the first month
+            // rollover — the port's month-rank design decision).
             tworldsvr::LoadTournamentState(tournaments, *tournament_repo,
-                static_cast<std::int64_t>(std::time(nullptr)));
+                static_cast<std::int64_t>(std::time(nullptr)),
+                [&month_rank, &tournaments](std::uint8_t country,
+                                            std::uint32_t char_id) {
+                    if (country >= tworldsvr::kMonthRankCountryCount)
+                        return false;
+                    const auto group = month_rank.FirstGradeGroup();
+                    const std::uint8_t count =
+                        tournaments.FirstGroupCount();
+                    for (std::uint8_t j = 1; j < count &&
+                         j < tworldsvr::kFirstGradeGroupCount; ++j)
+                        if (group[country][j].char_id == char_id)
+                            return true;
+                    return false;
+                });
         }
         {
             // Legacy TWorldSvr.cpp:1894 - the rank month boots from

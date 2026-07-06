@@ -77,6 +77,12 @@ void FakeTournamentRepository::SeedChar(const TnmtPlayerBrief& info)
     m_chars.push_back(info);
 }
 
+void FakeTournamentRepository::SeedPlayerRow(const TnmtPlayerRow& row)
+{
+    std::lock_guard g(m_mtx);
+    m_player_rows.push_back(row);
+}
+
 // ---- reads --------------------------------------------------------
 
 std::optional<TournamentBattleTime>
@@ -151,6 +157,12 @@ FakeTournamentRepository::LoadEventRewards(std::uint16_t tour_id)
     auto it = m_event_rewards.find(tour_id);
     return it == m_event_rewards.end()
         ? std::vector<TnmtRewardRow>{} : it->second;
+}
+
+std::vector<TnmtPlayerRow> FakeTournamentRepository::LoadPlayers()
+{
+    std::lock_guard g(m_mtx);
+    return m_player_rows;
 }
 
 // ---- writes -------------------------------------------------------

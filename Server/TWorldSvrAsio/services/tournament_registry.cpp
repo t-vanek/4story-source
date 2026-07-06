@@ -644,28 +644,434 @@ bool TournamentRegistry::AddPlayer1st(std::uint8_t entry_id,
                                       const TnmtPlayerBrief& info,
                                       const std::string& guild_name)
 {
+    TnmtPlayerSeed seed{};
+    seed.brief      = info;
+    seed.guild_name = guild_name;
+    return AddPlayerAtStep(entry_id, seed, tournament::kStep1st,
+        info.char_id);
+}
+
+bool TournamentRegistry::AddPlayerAtStep(std::uint8_t entry_id,
+                                         const TnmtPlayerSeed& seed,
+                                         std::uint8_t step,
+                                         std::uint32_t chief_id)
+{
     std::lock_guard g(m_lock);
+    return AddPlayerAtStepLocked(entry_id, seed, step, chief_id);
+}
+
+bool TournamentRegistry::AddPlayerAtStepLocked(
+    std::uint8_t entry_id, const TnmtPlayerSeed& seed,
+    std::uint8_t step, std::uint32_t chief_id)
+{
     Entry* entry = CurrentEntryLocked(entry_id);
-    if (!entry || players_.find(info.char_id) != players_.end())
+    if (!entry ||
+        players_.find(seed.brief.char_id) != players_.end())
         return false;
 
     auto p = std::make_shared<TnmtPlayer>();
-    p->char_id    = info.char_id;
-    p->country    = info.country;
-    p->name       = info.name;
-    p->level      = info.level;
-    p->cls        = info.cls;
-    p->guild_name = guild_name;
-    // GetRanking (rank / month_rank) is display-only in the player
-    // verticals — filled by a later slice.
+    p->char_id    = seed.brief.char_id;
+    p->country    = seed.brief.country;
+    p->name       = seed.brief.name;
+    p->level      = seed.brief.level;
+    p->cls        = seed.brief.cls;
+    p->guild_name = seed.guild_name;
+    p->hwid       = seed.hwid;
+    p->ip_addr    = seed.ip_addr;
+    for (std::size_t i = 0; i < tournament::kMatchCount; ++i)
+        p->result[i] = seed.result[i];
+    // rank / month_rank stay 0 — the legacy GetRanking maps
+    // (m_mapRank / m_mapMonthRank) are never populated by the
+    // shipped binary, so every roster carries zeros on the wire.
 
-    // AddTNMTPlayer(entry, p, TNMTSTEP_1st, chief = self)
-    // (TWorldSvr.cpp:5913).
+    // AddTNMTPlayer (TWorldSvr.cpp:5913).
+    std::shared_ptr<TnmtPlayer> chief;
+    if (chief_id == p->char_id)
+        chief = p;
+    else
+    {
+        auto it_chief = players_.find(chief_id);
+        if (it_chief == players_.end())
+            return false;
+        chief = it_chief->second;
+    }
     p->entry_id = entry->seed.entry_id;
-    p->chief_id = p->char_id;
-    entry->first.emplace(p->char_id, p);
+    p->chief_id = chief->char_id;
+    p->slot_id  = chief->slot_id;
+
+    if (step == tournament::kStep1st)
+        entry->first.emplace(p->char_id, p);
+    else if (step == tournament::kStepNormal)
+        entry->normal.emplace(p->char_id, p);
+    else if (step == tournament::kStepParty)
+        chief->party.emplace(p->char_id, p);
+    else if (step == tournament::kStepMatch)
+        entry->player.emplace(p->char_id, p);
+    else
+        return false;
+
     players_.emplace(p->char_id, p);
     return true;
+}
+
+// ---- W6-52 player vertical -----------------------------------------
+
+bool TournamentRegistry::CanDoTournamentLocked(std::uint8_t step,
+                                               std::uint8_t group) const
+{
+    if (catalogue_.find(current_.id) == catalogue_.end())
+        return false;
+    return current_.step == step &&
+           (!group || current_.group == group);
+}
+
+bool TournamentRegistry::CanDoTournament(std::uint8_t step,
+                                         std::uint8_t group) const
+{
+    std::lock_guard g(m_lock);
+    return CanDoTournamentLocked(step, group);
+}
+
+std::uint8_t TournamentRegistry::FirstGroupCount() const
+{
+    std::lock_guard g(m_lock);
+    return first_group_count_;
+}
+
+std::uint8_t
+TournamentRegistry::EntryOfLocked(std::uint32_t char_id) const
+{
+    auto it = players_.find(char_id);
+    return it == players_.end() ? 0 : it->second->entry_id;
+}
+
+TournamentRegistry::PlayerRosterRow
+TournamentRegistry::RosterOf(const TnmtPlayer& p)
+{
+    PlayerRosterRow row;
+    row.char_id    = p.char_id;
+    row.country    = p.country;
+    row.name       = p.name;
+    row.level      = p.level;
+    row.cls        = p.cls;
+    row.rank       = p.rank;
+    row.month_rank = p.month_rank;
+    return row;
+}
+
+TournamentRegistry::ApplyOutcome
+TournamentRegistry::TryApply(const TnmtPlayerBrief& info,
+                             const std::string& guild_name,
+                             std::uint8_t entry_id,
+                             const std::string& hwid,
+                             std::uint32_t ip_addr,
+                             bool in_first_grade)
+{
+    std::lock_guard g(m_lock);
+    ApplyOutcome out{};
+
+    // TournamentApply (TWorldSvr.cpp:6290) in legacy order.
+    if (info.country > tournament::kCountryB)
+    {
+        out.result = tournament::kResultFail;
+        return out;
+    }
+    Entry* entry = CurrentEntryLocked(entry_id);
+    if (!entry)
+    {
+        out.result = tournament::kResultFail;
+        return out;
+    }
+
+    std::uint8_t result = tournament::kResultDisqualify;
+    std::uint8_t step   = tournament::kStepNormal;
+    if (CanDoTournamentLocked(tournament::kStep1st, 0))
+    {
+        if (in_first_grade)
+        {
+            result = tournament::kResultSuccess;
+            step   = tournament::kStep1st;
+        }
+    }
+    else if (!CanDoTournamentLocked(tournament::kStepNormal, 0))
+        result = tournament::kResultTimeout;
+    else
+        result = tournament::kResultSuccess;
+
+    if (result != tournament::kResultSuccess)
+    {
+        out.result = result;
+        return out;
+    }
+
+    if (players_.find(info.char_id) != players_.end())
+    {
+        // Legacy quirk: a registered char echoes the short-form
+        // SUCCESS without re-adding.
+        out.result  = tournament::kResultSuccess;
+        out.already = true;
+        return out;
+    }
+
+    // FindTNMTPlayerApply (TWorldSvr.cpp:5959) — HWID/IP dup scan.
+    for (const auto& [cid, p] : players_)
+        if (p->hwid == hwid || p->ip_addr == ip_addr)
+        {
+            out.result = tournament::kResultFail;
+            return out;
+        }
+
+    if (entry->first.size() >= tournament::kTournamentSlot)
+    {
+        out.result = tournament::kResultFull;
+        return out;
+    }
+
+    TnmtPlayerSeed seed{};
+    seed.brief      = info;
+    seed.guild_name = guild_name;
+    seed.hwid       = hwid;
+    seed.ip_addr    = ip_addr;
+    if (!AddPlayerAtStepLocked(entry_id, seed, step, info.char_id))
+    {
+        out.result = tournament::kResultFail;   // unreachable guard
+        return out;
+    }
+    out.result = tournament::kResultSuccess;
+    out.added  = true;
+    return out;
+}
+
+TournamentRegistry::PartyAddOutcome
+TournamentRegistry::TryPartyAdd(std::uint32_t chief_char_id,
+                                std::uint8_t chief_country,
+                                const TnmtPlayerBrief& target,
+                                const std::string& target_guild)
+{
+    std::lock_guard g(m_lock);
+    PartyAddOutcome out{};
+
+    // TournamentPartyAdd (TWorldSvr.cpp:6537) in legacy order.
+    if (!CanDoTournamentLocked(tournament::kStepParty, 0))
+        return out;
+    auto it_t = catalogue_.find(current_.id);
+    if (current_.id == 0 || it_t == catalogue_.end())
+        return out;
+
+    Entry* entry = nullptr;
+    for (auto& [eid, e] : it_t->second)
+        if (e.seed.type == tournament::kEntryParty)
+        {
+            entry = &e;
+            break;
+        }
+    if (!entry)
+        return out;
+
+    auto it_chief_probe = players_.find(chief_char_id);
+
+    out.silent = false;
+    if (!target.char_id || chief_country != target.country)
+    {
+        out.result = tournament::kResultNotFound;
+        return out;
+    }
+    if (players_.find(target.char_id) != players_.end())
+    {
+        out.result = tournament::kResultAlreadyReg;
+        return out;
+    }
+    if (entry->seed.max_level < target.level ||
+        entry->seed.min_level > target.level)
+    {
+        out.result = tournament::kResultLevel;
+        return out;
+    }
+    if (it_chief_probe == players_.end())
+    {
+        out.silent = true;                       // legacy silent
+        return out;
+    }
+    if (it_chief_probe->second->party.size() >= 6)
+    {
+        out.result = tournament::kResultFull;
+        return out;
+    }
+
+    TnmtPlayerSeed seed{};
+    seed.brief      = target;
+    seed.guild_name = target_guild;
+    if (!AddPlayerAtStepLocked(entry->seed.entry_id, seed,
+            tournament::kStepParty, chief_char_id))
+    {
+        out.silent = true;
+        return out;
+    }
+    out.result   = tournament::kResultSuccess;
+    out.added    = true;
+    out.entry_id = entry->seed.entry_id;
+    out.chief_id = chief_char_id;
+    return out;
+}
+
+TournamentRegistry::PartyDelOutcome
+TournamentRegistry::PartyDel(std::uint32_t requester_char_id,
+                             std::uint32_t target_char_id)
+{
+    std::lock_guard g(m_lock);
+    PartyDelOutcome out{};
+
+    // TournamentPartyDel (TWorldSvr.cpp:6634).
+    if (!CanDoTournamentLocked(tournament::kStepParty, 0))
+        return out;
+    auto it = players_.find(target_char_id);
+    if (it == players_.end())
+        return out;
+    const auto player = it->second;
+    if (player->chief_id == target_char_id ||
+        (player->chief_id != requester_char_id &&
+         target_char_id != requester_char_id))
+        return out;
+
+    out.chief_id = player->chief_id;
+    Entry* entry = CurrentEntryLocked(player->entry_id);
+    if (entry)
+        RemovePlayerLocked(*entry, player);
+    else
+    {
+        // Legacy DelTNMTPlayer(NULL, …) would crash; the pools are
+        // consistent here so the entry always resolves — belt and
+        // braces: still drop the global row.
+        players_.erase(target_char_id);
+    }
+    out.removed = true;
+    return out;
+}
+
+TournamentRegistry::ScheduleSnapshot
+TournamentRegistry::ScheduleReply() const
+{
+    std::lock_guard g(m_lock);
+    ScheduleSnapshot snap{};
+    if (current_.steps.empty())
+        return snap;
+    snap.ok    = true;
+    snap.group = current_.group;
+    snap.step  = current_.step;
+    for (const auto& [key, sc] : current_.steps)
+        snap.steps.push_back(sc);
+    return snap;
+}
+
+TournamentRegistry::ApplyInfoSnapshot
+TournamentRegistry::ApplyInfoReply(std::uint32_t char_id) const
+{
+    std::lock_guard g(m_lock);
+    ApplyInfoSnapshot snap{};
+    snap.max_level = max_level_;
+
+    auto it_t = catalogue_.find(current_.id);
+    if (current_.id == 0 || it_t == catalogue_.end())
+        return snap;
+    if (current_.step > tournament::kStepNormal)
+        return snap;
+    snap.ok = true;
+
+    const std::uint8_t my_entry = EntryOfLocked(char_id);
+    for (const auto& [eid, entry] : it_t->second)
+    {
+        ApplyInfoEntry row;
+        row.seed    = entry.seed;
+        row.applied = entry.seed.entry_id == my_entry;
+        row.free_first = static_cast<std::uint8_t>(
+            tournament::kTournamentSlot - entry.first.size());
+        row.normal_count =
+            static_cast<std::uint16_t>(entry.normal.size());
+        for (const auto& [cid, p] : entry.first)
+            row.first_pool.push_back(RosterOf(*p));
+        snap.entries.push_back(std::move(row));
+    }
+    return snap;
+}
+
+TournamentRegistry::JoinListSnapshot
+TournamentRegistry::JoinListReply(std::uint32_t char_id) const
+{
+    std::lock_guard g(m_lock);
+    JoinListSnapshot snap{};
+
+    auto it_t = catalogue_.find(current_.id);
+    if (current_.id == 0 || it_t == catalogue_.end())
+        return snap;
+    if (!CanDoTournamentLocked(tournament::kStepParty, 0))
+        return snap;
+    snap.ok = true;
+
+    const std::uint8_t my_entry = EntryOfLocked(char_id);
+    for (const auto& [eid, entry] : it_t->second)
+    {
+        JoinListEntry row;
+        row.seed    = entry.seed;
+        row.applied = entry.seed.entry_id == my_entry;
+        for (const auto& [cid, p] : entry.player)
+            row.players.push_back(RosterOf(*p));
+        snap.entries.push_back(std::move(row));
+    }
+    return snap;
+}
+
+TournamentRegistry::PartyListSnapshot
+TournamentRegistry::PartyListReply(std::uint32_t chief_id) const
+{
+    std::lock_guard g(m_lock);
+    PartyListSnapshot snap{};
+    auto it = players_.find(chief_id);
+    if (it == players_.end())
+        return snap;
+    snap.ok       = true;
+    snap.chief_id = chief_id;
+    for (const auto& [cid, p] : it->second->party)
+        snap.members.push_back(RosterOf(*p));
+    return snap;
+}
+
+TournamentRegistry::MatchListSnapshot
+TournamentRegistry::MatchListReply(std::uint32_t char_id) const
+{
+    std::lock_guard g(m_lock);
+    MatchListSnapshot snap{};
+
+    auto it_t = catalogue_.find(current_.id);
+    if (current_.id == 0 || it_t == catalogue_.end())
+        return snap;
+    snap.ok = true;
+
+    const std::uint8_t my_entry = EntryOfLocked(char_id);
+    for (const auto& [eid, entry] : it_t->second)
+    {
+        MatchListEntry row;
+        row.seed    = entry.seed;
+        row.applied = entry.seed.entry_id == my_entry;
+        for (const auto& [cid, p] : entry.player)
+        {
+            MatchRosterRow m;
+            m.slot_id = p->slot_id;
+            m.row     = RosterOf(*p);
+            for (std::size_t i = 0; i < tournament::kMatchCount; ++i)
+                m.result[i] = p->result[i];
+            row.players.push_back(std::move(m));
+        }
+        snap.entries.push_back(std::move(row));
+    }
+    return snap;
+}
+
+bool TournamentRegistry::CurrentHasFirstStep() const
+{
+    std::lock_guard g(m_lock);
+    auto it = current_.steps.find(
+        StepKey(tournament::kStep1st, 0));
+    return it != current_.steps.end() && it->second.period != 0;
 }
 
 std::optional<std::uint32_t> TournamentRegistry::RemovePlayerByName(

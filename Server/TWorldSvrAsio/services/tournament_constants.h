@@ -61,7 +61,22 @@ constexpr std::uint8_t kTournamentBasePrize = 100;  // TOURNAMENT_BASEPRIZE
 // TET_PLAYERADD error-echo fillers (SSHandler.cpp:12204-12205 /
 // 12607-12610): TCLASS_COUNT / TCONTRY_N from NetCode.h:1091+.
 constexpr std::uint8_t kClassCount = 6;   // TCLASS_COUNT
+constexpr std::uint8_t kCountryB   = 2;   // TCONTRY_B (last playable)
 constexpr std::uint8_t kCountryN   = 3;   // TCONTRY_N
+
+// TOURNAMENT_RESULT (NetCode.h:2530 region, values confirmed at
+// NetCode.h:830-843).
+constexpr std::uint8_t kResultSuccess    = 0;
+constexpr std::uint8_t kResultDisqualify = 1;
+constexpr std::uint8_t kResultTimeout    = 2;
+constexpr std::uint8_t kResultAlreadyReg = 3;
+constexpr std::uint8_t kResultNotFound   = 4;
+constexpr std::uint8_t kResultFull       = 5;
+constexpr std::uint8_t kResultClass      = 6;
+constexpr std::uint8_t kResultMoney      = 7;
+constexpr std::uint8_t kResultItem       = 8;
+constexpr std::uint8_t kResultLevel      = 9;
+constexpr std::uint8_t kResultFail       = 10;
 
 // Legacy m_bFirstGroupCount cap (NetCode.h:130).
 constexpr std::uint8_t kFirstGroupCap = 17;  // FIRSTGRADEGROUPCOUNT

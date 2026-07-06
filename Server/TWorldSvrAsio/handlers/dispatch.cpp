@@ -663,6 +663,12 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
             ctx);
         co_return;
 
+    // ---- W6-52: tournament player vertical (handlers_tournament.cpp)
+    case MessageId::MW_TOURNAMENT_ACK:
+        co_await OnMwTournamentAck(std::move(peer), std::move(body),
+            ctx);
+        co_return;
+
     // ---- W6-46: EVENTQUARTER operator tools (handlers_event.cpp) ----
     case MessageId::CT_EVENTQUARTERLIST_REQ:
         co_await OnCtEventQuarterListReq(std::move(peer), std::move(body), ctx);

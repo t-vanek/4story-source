@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-51 Tournament scheduler tick — step advance live
+## Status — W6-52 Tournament player vertical — registration live
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -122,6 +122,7 @@ that the four shipped Asio daemons already use.
 | **W6-49** | RPS persistence — new `IRpsRepository` closes the last W6-29 deferral. Boot: `TRPSGAMECHART` configs (`LoadGames` → `RpsRegistry::Insert`) + `TRPSGAMERECORDTABLE` win dates (`LoadWinDates` → new `HydrateWinDate`, unknown keys silently skipped — legacy parity). Runtime: `OnRpsGameAck`'s ledger mutations (the 30-day prune deletes + the fresh-win insert the W6-29 `PersistOp` hook already emitted) now really persist through the `TRPSGameRecord` SP in one offload batch; `OnRpsGameRecordReq` (hybrid DM fan-in) upgraded from a logged stub to a real repo write. Warn-only probes for the SP + `TRPSGAMECHART`. Drive-by: every test polling window raised 2 s → 10 s (the recurring full-suite flake class — route_completion / releasemain / guild_mut were all the same 200×10 ms pattern) | ✅ |
 | **W6-50** | Tournament core — the state layer + the operator-tool vertical. `TournamentRegistry` ports `m_mapTournament` / `m_mapTournamentSchedule` / `m_mapTournamentTime` / `m_tournament` / `m_mapTNMTPlayer` on one strand (the legacy timer/batch thread split + its SM self-posts collapse to direct calls; the SM wire handlers stay dispatchable for parity): `SetTournamentTime` (verbatim month math incl. the mktime day-31 spillover + the boot-resume ladder compression with the +10 min re-enter pad), the `TournamentUpdate` election, `RebuildCurrent`, `TNMTEntryDelete` semantics. `OnCtTournamentEventReq` covers all 8 TET ops (LIST byte-walked times+steps+catalogue+rosters; SCHEDULEADD/DEL; ENTRYADD replace incl. player unregister fan-out; ENTRYDEL; PLAYERADD by-name via the collapsed `DM_TOURNAMENTEVENTCHARINFO` lookup + guild-name fill; PLAYERDEL; PLAYEREND ack — its select/match triggers are the match-engine slice). `OnSmTournamentUpdateReq` re-points the current tournament + broadcasts `MW_TOURNAMENTINFO_REQ` (TournamentInfo). New `ITournamentRepository` (8 boot loads + TTnmtEvent*/TTournamentApply/TTournamentClear persists + the TCHARTABLE name lookup; `DM_TNMTEVENT*` ×3, `DM_TOURNAMENTEVENTCHARINFO`, `DM_TOURNAMENTAPPLY`, `DM_TOURNAMENTCLEAR` repository-collapsed, §D) + `LoadTournamentState` boot hydrate (main tournament + lucky events + resume + initial election; TVIEW_TOURNAMENTPLAYER reload deferred to the player vertical). Warn-only chart/SP probes | ✅ |
 | **W6-51** | Tournament scheduler tick — the step-advance runtime over the W6-50 state. `TournamentRegistry::PopDueTick` ports the per-second walk (TWorldSvr.cpp:4012): zero-period steps skipped, future start stops the walk, a due start is consumed and fires the step, the last group's elapsed END fires the month reschedule. `RunTournamentTick` (RegistryRefresher sweeper, `tournament_check_period_sec`, default 5 s, 0 disables; drains the whole due backlog per pass) runs the collapsed SM_TOURNAMENT_REQ step advance — `AdvanceStep` (catalogue guard, group-change sum/base reset over the CURRENT tournament's entries — legacy quirk kept, next-step start lookup) + `MW_TOURNAMENTENABLE_REQ` broadcast to every map + the collapsed `DM_TOURNAMENTSTATUS` persist (`ITournamentRepository::SaveStatus` → TTournamentStatus, what boot resume reads back); the END reschedule re-runs `SetTournamentTime(month_base=TRUE)` (only when the battle-time row exists) + eviction fan-out + the update election. `OnSmTournamentReq` stays wire-dispatchable for parity. TournamentSelectPlayer/TournamentMatch triggers at PARTY/MATCH log-deferred to the match-engine slice | ✅ |
+| **W6-52** | Tournament player vertical — the MW_TOURNAMENT_ACK 8-op switch (legacy SSHandler.cpp:11520): SCHEDULE (current ladder, zero-period steps filtered), APPLYINFO (catalogue + 1st-pool roster, class-filtered rewards in the legacy shield-first order, 0xFF max-level → TGetLimitedLevel translation), APPLY (full TournamentApply gate chain — country > TCONTRY_B, entry, 1st-step fame first-grade membership vs DISQUALIFY, TIMEOUT outside 1st/NORMAL, already-registered short-SUCCESS quirk, HWID/IP dup FAIL, 8-slot FULL — + the TTournamentApply persist + APPLYINFO follow-up), JOINLIST (PARTY-step gate), PARTYLIST / PARTYADD / PARTYDEL (chief party management: country NOTFOUND, ALREADYREG, level-band LEVEL echo with the name, 6-cap FULL, chief-only removal authority; the offline-target lookup collapses `DM_GETCHARINFO_REQ/_ACK` into `ITournamentRepository::FindCharInfoByName` — >1-hit silent drop kept), MATCHLIST (bracket roster with slots + per-match results). New registry ops (`TryApply`/`TryPartyAdd`/`PartyDel`/`AddPlayerAtStep` — the full AddTNMTPlayer pool router — + `CanDoTournament` + 5 reply snapshots). Boot: `LoadPlayers` (TVIEW_TOURNAMENTPLAYER) two-pass reload — chiefs into 1st/NORMAL by the fame predicate + persisted step→result mapping, members re-attach to their chief's party, orphans dropped. The rank/month_rank roster fields ship 0: the legacy m_mapRank/m_mapMonthRank are never populated by the shipped binary (GetRanking is dead code), so zeros ARE wire parity. EVENTLIST/EVENTINFO/EVENTJOIN (spectator betting) log-deferred to the match-engine slice | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -152,23 +153,24 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-51)
+## Gaps audit — not yet ported / deferred (as of W6-52)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **218** are ported in
-`handlers/dispatch.cpp` (150 MW + 28 DM + 22 CT + 15 SM + 3 RW), leaving
-**72** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
+breakdown the W2 sizing note records); **219** are ported in
+`handlers/dispatch.cpp` (151 MW + 28 DM + 22 CT + 15 SM + 3 RW), leaving
+**71** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
 `DM_ITEMSTATE_REQ/_ACK` pair, W6-37's `MW_CASHITEMSALE_ACK` absorbs
 `DM_CASHITEMSALE_REQ/_ACK`, W6-38's CT_HELPMESSAGE / SM_DELSESSION
-absorb `DM_HELPMESSAGE_REQ` / `DM_CLEARMAPCURRENTUSER_REQ`, and the W6-50/51
+absorb `DM_HELPMESSAGE_REQ` / `DM_CLEARMAPCURRENTUSER_REQ`, and the W6-50/51/52
 tournament slices absorb the `DM_TNMTEVENT*` / `DM_TOURNAMENTEVENTCHARINFO`
-/ `DM_TOURNAMENTAPPLY` / `DM_TOURNAMENTCLEAR` / `DM_TOURNAMENTSTATUS` legs —
+/ `DM_TOURNAMENTAPPLY` / `DM_TOURNAMENTCLEAR` / `DM_TOURNAMENTSTATUS` /
+`DM_GETCHARINFO_REQ/_ACK` legs —
 repository-collapsed, counted under §D.)
 A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
-owe; netting those out, the *owed* wire surface is ~259. Raw handler
-coverage is **≈ 75 %** (218/290); against the owed surface it is ~84 %.
+owe; netting those out, the *owed* wire surface is ~257. Raw handler
+coverage is **≈ 76 %** (219/290); against the owed surface it is ~85 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -259,16 +261,19 @@ Intentionally not ported:
   `TNMTSTEP_*`" note was stale, the enum lives in NetCode.h:2529).
   W6-51 adds the scheduler tick + step advance
   (`SM_TOURNAMENT_REQ` → `MW_TOURNAMENTENABLE_REQ` + the collapsed
-  `DM_TOURNAMENTSTATUS` persist + the month-end reschedule).
-  Remaining slices: the player vertical
-  (`MW_TOURNAMENT_ACK` 11-op switch + `MW_TOURNAMENTENTERGATE_ACK` +
-  `DM_GETCHARINFO_REQ/_ACK` + the TVIEW_TOURNAMENTPLAYER boot reload +
-  the GetRanking/IsFirstGroup fills), and the match/result engine
+  `DM_TOURNAMENTSTATUS` persist + the month-end reschedule); W6-52
+  the player vertical (`MW_TOURNAMENT_ACK` registration/roster ops +
+  the collapsed `DM_GETCHARINFO` lookup + the TVIEW_TOURNAMENTPLAYER
+  boot reload; GetRanking turned out to be dead legacy code — the
+  m_mapRank/m_mapMonthRank maps are never filled, so the zero roster
+  ranks ARE parity). Remaining: the match/result engine
   (`TournamentSelectPlayer`/`TNMTMatch`/`MW_TOURNAMENTMATCH_REQ`,
-  `MW_TOURNAMENTRESULT_ACK`, batting + `MW_TOURNAMENTBATPOINT_REQ`,
+  `MW_TOURNAMENTRESULT_ACK`, the EVENTLIST/EVENTINFO/EVENTJOIN
+  betting trio + `MW_TOURNAMENTENTERGATE_ACK` (TNMTEnterGate) +
+  batting + `MW_TOURNAMENTBATPOINT_REQ`,
   `DM_TOURNAMENTPAYBACK_REQ/_ACK` + `DM_TOURNAMENTRESULT_REQ`,
   TET_PLAYEREND's select/match triggers, TournamentInfo's step>=MATCH
-  fan-out)
+  fan-out, the boot step>=PARTY SelectPlayer re-run)
 - RPS event: **complete** — W6-29 wire handlers + W6-49 persistence
   (`IRpsRepository`: TRPSGAMECHART/TRPSGAMERECORDTABLE boot load +
   the TRPSGameRecord SP behind the win-cap ledger)
@@ -311,8 +316,9 @@ MW_CASTLEWARINFO top-3 / attacker-defender engine.
 **Service / control plane:** mostly **complete** — `CT_CTRLSVR` (W6-35),
 `CT_SERVICEMONITOR` + `CT_SERVICEDATACLEAR` + `CT/DM_HELPMESSAGE` +
 `SM_DELSESSION` (+`DM_CLEARMAPCURRENTUSER`) + `SM_QUITSERVICE` (W6-38).
-Remaining: `DM_GETCHARINFO` (Tournament-only round-trip — lands with
-Tournament); `DM_ACTIVECHARUPDATE` landed in W6-43 (war-country index). `DM_CLEARDATA` is intentionally
+`DM_GETCHARINFO` closed in W6-52 (repository-collapsed into the
+PARTYADD offline lookup, §D); `DM_ACTIVECHARUPDATE` landed in W6-43
+(war-country index). `DM_CLEARDATA` is intentionally
 not ported (magic-key 720809425 dev backdoor no-op, same policy as
 `OnMW_TERMINATE_ACK`).
 
@@ -345,22 +351,41 @@ is the W6-47 runtime slice), `DM_TNMTEVENTSCHEDULEADD/DEL_REQ` +
 collapsed into the tournament operator tools via
 `ITournamentRepository`), `DM_TOURNAMENTSTATUS_REQ` (W6-51 —
 collapsed into the tick's step-advance persist via
-`ITournamentRepository::SaveStatus`).
+`ITournamentRepository::SaveStatus`), `DM_GETCHARINFO_REQ/_ACK`
+(W6-52 — collapsed into the PARTYADD offline-target lookup via
+`ITournamentRepository::FindCharInfoByName`).
 `DM_GUILDLOAD` and `DM_PVPRECORD` *are* ported (as `_ACK`/`_REQ`).
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **Tournament player vertical** — the `MW_TOURNAMENT_ACK` 11-op
-   switch (schedule / applyinfo / apply / joinlist / party ops /
-   matchlist / event ops) + `DM_GETCHARINFO` + the
-   TVIEW_TOURNAMENTPLAYER boot reload.
-2. **Tournament match/result engine** — SelectPlayer/TNMTMatch,
-   `MW_TOURNAMENTRESULT_ACK`, batting + payback
-   (`DM_TOURNAMENTPAYBACK`/`RESULT`), `MW_TOURNAMENTENTERGATE_ACK`.
-3. **`TChar.soul_silence`** — trivial field add for the W6-23
+1. **Tournament match/result engine** — SelectPlayer/TNMTMatch +
+   `MW_TOURNAMENTMATCH_REQ`, `MW_TOURNAMENTRESULT_ACK`, the betting
+   trio (EVENTLIST/EVENTINFO/EVENTJOIN) + TNMTEnterGate + payback
+   (`DM_TOURNAMENTPAYBACK`/`RESULT`), TET_PLAYEREND triggers. Closes
+   the Tournament subsystem.
+2. **`TChar.soul_silence`** — trivial field add for the W6-23
    composite.
-4. Guild extras (blocked on absent constants/model) / BR + Bow
+3. Guild extras (blocked on absent constants/model) / BR + Bow
    schedulers.
+
+### W6-52 — what landed
+
+**Tournament player vertical** — chars can register. The wire test:
+key-mismatch + unknown-char drops (sentinel), the SCHEDULE echo
+(zero-period filtered, start byte-exact), APPLY at READY → TIMEOUT,
+the 1st step (fame member → SUCCESS into the 1st pool + APPLYINFO
+follow-up byte-walked: applied flag, 7 free slots, class-3-filtered
+reward in shield-first order, 0xFF→137 max level, zero ranks; fame
+outsider → DISQUALIFY), the NORMAL apply (normal-pool counts), the
+already-registered short SUCCESS (Eof-checked), HWID-dup + country
+FAILs, the JOINLIST PARTY gate (silent at NORMAL — sentinel),
+party management (online Bob add + PARTYLIST echo + TTournamentApply
+trace; Eve LEVEL-with-name; Dana country NOTFOUND; offline Frank via
+the repo lookup; unknown-name NOTFOUND; duplicate ALREADYREG;
+chief-self del silent; Bob del + PARTYLIST + persist-remove),
+MATCHLIST with a seeded bracket player (slot 8 + QFINAL WIN), and
+the boot two-pass reload (fame chief → 1st pool, member attached to
+the chief's party, orphan dropped). 106 wire tests, all green.
 
 ### W6-51 — what landed
 

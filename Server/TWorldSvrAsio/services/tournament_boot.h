@@ -16,11 +16,21 @@
 #include "tournament_repository.h"
 
 #include <cstdint>
+#include <functional>
 
 namespace tworldsvr {
 
+// IsFirstGroup source (legacy m_arFirstGradeGroup scan,
+// TWorldSvr.cpp:5645) — the fame first-grade array lives in
+// MonthRankRegistry; main passes a closure over it so this stays
+// service-decoupled. Empty function = nobody is first-grade (the
+// port's fame table starts empty at boot until the first rollover).
+using TnmtFirstGroupFn =
+    std::function<bool(std::uint8_t country, std::uint32_t char_id)>;
+
 void LoadTournamentState(TournamentRegistry&    registry,
                          ITournamentRepository& repo,
-                         std::int64_t           now);
+                         std::int64_t           now,
+                         const TnmtFirstGroupFn& is_first_group = {});
 
 } // namespace tworldsvr

@@ -631,6 +631,20 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-39: APEX (Taiwan) stubs (handlers_apex.cpp) -------------
+    case MessageId::SM_APEXDATA_REQ:
+        co_await OnSmApexDataReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::SM_APEXKILLUSER_REQ:
+        co_await OnSmApexKillUserReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_APEXDATA_ACK:
+        co_await OnMwApexDataAck(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_APEXSTART_ACK:
+        co_await OnMwApexStartAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-38: service / control plane (handlers_service.cpp) ------
     case MessageId::CT_SERVICEMONITOR_ACK:
         co_await OnCtServiceMonitorAck(std::move(peer), std::move(body), ctx);

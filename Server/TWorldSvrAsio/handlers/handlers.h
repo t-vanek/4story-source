@@ -1783,6 +1783,29 @@ boost::asio::awaitable<void> OnMwCashItemSaleAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-39: APEX (Taiwan) stubs (handlers_apex.cpp) ---------------
+//
+// The legacy bodies are compiled out (`__TW_APEX` is commented out in
+// TWorldType.h:157); the enabled variant calls the third-party Apex
+// anti-addiction SDK — out of scope like the anti-cheat callouts.
+// Accept + log + drop, matching the shipped binary.
+boost::asio::awaitable<void> OnSmApexDataReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnSmApexKillUserReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMwApexDataAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMwApexStartAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W6-38: service / control plane (handlers_service.cpp) --------
 //
 // CT_SERVICEMONITOR_ACK — the monitoring probe echo. The peer sends a

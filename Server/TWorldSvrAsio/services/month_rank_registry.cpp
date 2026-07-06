@@ -150,4 +150,45 @@ MonthRanker MonthRankRegistry::Get(std::uint8_t country,
     return m_table[country][rank];
 }
 
+MonthRankRegistry::Table MonthRankRegistry::SnapshotTable() const
+{
+    std::lock_guard g(m_mtx);
+    return m_table;
+}
+
+MonthRankRegistry::FameRank MonthRankRegistry::LastFameRank() const
+{
+    std::lock_guard g(m_mtx);
+    return m_last_fame;
+}
+
+void MonthRankRegistry::SetLastFameRank(const FameRank& fame)
+{
+    std::lock_guard g(m_mtx);
+    m_last_fame = fame;
+}
+
+MonthRankRegistry::FirstGrade MonthRankRegistry::FirstGradeGroup() const
+{
+    std::lock_guard g(m_mtx);
+    return m_first_grade;
+}
+
+void MonthRankRegistry::SetFirstGradeGroup(const FirstGrade& group)
+{
+    std::lock_guard g(m_mtx);
+    m_first_grade = group;
+}
+
+void MonthRankRegistry::ResetForNewMonth()
+{
+    std::lock_guard g(m_mtx);
+    for (auto& row : m_table)
+        for (std::size_t j = 1; j < kMonthRankCount; ++j)
+            row[j] = MonthRanker{};
+    ++m_rank_month;
+    if (m_rank_month > 12)
+        m_rank_month -= 12;
+}
+
 } // namespace tworldsvr

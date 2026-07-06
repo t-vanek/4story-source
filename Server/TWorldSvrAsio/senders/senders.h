@@ -2134,6 +2134,24 @@ boost::asio::awaitable<void> SendMwWarLordSayReq(
     std::uint32_t                  char_id,
     const std::string&             say);
 
+// --- W6-42 MonthRank rollover senders (senders_rank.cpp) -----------
+
+// MW_MONTHRANKRESET_REQ - the previous month\'s fame top-9 at
+// rollover. Legacy SSSender.cpp:3392.
+//   Wire: BYTE rank_month, BYTE count(=9), 9 x <MONTHRANKER>
+boost::asio::awaitable<void> SendMwMonthRankResetReq(
+    std::shared_ptr<PeerSession>          peer,
+    std::uint8_t                          rank_month,
+    const MonthRankRegistry::FameRank&    fame);
+
+// MW_FIRSTGRADEGROUP_REQ - the frozen previous-month top-17 per
+// country. Legacy SSSender.cpp:3456.
+//   Wire: BYTE rank_month, BYTE count(=17), 3 x 17 x <MONTHRANKER>
+boost::asio::awaitable<void> SendMwFirstGradeGroupReq(
+    std::shared_ptr<PeerSession>          peer,
+    std::uint8_t                          rank_month,
+    const MonthRankRegistry::FirstGrade&  group);
+
 // --- W6-40 GM item tools (senders_item.cpp) ------------------------
 
 // CT_ITEMFIND_ACK — operator item-search result to the ctrl-svr.

@@ -185,6 +185,14 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                      "deployed — CT_HELPMESSAGE_REQ (W6-38) will "
                      "broadcast without persisting.");
     }
+    for (const char* rn : {"TInitMonthRank", "TSaveMonthRank",
+                           "TInitMonthPvPoint"})
+    {
+        if (!routine_exists(rn))
+            spdlog::warn("schema_validator (world): {} SP not deployed "
+                         "- the MonthRank rollover (SM_MONTHRANKSAVE, "
+                         "W6-42) will abort its persist.", rn);
+    }
     if (!routine_exists("TClearMapCurrentUser"))
     {
         spdlog::warn("schema_validator (world): TClearMapCurrentUser SP "

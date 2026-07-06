@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-41 MonthRank live table (update ladder + replay + warlord say)
+## Status — W6-42 MonthRank rollover (save chain + reset broadcasts) — subsystem complete
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -112,6 +112,7 @@ that the four shipped Asio daemons already use.
 | **W6-39** | APEX (Taiwan) stubs — `OnSmApexDataReq` / `OnSmApexKillUserReq` / `OnMwApexDataAck` / `OnMwApexStartAck` accept + log + drop. The legacy bodies (SSHandler.cpp:14538-14616) are wrapped in `#ifdef __TW_APEX` and the define is **commented out** in TWorldType.h:157 — the shipped reference binary compiles them as empty no-ops, which is exactly what we reproduce. The enabled variant relays opaque Apex-SDK blobs to the char's main map, force-closes over-limit users, and calls `ApexNotifyUserData/Return` into the third-party anti-addiction SDK (ApexProxy.h) — out of scope per the anti-cheat-callout policy; the W4-22 fresh-login "APEX notify" deferred item is the same `#ifdef` and closes with this slice. Wire test proves inertness (incl. that KILLUSER does **not** CloseChar) | ✅ |
 | **W6-40** | GM item tools — `OnCtItemFindReq` collapses the legacy CT→DM→ctrl round-trip (SSHandler.cpp:150 → 9977): `IItemStateRepository::FindItems` runs the CTBLItemFind query (`SELECT wItemID, bInitState, szName FROM TITEMCHART WHERE szName LIKE :n OR wItemID = :i` — the operator console supplies its own % wildcards) and the result goes to the **identified ctrl-svr slot** as `CT_ITEMFIND_ACK(count, manager_id, N×(id, state, name))`; empty result still ACKs (count=0), no ctrl-svr → silent drop (legacy `if(m_pCtrlSvr)`). `OnMwAddItemAck` ports the cross-server GM item-grant route (SSHandler.cpp:5644): char lookup by (id, key) — miss → `MW_ADDITEMRESULT_REQ(…, MIT_NOTFOUND)` back to the reporter (reuses the W6-10 sender + party_constants MIT code), hit → the 9-field payload forwards **byte-for-byte** to the char's main map as `MW_ADDITEM_REQ`. 2 senders (`SendCtItemFindAck`, verbatim `SendMwAddItemReq`); `DM_ITEMFIND_REQ` repository-collapsed (§D). Closes the §C "GM item tools" family | ✅ |
 | **W6-41** | MonthRank live table — new `MonthRankRegistry` ports `m_arMonthRank[3][33]` + `m_bRankMonth` (boots from the local clock — TWorldSvr.cpp:1894 — and an empty table; legacy has no boot DB load, rankers stream in live). `OnMwMonthRankUpdateAck` runs the verbatim re-rank ladder (SSHandler.cpp:11263): warlord pre-select on TotalPoint (or same-char refresh) → old/new slot scan (MonthPoint, MonthWin, MonthLose, char-id tiebreakers) → slot shift → warlord re-select; broadcasts `MW_MONTHRANKUPDATE_REQ(month, country, start, end, slots[start..end], warlord_flag [+ slot0])` to every map; stale-month / bogus-country / lands-nowhere all drop. `OnMwMonthRankResetCharAck` mirrors a char's rank reset to every **other** map it is connected to (reporter skipped — SSHandler.cpp:13324). `OnMwWarLordSayAck` re-broadcasts the warlord line verbatim (SSHandler.cpp:11386; also retires the WARLORDSAY entry from the War/Castle extras list). `OnRelaysvrReq` gains the full-table `MW_MONTHRANKLIST_REQ` replay (SSHandler.cpp:698). Shared `month_rank_codec.h` = byte-exact 19-field MONTHRANKER WrapPacketIn/Out. Known legacy quirk NOT kept: `MONTHRANKER::operator=` copied TotalRank into MonthRank on every table shuffle (TWorldType.h:962) — we copy field-for-field. The W6-42 month-rollover chain (SM_MONTHRANKSAVE → 3 SPs → reset + FIRSTGRADEGROUP/MONTHRANKRESET broadcasts) stays deferred | ✅ |
+| **W6-42** | MonthRank rollover — `OnSmMonthRankSaveReq` + the shared `RunMonthRankRollover` coroutine collapse the legacy SM → DM_REQ → DM_ACK chain (SSHandler.cpp:11015/11088/11200): ① zero every guild `pvp_month_point`/`rank_month`; ② build the cross-country total-rank array (`MonthRankDesc` sort over slots 1..16 + the three warlords, **including** the legacy slot-collision quirk when the top warlord is country 0) and refresh `LastFameRank` (mutates even if the persist later fails — legacy SM-phase parity); ③ persist via new `IMonthRankRepository` — `TInitMonthRank(month)`, per-row `TSaveMonthRank` (legacy skip rules: `char_id==0`, `j!=0 && month_point==0`; first failure aborts; divergence note: legacy kept mis-reading the packet after a failed row, we stop cleanly — same observable outcome), on success `TInitMonthRank(month+1)` + `TInitMonthPvPoint(month, top_point)` whose 16-OUTPUT-param result becomes the new fame slot 0; ④ freeze `FirstGradeGroup` (3×17), broadcast `MW_MONTHRANKRESET_REQ`(fame top-9) + `MW_FIRSTGRADEGROUP_REQ`(3×17) to every map, then `ResetForNewMonth` — slots 1..32 clear, **warlord slot 0 survives** (legacy MonthRankReset), month wraps 12→1. A `month_rollover_check_period_sec` sweeper (RegistryRefresher) replaces the legacy self-posted timer tick (TWorldSvr.cpp:4065). `DM_MONTHRANKSAVE_REQ/_ACK` repository-collapsed (§D). MonthRank subsystem is **complete** | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -142,13 +143,13 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-41)
+## Gaps audit — not yet ported / deferred (as of W6-42)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
-breakdown the W2 sizing note records); **199** are ported in
-`handlers/dispatch.cpp` (145 MW + 28 DM + 15 CT + 8 SM + 3 RW), leaving
-**91** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
+breakdown the W2 sizing note records); **200** are ported in
+`handlers/dispatch.cpp` (145 MW + 28 DM + 15 CT + 9 SM + 3 RW), leaving
+**90** with no port. (W6-36's `CT_ITEMSTATE_REQ` absorbs the
 `DM_ITEMSTATE_REQ/_ACK` pair, W6-37's `MW_CASHITEMSALE_ACK` absorbs
 `DM_CASHITEMSALE_REQ/_ACK`, and W6-38's CT_HELPMESSAGE / SM_DELSESSION
 absorb `DM_HELPMESSAGE_REQ` / `DM_CLEARMAPCURRENTUSER_REQ` —
@@ -156,7 +157,7 @@ repository-collapsed, counted under §D.)
 A portion of those are `DM_*` DB-thread round-trips
 replaced by the repository pattern (§D) rather than wire handlers we still
 owe; netting those out, the *owed* wire surface is ~266. Raw handler
-coverage is **≈ 69 %** (199/290); against the owed surface it is ~75 %.
+coverage is **≈ 69 %** (200/290); against the owed surface it is ~75 %.
 The unported remainder is the deferred subsystems in §C plus a number of
 sub-branches deferred *inside* handlers that did land. (Note: the legacy
 source is CP949 — grep it with `-a`, or whole handlers appear "missing"
@@ -270,7 +271,7 @@ Intentionally not ported:
   replay-on-connect; W6-37 closes the family with `MW_CASHITEMSALE_ACK`
   (per-map confirm barrier → `ICashSaleRepository` persist → erase/stop/
   ctrl-echo; `DM_CASHITEMSALE` repository-collapsed, §D)
-- MonthRank: live table **done** (W6-41 — UPDATE ladder + RESETCHAR mirror + LIST replay); the month-rollover save/reset chain (`SM_MONTHRANKSAVE` + `DM_MONTHRANKSAVE` pair + `MW_MONTHRANKRESET` / `MW_FIRSTGRADEGROUP` broadcasts, 3 SPs) is the W6-42 slice
+- MonthRank: **complete** — W6-41 live table (UPDATE ladder + RESETCHAR mirror + LIST replay) + W6-42 rollover chain (SM_MONTHRANKSAVE → TInitMonthRank/TSaveMonthRank/TInitMonthPvPoint → RESET + FIRSTGRADEGROUP broadcasts + sweeper; DM pair collapsed, §D)
 - GM item tools: **complete** — W6-36 `CT_ITEMSTATE` vertical, W6-40
   `CT_ITEMFIND` search + `MW_ADDITEM` grant route (`DM_ITEMSTATE` /
   `DM_ITEMFIND` pairs repository-collapsed, see §D)
@@ -304,7 +305,9 @@ coroutine via `IItemStateRepository`), `DM_CASHITEMSALE_REQ/_ACK`
 `ICashSaleRepository`), `DM_HELPMESSAGE_REQ` + `DM_CLEARMAPCURRENTUSER_REQ`
 (W6-38 — collapsed into `OnCtHelpMessageReq` / `OnSmDelSessionReq` via
 `IServiceOpsRepository`), `DM_ITEMFIND_REQ` (W6-40 — collapsed into
-`OnCtItemFindReq` via `IItemStateRepository::FindItems`).
+`OnCtItemFindReq` via `IItemStateRepository::FindItems`),
+`DM_MONTHRANKSAVE_REQ/_ACK` (W6-42 — collapsed into
+`RunMonthRankRollover` via `IMonthRankRepository`).
 `DM_GUILDLOAD` and `DM_PVPRECORD` *are* ported (as `_ACK`/`_REQ`).
 
 ### Suggested next slices (by value / self-containedness)
@@ -316,6 +319,24 @@ coroutine via `IItemStateRepository`), `DM_CASHITEMSALE_REQ/_ACK`
    ctrl-svr echo, same slot pattern as W6-36) + `MW_ADDITEM`.
 4. Larger roadmap subsystems (Tournament / MonthRank / CMGift DB
    family).
+
+### W6-42 — what landed
+
+**MonthRank rollover** — the month-boundary close: guild month banks
+zeroed, the cross-country total-rank computed (verbatim legacy sort +
+warlord placement incl. the slot-48 collision quirk), rows persisted
+through the three legacy SPs with the legacy skip rules and
+first-failure abort, the new fame top from `TInitMonthPvPoint`
+grafted into slot 0, `MW_MONTHRANKRESET_REQ` + `MW_FIRSTGRADEGROUP_REQ`
+broadcast to every map, and the table reset that **keeps the
+warlord** while slots 1..32 clear and the month wraps. The legacy
+self-posted timer tick is replaced by a RegistryRefresher sweeper
+(`month_rollover_check_period_sec`, default 300 s, 0 disables).
+Failure path = legacy ACK-drop parity: fame already refreshed,
+everything else untouched (sentinel-tested). Wire test drives a
+seeded 2-ranker table + guild through the full close (fake-repo call
+trace: Init(7) → 3 × Save with total-rank indices 0/1/2 → Init(8) →
+PvPoint(7, 900)) and the failed-save path. 96 wire tests, all green.
 
 ### W6-41 — what landed
 

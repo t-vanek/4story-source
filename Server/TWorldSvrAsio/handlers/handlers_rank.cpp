@@ -1,9 +1,13 @@
 #include "handlers.h"
 #include "../services/month_rank_codec.h"
+
+#include "fourstory/db/co_offload.h"
 #include "../senders/senders.h"
 #include "../wire_codec.h"
 
 #include <spdlog/spdlog.h>
+
+#include <algorithm>
 
 #include <cstdint>
 #include <string>
@@ -187,6 +191,198 @@ OnMwWarLordSayAck(std::shared_ptr<PeerSession> peer,
         co_await senders::SendMwWarLordSayReq(p, type, rank_month,
             char_id, say);
     co_return;
+}
+
+namespace {
+
+// MonthRankDesc (TWorldType.h:1051): MonthPoint desc, MonthWin desc,
+// MonthLose desc, then char-id asc.
+bool MonthRankDesc(const MonthRanker& a, const MonthRanker& b)
+{
+    if (a.month_point != b.month_point)
+        return a.month_point > b.month_point;
+    if (a.month_win != b.month_win)
+        return a.month_win > b.month_win;
+    if (a.month_lose != b.month_lose)
+        return a.month_lose > b.month_lose;
+    return a.char_id < b.char_id;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+RunMonthRankRollover(const HandlerContext& ctx)
+{
+    if (!ctx.month_rank || !ctx.peers)
+    {
+        spdlog::warn("RunMonthRankRollover: month_rank/peers not wired");
+        co_return;
+    }
+    if (!ctx.month_rank_repo)
+    {
+        spdlog::warn("RunMonthRankRollover: month_rank_repo not wired "
+                     "- rollover skipped (no DB configured)");
+        co_return;
+    }
+
+    const std::uint8_t month = ctx.month_rank->RankMonth();
+
+    // 1. Zero every guild month bank (legacy SSHandler.cpp:11017).
+    if (ctx.guilds)
+    {
+        for (std::uint32_t gid : ctx.guilds->SnapshotIds())
+        {
+            if (auto g = ctx.guilds->Find(gid))
+            {
+                std::lock_guard lk(g->lock);
+                g->pvp_month_point = 0;
+                g->rank_month      = 0;
+            }
+        }
+    }
+
+    // 2. Cross-country total-rank array (legacy SSHandler.cpp:11031).
+    const auto table = ctx.month_rank->SnapshotTable();
+    std::array<MonthRanker, kTotalMonthRankCount> total{};
+    {
+        std::vector<MonthRanker> pool;
+        for (std::size_t c = 0; c < kMonthRankCountryCount; ++c)
+            for (std::size_t j = 1; j < kFirstGradeGroupCount; ++j)
+                pool.push_back(table[c][j]);
+        std::sort(pool.begin(), pool.end(), MonthRankDesc);
+        for (std::size_t t = 0;
+             t < pool.size() && t + 1 < kTotalMonthRankCount; ++t)
+            total[t + 1] = pool[t];
+
+        std::size_t top = 0;                     // COUNTRY_DEFUGEL
+        for (std::size_t c = 0; c < kMonthRankCountryCount; ++c)
+            if (table[top][0].total_point < table[c][0].total_point)
+                top = c;
+        for (std::size_t c = 0; c < kMonthRankCountryCount; ++c)
+        {
+            if (c == top)
+                total[0] = table[c][0];
+            else
+                total[kTotalMonthRankCount - c - 1] = table[c][0];
+            // (When top == 0 the country-2 warlord overwrites slot
+            // 48 of the sorted pool - legacy collision kept as-is.)
+        }
+    }
+
+    // 3. LastFameRank <- total[0..8] (mutates even when the persist
+    // later fails - legacy does this in the SM phase).
+    {
+        MonthRankRegistry::FameRank fame{};
+        for (std::size_t t = 0; t < kFameRankCount; ++t)
+            fame[t] = total[t];
+        ctx.month_rank->SetLastFameRank(fame);
+    }
+
+    // 4. Row list with total-rank indices (legacy k-trick: slot 0
+    // matches only once).
+    struct Row { std::uint8_t t; std::uint8_t j; MonthRanker r; };
+    std::vector<Row> rows;
+    {
+        std::size_t k = 0;
+        for (std::size_t c = 0; c < kMonthRankCountryCount; ++c)
+        {
+            for (std::size_t j = 0; j < kFirstGradeGroupCount; ++j)
+            {
+                std::size_t t = k;
+                for (; t < kTotalMonthRankCount; ++t)
+                    if (table[c][j].char_id == total[t].char_id)
+                        break;
+                rows.push_back({static_cast<std::uint8_t>(t),
+                                static_cast<std::uint8_t>(j),
+                                table[c][j]});
+                if (t == 0)
+                    k = 1;
+            }
+        }
+    }
+
+    // 5. Persist (one offload task - mirrors the DM round-trip).
+    struct Outcome
+    {
+        bool success = false;
+        std::optional<MonthRanker> new_top;
+    };
+    const Outcome oc = co_await fourstory::db::CoOffloadIf(
+        ctx.db_pool,
+        [repo = ctx.month_rank_repo, month, rows]() -> Outcome
+        {
+            Outcome out{};
+            if (!repo->InitMonthRank(month))
+                return out;
+            std::uint32_t top_point = 0;
+            for (const auto& row : rows)
+            {
+                if (row.r.char_id == 0 ||
+                    (row.j != 0 && row.r.month_point == 0))
+                    continue;                    // legacy skip
+                if (row.t == 0)
+                    top_point = row.r.total_point;
+                if (!repo->SaveRanker(month, row.j, row.t, row.r))
+                    return out;                  // first failure stops
+            }
+            std::uint8_t next = static_cast<std::uint8_t>(month + 1);
+            if (next > 12) next -= 12;
+            if (!repo->InitMonthRank(next))
+                return out;
+            if (!repo->InitMonthPvPoint(month, top_point, out.new_top))
+                return out;
+            out.success = true;
+            return out;
+        });
+
+    if (!oc.success)
+    {
+        spdlog::warn("RunMonthRankRollover: persist for month {} "
+                     "failed - reset/broadcast skipped (legacy "
+                     "bRet=FALSE drop)", month);
+        co_return;
+    }
+
+    // 6. ACK phase (legacy SSHandler.cpp:11200).
+    if (oc.new_top)
+    {
+        auto fame = ctx.month_rank->LastFameRank();
+        fame[0] = *oc.new_top;
+        ctx.month_rank->SetLastFameRank(fame);
+    }
+    {
+        MonthRankRegistry::FirstGrade group{};
+        for (std::size_t c = 0; c < kMonthRankCountryCount; ++c)
+            for (std::size_t j = 0; j < kFirstGradeGroupCount; ++j)
+                group[c][j] = table[c][j];
+        ctx.month_rank->SetFirstGradeGroup(group);
+    }
+
+    const auto fame  = ctx.month_rank->LastFameRank();
+    const auto group = ctx.month_rank->FirstGradeGroup();
+    for (auto& p : ctx.peers->Snapshot())
+    {
+        co_await senders::SendMwMonthRankResetReq(p, month, fame);
+        co_await senders::SendMwFirstGradeGroupReq(p, month, group);
+    }
+
+    ctx.month_rank->ResetForNewMonth();
+    spdlog::info("RunMonthRankRollover: month {} closed - {} row(s) "
+                 "eligible, new month {}", month, rows.size(),
+                 ctx.month_rank->RankMonth());
+    co_return;
+}
+
+boost::asio::awaitable<void>
+OnSmMonthRankSaveReq(std::shared_ptr<PeerSession> peer,
+                     std::vector<std::byte>       body,
+                     const HandlerContext&        ctx)
+{
+    if (!body.empty())
+        spdlog::debug("OnSmMonthRankSaveReq[{}]: ignored unexpected "
+                      "body ({} bytes)",
+            peer->Wire()->RemoteIPv4(), body.size());
+    co_await RunMonthRankRollover(ctx);
 }
 
 } // namespace tworldsvr::handlers

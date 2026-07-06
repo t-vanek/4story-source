@@ -36,6 +36,7 @@
 #include "../services/cash_sale_repository.h"
 #include "../services/service_ops_repository.h"
 #include "../services/month_rank_registry.h"
+#include "../services/month_rank_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -152,6 +153,11 @@ struct HandlerContext
     // W6-41: monthly PvP ranking table (legacy m_arMonthRank +
     // m_bRankMonth). Owned by main; non-null in W6-41+ deploys.
     MonthRankRegistry*        month_rank = nullptr;
+
+    // W6-42: month-rollover persistence (TInitMonthRank /
+    // TSaveMonthRank / TInitMonthPvPoint SPs). nullptr -> the
+    // rollover logs + aborts before mutating anything DB-side.
+    IMonthRankRepository*     month_rank_repo = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -1787,6 +1793,36 @@ boost::asio::awaitable<void> OnMwCashItemSaleAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
+
+// --- W6-42: MonthRank month-rollover (handlers_rank.cpp) -----------
+//
+// SM_MONTHRANKSAVE_REQ fires at the month boundary (legacy: the
+// world timer posts it to itself through BATCH — TWorldSvr.cpp:4065;
+// our port also runs it from the month_rollover sweeper). One
+// coroutine collapses the legacy SM -> DM_REQ -> DM_ACK chain
+// (SSHandler.cpp:11015 / 11088 / 11200):
+//  1. zero every guild pvp_month_point + rank_month,
+//  2. update LastFameRank from the cross-country total-rank array
+//     (MonthRankDesc sort over slots 1..16 + the three warlords —
+//     including the legacy slot-collision quirk when the top
+//     warlord is country 0),
+//  3. persist: TInitMonthRank(month); per-row TSaveMonthRank
+//     (skip char_id==0 and j!=0 with month_point==0; stop at the
+//     first failure); on success TInitMonthRank(month+1) +
+//     TInitMonthPvPoint(month, top_point) -> optional new fame[0],
+//  4. on success: freeze FirstGradeGroup (slots 0..16), broadcast
+//     MW_MONTHRANKRESET_REQ(fame[9]) + MW_FIRSTGRADEGROUP_REQ(3x17)
+//     to every map, reset slots 1..32 (warlord survives) and advance
+//     the month. Failure = ACK-drop parity: fame already mutated,
+//     everything else untouched.
+boost::asio::awaitable<void> OnSmMonthRankSaveReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
+// The shared rollover routine (also driven by the month sweeper).
+boost::asio::awaitable<void> RunMonthRankRollover(
+    const HandlerContext& ctx);
 
 // --- W6-41: MonthRank live table (handlers_rank.cpp) ---------------
 //

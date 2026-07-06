@@ -100,4 +100,56 @@ SendCtEventQuarterUpdateAck(std::shared_ptr<PeerSession>     peer,
         std::move(body));
 }
 
+boost::asio::awaitable<void>
+SendMwWorldPostLotItemReq(std::shared_ptr<PeerSession>   peer,
+                          std::uint8_t                   type,
+                          std::uint32_t                  recv_id,
+                          const std::string&             recver,
+                          const std::string&             title,
+                          const std::string&             message,
+                          std::uint16_t                  item_id,
+                          std::uint8_t                   item_num,
+                          std::uint16_t                  use_time)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint8_t>(body, type);
+    WritePOD<std::uint32_t>(body, recv_id);
+    WriteString(body, recver);
+    WriteString(body, title);
+    WriteString(body, message);
+    WritePOD<std::uint16_t>(body, item_id);
+    WritePOD<std::uint8_t>(body, item_num);
+    WritePOD<std::uint16_t>(body, use_time);
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_WORLDPOSTSEND_REQ),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwEventMsgLotteryReq(std::shared_ptr<PeerSession>         peer,
+                         const std::string&                   event_title,
+                         const std::vector<LotteryBoardRow>&  rows)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WriteString(body, event_title);
+    WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(rows.size()));
+    for (const auto& r : rows)
+    {
+        WritePOD<std::uint16_t>(body, r.item_id);
+        WritePOD<std::uint8_t>(body, r.num);
+        WritePOD<std::uint16_t>(body,
+            static_cast<std::uint16_t>(r.names.size()));
+        for (const auto& n : r.names)
+            WriteString(body, n);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_EVENTMSGLOTTERY_REQ),
+        std::move(body));
+}
+
 } // namespace tworldsvr::senders

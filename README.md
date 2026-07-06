@@ -24,7 +24,7 @@ Cluster-wide rewrite status as of 2026-07-06:
 ```
 Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
 TMapSvr           ███░░░░░░░░░░░░░░░░░   ~18% (combat/loot/AI grind loop + kill-quest slice; quests/shops mostly TODO)
-TWorldSvr         ███████████████░░░░░   73%   (W6-46 — EVENTQUARTER tools; 211/290 handlers, 100 tests)
+TWorldSvr         ███████████████░░░░░   73%   (W6-47 — lottery/gift rewards; 211/290 handlers, 101 tests)
 ─────────────────────────────────────────
 Cluster total     ██████░░░░░░░░░░░░░░  ~32%   (LOC-weighted, see below)
 ```
@@ -36,7 +36,7 @@ Cluster total     ██████░░░░░░░░░░░░░░  
 | **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
 | **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
 | **TMapSvrAsio** | 112 842 | 7 458 | 23 CS + 5 CT (vertical slice) | ✅ 12 validators | 🟡 **Grind loop: combat/loot/AI + kill-quests; shops/skill-fx TODO** |
-| **TWorldSvrAsio** | 38 851 | ~33 900 | 211/290 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + full cash-shop sale family (incl. confirm barrier + DB persist) + CMGift result + ctrl-svr identification + item-state ops tool + service/control plane (monitor echo, CCU resync, help-message, map teardown) + APEX shipped-parity stubs + GM item tools (state/find/grant) + full MonthRank + complete war/castle family + complete CMGift family + EVENTQUARTER operator tools; BR/Bow/Arena/Tournament/Apex/MonthRank and the DB-bound CMGift sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS + TITEMCHART/TCashItemSale probes) | 🟡 **W6-46 — EVENTQUARTER tools** |
+| **TWorldSvrAsio** | 38 851 | ~33 900 | 211/290 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + full cash-shop sale family (incl. confirm barrier + DB persist) + CMGift result + ctrl-svr identification + item-state ops tool + service/control plane (monitor echo, CCU resync, help-message, map teardown) + APEX shipped-parity stubs + GM item tools (state/find/grant) + full MonthRank + complete war/castle family + complete CMGift family + EVENTQUARTER tools + LOTTERY/GIFTTIME rewards; BR/Bow/Arena/Tournament/Apex/MonthRank and the DB-bound CMGift sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS + TITEMCHART/TCashItemSale probes) | 🟡 **W6-47 — lottery/gift rewards** |
 | `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
 
 LOC weighting: `(24 213 edge-complete + ~28 300 TWorldSvr functional
@@ -138,7 +138,7 @@ Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
 │   ├── TMapSvr/                    # legacy gameplay engine (reference, unmodified)
 │   ├── TMapSvrAsio/                # 🟡 emulator map server — combat/loot/AI grind loop + kill-quests
 │   ├── TWorldSvr/                  # legacy cluster coordinator (reference)
-│   ├── TWorldSvrAsio/              # 🟡 cluster coordinator — W6-46 (cash-shop + CMGift + item/event tools + service plane + MonthRank + war family)
+│   ├── TWorldSvrAsio/              # 🟡 cluster coordinator — W6-47 (cash-shop + CMGift + item/event tools incl. rewards + MonthRank + war family)
 │   ├── TBRSvr/  TBoWSvr/           # legacy empty shells (BR/BoW compile flags)
 │   └── Tools/                      # legacy ops tools (unmodified)
 ├── _rewrite/docs/                  # plan + analysis + patch catalog
@@ -153,7 +153,7 @@ mapping, configuration schema, and bring-up notes:
 * [`Server/TLogSvrAsio/README.md`](Server/TLogSvrAsio/README.md) — ✅ complete
 * [`Server/TControlSvrAsio/README.md`](Server/TControlSvrAsio/README.md) — ✅ complete
 * [`Server/TMapSvrAsio/README.md`](Server/TMapSvrAsio/README.md) — 🟡 grind loop: combat/loot/AI + kill-quests (see also `ARCHITECTURE.md` / `CONSOLIDATION.md`)
-* [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W6-46 (guild/party/corps/social/territory/combat + connection/teleport + event incl. EVENTQUARTER tools + cash-shop + full CMGift + ctrl-svr + item tools + service plane + APEX stubs + MonthRank + war/castle family; gaps audit inside)
+* [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W6-47 (guild/party/corps/social/territory/combat + connection/teleport + event incl. EVENTQUARTER tools + lottery/gift rewards + cash-shop + full CMGift + ctrl-svr + item tools + service plane + APEX stubs + MonthRank + war/castle family; gaps audit inside)
 * [`Lib/Own/FourStoryCommon/README.md`](Lib/Own/FourStoryCommon/README.md) — ✅ shared infrastructure
 
 ## Build
@@ -275,7 +275,7 @@ ctest --test-dir build -C Release --output-on-failure
   `OnCS_*` and 300+ `DM_/MW_/SS_` handlers are catalogued in
   `CONSOLIDATION.md`.
 * **TWorldSvrAsio** — cluster coordinator, **~73 % ported** (211/290
-  handlers, 100 in-process tests). Functionally-complete verticals:
+  handlers, 101 in-process tests). Functionally-complete verticals:
   guild (+ tactics + cabinet), party, corps, friend / soulmate / chat /
   TMS / mail, per-character visual state, territory + castle-war
   broadcasts, combat / monster relays, the connection /

@@ -3,6 +3,7 @@
 #include "../services/chat_constants.h"
 #include "../services/event_constants.h"
 #include "../services/event_registry.h"
+#include "../services/event_info_codec.h"
 #include "../services/lucky_event_codec.h"
 #include "../wire_codec.h"
 
@@ -11,6 +12,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
+#include <random>
 #include <cstdlib>
 #include <string>
 
@@ -117,6 +119,170 @@ OnCtEventMsgReq(std::shared_ptr<PeerSession> peer,
     co_return;
 }
 
+namespace {
+
+std::mt19937& LotteryRng()
+{
+    static std::mt19937 rng{std::random_device{}()};
+    return rng;
+}
+
+// Split the legacy "title|message" LotMsg (CString::Tokenize on the
+// first pipe; no pipe -> whole string is the title, empty message).
+void SplitLotMsg(const std::string& lot_msg, std::string& title,
+                 std::string& message)
+{
+    const auto pos = lot_msg.find('|');
+    if (pos == std::string::npos)
+    {
+        title = lot_msg;
+        message.clear();
+        return;
+    }
+    title   = lot_msg.substr(0, pos);
+    message = lot_msg.substr(pos + 1);
+}
+
+struct LotteryWinnerPool
+{
+    std::vector<std::pair<std::uint32_t, std::string>> entries;
+};
+
+// Legacy LotteryItem (TWorldSvr.cpp:7115): draw winners without
+// repetition across ALL rows, mail each one the prize, then fan the
+// winner board to every map. Pool exhaustion flushes the partial
+// board and returns early (legacy parity).
+boost::asio::awaitable<void>
+RunLotteryEvent(const HandlerContext& ctx, const EventInfoTail& tail)
+{
+    if (!ctx.chars || !ctx.peers)
+        co_return;
+    auto peers = ctx.peers->Snapshot();
+    if (peers.empty())
+        co_return;                       // legacy m_mapSERVER.empty()
+
+    std::string title, message;
+    SplitLotMsg(tail.lot_msg, title, message);
+
+    // Candidate pool: map-type filter (byte-truncated map id) or the
+    // whole online population.
+    const auto map_type = static_cast<std::uint8_t>(tail.map_id);
+    LotteryWinnerPool pool;
+    for (std::uint32_t id : ctx.chars->SnapshotIds())
+    {
+        auto c = ctx.chars->Find(id);
+        if (!c) continue;
+        std::lock_guard g(c->lock);
+        if (map_type != 0 &&
+            !event_type::CheckEventMapId(map_type, c->map_id))
+            continue;
+        pool.entries.emplace_back(c->char_id, c->name);
+    }
+
+    struct Board { EventLotteryRow row; std::vector<std::string> names; };
+    std::vector<Board> boards;
+
+    auto broadcast = [&]() -> boost::asio::awaitable<void>
+    {
+        if (boards.empty())
+            co_return;
+        std::vector<senders::LotteryBoardRow> rows;
+        for (const auto& b : boards)
+            rows.push_back({b.row.item_id, b.row.num, b.names});
+        for (auto& p : ctx.peers->Snapshot())
+            co_await senders::SendMwEventMsgLotteryReq(p, tail.title,
+                rows);
+        co_return;
+    };
+
+    for (const auto& row : tail.lottery)
+    {
+        Board board{};
+        board.row = row;
+        for (std::uint16_t j = 0; j < row.winner; ++j)
+        {
+            if (pool.entries.empty())
+            {
+                if (!board.names.empty())
+                    boards.push_back(std::move(board));
+                co_await broadcast();
+                co_return;               // legacy early return
+            }
+            std::uniform_int_distribution<std::size_t> dist(
+                0, pool.entries.size() - 1);
+            const std::size_t pick = dist(LotteryRng());
+            const auto [win_id, win_name] = pool.entries[pick];
+
+            // Legacy SendPost(WPT_LOTITEM, ...) mails through the
+            // FIRST registered map (the post table is DB-backed).
+            co_await senders::SendMwWorldPostLotItemReq(peers.front(),
+                event_type::kWptLotItem, win_id, win_name, title,
+                message, row.item_id, row.num, /*use_time=*/0);
+
+            board.names.push_back(win_name);
+            pool.entries.erase(pool.entries.begin() +
+                               static_cast<std::ptrdiff_t>(pick));
+        }
+        if (!board.names.empty())
+            boards.push_back(std::move(board));
+        if (pool.entries.empty())
+        {
+            co_await broadcast();
+            co_return;
+        }
+    }
+    co_await broadcast();
+    co_return;
+}
+
+// Legacy GiftTime (TWorldSvr.cpp:7273): every online char inside the
+// [HIBYTE(value), LOBYTE(value)] level band gets the first lottery
+// row mailed (use_time = the row's winner field). No board fan-out.
+boost::asio::awaitable<void>
+RunGiftTimeEvent(const HandlerContext& ctx, const EventInfoTail& tail)
+{
+    if (!ctx.chars || !ctx.peers)
+        co_return;
+    auto peers = ctx.peers->Snapshot();
+    if (peers.empty())
+        co_return;
+    if (tail.lottery.empty())
+    {
+        // Legacy dereferences m_vLOTTERY.at(0) unguarded — an empty
+        // row list would throw there; we drop with a log instead.
+        spdlog::warn("RunGiftTimeEvent: no lottery row — dropped");
+        co_return;
+    }
+    std::string title, message;
+    SplitLotMsg(tail.lot_msg, title, message);
+    const auto& row = tail.lottery.front();
+    const std::uint8_t min_level =
+        static_cast<std::uint8_t>(tail.value >> 8);
+    const std::uint8_t max_level =
+        static_cast<std::uint8_t>(tail.value & 0xFF);
+
+    for (std::uint32_t id : ctx.chars->SnapshotIds())
+    {
+        auto c = ctx.chars->Find(id);
+        if (!c) continue;
+        std::uint32_t char_id = 0;
+        std::string   name;
+        {
+            std::lock_guard g(c->lock);
+            if (c->level < min_level || c->level > max_level)
+                continue;
+            char_id = c->char_id;
+            name    = c->name;
+        }
+        co_await senders::SendMwWorldPostLotItemReq(peers.front(),
+            event_type::kWptLotItem, char_id, name, title, message,
+            row.item_id, row.num, row.winner);
+    }
+    co_return;
+}
+
+} // namespace
+
 boost::asio::awaitable<void>
 OnCtEventUpdateReq(std::shared_ptr<PeerSession> peer,
                    std::vector<std::byte>       body,
@@ -150,19 +316,27 @@ OnCtEventUpdateReq(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Legacy LOTTERY / GIFTTIME short-circuit (SSHandler.cpp:279-292).
-    // Both run gameplay reward subsystems on the world server (random
-    // char pick + in-game mail via SendPost + MW_EVENTMSGLOTTERY_REQ
-    // fan-out). Those helpers are not ported yet — log + drop without
-    // storing or broadcasting. The state bit lives at the *start* of
-    // the EVENTINFO body (legacy m_bState immediately after m_bID);
-    // since we only peeked dw_index + b_id, treat "any LOTTERY /
-    // GIFTTIME inbound" as the deferred path regardless of state.
+    // Legacy LOTTERY / GIFTTIME short-circuit (SSHandler.cpp:279-292):
+    // both run the reward subsystem and return WITHOUT storing or
+    // broadcasting the event. W6-47 ports the full EVENTINFO tail
+    // parse + the reward runs (LotteryItem / GiftTime,
+    // TWorldSvr.cpp:7115 / 7273).
     if (b_id == event_type::kLottery || b_id == event_type::kGiftTime)
     {
-        spdlog::info("OnCtEventUpdateReq[{}]: LOTTERY/GIFTTIME path "
-                     "(b_id={}) — deferred (reward subsystem absent)", ip,
-            b_id);
+        EventInfoTail tail{};
+        if (!ReadEventInfoTail(r, tail))
+        {
+            spdlog::warn("OnCtEventUpdateReq[{}]: malformed "
+                         "LOTTERY/GIFTTIME EVENTINFO ({} bytes)", ip,
+                body.size());
+            co_return;
+        }
+        if (!tail.state)
+            co_return;                    // legacy `if(m_bState)` gate
+        if (b_id == event_type::kLottery)
+            co_await RunLotteryEvent(ctx, tail);
+        else
+            co_await RunGiftTimeEvent(ctx, tail);
         co_return;
     }
 

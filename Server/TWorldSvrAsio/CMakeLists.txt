@@ -761,6 +761,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
 
+# W6-47 wire test: LOTTERY / GIFTTIME rewards - no-repeat draw pool,
+# per-winner mail via the first map, winner-board broadcast,
+# map-band + level-band filters, state gate, no registry store.
+add_executable(test_tworldsvr_asio_lottery_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_lottery_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_lottery_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_lottery_handlers
+    COMMAND test_tworldsvr_asio_lottery_handlers)
+
 # W6-46 wire test: EVENTQUARTER operator tools - day listing with
 # resolved item names, ADD id adoption, ctrl-slot gating.
 add_executable(test_tworldsvr_asio_eventquarter_handlers

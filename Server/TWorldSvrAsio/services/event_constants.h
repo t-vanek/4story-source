@@ -24,4 +24,18 @@ constexpr std::uint8_t kGiftTime  = 15;
 // (legacy SSHandler.cpp:276 `if(bEventID > EVENT_COUNT) return`).
 constexpr std::uint8_t kCount     = 16;
 
+// WORLDPOST_TYPE (CTProtocol.h:45) — the in-game mail kind the
+// lottery / gift-time rewards ship with.
+constexpr std::uint8_t kWptLotItem = 4;
+
+// Legacy CheckMapID (TWorldSvr.cpp:7103): map-type 1 matches the
+// tournament map band 500..532; every other type matches nothing.
+inline bool CheckEventMapId(std::uint16_t map_type,
+                            std::uint16_t map_id)
+{
+    if (map_type == 1)
+        return map_id >= 500 && map_id <= 532;
+    return false;
+}
+
 } // namespace tworldsvr::event_type

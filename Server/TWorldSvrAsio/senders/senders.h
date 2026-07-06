@@ -2264,6 +2264,37 @@ boost::asio::awaitable<void> SendMwHelpMessageReq(
     std::int64_t                   end_unix,
     const std::string&             message);
 
+// --- W6-47 lottery / gift-time senders --------------------------
+
+// MW_WORLDPOSTSEND_REQ, WPT_LOTITEM layout (legacy SSSender.cpp:3322;
+// the same wire id carries other layouts for other WPT types).
+//   Wire: BYTE type, DWORD recv_id, STRING recver, STRING title,
+//         STRING message, WORD item_id, BYTE item_num, WORD use_time
+boost::asio::awaitable<void> SendMwWorldPostLotItemReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   type,
+    std::uint32_t                  recv_id,
+    const std::string&             recver,
+    const std::string&             title,
+    const std::string&             message,
+    std::uint16_t                  item_id,
+    std::uint8_t                   item_num,
+    std::uint16_t                  use_time);
+
+// MW_EVENTMSGLOTTERY_REQ - the winner board (legacy SSSender.cpp:809).
+//   Wire: STRING event_title, WORD item_count,
+//         N x (WORD item_id, BYTE num, WORD user_count, names...)
+struct LotteryBoardRow
+{
+    std::uint16_t            item_id = 0;
+    std::uint8_t             num = 0;
+    std::vector<std::string> names;
+};
+boost::asio::awaitable<void> SendMwEventMsgLotteryReq(
+    std::shared_ptr<PeerSession>         peer,
+    const std::string&                   event_title,
+    const std::vector<LotteryBoardRow>&  rows);
+
 // --- W6-46 EVENTQUARTER senders (senders_event.cpp) ----------------
 
 // CT_EVENTQUARTERLIST_ACK - the day listing with resolved item

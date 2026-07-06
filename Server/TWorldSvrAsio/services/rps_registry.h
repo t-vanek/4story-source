@@ -99,6 +99,12 @@ public:
     // *updates* (Set), it doesn't insert.
     bool Insert(const TRpsGame& game);
 
+    // W6-49 boot hydrate: append one persisted win date to an
+    // existing key (legacy CTBLRPSGameRecord loop). Unknown keys are
+    // skipped (legacy `if(it == end)` silent-drop).
+    bool HydrateWinDate(std::uint8_t type, std::uint8_t win_count,
+                        std::int64_t date_unix);
+
     // Snapshot every config row for the GAMEDATA_ACK reply. Order
     // is unordered_map iteration order (legacy uses the same).
     std::vector<TRpsGame> Snapshot() const;

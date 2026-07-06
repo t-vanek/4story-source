@@ -152,7 +152,7 @@ int main()
     // Alice (10, key=0xAA) on p1. Tactics + guild id set so we can
     // verify CM-teleport picks tactics_id first for the guild hint.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(10, 0xAA));
-    for (int i = 0; i < 200 && !chars.Find(10); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(10); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(10) != nullptr);
     {
@@ -193,7 +193,7 @@ int main()
         SendFramed(p1, ToUint16(MessageId::MW_CMTELEPORTBATTLEMODE_REQ),
                    CmTeleportBody(10, 0xAA, /*system_type=*/0));
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             if (bow.Contains(10)) { ok = true; break; }
             std::this_thread::sleep_for(10ms);

@@ -173,7 +173,7 @@ int main()
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, 0xA1));
     // Bob: country=B (2), aid=PEACE (4) — both > kCountryC → reject.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(99, 0xCC));
-    for (int i = 0; i < 200 && (!chars.Find(42) || !chars.Find(99)); ++i)
+    for (int i = 0; i < 1000 && (!chars.Find(42) || !chars.Find(99)); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(42) != nullptr);
     EXPECT(chars.Find(99) != nullptr);

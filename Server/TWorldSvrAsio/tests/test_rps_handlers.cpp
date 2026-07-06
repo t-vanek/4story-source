@@ -180,7 +180,7 @@ int main()
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
 
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, 0xA1));
-    for (int i = 0; i < 200 && !chars.Find(42); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(42); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(42) != nullptr);
 

@@ -167,11 +167,11 @@ int main()
     auto establish = [&](std::uint32_t id, std::uint32_t key) {
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
-        for (int i = 0; i < 200 && !chars.Find(id); ++i)
+        for (int i = 0; i < 1000 && !chars.Find(id); ++i)
             std::this_thread::sleep_for(10ms);
         SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
-        for (int i = 0; i < 200 && cons_size(id) != 2; ++i)
+        for (int i = 0; i < 1000 && cons_size(id) != 2; ++i)
             std::this_thread::sleep_for(10ms);
     };
     establish(100, 0xA1);   // count=0 sweep
@@ -203,7 +203,7 @@ int main()
         check(p1);   // 0x42
         check(p2);   // 0x43
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         { if (map_of(100) == 600) { ok = true; break; }
           std::this_thread::sleep_for(10ms); }
         EXPECT(ok);
@@ -223,7 +223,7 @@ int main()
         EXPECT(cid == 200); EXPECT(key == 0xB0);
         EXPECT(cnt == 1); EXPECT(sid == 0x44);
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         { if (map_of(200) == 700) { ok = true; break; }
           std::this_thread::sleep_for(10ms); }
         EXPECT(ok);

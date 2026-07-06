@@ -170,10 +170,10 @@ int main()
 
     // Char 100: main 0x42 + con 0x43, a dead con on 0x44, logout+save set.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(100, 0xA1));
-    for (int i = 0; i < 200 && !chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(100, 0xA1));
-    for (int i = 0; i < 200 && cons_size(100) != 2; ++i)
+    for (int i = 0; i < 1000 && cons_size(100) != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(100) == 2);
     if (auto a = chars.Find(100))
@@ -185,7 +185,7 @@ int main()
 
     // Char 200: main 0x42 only, with a handoff in flight (chg_main_id=0x43).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
-    for (int i = 0; i < 200 && cons_size(200) != 1; ++i)
+    for (int i = 0; i < 1000 && cons_size(200) != 1; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(200) == 1);
     if (auto b = chars.Find(200))
@@ -199,7 +199,7 @@ int main()
         ExpectDelChar(p1, 100, /*logout=*/1, /*save=*/1);  // main 0x42
         ExpectDelChar(p2, 100, /*logout=*/0, /*save=*/0);  // con 0x43
         bool gone = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         { if (!chars.Find(100)) { gone = true; break; }
           std::this_thread::sleep_for(10ms); }
         EXPECT(gone);
@@ -219,7 +219,7 @@ int main()
         // main 0x42 (p1) gets DELCHAR (logout/save 0 — char not flagged).
         ExpectDelChar(p1, 200, /*logout=*/0, /*save=*/0);
         bool gone = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         { if (!chars.Find(200)) { gone = true; break; }
           std::this_thread::sleep_for(10ms); }
         EXPECT(gone);

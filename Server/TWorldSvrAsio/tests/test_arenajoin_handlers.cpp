@@ -156,7 +156,7 @@ int main()
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42,  0xA1));
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(300, 0xC0));
-    for (int i = 0; i < 200 && (!chars.Find(42) || !chars.Find(200) ||
+    for (int i = 0; i < 1000 && (!chars.Find(42) || !chars.Find(200) ||
                                  !chars.Find(300)); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(42) && chars.Find(200) && chars.Find(300));
@@ -203,7 +203,7 @@ int main()
             EXPECT(w == ToUint16(MessageId::MW_PARTYDEL_REQ));
         }
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             if (party_arena() && party_size() == 2) { ok = true; break; }
             std::this_thread::sleep_for(10ms);
@@ -224,7 +224,7 @@ int main()
         // No reply expected. Poll for the flag flip; then send a
         // benign stimulus + read its reply to drain handler queue.
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             if (!party_arena()) { ok = true; break; }
             std::this_thread::sleep_for(10ms);

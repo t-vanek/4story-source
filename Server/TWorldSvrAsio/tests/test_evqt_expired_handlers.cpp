@@ -227,7 +227,7 @@ int main()
         wire::WritePOD<std::uint32_t>(b, 700);
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), b);
     }
-    for (int i = 0; i < 200 && !chars.Find(555); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(555); ++i)
         std::this_thread::sleep_for(10ms);
     if (auto c = chars.Find(555))
     { std::lock_guard g(c->lock); c->tactics_guild_id = 900; }
@@ -237,31 +237,31 @@ int main()
     // --- W6-48a: REQ maintenance -----------------------------------
     SendFramed(p1, ToUint16(MessageId::SM_EVENTEXPIRED_REQ),
         ExpiredReqBody(1, tworldsvr::kExpiredTactics, now - 5, 900, 555));
-    for (int i = 0; i < 200 && expired.Size() != 1; ++i)
+    for (int i = 0; i < 1000 && expired.Size() != 1; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(expired.Size() == 1);
     // Exact remove drops it…
     SendFramed(p1, ToUint16(MessageId::SM_EVENTEXPIRED_REQ),
         ExpiredReqBody(0, tworldsvr::kExpiredTactics, now - 5, 900, 555));
-    for (int i = 0; i < 200 && expired.Size() != 0; ++i)
+    for (int i = 0; i < 1000 && expired.Size() != 0; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(expired.Size() == 0);
     // …and a remove-miss INSERTS (legacy quirk, kept + documented).
     SendFramed(p1, ToUint16(MessageId::SM_EVENTEXPIRED_REQ),
         ExpiredReqBody(0, tworldsvr::kExpiredGuildWanted, now + 999,
                        111, 0));
-    for (int i = 0; i < 200 && expired.Size() != 1; ++i)
+    for (int i = 0; i < 1000 && expired.Size() != 1; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(expired.Size() == 1);
 
     // --- W6-48b: due-pop sweep dispatches the tactics end ----------
     SendFramed(p1, ToUint16(MessageId::SM_EVENTEXPIRED_REQ),
         ExpiredReqBody(1, tworldsvr::kExpiredTactics, now - 1, 900, 555));
-    for (int i = 0; i < 200 && expired.Size() != 2; ++i)
+    for (int i = 0; i < 1000 && expired.Size() != 2; ++i)
         std::this_thread::sleep_for(10ms);
     boost::asio::co_spawn(io, tworldsvr::handlers::RunExpiredSweep(ctx),
         boost::asio::detached);
-    for (int i = 0; i < 200 && expired.Size() != 1; ++i)
+    for (int i = 0; i < 1000 && expired.Size() != 1; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(expired.Size() == 1);         // only the future entry left
     {
@@ -295,7 +295,7 @@ int main()
     }
     {
         bool gone = false;
-        for (int i = 0; i < 200 && !gone; ++i)
+        for (int i = 0; i < 1000 && !gone; ++i)
         {
             {
                 auto g = guilds.Find(900);

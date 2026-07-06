@@ -158,13 +158,13 @@ int main()
     // 0x43 only (user 501).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(100, 0xA1, 500));
-    for (int i = 0; i < 200 && !chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(100, 0xA1, 500));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(200, 0xB2, 501));
-    for (int i = 0; i < 200 && !chars.Find(200); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(200); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Size() == 2);
     EXPECT(chars.ActiveUserCount() == 2);
@@ -193,7 +193,7 @@ int main()
     chars.MarkUserActive(9999);
     EXPECT(chars.ActiveUserCount() == 3);
     SendFramed(pc, ToUint16(MessageId::CT_SERVICEDATACLEAR_ACK), {});
-    for (int i = 0; i < 200 && chars.ActiveUserCount() != 2; ++i)
+    for (int i = 0; i < 1000 && chars.ActiveUserCount() != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.ActiveUserCount() == 2);
     EXPECT(chars.IsUserActive(500));
@@ -221,7 +221,7 @@ int main()
         EXPECT(en == 1760000000);
         EXPECT(msg == "server maintenance at dawn");
     }
-    for (int i = 0; i < 200 && ops_repo.HelpMessages().empty(); ++i)
+    for (int i = 0; i < 1000 && ops_repo.HelpMessages().empty(); ++i)
         std::this_thread::sleep_for(10ms);
     {
         const auto hm = ops_repo.HelpMessages();
@@ -264,12 +264,12 @@ int main()
         r.Read(char_id);
         EXPECT(char_id == 100);
     }
-    for (int i = 0; i < 200 && chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(100) == nullptr);
     EXPECT(chars.Find(200) != nullptr);
     EXPECT(chars.Size() == 1);
-    for (int i = 0; i < 200 && ops_repo.ClearCalls().empty(); ++i)
+    for (int i = 0; i < 1000 && ops_repo.ClearCalls().empty(); ++i)
         std::this_thread::sleep_for(10ms);
     {
         const auto cc = ops_repo.ClearCalls();

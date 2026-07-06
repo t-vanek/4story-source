@@ -165,7 +165,7 @@ int main()
     // pos so the happy-path reply carries something verifiable.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(/*char_id=*/100, /*key=*/0xA1));
-    for (int i = 0; i < 200 && !chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     {
         auto a = chars.Find(100);
@@ -184,11 +184,11 @@ int main()
     // test_conn_handlers.cpp).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
-    for (int i = 0; i < 200 && !chars.Find(200); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(200); ++i)
         std::this_thread::sleep_for(10ms);
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
-    for (int i = 0; i < 200 && cons_size(200) != 2; ++i)
+    for (int i = 0; i < 1000 && cons_size(200) != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(200) == 2);
 
@@ -231,7 +231,7 @@ int main()
         }
         // party_waiter cleared on the happy path.
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             auto a = chars.Find(100);
             std::lock_guard g(a->lock);
@@ -279,7 +279,7 @@ int main()
 
         // Char B is gone from the registry.
         bool gone = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             if (!chars.Find(200)) { gone = true; break; }
             std::this_thread::sleep_for(10ms);

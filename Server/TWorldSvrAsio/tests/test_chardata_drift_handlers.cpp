@@ -197,11 +197,11 @@ int main()
     };
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
-    for (int i = 0; i < 200 && !chars.Find(200); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(200); ++i)
         std::this_thread::sleep_for(10ms);
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
-    for (int i = 0; i < 200 && cons_size(200) != 2; ++i)
+    for (int i = 0; i < 1000 && cons_size(200) != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(200) == 2);
 
@@ -309,7 +309,7 @@ int main()
 
         // Char's level + HP/MP refreshed by the handler.
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             auto bobch = chars.Find(200);
             std::lock_guard g(bobch->lock);

@@ -105,4 +105,16 @@ RpsRegistry::Size() const
     return m_games.size();
 }
 
+bool RpsRegistry::HydrateWinDate(std::uint8_t type,
+                                 std::uint8_t win_count,
+                                 std::int64_t date_unix)
+{
+    std::unique_lock g(m_lock);
+    auto it = m_games.find(Key(type, win_count));
+    if (it == m_games.end())
+        return false;
+    it->second.win_dates.push_back(date_unix);
+    return true;
+}
+
 } // namespace tworldsvr

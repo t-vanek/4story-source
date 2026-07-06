@@ -4,6 +4,8 @@
 
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
@@ -66,13 +68,25 @@ OnRpsGameAck(std::shared_ptr<PeerSession> peer,
     const auto outcome = ctx.rps->RecordWin(type, win_count, char_id, now,
         ops);
 
-    // Persistence is deferred — log the ops so a future
-    // IRpsRepository write-back has a clear hook. Same shape as
-    // legacy SendDM_RPSGAMERECORD_REQ but no DB write fires yet.
+    // W6-49: persist the ledger mutations (legacy
+    // SendDM_RPSGAMERECORD_REQ → TRPSGameRecord). One offload task
+    // for the batch; failures log inside the repo.
     if (!ops.empty())
-        spdlog::info("OnRpsGameAck[{}]: char_id={} type={} win_count={} → "
-                     "{} persist op(s) deferred (no IRpsRepository)",
-            ip, char_id, type, win_count, ops.size());
+    {
+        if (ctx.rps_repo)
+        {
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.rps_repo, ops]
+                {
+                    for (const auto& op : ops)
+                        repo->Record(op.insert, op.char_id, op.type,
+                            op.win_count, op.date_unix);
+                });
+        }
+        else
+            spdlog::info("OnRpsGameAck[{}]: {} persist op(s) dropped "
+                         "(no DB configured)", ip, ops.size());
+    }
 
     std::uint8_t result = 1;            // legacy default TRUE
     switch (outcome)
@@ -96,11 +110,10 @@ OnRpsGameRecordReq(std::shared_ptr<PeerSession> peer,
                    std::vector<std::byte>       body,
                    const HandlerContext&        ctx)
 {
-    // Stub — legacy persists to TRPSGAMERECORDTABLE via the
-    // CSPRPSGameRecord stored proc. No IRpsRepository yet, so we
-    // log + drop (same pattern as the W3a-20 vestigial DB-server
-    // ACK echoes). Hybrid deployments where a separate DB worker
-    // still fires this packet won't see "unknown wID" warnings.
+    // W6-49: hybrid fan-in — a legacy DB worker (or another shard)
+    // pushing the record packet now really persists through
+    // IRpsRepository (legacy OnDM_RPSGAMERECORD_REQ,
+    // SSHandler.cpp:13232).
     const std::string& ip = peer->Wire()->RemoteIPv4();
     wire::Reader r(body.data(), body.size());
     std::uint8_t  record = 0, type = 0, win_count = 0;
@@ -113,10 +126,18 @@ OnRpsGameRecordReq(std::shared_ptr<PeerSession> peer,
             body.size());
         co_return;
     }
-    (void)ctx;
-    spdlog::info("OnRpsGameRecordReq[{}]: record={} char_id={} type={} "
-                 "win_count={} date={} — DB persist deferred",
-        ip, record, char_id, type, win_count, date);
+    if (!ctx.rps_repo)
+    {
+        spdlog::info("OnRpsGameRecordReq[{}]: record={} char_id={} "
+                     "type={} win_count={} — dropped (no DB)", ip,
+            record, char_id, type, win_count);
+        co_return;
+    }
+    co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+        [repo = ctx.rps_repo, record, char_id, type, win_count, date]
+        {
+            repo->Record(record != 0, char_id, type, win_count, date);
+        });
     co_return;
 }
 

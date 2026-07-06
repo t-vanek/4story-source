@@ -45,6 +45,7 @@
 #include "../services/lucky_event_repository.h"
 #include "../services/event_quarter_scheduler.h"
 #include "../services/expired_buffer.h"
+#include "../services/rps_repository.h"
 #include "../services/peer_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -193,6 +194,10 @@ struct HandlerContext
     // and the event-expiry queue (legacy m_vExpired).
     EventQuarterScheduler*    evqt    = nullptr;
     ExpiredBuffer*            expired = nullptr;
+
+    // W6-49: RPS win-ledger persistence (TRPSGameRecord SP +
+    // TRPSGAMECHART / TRPSGAMERECORDTABLE boot load).
+    IRpsRepository*           rps_repo = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to

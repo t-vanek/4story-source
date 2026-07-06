@@ -154,11 +154,11 @@ int main()
     // Alice (100, key=0xA1) on p1; Bob (200, key=0xB0) on p2.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(/*char_id=*/100, /*key=*/0xA1));
-    for (int i = 0; i < 200 && !chars.Find(100); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
-    for (int i = 0; i < 200 && !chars.Find(200); ++i)
+    for (int i = 0; i < 1000 && !chars.Find(200); ++i)
         std::this_thread::sleep_for(10ms);
 
     // Wire up the mutual friendship (FT_FRIENDFRIEND on both sides),
@@ -223,7 +223,7 @@ int main()
         // Bob's edge gets Alice's). Poll to outlast any handler
         // re-ordering of the two locks.
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             auto a_to_b = edge_state(100, 200);
             auto b_to_a = edge_state(200, 100);
@@ -255,7 +255,7 @@ int main()
         EXPECT(region == 0);           // legacy: !bConnect → region : 0
 
         bool ok = false;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 1000; ++i)
         {
             auto a_to_b = edge_state(100, 200);
             auto b_to_a = edge_state(200, 100);

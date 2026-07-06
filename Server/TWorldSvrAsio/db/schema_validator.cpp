@@ -287,6 +287,13 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                          "- the tournament operator tools (W6-50) "
                          "will log SOCI errors on persist.", rn);
     }
+    if (!routine_exists("TTournamentStatus"))
+    {
+        spdlog::warn("schema_validator (world): TTournamentStatus SP "
+                     "not deployed - the tournament tick (W6-51) "
+                     "won't persist the mid-flight step (boot resume "
+                     "degrades).");
+    }
 }
 
 } // namespace tworldsvr::db

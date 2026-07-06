@@ -201,6 +201,14 @@ void FakeTournamentRepository::ClearPersisted()
     ++m_clear_calls;
 }
 
+void FakeTournamentRepository::SaveStatus(std::uint16_t id,
+                                          std::uint8_t group,
+                                          std::uint8_t step)
+{
+    std::lock_guard g(m_mtx);
+    m_save_status_calls.push_back(TnmtCurrentStep{id, group, step});
+}
+
 // ---- traces -------------------------------------------------------
 
 std::vector<FakeTournamentRepository::SaveScheduleCall>
@@ -234,6 +242,13 @@ int FakeTournamentRepository::ClearCalls() const
 {
     std::lock_guard g(m_mtx);
     return m_clear_calls;
+}
+
+std::vector<TnmtCurrentStep>
+FakeTournamentRepository::SaveStatusCalls() const
+{
+    std::lock_guard g(m_mtx);
+    return m_save_status_calls;
 }
 
 } // namespace tworldsvr

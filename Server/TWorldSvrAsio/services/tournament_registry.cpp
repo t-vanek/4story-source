@@ -316,6 +316,103 @@ TournamentRegistry::ElectNextSchedule(std::uint16_t updated_tour_id)
     return res;
 }
 
+// ---- scheduler tick (TWorldSvr.cpp:4012) --------------------------
+
+TournamentRegistry::DueAction
+TournamentRegistry::PopDueTick(std::int64_t now)
+{
+    std::lock_guard g(m_lock);
+    DueAction none{};
+
+    if (!active_id_)
+        return none;
+    auto it = schedules_.find(active_id_);
+    if (it == schedules_.end() || it->second.steps.empty())
+        return none;
+
+    StepMap& steps = it->second.steps;
+    const std::uint8_t last_group = steps.rbegin()->second.group;
+
+    for (auto& [key, sc] : steps)
+    {
+        if (!sc.period)
+            continue;
+        if (sc.start > now)
+            break;
+        if (sc.start && sc.start <= now)
+        {
+            sc.start = 0;
+            DueAction a{};
+            a.kind   = DueAction::Kind::kStep;
+            a.id     = active_id_;
+            a.group  = sc.group;
+            a.step   = sc.step;
+            a.period = sc.period;
+            return a;
+        }
+        if (sc.step == tournament::kStepEnd && sc.end &&
+            sc.end <= now && last_group == sc.group)
+        {
+            sc.end = 0;
+            DueAction a{};
+            a.kind = DueAction::Kind::kReschedule;
+            a.id   = active_id_;
+            return a;
+        }
+    }
+    return none;
+}
+
+// ---- OnSM_TOURNAMENT_REQ state leg (SSHandler.cpp:11406) ----------
+
+std::optional<TournamentRegistry::AdvanceResult>
+TournamentRegistry::AdvanceStep(std::uint16_t id, std::uint8_t group,
+                                std::uint8_t step)
+{
+    std::lock_guard g(m_lock);
+
+    auto it = catalogue_.find(id);
+    if (it == catalogue_.end() || it->second.empty())
+        return std::nullopt;
+
+    if (current_.group != group)
+    {
+        current_.group = group;
+        current_.sum   = 0;
+        const std::uint8_t ec = CurrentEntryCountLocked();
+        current_.base =
+            ec ? static_cast<std::uint8_t>(
+                     tournament::kTournamentBasePrize / ec)
+               : 0;
+    }
+    current_.step = step;
+
+    AdvanceResult res{};
+    auto it_next = current_.steps.find(
+        StepKey(static_cast<std::uint8_t>(step + 1), group));
+    if (it_next != current_.steps.end())
+        res.next_step_start = it_next->second.start;
+    return res;
+}
+
+std::optional<TournamentBattleTime>
+TournamentRegistry::TimeFor(std::uint16_t id) const
+{
+    std::lock_guard g(m_lock);
+    auto it = times_.find(id);
+    if (it == times_.end())
+        return std::nullopt;
+    return it->second;
+}
+
+TournamentRegistry::StepMap
+TournamentRegistry::StepsFor(std::uint16_t id) const
+{
+    std::lock_guard g(m_lock);
+    auto it = schedules_.find(id);
+    return it == schedules_.end() ? StepMap{} : it->second.steps;
+}
+
 // ---- current-tournament rebuild (SSHandler.cpp:11468) -----------
 
 void TournamentRegistry::ClearCurrent()

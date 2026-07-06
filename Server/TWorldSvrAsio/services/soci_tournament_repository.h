@@ -43,6 +43,8 @@ public:
         FindCharInfoByName(const std::string& name) override;
     void ApplyPlayer(const TnmtApplyOp& op) override;
     void ClearPersisted() override;
+    void SaveStatus(std::uint16_t id, std::uint8_t group,
+                    std::uint8_t step) override;
 
 private:
     fourstory::db::SessionPool& m_pool;

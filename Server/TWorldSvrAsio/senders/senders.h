@@ -2315,7 +2315,18 @@ boost::asio::awaitable<void> SendCtEventQuarterUpdateAck(
     std::uint8_t                     type,
     const LuckyEvent&                event);
 
-// --- W6-50 tournament senders (senders_tournament.cpp) -------------
+// --- W6-50/51 tournament senders (senders_tournament.cpp) ----------
+
+// MW_TOURNAMENTENABLE_REQ - step-advance broadcast the scheduler tick
+// fans to every map when a step's start elapses (legacy
+// SSSender.cpp:3482).
+//   Wire: BYTE group, BYTE step, DWORD period, INT64 next_step_start
+boost::asio::awaitable<void> SendMwTournamentEnableReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   group,
+    std::uint8_t                   step,
+    std::uint32_t                  period,
+    std::int64_t                   next_step_start);
 
 // MW_TOURNAMENTINFO_REQ - the current tournament's entry catalogue,
 // broadcast to map servers whenever the current tournament re-points

@@ -131,6 +131,13 @@ public:
     // TTournamentClear(1) — fired whenever TournamentUpdate re-points
     // the current tournament.
     virtual void ClearPersisted() = 0;
+
+    // DM_TOURNAMENTSTATUS_REQ (SSHandler.cpp:12051):
+    // TTournamentStatus(id, group, step) — the mid-flight step
+    // persist the tick fires alongside each SM_TOURNAMENT_REQ (what
+    // LoadCurrentStep reads back at boot).
+    virtual void SaveStatus(std::uint16_t id, std::uint8_t group,
+                            std::uint8_t step) = 0;
 };
 
 } // namespace tworldsvr

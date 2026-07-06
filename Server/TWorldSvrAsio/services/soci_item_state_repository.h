@@ -20,6 +20,9 @@ public:
     bool ChangeState(std::uint16_t item_id,
                      std::uint8_t  init_state) override;
 
+    std::vector<ItemFindRow> FindItems(
+        std::uint16_t item_id, const std::string& name_pattern) override;
+
 private:
     fourstory::db::SessionPool& m_pool;
 };

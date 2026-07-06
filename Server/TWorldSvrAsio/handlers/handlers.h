@@ -1783,6 +1783,34 @@ boost::asio::awaitable<void> OnMwCashItemSaleAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
+// --- W6-40: GM item tools (handlers_ctrlsvr.cpp / handlers_item.cpp)
+//
+// CT_ITEMFIND_REQ — operator item search. Legacy repacks to
+// DM_ITEMFIND_REQ whose DB-thread handler (SSHandler.cpp:9977) runs
+// CTBLItemFind (`SELECT wItemID, bInitState, szName FROM TITEMCHART
+// WHERE szName LIKE ? OR wItemID = ?`) and sends CT_ITEMFIND_ACK
+// straight to the ctrl-svr slot. Collapsed to one coroutine here.
+//   Wire in : DWORD manager_id, WORD item_id, STRING name_pattern
+//   Wire out: WORD count, DWORD manager_id,
+//             N x (WORD item_id, BYTE init_state, STRING name)
+//
+// MW_ADDITEM_ACK — cross-server GM item grant route
+// (SSHandler.cpp:5644): look up the target char by (id, key); missing
+// -> MW_ADDITEMRESULT_REQ(char, key, channel, map, mon, item,
+// MIT_NOTFOUND) back to the reporting map; found -> forward the
+// original 9-field payload verbatim to the char's main map as
+// MW_ADDITEM_REQ.
+//   Wire: DWORD char_id, key, BYTE server_id, channel, WORD map_id,
+//         DWORD mon_id, BYTE inven, slot, item_id
+boost::asio::awaitable<void> OnCtItemFindReq(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnMwAddItemAck(
+    std::shared_ptr<PeerSession>  peer,
+    std::vector<std::byte>        body,
+    const HandlerContext&         ctx);
+
 // --- W6-39: APEX (Taiwan) stubs (handlers_apex.cpp) ---------------
 //
 // The legacy bodies are compiled out (`__TW_APEX` is commented out in

@@ -22,6 +22,15 @@ public:
     bool ChangeState(std::uint16_t item_id,
                      std::uint8_t  init_state) override;
 
+    // Seed a chart row for FindItems.
+    void AddRow(std::uint16_t item_id, std::uint8_t init_state,
+                std::string name);
+
+    // Naive LIKE: '%' wildcards translated to substring/prefix/suffix
+    // matching; also matches on exact item_id (legacy OR semantics).
+    std::vector<ItemFindRow> FindItems(
+        std::uint16_t item_id, const std::string& name_pattern) override;
+
     // Snapshot of every attempted change, in call order.
     std::vector<ItemStateChange> Calls() const;
 
@@ -29,6 +38,7 @@ private:
     mutable std::mutex                  m_mtx;
     std::unordered_set<std::uint16_t>   m_fail_ids;
     std::vector<ItemStateChange>        m_calls;
+    std::vector<ItemFindRow>            m_rows;
 };
 
 } // namespace tworldsvr

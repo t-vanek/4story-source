@@ -67,4 +67,37 @@ SendCtItemStateAck(std::shared_ptr<PeerSession>        peer,
         BuildItemStateBody(id, items));
 }
 
+boost::asio::awaitable<void>
+SendCtItemFindAck(std::shared_ptr<PeerSession>       peer,
+                  std::uint32_t                      manager_id,
+                  const std::vector<ItemFindRow>&    rows)
+{
+    using namespace wire;
+    std::vector<std::byte> body;
+    WritePOD<std::uint16_t>(body,
+        static_cast<std::uint16_t>(rows.size()));
+    WritePOD<std::uint32_t>(body, manager_id);
+    for (const auto& r : rows)
+    {
+        WritePOD<std::uint16_t>(body, r.item_id);
+        WritePOD<std::uint8_t>(body, r.init_state);
+        WriteString(body, r.name);
+    }
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::CT_ITEMFIND_ACK),
+        std::move(body));
+}
+
+boost::asio::awaitable<void>
+SendMwAddItemReq(std::shared_ptr<PeerSession>       peer,
+                 const std::vector<std::byte>&      body)
+{
+    std::vector<std::byte> copy = body;
+    co_await peer->Wire()->SendPacket(
+        tnetlib::protocol::ToUint16(
+            tnetlib::protocol::MessageId::MW_ADDITEM_REQ),
+        std::move(copy));
+}
+
 } // namespace tworldsvr::senders

@@ -631,6 +631,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
         co_await OnCtCtrlsvrReq(std::move(peer), std::move(body), ctx);
         co_return;
 
+    // ---- W6-40: GM item tools ---------------------------------------
+    case MessageId::CT_ITEMFIND_REQ:
+        co_await OnCtItemFindReq(std::move(peer), std::move(body), ctx);
+        co_return;
+    case MessageId::MW_ADDITEM_ACK:
+        co_await OnMwAddItemAck(std::move(peer), std::move(body), ctx);
+        co_return;
+
     // ---- W6-39: APEX (Taiwan) stubs (handlers_apex.cpp) -------------
     case MessageId::SM_APEXDATA_REQ:
         co_await OnSmApexDataReq(std::move(peer), std::move(body), ctx);

@@ -2089,6 +2089,24 @@ boost::asio::awaitable<void> SendCtCashItemSaleAck(
     std::uint32_t                  dw_index,
     std::uint16_t                  value);
 
+// --- W6-40 GM item tools (senders_item.cpp) ------------------------
+
+// CT_ITEMFIND_ACK — operator item-search result to the ctrl-svr.
+// Legacy builds it inline in OnDM_ITEMFIND_REQ (SSHandler.cpp:9989).
+//   Wire: WORD count, DWORD manager_id,
+//         N x (WORD item_id, BYTE init_state, STRING name)
+boost::asio::awaitable<void> SendCtItemFindAck(
+    std::shared_ptr<PeerSession>       peer,
+    std::uint32_t                      manager_id,
+    const std::vector<ItemFindRow>&    rows);
+
+// MW_ADDITEM_REQ — verbatim forward of the 9-field GM item-grant
+// payload to the target char's main map (legacy SSSender
+// SendMW_ADDITEM_REQ(&packet) copy + retag).
+boost::asio::awaitable<void> SendMwAddItemReq(
+    std::shared_ptr<PeerSession>       peer,
+    const std::vector<std::byte>&      body);
+
 // --- W6-38 service-plane senders (senders_admin.cpp) ---------------
 
 // CT_SERVICEMONITOR_REQ — monitoring echo back to the probe sender.

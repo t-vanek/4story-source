@@ -748,6 +748,15 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
 
+# W6-40 wire test: GM item tools — CT_ITEMFIND search (LIKE/id/empty,
+# ctrl-slot routing) + MW_ADDITEM verbatim forward / MIT_NOTFOUND.
+add_executable(test_tworldsvr_asio_itemtools_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_itemtools_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_itemtools_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_itemtools_handlers
+    COMMAND test_tworldsvr_asio_itemtools_handlers)
+
 # W6-39 wire test: APEX stubs accept + drop (no relay, no CloseChar).
 add_executable(test_tworldsvr_asio_apex_stub_handlers
     ${TWORLD_ASIO_SRC}/tests/test_apex_stub_handlers.cpp)

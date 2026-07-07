@@ -581,6 +581,12 @@ CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
                 static_cast<std::uint8_t>(sid == main_id && logout ? 1 : 0),
                 static_cast<std::uint8_t>(sid == main_id && saving ? 1 : 0));
 
+    // W6-54: drop the char from the Bow queue (legacy CloseChar,
+    // TWorldSvr.cpp:3089 DeletePlayerFromQueue — BS_ALARM-gated
+    // inside, so a no-op outside the registration window).
+    if (ctx.bow)
+        ctx.bow->RemovePlayer(char_id, key);
+
     // W6-53: retire the char's tournament bets + gate ticket (legacy
     // CloseChar's `if(m_dwTicket) TNMTEnterGate(pTCHAR, 0, FALSE)`,
     // TWorldSvr.cpp:3124-3126 — every bet-on player's bet_sum drops

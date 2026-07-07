@@ -223,6 +223,13 @@ struct TChar
     std::uint8_t real_sex = 0;
     TSoulmate    soulmate;
 
+    // W6-54 drive-by: legacy m_dwSoulSilence — the timestamp of a
+    // dissolved soulmate pairing (a re-pair cooldown the client
+    // displays). Reset to 0 on a fresh pairing, stamped on end
+    // (TWorldSvr.cpp:4333 / 4418), carried by the W6-23 ENTERCHAR
+    // composite.
+    std::uint32_t soul_silence = 0;
+
     // W4-11 — the TMS conferences this char currently belongs to
     // (legacy m_mapTMS, a set of TMS ids). Resolved through
     // TmsRegistry on demand — same cycle-free back-link pattern as

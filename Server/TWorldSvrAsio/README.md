@@ -9,7 +9,7 @@ that the four shipped Asio daemons already use.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §6](../../_rewrite/docs/PATCH_README.md#6-tworldsvr)
 
-## Status — W6-53 Tournament match engine — Tournament subsystem complete
+## Status — W6-54 Bow scheduler — battleground runs end-to-end
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -124,6 +124,7 @@ that the four shipped Asio daemons already use.
 | **W6-51** | Tournament scheduler tick — the step-advance runtime over the W6-50 state. `TournamentRegistry::PopDueTick` ports the per-second walk (TWorldSvr.cpp:4012): zero-period steps skipped, future start stops the walk, a due start is consumed and fires the step, the last group's elapsed END fires the month reschedule. `RunTournamentTick` (RegistryRefresher sweeper, `tournament_check_period_sec`, default 5 s, 0 disables; drains the whole due backlog per pass) runs the collapsed SM_TOURNAMENT_REQ step advance — `AdvanceStep` (catalogue guard, group-change sum/base reset over the CURRENT tournament's entries — legacy quirk kept, next-step start lookup) + `MW_TOURNAMENTENABLE_REQ` broadcast to every map + the collapsed `DM_TOURNAMENTSTATUS` persist (`ITournamentRepository::SaveStatus` → TTournamentStatus, what boot resume reads back); the END reschedule re-runs `SetTournamentTime(month_base=TRUE)` (only when the battle-time row exists) + eviction fan-out + the update election. `OnSmTournamentReq` stays wire-dispatchable for parity. TournamentSelectPlayer/TournamentMatch triggers at PARTY/MATCH log-deferred to the match-engine slice | ✅ |
 | **W6-52** | Tournament player vertical — the MW_TOURNAMENT_ACK 8-op switch (legacy SSHandler.cpp:11520): SCHEDULE (current ladder, zero-period steps filtered), APPLYINFO (catalogue + 1st-pool roster, class-filtered rewards in the legacy shield-first order, 0xFF max-level → TGetLimitedLevel translation), APPLY (full TournamentApply gate chain — country > TCONTRY_B, entry, 1st-step fame first-grade membership vs DISQUALIFY, TIMEOUT outside 1st/NORMAL, already-registered short-SUCCESS quirk, HWID/IP dup FAIL, 8-slot FULL — + the TTournamentApply persist + APPLYINFO follow-up), JOINLIST (PARTY-step gate), PARTYLIST / PARTYADD / PARTYDEL (chief party management: country NOTFOUND, ALREADYREG, level-band LEVEL echo with the name, 6-cap FULL, chief-only removal authority; the offline-target lookup collapses `DM_GETCHARINFO_REQ/_ACK` into `ITournamentRepository::FindCharInfoByName` — >1-hit silent drop kept), MATCHLIST (bracket roster with slots + per-match results). New registry ops (`TryApply`/`TryPartyAdd`/`PartyDel`/`AddPlayerAtStep` — the full AddTNMTPlayer pool router — + `CanDoTournament` + 5 reply snapshots). Boot: `LoadPlayers` (TVIEW_TOURNAMENTPLAYER) two-pass reload — chiefs into 1st/NORMAL by the fame predicate + persisted step→result mapping, members re-attach to their chief's party, orphans dropped. The rank/month_rank roster fields ship 0: the legacy m_mapRank/m_mapMonthRank are never populated by the shipped binary (GetRanking is dead code), so zeros ARE wire parity. EVENTLIST/EVENTINFO/EVENTJOIN (spectator betting) log-deferred to the match-engine slice | ✅ |
 | **W6-53** | Tournament match/result/betting engine — **closes the Tournament subsystem**. `SelectPlayers` ports TournamentSelectPlayer (TWorldSvr.cpp:6033) verbatim: per-entry pool draining, the cumulative-level lottery ladder over the normal pool (duplicate-cumulative-key insert-drop quirk kept), the min-country slot election with random tie-breaks, and the unselected-leftover fee-back sweep; `TnmtMatchLocked` ports the TNMTMatch bracket seeding ({0,6,4,2,3,5,7,1} order, the month-rank preference conditionals — degenerate "last scanned wins" with the dead rank maps — and the odd-slot rival-country pairing). `OnMwTournamentResultAck` marks both sides + parties, fans `MW_TOURNAMENTRESULT_REQ` (party-member id list) to every map, pays FINAL-win bets (`MW_TOURNAMENTBATPOINT_REQ` to each online batter's main map; integer-division rate quirk kept) and persists via the collapsed `DM_TOURNAMENTRESULT`. `OnMwTournamentEnterGateAck` ports TNMTEnterGate (bet reset + money/100 ticket banking at step>=ENTER). The betting trio (EVENTLIST/EVENTINFO/EVENTJOIN) lands in the MW_TOURNAMENT_ACK switch (zero-ticket joins legal, re-join resets the old bet). The select fee-backs run the collapsed `DM_TOURNAMENTPAYBACK` (TTournamentPayback SP → `MW_POSTRECV_REQ` mail with the BuildNetString frames; operator/title strings = the documented server-message gap). Triggers wired: SM_TOURNAMENT_REQ !selected PARTY/MATCH select + the MATCH group-scan broadcast, TET_PLAYEREND unconditional re-select, TournamentInfo step>=MATCH fan-out, boot step>=PARTY re-run before the member pass. Leftover party members stay alive via shared_ptr where the legacy dangles a freed pointer (UB) — the port's EVENTINFO/RESULT fan-outs render them deterministically | ✅ |
+| **W6-54** | Bow battleground scheduler — the runtime behind the W6-24 queues; the Bow §C row closes (only the legacy dead min-players config stays unused, as in the original). `BowRegistry` grows the full CTBowSystem port: the daily start-time table (upper_bound wraparound election), the ALARM → PEACE(buy) → BATTLE → BODPEACE window walk (strict `clt > start`, `< start+total+15`, the first-tick silent `m_bRunning` arm quirk, the per-second BOWNotify frames), the solo + per-guild queues (BS_ALARM gated), `CreateMatch` (guild blocks routed by the FRONT member's country, the smallest-difference whole-guild rebalance — the legacy's uninitialized-iterator/erase-invalidated walks rendered safely — solo fill onto the smaller team, the residual diff/2 move, the forced D/C team stamp), the BS_PEACE late-join (`BOWREG_FAIL+1` marker + straight teleport-in), `UpdatePoints` with the legacy wipe-to-zero peace trigger (repairing the W6-24 stub's clamp deviation), the BODPEACE 12-second countdown (BOW_END once, winner election, the second-counter DWORD wrap kept) and `EndBattle` (roster fan-out + reset; the winner survives for post-battle single releases). `RunBowTick` sweeper (`bow_check_period_sec`, default 1 s) drives it with injected clocks; the BOW map server registers via LOBYTE(wID)==30 into a dedicated slot. New `IBowRepository` (TBOWSETTINGSCHART + TCUSTOMTIMECHART BT_BOW loads; TAddBOWPlayer / TClearBOWPlayers / TDeleteSingleBOWPlayer SPs) + 7 senders. CloseChar dequeues; MW_BATTLEMODESTATUS's Bow half goes live. Drive-by: `TChar.soul_silence` (legacy m_dwSoulSilence — reset on pairing, stamped on soulmate end, carried by the W6-23 ENTERCHAR composite) closes that §B item. A 3-dimension adversarial parity review confirmed 6 defects, all fixed pre-merge: the non-queued notify order (legacy ascending char id), the missing LEAVEBATTLEFIELD live-key gate, the queue mutation running before the main-map gate, missing `!m_pBOWModule` silent drops on both queue ops, and the cancel ack's `max(bow, BR)` tick | ✅ |
 | W4-24+ | Relay CHANGEMAP + failure replies; cluster-wide chat-ban list; APEX | ⏸ |
 | W5-1 | Territory occupation broadcasts — OnMW_CASTLEOCCUPY/LOCALOCCUPY/MISSIONOCCUPY_ACK fan the new owner+flag to every map peer (+ LOCAL B-country display flip) + 3 senders; guild stat-exp + castle-apply reset deferred (absent constants/model) | ✅ |
 | W5-2 | Castle-war apply — OnMW_CASTLEAPPLY_ACK (chief assigns a member/tactics to a castle, 49-cap via CanApplyWar, toggle-cancel) + dual reply + applicant-count broadcast (NotifyCastleApply); TGuildMember/TTacticsMember castle/camp + 2 senders. DB persist deferred | ✅ |
@@ -154,7 +155,7 @@ that the four shipped Asio daemons already use.
 | W6 | BR + Bow + Event + RPS + APEX / ARENA / BATTLEMODE | 🚧 |
 | W7 | Item + Cash + MonthRank + CMGift + cutover hardening | ⏸ |
 
-## Gaps audit — not yet ported / deferred (as of W6-53)
+## Gaps audit — not yet ported / deferred (as of W6-54)
 
 Legacy `Server/TWorldSvr/` declares **290** message handlers
 (`CTWorldSvrModule::On*` — 160 MW + 88 DM + 23 CT + 16 SM + 3 RW, the same
@@ -236,7 +237,9 @@ Intentionally not ported:
 - **Char-base**: ChangeCountry/ChangeName cluster fan-out
   (`RW_CHANGENAME_ACK`), region tracking.
 - **Friend/Soulmate**: soulmate write-back is in-memory only (no soulmate
-  repository); some friend write-backs.
+  repository); some friend write-backs. (`TChar.soul_silence` closed in
+  W6-54 — reset on pairing, stamped on soulmate end, carried by the
+  W6-23 composite.)
 - **Corps**: the `m_command` late-joiner ADDSQUAD cache; the MANSTAT
   corps-general relay.
 - **Recall-mon**: id-counter DB-seed at boot.
@@ -247,9 +250,11 @@ Intentionally not ported:
 - Battle Royale: queue + invite/del + accept + ready signal + map/mode
   vote landed in W6-25; the scheduler / match creation / BR_SOLO vs
   BR_TEAM switch / teleportation are deferred (see W6-25 row)
-- Bow battleground: queue + cancel + points landed in W6-24; the
-  scheduler / match creation / teleportation / per-guild grouping
-  are deferred (see W6-24 row)
+- Bow battleground: **complete** — W6-24 queue/cancel/points wire
+  handlers + W6-54 the full CTBowSystem scheduler (window walk,
+  match creation + per-guild grouping, teleports, the end sequence,
+  the IBowRepository persistence legs). Only the legacy dead
+  min-players config stays unused, matching the original
 - Arena / BattleMode: all three handlers landed (W6-27 status +
   CM teleport; W6-28 ARENAJOIN). The Arena/BattleMode trio is
   complete.
@@ -359,13 +364,32 @@ collapsed into the tick's step-advance persist via
 
 ### Suggested next slices (by value / self-containedness)
 
-1. **`TChar.soul_silence`** — trivial field add for the W6-23
-   composite.
-2. **BR / Bow schedulers** — the deferred match-creation /
-   teleportation runtimes behind the W6-24/25 queues.
-3. Guild extras (blocked on absent constants/model); §B sub-branch
+1. **BR scheduler** — the Battle Royale runtime behind the W6-25
+   queues (legacy BRSystem.cpp, 1419 LOC): window walk, match
+   creation, BR_SOLO/BR_TEAM switch, teleportation.
+2. Guild extras (blocked on absent constants/model); §B sub-branch
    sweep (relay CHANGEMAP, cluster chat-ban, soulmate repository,
    corps ADDSQUAD cache, recall-mon id seed).
+
+### W6-54 — what landed
+
+**Bow battleground scheduler** — the battleground runs end-to-end.
+The wire test: the injected-clock end sequence registry-direct
+(silent arm, ALARM notify with the 58-second countdown, the
+points wipe-to-zero peace trigger, BOW_END fired exactly once, the
+winner election, a mid-peace single release shrinking the end
+roster, EndBattle with the post-release 5/5 notify and the legacy
+in-window running re-arm), then over live sockets (a map peer + the
+LOBYTE==30 BOW server): the ALARM frame pair, solo + guild queue
+ops with the m_dwTick ack echo + duplicate/cancel paths, the PEACE
+edge match creation (2v2 balance byte-checked on MW_ADDBOWPLAYERS,
+Alice's D-side re-stamp on her TChar, 4 TAddBOWPlayer traces), the
+BS_PEACE late-join (roster row + PREPAREFORBOW + the FAIL+1 ack),
+the BATTLE edge (BOW_START + Fred's non-queued nudge), and the
+points decay broadcast (D=6/C=4). A 3-dimension adversarial parity
+review (every finding independently re-verified) confirmed six
+defects, all fixed before merge — see the status row. 108 wire
+tests, all green.
 
 ### W6-53 — what landed
 

@@ -139,6 +139,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/tournament_boot.cpp
     ${TWORLD_ASIO_SRC}/services/fake_tournament_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_tournament_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/fake_bow_repository.cpp
+    ${TWORLD_ASIO_SRC}/services/soci_bow_repository.cpp
     ${TWORLD_ASIO_SRC}/services/peer_registry.cpp)
 
 target_include_directories(tworldsvr_asio_core PUBLIC
@@ -770,6 +772,16 @@ target_link_libraries(test_tworldsvr_asio_cashshop_handlers PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_cashshop_handlers
     COMMAND test_tworldsvr_asio_cashshop_handlers)
+
+# W6-54 wire test: Bow battleground scheduler - window state machine,
+# ALARM queue gating, match creation + teleports, late-join, points
+# decay + wipe-to-zero end sequence.
+add_executable(test_tworldsvr_asio_bow_scheduler_handlers
+    ${TWORLD_ASIO_SRC}/tests/test_bow_scheduler_handlers.cpp)
+target_link_libraries(test_tworldsvr_asio_bow_scheduler_handlers PRIVATE
+    tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_bow_scheduler_handlers
+    COMMAND test_tworldsvr_asio_bow_scheduler_handlers)
 
 # W6-53 wire test: tournament match/result/betting - bracket select
 # + rival-country seeding, fee-back payback mail, EnterGate tickets,

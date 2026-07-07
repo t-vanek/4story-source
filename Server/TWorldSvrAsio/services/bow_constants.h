@@ -24,7 +24,42 @@ inline constexpr std::uint16_t kBowMapId    = 3000;
 // > TCONTRY_C is rejected with kCountry (the gate uses aid_country
 // when the primary country is past TCONTRY_C — covers B/N players
 // whose aid_country may still be D/C).
-inline constexpr std::uint8_t kCountryD = 0;   // TCONTRY_D — Derion
-inline constexpr std::uint8_t kCountryC = 1;   // TCONTRY_C — Valorian
+inline constexpr std::uint8_t kCountryD       = 0; // TCONTRY_D — Derion
+inline constexpr std::uint8_t kCountryC       = 1; // TCONTRY_C — Valorian
+inline constexpr std::uint8_t kCountryNeutral = 3; // TCONTRY_N
+
+// W6-54 — the scheduler surface.
+
+// BATTLE_STATUS values the Bow window walks (NetCode.h:2030).
+inline constexpr std::uint8_t kBsNormal   = 0;  // BS_NORMAL
+inline constexpr std::uint8_t kBsBattle   = 1;  // BS_BATTLE
+inline constexpr std::uint8_t kBsAlarm    = 2;  // BS_ALARM
+inline constexpr std::uint8_t kBsPeace    = 4;  // BS_PEACE
+inline constexpr std::uint8_t kBsBodPeace = 10; // BS_BODPEACE
+
+// TBOW_COMMANDS (NetCode.h:2714) — MW_BOWCOMMANDEXEC_REQ payload.
+inline constexpr std::uint8_t kCmdStart = 0;    // BOW_START
+inline constexpr std::uint8_t kCmdEnd   = 1;    // BOW_END
+
+// BOW_WINNER (NetCode.h:2044).
+inline constexpr std::uint8_t kWinnerDefugel = 0;
+inline constexpr std::uint8_t kWinnerCraxion = 1;
+inline constexpr std::uint8_t kWinnerTie     = 2;
+
+// BOWMATCH_RESULT (NetCode.h:885).
+inline constexpr std::uint8_t kMatchSuccess = 0;
+inline constexpr std::uint8_t kMatchFail    = 1;
+
+// BowSystem.cpp:12-13.
+inline constexpr std::uint8_t kTeamCount = 2;   // BOW_TEAM_COUNT
+inline constexpr std::uint8_t kMaxPoints = 10;  // BOW_MAX_POINTS
+
+// The BODPEACE end countdown (BowSystem.cpp:441-442): 12 seconds
+// from the peace tick, then EndBattle.
+inline constexpr std::uint32_t kBodPeaceMs = 12000;
+
+// The undocumented AddPlayerToQueue "joined the running match late"
+// result (BowSystem.cpp:124 `return BOWREG_FAIL + 1`).
+inline constexpr std::uint8_t kLateJoin = 4;
 
 } // namespace tworldsvr::bow

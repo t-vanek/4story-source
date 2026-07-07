@@ -43,6 +43,7 @@
 #include "services/soci_cmgift_repository.h"
 #include "services/soci_lucky_event_repository.h"
 #include "services/soci_rps_repository.h"
+#include "services/soci_bow_repository.h"
 #include "services/soci_tournament_repository.h"
 #include "services/tournament_boot.h"
 #include "services/war_country_index.h"
@@ -149,6 +150,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::ILuckyEventRepository> lucky_repo;
         std::unique_ptr<tworldsvr::IRpsRepository>       rps_repo;
         std::unique_ptr<tworldsvr::ITournamentRepository> tournament_repo;
+        std::unique_ptr<tworldsvr::IBowRepository>       bow_repo;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -213,6 +215,9 @@ int main(int argc, char** argv)
             tournament_repo =
                 std::make_unique<tworldsvr::SociTournamentRepository>(
                     *db_pool_owner);
+            bow_repo =
+                std::make_unique<tworldsvr::SociBowRepository>(
+                    *db_pool_owner);
         }
         else
         {
@@ -252,6 +257,7 @@ int main(int argc, char** argv)
         tworldsvr::EventQuarterScheduler evqt;
         tworldsvr::ExpiredBuffer        expired;
         tworldsvr::TournamentRegistry   tournaments;
+        tworldsvr::CtrlSvrSlot          bow_server;
         if (cmgift_repo)
         {
             cmgifts.LoadFrom(cmgift_repo->LoadChart());
@@ -284,6 +290,32 @@ int main(int argc, char** argv)
                     ++dates;
             spdlog::info("rps games: {} config row(s), {} win date(s) "
                          "loaded", rps.Size(), dates);
+        }
+        if (bow_repo)
+        {
+            // W6-54: TBOWSETTINGSCHART config + TCUSTOMTIMECHART
+            // BT_BOW start times (TWorldSvr.cpp:1234-1290).
+            if (const auto bs = bow_repo->LoadSettings())
+            {
+                bow.Configure(bs->map_id, bs->min_players,
+                    bs->max_nation_difference, bs->alarm_dur,
+                    bs->buy_dur, bs->battle_dur);
+                for (const auto t : bow_repo->LoadStartTimes())
+                    bow.AddStartTime(t);
+                std::time_t bnow = std::time(nullptr);
+                std::tm     blt{};
+#ifdef _WIN32
+                localtime_s(&blt, &bnow);
+#else
+                localtime_r(&bnow, &blt);
+#endif
+                bow.Init(static_cast<std::uint32_t>(
+                    blt.tm_hour * 3600 + blt.tm_min * 60 +
+                    blt.tm_sec));
+                spdlog::info("bow battleground: configured "
+                             "(map {}, next start {}s)",
+                    bs->map_id, bow.NextStart());
+            }
         }
         if (tournament_repo)
         {
@@ -383,6 +415,8 @@ int main(int argc, char** argv)
         ctx.expired         = &expired;
         ctx.tournaments     = &tournaments;
         ctx.tournament_repo = tournament_repo.get();
+        ctx.bow_repo        = bow_repo.get();
+        ctx.bow_server      = &bow_server;
         ctx.castle_war_day  = cfg.castle_war_day;
         ctx.group_id        = cfg.group_id;
         ctx.nation       = cfg.nation;
@@ -514,6 +548,38 @@ int main(int argc, char** argv)
             spdlog::info("event-quarter/expiry sweeper enabled "
                          "(period={}s)",
                 cfg.event_quarter_check_period_sec);
+        }
+
+        // W6-54: Bow battleground window tick (legacy per-second walk,
+        // TWorldSvr.cpp:4094). period_sec=0 disables.
+        std::shared_ptr<fourstory::ops::RegistryRefresher> bow_sweeper;
+        if (cfg.bow_check_period_sec != 0)
+        {
+            bow_sweeper = fourstory::ops::RegistryRefresher::Make(
+                io, std::chrono::seconds(cfg.bow_check_period_sec));
+            bow_sweeper->AddCoroutineHook(
+                [ctx]() -> boost::asio::awaitable<void> {
+                    std::time_t bnow = std::time(nullptr);
+                    std::tm     blt{};
+#ifdef _WIN32
+                    localtime_s(&blt, &bnow);
+#else
+                    localtime_r(&bnow, &blt);
+#endif
+                    co_await tworldsvr::handlers::RunBowTick(ctx,
+                        static_cast<std::uint32_t>(
+                            blt.tm_hour * 3600 + blt.tm_min * 60 +
+                            blt.tm_sec),
+                        static_cast<std::uint64_t>(
+                            std::chrono::duration_cast<
+                                std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now()
+                                    .time_since_epoch())
+                                .count()));
+                });
+            bow_sweeper->Start();
+            spdlog::info("bow tick sweeper enabled (period={}s)",
+                cfg.bow_check_period_sec);
         }
 
         // W6-51: tournament step-advance tick (legacy per-second

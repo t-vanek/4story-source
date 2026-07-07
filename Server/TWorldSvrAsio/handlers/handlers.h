@@ -46,6 +46,7 @@
 #include "../services/event_quarter_scheduler.h"
 #include "../services/expired_buffer.h"
 #include "../services/rps_repository.h"
+#include "../services/bow_repository.h"
 #include "../services/tournament_registry.h"
 #include "../services/tournament_repository.h"
 #include "../services/peer_registry.h"
@@ -207,6 +208,12 @@ struct HandlerContext
     // operator SPs, TTournamentApply, the CTBLGetCharInfo lookup).
     TournamentRegistry*       tournaments     = nullptr;
     ITournamentRepository*    tournament_repo = nullptr;
+
+    // W6-54: the Bow scheduler's DB surface + the dedicated BOW map
+    // server slot (legacy m_pBOWServer — the peer whose LOBYTE(wID)
+    // is BOW_SERVER_ID, captured at RW_RELAYSVR registration).
+    IBowRepository*           bow_repo   = nullptr;
+    CtrlSvrSlot*              bow_server = nullptr;
 
     // Cluster-nation flag (TCONTRY_A/B/N). Mirrors the legacy
     // CTWorldSvrModule::m_bNation. Loaded from TOML; advertised to
@@ -2998,6 +3005,21 @@ boost::asio::awaitable<void> OnMwTournamentEnterGateAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
+
+// --- W6-54: Bow battleground scheduler (handlers_bow.cpp) ----------
+//
+// One pass of the legacy per-second Bow window walk
+// (TWorldSvr.cpp:4094 + CTBowSystem::SetStatus): fires the
+// MW_BOWTIMEUPDATE broadcast, the BOW_START/BOW_END commands to the
+// BOW map server, the match-creation teleport-in fan-out
+// (MW_ADDBOWPLAYERS + per-char MW_PREPAREFORBOW + the TAddBOWPlayer
+// legs), the non-queued-player notify, and the battle-end sequence
+// (MW_ENDBOWWAR + TClearBOWPlayers). `clt` = seconds of the local
+// day; `now_ms` = a monotonic millisecond clock.
+boost::asio::awaitable<void> RunBowTick(
+    const HandlerContext&         ctx,
+    std::uint32_t                 clt,
+    std::uint64_t                 now_ms);
 
 // MW_CHARDATA_ACK — main's answer to the CHARDATA_REQ world sent on the
 // count==0 ROUTE branch (or when world otherwise asked for a CHARDATA

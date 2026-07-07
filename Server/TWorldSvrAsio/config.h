@@ -68,6 +68,10 @@ struct AppConfig
     // advance visibly on time). 0 disables.
     std::uint32_t tournament_check_period_sec = 5;
 
+    // W6-54: Bow battleground window tick (the legacy walks it every
+    // second and the countdown frames are per-second). 0 disables.
+    std::uint32_t bow_check_period_sec = 1;
+
     // W6-43: TACTIVECHARTABLE -> WarCountryIndex refresh cadence
     // (legacy re-derives on the day-change tick). 0 disables.
     std::uint32_t war_index_refresh_period_sec = 3600;

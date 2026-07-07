@@ -6,8 +6,12 @@
 
 #include "MessageId.h"
 
+#include "fourstory/db/co_offload.h"
+
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 
@@ -26,6 +30,153 @@ FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
 }
 
 } // namespace
+
+namespace {
+
+// TeleportBOWPlayer(map, TRUE) (TWorldSvr.cpp:7875): roster to the
+// BOW server, per-char team stamp + PREPAREFORBOW to their main map
+// + the TAddBOWPlayer leg.
+boost::asio::awaitable<void>
+TeleportBowPlayersIn(const HandlerContext&          ctx,
+                     const std::vector<TBowPlayer>& roster)
+{
+    auto bow_server =
+        ctx.bow_server ? ctx.bow_server->Get() : nullptr;
+    if (bow_server)
+        co_await senders::SendMwAddBowPlayersAck(bow_server, roster);
+
+    for (const auto& p : roster)
+    {
+        if (!ctx.chars)
+            break;
+        auto c = ctx.chars->Find(p.char_id);
+        if (!c)
+            continue;
+        std::uint8_t  msi = 0;
+        std::uint32_t user_id = 0;
+        bool key_ok = false;
+        {
+            std::lock_guard g(c->lock);
+            if (c->key == p.key)
+            {
+                key_ok = true;
+                // Legacy re-stamps the char's country to the team.
+                if (c->country != p.country)
+                    c->country = p.country;
+                msi     = c->main_server_id;
+                user_id = c->user_id;
+            }
+        }
+        if (!key_ok)
+            continue;
+        if (auto main_peer = FindMapPeer(ctx, msi))
+            co_await senders::SendMwPrepareForBowReq(main_peer,
+                p.char_id, p.key, p.country);
+        if (ctx.bow_repo)
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.bow_repo, cid = p.char_id, user_id]
+                { repo->AddPlayer(cid, user_id); });
+    }
+    co_return;
+}
+
+// NotifyBOWNonQueuedPlayers (TWorldSvr.cpp:7943): every online char
+// NOT on the Bow roster gets the battle-started nudge on their main.
+boost::asio::awaitable<void>
+NotifyBowNonQueuedPlayers(const HandlerContext& ctx)
+{
+    if (!ctx.chars || !ctx.bow)
+        co_return;
+    // Legacy stages the ids in a std::map (ascending char id) —
+    // the shard snapshot is unordered, so sort to keep the frame
+    // order byte-identical.
+    auto ids = ctx.chars->SnapshotIds();
+    std::sort(ids.begin(), ids.end());
+    for (auto id : ids)
+    {
+        if (ctx.bow->Contains(id))
+            continue;
+        auto c = ctx.chars->Find(id);
+        if (!c)
+            continue;
+        std::uint32_t key = 0;
+        std::uint8_t  msi = 0;
+        {
+            std::lock_guard g(c->lock);
+            key = c->key;
+            msi = c->main_server_id;
+        }
+        if (auto main_peer = FindMapPeer(ctx, msi))
+            co_await senders::SendMwNotifyNonQueuedPlayerAck(
+                main_peer, id, key);
+    }
+    co_return;
+}
+
+// BOWNotify (TWorldSvr.cpp:7868): the status frame to every map.
+boost::asio::awaitable<void>
+BroadcastBowNotify(const HandlerContext& ctx, std::uint8_t status,
+                   std::uint32_t second, std::uint8_t d,
+                   std::uint8_t c)
+{
+    if (!ctx.peers)
+        co_return;
+    for (auto& p : ctx.peers->Snapshot())
+        co_await senders::SendMwBowTimeUpdateAck(p, status, second,
+            d, c);
+    co_return;
+}
+
+} // namespace
+
+boost::asio::awaitable<void>
+RunBowTick(const HandlerContext& ctx, std::uint32_t clt,
+           std::uint64_t now_ms)
+{
+    if (!ctx.bow)
+        co_return;
+    auto bow_server =
+        ctx.bow_server ? ctx.bow_server->Get() : nullptr;
+    const auto acts = ctx.bow->Tick(clt, now_ms,
+        bow_server != nullptr);
+
+    // Emission order mirrors the legacy per-path sequences:
+    // BODPEACE fires BOW_END (once), then the end fan-out, then the
+    // notify; the battle edge notifies first, then BOW_START + the
+    // non-queued nudge; match creation teleports between notifies.
+    for (const std::uint8_t cmd : acts.commands)
+        if (cmd == bow::kCmdEnd && bow_server)
+            co_await senders::SendMwBowCommandExecReq(bow_server,
+                cmd);
+    if (acts.ended)
+    {
+        if (bow_server)
+            co_await senders::SendMwEndBowWarReq(bow_server,
+                acts.winner, acts.end_roster);
+        if (ctx.bow_repo)
+            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                [repo = ctx.bow_repo] { repo->ClearPlayers(); });
+    }
+    if (!acts.notifies.empty())
+    {
+        const auto& n = acts.notifies.front();
+        co_await BroadcastBowNotify(ctx, n.status, n.second,
+            n.points_d, n.points_c);
+    }
+    if (acts.teleport_in)
+        co_await TeleportBowPlayersIn(ctx, acts.roster);
+    for (const std::uint8_t cmd : acts.commands)
+        if (cmd == bow::kCmdStart && bow_server)
+            co_await senders::SendMwBowCommandExecReq(bow_server,
+                cmd);
+    if (acts.notify_nonqueued)
+        co_await NotifyBowNonQueuedPlayers(ctx);
+    for (std::size_t i = 1; i < acts.notifies.size(); ++i)
+        co_await BroadcastBowNotify(ctx, acts.notifies[i].status,
+            acts.notifies[i].second, acts.notifies[i].points_d,
+            acts.notifies[i].points_c);
+    co_return;
+}
 
 boost::asio::awaitable<void>
 OnAddToBowQueueReq(std::shared_ptr<PeerSession> peer,
@@ -77,17 +228,27 @@ OnAddToBowQueueReq(std::shared_ptr<PeerSession> peer,
     }
     if (!key_ok) co_return;
 
-    const std::uint8_t result = ctx.bow->AddPlayer(char_id, key,
-        effective_country, guild_hint);
-    const std::uint32_t tick = ctx.bow->Tick();
-
+    // Legacy gates (SSHandler.cpp:14039-14044): no module → silent
+    // drop; the main-map resolve precedes AddPlayerToQueue, so an
+    // absent main peer suppresses the mutation too.
+    if (!ctx.bow->Configured())
+        co_return;
     auto main_peer = FindMapPeer(ctx, static_cast<std::uint8_t>(main_id));
     if (!main_peer) co_return;
 
+    const auto out = ctx.bow->AddPlayer(char_id, key,
+        effective_country, guild_hint);
+    // The BS_PEACE late-join path teleports the char straight into
+    // the running match (BowSystem.cpp:114 TeleportBOWPlayer).
+    if (out.late_join)
+        co_await TeleportBowPlayersIn(ctx,
+            std::vector<TBowPlayer>{out.player});
+    const std::uint32_t tick = ctx.bow->Tick();
+
     spdlog::info("OnAddToBowQueueReq[{}]: char_id={} country={} guild={} → {}",
-        ip, char_id, effective_country, guild_hint, result);
-    co_await senders::SendMwAddToBowQueueAck(main_peer, result, char_id, key,
-        tick);
+        ip, char_id, effective_country, guild_hint, out.result);
+    co_await senders::SendMwAddToBowQueueAck(main_peer, out.result,
+        char_id, key, tick);
 }
 
 boost::asio::awaitable<void>
@@ -123,16 +284,23 @@ OnCancelBowQueueReq(std::shared_ptr<PeerSession> peer,
     }
     if (!key_ok) co_return;
 
+    // Legacy `!m_pBOWModule` gate (SSHandler.cpp:14074): with no
+    // TBOWSETTINGSCHART row the whole request drops silently —
+    // including the BR fallback and the ack.
+    if (!ctx.bow->Configured())
+        co_return;
+
     std::uint8_t result = ctx.bow->RemovePlayer(char_id, key);
     // Legacy fall-through (SSHandler.cpp:14078): if the Bow remove
     // missed, also try the BR queue — the player might have been
     // queued there instead. The W6-25 BrRegistry::ErasePlayerFromQueue
-    // returns the same BOWREG_* enum, so we forward whichever
-    // succeeded; the legacy `max(bow.tick, br.tick)` collapses to
-    // bow.tick here because both modules currently have a 0 tick.
+    // returns the same BOWREG_* enum.
     if (result == bow::kFail && ctx.br)
         result = ctx.br->ErasePlayerFromQueue(char_id, key);
-    const std::uint32_t tick = ctx.bow->Tick();
+    // Legacy echoes max(bow tick, BR tick) (SSHandler.cpp:14094).
+    // The BR tick goes live when its scheduler ports.
+    const std::uint32_t tick = std::max(ctx.bow->Tick(),
+        ctx.br ? ctx.br->Tick() : 0u);
 
     auto main_peer = FindMapPeer(ctx, static_cast<std::uint8_t>(main_id));
     if (!main_peer) co_return;
@@ -164,10 +332,19 @@ OnBowPointsUpdateReq(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    ctx.bow->UpdatePoints(country);
+    const auto out = ctx.bow->UpdatePoints(country,
+        static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count()));
+    if (!out.configured)
+        co_return;
     spdlog::info("OnBowPointsUpdateReq[{}]: country={} → D={} C={}", ip,
-        country, ctx.bow->Points(bow::kCountryD),
-        ctx.bow->Points(bow::kCountryC));
+        country, out.points_d, out.points_c);
+    // Legacy UpdatePoints ends in a BOWNotify broadcast
+    // (BowSystem.cpp:567).
+    co_await BroadcastBowNotify(ctx, out.status, out.second,
+        out.points_d, out.points_c);
     co_return;
 }
 
@@ -201,6 +378,10 @@ OnLeaveBattlefieldReq(std::shared_ptr<PeerSession> peer,
     std::uint16_t map_id = 0;
     {
         std::lock_guard g(ch->lock);
+        // Legacy FindTChar(id, key) (SSHandler.cpp:14122) — a stale
+        // key is a total no-op.
+        if (ch->key != key)
+            co_return;
         channel = ch->channel;
         map_id  = ch->map_id;
     }
@@ -218,7 +399,24 @@ OnLeaveBattlefieldReq(std::shared_ptr<PeerSession> peer,
     {
         spdlog::info("OnLeaveBattlefieldReq[{}]: char_id={} → Bow cleanup",
             ip, char_id);
-        ctx.bow->ReleaseSinglePlayer(char_id, key);
+        const auto out = ctx.bow->ReleaseSinglePlayer(char_id, key);
+        if (out.release)
+        {
+            // TeleportBOWPlayer single-char (TWorldSvr.cpp:7918).
+            if (auto bow_server =
+                    ctx.bow_server ? ctx.bow_server->Get() : nullptr)
+                co_await senders::SendMwReleaseSingleBowPlayerReq(
+                    bow_server, char_id, key, out.winner);
+            std::uint32_t user_id = 0;
+            {
+                std::lock_guard g(ch->lock);
+                user_id = ch->user_id;
+            }
+            if (ctx.bow_repo)
+                co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                    [repo = ctx.bow_repo, user_id]
+                    { repo->DeleteSinglePlayer(user_id); });
+        }
     }
     // Else: not on a known battlefield map — no-op.
     co_return;
@@ -272,16 +470,23 @@ OnBattleModeStatusReq(std::shared_ptr<PeerSession> peer,
     auto main_peer = FindMapPeer(ctx, main_id);
     if (!main_peer) co_return;
 
-    // Quiescent payload — same shape the legacy emits when both
-    // pBOW + pBR are null (SSSender.cpp:3962 / 3978). The scheduler
-    // / status state machine isn't ported yet, so neither registry
-    // exposes the running-match fields the legacy would otherwise
-    // forward (m_bStatus / m_dwStart / m_bWinner / m_bType).
+    // W6-54: the Bow half is live (legacy SSSender.cpp:3954 forwards
+    // m_bStatus / m_dwStart / m_bWinner when pBOW exists); the BR
+    // half stays quiescent until its scheduler ports.
+    std::uint8_t  bow_status = 0;
+    std::uint32_t bow_start  = 0;
+    std::uint8_t  bow_winner = kCountryN;
+    if (ctx.bow && ctx.bow->Configured())
+    {
+        bow_status = ctx.bow->Status();
+        bow_start  = ctx.bow->NextStart();
+        bow_winner = ctx.bow->Winner();
+    }
     co_await senders::SendMwBattleModeStatusAck(main_peer, char_id, key,
-        /*bow_status=*/0, /*bow_start=*/0, /*bow_winner=*/kCountryN,
+        bow_status, bow_start, bow_winner,
         /*br_status=*/0,  /*br_start=*/0,  /*br_type=*/0);
-    spdlog::info("OnBattleModeStatusReq[{}]: char_id={} → quiescent status",
-        ip, char_id);
+    spdlog::info("OnBattleModeStatusReq[{}]: char_id={} → bow status={}",
+        ip, char_id, bow_status);
 }
 
 boost::asio::awaitable<void>
@@ -332,13 +537,17 @@ OnCmTeleportBattleModeReq(std::shared_ptr<PeerSession> peer,
             co_return;
         }
         // Legacy hard-codes TCONTRY_C + Admin=TRUE here
-        // (SSHandler.cpp:14397). Our BowRegistry::AddPlayer doesn't
-        // model the BS_ALARM gate or the Admin bypass — it accepts
-        // unconditionally — so calling it with country=C is enough.
-        const std::uint8_t result = ctx.bow->AddPlayer(char_id, key,
-            bow::kCountryC, guild_hint);
+        // (SSHandler.cpp:14397) — the admin bypass rides the
+        // late-join branch when a match is running.
+        if (!ctx.bow->Configured())
+            co_return;
+        const auto out = ctx.bow->AddPlayer(char_id, key,
+            bow::kCountryC, guild_hint, /*admin=*/true);
+        if (out.late_join)
+            co_await TeleportBowPlayersIn(ctx,
+                std::vector<TBowPlayer>{out.player});
         spdlog::info("OnCmTeleportBattleModeReq[{}]: char_id={} → SYSTEM_BOW "
-                     "result={}", ip, char_id, result);
+                     "result={}", ip, char_id, out.result);
         break;
     }
     case kSystemBr:

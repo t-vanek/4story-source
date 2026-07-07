@@ -35,6 +35,7 @@ Mate SnapshotMate(TChar& c)   // caller holds c.lock
 void SetSoulmate(TChar& self, const Mate& m)
 {
     self.soulmate = TSoulmate{m.id, m.name, m.level, m.klass, true, m.region};
+    self.soul_silence = 0;   // legacy TWorldSvr.cpp:4333
 }
 
 } // namespace
@@ -263,8 +264,15 @@ OnSoulmateEndAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Clear both sides in-memory + delete both rows.
-    { std::lock_guard g(self->lock); self->soulmate = TSoulmate{}; }
+    // Clear both sides in-memory + delete both rows. The initiator
+    // gets the silence stamp (legacy SoulmateEnd, TWorldSvr.cpp:4418).
+    const auto end_time =
+        static_cast<std::uint32_t>(std::time(nullptr));
+    {
+        std::lock_guard g(self->lock);
+        self->soulmate     = TSoulmate{};
+        self->soul_silence = end_time;
+    }
     if (auto p = ctx.chars->Find(partner))
     {
         std::lock_guard g(p->lock);
@@ -276,8 +284,7 @@ OnSoulmateEndAck(std::shared_ptr<PeerSession> peer,
             { repo->DelSoulmate(char_id, partner);
               repo->DelSoulmate(partner, char_id); });
     co_await senders::SendMwSoulmateEndReq(peer, char_id, key,
-        soulmate::kSuccess,
-        static_cast<std::uint32_t>(std::time(nullptr)));
+        soulmate::kSuccess, end_time);
     spdlog::info("OnSoulmateEndAck[{}]: char_id={} dissolved pairing with {}",
         ip, char_id, partner);
     co_return;

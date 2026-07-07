@@ -1025,8 +1025,7 @@ OnCharDataAck(std::shared_ptr<PeerSession> peer,
             base.klass       = ch->klass;
             base.soulmate    = ch->soulmate.target;
             base.soulmate_name = ch->soulmate.name;
-            // soul_silence stays 0 — TChar doesn't model
-            // legacy m_dwSoulSilence yet.
+            base.soul_silence = ch->soul_silence;   // W6-54 drive-by
             guild_id         = ch->guild_id;
             tactics_guild_id = ch->tactics_guild_id;
             party_id         = ch->party_id;

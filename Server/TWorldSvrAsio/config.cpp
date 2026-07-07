@@ -99,6 +99,14 @@ AppConfig LoadConfig(const std::string& path)
             cfg.tournament_check_period_sec =
                 static_cast<std::uint32_t>(*tc);
         }
+        if (auto bc = (*srv)["bow_check_period_sec"].value<std::int64_t>())
+        {
+            if (*bc < 0 || *bc > 3600)
+                throw std::runtime_error(
+                    "server.bow_check_period_sec out of range");
+            cfg.bow_check_period_sec =
+                static_cast<std::uint32_t>(*bc);
+        }
         if (auto cw = (*srv)["castle_war_day"].value<std::int64_t>())
         {
             if (*cw < 1 || *cw > 7)

@@ -1,5 +1,6 @@
 #include "handlers.h"
 #include "../senders/senders.h"
+#include "../services/bow_constants.h"
 #include "../wire_codec.h"
 
 #include "MessageId.h"
@@ -135,6 +136,17 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
     if (ctx.month_rank)
         co_await senders::SendMwMonthRankListReq(
             peer, ctx.month_rank->RankMonth(), *ctx.month_rank);
+
+    // W6-54: the dedicated BOW map server announces itself by its
+    // wID low byte (legacy SSHandler.cpp:641 `case BOW_SERVER_ID:
+    // m_pBOWModule->ConnectMap(pSERVER)`).
+    if (ctx.bow_server &&
+        static_cast<std::uint8_t>(wid & 0xFF) == bow::kBowServerId)
+    {
+        ctx.bow_server->Set(peer);
+        spdlog::info("OnRelaysvrReq[{}]: wID={:#06x} registered as "
+                     "the BOW battleground server", ip, wid);
+    }
 
     // W6-53: TournamentInfo(pSERVER) replay (legacy
     // SSHandler.cpp:699): the joining map gets the current

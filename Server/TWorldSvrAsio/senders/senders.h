@@ -28,6 +28,7 @@
 #include "../services/lucky_event_repository.h"
 #include "../services/month_rank_registry.h"
 #include "../services/rps_registry.h"
+#include "../services/bow_registry.h"
 #include "../services/tournament_registry.h"
 
 #include <boost/asio/awaitable.hpp>
@@ -346,6 +347,52 @@ boost::asio::awaitable<void> SendCtRpsGameDataAck(
 // status values land with the scheduler slice.
 //   Wire: DWORD char_id, key, BYTE bow_status, DWORD bow_start,
 //     BYTE bow_winner, BYTE br_status, DWORD br_start, BYTE br_type
+// --- W6-54 Bow scheduler senders (senders_bow.cpp) -----------------
+
+// MW_BOWTIMEUPDATE_ACK - the per-tick status broadcast to every map
+// (legacy BOWNotify, SSSender.cpp:3692).
+//   Wire: BYTE status, DWORD second, BYTE points_d, BYTE points_c
+boost::asio::awaitable<void> SendMwBowTimeUpdateAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint8_t status, std::uint32_t second,
+    std::uint8_t points_d, std::uint8_t points_c);
+
+// MW_BOWCOMMANDEXEC_REQ - BOW_START / BOW_END to the BOW map server
+// (SSSender.cpp:3749).
+boost::asio::awaitable<void> SendMwBowCommandExecReq(
+    std::shared_ptr<PeerSession> peer, std::uint8_t command);
+
+// MW_ADDBOWPLAYERS_ACK - the assembled roster to the BOW map server
+// (SSSender.cpp:3775).
+//   Wire: BYTE count, N x (DWORD id, DWORD key, BYTE team)
+boost::asio::awaitable<void> SendMwAddBowPlayersAck(
+    std::shared_ptr<PeerSession>   peer,
+    const std::vector<TBowPlayer>& roster);
+
+// MW_PREPAREFORBOW_REQ - per-char teleport-in order to their main
+// map (SSSender.cpp:3738).
+boost::asio::awaitable<void> SendMwPrepareForBowReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t char_id, std::uint32_t key, std::uint8_t team);
+
+// MW_ENDBOWWAR_REQ - battle end + roster to the BOW map server
+// (SSSender.cpp:3758).
+//   Wire: BYTE winner, BYTE count, N x (DWORD id, DWORD key)
+boost::asio::awaitable<void> SendMwEndBowWarReq(
+    std::shared_ptr<PeerSession>   peer,
+    std::uint8_t                   winner,
+    const std::vector<TBowPlayer>& roster);
+
+// MW_RELEASESINGLEBOWPLAYER_REQ (SSSender.cpp:3792).
+boost::asio::awaitable<void> SendMwReleaseSingleBowPlayerReq(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t char_id, std::uint32_t key, std::uint8_t winner);
+
+// MW_NOTIFYNONQUEUEDPLAYER_ACK (SSSender.cpp:3728).
+boost::asio::awaitable<void> SendMwNotifyNonQueuedPlayerAck(
+    std::shared_ptr<PeerSession> peer,
+    std::uint32_t char_id, std::uint32_t key);
+
 boost::asio::awaitable<void> SendMwBattleModeStatusAck(
     std::shared_ptr<PeerSession> peer,
     std::uint32_t                char_id,

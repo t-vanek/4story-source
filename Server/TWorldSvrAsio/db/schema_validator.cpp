@@ -301,6 +301,30 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                          "- the tournament match engine (W6-53) will "
                          "skip that persist.", rn);
     }
+    // W6-54: Bow scheduler charts + SPs.
+    if (!TableHasColumns(*lease, "TBOWSETTINGSCHART",
+            {"wMapID","bMinPlayersCount","bMaxNationDifference",
+             "dwAlarmDur","dwBuyTimeDur","dwBattleDur"}))
+    {
+        spdlog::warn("schema_validator (world): TBOWSETTINGSCHART not "
+                     "deployed - the Bow battleground stays "
+                     "unconfigured (W6-54).");
+    }
+    if (!TableHasColumns(*lease, "TCUSTOMTIMECHART",
+            {"bType","dwTime"}))
+    {
+        spdlog::warn("schema_validator (world): TCUSTOMTIMECHART not "
+                     "deployed - the Bow battleground has no start "
+                     "times (W6-54).");
+    }
+    for (const char* rn : {"TAddBOWPlayer", "TClearBOWPlayers",
+                           "TDeleteSingleBOWPlayer"})
+    {
+        if (!routine_exists(rn))
+            spdlog::warn("schema_validator (world): {} SP not deployed "
+                         "- the Bow roster persistence (W6-54) will "
+                         "log SOCI errors.", rn);
+    }
 }
 
 } // namespace tworldsvr::db

@@ -1,0 +1,184 @@
+{
+  "date": "2026-10-09",
+  "scope": "Existing native MOVEITEM handler now splits and merges permanent carried stacks and swaps same-template unequal items. Fresh and full-graph persistence, actual encrypted two-Map return transfer, no original executable acceptance.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "1782-2183",
+      "contract": "Five BYTE request; clamp source quantity. Empty slot copies with new ID only for partial count; occupied unequal items swap full stacks; equal non-equipped items merge to bStack including a successful unchanged response for full destinations."
+    },
+    {
+      "path": "Server/TMapSvr/TItem.cpp",
+      "lines": "47-126",
+      "contract": "Raw equality compares template, level, gem, appearance, item-attribute pointer, grade, durability, refine, expiration, six DWORD extensions and magic ID/value map. Count, ID and grade-effect are intentionally absent. Copy retains raw item fields and uses GenItemID only for partial copies."
+    },
+    {
+      "path": "Server/TMapSvr/TMapSvr.cpp",
+      "lines": "6833-6840,9514-9518",
+      "contract": "Same carried template/level/gem reconstruct the same attribute pointer from source catalog. Original GenItemID increments its initialized process counter; modern database allocation is an explicit transactional adaptation using proven migration012 world ranges."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1420-1468",
+      "contract": "Source UPDATE or DEL, then destination ADD for split or UPDATE for merge, then single MOVEITEM success. Exact complete descriptors and private response order."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/CSProtocol.h",
+      "lines": "710-759",
+      "contract": "MOVEITEM 0x52A8 request and 0x52A9 result; UPDATE/ADD/DEL 0x52AA/AB/AC; no new client fields."
+    },
+    {
+      "path": "database/postgresql/012-native-characters.sql",
+      "lines": "1-14",
+      "contract": "Existing operator-provisioned 2^56 world allocation range; world-zero backup floor 735812; allocation worlds 128+ unsupported. Immutable."
+    },
+    {
+      "path": "Server/TLoginSvrAsio/services/postgresql_char_service.cpp",
+      "lines": "182-205",
+      "contract": "Native starter creation shares worlds.item_high_water; split allocation serializes through that same row and rolls back in the same transaction."
+    }
+  ],
+  "implementation": {
+    "equality": "Compare original raw values rather than lossy client magic/extension projections. Same template is insufficient: unequal raw attributes swap complete stacks. Grade-effect differences intentionally do not prevent a source-equivalent merge; destination attributes survive.",
+    "split": "Plan with unpublished zero-ID placeholder. Transaction increments the shared high-water within its world bound and builds the committed projection with that real ID. Fresh INSERT clones the locked row including opaque data; graph creation updates only the authoritative checkpoint. PublishInventoryMove rejects missing IDs/hashes.",
+    "merge": "Clamp min(requested count,source count,destination free capacity). Delete zero-count source, keep original destination ID and attributes; no new allocation. Full destination preserves unchanged UPDATE/UPDATE/success and balanced no-op audit.",
+    "atomicity": "Existing account/process/claim/epoch/checkpoint fences enclose pinned capacity validation, locked row hashes, complete graph comparison, all item writes or graph edits, shared allocation, core, sampled timers and paired receipts. Split allocation and late second-receipt failure roll back together. Two concurrent requests from one before-state yield one committed split.",
+    "recovery": "Unknown outcome closes without ACK, retry or stale final save and keeps the reservation. Disconnect during confirmed commit publishes new IDs before teardown save. Full graph split/move transfers back to the first Map and merges there without writing stale normalized rows; native process replacement and fresh relogin preserve split child and unsigned source identity.",
+    "schema": "028 adds inventory_stack_changes, preserving 027 movement receipts and initially-immediate deferrable slot uniqueness. Source ordinal0 and destination ordinal1 share operation ID; created/deleted records explicitly omit nonexistent before/after hashes. New grants: INSERT item rows/stack ledger and UPDATE only worlds.item_high_water.",
+    "documented_differences": "Atomic writes and ACK-after-commit replace the source process-local allocation and pre-persistence responses. Over-capacity destination is refused instead of reproducing signed subtraction/BYTE underflow. Existing bag capacity correction remains. No client wire change.",
+    "deployment": "Both backups and migrations001-027 retain hashes;028 is immutable after application;next029. Use current Map grants, pinned catalogs and local images only."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-inventory-stacks-debug.json",
+      "status": "passed",
+      "native_map_checks": 589,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 402,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 141,
+      "map_ammunition_wire_checks": 141,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "inventory_stack_wire_checks": 32,
+      "total_checks": 1861
+    },
+    "asan": {
+      "report": "native-inventory-stacks-asan.json",
+      "status": "passed",
+      "native_map_checks": 589,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 402,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 141,
+      "map_ammunition_wire_checks": 141,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "inventory_stack_wire_checks": 32,
+      "total_checks": 1861
+    },
+    "release": {
+      "report": "native-inventory-stacks-release.json",
+      "status": "passed",
+      "native_map_checks": 589,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 402,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 141,
+      "map_ammunition_wire_checks": 141,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "inventory_stack_wire_checks": 32,
+      "total_checks": 1861,
+      "scope": "Installed Release Login/World/Map daemons; backend/pool integration executables mounted from the verified Debug build."
+    },
+    "ctest_debug": {
+      "report": "inventory-stacks-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "inventory-stacks-asan-ctest.xml",
+      "entries": 34,
+      "actual_passes": 34,
+      "internal_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "inventory-stacks-before.json",
+      "image_id": "1edff25ea38aaaeafb3a7d868880649a9b5e3b88976ce63a67d4ef0783c6cea2",
+      "expected_failure": "Unexpected close before complete Login reply",
+      "error_location": [
+        {
+          "file": "run_native_verification.py",
+          "line": 261
+        },
+        {
+          "file": "verify_map_runtime_wire.py",
+          "line": 206
+        },
+        {
+          "file": "verify_map_replica_wire.py",
+          "line": 122
+        },
+        {
+          "file": "verify_inventory_stack_wire.py",
+          "line": 106
+        },
+        {
+          "file": "verify_login_wire.py",
+          "line": 77
+        },
+        {
+          "file": "verify_login_wire.py",
+          "line": 71
+        }
+      ],
+      "scope": "Previous installed whole-stack-move daemons with current mounted backend/pool executables and migrations. Old daemon closes on the first split request after actual primary transfer; it cannot emit the expected original stack responses."
+    },
+    "migration_upgrade": {
+      "report": "inventory-stacks-migration-upgrade.json",
+      "checks": 17,
+      "status": "passed"
+    },
+    "container_smoke": {
+      "report": "inventory-stacks-container-verification.json",
+      "image": "localhost/fourstory:postgresql-inventory-stacks",
+      "image_id": "e5ae8ab0df918cd1863b1d7984186bf95b2980ad62026794a36df8bcaf7c4fe8",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    }
+  },
+  "acceptance": {
+    "supported_client_build": null,
+    "original_client_runs": 0,
+    "status": "blocked",
+    "reason": "Owner confirms only uncompiled client source and no additional client files; executable, data manifest and runnable environment absent.",
+    "evidence": "client-acceptance-blocker.json"
+  },
+  "limitations": [
+    "Equipment, drops, timed bags, secured inventories and active trade/store gameplay remain unimplemented in this native mutation contract; full gameplay goal is incomplete.",
+    "Two-Map network tests cover graph split/move/return/merge with private original ACKs; native service owner replacement/relogin covers split recovery. Generic existing TCP matrix retains real SIGKILL/DB-fault/World-loss tests; do not claim an additional split-specific SIGKILL wire scenario.",
+    "World social persistence, remaining Control/Patch/Log contracts, spawn/AI/combat/effects/quests/rewards/economy/modes/tools and original-client acceptance still require completion. Log catch-all retry is a separately documented unknown-commit issue."
+  ]
+}

@@ -53,7 +53,7 @@ public:
     virtual bool OutgoingTransferCommitted(const MapSessionClaim&) {return false;}
     virtual std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,
         const std::vector<SkillItemDebit>&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}
-    virtual std::vector<std::string> MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,
+    virtual InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,
         const CharSnapshot&,const CharSnapshot&) {throw std::runtime_error("Native inventory move transaction unavailable");}
     std::string ConsumeSkillItem(const MapSessionClaim& c,std::uint16_t skill,
         const ItemInstance& before,const CharSnapshot& after) {

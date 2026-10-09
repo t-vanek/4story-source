@@ -60,6 +60,7 @@ struct ItemInstance
     // Opaque PostgreSQL row fingerprint for fenced consumption; never on wire.
     std::string durable_hash;
     std::uint8_t bKind = 0; // pinned item chart, server-only ammunition selection
+    std::uint8_t stack_limit = 0; // pinned bStack; never serialized to the client
 };
 
 // One ordered stack debit in a single durable cast transaction.
@@ -74,13 +75,21 @@ struct InventoryMoveRequest {
 struct ItemRelocation {
     ItemInstance before;
     std::uint8_t bag{},slot{};
+    std::uint8_t count{}; // resulting quantity; zero deletes the source
+    bool created=false; // split destination receives a transactionally allocated ID
 };
+enum class InventoryMoveKind { Move,Swap,Split,Merge };
 enum class InventoryMoveResult : std::uint8_t {
     Success=0,NoDestinationBag=1,NoSourceBag=2,NoSourceItem=3,SamePosition=4
 };
 struct InventoryMovePlan {
     InventoryMoveResult result=InventoryMoveResult::Success;
     std::vector<ItemRelocation> items; // source first, optional swapped destination second
+    InventoryMoveKind kind=InventoryMoveKind::Move;
+};
+struct InventoryMoveCommit {
+    std::vector<std::string> hashes; // empty for a deleted item, in plan order
+    std::uint64_t created_id=0;
 };
 
 } // namespace tmapsvr

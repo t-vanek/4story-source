@@ -54,7 +54,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
         }
         stored.character=live.character;
         if(transfer::Encode(stored)!=transfer::Encode(live))throw std::runtime_error("Inventory graph changed since hydration");
-        out.after_graph=TransferFingerprint(c,after);
+
     }
     // Claim/checkpoint locks serialize supported inventory writers. Re-read bag
     // metadata and pinned capacities in this transaction; do not trust the DTO.
@@ -75,13 +75,34 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
                 throw std::runtime_error("Inventory bag changed since hydration");
         }
     }
+    if(out.move.kind==InventoryMoveKind::Merge) {
+        const auto& destination=out.move.items.back().before;
+        const int template_id=std::bit_cast<std::int16_t>(destination.wItemID);int limit=0;
+        sql<<"SELECT \"bStack\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:i",
+            soci::use(template_id),soci::into(limit);
+        if(!sql.got_data()||limit!=destination.stack_limit)throw std::runtime_error("Pinned stack capacity changed");
+    }
+    out.after=after;
+    if(out.move.kind==InventoryMoveKind::Split) {
+        long long allocated=0;
+        sql<<"UPDATE app_world.worlds SET item_high_water=item_high_water+1 WHERE group_id=:w "
+             "AND item_high_water::numeric+1 < (item_world::numeric+1)*72057594037927936 RETURNING item_high_water",
+            soci::use(world),soci::into(allocated);
+        if(!sql.got_data()||allocated<=0)throw std::runtime_error("Split item identity range exhausted");
+        out.committed.created_id=static_cast<std::uint64_t>(allocated);
+        out.after=before;ApplyInventoryMove(out.after,out.move,out.committed.created_id);
+    }
+    const auto committed_graph=CaptureInventory(out.after,c.key);
+    if(graph)out.after_graph=TransferFingerprint(c,out.after);
     for(const auto& move:out.move.items) {
         const auto& item=move.before;
         if(graph) {
             if(GraphItemFingerprint(*item.source)!=item.durable_hash)throw std::runtime_error("Inventory graph item fingerprint changed");
-            const auto moved=std::find_if(candidate.items.begin(),candidate.items.end(),[&](const auto& i){return i.id==item.dlID;});
-            if(moved==candidate.items.end())throw std::runtime_error("Inventory item missing after move");
-            out.hashes.push_back(GraphItemFingerprint(*moved));
+            if(!move.count){out.committed.hashes.emplace_back();continue;}
+            const auto id=move.created?out.committed.created_id:item.dlID;
+            const auto moved=std::find_if(committed_graph.items.begin(),committed_graph.items.end(),[&](const auto& i){return i.id==id;});
+            if(moved==committed_graph.items.end())throw std::runtime_error("Inventory item missing after move");
+            out.committed.hashes.push_back(GraphItemFingerprint(*moved));
         }else {
             if(item.dlID>static_cast<std::uint64_t>(std::numeric_limits<long long>::max()))throw std::runtime_error("Unsupported fresh item identity");
             const long long id=item.dlID;const int bag=item.bInvenID,slot=item.bItemID;std::string hash;int count=0,template_id=0;
@@ -94,7 +115,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
         }
     }
     if(!graph) {
-        if(out.move.items.size()==1) {
+        if(out.move.kind==InventoryMoveKind::Move||out.move.kind==InventoryMoveKind::Split) {
             const int bag=request.destination_bag,slot=request.destination_slot;int present=0;
             sql<<"SELECT 1 FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"dwStorageID\"=:b AND \"bItemID\"=:s FOR UPDATE",
                 soci::use(world,"w"),soci::use(character,"c"),soci::use(bag,"b"),soci::use(slot,"s"),soci::into(present);
@@ -102,12 +123,30 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
         }
         sql<<"SET CONSTRAINTS app_world.item_slot DEFERRED";
         for(const auto& move:out.move.items) {
-            const long long id=move.before.dlID;const int bag=move.bag,slot=move.slot;std::string hash;
-            sql<<"UPDATE app_world.\"TITEMTABLE\" i SET \"dwStorageID\"=:b,\"bItemID\"=:s "
-                 "WHERE \"bWorldID\"=:w AND \"dlID\"=:id RETURNING app_world.item_fingerprint(i)",
-                soci::use(bag,"b"),soci::use(slot,"s"),soci::use(world,"w"),soci::use(id,"id"),soci::into(hash);
+            const long long original=move.before.dlID,id=move.created?out.committed.created_id:move.before.dlID;
+            const int bag=move.bag,slot=move.slot,count=move.count;std::string hash;
+            if(move.created) {
+                // Copy the locked original row including opaque fields. Only
+                // identity, quantity and position differ; no client projection
+                // is used to reconstruct raw magic or timestamp values.
+                sql<<"INSERT INTO app_world.\"TITEMTABLE\" AS i SELECT (jsonb_populate_record(NULL::app_world.\"TITEMTABLE\","
+                     "to_jsonb(src)||jsonb_build_object('dlID',CAST(:id AS bigint),'dwStorageID',CAST(:b AS integer),"
+                     "'bItemID',CAST(:s AS smallint),'bCount',CAST(:n AS smallint)))).* "
+                     "FROM app_world.\"TITEMTABLE\" src WHERE \"bWorldID\"=:w AND \"dlID\"=:original "
+                     "RETURNING app_world.item_fingerprint(i)",
+                    soci::use(id,"id"),soci::use(bag,"b"),soci::use(slot,"s"),soci::use(count,"n"),
+                    soci::use(world,"w"),soci::use(original,"original"),soci::into(hash);
+            }else if(!count) {
+                long long removed=0;
+                sql<<"DELETE FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dlID\"=:id RETURNING \"dlID\"",
+                    soci::use(world,"w"),soci::use(id,"id"),soci::into(removed);
+            }else {
+                sql<<"UPDATE app_world.\"TITEMTABLE\" i SET \"dwStorageID\"=:b,\"bItemID\"=:s,\"bCount\"=:n "
+                     "WHERE \"bWorldID\"=:w AND \"dlID\"=:id RETURNING app_world.item_fingerprint(i)",
+                    soci::use(bag,"b"),soci::use(slot,"s"),soci::use(count,"n"),soci::use(world,"w"),soci::use(id,"id"),soci::into(hash);
+            }
             if(!sql.got_data())throw std::runtime_error("Inventory move lost its item");
-            out.hashes.push_back(hash);
+            out.committed.hashes.push_back(hash);
         }
         sql<<"SET CONSTRAINTS app_world.item_slot IMMEDIATE";
     }

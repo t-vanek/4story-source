@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **027** are also immutable. Current
-native Map deployment requires migrations through 027 and the existing
+All subsequently applied migrations through **028** are also immutable. Current
+native Map deployment requires migrations through 028 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -106,8 +106,17 @@ values and identity/slot uniqueness are preserved. `inventory_movements` groups
 one or two complete-stack relocations with exact item and graph fingerprints.
 Fresh moves update only `dwStorageID` and `bItemID`; graph moves keep normalized
 rows untouched. Reapply the updated Map grants for these two columns and the new
-ledger/sequence. Migrations 001–027 are immutable; next is 028. See the
+ledger/sequence. That increment made 027 immutable. See the
 [inventory move contract](../_rewrite/docs/modernization/evidence/inventory-moves-contract.json).
+
+Migration 028 adds `inventory_stack_changes` without modifying 027 receipts.
+Each split/merge records source and destination counts/hashes under one operation.
+Splits use the same `worlds.item_high_water` transaction as Login starter creation;
+rollback restores the allocator along with items and recovery state. Graph splits
+reserve a global ID without materializing stale normalized child rows. Apply the
+updated Map grants for item INSERT, stack receipt INSERT and narrow high-water
+UPDATE. Migrations 001–028 are now immutable; next schema change is 029. See the
+[stack contract](../_rewrite/docs/modernization/evidence/inventory-stacks-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
 all requiring one unit. Premium templates 25020, 25021 and 25022 referenced by the

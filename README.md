@@ -29,6 +29,7 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Characters | Native creation/list/deletion, starter inventory, atomic item IDs, fresh world admission, client hydration, core checkpoints, logout and reconnect | Complete item/economy mutations and ancillary character state |
 | Map content | Pinned source catalogs, real monster attributes, routing and actor catalogs loaded by the actual daemon | Complete spawn, movement validation, entity visibility and gameplay parity |
 | Primary Map handoff | Movement-triggered transfer between two Maps, one database writer, exact state transfer, skill timers, return trips and recovery after process replacement | Full effect/quest/companion simulation, multiple-neighbor changes and special transfer branches |
+| Inventory | Native whole-stack moves, raw-attribute swaps, splitting and capacity-clamped merging; atomic IDs/receipts, two-Map round trips and recovery | Equipment, drops, timed bags, secured state and full economy |
 | World, Control, Patch and Log | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
 Migration **020** adds the primary transfer journal, authority epochs and complete
@@ -210,7 +211,7 @@ Complete combat damage/target/AOI rules, active effects, equipment mutation and
 original-client executable acceptance remain pending. The random outcome range is
 preserved; the original Windows process seed sequence is not reproduced.
 
-The latest increment adds **native inventory moves**: whole stacks can move to
+The preceding increment adds **native inventory moves**: whole stacks can move to
 an empty carried-bag slot, and different item templates can swap positions within
 or between bags. IDs, counts, raw attributes and client descriptors are conserved.
 The source five-byte request and DEL/ADD or ordered UPDATE responses are retained;
@@ -228,15 +229,48 @@ Debug, sanitizer and installed Release run. Thirteen migration-upgrade checks
 verify preservation, atomic swaps and receipt constraints; the previous image
 fails the new inventory packet regression. All six container services pass
 health, DNS and SIGTERM checks. The local image is
-`localhost/fourstory:postgresql-inventory-moves` (also `:main`), running as
+`localhost/fourstory:postgresql-inventory-moves` (then also `:main`), running as
 UID/GID 10001:10001. The installed test uses Release daemons with verified Debug
 backend/pool integration executables. See
 [container evidence](_rewrite/docs/modernization/evidence/inventory-moves-container-verification.json).
 
 [Inventory move contract](_rewrite/docs/modernization/evidence/inventory-moves-contract.json)
-records exact scope and tests. Splits, merges/same-template swaps, item dropping,
-timed bags, secured inventories and equipment changes are still unsupported.
+records the preceding scope and tests. The stack increment below adds split/merge
+and same-template unequal swaps. Item dropping, timed bags, secured inventories
+and equipment changes remain unsupported.
 Original-client executable acceptance and complete gameplay remain unfinished.
+
+The current increment adds **native stack splitting and merging** in the existing
+MOVEITEM handler. Raw CTItem equality decides merge versus full-stack swap, even
+for the same template. Splits atomically allocate a new ID from the same world
+counter as character creation; merges retain destination identity and clamp to
+pinned stack capacity. A full destination preserves the original successful no-op
+packet sequence. Original UPDATE/DEL/ADD ordering follows confirmed commit.
+
+Migration **028** adds paired stack receipts without rewriting earlier migrations
+or historical data. Fresh rows or complete transfer graphs commit with the allocator,
+core, timers and receipts. Actual encrypted tests split/move on the second Map and
+merge after returning to the first. Concurrent split, late rollback, disconnect
+and recovery tests preserve quantities and IDs.
+
+Verification passes **186 Debug tests** (200 entries: eight internal legacy skips
+and six explicit native fixture skips), **34 ASan/UBSan suites**, and **1,861
+native database/network checks** separately in Debug, sanitizer and installed
+Release runs. Seventeen migration-upgrade checks preserve existing rows/receipts
+and verify stack constraints. The prior image fails the new split request after
+a real primary transfer. All six services pass health/DNS/SIGTERM smoke.
+The local image is `localhost/fourstory:postgresql-inventory-stacks` (also `:main`),
+UID/GID 10001:10001. Installed verification uses Release daemons with verified
+Debug backend/pool integration executables.
+See the [stack contract](_rewrite/docs/modernization/evidence/inventory-stacks-contract.json)
+and [installed image evidence](_rewrite/docs/modernization/evidence/inventory-stacks-container-verification.json).
+
+**No original client binary build is currently certified.** The owner has only
+uncompiled client source, without game data. Protocol source version `0x2918`
+does not identify an executable release. The [client acceptance gate](_rewrite/docs/modernization/client-acceptance.md)
+records the missing executable/data/environment and all blocked scenarios. Complete
+gameplay, remaining service persistence and tools remain unfinished; no overall
+completion percentage or full compatibility claim is made.
 
 ## Database authority
 
@@ -247,7 +281,7 @@ need adaptation, change the derived PostgreSQL schema through a new migration.
 - `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
 - `content` and the compatibility views expose explicit, versioned projections.
 - `app_global` and `app_world` own mutable application and operational state.
-- Applied migrations **001–027 are immutable**; the next schema change starts at 028.
+- Applied migrations **001–028 are immutable**; the next schema change starts at 029.
 - Backups, credentials and private extraction output stay outside Git. Historical
   accounts, player records and missing combat values are never invented.
 

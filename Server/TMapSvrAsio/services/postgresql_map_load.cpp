@@ -206,7 +206,7 @@ ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw) {
     const int template_id=std::bit_cast<std::int16_t>(raw.item);soci::row chart;
     sql<<"SELECT * FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(template_id),soci::into(chart);
     if(!sql.got_data())throw std::runtime_error("Character item has no source template");
-    item.bRefineMax=U8(chart,"bRefineMax");item.bKind=U8(chart,"bKind");
+    item.bRefineMax=U8(chart,"bRefineMax");item.bKind=U8(chart,"bKind");item.stack_limit=U8(chart,"bStack");
     std::set<std::uint8_t> ids;
     for(const auto& m:raw.magic){
         const int id=m.id;const auto value=m.value;

@@ -6,7 +6,7 @@ not sufficient evidence of a particular original executable working.
 
 | Contract | Evidence and current scope | Status / remaining proof |
 |---|---|---|
-| Exact client executable | Client source exists; shared `ProtocolBase.h` reports `TVERSION=0x2918`; source headers and backups can be fingerprinted independently | BLOCKED for a named binary build: executable identity and a runnable client environment/capture are not established |
+| Exact client executable | Client source exists; shared `ProtocolBase.h` reports `TVERSION=0x2918`; source headers and backups can be fingerprinted independently | BLOCKED for a named binary build: owner confirms source only, no additional client files; executable identity, matching data and runnable environment are absent ([gate](client-acceptance.md)) |
 | Opcode registry | `tools/modernization_inventory.py` independently evaluates all 1,542 legacy base-plus-offset expressions against `MessageId.h`; nine collisions preserved | VERIFIED for numeric definitions only |
 | Packet framing and crypto | Portable codec, crypto and Asio tests plus independent Python RC4/MD5+XOR peer; queued final ACK flushes before close; uint64 modular checksum golden vectors avoid undefined signed overflow | INTEGRATED; independent captures and client-build validation pending |
 | Login and session ordering | `TLoginSvrAsio/handlers.cpp`, auth/connection registry, existing handshake/control-gate tests; original `TLoginSvr` and `Client/TClient` are references | VERIFIED synthetic native Login transaction/duplicate/abandoned-login subset plus process failover, sequential pipelining and shutdown drain via login-lifecycle.json; original executable, non-ASCII wire credentials and direct-login 2FA/world ownership remain pending; login-security.json verifies source non-direct 0x2918 confirmation → client LOGIN retry without unsolicited LOGIN_ACK |
@@ -671,3 +671,36 @@ the reservation until recovery. Source-derived encrypted peers verify fresh-stat
 packets; graph transfer/recovery is verified at the native service boundary.
 See [inventory contract](evidence/inventory-moves-contract.json). Original-client
 executable acceptance remains pending.
+
+
+## Native stack splitting, merging and exact item equality
+
+The later 028 increment extends the same five-byte MOVEITEM request. For an empty
+carried slot, a partial quantity clones the full original item fields and allocates
+one new identity from the transactionally locked world counter. The source keeps
+its ID and remaining count. Response order is source UPDATE, destination ADD, then
+MOVEITEM success. A whole-stack move still retains its identity and DEL/ADD order.
+
+For occupied carried slots, original CTItem equality compares template, level, gem,
+appearance, grade, max/current durability, refine, expiration, all six full DWORD
+extensions and the raw magic ID/value map. Equal template/level/gem resolve the
+same reconstructed source attribute pointer. Equality intentionally ignores identity,
+quantity and grade effect. Unequal items swap whole stacks even when templates match
+or the requested count is one. Equal items merge min(request,source count,free stack
+capacity), preserving destination identity and its attributes. The source emits
+UPDATE or DEL, then destination UPDATE, then MOVEITEM. A full destination retains
+both unchanged UPDATEs and successful MOVEITEM, exactly as the source does.
+
+Pinned bStack is loaded on fresh and transfer hydration and revalidated in the
+transaction. A corrupt destination already above capacity is explicitly refused
+instead of reproducing source signed subtraction followed by BYTE narrowing.
+Equipment, drops, timed bags, secure-code state and active trade/store rules remain
+outside the supported mutation scope. Packet widths, framing and encryption do
+not change. No result here is original-client executable acceptance.
+
+Fresh rows or the complete graph, allocator, core, timers and both ordered stack
+receipts commit atomically. Unknown commit outcomes retain the existing reservation
+and do not retry or save a stale snapshot. Actual two-Map packet tests split and
+move on the promoted server, transfer back and merge on the new primary while
+stale normalized rows remain untouched. See [stack contract](evidence/inventory-stacks-contract.json)
+and the [confirmed client acceptance gate](client-acceptance.md).

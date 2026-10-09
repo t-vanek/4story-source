@@ -10,6 +10,7 @@ import struct
 import time
 from verify_login_wire import frame, read_packet
 from verify_graph_reagent_wire import seed_graph_reagent, graph_reagent_cast
+from verify_inventory_stack_wire import graph_stack_packet
 
 
 def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start, connect_request, parse_character, ammunition=False):
@@ -118,15 +119,20 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         graph_reagent_cast(conn,replica,cid,reagent_id,reagent_descriptor,4,2,9 if ammunition else 3,False,check,delay=True,ammunition=ammunition)
         expected_reagent=5 if ammunition else 2
         no_packet(primary,'former primary receives no private inventory response from its successor')
-        replica.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4080, 80, 3584, 0, 92, 0, 0, 0, 0, 1.0), 0x5289, 5))
+        graph_stack_packet(conn,replica,cid,reagent_descriptor,5,5,expected_reagent,'split',check)
+        graph_stack_packet(conn,replica,cid,reagent_descriptor,6,8,expected_reagent,'move',check)
+        no_packet(primary,'graph split and move remain private to their current owner')
+        replica.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4080, 80, 3584, 0, 92, 0, 0, 0, 0, 1.0), 0x5289, 7))
         op, body = read_packet(primary, 5)
         check(op == 0x5282 and body == b'\0\2\1\2', 'return crossing promotes the same original socket with source CONNECT')
         until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (1,2,'loaded'), 'round trip increments authority despite reusing original process and connection')
-        primary.sendall(frame(b'', 0x5288, 5));replica.sendall(frame(b'', 0x5288, 6))
+        primary.sendall(frame(b'', 0x5288, 5));replica.sendall(frame(b'', 0x5288, 8))
         until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (1,2,'ready'), 'returned primary becomes ready without replacing either client connection')
         no_packet(primary, 'return handoff keeps existing client character state')
         no_packet(replica, 'returned secondary remains connected without duplicate admission')
-        graph_reagent_cast(conn,primary,cid,reagent_id,reagent_descriptor,6,6,5 if ammunition else 2,True,check,ammunition=ammunition)
+        graph_stack_packet(conn,primary,cid,reagent_descriptor,6,6,expected_reagent,'merge',check)
+        no_packet(replica,'returned primary merges the transferred split without a private ACK on the replica')
+        graph_reagent_cast(conn,primary,cid,reagent_id,reagent_descriptor,7,9,5 if ammunition else 2,True,check,ammunition=ammunition)
         expected_reagent=1
         primary.close()
         until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'transferred primary performs final native save and releases account')

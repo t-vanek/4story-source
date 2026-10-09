@@ -37,14 +37,10 @@ boost::asio::awaitable<void> OnMoveItemReq(std::shared_ptr<tnetlib::AsioSession>
     }
     try {
         auto* service=ctx.player_service;
-        const auto hashes=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&request,&before,&after]{
+        const auto committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&request,&before,&after]{
             return service->MoveInventoryItems(claim,request,before,after);
         });
-        if(hashes.size()!=plan.items.size())throw std::runtime_error("Incomplete inventory move result");
-        auto p=std::make_shared<CharacterPayload>(*after.payload);
-        for(std::size_t i=0;i<plan.items.size();++i)for(auto& bag:p->bags)for(auto& item:bag.items)
-            if(item.dlID==plan.items[i].before.dlID)item.durable_hash=hashes[i];
-        after.payload=std::move(p);
+        after=before;PublishInventoryMove(after,plan,committed);
         ctx.char_state->Store(cid,after);
     }catch(...) {
         // Even a reported failure may follow commit. Retain ownership and let
@@ -52,7 +48,7 @@ boost::asio::awaitable<void> OnMoveItemReq(std::shared_ptr<tnetlib::AsioSession>
         auto uncertain=*original;uncertain.persistence_uncertain=true;
         ctx.char_state->Store(cid,uncertain);sess->Close();throw;
     }
-    if(plan.items.size()==1) {
+    if(plan.kind==InventoryMoveKind::Move) {
         const auto& item=plan.items.front().before;
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK),
             std::vector<std::byte>{static_cast<std::byte>(item.bInvenID),static_cast<std::byte>(item.bItemID)});
@@ -60,10 +56,15 @@ boost::asio::awaitable<void> OnMoveItemReq(std::shared_ptr<tnetlib::AsioSession>
     // Source order: DEL+ADD for a move; source-at-destination UPDATE followed by
     // destination-at-source UPDATE for a swap; one private MOVEITEM result last.
     for(const auto& move:plan.items) {
-        auto item=move.before;item.bItemID=move.slot;item.bInvenID=move.bag;
+        if(!move.count) {
+            co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK),
+                std::vector<std::byte>{static_cast<std::byte>(move.bag),static_cast<std::byte>(move.slot)});
+            continue;
+        }
+        auto item=move.before;item.bItemID=move.slot;item.bInvenID=move.bag;item.bCount=move.count;
         auto descriptor=EncodeItemDescriptor(item,cid,true);
         descriptor.insert(descriptor.begin(),static_cast<std::byte>(move.bag));
-        co_await sess->SendPacket(static_cast<std::uint16_t>(plan.items.size()==1?MessageId::CS_ADDITEM_ACK:MessageId::CS_UPDATEITEM_ACK),descriptor);
+        co_await sess->SendPacket(static_cast<std::uint16_t>(plan.kind==InventoryMoveKind::Move||move.created?MessageId::CS_ADDITEM_ACK:MessageId::CS_UPDATEITEM_ACK),descriptor);
     }
     co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),std::vector<std::byte>{std::byte{0}});
 }

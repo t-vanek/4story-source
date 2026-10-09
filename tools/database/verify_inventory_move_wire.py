@@ -78,7 +78,7 @@ def verify_inventory_moves(conn,cid,start,enter,login_port,map_port,until):
               'all original item fields except positions remain byte-for-value unchanged')
         s.close();s=None
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'inventory return logout completes')
-        for req,label in [((255,2,4,4,8),'out-of-capacity destination'),((255,2,4,3,1),'unsupported split')]:
+        for req,label in [((255,2,4,4,8),'out-of-capacity destination'),((255,2,252,3,1),'unsupported drop')]:
             _,key=start(login_port,cid);s,_=enter(map_port,cid,key);cs,ss=3,4
             request(*req)
             check(s.recv(1)==b'',label+' closes before any success or item mutation')
@@ -90,4 +90,4 @@ def verify_inventory_moves(conn,cid,start,enter,login_port,map_port,until):
         if items:conn.execute('DELETE FROM app_world."TITEMTABLE" WHERE "dlID"=ANY(%s)',(items,))
         conn.execute('DELETE FROM app_world."TINVENTABLE" WHERE "dwCharID"=%s AND "bInvenID"=4',(cid,))
     check(inventory()==original,'fixture restores all original inventory rows after removing only synthetic items and bag')
-    return {'status':'passed','checks':checks,'scope':'Actual encrypted fresh-primary whole-stack and different-template cross-bag moves/swaps, exact errors and inventory packets, delayed commit, capacities, no split, full-field conservation and relogin. Graph transfer/recovery is additionally tested at the native service boundary; no original-client executable.'}
+    return {'status':'passed','checks':checks,'scope':'Actual encrypted fresh-primary whole-stack and different-template cross-bag moves/swaps, exact errors and inventory packets, delayed commit, capacities, no drop, full-field conservation and relogin. Graph transfer/recovery is additionally tested at the native service boundary; no original-client executable.'}

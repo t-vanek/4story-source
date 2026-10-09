@@ -1,5 +1,6 @@
 #pragma once
 #include "services/inventory_move.h"
+#include "inventory_stack_fixture.h"
 
 void VerifyInventoryMoves(soci::session& admin,SessionPool& pool,tmapsvr::PostgreSQLMapService& source,
     const char* connection,const char* manifest,const char* routing,const char* actor,tmapsvr::MapSessionClaim primary,
@@ -75,7 +76,7 @@ void VerifyInventoryMoves(soci::session& admin,SessionPool& pool,tmapsvr::Postgr
     admin<<"DROP TRIGGER synthetic_move_fault ON app_world.inventory_movements";
     Check(checkpoint()==old_checkpoint&&item_rows()==original_items&&Number(admin,"SELECT count(*) FROM app_world.inventory_movements WHERE char_id="+cid)==0,
           "failed swap preserves exact inventory checkpoint core and audit");
-    auto hashes=service->MoveInventoryItems(active,swap,live,after);
+    auto hashes=service->MoveInventoryItems(active,swap,live,after).hashes;
     Check(hashes.size()==2&&hashes[0]!=src.durable_hash&&hashes[1]!=dst.durable_hash,"swap returns both new exact fingerprints");
     for(std::size_t i=0;i<plan.items.size();++i)PublishReagentHash(after,plan.items[i].before.dlID,hashes[i]);
     Check(item_at(after,255,1).dlID==src.dlID&&item_at(after,255,1).bCount==8&&item_at(after,255,0).dlID==dst.dlID&&item_at(after,255,0).bCount==3,
@@ -92,10 +93,11 @@ void VerifyInventoryMoves(soci::session& admin,SessionPool& pool,tmapsvr::Postgr
         Check(Throws([&]{service->MoveInventoryItems(active,move,live,after);}),"newly occupied destination cannot overwrite another owned item");
         admin<<"DELETE FROM app_world.\"TITEMTABLE\" WHERE \"dlID\"=9100000+"+cid;
     }
-    hashes=service->MoveInventoryItems(active,move,live,after);PublishReagentHash(after,src.dlID,hashes.at(0));
+    hashes=service->MoveInventoryItems(active,move,live,after).hashes;PublishReagentHash(after,src.dlID,hashes.at(0));
     Check(item_at(after,4,3).dlID==src.dlID&&item_at(after,4,3).bCount==8&&item_at(after,4,3).source->storage_id==4,
           "cross-bag whole-stack move preserves source identity and raw attributes");
     Check(Number(admin,"SELECT count(*) FROM app_world.inventory_movements WHERE char_id="+cid)==3,"move adds exactly one receipt after swap");
+    VerifyInventoryStacks(admin,*service,active,after,recover);
     if(graph) {
         SkillCooldownTracker timers;timers.Restore(primary.char_id,after.payload->skills,0);
         Check(transfer::Encode(StoredReagentGraph(admin,primary.char_id))==transfer::Encode(transfer::Capture(after,primary.key,timers,0)),
@@ -114,7 +116,7 @@ void VerifyInventoryMoves(soci::session& admin,SessionPool& pool,tmapsvr::Postgr
         active=primary;active.authority_epoch=2;after=received->snapshot;service=&source;source.MarkReady(active,after);
     }
     live=after;const InventoryMoveRequest back{4,3,255,1,8};plan=PlanInventoryMove(live,back);ApplyInventoryMove(after,plan);
-    hashes=service->MoveInventoryItems(active,back,live,after);PublishReagentHash(after,src.dlID,hashes.at(0));
+    hashes=service->MoveInventoryItems(active,back,live,after).hashes;PublishReagentHash(after,src.dlID,hashes.at(0));
     Check(item_at(after,255,1).dlID==src.dlID&&after.payload->bags.size()==3,"returned primary can move the same original item again");
     service->SaveAuthorized(active,after);
 }

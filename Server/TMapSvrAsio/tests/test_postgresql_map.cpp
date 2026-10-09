@@ -260,10 +260,13 @@ int main(){
         Check(claim(move_recovery),"inventory recovery relogin claims epoch zero");
         auto move_restored=*map.LoadAuthorized(move_recovery);map.MarkReady(move_recovery,move_restored);
         const auto move_plan=tmapsvr::PlanInventoryMove(move_restored,{4,3,255,1,8});
-        Check(move_plan.items.size()==1&&move_plan.items[0].before.bCount==8&&move_plan.items[0].before.dlID==0xfedcba9876543200ULL,"relogin recovers moved unsigned item despite stale normalized position");
+        Check(move_plan.items.size()==1&&move_plan.items[0].before.bCount==5&&move_plan.items[0].before.dlID==0xfedcba9876543200ULL,"relogin recovers split unsigned source despite stale normalized count");
+        int split_count=0;for(const auto& bag:move_restored.payload->bags)for(const auto& item:bag.items)
+            if(bag.bag.bInvenID==255&&item.bItemID==2&&item.wItemID==8401&&item.bCount==3&&item.dlID!=0xfedcba9876543200ULL)++split_count;
+        Check(split_count==1,"process replacement and relogin retain the newly allocated split identity");
         auto move_after=move_restored;tmapsvr::ApplyInventoryMove(move_after,move_plan);
         const auto move_hashes=map.MoveInventoryItems(move_recovery,{4,3,255,1,8},move_restored,move_after);
-        PublishReagentHash(move_after,move_plan.items[0].before.dlID,move_hashes.at(0));map.SaveAuthorized(move_recovery,move_after);
+        PublishReagentHash(move_after,move_plan.items[0].before.dlID,move_hashes.hashes.at(0));map.SaveAuthorized(move_recovery,move_after);
         stage="primary transfer";VerifyMainTransfer(admin,mpool,map,mapconn,manifest,routing,actor,create(711,"TransferHero",11));
         stage="transfer recovery";auto transferred_crash=create(712,"TransferCrash",12);
         VerifyMainTransferRecovery(admin,mpool,map,mapconn,manifest,routing,actor,transferred_crash);

@@ -21,7 +21,7 @@ Local builds, disposable verification containers and local commits remain author
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–027 and the checkpoint, retirement and replica contract evidence. Actual
+   001–028 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -202,7 +202,7 @@ The helper creates labelled disposable containers; reuse no unrelated databases.
 Build in the Ubuntu image with `/src` bound to the checkout because the current
 `build/linux-debug` CMake cache contains container paths.
 
-Do not overwrite migrations `001`–`027` after application. Add migrations `028` onward.
+Do not overwrite migrations `001`–`028` after application. Add migrations `029` onward.
 Do not revert unrelated pre-existing client/binary/library working-tree changes.
 
 
@@ -456,11 +456,11 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–027; next schema change is 028. Native
+Preserve backups and migrations 001–028; next schema change is 029. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
-Continue with stack splitting/merging and equipment/durability mutation and recomputation of derived stats, timing
+Continue with equipment/durability mutation and recomputation of derived stats, timing
 and item eligibility. Then add authoritative effect expiry, cast lifecycle and
 combat/target/AOI rules. Reagent-plus-weapon combinations and zero-target ammo
 remain unsupported. Premium templates 25020–25022 are absent from the backup;
@@ -473,9 +473,17 @@ Inventory continuation: the normal five-byte MOVEITEM path is integrated, using
 `PlanInventoryMove`, an unpublished frozen snapshot, `MoveInventoryItems` and
 post-commit original item descriptors. Preserve initially-immediate slot uniqueness,
 per-operation receipt grouping, canonical graph state and uncertain-outcome
-reservation retention. Next extend source CTItem equality/Copy behavior to
-same-template merges and splitting with the verified item allocator, then equipment
-slot/class/level/two-hand rules and derived-stat/timing invalidation. Add actual
-two-Map inventory packet coverage; service transfer/recovery is already tested.
+reservation retention. Migration 028 now integrates source CTItem equality, split/merge and the shared
+allocator, including actual two-Map split/move/return/merge packets. Next implement equipment
+slot/class/level/two-hand rules and derived-stat/timing invalidation. Preserve actual two-Map inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
-only until complete gameplay; next new migration 028.
+only until complete gameplay; next new migration 029.
+
+
+The owner confirmed that only uncompiled client sources are available, without
+client data. Track binary/data/environment acceptance in `client-acceptance.md`;
+continue independent server work and do not declare a supported executable build.
+A current code audit also finds Log's generic exception retry after COMMIT:
+`SociLogSink` single/bulk paths can requeue an unknown outcome. That production
+persistence path needs explicit outcome handling and native fault acceptance before
+Log can be called complete; its transport/smoke tests do not meet that gate.

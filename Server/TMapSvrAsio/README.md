@@ -156,9 +156,15 @@ position. The transaction preserves IDs/counts/attributes and validates owned
 rows or the complete authoritative graph. Migration 027 permits atomic swaps
 without temporary fake slots and records grouped movement receipts; apply it and
 the updated Map grants before running these binaries. Only confirmed commit
-publishes DEL+ADD or ordered UPDATEs followed by MOVEITEM. Splits, merges,
-same-template swaps, drops, equipment, timed bags and secured inventories remain
-unsupported. See the [inventory contract](../../_rewrite/docs/modernization/evidence/inventory-moves-contract.json).
+publishes DEL+ADD or ordered UPDATEs followed by MOVEITEM. At that increment, splits/merges were pending; 028 below extends them. Drops,
+equipment, timed bags and secured inventories remain unsupported. See the [inventory contract](../../_rewrite/docs/modernization/evidence/inventory-moves-contract.json).
+
+The subsequent 028 increment supports partial stack splitting, capacity-clamped
+merging, full-destination no-op responses and same-template unequal swaps through
+the same request handler. It uses exact raw CTItem equality, the shared transactional
+ID allocator and full-state receipts. Apply 028 and current Map grants. Splits and
+merges are covered in fresh and transferred state, including actual two-Map packet
+round trips, concurrency, rollback and recovery. See the [stack contract](../../_rewrite/docs/modernization/evidence/inventory-stacks-contract.json).
 
 ## Historical subsystem overview (see current acceptance scope above)
 

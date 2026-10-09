@@ -133,6 +133,7 @@ struct Players final : tmapsvr::IPlayerService {
                     auto other=item;other.dlID=124;other.bItemID=5;other.wItemID=8401;other.bCount=5;
                     p->bags[0].items.push_back(other);
                     for(auto& i:p->bags[0].items) {
+                        i.stack_limit=100;
                         auto raw=std::make_shared<tmapsvr::transfer::Item>();raw->id=i.dlID;raw->item=i.wItemID;raw->count=i.bCount;
                         raw->slot=i.bItemID;raw->storage_id=255;raw->owner_id=cid;i.source=raw;
                     }
@@ -152,13 +153,17 @@ struct Players final : tmapsvr::IPlayerService {
         if (fail_save) throw std::runtime_error("injected save failure");
         saved=s; ++saves;
     }
-    std::vector<std::string> MoveInventoryItems(const tmapsvr::MapSessionClaim&,const tmapsvr::InventoryMoveRequest& request,
+    tmapsvr::InventoryMoveCommit MoveInventoryItems(const tmapsvr::MapSessionClaim&,const tmapsvr::InventoryMoveRequest& request,
         const tmapsvr::CharSnapshot& before,const tmapsvr::CharSnapshot& after) override {
         move_started=true;const auto deadline=std::chrono::steady_clock::now()+1s;
         while(hold_move&&std::chrono::steady_clock::now()<deadline)std::this_thread::sleep_for(2ms);
         if(fail_move)throw std::runtime_error("synthetic unknown inventory move outcome");
-        committed=after;++moves;
-        return std::vector<std::string>(tmapsvr::PlanInventoryMove(before,request).items.size(),std::string(64,'c'));
+        const auto plan=tmapsvr::PlanInventoryMove(before,request);
+        tmapsvr::InventoryMoveCommit result;
+        if(plan.kind==tmapsvr::InventoryMoveKind::Split)result.created_id=1000;
+        for(const auto& item:plan.items)result.hashes.push_back(item.count?std::string(64,'c'):std::string{});
+        committed=before;tmapsvr::PublishInventoryMove(committed,plan,result);++moves;
+        return result;
     }
     std::vector<std::string> ConsumeSkillItems(const tmapsvr::MapSessionClaim&,std::uint16_t,std::uint8_t,
         const std::vector<tmapsvr::SkillItemDebit>& debits,const tmapsvr::CharSnapshot& s) override {
@@ -944,6 +949,44 @@ int main(int argc, char**) {
                     Check(players.saves==saves&&players.moves==moves&&server.FailedSaves()==failures+1&&state.Get(kChar)->persistence_uncertain&&
                           registry.Size()==1&&item_client->Count(MessageId::CS_MOVEITEM_ACK)==0,
                           "uncertain move retains ownership and refuses stale save without success");
+                    registry.Unbind(kChar);state.Remove(kChar);timers.Forget(kChar);
+                }
+            }
+            players.fail_move=false;
+            for(int mode=0;mode<3;++mode) {
+                world.packets.clear();const auto saves=players.saves.load();const auto failures=server.FailedSaves();
+                auto client=Dial(io,server.Port());co_await Send(client,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return world.packets.size()==1;},"split fixture announced");
+                co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+                co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
+                co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+                co_await Send(client,MessageId::CS_CONREADY_REQ,{});
+                co_await Until([&]{return presence.FindEntry(kChar).has_value();},"split fixture ready");
+                players.hold_move=true;players.move_started=false;players.fail_move=mode==2;
+                co_await Send(client,MessageId::CS_MOVEITEM_REQ,move_request(4,6,1));
+                co_await Until([&]{return players.move_started.load();},"split transaction pending");
+                Check(state.Get(kChar)->payload->bags[0].items.size()==2&&client->Count(MessageId::CS_ADDITEM_ACK)==0,"uncommitted split does not expose a temporary item ID");
+                if(mode==1)client->wire->Close();
+                players.hold_move=false;
+                if(mode==0) {
+                    co_await Until([&]{return client->Count(MessageId::CS_MOVEITEM_ACK)==1;},"split commit acknowledged");
+                    auto n=client->packets.size();
+                    Check(client->packets[n-3].first==static_cast<std::uint16_t>(MessageId::CS_UPDATEITEM_ACK)&&
+                          client->packets[n-2].first==static_cast<std::uint16_t>(MessageId::CS_ADDITEM_ACK)&&
+                          state.Get(kChar)->payload->bags[0].items.back().dlID==1000,"split publishes source UPDATE then ADD with durable allocated identity");
+                    co_await Send(client,MessageId::CS_MOVEITEM_REQ,move_request(6,4));
+                    co_await Until([&]{return client->Count(MessageId::CS_MOVEITEM_ACK)==2;},"merge commit acknowledged");
+                    n=client->packets.size();
+                    Check(client->packets[n-3].first==static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK)&&
+                          client->packets[n-2].first==static_cast<std::uint16_t>(MessageId::CS_UPDATEITEM_ACK)&&
+                          state.Get(kChar)->payload->bags[0].items[0].bCount==2,"full merge deletes source before destination UPDATE");
+                    client->wire->Close();
+                }
+                co_await Until([&]{return client->ended&&server.LiveSessions()==0;},"split fixture drains");
+                if(mode==1)Check(players.saves==saves+1&&players.saved.payload->bags[0].items.back().dlID==1000,"disconnect during split commit saves new identity");
+                if(mode==2) {
+                    Check(players.saves==saves&&server.FailedSaves()==failures+1&&state.Get(kChar)->persistence_uncertain&&registry.Size()==1,
+                          "uncertain split retains ownership and refuses stale final save");
                     registry.Unbind(kChar);state.Remove(kChar);timers.Forget(kChar);
                 }
             }

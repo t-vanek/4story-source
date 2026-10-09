@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-09",
+  "status": "blocked",
+  "supported_binary_build": null,
+  "client_executable_sha256": null,
+  "matching_data_manifest": null,
+  "runnable_client_environment": null,
+  "owner_statement": "Only uncompiled client source, without additional client files, is available.",
+  "scope_of_search": [
+    "Client/ including ignored files",
+    "repository executable inventory",
+    "Downloads/Documents executable/archive search"
+  ],
+  "client_executables_found": [],
+  "source_protocol_version": "0x2918",
+  "source_sha256": {
+    "Client/TClient/TClient.vcxproj": "806bd68ec274060f0ab7732549b124358b3c1780fbf302bfbbfc980cebe77397",
+    "Client/TClient/TClient.rc": "519aa8de6d8a5e388309c765a686a6060064492adf30a6db384ebc33ac4d70ee",
+    "Client/TClient/English_TClient.rc": "de78606cb24191ba909d7932b8948022b3b4289b5d5b66d8e35c11b638b1a3d6",
+    "Client/TClient/Germany_TClient.rc": "248cff5b038ce207bded3e4f612ba71f14ef3abb3742d6f3bb9c671ea3f2d4ad",
+    "Client/TClient/Japan_TClient.rc": "261a48d0c13a6ae2419d56ce70163935358cad15e093d7827e866398b1927a72",
+    "Lib/Own/TProtocol/include/ProtocolBase.h": "22cd4db1c03215170f1d04de18b66ab0a060af4921af3029c932b4ea3e7851d1"
+  },
+  "acceptance_runs": [],
+  "source_peer_tests_are_original_client_acceptance": false,
+  "server_implementation_continues": true
+}

@@ -18,7 +18,59 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: native carried inventory moves
+## Current verified increment: native stack split/merge and two-Map inventory
+
+The existing native inventory handler now implements the source partial-copy and
+merge branches, plus same-template unequal swaps. Raw magic and all six DWORD
+extensions participate in equality; grade effect/count/identity do not. Splits get
+one real database ID, retain raw fields and publish UPDATE/ADD/MOVEITEM. Merges
+retain destination identity, clamp to bStack and publish source UPDATE/DEL followed
+by destination UPDATE/MOVEITEM. Full destinations preserve the source successful
+no-op. Over-capacity corrupt destinations are explicitly refused.
+
+Migration 028 adds paired stack receipts. The same transaction fences the current
+primary, validates the complete graph or locked owned rows, allocates from the
+shared Login/Map high-water, writes items or authoritative graph, then commits core,
+timers and both receipts. Failed second receipts roll back allocation and deletion.
+Concurrent requests from one snapshot yield one split. Unknown outcomes never retry
+or permit stale final saves. Disconnect during confirmed commit saves the new ID.
+
+Verification passes **186 Debug tests** (200 entries: eight internal legacy skips
+and six explicit native fixture skips), **34 ASan/UBSan suites**, and **1,861
+native database/network checks** separately in Debug, sanitizer and installed
+Release runs. Seventeen migration-upgrade checks preserve existing rows/receipts
+and verify stack constraints. The prior image fails the new split request after
+a real primary transfer. All six services pass health/DNS/SIGTERM smoke.
+The local image is `localhost/fourstory:postgresql-inventory-stacks` (also `:main`),
+UID/GID 10001:10001. Installed verification uses Release daemons with verified
+Debug backend/pool integration executables.
+Image ID: `e5ae8ab0df918cd1863b1d7984186bf95b2980ad62026794a36df8bcaf7c4fe8`.
+
+Native totals comprise 589 backend, 29 pool/TLS, 402 outer TCP, 53 skill lifecycle,
+295 World handoff, 66 secondary, 141 reagent two-Map, 141 ammunition two-Map,
+24 fresh ammunition, 30 batch, 23 multi-attack, 29 whole-stack move, 32 stack
+and seven rejection checks. Two-Map tests now split/move on the promoted Map,
+transfer the graph back and merge on the new primary without private packets to
+replicas or normalized-row fallback. Native process replacement/relogin preserves
+both an unsigned source and its newly allocated child. Existing generic TCP
+SIGKILL/database/World-loss coverage remains; this increment does not claim a
+new split-specific SIGKILL wire scenario.
+
+Backups and migrations 001–027 retain hashes; 028 is now immutable and next is 029.
+Apply 028 and current Map grants before these binaries. See the
+[stack contract](evidence/inventory-stacks-contract.json),
+[container evidence](evidence/inventory-stacks-container-verification.json),
+[build fingerprints](evidence/inventory-stacks-build-fingerprints.json) and
+[owned-lab cleanup](evidence/inventory-stacks-cleanup.json).
+
+The owner confirms only uncompiled client source and no additional client files.
+No supported executable build or original-client run is declared; see the
+[acceptance gate](client-acceptance.md) and [current code audit](evidence/modernization-status-audit.json).
+Equipment, active effects/combat/quests/economy/social/modes, remaining service PG
+paths and original tools remain in scope and unfinished. All versioning stays local
+on main; no push/publication/external deployment.
+
+## Earlier verified increment: native carried inventory moves
 
 The actual native `CS_MOVEITEM_REQ` path now moves a whole stack into an empty
 slot or swaps different item templates. Both preserve original uint64 identity,
@@ -30,8 +82,8 @@ missing-item, zero-count and same-position result codes are retained.
 Bag capacity is loaded from pinned `TITEMCHART` on fresh and transfer hydration;
 the default template 3 provides 16 slots and template 4 provides four. Positions
 outside that capacity are refused instead of reproducing the original unchecked
-FindTItem behavior. Splitting, merging, same-template swaps, dropping, equipment,
-timed bags and secure-code inventories remain explicitly unsupported.
+FindTItem behavior. At that increment splitting/merging were deferred; 028 above extends them.
+Dropping, equipment, timed bags and secure-code inventories remain unsupported.
 
 Migration 027 adopts the existing unique `item_slot` index as a deferrable,
 initially immediate constraint. A swap defers and revalidates it inside its single
@@ -56,7 +108,7 @@ no native MOVEITEM handler.
 
 The installed run uses Release daemons with verified Debug backend/pool test
 executables. Six-service health/DNS/SIGTERM smoke passes. Local image
-`localhost/fourstory:postgresql-inventory-moves` (also `:main`), ID
+`localhost/fourstory:postgresql-inventory-moves` (then also `:main`), ID
 `1edff25ea38aaaeafb3a7d868880649a9b5e3b88976ce63a67d4ef0783c6cea2`,
 UID/GID 10001:10001. See [container evidence](evidence/inventory-moves-container-verification.json).
 
@@ -65,10 +117,10 @@ late second-receipt rollback, unsigned graph IDs, return transfer, process recov
 and fresh relogin. Handler tests also exercise a disconnect during commit, unknown
 outcome, unchanged live timers and private ACK order. Encrypted TCP tests use fresh
 state for whole-stack cross-bag moves and swaps, delayed commit, exact descriptors,
-error codes, capacity/split refusal and relogin. Graph move TCP through two Maps is
-still a separate acceptance step; the service/transfer boundary is verified here.
+error codes, capacity/split refusal and relogin. That increment verified the service/transfer boundary; 028 above adds actual
+two-Map inventory packet acceptance.
 
-Backups and migrations 001–026 retain hashes; 027 is now immutable and next is 028.
+Backups and migrations 001–026 retain hashes; 027 became immutable; 028 above extends the schema.
 Apply 027 and updated `map-runtime-grants.sql` before these binaries. See
 [source contract](evidence/inventory-moves-contract.json),
 [build fingerprints](evidence/inventory-moves-build-fingerprints.json) and

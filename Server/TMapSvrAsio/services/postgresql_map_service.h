@@ -35,9 +35,9 @@ public:
     std::optional<TransferredCharacter> AcceptTransfer(const MapSessionClaim&,std::span<const std::byte>) override;
     bool OutgoingTransferCommitted(const MapSessionClaim&) override;
     std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&) override;
-    std::vector<std::string> MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) override;
+    InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) override;
 private:
-    struct InventoryStoragePlan {InventoryMovePlan move;std::vector<std::string> hashes;std::string before_graph,after_graph;};
+    struct InventoryStoragePlan {InventoryMovePlan move;CharSnapshot after;InventoryMoveCommit committed;std::string before_graph,after_graph;};
     InventoryStoragePlan ValidateInventoryMove(soci::session&,const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) const;
     enum class ConsumptionKind { Reagent, Ammunition, MultiAttackAmmunition };
     struct ReagentGraphPlan {std::string before_hash,after_hash;std::vector<std::string> item_hashes;ConsumptionKind kind=ConsumptionKind::Reagent;};

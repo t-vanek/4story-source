@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "date": "2026-10-09",
+  "scope": "Actual 028 over minimal 027 predecessor with existing item and movement receipt. Native runtime tests separately apply every migration under actual Map grants.",
+  "checks": [
+    "028 preserves all original item rows and opaque values",
+    "028 preserves every applied 027 receipt unchanged",
+    "028 retains initially-immediate deferrable slot uniqueness",
+    "split records balanced source decrement and allocated child",
+    "operation cannot acquire a third or duplicate ordered change",
+    "split child cannot reuse parent identity",
+    "created child cannot claim a previous row fingerprint",
+    "split must debit its source quantity",
+    "merge deletion explicitly has no live after fingerprint",
+    "deleted source cannot retain a live after fingerprint",
+    "full destination supports original successful no-op receipt",
+    "merge source cannot increase quantity",
+    "merge destination cannot lose quantity",
+    "graph mutation requires both checkpoint hashes",
+    "graph split retains unsigned source identity bits",
+    "stack receipts refuse equipment positions",
+    "rollback removes all isolated upgrade fixtures"
+  ],
+  "migration_sha256": {
+    "database/postgresql/028-native-inventory-stacks.sql": "36567359900ab451167486d20f73b46a5b466605924e62b92b65213caaa3447e"
+  }
+}

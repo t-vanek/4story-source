@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-09",
+  "base_commit": "e4e52c087751eba37b17ea18cba60ea88cdd26ee",
+  "method": "Read current README/capability/continuation/protocol documents, inspected cited actual production paths and immutable source contracts, compared prior evidence and ran the updated current test matrix. This is a scoped audit, not a full behavioral review of every legacy file.",
+  "overall_goal": "not_complete",
+  "supported_client_binary": null,
+  "checks": [
+    {
+      "area": "Latest documented native baseline",
+      "claim": "The prior increment verified permanent carried whole-stack moves and different-template swaps, not complete inventory/gameplay.",
+      "status": "confirmed_and_extended",
+      "code": [
+        "Server/TMapSvrAsio/handlers/inventory.cpp",
+        "Server/TMapSvrAsio/services/postgresql_map_inventory.cpp",
+        "Server/TMapSvrAsio/services/inventory_move.h"
+      ],
+      "evidence": [
+        "inventory-moves-contract.json",
+        "inventory-stacks-contract.json"
+      ],
+      "limit": "Current 028 adds split/merge/raw equality and two-Map packet coverage; equipment and the wider economy remain pending."
+    },
+    {
+      "area": "Login and Map PostgreSQL ownership",
+      "claim": "Native authentication, character/handoff and fenced core/graph persistence exist in actual daemon paths.",
+      "status": "confirmed_for_recorded_scope",
+      "code": [
+        "Server/TLoginSvrAsio/services/postgresql_char_service.cpp",
+        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
+        "Server/TMapSvrAsio/services/postgresql_map_owner.cpp"
+      ],
+      "evidence": [
+        "native-inventory-stacks-debug.json",
+        "native-inventory-stacks-asan.json",
+        "native-inventory-stacks-release.json"
+      ],
+      "limit": "Synthetic owned accounts/source-derived peers; no released executable or full ancillary gameplay acceptance."
+    },
+    {
+      "area": "World",
+      "claim": "Actual handoff coordination is verified; this does not certify all social/war/event persistence.",
+      "status": "incomplete",
+      "code": [
+        "Server/TWorldSvrAsio/db/schema_validator.cpp",
+        "Server/TWorldSvrAsio/services/soci_guild_repository.cpp"
+      ],
+      "limit": "Legacy database/schema expectations, social game behavior and remaining native repositories require source-by-source acceptance."
+    },
+    {
+      "area": "Control",
+      "claim": "Service management/transport exists, but process smoke does not establish all native admin persistence and original tools.",
+      "status": "incomplete",
+      "code": [
+        "Server/TControlSvrAsio/services/soci_registry_persistence.cpp",
+        "Server/TControlSvrAsio/services/disabled_service_controller.h"
+      ],
+      "limit": "Explicitly disabled container service controller and optional repository paths must not be mistaken for parity; retain original tool index."
+    },
+    {
+      "area": "Patch",
+      "claim": "Some generic SQL works with PostgreSQL, but minimum beta cutoff still calls SQL Server SpCall and falls back to zero on failure.",
+      "status": "incomplete",
+      "code": [
+        "Server/TPatchSvrAsio/services/patch_repository.cpp",
+        "Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h"
+      ],
+      "limit": "No complete native cutoff/error/promotion contract or matching original launcher/data acceptance. An older audit labeling the stored-procedure fix complete is insufficient for PostgreSQL."
+    },
+    {
+      "area": "Log",
+      "claim": "Generic single and bulk failure handling requeues every exception, including an unknown result of COMMIT.",
+      "status": "incomplete_known_risk",
+      "code": [
+        "Server/TLogSvrAsio/services/log_sink.cpp",
+        "Server/TLogSvrAsio/services/log_sink.h"
+      ],
+      "limit": "Must distinguish outcomes and preserve uncertain records without automatic write replay; existing transport/retry mocks do not prove the required persistence guarantee."
+    },
+    {
+      "area": "Original client",
+      "claim": "No exact executable build has been established.",
+      "status": "blocked",
+      "code": [
+        "Client/TClient/TClient.vcxproj",
+        "Lib/Own/TProtocol/include/ProtocolBase.h"
+      ],
+      "evidence": [
+        "client-acceptance-blocker.json"
+      ],
+      "limit": "Owner confirms source only, no additional files. Protocol0x2918 is not a binary build identity. No original-client scenario has run."
+    }
+  ],
+  "source_sha256": {
+    "Client/TClient/TClient.vcxproj": "806bd68ec274060f0ab7732549b124358b3c1780fbf302bfbbfc980cebe77397",
+    "Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h": "0783608bc09dcc306a1e57acb96e01fbb475d477bed0e90df2d344eab7c34455",
+    "Lib/Own/TProtocol/include/ProtocolBase.h": "22cd4db1c03215170f1d04de18b66ab0a060af4921af3029c932b4ea3e7851d1",
+    "Server/TControlSvrAsio/services/disabled_service_controller.h": "f31ea71fed0e11432478233b3eafbcefd6c6443bd91c20e7a6a92f048613f74e",
+    "Server/TControlSvrAsio/services/soci_registry_persistence.cpp": "3d03b0436fd43055dc2292148750b833f42ede434227ea591b4b5c8eec05a36a",
+    "Server/TLogSvrAsio/services/log_sink.cpp": "a1a88b44801b9eecee7c9bb311ded66a5a00b26556331e3316a84c2d7ab1d552",
+    "Server/TLogSvrAsio/services/log_sink.h": "87804c946d521984a4c6f82f626f950f273cbd8ee7f72e507e0eebdbfaf59ee6",
+    "Server/TLoginSvrAsio/services/postgresql_char_service.cpp": "73cff6faf08a44ba9c4ecd17c2565162e4f8d6e2cb45b3517c3078bb1590f9b2",
+    "Server/TMapSvrAsio/handlers/inventory.cpp": "b8a0afa81f9b9e8575eb8578f29d30fe9439560ed033e0761963d0f52477fd87",
+    "Server/TMapSvrAsio/services/inventory_move.h": "31ca0e948f767ae767f49bf21698a5d18ff6042d9f438f73c83b6d5a54eb2598",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "2e54415dfdb707e3dbada0fdf4fe7425351ffae74ee1a7593ae96303692f02db",
+    "Server/TMapSvrAsio/services/postgresql_map_inventory.cpp": "9491d2b65e9af114e52ceb6df89af683f971c49b8a3963862a2fe5036dd50c89",
+    "Server/TMapSvrAsio/services/postgresql_map_owner.cpp": "054a3bfda5c9f2cce76b55ca8cae38936033f736d187fb7b6e543adf8a44da66",
+    "Server/TPatchSvrAsio/services/patch_repository.cpp": "6a182f955d3a2669e1d4c0e97bf098cbbf907c5084725707bdad0358b0b0f080",
+    "Server/TWorldSvrAsio/db/schema_validator.cpp": "ec7aa548cd0a5b20692cdc07c2590950f72899e19b4742812ba9cba9b9d82075",
+    "Server/TWorldSvrAsio/services/soci_guild_repository.cpp": "8d1ac6009a5d629aa5a2f9478ff304481356c30e59cd758880ff809b9dcad807"
+  },
+  "completion_gates": {
+    "all_original_functions_implemented_and_accepted": false,
+    "all_required_production_persistence_native_postgresql": false,
+    "complete_documented_playable_deployment": false,
+    "original_client_full_acceptance": false,
+    "all_required_failure_guarantees_verified": false,
+    "no_required_placeholders_or_blockers": false
+  },
+  "policy": "Only local main commits and local containers; no external publication. Existing Asio modules retained. Historical percentages and handler counts are not acceptance."
+}

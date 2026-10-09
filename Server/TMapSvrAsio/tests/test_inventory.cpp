@@ -3,6 +3,7 @@
 // path (slot assignment + "bag full" failure) exercised through the fake.
 
 #include "services/inventory_slots.h"
+#include "services/inventory_move.h"
 #include "services/fake_inventory_service.h"
 #include "domain/inventory.h"
 
@@ -102,6 +103,36 @@ int main()
         EXPECT(inv.LoadInventory(5).size() == kDefaultBagSlots);
     }
 
+    {
+        CharSnapshot s;s.dwCharID=42;auto p=std::make_shared<CharacterPayload>();
+        const auto item=[](std::uint64_t id,std::uint16_t tpl,std::uint8_t slot,std::uint8_t count){
+            ItemInstance i;i.dlID=id;i.wItemID=tpl;i.bInvenID=255;i.bItemID=slot;i.bCount=count;i.durable_hash=std::string(64,'a');
+            auto raw=std::make_shared<transfer::Item>();raw->id=id;raw->item=tpl;raw->slot=slot;raw->count=count;
+            raw->storage_id=255;raw->owner_id=42;raw->texture=0xfedcba98;raw->magic={{3,987}};i.source=raw;return i;
+        };
+        p->bags={{{255,3,0,0},{item(100,8401,0,8),item(200,11054,1,3)},16},{{4,4,0,0},{},4}};s.payload=p;
+        auto plan=PlanInventoryMove(s,{255,0,4,3,255});auto moved=s;ApplyInventoryMove(moved,plan);
+        EXPECT(plan.items.size()==1&&moved.payload->bags[1].items[0].dlID==100&&moved.payload->bags[1].items[0].bCount==8);
+        EXPECT(s.payload->bags[0].items.size()==2&&moved.payload->bags[0].items.size()==1);
+        const auto raw=moved.payload->bags[1].items[0].source;
+        EXPECT(raw->storage_id==4&&raw->slot==3&&raw->texture==0xfedcba98&&raw->magic[0].value==987);
+        plan=PlanInventoryMove(s,{255,0,255,1,1});auto swapped=s;ApplyInventoryMove(swapped,plan);
+        EXPECT(plan.items.size()==2&&swapped.payload->bags[0].items[0].dlID==200&&swapped.payload->bags[0].items[1].dlID==100);
+        EXPECT(swapped.payload->bags[0].items[1].bCount==8&&swapped.payload->bags[0].items[0].bCount==3);
+        EXPECT(PlanInventoryMove(s,{5,0,255,0,1}).result==InventoryMoveResult::NoSourceBag);
+        EXPECT(PlanInventoryMove(s,{255,7,255,0,1}).result==InventoryMoveResult::NoSourceItem);
+        EXPECT(PlanInventoryMove(s,{255,0,5,0,1}).result==InventoryMoveResult::NoDestinationBag);
+        EXPECT(PlanInventoryMove(s,{255,0,255,0,1}).result==InventoryMoveResult::SamePosition);
+        EXPECT(PlanInventoryMove(s,{255,0,255,0,0}).result==InventoryMoveResult::NoSourceItem);
+        const auto refuses=[&](InventoryMoveRequest r){try{PlanInventoryMove(s,r);return false;}catch(...){return true;}};
+        EXPECT(refuses({255,0,4,4,8}));EXPECT(refuses({255,0,4,3,1}));EXPECT(refuses({255,0,252,0,8}));
+        auto changed=std::make_shared<CharacterPayload>(*p);changed->bags[0].items[1].wItemID=8401;s.payload=changed;
+        EXPECT(refuses({255,0,255,1,8}));
+        changed->bags[1].bag.dEndTime=100;EXPECT(refuses({255,0,4,3,8}));
+        changed->bags[1].bag.dEndTime=0;changed->bags[1].bag.bInvenID=254;
+        EXPECT(refuses({255,0,254,0,8}));
+        changed->bags[0].items[0].source.reset();EXPECT(refuses({255,0,255,2,8}));
+    }
     if (g_fails == 0)
         std::printf("test_inventory: FindBlankSlot (gap/boundary/full) + "
                     "AddItem assign/fill/overflow OK\n");

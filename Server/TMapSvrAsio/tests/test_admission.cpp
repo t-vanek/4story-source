@@ -10,6 +10,7 @@
 #include "services/skill_cooldown.h"
 #include "services/skill_chart.h"
 #include "services/skill_reagent.h"
+#include "services/inventory_move.h"
 #include "services/main_transfer_runtime.h"
 #include "services/client_senders.h"
 #include "services/session_validator.h"
@@ -107,7 +108,9 @@ struct Players final : tmapsvr::IPlayerService {
     std::atomic<bool> save_started{false}, hold_save{false}, fail_save{false};
     tmapsvr::CharSnapshot saved;
     bool native_payload=false,admission_timers=false;
-    bool reagent_fixture=false;
+    bool reagent_fixture=false,inventory_fixture=false;
+    std::atomic<bool> hold_move{false},move_started{false},fail_move{false};
+    std::atomic<int> moves{0};
     std::atomic<bool> hold_consumption{false},consumption_started{false},fail_consumption{false};
     std::atomic<int> consumptions{0};
     tmapsvr::CharSnapshot committed;
@@ -121,11 +124,19 @@ struct Players final : tmapsvr::IPlayerService {
             t.bUseHPType=2;t.dwUseHP=10;t.f1stRateX=2.0f;t.bStartLevel=1;t.bNextLevel=1;
             t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.dwLoopDelay=2000;t.items=tmapsvr::SkillItemGate::Allowed;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
             p->skill_templates.push_back(t);
-            if(reagent_fixture) {
+            if(reagent_fixture||inventory_fixture) {
                 p->skill_templates[0].items=tmapsvr::SkillItemGate::Reagent;p->skill_templates[0].wUseItem=8412;
                 tmapsvr::ItemInstance item;item.dlID=123;item.wItemID=8412;item.bInvenID=255;item.bItemID=4;item.bCount=2;
                 item.source=std::make_shared<tmapsvr::transfer::Item>();item.durable_hash=std::string(64,'a');
-                p->bags.push_back({{255,3,0,0},{item}});
+                p->bags.push_back({{255,3,0,0},{item},16});
+                if(inventory_fixture) {
+                    auto other=item;other.dlID=124;other.bItemID=5;other.wItemID=8401;other.bCount=5;
+                    p->bags[0].items.push_back(other);
+                    for(auto& i:p->bags[0].items) {
+                        auto raw=std::make_shared<tmapsvr::transfer::Item>();raw->id=i.dlID;raw->item=i.wItemID;raw->count=i.bCount;
+                        raw->slot=i.bItemID;raw->storage_id=255;raw->owner_id=cid;i.source=raw;
+                    }
+                }
             }
             for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;p->skill_templates.push_back(other);}
             if(admission_timers){p->skills[0].dwRemainTick=300000;p->skills[1].dwRemainTick=1;}
@@ -140,6 +151,14 @@ struct Players final : tmapsvr::IPlayerService {
         while (hold_save && std::chrono::steady_clock::now()<deadline) std::this_thread::sleep_for(2ms);
         if (fail_save) throw std::runtime_error("injected save failure");
         saved=s; ++saves;
+    }
+    std::vector<std::string> MoveInventoryItems(const tmapsvr::MapSessionClaim&,const tmapsvr::InventoryMoveRequest& request,
+        const tmapsvr::CharSnapshot& before,const tmapsvr::CharSnapshot& after) override {
+        move_started=true;const auto deadline=std::chrono::steady_clock::now()+1s;
+        while(hold_move&&std::chrono::steady_clock::now()<deadline)std::this_thread::sleep_for(2ms);
+        if(fail_move)throw std::runtime_error("synthetic unknown inventory move outcome");
+        committed=after;++moves;
+        return std::vector<std::string>(tmapsvr::PlanInventoryMove(before,request).items.size(),std::string(64,'c'));
     }
     std::vector<std::string> ConsumeSkillItems(const tmapsvr::MapSessionClaim&,std::uint16_t,std::uint8_t,
         const std::vector<tmapsvr::SkillItemDebit>& debits,const tmapsvr::CharSnapshot& s) override {
@@ -873,6 +892,62 @@ int main(int argc, char**) {
                 }
             }
             players.reagent_fixture=false;players.fail_consumption=false;
+            players.inventory_fixture=true;
+            const auto move_request=[](unsigned src,unsigned dst,unsigned count=255){
+                return Bytes{std::byte{255},std::byte(src),std::byte{255},std::byte(dst),std::byte(count)};
+            };
+            for(int mode=0;mode<3;++mode) {
+                world.packets.clear();const auto saves=players.saves.load(),moves=players.moves.load();
+                const auto failures=server.FailedSaves();
+                auto item_client=Dial(io,server.Port());co_await Send(item_client,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return world.packets.size()==1;},"inventory fixture announced to World");
+                co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+                co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
+                co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+                co_await Send(item_client,MessageId::CS_CONREADY_REQ,{});
+                co_await Until([&]{return presence.FindEntry(kChar).has_value();},"inventory fixture ready");
+                timers.TryUse(kChar,7,tmapsvr::SkillClockMs(),10000);
+                players.hold_move=true;players.move_started=false;players.fail_move=mode==2;
+                co_await Send(item_client,MessageId::CS_MOVEITEM_REQ,move_request(4,6));
+                co_await Until([&]{return players.move_started.load();},"inventory transaction offloaded");
+                auto server_session=registry.Find(kChar);
+                Check(state.Get(kChar)->payload->bags[0].items[0].bItemID==4&&item_client->Count(MessageId::CS_DELITEM_ACK)==0&&
+                      !registry.BeginCheckpoint(server_session.get()),"uncommitted move stays invisible and excludes checkpoint capture");
+                if(mode==1)item_client->wire->Close();
+                players.hold_move=false;
+                if(mode==0) {
+                    co_await Until([&]{return item_client->Count(MessageId::CS_MOVEITEM_ACK)==1;},"committed inventory move replies");
+                    auto n=item_client->packets.size();
+                    Check(item_client->packets[n-3].first==static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK)&&
+                          item_client->packets[n-3].second.size()==2&&item_client->packets[n-3].second[0]==std::byte{255}&&
+                          item_client->packets[n-3].second[1]==std::byte{4},"whole-stack move sends exact source DEL after commit");
+                    Check(item_client->packets[n-2].first==static_cast<std::uint16_t>(MessageId::CS_ADDITEM_ACK)&&
+                          item_client->packets[n-2].second[1]==std::byte{6}&&item_client->packets[n-1].second[0]==std::byte{0},
+                          "whole-stack ADD follows committed DEL and precedes MOVEITEM success");
+                    const auto remaining=timers.RemainMs(kChar,7,tmapsvr::SkillClockMs());
+                    Check(remaining>0&&remaining<=10000&&state.Get(kChar)->dwMP==163,"inventory move preserves live cooldown and resources");
+                    co_await Send(item_client,MessageId::CS_MOVEITEM_REQ,move_request(6,5,1));
+                    co_await Until([&]{return item_client->Count(MessageId::CS_MOVEITEM_ACK)==2;},"inventory swap replies");
+                    n=item_client->packets.size();
+                    Check(item_client->packets[n-3].first==static_cast<std::uint16_t>(MessageId::CS_UPDATEITEM_ACK)&&
+                          item_client->packets[n-3].second[1]==std::byte{5}&&item_client->packets[n-3].second[10]==std::byte{2}&&
+                          item_client->packets[n-2].first==static_cast<std::uint16_t>(MessageId::CS_UPDATEITEM_ACK)&&
+                          item_client->packets[n-2].second[1]==std::byte{6}&&item_client->packets[n-2].second[10]==std::byte{5},
+                          "swap sends two full-count UPDATEs in source destination order");
+                    Check(players.moves==moves+2,"move and swap each invoke one durable transaction");
+                    item_client->wire->Close();
+                }
+                co_await Until([&]{return item_client->ended&&server.LiveSessions()==0;},"inventory fixture drains");
+                if(mode==1)Check(players.saves==saves+1&&players.saved.payload->bags[0].items.back().bItemID==6&&players.moves==moves+1,
+                                "disconnect during move commit saves committed position");
+                if(mode==2) {
+                    Check(players.saves==saves&&players.moves==moves&&server.FailedSaves()==failures+1&&state.Get(kChar)->persistence_uncertain&&
+                          registry.Size()==1&&item_client->Count(MessageId::CS_MOVEITEM_ACK)==0,
+                          "uncertain move retains ownership and refuses stale save without success");
+                    registry.Unbind(kChar);state.Remove(kChar);timers.Forget(kChar);
+                }
+            }
+            players.inventory_fixture=false;players.fail_move=false;
             for(int variant=0;variant<4;++variant) {
                 world.packets.clear();const auto saves=players.saves.load(),readies=validator.primary_readies.load();
                 auto invalid=Dial(io,server.Port());co_await Send(invalid,MessageId::CS_CONNECT_REQ,Connect());
@@ -895,6 +970,7 @@ int main(int argc, char**) {
             }
             players.native_payload=false;
             // A failed write keeps dirty state and blocks a new login in this process.
+            const auto failures_before_final_save=server.FailedSaves();
             players.save_started=false; players.fail_save=true;
             auto dirty=Dial(io,server.Port()); co_await Send(dirty,MessageId::CS_CONNECT_REQ,Connect());
             co_await Until([&]{return registry.Size()==1;},"save-failure fixture reserved");
@@ -905,7 +981,7 @@ int main(int argc, char**) {
             co_await Until([&]{return presence.FindEntry(kChar).has_value();},"save-failure fixture ready");
             server.CloseSessions();
             co_await Until([&]{return server.LiveSessions()==0;},"failed save is observed by teardown");
-            Check(registry.Size()==1 && state.Get(kChar).has_value() && server.FailedSaves()==2,"failed save retains dirty snapshot and reservation and reports failure");
+            Check(registry.Size()==1 && state.Get(kChar).has_value() && server.FailedSaves()==failures_before_final_save+1,"failed save retains dirty snapshot and reservation and reports failure");
             auto retry=Dial(io,server.Port()); co_await Send(retry,MessageId::CS_CONNECT_REQ,Connect());
             co_await Until([&]{return retry->ended;},"dirty reservation rejects reconnect");
             Check(retry->packets.size()==1 && retry->packets[0].second[0]==std::byte{3},"failed save cannot be hidden by stale reload");

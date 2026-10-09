@@ -10,7 +10,11 @@
 
 namespace tmapsvr {
 namespace transfer {struct State;}
-struct CharacterBag { InventoryRow bag; std::vector<ItemInstance> items; };
+struct CharacterBag {
+    InventoryRow bag;
+    std::vector<ItemInstance> items;
+    std::uint8_t slot_count{}; // pinned TITEMCHART capacity; server-only, never on wire
+};
 struct CharacterHotkeys { std::uint8_t inventory{}; std::array<std::pair<std::uint8_t,std::uint16_t>,12> keys{}; };
 struct CharacterTitle { std::uint16_t id{}; bool selected{}; };
 struct CharacterCabinet { std::uint8_t id{},use{}; };

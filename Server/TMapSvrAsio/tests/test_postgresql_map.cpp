@@ -31,6 +31,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "skill_reagent_fixture.h"
 #include "graph_reagent_fixture.h"
 #include "ammunition_batch_fixture.h"
+#include "inventory_move_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -43,7 +44,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=731;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=734;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -248,6 +249,21 @@ int main(){
         const auto mt=std::find_if(multi_restored.payload->skill_templates.begin(),multi_restored.payload->skill_templates.end(),[](const auto& row){return row.wID==324;});
         Check(mt!=multi_restored.payload->skill_templates.end()&&mt->multi_attack&&mt->multi_attack->count==4&&tmapsvr::FindSkillAmmunition(multi_restored,24)->bCount==2,"recovered graph retains rank and consumed ammo despite stale normalized rank");
         map.SaveAuthorized(multi_recovery,multi_restored);
+        stage="inventory moves";
+        VerifyInventoryMoves(admin,mpool,map,mapconn,manifest,routing,actor,create(732,"MoveFresh",732),false);
+        VerifyInventoryMoves(admin,mpool,map,mapconn,manifest,routing,actor,create(733,"MoveGraph",733),true);
+        auto move_recovery=create(734,"MoveRecovery",734);
+        VerifyInventoryMoves(admin,mpool,map,mapconn,manifest,routing,actor,move_recovery,true,true);
+        const auto move_login=auth.Authenticate({"SyntheticMap734",credential,"192.0.2.50",0x2918});
+        Check(move_login.status==login::AuthStatus::Success&&routes.StartAuthorized({734,move_login.session_key,1,1,static_cast<int>(move_recovery.char_id)}).status==login::StartStatus::Success,"inventory recovery gets fresh Login handoff");
+        move_recovery.key=move_login.session_key;move_recovery.connection_id+=2000;
+        Check(claim(move_recovery),"inventory recovery relogin claims epoch zero");
+        auto move_restored=*map.LoadAuthorized(move_recovery);map.MarkReady(move_recovery,move_restored);
+        const auto move_plan=tmapsvr::PlanInventoryMove(move_restored,{4,3,255,1,8});
+        Check(move_plan.items.size()==1&&move_plan.items[0].before.bCount==8&&move_plan.items[0].before.dlID==0xfedcba9876543200ULL,"relogin recovers moved unsigned item despite stale normalized position");
+        auto move_after=move_restored;tmapsvr::ApplyInventoryMove(move_after,move_plan);
+        const auto move_hashes=map.MoveInventoryItems(move_recovery,{4,3,255,1,8},move_restored,move_after);
+        PublishReagentHash(move_after,move_plan.items[0].before.dlID,move_hashes.at(0));map.SaveAuthorized(move_recovery,move_after);
         stage="primary transfer";VerifyMainTransfer(admin,mpool,map,mapconn,manifest,routing,actor,create(711,"TransferHero",11));
         stage="transfer recovery";auto transferred_crash=create(712,"TransferCrash",12);
         VerifyMainTransferRecovery(admin,mpool,map,mapconn,manifest,routing,actor,transferred_crash);

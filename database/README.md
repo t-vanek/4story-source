@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **026** are also immutable. Current
-native Map deployment requires migrations through 026 and the existing
+All subsequently applied migrations through **027** are also immutable. Current
+native Map deployment requires migrations through 027 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -97,8 +97,17 @@ receipts or the atomic stack transaction. Expanded ammunition is validated again
 pinned MTYPE_EFC rows and authoritative learned rank; all final hits must be paid.
 Fresh transactions lock the learned row, while transferred characters use their
 complete checkpoint and reject changed projection ranks. Existing Map grants
-cover the new column. Apply 026 before these binaries; 001–026 are immutable and
-next is 027. See the [multi-attack contract](../_rewrite/docs/modernization/evidence/multi-attack-contract.json).
+cover that column. Inventory migration 027 below extends the runtime schema. See the [multi-attack contract](../_rewrite/docs/modernization/evidence/multi-attack-contract.json).
+
+Migration 027 adopts the existing `item_slot` unique index as a deferrable,
+initially immediate constraint. Only the move transaction defers it while swapping
+two positions, then forces validation before recording success. Existing item
+values and identity/slot uniqueness are preserved. `inventory_movements` groups
+one or two complete-stack relocations with exact item and graph fingerprints.
+Fresh moves update only `dwStorageID` and `bItemID`; graph moves keep normalized
+rows untouched. Reapply the updated Map grants for these two columns and the new
+ledger/sequence. Migrations 001–027 are immutable; next is 028. See the
+[inventory move contract](../_rewrite/docs/modernization/evidence/inventory-moves-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
 all requiring one unit. Premium templates 25020, 25021 and 25022 referenced by the

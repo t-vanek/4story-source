@@ -1,0 +1,194 @@
+{
+  "date": "2026-10-09",
+  "scope": "Native primary whole-stack carried-bag relocation and different-template swaps, fresh and complete-graph storage. Source-derived encrypted fresh TCP, native graph transfer/recovery, no original-client executable acceptance.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "1782-2183",
+      "contract": "Five BYTE request. Missing source bag 2, missing/zero source item 3, missing destination bag 1, same position 4. Whole moves clamp requested count; different templates swap entire stacks. Source DEL/ADD or two ordered UPDATEs precede one MOVEITEM success."
+    },
+    {
+      "path": "Server/TMapSvr/TItem.cpp",
+      "lines": "47-126",
+      "contract": "Different template IDs guarantee CTItem inequality. Whole-stack Copy with remaining count 0 preserves the original ID. Copy retains counts, raw magic and extensions."
+    },
+    {
+      "path": "Server/TMapSvr/TInven.cpp",
+      "lines": "28-59",
+      "contract": "FindTItem looks up an arbitrary BYTE without capacity validation. GetBlankPos uses pinned template bSlotCount. Modern accepted requests additionally enforce that capacity."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1420-1468",
+      "contract": "MOVEITEM carries one result byte. UPDATE/ADD carry the bag plus full original item descriptor; DEL carries bag and slot."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/CSProtocol.h",
+      "lines": "710-759",
+      "contract": "Original MOVEITEM opcode 0x52A8 and five-byte body; MOVEITEM 0x52A9, UPDATE 0x52AA, ADD 0x52AB, DEL 0x52AC."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "lines": "46-53,333-351",
+      "contract": "Source inventory sentinels and move result values are preserved."
+    }
+  ],
+  "pinned_content": {
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "default_bag": {
+      "template": 3,
+      "type": 11,
+      "slots": 16
+    },
+    "extra_bag_fixture": {
+      "template": 4,
+      "type": 11,
+      "slots": 4
+    },
+    "synthetic_moved_items": [
+      {
+        "template": 8401,
+        "count": 8
+      },
+      {
+        "template": 11054,
+        "count": 3
+      }
+    ],
+    "historical_mutations": "None. Only owned synthetic mutable account/character fixtures are changed. Backups and existing migration hashes are preserved."
+  },
+  "implementation": {
+    "planner": "Resolve source bag/item and original error ordering, then destination/same position. A complete stack moves without a new ID. Different templates exchange complete stacks even for count 1. Unsupported splits, same-template merges/swaps, drops and equipment fail before mutation.",
+    "capacity": "Fresh and transfer hydration load bSlotCount from pinned TITEMCHART into a server-only field. The repository revalidates bag metadata/type/capacity in the transaction. Only permanent carried bags are supported; invalid positions close without success instead of reproducing the original unchecked-slot behavior.",
+    "projection": "Freeze the character and copy its immutable payload; move only bag/slot, keep raw server item attributes and identity, sort destination slots. Compare complete before-plus-move and after encodings to reject unrelated item/core/skill changes.",
+    "fresh_storage": "Account, primary claim and recovery receipt fence the transaction. Lock and verify affected owned row fingerprints, counts, templates and original positions. Confirm empty destination remains empty; uniqueness also rejects competing inserts. Update only dwStorageID and bItemID; defer and then validate the existing slot uniqueness constraint for swaps.",
+    "graph_storage": "Check full stored graph hash, catalog receipts and original core. Compare the complete candidate before graph allowing only live core and sampled skill durations; preserve ranks and unrelated graph fields. Moved raw IDs retain all uint64 bits. Store only the updated authoritative checkpoint, never stale normalized item rows.",
+    "audit": "Migration 027 adopts the existing item_slot index as DEFERRABLE INITIALLY IMMEDIATE and creates inventory_movements. One movement receipt per relocated item shares operation_id for a swap, exact row or raw-item hashes and graph hashes for contract 2. Item counts are unchanged. Identity-sequence gaps on rollback are expected.",
+    "publication": "All positions, live core, sampled skill timers, recovery state and receipts commit before private DEL/ADD or ordered UPDATEs and one MOVEITEM success. Periodic capture cannot overwrite the frozen plan. Live cooldowns are neither restarted nor charged by a move.",
+    "unknown_outcome": "No retry. Close without success, retain the reservation and refuse stale final save. Disconnect during a confirmed commit publishes the committed state before teardown save.",
+    "deployment": "Migrations 001-026 and both backups retain hashes. Apply 027 and updated map-runtime-grants.sql before these binaries. Map gains UPDATE only on the two position columns, INSERT on the movement ledger and USAGE on its sequence. Migration 027 is immutable after application; next 028. Local commits/images only, no GitHub publication."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-inventory-moves-debug.json",
+      "status": "passed",
+      "native_map_checks": 546,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 380,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "total_checks": 1730
+    },
+    "asan": {
+      "report": "native-inventory-moves-asan.json",
+      "status": "passed",
+      "native_map_checks": 546,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 380,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "total_checks": 1730
+    },
+    "release": {
+      "report": "native-inventory-moves-release.json",
+      "status": "passed",
+      "native_map_checks": 546,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 380,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "total_checks": 1730,
+      "scope": "Installed Release Login/World/Map daemons; backend/pool integration executables mounted from the verified Debug build."
+    },
+    "ctest_debug": {
+      "report": "inventory-moves-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "inventory-moves-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "inventory-moves-before.json",
+      "image_id": "528ec324da8943c252206ec3588342cd8db9a397a524fa9313d47e6e04e5507e",
+      "expected_failure": "TimeoutError",
+      "error_location": [
+        {
+          "file": "run_native_verification.py",
+          "line": 261
+        },
+        {
+          "file": "verify_map_runtime_wire.py",
+          "line": 210
+        },
+        {
+          "file": "verify_inventory_move_wire.py",
+          "line": 41
+        },
+        {
+          "file": "verify_inventory_move_wire.py",
+          "line": 35
+        },
+        {
+          "file": "verify_login_wire.py",
+          "line": 77
+        },
+        {
+          "file": "verify_login_wire.py",
+          "line": 70
+        }
+      ],
+      "scope": "Previous installed multi-attack daemons with current mounted backend/pool executables and migrations. The old server has no native MOVEITEM handler and does not return the first required source error response."
+    },
+    "migration_upgrade": {
+      "report": "inventory-moves-migration-upgrade.json",
+      "checks": 13,
+      "status": "passed"
+    },
+    "container_smoke": {
+      "report": "inventory-moves-container-verification.json",
+      "image": "localhost/fourstory:postgresql-inventory-moves",
+      "image_id": "1edff25ea38aaaeafb3a7d868880649a9b5e3b88976ce63a67d4ef0783c6cea2",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    }
+  },
+  "limitations": [
+    "Splitting, merging and same-template swaps, equipment, item dropping, timed bags and secure-code inventory state remain unsupported. Trade/store gameplay state is not yet active in the native path.",
+    "Fresh encrypted TCP verifies requests/errors, cross-bag moves/swaps, exact full descriptors/order, delayed commit, quantity/field conservation, capacity/split refusal and relogin. Native service fixtures additionally verify graph transfers, return promotion and process replacement/relogin; new inventory TCP through two Maps remains pending.",
+    "Equipment and durability mutations with derived-stat/timing invalidation, active effects, full combat and actual original-client acceptance remain unfinished."
+  ]
+}

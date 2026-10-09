@@ -182,7 +182,7 @@ DNS and SIGTERM checks. That increment used
 `localhost/fourstory:postgresql-graph-reagents`. See
 [container evidence](_rewrite/docs/modernization/evidence/graph-reagents-container-verification.json).
 
-The latest implementation adds **source multi-attack target expansion** to native
+The previous increment adds **source multi-attack target expansion** to native
 ordinary and loop casts. Pinned `TSKILLDATA` and the learned rank determine the
 hit budget; random per-target duplication and first-target padding reproduce the
 original target order. All valid ranks of the three recovered templates (324,
@@ -200,7 +200,7 @@ Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
 Debug, sanitizer and installed Release run. Twelve migration-upgrade checks
 preserve existing receipts; the previous image fails the new expansion regression.
 All six container services pass health, DNS and SIGTERM checks. The local image is
-`localhost/fourstory:postgresql-multi-attack` (also `:main`), running as
+`localhost/fourstory:postgresql-multi-attack` (then also `:main`), running as
 UID/GID 10001:10001. The installed test uses Release daemons with verified Debug
 backend/pool integration executables. See
 [container evidence](_rewrite/docs/modernization/evidence/multi-attack-container-verification.json).
@@ -209,6 +209,34 @@ See the [multi-attack contract](_rewrite/docs/modernization/evidence/multi-attac
 Complete combat damage/target/AOI rules, active effects, equipment mutation and
 original-client executable acceptance remain pending. The random outcome range is
 preserved; the original Windows process seed sequence is not reproduced.
+
+The latest increment adds **native inventory moves**: whole stacks can move to
+an empty carried-bag slot, and different item templates can swap positions within
+or between bags. IDs, counts, raw attributes and client descriptors are conserved.
+The source five-byte request and DEL/ADD or ordered UPDATE responses are retained;
+MOVEITEM success follows confirmed commit. Bag capacities come from the backup
+(default bag template 3 has 16 slots; template 4 has four).
+
+Migration **027** makes the existing unique item-slot constraint deferrable inside
+a swap and adds grouped movement receipts. Fresh rows or the complete transferred
+checkpoint commit atomically with core and timers. Recovered graphs stay authoritative
+over stale normalized item positions. Apply migration 027 and the updated Map grants.
+
+Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
+**33 ASan/UBSan suites** and **1,730 native database/network checks** in each
+Debug, sanitizer and installed Release run. Thirteen migration-upgrade checks
+verify preservation, atomic swaps and receipt constraints; the previous image
+fails the new inventory packet regression. All six container services pass
+health, DNS and SIGTERM checks. The local image is
+`localhost/fourstory:postgresql-inventory-moves` (also `:main`), running as
+UID/GID 10001:10001. The installed test uses Release daemons with verified Debug
+backend/pool integration executables. See
+[container evidence](_rewrite/docs/modernization/evidence/inventory-moves-container-verification.json).
+
+[Inventory move contract](_rewrite/docs/modernization/evidence/inventory-moves-contract.json)
+records exact scope and tests. Splits, merges/same-template swaps, item dropping,
+timed bags, secured inventories and equipment changes are still unsupported.
+Original-client executable acceptance and complete gameplay remain unfinished.
 
 ## Database authority
 
@@ -219,7 +247,7 @@ need adaptation, change the derived PostgreSQL schema through a new migration.
 - `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
 - `content` and the compatibility views expose explicit, versioned projections.
 - `app_global` and `app_world` own mutable application and operational state.
-- Applied migrations **001–026 are immutable**; the next schema change starts at 027.
+- Applied migrations **001–027 are immutable**; the next schema change starts at 028.
 - Backups, credentials and private extraction output stay outside Git. Historical
   accounts, player records and missing combat values are never invented.
 

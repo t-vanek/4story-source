@@ -645,3 +645,29 @@ ammo separately with `hit_mode`; older receipts remain direct.
 See [source contract and verification](evidence/multi-attack-contract.json).
 Full combat powers/damage, authoritative target/AOI checks, active effect timing
 and original-client executable acceptance are separate unfinished contracts.
+
+
+## Native whole-stack inventory movement
+
+CS_MOVEITEM_REQ remains opcode 0x52A8 with exactly five BYTEs: source bag, source
+slot, destination bag, destination slot and requested count. Source missing-bag
+and missing-item errors retain values 2/1 and 3; zero count returns 3, same position
+returns 4. Dead PCs and replicas do not mutate inventory.
+
+A whole stack moving to an empty carried slot sends DELITEM(0x52AC, old bag/slot),
+ADDITEM(0x52AB, new bag plus original complete descriptor), then MOVEITEM(0x52A9,
+result0). Different templates swap entire stacks even for a one-unit request:
+UPDATEITEM(0x52AA, source at destination), UPDATEITEM(destination at source), then
+one MOVEITEM result0. IDs and counts remain unchanged; these ACKs are private.
+Every response follows confirmed commit of all item positions and recovery state.
+
+The original handler does not bound the requested position by bag capacity. The
+modern handler deliberately refuses out-of-range slots using pinned bSlotCount,
+rather than creating an invisible item. Whole-stack moves clamp oversized counts
+as the source does. Splits, merges and same-template swaps, dropping, equipment,
+timed bags and secured inventories are not yet accepted; unsupported requests
+close before mutation. Unknown database outcomes close without success and keep
+the reservation until recovery. Source-derived encrypted peers verify fresh-state
+packets; graph transfer/recovery is verified at the native service boundary.
+See [inventory contract](evidence/inventory-moves-contract.json). Original-client
+executable acceptance remains pending.

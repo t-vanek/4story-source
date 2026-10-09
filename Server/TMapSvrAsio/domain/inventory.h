@@ -68,4 +68,19 @@ struct SkillItemDebit {
     std::uint8_t count = 1;
 };
 
+struct InventoryMoveRequest {
+    std::uint8_t source_bag{},source_slot{},destination_bag{},destination_slot{},count{};
+};
+struct ItemRelocation {
+    ItemInstance before;
+    std::uint8_t bag{},slot{};
+};
+enum class InventoryMoveResult : std::uint8_t {
+    Success=0,NoDestinationBag=1,NoSourceBag=2,NoSourceItem=3,SamePosition=4
+};
+struct InventoryMovePlan {
+    InventoryMoveResult result=InventoryMoveResult::Success;
+    std::vector<ItemRelocation> items; // source first, optional swapped destination second
+};
+
 } // namespace tmapsvr

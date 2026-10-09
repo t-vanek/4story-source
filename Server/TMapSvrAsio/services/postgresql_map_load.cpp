@@ -46,6 +46,12 @@ Formula ReadFormula(soci::session& sql,int id){
 }
 struct Passive {int target{},increase{},value{};};
 void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
+    for(auto& bag:p.bags) {
+        const int item=std::bit_cast<std::int16_t>(bag.bag.wItemID);int slots=0;
+        sql<<"SELECT \"bSlotCount\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:i",soci::use(item),soci::into(slots);
+        if(!sql.got_data())throw std::runtime_error("Inventory lacks pinned bag template");
+        bag.slot_count=static_cast<std::uint8_t>(slots);
+    }
     const auto growth=ReadFormula(sql,34),hp=ReadFormula(sql,8),mp=ReadFormula(sql,19);
     const int klass=s.bClass,race=s.bRace; soci::row cl,ra;
     sql<<"SELECT * FROM character_compat.\"TCLASSCHART\" WHERE \"bClassID\"=:id",soci::use(klass),soci::into(cl);

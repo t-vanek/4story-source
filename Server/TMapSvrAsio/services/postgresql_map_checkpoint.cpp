@@ -264,6 +264,42 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
     }
     tx->commit();return hashes;
 }
+std::vector<std::string> PostgreSQLMapService::MoveInventoryItems(const MapSessionClaim& c,const InventoryMoveRequest& request,
+    const CharSnapshot& before,const CharSnapshot& after) {
+    const bool graph=before.payload&&before.payload->transfer_state;
+    if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!before.payload||!after.payload||
+       before.dwCharID!=c.char_id||before.persistence_uncertain||before.bDead||!before.dwHP)
+        throw std::runtime_error("Unsupported native inventory move");
+    const auto fingerprint=Fingerprint(c,after);
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Inventory claim is not ready primary");
+    CheckCatalogs(sql);
+    const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||receipt.contract!=(graph?2:3))
+        throw std::runtime_error("Inventory recovery receipt changed");
+    const long long key=c.key;int unlocked=0;
+    sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
+    if(!sql.got_data())throw std::runtime_error("Inventory session was revoked");
+    const auto plan=ValidateInventoryMove(sql,c,request,before,after);
+    WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
+    long long operation=0;
+    sql<<"SELECT nextval('app_world.inventory_movements_movement_id_seq')",soci::into(operation);
+    const int world=c.group,character=c.char_id,server=m_config.server,contract=graph?2:3;
+    const long long generation=c.connection_id,epoch=c.authority_epoch;
+    for(std::size_t i=0;i<plan.move.items.size();++i) {
+        const auto& move=plan.move.items[i];const long long id=std::bit_cast<std::int64_t>(move.before.dlID);
+        const int source_bag=move.before.bInvenID,source_slot=move.before.bItemID,dest_bag=move.bag,dest_slot=move.slot,count=move.before.bCount;
+        sql<<"INSERT INTO app_world.inventory_movements(operation_id,world_id,char_id,server_id,owner_token,connection_id,authority_epoch,state_contract,"
+             "item_id,source_bag,source_slot,destination_bag,destination_slot,item_count,before_hash,after_hash,before_graph_hash,after_graph_hash,core_fingerprint) "
+             "VALUES(:op,:w,:c,:s,:t,:g,:e,:contract,:id,:sb,:ss,:db,:ds,:n,:bh,:ah,NULLIF(:gb,''),NULLIF(:ga,''),:f)",
+            soci::use(operation,"op"),soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
+            soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(contract,"contract"),soci::use(id,"id"),
+            soci::use(source_bag,"sb"),soci::use(source_slot,"ss"),soci::use(dest_bag,"db"),soci::use(dest_slot,"ds"),soci::use(count,"n"),
+            soci::use(move.before.durable_hash,"bh"),soci::use(plan.hashes[i],"ah"),soci::use(plan.before_graph,"gb"),soci::use(plan.after_graph,"ga"),soci::use(fingerprint,"f");
+    }
+    tx->commit();return plan.hashes;
+}
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
     const int world=claim.group;const long long character=claim.char_id,user=claim.user_id;
     // Core snapshot only. Durable children are never deleted/recreated here.

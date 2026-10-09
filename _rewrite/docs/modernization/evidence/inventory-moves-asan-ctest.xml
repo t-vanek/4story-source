@@ -1,0 +1,508 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-c++"
+	tests="33"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="947f4fe80c5c"
+	time="20"
+	timestamp="2026-10-09T11:09:31"
+	>
+	<testcase name="cluster_world_handshake" classname="cluster_world_handshake" time="0.18935" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:31.785] [info] world_client: connected to 127.0.0.1:39497
+[2026-10-09 11:09:31.785] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:31.785] [info] world_client: sent RW_RELAYSVR_REQ wid=0x0405 (server_id=5, server_type=4)
+[2026-10-09 11:09:31.785] [info] OnRelaysvrReq[127.0.0.1]: wID=1029 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:31.786] [info] world_client: registration acknowledged wid=0x0405
+[2026-10-09 11:09:31.795] [info] OnAddCharAck[127.0.0.1]: char_id=2882400001 user_id=4242 server_id=5 ip=127.0.0.1:12345 — registered (total=1, active_users=1)
+[2026-10-09 11:09:31.805] [info] OnEnterSvrAck[127.0.0.1]: char_id=2882400001 'Hero' entered (lvl=77 map=60 region=0) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 11:09:31.815] [info] OnEnterCharReq[127.0.0.1]: char_id=2882400001 name='Hero' country=0 guild_id=0 guild_chief=0 duty=0 map=60 — replying bResult=1
+test_world_handshake: register + char-add + entersvr + entercharack OK (wid=0x0405 char=0x...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="cluster_world_reconnect" classname="cluster_world_reconnect" time="0.64625" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:31.911] [info] world_client: connected to 127.0.0.1:37079
+[2026-10-09 11:09:31.912] [info] world_client: sent RW_RELAYSVR_REQ wid=0x0401 (server_id=1, server_type=4)
+[2026-10-09 11:09:32.011] [warning] world_client: registration deadline expired; closing
+[2026-10-09 11:09:32.011] [info] world_client: disconnected from 127.0.0.1:37079; draining before reconnect
+[2026-10-09 11:09:32.072] [info] world_client: connected to 127.0.0.1:44069
+[2026-10-09 11:09:32.073] [info] world_client: sent RW_RELAYSVR_REQ wid=0x0401 (server_id=1, server_type=4)
+[2026-10-09 11:09:32.073] [warning] world_client: invalid registration acknowledgment; closing
+[2026-10-09 11:09:32.073] [info] world_client: disconnected from 127.0.0.1:44069; draining before reconnect
+[2026-10-09 11:09:32.136] [info] world_client: connected to 127.0.0.1:33273
+[2026-10-09 11:09:32.136] [info] world_client: sent RW_RELAYSVR_REQ wid=0x0401 (server_id=1, server_type=4)
+[2026-10-09 11:09:32.136] [warning] world_client: invalid registration a...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tnetlib_crypto_kat" classname="tnetlib_crypto_kat" time="0.0127779" status="run">
+		<properties/>
+		<system-out>=== tnetlib_crypto tests ===
+[rfc6229 40-bit key]
+  PASS  RC4Transform returns true
+  PASS  RC4 output matches RFC vector (got b2396305f03dc027ccc3524a0a1118a8)
+[rfc6229 128-bit key]
+  PASS  RC4Transform returns true
+  PASS  RC4 output matches RFC vector (got 9ac7cc9a609d1ef7b2932899cde41b97)
+[symmetry: encrypt twice == identity]
+  PASS  first RC4MD5Transform returns true
+  PASS  ciphertext differs from plaintext
+  PASS  second RC4MD5Transform returns true
+  PASS  second transform restored plaintext (RC4 is symmetric)
+[4story legacy secret key]
+  PASS  RC4MD5Transform with legacy secret returns true
+  INFO  keystream[0..15] = 9ddb8dfbf62e22dc78f6b5e3eb8dc360
+  PASS  encrypt with legacy secret
+  PASS  ciphertext differs from plaintext
+  PASS  decrypt with legacy secret
+  PASS  decrypted output matches plaintext
+[copy variant: distinct in/out buffers]
+  PASS  RC4MD5TransformCopy returns true
+  PASS  Copy variant produces identical bytes to in-place
+[edge cases]
+  PASS  zero-length buffer is legal
+  PASS  zero-l...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tnetlib_asio_echo" classname="tnetlib_asio_echo" time="0.643651" status="run">
+		<properties/>
+		<system-out>=== tnetlib AsioSession tests ===
+[echo roundtrip on ephemeral port]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  client wrote all bytes
+  PASS  client read same byte count back
+  PASS  echoed bytes match original
+[full packet round-trip via codec]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  received all three echoed packets
+  PASS  packet 0 wId matches
+  PASS  packet 0 body matches
+  PASS  packet 1 wId matches
+  PASS  packet 1 body matches
+  PASS  packet 2 wId matches
+  PASS  packet 2 body matches
+[full packet round-trip via RC4 + codec]
+  PASS  listener bound
+  PASS  fake-client connected
+  PASS  received both echoed packets through RC4 layer
+  PASS  packet 0 wId + body match after RC4 round-trip
+  PASS  packet 1 wId + body match after RC4 round-trip
+[error logger fires on protocol error]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  logger captured at least one message
+  PASS  captured message is a 'recv:' diagnostic
+[Se...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tnetlib_packet_codec" classname="tnetlib_packet_codec" time="0.00600465" status="run">
+		<properties/>
+		<system-out>=== tnetlib packet_codec tests ===
+[key table parity with legacy g_4skey]
+  PASS  slot 0 matches legacy
+  PASS  slot 6 matches legacy
+  PASS  sequence wrap: 8 % 7 == 1
+[body round-trip — aligned size, 16 bytes / 2 INT64 chunks]
+  PASS  cipher differs from plain
+  PASS  decrypt succeeds
+  PASS  decrypt restores plaintext
+[body round-trip — partial tail (5 bytes only)]
+  PASS  5-byte tail: cipher differs
+  PASS  5-byte tail: decrypt succeeds
+  PASS  5-byte tail: plaintext restored
+[body round-trip — mixed (11 bytes = 1 chunk + 3 tail)]
+  PASS  decrypt succeeds
+  PASS  plaintext restored
+[empty body]
+  PASS  empty body produces zero checksum
+  PASS  empty body decrypt with 0 checksum ok
+  PASS  empty body with wrong checksum rejected
+  PASS  tail checksum preserves legacy wraparound golden value
+  PASS  tail golden ciphertext
+  PASS  wrapped tail checksum decrypts
+  PASS  tail golden plaintext
+  PASS  negative chunk and tail preserve legacy wraparound golden value
+  PASS  mixed golden ciphertext
+  PASS  wr...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_auth_flow" classname="tloginsvr_asio_auth_flow" time="0.128749" status="run">
+		<properties/>
+		<system-out>=== tloginsvr_asio auth-flow test ===
+[in-memory auth backend: good / bad-password / no-user / banned-user]
+  PASS  server bound
+[2026-10-09 11:09:33.286] [info] CS_LOGIN_REQ user=alice → status=0
+  PASS  alice + correct password → LR_SUCCESS (0)
+[2026-10-09 11:09:33.296] [info] CS_LOGIN_REQ user=alice → status=2
+  PASS  alice + wrong password → LR_INVALIDPASSWD (2)
+[2026-10-09 11:09:33.306] [info] CS_LOGIN_REQ user=charlie → status=1
+  PASS  unknown user → LR_NOUSER (1)
+[2026-10-09 11:09:33.317] [info] CS_LOGIN_REQ user=bob → status=7
+  PASS  account ban → backed-up TLogin LR_IPBLOCK (7)
+
+Results: 5 passed, 0 failed
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_start_flow" classname="tloginsvr_asio_start_flow" time="0.102125" status="run">
+		<properties/>
+		<system-out>=== tloginsvr_asio start-flow test ===
+[CS_START_REQ via IMapServerLocator — hit + miss]
+  PASS  server bound
+[2026-10-09 11:09:33.410] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 192.168.42.7:5815 server_id=2)
+  PASS  group 1: ack received
+  PASS  group 1: bResult == SR_SUCCESS (0)
+  PASS  group 1: IPv4 octets match 192.168.42.7
+  PASS  group 1: wPort matches 5815
+  PASS  group 1: bServerID matches 2
+[2026-10-09 11:09:33.419] [warning] CS_START_REQ group=99 ch=0 char=1 → CS_START_ACK (result=1)
+  PASS  group 99: ack received
+  PASS  group 99: bResult == SR_NOSERVER (1)
+  PASS  group 99: IPv4 octets zeroed
+
+Results: 9 passed, 0 failed
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_session_terminator" classname="tloginsvr_asio_session_terminator" time="0.361395" status="run">
+		<properties/>
+		<system-out>=== tloginsvr_asio session-terminator test ===
+[plain disconnect → SessionTerminator called with Disconnect]
+[2026-10-09 11:09:33.509] [info] CS_LOGIN_REQ user=alice → status=0
+  PASS  exactly one terminator call
+  PASS  user_id = 1001
+  PASS  session_key = 1 (first session)
+  PASS  reason = Disconnect
+[LOGIN + START_REQ + close → terminator called with MapHandoff]
+[2026-10-09 11:09:33.580] [info] CS_LOGIN_REQ user=bob → status=0
+[2026-10-09 11:09:33.581] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+  PASS  exactly one terminator call
+  PASS  user_id = 2002
+  PASS  reason = MapHandoff (CS_START_REQ marked it)
+[connect + disconnect without login → no terminator call]
+  PASS  terminator not called for never-authenticated session
+
+Results: 8 passed, 0 failed
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_shutdown_sweep" classname="tloginsvr_asio_shutdown_sweep" time="0.0632694" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:33.829] [info] CS_LOGIN_REQ user=lobby → status=0
+[2026-10-09 11:09:33.829] [info] CS_LOGIN_REQ user=handoff → status=0
+PASS successful client ACK
+[2026-10-09 11:09:33.830] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+PASS successful client ACK
+PASS successful client ACK
+PASS Stop completes without exception
+PASS graceful stop drains actual accepted sessions before deadline
+PASS registry empty when Stop completes
+PASS each authenticated session cleaned exactly once
+PASS lobby session terminates on shutdown
+PASS shutdown preserves Map handoff reason and selected character
+[2026-10-09 11:09:33.842] [info] CS_LOGIN_REQ user=lobby → status=0
+[2026-10-09 11:09:33.842] [info] CS_LOGIN_REQ user=handoff → status=0
+PASS successful client ACK
+[2026-10-09 11:09:33.843] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+PASS successful client ACK
+PASS successful client ACK
+PASS Stop completes wi...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_enter" classname="tmapsvr_asio_world_enter" time="0.0250558" status="run">
+		<properties/>
+		<system-out>test_world_enter: load + rejected-blob + no-char + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_enterchar" classname="tmapsvr_asio_world_enterchar" time="0.0243335" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:33.904] [info] MW_ENTERCHAR_REQ char=2882400001 name='Hero' map=60 — connection ready, ack
+[2026-10-09 11:09:33.904] [warning] MW_ENTERCHAR_REQ: short body (4 bytes) — dropping
+test_world_enterchar: resident + non-resident + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_client_senders" classname="tmapsvr_asio_client_senders" time="0.012059" status="run">
+		<properties/>
+		<system-out>test_client_senders: addconnect + connect + charinfo + enter + addmon + action + die + revival + money layout OK
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_checkmain" classname="tmapsvr_asio_world_checkmain" time="0.0235808" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:33.939] [info] MW_CHECKMAIN_REQ char=2882400001 ch=1 map=60 — main cell, ack
+[2026-10-09 11:09:33.940] [info] MW_CHECKMAIN_REQ char=2882400001 ch=1 map=60 — not resident here, no ack
+[2026-10-09 11:09:33.940] [warning] MW_CHECKMAIN_REQ: short body (4 bytes) — dropping
+test_world_checkmain: resident + non-resident + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_routelist" classname="tmapsvr_asio_world_routelist" time="0.0238329" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:33.964] [info] MW_ROUTELIST_REQ char=2882400001 ids=3 resolved=2 — MW_ROUTE_ACK
+[2026-10-09 11:09:33.964] [warning] MW_ROUTELIST_REQ char=2882400001: no route resolver — replying empty MW_ROUTE_ACK (2 ids unresolved)
+[2026-10-09 11:09:33.964] [info] MW_ROUTELIST_REQ char=2882400001 ids=2 resolved=0 — MW_ROUTE_ACK
+[2026-10-09 11:09:33.965] [warning] MW_ROUTELIST_REQ: short body (4 bytes) — dropping
+test_world_routelist: resolve + empty + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_skill_cooldown" classname="tmapsvr_asio_skill_cooldown" time="0.0122" status="run">
+		<properties/>
+		<system-out>test_skill_cooldown: 60 checks passed
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_loot_senders" classname="tmapsvr_asio_loot_senders" time="0.0115466" status="run">
+		<properties/>
+		<system-out>test_loot_senders: item descriptor (38B) + MONITEMLIST + MONITEMTAKE byte layouts OK
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_skill_engine" classname="tmapsvr_asio_skill_engine" time="0.0110503" status="run">
+		<properties/>
+		<system-out>test_skill_engine: 109 checks passed
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_main_transfer_codec" classname="tmapsvr_asio_main_transfer_codec" time="0.038647" status="run">
+		<properties/>
+		<system-out>43 full Map transfer codec checks passed
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_admission" classname="tmapsvr_asio_admission" time="5.11136" status="run">
+		<properties/>
+		<system-out>PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-09 11:09:34.080] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-09 11:09:34.080] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS reagent selection follows unsigned bag and slot order despite reversed vectors
+PASS reagent plan is isolated from live payload and changes only selected item
+PASS missing reagent has no fallback item
+PASS invalid zero stack refuses consumption witho...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_admission_encrypted" classname="tmapsvr_asio_admission_encrypted" time="5.10989" status="run">
+		<properties/>
+		<system-out>PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-09 11:09:39.190] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-09 11:09:39.191] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS reagent selection follows unsigned bag and slot order despite reversed vectors
+PASS reagent plan is isolated from live payload and changes only selected item
+PASS missing reagent has no fallback item
+PASS invalid zero stack refuses consumption witho...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_session_writes" classname="tworldsvr_asio_session_writes" time="0.365091" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:44.486] [error] world_session[127.0.0.1]: outbound body too big (65528)
+[2026-10-09 11:09:44.616] [warning] world_session[127.0.0.1]: outbound backlog exceeded; closing peer
+[2026-10-09 11:09:44.623] [warning] world_session[127.0.0.1]: outbound backlog exceeded; closing peer
+147 World write checks passed
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_secondary_admission" classname="tworldsvr_asio_secondary_admission" time="0.198645" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:44.698] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 11:09:44.702] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 11:09:44.704] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 11:09:44.707] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 11:09:44.763] [warning] OnCloseCharAck[127.0.0.1]: short body (9 bytes) — dropped
+[2026-10-09 11:09:44.804] [info] OnCloseCharAck[127.0.0.1]: char_id=42 closed (total=0)
+[2026-10-09 11:09:44.805] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0401 teardown — 0 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 11:09:44.805] [info] world_server: wID=1025 unregistered from peer registry
+[2026-10-09 11:09:44.805] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 11:09:44.805] [info] OnSmDelSessionReq[127.0....
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_main_handoff" classname="tworldsvr_asio_main_handoff" time="3.95758" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:44.900] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 11:09:44.904] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 11:09:44.909] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 'TransferHero' entered (lvl=10 map=7 region=0) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 11:09:44.951] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 11:09:44.994] [info] OnCharDataAck[127.0.0.1]: char_id=42 3 con(s) not ready — ENTERCHAR_REQ fan-out
+[2026-10-09 11:09:44.997] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=1 ready; waiting for others
+[2026-10-09 11:09:44.997] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=2 ready; waiting for others
+[2026-10-09 11:09:44.997] [info] OnEnterCharAck[127.0.0.1]: char_id=42 all cons ready — CheckMainCon
+[2026-10-09 11:09:45.191] [info] world_server: peer 127.0.0.1 disconnec...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_service_plane_handlers" classname="tworldsvr_asio_service_plane_handlers" time="0.337059" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:48.883] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:48.883] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:48.883] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:48.904] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:48.906] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:48.906] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:48.906] [info] OnCtCtrlsvrReq[127.0.0.1]: registered as cluster ctrl-svr (wID=0)
+[2026-10-09 11:09:48.926] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=500 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:48.927] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[2026-10-09 11:09:48.969] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=501 server_id=67 ip=1.0.0.127:33500 — regist...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_checkmain_handlers" classname="tworldsvr_asio_checkmain_handlers" time="0.267651" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:49.219] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:49.219] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:49.219] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:49.240] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:49.241] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:49.241] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:49.241] [info] OnRelaysvrReq[127.0.0.1]: wID=1092 registered as map peer (nation=0, registry_size=3)
+[2026-10-09 11:09:49.241] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 2 other peer(s)
+[2026-10-09 11:09:49.241] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:49.242] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[20...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_releasemain_handlers" classname="tworldsvr_asio_releasemain_handlers" time="0.380878" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:49.476] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:49.477] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:49.498] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:49.499] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:49.499] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:49.499] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:49.499] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[2026-10-09 11:09:49.541] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=2, active_users=1)
+[2026-10-09 11:09:49.541] [info] OnRouteAck[127.0.0.1]: char_id=200 ADDCONNECT count=1 via reporter
+[2026-10-09 11:09:49.582] [info] OnCo...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_entersvr_handoff_handlers" classname="tworldsvr_asio_entersvr_handoff_handlers" time="0.269673" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:49.871] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:49.871] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:49.892] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:49.893] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:49.893] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:49.893] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:49.894] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[2026-10-09 11:09:49.935] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=67 ip=1.0.0.127:33500 — registered (total=2, active_users=1)
+[2026-10-09 11:09:49.935] [info] OnConListAck[127.0.0.1]: char_id=100 CHECKMAIN to 2 connection(s)
+[2026-10-09 11:09:49.978] [info] OnEnt...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_teleport_handlers" classname="tworldsvr_asio_teleport_handlers" time="0.308669" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:50.138] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:50.138] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:50.159] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:50.161] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:50.161] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:50.161] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:50.162] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[2026-10-09 11:09:50.245] [info] BeginTeleport: char_id=100 → channel=2 map=300 (STARTTELEPORT to 2 con(s))
+[2026-10-09 11:09:50.245] [info] OnBeginTeleportAck[127.0.0.1]: char_id=100 deferred behind an in-flight handoff
+[2026-10-09 11:09:50.287] [info] OnConListAck[127.0.0.1]: char_id=100...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_checkconnect_handlers" classname="tworldsvr_asio_checkconnect_handlers" time="0.394459" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:50.446] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:50.446] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:50.446] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:50.466] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:50.468] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:50.469] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:50.469] [info] OnRelaysvrReq[127.0.0.1]: wID=1092 registered as map peer (nation=0, registry_size=3)
+[2026-10-09 11:09:50.469] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 2 other peer(s)
+[2026-10-09 11:09:50.469] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:50.470] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[20...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_closechar_handlers" classname="tworldsvr_asio_closechar_handlers" time="0.219852" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:50.838] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:50.838] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:50.838] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:50.859] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:50.860] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:50.860] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:50.860] [info] OnRelaysvrReq[127.0.0.1]: wID=1092 registered as map peer (nation=0, registry_size=3)
+[2026-10-09 11:09:50.860] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 2 other peer(s)
+[2026-10-09 11:09:50.861] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:50.861] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[20...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_route_completion_handlers" classname="tworldsvr_asio_route_completion_handlers" time="0.228994" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:51.054] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:51.054] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:51.054] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:51.076] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:51.078] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:51.078] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:51.078] [info] OnRelaysvrReq[127.0.0.1]: wID=1092 registered as map peer (nation=0, registry_size=3)
+[2026-10-09 11:09:51.078] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 2 other peer(s)
+[2026-10-09 11:09:51.079] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:51.079] [info] OnRouteAck[127.0.0.1]: char_id=100 no new cons — CHARDATA_REQ
+[2026-...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_entersvr_fresh_login_handlers" classname="tworldsvr_asio_entersvr_fresh_login_handlers" time="0.340846" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:51.283] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:51.304] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:51.305] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:51.305] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=2, active_users=1)
+[2026-10-09 11:09:51.306] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 'Alice' entered (lvl=10 map=100 region=5) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 11:09:51.346] [info] OnEnterSvrAck[127.0.0.1]: char_id=200 'Bob' entered (lvl=40 map=777 region=9) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 11:09:51.430] [info] OnRouteAck[127.0.0.1]: char_id=200 no new cons — CHARDATA_REQ
+[2026-10-09 11:09:51.430] [info] OnAddCharAck[127.0.0.1]: char_id=201 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=3...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_chardata_drift_handlers" classname="tworldsvr_asio_chardata_drift_handlers" time="0.18809" status="run">
+		<properties/>
+		<system-out>[2026-10-09 11:09:51.632] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:51.632] [info] world_server: accept from 127.0.0.1
+[2026-10-09 11:09:51.654] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 11:09:51.654] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 11:09:51.655] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 11:09:51.655] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 11:09:51.655] [info] OnRouteAck[127.0.0.1]: char_id=200 ADDCONNECT count=1 via reporter
+[2026-10-09 11:09:51.697] [info] OnCharDataAck[127.0.0.1]: char_id=200 1 con(s) not ready — ENTERCHAR_REQ fan-out
+[2026-10-09 11:09:51.697] [info] OnEnterCharAck[127.0.0.1]: char_id=200 all cons ready — CheckMainCon
+PASS test_tworldsvr_asio_chardata_drift_handlers
+</system-out>
+	</testcase>
+</testsuite>

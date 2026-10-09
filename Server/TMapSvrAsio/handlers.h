@@ -105,6 +105,9 @@ boost::asio::awaitable<void> Dispatch(
 // Per-handler entry points. One per message id. All take a span over
 // the decoded body — they own the copy if they need to outlive the
 // dispatch call.
+boost::asio::awaitable<void> OnMoveItemReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte> body,const HandlerContext& ctx);
 boost::asio::awaitable<void> OnConnectReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,

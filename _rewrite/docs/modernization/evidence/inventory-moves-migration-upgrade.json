@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "date": "2026-10-09",
+  "scope": "Actual migration027 applied to minimal tables reproducing migration012 item-slot index. Tests preserve data, deferrable swap uniqueness and receipt constraints. Native gameplay verification separately applies all migrations with actual runtime roles.",
+  "checks": [
+    "migration preserves all existing item values and identities",
+    "existing slot index becomes deferrable but initially immediate",
+    "ordinary writes still reject duplicate occupied slots immediately",
+    "two-item swap settles with original IDs and counts without a temporary fake slot",
+    "deferred uniqueness refuses an incomplete swap before settlement",
+    "failed deferred check rolls back all changed positions and attributes",
+    "two moved items share one complete audit operation",
+    "the same operation cannot record an item twice",
+    "no-op movement cannot fabricate an audit receipt",
+    "graph move requires both full checkpoint hashes",
+    "equipment position is outside the current durable move contract",
+    "graph receipts preserve signed storage bits for unsigned item identities",
+    "rollback removes all isolated migration fixtures"
+  ],
+  "migration_sha256": {
+    "database/postgresql/027-native-inventory-moves.sql": "46a1edb1c57e39c4a59a030e4cc0b9a312071655d4eed9df4e29c29e1896a596"
+  }
+}

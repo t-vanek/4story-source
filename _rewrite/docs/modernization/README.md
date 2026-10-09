@@ -18,7 +18,66 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: source multi-attack expansion
+## Current verified increment: native carried inventory moves
+
+The actual native `CS_MOVEITEM_REQ` path now moves a whole stack into an empty
+slot or swaps different item templates. Both preserve original uint64 identity,
+quantity, magic and full extended attributes. Source count clamping is preserved:
+a move accepts a requested count larger than the stack, and a different-template
+swap exchanges entire stacks even when the request says one. Source missing-bag,
+missing-item, zero-count and same-position result codes are retained.
+
+Bag capacity is loaded from pinned `TITEMCHART` on fresh and transfer hydration;
+the default template 3 provides 16 slots and template 4 provides four. Positions
+outside that capacity are refused instead of reproducing the original unchecked
+FindTItem behavior. Splitting, merging, same-template swaps, dropping, equipment,
+timed bags and secure-code inventories remain explicitly unsupported.
+
+Migration 027 adopts the existing unique `item_slot` index as a deferrable,
+initially immediate constraint. A swap defers and revalidates it inside its single
+transaction, with no temporary fake storage or slot. Fresh storage locks and
+checks both exact owned rows, counts/templates and destination occupancy. Graph
+storage compares the full authoritative checkpoint and preserves unrelated state.
+Grouped `inventory_movements` receipts, core, cooldowns and recovery state commit
+before any response. An unknown outcome keeps the reservation and refuses stale
+final saves, with no automatic retry. The updated Map grants permit only the two
+new position columns and the append-only movement ledger/sequence.
+
+**1,730 native checks pass separately in Debug, ASan/UBSan and installed
+Release runs:** 546 backend, 29 pool/TLS, 380 outer TCP, 53 skill lifecycle,
+295 World handoff, 66 secondary lifecycle, 124 reagent two-Map, 124 direct
+ammunition two-Map, 24 fresh single-hit, 30 fresh batch, 23 fresh multi-attack,
+29 fresh inventory and seven rejection checks. Debug CTest has 186 actual
+passes (200 entries, eight internal legacy skips and six explicit native
+fixture skips); all 33 sanitizer suites pass. Thirteen migration-upgrade
+checks verify preservation, atomic swaps and receipt constraints. The previous
+installed image fails at the first inventory error response because it has
+no native MOVEITEM handler.
+
+The installed run uses Release daemons with verified Debug backend/pool test
+executables. Six-service health/DNS/SIGTERM smoke passes. Local image
+`localhost/fourstory:postgresql-inventory-moves` (also `:main`), ID
+`1edff25ea38aaaeafb3a7d868880649a9b5e3b88976ce63a67d4ef0783c6cea2`,
+UID/GID 10001:10001. See [container evidence](evidence/inventory-moves-container-verification.json).
+
+Native fixtures cover fresh and graph moves, stale hashes/counts, occupied target,
+late second-receipt rollback, unsigned graph IDs, return transfer, process recovery
+and fresh relogin. Handler tests also exercise a disconnect during commit, unknown
+outcome, unchanged live timers and private ACK order. Encrypted TCP tests use fresh
+state for whole-stack cross-bag moves and swaps, delayed commit, exact descriptors,
+error codes, capacity/split refusal and relogin. Graph move TCP through two Maps is
+still a separate acceptance step; the service/transfer boundary is verified here.
+
+Backups and migrations 001–026 retain hashes; 027 is now immutable and next is 028.
+Apply 027 and updated `map-runtime-grants.sql` before these binaries. See
+[source contract](evidence/inventory-moves-contract.json),
+[build fingerprints](evidence/inventory-moves-build-fingerprints.json) and
+[owned-lab cleanup](evidence/inventory-moves-cleanup.json).
+Only local commits and local images are produced; no GitHub push or deployment.
+Full equipment/stat invalidation, effects, combat and original-client acceptance
+remain unfinished.
+
+## Earlier verified increment: source multi-attack expansion
 
 Native owned-PC ordinary and loop casts now derive `IsMultiAttack` and
 `GetCountMultiAttack` from pinned source rows and the learned rank. The source
@@ -47,7 +106,7 @@ at the six-hit target expansion regression.
 
 The installed run uses Release daemons with verified Debug backend/pool test
 executables. Six-service health/DNS/SIGTERM smoke passes. Local image
-`localhost/fourstory:postgresql-multi-attack` (also `:main`), ID
+`localhost/fourstory:postgresql-multi-attack` (then also `:main`), ID
 `528ec324da8943c252206ec3588342cd8db9a397a524fa9313d47e6e04e5507e`,
 UID/GID 10001:10001. See [container evidence](evidence/multi-attack-container-verification.json).
 
@@ -59,8 +118,8 @@ cooldowns across relogin. Multi-attack graph consumption is additionally verifie
 at the service/transfer boundary; actual multi-attack TCP in this increment uses
 fresh state. Existing two-Map TCP continues to cover direct multi-target ammo.
 
-Backups and migrations 001–025 retain hashes; 026 is now immutable and the next
-migration is **027**. Source zero-target ammo, reagent-plus-weapon combinations,
+That increment preserved backups and migrations 001–025 and made 026 immutable.
+Migration 027 now adds inventory moves above. Source zero-target ammo, reagent-plus-weapon combinations,
 premium overrides, equipment/durability mutation, active effects and full combat
 remain pending. No original client executable was run. See the
 [source contract](evidence/multi-attack-contract.json),

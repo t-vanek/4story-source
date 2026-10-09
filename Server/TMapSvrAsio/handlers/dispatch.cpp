@@ -78,6 +78,8 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnConReadyReq(sess, std::move(body), ctx); break;
     case MessageId::CS_MOVE_REQ:
         co_await OnMoveReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_MOVEITEM_REQ:
+        co_await OnMoveItemReq(sess, std::move(body), ctx); break;
     case MessageId::CS_NPCTALK_REQ:
         co_await OnNpcTalkReq(sess, std::move(body), ctx); break;
     case MessageId::CS_SKILLUSE_REQ:

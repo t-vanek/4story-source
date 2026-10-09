@@ -146,9 +146,19 @@ the canonical rank and exact full budget, using graph skills after transfer.
 `hit_mode` distinguishes expanded ammo receipts. Valid recovered skill ranks need
 at most seven hits; derived budgets above 16 remain unsupported. See the
 [multi-attack contract](../../_rewrite/docs/modernization/evidence/multi-attack-contract.json).
-Apply 026 before these binaries; existing role grants suffice. Full damage,
+The multi-attack increment required 026 with existing role grants. Full damage,
 authoritative target validation, equipment/effects and original-client acceptance
 remain pending.
+
+Native `CS_MOVEITEM_REQ` now supports complete carried-stack moves and
+cross-bag different-template swaps. Pinned bag capacity bounds every accepted
+position. The transaction preserves IDs/counts/attributes and validates owned
+rows or the complete authoritative graph. Migration 027 permits atomic swaps
+without temporary fake slots and records grouped movement receipts; apply it and
+the updated Map grants before running these binaries. Only confirmed commit
+publishes DEL+ADD or ordered UPDATEs followed by MOVEITEM. Splits, merges,
+same-template swaps, drops, equipment, timed bags and secured inventories remain
+unsupported. See the [inventory contract](../../_rewrite/docs/modernization/evidence/inventory-moves-contract.json).
 
 ## Historical subsystem overview (see current acceptance scope above)
 

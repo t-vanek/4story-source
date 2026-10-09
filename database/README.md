@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **025** are also immutable. Current
-native Map deployment requires migrations through 025 and the existing
+All subsequently applied migrations through **026** are also immutable. Current
+native Map deployment requires migrations through 026 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -88,9 +88,17 @@ after unknown outcomes.
 Fresh transactions lock the selecting inventory and revalidate the loaded weapon
 fingerprint, then recompute source per-bag/slot selection with BYTE arithmetic.
 Complete graph transactions derive selection from their authoritative checkpoint.
-No extra role privileges are needed. Apply migrations through 025 before these
-binaries; 001–025 are immutable and the next migration is 026. See the
+No extra role privileges are needed. Migration 026 below extends this contract
+to source-generated targets. See the
 [batch contract](../_rewrite/docs/modernization/evidence/ammo-batch-contract.json).
+
+Migration 026 adds `hit_mode` (`direct`/`expanded`) without changing historical
+receipts or the atomic stack transaction. Expanded ammunition is validated against
+pinned MTYPE_EFC rows and authoritative learned rank; all final hits must be paid.
+Fresh transactions lock the learned row, while transferred characters use their
+complete checkpoint and reject changed projection ranks. Existing Map grants
+cover the new column. Apply 026 before these binaries; 001–026 are immutable and
+next is 027. See the [multi-attack contract](../_rewrite/docs/modernization/evidence/multi-attack-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
 all requiring one unit. Premium templates 25020, 25021 and 25022 referenced by the

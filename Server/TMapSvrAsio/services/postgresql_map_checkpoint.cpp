@@ -216,11 +216,11 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(session_key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Reagent session was revoked");
     const int world=c.group,character=c.char_id;
-    ReagentGraphPlan graph_plan;std::vector<std::string> hashes;bool ammunition=false;
+    ReagentGraphPlan graph_plan;std::vector<std::string> hashes;auto kind=ConsumptionKind::Reagent;
     if(graph) {
-        graph_plan=ValidateGraphReagent(sql,c,skill,hits,debits,after);hashes=graph_plan.item_hashes;ammunition=graph_plan.ammunition;
+        graph_plan=ValidateGraphReagent(sql,c,skill,hits,debits,after);hashes=graph_plan.item_hashes;kind=graph_plan.kind;
     }else {
-        ammunition=ValidateSkillConsumption(sql,c,skill,hits,debits,after,nullptr);
+        kind=ValidateSkillConsumption(sql,c,skill,hits,debits,after,nullptr);
         for(const auto& debit:debits) {
             const auto& before=debit.before;
             const int slot=before.bItemID,bag=before.bInvenID,item=std::bit_cast<std::int16_t>(before.wItemID),count=before.bCount,quantity=debit.count;
@@ -241,9 +241,10 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
     // This is an immediate gameplay receipt, not a periodic revision. The
     // runtime checkpoint lease prevents an older sweep overwriting this state.
     RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
-    const int server=m_config.server,unsigned_skill=skill,contract=graph?2:3,hit_count=ammunition?hits:1;
+    const int server=m_config.server,unsigned_skill=skill,contract=graph?2:3,hit_count=kind!=ConsumptionKind::Reagent?hits:1;
     const long long generation=c.connection_id,epoch=c.authority_epoch;
-    const std::string consumption_kind=ammunition?"ammunition":"reagent";
+    const std::string consumption_kind=kind!=ConsumptionKind::Reagent?"ammunition":"reagent";
+    const std::string hit_mode=kind==ConsumptionKind::MultiAttackAmmunition?"expanded":"direct";
     // Reserve one ID from the existing granted receipt sequence to group the
     // whole cast. Sequence gaps on rollback are intentional; never retry a cast.
     long long cast_id=0;
@@ -253,13 +254,13 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
         const int count=before.bCount,remaining=count-debits[i].count;
         const long long id=std::bit_cast<std::int64_t>(before.dlID);
         sql<<"INSERT INTO app_world.skill_item_consumptions(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,skill_id,item_id,"
-             "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash,consumption_kind,cast_id,hit_count) "
-             "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''),:kind,:cast,:hits)",
+             "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash,consumption_kind,cast_id,hit_count,hit_mode) "
+             "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''),:kind,:cast,:hits,:mode)",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
             soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(unsigned_skill,"skill"),soci::use(id,"id"),
             soci::use(count,"before"),soci::use(remaining,"after"),soci::use(before.durable_hash,"bh"),soci::use(after_hash,"ah"),soci::use(fingerprint,"f"),
             soci::use(contract,"contract"),soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga"),soci::use(consumption_kind,"kind"),
-            soci::use(cast_id,"cast"),soci::use(hit_count,"hits");
+            soci::use(cast_id,"cast"),soci::use(hit_count,"hits"),soci::use(hit_mode,"mode");
     }
     tx->commit();return hashes;
 }

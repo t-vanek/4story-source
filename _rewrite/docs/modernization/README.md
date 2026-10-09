@@ -18,7 +18,57 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: atomic ammunition batches
+## Current verified increment: source multi-attack expansion
+
+Native owned-PC ordinary and loop casts now derive `IsMultiAttack` and
+`GetCountMultiAttack` from pinned source rows and the learned rank. The source
+ability sum uses only SA_ONCE/SDT_ABILITY/MTYPE_EFC rows, signed INT deltas and
+BYTE narrowing. Original random per-target duplication and first-target padding
+build the final defender list. Source templates 324/412/1407 require respectively
+3–6, 3–7 and six hits at their valid learned ranks. Budgets above 16 are refused;
+that avoids the original inner random loop's possible MAX_TARGET overrun outside
+this recovered content. Original Windows seed sequences are not reproduced.
+
+Final expanded targets determine ammo quantity. The fresh transaction locks the
+learned skill and validates its rank against the plan; transferred characters use
+the complete checkpoint's learned rank even when normalized skill rows disagree.
+All stack debits, core, timers, checkpoint and receipts still commit together
+before private item ACKs and cast success. Migration **026** adds `hit_mode` and
+preserves existing receipts as direct; no extra Map grants are needed.
+
+**1,589 native checks pass separately in Debug, ASan/UBSan and installed
+Release runs:** 478 backend, 29 pool/TLS, 336 outer TCP, 53 skill lifecycle,
+295 World handoff, 66 secondary lifecycle, 124 reagent two-Map, 124 direct
+ammunition two-Map, 24 fresh single-hit, 30 fresh batch, 23 fresh multi-attack
+and seven rejection checks. Debug CTest has 186 actual passes (200 entries,
+14 fixture skips); all 33 sanitizer suites pass. Twelve migration-upgrade
+checks preserve existing receipts. The previous installed image fails exactly
+at the six-hit target expansion regression.
+
+The installed run uses Release daemons with verified Debug backend/pool test
+executables. Six-service health/DNS/SIGTERM smoke passes. Local image
+`localhost/fourstory:postgresql-multi-attack` (also `:main`), ID
+`528ec324da8943c252206ec3588342cd8db9a397a524fa9313d47e6e04e5507e`,
+UID/GID 10001:10001. See [container evidence](evidence/multi-attack-container-verification.json).
+
+Native fixtures derive all three recovered templates, validate stale rank and
+wrong-count rejection, rollback, return transfer and process replacement/relogin.
+Encrypted TCP tests exercise skill 324 rank 1 and 1407 rank 1 in ordinary and loop
+paths, exact target tuples, atomic mixed-stack arrows, one MP charge per cast and
+cooldowns across relogin. Multi-attack graph consumption is additionally verified
+at the service/transfer boundary; actual multi-attack TCP in this increment uses
+fresh state. Existing two-Map TCP continues to cover direct multi-target ammo.
+
+Backups and migrations 001–025 retain hashes; 026 is now immutable and the next
+migration is **027**. Source zero-target ammo, reagent-plus-weapon combinations,
+premium overrides, equipment/durability mutation, active effects and full combat
+remain pending. No original client executable was run. See the
+[source contract](evidence/multi-attack-contract.json),
+[build fingerprints](evidence/multi-attack-build-fingerprints.json) and
+[owned-lab cleanup](evidence/multi-attack-cleanup.json). Only local commits on `main`
+are authorized until complete gameplay is finished; no GitHub push or deployment.
+
+## Earlier verified increment: atomic ammunition batches
 
 Owner policy: commit only locally on `main`; GitHub pushes, publication and
 remote deployment remain paused until complete gameplay is finished.
@@ -55,14 +105,14 @@ or duplicate debits. The previous single-hit image fails the new regression.
 
 The installed run uses Release daemons and verified Debug backend/pool test
 executables. Six-service health/DNS/SIGTERM smoke passes. Local image
-`localhost/fourstory:postgresql-ammo-batch` (also `:main`), ID
+`localhost/fourstory:postgresql-ammo-batch` (then also `:main`), ID
 `1766f88f4fafcec132022d0e1913ac9f42af54470a306c7eee7645b4bab44531`,
 UID/GID 10001:10001. See [container evidence](evidence/ammo-batch-container-verification.json).
 
-Backups and migrations 001–024 retain their original hashes; 025 is now immutable
-and the next migration is **026**. Source multi-attack expansion, zero-target casts,
-premium overrides, reagent-plus-weapon combinations, equipment mutation, effects
-and full damage remain pending. No original client executable was run. See the
+This increment preserved backups and migrations 001–024, then made 025 immutable.
+It left source multi-attack expansion to migration 026, verified above. Zero-target
+ammunition, premium overrides, reagent-plus-weapon combinations, equipment
+mutation, effects and full damage remain pending. No original client executable was run. See the
 [batch contract](evidence/ammo-batch-contract.json),
 [build fingerprints](evidence/ammo-batch-build-fingerprints.json) and
 [owned-lab cleanup](evidence/ammo-batch-cleanup.json).

@@ -21,8 +21,8 @@
 //   * attacker combat stats in the success ack (powers / crit / attack
 //     level) ship 0 — the player AP/WAP/DP wave models them;
 //   * native learned rank is loaded; the older no-payload path assumes rank 1;
-//   * multi-attack target expansion (TSKILLCHART.bTargetHit) is skipped —
-//     the decoded targets relay 1:1.
+//   * native multi-attack distribution is ported for budgets up to MAX_TARGET;
+//     source random seeds and the legacy non-native template path are separate.
 //
 // Legacy parity: CSHandler.cpp:2429 (OnCS_SKILLUSE_REQ).
 
@@ -40,6 +40,7 @@
 #include "services/skill_engine.h"
 #include "services/skill_timing.h"
 #include "services/skill_reagent.h"
+#include "services/skill_targets.h"
 #include "services/main_transfer_runtime.h"
 #include "services/player_service.h"
 #include "fourstory/db/co_offload.h"
@@ -55,6 +56,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <random>
 #include <vector>
 
 namespace tmapsvr {
@@ -102,7 +104,7 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
 
     // Defender list — only flagged entries become broadcast targets
     // (legacy vDEFEND, capped at MAX_TARGET; CSHandler.cpp:2666-2701).
-    // The multi-attack expansion (bTargetHit duplicates) is skipped.
+    // Native expansion follows after resolving the learned rank and pinned data.
     std::vector<SkillTarget> targets;
     for (std::uint8_t i = 0; i < bCount; ++i)
     {
@@ -175,6 +177,10 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             const auto t=std::find_if(templates.begin(),templates.end(),[&](const auto& s){return s.wID==wSkillID;});
             if(t==templates.end())throw std::runtime_error("Native learned skill lacks pinned template");
             definition=*t;
+            targets=skill_targets::Expand(targets,t->multi_attack,[](std::uint32_t bound){
+                thread_local std::mt19937 random{std::random_device{}()};
+                return std::uniform_int_distribution<std::uint32_t>(0,bound-1)(random);
+            });
             // Ordinary use alone checks its source map restriction, before
             // resource, prerequisite and reuse gates (CSHandler.cpp:2556).
             if(!loop&&t->wMapID!=0xffff&&t->wMapID!=cs.wMapID){ack.result=SKILL_WRONGREGION;return;}
@@ -204,7 +210,7 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             if(t.items==SkillItemGate::Unsupported)
                 throw std::runtime_error("Native cast consumable mutation is unsupported");
             if(t.items==SkillItemGate::Ammunition&&targets.empty())
-                throw std::runtime_error("Native ammunition requires at least one non-expanded hit");
+                throw std::runtime_error("Native ammunition requires at least one hit");
             if(t.items==SkillItemGate::Reagent||t.items==SkillItemGate::Ammunition) {
                 if(!reagent)throw std::runtime_error("Reagent definition changed during cast");
                 if(t.items==SkillItemGate::Ammunition)consumed=FindSkillAmmunition(cs,t.bAmmoKind,static_cast<std::uint8_t>(targets.size()));

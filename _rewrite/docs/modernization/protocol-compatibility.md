@@ -611,7 +611,37 @@ Original timer side effects still distinguish ordinary and loop missing-item
 rejections. Unknown commit outcomes close the client and retain the reservation;
 a stale final save must not replace possibly committed state.
 
-Zero-target casts and source-generated multi-attack expansion remain unsupported.
+Zero-target ammunition remains unsupported. The following increment adds
+source-generated multi-attack expansion.
 Cash templates 25020–25022 are absent from the pinned backup. Full damage/target
 rules, equipment mutation and actual original-client execution remain pending.
 See [batch source contract and evidence](evidence/ammo-batch-contract.json).
+
+## Native multi-attack defender expansion
+
+Migration 026 accompanies native `IsMultiAttack` / `GetCountMultiAttack` support.
+The pinned definition sees every SDT_ABILITY/MTYPE_EFC row as a multi-attack, but
+only SA_ONCE rows contribute to the learned-rank hit sum. Original INT deltas and
+BYTE narrowing are retained; invalid INT arithmetic is refused. All valid ranks
+of recovered skills 324, 412 and 1407 need at most seven final hits. Budgets above
+16 remain unsupported because the original inner random loop can exceed MAX_TARGET.
+
+For each flagged target while budget remains, append it once, draw from
+`0..bTargetHit` and duplicate while the local count is below that draw. Remaining
+hits repeat the first defender. Unflagged entries never become final defenders;
+empty input never fabricates one. The runtime uses a thread-local random engine;
+the original Windows process seed sequence is not reproduced. For the recovered
+limits 1 and 3, the possible outcomes and distribution match the original modulo
+range. Ordinary and loop response layouts are unchanged: 62/45 fixed bytes plus
+five bytes per final defender, including original DWORD ID and BYTE type.
+
+Ammo charges the final hit count, validated against the canonical learned rank
+inside the same transaction. Resources and cooldowns apply once per cast. Fresh
+storage locks the learned row; complete graphs use their own learned skills and
+ignore stale normalized ranks. The existing ordered stack ACKs precede one
+MOVEITEM, cast success and HPMP when charged. Migration 026 records expanded
+ammo separately with `hit_mode`; older receipts remain direct.
+
+See [source contract and verification](evidence/multi-attack-contract.json).
+Full combat powers/damage, authoritative target/AOI checks, active effect timing
+and original-client executable acceptance are separate unfinished contracts.

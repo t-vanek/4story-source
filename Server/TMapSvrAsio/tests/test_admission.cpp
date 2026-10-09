@@ -755,7 +755,7 @@ int main(int argc, char**) {
                       "unsupported cast never arms timers before closing");
             }
             players.reagent_fixture=true;
-            for(int mode=0;mode<6;++mode) {
+            for(int mode=0;mode<7;++mode) {
                 world.packets.clear();const auto saves=players.saves.load(),consumes=players.consumptions.load();
                 const auto failures=server.FailedSaves();
                 auto item_client=Dial(io,server.Port());co_await Send(item_client,MessageId::CS_CONNECT_REQ,Connect());
@@ -765,10 +765,12 @@ int main(int argc, char**) {
                 co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
                 co_await Send(item_client,MessageId::CS_CONREADY_REQ,{});
                 co_await Until([&]{return presence.FindEntry(kChar).has_value();},"reagent fixture ready");
-                if(mode>=3)state.Update(kChar,[](auto& v){
+                if(mode>=3)state.Update(kChar,[mode](auto& v){
                     auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);
                     auto& t=p->skill_templates[0];t.items=tmapsvr::SkillItemGate::Ammunition;t.wUseItem=0;t.bAmmoKind=24;
-                    p->bags[0].items[0].bKind=24;v.payload=p;
+                    p->bags[0].items[0].bKind=24;
+                    if(mode==6){t.multi_attack=tmapsvr::SkillMultiAttack{3,3};p->bags[0].items[0].bCount=6;}
+                    v.payload=p;
                 });
                 const auto target_request=[&](Bytes body) {
                     const int hits=mode==4?0:mode==5?2:mode>=3?1:0;
@@ -824,21 +826,22 @@ int main(int argc, char**) {
                     registry.EndOperation(server_session.get());
                 }
                 co_await Until([&]{return players.consumption_started.load();},"reagent write runs on worker");
-                Check(state.Get(kChar)->dwMP==163&&state.Get(kChar)->payload->bags[0].items[0].bCount==2&&
+                Check(state.Get(kChar)->dwMP==163&&state.Get(kChar)->payload->bags[0].items[0].bCount==(mode==6?6:2)&&
                       item_client->Count(MessageId::CS_UPDATEITEM_ACK)==0&&!registry.BeginCheckpoint(server_session.get()),
                       "uncommitted reagent plan is invisible and excludes periodic capture");
                 if(mode==1)item_client->wire->Close();
                 players.hold_consumption=false;
-                if(mode==0||mode==3) {
+                if(mode==0||mode==3||mode==6) {
                     co_await Until([&]{return item_client->Count(MessageId::CS_HPMP_ACK)==1;},"committed normal reagent cast publishes inventory and bars");
-                    Check(players.consumptions==consumes+1&&state.Get(kChar)->dwMP==83&&state.Get(kChar)->payload->bags[0].items[0].bCount==1,
+                    Check(players.consumptions==consumes+1&&state.Get(kChar)->dwMP==83&&state.Get(kChar)->payload->bags[0].items[0].bCount==(mode==6?3:1),
                           "confirmed transaction publishes exact item and resource decrement once");
                     const auto n=item_client->packets.size();
                     Check(item_client->packets[n-4].first==static_cast<std::uint16_t>(MessageId::CS_UPDATEITEM_ACK)&&
-                          item_client->packets[n-4].second[0]==std::byte{255}&&item_client->packets[n-4].second[10]==std::byte{1}&&
+                          item_client->packets[n-4].second[0]==std::byte{255}&&item_client->packets[n-4].second[10]==std::byte(mode==6?3:1)&&
                           item_client->packets[n-3].first==static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK)&&
                           item_client->packets[n-2].first==static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),
                           "private UPDATEITEM and MOVEITEM precede cast and HPMP in source order");
+                    if(mode==6)Check(item_client->packets[n-2].second.size()==77,"one requested target expands to three in the ordinary success packet");
                     co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,target_request(skill_request(7)));
                     co_await Until([&]{return item_client->Count(MessageId::CS_SKILLUSE_ACK)==2;},"reagent cooldown rejection delivered");
                     Check(players.consumptions==consumes+1,"cooldown repeat cannot consume another item");

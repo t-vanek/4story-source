@@ -133,10 +133,22 @@ Every debit, core/timer update and per-stack audit row shares one transaction;
 `cast_id` groups receipts and `hit_count` records the charge. Only confirmed commit
 publishes ordered item responses, one MOVEITEM and cast success. Tests cover a
 stale second item, second-receipt failure, transfer return and process recovery.
-Equipment changes, zero-target casts, source multi-attack expansion and cash
-exceptions remain pending. Deploy migration 025 before these binaries; current
-Map grants suffice. See the
+Equipment changes, zero-target ammunition and cash exceptions remain pending.
+Migration 026 below extends this transaction to source multi-attack expansion.
+See the
 [batch contract](../../_rewrite/docs/modernization/evidence/ammo-batch-contract.json).
+
+Migration 026 adds native source multi-attack expansion. Hydration derives the
+learned-rank hit budget and bTargetHit from pinned content. Ordinary and loop casts
+perform source random duplication and first-target padding; cost/cooldown applies
+once and ammo quantity uses final hits. The locked consumption validator verifies
+the canonical rank and exact full budget, using graph skills after transfer.
+`hit_mode` distinguishes expanded ammo receipts. Valid recovered skill ranks need
+at most seven hits; derived budgets above 16 remain unsupported. See the
+[multi-attack contract](../../_rewrite/docs/modernization/evidence/multi-attack-contract.json).
+Apply 026 before these binaries; existing role grants suffice. Full damage,
+authoritative target validation, equipment/effects and original-client acceptance
+remain pending.
 
 ## Historical subsystem overview (see current acceptance scope above)
 

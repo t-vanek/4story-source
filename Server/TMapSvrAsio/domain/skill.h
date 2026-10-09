@@ -3,6 +3,7 @@
 // Skill row — per-char learned skill from TSKILLTABLE.
 
 #include <cstdint>
+#include <optional>
 
 namespace tmapsvr {
 enum class SkillItemGate : std::uint8_t { Unsupported, Allowed, Unsuitable, Reagent, Ammunition };
@@ -12,6 +13,11 @@ struct SkillRow
     std::uint16_t  wSkillID     = 0;
     std::uint8_t   bLevel       = 0;
     std::uint32_t  dwRemainTick = 0;   // cooldown remaining (0 = ready)
+};
+
+struct SkillMultiAttack {
+    std::uint8_t count = 0;      // source BYTE(GetCountMultiAttack), at learned rank
+    std::uint8_t target_hit = 0; // per-target rand() % (bTargetHit + 1)
 };
 
 // Skill template (TSKILLCHART) — the static definition of a skill: the
@@ -53,7 +59,8 @@ struct SkillTemplate
     std::uint16_t  wPrevActiveID = 0; // normal use; loop uses wTargetActiveID
     std::uint16_t  wMapID = 0xffff;  // source INVALID_MAPID: unrestricted
     std::uint16_t  wUseItem = 0;
-    std::uint8_t bAmmoKind = 0; // pinned first compatible weapon, single-hit consumption
+    std::uint8_t bAmmoKind = 0; // pinned first compatible weapon
+    std::optional<SkillMultiAttack> multi_attack; // native pinned rank projection
 };
 
 struct SkillAttackTiming {

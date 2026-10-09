@@ -21,7 +21,7 @@ Local builds, disposable verification containers and local commits remain author
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–025 and the checkpoint, retirement and replica contract evidence. Actual
+   001–026 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -89,8 +89,8 @@ Local builds, disposable verification containers and local commits remain author
    022–023; preserve `skill-reagents-contract.json` and `graph-reagents-contract.json`.
    Single-hit arrow/bolt transactions now use 024; preserve `ammunition-contract.json`.
    Multi-target, per-bag multi-stack transactions now use 025; preserve
-   `ammo-batch-contract.json`. Next port source multi-attack target expansion,
-   equipment, cash branches, full effects and cancellation;
+   `ammo-batch-contract.json`. Source multi-attack expansion now uses 026; preserve
+   `multi-attack-contract.json`. Next port equipment, cash branches, full effects and cancellation;
    recompute timing/item eligibility when equipment or learned skills mutate.
    CHARINFO and initial readiness now sample live skill durations without
    restarting timers; preserve `admission-timers-contract.json`. Implement active
@@ -202,7 +202,7 @@ The helper creates labelled disposable containers; reuse no unrelated databases.
 Build in the Ubuntu image with `/src` bound to the checkout because the current
 `build/linux-debug` CMake cache contains container paths.
 
-Do not overwrite migrations `001`–`025` after application. Add migrations `026` onward.
+Do not overwrite migrations `001`–`026` after application. Add migrations `027` onward.
 Do not revert unrelated pre-existing client/binary/library working-tree changes.
 
 
@@ -449,11 +449,18 @@ receipt, return transfer, graph-backed relogin and process recovery. Preserve
 container and cleanup evidence. Version this work only locally on `main` until
 complete gameplay is finished; do not push or deploy to GitHub.
 
-Preserve backups and migrations 001–025; next schema change is 026. Continue with
-source `CTSkill::GetCountMultiAttack`/`MTYPE_EFC` target expansion, including rank
-scaling, random per-target duplication, target caps and ammo charge. Zero-target
-ammo and reagent-plus-weapon combinations remain outside the current contract.
-Premium templates 25020–25022 are absent from the backup; cash support must not
-fabricate historical definitions. Then port equipment/durability mutation and
-derived-stat invalidation, active effects, cast lifecycle and combat/target/AOI
-rules. Original-client executable acceptance is still required.
+Source multi-attack expansion now uses 026: learned-rank SA_ONCE ability sum,
+BYTE narrowing, random per-target duplication and first-target padding. Preserve
+`multi-attack-contract.json` and direct batch evidence. Expanded ammo validates
+the exact canonical rank/budget in the same transaction; graph ranks take priority
+over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
+with zero-target ammo still refused; valid recovered ranks need at most seven hits.
+
+Preserve backups and migrations 001–026; next schema change is 027. Continue with
+native equipment/durability mutation and recomputation of derived stats, timing
+and item eligibility. Then add authoritative effect expiry, cast lifecycle and
+combat/target/AOI rules. Reagent-plus-weapon combinations and zero-target ammo
+remain unsupported. Premium templates 25020–25022 are absent from the backup;
+do not fabricate historical definitions. Original-client executable acceptance
+is still required. Continue local commits on `main` only, without GitHub pushes
+or deployment until complete gameplay is finished.

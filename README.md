@@ -182,33 +182,33 @@ DNS and SIGTERM checks. That increment used
 `localhost/fourstory:postgresql-graph-reagents`. See
 [container evidence](_rewrite/docs/modernization/evidence/graph-reagents-container-verification.json).
 
-The latest implementation adds **atomic multi-target ammunition consumption**.
-Ordinary and loop casts support 1–16 flagged, non-expanded targets. Source-ordered
-selection finds the first sufficient bag, preserving BYTE count arithmetic and
-consuming its stacks in slot order, including different arrow/bolt templates of
-the same kind. Counts from separate bags are never combined.
+The latest implementation adds **source multi-attack target expansion** to native
+ordinary and loop casts. Pinned `TSKILLDATA` and the learned rank determine the
+hit budget; random per-target duplication and first-target padding reproduce the
+original target order. All valid ranks of the three recovered templates (324,
+412, 1407) require at most seven hits. Larger derived budgets above 16 fail closed.
 
-All selected stack debits, core, cooldowns and grouped audit receipts commit in
-one PostgreSQL transaction before the ordered UPDATEITEM/DELITEM packets, one
-MOVEITEM and the original cast response. This works for fresh inventory and the
-complete transferred graph, including return transfers, relogin and recovery.
-A stale second stack or failed second receipt rolls back the entire cast.
-
-Apply migration **025** before these binaries; existing Map grants suffice.
-Zero-target and source-expanded ammunition attacks, equipment mutation, premium
-exceptions and full combat damage remain pending. Source premium templates
-25020–25022 are absent from the backups and are not invented. See the
-[batch consumption contract](_rewrite/docs/modernization/evidence/ammo-batch-contract.json).
-The original client executable has not been run.
+Expanded ammunition uses the existing atomic per-bag stack transaction. The
+locked database validator recomputes its full hit budget from authoritative learned
+state; a transferred graph remains authoritative over stale normalized skill rows.
+Resources and cooldowns apply once per cast, while ammunition is charged per
+expanded hit. Migration **026** records `hit_mode=expanded` alongside the grouped
+item receipts; existing receipts retain `direct`.
 
 Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
-**33 ASan/UBSan suites**, and **1,472 native database/network checks** in each Debug,
-sanitizer and installed Release run. Nine isolated migration-upgrade checks pass.
-The preceding single-hit image fails the new multi-target regression. All six
-container services pass health/DNS/SIGTERM smoke. The installed run uses Release
-daemons with the verified Debug backend/pool test executables. Current local image:
-`localhost/fourstory:postgresql-ammo-batch` (also `:main`); see
-[container evidence](_rewrite/docs/modernization/evidence/ammo-batch-container-verification.json).
+**33 ASan/UBSan suites** and **1,589 native database/network checks** in each
+Debug, sanitizer and installed Release run. Twelve migration-upgrade checks
+preserve existing receipts; the previous image fails the new expansion regression.
+All six container services pass health, DNS and SIGTERM checks. The local image is
+`localhost/fourstory:postgresql-multi-attack` (also `:main`), running as
+UID/GID 10001:10001. The installed test uses Release daemons with verified Debug
+backend/pool integration executables. See
+[container evidence](_rewrite/docs/modernization/evidence/multi-attack-container-verification.json).
+
+See the [multi-attack contract](_rewrite/docs/modernization/evidence/multi-attack-contract.json).
+Complete combat damage/target/AOI rules, active effects, equipment mutation and
+original-client executable acceptance remain pending. The random outcome range is
+preserved; the original Windows process seed sequence is not reproduced.
 
 ## Database authority
 
@@ -219,7 +219,7 @@ need adaptation, change the derived PostgreSQL schema through a new migration.
 - `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
 - `content` and the compatibility views expose explicit, versioned projections.
 - `app_global` and `app_world` own mutable application and operational state.
-- Applied migrations **001–025 are immutable**; the next schema change starts at 026.
+- Applied migrations **001–026 are immutable**; the next schema change starts at 027.
 - Backups, credentials and private extraction output stay outside Git. Historical
   accounts, player records and missing combat values are never invented.
 

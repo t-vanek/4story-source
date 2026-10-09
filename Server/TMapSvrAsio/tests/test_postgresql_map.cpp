@@ -43,7 +43,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=728;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=731;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -224,6 +224,8 @@ int main(){
         stage="ammunition batches";
         VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,create(726,"AmmoBatch",726),false);
         VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,create(727,"GraphBatch",727),true);
+        VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,create(729,"MultiFresh",729),false,false,true);
+        VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,create(730,"MultiGraph",730),true,false,true);
         auto batch_recovery=create(728,"BatchRecovery",728);
         VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,batch_recovery,true,true);
         const auto batch_login=auth.Authenticate({"SyntheticMap728",credential,"192.0.2.50",0x2918});
@@ -236,6 +238,16 @@ int main(){
         Check(batch_restored.payload->transfer_state&&rest.size()==1&&rest[0].before.bCount==2,"batch recovery relogin retains exact unconsumed quantity");
         tmapsvr::ConsumeSkillItemProjection(batch_restored,rest);map.ConsumeSkillItems(batch_recovery,32,2,rest,batch_restored);
         map.SaveAuthorized(batch_recovery,batch_restored);
+        auto multi_recovery=create(731,"MultiRecovery",731);
+        VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,multi_recovery,true,true,true);
+        const auto multi_login=auth.Authenticate({"SyntheticMap731",credential,"192.0.2.50",0x2918});
+        Check(multi_login.status==login::AuthStatus::Success&&routes.StartAuthorized({731,multi_login.session_key,1,1,static_cast<int>(multi_recovery.char_id)}).status==login::StartStatus::Success,"expanded cast recovery gets fresh Login handoff");
+        multi_recovery.key=multi_login.session_key;multi_recovery.connection_id+=2000;
+        Check(claim(multi_recovery),"expanded cast recovery relogin claims epoch zero");
+        auto multi_restored=*map.LoadAuthorized(multi_recovery);map.MarkReady(multi_recovery,multi_restored);
+        const auto mt=std::find_if(multi_restored.payload->skill_templates.begin(),multi_restored.payload->skill_templates.end(),[](const auto& row){return row.wID==324;});
+        Check(mt!=multi_restored.payload->skill_templates.end()&&mt->multi_attack&&mt->multi_attack->count==4&&tmapsvr::FindSkillAmmunition(multi_restored,24)->bCount==2,"recovered graph retains rank and consumed ammo despite stale normalized rank");
+        map.SaveAuthorized(multi_recovery,multi_restored);
         stage="primary transfer";VerifyMainTransfer(admin,mpool,map,mapconn,manifest,routing,actor,create(711,"TransferHero",11));
         stage="transfer recovery";auto transferred_crash=create(712,"TransferCrash",12);
         VerifyMainTransferRecovery(admin,mpool,map,mapconn,manifest,routing,actor,transferred_crash);

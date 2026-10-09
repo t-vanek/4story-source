@@ -3,6 +3,7 @@
 #include "domain/main_transfer.h"
 #include "services/skill_cooldown.h"
 #include "services/skill_timing.h"
+#include "services/postgresql_skill_targets.h"
 #include <set>
 #include <soci/soci.h>
 #include <algorithm>
@@ -88,7 +89,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.wUseItem=U16(chart,"wItemID");
         const auto weapon=U32(chart,"dwWeaponID");
         // Cash templates 25020-25022 are absent from the pinned backup. Ordinary
-        // single-hit ammo is derived from the first compatible powered weapon.
+        // ammo is derived from the first compatible powered weapon.
         if(!definition.wUseItem) {
             definition.items=weapon?SkillItemGate::Unsuitable:SkillItemGate::Allowed;
             if(weapon)for(const auto& item:skill_equipment) {
@@ -97,10 +98,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
                 definition.items=!item.powered?SkillItemGate::Unsuitable:
                     item.consumable_kind?SkillItemGate::Unsupported:SkillItemGate::Allowed;
                 if(item.powered&&item.consumable_kind&&item.consumable_count==1) {
-                    int multi=0; // CTSkillTemp::IsMultiAttack: SDT_ABILITY=1, MTYPE_EFC=36
-                    sql<<"SELECT count(*)::integer FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=1 AND \"bExec\"=36",
-                        soci::use(id),soci::into(multi);
-                    if(!multi){definition.items=SkillItemGate::Ammunition;definition.bAmmoKind=item.consumable_kind;}
+                    definition.items=SkillItemGate::Ammunition;definition.bAmmoKind=item.consumable_kind;
                 }
                 break; // source checks the first matching equipped item
             }
@@ -110,6 +108,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.bUseHPType=U8(chart,"bUseHPType");definition.dwUseHP=U32(chart,"dwUseHP");
         definition.bStartLevel=U8(chart,"bLevel");definition.bNextLevel=U8(chart,"bNextLevel");
         definition.bMaxLevel=U8(chart,"bMaxLevel");definition.f1stRateX=growth.rate;
+        definition.multi_attack=ReadNativeMultiAttack(sql,definition,skill.bLevel,U8(chart,"bTargetHit"));
         p.skill_templates.push_back(definition);
         const int kind=U8(chart,"bKind");const int group=kind==0?0:kind-klass*3;
         if(group>=0&&group<4) {

@@ -1,0 +1,227 @@
+{
+  "date": "2026-10-09",
+  "scope": "Native owned-PC ordinary and loop multi-attack defender expansion, with exact final-hit ammunition charges for fresh and transferred characters. Original client execution and full combat are pending.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/TSkill.cpp",
+      "lines": "151-166, 259-262",
+      "contract": "GetCountMultiAttack returns the BYTE narrowing of CalcAbilityValue(SA_ONCE, base DWORD1, MTYPE_EFC), summing signed Calculate deltas."
+    },
+    {
+      "path": "Server/TMapSvr/TSkillTemp.cpp",
+      "lines": "62-113, 359-370",
+      "contract": "IsMultiAttack sees every SDT_ABILITY/MTYPE_EFC row irrespective of action; GetValue and Calculate define rank formulas and signed/unsigned delta semantics."
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2663-2720, 2848, 3148-3207, 3254",
+      "contract": "For each flagged input with remaining budget, append once then rand()%(bTargetHit+1) additional local distribution; fill remaining hits with first defender. Ordinary and loop call UseSkillItem with BYTE(total hits-1)."
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2871-2945",
+      "contract": "Weapon base ammo plus additional final hits selects matching-kind stacks from the first sufficient bag, preserving BYTE accumulation and slot ordering."
+    },
+    {
+      "path": "Server/TMapSvr/TMapSvr.cpp",
+      "lines": "9520-9569",
+      "contract": "UseItem decrements/deletes each stack and sends original inventory response before one MOVEITEM."
+    }
+  ],
+  "pinned_content": {
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "multi_attack_templates": [
+      {
+        "skill": 324,
+        "once_ability": 36,
+        "initial_count": 3,
+        "rank_increment": 1,
+        "value_calc": 1,
+        "increment_mode": 1,
+        "target_hit": 3,
+        "max_rank": 4,
+        "valid_hit_range": [
+          3,
+          6
+        ],
+        "weapon_mask": 96
+      },
+      {
+        "skill": 412,
+        "once_ability": 36,
+        "initial_count": 3,
+        "rank_increment": 1,
+        "value_calc": 1,
+        "increment_mode": 1,
+        "target_hit": 3,
+        "max_rank": 5,
+        "valid_hit_range": [
+          3,
+          7
+        ],
+        "weapon_mask": 385
+      },
+      {
+        "skill": 1407,
+        "once_ability": 36,
+        "initial_count": 6,
+        "rank_increment": 1,
+        "value_calc": 1,
+        "increment_mode": 1,
+        "target_hit": 1,
+        "max_rank": 1,
+        "valid_hit_range": [
+          6,
+          6
+        ],
+        "weapon_mask": 0
+      }
+    ],
+    "fresh_wire_fixture": {
+      "skills": [
+        324,
+        1407
+      ],
+      "rank": 1,
+      "bow": 701,
+      "mixed_arrows": [
+        8401,
+        11054
+      ],
+      "skill324_mp_cost": 169,
+      "initial_mp": 351,
+      "mp_after_two_casts": 13
+    },
+    "weapon_base_ammunition_count": 1,
+    "cash_templates_absent": [
+      25020,
+      25021,
+      25022
+    ],
+    "historical_mutations": "None. New mutable synthetic account items/skills are restored or removed; original source manifests and backup hashes remain unchanged."
+  },
+  "implementation": {
+    "derivation": "Shared native reader derives optional multi-attack state from pinned rows and canonical learned rank on fresh and graph hydration. Every matching action marks IsMultiAttack; only SA_ONCE contributes to the signed sum. BYTE narrowing is explicit; invalid/nonfinite INT arithmetic is refused.",
+    "distribution": "Only flagged decoded tuples contribute. For budgets 0..16, retain target ID/type order and source per-target duplication then first-defender padding. Empty input stays empty. Non-multi input keeps existing 16 cap without a random draw. Budgets above 16 fail before mutation because the original inner duplication loop can overrun MAX_TARGET there.",
+    "randomness": "Thread-local mt19937 with uniform_int_distribution(0,bTargetHit). Recovered caps 1 and 3 give the same outcome range/distribution as the original power-of-two rand modulus. Windows process random seeds/sequences are not reproduced.",
+    "cost_and_timing": "Final expanded target count selects atomic ammunition debits. HP/MP and source reuse/shared-kind timers apply once per cast, not per hit. Existing normal/loop affordability and cooldown differences remain.",
+    "fresh_storage": "One transaction locks learned rank and selecting inventory, recomputes the full pinned hit budget and rejects projection rank drift or partial/extra charge. Loaded weapon/item fingerprints and exact ordered debit validation remain mandatory. Core, cooldowns, all stack writes, checkpoint and receipts commit together.",
+    "graph_storage": "Locked complete checkpoint supplies canonical learned rank, equipment and inventory. Stale normalized skill/item rows cannot override it. Validate exact complete candidate graph except allowed live core/timer sampling, preserving unrelated graph sections and original unsigned identities.",
+    "audit": "Migration 026 adds hit_mode direct/expanded to existing skill_item_consumptions. Existing receipt identities, timestamps and fields remain unchanged and default to direct. Expanded requires ammunition; grouped cast IDs and all decrement/uniqueness constraints from 025 remain.",
+    "publication": "Character freeze and checkpoint lease retain an unpublished plan until confirmed commit. Ordered private stack responses precede one MOVEITEM, original cast success and charged HPMP. Uncertain commit closes the socket and preserves ownership for recovery without retry.",
+    "deployment": "Backups and migrations 001-025 retain their hashes. Migration 026 is required before these binaries and is now immutable; existing Map grants suffice. Next migration 027. Local commits and local images only until owner authorizes remote publication after complete gameplay."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-multi-attack-debug.json",
+      "status": "passed",
+      "native_map_checks": 478,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 336,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "total_checks": 1589
+    },
+    "asan": {
+      "report": "native-multi-attack-asan.json",
+      "status": "passed",
+      "native_map_checks": 478,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 336,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "total_checks": 1589
+    },
+    "release": {
+      "report": "native-multi-attack-release.json",
+      "status": "passed",
+      "native_map_checks": 478,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 336,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "total_checks": 1589,
+      "scope": "Installed Release Login/World/Map daemons; backend/pool integration executables mounted from the verified Debug build."
+    },
+    "ctest_debug": {
+      "report": "multi-attack-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "multi-attack-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "multi-attack-before.json",
+      "image_id": "1766f88f4fafcec132022d0e1913ac9f42af54470a306c7eee7645b4bab44531",
+      "expected_failure": "Multi-attack: six-hit non-ammunition skill preserves type/order then pads first target; unflagged target omitted",
+      "error_location": [
+        {
+          "file": "run_native_verification.py",
+          "line": 261
+        },
+        {
+          "file": "verify_map_runtime_wire.py",
+          "line": 208
+        },
+        {
+          "file": "verify_multi_attack_wire.py",
+          "line": 54
+        },
+        {
+          "file": "verify_multi_attack_wire.py",
+          "line": 14
+        }
+      ],
+      "scope": "Previous installed direct-target batch daemons with current mounted backend/pool executables and migrations. The old server fails the six-hit non-ammunition target expansion check."
+    },
+    "migration_upgrade": {
+      "report": "multi-attack-migration-upgrade.json",
+      "checks": 12,
+      "status": "passed"
+    },
+    "container_smoke": {
+      "report": "multi-attack-container-verification.json",
+      "image": "localhost/fourstory:postgresql-multi-attack",
+      "image_id": "528ec324da8943c252206ec3588342cd8db9a397a524fa9313d47e6e04e5507e",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    }
+  },
+  "limitations": [
+    "Zero-target ammunition, reagent-plus-weapon combinations, absent premium overrides, equipment and durability mutation remain unsupported.",
+    "Expanded ordinary/loop TCP covers fresh skill 324 rank 1 and 1407 rank 1. Multi-attack graph consumption, changed normalized rank and process replacement/relogin are verified through native service/transfer fixtures; existing actual two-Map TCP covers direct multi-target ammunition.",
+    "Valid pinned ranks need at most seven hits. The generic expansion tests cover budgets 1..16 and all recovered per-target rolls; larger budgets are refused.",
+    "Full attacker powers, damage, authoritative target/AOI validation and active effect timing remain incomplete. Source-derived encrypted peers are not original-client executable acceptance."
+  ]
+}

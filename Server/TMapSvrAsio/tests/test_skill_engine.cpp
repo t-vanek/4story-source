@@ -1,4 +1,5 @@
 #include "services/skill_engine.h"
+#include "services/skill_targets.h"
 #include "services/skill_chart.h"   // SkillTemplate (via domain/skill.h)
 
 #include <cstdint>
@@ -86,6 +87,47 @@ int main()
         Check(rejected,"unsupported resource selector is refused");
     }
 
+    {
+        SkillTemplate t;SkillDataRow effect{SA_ONCE,SDT_ABILITY,2,36,SVI_INCREASE,3,1,1};
+        std::vector<SkillDataRow> data{effect};
+        for(std::uint8_t rank=1;rank<=5;++rank)
+            Check(skill_targets::Derive(data,t,rank,3)->count==rank+2,"source skill324/412 rank scaling");
+        auto multi=skill_targets::Derive(data,t,2,3);
+        Check(multi&&multi->count==4&&multi->target_hit==3,"multi projection retains budget and random per-target limit");
+        std::vector<int> request{11,22};std::vector<unsigned> draws{3,0};std::size_t n=0;
+        const auto distributed=skill_targets::Expand(request,multi,[&](unsigned bound){Check(bound==4,"original random modulus includes target_hit endpoint");return draws[n++];});
+        Check(distributed==std::vector<int>({11,11,11,22}),"golden random expansion exhausts budget in original target order");
+        Check(skill_targets::Expand(request,multi,[](unsigned){return 0;})==std::vector<int>({11,22,11,11}),"unused hits repeat the first flagged defender");
+        Check(skill_targets::Expand(std::vector<int>{42},multi,[](unsigned){return 3;})==std::vector<int>({42,42,42,42}),"one flagged target always receives the whole multi-attack budget");
+        Check(skill_targets::Expand(std::vector<int>{},multi,[](unsigned){throw std::runtime_error("unexpected RNG");return 0;}).empty(),"unflagged-only request creates no defenders and draws no random numbers");
+        for(unsigned budget=1;budget<=16;++budget)for(unsigned roll=0;roll<=3;++roll) {
+            auto result=skill_targets::Expand(std::vector<int>(20,17),SkillMultiAttack{static_cast<std::uint8_t>(budget),3},[&](unsigned){return roll;});
+            Check(result.size()==budget,"bounded source expansion neither loses nor invents hits");
+        }
+        Check(skill_targets::Expand(std::vector<int>(20,17),{},[](unsigned){throw std::runtime_error("unexpected RNG");return 0;}).size()==16,"ordinary target cap is unchanged and does not draw random numbers");
+        data[0].bAction=SA_BUFF;auto zero=skill_targets::Derive(data,t,1,3);
+        Check(zero&&zero->count==0&&skill_targets::Expand(request,zero,[](unsigned){return 0;}).empty(),"IsMultiAttack sees non-once data while hit calculation excludes it");
+        data[0]=effect;data.push_back(effect);data.push_back({SA_PASSIVE,SDT_ABILITY,1,36,SVI_INCREASE,99,0,0});
+        Check(skill_targets::Derive(data,t,1,3)->count==6,"all once ability rows contribute, passive row does not");
+        data={effect};Check(skill_targets::Derive(data,t,255,3)->count==1,"source narrows summed INT hit count to BYTE");
+        data[0].wValue=6;Check(skill_targets::Derive(data,t,1,1)->count==6,"backup skill1407 has six hits with per-target cap one");
+        data[0].bExec=30;Check(!skill_targets::Derive(data,t,1,3),"ordinary damage data does not enable multi-attack");
+        data={effect};data[0].bCalc=2;data[0].wValue=100;t.f1stRateX=2;t.bStartLevel=1;t.bNextLevel=1;
+        Check(skill_targets::Derive(data,t,3,3)->count==8,"multi-attack exponential mode follows original double calculation");
+        data[0].bInc=SVI_MULTIPLY;Check(skill_targets::Derive(data,t,3,3)->count==7,"multiply returns delta against source base one");
+        data[0].bInc=SVI_DIVIDE;Check(skill_targets::Derive(data,t,3,3)->count==255,"divide delta uses source BYTE narrowing");
+        data[0].bInc=SVI_PRECENT;data[0].bCalc=0;data[0].wValue=200;
+        Check(skill_targets::Derive(data,t,1,3)->count==1,"percent returns delta against base one");
+        data[0].bCalc=3;data[0].wValue=5;data[0].wValueInc=2;data[0].bInc=SVI_DECREASE;
+        Check(skill_targets::Derive(data,t,2,3)->count==253,"falling negative delta retains source signed-to-BYTE conversion");
+        bool refused=false;try{skill_targets::Expand(request,SkillMultiAttack{17,3},[](unsigned){return 3;});}catch(...){refused=true;}
+        Check(refused,"unsupported source budgets that may exceed MAX_TARGET fail before mutation");
+        refused=false;try{skill_targets::Expand(request,multi,[](unsigned){return 4;});}catch(...){refused=true;}
+        Check(refused,"out-of-range RNG injection is refused");
+        data[0].bCalc=2;t.f1stRateX=std::numeric_limits<float>::infinity();refused=false;
+        try{skill_targets::Derive(data,t,255,3);}catch(...){refused=true;}
+        Check(refused,"non-finite multi-attack calculation cannot convert to an integer");
+    }
     if (g_fail == 0)
         std::cout << "test_skill_engine: " << checks << " checks passed\n";
     return g_fail == 0 ? 0 : 1;

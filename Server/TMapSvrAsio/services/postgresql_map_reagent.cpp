@@ -2,6 +2,7 @@
 #include "main_transfer_codec.h"
 #include "main_transfer_runtime.h"
 #include "skill_reagent.h"
+#include "postgresql_skill_targets.h"
 #include <openssl/sha.h>
 #include <soci/soci.h>
 #include <algorithm>
@@ -22,17 +23,33 @@ std::string Hash(std::span<const std::byte> bytes) {
 std::string PostgreSQLMapService::GraphItemFingerprint(const transfer::Item& item) {
     return Hash(transfer::EncodeItem(item));
 }
-bool PostgreSQLMapService::ValidateSkillConsumption(soci::session& sql,const MapSessionClaim& c,
+PostgreSQLMapService::ConsumptionKind PostgreSQLMapService::ValidateSkillConsumption(soci::session& sql,const MapSessionClaim& c,
     std::uint16_t skill,std::uint8_t hits,const std::vector<SkillItemDebit>& debits,const CharSnapshot& after,const transfer::State* graph) {
-    const int sid=std::bit_cast<std::int16_t>(skill);int reagent=0,mask=0,multi=0;
-    sql<<"SELECT \"wItemID\",\"dwWeaponID\" FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",
-        soci::use(sid),soci::into(reagent),soci::into(mask);
+    const int sid=std::bit_cast<std::int16_t>(skill);int reagent=0,mask=0,start=0,next=0,target_hit=0;
+    sql<<"SELECT \"wItemID\",\"dwWeaponID\",\"bLevel\",\"bNextLevel\",\"bTargetHit\" FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",
+        soci::use(sid),soci::into(reagent),soci::into(mask),soci::into(start),soci::into(next),soci::into(target_hit);
     if(!sql.got_data())throw std::runtime_error("Missing consumption skill template");
-    if(reagent&&mask==0&&debits.size()==1&&debits[0].count==1&&static_cast<std::uint16_t>(reagent)==debits[0].before.wItemID)return false;
+    if(reagent&&mask==0&&debits.size()==1&&debits[0].count==1&&static_cast<std::uint16_t>(reagent)==debits[0].before.wItemID)return ConsumptionKind::Reagent;
     if(reagent||!mask)throw std::runtime_error("Unsupported skill consumption requirement");
-    sql<<"SELECT count(*)::integer FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=1 AND \"bExec\"=36",
-        soci::use(sid),soci::into(multi);
-    if(multi)throw std::runtime_error("Expanded ammunition attacks are unsupported");
+    // The authoritative learned rank must agree with the cast projection. Fresh
+    // rows are locked; transferred characters use only the complete checkpoint.
+    int rank=0;
+    if(graph) {
+        for(const auto& learned:graph->skills)if(learned.wSkillID==skill)rank=learned.bLevel;
+    }else {
+        const int world=c.group,character=c.char_id;
+        sql<<"SELECT \"bLevel\" FROM app_world.\"TSKILLTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c AND \"wSkillID\"=:s FOR UPDATE",
+            soci::use(world,"w"),soci::use(character,"c"),soci::use(sid,"s"),soci::into(rank);
+        if(!sql.got_data())throw std::runtime_error("Consumption learned skill disappeared");
+    }
+    const auto learned=std::find_if(after.payload->skills.begin(),after.payload->skills.end(),[&](const auto& row){return row.wSkillID==skill;});
+    if(!rank||learned==after.payload->skills.end()||learned->bLevel!=rank)throw std::runtime_error("Consumption learned rank changed");
+    SkillTemplate t;t.wID=skill;t.bStartLevel=start;t.bNextLevel=next;double growth=0;
+    sql<<"SELECT \"fRateX\" FROM character_compat.\"TFORMULACHART\" WHERE \"bID\"=34",soci::into(growth);
+    if(!sql.got_data())throw std::runtime_error("Consumption skill growth formula missing");
+    t.f1stRateX=static_cast<float>(growth);
+    const auto multi=ReadNativeMultiAttack(sql,t,rank,target_hit);
+    if(multi&&(!multi->count||multi->count>16||hits!=multi->count))throw std::runtime_error("Expanded ammunition count disagrees with learned skill");
     struct Entry {std::uint64_t id;int bag,slot,kind,use,count;bool powered;std::string hash;int item,stack;};
     std::vector<Entry> items;
     if(graph) {
@@ -87,7 +104,7 @@ bool PostgreSQLMapService::ValidateSkillConsumption(soci::session& sql,const Map
            expected.bItemID!=before.bItemID||expected.wItemID!=before.wItemID||expected.bKind!=before.bKind||expected.bCount!=before.bCount)
             throw std::runtime_error("Ammunition debit differs from ordered source selection");
     }
-    return true;
+    return multi?ConsumptionKind::MultiAttackAmmunition:ConsumptionKind::Ammunition;
 }
 PostgreSQLMapService::ReagentGraphPlan PostgreSQLMapService::ValidateGraphReagent(
     soci::session& sql,const MapSessionClaim& c,std::uint16_t skill,std::uint8_t hits,const std::vector<SkillItemDebit>& debits,const CharSnapshot& after) const {
@@ -107,11 +124,11 @@ PostgreSQLMapService::ReagentGraphPlan PostgreSQLMapService::ValidateGraphReagen
         throw std::runtime_error("Invalid reagent recovery graph");
     auto old_core=stored->character;old_core.payload=after.payload;
     if(CoreFingerprint(c,old_core)!=core_hash)throw std::runtime_error("Reagent graph core disagrees with recovery receipt");
-    plan.ammunition=ValidateSkillConsumption(sql,c,skill,hits,debits,after,&*stored);
+    plan.kind=ValidateSkillConsumption(sql,c,skill,hits,debits,after,&*stored);
     for(const auto& debit:debits) {
         const auto& before=debit.before;
         auto selected=stored->items.end();
-        for(auto it=stored->items.begin();it!=stored->items.end();++it)if(it->storage==0&&(plan.ammunition?it->id==before.dlID:it->item==before.wItemID)) {
+        for(auto it=stored->items.begin();it!=stored->items.end();++it)if(it->storage==0&&(plan.kind!=ConsumptionKind::Reagent?it->id==before.dlID:it->item==before.wItemID)) {
             if(selected==stored->items.end()||std::tie(it->storage_id,it->slot)<std::tie(selected->storage_id,selected->slot))selected=it;
         }
         if(selected==stored->items.end()||selected->owner_type||selected->owner_id!=c.char_id||selected->storage_id!=before.bInvenID||

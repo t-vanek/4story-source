@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "date": "2026-10-09",
+  "scope": "Actual migrations022-026 applied to minimal disposable dependency tables; existing ledger rows and prior insert shape preserved, new debit and uniqueness constraints checked. This is a migration fixture, not the native gameplay database.",
+  "checks": [
+    "migration026 preserves every existing receipt field and timestamp",
+    "existing receipts retain direct hit mode and unit charge",
+    "old single-item insert shape still allocates an independent cast",
+    "reagent cannot consume multiple units",
+    "negative remainder is rejected",
+    "multi-unit ammo requires an explicit hit count",
+    "one cast groups deletion and partial multi-unit decrement",
+    "the same cast cannot record the same item twice",
+    "invalid or reagent-only expanded mode is rejected: invalid/ammunition",
+    "invalid or reagent-only expanded mode is rejected: expanded/reagent",
+    "expanded ammunition retains atomic batch identity and quantities",
+    "transaction rollback removes all isolated upgrade fixture objects"
+  ],
+  "migration_sha256": {
+    "database/postgresql/022-native-skill-consumption.sql": "1dab4a261d535408910656698325273919a860061fa1db3d3f7f1f37764e0267",
+    "database/postgresql/023-graph-skill-consumption.sql": "c351303ca4d96f1430de79a8c8d58d17f6918c2ea54decbc8e10fda25c7fcf11",
+    "database/postgresql/024-native-skill-ammunition.sql": "088059e091e2c632f20d9901dcc1623a6ffcea34245841583e053e5e06c8a635",
+    "database/postgresql/025-native-ammunition-batches.sql": "c7934f1fc30722268cdeb00bbdc9069223916f35df7cc953ff2595d8dcaa3372",
+    "database/postgresql/026-native-multi-attack.sql": "1b05100142e0400f3d1a04c76426a4834d3786a1dab9c515f80b1ec27b35c41a"
+  }
+}

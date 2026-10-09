@@ -65,7 +65,7 @@ jobs:
       - name: Install disposable test runner
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman openssl python3-venv
+          sudo apt-get install -y podman openssl python3-venv ripgrep
           python3 -m venv /tmp/fourstory-native-python
           /tmp/fourstory-native-python/bin/pip install 'psycopg[binary]==3.3.6'
       - name: Check original opcode definitions

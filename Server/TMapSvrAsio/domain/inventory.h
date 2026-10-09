@@ -59,6 +59,7 @@ struct ItemInstance
     std::shared_ptr<const transfer::Item> source;
     // Opaque PostgreSQL row fingerprint for fenced consumption; never on wire.
     std::string durable_hash;
+    std::uint8_t bKind = 0; // pinned item chart, server-only ammunition selection
 };
 
 } // namespace tmapsvr

@@ -587,3 +587,22 @@ primary, loop consumption after returning, count/deletion across relogin, exhaus
 rejection and private ACK isolation from the former primary. A delayed database
 trigger proves that no item/success response is emitted before commit.
 See [source contract and acceptance boundaries](evidence/graph-reagents-contract.json).
+
+
+## Single-hit arrow and bolt consumption
+
+Migration 024 uses the existing UPDATEITEM/DELITEM → MOVEITEM → ordinary/loop
+success order for one non-expanded target. Request targets retain DWORD/BYTE/BYTE
+layout; the success response carries DWORD/BYTE targets (67 bytes ordinary or
+50 bytes loop for one target). Reject packets remain 62/45 bytes. No new packet
+fields were introduced. Runtime single-hit validation precedes any supported ammo
+mutation, and original own/shared timer side effects distinguish ordinary and loop
+missing-item rejection. Source multi-attack ability entries remain unsupported.
+
+The first matching equipped weapon must have power and require one unit. Its
+`bUseItemKind` selects the earliest bag/slot whose pinned `bKind` matches. The
+fresh row or complete transferred graph is committed with core, cooldowns and a
+receipt before any private item or success response. New writes require migration
+024. The absent cash templates 25020–25022 remain an explicit content gap.
+See [source contract](evidence/ammunition-contract.json). Full damage/target rules
+and actual original-client execution remain outside this acceptance scope.

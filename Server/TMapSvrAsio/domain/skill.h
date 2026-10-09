@@ -5,7 +5,7 @@
 #include <cstdint>
 
 namespace tmapsvr {
-enum class SkillItemGate : std::uint8_t { Unsupported, Allowed, Unsuitable, Reagent };
+enum class SkillItemGate : std::uint8_t { Unsupported, Allowed, Unsuitable, Reagent, Ammunition };
 
 struct SkillRow
 {
@@ -48,12 +48,12 @@ struct SkillTemplate
     std::uint8_t   bSpeedApply = 0; // TAD_NONE / PHYSICAL / LONG / MAGIC
     std::uint32_t  dwLoopDelay = 0;
     std::uint16_t  wTargetActiveID = 0;
-    // Per-character UseSkillItem projection. Consumable mutations are not yet
-    // native; Unsupported must never be interpreted as a free cast.
+    // Per-character UseSkillItem projection. Unsupported must never be a free cast.
     SkillItemGate items = SkillItemGate::Unsupported;
     std::uint16_t  wPrevActiveID = 0; // normal use; loop uses wTargetActiveID
     std::uint16_t  wMapID = 0xffff;  // source INVALID_MAPID: unrestricted
     std::uint16_t  wUseItem = 0;
+    std::uint8_t bAmmoKind = 0; // pinned first compatible weapon, single-hit consumption
 };
 
 struct SkillAttackTiming {

@@ -154,7 +154,7 @@ six services pass health/DNS/SIGTERM checks. See the
 Migration 022 and updated Map grants introduced that storage contract.
 The original client executable has not been run.
 
-The latest implementation extends **durable reagent consumption to transferred
+An earlier increment extends **durable reagent consumption to transferred
 characters**. Migration **023** records hashes of the complete state before and
 after a cast.
 The current primary server validates the exact item and authority epoch, then
@@ -174,9 +174,30 @@ original client executable has not been run.
 Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
 **33 ASan/UBSan suites** and **1,046 native database/network checks** in each Debug,
 sanitizer and installed Release run. All six container services pass health,
-DNS and SIGTERM checks. Current local image:
-`localhost/fourstory:postgresql-graph-reagents` (also `:main`). See
+DNS and SIGTERM checks. That increment used
+`localhost/fourstory:postgresql-graph-reagents`. See
 [container evidence](_rewrite/docs/modernization/evidence/graph-reagents-container-verification.json).
+
+The latest implementation adds **durable arrows and bolts for single-hit casts**.
+The first compatible equipped weapon selects the ammunition kind; one item from
+the first matching bag/slot is consumed. Ordinary and loop requests commit the
+item, core, cooldown and audit receipt before original inventory/success packets.
+Fresh and transferred characters use their existing storage contracts, including
+relogin and recovery. Broken or changed weapons cannot authorize consumption.
+
+Apply migration **024** before these binaries; existing Map grants suffice.
+Zero-target, multiple-target and source-expanded ammunition attacks remain outside
+this increment and cannot charge an unsupported cast. Source premium item templates
+25020–25022 are absent from the backups; their values and overrides are not invented.
+See the [ammunition contract](_rewrite/docs/modernization/evidence/ammunition-contract.json).
+Full combat damage, equipment mutation and original-client execution remain pending.
+
+Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
+**33 ASan/UBSan suites**, and **1,341 native database/network checks** in each Debug,
+sanitizer and installed Release run. The previous image fails the new ammunition
+regression. Six-service health/DNS/SIGTERM smoke passes. Current local image:
+`localhost/fourstory:postgresql-ammunition` (also `:main`); see
+[container evidence](_rewrite/docs/modernization/evidence/ammunition-container-verification.json).
 
 ## Database authority
 
@@ -187,7 +208,7 @@ need adaptation, change the derived PostgreSQL schema through a new migration.
 - `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
 - `content` and the compatibility views expose explicit, versioned projections.
 - `app_global` and `app_world` own mutable application and operational state.
-- Applied migrations **001–023 are immutable**; the next schema change starts at 024.
+- Applied migrations **001–024 are immutable**; the next schema change starts at 025.
 - Backups, credentials and private extraction output stay outside Git. Historical
   accounts, player records and missing combat values are never invented.
 

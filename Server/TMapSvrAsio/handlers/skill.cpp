@@ -146,7 +146,7 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
     const auto initial=ctx.char_state->Get(cid);
     bool reagent=false;
     if(initial&&initial->payload)for(const auto& t:initial->payload->skill_templates)
-        if(t.wID==wSkillID)reagent=t.items==SkillItemGate::Reagent;
+        if(t.wID==wSkillID)reagent=t.items==SkillItemGate::Reagent||t.items==SkillItemGate::Ammunition;
     SkillCooldownTracker planned_timers;
     auto* timers=ctx.skill_cooldown;
     std::optional<ItemInstance> consumed;
@@ -203,9 +203,11 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             // shared-kind timers BEFORE UseSkillItem rejects; loop does not.
             if(t.items==SkillItemGate::Unsupported)
                 throw std::runtime_error("Native cast consumable mutation is unsupported");
-            if(t.items==SkillItemGate::Reagent) {
+            if(t.items==SkillItemGate::Ammunition&&targets.size()!=1)
+                throw std::runtime_error("Native ammunition requires exactly one non-expanded hit");
+            if(t.items==SkillItemGate::Reagent||t.items==SkillItemGate::Ammunition) {
                 if(!reagent)throw std::runtime_error("Reagent definition changed during cast");
-                consumed=FindSkillReagent(cs,t.wUseItem);
+                consumed=t.items==SkillItemGate::Ammunition?FindSkillAmmunition(cs,t.bAmmoKind):FindSkillReagent(cs,t.wUseItem);
                 if(loop&&!consumed){ack.result=SKILL_UNSUITWEAPON;return;}
             }
             if(loop&&t.items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}

@@ -735,7 +735,7 @@ int main(int argc, char**) {
                       "unsupported cast never arms timers before closing");
             }
             players.reagent_fixture=true;
-            for(int mode=0;mode<3;++mode) {
+            for(int mode=0;mode<6;++mode) {
                 world.packets.clear();const auto saves=players.saves.load(),consumes=players.consumptions.load();
                 const auto failures=server.FailedSaves();
                 auto item_client=Dial(io,server.Port());co_await Send(item_client,MessageId::CS_CONNECT_REQ,Connect());
@@ -745,10 +745,32 @@ int main(int argc, char**) {
                 co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
                 co_await Send(item_client,MessageId::CS_CONREADY_REQ,{});
                 co_await Until([&]{return presence.FindEntry(kChar).has_value();},"reagent fixture ready");
+                if(mode>=3)state.Update(kChar,[](auto& v){
+                    auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);
+                    auto& t=p->skill_templates[0];t.items=tmapsvr::SkillItemGate::Ammunition;t.wUseItem=0;t.bAmmoKind=24;
+                    p->bags[0].items[0].bKind=24;v.payload=p;
+                });
+                const auto target_request=[&](Bytes body) {
+                    const int hits=mode==4?0:mode==5?2:mode>=3?1:0;
+                    body.back()=std::byte(hits);
+                    for(int i=0;i<hits;++i){WritePOD(body,std::uint32_t(1234+i));WritePOD(body,std::uint8_t(2));WritePOD(body,std::uint8_t(1));}
+                    return body;
+                };
+                if(mode>=4) {
+                    const auto body=target_request(mode==4?skill_request(7):loop_request());
+                    co_await Send(item_client,mode==4?MessageId::CS_SKILLUSE_REQ:MessageId::CS_LOOPSKILL_REQ,body);
+                    co_await Until([&]{return item_client->ended&&server.LiveSessions()==0;},"unsupported ammunition hit count closes before charging");
+                    Check(players.consumptions==consumes&&players.saved.dwMP==163&&players.saved.payload->bags[0].items[0].bCount==2&&
+                          item_client->Count(MessageId::CS_UPDATEITEM_ACK)==0&&item_client->Count(MessageId::CS_SKILLUSE_ACK)==0&&item_client->Count(MessageId::CS_LOOPSKILL_ACK)==0,
+                          "zero or multiple ammunition hits never consume inventory or acknowledge success");
+                    Check(std::all_of(players.saved.payload->skills.begin(),players.saved.payload->skills.end(),[](const auto& skill){return skill.dwRemainTick==0;}),
+                          "unsupported ammunition hit counts preserve all cooldowns");
+                    continue;
+                }
                 players.hold_consumption=true;players.consumption_started=false;players.fail_consumption=mode==2;
                 auto server_session=registry.Find(kChar,kKey);
                 if(mode==0)Check(registry.BeginCheckpoint(server_session.get()),"fixture holds a periodic checkpoint lease");
-                co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+                co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,target_request(skill_request(7)));
                 if(mode==0) {
                     co_await Pause(20ms);
                     Check(!players.consumption_started&&item_client->Count(MessageId::CS_SKILLUSE_ACK)==0,"cast waits for checkpoint without dropping packet");
@@ -760,7 +782,7 @@ int main(int argc, char**) {
                       "uncommitted reagent plan is invisible and excludes periodic capture");
                 if(mode==1)item_client->wire->Close();
                 players.hold_consumption=false;
-                if(mode==0) {
+                if(mode==0||mode==3) {
                     co_await Until([&]{return item_client->Count(MessageId::CS_HPMP_ACK)==1;},"committed normal reagent cast publishes inventory and bars");
                     Check(players.consumptions==consumes+1&&state.Get(kChar)->dwMP==83&&state.Get(kChar)->payload->bags[0].items[0].bCount==1,
                           "confirmed transaction publishes exact item and resource decrement once");
@@ -770,21 +792,21 @@ int main(int argc, char**) {
                           item_client->packets[n-3].first==static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK)&&
                           item_client->packets[n-2].first==static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),
                           "private UPDATEITEM and MOVEITEM precede cast and HPMP in source order");
-                    co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+                    co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,target_request(skill_request(7)));
                     co_await Until([&]{return item_client->Count(MessageId::CS_SKILLUSE_ACK)==2;},"reagent cooldown rejection delivered");
                     Check(players.consumptions==consumes+1,"cooldown repeat cannot consume another item");
                     timers.Forget(kChar);
-                    co_await Send(item_client,MessageId::CS_LOOPSKILL_REQ,loop_request());
+                    co_await Send(item_client,MessageId::CS_LOOPSKILL_REQ,target_request(loop_request()));
                     co_await Until([&]{return item_client->Count(MessageId::CS_HPMP_ACK)==2;},"loop consumes final reagent");
                     Check(players.consumptions==consumes+2&&state.Get(kChar)->payload->bags[0].items.empty()&&state.Get(kChar)->dwMP==3,
                           "last stack element disappears with atomic loop costs");
                     const auto del=std::find_if(item_client->packets.begin(),item_client->packets.end(),[](const auto& p){return p.first==static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK);});
                     Check(del!=item_client->packets.end()&&del->second==Bytes({std::byte{255},std::byte{4}}),"DELITEM retains original two-byte bag/slot layout");
                     timers.Forget(kChar);state.Update(kChar,[](auto& v){v.dwMP=163;});
-                    co_await Send(item_client,MessageId::CS_LOOPSKILL_REQ,loop_request());
+                    co_await Send(item_client,MessageId::CS_LOOPSKILL_REQ,target_request(loop_request()));
                     co_await Until([&]{return item_client->Count(MessageId::CS_LOOPSKILL_ACK)==2;},"missing loop reagent rejection delivered");
                     Check(timers.Snapshot(kChar,tmapsvr::SkillClockMs()).empty()&&players.consumptions==consumes+2,"missing loop reagent arms no timers or write");
-                    co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+                    co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,target_request(skill_request(7)));
                     co_await Until([&]{return item_client->Count(MessageId::CS_SKILLUSE_ACK)==3;},"missing ordinary reagent rejection delivered");
                     Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>47000&&players.consumptions==consumes+2,"missing ordinary reagent retains source timer without item write");
                     item_client->wire->Close();

@@ -121,6 +121,17 @@ existing Map runtime grants before deployment. See the
 [fresh reagent contract](../../_rewrite/docs/modernization/evidence/skill-reagents-contract.json)
 and [graph extension](../../_rewrite/docs/modernization/evidence/graph-reagents-contract.json).
 
+Migration 024 extends the transaction to single-hit arrows/bolts selected by the
+first compatible powered weapon. The runtime requires one flagged target and
+rejects source multi-attack expansion; weapon counts other than one stay unsupported.
+Fresh writes revalidate the equipped row fingerprint and ordered ammo selection;
+graph writes validate against the full checkpoint. Item, core, timers and typed
+audit receipt commit before original responses. Equipped-item changes, multiple
+hits/stacks and cash overrides remain pending. Premium templates 25020–25022 are
+absent from the pinned backup. See the
+[ammunition contract](../../_rewrite/docs/modernization/evidence/ammunition-contract.json).
+Deploy migration 024 before the new binaries; current Map grants suffice.
+
 ## Historical subsystem overview (see current acceptance scope above)
 
 ```

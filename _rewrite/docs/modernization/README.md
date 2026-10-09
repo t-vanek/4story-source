@@ -18,7 +18,60 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: reagents in complete transferred state
+## Current verified increment: single-hit ammunition
+
+Ordinary and loop casts now consume one arrow or bolt when the pinned skill has
+no separate reagent and its first compatible powered weapon requires one unit.
+Selection uses the item's source kind and unsigned bag/slot order. Exactly one
+flagged, non-expanded target is required; source `SDT_ABILITY/MTYPE_EFC` attacks
+remain unsupported. Missing ammo returns original UNSUITWEAPON, preserving normal
+versus loop timer side effects. Other resource and cooldown gates remain intact.
+
+The existing private cast plan and checkpoint lease cover both storage paths.
+Fresh transactions lock selecting inventory and validate the loaded weapon hash;
+contract-2 transactions use the complete graph. Item decrement/deletion, core,
+cooldowns and typed audit receipt commit before original inventory/success packets.
+Stale owners, epochs, weapon state, item kind or fingerprints cannot charge ammo.
+Graph consumption continues to preserve raw fields and unrelated sections, with
+no fallback to stale normalized children after transfer or relogin.
+
+Migration **024** adds `consumption_kind`, leaving existing receipts as `reagent`.
+Apply it before deploying the new binaries; existing Map grants suffice. Backups
+and migrations 001–023 retain hashes; 024 is now immutable, and the next migration
+is **025**. The backup has 142 ammunition weapons (65 arrows, 77 bolts), each with
+count one. Windows premium templates 25020–25022 are absent; those overrides need
+an explicit future content decision. No historical templates were fabricated.
+
+[Debug](evidence/native-ammunition-debug.json),
+[ASan/UBSan](evidence/native-ammunition-asan.json) and
+[installed Release](evidence/native-ammunition-release.json) each pass **1,341 checks**:
+349 native Map, 29 pool/TLS, 270 outer TCP, 53 skill, 295 World handoff, 66 World
+secondary, 124 reagent two-Map, 124 ammunition two-Map, 24 fresh arrow/bolt and
+seven rejection checks. CTest has 186 actual Debug passes (200 entries, 14 fixture
+skips) and all 33 sanitizer suites pass. The existing independent packet golden
+fixtures pass with unchanged layouts.
+
+Native tests cover broken/stale equipped weapons, wrong ammo kind, claim/epoch
+fences, rollback, audit classification and complete-graph recovery. Encrypted tests
+use source skill32 with bow701/arrow8401 and crossbow801/bolt8402. Admission tests
+also prove zero/multiple ammo hits cannot consume or arm timers before closing.
+Service-level buff retention in a graph does not establish live buff simulation.
+
+The installed run uses Release daemons and the verified Debug backend/pool
+integration executables. The previous graph-reagents image fails the new delayed
+ammunition transaction assertion. Current local image:
+`localhost/fourstory:postgresql-ammunition` (also `:main`), ID
+`0eac33bc3a33a7981dba32a33e22e21a9f4dd50d711bf3fc661e467815ca09d2`,
+UID/GID 10001:10001. All six services pass health/DNS/SIGTERM smoke. See
+[container evidence](evidence/ammunition-container-verification.json),
+[build fingerprints](evidence/ammunition-build-fingerprints.json) and
+[owned-lab cleanup](evidence/ammunition-cleanup.json).
+
+See [source contract and acceptance boundaries](evidence/ammunition-contract.json).
+Multi-hit/stack charging, reagent-plus-weapon combinations, equipment/durability
+mutation, active effects, combat damage and original-client execution remain pending.
+
+## Earlier verified increment: reagents in complete transferred state
 
 Migration 023 extends durable single-reagent consumption to the current primary
 after transfer, transfer back and graph-backed relogin. Contract-2 transactions
@@ -50,7 +103,7 @@ CTest has 186 actual Debug passes (200 entries, eight internal and six explicit
 fixture skips) and all 33 sanitizer suites pass. The previous installed image
 fails the new delayed-transaction graph cast assertion.
 
-Current local image: `localhost/fourstory:postgresql-graph-reagents` (also `:main`),
+That increment used `localhost/fourstory:postgresql-graph-reagents`,
 ID `7a25026d3c20798049579845d0ea653b313b2f45aa772222da49f54a5758adad`,
 UID/GID 10001:10001. All six daemons pass health/DNS/SIGTERM smoke; see
 [container evidence](evidence/graph-reagents-container-verification.json),

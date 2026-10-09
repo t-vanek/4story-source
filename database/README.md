@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **023** are also immutable. Current
-native Map deployment requires migrations through 023 and the existing
+All subsequently applied migrations through **024** are also immutable. Current
+native Map deployment requires migrations through 024 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,7 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 024+.
+for tests and remaining gameplay requirements. Add schema changes as 025+.
 
 Migration 021 adds fresh-primary skill checkpoints (contract 3). Initial readiness,
 periodic checkpoints and final logout atomically store remaining skill durations
@@ -73,6 +73,20 @@ last-item deletion cannot be undone by reloading those rows. Migration 023 retai
 existing receipts as contract 3 and needs no additional Map grants. Apply it before
 deploying the new binaries, including for fresh-primary consumption. See the
 [graph reagent contract](../_rewrite/docs/modernization/evidence/graph-reagents-contract.json).
+
+Migration 024 adds `consumption_kind` to the existing item ledger, retaining old
+receipts as `reagent` and marking new arrow/bolt transactions as `ammunition`.
+Supported ammunition casts use one non-expanded hit and a weapon requiring one
+unit. Fresh transactions lock the selecting inventory and compare the equipped
+weapon's loaded fingerprint, then validate the first matching item kind. Complete
+graph transactions derive the same selection from their authoritative checkpoint.
+Existing process/claim/epoch/catalog fences and atomic core/timer/item publication
+remain in force. No extra role privileges are needed; apply 024 before deployment.
+
+The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
+all requiring one unit. Premium templates 25020, 25021 and 25022 referenced by the
+Windows code are absent; no historical rows are fabricated. See the
+[ammunition contract](../_rewrite/docs/modernization/evidence/ammunition-contract.json).
 
 `game_compat."TMONATTRCHART"` maps the current monster-ID lookup to the original
 `TMONSTERCHART.wMonAttr` attribute family at the template's `bLevel`. It exposes

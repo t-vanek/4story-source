@@ -1,0 +1,168 @@
+{
+  "date": "2026-10-09",
+  "scope": "Owned-PC ordinary and loop single-hit, one-unit ammunition transactions for fresh and complete transferred characters. Inventory, core, timers and audit commit before original responses.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2798-2950",
+      "contract": "UseSkillItem checks cash overrides, then optional reagent, then the first compatible powered equipped weapon. Its use-item kind selects stacks ordered within one bag; consume weapon count plus additional hit count, then MOVEITEM."
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2663-2720, 2848, 3148-3207, 3254",
+      "contract": "Flagged targets build bTotalHit; multi-attack may expand it. Both request paths pass BYTE(bTotalHit-1) to UseSkillItem. This increment requires exactly one non-expanded hit."
+    },
+    {
+      "path": "Server/TMapSvr/TSkillTemp.cpp",
+      "lines": "359-370",
+      "contract": "IsMultiAttack scans all data for SDT_ABILITY and MTYPE_EFC; those templates remain unsupported for ammo."
+    },
+    {
+      "path": "Server/TMapSvr/TMapType.h",
+      "lines": "119-122",
+      "contract": "Cash bolt 25020, arrow 25021 and axe 25022 are referenced by source but absent from the immutable backup item catalog."
+    },
+    {
+      "path": "Server/TMapSvr/TMapSvr.cpp",
+      "lines": "9520-9569",
+      "contract": "UseItem decrements/deletes exact stack and emits original inventory response."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1420-1465",
+      "contract": "Private UPDATEITEM or DELITEM then MOVEITEM precede ordinary/loop result."
+    }
+  ],
+  "pinned_content": {
+    "item_manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "arrow_weapon_templates": 65,
+    "bolt_weapon_templates": 77,
+    "all_weapon_use_counts": 1,
+    "cash_templates_absent": [
+      25020,
+      25021,
+      25022
+    ],
+    "fixtures": {
+      "skill": 32,
+      "bow": 701,
+      "arrow": 8401,
+      "crossbow": 801,
+      "bolt": 8402
+    },
+    "source_changes": "None. Only disposable synthetic-owned items/skills and restored synthetic routing partitions are changed."
+  },
+  "implementation": {
+    "selection": "Pinned per-character item kind and first compatible equipped weapon determine ammunition kind. Require powered weapon count one, no separate skill reagent, no source multi-attack effect, and one flagged target. Select earliest unsigned bag/slot of that kind; equipment consumption remains unsupported.",
+    "fresh_storage": "The transaction locks the selecting owned inventory, verifies the loaded first compatible weapon full-row fingerprint and powered state, compares actual item kind and first selection, then validates the exact count/identity/template/storage/full-row hash before decrement or deletion.",
+    "graph_storage": "Derive weapon and ordered kind selection from the locked canonical complete checkpoint and pinned charts. Existing full-graph validation permits exactly one item decrement/deletion plus current core and sampled timers. No stale normalized children are read or written.",
+    "publication": "Same private plan, character freeze and checkpoint-operation lease as reagent casts. Publish only after confirmed commit; private UPDATEITEM/DELITEM then MOVEITEM, cast response and HPMP if charged. Missing ordinary ammo retains armed own/shared timers; missing loop ammo arms none.",
+    "uncertain_commit": "No automatic retry; client closes, reservation remains, stale final save is refused. Existing modeled-unknown-outcome admission tests remain; native tests cover real rollback and process recovery after a confirmed commit.",
+    "deployment": "Migration 024 adds consumption_kind reagent/ammunition, preserves existing receipts as reagent, and is required before these binaries for either consumption type. Existing Map grants suffice. Backups and migrations 001-023 retain hashes; 024 now immutable; next 025."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-ammunition-debug.json",
+      "status": "passed",
+      "native_map_checks": 349,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 270,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "total_checks": 1341
+    },
+    "asan": {
+      "report": "native-ammunition-asan.json",
+      "status": "passed",
+      "native_map_checks": 349,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 270,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "total_checks": 1341
+    },
+    "release": {
+      "report": "native-ammunition-release.json",
+      "status": "passed",
+      "native_map_checks": 349,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 270,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "total_checks": 1341,
+      "scope": "Installed Release Login/World/Map daemons; backend/pool integration executables mounted from the verified Debug build."
+    },
+    "ctest_debug": {
+      "report": "ammunition-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "ammunition-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "ammunition-before.json",
+      "image_id": "7a25026d3c20798049579845d0ea653b313b2f45aa772222da49f54a5758adad",
+      "expected_failure": "Map replica wire: graph cast emits no item or success response before delayed transaction completes",
+      "error_location": [
+        {
+          "file": "run_native_verification.py",
+          "line": 261
+        },
+        {
+          "file": "verify_map_runtime_wire.py",
+          "line": 203
+        },
+        {
+          "file": "verify_map_replica_wire.py",
+          "line": 117
+        },
+        {
+          "file": "verify_graph_reagent_wire.py",
+          "line": 38
+        },
+        {
+          "file": "verify_map_replica_wire.py",
+          "line": 21
+        }
+      ],
+      "scope": "Previous installed graph-reagents daemons; current mounted backend/pool executables and migrations. The old server does not support native ammunition charging."
+    },
+    "container_smoke": {
+      "report": "ammunition-container-verification.json",
+      "image": "localhost/fourstory:postgresql-ammunition",
+      "image_id": "0eac33bc3a33a7981dba32a33e22e21a9f4dd50d711bf3fc661e467815ca09d2",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    }
+  },
+  "limitations": [
+    "Only one non-expanded flagged target and one weapon-required unit; zero/multiple target charging, expanded hits, per-bag multi-stack BYTE arithmetic and reagent-plus-weapon combinations remain unsupported.",
+    "Cash template definitions are absent from the backup and not fabricated; premium overrides are not implemented.",
+    "Equipment/durability mutation, active effects, full damage/target/AOI rules and original-client executable acceptance remain pending. Source-derived encrypted peers supply synthetic target identities; they do not prove combat damage."
+  ]
+}

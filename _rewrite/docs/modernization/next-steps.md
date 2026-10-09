@@ -17,7 +17,7 @@ authoritative for historical values, original code/client for supported behavior
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–023 and the checkpoint, retirement and replica contract evidence. Actual
+   001–024 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -83,7 +83,8 @@ authoritative for historical values, original code/client for supported behavior
    timer arming before normal weapon rejection; see `skill-gates-contract.json`.
    Fresh and transferred-primary reagent consumption commits with core/timers via
    022–023; preserve `skill-reagents-contract.json` and `graph-reagents-contract.json`.
-   Port equipment, ammunition/cash branches, full effects and cancellation;
+   Single-hit arrow/bolt transactions now use 024; preserve `ammunition-contract.json`.
+   Port equipment, multi-hit ammunition, cash branches, full effects and cancellation;
    recompute timing/item eligibility when equipment or learned skills mutate.
    CHARINFO and initial readiness now sample live skill durations without
    restarting timers; preserve `admission-timers-contract.json`. Implement active
@@ -195,7 +196,7 @@ The helper creates labelled disposable containers; reuse no unrelated databases.
 Build in the Ubuntu image with `/src` bound to the checkout because the current
 `build/linux-debug` CMake cache contains container paths.
 
-Do not overwrite migrations `001`–`023` after application. Add migrations `024` onward.
+Do not overwrite migrations `001`–`024` after application. Add migrations `025` onward.
 Do not revert unrelated pre-existing client/binary/library working-tree changes.
 
 
@@ -422,16 +423,30 @@ stale by design; future inventory/skill work must keep the complete graph author
 or introduce a separately verified normalization migration. Never fall back to the
 old rows when a graph is present. See `graph-reagents-contract.json`.
 
-Latest verification: 1,046 native checks in each Debug, ASan/UBSan and installed
+Graph increment verification: 1,046 native checks in each Debug, ASan/UBSan and installed
 Release run, 186 actual Debug passes (14 fixture skips), all 33 sanitizer suites
-and six-service container smoke. Current local image
-`localhost/fourstory:postgresql-graph-reagents` (also `:main`), ID
+and six-service container smoke. That increment used
+`localhost/fourstory:postgresql-graph-reagents`, ID
 `7a25026d3c20798049579845d0ea653b313b2f45aa772222da49f54a5758adad`.
 See graph-reagents container/build/cleanup evidence for identities and scope.
 
-Preserve backups and migrations 001–023; next schema change is 024. Continue with
-ammunition/cash/durability, equipped-item consumption and derived-stat invalidation.
-Preserve original private inventory packet ordering and ordinary-versus-loop
-rejection side effects. Finish authoritative effects, cast lifecycle, combat/target/
-AOI rules and original-client acceptance. A successful resource/item transaction
-does not establish those paths.
+Migration 024 now consumes one arrow/bolt for one non-expanded target on fresh or
+transferred primary characters. Preserve the first compatible powered weapon,
+exact loaded weapon fingerprint, source item kind and ordered bag/slot selection.
+Do not aggregate across bags when extending the source per-bag stack algorithm.
+Trace `bTotalHit-1`, BYTE arithmetic and CTSkill multi-attack expansion before adding
+multi-target/stack consumption. Premium templates 25020–25022 are absent from the
+backup; cash support must not fabricate their historical definitions.
+
+Latest verified ammunition increment: 1,341 native checks in each Debug, sanitizer
+and installed Release run; 186 actual Debug passes (14 fixture skips), all 33
+ASan/UBSan suites and six-daemon smoke. Current local image
+`localhost/fourstory:postgresql-ammunition` (also `:main`), ID
+`0eac33bc3a33a7981dba32a33e22e21a9f4dd50d711bf3fc661e467815ca09d2`.
+See `ammunition-contract.json` and its build/container/cleanup evidence.
+
+Preserve backups and migrations 001–024; next schema change is 025. Continue with
+multi-hit/stack transactions, reagent-plus-weapon combinations, equipped-item
+consumption, durability and derived-stat invalidation. Preserve private inventory
+packet ordering and ordinary-versus-loop rejection side effects. Finish active
+effects, cast lifecycle, combat/target/AOI rules and original-client acceptance.

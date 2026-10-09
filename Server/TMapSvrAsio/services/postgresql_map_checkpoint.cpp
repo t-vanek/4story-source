@@ -211,15 +211,13 @@ std::string PostgreSQLMapService::ConsumeSkillItem(const MapSessionClaim& c,std:
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(session_key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Reagent session was revoked");
     const int world=c.group,character=c.char_id,slot=before.bItemID,bag=before.bInvenID;
-    const int item=std::bit_cast<std::int16_t>(before.wItemID),skill_id=std::bit_cast<std::int16_t>(skill);
-    const long long id=std::bit_cast<std::int64_t>(before.dlID);const int count=before.bCount;int matched=0;
-    sql<<"SELECT 1 FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:s AND \"wItemID\"=:i AND \"dwWeaponID\"=0",
-        soci::use(skill_id,"s"),soci::use(item,"i"),soci::into(matched);
-    if(!sql.got_data())throw std::runtime_error("Reagent requirement differs from pinned chart");
-    ReagentGraphPlan graph_plan;std::string after_hash;
+    const int item=std::bit_cast<std::int16_t>(before.wItemID);
+    const long long id=std::bit_cast<std::int64_t>(before.dlID);const int count=before.bCount;
+    ReagentGraphPlan graph_plan;std::string after_hash;bool ammunition=false;
     if(graph) {
-        graph_plan=ValidateGraphReagent(sql,c,before,after);after_hash=graph_plan.item_hash;
+        graph_plan=ValidateGraphReagent(sql,c,skill,before,after);after_hash=graph_plan.item_hash;ammunition=graph_plan.ammunition;
     }else {
+    ammunition=ValidateSkillConsumption(sql,c,skill,before,after,nullptr);
     std::string hash;
     sql<<"SELECT app_world.item_fingerprint(i) FROM app_world.\"TITEMTABLE\" i WHERE \"bWorldID\"=:w AND \"dlID\"=:id "
          "AND \"dwOwnerID\"=:c AND \"bOwnerType\"=0 AND \"bStorageType\"=0 AND \"dwStorageID\"=:bag AND \"bItemID\"=:slot "
@@ -237,13 +235,14 @@ std::string PostgreSQLMapService::ConsumeSkillItem(const MapSessionClaim& c,std:
     RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
     const int server=m_config.server,unsigned_skill=skill,remaining=count-1,contract=graph?2:3;
     const long long generation=c.connection_id,epoch=c.authority_epoch;
+    const std::string consumption_kind=ammunition?"ammunition":"reagent";
     sql<<"INSERT INTO app_world.skill_item_consumptions(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,skill_id,item_id,"
-         "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash) "
-         "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''))",
+         "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash,consumption_kind) "
+         "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''),:kind)",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
         soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(unsigned_skill,"skill"),soci::use(id,"id"),
         soci::use(count,"before"),soci::use(remaining,"after"),soci::use(before.durable_hash,"bh"),soci::use(after_hash,"ah"),soci::use(fingerprint,"f"),
-        soci::use(contract,"contract"),soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga");
+        soci::use(contract,"contract"),soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga"),soci::use(consumption_kind,"kind");
     tx->commit();return after_hash;
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {

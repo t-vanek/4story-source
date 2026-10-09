@@ -10,16 +10,22 @@ namespace tmapsvr {
 // DeleteSkillItem scans ordered inventory/slot maps and consumes exactly one.
 // Selection is independent of the DTO vector order. Equipped items require
 // their separately ported inventory mutation and derived-stat contract.
-inline std::optional<ItemInstance> FindSkillReagent(const CharSnapshot& s,std::uint16_t item) {
-    if(!item||!s.payload)throw std::runtime_error("Unsupported reagent character graph");
+inline std::optional<ItemInstance> FindSkillConsumable(const CharSnapshot& s,std::uint16_t item,std::uint8_t kind=0) {
+    if((!item&&!kind)||!s.payload)throw std::runtime_error("Unsupported reagent character graph");
     std::optional<ItemInstance> out;
-    for(const auto& bag:s.payload->bags)for(const auto& row:bag.items)if(row.wItemID==item) {
+    for(const auto& bag:s.payload->bags)for(const auto& row:bag.items)if(kind?row.bKind==kind:row.wItemID==item) {
         if(row.bInvenID!=bag.bag.bInvenID)throw std::runtime_error("Reagent inventory placement disagrees");
         if(!out||std::tie(row.bInvenID,row.bItemID)<std::tie(out->bInvenID,out->bItemID))out=row;
     }
     if(out&&(out->bInvenID==254||!out->bCount||!out->source||out->durable_hash.size()!=64))
         throw std::runtime_error("Unsupported or unverified reagent item");
     return out;
+}
+inline std::optional<ItemInstance> FindSkillReagent(const CharSnapshot& s,std::uint16_t item) {
+    return FindSkillConsumable(s,item);
+}
+inline std::optional<ItemInstance> FindSkillAmmunition(const CharSnapshot& s,std::uint8_t kind) {
+    return FindSkillConsumable(s,0,kind);
 }
 inline void ConsumeReagentProjection(CharSnapshot& s,const ItemInstance& before) {
     auto p=std::make_shared<CharacterPayload>(*s.payload);

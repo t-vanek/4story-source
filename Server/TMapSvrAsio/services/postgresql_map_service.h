@@ -36,9 +36,10 @@ public:
     bool OutgoingTransferCommitted(const MapSessionClaim&) override;
     std::string ConsumeSkillItem(const MapSessionClaim&,std::uint16_t,const ItemInstance&,const CharSnapshot&) override;
 private:
-    struct ReagentGraphPlan {std::string before_hash,after_hash,item_hash;};
+    struct ReagentGraphPlan {std::string before_hash,after_hash,item_hash;bool ammunition=false;};
     static std::string GraphItemFingerprint(const transfer::Item&);
-    ReagentGraphPlan ValidateGraphReagent(soci::session&,const MapSessionClaim&,const ItemInstance&,const CharSnapshot&) const;
+    ReagentGraphPlan ValidateGraphReagent(soci::session&,const MapSessionClaim&,std::uint16_t,const ItemInstance&,const CharSnapshot&) const;
+    static bool ValidateSkillConsumption(soci::session&,const MapSessionClaim&,std::uint16_t,const ItemInstance&,const CharSnapshot&,const transfer::State*);
     friend int RecoverPreparedMapTransfers(soci::session&,int,int,const std::string&);
     static void StoreSkillCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static bool SkillCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);

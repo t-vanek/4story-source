@@ -4,8 +4,11 @@
 #include "map_server.h"
 #include "handlers_world.h"
 #include "domain/connect.h"
+#include "domain/skill_data.h"
 #include "services/session_registry.h"
 #include "services/skill_cooldown.h"
+#include "services/skill_chart.h"
+#include "services/client_senders.h"
 #include "services/session_validator.h"
 #include "services/player_service.h"
 #include "services/char_state_store.h"
@@ -102,7 +105,12 @@ struct Players final : tmapsvr::IPlayerService {
         ++loads; tmapsvr::CharSnapshot s; s.dwCharID=cid; s.szNAME="Admission";
         s.bLevel=1; s.dwHP=169; s.dwMP=163; s.wMapID=2010; s.fPosX=3664.405f;
         s.fPosY=86.16578f; s.fPosZ=557.2542f;
-        if(native_payload)s.payload=std::make_shared<tmapsvr::CharacterPayload>();
+        if(native_payload) {
+            auto p=std::make_shared<tmapsvr::CharacterPayload>();p->skills.push_back({7,3,0});
+            tmapsvr::SkillTemplate t;t.wID=7;t.bUseMPType=1;t.dwUseMP=1000;
+            t.bUseHPType=2;t.dwUseHP=10;t.f1stRateX=2.0f;t.bStartLevel=1;t.bNextLevel=1;
+            p->skill_templates.push_back(t);s.payload=p;s.dwMaxHP=169;s.dwMaxMP=163;
+        }
         return s;
     }
     void SaveChar(const tmapsvr::CharSnapshot& s) override {
@@ -256,9 +264,10 @@ int main(int argc, char**) {
         Validator validator; Players players; World world;
         tmapsvr::InMemorySessionRegistry registry; tmapsvr::InMemoryCharStateStore state;
         tmapsvr::InMemoryChannelPresence presence;
+        tmapsvr::SkillCooldownTracker timers;
         tmapsvr::HandlerContext ctx; ctx.validator=&validator; ctx.player_service=&players;
         ctx.world_client=&world; ctx.session_reg=&registry; ctx.char_state=&state;
-        ctx.presence=&presence; ctx.expected_group=3; ctx.db_pool=&workers;
+        ctx.presence=&presence; ctx.skill_cooldown=&timers; ctx.expected_group=3; ctx.db_pool=&workers;
         tmapsvr::MapServerConfig cfg; cfg.port=0; cfg.pre_auth_timeout_seconds=1; cfg.handlers=ctx; cfg.rc4_secret_key=transport_secret;
         tmapsvr::MapServer server(io,cfg);
         asio::co_spawn(io,server.Run(),asio::detached);
@@ -456,6 +465,59 @@ int main(int argc, char**) {
             co_await Until([&]{return presence.FindEntry(kChar).has_value();},"native CONREADY completes after prior CHARINFO");
             co_await Pause(10ms);
             Check(native->Count(MessageId::CS_CHARINFO_ACK)==1,"native CONREADY never sends duplicate CHARINFO");
+            // Native skill authority, learned rank and atomic resource gates.
+            auto skill_request=[&](std::uint16_t skill,std::uint32_t caster=kChar) {
+                Bytes b;WritePOD(b,caster);WritePOD<std::uint8_t>(b,1);WritePOD<std::uint8_t>(b,2);
+                WritePOD<std::uint16_t>(b,2010);WritePOD(b,skill);WritePOD<std::uint8_t>(b,0);
+                WritePOD<std::uint32_t>(b,0);WritePOD<std::uint32_t>(b,0);
+                WritePOD<float>(b,0);WritePOD<float>(b,0);WritePOD<float>(b,0);WritePOD<std::uint8_t>(b,0);return b;
+            };
+            auto verdict=[&](std::uint8_t expected) {
+                for(auto it=native->packets.rbegin();it!=native->packets.rend();++it)
+                    if(it->first==static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK))return it->second[0]==std::byte(expected);
+                return false;
+            };
+            const auto baseline=state.Get(kChar);
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(999));
+            co_await Until([&]{return native->Count(MessageId::CS_SKILLUSE_ACK)==1;},"unlearned native cast receives verdict");
+            Check(verdict(tmapsvr::SKILL_NOTFOUND)&&state.Get(kChar)->dwMP==baseline->dwMP&&timers.Snapshot(kChar,tmapsvr::SkillClockMs()).empty(),
+                  "unlearned cast returns original NOTFOUND without consuming MP or timer");
+            // Ignored malformed/spoofed requests precede an unknown-skill reply
+            // as a receive barrier; none may cause an extra cast response.
+            auto truncated=skill_request(7);truncated.back()=std::byte{1};
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,truncated);
+            auto trailing=skill_request(7);trailing.push_back(std::byte{0});
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,trailing);
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7,kChar+1));
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(999));
+            co_await Until([&]{return native->Count(MessageId::CS_SKILLUSE_ACK)>=2;},"malformed cast barrier answered");
+            Check(native->Count(MessageId::CS_SKILLUSE_ACK)==2&&state.Get(kChar)->dwMP==baseline->dwMP,
+                  "truncated targets trailing bytes and foreign caster cannot execute a native cast");
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+            co_await Until([&]{return native->Count(MessageId::CS_HPMP_ACK)==1;},"native charged cast returns skill and bars");
+            const auto charged=state.Get(kChar);
+            Check(verdict(tmapsvr::SKILL_SUCCESS)&&charged->dwMP==83&&charged->dwHP==153,
+                  "native rank3 MP cost and percentage HP cost are charged exactly once");
+            for(const auto& packet:native->packets)if(packet.first==static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK)&&packet.second[0]==std::byte{0})
+                Check(packet.second[19]==std::byte{3},"native success ACK carries actual learned rank");
+            timers.TryUse(kChar,7,tmapsvr::SkillClockMs(),60000);
+            state.Update(kChar,[](auto& v){v.dwMP=79;});
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+            co_await Until([&]{return native->Count(MessageId::CS_SKILLUSE_ACK)==4;},"MP rejection answered");
+            Check(verdict(tmapsvr::SKILL_NEEDMP)&&state.Get(kChar)->dwMP==79&&state.Get(kChar)->dwHP==153,
+                  "insufficient MP precedes cooldown and cannot charge either resource");
+            state.Update(kChar,[](auto& v){v.dwMP=100;v.dwHP=16;});
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+            co_await Until([&]{return native->Count(MessageId::CS_SKILLUSE_ACK)==5;},"HP rejection answered");
+            Check(verdict(tmapsvr::SKILL_NEEDHP)&&state.Get(kChar)->dwMP==100&&state.Get(kChar)->dwHP==16,
+                  "equal HP and cost cannot kill caster or consume MP");
+            state.Update(kChar,[](auto& v){v.dwHP=169;});
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+            co_await Until([&]{return native->Count(MessageId::CS_SKILLUSE_ACK)==6;},"cooldown rejection answered");
+            Check(verdict(tmapsvr::SKILL_SPEEDYUSE)&&state.Get(kChar)->dwMP==100&&native->Count(MessageId::CS_HPMP_ACK)==1,
+                  "cooldown rejection does not deduct resources or emit changed bars");
+            Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=60000&&timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>50000,
+                  "resource rejections preserve existing live cooldown");
             native->wire->Close();co_await Until([&]{return server.LiveSessions()==0;},"native order fixture saves and drains");
             players.native_payload=false;
             // A failed write keeps dirty state and blocks a new login in this process.

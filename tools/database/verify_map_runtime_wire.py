@@ -14,6 +14,7 @@ from verify_world_secondary_wire import verify_world_secondary
 from verify_world_handoff_wire import verify_world_handoff
 from verify_map_rejection_wire import verify_map_rejection
 from verify_map_replica_wire import verify_map_replica
+from verify_map_skill_wire import seed_skill_cast,verify_skill_cast
 
 
 def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_conn,image,bin_dir,base_name,manifest,routing,actor,execute):
@@ -137,6 +138,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         secondary_wire=verify_world_secondary(world_port)
         handoff_wire=verify_world_handoff(world_port)
         cid,key=start(login_port)
+        skill_fixture=seed_skill_cast(conn,cid)
         s,first=enter(map_port,cid,key)
         second_map_port=launch(3)
         until(lambda:'registration acknowledged' in execute(['podman','logs',names[3]]), 'second native Map registers with the actual World')
@@ -150,8 +152,9 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         check(first['skills']==[(i&65535,l,t&0xffffffff) for i,l,t in skills],'every learned skill and cooldown matches PostgreSQL')
         check(first['appearance'][4]==3 and first['exp']==(0,30,1),'original neutral aid country and level thresholds match')
         before=conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall()
+        next_sequence,skill_wire=verify_skill_cast(conn,s,cid,first,skill_fixture,until)
         x,y,z=first['position'];destination=(x+3,y,z+2)
-        s.sendall(frame(struct.pack('<HfffHHBBBBf',0,*destination,0,90,0,0,0,0,1.0),0x5289,3));time.sleep(.1);s.close()
+        s.sendall(frame(struct.pack('<HfffHHBBBBf',0,*destination,0,90,0,0,0,0,1.0),0x5289,next_sequence));time.sleep(.1);s.close()
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()[0]==0,'disconnect saves and releases native claim')
         row=conn.execute('SELECT "fPosX","fPosY","fPosZ" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()
         check(struct.pack('<fff',*row)==struct.pack('<fff',*destination),'actual movement persists exact float32 bits on disconnect')
@@ -350,7 +353,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
             if name==names[1]:continue
             command(['kill','--signal','TERM',name]);check(execute(['podman','wait',name],timeout=15).strip()=='0','actual daemon exits zero on SIGTERM')
             log=execute(['podman','logs',name]);check(not any(e in log for e in ('ERROR: AddressSanitizer','ERROR: LeakSanitizer','runtime error:')),'daemon log has no sanitizer failure')
-        return {'status':'passed','checks':checks,'world_secondary_wire':secondary_wire,'world_handoff_wire':handoff_wire,'map_rejection_wire':rejected_secondary,'map_replica_wire':replica_wire,'scope':'Actual Login/World/two-Map TCP, ungranted second-Map rejection and granted replica admission with an explicitly synthetic cell partition, World-loss admission/drain/restart, failed final save retention, periodic core checkpoints and SIGKILL/SIGTERM recovery; synthetic account, original backup content; real client and persisted social systems pending'}
+        return {'status':'passed','checks':checks,'skill_cast_wire':skill_wire,'world_secondary_wire':secondary_wire,'world_handoff_wire':handoff_wire,'map_rejection_wire':rejected_secondary,'map_replica_wire':replica_wire,'scope':'Actual Login/World/two-Map TCP, ungranted second-Map rejection and granted replica admission with an explicitly synthetic cell partition, World-loss admission/drain/restart, failed final save retention, periodic core checkpoints and SIGKILL/SIGTERM recovery; synthetic account, original backup content; real client and persisted social systems pending'}
     except Exception:
         (private/'runtime-progress.json').write_text(json.dumps({'completed_checks':checks},indent=2))
         (private/'runtime-failure.json').write_text(json.dumps({n:execute(['podman','logs',n]) for n in started},indent=2))

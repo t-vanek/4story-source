@@ -385,8 +385,7 @@ add_test(NAME tmapsvr_asio_stat_engine
     COMMAND test_tmapsvr_asio_stat_engine)
 
 # Skill resource-cost engine: RequiredMP/HP (CTSkill::GetRequiredMP/HP) —
-# type-2 (%-of-max) exact, type-1 deferred to 0 until the level-scale base
-# + per-skill rank layer land (see services/skill_engine.h).
+# Native rank-aware flat costs and source DWORD percentage arithmetic.
 add_executable(test_tmapsvr_asio_skill_engine
     ${TMAPSVR_ASIO_SRC}/tests/test_skill_engine.cpp)
 target_link_libraries(test_tmapsvr_asio_skill_engine PRIVATE

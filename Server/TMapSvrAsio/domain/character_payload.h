@@ -35,6 +35,9 @@ struct CharacterPayload {
     std::uint64_t transfer_received_ms{};
     std::vector<CharacterBag> bags;
     std::vector<SkillRow> skills;
+    // Static definitions for learned skills, hydrated from the pinned character
+    // catalog on both fresh load and transfer. Never serialized as player data.
+    std::vector<SkillTemplate> skill_templates;
     std::vector<CharacterHotkeys> hotkeys;
     std::vector<CharacterTitle> titles;
     std::vector<CharacterCabinet> cabinets;

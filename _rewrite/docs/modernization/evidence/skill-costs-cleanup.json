@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-09",
+  "verified_at_utc": "2026-10-09T06:39:01.642432+00:00",
+  "labs": [
+    {
+      "work_directory": "/tmp/fourstory-skill-costs-20261009",
+      "owned_database_container_removed": true,
+      "owned_network_removed": true,
+      "remaining_owned_labelled_test_containers": 0,
+      "temporary_env_and_private_key_files_removed": 13
+    },
+    {
+      "work_directory": "/tmp/fourstory-skill-costs-asan-20261009",
+      "owned_database_container_removed": true,
+      "owned_network_removed": true,
+      "remaining_owned_labelled_test_containers": 0,
+      "temporary_env_and_private_key_files_removed": 4
+    }
+  ],
+  "private_diagnostics_retained": true,
+  "original_reference_snapshots_retained": true,
+  "sql_server_used": false,
+  "runtime_image_retained": "localhost/fourstory:postgresql-skill-costs",
+  "continuation": "Create a new owned PostgreSQL-only lab; preserve applied migrations 001-021 and backups. Port native new-use cooldown attack-speed/rank/shared-kind semantics next; then active effects and full gameplay. See next-steps.md."
+}

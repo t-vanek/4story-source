@@ -57,6 +57,19 @@ the ordinary database loader, including its mail and account data. Full transfer
 checkpoints remain contract 2. Apply 021 and the current Map grants before startup.
 See the [skill checkpoint contract](../../_rewrite/docs/modernization/evidence/skill-checkpoints-contract.json).
 
+Native skill casts now resolve ownership and rank from the loaded character, and
+resource definitions from its pinned `character_compat` catalog. Flat HP/MP costs
+use the source FLOAT-rounded rank formula; percentage costs preserve DWORD
+arithmetic. Affordability, live cooldown rejection and deduction share one state
+lock. Unknown skills return NOTFOUND, success echoes the learned rank, and forged
+caster/route or malformed requests cannot charge a cast. Both fresh and transferred
+characters rebuild the static definitions through native hydration; no schema or
+packet change is required. See the
+[skill resource contract](../../_rewrite/docs/modernization/evidence/skill-costs-contract.json).
+New native cooldown generation still needs the source attack-speed, rank and
+shared-kind modifiers; active effects, learning and combat damage remain separate
+ports. Existing imported timers and optional gameplay-chart delays are retained.
+
 Existing combat/loot/AI
 fixtures below describe older implemented subsets, not completed native gameplay
 or a full-client compatibility certificate.

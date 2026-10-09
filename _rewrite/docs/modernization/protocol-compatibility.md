@@ -449,3 +449,28 @@ full DWORD durations, malformed skill sets and restricted SQL grants. Full graph
 contract 2 remains unchanged in meaning. Skill learning, full effect/quest timers,
 CHARINFO timer refresh at the send instant and original-client execution remain
 pending. See [contract and evidence](evidence/skill-checkpoints-contract.json).
+
+
+## Native learned-skill resource gates (2026-10-09)
+
+`CS_SKILLUSE_REQ` keeps its original header and defender list. Native casts must
+match the admitted PC, channel and current map and reference a learned skill.
+Missing ownership returns the original `SKILL_NOTFOUND` fixed ACK. Truncated
+lists, trailing bytes and non-finite positions are dropped before mutation.
+Static definitions come from pinned `character_compat.TSKILLCHART` and formula 34,
+rebuilt during both fresh and transferred character hydration. Type-1 costs use
+the original FLOAT-rounded exponent at the learned rank; type-2 percentages retain
+DWORD wrap before division. Invalid/out-of-range arithmetic closes the session
+through the existing dispatch exception path.
+
+Under the character-state lock, MP is checked before HP, HP must exceed its cost,
+and the live cooldown gate precedes exact deduction. A rejection leaves resources
+and timers unchanged. Success echoes the actual learned rank in the existing ACK
+and broadcasts the original HPMP layout when charged. Existing checkpoint/final
+save paths persist those core values; learned ranks remain unchanged.
+
+This is resource/ownership acceptance. Native new-use attack-speed/rank/shared-kind
+cooldowns, previous-action conditions, full target validation, effects, damage,
+learning and the original client executable remain pending. Imported live timers
+and optional gameplay-chart base delays continue to be enforced. Source trace and
+executed evidence: [skill resource contract](evidence/skill-costs-contract.json).

@@ -1,16 +1,9 @@
-// Skill resource-cost engine tests — verifies skill_engine.h, faithful to
-// CTSkill::GetRequiredMP / GetRequiredHP (Server/TMapSvr/TSkill.cpp:202).
-//
-//   type 0 -> free
-//   type 2 -> maxResource * dwUse / 100   (exact, %-of-max)
-//   type 1 -> deferred to 0 (level-scale base not in TSKILLCHART + rank
-//             untracked; charging the unscaled base would over-bill)
-
 #include "services/skill_engine.h"
 #include "services/skill_chart.h"   // SkillTemplate (via domain/skill.h)
 
 #include <cstdint>
 #include <iostream>
+#include <limits>
 
 using namespace tmapsvr;
 
@@ -29,8 +22,10 @@ SkillTemplate MakeSkill(std::uint8_t mp_type, std::uint32_t use_mp,
 }
 
 int g_fail = 0;
+int checks = 0;
 void Check(bool ok, const char* what)
 {
+    ++checks;
     if (!ok) { std::cerr << "FAIL: " << what << "\n"; ++g_fail; }
 }
 
@@ -66,17 +61,32 @@ int main()
         Check(skill_engine::RequiredMP(t, 500) == 0,   "no MP cost when MP type 0");
     }
 
-    // --- type 1: deferred to 0 (must NOT charge the unscaled base) ------
+    // Literal source FLOAT rounding and learned-rank exponent cases.
     {
-        const auto t = MakeSkill(1, 2451);                 // a real type-1 base
-        Check(skill_engine::RequiredMP(t, 600) == 0,
-              "type1 MP deferred -> 0 (not over-charged)");
-
-        const auto th = MakeSkill(0, 0, 1, 999);
-        Check(skill_engine::RequiredHP(th, 600) == 0, "type1 HP deferred -> 0");
+        auto t=MakeSkill(1,1000,1,2500);t.f1stRateX=2.0f;t.bStartLevel=1;t.bNextLevel=1;
+        Check(skill_engine::RequiredMP(t,600,1)==20,"rank1 flat cost uses start level");
+        Check(skill_engine::RequiredMP(t,600,3)==80,"rank3 flat cost includes rank increment");
+        Check(skill_engine::RequiredHP(t,600,3)==200,"HP uses the same source rank scaling");
+        Check(skill_engine::RequiredMP(t,600,0)==10,"source rank-zero branch uses exponent zero");
+        t.dwUseMP=3432;t.f1stRateX=1.03f;t.bStartLevel=16;t.bNextLevel=16;
+        Check(skill_engine::RequiredMP(t,600,1)==55,"backup skill134 rank1 golden cost");
+        Check(skill_engine::RequiredMP(t,600,2)==88,"backup skill134 rank2 golden cost");
+        t=MakeSkill(1,999);t.f1stRateX=1.0f;
+        Check(skill_engine::RequiredMP(t,600,255)==9,"flat cost truncates fractional result");
+        t=MakeSkill(2,2);
+        Check(skill_engine::RequiredMP(t,0xffffffffU,255)==42949672,"ratio multiplication retains source DWORD wrap before division");
+        t=MakeSkill(1,1000);t.f1stRateX=2.0f;t.bStartLevel=255;t.bNextLevel=255;
+        bool rejected=false;try{(void)skill_engine::RequiredMP(t,600,255);}catch(const std::domain_error&){rejected=true;}
+        Check(rejected,"unrepresentable exponential cannot become a free cast");
+        t.bStartLevel=0;t.bNextLevel=0;t.f1stRateX=std::numeric_limits<float>::quiet_NaN();
+        rejected=false;try{(void)skill_engine::RequiredMP(t,600,1);}catch(const std::domain_error&){rejected=true;}
+        Check(rejected,"invalid formula growth is refused");
+        t=MakeSkill(3,1);rejected=false;
+        try{(void)skill_engine::RequiredMP(t,600,1);}catch(const std::domain_error&){rejected=true;}
+        Check(rejected,"unsupported resource selector is refused");
     }
 
     if (g_fail == 0)
-        std::cout << "test_skill_engine: all checks passed\n";
+        std::cout << "test_skill_engine: " << checks << " checks passed\n";
     return g_fail == 0 ? 0 : 1;
 }

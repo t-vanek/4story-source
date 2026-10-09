@@ -1,0 +1,132 @@
+{
+  "date": "2026-10-09",
+  "scope": "Native PostgreSQL learned-skill authority and rank-based resource costs; fresh and transferred character definitions hydrate from pinned catalogs.",
+  "historical_authority": {
+    "backup": "TGAME_RAGEZONE.bak",
+    "backup_sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259",
+    "character_manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "tables": [
+      "TSKILLCHART",
+      "TFORMULACHART",
+      "TSTARTSKILL"
+    ],
+    "source_behavior": [
+      {
+        "path": "Server/TMapSvr/TSkill.cpp",
+        "lines": "185-217",
+        "contract": "Type 1: FLOAT rate = pow(growth, rank == 0 ? 0 : startLevel+(rank-1)*nextLevel)/100; DWORD(use*rate). Type 2: DWORD(maximum*use)/100 with source wrap before division."
+      },
+      {
+        "path": "Server/TMapSvr/TMapSvr.cpp",
+        "lines": "2673-2730",
+        "contract": "Skill template start/next levels and resource selectors come from TSKILLCHART; f1stRateX from FTYPE_1ST (34)."
+      },
+      {
+        "path": "Server/TMapSvr/CSHandler.cpp",
+        "lines": "2429-3030",
+        "contract": "Find learned skill; NOTFOUND on absence, NEEDMP before NEEDHP, HP must exceed cost; reject cooldown before charge; successful sender uses actual learned rank."
+      }
+    ],
+    "golden_fixture": {
+      "skill_id": 134,
+      "learned_rank": 2,
+      "use_mp_type": 1,
+      "use_mp": 3432,
+      "start_level": 16,
+      "next_level": 16,
+      "growth_float32": 1.0299999713897705,
+      "required_mp": 88,
+      "note": "Synthetic rank/resource state belongs only to a disposable character; immutable catalog values remain original."
+    }
+  },
+  "implementation": {
+    "native_cache": "CharacterPayload.skill_templates contains only static definitions for the learned set, rebuilt by DeriveStats during fresh load and transfer/checkpoint hydration. It is not serialized as player data.",
+    "authority": "A native cast must match the admitted PC ID, OT_PC, channel and current map and find a learned skill; missing skills return original SKILL_NOTFOUND.",
+    "parser": "Truncated target lists, trailing bytes and non-finite positions drop before any mutation. Forged native identities/routes are ignored.",
+    "atomicity": "Affordability (MP then HP), restored/optional cooldown gate and exact deduction share one character-state lock; character-to-timer lock order matches transfer capture. Frozen/missing state cannot cast.",
+    "arithmetic": "Type 0 is free; type 1 preserves intermediate FLOAT rounding and final DWORD truncation; type 2 preserves original DWORD multiplication wrap. Invalid selectors or unrepresentable values throw before mutation.",
+    "wire": "No opcode, field width, layout or sequence-format change. Success now writes the learned rank and emits original HPMP fields when charged.",
+    "durability": "Existing core checkpoints and final saves persist resulting HP/MP. Learned skill IDs and ranks are unchanged by casting.",
+    "migration": "None. Backups, read-only source catalogs, applied migrations 001-021 and database grants are unchanged."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-skill-costs-debug.json",
+      "status": "passed",
+      "native_map_checks": 181,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 192,
+      "skill_cast_checks": 11,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7
+    },
+    "asan_ubsan": {
+      "report": "native-skill-costs-asan.json",
+      "status": "passed",
+      "native_map_checks": 181,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 192,
+      "skill_cast_checks": 11,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7
+    },
+    "ctest_debug": {
+      "report": "native-skill-costs-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "native-skill-costs-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "failures": 0
+    },
+    "targeted": {
+      "report": "native-skill-cost-targeted.xml",
+      "entries": 3,
+      "source_arithmetic_checks": 19,
+      "scope": "Formula arithmetic and actual plain/encrypted Map admission/cast gates, HP equality, MP/HP precedence, cooldown rejection, malformed/forged casts and learned rank."
+    },
+    "regression_before": {
+      "report": "skill-costs-before.json",
+      "image_id": "6535b80498bf7dca024a7dce9f140a1fb3b8c40c4dc6d62f1114ad0b83777c9e",
+      "expected_failure": "Native skill wire: unlearned native skill returns original SKILL_NOTFOUND",
+      "scope": "Previous installed daemon with current native backend integration executable and the same new TCP assertions."
+    },
+    "container_smoke": {
+      "report": "skill-costs-container-verification.json",
+      "image": "localhost/fourstory:postgresql-skill-costs",
+      "image_id": "42ba521c5b853387551f80892d7977fcc3391813e42d2c45c779a555a2f0f6dc",
+      "status": "passed",
+      "daemons": 6,
+      "uid_gid": "10001:10001"
+    },
+    "installed_release": {
+      "report": "native-skill-costs-release.json",
+      "status": "passed",
+      "native_map_checks": 181,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 192,
+      "skill_cast_checks": 11,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7
+    }
+  },
+  "limitations": [
+    "New native reuse generation is not ported: rank increments, attack-speed/rate and shared-kind delays need the original TObjBase::SkillUse/GetAtkSpeed and CTSkill::Use semantics. Existing restored timers and optional gameplay-chart base delays remain enforced.",
+    "Full target/previous-action checks, learning/forgetting/rank changes, active effects, damage/healing and ancillary gameplay remain unfinished.",
+    "The no-payload legacy fixture path still assumes rank 1; native gameplay requires a fully hydrated character.",
+    "Original client executable not run; packet evidence uses source-derived encrypted synthetic peers.",
+    "Initial CHARINFO timer refresh at actual send time remains pending.",
+    "Durability is periodic: a crash can lose state after the last committed checkpoint. No historical player rows are imported or invented."
+  ]
+}

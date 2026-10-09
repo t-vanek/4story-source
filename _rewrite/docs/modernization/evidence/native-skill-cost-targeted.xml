@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-c++"
+	tests="3"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="d4d84efc035f"
+	time="8"
+	timestamp="2026-10-09T06:28:35"
+	>
+	<testcase name="tmapsvr_asio_skill_engine" classname="tmapsvr_asio_skill_engine" time="0.00132387" status="run">
+		<properties/>
+		<system-out>test_skill_engine: 19 checks passed
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_admission" classname="tmapsvr_asio_admission" time="4.35285" status="run">
+		<properties/>
+		<system-out>PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-09 06:28:35.488] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-09 06:28:35.489] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS transfer test binds ready primary
+PASS in-flight gameplay holds a session operation
+PASS transfer phase stops new gameplay while retaining in-flight operation
+PASS freeze excludes new gameplay and premature teardown
+PASS teardown still waits for own...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_admission_encrypted" classname="tmapsvr_asio_admission_encrypted" time="4.35881" status="run">
+		<properties/>
+		<system-out>PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-09 06:28:39.842] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-09 06:28:39.842] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS transfer test binds ready primary
+PASS in-flight gameplay holds a session operation
+PASS transfer phase stops new gameplay while retaining in-flight operation
+PASS freeze excludes new gameplay and premature teardown
+PASS teardown still waits for own...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

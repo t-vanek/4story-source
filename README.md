@@ -53,7 +53,7 @@ checks across three ASan/UBSan suites**. See the [merge verification report](_re
 for the integrated branch tips, container smoke results and remaining Control
 persistence limits.
 
-The latest increment persists **skill cooldowns for fresh characters that never
+The preceding increment persists **skill cooldowns for fresh characters that never
 transfer between Maps**. Migration 021 adds atomic core/skill receipts, exact retry
 checks and crash recovery. Debug, ASan/UBSan and installed Release runs each pass 181 Map,
 29 pool/TLS and 191 outer TCP checks, plus the existing World/two-Map matrix.
@@ -61,9 +61,22 @@ The previous installed image fails the new online-countdown assertion. See the
 [skill checkpoint contract](_rewrite/docs/modernization/evidence/skill-checkpoints-contract.json)
 for source evidence, deployment requirements and limitations. The full Debug suite
 remains at 200 entries (186 passes, 14 skips); all 32 sanitizer entries pass.
-The current installed image is `localhost/fourstory:postgresql-skill-checkpoints`
-(also tagged `localhost/fourstory:main`); its six services pass health/DNS/SIGTERM
-checks. See [container evidence](_rewrite/docs/modernization/evidence/skill-checkpoints-container-verification.json).
+That increment was verified in `localhost/fourstory:postgresql-skill-checkpoints`;
+its six services pass health/DNS/SIGTERM checks. See [container evidence](_rewrite/docs/modernization/evidence/skill-checkpoints-container-verification.json).
+
+The latest increment enforces **learned-skill ownership and rank-based HP/MP
+costs** in native Map casts. Definitions come from the pinned backup catalogs;
+checks and resource deduction are atomic. Success packets carry the learned rank,
+and forged or incomplete requests cannot charge a cast. Source skill 134 at rank 2
+costs exactly 88 MP in the encrypted PostgreSQL test, including durable save.
+See the [skill resource contract](_rewrite/docs/modernization/evidence/skill-costs-contract.json).
+No schema migration or packet change is required. Verification passes 200 Debug
+CTest entries (186 actual passes, 14 skips), all 33 ASan/UBSan entries, and 880
+native database/network checks per Debug, sanitizer and installed Release run.
+The current local image is `localhost/fourstory:postgresql-skill-costs` (also `:main`);
+all six daemons pass health/DNS/SIGTERM checks. See
+[container evidence](_rewrite/docs/modernization/evidence/skill-costs-container-verification.json).
+Full native cooldown generation, active effects and combat damage remain unfinished.
 
 ## Database authority
 
@@ -188,8 +201,8 @@ The [older patch catalog](_rewrite/docs/PATCH_README.md) and
 [legacy-to-modern changelog](_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md) retain
 historical context; current acceptance is tracked in the modernization documents.
 
-Next priorities are runtime timer persistence for characters that never transfer,
-complete entity visibility and active gameplay state, transactional item/economy
+Next priorities are native cooldown generation and active effect/timer semantics,
+complete entity visibility, transactional item/economy
 operations, native social persistence and execution of the supported original
 client. Full feature parity is not yet established.
 

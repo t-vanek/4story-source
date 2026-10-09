@@ -18,7 +18,41 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: fresh-primary skill cooldown persistence
+## Current verified increment: native learned-skill resource costs
+
+Native Map casts resolve learned ownership and rank from the character and static
+resource definitions from pinned backup catalogs. Source type-1 HP/MP costs now
+apply the FLOAT-rounded rank exponent; type-2 costs preserve DWORD arithmetic.
+Resource checks, existing cooldown rejection and deduction run under one character
+state lock. Unknown skills return NOTFOUND; forged PC/channel/map identities and
+malformed casts cannot consume resources. Original success packets carry the actual
+learned rank. Fresh and transfer hydration both rebuild the static definitions.
+
+The [contract](evidence/skill-costs-contract.json) records source arithmetic,
+PostgreSQL/encrypted TCP evidence and precise limits. No new migration, catalog
+mutation or packet field is introduced. New native cooldown generation still needs
+rank, attack-speed and shared-kind semantics; learning, effects, full target checks
+and original-client execution remain pending.
+
+[Debug](evidence/native-skill-costs-debug.json),
+[ASan/UBSan](evidence/native-skill-costs-asan.json) and
+[installed Release](evidence/native-skill-costs-release.json) each pass **880 checks**:
+181 native Map, 29 pool/TLS, 192 outer TCP, 11 skill-cast, 295 World handoff,
+66 World secondary, 99 two-Map and seven rejection checks. Skill 134 at rank 2
+consumes exactly 88 MP; its later unaffordable casts leave resources unchanged,
+and a periodic checkpoint saves the charged value. The
+[previous image](evidence/skill-costs-before.json) fails the new unlearned-skill
+rejection. Standard suites pass **200 Debug entries** (186 actual passes, eight
+internal legacy skips, six explicit native skips) and **33 sanitizer entries**.
+
+Current installed image: `localhost/fourstory:postgresql-skill-costs` (also `:main`),
+ID `42ba521c5b853387551f80892d7977fcc3391813e42d2c45c779a555a2f0f6dc`,
+UID/GID 10001:10001. Six services pass health/DNS/SIGTERM smoke. See
+[container evidence](evidence/skill-costs-container-verification.json),
+[build fingerprints](evidence/skill-costs-build-fingerprints.json) and
+[owned-lab cleanup](evidence/skill-costs-cleanup.json).
+
+## Earlier verified increment: fresh-primary skill cooldown persistence
 
 Migration **021** adds contract-3 core/skill checkpoints for characters that have
 never transferred between Maps. Periodic and final snapshots sample live remaining
@@ -39,7 +73,7 @@ fails the new online-countdown assertion. Standard suites pass **200 Debug entri
 (186 actual passes, eight internal skips, six explicit skips) and **32 sanitizer
 entries**. The original client executable has not been run.
 
-Installed image `localhost/fourstory:postgresql-skill-checkpoints` (also `:main`),
+That increment used image `localhost/fourstory:postgresql-skill-checkpoints`,
 ID `6535b80498bf7dca024a7dce9f140a1fb3b8c40c4dc6d62f1114ad0b83777c9e`,
 UID/GID 10001:10001, passes all six daemon health/DNS/SIGTERM checks.
 See [container verification](evidence/skill-checkpoints-container-verification.json),

@@ -67,7 +67,15 @@ authoritative for historical values, original code/client for supported behavior
    Exact retries, rollback, relogin and crash recovery retain learned ranks and
    remaining durations; a skill drift blocks recovery. Full transfer graphs keep
    contract 2. Preserve `skill-checkpoints-contract.json` and its evidence.
-   Next implement active effect/quest/recall/companion timer semantics and simulation
+   Native casts now use learned ownership/rank and pinned resource definitions,
+   calculate source type-1/2 HP/MP costs, and check/deduct under one state lock.
+   Unknown skills, forged caster/route and malformed bodies cannot mutate resources;
+   success ACKs retain the learned rank. See `skill-costs-contract.json`.
+   Next port native new-use cooldown generation from `TObjBase::SkillUse` and
+   `CTSkill::Use`: rank increments, attack-speed/rate and shared-kind delays must
+   be derived from original equipment/passive semantics, without guessed defaults.
+   Refresh CHARINFO remaining timers at send time, then implement active
+   effect/quest/recall/companion timer semantics and simulation
    using the existing typed graph. Merely retaining these sections is not native
    gameplay. Trace original bStartAct=2/tutorial/Bow/dbload=1 branches and classify
    the source quest sender's shadowed dwTick before adopting its arithmetic.
@@ -308,3 +316,16 @@ synthetic partition used in replica tests. Current image:
 `evidence/map-replica-cleanup.json` records container/network and temporary secret
 cleanup. Private snapshots remain available. Continue with the transfer/state
 requirements above; the full server and real-client acceptance remain unfinished.
+
+
+Latest verified skill resource increment (2026-10-09): read
+`evidence/skill-costs-contract.json` and the Debug/ASan/installed Release reports.
+All three configurations pass 880 native database/network checks; default Debug
+has 200 entries (186 actual passes, 14 skips), and all 33 sanitizer entries pass.
+Current local image `localhost/fourstory:postgresql-skill-costs` (also `:main`) is
+`42ba521c5b853387551f80892d7977fcc3391813e42d2c45c779a555a2f0f6dc`, UID/GID
+10001:10001; six-daemon smoke passed. Test labs were disposable PostgreSQL only;
+consult `skill-costs-cleanup.json` before reusing any private work path. Source
+snapshots remain at the documented paths. Preserve migrations 001–021. Continue
+with full native new-use cooldown semantics and active gameplay as described above;
+this increment does not establish a complete combat loop or original-client run.

@@ -24,9 +24,7 @@ struct SkillTemplate
 
     // ---- resource cost (Wave 4b), faithful to CTSkill::GetRequiredMP/HP ----
     // Encoding: 0 = none, 1 = flat x per-rank level-scale, 2 = %-of-max.
-    // Type-1 stays deferred (skill_engine.h): the level-scale coefficients
-    // are loaded now (below), but the caster's per-skill RANK isn't
-    // tracked yet.
+    // Native resource gates use the loaded per-character rank.
     std::uint8_t   bUseMPType   = 0;
     std::uint32_t  dwUseMP      = 0;
     std::uint8_t   bUseHPType   = 0;
@@ -34,7 +32,7 @@ struct SkillTemplate
 
     // ---- level-scale coefficients (Wave 4c) ----
     // The exponential calc mode (TSKILLDATA bCalc=2; later the type-1 cost)
-    // raises f1stRateX to bStartLevel + (lvl-1)*bNextLevel
+    // raises f1stRateX to bStartLevel + (rank-1)*bNextLevel
     // (TSkillTemp.cpp:71). bStartLevel/bNextLevel/bMaxLevel come from
     // TSKILLCHART.bLevel/bNextLevel/bMaxLevel (TMapSvr.cpp:2705-2707);
     // f1stRateX is NOT a chart column — it's TFORMULACHART[FTYPE_1ST].fRateX

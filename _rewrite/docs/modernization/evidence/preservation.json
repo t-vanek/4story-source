@@ -19,7 +19,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "TGLOBAL_RAGEZONE.bak",
@@ -40,7 +41,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/001-import-control.sql",
@@ -61,7 +63,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/002-legacy-snapshots.sql",
@@ -82,7 +85,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/003-canonical-content.sql",
@@ -103,7 +107,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/004-source-text-bytes.sql",
@@ -124,7 +129,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/005-runtime-catalog-control.sql",
@@ -146,7 +152,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/006-current-chart-contracts.sql",
@@ -168,7 +175,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/007-catalog-runtime-metadata.sql",
@@ -190,7 +198,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/008-native-login.sql",
@@ -210,7 +219,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/009-login-runtime-owner.sql",
@@ -229,7 +239,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/010-login-security-challenges.sql",
@@ -247,7 +258,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/011-character-reference-catalog.sql",
@@ -264,7 +276,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/012-native-characters.sql",
@@ -281,7 +294,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/013-character-item-allocation-floor.sql",
@@ -298,7 +312,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/014-routing-reference-catalog.sql",
@@ -313,7 +328,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/015-native-map-handoff.sql",
@@ -328,7 +344,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/016-native-map-ownership.sql",
@@ -342,7 +359,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/017-map-actor-reference-catalog.sql",
@@ -356,7 +374,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/018-native-map-checkpoints.sql",
@@ -370,7 +389,8 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/019-native-map-replicas.sql",
@@ -380,20 +400,23 @@
       "world_handoff_increment_matches": true,
       "main_transfer_increment_matches": true,
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/020-native-main-transfer.sql",
       "sha256": "4e4063ff246cf39a96dd0105ff1f4147f78db7551942a357b96ef20c166e4ff6",
       "first_verified_increment": "native-primary-transfer",
       "native_primary_transfer_increment_matches": true,
-      "skill_checkpoint_increment_matches": true
+      "skill_checkpoint_increment_matches": true,
+      "skill_cost_increment_matches": true
     },
     {
       "path": "database/postgresql/021-native-skill-checkpoints.sql",
       "sha256": "552f5ff0bbdb9a41f3ccb58c77e4f16efd30665b5cc1ea085f6babe37ea678a8",
       "skill_checkpoint_increment_matches": true,
-      "scope": "New migration 021, pinned after native Debug verification; preceding backups/migrations unchanged."
+      "scope": "New migration 021, pinned after native Debug verification; preceding backups/migrations unchanged.",
+      "skill_cost_increment_matches": true
     }
   ]
 }

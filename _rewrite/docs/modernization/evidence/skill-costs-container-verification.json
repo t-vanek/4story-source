@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-09",
+  "image_reference": "localhost/fourstory:postgresql-skill-costs",
+  "image_id": "42ba521c5b853387551f80892d7977fcc3391813e42d2c45c779a555a2f0f6dc",
+  "uid_gid": "10001:10001",
+  "build": "podman build --layers --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-skill-costs .",
+  "smoke_report": "skill-costs-container-smoke.log",
+  "installed_daemon_sha256": {
+    "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+    "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+    "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+    "/opt/fourstory/bin/tmapsvr_asio": "7ddd318a5d3e09980f8ddfb5dfdda09d686c093788292dbd6eded99727d1983f",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+    "/opt/fourstory/bin/tworldsvr_asio": "da5696c7efcb13cd2a6f91248224a288de036c058e9b7ab8e4b7b538fbc5a8ff"
+  },
+  "six_daemon_health_dns_sigterm": "passed"
+}

@@ -4,10 +4,11 @@
 // server-authoritative skill gates faithful to the legacy
 // OnCS_SKILLUSE_REQ (CSHandler.cpp:2429 → CTSkill::CanUse /
 // GetRequiredMP / GetRequiredHP):
-//   * resource cost  — MP/HP from TSKILLCHART (skill_engine.h)
-//   * reuse cooldown — TSKILLCHART.dwReuseDelay (skill_cooldown.h)
+//   * learned ownership and rank — native CharacterPayload.skills
+//   * resource cost — pinned TSKILLCHART and FTYPE_1ST (skill_engine.h)
+//   * reuse cooldown — restored timers and optional gameplay chart delays
 // A rejection answers the caster with the short CS_SKILLUSE_ACK form
-// (SKILL_NEEDMP / SKILL_NEEDHP / SKILL_SPEEDYUSE). On success the cost is
+// (SKILL_NOTFOUND / SKILL_NEEDMP / SKILL_NEEDHP / SKILL_SPEEDYUSE). On success the cost is
 // deducted, the fat SKILL_SUCCESS ack (with the defender list) is
 // broadcast to everyone in view, and the caster's new bars are echoed via
 // CS_HPMP — the same packet pair the legacy success path Says
@@ -16,9 +17,10 @@
 // TSKILLDATA effects (heal) are applied.
 //
 // Known placeholders (documented until their waves land):
+//   * native new-use rank/attack-speed/shared-kind cooldown generation;
 //   * attacker combat stats in the success ack (powers / crit / attack
 //     level) ship 0 — the player AP/WAP/DP wave models them;
-//   * skill_level ships 1 — the per-char learned-rank layer is pending;
+//   * native learned rank is loaded; the older no-payload path assumes rank 1;
 //   * multi-attack target expansion (TSKILLCHART.bTargetHit) is skipped —
 //     the decoded targets relay 1:1.
 //
@@ -41,6 +43,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -99,10 +103,12 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
         std::uint32_t dwTarget    = 0;
         std::uint8_t  bTargetType = 0, bIsTarget = 0;
         if (!r.Read(dwTarget) || !r.Read(bTargetType) || !r.Read(bIsTarget))
-            break;   // short list — keep what parsed
+            co_return; // partial targets must not charge a cast
         if (bIsTarget && targets.size() < kMaxTarget)
             targets.push_back({ dwTarget, bTargetType });
     }
+
+    if(!r.Eof()||!std::isfinite(fPosX)||!std::isfinite(fPosY)||!std::isfinite(fPosZ))co_return;
 
     std::uint32_t cid = 0;
     if (ctx.session_reg)
@@ -121,97 +127,67 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
     ack.act_id      = dwActID;
     ack.ani_id      = dwAniID;
 
-    // Server-side skill gates (legacy OnCS_SKILLUSE_REQ → GetRequiredMP/HP
-    // at :2726/:2771, then CanUse + SkillUse at :2804). Order matters:
-    // check resources (read-only) BEFORE arming the reuse cooldown so an
-    // unaffordable cast doesn't burn the cooldown. Both run only when we
-    // know the char and the skill has a chart row; an unknown skill passes
-    // through (no rank/learn validation yet).
-    std::uint32_t req_mp = 0, req_hp = 0, reuse_delay = 0;
-    if (cid && ctx.skill_chart)
-    {
-        if (const auto tmpl = ctx.skill_chart->Find(wSkillID))
-        {
-            reuse_delay=tmpl->dwReuseDelay;
-            // Resource cost (Wave 4b) — type-2 (%-of-max) exact, type-1
-            // deferred to 0 (see services/skill_engine.h). 0 when char
-            // state isn't loaded (no-DB / test path).
-            if (ctx.char_state)
-            {
-                if (const auto s = ctx.char_state->Get(cid))
-                {
-                    req_mp = skill_engine::RequiredMP(*tmpl, s->dwMaxMP);
-                    req_hp = skill_engine::RequiredHP(*tmpl, s->dwMaxHP);
-                    if (s->dwMP < req_mp)
-                    {
-                        spdlog::info("CS_SKILLUSE_REQ char={} skill={} needs {} MP "
-                                     "(has {}) — SKILL_NEEDMP", cid, wSkillID,
-                            req_mp, s->dwMP);
-                        ack.result = SKILL_NEEDMP;
-                        co_await sess->SendPacket(
-                            static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),
-                            EncodeSkillUseAck(ack, {}));
-                        co_return;
-                    }
-                    // An HP-cost skill must leave the caster alive (legacy
-                    // checks HP <= cost, CSHandler.cpp:2772).
-                    if (req_hp > 0 && s->dwHP <= req_hp)
-                    {
-                        spdlog::info("CS_SKILLUSE_REQ char={} skill={} needs {} HP "
-                                     "(has {}) — SKILL_NEEDHP", cid, wSkillID,
-                            req_hp, s->dwHP);
-                        ack.result = SKILL_NEEDHP;
-                        co_await sess->SendPacket(
-                            static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),
-                            EncodeSkillUseAck(ack, {}));
-                        co_return;
-                    }
-                }
-            }
-
+    // Resolve and charge under the character-state lock. Combat/AI updates
+    // must not invalidate a read-only affordability check before deduction.
+    // The lock order (character, then cooldown) matches transfer capture.
+    std::uint32_t req_mp=0,req_hp=0,hp=0,mp=0,max_hp=0,max_mp=0;
+    std::uint8_t char_level=1,char_country=0,rank=1;
+    bool visited=false,ignored=false;
+    if(!cid||!ctx.char_state)co_return;
+    const auto identity=ctx.session_reg->Identity(sess.get());
+    ctx.char_state->Update(cid,[&](CharSnapshot& cs) {
+        visited=true;
+        std::optional<SkillTemplate> definition;
+        std::uint32_t reuse_delay=0;
+        if(ctx.skill_chart) {
+            definition=ctx.skill_chart->Find(wSkillID);
+            if(definition)reuse_delay=definition->dwReuseDelay;
         }
-    }
-    // Imported remaining time is authoritative even without the optional full
-    // gameplay chart. Resource checks precede the gate; rejected casts cannot
-    // spend HP/MP or restart the timer.
-    if(cid && ctx.skill_cooldown &&
-       !ctx.skill_cooldown->TryUse(cid,wSkillID,SkillClockMs(),reuse_delay)) {
-        ack.result=SKILL_SPEEDYUSE;
+        if(cs.payload) {
+            // This native path owns this PC only. Summon/monster casting and
+            // cross-peer gameplay require their separately ported authority.
+            if(!identity||dwAttackID!=cid||bAttackType!=kOtPc||bChannel!=identity->channel||wMapID!=cs.wMapID) {
+                ignored=true;return;
+            }
+            const auto& learned=cs.payload->skills;
+            const auto row=std::find_if(learned.begin(),learned.end(),[&](const auto& s){return s.wSkillID==wSkillID;});
+            if(row==learned.end()){ack.result=SKILL_NOTFOUND;return;}
+            rank=row->bLevel;
+            const auto& templates=cs.payload->skill_templates;
+            const auto t=std::find_if(templates.begin(),templates.end(),[&](const auto& s){return s.wID==wSkillID;});
+            if(t==templates.end())throw std::runtime_error("Native learned skill lacks pinned template");
+            definition=*t;
+            // This increment ports learned-rank resource gates. New-use attack
+            // speed/rank/kind reuse modifiers remain a separate gameplay port;
+            // existing restored timers and optional chart delays stay in force.
+        }
+        if(definition) {
+            req_mp=skill_engine::RequiredMP(*definition,cs.dwMaxMP,rank);
+            req_hp=skill_engine::RequiredHP(*definition,cs.dwMaxHP,rank);
+        }
+        if(cs.dwMP<req_mp){ack.result=SKILL_NEEDMP;return;}
+        // Source refuses HP <= cost even for cost zero (dead caster).
+        if(cs.dwHP<=req_hp){ack.result=SKILL_NEEDHP;return;}
+        if(ctx.skill_cooldown&&!ctx.skill_cooldown->TryUse(cid,wSkillID,SkillClockMs(),reuse_delay)) {
+            ack.result=SKILL_SPEEDYUSE;return;
+        }
+        cs.dwMP-=req_mp;cs.dwHP-=req_hp;
+        hp=cs.dwHP;mp=cs.dwMP;max_hp=cs.dwMaxHP;max_mp=cs.dwMaxMP;
+        char_level=cs.bLevel;char_country=cs.bCountry;ack.result=SKILL_SUCCESS;
+    });
+    if(!visited||ignored)co_return;
+    if(ack.result!=SKILL_SUCCESS) {
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),EncodeSkillUseAck(ack,{}));
         co_return;
-    }
-
-    // Gates passed — commit the cost to the live char state (clamped so a
-    // bar change racing in can't underflow) and capture the bars + identity
-    // fields the broadcasts need.
-    std::uint32_t hp = 0, mp = 0, max_hp = 0, max_mp = 0;
-    std::uint8_t  char_level = 1, char_country = 0;
-    if (cid && ctx.char_state)
-    {
-        ctx.char_state->Update(cid, [&](CharSnapshot& cs)
-        {
-            cs.dwMP = cs.dwMP >= req_mp ? cs.dwMP - req_mp : 0;
-            cs.dwHP = cs.dwHP >= req_hp ? cs.dwHP - req_hp : 1;
-            hp           = cs.dwHP;
-            mp           = cs.dwMP;
-            max_hp       = cs.dwMaxHP;
-            max_mp       = cs.dwMaxMP;
-            char_level   = cs.bLevel;
-            char_country = cs.bCountry;
-        });
-        if (req_mp > 0 || req_hp > 0)
-            spdlog::info("CS_SKILLUSE_REQ char={} skill={} cost {} MP / {} HP "
-                         "→ {}/{} HP {}/{} MP",
-                cid, wSkillID, req_mp, req_hp, hp, max_hp, mp, max_mp);
     }
 
     // Success — broadcast the fat SKILL_SUCCESS ack (the cast + its
     // defender list) and, when a cost was charged, the caster's new bars
     // (legacy CSHandler.cpp:2992-3030 sends exactly this pair to every
     // near player, caster included). Attacker combat stats ship 0 until
-    // the AP/WAP/DP wave; skill_level ships 1 until the rank layer.
+    // the AP/WAP/DP wave. Native skill_level uses the stored learned rank.
     ack.result         = SKILL_SUCCESS;
-    ack.skill_level    = 1;
+    ack.skill_level    = rank;
     ack.attacker_level = char_level;
     ack.country        = char_country;
     ack.gnd_x          = fPosX;

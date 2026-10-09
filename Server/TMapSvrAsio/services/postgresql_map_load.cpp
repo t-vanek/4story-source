@@ -55,10 +55,18 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         for(const auto& item:bag.items)if(!item.dwDuraMax||item.dwDuraCur)
             for(const auto& [id,value]:item.magic)equipment[id]+=value;
     std::vector<Passive> passives;
+    p.skill_templates.clear();
     for(const auto& skill:p.skills) {
         const int id=std::bit_cast<std::int16_t>(skill.wSkillID);soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
         if(!sql.got_data())throw std::runtime_error("Learned skill has no source template");
+        SkillTemplate definition;
+        definition.wID=skill.wSkillID;definition.dwReuseDelay=U32(chart,"dwReuseDelay");
+        definition.bUseMPType=U8(chart,"bUseMPType");definition.dwUseMP=U32(chart,"dwUseMP");
+        definition.bUseHPType=U8(chart,"bUseHPType");definition.dwUseHP=U32(chart,"dwUseHP");
+        definition.bStartLevel=U8(chart,"bLevel");definition.bNextLevel=U8(chart,"bNextLevel");
+        definition.bMaxLevel=U8(chart,"bMaxLevel");definition.f1stRateX=growth.rate;
+        p.skill_templates.push_back(definition);
         const int kind=U8(chart,"bKind");const int group=kind==0?0:kind-klass*3;
         if(group>=0&&group<4) {
             int used=0;const int rank=skill.bLevel;

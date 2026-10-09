@@ -258,5 +258,9 @@
     "tools/database/verify_posture_wire.py": "2371d867785df810439f3f112905bf92c3a527d480e550b3cc5e2336e9715f5f"
   },
   "local_only": true,
-  "cleanup": "effect-end-cleanup.json"
+  "cleanup": "effect-end-cleanup.json",
+  "source_audit_erratum": {
+    "date": "2026-10-09",
+    "correction": "The previous continuation incorrectly treated the Defend call as exclusive. CSHandler.cpp also calls CheckEternalBuff in ordinary SKILLUSE at2972 after costs and instance powers, and ACTITEMSUSE at20070. No implementation/test of automatic zero-MP removal was claimed or performed in this cancellation increment. Its native implementation remains pending."
+  }
 }

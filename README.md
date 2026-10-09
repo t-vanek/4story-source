@@ -34,7 +34,23 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
 | World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The latest increment implements **client-requested cancellation of permanent warrior
+The latest increment replaces placeholder attack fields in **native SKILLUSE and
+LOOPSKILL** with the original learned-rank instance-skill calculation. Physical,
+ranged and magic powers, attack level, critical and aid country come from pinned
+PostgreSQL catalogs and current equipment/effects. Profiles refresh on equipment
+changes, cancellation, reconnect and Map handoff. The ordinary/loop AL distinction
+and original packet layouts are preserved. See the [cast-profile contract](_rewrite/docs/modernization/evidence/cast-powers-contract.json)
+and [local build/startup procedure](deploy/README.md#native-cast-attack-profiles).
+Current local image: `localhost/fourstory:postgresql-cast-powers`.
+
+**2,582 native database/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release. Debug CTest has 188 actual passes and 15 fixture
+skips; all 39 sanitizer suites pass. Six installed services pass health, DNS and
+SIGTERM. The previous image fails the new independent outgoing-power assertion.
+This does not complete combat: accepted-cast persistence, authoritative Defend,
+full effects and unchanged-client acceptance remain unfinished.
+
+The preceding increment implements **client-requested cancellation of permanent warrior
 postures** through the existing Map handler and native PostgreSQL (migration **034**).
 The original 19-byte `CS_SKILLEND_REQ` removes the first matching effect. Replicas
 answer without writing; only the current primary commits the effect, statistics,
@@ -42,7 +58,7 @@ core and recovery receipt. Absent matches retain the original ACK-only behavior.
 Actual two-Map TCP scenarios cover a live posture handoff, cancellation by the new
 owner and return transfer. See the [cancellation contract and results](_rewrite/docs/modernization/evidence/effect-end-contract.json)
 and [local build/startup procedure](deploy/README.md#native-effect-cancellation).
-Current local image: `localhost/fourstory:postgresql-effect-end`.
+That increment used `localhost/fourstory:postgresql-effect-end`.
 
 **2,470 native database/network checks pass per configuration** in Debug,
 ASan/UBSan and installed Release (Release daemons with the Debug backend test).
@@ -57,7 +73,7 @@ recovery. Its recorded baseline is 2,221 native checks per configuration; see th
 [posture evidence](_rewrite/docs/modernization/evidence/postures-contract.json).
 
 Complete active-effect lifecycle, combat and gameplay remain unfinished. General
-cancellation side effects, timed expiry, zero-MP removal during `Defend`, dependent
+cancellation side effects, timed expiry, zero-MP removal during ordinary casts and `Defend`, dependent
 posture skills and remote visibility still require implementation and acceptance.
 Only uncompiled client sources are available; no supported executable build/hash,
 assets or original-client acceptance is claimed. Backups and applied migrations

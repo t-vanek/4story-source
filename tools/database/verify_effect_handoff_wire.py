@@ -7,6 +7,7 @@ import struct
 from verify_login_wire import frame, read_packet
 from verify_equipment_wire import descriptor
 from verify_character_statistics_wire import source_statistics
+from verify_cast_powers_wire import check_cast_fields
 
 
 def verify_effect_handoff(conn,primary,replica,cid,character,check,until,no_packet):
@@ -22,6 +23,11 @@ def verify_effect_handoff(conn,primary,replica,cid,character,check,until,no_pack
     original=[r[0] for r in conn.execute('SELECT row_to_json(i) FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s AND "dwStorageID"=254',(cid,))]
     def stat(peer,effects,rows=None):
         expect(peer,0x5324,source_statistics(conn,cid,rows,effects=[(i,1) for i in effects]),'handoff posture statistics match original formulas')
+    def cast(peer,effects,rows=None):
+        send(peer,0x52b4,struct.pack('<IBBHHBIIfffB',cid,1,1,0,917,0,0,0,0,0,0,0))
+        op,data=read_packet(peers[peer],ss[peer]);ss[peer]+=1
+        check(op==0x52b5 and data[0]==0 and check_cast_fields(conn,cid,917,1,data,equipment_rows=rows,effects=[(i,1) for i in effects]),
+              'handoff cast powers use authoritative equipment and effects on the current primary')
     for remove in (True,False):
         sb,sp,db,dp=(254,1,255,12) if remove else (255,12,254,1)
         send(0,0x52a8,bytes([sb,sp,db,dp,1]))
@@ -40,6 +46,7 @@ def verify_effect_handoff(conn,primary,replica,cid,character,check,until,no_pack
         hp,mp=conn.execute('SELECT "dwHP","dwMP" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()
         expect(0,0x52a2,struct.pack('<IBIIII',cid,1,character['hpmp'][0],hp,character['hpmp'][2],mp),'handoff equipment preserves HPMP')
         expect(0,0x52a9,b'\0','handoff final MOVEITEM success')
+        cast(0,[] if remove else [131],[i for i in original if i['bItemID']!=1] if remove else original)
     effects=[[131,1,0,1,cid,1,cid,4]]
     cancel=struct.pack('<IBIIBHHB',cid,1,0,cid,1,131,65535,255)
     ack=struct.pack('<IBH',cid,1,131)
@@ -55,15 +62,18 @@ def verify_effect_handoff(conn,primary,replica,cid,character,check,until,no_pack
         send(target,0x5288,b'');send(source,0x5288,b'')
         until(lambda:conn.execute('SELECT phase FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==('ready',),'posture target reaches ready without duplicate CHARINFO')
     transfer(0,1,4100,1)
+    cast(1,[131])
     send(1,0x5323,struct.pack('<I',cid));stat(1,[131])
     send(0,0x52b6,cancel);expect(0,0x52b7,ack,'former primary cancellation receives replica-only ACK')
     check(conn.execute('SELECT count(*) FROM app_world.maintained_effect_operations WHERE char_id=%s',(cid,)).fetchone()==(count,),'demoted owner cannot write maintained effects')
     send(1,0x52b6,cancel);expect(1,0x52b7,ack,'promoted owner cancels the transferred posture');stat(1,[])
+    cast(1,[])
     receipt=conn.execute('SELECT server_id,authority_epoch,state_contract,request,removed,before_effects,after_effects,before_graph_hash<>after_graph_hash FROM app_world.maintained_effect_operations WHERE char_id=%s ORDER BY operation_id DESC LIMIT 1',(cid,)).fetchone()
     check(receipt==(2,1,2,cancel,1,effects,[],True),'actual target atomically commits graph cancellation under its new epoch')
     check(conn.execute('SELECT app_world.map_maintain_state(1::smallint,%s)',(cid,)).fetchone()==([],),'graph cancellation leaves normalized effect rows untouched')
     no_packet(primary,'target cancellation sends no duplicate response on retained replica')
     transfer(1,0,4080,2)
+    cast(0,[])
     send(0,0x5323,struct.pack('<I',cid));stat(0,[])
     send(0,0x52b6,cancel);expect(0,0x52b7,ack,'returning owner confirms absent effect without recreating it')
     no_packet(primary,'absent-effect ACK has no extra STAT after return handoff')

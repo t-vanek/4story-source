@@ -7,6 +7,7 @@ import math
 import struct
 import time
 from verify_login_wire import frame, read_packet
+from verify_cast_powers_wire import check_cast_fields
 
 
 def seed_skill_cast(conn,cid):
@@ -76,12 +77,14 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
     physical_started=time.monotonic()
     send(request(102));data=verdict(0,'physical rank2 native cast succeeds with original weapon timing')
     check(data[19]==2,'physical success ACK retains rank2')
+    check(check_cast_fields(conn,cid,102,2,data),'ordinary physical cast sends source AL, powers, critical and aid country')
     op,bars=reply();check(op==0x52a2 and struct.unpack('<IBIIII',bars)==(cid,1,maximum_hp,hp,maximum_mp,initial_mp-fixture['physical_cost']),
           'physical cast charges original percentage MP once')
     send(request(102));verdict(6,'newly used native skill rejects immediate repeat without imported timer or optional chart')
     send(request());data=verdict(0,'learned rank2 native cast succeeds')
     check(data[19]==fixture['rank'] and struct.unpack_from('<I',data,1)[0]==cid and struct.unpack_from('<H',data,6)[0]==fixture['skill'],
           'original success packet carries authoritative caster skill and learned rank')
+    check(check_cast_fields(conn,cid,134,fixture['rank'],data),'ordinary skill134 sends source instance powers and countries')
     op,bars=reply();maximum_hp,hp,maximum_mp,initial_mp=character['hpmp']
     check(op==0x52a2 and struct.unpack('<IBIIII',bars)==(cid,1,maximum_hp,hp,maximum_mp,initial_mp-fixture['physical_cost']-fixture['cost']),
           'native flat MP cost follows backup formula and exact HPMP layout')
@@ -122,6 +125,7 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
     check(row==(1200,0,0,0,3,2,5),'actual loop source magic timing and item-free cost contract match backup')
     loop_started=time.monotonic()
     loop_send(loop_request(34));data=loop_verdict(0,'native magic loop succeeds and uses original success layout')
+    check(check_cast_fields(conn,cid,34,1,data,True),'magic loop sends original physical AL, powers, magic critical and aid country')
     check(data[8]==1 and data[29]==character['appearance'][3] and data[30]==character['appearance'][4],
           'loop ACK carries learned rank and original country and aid-country fields')
     op,bars=reply();check(op==0x52a2 and struct.unpack('<IBIIII',bars)==(cid,1,maximum_hp,hp,maximum_mp,5),

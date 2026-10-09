@@ -722,3 +722,53 @@ replica ACK, successor cancellation, return, malformed requests, late rollback,
 disconnect during commit and SIGKILL recovery. No original executable/assets are
 available. General combat/effects and full gameplay remain unfinished; this image
 is for local verification and has not been published or deployed externally.
+
+
+## Native cast attack profiles
+
+The current local image is `localhost/fourstory:postgresql-cast-powers`. Use the
+same native schema **001–034**, runtime grants and pinned character/routing/four-table
+actor catalogs described above. This increment requires no new migration. It
+populates source-derived outgoing cast fields; complete combat and actual-client
+acceptance remain pending. Do not use it as a completed production server.
+
+```sh
+podman run --rm --network none --userns keep-id -v "$PWD:/src:z" -w /src \
+  localhost/fourstory:build-deps cmake --build --preset linux-debug
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 \
+  -t localhost/fourstory:postgresql-cast-powers .
+python3 tools/database/disposable_environment.py start \
+  --work /tmp/fourstory-cast-powers-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-cast-powers-test --map-runtime-only --build-dir build/linux-debug \
+  --image localhost/fourstory:postgresql-cast-powers --runtime-bin-dir /opt/fourstory/bin \
+  --snapshot /private/character/reference/manifest.json \
+  --routing-snapshot /private/routing/reference/manifest.json \
+  --actor-snapshot /private/statistics/actor-reference/manifest.json \
+  --report /tmp/native-cast-powers-release.json
+python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-cast-powers
+python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-cast-powers-test
+```
+
+Use a Python environment with the documented psycopg dependency. Remove the
+owned lab's private credentials and TLS files after stopping it. The runtime
+harness starts the actual local Login/World/Map processes and runs the original
+packet oracles against PostgreSQL, then tears the daemons down. For Debug omit
+`--image`/`--runtime-bin-dir`; for ASan also build/use `linux-asan`. Keep concurrent
+runs in separate labs. Installed Release uses its own daemons and the mounted
+Debug backend integration executable. See [recorded results and limitations](../_rewrite/docs/modernization/evidence/cast-powers-contract.json).
+
+Optional offline source-order reproduction needs a separate lab with restored
+backup copies, using the existing `inspect_backup.py --restore-disposable` workflow:
+
+```sh
+python3 tools/database/verify_skill_source_order.py \
+  --work /private/owned-restored-source-lab \
+  --snapshot /private/character/reference \
+  --report /tmp/cast-powers-source-order.json
+```
+
+SQL Server is used only for that historical query observation. Native server
+execution and the cast-profile wire tests use PostgreSQL. The explicit ascending
+source-key ordering and its historical-query uncertainty are documented in the
+protocol contract. All images, tests and commits stay local; nothing is published.

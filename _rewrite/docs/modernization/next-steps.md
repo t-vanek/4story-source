@@ -8,7 +8,17 @@ Owner instruction (2026-10-09): keep implementation and versioning local on `mai
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current continuation (active effects): preserve migrations **032–034** and
+Current continuation (combat): outgoing instance-skill powers, attack levels,
+critical probability and aid country now use backup-derived native projections.
+Preserve `cast-powers-contract.json` and the explicit source-key ordering correction
+for mixed-attribute skills. The next write path must atomically record accepted
+casts with costs/timers/items/effects under current owner/epoch, keeping outgoing
+powers from before `CheckEternalBuff` and preventing hit replay. Cost-only casts
+still have the existing periodic-checkpoint crash window; no new durability is
+claimed by the projection change. Then make `CS_DEFEND_REQ` consume authoritative
+cast state and recompute source hit/effect rules instead of trusting client powers.
+
+Previous continuation (active effects): preserve migrations **032–034** and
 `equipment-contract.json`, `postures-contract.json`, `effect-end-contract.json`.
 Own-PC `CS_SKILLEND_REQ` now cancels permanent warrior postures atomically, preserves
 source no-match ACK semantics and answers replica connections without writes.
@@ -17,12 +27,14 @@ without resurrecting it. General effect cancellation, non-PC targets and complet
 remote visibility are still required.
 
 Continue the **authoritative combat/effect transaction**: `CheckEternalBuff` is
-called only inside original `CTObjBase::Defend` at TObjBase.cpp:1102, after incoming
-damage/effects. Do not invent periodic zero-MP removal or remove immediately on
-SKILLUSE cost deduction. The modern Defend prototype still lacks complete accepted
-cast authorization, source powers and durable effects. Port those dependencies,
-then zero-MP removal, timer expiry, death/static rules, dependent `wPosture` skills,
-and complete collisions/attack effects. Preserve permanent remaining=0 and the
+called inside original `CTObjBase::Defend` (TObjBase.cpp:1102), ordinary
+`OnCS_SKILLUSE_REQ` (CSHandler.cpp:2972, after resource deduction, instance-power
+calculation and `EraseBuffByAttack`) and `OnCS_ACTITEMSUSE_REQ` (CSHandler.cpp:20070).
+The previous Defend-only conclusion was incomplete. LOOPSKILL and `OnTimer` do not
+call it. The modern Defend prototype still lacks complete accepted-cast authority
+and durable effects. Preserve ordinary cast powers before any effect removal,
+then commit costs and zero-MP removal atomically. Continue with timer expiry,
+death/static rules, dependent `wPosture` skills and complete collisions/attack effects. Preserve permanent remaining=0 and the
 source whole-two-hand/empty-slot pointer-lifetime quirk.
 Then complete special-equipment combat state, party/companion/guild/local-battle
 updates, race costumes and remote visibility. Keep drops, timed bags, secured

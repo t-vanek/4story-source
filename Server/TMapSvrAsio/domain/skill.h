@@ -20,6 +20,15 @@ struct SkillMultiAttack {
     std::uint8_t target_hit = 0; // per-target rand() % (bTargetHit + 1)
 };
 
+// Source m_pInstanceSkill attack projection at the loaded rank. Rebuilt with
+// equipment, maintained effects, level and aftermath; never persisted on wire.
+struct SkillAttackProfile {
+    std::uint8_t level{},aftermath{},rank{},attack_type{},critical{};
+    bool long_attack{};
+    std::uint16_t physical_level{},magic_level{};
+    std::uint32_t physical_min{},physical_max{},magic_min{},magic_max{};
+};
+
 // Skill template (TSKILLCHART) — the static definition of a skill: the
 // reuse cooldown, the MP/HP cost columns, and the level-scale
 // coefficients. The skill-data effect entries live on the separate
@@ -61,6 +70,7 @@ struct SkillTemplate
     std::uint16_t  wUseItem = 0;
     std::uint8_t bAmmoKind = 0; // pinned first compatible weapon
     std::optional<SkillMultiAttack> multi_attack; // native pinned rank projection
+    std::optional<SkillAttackProfile> attack_profile;
 };
 
 struct SkillAttackTiming {

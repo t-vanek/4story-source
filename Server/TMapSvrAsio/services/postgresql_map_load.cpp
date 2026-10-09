@@ -47,6 +47,21 @@ Formula ReadFormula(soci::session& sql,int id){
     return {U32(r,"dwinit"),static_cast<float>(r.get<double>("fRateX")),static_cast<float>(r.get<double>("fRateY"))};
 }
 using Passive=AbilityEffect;
+AbilityEffect ReadAbility(const soci::row& data,const SkillTemplate& skill,std::uint8_t rank) {
+    int value=U16(data,"wValue"),increment=U16(data,"wValueInc");
+    switch(U8(data,"bCalc")) {
+    case 0:break;
+    case 1:value+=(rank-1)*increment;break;
+    case 2:{const int exponent=rank?skill.bStartLevel+(rank-1)*skill.bNextLevel:0;
+        const double scaled=value*std::pow(static_cast<double>(skill.f1stRateX),exponent)/100;
+        if(!std::isfinite(scaled)||scaled<std::numeric_limits<int>::min()||scaled>std::numeric_limits<int>::max())
+            throw std::runtime_error("Skill ability outside original INT range");
+        value=static_cast<int>(scaled);break;}
+    case 3:value-=(rank-1)*increment;break;
+    default:throw std::runtime_error("Unsupported skill ability calculation");
+    }
+    return {U8(data,"bExec"),U8(data,"bInc"),value};
+}
 void ReadPostures(soci::session& sql,CharacterPayload& p) {
     for(int id=131;id<=132;++id) {
         soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
@@ -117,6 +132,8 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             }
         }
     std::vector<Passive> passives;
+    struct Instance {std::uint8_t attack_type{};bool long_attack{};std::vector<AbilityEffect> abilities;};
+    std::map<std::uint16_t,Instance> instances;
     p.skill_templates.clear();
     p.equipment_kinds.fill(false);
     p.skill_points.fill(0);
@@ -160,6 +177,25 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.bStartLevel=U8(chart,"bLevel");definition.bNextLevel=U8(chart,"bNextLevel");
         definition.bMaxLevel=U8(chart,"bMaxLevel");definition.f1stRateX=growth.rate;
         definition.multi_attack=ReadNativeMultiAttack(sql,definition,skill.bLevel,U8(chart,"bTargetHit"));
+        auto& instance=instances[skill.wSkillID];bool final_type=false;
+        // The original query has no ORDER BY. Use the recovered source key
+        // explicitly instead of relying on PostgreSQL's selected access path.
+        soci::rowset<soci::row> all_data=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id "
+            "ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\"",soci::use(id));
+        for(const auto& data:all_data) {
+            const auto attr=U8(data,"bAttr"),type=U8(data,"bType"),exec=U8(data,"bExec");
+            // CTSkillTemp::GetAttackType: physical/long and MAGICNO return
+            // immediately; elemental magic only sets the fallback result.
+            if(!final_type) {
+                if(attr==1||attr==2){instance.attack_type=1;final_type=true;}
+                else if(attr==3){instance.attack_type=3;final_type=true;}
+                else if(attr>=4&&attr<=9)instance.attack_type=3;
+            }
+            if(type==1) {
+                instance.long_attack|=exec==9||attr==2;
+                instance.abilities.push_back(ReadAbility(data,definition,skill.bLevel));
+            }
+        }
         p.skill_templates.push_back(definition);
         const int kind=U8(chart,"bKind");const int group=kind==0?0:kind-klass*3;
         if(group>=0&&group<4) {
@@ -173,19 +209,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             "AND d.\"bAction\" IN (1,4) AND d.\"bType\"=1 AND d.\"bExec\" IN (1,2,3,4,5,6,7,8,9,11,12,13,16,17,19,20,21,50,51,54,55,56,86,87) "
             "AND EXISTS (SELECT 1 FROM character_compat.\"TSKILLDATA\" a WHERE a.\"wSkillID\"=:id AND a.\"bAction\"=1)",soci::use(id,"id"));
         for(const auto& d:data) {
-            int value=U16(d,"wValue"),inc=U16(d,"wValueInc"),rank=skill.bLevel;
-            switch(U8(d,"bCalc")){
-            case 0:break;
-            case 1:value+=(rank-1)*inc;break;
-            case 2:{const int exponent=rank?U8(chart,"bLevel")+(rank-1)*U8(chart,"bNextLevel"):0;
-                const double v=value*std::pow(static_cast<double>(growth.rate),exponent)/100;
-                if(!std::isfinite(v)||v<std::numeric_limits<int>::min()||v>std::numeric_limits<int>::max())
-                    throw std::runtime_error("Passive stat outside original INT range");
-                value=static_cast<int>(v);break;}
-            case 3:value-=(rank-1)*inc;break;
-            default:throw std::runtime_error("Unsupported passive calculation");
-            }
-            passives.push_back({U8(d,"bExec"),U8(d,"bInc"),value});
+            passives.push_back(ReadAbility(d,definition,skill.bLevel));
         }
     }
     std::vector<AbilityEffect> active;
@@ -212,10 +236,12 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             throw std::runtime_error("Passive total outside original INT range");
         return static_cast<int>(total);
     };
+    std::vector<AbilityEffect> instance_abilities;
     const auto delta=[&](std::uint32_t base,int target) {
         // CalcAbilityValue clamps the active subtotal before adding passives;
         // both groups calculate against the original base, not each other.
-        const auto active_delta=changes(active,base,target),passive_delta=changes(passives,base,target);
+        const long long active_delta=static_cast<long long>(changes(active,base,target))+changes(instance_abilities,base,target);
+        const auto passive_delta=changes(passives,base,target);
         const long long value=std::max(0LL,static_cast<long long>(base)+active_delta)+passive_delta;
         const long long result=std::max(0LL,value)-base;
         if(result<std::numeric_limits<int>::min()||result>std::numeric_limits<int>::max())throw std::runtime_error("Effect total overflow");
@@ -254,10 +280,22 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             static constexpr std::array columns{"wSTR","wDEX","wCON","wINT","wWIS","wMEN"};
             std::array<std::uint32_t,6> unscaled{};
             for(unsigned i=0;i<6;++i)unscaled[i]=1U+U16(cl,columns[i])+U16(ra,columns[i]);
-            p.statistics=character_statistics::Build(s.bLevel,s.bAftermath,unscaled,attributes,*p.skill_attack_timing,
-                [&](unsigned id){const auto f=ReadFormula(sql,id);return FormulaRow{f.initial,f.rate,f.rate_y};},
+            std::map<unsigned,FormulaRow> formulas;
+            const auto build=[&]{return character_statistics::Build(s.bLevel,s.bAftermath,unscaled,attributes,*p.skill_attack_timing,
+                [&](unsigned id){auto it=formulas.find(id);if(it==formulas.end()){const auto f=ReadFormula(sql,id);it=formulas.emplace(id,FormulaRow{f.initial,f.rate,f.rate_y}).first;}return it->second;},
                 [&](unsigned i,std::uint16_t minimum){return stat(columns[i],i+1,minimum);},delta,
-                [&](unsigned type){return equipment[type];});
+                [&](unsigned type){return equipment[type];});};
+            p.statistics=build();
+            for(std::size_t n=0;n<p.skill_templates.size();++n) {
+                auto& definition=p.skill_templates[n];const auto& instance=instances.at(definition.wID);
+                instance_abilities=instance.abilities;
+                const auto cast=build();
+                definition.attack_profile=SkillAttackProfile{s.bLevel,s.bAftermath,p.skills[n].bLevel,instance.attack_type,
+                    instance.attack_type==3?cast.magic_critical:cast.physical_critical,instance.long_attack,
+                    cast.attack_level,cast.magic_attack_level,
+                    instance.long_attack?cast.min_ranged:cast.min_physical,instance.long_attack?cast.max_ranged:cast.max_physical,
+                    cast.min_magic,cast.max_magic};
+            }
         }
     }
 }

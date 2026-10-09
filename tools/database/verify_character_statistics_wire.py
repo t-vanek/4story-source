@@ -13,7 +13,7 @@ from verify_login_wire import frame, read_packet
 
 
 def f32(x):return struct.unpack('<f',struct.pack('<f',x))[0]
-def source_statistics(conn,cid,equipment_rows=None,effects=None):
+def source_statistics(conn,cid,equipment_rows=None,effects=None,instance=None):
     def rows(schema,table,where='',args=()):
         return [r[0] for r in conn.execute(f'SELECT row_to_json(t) FROM {schema}."{table}" t '+where,args)]
     ch=rows('app_world','TCHARTABLE','WHERE "dwCharID"=%s',(cid,))[0]
@@ -67,6 +67,17 @@ def source_statistics(conn,cid,equipment_rows=None,effects=None):
             elif d['bCalc']==2:value=int(value*math.pow(growth,template['bLevel']+(rank-1)*template['bNextLevel'] if rank else 0)/100)
             elif d['bCalc']==3:value-=(rank-1)*inc
             active.append((d['bExec'],d['bInc'],value))
+    instantaneous=[]
+    if instance is not None:
+        sid,rank=instance
+        template=rows('character_compat','TSKILLCHART','WHERE "wID"=%s',(sid,))[0]
+        # Original CTSkillTemp::CalcValue does not filter bAction.
+        for d in rows('character_compat','TSKILLDATA','WHERE "wSkillID"=%s AND "bType"=1',(sid,)):
+            value=d['wValue']&65535;inc=d['wValueInc']&65535
+            if d['bCalc']==1:value+=(rank-1)*inc
+            elif d['bCalc']==2:value=int(value*math.pow(growth,template['bLevel']+(rank-1)*template['bNextLevel'] if rank else 0)/100)
+            elif d['bCalc']==3:value-=(rank-1)*inc
+            instantaneous.append((d['bExec'],d['bInc'],value))
     def change(effects,base,typ):
         total=0
         for target,op,value in effects:
@@ -77,7 +88,7 @@ def source_statistics(conn,cid,equipment_rows=None,effects=None):
             elif op==4:total+=base//max(1,value)-base
             elif op==5:total+=int(base*value/100.)-base
         return total
-    def delta(base,typ):return max(0,max(0,base+change(active,base,typ))+change(passive,base,typ))-base
+    def delta(base,typ):return max(0,max(0,base+change(active,base,typ)+change(instantaneous,base,typ))+change(passive,base,typ))-base
     def primary(i,floor=0):
         value=f32(max(floor,unscaled[i]&65535)*math.pow(growth,ch['bLevel']-1))
         if ch['bLevel']>=10:value=f32(value-f32(f32(value*f32(min(ch['bAftermath'],100)*.3))/100))

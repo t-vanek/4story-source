@@ -38,6 +38,7 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
     definition = conn.execute('SELECT pg_get_viewdef(\'route_compat."TSVRCHART"\'::regclass,true)').fetchone()[0]
     before = conn.execute('SELECT "wMapID","fPosX","fPosY","fPosZ" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s', (cid,)).fetchone()
     old_weapon=None
+    had_power_skill=conn.execute('SELECT count(*) FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=917',(cid,)).fetchone()[0]>0
     had_shield_skill=conn.execute('SELECT count(*) FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=14',(cid,)).fetchone()[0]>0
     if ammunition:
         from psycopg import sql
@@ -109,6 +110,7 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         if not ammunition:conn.execute('INSERT INTO app_world."TSKILLTABLE" VALUES(1,%s,14,1,0) ON CONFLICT DO NOTHING',(cid,))
         if ammunition:conn.execute('UPDATE app_world."TITEMTABLE" SET "bCount"=9 WHERE "dlID"=%s',(reagent_id,))
         conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=CASE WHEN "wSkillID"=%s THEN 0 ELSE 300000 END WHERE "dwCharID"=%s', (32 if ammunition else 1623,cid))
+        if not ammunition:conn.execute('INSERT INTO app_world."TSKILLTABLE" VALUES(1,%s,917,1,0) ON CONFLICT DO NOTHING',(cid,))
         primary, replica, key = enter()
         primary.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4100, 80, 3584, 0, 91, 0, 0, 0, 0, 1.0), 0x5289, 3))
         try:
@@ -224,6 +226,8 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         check(items == conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"', (cid,)).fetchall(), 'two-Map lifecycle preserves all original item fields')
     finally:
         for s in sockets:s.close()
+        if not ammunition and not had_power_skill:
+            conn.execute('DELETE FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=917',(cid,))
         if not ammunition and not had_shield_skill:
             conn.execute('DELETE FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=14',(cid,))
         if reagent_id is not None:

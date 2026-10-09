@@ -1,0 +1,252 @@
+{
+  "date": "2026-10-09",
+  "status": "verified_bounded_increment",
+  "scope": "Existing native Map outgoing SKILLUSE/LOOPSKILL attack profiles at learned rank for supported equipment/posture state. No complete combat, effect simulation or new accepted-cast persistence is claimed.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/TSkillTemp.cpp",
+      "lines": "49-101,172-209",
+      "contract": "Instance CalcValue sums all matching SDT_ABILITY rows without filtering action; GetValue rank math; source GetAttackType early returns and IsLongAttack."
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "1409-1547,1800-2265",
+      "contract": "Instance and supported active modifiers precede clamp, passives use original base; source formulas and GetCritical."
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2943-2972,3300-3368",
+      "contract": "Ordinary selects magic AL except SAT_PHYSIC, LOOP always physical AL, both instance powers and source critical; clear instance before ordinary effect removal."
+    },
+    {
+      "path": "Server/TMapSvr/DBAccess.h",
+      "lines": "1947",
+      "contract": "Unordered CTBLSkillData query; explicit modern key ordering documented in source-order report."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1518-1682",
+      "contract": "Original ordinary and loop success field order and widths."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/CSProtocol.h",
+      "lines": "",
+      "contract": "Original SKILLUSE/LOOPSKILL opcodes."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/MessageId.h",
+      "lines": "",
+      "contract": "Modern opcode mirror unchanged."
+    }
+  ],
+  "implementation": {
+    "production": "Native PostgreSQL DeriveStats -> immutable per-learned-skill instance projection -> existing HandleSkillReq under character lock -> unchanged original ACK.",
+    "schema": "No migration or runtime grant change. Backups and applied001-034 preserved; next035.",
+    "arithmetic": "Original GetValue constant/linear/double-exponential/falling rank calculation; all matching ability actions. Active+instance modifiers clamp before passive deltas, each based on the original base. Same supported source stat calculator without leaking instance state into base statistics/max resources.",
+    "wire": "Existing62-byte ordinary and45-byte loop fixed ACK plus unchanged target list. Physical/ranged/magic min/max, original ordinary/loop AL distinction, physical/magic critical, learned rank and actual aid country. No opcode/framing/encryption/field-width change.",
+    "lifecycle": "Rebuilt on native load, supported equipment/effect refresh and authoritative graph hydration; explicit stale level/aftermath/rank or missing profile refuses before resources/timers mutate.",
+    "corrections": [
+      "Explicit recovered clustered-key ordering replaces accidental PostgreSQL row order; original unordered query is not guaranteed on every historical engine. Four order-sensitive skills observed independently on restored backup.",
+      "Unsupported/missing native combat state refuses instead of emitting fabricated zero attack fields. Existing rejection gates keep their source codes; no new client code invented.",
+      "The previous Defend-only CheckEternalBuff conclusion was incomplete. Ordinary SKILLUSE also calls it after costs and power computation; ACTITEMSUSE also calls it. Its native transaction is still pending."
+    ],
+    "persistence": "Existing item costs remain atomic under current owner/epoch; cost-only casts still use periodic checkpoints and retain their documented crash window. No new durability or target authorization claimed.",
+    "tests": "Actual source-derived encrypted peers verify ordinary physical, magic and no-attribute selection; LOOP physical AL; rank2 buff-action AL/PAP/LAP/critical, percent and elemental modifiers; level60/aftermath/grade/gem/broken equipment; stat isolation; posture creation/cancellation; process replacement; graph equipment and live-posture two-Map handoff. Existing native races, rollback, stale-owner and disconnect/restart matrix rerun."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-cast-powers-debug.json",
+      "status": "passed",
+      "backend_checks": 764,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 588,
+      "nested_checks": {
+        "skill_cast_wire": 56,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 221,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "cast_powers_wire": 66,
+        "equipment_wire": 50,
+        "posture_wire": 125
+      },
+      "total_checks": 2582,
+      "runtime": {
+        "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+        "directory": "/src/build/linux-debug/bin/",
+        "integration_test_directory": "/src/build/linux-debug/bin/"
+      },
+      "routing_publication_checks": 7
+    },
+    "asan": {
+      "report": "native-cast-powers-asan.json",
+      "status": "passed",
+      "backend_checks": 764,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 588,
+      "nested_checks": {
+        "skill_cast_wire": 56,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 221,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "cast_powers_wire": 66,
+        "equipment_wire": 50,
+        "posture_wire": 125
+      },
+      "total_checks": 2582,
+      "runtime": {
+        "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+        "directory": "/src/build/linux-asan/bin/",
+        "integration_test_directory": "/src/build/linux-asan/bin/"
+      },
+      "routing_publication_checks": 7
+    },
+    "release": {
+      "report": "native-cast-powers-release.json",
+      "status": "passed",
+      "backend_checks": 764,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 588,
+      "nested_checks": {
+        "skill_cast_wire": 56,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 221,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "cast_powers_wire": 66,
+        "equipment_wire": 50,
+        "posture_wire": 125
+      },
+      "total_checks": 2582,
+      "runtime": {
+        "image": "0b2f98a6e8e4ad4080b6d469be794af672af2309fc7270f28289e2f5861e1e02",
+        "directory": "/opt/fourstory/bin/",
+        "integration_test_directory": "/src/build/linux-debug/bin/"
+      },
+      "routing_publication_checks": 7
+    }
+  },
+  "ctest": {
+    "debug": {
+      "report": "cast-powers-debug-ctest.xml",
+      "entries": 203,
+      "actual_passes": 188,
+      "explicit_skips": [
+        "fourstory_postgresql_integration",
+        "tloginsvr_postgresql_auth",
+        "tloginsvr_postgresql_char",
+        "tloginsvr_postgresql_handoff",
+        "tlogsvr_postgresql_sink",
+        "tmapsvr_postgresql_map",
+        "tmapsvr_postgresql_catalog"
+      ],
+      "internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "failures": 0
+    },
+    "asan": {
+      "report": "cast-powers-asan-ctest.xml",
+      "entries": 39,
+      "actual_passes": 39,
+      "explicit_skips": [],
+      "internal_skips": [],
+      "failures": 0
+    }
+  },
+  "source_order": "cast-powers-source-order.json",
+  "regression_control": "cast-powers-previous-image.json",
+  "source_index": {
+    "report": "source-inventory.json",
+    "legacy_translation_units": 206,
+    "modern_translation_units": 244,
+    "legacy_packet_definitions": 1542,
+    "modern_enum_entries": 1542,
+    "opcode_mismatches": [],
+    "unparsed_packet_definitions": [],
+    "modern_only_opcodes": [],
+    "collision_values": 9
+  },
+  "container": "cast-powers-container.json",
+  "image": "localhost/fourstory:postgresql-cast-powers",
+  "image_id": "0b2f98a6e8e4ad4080b6d469be794af672af2309fc7270f28289e2f5861e1e02",
+  "acceptance": {
+    "original_client": "BLOCKED: owner has only uncompiled source, no EXE/assets or supported binary build/hash. Source0x2918 is not binary acceptance.",
+    "supported_client_binary": null,
+    "complete_gameplay": false,
+    "remaining": [
+      "Atomic accepted-cast/cost/timer/item/effect journal with outgoing pre-removal powers, hit authorization and replay protection.",
+      "Source Defend hit/effect/damage rules; transHP/MP, durability, CheckEternalBuff in ordinary use/Defend/ACTITEMSUSE, generic effects and dependent posture skills.",
+      "Guild/companion/recall/local-battle and unsupported effect variants remain outside this profile scope and cannot claim playable parity.",
+      "Full original economy/social/companion/modes, six-service PostgreSQL persistence and administrative integrations in capability matrix."
+    ],
+    "not_executed": [
+      "Original-client executable/assets acceptance.",
+      "Historical SQL Server/client binary run to prove all query-plan orderings; only restored backup engine16.0.4265.3 observed.",
+      "Production deployment or external publication."
+    ]
+  },
+  "development_failures_resolved": [
+    "First oracle referenced bAidCountry in TCHARTABLE, but fresh native absence of TAIDTABLE uses original TCONTRY_N=3. Oracle now explicitly represents that supported source scope; first failed run retained privately."
+  ],
+  "preservation": {
+    "report": "preservation.json",
+    "entries": 36,
+    "immutable_migrations": "001-034",
+    "next_migration": "035",
+    "historical_backup_changes": false,
+    "prior_applied_migration_changes": false
+  },
+  "source_fingerprints": {
+    "Lib/Own/TProtocol/include/CSProtocol.h": "3ca0d6991bb219acb00f9e7fda3f24105240a17051362355f106de16479a191f",
+    "Lib/Own/TProtocol/include/MessageId.h": "2de84ea6ef0e2a77d3226fc0f1698cb9af9295c7265f9299ec1f168702761bc2",
+    "Server/TMapSvr/CSHandler.cpp": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50",
+    "Server/TMapSvr/CSSender.cpp": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029",
+    "Server/TMapSvr/DBAccess.h": "364fcadbbb78e49f9e7e3e6cddb0f8623eb9315ed2a9195bb3e8103c24277d9d",
+    "Server/TMapSvr/TObjBase.cpp": "9c6b97b0616605b9ee50e169cd1a93a45cf34e2be178663fc58005ba17764181",
+    "Server/TMapSvr/TSkillTemp.cpp": "9410b395c30f6700ffff6831b3aa1e47e284eb4c65b7ff137e57e1306c7b3be8",
+    "Server/TMapSvrAsio/domain/skill.h": "ab1bff01b3c0f8b06d0e24129853a82efcff0ab625b3325297edf0e5cec67d0b",
+    "Server/TMapSvrAsio/handlers/skill.cpp": "c705aadc7b5357fade280255f6ec575c16a52f6844818f483c75b74fcce09ec4",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "8538ed9cea1e2cda95f91fcb14c8e8c164ea5766a701f0887faa4474bab454bc",
+    "Server/TMapSvrAsio/tests/test_admission.cpp": "6e78d7258cf8c8e80397e2fff8c03990ce48b6201ee540983fb816b2999ed13a",
+    "tools/database/verify_cast_powers_wire.py": "1db0d2091b1490d396ac49835a810b57fc8aed35b9df993c228128c69eb2b7a1",
+    "tools/database/verify_character_statistics_wire.py": "26dc40de854d612c826b771e36c2d1ce6bade6e70691021b6c353cf9a0ec9b16",
+    "tools/database/verify_effect_handoff_wire.py": "ff39d1c3764560b045e9f796103804088bbfbe6b86043b585ea08bd2a6991e21",
+    "tools/database/verify_map_replica_wire.py": "bf11580395934155fc033268f2a791a5cbc872d719e66ff3b11c648886ad1437",
+    "tools/database/verify_map_runtime_wire.py": "78b51d380c3b52d9806aa153e7ad508f053538f794b593a1209219c5110cb207",
+    "tools/database/verify_map_skill_wire.py": "87cb0d355bb9f83c0c1d8156bd0e76e202a05094e67698b27000e78ab49afabf",
+    "tools/database/verify_posture_wire.py": "b124ab7774d2f954d3df7fe62534545b44a15280f1a3fbe243319d755e28c469",
+    "tools/database/verify_skill_source_order.py": "60b9f46738e6ea71ab394631cd6cbb54dbe5f136e343e856474e4e226dc68f03"
+  },
+  "local_only": true,
+  "cleanup": "cast-powers-cleanup.json"
+}

@@ -18,7 +18,42 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: native client effect cancellation
+## Current increment: native outgoing cast attack profiles
+
+The actual native Map cast handlers now send original-source attack powers,
+attack level, critical probability and aid country. The selected learned skill's
+instance modifiers include all matching ability actions and its real rank.
+Ordinary and loop casts preserve their different AL selection. Unsupported or
+stale projections close before costs and timers change. Existing equipment/effect
+transactions, fresh load and graph hydration rebuild the projection without
+leaking temporary modifiers into normal statistics or maximum HP/MP.
+
+**2,582 native checks pass in Debug, ASan/UBSan and installed Release**:
+764 backend + 29 pool/TLS + 588 outer TCP + 1,201 nested checks.
+The nested suites include 66 dedicated instance-profile checks, 125 posture
+checks and 221 replica/handoff checks. Debug CTest: 203 entries, 188 actual passes,
+eight internal and seven explicit fixture skips. All 39 sanitizer suites pass.
+All six installed daemons pass health, container DNS and SIGTERM. The prior image
+fails the new physical outgoing-field assertion. Release uses installed daemons
+and the mounted Debug backend integration test.
+
+No migration or grant changes; backups and 001–034 remain immutable. Current local
+image: `localhost/fourstory:postgresql-cast-powers`, ID
+`0b2f98a6e8e4ad4080b6d469be794af672af2309fc7270f28289e2f5861e1e02`. Nothing is published. See
+[executed evidence and scope](evidence/cast-powers-contract.json) and
+[local reproduction](../../../deploy/README.md#native-cast-attack-profiles).
+
+The source query does not guarantee row order. Explicit native ordering uses the
+recovered clustered key; twelve restored SQL Server reads agree for the four
+mixed-attribute skills. This modern determinism correction and its limits are
+recorded in [source-order evidence](evidence/cast-powers-source-order.json).
+Cost-only casts retain their periodic-checkpoint crash window. Accepted-cast/hit
+transactions, full Defend, durability, transHP/MP, generic effects and zero-MP
+removal remain pending. The previous Defend-only CheckEternalBuff claim is
+corrected below and in the protocol contract. Only client source is available;
+no executable build/hash or original-client acceptance is claimed.
+
+## Previous increment: native client effect cancellation
 
 Migration **034** adds an append-only operation ledger to the actual
 `OnSkillEndReq` → `EndMaintainedEffect` path. Own-PC permanent postures 131/132
@@ -48,10 +83,11 @@ The local image is `localhost/fourstory:postgresql-effect-end`, ID
 No image is published.
 
 This covers permanent warrior postures and legitimate absent matches. Full effects,
-non-PC targets, visibility and gameplay remain unfinished. `CheckEternalBuff` belongs
-inside original `Defend` (TObjBase.cpp:1102), after incoming effects, not a background
-zero-MP tick or immediately after spending cast resources. Port the authoritative
-combat transaction before adding that removal. The actual client executable/assets
+non-PC targets, visibility and gameplay remain unfinished. Source-audit correction:
+`CheckEternalBuff` runs inside `Defend` (TObjBase.cpp:1102), ordinary SKILLUSE
+(CSHandler.cpp:2972, after costs and instance-power calculation) and ACTITEMSUSE
+(CSHandler.cpp:20070). The previous Defend-only conclusion was incomplete.
+LOOPSKILL and `OnTimer` have no such call. Its atomic native implementation is pending. The actual client executable/assets
 remain unavailable; source version 0x2918 is not binary acceptance.
 
 Backups and migrations **001–034** are immutable; next migration **035**.

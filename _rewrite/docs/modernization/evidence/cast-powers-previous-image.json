@@ -1,0 +1,32 @@
+{
+  "status": "expected_failure_confirmed",
+  "image": {
+    "reference": "localhost/fourstory:postgresql-effect-end",
+    "id": "3f22a66f5f321a241e360485cbe32444cd2ebf1d38314addd23bc276d4496e87"
+  },
+  "daemon_binaries": {
+    "image": "3f22a66f5f321a241e360485cbe32444cd2ebf1d38314addd23bc276d4496e87",
+    "directory": "/opt/fourstory/bin/",
+    "integration_test_directory": "/src/build/linux-debug/bin/"
+  },
+  "error": "Native skill wire: ordinary physical cast sends source AL, powers, critical and aid country",
+  "error_location": [
+    {
+      "file": "run_native_verification.py",
+      "line": 271
+    },
+    {
+      "file": "verify_map_runtime_wire.py",
+      "line": 192
+    },
+    {
+      "file": "verify_map_skill_wire.py",
+      "line": 80
+    },
+    {
+      "file": "verify_map_skill_wire.py",
+      "line": 46
+    }
+  ],
+  "scope": "Previous installed release is rejected by independent actual-TCP cast field oracle. Current Debug backend/pool tests passed first; this is an outgoing daemon regression control, not backend comparison."
+}

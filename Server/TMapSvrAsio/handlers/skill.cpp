@@ -18,8 +18,9 @@
 //
 // Known placeholders (documented until their waves land):
 //   * active-effect attack timing (speed-dependent buff-bearing casts fail closed);
-//   * attacker combat stats in the success ack (powers / crit / attack
-//     level) ship 0 — the player AP/WAP/DP wave models them;
+//   * native cast powers/critical/levels use the pinned instance-skill profile;
+//     generic effects, durability, transfer costs and accepted-hit persistence
+//     still require their complete source contracts;
 //   * native learned rank is loaded; the older no-payload path assumes rank 1;
 //   * native multi-attack distribution is ported for budgets up to MAX_TARGET;
 //     source random seeds and the legacy non-native template path are separate.
@@ -227,6 +228,8 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             reuse_delay=loop?skill_timing::LoopDelay(t,timing):skill_timing::ReuseDelay(t,rank,timing);
             kind_delay=loop?0:t.dwKindDelay;
             if(kind_delay)for(const auto& other:cs.payload->skill_templates)if(other.bKind==t.bKind)same_kind.push_back(other.wID);
+            if(!t.attack_profile||t.attack_profile->level!=cs.bLevel||t.attack_profile->aftermath!=cs.bAftermath||t.attack_profile->rank!=rank)
+                throw std::runtime_error("Native skill attack projection is missing or stale");
         }
         if(timers&&!timers->TryUse(cid,wSkillID,now,reuse_delay,same_kind,kind_delay)) {
             ack.result=SKILL_SPEEDYUSE;return;
@@ -238,6 +241,14 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
         hp=cs.dwHP;mp=cs.dwMP;max_hp=cs.dwMaxHP;max_mp=cs.dwMaxMP;
         char_level=cs.bLevel;char_country=cs.bCountry;
         if(cs.payload)aid_country=cs.payload->aid_country;
+        if(cs.payload) {
+            const auto& power=*definition->attack_profile;
+            // Source LOOPSKILL always sends physical AL, including magic
+            // casts. Ordinary use chooses magic AL for every non-physical type.
+            ack.attack_level=loop||power.attack_type==1?power.physical_level:power.magic_level;
+            ack.pys_min_power=power.physical_min;ack.pys_max_power=power.physical_max;
+            ack.mg_min_power=power.magic_min;ack.mg_max_power=power.magic_max;ack.cp=power.critical;
+        }
         ack.result=SKILL_SUCCESS;
     };
     if(!reagent)ctx.char_state->Update(cid,apply);
@@ -302,13 +313,13 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
     // Success — broadcast the fat SKILL_SUCCESS ack (the cast + its
     // defender list) and, when a cost was charged, the caster's new bars
     // (legacy CSHandler.cpp:2992-3030 sends exactly this pair to every
-    // near player, caster included). Attacker combat stats ship 0 until
-    // the AP/WAP/DP wave. Native skill_level uses the stored learned rank.
+    // near player, caster included). Native attack fields were derived with the
+    // selected instance skill at its stored learned rank before charging.
     ack.result         = SKILL_SUCCESS;
     ack.skill_level    = rank;
     ack.attacker_level = char_level;
     ack.country        = char_country;
-    if(loop)ack.aid_country=aid_country;
+    ack.aid_country=aid_country;
     ack.gnd_x          = fPosX;
     ack.gnd_y          = fPosY;
     ack.gnd_z          = fPosZ;

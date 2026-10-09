@@ -9,6 +9,7 @@ from psycopg import sql
 from verify_login_wire import frame,read_packet
 from verify_equipment_wire import descriptor
 from verify_character_statistics_wire import source_statistics
+from verify_cast_powers_wire import check_cast_fields
 
 
 def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
@@ -26,7 +27,7 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
     for slot,template in ((10,1001),(11,401)):
         row=weapon.copy();row['dlID']=conn.execute('UPDATE app_world.worlds SET item_high_water=item_high_water+1 WHERE group_id=1 RETURNING item_high_water').fetchone()[0]
         row.update(dwStorageID=255,bItemID=slot,wItemID=template,bCount=1);insert(row)
-    for skill in (8,14):
+    for skill in (8,14,917):
         conn.execute('INSERT INTO app_world."TSKILLTABLE"("bWorldID","dwCharID","wSkillID","bLevel","dwRemainTick") VALUES(1,%s,%s,1,0) ON CONFLICT DO NOTHING',(cid,skill))
     cs,ss=3,4;equipment={};carried={};character={}
     def connect():
@@ -64,16 +65,21 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
         response(0x52a2,struct.pack('<IBIIII',cid,1,character['hpmp'][0],hp,character['hpmp'][2],mp),'equipment HPMP before posture cancellation')
         if cancel:end(cancel,[],'CheckEquipSkill')
         response(0x52a9,b'\0','final MOVEITEM follows all posture changes')
+    def cast(effects,label):
+        nonlocal cs,ss
+        client.sendall(frame(struct.pack('<IBBHHBIIfffB',cid,1,1,0,917,0,0,0,0,0,0,0),0x52b4,cs));cs+=1
+        op,data=read_packet(client,ss);ss+=1
+        check(op==0x52b5 and data[0]==0 and check_cast_fields(conn,cid,917,1,data,effects=[(i,1) for i in effects]),label)
     def shield_on():
         request(255,10,254,1);equipment[1]=relocate(carried,10,1)
         response(0x52ac,b'\xff\x0a','shield removes carried source')
         response(0x52ab,b'\xfe'+descriptor(*equipment[1]),'shield adds exact equipment descriptor')
-        defend(131);equip([131])
+        defend(131);equip([131]);cast([131],'equipment refresh includes posture and instance modifiers in cast powers')
     def shield_off(active=True):
         request(254,1,255,10);carried[10]=relocate(equipment,1,10)
         response(0x52ac,b'\xfe\x01','shield unequip removes equipped source')
         response(0x52ab,b'\xff'+descriptor(*carried[10]),'shield unequip restores carried descriptor')
-        equip([131] if active else [],131 if active else None)
+        equip([131] if active else [],131 if active else None);cast([],'unequip refresh removes posture modifiers from cast powers')
     def cancel_request(skill,attacker=None,attack_type=1,obj=None,object_type=1,extra=b'',short=False):
         nonlocal cs
         body=struct.pack('<IBIIBHHB',cid if obj is None else obj,object_type,0,cid if attacker is None else attacker,attack_type,skill,65535,255)
@@ -96,6 +102,7 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
             check(conn.execute('SELECT request,removed FROM app_world.maintained_effect_operations WHERE char_id=%s ORDER BY operation_id DESC LIMIT 1',(cid,)).fetchone()==(raw,0),
                   'absent-match ledger preserves all 19 request bytes')
         raw=cancel_request(131);end(131,[],'explicit own-PC cancellation')
+        cast([],'explicit cancellation rebuilds attack profiles before the next cast')
         check(items()==original_items,'explicit cancellation preserves every inventory field')
         check(conn.execute('SELECT request,removed,before_effects,after_effects FROM app_world.maintained_effect_operations WHERE char_id=%s ORDER BY operation_id DESC LIMIT 1',(cid,)).fetchone()==(raw,1,[[131,1,0,1,cid,1,cid,4]],[]),
               'explicit cancellation commits exact ordered effect diff and ignores stale own-PC host/map/channel')
@@ -104,6 +111,7 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
         map_port=restart();client.close();client=None
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'process replacement recovers explicitly cancelled state')
         connect();check(character['effects']==[],'SIGKILL after cancellation cannot resurrect the removed posture')
+        cast([],'process recovery rehydrates the source cast profile without removed posture')
         cancel_request(131);response(0x52b7,struct.pack('<IBH',cid,1,131),'repeated cancellation receives absent-match ACK')
         client.sendall(frame(struct.pack('<I',cid),0x5323,cs));cs+=1;stats([],'repeated cancellation has no extra STAT')
         shield_off(False);shield_on()
@@ -194,6 +202,6 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'posture fixture is offline before cleanup')
         conn.execute('DELETE FROM app_world."TITEMTABLE" WHERE "dwOwnerID"=%s',(cid,))
         for row in original:insert(row)
-        for skill in (8,14):
+        for skill in (8,14,917):
             if skill not in learned:conn.execute('DELETE FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,skill))
     return {'status':'passed','checks':checks,'scope':'Permanent 131/132 equipment postures, original synthetic TCP, native PG, actual process SIGKILL; no original-client acceptance'},map_port

@@ -68,6 +68,18 @@ secondary gameplay remain IMPLEMENTING.
 
 ## Gameplay and durable state
 
+Native outgoing SKILLUSE/LOOPSKILL powers: **IMPLEMENTED/INTEGRATED** selected-skill
+instance modifiers at learned rank, physical/magic/ranged powers, source ordinary
+versus loop AL selection, critical and aid country. Fresh loads, equipment/effect
+refresh and graph hydration derive from pinned PostgreSQL catalogs. Verification
+and ordering limits are recorded in [cast-powers-contract.json](evidence/cast-powers-contract.json).
+**VERIFIED** for the recorded native PostgreSQL/synthetic TCP scope in Debug,
+ASan/UBSan and installed Release: rank modifiers, source packet fields, current
+stats after equipment/effect changes, reconnect/restart and two-Map handoff.
+This projection does not complete Defend, accepted-cast persistence, damage,
+generic effects, durability or original-client acceptance. Those remain
+**IMPLEMENTING/UNVERIFIED**. Cost-only cast durability still uses periodic checkpoints.
+
 Current stat inspection increment: **IMPLEMENTED/INTEGRATED** native derived
 statistics and local/World relay handlers. **VERIFIED** native self-inspection,
 all response bytes, original grade/gem/broken-weapon/aftermath rules, two-Map

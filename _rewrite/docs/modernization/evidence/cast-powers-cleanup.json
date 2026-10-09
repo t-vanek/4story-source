@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "scope": "Only this increment's labelled disposable databases/networks and generated credentials/TLS/runtime configs removed; private reports retained. Other project containers untouched.",
+  "labs": [
+    {
+      "work": "/tmp/fourstory-cast-powers-20261009",
+      "owned_containers_removed": true,
+      "owned_network_removed": true,
+      "private_credentials_tls_configs_removed": 32,
+      "private_reports_retained": true
+    },
+    {
+      "work": "/tmp/fourstory-cast-powers-asan-20261009",
+      "owned_containers_removed": true,
+      "owned_network_removed": true,
+      "private_credentials_tls_configs_removed": 16,
+      "private_reports_retained": true
+    },
+    {
+      "work": "/tmp/fourstory-cast-powers-release-20261009",
+      "owned_containers_removed": true,
+      "owned_network_removed": true,
+      "private_credentials_tls_configs_removed": 31,
+      "private_reports_retained": true
+    }
+  ]
+}

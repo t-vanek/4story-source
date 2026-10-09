@@ -123,6 +123,8 @@ struct Players final : tmapsvr::IPlayerService {
             tmapsvr::SkillTemplate t;t.wID=7;t.bUseMPType=1;t.dwUseMP=1000;
             t.bUseHPType=2;t.dwUseHP=10;t.f1stRateX=2.0f;t.bStartLevel=1;t.bNextLevel=1;
             t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.dwLoopDelay=2000;t.items=tmapsvr::SkillItemGate::Allowed;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
+            t.attack_profile=tmapsvr::SkillAttackProfile{1,0,3,3,37,false,101,203,11,22,33,44};
+            p->aid_country=3;
             p->skill_templates.push_back(t);
             if(reagent_fixture||inventory_fixture) {
                 p->skill_templates[0].items=tmapsvr::SkillItemGate::Reagent;p->skill_templates[0].wUseItem=8412;
@@ -139,7 +141,7 @@ struct Players final : tmapsvr::IPlayerService {
                     }
                 }
             }
-            for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;p->skill_templates.push_back(other);}
+            for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;other.attack_profile=tmapsvr::SkillAttackProfile{1,0,1,0,7,false,13,17,1,2,3,4};p->skill_templates.push_back(other);}
             if(admission_timers){p->skills[0].dwRemainTick=300000;p->skills[1].dwRemainTick=1;}
             p->skill_attack_timing=std::array<tmapsvr::SkillAttackTiming,3>{tmapsvr::SkillAttackTiming{500,80},{},{}};
             s.payload=p;s.dwMaxHP=169;s.dwMaxMP=163;
@@ -640,7 +642,13 @@ int main(int argc, char**) {
             Check(verdict(tmapsvr::SKILL_SUCCESS)&&charged->dwMP==83&&charged->dwHP==153,
                   "native rank3 MP cost and percentage HP cost are charged exactly once");
             for(const auto& packet:native->packets)if(packet.first==static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK)&&packet.second[0]==std::byte{0})
-                Check(packet.second[19]==std::byte{3},"native success ACK carries actual learned rank");
+                {
+                    const auto& b=packet.second;
+                    Check(b[19]==std::byte{3},"native success ACK carries actual learned rank");
+                    Check(b[20]==std::byte{203}&&b[21]==std::byte{0}&&b[23]==std::byte{11}&&b[27]==std::byte{22}&&
+                          b[31]==std::byte{33}&&b[35]==std::byte{44}&&b[47]==std::byte{3}&&b[48]==std::byte{37},
+                          "native ordinary magic ACK uses magic AL, all projected powers, aid country and critical");
+                }
             Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>47000&&timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=48800,
                   "native use arms rank and attack-speed scaled cooldown without optional chart");
             Check(timers.RemainMs(kChar,8,tmapsvr::SkillClockMs())>3000&&timers.RemainMs(kChar,8,tmapsvr::SkillClockMs())<=4000&&timers.RemainMs(kChar,9,tmapsvr::SkillClockMs())==0,
@@ -737,6 +745,10 @@ int main(int argc, char**) {
             co_await Send(native,MessageId::CS_LOOPSKILL_REQ,loop_request(7,kChar+1));
             co_await loop_verdict(loop_request(),tmapsvr::SKILL_SUCCESS);
             co_await Until([&]{return native->Count(MessageId::CS_HPMP_ACK)==2;},"loop resource bars delivered");
+            for(const auto& [opcode,b]:native->packets)if(opcode==static_cast<std::uint16_t>(MessageId::CS_LOOPSKILL_ACK)&&b[0]==std::byte{0})
+                Check(b[9]==std::byte{101}&&b[10]==std::byte{0}&&b[12]==std::byte{11}&&b[16]==std::byte{22}&&
+                      b[20]==std::byte{33}&&b[24]==std::byte{44}&&b[30]==std::byte{3}&&b[31]==std::byte{37},
+                      "native magic LOOP ACK retains source physical AL and projected powers, country and critical");
             const auto remaining=timers.RemainMs(kChar,7,tmapsvr::SkillClockMs());
             Check(remaining>1500&&remaining<=2000&&timers.RemainMs(kChar,8,tmapsvr::SkillClockMs())==0,
                   "loop uses (2000+500)*80/100 without rank increment or shared-kind extension");
@@ -749,7 +761,7 @@ int main(int argc, char**) {
             co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
             co_await Until([&]{return native->ended&&server.LiveSessions()==0;},"unsupported native timing closes and durably drains");
             Check(players.saved.dwMP==100&&players.saved.dwHP==169,"unsupported native timing never guesses or charges a cast");
-            for(int unsupported=0;unsupported<4;++unsupported) {
+            for(int unsupported=0;unsupported<12;++unsupported) {
                 world.packets.clear();const auto saves=players.saves.load();
                 auto guarded=Dial(io,server.Port());co_await Send(guarded,MessageId::CS_CONNECT_REQ,Connect());
                 co_await Until([&]{return world.packets.size()==1;},"unsupported loop fixture announced");
@@ -760,7 +772,16 @@ int main(int argc, char**) {
                 co_await Until([&]{return presence.FindEntry(kChar).has_value();},"unsupported loop fixture ready");
                 state.Update(kChar,[&](auto& v){
                     auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);
-                    if(unsupported%2==0)p->skill_templates[0].items=tmapsvr::SkillItemGate::Unsupported;
+                    if(unsupported>=4) {
+                        auto& profile=p->skill_templates[0].attack_profile;
+                        switch((unsupported-4)/2) {
+                        case 0:profile.reset();break;
+                        case 1:++profile->level;break;
+                        case 2:++profile->aftermath;break;
+                        case 3:++profile->rank;break;
+                        }
+                    }
+                    else if(unsupported%2==0)p->skill_templates[0].items=tmapsvr::SkillItemGate::Unsupported;
                     else {
                         auto& t=p->skill_templates[0];t.bSpeedApply=0;
                         (unsupported<2?t.wTargetActiveID:t.wPrevActiveID)=8;
@@ -769,7 +790,8 @@ int main(int argc, char**) {
                     }
                     v.payload=p;
                 });
-                co_await Send(guarded,unsupported<2?MessageId::CS_LOOPSKILL_REQ:MessageId::CS_SKILLUSE_REQ,unsupported<2?loop_request():skill_request(7));
+                const bool loop_guard=unsupported<4?unsupported<2:unsupported%2==0;
+                co_await Send(guarded,loop_guard?MessageId::CS_LOOPSKILL_REQ:MessageId::CS_SKILLUSE_REQ,loop_guard?loop_request():skill_request(7));
                 co_await Until([&]{return guarded->ended&&server.LiveSessions()==0;},"unsupported consumable or active-effect cast closes and drains");
                 Check(players.saves==saves+1&&players.saved.dwHP==169&&players.saved.dwMP==163&&
                       guarded->Count(MessageId::CS_SKILLUSE_ACK)==0&&

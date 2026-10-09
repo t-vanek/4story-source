@@ -926,7 +926,53 @@ effect rows; graph cancellation updates the authoritative transfer receipt and
 leaves stale normalized children untouched. The executed tests and explicit limits
 are in [effect cancellation evidence](evidence/effect-end-contract.json).
 
-`CheckEternalBuff` at zero MP is still pending. Its source call is inside `Defend`
-after incoming effects, not `TPlayer::OnTimer` or ordinary SKILLUSE cost deduction.
+`CheckEternalBuff` at zero MP is still pending. Correction to the previous audit:
+it is called in `Defend` (TObjBase.cpp:1102), ordinary SKILLUSE (CSHandler.cpp:2972,
+after costs, instance-power computation and `EraseBuffByAttack`) and ACTITEMSUSE
+(CSHandler.cpp:20070). LOOPSKILL and `TPlayer::OnTimer` have no such call.
+Outgoing ordinary powers must retain the pre-removal modifiers.
 General timer expiry, death/status/recall hooks and original-client acceptance
 remain required before claiming a complete effect lifecycle.
+
+
+## Native outgoing cast attack profiles
+
+The existing native SKILLUSE/LOOPSKILL handler now obtains attack powers, attack
+level and critical probability from the selected learned skill's instance
+projection. `DeriveStats` reads pinned `TSKILLDATA`, evaluates original
+`CTSkillTemp::GetValue` at the learned rank, and applies every matching
+`SDT_ABILITY` row regardless of action, as `CalcValue` does. It combines instance
+and supported maintained-effect changes before the active clamp, then applies
+passives against the original base. Ordinary inspection and maximum HP/MP retain
+the projection without an instance skill. Equipment/cancellation refresh and graph
+hydration rebuild the profiles; missing or mismatched level/aftermath/rank closes
+the native request before costs or timers change.
+
+Source authority: `TSkillTemp.cpp:49-101,172-209`, `TObjBase.cpp:1409-1547,1800-2265`
+and `CSHandler.cpp:2943-2972,3300-3368`. Ordinary use chooses physical AL only for
+`SAT_PHYSIC`; every other type, including `SAT_NONE`, sends magic AL. LOOPSKILL
+always sends physical AL. Physical power uses ranged values when `IsLongAttack`
+is true; magic power is populated in both cases. `GetCritical` selects magic
+critical only for `SAT_MAGIC`. Ordinary use now carries the actual aid country,
+which was previously left at the placeholder zero. The 62-byte and 45-byte fixed
+ACK bodies, optional targets, opcodes, framing and encryption are unchanged.
+
+**Explicit ordering correction:** original `CTBLSkillData` has no SQL `ORDER BY`.
+The backup has a clustered key `(wSkillID,bAction,bType,bAttr,bExec)`. Four skills
+contain both physical/long and MAGICNO attributes, making early-return attack type
+sensitive to row order: 637, 640, 814 and 1343. The native read explicitly orders
+by that recovered key. Twelve original parameterized reads on the restored backup
+agree: the first three select physical, 1343 magic. This observation does not prove
+that every historical SQL Server plan/version returned the same order. See
+[original query observation](evidence/cast-powers-source-order.json).
+
+The independent Python oracle uses original formulas and packet offsets, not the
+modern projection or serializer. It checks ordinary/loop casts, rank modifiers,
+magic/physical/ranged/no-attribute selection, equipment/aftermath/broken weapons,
+stat isolation, cancellation refresh, restart and two-Map handoff. These are
+synthetic TCP acceptance checks; original executable/assets remain unavailable.
+Complete hit authorization, Defend, transfer HP/MP costs, durability, generic
+effects, zero-MP removal and combat persistence are separate unfinished work.
+No new persistence or stronger crash guarantee for cost-only casts is claimed:
+they still use the existing periodic checkpoints; item costs retain their existing
+atomic transaction. See [bounded cast-profile results](evidence/cast-powers-contract.json).

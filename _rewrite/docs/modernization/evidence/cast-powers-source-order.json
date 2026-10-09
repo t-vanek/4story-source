@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "scope": "Offline restored backup source query observation, not ordering guarantee or original-client proof",
+  "engine": [
+    {
+      "version": "16.0.4265.3"
+    }
+  ],
+  "source_query": "Server/TMapSvr/DBAccess.h CTBLSkillData; exact projection, parameterized smallint, no ORDER BY",
+  "clustered_primary_key": [
+    "wSkillID",
+    "bAction",
+    "bType",
+    "bAttr",
+    "bExec"
+  ],
+  "skill_count": 764,
+  "order_sensitive_skills": [
+    {
+      "skill": 637,
+      "executions": 3,
+      "rows": 2,
+      "matches_source_clustered_key": true,
+      "attack_type": 1
+    },
+    {
+      "skill": 640,
+      "executions": 3,
+      "rows": 2,
+      "matches_source_clustered_key": true,
+      "attack_type": 1
+    },
+    {
+      "skill": 814,
+      "executions": 3,
+      "rows": 2,
+      "matches_source_clustered_key": true,
+      "attack_type": 1
+    },
+    {
+      "skill": 1343,
+      "executions": 3,
+      "rows": 4,
+      "matches_source_clustered_key": true,
+      "attack_type": 3
+    }
+  ],
+  "modern_correction": "Explicit ascending recovered clustered-key order, independent of PostgreSQL access plan. Original SQL without ORDER BY is not guaranteed on every engine/plan; observed agreement is bounded to this restored source and engine.",
+  "backups": {
+    "TGAME_RAGEZONE.bak": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259",
+    "TGLOBAL_RAGEZONE.bak": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+  }
+}

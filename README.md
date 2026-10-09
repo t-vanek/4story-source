@@ -34,26 +34,34 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
 | World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The latest increment adds **durable warrior postures** (migration **033**) to the
-existing Map equipment transaction. Automatic postures 131/132 affect statistics,
-replace/cancel in original packet order, and survive PostgreSQL checkpoints,
-reconnect and graph recovery. Equipment and effect changes commit atomically.
-Original CHARINFO maintained fields and constructor defaults are preserved.
-See the [posture contract and evidence](_rewrite/docs/modernization/evidence/postures-contract.json)
-and [local build/startup procedure](deploy/README.md#native-maintained-postures).
-Current local image: `localhost/fourstory:postgresql-postures`.
+The latest increment implements **client-requested cancellation of permanent warrior
+postures** through the existing Map handler and native PostgreSQL (migration **034**).
+The original 19-byte `CS_SKILLEND_REQ` removes the first matching effect. Replicas
+answer without writing; only the current primary commits the effect, statistics,
+core and recovery receipt. Absent matches retain the original ACK-only behavior.
+Actual two-Map TCP scenarios cover a live posture handoff, cancellation by the new
+owner and return transfer. See the [cancellation contract and results](_rewrite/docs/modernization/evidence/effect-end-contract.json)
+and [local build/startup procedure](deploy/README.md#native-effect-cancellation).
+Current local image: `localhost/fourstory:postgresql-effect-end`.
 
-**2,221 native database/network checks pass per configuration** in Debug,
+**2,470 native database/network checks pass per configuration** in Debug,
 ASan/UBSan and installed Release (Release daemons with the Debug backend test).
-Debug CTest has 188 actual passes and 15 fixture skips; all 39 sanitizer suites
-pass. Schema upgrade, preserved historical actor upgrade and six-service
-health/DNS/SIGTERM checks also pass. The posture wire subset has 50 checks.
+Debug CTest records 188 actual passes and 15 fixture skips; all 39 sanitizer suites
+pass. Additive schema preservation passes 26 checks, and all six installed services
+pass health, container DNS and SIGTERM checks. Skipped and unavailable acceptance
+scenarios are listed separately in the contract.
 
-Complete active-effect lifecycle, combat and gameplay remain unfinished. Timed
-expiry, client-requested cancellation, zero-MP removal and remote visibility still
-need implementation and acceptance. Only uncompiled client sources are available;
-no supported executable build/hash, assets or original-client acceptance is claimed.
-Backups and applied migrations **001–033** are immutable; next migration **034**.
+The preceding **durable warrior postures** increment (033) integrated automatic
+131/132 creation, equipment-driven removal, original packet ordering and native
+recovery. Its recorded baseline is 2,221 native checks per configuration; see the
+[posture evidence](_rewrite/docs/modernization/evidence/postures-contract.json).
+
+Complete active-effect lifecycle, combat and gameplay remain unfinished. General
+cancellation side effects, timed expiry, zero-MP removal during `Defend`, dependent
+posture skills and remote visibility still require implementation and acceptance.
+Only uncompiled client sources are available; no supported executable build/hash,
+assets or original-client acceptance is claimed. Backups and applied migrations
+**001–034** are immutable; next migration **035**.
 
 The preceding **native equipment** increment (032) verified ordinary equip,
 unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per

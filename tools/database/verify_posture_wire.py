@@ -69,16 +69,52 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
         response(0x52ac,b'\xff\x0a','shield removes carried source')
         response(0x52ab,b'\xfe'+descriptor(*equipment[1]),'shield adds exact equipment descriptor')
         defend(131);equip([131])
-    def shield_off():
+    def shield_off(active=True):
         request(254,1,255,10);carried[10]=relocate(equipment,1,10)
         response(0x52ac,b'\xfe\x01','shield unequip removes equipped source')
         response(0x52ab,b'\xff'+descriptor(*carried[10]),'shield unequip restores carried descriptor')
-        equip([131],131)
+        equip([131] if active else [],131 if active else None)
+    def cancel_request(skill,attacker=None,attack_type=1,obj=None,object_type=1,extra=b'',short=False):
+        nonlocal cs
+        body=struct.pack('<IBIIBHHB',cid if obj is None else obj,object_type,0,cid if attacker is None else attacker,attack_type,skill,65535,255)
+        if short:body=body[:-1]
+        body+=extra;client.sendall(frame(body,0x52b6,cs));cs+=1
+        return body
     try:
         connect();check(character['effects']==[],'fresh character has no fabricated posture')
         shield_on()
         state=conn.execute('SELECT recovery_contract,maintain_state,app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=%s',(cid,)).fetchone()
         check(state[0]==4 and state[2] and state[1]==[[131,1,0,1,cid,1,cid,4]],'permanent posture commits original eight fields in valid v4 receipt')
+        original_items=items()
+        check(conn.execute('SELECT "bCanCancel" FROM character_compat."TSKILLCHART" WHERE "wID"=131').fetchone()==(0,),
+              'backup posture has no UI-cancel permission; original SKILLEND does not check it')
+        for skill,attacker,kind in ((131,cid+1,1),(131,cid,2),(132,cid,1)):
+            raw=cancel_request(skill,attacker,kind)
+            response(0x52b7,struct.pack('<IBH',cid,1,skill),'unmatched cancellation emits original ACK')
+            client.sendall(frame(struct.pack('<I',cid),0x5323,cs));cs+=1
+            stats([131],'unmatched cancellation has no extra STAT or effect removal')
+            check(conn.execute('SELECT request,removed FROM app_world.maintained_effect_operations WHERE char_id=%s ORDER BY operation_id DESC LIMIT 1',(cid,)).fetchone()==(raw,0),
+                  'absent-match ledger preserves all 19 request bytes')
+        raw=cancel_request(131);end(131,[],'explicit own-PC cancellation')
+        check(items()==original_items,'explicit cancellation preserves every inventory field')
+        check(conn.execute('SELECT request,removed,before_effects,after_effects FROM app_world.maintained_effect_operations WHERE char_id=%s ORDER BY operation_id DESC LIMIT 1',(cid,)).fetchone()==(raw,1,[[131,1,0,1,cid,1,cid,4]],[]),
+              'explicit cancellation commits exact ordered effect diff and ignores stale own-PC host/map/channel')
+        check(conn.execute('SELECT recovery_contract,maintain_state,app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=%s',(cid,)).fetchone()==(3,None,True),
+              'explicit last-effect removal atomically restores empty recovery contract')
+        map_port=restart();client.close();client=None
+        until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'process replacement recovers explicitly cancelled state')
+        connect();check(character['effects']==[],'SIGKILL after cancellation cannot resurrect the removed posture')
+        cancel_request(131);response(0x52b7,struct.pack('<IBH',cid,1,131),'repeated cancellation receives absent-match ACK')
+        client.sendall(frame(struct.pack('<I',cid),0x5323,cs));cs+=1;stats([],'repeated cancellation has no extra STAT')
+        shield_off(False);shield_on()
+        for invalid in ({'obj':cid+1},{'object_type':2},{'short':True},{'extra':b'\0'}):
+            count=conn.execute('SELECT count(*) FROM app_world.maintained_effect_operations WHERE char_id=%s',(cid,)).fetchone()[0]
+            cancel_request(131,**invalid)
+            check(client.recv(1)==b'','foreign/unported/malformed cancellation closes without success')
+            disconnect()
+            check(conn.execute('SELECT count(*) FROM app_world.maintained_effect_operations WHERE char_id=%s',(cid,)).fetchone()==(count,),
+                  'rejected cancellation creates no effect ledger entry')
+            connect();check(character['effects'][0][:3]==(131,1,0),'rejected cancellation retains posture through reconnect')
         disconnect();connect()
         check(character['effects']==[(131,1,0,cid,1,cid,1,1,1,1,0,0,0,0,1,4,0.,0.,0.)],'CHARINFO restores all 51 maintained bytes with original CTSkill constructor defaults')
         shield_off()
@@ -103,6 +139,44 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
         check(conn.execute('SELECT outcome,maintain_state,app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=%s',(cid,)).fetchone()==('recovered',[[132,1,0,1,cid,1,cid,4]],True),'SIGKILL recovery retains native posture receipt')
         connect();check(character['effects'][0][:3]==(132,1,0),'permanent attack posture survives actual process crash and relogin')
         client.sendall(frame(struct.pack('<I',cid),0x5323,cs));cs+=1;stats([132],'recovered posture statistics match independent original formulas')
+        # A failed final insert must roll back the earlier effect/core writes.
+        # The connection cannot distinguish a rollback from an uncertain commit;
+        # it closes and retains ownership for process recovery, without retry.
+        conn.execute("CREATE FUNCTION public.reject_effect_end() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic cancellation fault'; END $$")
+        conn.execute('CREATE TRIGGER synthetic_effect_end_fault BEFORE INSERT ON app_world.maintained_effect_operations FOR EACH ROW EXECUTE FUNCTION public.reject_effect_end()')
+        try:
+            count=conn.execute('SELECT count(*) FROM app_world.maintained_effect_operations WHERE char_id=%s',(cid,)).fetchone()[0]
+            cancel_request(132);check(client.recv(1)==b'','late database failure produces no SKILLEND success')
+            client.close();client=None
+            check(conn.execute('SELECT count(*) FROM app_world.maintained_effect_operations WHERE char_id=%s',(cid,)).fetchone()==(count,),
+                  'failed cancellation is not retried or appended')
+            check(conn.execute('SELECT maintain_state,app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=%s',(cid,)).fetchone()==([[132,1,0,1,cid,1,cid,4]],True),
+                  'late cancellation failure rolls back effects and checkpoint together')
+        finally:
+            conn.execute('DROP TRIGGER synthetic_effect_end_fault ON app_world.maintained_effect_operations');conn.execute('DROP FUNCTION public.reject_effect_end()')
+        map_port=restart()
+        until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'new Map recovers failed cancellation owner')
+        connect();check(character['effects'][0][:3]==(132,1,0),'rollback posture remains after process replacement')
+        conn.execute("CREATE FUNCTION public.delay_effect_end() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(.3); RETURN NEW; END $$")
+        conn.execute('CREATE TRIGGER synthetic_effect_end_delay BEFORE INSERT ON app_world.maintained_effect_operations FOR EACH ROW EXECUTE FUNCTION public.delay_effect_end()')
+        try:
+            cancel_request(132)
+            until(lambda:conn.execute("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event='PgSleep'").fetchone()[0]>0,'explicit cancellation pauses before PostgreSQL commit')
+            check(not select.select([client],[],[],.02)[0],'explicit cancellation publishes no success before commit')
+            client.close();client=None
+            until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'disconnect during explicit cancellation drains committed state')
+        finally:
+            conn.execute('DROP TRIGGER synthetic_effect_end_delay ON app_world.maintained_effect_operations');conn.execute('DROP FUNCTION public.delay_effect_end()')
+        connect();check(character['effects']==[] and 0 in equipment,'explicit commit/disconnect removes posture and preserves equipped weapon')
+        # Recreate Attack Stance by swapping the original main weapon twice,
+        # preserving the original equipment commit/disconnect regression below.
+        for posture in (None,132):
+            request(255,11,254,0)
+            old=relocate(equipment,0,11);equipment[0]=relocate(carried,11,0);carried[11]=old
+            response(0x52aa,b'\xfe'+descriptor(*equipment[0]),'post-cancellation weapon swap equips source')
+            response(0x52aa,b'\xff'+descriptor(*carried[11]),'post-cancellation weapon swap retains destination')
+            if posture:defend(posture)
+            equip([posture] if posture else [])
         conn.execute("CREATE FUNCTION public.delay_posture_commit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(.3); RETURN NEW; END $$")
         conn.execute('CREATE TRIGGER synthetic_posture_delay BEFORE INSERT ON app_world.equipment_operations FOR EACH ROW EXECUTE FUNCTION public.delay_posture_commit()')
         try:

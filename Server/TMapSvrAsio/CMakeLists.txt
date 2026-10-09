@@ -115,6 +115,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/npc.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/inventory.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/maintained_effect.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/character_statistics.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/combat.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/loot.cpp

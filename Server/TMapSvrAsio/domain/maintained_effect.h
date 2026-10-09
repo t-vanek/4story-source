@@ -2,8 +2,19 @@
 #include <array>
 #include <cstdint>
 #include <vector>
+#include <memory>
 
 namespace tmapsvr {
+struct CharSnapshot;
+struct EffectEndRequest {
+    std::uint32_t object{},host{},attacker{};
+    std::uint8_t object_type{},attack_type{},channel{};
+    std::uint16_t skill{},map{};
+};
+struct EffectEndCommit {
+    std::shared_ptr<const CharSnapshot> snapshot;
+    bool removed{};
+};
 // First eight fields are the original CTBLSkillMaintain/RELEASEMAIN contract.
 // Presentation fields are not persisted by the original server: CTSkill's
 // constructor restores them on LOADCHAR, including after a primary transfer.

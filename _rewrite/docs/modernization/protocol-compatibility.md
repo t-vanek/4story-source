@@ -883,8 +883,50 @@ defaults (1/1/1, position zero). DEFEND itself uses host 0/type 0, attack level 
 and character level, as the source sender does. These differences are intentional.
 
 Zero remaining is permanent for these zero-duration templates, not expired.
-This increment does not implement `CS_SKILLEND_REQ`, `CheckEternalBuff` at zero MP,
-timed expiry, generic status effects, dependent posture skills or death/remote
-simulation. Such branches remain acceptance gaps. Only synthetic encrypted TCP
+The 033 baseline did not implement `CS_SKILLEND_REQ`; 034 adds the bounded path
+below. `CheckEternalBuff` at zero MP,
+timed expiry, generic status effects, dependent posture skills and death/remote
+simulation remain acceptance gaps. Only synthetic encrypted TCP
 and original source/backup oracles are available; actual client build/assets and
 client UI acceptance remain blocked. See [posture evidence](evidence/postures-contract.json).
+
+## Client-requested maintained-effect cancellation (migration 034)
+
+`CS_SKILLEND_REQ` stays opcode `0x52b6` with exactly 19 bytes:
+`DWORD object, BYTE objectType, DWORD host, DWORD attacker, BYTE attackType,
+WORD skill, WORD map, BYTE channel`, little-endian. The original client sends it to
+all Map connections (`CSSenderAll.cpp:965–989`). The primary own-PC path ignores
+host/map/channel and removes only the first matching attacker/type/skill, regardless
+of learned skill membership or template `bCanCancel`. Pinned posture 131 has
+`bCanCancel=0`; this UI flag does not prohibit the original server operation.
+
+Both a successful removal and an absent match send the original seven-byte
+`CS_SKILLEND_ACK` (`0x52b7`, object/type/skill). Removal then sends the original
+87-byte own `CHARSTATINFO`; an absent match does not. Replica connections answer
+only their own socket and never invoke a database mutation. These semantics come
+from `CSHandler.cpp:10384–10491` and `TObjBase::EraseMaintainSkill`, not modern mocks.
+The removable collection must contain only permanent rank-one postures 131/132.
+They do not change HP/MP maxima; generic and mixed effect erase side effects remain
+unimplemented. Neighbor delivery uses existing local same-channel/map cells; full
+cross-Map and multi-character visibility acceptance is still pending.
+
+Modern corrections are explicit: exact-length decoding rejects trailing/truncated
+bodies; own-PC object ID must equal the authenticated character (the original PC
+branch ignored it and could broadcast a forged target on no match). Non-PC targets
+and unsupported matching effects close without fabricated success until their
+contracts are ported. No valid own-PC wire field changes. Replies follow the
+PostgreSQL commit of effects, derived core, sampled timers and recovery receipt;
+this strengthens original deferred persistence. A transaction error closes the
+socket, suppresses stale logout and requires process recovery, with no automatic
+retry of a potentially committed write.
+
+Migration 034 retains exact request bytes and ordered before/after effects with
+owner, connection, epoch and graph/core fingerprints. Fresh cancellation uses native
+effect rows; graph cancellation updates the authoritative transfer receipt and
+leaves stale normalized children untouched. The executed tests and explicit limits
+are in [effect cancellation evidence](evidence/effect-end-contract.json).
+
+`CheckEternalBuff` at zero MP is still pending. Its source call is inside `Defend`
+after incoming effects, not `TPlayer::OnTimer` or ordinary SKILLUSE cost deduction.
+General timer expiry, death/status/recall hooks and original-client acceptance
+remain required before claiming a complete effect lifecycle.

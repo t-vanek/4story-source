@@ -107,9 +107,15 @@ existing authoritative graph 2. Ordinary core saves cannot rewrite fresh effects
 **VERIFIED** native PG covers rollback, contention, drift, stale replay, graph owner recovery
 and relogin; TCP checks compare original DEFEND, SKILLEND, CHARINFO and intermediate
 stat packets. See [posture evidence](evidence/postures-contract.json) for executed
-configurations and limits. Client-requested cancellation, zero-MP eternal-buff
-removal, timed effects, posture-dependent skills, full combat and remote visibility
-remain **IMPLEMENTING**. No original-client executable has been verified.
+configurations and limits. The next cancellation increment (034) integrates
+own-PC `CS_SKILLEND_REQ`, current-owner atomic removal, source absent-match ACKs and
+read-only replica ACKs. Native/TCP scenarios cover live-posture handoff, cancellation
+on the successor, return, rollback, concurrency and process replacement; see
+[cancellation evidence](evidence/effect-end-contract.json). The scope is permanent
+131/132 postures, not all effects. Non-PC cancellation, generic erase side effects,
+zero-MP removal inside `Defend`, timed effects, posture-dependent skills, full combat
+and remote visibility remain **IMPLEMENTING**. No original-client executable has
+been verified.
 
 
 | Legacy behavior / references | Modern production path and replacement work | PG dependency | Protocol and test evidence | Status / next acceptance |

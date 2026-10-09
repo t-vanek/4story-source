@@ -18,7 +18,46 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: durable warrior postures
+## Current increment: native client effect cancellation
+
+Migration **034** adds an append-only operation ledger to the actual
+`OnSkillEndReq` → `EndMaintainedEffect` path. Own-PC permanent postures 131/132
+cancel under the current owner/connection/authority epoch in one PostgreSQL
+transaction with core, sampled cooldowns and recovery. The original first matching
+attacker/type/skill rule, ignored own-PC host/map/channel, and absent-match ACK are
+retained. Secondary connections answer `SayToAll` without mutating primary state.
+
+Native and encrypted TCP tests cover fresh and graph cancellation, exact source
+bytes/order, rollback, concurrency, stale state, rejected malformed/foreign target
+requests, disconnect during commit, SIGKILL and reconnect. The actual two-process
+handoff now carries a live posture, cancels it on the new primary and returns the
+empty state. See [executed results and limits](evidence/effect-end-contract.json)
+and [local reproduction](../../../deploy/README.md#native-effect-cancellation).
+Verification: **2,470 native checks per Debug, ASan/UBSan and installed Release**
+(764 backend + 29 pool/TLS + 557 outer TCP + 1,120 nested protocol checks).
+The nested suites include 118 posture/cancellation checks and 216 two-Map replica/
+handoff checks. Debug CTest has 203 entries: 188 actual passes, eight internal
+legacy fixture skips and seven explicit native fixture skips; no failures. All
+39 sanitizer suites pass. Additive schema preservation passes 26 checks, and the
+actual Map role passes seven least-privilege checks in each configuration.
+Six installed daemons pass health, container DNS and SIGTERM. Release uses installed
+Login/World/Map daemons with the mounted Debug backend integration test.
+
+The local image is `localhost/fourstory:postgresql-effect-end`, ID
+`3f22a66f5f321a241e360485cbe32444cd2ebf1d38314addd23bc276d4496e87`.
+No image is published.
+
+This covers permanent warrior postures and legitimate absent matches. Full effects,
+non-PC targets, visibility and gameplay remain unfinished. `CheckEternalBuff` belongs
+inside original `Defend` (TObjBase.cpp:1102), after incoming effects, not a background
+zero-MP tick or immediately after spending cast resources. Port the authoritative
+combat transaction before adding that removal. The actual client executable/assets
+remain unavailable; source version 0x2918 is not binary acceptance.
+
+Backups and migrations **001–034** are immutable; next migration **035**.
+Changes and commits remain local on `main`.
+
+## Previous increment: durable warrior postures
 
 Migration **033** integrates permanent automatic postures 131/132 with the existing
 native equipment transaction. Their creation, replacement and equipment-driven
@@ -47,14 +86,15 @@ Owned labs and generated credentials/keys have been removed.
 
 See [posture verification and limits](evidence/postures-contract.json) and the
 [local startup procedure](../../../deploy/README.md#native-maintained-postures).
-This is a bounded slice. Client-requested cancellation, zero-MP eternal-buff
+At this recorded baseline, client-requested cancellation, zero-MP eternal-buff
 removal, timed expiry, dependent posture skills, full combat, special equipment,
 party/guild/companions and remote visibility remain required. The new graph tests
-exercise native service transfer state and replacement-owner recovery; actual
-posture-bearing two-process TCP handoff and original-client UI are not claimed.
+exercised native service transfer state and replacement-owner recovery. The current
+increment above adds actual posture-bearing TCP handoff and own-PC cancellation;
+original-client UI remains unverified.
 Only uncompiled client sources are available, so no supported binary build/hash
-or asset identity can be listed. Backups and applied migrations **001–033** are
-immutable; next schema migration **034**. Version locally on `main`, with no push.
+or asset identity can be listed. That increment froze migrations **001–033**;
+the current schema requirement and next migration are stated above.
 
 ## Previous increment: native equipment transactions
 
@@ -90,7 +130,7 @@ actor-upgrade regression checks pass. Local image:
 See [equipment contract and evidence](evidence/equipment-contract.json) and
 [local startup/verification](../../../deploy/README.md#native-equipment-transactions).
 Verification results are recorded there; this is a bounded gameplay increment,
-not completion of equipment or the server. Warrior automatic postures 131/132,
+not completion of equipment or the server. At that baseline warrior automatic postures 131/132,
 active-effect cancellation/expiry, special-equipment combat behavior, active
 companions/recalls, party/guild/local-battle dependencies, race costumes, timed
 bags, secured/trade/store state and complete cross-Map visibility remain open.

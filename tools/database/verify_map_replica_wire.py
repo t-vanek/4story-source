@@ -13,6 +13,7 @@ from verify_graph_reagent_wire import seed_graph_reagent, graph_reagent_cast
 from verify_inventory_stack_wire import graph_stack_packet
 from verify_character_statistics_wire import source_statistics
 from verify_equipment_wire import descriptor
+from verify_effect_handoff_wire import verify_effect_handoff
 
 
 def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start, connect_request, parse_character, ammunition=False):
@@ -37,6 +38,7 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
     definition = conn.execute('SELECT pg_get_viewdef(\'route_compat."TSVRCHART"\'::regclass,true)').fetchone()[0]
     before = conn.execute('SELECT "wMapID","fPosX","fPosY","fPosZ" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s', (cid,)).fetchone()
     old_weapon=None
+    had_shield_skill=conn.execute('SELECT count(*) FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=14',(cid,)).fetchone()[0]>0
     if ammunition:
         from psycopg import sql
         row=conn.execute('SELECT * FROM app_world."TITEMTABLE" WHERE "dwOwnerID"=%s AND "dwStorageID"=254 AND "bItemID"=2',(cid,))
@@ -104,6 +106,7 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         # A third lifecycle crosses the synthetic unit boundary in both
         # directions using only original encrypted client MOVE/CONREADY packets.
         reagent_id=seed_graph_reagent(conn,cid,ammunition);expected_reagent=9 if ammunition else 3
+        if not ammunition:conn.execute('INSERT INTO app_world."TSKILLTABLE" VALUES(1,%s,14,1,0) ON CONFLICT DO NOTHING',(cid,))
         if ammunition:conn.execute('UPDATE app_world."TITEMTABLE" SET "bCount"=9 WHERE "dlID"=%s',(reagent_id,))
         conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=CASE WHEN "wSkillID"=%s THEN 0 ELSE 300000 END WHERE "dwCharID"=%s', (32 if ammunition else 1623,cid))
         primary, replica, key = enter()
@@ -195,6 +198,9 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         primary.close()
         until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'restored graph can complete a fresh Login lifecycle')
         check(replica.recv(1) == b'', 'restored lifecycle closes its secondary through actual World')
+        if not ammunition:
+            primary,replica,key=enter()
+            verify_effect_handoff(conn,primary,replica,cid,current_character,check,until,no_packet)
         primary, replica, key = enter()
         conn.execute("CREATE FUNCTION public.delay_native_transfer() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.server_id=2 AND NEW.phase='loaded' AND NEW.authority_epoch>0 THEN PERFORM pg_sleep(.8); END IF; RETURN NEW; END $$")
         conn.execute('CREATE TRIGGER synthetic_native_transfer_delay BEFORE UPDATE ON app_world.map_sessions FOR EACH ROW EXECUTE FUNCTION public.delay_native_transfer()')
@@ -218,6 +224,8 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         check(items == conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"', (cid,)).fetchall(), 'two-Map lifecycle preserves all original item fields')
     finally:
         for s in sockets:s.close()
+        if not ammunition and not had_shield_skill:
+            conn.execute('DELETE FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=14',(cid,))
         if reagent_id is not None:
             conn.execute('DELETE FROM app_world."TITEMTABLE" WHERE "dwOwnerID"=%s AND "dlID"=%s',(cid,reagent_id))
         if old_weapon is not None:

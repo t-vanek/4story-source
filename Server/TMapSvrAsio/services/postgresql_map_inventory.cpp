@@ -21,22 +21,12 @@ std::string InventoryHash(std::span<const std::byte> bytes) {
     for(auto b:digest){out+=digits[b>>4];out+=digits[b&15];}return out;
 }
 }
-PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInventoryMove(soci::session& sql,
-    const MapSessionClaim& c,const InventoryMoveRequest& request,const CharSnapshot& before,const CharSnapshot& after) const {
-    const bool equipment=request.source_bag==254||request.destination_bag==254;
-    auto verified_before=before;
-    if(equipment)RefreshEquipment(sql,verified_before,false);
-    InventoryStoragePlan out;out.move=PlanInventoryMove(verified_before,request);
-    if(out.move.result!=InventoryMoveResult::Success||(!equipment&&out.move.items.empty()))throw std::runtime_error("Rejected inventory move cannot commit");
-    auto expected=before;ApplyInventoryMove(expected,out.move);
-    const auto candidate=CaptureInventory(after,c.key);
-    if(transfer::Encode(CaptureInventory(expected,c.key))!=transfer::Encode(candidate))
-        throw std::runtime_error("Inventory move changes unrelated character state");
-    const bool graph=bool(before.payload->transfer_state);
-    if(graph!=bool(after.payload->transfer_state))throw std::runtime_error("Inventory storage contract changed");
-    const int world=c.group,character=c.char_id;
-    if(!graph&&!MaintainCheckpointMatches(sql,c,before))throw std::runtime_error("Inventory maintained state changed since hydration");
-    if(equipment&&!graph) {
+std::string PostgreSQLMapService::ValidateInventoryState(soci::session& sql,const MapSessionClaim& c,
+    const CharSnapshot& before,bool all_fresh_items) const {
+    const bool graph=bool(before.payload->transfer_state);const int world=c.group,character=c.char_id;
+    std::string graph_hash;
+    if(!graph&&!MaintainCheckpointMatches(sql,c,before))throw std::runtime_error("Maintained state changed since hydration");
+    if(all_fresh_items&&!graph) {
         // Stats and displacement inspect more than the two requested slots.
         // Fence every fresh item and learned rank, including unchanged equipment.
         std::map<long long,std::string> durable;
@@ -62,12 +52,12 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
              "WHERE world_id=:w AND char_id=:c AND recovery_contract=2 AND character_manifest=:cm AND routing_manifest=:rm AND actor_manifest=:am",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(m_config.character_manifest,"cm"),
             soci::use(m_config.routing_manifest,"rm"),soci::use(m_config.actor_manifest,"am"),
-            soci::into(hex),soci::into(out.before_graph),soci::into(core);
+            soci::into(hex),soci::into(graph_hash),soci::into(core);
         if(!sql.got_data())throw std::runtime_error("Inventory graph checkpoint missing");
         std::vector<std::byte> body;
         for(std::size_t i=0;i<hex.size();i+=2)body.push_back(static_cast<std::byte>(std::stoul(hex.substr(i,2),nullptr,16)));
         auto decoded=transfer::Decode(body);
-        if(!decoded||decoded->db_load||decoded->character.dwCharID!=c.char_id||decoded->key!=c.key||InventoryHash(body)!=out.before_graph)
+        if(!decoded||decoded->db_load||decoded->character.dwCharID!=c.char_id||decoded->key!=c.key||InventoryHash(body)!=graph_hash)
             throw std::runtime_error("Inventory recovery graph is invalid");
         auto stored=std::move(*decoded),live=CaptureInventory(before,c.key);
         auto old_core=stored.character;old_core.payload=before.payload;
@@ -82,6 +72,23 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
         if(transfer::Encode(stored)!=transfer::Encode(live))throw std::runtime_error("Inventory graph changed since hydration");
 
     }
+    return graph_hash;
+}
+PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInventoryMove(soci::session& sql,
+    const MapSessionClaim& c,const InventoryMoveRequest& request,const CharSnapshot& before,const CharSnapshot& after) const {
+    const bool equipment=request.source_bag==254||request.destination_bag==254;
+    auto verified_before=before;
+    if(equipment)RefreshEquipment(sql,verified_before,false);
+    InventoryStoragePlan out;out.move=PlanInventoryMove(verified_before,request);
+    if(out.move.result!=InventoryMoveResult::Success||(!equipment&&out.move.items.empty()))throw std::runtime_error("Rejected inventory move cannot commit");
+    auto expected=before;ApplyInventoryMove(expected,out.move);
+    const auto candidate=CaptureInventory(after,c.key);
+    if(transfer::Encode(CaptureInventory(expected,c.key))!=transfer::Encode(candidate))
+        throw std::runtime_error("Inventory move changes unrelated character state");
+    const bool graph=bool(before.payload->transfer_state);
+    if(graph!=bool(after.payload->transfer_state))throw std::runtime_error("Inventory storage contract changed");
+    const int world=c.group,character=c.char_id;
+    out.before_graph=ValidateInventoryState(sql,c,before,equipment);
     // Claim/checkpoint locks serialize supported inventory writers. Re-read bag
     // metadata and pinned capacities in this transaction; do not trust the DTO.
     std::vector<std::uint8_t> inventories;

@@ -21,6 +21,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work',type=Path,required=True)
     parser.add_argument('--report',type=Path,required=True)
+    parser.add_argument('--through-cancellation',action='store_true',help='Also verify additive migration034 preserves all four recovery contracts')
     args=parser.parse_args();repo=Path(__file__).resolve().parents[2]
     state=json.loads((args.work/'state.json').read_text());verify_container(state,state['pg_container'])
     values=dict(line.split('=',1) for line in (args.work/'postgres.env').read_text().splitlines())
@@ -71,6 +72,19 @@ def main():
             c.execute('INSERT INTO app_world.map_maintained_effects VALUES(1,2,0,132,1,0,1,2,1,2,4)')
             check(c.execute('SELECT app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=2').fetchone()==(True,),'graph recovery continues to ignore stale normalized effects')
             check(c.execute("SELECT has_table_privilege('public','app_world.map_maintained_effects','INSERT') OR has_function_privilege('public','app_world.map_maintain_state(smallint,integer)','EXECUTE')").fetchone()==(False,),'new maintained mutation/comparison have no PUBLIC grant')
+            if args.through_cancellation:
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
+                effects=c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()
+                equipment=c.execute('SELECT to_jsonb(o) FROM app_world.equipment_operations o').fetchall()
+                source=repo/'database/postgresql/034-native-effect-cancellation.sql';shutil.copyfile(source,path/source.name)
+                check(apply_migrations(c,path)==[source.name],'effect upgrade applies only additive migration034')
+                check(apply_migrations(c,path)==[],'effect upgrade reapplies without changing receipts')
+                check(c.execute("SELECT * FROM migration_control.applied WHERE name<'034' ORDER BY name").fetchall()==receipts,'all 33 prior migration receipts remain exact')
+                check(c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()==checkpoints,'effect upgrade preserves complete core skill graph and maintained checkpoints')
+                check(c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()==effects,'effect upgrade preserves ordered native maintained fields')
+                check(c.execute('SELECT to_jsonb(o) FROM app_world.equipment_operations o').fetchall()==equipment,'effect upgrade preserves historical equipment operation bytes')
+                check(c.execute("SELECT has_table_privilege('public','app_world.maintained_effect_operations','INSERT') OR has_sequence_privilege('public','app_world.maintained_effect_operations_operation_id_seq','USAGE')").fetchone()==(False,),'effect ledger and its identity allocator have no PUBLIC mutation grant')
             report.update(status='passed',scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
     finally:
         with psycopg.connect(dbname='postgres',**admin) as conn:conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db)))

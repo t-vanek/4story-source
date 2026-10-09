@@ -55,6 +55,8 @@ public:
         const std::vector<SkillItemDebit>&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}
     virtual InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,
         const CharSnapshot&,const CharSnapshot&) {throw std::runtime_error("Native inventory move transaction unavailable");}
+    virtual EffectEndCommit EndMaintainedEffect(const MapSessionClaim&,const EffectEndRequest&,
+        const CharSnapshot&) {throw std::runtime_error("Native effect cancellation unavailable");}
     std::string ConsumeSkillItem(const MapSessionClaim& c,std::uint16_t skill,
         const ItemInstance& before,const CharSnapshot& after) {
         return ConsumeSkillItems(c,skill,1,{{before,1}},after).at(0);

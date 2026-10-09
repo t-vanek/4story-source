@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "environments": [
+    {
+      "work": "/tmp/fourstory-effect-end-20261009",
+      "database_container_removed": true,
+      "network_removed": true,
+      "owned_containers_remaining": 0,
+      "generated_credentials_tls_configs_removed": 53,
+      "credential_files_remaining": 0,
+      "ownership_label_verified": "fourstory.database-forensics"
+    },
+    {
+      "work": "/tmp/fourstory-effect-end-asan-20261009",
+      "database_container_removed": true,
+      "network_removed": true,
+      "owned_containers_remaining": 0,
+      "generated_credentials_tls_configs_removed": 31,
+      "credential_files_remaining": 0,
+      "ownership_label_verified": "fourstory.database-forensics"
+    },
+    {
+      "work": "/tmp/fourstory-effect-end-release-20261009",
+      "database_container_removed": true,
+      "network_removed": true,
+      "owned_containers_remaining": 0,
+      "generated_credentials_tls_configs_removed": 16,
+      "credential_files_remaining": 0,
+      "ownership_label_verified": "fourstory.database-forensics"
+    }
+  ],
+  "scope": "Only these task-owned verification environments were removed. Private reports and source exports remain outside Git."
+}

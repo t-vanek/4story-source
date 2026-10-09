@@ -1,0 +1,262 @@
+{
+  "date": "2026-10-09",
+  "status": "verified_bounded_increment",
+  "scope": "Existing native Map own-PC cancellation of permanent warrior postures131/132, legitimate absent-match and replica ACKs; actual live-posture two-Map transfer and cancellation. Full generic effects/combat/gameplay remain unfinished.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "10384-10491",
+      "contract": "Original 19-byte SKILLEND request, primary own-PC selection, first attacker/type/skill match, replica/no-object and absent-match ACK."
+    },
+    {
+      "path": "Client/TClient/CSSenderAll.cpp",
+      "lines": "965-989",
+      "contract": "Original client serializes the same request to all Map connections."
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "1102,2562-2580,2621-2780",
+      "contract": "CheckEternalBuff is called inside Defend after incoming effects; EraseMaintainSkill sends END then conditional HPMP and own STAT. No background zero-MP removal was added."
+    },
+    {
+      "path": "Server/TMapSvr/TPlayer.cpp",
+      "lines": "957-978",
+      "contract": "OnTimer checks expiry and recovery, without calling CheckEternalBuff."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1683-1697,3241-3295",
+      "contract": "Original 7-byte SKILLEND and 87-byte character-statistics response."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/CSProtocol.h",
+      "lines": "892-902",
+      "contract": "Original SKILLEND opcodes."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/MessageId.h",
+      "lines": "",
+      "contract": "Modern numeric opcode mirror remains unchanged."
+    }
+  ],
+  "implementation": {
+    "production": "Dispatch -> OnSkillEndReq -> freeze/sample -> EndMaintainedEffect -> current-owner PostgreSQL transaction -> publish committed state -> original ACK and optional own STAT.",
+    "schema": "Additive034 creates maintained_effect_operations with exact request bytes, owner/generation/epoch, ordered before/after effects, removed0/1 and graph/core fingerprints. No applied migration or existing receipt is rewritten.",
+    "rules": "Own-PC host/map/channel and bCanCancel are ignored as in source. Only the first matching attacker ID/type/skill is erased. No match returns only the original ACK. Replica SayToAll requests answer their own socket without calling persistence. Supported erase requires the whole collection to contain only rank1 permanent131/132; generic or mixed effect side effects are pending.",
+    "atomicity": "Account, claim, process and checkpoint fencing; independent full inventory/learned-rank or complete authoritative graph comparison; effect removal, derived stats/core, sampled cooldowns and operation/checkpoint receipts commit together. Fresh last-effect state returns from recovery4 to3. Graph remains2 and leaves normalized child rows untouched.",
+    "wire": "19-byte request0x52b6; 7-byte ACK0x52b7 then 87-byte own STAT only after a removal. Postures do not change HP/MP maxima. Exact EOF required. No opcode/framing/crypto/field-size changes.",
+    "corrections": [
+      "Authenticated own-PC object ID is enforced. Original PC branch ignored the requested object ID and could broadcast a forged target on a no-match request. Foreign targets now close without mutation/ACK.",
+      "Exact request length and explicit fail-closed handling of unported non-PC targets replace permissive original branches until those behaviors are reconstructed.",
+      "Responses follow a native atomic commit instead of deferred original persistence. On transaction error, mark uncertain, close, suppress stale save and require owner recovery. No automatic write retry."
+    ],
+    "failures": "Late ledger failure rolls back native/graph effects and core. Concurrent cancellation using the same prior snapshot commits only one removal. Stale owner/connection/epoch/state fails. Actual delayed-commit disconnect and SIGKILL after cancellation retain committed absence through recovery.",
+    "handoff": "Actual Login/World/two installed-or-built Maps with encrypted source packets and a labelled disposable single-cell partition: create posture on a graph-backed primary, replica ACK without removal, movement handoff with live posture, successor cancel, return transfer, absent-effect ACK and logout. Replica/current-owner behavior is checked on both retained sockets."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-effect-end-debug.json",
+      "status": "passed",
+      "backend_checks": 764,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 557,
+      "nested_checks": {
+        "skill_cast_wire": 53,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 216,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "equipment_wire": 50,
+        "posture_wire": 118
+      },
+      "total_checks": 2470,
+      "runtime": {
+        "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+        "directory": "/src/build/linux-debug/bin/",
+        "integration_test_directory": "/src/build/linux-debug/bin/"
+      },
+      "routing_publication_checks": 7
+    },
+    "asan": {
+      "report": "native-effect-end-asan.json",
+      "status": "passed",
+      "backend_checks": 764,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 557,
+      "nested_checks": {
+        "skill_cast_wire": 53,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 216,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "equipment_wire": 50,
+        "posture_wire": 118
+      },
+      "total_checks": 2470,
+      "runtime": {
+        "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+        "directory": "/src/build/linux-asan/bin/",
+        "integration_test_directory": "/src/build/linux-asan/bin/"
+      },
+      "routing_publication_checks": 7
+    },
+    "release": {
+      "report": "native-effect-end-release.json",
+      "status": "passed",
+      "backend_checks": 764,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 557,
+      "nested_checks": {
+        "skill_cast_wire": 53,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 216,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "equipment_wire": 50,
+        "posture_wire": 118
+      },
+      "total_checks": 2470,
+      "runtime": {
+        "image": "3f22a66f5f321a241e360485cbe32444cd2ebf1d38314addd23bc276d4496e87",
+        "directory": "/opt/fourstory/bin/",
+        "integration_test_directory": "/src/build/linux-debug/bin/"
+      },
+      "routing_publication_checks": 7
+    }
+  },
+  "ctest": {
+    "debug": {
+      "report": "effect-end-debug-ctest.xml",
+      "entries": 203,
+      "actual_passes": 188,
+      "explicit_skips": [
+        "fourstory_postgresql_integration",
+        "tloginsvr_postgresql_auth",
+        "tloginsvr_postgresql_char",
+        "tloginsvr_postgresql_handoff",
+        "tlogsvr_postgresql_sink",
+        "tmapsvr_postgresql_map",
+        "tmapsvr_postgresql_catalog"
+      ],
+      "internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "failures": 0
+    },
+    "asan": {
+      "report": "effect-end-asan-ctest.xml",
+      "entries": 39,
+      "actual_passes": 39,
+      "explicit_skips": [],
+      "internal_skips": [],
+      "failures": 0
+    }
+  },
+  "schema_upgrade": {
+    "report": "effect-end-schema-upgrade.json",
+    "checks": 26,
+    "scope": "Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate."
+  },
+  "runtime_grants": {
+    "report": "effect-end-grants.json",
+    "checks_per_configuration": 7,
+    "scope": "Read-only privilege audit against the actual isolated runtime roles created from checked-in deployment grants."
+  },
+  "source_index": {
+    "report": "source-inventory.json",
+    "legacy_translation_units": 206,
+    "modern_translation_units": 244,
+    "legacy_packet_definitions": 1542,
+    "modern_enum_entries": 1542,
+    "opcode_mismatches": [],
+    "unparsed_packet_definitions": [],
+    "modern_only_opcodes": [],
+    "collision_values": 9
+  },
+  "container": "effect-end-container.json",
+  "image": "localhost/fourstory:postgresql-effect-end",
+  "image_id": "3f22a66f5f321a241e360485cbe32444cd2ebf1d38314addd23bc276d4496e87",
+  "acceptance": {
+    "original_client": "BLOCKED: owner has only uncompiled source, no client EXE/assets or supported binary build/hash. Source0x2918 is not binary compatibility proof.",
+    "supported_client_binary": null,
+    "complete_gameplay": false,
+    "remaining": [
+      "Authoritative accepted-cast/combat transaction, source powers, full effects and zero-MP CheckEternalBuff at its actual Defend call site.",
+      "Generic/mixed and non-PC cancellation side effects, timed expiry, death/static/hide/recall hooks, posture-dependent skills and collisions.",
+      "Multiple actual players receiving neighbor effect broadcasts, full cross-Map AOI and late actor visibility.",
+      "Special equipment and all unfinished original economy/social/companion/gameplay/modes, six-service native persistence and tools in the capability matrix."
+    ],
+    "not_executed": [
+      "Original-client executable/assets acceptance.",
+      "PostgreSQL proxy dropping an otherwise successful COMMIT response: no automatic retry is code-inspected; actual delayed-commit disconnect and late rollback are tested separately.",
+      "Production deployment or external publication."
+    ]
+  },
+  "development_failures_resolved": [
+    "Corrected test-only skill key from wSkillID to actual chart wID and item drift column from bGrade to actual bLevel.",
+    "The handoff fixture starter shield is template9602, not synthetic1001; fixture now derives its shield kind from the immutable backup chart. No production fallback or fabricated template was added."
+  ],
+  "preservation": {
+    "report": "preservation.json",
+    "entries": 36,
+    "immutable_migrations": "001-034",
+    "next_migration": "035",
+    "historical_backup_changes": false,
+    "prior_applied_migration_changes": false
+  },
+  "source_fingerprints": {
+    "Client/TClient/CSSenderAll.cpp": "9935f563e72c27543ed45f19f4e5ff0fcc4fe32068354fec9250dca9b95530d9",
+    "Lib/Own/TProtocol/include/CSProtocol.h": "3ca0d6991bb219acb00f9e7fda3f24105240a17051362355f106de16479a191f",
+    "Lib/Own/TProtocol/include/MessageId.h": "2de84ea6ef0e2a77d3226fc0f1698cb9af9295c7265f9299ec1f168702761bc2",
+    "Server/TMapSvr/CSHandler.cpp": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50",
+    "Server/TMapSvr/CSSender.cpp": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029",
+    "Server/TMapSvr/TObjBase.cpp": "9c6b97b0616605b9ee50e169cd1a93a45cf34e2be178663fc58005ba17764181",
+    "Server/TMapSvr/TPlayer.cpp": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9",
+    "Server/TMapSvrAsio/CMakeLists.txt": "81130f147d06e7c2664d8f260a900ee7c3136304f3f47c646cf52f32c7e29a57",
+    "Server/TMapSvrAsio/domain/maintained_effect.h": "0e5b80b78910af06ef1a473c7ec3f3087ce1cdabb72f69fc74c19ba71a49e491",
+    "Server/TMapSvrAsio/handlers.h": "8b54298cf3e12a233e4c15e42420590a96a3a9166219d591890dbaa18165a930",
+    "Server/TMapSvrAsio/handlers/dispatch.cpp": "85910cba0a3d97c71d27314e68a11a60ba229ca8fa81908c23567e69ac07be24",
+    "Server/TMapSvrAsio/handlers/maintained_effect.cpp": "9ff80b5d48f45aabb6531f0d9c451632c199aa2dce33204d0418fa9a23ad9f93",
+    "Server/TMapSvrAsio/services/player_service.h": "587b69762674e237458df44fe8c6e9cd06b8d9a90d0053d89271d9f6055bc7af",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "244fcea65e46d15722a2b5f26e54ce28f305f85019cb50b41ebecd1b8a06c71b",
+    "Server/TMapSvrAsio/services/postgresql_map_inventory.cpp": "c1873f75f2a86145689e32e870b0f89102d4111f953a88b35be40ac7379f6c26",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "f45223a0d753b23037e898de1d9dca3bc1b79ace9c2ec0468b0308a2fd423d28",
+    "Server/TMapSvrAsio/tests/posture_fixture.h": "063c85eb1aabc2bfa06bf0738fdac94b7324b939e9958a643e27c29b580f1f6a",
+    "database/postgresql/034-native-effect-cancellation.sql": "5d2b73f638fd3c3bc721a238c883d05e70689e50ad5386bdfaf2ad73aad5fdf8",
+    "deploy/sql/map-runtime-grants.sql": "51836fe8d37a82b64c78c28564e751c3e8c4e37d0190047a7f94b3c45a94b79f",
+    "tools/database/verify_effect_handoff_wire.py": "4d55c71e9dd96aa91c005c89b0b3290dbbe56bceb0d8db5885eb98d9e052e60c",
+    "tools/database/verify_map_replica_wire.py": "140f8b8ec6db6c52cca5f824d0ef420a47b20c50befbe3c84a98bca6ea5e234a",
+    "tools/database/verify_posture_upgrade.py": "25b8acb5fbd842b5f346861fd2353a4970e5364b4f18a2b21c919461cd47c3af",
+    "tools/database/verify_posture_wire.py": "2371d867785df810439f3f112905bf92c3a527d480e550b3cc5e2336e9715f5f"
+  },
+  "local_only": true,
+  "cleanup": "effect-end-cleanup.json"
+}

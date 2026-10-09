@@ -1,6 +1,58 @@
 #pragma once
 #include "services/maintained_effects.h"
 
+void VerifyEffectEnd(soci::session& admin,tmapsvr::PostgreSQLMapService& service,
+    const tmapsvr::MapSessionClaim& active,tmapsvr::CharSnapshot& live,bool graph) {
+    using namespace tmapsvr;const auto cid=std::to_string(active.char_id);
+    // Own-PC host/map/channel are ignored by the original handler, even when
+    // stale. The backup's Defence Stance is not marked bCanCancel.
+    EffectEndRequest request;request.object=active.char_id;request.object_type=1;
+    request.attacker=active.char_id;request.attack_type=1;request.skill=131;request.map=65535;request.channel=255;
+    Check(Number(admin,"SELECT \"bCanCancel\" FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=131")==0,"original posture template does not grant UI cancellation permission");
+    const auto durable=[&]{std::string result;admin<<"SELECT jsonb_build_array(to_jsonb(p),app_world.map_maintain_state(1::smallint,"+cid+"))::text FROM app_world.map_checkpoints p WHERE char_id="+cid,soci::into(result);return result;};
+    auto original=live;const auto initial=durable();
+    auto wrong=request;wrong.object++;
+    Check(Throws([&]{service.EndMaintainedEffect(active,wrong,live);}),"foreign PC cancellation fails before persistence");
+    wrong=request;wrong.object_type=2;
+    Check(Throws([&]{service.EndMaintainedEffect(active,wrong,live);}),"unported non-PC cancellation fails closed");
+    auto stale=active;stale.role=MapSessionRole::Replica;
+    Check(Throws([&]{service.EndMaintainedEffect(stale,request,live);}),"replica service cannot mutate primary effects");
+    stale=active;stale.connection_id++;
+    Check(Throws([&]{service.EndMaintainedEffect(stale,request,live);}),"stale connection cannot cancel maintained effects");
+    stale=active;stale.authority_epoch++;
+    Check(Throws([&]{service.EndMaintainedEffect(stale,request,live);}),"stale authority epoch cannot cancel maintained effects");
+    Check(durable()==initial,"rejected effect requests preserve exact recovery receipt and effects");
+    for(int field:{0,1,2}) {
+        wrong=request;if(field==0)wrong.attacker++;else if(field==1)wrong.attack_type++;else wrong.skill++;
+        const auto result=service.EndMaintainedEffect(active,wrong,live);
+        Check(!result.removed&&MaintainJson(*result.snapshot)==MaintainJson(live),"nonmatching attacker/type/skill commits ACK-only without effect removal");
+        live=*result.snapshot;
+    }
+    const auto before_fault=durable();auto sample=live;sample.dwEXP++;
+    admin<<"CREATE TRIGGER synthetic_effect_end_fault BEFORE INSERT ON app_world.maintained_effect_operations FOR EACH ROW EXECUTE FUNCTION public.reject_checkpoint()";
+    Check(Throws([&]{service.EndMaintainedEffect(active,request,sample);}),"late cancellation ledger failure rolls back effect and sampled core");
+    admin<<"DROP TRIGGER synthetic_effect_end_fault ON app_world.maintained_effect_operations";
+    Check(durable()==before_fault,"cancellation failure preserves exact native or graph receipt");
+    if(!graph) {
+        admin<<"UPDATE app_world.\"TITEMTABLE\" SET \"bLevel\"=\"bLevel\"+1 WHERE \"dwOwnerID\"="+cid+" AND \"dwStorageID\"=254 AND \"bItemID\"=0";
+        Check(Throws([&]{service.EndMaintainedEffect(active,request,live);}),"changed equipment fences effect statistic recalculation");
+        admin<<"UPDATE app_world.\"TITEMTABLE\" SET \"bLevel\"=\"bLevel\"-1 WHERE \"dwOwnerID\"="+cid+" AND \"dwStorageID\"=254 AND \"bItemID\"=0";
+    }
+    const auto race=[&]()->std::optional<EffectEndCommit>{try{return service.EndMaintainedEffect(active,request,live);}catch(...){return {};}};
+    auto first=std::async(std::launch::async,race),second=std::async(std::launch::async,race);auto a=first.get(),b=second.get();
+    Check(bool(a)!=bool(b),"concurrent cancellation of the same snapshot commits once");
+    const auto result=a?*a:*b;live=*result.snapshot;
+    Check(result.removed&&live.payload->effects->empty()&&original.payload->effects->size()==1,"cancellation removes exactly one effect and preserves original immutable snapshot");
+    Check(live.payload->statistics->physical_defense<original.payload->statistics->physical_defense&&live.payload->statistics->magic_defense<original.payload->statistics->magic_defense,"cancellation rederives original defense statistics");
+    Check(Throws([&]{service.EndMaintainedEffect(active,request,original);}),"old effect snapshot cannot replay after removal");
+    const auto repeated=service.EndMaintainedEffect(active,request,live);
+    Check(!repeated.removed&&repeated.snapshot->payload->effects->empty(),"repeated client cancellation commits legitimate absent-match ACK");
+    live=*repeated.snapshot;
+    Check(Number(admin,"SELECT count(*) FROM app_world.maintained_effect_operations WHERE char_id="+cid+" AND removed=1")==1,"one durable effect removal survives the cancellation race");
+    Check(Number(admin,"SELECT recovery_contract FROM app_world.map_checkpoints WHERE char_id="+cid)==(graph?2:3),"last explicit cancellation returns to the correct empty recovery contract");
+    Check(Number(admin,"SELECT count(*) FROM app_world.maintained_effect_operations WHERE char_id="+cid+" AND state_contract="+(graph?"2":"3")+" AND octet_length(request)=19")==5,"effect ledger records exact source request width and storage authority");
+}
+
 void VerifyPostures(soci::session& admin,SessionPool& pool,tmapsvr::PostgreSQLMapService& source,
     const char* connection,const char* manifest,const char* routing,const char* actor,tmapsvr::MapSessionClaim primary,bool graph) {
     using namespace tmapsvr;
@@ -59,6 +111,8 @@ void VerifyPostures(soci::session& admin,SessionPool& pool,tmapsvr::PostgreSQLMa
         Check(Throws([&]{service->MoveInventoryItems(active,{254,1,255,10,1},live,preview({254,1,255,10,1}));}),"effect drift fences equipment mutation");
         admin<<"UPDATE app_world.map_maintained_effects SET attack_id=attack_id-1 WHERE char_id="+cid;
     }
+    VerifyEffectEnd(admin,*service,active,live,graph);
+    apply({254,1,255,10,1});apply(shield);
     service->CheckpointAuthorized(active,live,1);
     const auto old=live;result=apply({254,1,255,10,1});
     Check(live.payload->effects->empty()&&result.equipment_display->payload->effects->size()==1&&result.effects_after.size()==1&&!result.effects_after[0].added,"unequip ends posture after intermediate equipment sheet and HPMP");

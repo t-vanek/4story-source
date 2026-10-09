@@ -8,18 +8,22 @@ Owner instruction (2026-10-09): keep implementation and versioning local on `mai
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current continuation (maintained postures): preserve migrations **032–033** and
-`equipment-contract.json` / `postures-contract.json`. Automatic warrior postures
-131/132 now commit with equipment, affect source-derived statistics, survive fresh
-and graph recovery, and cancel through `CheckEquipSkill` in source packet order.
-Continue **durable active effects** with the actual `CS_SKILLEND_REQ` path,
-`CheckEternalBuff` at zero MP, timed expiry, death/static rules, dependent `wPosture`
-skills, and complete collisions/attack effects. Add actual two-process TCP handoff
-with a live posture (current new posture graph coverage is through the native
-service API and replacement owner). Keep the source pointer-lifetime quirk: a whole
-two-hand move to an empty slot deletes the source pointer and does not create 132.
-These remain required to finish equipment; a permanent posture with remaining=0
-must not be expired as if it were a timed effect.
+Current continuation (active effects): preserve migrations **032–034** and
+`equipment-contract.json`, `postures-contract.json`, `effect-end-contract.json`.
+Own-PC `CS_SKILLEND_REQ` now cancels permanent warrior postures atomically, preserves
+source no-match ACK semantics and answers replica connections without writes.
+Actual two-Map TCP carries a live posture, cancels it on the successor and returns
+without resurrecting it. General effect cancellation, non-PC targets and complete
+remote visibility are still required.
+
+Continue the **authoritative combat/effect transaction**: `CheckEternalBuff` is
+called only inside original `CTObjBase::Defend` at TObjBase.cpp:1102, after incoming
+damage/effects. Do not invent periodic zero-MP removal or remove immediately on
+SKILLUSE cost deduction. The modern Defend prototype still lacks complete accepted
+cast authorization, source powers and durable effects. Port those dependencies,
+then zero-MP removal, timer expiry, death/static rules, dependent `wPosture` skills,
+and complete collisions/attack effects. Preserve permanent remaining=0 and the
+source whole-two-hand/empty-slot pointer-lifetime quirk.
 Then complete special-equipment combat state, party/companion/guild/local-battle
 updates, race costumes and remote visibility. Keep drops, timed bags, secured
 inventory/trade/store integration and all economy systems in scope.
@@ -27,7 +31,7 @@ inventory/trade/store integration and all economy systems in scope.
 Preserve the explicitly certified old-two-table → current-four-table actor upgrade
 and its immutable graph receipts. It does not authorize arbitrary content changes,
 character/routing releases or transitive upgrades. All backups and migrations
-**001–033** are immutable; the next schema migration is **034**.
+**001–034** are immutable; the next schema migration is **035**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -42,7 +46,7 @@ character/routing releases or transitive upgrades. All backups and migrations
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–033 and the checkpoint, retirement and replica contract evidence. Actual
+   001–034 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -477,7 +481,7 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–032; next schema change is 033. Native
+Preserve backups and migrations 001–034; next schema change is 035. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
@@ -497,11 +501,11 @@ per-operation receipt grouping, canonical graph state and uncertain-outcome
 reservation retention. Migration 028 now integrates source CTItem equality, split/merge and the shared
 allocator, including actual two-Map split/move/return/merge packets. Migration 032 now implements ordinary equipment
 slot/class/level/two-hand rules and derived-stat/timing recomputation. Continue
-active-effect/posture and advanced equipment dependencies. Preserve actual two-Map
+generic effect and advanced equipment dependencies. Preserve actual two-Map
 inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
 only until complete gameplay; Log uses 029, statistics 030, actor transition 031
-and equipment 032. Next new migration: 033.
+equipment 032, postures 033 and explicit cancellation 034. Next new migration: 035.
 
 
 The owner confirmed that only uncompiled client sources are available, without

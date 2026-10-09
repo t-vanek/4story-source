@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **032** are also immutable. Current
-native Map deployment requires migrations through 032 and the existing
+All subsequently applied migrations through **034** are also immutable. Current
+native Map deployment requires migrations through 034 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,7 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 033+.
+for tests and remaining gameplay requirements. Add schema changes as 035+.
 
 Migration 021 adds fresh-primary skill checkpoints (contract 3). Initial readiness,
 periodic checkpoints and final logout atomically store remaining skill durations
@@ -116,7 +116,7 @@ rollback restores the allocator along with items and recovery state. Graph split
 reserve a global ID without materializing stale normalized child rows. Apply the
 updated Map grants for item INSERT, stack receipt INSERT and narrow high-water
 UPDATE. Native audit uses 029, statistics 030, actor compatibility 031 and
-equipment 032 and maintained postures 033. All are immutable; the next schema change is 034. See the
+equipment 032, maintained postures 033 and client cancellation 034. All are immutable; the next schema change is 035. See the
 [stack contract](../_rewrite/docs/modernization/evidence/inventory-stacks-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
@@ -294,7 +294,7 @@ commit. Equipment eligibility uses the original `bLevel` chart column and raw
 full-width item extensions. Inactive account pets are preserved separately from
 active-effect dependencies. Apply the current Map grants after migration.
 See [contract and limits](../_rewrite/docs/modernization/evidence/equipment-contract.json).
-Backups and migrations **001–033** are immutable; next migration **034**.
+Backups and migrations **001–034** are immutable; next migration **035**.
 
 ### Native maintained postures
 
@@ -317,3 +317,19 @@ SELECT/INSERT/DELETE on native maintained rows and execution of their comparison
 function. No historical table grants or automatic unknown-commit retries are added.
 Stop existing Maps before schema/application upgrade; use all six binaries from
 the same tested image. See [posture evidence](../_rewrite/docs/modernization/evidence/postures-contract.json).
+
+### Native client effect cancellation
+
+Migration **034** adds `maintained_effect_operations`. Exact 19-byte source
+requests, ordered effect collections and owner/connection/authority/graph/core
+receipts are append-only. Own-PC permanent postures cancel atomically with native
+core/cooldown recovery; fresh last-effect removal restores contract 3 and graph
+state retains contract 2. Replicas never write. No-match requests preserve original
+ACK semantics and record `removed=0`; an uncertain write is never automatically
+retried. Prior applied migrations and backups remain immutable.
+
+See [effect cancellation evidence](../_rewrite/docs/modernization/evidence/effect-end-contract.json)
+and [local verification](../deploy/README.md#native-effect-cancellation).
+`verify_posture_upgrade.py --through-cancellation` verifies additive 032→033→034
+preservation; actual owner, gameplay and wire tests are separate. Full generic
+effects, native combat and actual-client acceptance remain open.

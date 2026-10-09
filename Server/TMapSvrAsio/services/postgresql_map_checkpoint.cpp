@@ -1,6 +1,7 @@
 #include "postgresql_map_service.h"
 #include "postgresql_map_owner.h"
 #include "maintained_effects.h"
+#include "posture_effects.h"
 #include <openssl/sha.h>
 #include <soci/soci.h>
 #include <algorithm>
@@ -280,6 +281,55 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
             soci::use(cast_id,"cast"),soci::use(hit_count,"hits"),soci::use(hit_mode,"mode");
     }
     tx->commit();return hashes;
+}
+EffectEndCommit PostgreSQLMapService::EndMaintainedEffect(const MapSessionClaim& c,const EffectEndRequest& request,
+    const CharSnapshot& before) {
+    const bool graph=before.payload&&before.payload->transfer_state;
+    if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!before.payload||
+       before.dwCharID!=c.char_id||before.persistence_uncertain||request.object_type!=1||request.object!=c.char_id)
+        throw std::runtime_error("Unsupported native effect cancellation");
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Effect claim is not ready primary");
+    CheckCatalogs(sql);
+    const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
+        throw std::runtime_error("Effect recovery receipt changed");
+    const long long key=c.key;int unlocked=0;
+    sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
+    if(!sql.got_data())throw std::runtime_error("Effect session was revoked");
+    const auto before_graph=ValidateInventoryState(sql,c,before,true);
+    auto after=before;
+    const auto& effects=MaintainedEffects(*before.payload);
+    const auto found=std::find_if(effects.begin(),effects.end(),[&](const auto& e){
+        return e.attack_id==request.attacker&&e.attack_type==request.attack_type&&e.skill==request.skill;
+    });
+    const int removed=found!=effects.end()?1:0;
+    if(removed) {
+        // Original OnCS_SKILLEND_REQ ignores host/map/channel and bCanCancel
+        // for one's own PC. Erase only the first attacker/type/skill match.
+        // Other effects require their own hide/death/recall/stat side effects.
+        if(!SupportedPostures(*before.payload))throw std::runtime_error("Effect erase semantics are not implemented for this maintained state");
+        auto p=std::make_shared<CharacterPayload>(*before.payload);
+        p->effects->erase(p->effects->begin()+std::distance(effects.begin(),found));after.payload=std::move(p);
+        RefreshEquipment(sql,after,true);
+        if(!graph)WriteMaintainedEffects(sql,c,after);
+    }
+    const auto fingerprint=Fingerprint(c,after),after_graph=graph?TransferFingerprint(c,after):std::string{};
+    WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
+    constexpr char digits[]="0123456789abcdef";std::string wire;
+    const auto append=[&]<class T>(T v){for(std::size_t n=0;n<sizeof(T);++n){const auto b=v&255;wire+=digits[b>>4];wire+=digits[b&15];v>>=8;}};
+    append(request.object);append(request.object_type);append(request.host);append(request.attacker);
+    append(request.attack_type);append(request.skill);append(request.map);append(request.channel);
+    const int world=c.group,character=c.char_id,server=m_config.server,contract=graph?2:3;
+    const long long generation=c.connection_id,epoch=c.authority_epoch;
+    const auto before_effects=MaintainJson(before),after_effects=MaintainJson(after);
+    sql<<"INSERT INTO app_world.maintained_effect_operations(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,state_contract,request,removed,before_effects,after_effects,before_graph_hash,after_graph_hash,core_fingerprint) "
+         "VALUES(:w,:c,:s,:t,:g,:e,:contract,decode(:request,'hex'),:n,CAST(:be AS jsonb),CAST(:ae AS jsonb),NULLIF(:gb,''),NULLIF(:ga,''),:f)",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
+        soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(contract,"contract"),soci::use(wire,"request"),soci::use(removed,"n"),
+        soci::use(before_effects,"be"),soci::use(after_effects,"ae"),soci::use(before_graph,"gb"),soci::use(after_graph,"ga"),soci::use(fingerprint,"f");
+    tx->commit();return {std::make_shared<const CharSnapshot>(std::move(after)),removed!=0};
 }
 InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionClaim& c,const InventoryMoveRequest& request,
     const CharSnapshot& before,const CharSnapshot& after) {

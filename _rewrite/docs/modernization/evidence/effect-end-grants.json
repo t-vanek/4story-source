@@ -1,0 +1,105 @@
+{
+  "status": "passed",
+  "scope": "Read-only privilege audit against the actual isolated runtime roles created from checked-in deployment grants.",
+  "configurations": {
+    "debug": {
+      "status": "passed",
+      "checks": [
+        {
+          "privilege": "SELECT",
+          "allowed": true
+        },
+        {
+          "privilege": "INSERT",
+          "allowed": true
+        },
+        {
+          "privilege": "UPDATE",
+          "allowed": false
+        },
+        {
+          "privilege": "DELETE",
+          "allowed": false
+        },
+        {
+          "privilege": "TRUNCATE",
+          "allowed": false
+        },
+        {
+          "sequence_privilege": "USAGE",
+          "allowed": true
+        },
+        {
+          "sequence_privilege": "UPDATE",
+          "allowed": false
+        }
+      ]
+    },
+    "asan": {
+      "status": "passed",
+      "checks": [
+        {
+          "privilege": "SELECT",
+          "allowed": true
+        },
+        {
+          "privilege": "INSERT",
+          "allowed": true
+        },
+        {
+          "privilege": "UPDATE",
+          "allowed": false
+        },
+        {
+          "privilege": "DELETE",
+          "allowed": false
+        },
+        {
+          "privilege": "TRUNCATE",
+          "allowed": false
+        },
+        {
+          "sequence_privilege": "USAGE",
+          "allowed": true
+        },
+        {
+          "sequence_privilege": "UPDATE",
+          "allowed": false
+        }
+      ]
+    },
+    "release": {
+      "status": "passed",
+      "checks": [
+        {
+          "privilege": "SELECT",
+          "allowed": true
+        },
+        {
+          "privilege": "INSERT",
+          "allowed": true
+        },
+        {
+          "privilege": "UPDATE",
+          "allowed": false
+        },
+        {
+          "privilege": "DELETE",
+          "allowed": false
+        },
+        {
+          "privilege": "TRUNCATE",
+          "allowed": false
+        },
+        {
+          "sequence_privilege": "USAGE",
+          "allowed": true
+        },
+        {
+          "sequence_privilege": "UPDATE",
+          "allowed": false
+        }
+      ]
+    }
+  }
+}

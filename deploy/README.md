@@ -6,13 +6,13 @@ one daemon as UID/GID 10001, logs to stdout, and receives SIGTERM directly.
 
 ## Current native PostgreSQL verification contract
 
-The current native Login/Map path requires migrations **001–033**, current
+The current native Login/Map path requires migrations **001–034**, current
 `sql/login-runtime-grants.sql` and `sql/map-runtime-grants.sql`, plus explicitly
 activated character/routing/four-table actor catalogs. The Map role now has bounded gameplay
 writes for consumption and inventory moves/splits/merges, including item INSERT
 and the shared world ID counter. Earlier sections below describe their original
 increment and do not override this requirement. Applied migrations are immutable;
-the next schema change starts at 031. Existing player graph catalog bindings need
+the next schema change starts at 035. Existing player graph catalog bindings need
 an explicit compatibility migration before switching a populated world; see
 [native character statistics](#native-map-character-statistics).
 
@@ -414,7 +414,7 @@ Migrations 001–019 are unchanged. See the
 and [installed verification](../_rewrite/docs/modernization/evidence/main-transfer-container-verification.json).
 
 
-Current installed image: `localhost/fourstory:postgresql-native-primary`.
+Image verified for this earlier increment: `localhost/fourstory:postgresql-native-primary`.
 Apply migration 020 and the current `deploy/sql/map-runtime-grants.sql` to the
 operational PostgreSQL database before using its native Map path. Do not edit
 applied 001–019 or the authoritative backups. The new image integrates native
@@ -578,7 +578,7 @@ See [transition evidence](../_rewrite/docs/modernization/evidence/actor-transiti
 
 ## Native equipment transactions
 
-Current local runtime: `localhost/fourstory:postgresql-equipment`. Build locally:
+Image verified for the equipment increment: `localhost/fourstory:postgresql-equipment`. Its reproduction:
 
 ```sh
 podman build --layers --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-equipment .
@@ -629,7 +629,8 @@ claiming a complete server. See [equipment contract](../_rewrite/docs/modernizat
 
 ## Native maintained postures
 
-Current application schema: **001–033**, next migration **034**. Stop Map owners
+The recorded posture increment required schema **001–033**. The current requirement
+is in [native effect cancellation](#native-effect-cancellation). Stop Map owners
 before upgrading, apply migrations with the schema owner, and reapply
 `sql/map-runtime-grants.sql`. Start the services using the existing native catalog,
 TLS and Compose procedure above. All running Maps must use the current image.
@@ -678,3 +679,46 @@ python3 tools/database/verify_posture_upgrade.py --work /tmp/fourstory-postures-
 It creates/removes its own synthetic database, upgrades untouched 001–032 receipts
 through 033, and verifies all eight maintained-field drift guards. This structural
 check does not substitute for the native process and original-client tests.
+
+## Native effect cancellation
+
+Current schema: **001–034**, next migration **035**. Stop Map owners, apply all
+pending migrations through `tools/database/migrate.py`, then reapply
+`deploy/sql/map-runtime-grants.sql` for the existing Map role. Migration 034 adds
+only the effect operation ledger and its identity allocator; earlier migration
+files, checkpoint fields and backup files remain unchanged. The role receives
+INSERT/SELECT on the ledger and USAGE on its sequence, with no UPDATE/DELETE.
+
+Use the same pinned character, routing and four-table actor manifests as the
+posture increment. Build and verify locally:
+
+```sh
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-effect-end .
+python3 tools/database/disposable_environment.py start --work /tmp/fourstory-effect-end-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-effect-end-test --map-runtime-only --build-dir build/linux-debug \
+  --image localhost/fourstory:postgresql-effect-end --runtime-bin-dir /opt/fourstory/bin \
+  --snapshot /private/character/reference/manifest.json \
+  --routing-snapshot /private/routing/reference/manifest.json \
+  --actor-snapshot /private/statistics/actor-reference/manifest.json \
+  --report /tmp/native-effect-end-release.json
+python3 tools/database/verify_posture_upgrade.py \
+  --work /tmp/fourstory-effect-end-test --through-cancellation \
+  --report /tmp/effect-end-upgrade.json
+python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-effect-end
+python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-effect-end-test
+```
+
+For Debug use the default build-deps image and omit `--runtime-bin-dir`; for
+ASan/UBSan also use `--build-dir build/linux-asan`. Compile the corresponding preset
+first. The installed Release test still mounts the Debug backend integration test;
+its actual Login/World/Map daemons come from `/opt/fourstory/bin`. Use separate labs
+for concurrent configurations, because TLS files belong to the PostgreSQL process.
+See [the contract and recorded evidence](../_rewrite/docs/modernization/evidence/effect-end-contract.json).
+
+The native wire suite uses original-source packet oracles, a labelled synthetic
+routing partition and backup-derived catalogs. It covers a live posture transfer,
+replica ACK, successor cancellation, return, malformed requests, late rollback,
+disconnect during commit and SIGKILL recovery. No original executable/assets are
+available. General combat/effects and full gameplay remain unfinished; this image
+is for local verification and has not been published or deployed externally.

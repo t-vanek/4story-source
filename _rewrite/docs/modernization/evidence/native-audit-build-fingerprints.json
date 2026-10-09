@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-09",
+  "base_commit": "9bc0394c273741d9d4baa1cda78489636793ccce",
+  "release_image": {
+    "reference": "localhost/fourstory:postgresql-native-audit",
+    "id": "a46c4c47f691a9098b24f76ca3711c63b861612deef388847545ab1fe599a115",
+    "user": "10001:10001"
+  },
+  "build_deps_image_id": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+  "installed_sha256": {
+    "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+    "/opt/fourstory/bin/tlogsvr_asio": "23793d010d1517c915ea23460d164c7eebfe4524783a4959b57ba008ac88558d",
+    "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+    "/opt/fourstory/bin/tmapsvr_asio": "4691687ef1d648fc81bdec5a143c031ac617e73eedc5de42e5cc2f0282fb7063",
+    "/opt/fourstory/bin/tworldsvr_asio": "da5696c7efcb13cd2a6f91248224a288de036c058e9b7ab8e4b7b538fbc5a8ff"
+  },
+  "sha256": {
+    "CMakePresets.json": "f4fb9ac55d8eb140fc63a26d8b8922405ddc7b25d6a14dd6bf75bb604bd24ed1",
+    "Dockerfile": "3417a1fb094a810d52fb56de53e3ea3cc8be5f8188363517598e3f9c0e662c5b",
+    "README.md": "311c97d6ccdb62183ea5e219e1f066d94dda25c52e628bcfd5bf376c5d28d4a5",
+    "database/README.md": "604586d1325238eac86545fefc1c1bb587471de76b4cd6368d68cf5226ce9fc0",
+    "database/postgresql/029-native-audit.sql": "cbeb6d1930e5f7447e42c50f0ec0d57d150ac1a4ea93c661832e2bd6e4ab87aa",
+    "deploy/README.md": "984f375dce22ca2f6958ece81c006a4b805f3c1a95e019bdba5489dd66c3c4de",
+    "deploy/sql/log-runtime-grants.sql": "35333ca7106b037d0a0158f5458e281cbf6e5d9ab919a4188b118875badf7fff",
+    "deploy/tlogsvr-postgresql.example.toml": "880ee44bc77d531212cf424b85a82c159298c4bd3d9e3f69248762b5fc0209b4",
+    "tools/database/verify_log_outcomes.py": "5dfaefee0f2115c09bead9cb11fd748b41d6a050ec061ab521bb3ac3cb027d86",
+    "Server/TLogSvrAsio/CMakeLists.txt": "29a4c68f32f32f5e3bc50fdebeadf9a4dbe04e24e0dcd6955db933518e536228",
+    "Server/TLogSvrAsio/main.cpp": "e6ddd43907e33c8958d4baed7f60c4404a8bd0a3f9a30350d147052c43e63aef",
+    "Server/TLogSvrAsio/config.h": "025ccf4ca43707b0415e3bb22ef43a55a43fe9386617e1b13871b3dacff35928",
+    "Server/TLogSvrAsio/config.cpp": "935ff8d858aa50e5e8bd6419dc4c24375194ddd8895d696e5c8c5cc48ecbcbfd",
+    "Server/TLogSvrAsio/log_server.cpp": "6ae819fb42e58604529b4d1582d3b1f632eb7c9feaec0566a04359d389d64cdc",
+    "Server/TLogSvrAsio/db/schema_validator.cpp": "bfb02d57703f64af8578d98774b8c22d5e957fab35fde275d9b96ef44df60140",
+    "Server/TLogSvrAsio/db/schema_validator.h": "e352d38c0919a4bd26af275d25e0b66caff0250e7c478af4d93861a4d8c23c7b",
+    "Server/TLogSvrAsio/services/log_sink.cpp": "921c537cbef622e12d483e7e1672be0071fefa96968601e050765091c317c45e",
+    "Server/TLogSvrAsio/services/log_sink.h": "b1cd2779c86746ce8fb60339db0b1de09e7c31259c90ce21a606c1d8f4732523",
+    "Server/TLogSvrAsio/services/audit_transaction.h": "610a6eca2a756b4d07c96916f4641b6cd47f1eb76d6b42f856a24722e848d102",
+    "Server/TLogSvrAsio/services/audit_bytes.h": "e1ada112fdc4a61f6f5cafb2e22ab8a459d12dbdee3374afcf9a3036dc0b4912",
+    "Server/TLogSvrAsio/services/audit_query_repository.h": "7d1050b748a762ee5fac0e6926d3844e9cbff511630dbbbd2f27f65f55de41dd",
+    "Server/TLogSvrAsio/tests/test_audit_transaction.cpp": "d10ca08f06879b6dbb09256557d2e86185b96c667a8eecb072df657db13c1992",
+    "Server/TLogSvrAsio/tests/test_postgresql_sink.cpp": "409ae761df8d9068d346d91f2257a78b57edf6b053147d440e12be37ef88bcf7",
+    "_rewrite/docs/modernization/README.md": "be28e67a51d579400a7878eb972b3159c503da5269e9a93876b5283099f9eacd",
+    "_rewrite/docs/modernization/capability-matrix.md": "f89df2fa4deb6691c6b5b003caafd42e86310ec6c5e89f8c256a4e87ed3f5475",
+    "_rewrite/docs/modernization/next-steps.md": "746857aa5ca5c82050d1b6b28462fb4842d161d78f7316f44b5f5a8095728dac",
+    "_rewrite/docs/modernization/protocol-compatibility.md": "1b88465e16da2d7bc7d2508d380aa7146dcee909e32745f00908735a9665f74a",
+    "build/linux-debug/bin/tlogsvr_asio": "14ab89593b7f276c3657170f66b7f14caea59a056d4b42ef4de7f3ed81f528aa",
+    "build/linux-debug/bin/test_tlogsvr_audit_transaction": "bdad30e8dff11e5e3119532a038ce379a9a45cfd6004839a40eb7fdca56f5354",
+    "build/linux-debug/bin/test_tlogsvr_postgresql_sink": "b0a41dd97fa4e382b9cb10be38e5eb85805dd7e0b78c09f037579d41ef327fcf",
+    "build/linux-asan/bin/tlogsvr_asio": "93fa1bc8488402d692fe63536782475d73e772cc4eaf38e83ab91ef02bf6d504",
+    "build/linux-asan/bin/test_tlogsvr_audit_transaction": "99ff36dea80a84679bcf8928911b949661b7fee7714d8108e0b5906e3ae3d66d",
+    "build/linux-asan/bin/test_tlogsvr_postgresql_sink": "8eb181837e1e462240a0dd7f612b91a4a526adbb431836204b96c3fe96cda737"
+  },
+  "native_reports": [
+    "native-audit-debug.json",
+    "native-audit-asan.json",
+    "native-audit-release.json"
+  ],
+  "container_smoke": "native-audit-container-smoke.log",
+  "release_backend_test": "Debug executable; actual UDP service is installed Release",
+  "published": false
+}

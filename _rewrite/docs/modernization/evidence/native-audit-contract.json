@@ -1,0 +1,100 @@
+{
+  "date": "2026-10-09",
+  "base_commit": "9bc0394c273741d9d4baa1cda78489636793ccce",
+  "scope": "Native LP_LOG storage, byte-preserving query path, startup/grants validation and recovery of committed audit records in existing TLogSvrAsio",
+  "source_authority": {
+    "backup_schema_audit_matches": {
+      "TGLOBAL_RAGEZONE": [],
+      "TGAME_RAGEZONE": []
+    },
+    "original_wire": "LogPacket.h: DWORD server/action/format; WORD map; int positions; eleven int64 search values; CHAR client IP[16], seven keys[50], payload[512]. Existing original Win32 header offsets retained.",
+    "original_write": "CUdpSocket::LogDBSave formats event timestamp to seconds and inserts original LT_* columns into ITEMLOGTLyyyymmdd, with WriteBlob of 512 bytes.",
+    "original_chat": "CUdpSocket.cpp:442-450 initializes all LP_COUNT entries to Packet_Nothing and only replaces LP_LOG with Packet_LogDB. LP_CHAT therefore follows source no-op; persistent chat logging is not established by this source. The modern decoder currently classifies non-LP_LOG as bad format; original-sender acceptance/classification remains unverified.",
+    "history": "No historical audit table or events invented; new empty application schema. The backups remain authoritative for the schemas they contain."
+  },
+  "native_contract": {
+    "migration": "029-native-audit.sql",
+    "version": 1,
+    "schema": "app_audit",
+    "relation": "TLOG_AUDIT",
+    "raw_fields": "lt_clientip and all seven lt_keyN are bounded bytea, without code-page interpretation; reader returns raw std::string; native startup display is hexadecimal.",
+    "integer_fields": "Unsigned wire DWORDs in constrained bigint; WORD map in constrained integer; signed int32 positions and int64 search keys.",
+    "payload": "Nonempty transmitted bytes preserved. Empty maps to NULL, retaining the existing modern contract; source legacy writes always used 512 bytes.",
+    "metadata": "Generated lt_id and database received_at are explicitly modern; original lt_logdate remains timestamp without time zone at original seconds precision.",
+    "queries": "Fully qualified configured table; native COUNT, ordered LIMIT, bound signed user filter. Custom table uses same validated contract and explicit grants. No native TOP/SpCall path.",
+    "startup": "Contract/version, exact relevant column types/nullability, INSERT and sequence USAGE checked; native startup read failure is fatal before UDP bind. Environment DSN is required when configured, with competing sources refused.",
+    "permissions": "Dedicated role has audit SELECT, INSERT only on source event columns, schema USAGE and identity sequence USAGE. No UPDATE/DELETE/TRUNCATE/DDL or access to player account schema.",
+    "outcomes": "Prior committed/retryable/unknown boundary preserved. Unknown outcome closes its connection and is never blindly retried.",
+    "retention": "No automatic deletion policy or history import."
+  },
+  "verification": {
+    "debug_ctest": {
+      "entries": 202,
+      "actual_passes": 187,
+      "internal_skips": 8,
+      "explicit_fixture_skips": 7,
+      "failures": 0,
+      "report": "native-audit-ctest.xml"
+    },
+    "sanitizer_ctest": {
+      "entries": 37,
+      "passes": 37,
+      "failures": 0,
+      "report": "native-audit-asan-ctest.xml"
+    },
+    "native_each": {
+      "backend_checks": 50,
+      "migration_runner_udp_checks": 25,
+      "reports": [
+        "native-audit-debug.json",
+        "native-audit-asan.json",
+        "native-audit-release.json"
+      ],
+      "database": "Real migrations 001-029 and real grant script with synthetic owned events; restricted runtime role and separate fixture owner.",
+      "upgrade": "Apply preserved 001-028, insert account sentinel, apply only 029, verify row and all old receipts, run idempotently again.",
+      "faults": "Exact COMMIT response loss after DB completion, INSERT disconnect, batch rollback, concurrent queue writers/drains, namespace shadow, missing column/type/INSERT/sequence privilege, private config source failures.",
+      "wire": "Original-layout UDP with raw 50-byte non-UTF8 key and all 256 blob bytes; null payload; malformed datagram; periodic retry with responsive health endpoint.",
+      "recovery": "Graceful restart reads committed rows; SIGKILL exit 137 and restart preserve three rows without replay; next UDP event persists. Does not test durability of volatile queued work.",
+      "release_scope": "Installed Release Log daemon, verified Debug backend C++ test.",
+      "tls": "Loopback plaintext only for deterministic fault proxy; prior pool TLS verification not repeated."
+    },
+    "builds": "native-audit-build-fingerprints.json",
+    "container_smoke": "native-audit-container-smoke.log",
+    "cleanup": "native-audit-cleanup.json"
+  },
+  "limits": [
+    "Original executable/build/assets absent; no original-client acceptance or supported binary claim",
+    "Unknown commits have counters/diagnostics, not a durable reconciliation spool",
+    "Retry queue and Asio posted jobs are volatile; posted backlog not bounded here",
+    "Closed pool sessions still need process/pool replacement",
+    "Legacy code-page interpretation and historical audit imports unavailable",
+    "LP_CHAT source no-op versus modern classification and original tool acceptance pending",
+    "Retention policy and full external integrations unimplemented",
+    "Legacy ODBC/MSSQL integration fixtures absent; original ODBC mappings retained but not freshly executed",
+    "Independent Log change does not re-run the complete native gameplay matrix"
+  ],
+  "preservation": {
+    "unchanged": "Both backups and all migrations 001-028",
+    "new_applied_immutable": "029",
+    "next_migration": "030",
+    "evidence": "preservation.json"
+  },
+  "source_sha256": {
+    "Lib/Own/TProtocol/include/LogPacket.h": "0cbbf40bf17adc81c51dbf25d769809b50e51f7c6f2bea56e4f603aa1ed2fdee",
+    "Server/TLogSvr/CUdpSocket.cpp": "6b4af075073e4fff281d05a69bae2a3967622443cfbdffb011d8873a7ab61285",
+    "Server/TLogSvr/StdAfx.h": "9afd27420c8c980cda422e1a3853bee1b73d4f6cd1d81a24003dfbde38f5b97e",
+    "Server/TLogSvrAsio/log_server.cpp": "6ae819fb42e58604529b4d1582d3b1f632eb7c9feaec0566a04359d389d64cdc",
+    "Server/TLogSvrAsio/services/log_sink.cpp": "921c537cbef622e12d483e7e1672be0071fefa96968601e050765091c317c45e",
+    "Server/TLogSvrAsio/services/audit_query_repository.h": "7d1050b748a762ee5fac0e6926d3844e9cbff511630dbbbd2f27f65f55de41dd",
+    "Server/TLogSvrAsio/services/audit_bytes.h": "e1ada112fdc4a61f6f5cafb2e22ab8a459d12dbdee3374afcf9a3036dc0b4912",
+    "Server/TLogSvrAsio/db/schema_validator.cpp": "bfb02d57703f64af8578d98774b8c22d5e957fab35fde275d9b96ef44df60140",
+    "Server/TLogSvrAsio/config.cpp": "935ff8d858aa50e5e8bd6419dc4c24375194ddd8895d696e5c8c5cc48ecbcbfd",
+    "Server/TLogSvrAsio/main.cpp": "e6ddd43907e33c8958d4baed7f60c4404a8bd0a3f9a30350d147052c43e63aef",
+    "Server/TLogSvrAsio/tests/test_postgresql_sink.cpp": "409ae761df8d9068d346d91f2257a78b57edf6b053147d440e12be37ef88bcf7",
+    "tools/database/verify_log_outcomes.py": "5dfaefee0f2115c09bead9cb11fd748b41d6a050ec061ab521bb3ac3cb027d86",
+    "database/postgresql/029-native-audit.sql": "cbeb6d1930e5f7447e42c50f0ec0d57d150ac1a4ea93c661832e2bd6e4ab87aa",
+    "deploy/sql/log-runtime-grants.sql": "35333ca7106b037d0a0158f5458e281cbf6e5d9ab919a4188b118875badf7fff",
+    "_rewrite/docs/database-reconstruction/evidence/backup-schema.json": "62fc3fe7cb2ae38a194cd402b508eea84d9892b85e877f3082a5d90d75278f21"
+  },
+  "policy": "Local main commit and owned local containers only; nothing pushed or published."
+}

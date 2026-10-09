@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
+#include <cstdlib>
 #include <stdexcept>
 
 namespace tlogsvr {
@@ -57,6 +58,14 @@ AppConfig LoadConfig(const std::string& path)
     {
         if (auto b = (*db)["backend"].value<std::string>())          cfg.database.backend = *b;
         if (auto c = (*db)["connection_string"].value<std::string>()) cfg.database.connection_string = *c;
+        if (auto env = (*db)["connection_string_env"].value<std::string>()) {
+            if(!cfg.database.connection_string.empty())throw std::runtime_error("Configure one database connection source");
+            if(env->empty()||env->find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_")!=std::string::npos)
+                throw std::runtime_error("Invalid database connection environment name");
+            const auto* value=std::getenv(env->c_str());
+            if(!value||!*value)throw std::runtime_error("Database connection environment is missing or empty");
+            cfg.database.connection_string=value;
+        }
         if (auto s = (*db)["pool_size"].value<std::int64_t>())
         {
             if (*s < 1 || *s > 256) throw std::runtime_error("database.pool_size out of range");

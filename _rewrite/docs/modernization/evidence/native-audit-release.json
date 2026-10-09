@@ -1,0 +1,122 @@
+{
+  "scope": "Native audit migration, append-only runtime grants, query repository and actual UDP/PostgreSQL verification",
+  "production_schema_verified": true,
+  "original_client_verified": false,
+  "completed": true,
+  "tls": "disabled on loopback for deterministic PostgreSQL wire fault injection",
+  "image": {
+    "reference": "localhost/fourstory:postgresql-native-audit",
+    "id": "a46c4c47f691a9098b24f76ca3711c63b861612deef388847545ab1fe599a115"
+  },
+  "build_dir": "build/linux-debug",
+  "checks": [
+    {
+      "name": "empty native database migrates through preserved 028",
+      "passed": true
+    },
+    {
+      "name": "upgrade applies only migration 029",
+      "passed": true
+    },
+    {
+      "name": "upgrade preserves existing account row",
+      "passed": true
+    },
+    {
+      "name": "prior migration receipts and checksums remain unchanged",
+      "passed": true
+    },
+    {
+      "name": "migration runner second pass is a no-op",
+      "passed": true
+    },
+    {
+      "name": "real runtime-grants script applies to dedicated restricted role",
+      "passed": true
+    },
+    {
+      "name": "native C++ PostgreSQL sink checks",
+      "passed": true
+    },
+    {
+      "name": "single and bulk COMMIT replies lost after PostgreSQL completed them",
+      "passed": true
+    },
+    {
+      "name": "INSERT reply lost before COMMIT",
+      "passed": true
+    },
+    {
+      "name": "original-layout UDP persists exact native fields",
+      "passed": true
+    },
+    {
+      "name": "empty UDP payload persists as NULL",
+      "passed": true
+    },
+    {
+      "name": "health reactor responds during a blocked periodic database drain",
+      "passed": true
+    },
+    {
+      "name": "periodic worker retry recovers exact UDP payload after confirmed rollback",
+      "passed": true
+    },
+    {
+      "name": "daemon separates malformed datagram and confirmed inserts",
+      "passed": true
+    },
+    {
+      "name": "SIGTERM joins accepted work and reports outcome counters",
+      "passed": true
+    },
+    {
+      "name": "no sanitizer diagnostics",
+      "passed": true
+    },
+    {
+      "name": "native daemon startup repository probe succeeds",
+      "passed": true
+    },
+    {
+      "name": "restart reads persisted native audit and safely renders raw CHAR bytes",
+      "passed": true
+    },
+    {
+      "name": "actual audit process is killed without graceful cleanup",
+      "passed": true
+    },
+    {
+      "name": "restart after SIGKILL retains committed rows without replay duplicates",
+      "passed": true
+    },
+    {
+      "name": "post-crash daemon accepts and persists next original-format event",
+      "passed": true
+    },
+    {
+      "name": "restarted daemon exits cleanly",
+      "passed": true
+    },
+    {
+      "name": "restart has no sanitizer diagnostics",
+      "passed": true
+    },
+    {
+      "name": "invalid connection configuration is rejected: missing_env",
+      "passed": true
+    },
+    {
+      "name": "invalid connection configuration is rejected: conflicting_sources",
+      "passed": true
+    }
+  ],
+  "backend": {
+    "passed": 50,
+    "failed": 0,
+    "log_sha256": "8b129517e75071e1ab0c8705615a5bbdba41ae7c822278eb3e6c377657e8aded"
+  },
+  "daemon_log_sha256": "97165b32cff0564e0f5163ac6bdf420ff0c4fda755b23425dd6218f59f232534",
+  "restart_log_sha256": "48dbce27b440d419bcfe99405b6fab9d8ded4bf5162c77a7b2a259e9c62ad0db",
+  "owned_database_removed": true
+}

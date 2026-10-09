@@ -81,12 +81,12 @@ struct AppConfig
     std::uint16_t  port = 2000;
     std::string    bind_address = "0.0.0.0";
 
-    // Insert target. Default matches schema/tlog-audit.sql. Override
-    // to a different table when you partition or move logs to a
-    // dedicated audit DB.
+    // Insert and read target. Native PostgreSQL always qualifies app_audit;
+    // migration 029 creates the default. An alternate table must implement
+    // the same contract and receive explicit owner-managed grants.
     std::string    target_table = "TLOG_AUDIT";
 
-    // TGLOBAL DB. Production deploys typically point this at a
+    // Audit DB. Production deploys typically point this at a
     // dedicated audit database (separate from the live game DB) so
     // log retention policies don't touch player data.
     DbConfig       database;

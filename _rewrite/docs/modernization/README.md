@@ -18,7 +18,58 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: Log transaction outcomes
+## Current verified increment: native audit schema and query path
+
+Migration **029** creates `app_audit` and a versioned LP_LOG contract. The supplied
+backup schemas contain neither `TLOG_AUDIT` nor the original external
+`ITEMLOGTLyyyymmdd` tables; the new empty runtime schema follows `LogPacket.h` and
+`CUdpSocket::LogDBSave`, without claiming a historical audit import. Modern identity
+and receipt time are documented additions; no automatic retention deletion occurs.
+
+Both inserts and native `Count`, `LatestN` and `WhereUserId` queries use the exact
+configured table inside `app_audit`. Search-path shadowing cannot redirect them.
+The dedicated runtime role can read/append audit records and allocate IDs, but
+cannot update/delete/truncate history, change the schema/contract or read player
+accounts. Startup verifies column types, nullability and write/sequence grants;
+PostgreSQL read errors are fatal before the UDP listener starts. The documented
+configuration reads its DSN from an environment variable and rejects missing or
+competing connection sources.
+
+Original CHAR fields are stored as bounded bytea, not guessed Unicode. All seven
+50-byte keys, client-IP bytes and payload survive native binding and reading;
+native startup diagnostics render opaque strings as hex. DWORD/WORD maxima and
+signed search keys are preserved. Empty payload remains NULL. No packet, decoder,
+client or historical table is changed.
+
+**50 native C++ checks plus 25 migration/runner/actual UDP checks pass separately
+in Debug, ASan/UBSan and installed Release.** Tests use the real migration and
+runtime grant script with synthetic events, retaining the prior lost-COMMIT,
+rollback and concurrency cases. Upgrade 028→029 preserves a pre-existing account
+and old migration receipts; a second migration pass is a no-op. Native queries,
+raw non-UTF8 wire fields, permission denial, custom table routing, malformed
+schema, restart, SIGKILL with committed rows and subsequent ingest are covered.
+Full Debug CTest remains **202 entries: 187 passes, eight internal legacy skips
+and seven explicit fixture skips**; all **37 sanitizer suites** pass. The installed
+Release run uses the Debug backend test executable and the installed Log daemon.
+All six installed services pass health/DNS/SIGTERM smoke.
+
+See the [contract](evidence/native-audit-contract.json),
+[Debug](evidence/native-audit-debug.json), [sanitizer](evidence/native-audit-asan.json),
+[Release](evidence/native-audit-release.json) and
+[reproduction instructions](../../../deploy/README.md#native-postgresql-audit-ingest-and-queries).
+Apply 029 and `deploy/sql/log-runtime-grants.sql` before enabling native Log;
+migrations 001–029 are now immutable, next is 030. The local image is
+`localhost/fourstory:postgresql-native-audit`; no external publication occurred.
+
+This verifies committed records across process replacement, not recovery of the
+RAM-only retry/worker backlog. Unknown commits remain unreplayed and separately
+counted. Durable spool/reconciliation, bounded posted-worker backlog, closed-pool
+replacement, retention policy, code-page interpretation, LP_CHAT and original
+administrative tools remain unfinished. The missing original executable and client
+data still block full client acceptance. Prior gameplay evidence is retained;
+the independent Log increment does not rerun or re-label the entire Map matrix.
+
+## Earlier verified increment: Log transaction outcomes
 
 The existing Log sink now puts both individual and batched inserts inside explicit
 transactions. Pool/begin failures and acknowledged rollbacks may enter the bounded
@@ -49,7 +100,8 @@ Log migration/grants, native read-side queries, non-ASCII code-page compatibilit
 LP_CHAT, retention and durable reconciliation remain incomplete. The retry buffer
 is in memory; unknown records have counters/diagnostics, not a persistent recovery
 spool. Discarded pool connections currently require pool/process replacement.
-No existing migration or backup changes; migration 029 remains available. Original
+At that increment no migration or backup changed; 029 is supplied by the later
+native audit increment above. Original
 client acceptance remains blocked by the missing executable and data.
 
 ## Earlier verified increment: native stack split/merge and two-Map inventory

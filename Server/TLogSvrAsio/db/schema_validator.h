@@ -11,12 +11,14 @@
 // (`tpatchsvr::db::ValidateGlobalSchema`).
 
 #include <string>
+#include "fourstory/db/session_pool.h"
 
 namespace fourstory::db { class SessionPool; }
 
 namespace tlogsvr::db {
 
 bool IsSafeAuditIdentifier(const std::string& value);
+std::string AuditRelation(fourstory::db::Backend backend, const std::string& table);
 
 // Verify the configured audit table (default `TLOG_AUDIT`) carries
 // every LT_* column the SociLogSink INSERT binds. Column list is

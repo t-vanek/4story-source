@@ -44,6 +44,11 @@ bool IsSafeAuditIdentifier(const std::string& s)
     });
 }
 
+std::string AuditRelation(fourstory::db::Backend backend, const std::string& table) {
+    if (!IsSafeAuditIdentifier(table)) throw fourstory::db::SchemaError("Invalid audit table identifier");
+    return (backend == fourstory::db::Backend::PostgreSQL ? "\"app_audit\"." : "") + std::string("\"") + table + "\"";
+}
+
 void ValidateAuditSchema(fourstory::db::SessionPool& pool,
                          const std::string& target_table)
 {
@@ -55,6 +60,36 @@ void ValidateAuditSchema(fourstory::db::SessionPool& pool,
     }
 
     auto lease = pool.Acquire();
+
+    if (pool.GetBackend() == fourstory::db::Backend::PostgreSQL) {
+        const auto relation = AuditRelation(pool.GetBackend(), target_table);
+        int version = 0;
+        *lease << "SELECT version FROM app_audit.runtime_contract WHERE singleton", soci::into(version);
+        if (!lease->got_data() || version != 1)
+            throw fourstory::db::SchemaError("Native audit contract 1 is required; apply migration 029");
+        std::vector<std::pair<std::string,std::string>> columns = {
+            {"lt_id","bigint"},{"lt_logdate","timestamp without time zone"},{"lt_serverid","bigint"},
+            {"lt_clientip","bytea"},{"lt_action","bigint"},{"lt_mapid","integer"},
+            {"lt_x","integer"},{"lt_y","integer"},{"lt_z","integer"},
+            {"lt_fmt","bigint"},{"lt_log","bytea"},{"received_at","timestamp with time zone"}};
+        for (int i=1;i<=11;++i) columns.emplace_back("lt_dwkey"+std::to_string(i),"bigint");
+        for (int i=1;i<=7;++i) columns.emplace_back("lt_key"+std::to_string(i),"bytea");
+        for (const auto& [name,type] : columns) {
+            int matches=0;
+            *lease << "SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid=pg_catalog.to_regclass(:t) "
+                      "AND attname=:c AND pg_catalog.format_type(atttypid,atttypmod)=:type "
+                      "AND attnum>0 AND NOT attisdropped AND (attnotnull OR attname='lt_log') "
+                      "AND (attname IN ('lt_id','received_at') OR pg_catalog.has_column_privilege(attrelid,attnum,'INSERT'))",
+                soci::use(relation),soci::use(name),soci::use(type),soci::into(matches);
+            if(matches!=1)throw fourstory::db::SchemaError("Native audit column mismatch: "+name);
+        }
+        int sequence=0;
+        *lease << "SELECT CASE WHEN has_sequence_privilege(pg_get_serial_sequence(:t,'lt_id'),'USAGE') THEN 1 ELSE 0 END",
+            soci::use(relation),soci::into(sequence);
+        if(!sequence)throw fourstory::db::SchemaError("Native audit identity allocation permission missing");
+        spdlog::info("schema_validator (audit) OK — native contract 1, {}", target_table);
+        return;
+    }
 
     // Every column the SociLogSink INSERT binds. Must match
     // schema/tlog-audit.sql and the bind list in
@@ -78,20 +113,10 @@ void ValidateAuditSchema(fourstory::db::SessionPool& pool,
         int hits = 0;
         try
         {
-            if (pool.GetBackend() == fourstory::db::Backend::PostgreSQL) {
-                // Resolve exactly the relation INSERT will use, not a same-named
-                // table elsewhere in search_path. Unquoted LT_* fold to lower case.
-                const auto relation = "\"" + target_table + "\"";
-                const std::string name(column);
-                *lease << "SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid=pg_catalog.to_regclass(:t) "
-                          "AND attname=lower(:c) AND attnum>0 AND NOT attisdropped",
-                    soci::use(relation), soci::use(name), soci::into(hits);
-            } else {
-                const std::string q =
-                    std::string("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '") + target_table +
-                    "' AND COLUMN_NAME = '" + column + "'";
-                *lease << q, soci::into(hits);
-            }
+            const std::string q =
+                std::string("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '") + target_table +
+                "' AND COLUMN_NAME = '" + column + "'";
+            *lease << q, soci::into(hits);
         }
         catch (const std::exception& ex)
         {

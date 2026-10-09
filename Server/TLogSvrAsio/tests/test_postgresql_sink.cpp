@@ -1,5 +1,6 @@
 // Owned disposable schema only; the runner creates the fixture and fault proxy.
 #include "services/log_sink.h"
+#include "services/audit_query_repository.h"
 #include "db/schema_validator.h"
 #include <boost/asio/thread_pool.hpp>
 #include <soci/soci.h>
@@ -32,17 +33,17 @@ void QueueTwo(SociLogSink& sink,SessionPool& pool) {
 }
 void Normal(const char* conn,soci::session& admin) {
     SessionPool pool(Backend::PostgreSQL,conn,1,10ms);
-    tlogsvr::db::ValidateAuditSchema(pool,"TLOG_AUDIT");Check(true,"native schema validator resolves lower-case SQL columns");
+    tlogsvr::db::ValidateAuditSchema(pool,"TLOG_AUDIT");Check(true,"native schema validator verifies migration 029 contract and types");
     bool unsafe=false;try {SociLogSink s(pool,"bad\"table");}catch(const std::invalid_argument&){unsafe=true;}
     Check(unsafe,"sink rejects unsafe identifier independently of startup");
     Clear(admin);SociLogSink sink(pool,"TLOG_AUDIT",Options());sink.Write(Record(0xffffffff));
     Check(sink.Inserts()==1&&Count(admin)==1,"single transaction commits once");
     std::string blob,text;long long server=0,action=0,format=0,number=0;int map=0,x=0;
-    admin<<"SELECT encode(lt_log,'hex'),lt_key1,lt_serverid,lt_action,lt_fmt,lt_mapid,lt_x,lt_dwkey11 FROM \"TLOG_AUDIT\"",
+    admin<<"SELECT encode(lt_log,'hex'),encode(lt_key1,'hex'),lt_serverid,lt_action,lt_fmt,lt_mapid,lt_x,lt_dwkey11 FROM \"TLOG_AUDIT\"",
         soci::into(blob),soci::into(text),soci::into(server),soci::into(action),soci::into(format),soci::into(map),soci::into(x),soci::into(number);
     std::string expected;constexpr char hex[]="0123456789abcdef";for(unsigned i=0;i<512;++i){expected+=hex[(i%256)>>4];expected+=hex[i&15];}
     Check(blob==expected,"all 256 byte values and embedded NUL round-trip in single insert");
-    Check(text==Record(1).search_str[0],"quotes and backslashes remain data");
+    Check(AuditUnhex(text)==Record(1).search_str[0],"quotes and backslashes remain data");
     Check(server==4294967295LL&&action==4294967295LL&&format==4294967295LL&&map==65535,"DWORD and WORD maxima are not sign-truncated");
     Check(x==-2147483647&&number==-9223372036854775797LL,"signed positions and 64-bit search keys round-trip");
     auto empty=Record(3);empty.payload.clear();sink.Write(empty);
@@ -76,6 +77,61 @@ void Normal(const char* conn,soci::session& admin) {
         Check(worker.Inserts()==32&&Count(admin)==32,"graceful worker join completes all accepted jobs");
     }
 }
+void NativeReads(const char* conn,soci::session& admin) {
+    Clear(admin);SessionPool pool(Backend::PostgreSQL,conn,1,10ms);
+    SociLogSink sink(pool,"TLOG_AUDIT",Options());AuditQueryRepository repo(pool);
+    auto first=Record(17);first.search_int[0]=-17;
+    for(auto& key:first.search_str){key.clear();for(int i=128;i<178;++i)key+=static_cast<char>(i);}
+    first.client_ip=std::string("ip\xff",3);
+    sink.Write(first);auto second=Record(18);second.search_int[0]=42;sink.Write(second);
+    first.action=19;sink.Write(first);
+    Check(sink.Inserts()==3&&repo.Count()==3,"native repository counts committed records under restricted role");
+    auto rows=repo.LatestN(2);
+    Check(rows.size()==2&&rows[0].action==19&&rows[1].action==18&&rows[0].log_id>rows[1].log_id,"native LIMIT and identity ordering");
+    Check(rows[0].search_str_0==first.search_str[0]&&rows[0].client_ip==first.client_ip,"native reads preserve invalid UTF-8 bytes without guessing encoding");
+    Check(rows[0].server_id==0xffffffff&&rows[0].format==0xffffffff&&rows[0].map_id==65535,"native reads preserve full unsigned wire ranges");
+    Check(rows[0].log_date==first.timestamp_iso,"native timestamp formats to original seconds without timezone conversion");
+    rows=repo.WhereUserId(-17,10);
+    Check(rows.size()==2&&rows[0].action==19&&rows[1].action==17,"bound signed user query preserves ordering");
+    Check(repo.WhereUserId(42,1).size()==1&&repo.WhereUserId(99,5).empty(),"native user filter and limit");
+    Check(repo.LatestN(0).empty()&&repo.WhereUserId(-17,0).empty(),"zero limit returns no records");
+    int exact=0;
+    admin<<"SELECT count(*) FROM \"TLOG_AUDIT\" WHERE lt_action IN (17,19) AND lt_key1=lt_key2 AND lt_key2=lt_key3 "
+           "AND lt_key3=lt_key4 AND lt_key4=lt_key5 AND lt_key5=lt_key6 AND lt_key6=lt_key7 AND octet_length(lt_key7)=50",soci::into(exact);
+    Check(exact==2,"all seven full-width CHAR fields persist exact bytes");
+    admin<<"CREATE TABLE public.\"TLOG_AUDIT\" (lt_id integer)";
+    sink.Write(Record(20));Check(repo.Count()==4,"public shadow cannot redirect fully-qualified native write or read");
+    admin<<"DROP TABLE public.\"TLOG_AUDIT\"";
+    for(const auto& command:{"UPDATE app_audit.\"TLOG_AUDIT\" SET lt_action=0", "DELETE FROM app_audit.\"TLOG_AUDIT\"",
+                            "TRUNCATE app_audit.\"TLOG_AUDIT\"", "UPDATE app_audit.runtime_contract SET version=1",
+                            "CREATE TABLE app_audit.forbidden(id integer)","SELECT * FROM app_global.\"TACCOUNT_PW\""}) {
+        bool refused=false;{auto lease=pool.Acquire();try{*lease<<command;}catch(const soci::soci_error&){refused=true;}}
+        Check(refused,"runtime audit role cannot mutate audit history/schema or read player accounts");
+    }
+    auto invalid=Record(21);invalid.search_str[3]=std::string(51,'x');
+    {SociLogSink rejected(pool,"TLOG_AUDIT",Options());rejected.Write(invalid);
+     Check(rejected.QueueDepth()==1&&rejected.UnknownOutcomes()==0&&repo.Count()==4,"over-width raw key is atomically rejected, never truncated");}
+    std::string user;{auto lease=pool.Acquire();*lease<<"SELECT current_user",soci::into(user);}
+    if(!tlogsvr::db::IsSafeAuditIdentifier(user))throw std::runtime_error("Unexpected test role");
+    admin<<"CREATE TABLE app_audit.\"TLOG_ALT\" (LIKE app_audit.\"TLOG_AUDIT\" INCLUDING ALL)";
+    admin<<"GRANT SELECT,INSERT ON app_audit.\"TLOG_ALT\" TO \""+user+"\"";
+    admin<<"GRANT USAGE ON SEQUENCE app_audit.\"TLOG_ALT_lt_id_seq\" TO \""+user+"\"";
+    {SociLogSink alternate(pool,"TLOG_ALT",Options());AuditQueryRepository alternate_repo(pool,"TLOG_ALT");
+     tlogsvr::db::ValidateAuditSchema(pool,"TLOG_ALT");alternate.Write(Record(22));
+     Check(alternate_repo.Count()==1&&alternate_repo.LatestN(1).at(0).action==22&&repo.Count()==4,"configured native table used consistently by sink, validator and reader");}
+    admin<<"REVOKE INSERT ON app_audit.\"TLOG_ALT\" FROM \""+user+"\"";
+    bool no_insert=false;try{tlogsvr::db::ValidateAuditSchema(pool,"TLOG_ALT");}catch(...){no_insert=true;}
+    Check(no_insert,"native boot validation refuses missing INSERT privileges");
+    admin<<"GRANT INSERT ON app_audit.\"TLOG_ALT\" TO \""+user+"\"";
+    admin<<"REVOKE USAGE ON SEQUENCE app_audit.\"TLOG_ALT_lt_id_seq\" FROM \""+user+"\"";
+    bool no_sequence=false;try{tlogsvr::db::ValidateAuditSchema(pool,"TLOG_ALT");}catch(...){no_sequence=true;}
+    Check(no_sequence,"native boot validation refuses missing identity allocation grant");
+    admin<<"GRANT USAGE ON SEQUENCE app_audit.\"TLOG_ALT_lt_id_seq\" TO \""+user+"\"";
+    admin<<"ALTER TABLE app_audit.\"TLOG_ALT\" ALTER COLUMN lt_key7 TYPE text USING encode(lt_key7,'hex')";
+    bool refused=false;try{tlogsvr::db::ValidateAuditSchema(pool,"TLOG_ALT");}catch(...){refused=true;}
+    Check(refused,"validator refuses incompatible text column instead of silently accepting it");
+    admin<<"DROP TABLE app_audit.\"TLOG_ALT\"";Clear(admin);
+}
 void LostCommit(const char* conn,soci::session& admin,bool batch) {
     Clear(admin);SessionPool pool(Backend::PostgreSQL,conn,1,10ms);SociLogSink sink(pool,"TLOG_AUDIT",Options());
     if(batch){QueueTwo(sink,pool);sink.DrainPending();}else sink.Write(Record(10));
@@ -96,12 +152,13 @@ void LostInsert(const char* conn,soci::session& admin) {
 }
 int main() {
     const auto* conn=std::getenv("TLOGSVR_TEST_POSTGRESQL_CONN");
+    const auto* control_conn=std::getenv("TLOGSVR_TEST_ADMIN_CONN");
     const auto* lost=std::getenv("TLOGSVR_TEST_LOST_COMMIT_CONN");
     const auto* insert=std::getenv("TLOGSVR_TEST_LOST_INSERT_CONN");
-    if(!conn||!lost||!insert){std::puts("SKIP: owned PostgreSQL/proxy fixture required");return 77;}
+    if(!conn||!control_conn||!lost||!insert){std::puts("SKIP: owned PostgreSQL/proxy fixture required");return 77;}
     try {
-        SessionPool control(Backend::PostgreSQL,conn,1);auto admin=control.Acquire();
-        Normal(conn,*admin);LostCommit(lost,*admin,false);LostCommit(lost,*admin,true);LostInsert(insert,*admin);Clear(*admin);
+        SessionPool control(Backend::PostgreSQL,control_conn,1);auto admin=control.Acquire();
+        Normal(conn,*admin);NativeReads(conn,*admin);LostCommit(lost,*admin,false);LostCommit(lost,*admin,true);LostInsert(insert,*admin);Clear(*admin);
     }catch(...){Check(false,"unexpected fixture failure (diagnostics intentionally omit SQL/credentials)");}
     std::printf("Results: %u passed, %u failed\n",passed,failed);return failed?1:0;
 }

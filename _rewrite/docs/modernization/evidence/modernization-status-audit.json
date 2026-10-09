@@ -1,6 +1,6 @@
 {
   "date": "2026-10-09",
-  "base_commit": "5293a487d2db39c6f5cab05bc6f23e292a399736",
+  "base_commit": "9bc0394c273741d9d4baa1cda78489636793ccce",
   "method": "Read current README/capability/continuation/protocol documents, inspected cited actual production paths and immutable source contracts, compared prior evidence and ran the updated current test matrix. This is a scoped audit, not a full behavioral review of every legacy file.",
   "overall_goal": "not_complete",
   "supported_client_binary": null,
@@ -68,18 +68,21 @@
     },
     {
       "area": "Log",
-      "claim": "Single/bulk explicit transactions never requeue unknown COMMIT outcomes; real reply-loss and UDP/PostgreSQL fixture tests verify this scope.",
-      "status": "verified_scoped_ingest_incomplete_production",
+      "claim": "Native LP_LOG uses migration 029, append-only runtime grants and byte-preserving writes/queries; lost COMMIT and process restart are verified with synthetic events.",
+      "status": "verified_native_audit_scope_incomplete_full_service",
       "code": [
         "Server/TLogSvrAsio/services/log_sink.cpp",
-        "Server/TLogSvrAsio/services/log_sink.h"
+        "Server/TLogSvrAsio/services/audit_query_repository.h",
+        "Server/TLogSvrAsio/db/schema_validator.cpp",
+        "database/postgresql/029-native-audit.sql",
+        "deploy/sql/log-runtime-grants.sql"
       ],
-      "limit": "Synthetic audit schema only. Production migrations/grants/native reads, LP_CHAT, code pages, retention/durable reconciliation, bounded posted-worker backlog and closed-pool replacement remain pending.",
+      "limit": "Durable spool/reconciliation, closed-pool replacement, bounded posted backlog, LP_CHAT, retention, interpreted code pages, historical audit data and original tools/client acceptance remain pending.",
       "evidence": [
-        "log-outcomes-contract.json",
-        "log-outcomes-debug.json",
-        "log-outcomes-asan.json",
-        "log-outcomes-release.json"
+        "native-audit-contract.json",
+        "native-audit-debug.json",
+        "native-audit-asan.json",
+        "native-audit-release.json"
       ]
     },
     {
@@ -102,7 +105,7 @@
     "Lib/Own/TProtocol/include/ProtocolBase.h": "22cd4db1c03215170f1d04de18b66ab0a060af4921af3029c932b4ea3e7851d1",
     "Server/TControlSvrAsio/services/disabled_service_controller.h": "f31ea71fed0e11432478233b3eafbcefd6c6443bd91c20e7a6a92f048613f74e",
     "Server/TControlSvrAsio/services/soci_registry_persistence.cpp": "3d03b0436fd43055dc2292148750b833f42ede434227ea591b4b5c8eec05a36a",
-    "Server/TLogSvrAsio/services/log_sink.cpp": "8ed05b92b64b28b44c18d0adb54f7cdc216d44f278e16e57e03fc0b01a905b18",
+    "Server/TLogSvrAsio/services/log_sink.cpp": "921c537cbef622e12d483e7e1672be0071fefa96968601e050765091c317c45e",
     "Server/TLogSvrAsio/services/log_sink.h": "b1cd2779c86746ce8fb60339db0b1de09e7c31259c90ce21a606c1d8f4732523",
     "Server/TLoginSvrAsio/services/postgresql_char_service.cpp": "73cff6faf08a44ba9c4ecd17c2565162e4f8d6e2cb45b3517c3078bb1590f9b2",
     "Server/TMapSvrAsio/handlers/inventory.cpp": "b8a0afa81f9b9e8575eb8578f29d30fe9439560ed033e0761963d0f52477fd87",
@@ -112,7 +115,11 @@
     "Server/TMapSvrAsio/services/postgresql_map_owner.cpp": "054a3bfda5c9f2cce76b55ca8cae38936033f736d187fb7b6e543adf8a44da66",
     "Server/TPatchSvrAsio/services/patch_repository.cpp": "6a182f955d3a2669e1d4c0e97bf098cbbf907c5084725707bdad0358b0b0f080",
     "Server/TWorldSvrAsio/db/schema_validator.cpp": "ec7aa548cd0a5b20692cdc07c2590950f72899e19b4742812ba9cba9b9d82075",
-    "Server/TWorldSvrAsio/services/soci_guild_repository.cpp": "8d1ac6009a5d629aa5a2f9478ff304481356c30e59cd758880ff809b9dcad807"
+    "Server/TWorldSvrAsio/services/soci_guild_repository.cpp": "8d1ac6009a5d629aa5a2f9478ff304481356c30e59cd758880ff809b9dcad807",
+    "Server/TLogSvrAsio/services/audit_query_repository.h": "7d1050b748a762ee5fac0e6926d3844e9cbff511630dbbbd2f27f65f55de41dd",
+    "Server/TLogSvrAsio/db/schema_validator.cpp": "bfb02d57703f64af8578d98774b8c22d5e957fab35fde275d9b96ef44df60140",
+    "database/postgresql/029-native-audit.sql": "cbeb6d1930e5f7447e42c50f0ec0d57d150ac1a4ea93c661832e2bd6e4ab87aa",
+    "deploy/sql/log-runtime-grants.sql": "35333ca7106b037d0a0158f5458e281cbf6e5d9ab919a4188b118875badf7fff"
   },
   "completion_gates": {
     "all_original_functions_implemented_and_accepted": false,
@@ -123,5 +130,5 @@
     "no_required_placeholders_or_blockers": false
   },
   "policy": "Only local main commits and local containers; no external publication. Existing Asio modules retained. Historical percentages and handler counts are not acceptance.",
-  "latest_scope": "Log transaction outcome correction; prior inventory/gameplay evidence retained without rerun"
+  "latest_scope": "Native audit migration/grants, exact bytes, queries and committed-row process recovery; previous gameplay evidence retained"
 }

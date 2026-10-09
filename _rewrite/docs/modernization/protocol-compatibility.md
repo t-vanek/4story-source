@@ -730,3 +730,28 @@ replace interpolated text, and DWORD/WORD values are not narrowed to signed
 and read-side acceptance remain pending. Tests use loopback plaintext PostgreSQL
 to inject reply loss deliberately; they do not replace the separate pool TLS tests.
 See `evidence/log-outcomes-contract.json` for the exact guarantees and limitations.
+
+## Native LP_LOG storage and read contract (migration 029)
+
+The backup-derived schema inventory has no `TLOG_AUDIT` or `ITEMLOGTL*` table in
+either supplied database. New empty `app_audit` storage follows the original
+`LogPacket.h` field types and `CUdpSocket::LogDBSave`/`SQLQUERY_DGINSERT` column
+order, not an invented audit-history import. `lt_id` and `received_at` are modern
+metadata. Original event time remains timestamp without time zone at the seconds
+precision used by the source writer. No automatic history deletion is introduced.
+
+Raw bounded CHAR values become bytea, preserving the parser's bytes through
+PostgreSQL even when they are not valid UTF-8. No code page or collation is guessed;
+character interpretation and search by localized text remain separate acceptance
+work. The native query repository returns the same raw strings and uses hex only
+for startup display. The actual UDP test sends a complete 50-byte high-bit search
+key, not just an ASCII approximation. Original DWORD/WORD maxima, signed keys,
+nonempty payload bytes and the existing modern empty-payload NULL contract survive.
+Native read ordering is descending generated identity, with bound user and LIMIT.
+
+The original UDP decoder and packet fields are unchanged. This increment's
+PostgreSQL queries and schema are production paths tested using synthetic events
+and a dedicated append-only role; original clients and historical audit content
+remain unavailable. Committed records survive graceful restart and SIGKILL; the
+RAM-only queues and uncertain outcomes do not acquire a durability promise.
+See `evidence/native-audit-contract.json` for source hashes and reproducible tests.

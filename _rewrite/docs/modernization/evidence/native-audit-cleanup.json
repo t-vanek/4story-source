@@ -1,0 +1,10 @@
+{
+  "work_directory": "/tmp/fourstory-native-audit-20261009",
+  "owned_containers_removed": true,
+  "owned_network_removed": true,
+  "private_secret_files_removed": [
+    "postgres.env"
+  ],
+  "retained": "Private test logs, immutable pre029 migration copies and ownership metadata only",
+  "external_actions": false
+}

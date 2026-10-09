@@ -30,17 +30,23 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Map content | Pinned source catalogs, real monster attributes, routing and actor catalogs loaded by the actual daemon | Complete spawn, movement validation, entity visibility and gameplay parity |
 | Primary Map handoff | Movement-triggered transfer between two Maps, one database writer, exact state transfer, skill timers, return trips and recovery after process replacement | Full effect/quest/companion simulation, multiple-neighbor changes and special transfer branches |
 | Inventory | Native whole-stack moves, raw-attribute swaps, splitting and capacity-clamped merging; atomic IDs/receipts, two-Map round trips and recovery | Equipment, drops, timed bags, secured state and full economy |
-| World, Control, Patch and Log | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
+| Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
+| World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The latest reliability increment prevents **Log audit duplication after an unknown
-COMMIT result**, preserves binary payload bytes in native PostgreSQL writes and
-keeps periodic retries off the network thread. Debug has **187 actual passes and
-15 fixture skips across 202 entries**; all **37 sanitizer suites** pass. Real
-PostgreSQL fault tests and actual UDP daemon checks pass in Debug, sanitizer and
-installed Release configurations. These use a synthetic audit table; complete
-production Log persistence remains unfinished. See the
-[transaction contract](_rewrite/docs/modernization/evidence/log-outcomes-contract.json)
-and [current status](_rewrite/docs/modernization/README.md).
+The latest increment adds **native Log persistence through migration 029**:
+original audit fields retain their integer widths and raw bytes, including text
+that is not UTF-8. The existing Log daemon writes and reads through a dedicated
+append-only database role, and startup checks its schema and write permissions.
+Real PostgreSQL/UDP tests cover lost commit replies, migration upgrade, grants,
+raw bytes, queries, graceful restart and SIGKILL recovery of committed rows.
+
+Verification passes **187 Debug tests** (202 entries, 15 fixture skips), all **37
+sanitizer suites**, and **50 backend plus 25 runner/UDP checks per Debug, sanitizer
+and installed Release configuration**. The Release run uses the installed Log
+binary with the verified Debug backend test. See the
+[native audit contract](_rewrite/docs/modernization/evidence/native-audit-contract.json)
+and [startup instructions](deploy/README.md#native-postgresql-audit-ingest-and-queries).
+The original client and complete gameplay remain unfinished.
 
 Migration **020** adds the primary transfer journal, authority epochs and complete
 transfer-state checkpoints. A stale source cannot overwrite its successor's state.

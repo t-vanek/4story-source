@@ -1,0 +1,31 @@
+# Apply migrations 001–029 and sql/log-runtime-grants.sql before starting.
+# LP_LOG byte-preserving ingest/read scope; LP_CHAT and durable spool pending.
+target_table = "TLOG_AUDIT"
+
+[server]
+bind = "0.0.0.0"
+port = 2000
+
+[database]
+backend = "postgresql"
+# Native libpq DSN from a dedicated non-owner role. Set trusted CA and
+# sslmode=verify-full; SessionPool defaults to verify-full and a connect timeout.
+connection_string_env = "FOURSTORY_LOG_DSN"
+pool_size = 4
+worker_threads = 1
+
+[retry]
+max_queue = 1000
+drain_interval_secs = 30
+drain_batch_size = 64
+
+[security]
+# Replace with the real cluster peers before deployment.
+ip_allowlist = ["127.0.0.1", "::1"]
+ip_allowlist_enforce = true
+
+[health]
+port = 18914
+
+[log]
+level = "info"

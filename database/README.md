@@ -27,7 +27,7 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **028** are also immutable. Current
+All subsequently applied migrations through **029** are also immutable. Current
 native Map deployment requires migrations through 028 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
@@ -115,7 +115,7 @@ Splits use the same `worlds.item_high_water` transaction as Login starter creati
 rollback restores the allocator along with items and recovery state. Graph splits
 reserve a global ID without materializing stale normalized child rows. Apply the
 updated Map grants for item INSERT, stack receipt INSERT and narrow high-water
-UPDATE. Migrations 001–028 are now immutable; next schema change is 029. See the
+UPDATE. Migrations 001–029 are now immutable; native audit uses 029 and next schema change is 030. See the
 [stack contract](../_rewrite/docs/modernization/evidence/inventory-stacks-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
@@ -233,3 +233,20 @@ writers before recovering lobby sessions. Use direct/session-pooled PostgreSQL
 connections; transaction pooling cannot hold this process lock. Full character
 persistence, remote Map duplicate cleanup and multi-active Login remain pending.
 Migrations 001–009 are applied and immutable; schema corrections need 010 or later.
+
+## Native audit contract (migration 029)
+
+`029-native-audit.sql` creates the empty `app_audit` schema, contract version 1 and
+`TLOG_AUDIT`. It does not alter restored snapshots, player data or earlier migrations.
+The supplied backups do not include the external legacy daily audit tables; source
+`LogPacket.h` and `CUdpSocket::LogDBSave` define the original audit fields. Identity
+and receipt timestamp are explicitly modern metadata. No retention deletion or
+historical event import is seeded.
+
+`lt_clientip` and `lt_key1`–`lt_key7` hold bounded raw bytea values, preserving the
+source CHAR bytes without guessing a client code page. `lt_log` stores the nonempty
+payload unchanged, with NULL for an empty payload. Native writer and reader both
+qualify `app_audit` independently of search_path. Apply the dedicated append-only
+[grants](../deploy/sql/log-runtime-grants.sql) and use the
+[native example](../deploy/tlogsvr-postgresql.example.toml). Deployment and the
+upgrade/fault runner are described in [deploy/README.md](../deploy/README.md#native-postgresql-audit-ingest-and-queries).

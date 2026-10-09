@@ -477,7 +477,7 @@ reservation retention. Migration 028 now integrates source CTItem equality, spli
 allocator, including actual two-Map split/move/return/merge packets. Next implement equipment
 slot/class/level/two-hand rules and derived-stat/timing invalidation. Preserve actual two-Map inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
-only until complete gameplay; next new migration 029.
+only until complete gameplay; native Log subsequently uses 029, next new migration 030.
 
 
 The owner confirmed that only uncompiled client sources are available, without
@@ -486,10 +486,12 @@ continue independent server work and do not declare a supported executable build
 The Log unknown-COMMIT retry defect is now fixed and verified with actual PostgreSQL
 reply loss for single/bulk transactions; see `evidence/log-outcomes-contract.json`.
 Preserve the separate confirmed/unknown counters and never requeue an unknown
-outcome. Next implement the production audit schema/grants and native read side,
-retention/reconciliation and LP_CHAT after source/backup review. The current native
-Log test schema is synthetic, retries are RAM-only and discarded connections need
-pool replacement; full Log crash/restart guarantees are not complete. The Asio
+outcome. Migration 029 and the real runtime grant script now supply native LP_LOG
+storage and native Count/LatestN/WhereUserId, with exact raw CHAR byte preservation
+and startup contract checks. Keep the native-audit grants/query/wire/restart evidence.
+Next implement retention/reconciliation and LP_CHAT after source/backup review.
+Retries remain RAM-only and discarded connections need pool replacement; verified
+committed-row SIGKILL recovery is not recovery of queued or unknown records. The Asio
 worker's posted-arrival backlog is also separate from the bounded retry queue and
 still needs explicit admission/backpressure limits.
 
@@ -503,3 +505,9 @@ caller also sends its final MOVEITEM. Port these dependencies and sender orderin
 before enabling equipment as an ordinary bag relocation. Recomputing the current
 native DeriveStats must also reset accumulated skill-point groups before adding
 rank totals; its current fresh-hydration use is not proof of repeatable recompute.
+
+Log source clarification: `CUdpSocket.cpp:442–450` initializes all `LP_COUNT`
+handlers to `Packet_Nothing` and assigns only LP_LOG to Packet_LogDB. LP_CHAT is
+therefore a source no-op, not evidence of a missing historical chat-audit table.
+Preserve/document its classification when auditing original senders and tools;
+do not invent persistent chat behavior from the opcode name alone.

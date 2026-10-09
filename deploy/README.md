@@ -429,15 +429,46 @@ separates channels; two-Map boundary tests explicitly override and restore a
 compatibility view in a disposable database. They do not change historical rows
 or establish real-client/gameplay compatibility.
 
-## Log transaction fault verification
+## Native PostgreSQL audit ingest and queries
 
-The Log transaction correction needs no migration. Its native acceptance runner
-creates and removes its own **synthetic** PostgreSQL audit table/database; it is
-not a production Log installation script. The production audit migration/grants,
-read-side queries, retention and code-page contracts remain unfinished.
+Apply numbered migrations **001–029** through the checksummed runner as the schema
+owner. Provision a dedicated `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`
+role with CONNECT on the chosen database, then run:
 
-After building `linux-debug` (or `linux-asan`) with the documented build-deps image
-and activating the Python environment containing psycopg:
+```bash
+psql -v ON_ERROR_STOP=1 -v log_role=fourstory_log -f deploy/sql/log-runtime-grants.sql
+```
+
+Connection credentials belong in the existing libpq environment/secret setup,
+not shell history or the repository. The script grants only audit SELECT, INSERT
+on original event columns, schema USAGE and sequence USAGE. No UPDATE, DELETE,
+TRUNCATE or DDL rights are granted. `lt_id` and `received_at` are allocated by the
+server. Native code always addresses `app_audit`, independent of search_path.
+
+Use [tlogsvr-postgresql.example.toml](tlogsvr-postgresql.example.toml), supply the
+`FOURSTORY_LOG_DSN` secret and trusted CA to the local container, and start:
+
+```bash
+tlogsvr_asio --config deploy/tlogsvr-postgresql.example.toml
+```
+
+Set `sslmode=verify-full` in the DSN; this is also SessionPool's default. Adjust the
+UDP peer allowlist for the actual local cluster. A missing DSN variable, conflicting
+connection sources, wrong native schema, missing write/sequence grants or failed
+native startup read causes failure before the UDP listener starts. The existing
+stdout mode remains an explicitly unconfigured development path.
+
+The original CHAR fields are raw bytea, preserving all bytes without code-page
+guessing. Native audit queries return those original bytes; startup prints their
+hex representation. LP_LOG storage/read is verified, while LP_CHAT, retention,
+durable spool/reconciliation, automatic closed-pool replacement and complete
+original tool/client acceptance remain unfinished. Unknown outcomes are counted
+separately and never replayed. RAM queues are not durable across process failure.
+
+### Reproduce native audit verification
+
+After building `linux-debug` or `linux-asan` using the documented build-deps image,
+activate the Python environment containing psycopg and run:
 
 ```bash
 python3 tools/database/disposable_environment.py start \
@@ -449,15 +480,16 @@ python3 tools/database/disposable_environment.py stop \
   --work /tmp/fourstory-log-check
 ```
 
-The runner verifies the C++ sink and actual UDP daemon, injects lost single/bulk
-COMMIT replies, checks rollback/concurrency and probes health during a blocked
-periodic retry. It keeps secrets in private files and removes its temporary DSNs
-and database. The lab's PostgreSQL environment file remains private until cleanup.
-The loopback fault proxy deliberately disables TLS; separate pool tests cover TLS.
+This runner now uses the actual 029 migration and runtime grants. It creates only
+owned test data/roles, checks upgrade from 028 and preserved receipts, tests native
+queries/privileges, injects lost COMMIT replies, exercises actual UDP binary/raw
+text persistence, and tests health during blocked retry plus graceful/SIGKILL
+process replacement. It removes its database, role and temporary connection files;
+the owned lab's PostgreSQL environment file remains private until cleanup. Fault
+injection deliberately disables TLS on loopback; separate pool tests cover TLS.
 
-For installed Release, add `--image localhost/fourstory:postgresql-log-outcomes
---runtime-bin-dir /opt/fourstory/bin`. The backend test executable still comes from
-`--build-dir`; the UDP test then runs the installed Release daemon. The image is
-local only. Unknown outcomes emit `outcome_unknown` counters and are never queued
-for replay. This is not a persistent audit spool: investigate unknowns explicitly,
-and replace a discarded pool/process before relying on further audit writes.
+For installed Release add `--image localhost/fourstory:postgresql-native-audit
+--runtime-bin-dir /opt/fourstory/bin`. The backend test still comes from
+`--build-dir`; the UDP tests use the installed Release daemon as UID/GID 10001.
+The runner maps the private configuration owner to that UID without loosening its
+file permissions. This image stays local; no publishing or deployment is required.

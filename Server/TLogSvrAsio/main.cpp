@@ -188,7 +188,7 @@ int main(int argc, char** argv)
             // the schema mapping before any new INSERT lands.
             try
             {
-                tlogsvr::AuditQueryRepository repo(*pool);
+                tlogsvr::AuditQueryRepository repo(*pool, cfg.target_table);
                 const auto total  = repo.Count();
                 const auto latest = repo.LatestN(3);
                 spdlog::info("audit_query_repo: TLOG_AUDIT total={} rows; "
@@ -206,6 +206,12 @@ int main(int argc, char** argv)
                 {
                     const auto& e = latest[i];
                     const auto& r = as_records[i];
+                    if(backend==fourstory::db::Backend::PostgreSQL) {
+                        spdlog::info("  id={} date='{}' srv={} ip_hex={} action=0x{:04X} uid={} name_hex={}",
+                            e.log_id,e.log_date,e.server_id,tlogsvr::AuditHex(e.client_ip),
+                            e.action,e.search_int_0,tlogsvr::AuditHex(e.search_str_0));
+                        continue;
+                    }
                     spdlog::info("  id={} date='{}' srv={} ip={} action=0x{:04X} "
                                  "uid={} name='{}' (roundtrip: action=0x{:04X} "
                                  "uid={})",
@@ -216,8 +222,9 @@ int main(int argc, char** argv)
             }
             catch (const std::exception& ex)
             {
-                spdlog::warn("audit_query_repo: startup probe skipped: {}",
-                    ex.what());
+                if(backend==fourstory::db::Backend::PostgreSQL)
+                    throw std::runtime_error("Native audit read validation failed");
+                spdlog::warn("audit_query_repo: startup probe skipped: {}", ex.what());
             }
         }
         else

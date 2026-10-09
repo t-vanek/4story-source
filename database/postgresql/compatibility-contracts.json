@@ -1,0 +1,90 @@
+{
+  "policy": "Pinned .bak files are authoritative historical source; adapt derived PostgreSQL contracts through new numbered migrations, preserving original snapshots.",
+  "target": "PostgreSQL",
+  "source_fingerprints": {
+    "TGAME_RAGEZONE.bak": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259",
+    "TGLOBAL_RAGEZONE.bak": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+  },
+  "implemented": [
+    {
+      "contract": "Read-only game reference catalogs with explicit verified release",
+      "migration": "005-runtime-catalog-control.sql",
+      "source": "TGAME_RAGEZONE.dbo; original reference allowlist in mapping.json",
+      "publication": "activate_catalog.py reconciles all 15 tables, original bytes and pinned backup hashes; atomic explicit selection and activation history"
+    },
+    {
+      "contract": "Quoted legacy and unquoted C++ SQL identifiers",
+      "migration": "006-current-chart-contracts.sql",
+      "source": "Server/TMapSvrAsio/db/queries.h and restored original column names",
+      "publication": "15 quoted views plus 15 case-folded aliases; no changed snapshot identifiers or values"
+    },
+    {
+      "contract": "Current monster-ID and template-level combat lookup",
+      "migration": "006-current-chart-contracts.sql",
+      "source": [
+        "Server/TMapSvr/TMap.cpp:629",
+        "Server/TMapSvrAsio/services/spawn_manager.cpp:65"
+      ],
+      "transform": "Join monster.wMonAttr to original attribute.wID at monster.bLevel; expose monster.wID through the compatibility view only",
+      "retained_source_gaps": 39,
+      "fallback_values_introduced": false
+    },
+    {
+      "contract": "Native SOCI/PostgreSQL and one-snapshot Map catalog bootstrap",
+      "migration": "007-catalog-runtime-metadata.sql",
+      "source": [
+        "Lib/Own/FourStoryCommon/src/db/session_pool.cpp",
+        "Server/TMapSvrAsio/services/postgresql_catalog.cpp",
+        "Server/TMapSvrAsio/main.cpp"
+      ],
+      "verification": "_rewrite/docs/modernization/evidence/native-postgresql.json",
+      "scope": "TLS native pool, restricted read-only role, explicit manifest, actual caches/spawn/health/SIGTERM; mutable repositories and original client not verified"
+    },
+    {
+      "contract": "Native mutable Login subset in separate empty app_global schema",
+      "migration": "008-native-login.sql",
+      "source": "Restored TLogin/TLogout/TClearLoginCurrentUser/TCheckIP, original NetCode.h and existing C++ services",
+      "publication": "No historical account import. Synthetic real-PG transactions and encrypted daemon TCP tests; migration 009 enforces one active Login process."
+    },
+    {
+      "contract": "Single active Login owner, transaction fencing and graceful drain",
+      "migration": "009-login-runtime-owner.sql",
+      "source": [
+        "Server/TLoginSvrAsio/services/postgresql_login_owner.cpp",
+        "Server/TLoginSvrAsio/main.cpp",
+        "Server/TLoginSvrAsio/login_server.cpp"
+      ],
+      "publication": "Operational metadata only. Dedicated advisory lock, random owner token checked under FOR SHARE per native Login auth/session/routing transaction; replacement waits for preceding writes. Sequential dispatch and actual socket shutdown preserve ordering/handoff reason.",
+      "verification": "_rewrite/docs/modernization/evidence/login-lifecycle.json",
+      "scope": "Single active process plus failover; multi-active Login and full character/world handoff remain pending."
+    }
+  ],
+  "pending": [
+    {
+      "contract": "TINVENTABLE.dEndTime timestamp NOT NULL versus int64 read and NULL insert",
+      "source": "Server/TMapSvrAsio/services/soci_inventory_service.cpp; db/queries.h",
+      "required_evidence": "Historical timezone, permanent-expiry sentinel, bag versus item behavior; do not silently reinterpret dates"
+    },
+    {
+      "contract": "Guild validator aliases and unsupported fields",
+      "source": "Server/TWorldSvrAsio/db/schema_validator.cpp; services/soci_guild_repository.cpp",
+      "required_evidence": "Exercised article alias contract and meaning of cabinet.wItemKind/tactics.bRole before creating derived application fields"
+    },
+    {
+      "contract": "Mutable authentication, session and character schemas",
+      "required_evidence": "Native Login and single-owner failover verified in migrations 008/009; historical credential/collation, complete 2FA, multi-active Login, Map-owned remote duplicates and character/world persistence remain outstanding."
+    },
+    {
+      "contract": "Modern peer, metrics, audit, 2FA and patch/Bow extensions",
+      "required_evidence": "Exact caller/parameter contracts and versioned ownership; no invented legacy definitions or seeded private data"
+    },
+    {
+      "contract": "World-ranged item allocator and T-SQL stored procedure responsibilities",
+      "required_evidence": "Concurrent allocation/return/output/rollback fixtures before PostgreSQL replacement"
+    },
+    {
+      "contract": "Coordinated live catalog reload and complete original spawn behavior",
+      "required_evidence": "Current caches stay pinned until restart; ordinary/essential/weighted/leader/packed-ID and dynamic-level contracts still need behavioral tests. Missing original attributes are refused without replacement values."
+    }
+  ]
+}

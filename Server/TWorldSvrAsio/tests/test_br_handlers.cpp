@@ -32,6 +32,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -208,6 +209,12 @@ int main()
     tworldsvr::GuildRegistry guilds;
     tworldsvr::PeerRegistry  peers;
     tworldsvr::BowRegistry   bow;
+    // W6-54 requires configured settings and an active queue window.
+    bow.Configure(tworldsvr::bow::kBowMapId, 0, 1, 60, 30, 120);
+    bow.AddStartTime(1000);
+    bow.Init(500);
+    bow.Tick(1001, 1000, true);
+    bow.Tick(1002, 1000, true);
     tworldsvr::BrRegistry    br;
     tworldsvr::HandlerContext ctx{};
     ctx.io = &io; ctx.chars = &chars; ctx.guilds = &guilds;
@@ -240,8 +247,10 @@ int main()
 
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(42, 0xA1, /*user_id=*/1001));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(42, 0xA1, /*user_id=*/1001)));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0, /*user_id=*/2002));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p2, AddCharBody(200, 0xB0, /*user_id=*/2002)));
     for (int i = 0; i < 1000 && (!chars.Find(42) || !chars.Find(200)); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(42) != nullptr);

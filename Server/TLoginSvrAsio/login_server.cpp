@@ -9,7 +9,7 @@
 //                              to a fresh AsioSession, co_spawn the
 //                              per-connection coroutine with a
 //                              top-level exception trap.
-//   HandleConnection()       — pre-auth idle watchdog + RunPackets
+//   HandleConnection()       — pre-auth idle watchdog + RunPacketsAsync
 //                              read loop + post-disconnect cleanup
 //                              chain (TCURRENTUSER delete / TLOG
 //                              timestamp via ISessionTerminator).
@@ -30,6 +30,7 @@
 #include "login_server.h"
 #include "handlers.h"
 
+#include "fourstory/db/co_offload.h"
 #include "fourstory/db/session_pool.h"   // fourstory::db::AcquireTimeout
 
 #include <boost/asio/co_spawn.hpp>
@@ -84,6 +85,7 @@ boost::asio::awaitable<void>
 LoginServer::Run()
 {
     co_await m_listener.Run([this](boost::asio::ip::tcp::socket socket) {
+        if (m_stopping) { socket.close(); return; }
         // Pre-auth flood gate: bound the total in-flight TCP sessions
         // so a misbehaving / hostile peer can't hold thousands of half-
         // open sockets in memory waiting for the per-session pre-auth
@@ -91,7 +93,7 @@ LoginServer::Run()
         // after the cleanup chain completes.
         if (m_max_connections > 0)
         {
-            const auto current = m_active_connections.load(std::memory_order_relaxed);
+            const auto current = m_connections->active.load(std::memory_order_relaxed);
             if (current >= m_max_connections)
             {
                 boost::system::error_code peer_ec;
@@ -104,7 +106,7 @@ LoginServer::Run()
                 return;
             }
         }
-        m_active_connections.fetch_add(1, std::memory_order_relaxed);
+        m_connections->active.fetch_add(1, std::memory_order_relaxed);
 
         // PeerType::Client if we're running with the legacy-client
         // secret configured (Phase 2.5 wire compat); PeerType::Server
@@ -119,6 +121,7 @@ LoginServer::Run()
         auto sess = std::make_shared<tnetlib::AsioSession>(
             std::move(socket), peer);
 
+        m_connections->sessions.insert(sess);
         if (!m_rc4_secret_key.empty())
         {
             // Server-side: legacy convention is RC4 inbound only,
@@ -150,16 +153,33 @@ LoginServer::Run()
     });
 }
 
+boost::asio::awaitable<void>
+LoginServer::Stop()
+{
+    m_stopping = true;
+    m_listener.Stop();
+    const auto sessions = m_connections->sessions;
+    for (const auto& session : sessions) session->Close();
+    boost::asio::steady_timer timer(m_io);
+    while (m_connections->active.load(std::memory_order_relaxed) != 0)
+    {
+        timer.expires_after(std::chrono::milliseconds(10));
+        co_await timer.async_wait(boost::asio::use_awaitable);
+    }
+}
+
 namespace {
 
-// RAII counter decrement — ensures m_active_connections gets
+// RAII counter decrement — ensures m_connections->active gets
 // decremented even if HandleConnection unwinds via exception.
+template<class State>
 struct ConnectionCounterGuard
 {
-    std::atomic<std::uint32_t>* counter;
-    bool armed;
+    std::shared_ptr<State> state;
+    std::shared_ptr<tnetlib::AsioSession> session;
     ~ConnectionCounterGuard() {
-        if (armed && counter) counter->fetch_sub(1, std::memory_order_relaxed);
+        state->sessions.erase(session);
+        state->active.fetch_sub(1, std::memory_order_relaxed);
     }
 };
 
@@ -173,7 +193,7 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
     // exceptional path — so max_connections accounting can't leak
     // even if a handler or the cleanup chain throws.
     ConnectionCounterGuard slot_guard{
-        &m_active_connections, m_max_connections > 0 };
+        m_connections, sess };
 
     // Pre-auth idle watchdog. Spawn a deadline that closes the
     // socket if the session hasn't completed CS_LOGIN_REQ within
@@ -189,54 +209,42 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
         boost::asio::co_spawn(
             m_io,
             [sess, watchdog, registry, timeout]() -> boost::asio::awaitable<void> {
-                boost::system::error_code ec;
-                co_await watchdog->async_wait(
-                    boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-                if (ec) co_return; // timer cancelled — connection healthy
-                // Timer elapsed. If the session is registered, auth
-                // already finished and we don't need to act. Otherwise
-                // it's stuck pre-auth and gets dropped.
-                if (registry && registry->Lookup(sess).has_value())
-                    co_return;
-                spdlog::warn("pre-auth idle timeout ({}s) — closing session", timeout.count());
-                sess->Close();
+                for (;;)
+                {
+                    boost::system::error_code ec;
+                    co_await watchdog->async_wait(
+                        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+                    if (ec) co_return;
+                    if (registry)
+                        if (auto entry = registry->Lookup(sess))
+                        {
+                            if (!entry->awaiting_security && entry->session_key != 0) co_return;
+                            if (entry->awaiting_security && std::chrono::steady_clock::now() < entry->security_deadline)
+                            {
+                                watchdog->expires_at(entry->security_deadline);
+                                continue;
+                            }
+                        }
+                    spdlog::warn("pre-auth/security deadline elapsed — closing session");
+                    sess->Close(); co_return;
+                }
             },
             boost::asio::detached);
     }
 
-    // RunPackets fires the handler synchronously per packet, but the
-    // handler we want to invoke is awaitable (it issues SendPacket).
-    // Spawn a per-packet coroutine instead of trying to do it inline,
-    // so the codec read loop isn't blocked by send completions.
-    //
-    // The completion handler swallows handler-side exceptions: SOCI
-    // calls inside the dispatch chain can throw on DB outages, pool
-    // timeouts, or constraint violations. Without this we'd hit
-    // `boost::asio::detached`'s "rethrow if unhandled" policy and
-    // std::terminate() the whole io_context — one bad query would
-    // take down every active connection.
-    co_await sess->RunPackets(
-        [this, sess](const tnetlib::DecodedPacket& packet) {
-            boost::asio::co_spawn(
-                m_io,
-                Dispatch(sess, packet),
-                [sess](std::exception_ptr ep) {
-                    if (!ep) return;
-                    try { std::rethrow_exception(ep); }
-                    catch (const std::exception& ex) {
-                        spdlog::error("dispatch coroutine threw (peer={}): {}",
-                            sess->RemoteIPv4(), ex.what());
-                    }
-                    catch (...) {
-                        spdlog::error("dispatch coroutine threw a non-std exception (peer={})",
-                            sess->RemoteIPv4());
-                    }
-                    // Close the socket so the client sees a disconnect
-                    // rather than hanging. Logging is intentional —
-                    // ops needs to know when handlers fail.
-                    sess->Close();
-                });
+    // Await each handler before accepting its next packet. Authentication and
+    // subsequent lobby mutations on one socket cannot race each other, and TCP
+    // backpressure bounds memory while a database worker is busy.
+    try
+    {
+        co_await sess->RunPacketsAsync([this, sess](tnetlib::DecodedPacket packet)
+            -> boost::asio::awaitable<void> {
+            if (!m_stopping)
+                co_await Dispatch(sess, packet.wId,
+                    std::vector<std::byte>(packet.body.begin(), packet.body.end()));
         });
+    }
+    catch (...) { spdlog::error("login packet loop failed"); sess->Close(); }
 
     // Cancel the pre-auth watchdog (no-op if it already fired or was
     // never armed). Otherwise it might keep a shared_ptr to sess
@@ -248,11 +256,12 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
     // Connection closing — drive the per-session cleanup chain:
     // 1. Look up the entry stamped at LOGIN-success time (if any).
     //    Unauthenticated sessions have no entry → skip everything.
-    // 2. If a terminator is wired, call Terminate with the entry's
+    // 2. Unregister before waiting for database cleanup.
+    // 3. If a terminator is wired, call Terminate with the entry's
     //    user_id + session_key. The MapHandoff flag flips the reason
     //    so the impl can preserve TCURRENTUSER for Map's dwKEY
     //    validation (legacy CSHandler.cpp:1428 behavior).
-    // 3. Always unregister from the connection registry.
+    //    Await completion before releasing this connection's active slot.
     //
     // Wrapped in try/catch so a DB blip during Terminate() (e.g. the
     // pool just hit its acquire_timeout) doesn't escape into the
@@ -262,16 +271,21 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
         if (m_connection_registry)
         {
             const auto entry = m_connection_registry->Lookup(sess);
-            if (entry && m_session_terminator)
+            m_connection_registry->Unregister(sess);
+            if (entry && !entry->security_token.empty() && m_auth_service)
+                co_await fourstory::db::CoOffloadVoidIf(m_db_pool, [&] {
+                    m_auth_service->CancelSecurityChallenge(entry->security_token);
+                });
+            if (entry && entry->session_key && m_session_terminator)
             {
                 const auto reason = entry->handoff_to_map
                     ? services::TerminationReason::MapHandoff
                     : services::TerminationReason::Disconnect;
-                m_session_terminator->Terminate(
-                    entry->user_id, entry->session_key, reason,
-                    entry->last_char_id);
+                co_await fourstory::db::CoOffloadVoidIf(m_db_pool, [&] {
+                    m_session_terminator->Terminate(entry->user_id, entry->session_key,
+                        reason, entry->last_char_id);
+                });
             }
-            m_connection_registry->Unregister(sess);
         }
     }
     catch (const std::exception& ex)
@@ -280,23 +294,31 @@ LoginServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> sess)
             sess->RemoteIPv4(), ex.what());
     }
 
-    // m_active_connections decrement is handled by slot_guard's
+    // m_connections->active decrement is handled by slot_guard's
     // destructor (RAII) — covers both the happy path and the
     // exception-unwind path uniformly.
 }
 
 boost::asio::awaitable<void>
 LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
-                      const tnetlib::DecodedPacket& packet)
+                      std::uint16_t w_id, std::vector<std::byte> body)
 {
     using tnetlib::protocol::MessageId;
     using tnetlib::protocol::ToMessageId;
 
-    // Copy the body once — `packet.body` is only valid for the
-    // duration of the RunPackets callback that produced this Dispatch
-    // call, and we've already returned from it via the co_spawn.
-    std::vector<std::byte> body(packet.body.begin(), packet.body.end());
-    const auto id = ToMessageId(packet.wId);
+    // The read loop awaits this coroutine with an owned packet copy.
+    // Parameters are owned by the coroutine frame across suspension.
+    const auto id = ToMessageId(w_id);
+    // Pending email confirmation grants no account/lobby operations. Allow only
+    // its code reply and the original client's subsequent LOGIN retry.
+    if (m_connection_registry) {
+        const auto entry = m_connection_registry->Lookup(sess);
+        if (entry && entry->awaiting_security && id != MessageId::CS_LOGIN_REQ &&
+            id != MessageId::CS_SECURITYCONFIRM_ACK) {
+            sess->Close(); co_return;
+        }
+    }
+
 
     // Wrap the whole dispatch in a try/catch so handler-side throws
     // (SOCI pool exhaustion, DB outages, constraint violations) get
@@ -313,7 +335,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
             m_connection_registry, m_audit_logger, m_rate_limiter,
             std::span<const std::uint16_t>(
                 m_accepted_versions.data(), m_accepted_versions.size()),
-            m_smtp_client, m_nation, m_db_pool);
+            m_smtp_client, m_nation, m_db_pool, m_session_terminator);
         break;
     case MessageId::CS_GROUPLIST_REQ:
         co_await handlers::OnGroupListReq(sess, body, m_map_server_locator,
@@ -354,7 +376,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
         break;
     case MessageId::CS_SECURITYCONFIRM_ACK:
         co_await handlers::OnSecurityConfirmAck(sess, body,
-            m_auth_service, m_connection_registry, m_audit_logger, m_db_pool);
+            m_auth_service, m_connection_registry, m_audit_logger, m_db_pool, m_session_terminator);
         break;
     case MessageId::CS_TESTLOGIN_REQ:
         if (m_test_handlers_enabled)
@@ -419,7 +441,7 @@ LoginServer::Dispatch(std::shared_ptr<tnetlib::AsioSession> sess,
     {
         const auto name = tnetlib::protocol::NameOf(id);
         spdlog::warn("unhandled packet id=0x{:04X} ({}) body={} bytes",
-            packet.wId,
+            w_id,
             name.empty() ? std::string_view{"unknown"} : name,
             body.size());
         break;

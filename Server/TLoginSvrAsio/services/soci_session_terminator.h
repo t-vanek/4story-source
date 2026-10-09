@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 // SOCI-backed ISessionTerminator. Mirrors the legacy TLogout SP:
 //   * DELETE FROM TCURRENTUSER WHERE dwUserID = :uid
@@ -18,7 +19,7 @@ namespace tloginsvr::services {
 class SociSessionTerminator : public ISessionTerminator
 {
 public:
-    explicit SociSessionTerminator(fourstory::db::SessionPool& pool);
+    explicit SociSessionTerminator(fourstory::db::SessionPool& pool, std::string owner_token = {});
 
     void Terminate(std::int32_t  user_id,
                    std::uint32_t session_key,
@@ -41,6 +42,7 @@ public:
 
 private:
     fourstory::db::SessionPool& m_pool;
+    std::string m_owner_token;
 };
 
 } // namespace tloginsvr::services

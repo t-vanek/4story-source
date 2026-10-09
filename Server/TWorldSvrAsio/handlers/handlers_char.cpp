@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <cmath>
 #include <ctime>
 #include <mutex>
 #include <unordered_set>
@@ -99,7 +100,7 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
     std::uint32_t user_id = 0;
 
     if (!r.Read(char_id) || !r.Read(key) || !r.Read(ip_addr) ||
-        !r.Read(port)    || !r.Read(user_id))
+        !r.Read(port)    || !r.Read(user_id) || !r.Eof())
     {
         spdlog::warn("OnAddCharAck[{}]: short body ({} bytes) — dropped",
             ip, body.size());
@@ -121,28 +122,38 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
 
     if (auto existing = ctx.chars->Find(char_id))
     {
-        std::lock_guard g(existing->lock);
-        const bool any_match = std::any_of(
-            existing->cons.begin(), existing->cons.end(),
-            [&](const TCharCon& c) {
-                return c.server_id == server_id
-                    && c.ip_addr   == ip_addr
-                    && c.port      == port;
-            });
-        if (existing->key == key && !any_match)
+        // Original OnMW_ADDCHAR_ACK accepts only a route-planned connection
+        // matching server/IP/port, with valid=false. Appending an unsolicited
+        // con here both bypassed that contract and stalled the CHARDATA flow.
+        bool accepted=false, all_valid=false;
+        std::shared_ptr<PeerSession> main;
+        if (ctx.peers && server_id != 0 && peer->Wid() == (0x0400U | server_id) &&
+            ctx.peers->Find(peer->Wid()) == peer)
         {
-            existing->cons.push_back(TCharCon{
-                server_id, ip_addr, port, /*ready*/ false, /*valid*/ true,
-            });
-            spdlog::info("OnAddCharAck[{}]: additional connect char_id={} "
-                         "user_id={} server_id={}", ip, char_id, user_id,
-                server_id);
+            std::lock_guard g(existing->lock);
+            main=ctx.peers->Find(static_cast<std::uint16_t>(0x0400U | existing->main_server_id));
+            auto expected=std::find_if(existing->cons.begin(),existing->cons.end(),
+                [server_id](const TCharCon& con) { return con.server_id==server_id; });
+            if (main && main->Wire()->IsOpen() && existing->key==key && existing->user_id==user_id &&
+                expected!=existing->cons.end() && !expected->valid &&
+                expected->ip_addr==ip_addr && expected->port==port)
+            {
+                expected->valid=true;
+                expected->ready=false;
+                accepted=true;
+                all_valid=std::all_of(existing->cons.begin(),existing->cons.end(),
+                    [](const TCharCon& con) { return con.valid; });
+            }
+        }
+        if (!accepted)
+        {
+            // Reject the reporting connection without deleting the valid main
+            // on a stale/foreign key. Durable native ownership remains fenced.
+            co_await senders::SendMwInvalidCharReq(peer,char_id,key,0);
             co_return;
         }
-        spdlog::warn("OnAddCharAck[{}]: char_id={} already registered with "
-                     "key=0x{:08X} (incoming key=0x{:08X}) — dropping (W3 "
-                     "will fire MW_INVALIDCHAR_REQ)",
-            ip, char_id, existing->key, key);
+        if (all_valid)
+            co_await senders::SendMwCharDataReq(main,char_id,key);
         co_return;
     }
 
@@ -153,7 +164,7 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
     ch->main_server_id   = server_id;
     ch->logout           = false;
     ch->saving           = false;
-    ch->db_loading       = false;
+    ch->db_loading       = true;
     ch->chg_main_id      = 0;
     ch->cons.push_back(TCharCon{
         server_id, ip_addr, port, /*ready*/ false, /*valid*/ true,
@@ -180,16 +191,19 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
             ApplyFriendLoad(ctx, *self, fl);
     }
 
-    spdlog::info("OnAddCharAck[{}]: char_id={} key=0x{:08X} user_id={} "
+    spdlog::info("OnAddCharAck[{}]: char_id={} user_id={} "
                  "server_id={} ip={}.{}.{}.{}:{} — registered (total={}, "
                  "active_users={})",
-        ip, char_id, key, user_id, server_id,
+        ip, char_id, user_id, server_id,
         (ip_addr >>  0) & 0xFF, (ip_addr >>  8) & 0xFF,
         (ip_addr >> 16) & 0xFF, (ip_addr >> 24) & 0xFF, port,
         ctx.chars->Size(), ctx.chars->ActiveUserCount());
 
-    // TODO W3a-3: SendMW_ENTERSVR_REQ(peer, true, char_id, key).
-    co_return;
+    std::vector<std::byte> enter;
+    wire::WritePOD<std::uint8_t>(enter, 1); // bDBLoad, original fresh-login path
+    wire::WritePOD<std::uint32_t>(enter, char_id);
+    wire::WritePOD<std::uint32_t>(enter, key);
+    co_await senders::SendMwEnterSvrReq(peer, enter);
 }
 
 boost::asio::awaitable<void>
@@ -227,13 +241,27 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
         co_return;
     }
 
-    auto self = ctx.chars->Find(char_id);
-    if (!self) co_return;            // stale enter (legacy DELCHAR — deferred)
+    if(!r.Eof()||logout>1||save>1||!std::isfinite(pos_x)||!std::isfinite(pos_y)||!std::isfinite(pos_z)||
+       !ctx.peers||!ctx.peers->IsCurrentMap(peer))co_return;
+    auto self=ctx.chars->Find(char_id);
+    if(!self)co_return;
     {
-        std::lock_guard g(self->lock);
-        if (self->key != key) co_return;          // INVALIDCHAR — deferred
+        std::lock_guard guard(self->lock);
+        const auto sid=static_cast<std::uint8_t>(peer->Wid());
+        const auto con=std::find_if(self->cons.begin(),self->cons.end(),[sid](const auto& c){return c.server_id==sid&&c.valid;});
+        if(self->closing||self->key!=key||con==self->cons.end()||self->main_server_id!=sid)co_return;
+        if(self->main_handoff) {
+            const auto h=self->main_handoff;
+            if(h->phase!=MainHandoffPhase::Enter||h->target.lock()!=peer||!ctx.peers->IsCurrentMap(h->source.lock()))co_return;
+            if(result==0)h->phase=MainHandoffPhase::Confirm;
+        } else if(!self->db_loading)co_return;
+        self->db_loading=false; // consume the expected load response once
     }
-    if (result != 0) co_return;      // enter error (legacy CONRESULT — deferred)
+    if(result!=0) {
+        co_await senders::SendMwConResultReq(peer,char_id,key,result<=5?result:5,{});
+        co_await CloseChar(self,ctx);
+        co_return;
+    }
 
     // Index the name (Rename keeps FindByName coherent). On a map
     // change the name is already ours → idempotent; a true collision
@@ -428,7 +456,7 @@ OnCloseCharAck(std::shared_ptr<PeerSession>  peer,
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0;
     std::uint32_t key     = 0;
-    if (!r.Read(char_id) || !r.Read(key))
+    if (!r.Read(char_id) || !r.Read(key) || !r.Eof())
     {
         spdlog::warn("OnCloseCharAck[{}]: short body ({} bytes) — dropped",
             ip, body.size());
@@ -447,11 +475,16 @@ OnCloseCharAck(std::shared_ptr<PeerSession>  peer,
     if (ok)
     {
         std::lock_guard g(ch->lock);
-        if (ch->key != key) ok = false;
+        const auto sid = static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+        ok = ch->key == key && sid != 0 && peer->Wid() == (0x0400U | sid) &&
+             ctx.peers && ctx.peers->Find(peer->Wid()) == peer &&
+             std::any_of(ch->cons.begin(), ch->cons.end(), [sid](const TCharCon& con) {
+                 return con.server_id == sid && con.valid;
+             });
     }
     if (!ok)
     {
-        // Stale / wrong-key close — tell the reporting map to drop the
+        // Stale, unregistered or unaccepted connection close — tell the reporting map to drop the
         // client (legacy FindTChar miss → SendMW_DELCHAR_REQ).
         spdlog::info("OnCloseCharAck[{}]: char_id={} not registered / key "
                      "mismatch — DELCHAR", ip, char_id);
@@ -554,6 +587,12 @@ CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
     std::vector<std::uint8_t> cons, dead;
     {
         std::lock_guard g(ch->lock);
+        if(ch->closing)co_return;
+        ch->closing=true;
+        ch->db_loading=false;
+        ch->main_checks.clear();
+        if(ch->main_handoff&&ch->main_handoff->deadline)ch->main_handoff->deadline->cancel();
+        ch->main_handoff.reset();
         char_id = ch->char_id; key = ch->key; user_id = ch->user_id;
         main_id = ch->main_server_id; chg_main_id = ch->chg_main_id;
         logout = ch->logout; saving = ch->saving;
@@ -561,22 +600,25 @@ CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
         for (const auto& c : ch->cons) cons.push_back(c.server_id);
     }
 
+    const auto map_peer=[&](std::uint8_t sid){
+        return sid&&ctx.peers?ctx.peers->Find(static_cast<std::uint16_t>(0x0400U|sid)):nullptr;
+    };
     // A main-session handoff was in flight → void the would-be new
     // main's takeover (legacy CloseChar's m_bCHGMainID branch).
     if (chg_main_id != 0)
-        if (auto p = FindMapPeer(ctx, chg_main_id))
+        if (auto p = map_peer(chg_main_id))
             co_await senders::SendMwInvalidCharReq(p, char_id, key,
                 /*release_main=*/1);
 
     // Tell every connected map to drop the char (dead cons first, then
     // live). Only the main connection carries the logout / save flags.
     for (std::uint8_t sid : dead)
-        if (auto p = FindMapPeer(ctx, sid))
+        if (auto p = map_peer(sid))
             co_await senders::SendMwDelCharReq(p, char_id, key,
                 static_cast<std::uint8_t>(sid == main_id && logout ? 1 : 0),
                 static_cast<std::uint8_t>(sid == main_id && saving ? 1 : 0));
     for (std::uint8_t sid : cons)
-        if (auto p = FindMapPeer(ctx, sid))
+        if (auto p = map_peer(sid))
             co_await senders::SendMwDelCharReq(p, char_id, key,
                 static_cast<std::uint8_t>(sid == main_id && logout ? 1 : 0),
                 static_cast<std::uint8_t>(sid == main_id && saving ? 1 : 0));

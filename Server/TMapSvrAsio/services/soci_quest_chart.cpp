@@ -13,9 +13,13 @@
 namespace tmapsvr {
 
 SociQuestChart::SociQuestChart(fourstory::db::SessionPool& pool)
+    : SociQuestChart(*pool.Acquire())
 {
-    auto lease = pool.Acquire();
-    auto& sql  = *lease;
+    // The temporary Lease lives until the delegated constructor returns.
+}
+
+SociQuestChart::SociQuestChart(soci::session& sql)
+{
 
     // 1) Quest headers — TQUESTCHART.
     {
@@ -51,7 +55,7 @@ SociQuestChart::SociQuestChart(fourstory::db::SessionPool& pool)
         while (st.fetch())
         {
             const auto it = m_defs.find(static_cast<std::uint32_t>(qid));
-            if (it == m_defs.end()) continue;   // term for an unknown quest
+            if (it == m_defs.end()) { ++m_unresolved_terms; continue; }
             QuestTermDef t;
             t.dwTermID   = static_cast<std::uint32_t>(term_id);
             t.bTermType  = db::Narrow8(term_type);
@@ -72,7 +76,7 @@ SociQuestChart::SociQuestChart(fourstory::db::SessionPool& pool)
         while (st.fetch())
         {
             const auto it = m_defs.find(static_cast<std::uint32_t>(qid));
-            if (it == m_defs.end()) continue;
+            if (it == m_defs.end()) { ++m_unresolved_rewards; continue; }
             QuestRewardDef rw;
             rw.bRewardType = db::Narrow8(rtype);
             rw.dwRewardID  = static_cast<std::uint32_t>(rid);
@@ -87,6 +91,9 @@ SociQuestChart::SociQuestChart(fourstory::db::SessionPool& pool)
     spdlog::info("soci_quest_chart: loaded {} quest(s), {} term(s), {} "
                  "reward(s) from TQUESTCHART/TQUESTTERMCHART/TQREWARDCHART",
                  m_defs.size(), term_rows, reward_rows);
+    if (m_unresolved_terms || m_unresolved_rewards)
+        spdlog::warn("soci_quest_chart: retained source gaps: {} unknown-quest terms, {} unknown-quest rewards",
+            m_unresolved_terms, m_unresolved_rewards);
 }
 
 } // namespace tmapsvr

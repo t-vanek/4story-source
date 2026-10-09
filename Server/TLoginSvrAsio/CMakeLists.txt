@@ -67,8 +67,11 @@ add_library(tloginsvr_asio_core STATIC
     ${TLOGINSVR_ASIO_SRC}/services/fake_session_terminator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/fake_char_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/charname_validator.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/postgresql_login_owner.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_auth_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_char_service.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/postgresql_map_handoff.cpp
+    ${TLOGINSVR_ASIO_SRC}/services/postgresql_char_service.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_map_server_locator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/soci_session_terminator.cpp
     ${TLOGINSVR_ASIO_SRC}/services/bcrypt_util.cpp)
@@ -122,6 +125,10 @@ target_link_libraries(tloginsvr_bcrypt_migrate PRIVATE
     tloginsvr_asio_core)
 
 # End-to-end handshake test.
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
 add_executable(test_tloginsvr_asio_handshake
     ${TLOGINSVR_ASIO_SRC}/tests/test_handshake.cpp)
 target_link_libraries(test_tloginsvr_asio_handshake PRIVATE
@@ -193,7 +200,7 @@ target_link_libraries(test_tloginsvr_asio_control_gate PRIVATE
 add_test(NAME tloginsvr_asio_control_gate
     COMMAND test_tloginsvr_asio_control_gate)
 
-# Shutdown-sweep test — Snapshot + Terminate chain (round 2 #4).
+# Graceful shutdown over real sockets, preserving Map handoff semantics.
 add_executable(test_tloginsvr_asio_shutdown_sweep
     ${TLOGINSVR_ASIO_SRC}/tests/test_shutdown_sweep.cpp)
 target_link_libraries(test_tloginsvr_asio_shutdown_sweep PRIVATE
@@ -260,3 +267,24 @@ target_link_libraries(test_tloginsvr_asio_wire_e2e_soci PRIVATE
     tloginsvr_asio_core)
 add_test(NAME tloginsvr_asio_wire_e2e_soci
     COMMAND test_tloginsvr_asio_wire_e2e_soci)
+
+if(FOURSTORY_ENABLE_POSTGRESQL)
+    add_executable(test_tloginsvr_postgresql_auth tests/test_postgresql_auth.cpp)
+    target_link_libraries(test_tloginsvr_postgresql_auth PRIVATE tloginsvr_asio_core)
+    add_test(NAME tloginsvr_postgresql_auth COMMAND test_tloginsvr_postgresql_auth)
+    set_tests_properties(tloginsvr_postgresql_auth PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
+if(FOURSTORY_ENABLE_POSTGRESQL)
+    add_executable(test_tloginsvr_postgresql_char tests/test_postgresql_char.cpp)
+    target_link_libraries(test_tloginsvr_postgresql_char PRIVATE tloginsvr_asio_core)
+    add_test(NAME tloginsvr_postgresql_char COMMAND test_tloginsvr_postgresql_char)
+    set_tests_properties(tloginsvr_postgresql_char PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
+if(FOURSTORY_ENABLE_POSTGRESQL)
+    add_executable(test_tloginsvr_postgresql_handoff tests/test_postgresql_handoff.cpp)
+    target_link_libraries(test_tloginsvr_postgresql_handoff PRIVATE tloginsvr_asio_core)
+    add_test(NAME tloginsvr_postgresql_handoff COMMAND test_tloginsvr_postgresql_handoff)
+    set_tests_properties(tloginsvr_postgresql_handoff PROPERTIES SKIP_RETURN_CODE 77)
+endif()

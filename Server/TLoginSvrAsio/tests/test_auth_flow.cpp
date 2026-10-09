@@ -71,10 +71,12 @@ std::vector<std::byte> MakeLoginReq(std::uint16_t version,
     append_string(user_id);
     // Legacy checksum from CSHandler.cpp:185-202 — the client computes
     // it from wVersion alone. Server enforces a match; sending 0 → close.
-    constexpr std::int64_t kKey = 0x336c3aebf71a8b08LL;
-    std::int64_t ck = static_cast<std::int64_t>(version) * 2 - 500;
-    const std::int64_t idx  = ck % 8;
-    const std::int64_t body = ck / 8;
+    constexpr std::uint64_t kKey = 0x336c3aebf71a8b08ULL;
+    const std::int64_t seed = static_cast<std::int64_t>(version) * 2 - 500;
+    const std::int64_t idx = seed % 8;
+    const auto body = static_cast<std::uint64_t>(seed / 8);
+    // Keep signed seed division/remainder, then wrap additions modulo 2^64.
+    auto ck = static_cast<std::uint64_t>(seed);
     for (std::int64_t i = 0; i < idx; ++i) { ck ^= body; ck += kKey; }
     std::int64_t dlCheck = 0;
     append_bytes(&dlCheck, 8);
@@ -175,7 +177,7 @@ void TestAuthFlow()
 
     // 4. Banned user (correct password, but user-level ban applies).
     const auto banned = SendLoginAndGetResult(server_io, port, "bob", "secret");
-    Check(banned == 6, "banned user → LR_BLOCK (6)");
+    Check(banned == 7, "account ban → backed-up TLogin LR_IPBLOCK (7)");
 
     server_io.stop();
     if (server_thread.joinable()) server_thread.join();

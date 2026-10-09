@@ -1,0 +1,42 @@
+{
+  "source": "Pinned TGLOBAL_RAGEZONE.bak restored catalog",
+  "catalog_sha256": "06f58641ec47f4cf4a8db1f6b853e92ca9224d021a442db0e3cd67e0c0eb26c2",
+  "modules": [
+    {
+      "name": "TAgreement",
+      "definition_sha256": "c364a3c3715baeaa6a4a652340745d4309d718b4ddc8e88b09cce3d54782dbef"
+    },
+    {
+      "name": "TCheckPasswd",
+      "definition_sha256": "5e0d2a60f3c1a7c1c9004ce5067ddff0b5ca8cfba1bcefa640b05f2b6eb53248"
+    },
+    {
+      "name": "TClearLoginCurrentUser",
+      "definition_sha256": "7c41f39b0a67fa4460702246263fa8567986ae5b9c619533c3d981e64aded25c"
+    },
+    {
+      "name": "TLogin",
+      "definition_sha256": "f175db6ff4fe2643a4b6bba8fa8a77716669216309d5ef4097899d56d320749e"
+    },
+    {
+      "name": "TLogout",
+      "definition_sha256": "21a3fc099d89b5c1b9fc73ff03a7603fc44340f34d3c12f6839b289abb6ba30a"
+    },
+    {
+      "name": "TCheckIP",
+      "definition_sha256": "9d3dfe99ea3995770c9abf03332161fae7c44d43764b8f3f0048966b94564639"
+    }
+  ],
+  "findings": [
+    "TLogin wraps duplicate detection and session/audit/last-login writes in one transaction.",
+    "TLogin returns code 8 after committing a session when agreement is missing.",
+    "TLogout reads the current key and metadata in a transaction and updates matching audit before deletion.",
+    "TClearLoginCurrentUser deletes only pre-handoff rows with dwCharID=0.",
+    "TAgreement increments acceptance and has release-date-dependent cabinet rewards; modern idempotent flag is not complete historical parity.",
+    "Backup TACCOUNT_PW has no populated credential corpus; no credential import authorized by evidence.",
+    "New mutable timestamps can be timezone-aware; historical snapshot dates must remain uninterpreted.",
+    "Original NetCode.h login results: internal=5, IP restriction=6, IP/account ban=7, agreement=8, security=10; corrected modern enum and explicit wire mapping.",
+    "TCheckIP pattern restrictions return 6 after credential validation. Error precedence is corrected and exercised with both wrong and valid credentials in login-lifecycle.json.",
+    "Additional source conflict: Server/TLoginSvr/CSHandler.cpp:210 calls CSPCheckIP before credentials and immediately replies LR_BLOCK=6. The native service currently follows the backed-up TLogin procedure order (credentials before its bIPCheck gate). This is not complete parity with the original C++ wrapper; retain the difference for end-to-end behavior review."
+  ]
+}

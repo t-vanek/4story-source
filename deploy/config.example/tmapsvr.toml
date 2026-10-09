@@ -1,0 +1,30 @@
+# Container smoke configuration: fake game services, no persistence.
+[server]
+port = 5815
+
+[world]
+host = "world"
+port = 3815
+
+[audit]
+host = "log"
+port = 2000
+
+[crypto]
+# Plain wire for transport smoke tests. Configure RC4 for a real client.
+disable = true
+
+[health]
+port = 8916
+
+[metrics]
+port = 0
+
+[admin]
+port = 0
+
+[shutdown]
+drain_ms = 2000
+
+[log]
+level = "info"

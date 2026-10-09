@@ -172,12 +172,30 @@ target_link_libraries(tworldsvr_asio PRIVATE tworldsvr_asio_core)
 # opens a loopback socket, frames a packet with a known + an unknown
 # wID, and verifies (a) both are dispatched without closing the
 # connection, (b) a checksum-mismatch frame DOES close the connection.
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
 add_executable(test_tworldsvr_asio_dispatch
     ${TWORLD_ASIO_SRC}/tests/test_dispatch.cpp)
 target_link_libraries(test_tworldsvr_asio_dispatch PRIVATE
     tworldsvr_asio_core)
 add_test(NAME tworldsvr_asio_dispatch
     COMMAND test_tworldsvr_asio_dispatch)
+
+add_executable(test_tworldsvr_asio_session_writes
+    ${TWORLD_ASIO_SRC}/tests/test_world_session_writes.cpp)
+target_link_libraries(test_tworldsvr_asio_session_writes PRIVATE tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_session_writes COMMAND test_tworldsvr_asio_session_writes)
+
+add_executable(test_tworldsvr_asio_secondary_admission
+    ${TWORLD_ASIO_SRC}/tests/test_secondary_admission.cpp)
+target_link_libraries(test_tworldsvr_asio_secondary_admission PRIVATE tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_secondary_admission COMMAND test_tworldsvr_asio_secondary_admission)
+
+add_executable(test_tworldsvr_asio_main_handoff ${TWORLD_ASIO_SRC}/tests/test_main_handoff.cpp)
+target_link_libraries(test_tworldsvr_asio_main_handoff PRIVATE tworldsvr_asio_core)
+add_test(NAME tworldsvr_asio_main_handoff COMMAND test_tworldsvr_asio_main_handoff)
 
 # W2 unit test: CharRegistry partitioning + per-char actor model.
 # Exercises Insert / Find / Remove + concurrent inserts across

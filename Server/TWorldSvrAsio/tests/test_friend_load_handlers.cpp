@@ -19,6 +19,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -135,12 +136,14 @@ int main()
 
     // Bob online first, so Alice's load sees him connected.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(200, 0xB0)));
     for (int i = 0; i < 100; ++i)
     { if (chars.Find(200)) break; std::this_thread::sleep_for(10ms); }
     EXPECT(chars.Find(200));
 
     // Alice online → hydrate her friends/groups from the repo.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, 0xA1));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(42, 0xA1)));
     for (int i = 0; i < 100; ++i)
     {
         auto c = chars.Find(42);

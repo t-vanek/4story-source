@@ -67,7 +67,10 @@ public:
     boost::asio::awaitable<void> Run(PacketHandler on_packet);
 
     // Build + send one frame. Header (size + checksum) is computed
-    // here so callers only ship body bytes.
+    // here so callers only ship body bytes. One complete write at a time, with
+    // per-peer backpressure: at most 256 outstanding frames and 4 MiB including
+    // headers. Overflow/write failure closes the peer; no write replay.
+    // Run/SendPacket/Close are confined to the runtime's single I/O thread.
     boost::asio::awaitable<void> SendPacket(std::uint16_t wId,
                                             std::vector<std::byte> body);
 
@@ -94,7 +97,8 @@ private:
 
     Socket                                m_socket;
     std::string                           m_remote_ipv4;
-    std::vector<std::byte>                m_send_scratch;
+    struct SendState;
+    std::shared_ptr<SendState>             m_send_state;
     std::chrono::steady_clock::time_point m_connected_at{
         std::chrono::steady_clock::now()};
     std::atomic<std::chrono::steady_clock::rep> m_last_recv_at{

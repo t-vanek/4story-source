@@ -1,0 +1,28 @@
+{
+  "configuration": "Linux Debug, ASan + UBSan + leak detection, halt on first error",
+  "scope": "Six selected shared crypto/codec/Asio/Login suites, thirty repeated echo runs, and actual native PostgreSQL Login email/ownership lifecycle; not the complete cluster under sanitizers",
+  "preset": "linux-asan",
+  "excluded": "UBSan vptr: installed SOCI does not export required ref_counted_statement RTTI for linkage",
+  "unit_tests": [
+    "tnetlib_crypto_kat",
+    "tnetlib_packet_codec",
+    "tnetlib_asio_echo",
+    "tloginsvr_asio_auth_flow",
+    "tloginsvr_asio_session_terminator",
+    "tloginsvr_asio_shutdown_sweep"
+  ],
+  "unit_status": "passed",
+  "unit_log": "Test project /src/build/linux-asan\n    Start  2: tnetlib_crypto_kat\n1/6 Test  #2: tnetlib_crypto_kat ..................   Passed    0.01 sec\n    Start  3: tnetlib_asio_echo\n2/6 Test  #3: tnetlib_asio_echo ...................   Passed    0.38 sec\n    Start  5: tnetlib_packet_codec\n3/6 Test  #5: tnetlib_packet_codec ................   Passed    0.01 sec\n    Start 13: tloginsvr_asio_auth_flow\n4/6 Test #13: tloginsvr_asio_auth_flow ............   Passed    0.12 sec\n    Start 16: tloginsvr_asio_session_terminator\n5/6 Test #16: tloginsvr_asio_session_terminator ...   Passed    0.35 sec\n    Start 21: tloginsvr_asio_shutdown_sweep\n6/6 Test #21: tloginsvr_asio_shutdown_sweep .......   Passed    0.05 sec\n\n100% tests passed, 0 tests failed out of 6\n\nTotal Test time (real) =   0.92 sec\n",
+  "native_report": "login-security-asan.json",
+  "fixed_findings": [
+    "Undefined signed overflow in legacy-compatible packet and version checksums; uint64 wrapping arithmetic with frozen independent expected bytes.",
+    "HealthEndpoint outlived io_context, causing use-after-free during process exit; endpoint now scoped inside reactor lifetime.",
+    "OpenSSL default/legacy provider references were discarded without unload; thread-safe static ownership now releases loaded references.",
+    "Suspended packet-read coroutine close guard held a raw session pointer during reactor destruction; retain shared ownership until guard cleanup completes. Reproduced with ASan and verified with thirty consecutive echo-suite passes."
+  ],
+  "limitations": [
+    "No vptr or ThreadSanitizer coverage.",
+    "No Windows/native original-client acceptance."
+  ],
+  "echo_repetition_log": "Test project /src/build/linux-asan\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.44 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.38 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.38 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.38 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.38 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.38 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.38 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.44 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.38 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n    Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n    Start 3: tnetlib_asio_echo\n1/1 Test #3: tnetlib_asio_echo ................   Passed    0.42 sec\n\n100% tests passed, 0 tests failed out of 1\n\nTotal Test time (real) =  12.40 sec\n"
+}

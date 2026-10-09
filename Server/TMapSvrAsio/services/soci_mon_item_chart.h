@@ -7,6 +7,7 @@
 #include <vector>
 
 namespace fourstory::db { class SessionPool; }
+namespace soci { class session; }
 
 namespace tmapsvr {
 
@@ -14,6 +15,8 @@ class SociMonItemChart final : public IMonItemChart
 {
 public:
     explicit SociMonItemChart(fourstory::db::SessionPool& pool);
+    // Shared boot transaction: all catalogs observe the same content release.
+    explicit SociMonItemChart(soci::session& sql);
 
     const std::vector<MonItemEntry>&
         ForMon(std::uint16_t mon_id) const override

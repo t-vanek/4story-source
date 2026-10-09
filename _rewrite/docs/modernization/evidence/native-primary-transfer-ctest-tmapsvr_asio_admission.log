@@ -1,0 +1,21 @@
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-09 05:23:56.898] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-09 05:23:56.898] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS transfer test binds ready primary
+PASS in-flight gameplay holds a session operation
+PASS transfer phase stops new gameplay while retaining in-flight operation
+PASS freeze excludes new gameplay and premature teardown
+PASS teardown still waits for own...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]

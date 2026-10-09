@@ -114,7 +114,7 @@ int main()
     boost::asio::co_spawn(io, world.Run(), boost::asio::detached);
 
     // --- TMap side: world client that auto-registers on connect -------
-    constexpr std::uint16_t kWid       = 0x0105;     // group_id=1, server_id=5
+    constexpr std::uint16_t kWid       = 0x0405;     // SVRGRP_MAPSVR=4, server_id=5
     constexpr std::uint8_t  kServerId  = 0x05;
     constexpr std::uint32_t kCharId    = 0xABCDEF01;
     constexpr std::uint32_t kKey       = 0x12345678;
@@ -126,10 +126,11 @@ int main()
         // (RW_RELAYSVR_ACK + the CharInfo/Route/FriendList fan-out
         // OnEnterSvrAck pushes — those still prove the reverse wire
         // decodes cleanly by not erroring the read loop).
-        [&ack](std::uint16_t wId, std::span<const std::byte> body) {
+        [&ack](std::uint16_t wId, std::span<const std::byte> body) -> boost::asio::awaitable<void> {
             if (wId == static_cast<std::uint16_t>(
                     MessageId::RW_ENTERCHAR_ACK))
                 DecodeEnterCharAck(body, ack);
+            co_return;
         },
         /*backoff_initial=*/20ms, /*backoff_max=*/100ms);
     client.SetRelayWid(kWid);

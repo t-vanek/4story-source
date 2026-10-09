@@ -10,7 +10,6 @@
 #endif
 
 #include <cstring>
-#include <mutex>
 
 namespace tnetlib_crypto {
 
@@ -23,20 +22,23 @@ constexpr int MD5_DIGEST_LEN = 16;
 // "legacy" provider, which must be explicitly loaded once per process.
 // MD5 is still in default; we load default explicitly anyway so that
 // behavior is identical whether the host application has loaded a
-// provider already or not. Both loaded providers are leaked on shutdown
-// (process is exiting; OpenSSL teardown order is fragile and not worth
-// the destructor coordination).
+// provider already or not. Keep our provider references until shutdown and
+// release them before OpenSSL's automatic cleanup (registered during load).
+// Unload releases only our references, not another component's provider handles.
 void EnsureLegacyProviderLoaded() noexcept
 {
-    static std::once_flag once;
-    std::call_once(once, [] {
-        // Both calls return non-null on success; null indicates the
-        // provider isn't shippable in this OpenSSL build. We can't do
-        // anything actionable here at init time, so log nothing —
-        // EncryptInit will fail loudly downstream if RC4 is unavailable.
-        OSSL_PROVIDER_load(nullptr, "default");
-        OSSL_PROVIDER_load(nullptr, "legacy");
-    });
+    struct Providers {
+        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_load(nullptr, "default");
+        OSSL_PROVIDER* legacy_provider = OSSL_PROVIDER_load(nullptr, "legacy");
+        ~Providers() {
+            if (legacy_provider) OSSL_PROVIDER_unload(legacy_provider);
+            if (default_provider) OSSL_PROVIDER_unload(default_provider);
+        }
+    };
+    // Function-local static initialization is thread-safe. A missing provider
+    // remains null; EncryptInit reports RC4 unavailability to the caller.
+    static const Providers providers;
+    (void)providers;
 }
 #else
 inline void EnsureLegacyProviderLoaded() noexcept {}

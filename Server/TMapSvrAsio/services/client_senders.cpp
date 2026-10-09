@@ -1,8 +1,32 @@
 #include "services/client_senders.h"
 
 #include "wire_codec.h"
+#include <stdexcept>
+#include <ctime>
+#include <cstdio>
 
 namespace tmapsvr {
+
+// "AM/PM HH:MM" server clock string CS_CHARINFO_ACK carries (legacy
+// CSSender.cpp:344 formats the wall-clock the same way). Cosmetic — the
+// client displays it; kept here so the pure encoder takes it as data.
+std::string FormatServerClock()
+{
+    const std::time_t t = std::time(nullptr);
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    const char* ampm = (tm.tm_hour < 12) ? "AM" : "PM";
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%s %02d : %02d", ampm, tm.tm_hour,
+        tm.tm_min);
+    return std::string(buf);
+}
+
+
 
 std::vector<std::byte> EncodeAddConnectAck(
     const std::vector<ConnectRoute>& routes)
@@ -36,19 +60,22 @@ std::vector<std::byte> EncodeCharInfoAck(
 {
     std::vector<std::byte> b;
     b.reserve(256);
+    const CharacterPayload empty;
+    const auto& p=s.payload?*s.payload:empty;
+    const auto count=[](std::size_t n){if(n>255)throw std::length_error("Client list exceeds BYTE count");return static_cast<std::uint8_t>(n);};
 
     // --- identity + secure code (secure not modeled → 0) -------------
     wire::WritePOD<std::uint32_t>(b, s.dwCharID);
     wire::WritePOD<std::uint8_t> (b, 0);            // secure created
     wire::WritePOD<std::uint8_t> (b, 0);            // secure cur-unlocked
     wire::WritePOD<std::uint8_t> (b, 0);            // secure disabled
-    wire::WritePOD<std::uint16_t>(b, 0);            // title id (World-sourced)
+    wire::WritePOD<std::uint16_t>(b, p.selected_title); // selected persisted title
     wire::WriteString            (b, s.szNAME);
     wire::WritePOD<std::uint8_t> (b, s.bStartAct);
     wire::WritePOD<std::uint8_t> (b, s.bClass);
     wire::WritePOD<std::uint8_t> (b, s.bRace);
     wire::WritePOD<std::uint8_t> (b, s.bCountry);
-    wire::WritePOD<std::uint8_t> (b, s.bOriCountry);   // aid country
+    wire::WritePOD<std::uint8_t> (b, s.payload?s.payload->aid_country:3); // aid country
     wire::WritePOD<std::uint8_t> (b, s.bSex);
     wire::WritePOD<std::uint8_t> (b, s.bHair);
     wire::WritePOD<std::uint8_t> (b, s.bFace);
@@ -60,29 +87,29 @@ std::vector<std::byte> EncodeCharInfoAck(
     wire::WritePOD<std::uint8_t> (b, s.bLevel);
 
     // --- party + guild + tactics (World-sourced cluster state → 0) ---
-    wire::WritePOD<std::uint16_t>(b, 0);            // party id
-    wire::WritePOD<std::uint32_t>(b, 0);            // guild id
-    wire::WritePOD<std::uint32_t>(b, 0);            // fame
-    wire::WritePOD<std::uint32_t>(b, 0);            // fame color
-    wire::WritePOD<std::uint8_t> (b, 0);            // guild duty
-    wire::WritePOD<std::uint8_t> (b, 0);            // guild peer
-    wire::WriteString            (b, std::string{});// guild name
-    wire::WritePOD<std::uint32_t>(b, 0);            // tactics id
-    wire::WriteString            (b, std::string{});// tactics name
+    wire::WritePOD<std::uint16_t>(b, s.cluster.party);
+    wire::WritePOD<std::uint32_t>(b, s.cluster.guild);
+    wire::WritePOD<std::uint32_t>(b, s.cluster.fame);
+    wire::WritePOD<std::uint32_t>(b, s.cluster.fame_color);
+    wire::WritePOD<std::uint8_t> (b, s.cluster.duty);
+    wire::WritePOD<std::uint8_t> (b, s.cluster.peer);
+    wire::WriteString            (b, s.cluster.guild_name);
+    wire::WritePOD<std::uint32_t>(b, s.cluster.tactics);
+    wire::WriteString            (b, s.cluster.tactics_name);
 
     // --- money + exp + hp/mp -----------------------------------------
     wire::WritePOD<std::uint32_t>(b, s.dwGold);
     wire::WritePOD<std::uint32_t>(b, s.dwSilver);
     wire::WritePOD<std::uint32_t>(b, s.dwCooper);
-    wire::WritePOD<std::uint32_t>(b, 0);            // prev-level exp (level chart)
-    wire::WritePOD<std::uint32_t>(b, 0);            // next-level exp (level chart)
+    wire::WritePOD<std::uint32_t>(b, p.prev_exp);
+    wire::WritePOD<std::uint32_t>(b, p.next_exp);
     wire::WritePOD<std::uint32_t>(b, s.dwEXP);
-    wire::WritePOD<std::uint32_t>(b, s.dwHP);       // max HP → current (full bar)
+    wire::WritePOD<std::uint32_t>(b, s.dwMaxHP);
     wire::WritePOD<std::uint32_t>(b, s.dwHP);
-    wire::WritePOD<std::uint32_t>(b, s.dwMP);       // max MP → current (full bar)
+    wire::WritePOD<std::uint32_t>(b, s.dwMaxMP);
     wire::WritePOD<std::uint32_t>(b, s.dwMP);
-    wire::WritePOD<std::uint32_t>(b, 0);            // party chief id
-    wire::WritePOD<std::uint16_t>(b, 0);            // commander id (corps)
+    wire::WritePOD<std::uint32_t>(b, s.cluster.party_chief);
+    wire::WritePOD<std::uint16_t>(b, s.cluster.commander);
 
     // --- region + position -------------------------------------------
     wire::WritePOD<std::uint32_t>(b, s.dwRegion);
@@ -92,23 +119,38 @@ std::vector<std::byte> EncodeCharInfoAck(
     wire::WritePOD<float>        (b, s.fPosZ);
     wire::WritePOD<std::uint16_t>(b, s.wDIR);
     wire::WritePOD<std::uint16_t>(b, s.wSkillPoint);
-    wire::WritePOD<std::uint8_t> (b, 0);            // lucky number
+    wire::WritePOD<std::uint8_t> (b, p.lucky_number);
     wire::WritePOD<std::uint32_t>(b, 0);            // aid left time
 
     // --- skill-kind points (4) + rank + bow-death flag ---------------
-    wire::WritePOD<std::uint16_t>(b, 0);            // arPoint[0]
-    wire::WritePOD<std::uint16_t>(b, 0);            // arPoint[1]
-    wire::WritePOD<std::uint16_t>(b, 0);            // arPoint[2]
-    wire::WritePOD<std::uint16_t>(b, 0);            // arPoint[3]
-    wire::WritePOD<std::uint32_t>(b, 0);            // rank point
+    wire::WritePOD<std::uint16_t>(b, p.skill_points[0]);
+    wire::WritePOD<std::uint16_t>(b, p.skill_points[1]);
+    wire::WritePOD<std::uint16_t>(b, p.skill_points[2]);
+    wire::WritePOD<std::uint16_t>(b, p.skill_points[3]);
+    wire::WritePOD<std::uint32_t>(b, s.payload?s.payload->rank_point:0);
     wire::WritePOD<std::uint8_t> (b, 0);            // non-BOW death flag (FALSE)
 
-    // --- five list sections, all empty (count = 0) -------------------
-    wire::WritePOD<std::uint8_t>(b, 0);             // inventory
-    wire::WritePOD<std::uint8_t>(b, 0);             // skills
-    wire::WritePOD<std::uint8_t>(b, 0);             // maintain skills
-    wire::WritePOD<std::uint8_t>(b, 0);             // hotkeys
-    wire::WritePOD<std::uint8_t>(b, 0);             // item cooldowns
+    wire::WritePOD<std::uint8_t>(b,count(p.bags.size()));
+    for(const auto& bag:p.bags){
+        wire::WritePOD<std::uint8_t>(b,bag.bag.bInvenID);
+        wire::WritePOD<std::uint16_t>(b,bag.bag.wItemID);
+        wire::WritePOD<std::int64_t>(b,bag.bag.dEndTime);
+        wire::WritePOD<std::uint8_t>(b,count(bag.items.size()));
+        for(const auto& item:bag.items){auto encoded=EncodeItemDescriptor(item,s.dwCharID,true);b.insert(b.end(),encoded.begin(),encoded.end());}
+    }
+    wire::WritePOD<std::uint8_t>(b,count(p.skills.size()));
+    for(const auto& skill:p.skills){
+        wire::WritePOD<std::uint16_t>(b,skill.wSkillID);
+        wire::WritePOD<std::uint8_t>(b,skill.bLevel);
+        wire::WritePOD<std::uint32_t>(b,skill.dwRemainTick);
+    }
+    wire::WritePOD<std::uint8_t>(b,0); // no maintained effects in fresh native state
+    wire::WritePOD<std::uint8_t>(b,count(p.hotkeys.size()));
+    for(const auto& keys:p.hotkeys){
+        wire::WritePOD<std::uint8_t>(b,keys.inventory);
+        for(const auto& [type,id]:keys.keys){wire::WritePOD<std::uint8_t>(b,type);wire::WritePOD<std::uint16_t>(b,id);}
+    }
+    wire::WritePOD<std::uint8_t>(b,0); // no active item cooldowns in fresh native state
 
     // --- PvP points + server clock + medals --------------------------
     wire::WritePOD<std::uint32_t>(b, 0);            // pvp total
@@ -130,24 +172,24 @@ std::vector<std::byte> EncodeEnterAck(
     // --- identity + World-sourced cluster state (→ 0/"") -------------
     wire::WritePOD<std::uint32_t>(b, s.dwCharID);
     wire::WriteString            (b, s.szNAME);
-    wire::WritePOD<std::uint16_t>(b, 0);            // title id
-    wire::WriteString            (b, std::string{});// comment (ally-only)
-    wire::WritePOD<std::uint32_t>(b, 0);            // guild id
-    wire::WritePOD<std::uint32_t>(b, 0);            // fame
-    wire::WritePOD<std::uint32_t>(b, 0);            // fame color
-    wire::WriteString            (b, std::string{});// guild name
-    wire::WritePOD<std::uint8_t> (b, 0);            // guild peer
-    wire::WritePOD<std::uint32_t>(b, 0);            // tactics id
-    wire::WriteString            (b, std::string{});// tactics name
+    wire::WritePOD<std::uint16_t>(b, s.payload?s.payload->selected_title:0);
+    wire::WriteString            (b, color==0?s.cluster.comment:std::string{});
+    wire::WritePOD<std::uint32_t>(b, s.cluster.guild);
+    wire::WritePOD<std::uint32_t>(b, s.cluster.fame);
+    wire::WritePOD<std::uint32_t>(b, s.cluster.fame_color);
+    wire::WriteString            (b, s.cluster.guild_name);
+    wire::WritePOD<std::uint8_t> (b, s.cluster.peer);
+    wire::WritePOD<std::uint32_t>(b, s.cluster.tactics);
+    wire::WriteString            (b, s.cluster.tactics_name);
     wire::WritePOD<std::uint8_t> (b, 0);            // store open
     wire::WriteString            (b, std::string{});// store name
-    wire::WritePOD<std::uint32_t>(b, 0);            // riding mount
+    wire::WritePOD<std::uint32_t>(b, s.cluster.riding);
 
     // --- appearance ---------------------------------------------------
     wire::WritePOD<std::uint8_t> (b, s.bClass);
     wire::WritePOD<std::uint8_t> (b, s.bRace);
     wire::WritePOD<std::uint8_t> (b, s.bCountry);
-    wire::WritePOD<std::uint8_t> (b, s.bOriCountry);   // aid country
+    wire::WritePOD<std::uint8_t> (b, s.payload?s.payload->aid_country:3); // aid country
     wire::WritePOD<std::uint8_t> (b, s.bSex);
     wire::WritePOD<std::uint8_t> (b, s.bHair);
     wire::WritePOD<std::uint8_t> (b, s.bFace);
@@ -159,13 +201,13 @@ std::vector<std::byte> EncodeEnterAck(
     wire::WritePOD<std::uint8_t> (b, s.bHelmetHide);
 
     // --- hp/mp + party/corps (party World-sourced → 0) ---------------
-    wire::WritePOD<std::uint32_t>(b, s.dwHP);       // max HP → current
+    wire::WritePOD<std::uint32_t>(b, s.dwMaxHP);
     wire::WritePOD<std::uint32_t>(b, s.dwHP);
-    wire::WritePOD<std::uint32_t>(b, s.dwMP);       // max MP → current
+    wire::WritePOD<std::uint32_t>(b, s.dwMaxMP);
     wire::WritePOD<std::uint32_t>(b, s.dwMP);
-    wire::WritePOD<std::uint32_t>(b, 0);            // party chief id
-    wire::WritePOD<std::uint16_t>(b, 0);            // party id
-    wire::WritePOD<std::uint16_t>(b, 0);            // commander id
+    wire::WritePOD<std::uint32_t>(b, s.cluster.party_chief);
+    wire::WritePOD<std::uint16_t>(b, s.cluster.party);
+    wire::WritePOD<std::uint16_t>(b, s.cluster.commander);
 
     // --- live position + movement/action state -----------------------
     wire::WritePOD<float>        (b, pos.x);
@@ -173,7 +215,7 @@ std::vector<std::byte> EncodeEnterAck(
     wire::WritePOD<float>        (b, pos.z);
     wire::WritePOD<std::uint8_t> (b, 0);            // action
     wire::WritePOD<std::uint8_t> (b, 0);            // block
-    wire::WritePOD<std::uint8_t> (b, 0);            // mode
+    wire::WritePOD<std::uint8_t> (b, s.cluster.mode);
     wire::WritePOD<std::uint16_t>(b, 0);            // pitch
     wire::WritePOD<std::uint16_t>(b, s.wDIR);
     wire::WritePOD<std::uint8_t> (b, 0);            // mouse dir
@@ -182,14 +224,18 @@ std::vector<std::byte> EncodeEnterAck(
     wire::WritePOD<std::uint32_t>(b, s.dwRegion);
     wire::WritePOD<std::uint8_t> (b, 0);            // in PC-bang
     wire::WritePOD<std::uint8_t> (b, s.bAftermath); // aftermath step
-    wire::WritePOD<std::uint32_t>(b, 0);            // rank point
+    wire::WritePOD<std::uint32_t>(b, s.payload?s.payload->rank_point:0);
     wire::WritePOD<std::uint16_t>(b, 0);            // castle id
     wire::WritePOD<std::uint8_t> (b, 0);            // camp
     wire::WritePOD<std::uint16_t>(b, 0);            // god ball
 
     // --- maintain-skill list + equip-item list (both empty) ----------
     wire::WritePOD<std::uint8_t> (b, 0);            // maintain skills
-    wire::WritePOD<std::uint8_t> (b, 0);            // equipped items
+    const CharacterBag* equip=nullptr;
+    if(s.payload)for(const auto& bag:s.payload->bags)if(bag.bag.bInvenID==254)equip=&bag;
+    if(equip&&equip->items.size()>255)throw std::length_error("Equipment exceeds BYTE count");
+    wire::WritePOD<std::uint8_t>(b,equip?static_cast<std::uint8_t>(equip->items.size()):0);
+    if(equip)for(const auto& item:equip->items){auto encoded=EncodeItemDescriptor(item,s.dwCharID,true);b.insert(b.end(),encoded.begin(),encoded.end());}
     wire::WritePOD<std::uint8_t> (b, new_member);
 
     return b;
@@ -407,7 +453,9 @@ std::vector<std::byte> EncodeItemDescriptor(
     const std::uint8_t reg_guild =
         (it.dwGuildBound != 0 && it.dwGuildBound == viewer_char_id) ? 1u : 0u;
     wire::WritePOD<std::uint8_t> (b, reg_guild);
-    wire::WritePOD<std::uint8_t> (b, static_cast<std::uint8_t>(0));  // magic count — deferred
+    if(it.magic.size()>255)throw std::length_error("Item magic exceeds BYTE count");
+    wire::WritePOD<std::uint8_t>(b,static_cast<std::uint8_t>(it.magic.size()));
+    for(const auto& [id,value]:it.magic){wire::WritePOD<std::uint8_t>(b,id);wire::WritePOD<std::uint16_t>(b,value);}
     return b;
 }
 

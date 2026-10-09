@@ -1,0 +1,5 @@
+{
+  "applied_migrations": [
+    "004-source-text-bytes.sql"
+  ]
+}

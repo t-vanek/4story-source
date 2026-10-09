@@ -1,0 +1,9 @@
+{
+  "sha256": {
+    "Server/TWorldSvrAsio/handlers/handlers_conn.cpp": "6c6faee2f93f2be38f1232dcdb411ebd4ab3a5885c04afa5f30bb695ae2eea63",
+    "Server/TWorldSvrAsio/handlers/handlers_char.cpp": "65d06624580f928db0c24a49360755f7fa4833d0ef246eec774026ceac8e0eaf",
+    "Server/TWorldSvrAsio/services/char_registry.h": "6de38872a5d0587f7b1e21f410c5f2d1f3f5a4f3383faec08fa53ef87b9d399d",
+    "build/linux-debug/bin/tworldsvr_asio": "4c50eb89db882c0a92d44a386b781e1e151e8de5b45f8507750b06c5e0e05d4f",
+    "build/linux-asan/bin/tworldsvr_asio": "c999b76a2a46081e2da68b01748c5619443ffd167e53fbd12a2ddeaf6d991dd7"
+  }
+}

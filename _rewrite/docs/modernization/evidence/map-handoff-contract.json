@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-09",
+  "status": "VERIFIED native normal-world Login routing and pending handoff; complete server mission remains active",
+  "production_paths": [
+    "Server/TLoginSvrAsio/handlers.cpp:OnStartReq",
+    "Server/TLoginSvrAsio/services/postgresql_map_handoff.cpp",
+    "Server/TLoginSvrAsio/services/soci_session_terminator.cpp",
+    "Server/TLoginSvrAsio/services/soci_auth_service.cpp",
+    "Server/TLoginSvrAsio/services/postgresql_char_service.cpp",
+    "Server/TLoginSvrAsio/main.cpp"
+  ],
+  "historical_sources": [
+    "TGAME_RAGEZONE.bak:dbo.TFindServerID, dbo.TSVRCHART, dbo.TUNITCHART, dbo.TMAPCHART, dbo.TCHANNELCHART, dbo.TSPAWNPOSCHART",
+    "TGLOBAL_RAGEZONE.bak:dbo.TRoute, dbo.TEnterServer, dbo.TUpdateEnterLuckyDate",
+    "Server/TLoginSvr/CSHandler.cpp:OnCS_START_REQ",
+    "Lib/Own/TProtocol/include/NetCode.h:TSTART_RESULT",
+    "Lib/Own/TProtocol/include/CSProtocol.h:CS_START_REQ/ACK"
+  ],
+  "routing_release": {
+    "run_id": 2,
+    "manifest_sha256": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+    "changed": true,
+    "reference_tables": 4,
+    "verified_source_rows": 1440,
+    "unmapped_source_channel_cells": 3,
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "confirmed_source_behavior": [
+    "TSVRCHART is the original inner join of TUNITCHART and TMAPCHART, not a physical source table; independent source-view proof covers all 358 values/rows",
+    "Logical/physical channel and map-unit routing; unit=trunc(Z/1024)*256+trunc(X/1024), checked against signed smallint limits",
+    "Starter map 2010 has no owner; backed-up spawn 15003 resolves map 0; successful fallback persists source X/Z and Y=0",
+    "Original START ACK result 0/1/2/3, IPv4 octets, little-endian WORD port, BYTE server; success flushes ACK then closes Login"
+  ],
+  "modern_repairs": [
+    "One repeatable-read transaction, owner fencing, account/session/character/machine locks, retries limited to confirmed serialization/deadlock aborts",
+    "Authenticated session key and account plus exact world/character ownership required; unkeyed native Lookup refuses writes",
+    "Missing cells, ambiguous ownership and missing endpoints never use the first registered server",
+    "Stamp TCURRENTUSER selected character/group/channel before CONNECT; original TEnterServer did this later",
+    "All-or-nothing position, endpoint rotation, selected identity, last character, audit selection and reservation",
+    "Pending handoff expires after 60 seconds; identical replay retains endpoint and expiry; changing selection is refused",
+    "Login disconnect uses durable pending state even if close reason races commit; create/delete reject post-handoff lobby writes",
+    "Expired pending reservations recovered under account lock; absence of a pending row never authorizes startup/Authenticate to delete an existing selected Map session"
+  ],
+  "verification": {
+    "debug_native_handoff_checks": 34,
+    "asan_native_handoff_checks": 34,
+    "source_encoded_encrypted_tcp_checks_per_run": 23,
+    "native_pool_tls_checks_per_run": 29,
+    "real_routing_publication_checks_per_run": 7,
+    "python_tests": 28,
+    "debug_ctest_entries": 191,
+    "debug_passed_excluding_internal_skips": 178,
+    "legacy_internal_skips": 8,
+    "explicit_native_skips": 5,
+    "failures": 0,
+    "asan_ctest_entries": 11,
+    "leak_detection": true,
+    "vptr_excluded": "Packaged SOCI RTTI limitation",
+    "auth_regression": "map-handoff-auth-regression.json",
+    "character_regression": "map-handoff-character-regression.json",
+    "runtime": "Actual native libpq/SOCI PostgreSQL and actual Login TCP daemon; separately owned disposable PG instances; restored MSSQL used only for forensic extraction/source comparison",
+    "release_image": "No new installed release image claimed; current increment verified with mounted Debug and sanitizer binaries"
+  },
+  "remaining": [
+    "Native Map atomic claim must consume pending handoff and establish durable fenced ownership while holding the same account/session locks",
+    "Extend Login termination to preserve claimed Map ownership before enabling any native Map claim path",
+    "Full native character/items/skills/hotkeys/title/mail/quest/companion load and original CHARINFO/CHARDATA/ROUTE encoding",
+    "Cell-based CHECKMAIN, transfers, native save transaction, save failure/crash recovery and complete reconnect",
+    "BR/BOW routing and TFindServerID active-character/scamming-post/pet conversion side effects; TEnterServer timed title",
+    "Original client executable verification, complete gameplay, full feature parity and removal of legacy runtime dependencies"
+  ]
+}

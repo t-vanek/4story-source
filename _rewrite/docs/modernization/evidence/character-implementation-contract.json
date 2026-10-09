@@ -1,0 +1,129 @@
+{
+  "scope": "Native normal-world Login character create/list/delete with source-derived encrypted TCP; world entry/save/gameplay remain pending",
+  "historical_authority": [
+    "TGAME_RAGEZONE.bak",
+    "TGLOBAL_RAGEZONE.bak"
+  ],
+  "migrations": [
+    "011-character-reference-catalog.sql",
+    "012-native-characters.sql",
+    "013-character-item-allocation-floor.sql"
+  ],
+  "reference_release": {
+    "tables": 22,
+    "rows": 107977,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "map_release_unchanged": true,
+    "original_map_manifest_sha256": "c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95"
+  },
+  "source_modules": [
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TCreateChar",
+      "definition_utf8_sha256": "ed4008b77f0bb8124a55650ef2455c6faa543eaecc381a4591558fec91ff888f"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TDeleteChar",
+      "definition_utf8_sha256": "c86bf3f0572d2b4cb2b1f330278f5f07d3c2fb519e4c25daa08cdd80a0c408e7"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TPutItemInInven",
+      "definition_utf8_sha256": "b3d8fad02e442904b1d4caa958a69957e2192f587a3bf467da809c4b6eb5b8c2"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TGenerateDBItemID",
+      "definition_utf8_sha256": "3cae3881695cec5e886ffaadf98bbee3a86c8e5454f78de98b006f8943a23a1f"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TInitGenItemID",
+      "definition_utf8_sha256": "3da1fdbecfe58538b292ac36c07f1207a8059bdeb105a8c1f3fe5f4518e76556"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TCreateRecallMon",
+      "definition_utf8_sha256": "355e7cff56deabe0e4af533d87468a30eb66edce4c18138a4b3bd6ca23fd6d6d"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TSavePost",
+      "definition_utf8_sha256": "2652d1c73f7142631fb25fb2b9cba97dd39578a2191a33ce8d128e26bc95d986"
+    },
+    {
+      "database": "TGLOBAL_RAGEZONE",
+      "module": "TCreateChar",
+      "definition_utf8_sha256": "14a36109bd78037ce86fa34ee2f31e475f516d8565c410ed54cdf0c8b709f198"
+    },
+    {
+      "database": "TGLOBAL_RAGEZONE",
+      "module": "TDeleteChar",
+      "definition_utf8_sha256": "983a89e924ad05fd9af4e0d8eecc5b99b590f34c3792e44eda6c89e8595455d1"
+    }
+  ],
+  "production": [
+    "Server/TLoginSvrAsio/services/postgresql_char_service.cpp",
+    "Server/TLoginSvrAsio/main.cpp",
+    "Server/TLoginSvrAsio/handlers.cpp"
+  ],
+  "source_values": {
+    "starter_hp": "7*(2+class.wCON+race.wCON)+1",
+    "starter_mp": "9*(2+class.wMEN+race.wMEN)+1",
+    "veteran_levels": [
+      19,
+      29,
+      93
+    ],
+    "world_zero_item_high_water": 735812,
+    "item_world_id_is_not_client_group_id": true,
+    "item_range": "bWorld * 2^56 <= high_water < (bWorld+1)*2^56",
+    "initial_map": 2010,
+    "initial_position": [
+      3664.405,
+      86.16578,
+      557.2542
+    ],
+    "initial_direction": 762,
+    "zero_datetime": "1900-01-01 00:00:00",
+    "welcome_gold": 9999,
+    "welcome_message_bytes": 101,
+    "delete_level_threshold": 5,
+    "create_ack_count": "live characters across all worlds",
+    "delete_wire_codes": {
+      "success": 0,
+      "invalid_password": 1,
+      "no_group": 2,
+      "internal": 3,
+      "guild_or_source_procedure_failure": 4
+    }
+  },
+  "intentional_modern_repairs": [
+    "One PostgreSQL transaction includes directory, character, inventory, skills, title, cabinet, hotkeys, mail, recall, mount and item allocator; source commits at multiple stages.",
+    "Native create/delete require current unlocked agreed session key and process owner fence; account row version serializes cross-world operations. Retry only confirmed serialization/deadlock aborts, never unknown commit outcomes.",
+    "Composite world/character foreign keys cascade low-level deletion; titles are cleaned instead of preserving the source orphan-title defect. Account mount remains as in the source.",
+    "TRECALLMONTABLE.dwID gets modern identity: source procedure expects identity but backup table has no default/identity.",
+    "wCustomTex is an explicit empty-zero protocol extension, not a recovered backup column.",
+    "New runtime timestamps use UTC rounded to minutes; historical naive timestamps are not converted.",
+    "Conflicting account original countries, missing attributes, unknown veteran options, non-player race/class and unsupported positive signed-BIGINT item worlds fail closed instead of guessed fallback values.",
+    "Six client slot indices per world; count across all worlds is not misinterpreted as remaining slots. Counts beyond original BYTE range fail closed."
+  ],
+  "pending_contracts": [
+    "Actual original client executable and code-page acceptance; current peer derives frames from source only.",
+    "Historical reserved/keeping names contain owner references and are not imported into empty current accounts. Modern reservations are operator-provisioned; current keeping patterns use PostgreSQL LIKE (% and _), not full SQL Server bracket grammar.",
+    "Non-ASCII character names and full SQL Server collation equivalence; native creation currently accepts the US ASCII profile.",
+    "Multi-world item allocator provenance other than original world zero must be reviewed by the operator. Item-world values 128+ unsupported pending signed/wire range contract.",
+    "Player selection, World/Map handoff, native Map load/save, movement/combat/rewards and reconnect gameplay.",
+    "Full guild, BR/BOW, account mount runtime, mail delivery/claim, item transfers/storage/currency. Native world provisioning accepts normal group type 0 only.",
+    "Full TALLCHARTABLE historical projection: current mutable directory stores identity, owner, world, name and deletion state; remaining source fields will be added with proven consumers."
+  ],
+  "verification": {
+    "native_character_checks": 32,
+    "native_pool_tls_checks": 29,
+    "encrypted_tcp_checks": 31,
+    "debug": "passed",
+    "asan_ubsan": "passed",
+    "original_client": "PENDING"
+  }
+}

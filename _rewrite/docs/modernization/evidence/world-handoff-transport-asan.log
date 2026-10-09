@@ -1,0 +1,58 @@
+4/196 Testing: tnetlib_asio_echo
+4/196 Test: tnetlib_asio_echo
+Command: "/src/build/linux-asan/bin/test_tnetlib_asio"
+Directory: /src/build/linux-asan/Lib/Own/TNetLib
+"tnetlib_asio_echo" start time: Oct 09 03:58 UTC
+Output:
+----------------------------------------------------------
+=== tnetlib AsioSession tests ===
+[echo roundtrip on ephemeral port]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  client wrote all bytes
+  PASS  client read same byte count back
+  PASS  echoed bytes match original
+[full packet round-trip via codec]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  received all three echoed packets
+  PASS  packet 0 wId matches
+  PASS  packet 0 body matches
+  PASS  packet 1 wId matches
+  PASS  packet 1 body matches
+  PASS  packet 2 wId matches
+  PASS  packet 2 body matches
+[full packet round-trip via RC4 + codec]
+  PASS  listener bound
+  PASS  fake-client connected
+  PASS  received both echoed packets through RC4 layer
+  PASS  packet 0 wId + body match after RC4 round-trip
+  PASS  packet 1 wId + body match after RC4 round-trip
+[error logger fires on protocol error]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  logger captured at least one message
+  PASS  captured message is a 'recv:' diagnostic
+[SendPacket rejects oversized body]
+  PASS  logger captured oversize-body diagnostic
+  PASS  captured message is a 'send:' diagnostic
+[concurrent SendPacket serializes via internal queue]
+  PASS  listener bound
+  PASS  server received every packet (no sequence/checksum failure)
+  PASS  every wId falls in an expected producer range
+  PASS  each producer's packets all arrived
+  PASS  each producer arrives in order without duplicates or gaps
+[concurrent close with read/write and queue backpressure]
+  PASS  24 close races finish every reader and backpressured producer
+  PASS  close is visible immediately and releases the socket on the executor
+  PASS  concurrent shutdown does not throw from packet operations
+
+Results: 33 passed, 0 failed
+<end of output>
+Test time =   0.71 sec
+----------------------------------------------------------
+Test Passed.
+"tnetlib_asio_echo" end time: Oct 09 03:58 UTC
+"tnetlib_asio_echo" time elapsed: 00:00:00
+----------------------------------------------------------
+

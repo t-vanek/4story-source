@@ -10,7 +10,7 @@
 //     verification, IP-banlist, user-protected, duplicate-session
 //     detection. Talks to TACCOUNT_PW / TUSERPROTECTED /
 //     IPBLACKLIST_games / TCURRENTUSER via SOCI's pluggable backend
-//     (ODBC for MSSQL, native libpqxx for PostgreSQL).
+//     (ODBC for MSSQL, native SOCI/libpq for PostgreSQL).
 //
 // The interface is synchronous on purpose. DB-backed impls should
 // dispatch their IO onto a worker thread (asio::post(thread_pool, …))
@@ -44,6 +44,9 @@ struct AuthRequest
     std::uint32_t site_code = 0;
     bool          site_code_present = false;
 
+    // Internal connection-bound grant; never decoded from client-controlled fields.
+    std::string security_retry_token;
+
     // Convenience accessor: low byte of site_code. Matches legacy
     // CSPLoginJP's IN-param semantics.
     std::uint8_t channeling() const
@@ -52,8 +55,8 @@ struct AuthRequest
     }
 };
 
-// Status codes mirror the legacy LR_* values in NetCode.h. The
-// caller (OnLoginReq) maps these straight into CS_LOGIN_ACK::bResult.
+// Values follow NetCode.h except internal categories Banned/RateLimited.
+// ToLoginWireResult maps those categories to the original result codes.
 enum class AuthStatus : std::uint8_t
 {
     Success          = 0,   // LR_SUCCESS
@@ -61,13 +64,30 @@ enum class AuthStatus : std::uint8_t
     NoUser           = 1,   // LR_NOUSER
     WrongPassword    = 2,   // LR_INVALIDPASSWD
     Duplicate        = 3,   // LR_DUPLICATE — peer logs in while another session is live
-    SecurityRequired = 5,   // LR_SECURITY  — new device, 2FA challenge required
-    Banned           = 6,   // LR_BLOCK    — user-level ban
+    SecurityRequired = 10,   // LR_SECURITY  — new device, 2FA challenge required
+    Banned           = 254, // Internal category; backed-up TLogin maps account bans to LR_IPBLOCK (7).
+    IpRestricted     = 6,   // LR_BLOCK — TCheckIP restriction
     IpBanned         = 7,   // LR_IPBLOCK  — IP-level block
-    AgreementNeeded  = 9,   // LR_NEEDAGREEMENT — first-time terms-of-service
-    InternalError    = 8,   // LR_INTERNAL — DB / system fault
-    RateLimited      = 10,  // not in legacy; modern addition. Map back to LR_INTERNAL on the wire if compat matters.
+    AgreementNeeded  = 8,   // LR_NEEDAGREEMENT — first-time terms-of-service
+    InternalError    = 5,   // LR_INTERNAL — DB / system fault
+    RateLimited      = 255,  // not in legacy; modern addition. Map back to LR_INTERNAL on the wire if compat matters.
 };
+
+constexpr std::uint8_t ToLoginWireResult(AuthStatus status)
+{
+    if (status == AuthStatus::Banned) return 7;
+    if (status == AuthStatus::RateLimited) return 5;
+    return static_cast<std::uint8_t>(status);
+}
+
+struct SecurityChallenge
+{
+    std::string token; // private connection handle, never sent on the game protocol
+    std::string code;  // transient mail payload; never logged or persisted in clear
+    std::string email;
+};
+
+enum class SecurityCodeResult { Incorrect, Correct, Unavailable };
 
 struct AuthResult
 {
@@ -88,6 +108,7 @@ struct AuthResult
 
     // populated on Banned: human-readable reason for the ack tail (legacy code adds it on wire)
     std::optional<std::string> ban_reason;
+    std::optional<SecurityChallenge> security_challenge;
 };
 
 class IAuthService
@@ -104,7 +125,7 @@ public:
 
     // CS_DELCHAR_REQ: confirm the user's password before destructive
     // ops. Matches legacy CSPCheckPasswd — SELECT TACCOUNT_PW WHERE
-    // dwUserID = ?; verify via the same BCrypt/legacy-plaintext path as
+    // dwUserID = ?; verify via the same BCrypt wire-credential policy as
     // Authenticate. Returns true on match. Empty / null stored
     // password rows are treated as a miss.
     virtual bool VerifyPassword(std::int32_t user_id,
@@ -121,51 +142,12 @@ public:
     // in LoginServerConfig::test_handlers_enabled.
     virtual AuthResult AuthenticateTest(const std::string& client_ip) = 0;
 
-    // CS_SECURITYCONFIRM_ACK — validate a user-entered 2FA code
-    // against the per-user TSECURECODE row. Comparison is
-    // case-insensitive (legacy `strCode.MakeUpper()`). Decrements
-    // bTries on mismatch so a brute-force attempt eventually locks
-    // the account. Returns true on match.
-    virtual bool VerifySecurityCode(std::int32_t user_id,
-                                    const std::string& code) = 0;
-
-    // Generate a fresh 2FA code for a user, store it in TSECURECODE,
-    // and return it so the caller can mail it. Used when a new MAC
-    // address is detected during login. Returns empty string on DB
-    // error or user_id=0.
-    virtual std::string IssueSecurityCode(std::int32_t user_id) = 0;
-
-    // Per-user 2FA email + toggle. Empty optional → no email on file
-    // (2FA challenge can't be sent, login proceeds without check).
-    struct EmailRecord
-    {
-        std::string  email;
-        bool         two_factor_enabled = false;
-    };
-    virtual std::optional<EmailRecord> LookupEmail(std::int32_t user_id) = 0;
-
-    // Trusted-IP whitelist for 2FA. IsTrustedIp returns true if the
-    // (uid, ip) pair has been confirmed before — login skips the
-    // challenge. AddTrustedIp INSERTs after a successful
-    // CS_SECURITYCONFIRM_ACK. Idempotent (PK conflict swallowed).
-    virtual bool IsTrustedIp(std::int32_t user_id,
-                             const std::string& client_ip) = 0;
-    virtual void AddTrustedIp(std::int32_t user_id,
-                              const std::string& client_ip) = 0;
-
-    // Complete a 2FA-deferred login: insert TCURRENTUSER + TLOG rows
-    // exactly like the success branch of Authenticate would have done.
-    // Returns the dwKEY for the new session row, or 0 on failure. The
-    // caller (CS_SECURITYCONFIRM_ACK handler) hands the result back to
-    // the client in a deferred CS_LOGIN_ACK.
-    virtual std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
-                                                const std::string& client_ip) = 0;
-
-    // Lookup the user's last-played char ID. Mirrors the OUT param the
-    // legacy TLogin SP returns as m_dwCharID; used by the deferred
-    // CS_LOGIN_ACK path (CS_SECURITYCONFIRM_ACK handler) to populate
-    // the same field. Returns 0 on unknown user / first-time login.
-    virtual std::uint32_t LookupLastCharId(std::int32_t user_id) = 0;
+    // Validate only the current connection's challenge, with expiry and attempt
+    // bounds. Correct authorizes one subsequent LOGIN; it creates no session.
+    virtual SecurityCodeResult VerifySecurityCode(const std::string& token,
+                                                 const std::string& client_ip,
+                                                 const std::string& code) = 0;
+    virtual void CancelSecurityChallenge(const std::string& token) = 0;
 };
 
 } // namespace tloginsvr::services

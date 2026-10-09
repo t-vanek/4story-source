@@ -87,10 +87,10 @@ void SpdlogAuditLogger::LogLogin(LoginOutcome outcome,
                                  const std::string& user_id_str,
                                  std::int32_t db_user_id,
                                  const std::string& client_ip,
-                                 std::uint32_t session_key)
+                                 std::uint32_t /*session_key*/)
 {
-    m_logger->info("event=login outcome={} uid_str='{}' uid={} ip={} key=0x{:08X}",
-        Name(outcome), user_id_str, db_user_id, client_ip, session_key);
+    m_logger->info("event=login outcome={} uid_str='{}' uid={} ip={}",
+        Name(outcome), user_id_str, db_user_id, client_ip);
 }
 
 void SpdlogAuditLogger::LogCharCreate(CreateCharOutcome outcome,

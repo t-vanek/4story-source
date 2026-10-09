@@ -7,6 +7,7 @@
 #include <vector>
 
 namespace fourstory::db { class SessionPool; }
+namespace soci { class session; }
 
 namespace tmapsvr {
 
@@ -14,6 +15,8 @@ class SociSkillDataChart final : public ISkillDataChart
 {
 public:
     explicit SociSkillDataChart(fourstory::db::SessionPool& pool);
+    // Shared boot transaction: all catalogs observe the same content release.
+    explicit SociSkillDataChart(soci::session& sql);
 
     const std::vector<SkillDataRow>&
         ForSkill(std::uint16_t skill_id) const override

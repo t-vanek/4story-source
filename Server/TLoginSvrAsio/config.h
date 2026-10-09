@@ -65,12 +65,12 @@ struct DbConfig
 };
 
 // Optional SMTP relay config. Empty `host` keeps the binary on the
-// SpdlogSmtpClient default (2FA codes go to the log; no mail leaves
-// the process). Setting `host` switches the wiring to the real
+// SpdlogSmtpClient fallback (delivery returns false, codes are never
+// logged). Setting `host` switches the wiring to the real
 // Asio-based SMTP client.
 struct SmtpConfig
 {
-    std::string   host;          // empty → log-only mode
+    std::string   host;          // empty → delivery unavailable
     std::uint16_t port = 25;
     std::string   from_address;  // MAIL FROM envelope + From: header
     std::string   from_display;  // optional display name; default = from_address
@@ -80,6 +80,9 @@ struct SmtpConfig
 
 struct AppConfig
 {
+    std::string routing_manifest; // [routing].manifest_sha256; explicitly published backup routing
+    std::string character_manifest; // [characters].manifest_sha256; same PostgreSQL DB as accounts
+    bool allow_no_database = false; // explicit development-only opt-in
     LoginServerConfig            server;
 
     // TGLOBAL — accounts, sessions, server registry, cross-world char index.
@@ -120,7 +123,7 @@ struct AppConfig
     // reach this server via TControl's peer-forwarder pipeline, not
     // via a per-server localhost shell. See ADR / TControl README.
 
-    // SMTP relay for 2FA mail. Empty host → log-only fallback.
+    // SMTP relay for 2FA mail. Empty host → delivery unavailable.
     SmtpConfig                   smtp;
 
     // Cluster self-registration with TControlSvrAsio; empty

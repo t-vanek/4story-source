@@ -15,6 +15,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -143,6 +144,7 @@ int main()
 
     // Bob online on p2 (so his reset routes there).
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p2, AddCharBody(200, 0xB0)));
     for (int i = 0; i < 100; ++i)
     { if (chars.Find(200)) break; std::this_thread::sleep_for(10ms); }
     EXPECT(chars.Find(200));

@@ -1,26 +1,9 @@
-// SociMapServerLocator implementation — SOCI-backed
-// IMapServerLocator. Replaces the legacy TFindServerID stored proc
-// with explicit, traceable SOCI queries.
-//
-// Lookup() resolves CS_START_REQ to a Map endpoint by walking three
-// candidate tables in order, mirroring the legacy SP:
-//   1. TSVRCHART        — explicit char-to-server pin (used by
-//                          long-lived chars).
-//   2. TCHANNELCHART    — char→channel hint, then resolve channel→server.
-//   3. TSPAWNPOSCHART   — fallback: map the char's last-spawn coord to
-//                          a server via spawn-zone ownership table.
-// Round-robin load-balancing over TMACHINE rows ties for active count.
-// BR / BOW shard chars are routed to the dedicated shard server when
-// the char is found in TBRPLAYERTABLE / TBOWPLAYERTABLE.
-//
-// ListGroups() / ListChannels() back the lobby's CS_GROUPLIST_REQ /
-// CS_CHANNELLIST_REQ — query TGROUP / TCHANNEL with a live count of
-// TCURRENTUSER rows for status decoration.
-//
-// Legacy parity: Server/TLoginSvr's TFindServerID stored proc +
-// CTLoginSvrModule::CSPGroupList / CSPChannelList SP calls.
+// Lobby group/channel queries and comparison-backend routing.
+// Native authenticated routing is implemented in postgresql_map_handoff.cpp;
+// it never uses the legacy optional-table/first-server fallbacks below.
 
 #include "soci_map_server_locator.h"
+#include "postgresql_login_owner.h"
 #include "fourstory/db/session_pool.h"
 
 #include <soci/soci.h>
@@ -28,6 +11,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
+#include <stdexcept>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -97,7 +81,7 @@ bool IsInShard(soci::session& sql,
 // Step 5 swallows persistence errors so a read-only TMACHINE doesn't
 // break routing.
 std::optional<std::string>
-PickIpForMachine(soci::session& sql, int machine_id)
+PickIpForMachine(soci::session& sql, int machine_id, bool transactional)
 {
     // Step 1+4 combined: fetch all active IPs sorted. SOCI rowset
     // closes its statement when the destructor runs at end of this
@@ -119,7 +103,7 @@ PickIpForMachine(soci::session& sql, int machine_id)
     {
         soci::indicator ind = soci::i_null;
         soci::statement st = (sql.prepare <<
-            "SELECT \"bRouteID\" FROM \"TMACHINE\" WHERE \"bMachineID\" = :m",
+            (std::string("SELECT \"bRouteID\" FROM \"TMACHINE\" WHERE \"bMachineID\" = :m") + (transactional ? " FOR UPDATE" : "")),
             soci::use(machine_id),
             soci::into(current_route, ind));
         st.execute(true);
@@ -128,6 +112,7 @@ PickIpForMachine(soci::session& sql, int machine_id)
     }
     catch (const std::exception& ex)
     {
+        if (transactional) throw;
         spdlog::debug("map_locator: TMACHINE read skipped (machine_id={}): {}",
             machine_id, ex.what());
         current_route = 0;
@@ -165,6 +150,7 @@ PickIpForMachine(soci::session& sql, int machine_id)
     }
     catch (const std::exception& ex)
     {
+        if (transactional) throw;
         spdlog::debug("map_locator: TMACHINE upsert skipped (machine_id={}): {}",
             machine_id, ex.what());
     }
@@ -396,10 +382,23 @@ std::optional<int> FindServerForChar(soci::session& sql,
 } // namespace
 
 SociMapServerLocator::SociMapServerLocator(fourstory::db::SessionPool& global_pool,
-                                           fourstory::db::SessionPool* world_pool)
-    : m_pool(global_pool)
+                                           fourstory::db::SessionPool* world_pool, std::string owner_token, std::string routing_manifest)
+    : m_routing_manifest(std::move(routing_manifest))
+    , m_pool(global_pool)
+    , m_owner_token(std::move(owner_token))
     , m_world(world_pool)
 {
+    if (!m_routing_manifest.empty()) {
+        if (m_pool.GetBackend()!=fourstory::db::Backend::PostgreSQL || m_routing_manifest.size()!=64 ||
+            m_routing_manifest.find_first_not_of("0123456789abcdef")!=std::string::npos)
+            throw std::runtime_error("Routing requires a native PostgreSQL manifest");
+        try {
+            auto lease=m_pool.Acquire(); int found=0;
+            *lease << "SELECT count(*) FROM route_compat.catalog_release WHERE manifest_sha256=:m AND status='verified'",
+                soci::use(m_routing_manifest,"m"),soci::into(found);
+            if (found!=1) throw std::runtime_error("Unavailable release");
+        } catch (...) { throw std::runtime_error("Native routing schema/catalog validation failed"); }
+    }
 }
 
 std::optional<MapEndpoint>
@@ -408,11 +407,14 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
                              std::uint8_t channel,
                              std::int32_t char_id)
 {
+    // This API has no session key and cannot authorize a native handoff.
+    if (m_pool.GetBackend() == fourstory::db::Backend::PostgreSQL) return std::nullopt;
     auto lease = m_pool.Acquire();
     soci::session& sql = *lease;
 
     try
     {
+        auto tx = BeginLoginTransaction(m_pool, sql, m_owner_token);
         // Three-tier server resolution, matching the legacy chain:
         //   1. BR / BOW shard membership (TBRPLAYERTABLE / TBOWPLAYERTABLE)
         //      pins the user to a dedicated shard for those PvP modes.
@@ -440,6 +442,7 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
             }
             catch (const std::exception& ex)
             {
+                if (tx) throw;
                 spdlog::debug("map_locator: shard-table check failed ({}) — "
                               "defaulting to no override", ex.what());
             }
@@ -455,6 +458,7 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
                 }
                 catch (const std::exception& ex)
                 {
+                    if (tx) throw;
                     spdlog::warn("map_locator: per-char routing failed "
                                  "(char_id={}): {} — falling back to default",
                         char_id, ex.what());
@@ -544,7 +548,7 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
         // IP, persist the new counter. Multi-NIC machines get LB
         // across all active IPs; single-IP machines always return
         // that one IP (cycle length 1).
-        const auto picked = PickIpForMachine(sql, machine_id);
+        const auto picked = PickIpForMachine(sql, machine_id, tx != nullptr);
         if (!picked)
         {
             spdlog::warn("map_locator: group={} server_id={} machine_id={} "
@@ -599,6 +603,7 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
             }
             catch (const std::exception& ex)
             {
+                if (tx) throw;
                 spdlog::debug("map_locator: enter-date stamp skipped "
                               "(uid={}): {}", user_id, ex.what());
             }
@@ -616,17 +621,19 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
             }
             catch (const std::exception& ex)
             {
+                if (tx) throw;
                 spdlog::debug("map_locator: UpdateActiveChar skipped "
                               "(char_id={}): {}", char_id, ex.what());
             }
         }
 
+        if (tx) tx->commit();
         return ep;
     }
     catch (const std::exception& ex)
     {
-        spdlog::error("map_locator.Lookup(group={}) DB error: {}",
-            static_cast<int>(group_id), ex.what());
+        spdlog::error("map_locator.Lookup(group={}) database operation failed",
+            static_cast<int>(group_id));
         return std::nullopt;
     }
 }

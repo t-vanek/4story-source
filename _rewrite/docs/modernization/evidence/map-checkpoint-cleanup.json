@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-09",
+  "verified_at_utc": "2026-10-09T01:44:33.899577+00:00",
+  "owned_database_containers_removed": {
+    "pg_container": true
+  },
+  "owned_network_removed": true,
+  "remaining_labelled_test_containers": 0,
+  "temporary_env_and_private_key_files_removed": 19,
+  "private_diagnostics_retained": true,
+  "sql_server_used": false,
+  "runtime_image_retained": "localhost/fourstory:postgresql-checkpoint",
+  "new_installed_release_image": true,
+  "continuation": "Create a new owned PostgreSQL lab, reuse pinned character/routing/actor snapshots, and apply immutable migrations 001\u2013018 before future 019+ migrations. Next: drain native clients on World-link loss and gate admission until peer registration."
+}

@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 namespace fourstory::db { class SessionPool; }
+namespace soci { class session; }
 
 namespace tmapsvr {
 
@@ -16,6 +17,8 @@ class SociStatChart final : public IStatChart
 {
 public:
     explicit SociStatChart(fourstory::db::SessionPool& pool);
+    // Shared boot transaction: all catalogs observe the same content release.
+    explicit SociStatChart(soci::session& sql);
 
     FormulaRow Formula(std::uint8_t ftype) const override
     {

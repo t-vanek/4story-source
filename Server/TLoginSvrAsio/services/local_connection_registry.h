@@ -45,9 +45,8 @@ public:
         const std::shared_ptr<tnetlib::AsioSession>& session,
         std::uint8_t group_id) override;
 
-    void CompleteSecurityLogin(
-        const std::shared_ptr<tnetlib::AsioSession>& session,
-        std::uint32_t session_key) override;
+    void MarkSecurityVerified(
+        const std::shared_ptr<tnetlib::AsioSession>& session) override;
 
     void Unregister(
         const std::shared_ptr<tnetlib::AsioSession>& session) override;
@@ -65,6 +64,7 @@ private:
     // Stores raw pointer keys, safe because we always erase before
     // the shared_ptr's last reference can be released.
     std::unordered_map<tnetlib::AsioSession*, ConnectionEntry> m_by_session;
+    std::unordered_map<tnetlib::AsioSession*, std::weak_ptr<tnetlib::AsioSession>> m_sessions;
 };
 
 } // namespace tloginsvr::services

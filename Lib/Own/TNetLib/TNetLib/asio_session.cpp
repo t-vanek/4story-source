@@ -12,6 +12,7 @@
 #include <boost/asio/redirect_error.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/dispatch.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -85,12 +86,14 @@ void AsioSession::SetSendQueueCapacity(std::size_t n) noexcept
 // ===== AsioSession ==========================================================
 
 AsioSession::AsioSession(boost::asio::ip::tcp::socket socket, PeerType type)
-    : m_socket(std::move(socket))
+    : m_strand(boost::asio::make_strand(socket.get_executor()))
+    , m_socket(std::move(socket))
     , m_type(type)
     , m_recv_buffer(kRecvChunkBytes)
-    , m_send_chan(m_socket.get_executor(),
+    , m_send_chan(m_strand,
                   g_send_queue_capacity.load(std::memory_order_relaxed))
 {
+    m_closed = !m_socket.is_open();
     // Capture peer IPv4 once at construction. remote_endpoint() throws
     // on a closed / unconnected socket; the auth path (IP banlist,
     // audit log) needs the address even if the socket is gone by the
@@ -105,21 +108,23 @@ AsioSession::AsioSession(boost::asio::ip::tcp::socket socket, PeerType type)
 
 AsioSession::~AsioSession()
 {
-    Close();
+    // No coroutine/posted operation owns us now. In particular, do not
+    // dispatch new work while io_context is destroying suspended owners.
+    CloseOnExecutor();
 }
 
 void AsioSession::StartDrainIfNeeded()
 {
-    // exchange returns the prior value — we spawn iff we flipped false→true.
-    if (m_drain_started.exchange(true, std::memory_order_acq_rel))
+    if (m_drain_started)
         return;
+    m_drain_started = true;
 
     // The drain coroutine holds the session alive through shared_from_this
     // so it can outlive whichever caller spawned us (typical pattern: Run
     // or RunPackets exits when the peer closes, but a few last queued
     // sends may still be in flight on the channel).
     boost::asio::co_spawn(
-        m_socket.get_executor(),
+        m_strand,
         [self = shared_from_this()]() -> boost::asio::awaitable<void> {
             co_await self->DrainSendQueue();
         },
@@ -129,9 +134,23 @@ void AsioSession::StartDrainIfNeeded()
 boost::asio::awaitable<void>
 AsioSession::Run(BytesHandler on_bytes)
 {
+    co_await boost::asio::co_spawn(m_strand,
+        [self = shared_from_this(), handler = std::move(on_bytes)]()
+            mutable -> boost::asio::awaitable<void> {
+            co_await self->RunOnExecutor(std::move(handler));
+        }, boost::asio::use_awaitable);
+}
+
+boost::asio::awaitable<void>
+AsioSession::RunOnExecutor(BytesHandler on_bytes)
+{
+    struct CloseGuard {
+        std::shared_ptr<AsioSession> self;
+        ~CloseGuard() { self->CloseOnExecutor(); }
+    } guard{shared_from_this()};
     StartDrainIfNeeded();
     boost::system::error_code ec;
-    while (m_socket.is_open())
+    while (IsOpen())
     {
         const auto n = co_await m_socket.async_read_some(
             boost::asio::buffer(m_recv_buffer.data(), m_recv_buffer.size()),
@@ -155,7 +174,16 @@ AsioSession::Run(BytesHandler on_bytes)
 boost::asio::awaitable<void>
 AsioSession::Send(std::span<const std::byte> bytes)
 {
-    if (!m_socket.is_open() || bytes.empty())
+    co_await boost::asio::co_spawn(m_strand,
+        [self = shared_from_this(), bytes]() -> boost::asio::awaitable<void> {
+            co_await self->SendOnExecutor(bytes);
+        }, boost::asio::use_awaitable);
+}
+
+boost::asio::awaitable<void>
+AsioSession::SendOnExecutor(std::span<const std::byte> bytes)
+{
+    if (!IsOpen() || bytes.empty())
         co_return;
 
     co_await boost::asio::async_write(
@@ -167,12 +195,41 @@ AsioSession::Send(std::span<const std::byte> bytes)
 boost::asio::awaitable<void>
 AsioSession::RunPackets(PacketHandler on_packet)
 {
+    co_await RunPacketsAsync([handler = std::move(on_packet)](DecodedPacket packet)
+        -> boost::asio::awaitable<void> {
+        if (handler) handler(packet);
+        co_return;
+    });
+}
+
+boost::asio::awaitable<void>
+AsioSession::RunPacketsAsync(AsyncPacketHandler on_packet)
+{
+    // co_spawn binds every coroutine continuation and the intermediate
+    // async_read/async_write handlers, not just their initiation, to this
+    // strand. A single post/dispatch at entry would not do that.
+    co_await boost::asio::co_spawn(m_strand,
+        [self = shared_from_this(), handler = std::move(on_packet)]()
+            mutable -> boost::asio::awaitable<void> {
+            co_await self->RunPacketsOnExecutor(std::move(handler));
+        }, boost::asio::use_awaitable);
+}
+
+boost::asio::awaitable<void>
+AsioSession::RunPacketsOnExecutor(AsyncPacketHandler on_packet)
+{
+    // Reactor teardown may destroy the send-drain owner before this suspended
+    // read coroutine. Retain the session through the close guard's destruction.
+    struct CloseGuard {
+        std::shared_ptr<AsioSession> self;
+        ~CloseGuard() { self->CloseOnExecutor(); }
+    } guard{shared_from_this()};
     StartDrainIfNeeded();
     boost::system::error_code ec;
 
     // Per-iteration: read 16-byte header, parse plaintext wSize, read
     // body, decrypt header+body, dispatch.
-    while (m_socket.is_open())
+    while (IsOpen())
     {
         m_packet_buffer.resize(kPacketHeaderSize);
 
@@ -267,17 +324,32 @@ AsioSession::RunPackets(PacketHandler on_packet)
             pkt.wId      = hdr->wId;
             pkt.dwNumber = hdr->dwNumber;
             pkt.body     = std::span<const std::byte>(body_ptr, body_len);
-            on_packet(pkt);
+            if (!m_close_queued) co_await on_packet(pkt);
         }
     }
     Close();
 }
 
 boost::asio::awaitable<void>
-AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
+AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body,
+                        bool close_after_send)
 {
-    if (!m_socket.is_open())
+    co_await boost::asio::co_spawn(m_strand,
+        [self = shared_from_this(), wId, body, close_after_send]()
+            -> boost::asio::awaitable<void> {
+            co_await self->SendPacketOnExecutor(wId, body, close_after_send);
+        }, boost::asio::use_awaitable);
+}
+
+boost::asio::awaitable<void>
+AsioSession::SendPacketOnExecutor(std::uint16_t wId, std::span<const std::byte> body,
+                                bool close_after_send)
+{
+    if (!IsOpen() || m_close_queued)
         co_return;
+
+    // Send-only peers need the drain too; they may never call RunPackets().
+    StartDrainIfNeeded();
 
     // Reject sends that would overflow the 16-bit wSize. The codec's
     // contract is wSize < kMaxPacketSize (see packet_codec.h). Written
@@ -295,8 +367,10 @@ AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
     // Copy the body into the channel envelope. The drain coroutine owns
     // the lifetime from here, so the caller's `body` span need not stay
     // valid past this co_return.
+    if (close_after_send) m_close_queued = true;
     PendingSend pending;
     pending.wId  = wId;
+    pending.close_after_send = close_after_send;
     pending.body.assign(body.begin(), body.end());
 
     boost::system::error_code ec;
@@ -320,7 +394,7 @@ AsioSession::SendPacket(std::uint16_t wId, std::span<const std::byte> body)
 boost::asio::awaitable<void>
 AsioSession::DoSendPacket(std::uint16_t wId, std::span<const std::byte> body)
 {
-    if (!m_socket.is_open())
+    if (!IsOpen())
         co_return;
 
     // Build the frame in m_send_buffer so the async_write sees one
@@ -402,17 +476,27 @@ AsioSession::DrainSendQueue()
             std::span<const std::byte>(pending.body.data(),
                                        pending.body.size()));
 
-        if (!m_socket.is_open())
+        if (pending.close_after_send) Close();
+        if (!IsOpen())
             break;
     }
 }
 
 void AsioSession::Close()
 {
-    // Always tear down the send channel — pending awaiters (producers
-    // suspended on a full queue, the drain awaiting the next item)
-    // will wake with operation_aborted/cancelled and unwind. close()
-    // is idempotent for the channel itself.
+    if (m_closed.exchange(true, std::memory_order_acq_rel)) return;
+    boost::asio::dispatch(m_strand, [self = shared_from_this()] {
+        self->CloseOnExecutor();
+    });
+}
+
+void AsioSession::CloseOnExecutor()
+{
+    m_closed.store(true, std::memory_order_release);
+    // close() alone does not complete senders blocked on a full channel.
+    // Cancel those waiters first, then seal the channel against new work.
+    // Both operations run on the same strand as every enqueue/dequeue.
+    m_send_chan.cancel();
     m_send_chan.close();
 
     if (!m_socket.is_open())
@@ -445,6 +529,12 @@ AsioListener::AsioListener(boost::asio::any_io_executor exec, std::uint16_t port
     {
         m_port = m_acceptor.local_endpoint().port();
     }
+}
+
+void AsioListener::Stop()
+{
+    boost::system::error_code ignored;
+    m_acceptor.close(ignored);
 }
 
 boost::asio::awaitable<void>

@@ -20,6 +20,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -162,10 +163,10 @@ int main()
     p1.connect(ep); p2.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -180,22 +181,32 @@ int main()
     auto establish = [&](std::uint32_t id, std::uint32_t key) {
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(id, key)));
         for (int i = 0; i < 1000 && !chars.Find(id); ++i)
             std::this_thread::sleep_for(10ms);
+        EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(id, key), 0x43));
         SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
+        EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(id, key)));
         for (int i = 0; i < 1000 && cons_size(id) != 2; ++i)
             std::this_thread::sleep_for(10ms);
+        {auto ch=chars.Find(id);std::lock_guard guard(ch->lock);
+         for(auto& con:ch->cons)con.ready=true;} // fixture begins after ENTERCHAR
+
     };
     establish(100, 0xA1);   // handoff char
-    establish(200, 0xB0);   // BR-excluded char
+    SendFramed(p2,ToUint16(MessageId::MW_ADDCHAR_ACK),AddCharBody(200,0xB0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed,p2,AddCharBody(200,0xB0))); // BR-return fresh branch
     EXPECT(cons_size(100) == 2);
-    EXPECT(cons_size(200) == 2);
+    EXPECT(cons_size(200) == 1);
 
     // char 100: normal handoff (old main = 0x42). char 200: handoff
     // into the BR battleground (chg_main_id = 50) — must be excluded.
-    if (auto a = chars.Find(100))
-    { std::lock_guard g(a->lock); a->chg_main_id = 0x42; }
+    EXPECT(world_test::StartMainHandoff(SendFramed,ReadFramed,p1,p2,AddCharBody(100,0xA1),0x43));
+    auto released=std::vector<std::byte>{std::byte{0}};auto identity=AddCharBody(100,0xA1);
+    released.insert(released.end(),identity.begin(),identity.begin()+8);released.push_back(std::byte{0});
+    SendFramed(p1,ToUint16(MessageId::MW_RELEASEMAIN_ACK),released);
+    {auto [id,body]=ReadFramed(p2);EXPECT(id==ToUint16(MessageId::MW_ENTERSVR_REQ));EXPECT(body==released);}
     if (auto b = chars.Find(200))
     { std::lock_guard g(b->lock); b->chg_main_id = 50; }
 

@@ -134,8 +134,8 @@ FakeCharService::Create(const CharacterCreateRequest& req)
     return CharacterCreateResponse{
         .status = CreateCharResult::Success,
         .char_id = new_id,
-        .remaining_slots = static_cast<std::uint8_t>(
-            kMaxCharsPerUser - slot_list.size()),
+        .create_count = static_cast<std::uint8_t>(
+            slot_list.size()),
         .starting_level = info.level,
     };
 }

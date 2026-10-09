@@ -1,0 +1,43 @@
+{
+  "run_id": 1,
+  "manifest_sha256": "c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95",
+  "changed": false,
+  "reference_tables": 15,
+  "verified_source_rows": 106692,
+  "current_chart_queries_verified": [
+    "AllNpcs",
+    "AllQuestChart",
+    "AllQuestTermChart",
+    "AllQuestRewardChart",
+    "AllMonsters",
+    "AllSpawns",
+    "AllMapMon",
+    "AllMonAttr",
+    "AllMonItems",
+    "AllFormula",
+    "AllClassStats",
+    "AllRaceStats",
+    "AllSkillTemplate",
+    "AllSkillData"
+  ],
+  "query_row_counts": {
+    "AllNpcs": 2623,
+    "AllQuestChart": 6261,
+    "AllQuestTermChart": 10687,
+    "AllQuestRewardChart": 4322,
+    "AllMonsters": 3534,
+    "AllSpawns": 20357,
+    "AllMapMon": 23381,
+    "AllMonAttr": 3495,
+    "AllMonItems": 16466,
+    "AllFormula": 34,
+    "AllClassStats": 6,
+    "AllRaceStats": 88,
+    "AllSkillTemplate": 765,
+    "AllSkillData": 1172
+  },
+  "monster_templates": 3534,
+  "monster_attribute_rows": 3495,
+  "source_monster_attribute_gaps": 39,
+  "snapshot_values_and_original_text_bytes_verified": true
+}

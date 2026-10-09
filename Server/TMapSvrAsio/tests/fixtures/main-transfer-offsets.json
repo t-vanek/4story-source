@@ -1,0 +1,1601 @@
+{
+  "synthetic": true,
+  "bytes": 861,
+  "fields": {
+    "db_load": {
+      "offset": 0,
+      "format": "B",
+      "value": 0
+    },
+    "char_id": {
+      "offset": 1,
+      "format": "I",
+      "value": 4027724886
+    },
+    "key": {
+      "offset": 5,
+      "format": "I",
+      "value": 2271560481
+    },
+    "result": {
+      "offset": 9,
+      "format": "B",
+      "value": 0
+    },
+    "name.length": {
+      "offset": 10,
+      "format": "i",
+      "value": 4
+    },
+    "name": {
+      "offset": 14,
+      "format": "raw",
+      "hex": "48e9726f"
+    },
+    "start_act": {
+      "offset": 18,
+      "format": "B",
+      "value": 1
+    },
+    "real_sex": {
+      "offset": 19,
+      "format": "B",
+      "value": 2
+    },
+    "class": {
+      "offset": 20,
+      "format": "B",
+      "value": 3
+    },
+    "level": {
+      "offset": 21,
+      "format": "B",
+      "value": 4
+    },
+    "race": {
+      "offset": 22,
+      "format": "B",
+      "value": 5
+    },
+    "country": {
+      "offset": 23,
+      "format": "B",
+      "value": 6
+    },
+    "original_country": {
+      "offset": 24,
+      "format": "B",
+      "value": 7
+    },
+    "sex": {
+      "offset": 25,
+      "format": "B",
+      "value": 8
+    },
+    "hair": {
+      "offset": 26,
+      "format": "B",
+      "value": 9
+    },
+    "face": {
+      "offset": 27,
+      "format": "B",
+      "value": 10
+    },
+    "body": {
+      "offset": 28,
+      "format": "B",
+      "value": 11
+    },
+    "pants": {
+      "offset": 29,
+      "format": "B",
+      "value": 12
+    },
+    "hand": {
+      "offset": 30,
+      "format": "B",
+      "value": 13
+    },
+    "foot": {
+      "offset": 31,
+      "format": "B",
+      "value": 14
+    },
+    "helmet_hide": {
+      "offset": 32,
+      "format": "B",
+      "value": 15
+    },
+    "gold": {
+      "offset": 33,
+      "format": "I",
+      "value": 2147483649
+    },
+    "silver": {
+      "offset": 37,
+      "format": "I",
+      "value": 2147483650
+    },
+    "copper": {
+      "offset": 41,
+      "format": "I",
+      "value": 2147483651
+    },
+    "experience": {
+      "offset": 45,
+      "format": "I",
+      "value": 2147483652
+    },
+    "hp": {
+      "offset": 49,
+      "format": "I",
+      "value": 2147483653
+    },
+    "mp": {
+      "offset": 53,
+      "format": "I",
+      "value": 2147483654
+    },
+    "skill_points": {
+      "offset": 57,
+      "format": "H",
+      "value": 43981
+    },
+    "region": {
+      "offset": 59,
+      "format": "I",
+      "value": 4026531841
+    },
+    "guild_leave": {
+      "offset": 63,
+      "format": "B",
+      "value": 1
+    },
+    "guild_leave_time": {
+      "offset": 64,
+      "format": "I",
+      "value": 3735928559
+    },
+    "map": {
+      "offset": 68,
+      "format": "H",
+      "value": 50000
+    },
+    "spawn": {
+      "offset": 70,
+      "format": "H",
+      "value": 50001
+    },
+    "last_spawn": {
+      "offset": 72,
+      "format": "H",
+      "value": 50002
+    },
+    "last_destination": {
+      "offset": 74,
+      "format": "I",
+      "value": 3405691582
+    },
+    "tempted_monster": {
+      "offset": 78,
+      "format": "H",
+      "value": 65000
+    },
+    "aftermath": {
+      "offset": 80,
+      "format": "B",
+      "value": 3
+    },
+    "x": {
+      "offset": 81,
+      "format": "f",
+      "value": 1.25
+    },
+    "y": {
+      "offset": 85,
+      "format": "f",
+      "value": -2.5
+    },
+    "z": {
+      "offset": 89,
+      "format": "f",
+      "value": 60000.75
+    },
+    "direction": {
+      "offset": 93,
+      "format": "H",
+      "value": 32769
+    },
+    "stat_level": {
+      "offset": 95,
+      "format": "B",
+      "value": 29
+    },
+    "stat_point": {
+      "offset": 96,
+      "format": "B",
+      "value": 30
+    },
+    "stat_exp": {
+      "offset": 97,
+      "format": "I",
+      "value": 123456789
+    },
+    "save_age": {
+      "offset": 101,
+      "format": "I",
+      "value": 4275878552
+    },
+    "local_id": {
+      "offset": 105,
+      "format": "H",
+      "value": 43707
+    },
+    "login": {
+      "offset": 107,
+      "format": "B",
+      "value": 0
+    },
+    "new_security": {
+      "offset": 108,
+      "format": "B",
+      "value": 0
+    },
+    "security_code.length": {
+      "offset": 109,
+      "format": "i",
+      "value": 6
+    },
+    "security_code": {
+      "offset": 113,
+      "format": "raw",
+      "hex": "414243313233"
+    },
+    "security_tries": {
+      "offset": 119,
+      "format": "B",
+      "value": 4
+    },
+    "security_tick": {
+      "offset": 120,
+      "format": "I",
+      "value": 2271543297
+    },
+    "security_unlocked": {
+      "offset": 124,
+      "format": "B",
+      "value": 1
+    },
+    "aid_country": {
+      "offset": 125,
+      "format": "B",
+      "value": 3
+    },
+    "aid_date": {
+      "offset": 126,
+      "format": "q",
+      "value": -1
+    },
+    "pc_bang": {
+      "offset": 134,
+      "format": "B",
+      "value": 1
+    },
+    "pc_bang_time": {
+      "offset": 135,
+      "format": "I",
+      "value": 1234567
+    },
+    "pc_bang_items": {
+      "offset": 139,
+      "format": "B",
+      "value": 8
+    },
+    "lucky": {
+      "offset": 140,
+      "format": "B",
+      "value": 9
+    },
+    "post_total": {
+      "offset": 141,
+      "format": "H",
+      "value": 400
+    },
+    "post_read": {
+      "offset": 143,
+      "format": "H",
+      "value": 123
+    },
+    "bags.count": {
+      "offset": 145,
+      "format": "H",
+      "value": 2
+    },
+    "bag0.id": {
+      "offset": 147,
+      "format": "B",
+      "value": 1
+    },
+    "bag0.item": {
+      "offset": 148,
+      "format": "H",
+      "value": 40000
+    },
+    "bag0.expires": {
+      "offset": 150,
+      "format": "q",
+      "value": 1800000000
+    },
+    "bag0.eld": {
+      "offset": 158,
+      "format": "B",
+      "value": 1
+    },
+    "bag1.id": {
+      "offset": 159,
+      "format": "B",
+      "value": 254
+    },
+    "bag1.item": {
+      "offset": 160,
+      "format": "H",
+      "value": 40001
+    },
+    "bag1.expires": {
+      "offset": 162,
+      "format": "q",
+      "value": 1800000001
+    },
+    "bag1.eld": {
+      "offset": 170,
+      "format": "B",
+      "value": 1
+    },
+    "cabinets.count": {
+      "offset": 171,
+      "format": "H",
+      "value": 1
+    },
+    "cabinet.id": {
+      "offset": 173,
+      "format": "B",
+      "value": 7
+    },
+    "cabinet.use": {
+      "offset": 174,
+      "format": "B",
+      "value": 1
+    },
+    "items.count": {
+      "offset": 175,
+      "format": "H",
+      "value": 2
+    },
+    "item0.storage": {
+      "offset": 177,
+      "format": "B",
+      "value": 0
+    },
+    "item0.storage_id": {
+      "offset": 178,
+      "format": "I",
+      "value": 1
+    },
+    "item0.owner_type": {
+      "offset": 182,
+      "format": "B",
+      "value": 0
+    },
+    "item0.owner_id": {
+      "offset": 183,
+      "format": "I",
+      "value": 4027724886
+    },
+    "item0.id": {
+      "offset": 187,
+      "format": "Q",
+      "value": 18364758544493064720
+    },
+    "item0.slot": {
+      "offset": 195,
+      "format": "B",
+      "value": 4
+    },
+    "item0.template": {
+      "offset": 196,
+      "format": "H",
+      "value": 48879
+    },
+    "item0.level": {
+      "offset": 198,
+      "format": "B",
+      "value": 80
+    },
+    "item0.gem": {
+      "offset": 199,
+      "format": "B",
+      "value": 3
+    },
+    "item0.appearance": {
+      "offset": 200,
+      "format": "H",
+      "value": 43981
+    },
+    "item0.companion": {
+      "offset": 202,
+      "format": "I",
+      "value": 2575857510
+    },
+    "item0.count": {
+      "offset": 206,
+      "format": "B",
+      "value": 9
+    },
+    "item0.grade": {
+      "offset": 207,
+      "format": "B",
+      "value": 250
+    },
+    "item0.max_dura": {
+      "offset": 208,
+      "format": "I",
+      "value": 123000
+    },
+    "item0.dura": {
+      "offset": 212,
+      "format": "I",
+      "value": 65432
+    },
+    "item0.refine": {
+      "offset": 216,
+      "format": "B",
+      "value": 7
+    },
+    "item0.expires": {
+      "offset": 217,
+      "format": "q",
+      "value": -2
+    },
+    "item0.grade_effect": {
+      "offset": 225,
+      "format": "B",
+      "value": 11
+    },
+    "item0.eld": {
+      "offset": 226,
+      "format": "I",
+      "value": 287454020
+    },
+    "item0.wrap": {
+      "offset": 230,
+      "format": "I",
+      "value": 573785173
+    },
+    "item0.color": {
+      "offset": 234,
+      "format": "I",
+      "value": 860116326
+    },
+    "item0.guild": {
+      "offset": 238,
+      "format": "I",
+      "value": 1146447479
+    },
+    "item0.texture": {
+      "offset": 242,
+      "format": "I",
+      "value": 1432778632
+    },
+    "item0.magic.count": {
+      "offset": 246,
+      "format": "B",
+      "value": 2
+    },
+    "item0.magic0.id": {
+      "offset": 247,
+      "format": "B",
+      "value": 50
+    },
+    "item0.magic0.raw": {
+      "offset": 248,
+      "format": "H",
+      "value": 65432
+    },
+    "item0.magic1.id": {
+      "offset": 250,
+      "format": "B",
+      "value": 51
+    },
+    "item0.magic1.raw": {
+      "offset": 251,
+      "format": "H",
+      "value": 4321
+    },
+    "item1.storage": {
+      "offset": 253,
+      "format": "B",
+      "value": 1
+    },
+    "item1.storage_id": {
+      "offset": 254,
+      "format": "I",
+      "value": 7
+    },
+    "item1.owner_type": {
+      "offset": 258,
+      "format": "B",
+      "value": 0
+    },
+    "item1.owner_id": {
+      "offset": 259,
+      "format": "I",
+      "value": 4027724886
+    },
+    "item1.id": {
+      "offset": 263,
+      "format": "Q",
+      "value": 18364758544493064721
+    },
+    "item1.slot": {
+      "offset": 271,
+      "format": "B",
+      "value": 5
+    },
+    "item1.template": {
+      "offset": 272,
+      "format": "H",
+      "value": 48879
+    },
+    "item1.level": {
+      "offset": 274,
+      "format": "B",
+      "value": 80
+    },
+    "item1.gem": {
+      "offset": 275,
+      "format": "B",
+      "value": 3
+    },
+    "item1.appearance": {
+      "offset": 276,
+      "format": "H",
+      "value": 43981
+    },
+    "item1.companion": {
+      "offset": 278,
+      "format": "I",
+      "value": 2575857510
+    },
+    "item1.count": {
+      "offset": 282,
+      "format": "B",
+      "value": 9
+    },
+    "item1.grade": {
+      "offset": 283,
+      "format": "B",
+      "value": 250
+    },
+    "item1.max_dura": {
+      "offset": 284,
+      "format": "I",
+      "value": 123000
+    },
+    "item1.dura": {
+      "offset": 288,
+      "format": "I",
+      "value": 65432
+    },
+    "item1.refine": {
+      "offset": 292,
+      "format": "B",
+      "value": 7
+    },
+    "item1.expires": {
+      "offset": 293,
+      "format": "q",
+      "value": -2
+    },
+    "item1.grade_effect": {
+      "offset": 301,
+      "format": "B",
+      "value": 11
+    },
+    "item1.eld": {
+      "offset": 302,
+      "format": "I",
+      "value": 287454020
+    },
+    "item1.wrap": {
+      "offset": 306,
+      "format": "I",
+      "value": 573785173
+    },
+    "item1.color": {
+      "offset": 310,
+      "format": "I",
+      "value": 860116326
+    },
+    "item1.guild": {
+      "offset": 314,
+      "format": "I",
+      "value": 1146447479
+    },
+    "item1.texture": {
+      "offset": 318,
+      "format": "I",
+      "value": 1432778632
+    },
+    "item1.magic.count": {
+      "offset": 322,
+      "format": "B",
+      "value": 2
+    },
+    "item1.magic0.id": {
+      "offset": 323,
+      "format": "B",
+      "value": 50
+    },
+    "item1.magic0.raw": {
+      "offset": 324,
+      "format": "H",
+      "value": 65432
+    },
+    "item1.magic1.id": {
+      "offset": 326,
+      "format": "B",
+      "value": 51
+    },
+    "item1.magic1.raw": {
+      "offset": 327,
+      "format": "H",
+      "value": 4321
+    },
+    "skills.count": {
+      "offset": 329,
+      "format": "H",
+      "value": 1
+    },
+    "skill.level": {
+      "offset": 331,
+      "format": "B",
+      "value": 7
+    },
+    "skill.id": {
+      "offset": 332,
+      "format": "H",
+      "value": 40000
+    },
+    "skill.remaining": {
+      "offset": 334,
+      "format": "I",
+      "value": 4026531842
+    },
+    "buffs.count": {
+      "offset": 338,
+      "format": "H",
+      "value": 1
+    },
+    "buff.level": {
+      "offset": 340,
+      "format": "B",
+      "value": 4
+    },
+    "buff.id": {
+      "offset": 341,
+      "format": "H",
+      "value": 50001
+    },
+    "buff.remaining": {
+      "offset": 343,
+      "format": "I",
+      "value": 4294967295
+    },
+    "buff.attack_type": {
+      "offset": 347,
+      "format": "B",
+      "value": 1
+    },
+    "buff.attack": {
+      "offset": 348,
+      "format": "I",
+      "value": 2882400000
+    },
+    "buff.host_type": {
+      "offset": 352,
+      "format": "B",
+      "value": 2
+    },
+    "buff.host": {
+      "offset": 353,
+      "format": "I",
+      "value": 3168727041
+    },
+    "buff.country": {
+      "offset": 357,
+      "format": "B",
+      "value": 3
+    },
+    "quests.count": {
+      "offset": 358,
+      "format": "H",
+      "value": 1
+    },
+    "quest.id": {
+      "offset": 360,
+      "format": "I",
+      "value": 123456
+    },
+    "quest.remaining": {
+      "offset": 364,
+      "format": "I",
+      "value": 2147488308
+    },
+    "quest.completed": {
+      "offset": 368,
+      "format": "B",
+      "value": 1
+    },
+    "quest.triggered": {
+      "offset": 369,
+      "format": "B",
+      "value": 2
+    },
+    "quest.save": {
+      "offset": 370,
+      "format": "B",
+      "value": 1
+    },
+    "quest_terms.count": {
+      "offset": 371,
+      "format": "H",
+      "value": 1
+    },
+    "term.quest": {
+      "offset": 373,
+      "format": "I",
+      "value": 123456
+    },
+    "term.id": {
+      "offset": 377,
+      "format": "I",
+      "value": 87654
+    },
+    "term.type": {
+      "offset": 381,
+      "format": "B",
+      "value": 7
+    },
+    "term.count": {
+      "offset": 382,
+      "format": "B",
+      "value": 8
+    },
+    "hotkeys.count": {
+      "offset": 383,
+      "format": "H",
+      "value": 1
+    },
+    "hotkey.inventory": {
+      "offset": 385,
+      "format": "B",
+      "value": 2
+    },
+    "hotkey.save": {
+      "offset": 386,
+      "format": "B",
+      "value": 1
+    },
+    "hotkey0.type": {
+      "offset": 387,
+      "format": "B",
+      "value": 0
+    },
+    "hotkey0.id": {
+      "offset": 388,
+      "format": "H",
+      "value": 60000
+    },
+    "hotkey1.type": {
+      "offset": 390,
+      "format": "B",
+      "value": 1
+    },
+    "hotkey1.id": {
+      "offset": 391,
+      "format": "H",
+      "value": 60001
+    },
+    "hotkey2.type": {
+      "offset": 393,
+      "format": "B",
+      "value": 2
+    },
+    "hotkey2.id": {
+      "offset": 394,
+      "format": "H",
+      "value": 60002
+    },
+    "hotkey3.type": {
+      "offset": 396,
+      "format": "B",
+      "value": 3
+    },
+    "hotkey3.id": {
+      "offset": 397,
+      "format": "H",
+      "value": 60003
+    },
+    "hotkey4.type": {
+      "offset": 399,
+      "format": "B",
+      "value": 4
+    },
+    "hotkey4.id": {
+      "offset": 400,
+      "format": "H",
+      "value": 60004
+    },
+    "hotkey5.type": {
+      "offset": 402,
+      "format": "B",
+      "value": 5
+    },
+    "hotkey5.id": {
+      "offset": 403,
+      "format": "H",
+      "value": 60005
+    },
+    "hotkey6.type": {
+      "offset": 405,
+      "format": "B",
+      "value": 6
+    },
+    "hotkey6.id": {
+      "offset": 406,
+      "format": "H",
+      "value": 60006
+    },
+    "hotkey7.type": {
+      "offset": 408,
+      "format": "B",
+      "value": 7
+    },
+    "hotkey7.id": {
+      "offset": 409,
+      "format": "H",
+      "value": 60007
+    },
+    "hotkey8.type": {
+      "offset": 411,
+      "format": "B",
+      "value": 8
+    },
+    "hotkey8.id": {
+      "offset": 412,
+      "format": "H",
+      "value": 60008
+    },
+    "hotkey9.type": {
+      "offset": 414,
+      "format": "B",
+      "value": 9
+    },
+    "hotkey9.id": {
+      "offset": 415,
+      "format": "H",
+      "value": 60009
+    },
+    "hotkey10.type": {
+      "offset": 417,
+      "format": "B",
+      "value": 10
+    },
+    "hotkey10.id": {
+      "offset": 418,
+      "format": "H",
+      "value": 60010
+    },
+    "hotkey11.type": {
+      "offset": 420,
+      "format": "B",
+      "value": 11
+    },
+    "hotkey11.id": {
+      "offset": 421,
+      "format": "H",
+      "value": 60011
+    },
+    "item_cooldowns.count": {
+      "offset": 423,
+      "format": "H",
+      "value": 1
+    },
+    "item_cooldown.id": {
+      "offset": 425,
+      "format": "H",
+      "value": 50000
+    },
+    "item_cooldown.remaining": {
+      "offset": 427,
+      "format": "I",
+      "value": 87654321
+    },
+    "saddle.item": {
+      "offset": 431,
+      "format": "I",
+      "value": 2864434397
+    },
+    "saddle.expires": {
+      "offset": 435,
+      "format": "q",
+      "value": -3
+    },
+    "saddle.type": {
+      "offset": 443,
+      "format": "B",
+      "value": 2
+    },
+    "pets.count": {
+      "offset": 444,
+      "format": "H",
+      "value": 1
+    },
+    "pet.id": {
+      "offset": 446,
+      "format": "H",
+      "value": 256
+    },
+    "pet.name.length": {
+      "offset": 448,
+      "format": "i",
+      "value": 4
+    },
+    "pet.name": {
+      "offset": 452,
+      "format": "raw",
+      "hex": "50657480"
+    },
+    "pet.time": {
+      "offset": 456,
+      "format": "q",
+      "value": 1800000123
+    },
+    "pet.effect": {
+      "offset": 464,
+      "format": "B",
+      "value": 4
+    },
+    "during_items.count": {
+      "offset": 465,
+      "format": "H",
+      "value": 1
+    },
+    "during.item": {
+      "offset": 467,
+      "format": "H",
+      "value": 34567
+    },
+    "during.type": {
+      "offset": 469,
+      "format": "B",
+      "value": 2
+    },
+    "during.remaining": {
+      "offset": 470,
+      "format": "I",
+      "value": 900000
+    },
+    "during.expires": {
+      "offset": 474,
+      "format": "q",
+      "value": 1800000456
+    },
+    "recalls.count": {
+      "offset": 482,
+      "format": "H",
+      "value": 1
+    },
+    "recall.id": {
+      "offset": 484,
+      "format": "I",
+      "value": 4042322160
+    },
+    "recall.monster": {
+      "offset": 488,
+      "format": "H",
+      "value": 54321
+    },
+    "recall.pet": {
+      "offset": 490,
+      "format": "H",
+      "value": 400
+    },
+    "recall.attribute": {
+      "offset": 492,
+      "format": "I",
+      "value": 4278255360
+    },
+    "recall.level": {
+      "offset": 496,
+      "format": "B",
+      "value": 90
+    },
+    "recall.hp": {
+      "offset": 497,
+      "format": "I",
+      "value": 98765
+    },
+    "recall.mp": {
+      "offset": 501,
+      "format": "I",
+      "value": 87654
+    },
+    "recall.skill_level": {
+      "offset": 505,
+      "format": "B",
+      "value": 6
+    },
+    "recall.x": {
+      "offset": 506,
+      "format": "H",
+      "value": 61000
+    },
+    "recall.y": {
+      "offset": 508,
+      "format": "H",
+      "value": 62000
+    },
+    "recall.z": {
+      "offset": 510,
+      "format": "H",
+      "value": 63000
+    },
+    "recall.time": {
+      "offset": 512,
+      "format": "I",
+      "value": 456789
+    },
+    "recall.effect": {
+      "offset": 516,
+      "format": "B",
+      "value": 9
+    },
+    "recall_buffs.count": {
+      "offset": 517,
+      "format": "H",
+      "value": 1
+    },
+    "recall_buff.id": {
+      "offset": 519,
+      "format": "I",
+      "value": 4042322160
+    },
+    "recall_buff.buff.level": {
+      "offset": 523,
+      "format": "B",
+      "value": 4
+    },
+    "recall_buff.buff.id": {
+      "offset": 524,
+      "format": "H",
+      "value": 50001
+    },
+    "recall_buff.buff.remaining": {
+      "offset": 526,
+      "format": "I",
+      "value": 4294967295
+    },
+    "recall_buff.buff.attack_type": {
+      "offset": 530,
+      "format": "B",
+      "value": 1
+    },
+    "recall_buff.buff.attack": {
+      "offset": 531,
+      "format": "I",
+      "value": 2882400000
+    },
+    "recall_buff.buff.host_type": {
+      "offset": 535,
+      "format": "B",
+      "value": 2
+    },
+    "recall_buff.buff.host": {
+      "offset": 536,
+      "format": "I",
+      "value": 3168727041
+    },
+    "recall_buff.buff.country": {
+      "offset": 540,
+      "format": "B",
+      "value": 3
+    },
+    "protected.count": {
+      "offset": 541,
+      "format": "H",
+      "value": 1
+    },
+    "protected.id": {
+      "offset": 543,
+      "format": "I",
+      "value": 2694881440
+    },
+    "protected.name.length": {
+      "offset": 547,
+      "format": "i",
+      "value": 5
+    },
+    "protected.name": {
+      "offset": 551,
+      "format": "raw",
+      "hex": "4f74686572"
+    },
+    "protected.option": {
+      "offset": 556,
+      "format": "B",
+      "value": 3
+    },
+    "protected.changed": {
+      "offset": 557,
+      "format": "B",
+      "value": 1
+    },
+    "pvp.available": {
+      "offset": 558,
+      "format": "I",
+      "value": 10
+    },
+    "pvp.total": {
+      "offset": 562,
+      "format": "I",
+      "value": 20
+    },
+    "pvp.rank": {
+      "offset": 566,
+      "format": "I",
+      "value": 30
+    },
+    "pvp.percent": {
+      "offset": 570,
+      "format": "B",
+      "value": 40
+    },
+    "pvp.record0": {
+      "offset": 571,
+      "format": "I",
+      "value": 2147483904
+    },
+    "pvp.record1": {
+      "offset": 575,
+      "format": "I",
+      "value": 2147483905
+    },
+    "pvp.record2": {
+      "offset": 579,
+      "format": "I",
+      "value": 2147483906
+    },
+    "pvp.record3": {
+      "offset": 583,
+      "format": "I",
+      "value": 2147483907
+    },
+    "pvp.record4": {
+      "offset": 587,
+      "format": "I",
+      "value": 2147483908
+    },
+    "pvp.record5": {
+      "offset": 591,
+      "format": "I",
+      "value": 2147483909
+    },
+    "pvp.record6": {
+      "offset": 595,
+      "format": "I",
+      "value": 2147483910
+    },
+    "pvp.record7": {
+      "offset": 599,
+      "format": "I",
+      "value": 2147483911
+    },
+    "pvp.record8": {
+      "offset": 603,
+      "format": "I",
+      "value": 2147483912
+    },
+    "pvp.record9": {
+      "offset": 607,
+      "format": "I",
+      "value": 2147483913
+    },
+    "pvp.record10": {
+      "offset": 611,
+      "format": "I",
+      "value": 2147483914
+    },
+    "pvp.record11": {
+      "offset": 615,
+      "format": "I",
+      "value": 2147483915
+    },
+    "pvp_recent.count": {
+      "offset": 619,
+      "format": "H",
+      "value": 1
+    },
+    "pvp_recent.name.length": {
+      "offset": 621,
+      "format": "i",
+      "value": 8
+    },
+    "pvp_recent.name": {
+      "offset": 625,
+      "format": "raw",
+      "hex": "4f70706f6e656e74"
+    },
+    "pvp_recent.class": {
+      "offset": 633,
+      "format": "B",
+      "value": 5
+    },
+    "pvp_recent.level": {
+      "offset": 634,
+      "format": "B",
+      "value": 77
+    },
+    "pvp_recent.win": {
+      "offset": 635,
+      "format": "B",
+      "value": 1
+    },
+    "pvp_recent.points": {
+      "offset": 636,
+      "format": "I",
+      "value": 987654
+    },
+    "pvp_recent.time": {
+      "offset": 640,
+      "format": "q",
+      "value": -4
+    },
+    "duel_records.count": {
+      "offset": 648,
+      "format": "H",
+      "value": 1
+    },
+    "duel_record.name.length": {
+      "offset": 650,
+      "format": "i",
+      "value": 8
+    },
+    "duel_record.name": {
+      "offset": 654,
+      "format": "raw",
+      "hex": "4f70706f6e656e74"
+    },
+    "duel_record.class": {
+      "offset": 662,
+      "format": "B",
+      "value": 5
+    },
+    "duel_record.level": {
+      "offset": 663,
+      "format": "B",
+      "value": 77
+    },
+    "duel_record.win": {
+      "offset": 664,
+      "format": "B",
+      "value": 1
+    },
+    "duel_record.points": {
+      "offset": 665,
+      "format": "I",
+      "value": 987654
+    },
+    "duel_record.time": {
+      "offset": 669,
+      "format": "q",
+      "value": -4
+    },
+    "duel_sets": {
+      "offset": 677,
+      "format": "H",
+      "value": 1
+    },
+    "duel.score0": {
+      "offset": 679,
+      "format": "I",
+      "value": 2415919360
+    },
+    "duel.score1": {
+      "offset": 683,
+      "format": "I",
+      "value": 2415919361
+    },
+    "duel.score2": {
+      "offset": 687,
+      "format": "I",
+      "value": 2415919362
+    },
+    "duel.score3": {
+      "offset": 691,
+      "format": "I",
+      "value": 2415919363
+    },
+    "duel.score4": {
+      "offset": 695,
+      "format": "I",
+      "value": 2415919364
+    },
+    "duel.score5": {
+      "offset": 699,
+      "format": "I",
+      "value": 2415919365
+    },
+    "duel.score6": {
+      "offset": 703,
+      "format": "I",
+      "value": 2415919366
+    },
+    "duel.score7": {
+      "offset": 707,
+      "format": "I",
+      "value": 2415919367
+    },
+    "duel.score8": {
+      "offset": 711,
+      "format": "I",
+      "value": 2415919368
+    },
+    "duel.score9": {
+      "offset": 715,
+      "format": "I",
+      "value": 2415919369
+    },
+    "duel.score10": {
+      "offset": 719,
+      "format": "I",
+      "value": 2415919370
+    },
+    "duel.score11": {
+      "offset": 723,
+      "format": "I",
+      "value": 2415919371
+    },
+    "auction_bids.count": {
+      "offset": 727,
+      "format": "H",
+      "value": 2
+    },
+    "auction_bids.first": {
+      "offset": 729,
+      "format": "I",
+      "value": 2684354560
+    },
+    "auction_bids.second": {
+      "offset": 733,
+      "format": "I",
+      "value": 2952790016
+    },
+    "auction_interests.count": {
+      "offset": 737,
+      "format": "H",
+      "value": 2
+    },
+    "auction_interests.first": {
+      "offset": 739,
+      "format": "I",
+      "value": 2684354561
+    },
+    "auction_interests.second": {
+      "offset": 743,
+      "format": "I",
+      "value": 2952790017
+    },
+    "auction_registrations.count": {
+      "offset": 747,
+      "format": "H",
+      "value": 2
+    },
+    "auction_registrations.first": {
+      "offset": 749,
+      "format": "I",
+      "value": 2684354562
+    },
+    "auction_registrations.second": {
+      "offset": 753,
+      "format": "I",
+      "value": 2952790018
+    },
+    "month.points": {
+      "offset": 757,
+      "format": "I",
+      "value": 999999
+    },
+    "month.wins": {
+      "offset": 761,
+      "format": "H",
+      "value": 1000
+    },
+    "month.losses": {
+      "offset": 763,
+      "format": "H",
+      "value": 2000
+    },
+    "month.rank": {
+      "offset": 765,
+      "format": "I",
+      "value": 300000
+    },
+    "month.percent": {
+      "offset": 769,
+      "format": "B",
+      "value": 33
+    },
+    "titles.count": {
+      "offset": 770,
+      "format": "H",
+      "value": 1
+    },
+    "title.id": {
+      "offset": 772,
+      "format": "H",
+      "value": 55555
+    },
+    "title.selected": {
+      "offset": 774,
+      "format": "B",
+      "value": 1
+    },
+    "companions.count": {
+      "offset": 775,
+      "format": "H",
+      "value": 1
+    },
+    "companion.slot": {
+      "offset": 777,
+      "format": "B",
+      "value": 2
+    },
+    "companion.monster": {
+      "offset": 778,
+      "format": "I",
+      "value": 3758096385
+    },
+    "companion.exp": {
+      "offset": 782,
+      "format": "I",
+      "value": 12345
+    },
+    "companion.next_exp": {
+      "offset": 786,
+      "format": "I",
+      "value": 23456
+    },
+    "companion.life": {
+      "offset": 790,
+      "format": "H",
+      "value": 45678
+    },
+    "companion.skill_points": {
+      "offset": 792,
+      "format": "B",
+      "value": 5
+    },
+    "companion.level": {
+      "offset": 793,
+      "format": "B",
+      "value": 99
+    },
+    "companion.name.length": {
+      "offset": 794,
+      "format": "i",
+      "value": 9
+    },
+    "companion.name": {
+      "offset": 798,
+      "format": "raw",
+      "hex": "436f6d70616e696f6e"
+    },
+    "companion.effect": {
+      "offset": 807,
+      "format": "B",
+      "value": 6
+    },
+    "companion.attribute0": {
+      "offset": 808,
+      "format": "H",
+      "value": 60000
+    },
+    "companion.attribute1": {
+      "offset": 810,
+      "format": "H",
+      "value": 60001
+    },
+    "companion.attribute2": {
+      "offset": 812,
+      "format": "H",
+      "value": 60002
+    },
+    "companion.attribute3": {
+      "offset": 814,
+      "format": "H",
+      "value": 60003
+    },
+    "companion.attribute4": {
+      "offset": 816,
+      "format": "H",
+      "value": 60004
+    },
+    "companion.attribute5": {
+      "offset": 818,
+      "format": "H",
+      "value": 60005
+    },
+    "companion.bonus": {
+      "offset": 820,
+      "format": "B",
+      "value": 8
+    },
+    "companion_items.count": {
+      "offset": 821,
+      "format": "H",
+      "value": 1
+    },
+    "companion_items.slot": {
+      "offset": 823,
+      "format": "B",
+      "value": 2
+    },
+    "companion_items.tick": {
+      "offset": 824,
+      "format": "I",
+      "value": 3489660929
+    },
+    "companion_items.item0": {
+      "offset": 828,
+      "format": "H",
+      "value": 50000
+    },
+    "companion_items.expires0": {
+      "offset": 830,
+      "format": "q",
+      "value": 1800001000
+    },
+    "companion_items.item1": {
+      "offset": 838,
+      "format": "H",
+      "value": 50001
+    },
+    "companion_items.expires1": {
+      "offset": 840,
+      "format": "q",
+      "value": 1800001001
+    },
+    "companion_slots": {
+      "offset": 848,
+      "format": "B",
+      "value": 3
+    },
+    "medals": {
+      "offset": 849,
+      "format": "I",
+      "value": 4059231220
+    },
+    "rank_points": {
+      "offset": 853,
+      "format": "I",
+      "value": 2711790500
+    },
+    "play_time": {
+      "offset": 857,
+      "format": "I",
+      "value": 2981278644
+    }
+  }
+}

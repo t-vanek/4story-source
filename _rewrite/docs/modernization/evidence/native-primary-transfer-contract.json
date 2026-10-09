@@ -1,0 +1,148 @@
+{
+  "date": "2026-10-09",
+  "status": "INTEGRATED and VERIFIED for the native normal-character primary handoff and recovery slice; complete gameplay and original-client compatibility remain IMPLEMENTING",
+  "authority": {
+    "backups": "Both original .bak and migrations 001–019 retain their hashes.",
+    "migration": "020-native-main-transfer.sql; operational epochs, exact transfer journal and version-2 graph checkpoints. Historical rows and fixed-width protocol remain unchanged.",
+    "source": [
+      "Server/TMapSvr/SSSender.cpp:1965 CHECKCONNECT and :1999–2638 RELEASEMAIN",
+      "Server/TMapSvr/SSHandler.cpp:3072 ENTERSVR, :4424 non-login load, :6823 RELEASEMAIN",
+      "Server/TMapSvr/TMap.cpp:1176 cell movement",
+      "Client/TClient/CSHandler.cpp:93 CONNECT changes main session and sends CONREADY to retained connections",
+      "Client/TClient/CSSenderAll.cpp:5 empty CONREADY"
+    ]
+  },
+  "production_paths": [
+    "Server/TMapSvrAsio/handlers_main_transfer.cpp",
+    "Server/TMapSvrAsio/handlers_world.cpp",
+    "Server/TMapSvrAsio/handlers/session.cpp",
+    "Server/TMapSvrAsio/handlers/movement.cpp",
+    "Server/TMapSvrAsio/handlers/dispatch.cpp",
+    "Server/TMapSvrAsio/services/main_transfer_runtime.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_transfer.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_owner.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_replica.cpp",
+    "Server/TMapSvrAsio/services/session_registry.h",
+    "Server/TMapSvrAsio/services/char_state_store.h",
+    "Server/TMapSvrAsio/map_server.cpp",
+    "Server/TMapSvrAsio/main.cpp",
+    "Server/TWorldSvrAsio/handlers/handlers_conn.cpp"
+  ],
+  "contract": [
+    "Movement across a 64-unit cell boundary resolves pinned routing. Local ownership reports primary plus neighbors; foreign ownership requests a CHECKMAIN sweep. Ready replicas may answer cell ownership without obtaining write authority.",
+    "RELEASEMAIN enters TransferOut, prevents new gameplay dispatch and drains in-flight per-client handlers with a three-second deadline and client-close interruption. Presence is withdrawn and state-store mutations are frozen under its mutex. Exact source-format graph captures current core, raw inventory fields and remaining skill timers.",
+    "Prepare journals the exact body/digest and source/target process, connection, catalog and authority identities. A prepared claim cannot checkpoint. Exact prepare retries do not extend its five-second expiry.",
+    "Accept requires a ready exact target replica and matching unexpired prepared body. One account-serialized transaction changes the primary epoch, persists incoming core, rebinds checkpoint/other replicas and retains the old source as a ready replica. It never reloads stale durable children.",
+    "Target hydration derives client item/stat projections through pinned catalogs and restores skill timers. Full typed extra sections are retained; retaining them does not implement their gameplay. Lost COMMIT confirmation can be retried only with the exact body while the target is still loaded.",
+    "Loaded promotion publishes role/epoch/state even if the client closed during commit. Teardown waits for pending ownership publication. CONNECT and empty CONREADY activate the new main; retained connections accept confirmation, and the old source demotes after its consumed receipt is confirmed. Handoffs send no duplicate CHARINFO.",
+    "Authority epochs prevent same-socket ABA writes after a round trip. Checkpoint revisions are scoped to connection and authority; late checkpoint failures during ownership transition do not close the new tenure. Old source final-save confirmation never writes the target core.",
+    "Version-2 checkpoints atomically retain the complete graph, current supported skill durations, digest, core receipt and catalog identities after transfer. Fresh login restores that graph under a new key; same-revision confirmation requires both core and graph hashes. Pure fresh non-transfer characters still use the existing version-1 core-only path.",
+    "Source abort saves the exact prepared journal graph and cancels the transfer. Source replacement can recover frozen prepared state, cancel it and release the account. Target replacement recovers committed loaded/ready graph checkpoints. Core drift/missing receipts remain orphaned; no successful save is fabricated.",
+    "Authorized physical deletion of a low-level character cascades its checkpoint and transfer receipts. Map runtime cannot directly delete those receipts. Historical items/skill rows are not rewritten by transfer.",
+    "World movement reports require the current typed primary peer, finite coordinates and the complete list/EOF before state or queue mutation.",
+    "Native verification holds an exclusive lab lock because TLS server identity is shared across databases in the same disposable PostgreSQL instance."
+  ],
+  "verification": {
+    "debug_ctest": {
+      "report": "native-primary-transfer-ctest.xml",
+      "entries": 197,
+      "actual_passes": 183,
+      "internal_legacy_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "explicit_native_skips": 6,
+      "failures": 0
+    },
+    "asan_ubsan_preset": {
+      "report": "native-primary-transfer-asan.xml",
+      "entries": 32,
+      "actual_passes": 32,
+      "internal_legacy_skips": [],
+      "explicit_native_skips": 0,
+      "failures": 0
+    },
+    "native_runs": {
+      "debug": {
+        "report": "native-primary-transfer-debug.json",
+        "native_map_checks": 154,
+        "pool_tls_checks": 29,
+        "outer_tcp_checks": 174,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 99
+      },
+      "asan": {
+        "report": "native-primary-transfer-asan.json",
+        "native_map_checks": 154,
+        "pool_tls_checks": 29,
+        "outer_tcp_checks": 174,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 99
+      },
+      "release": {
+        "report": "native-primary-transfer-release.json",
+        "native_map_checks": 154,
+        "pool_tls_checks": 29,
+        "outer_tcp_checks": 174,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 99
+      }
+    },
+    "before": {
+      "report": "native-primary-transfer-before.json",
+      "image": "localhost/fourstory:postgresql-main-transfer",
+      "result": "Map primary transfer: target CONNECT missing after original client MOVE crossed the cell boundary",
+      "scope": "Current mounted C++ backend tests pass; previous installed daemon fails the new actual two-Map movement handoff. This is a daemon regression, not an older backend comparison."
+    },
+    "installed_release": {
+      "date": "2026-10-09",
+      "image": "localhost/fourstory:postgresql-native-primary",
+      "image_id": "209f8041b264fe5f59a8338f124cedee77c008c0163a5422320ac78264107bf7",
+      "uid_gid": "10001:10001",
+      "installed_release_daemon_sha256": {
+        "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef",
+        "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+        "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+        "/opt/fourstory/bin/tmapsvr_asio": "b8a0a9f38197e533a6704ae0ab38d600e6462a6aa4f519aef403c9761e521bae",
+        "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+        "/opt/fourstory/bin/tworldsvr_asio": "da5696c7efcb13cd2a6f91248224a288de036c058e9b7ab8e4b7b538fbc5a8ff"
+      },
+      "native_verification": {
+        "report": "native-primary-transfer-release.json",
+        "native_map_checks": 154,
+        "pool_tls_checks": 29,
+        "outer_tcp_checks": 174,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 99
+      },
+      "six_daemon_health_dns_sigterm": "native-primary-transfer-container-smoke.log",
+      "scope": "Installed Release daemons; mounted Debug C++ integration executables. No original client executable was run."
+    },
+    "lab_lock": "native-primary-transfer-lab-lock.json"
+  },
+  "remaining": [
+    "No original client executable was launched. Tests use independently encoded original encrypted packets and an explicitly synthetic same-channel unit partition; the original compatibility view is restored.",
+    "Active effects, quests/terms, item/recall/companion timers, summon/PvP/economy/social gameplay and native child mutations remain incomplete. Typed preservation is not active simulation. Native fresh guild/active-recall admission is still refused; active-effect stat changes can still make hydration refuse unsupported vitals.",
+    "Pure fresh characters that never enter transfer still use v1 core-only checkpoints. Extend runtime cooldown persistence to that path. Complete learned-skill/rank/cost/attack-speed rules and refresh CHARINFO durations at the send instant.",
+    "Complete cell/AOI entry/exit and entity ownership, dynamic multi-neighbor churn, tutorial/Bow/dbload=1 transfer branches and the legacy shadowed quest-tick defect need separate source-derived acceptance.",
+    "The original wire has no handoff epoch; same-socket delayed CHECKMAIN ambiguity remains at the protocol boundary. PostgreSQL authority epochs fence writes without adding client fields.",
+    "Checkpoint recovery restores the latest committed graph; post-checkpoint changes can be lost on process death. Receipt retention/archival, all shared-game-state concurrency, optional TLS transport audit and Windows PostgreSQL runtime verification remain outstanding.",
+    "World social state remains in-memory/unported to native repositories. Historical player corpus, complete encoding/time semantics and remaining legacy modules retain their acceptance backlog."
+  ]
+}

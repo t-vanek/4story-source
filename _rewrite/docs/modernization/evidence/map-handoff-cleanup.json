@@ -1,0 +1,8 @@
+{
+  "owned_database_containers_and_networks_removed": true,
+  "private_secret_files_removed": 27,
+  "private_secret_files_remaining": [],
+  "private_routing_manifest": "/tmp/fourstory-routing-20261009/reference/manifest.json",
+  "private_forensic_catalogs": "/tmp/fourstory-routing-20261009/forensics",
+  "note": "Only the two environments created by this increment were removed; source snapshots/metadata retained."
+}

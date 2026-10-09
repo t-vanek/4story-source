@@ -15,6 +15,7 @@
 //   C. short body      → no ACK
 
 #include "handlers.h"
+#include "session_fixture.h"
 #include "handlers_world.h"
 #include "services/char_state_store.h"
 #include "services/world_client.h"
@@ -121,6 +122,7 @@ int main()
         char_state.Store(kCharId, s);
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
         ctx.char_state   = &char_state;
 
@@ -157,17 +159,14 @@ int main()
         tmapsvr::InMemoryCharStateStore char_state;   // empty
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
         ctx.char_state   = &char_state;
 
         RunEnterChar(
             MakeEnterCharReq(kCharId, kKey, "Hero", 60, 1.f, 2.f, 3.f), ctx);
 
-        EXPECT(wc.sends == 1);
-        std::uint32_t ack_char = 0, ack_key = 0;
-        EXPECT(DecodeAck(wc.last_body, ack_char, ack_key));
-        EXPECT(ack_char == kCharId);
-        EXPECT(ack_key  == kKey);
+        EXPECT(wc.sends == 0);
         EXPECT(!char_state.Get(kCharId).has_value());   // nothing materialized
     }
 
@@ -175,6 +174,7 @@ int main()
     {
         CapturingWorldClient wc;
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
 
         std::vector<std::byte> body;

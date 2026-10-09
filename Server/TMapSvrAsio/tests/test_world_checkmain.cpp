@@ -8,6 +8,7 @@
 // cell-ownership check. Driven against a capturing IWorldClient.
 
 #include "handlers.h"
+#include "session_fixture.h"
 #include "handlers_world.h"
 #include "services/char_state_store.h"
 #include "services/world_client.h"
@@ -97,6 +98,7 @@ int main()
         char_state.Store(kCharId, s);
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
         ctx.char_state   = &char_state;
 
@@ -118,6 +120,7 @@ int main()
         tmapsvr::InMemoryCharStateStore char_state;   // empty
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
         ctx.char_state   = &char_state;
 
@@ -132,6 +135,7 @@ int main()
         char_state.Store(kCharId, tmapsvr::CharSnapshot{});
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
         ctx.char_state   = &char_state;
 

@@ -1,0 +1,9 @@
+{
+  "image": "localhost/fourstory:postgresql-login",
+  "image_id": "83e5b3e1f947f2da8ff9c734ef3d8e0031eecdb80e1e86ee87cc8061b8a5169b",
+  "user": "10001:10001",
+  "release_build": "passed",
+  "six_daemon_smoke": "passed",
+  "log": "world: /healthz OK\nlog: /healthz OK\ncontrol: /healthz OK\nlogin: /healthz OK\npatch: /healthz OK\nmap: /healthz OK\nmap -> world: connected over container DNS\nmap: SIGTERM exit 0\npatch: SIGTERM exit 0\nlogin: SIGTERM exit 0\ncontrol: SIGTERM exit 0\nlog: SIGTERM exit 0\nworld: SIGTERM exit 0\n",
+  "native_login_release_verification": "native-login-release.json"
+}

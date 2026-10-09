@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -115,6 +116,43 @@ void TestBodyEmpty()
     Check(checksum == 0, "empty body produces zero checksum");
     Check(tnetlib::DecryptBody(nullptr, 0, key, 0), "empty body decrypt with 0 checksum ok");
     Check(!tnetlib::DecryptBody(nullptr, 0, key, 1), "empty body with wrong checksum rejected");
+}
+
+void TestWrappingChecksumGoldenVectors()
+{
+    // Frozen from an independent Python integer model of Packet.cpp, with
+    // explicit masking to 64 bits. Both exceed INT64_MAX while accumulating.
+    std::byte tail[] = {std::byte{0xde}, std::byte{0xad}, std::byte{0xbe},
+                        std::byte{0xef}, std::byte{0x42}};
+    const auto key = tnetlib::KeyForSequence(2);
+    const auto checksum = tnetlib::EncryptBody(tail, sizeof(tail), key);
+    Check(static_cast<std::uint64_t>(checksum) == 0xa706a0a163566002ULL,
+          "tail checksum preserves legacy wraparound golden value");
+    Check(HexDump(tail, sizeof(tail)) == "7fbe60fcaf", "tail golden ciphertext");
+    Check(tnetlib::DecryptBody(tail, sizeof(tail), key, checksum),
+          "wrapped tail checksum decrypts");
+    Check(HexDump(tail, sizeof(tail)) == "deadbeef42", "tail golden plaintext");
+
+    std::byte mixed[13];
+    std::memset(mixed, 0xff, 8);
+    std::memcpy(mixed + 8, tail, sizeof(tail));
+    const auto mixed_checksum = tnetlib::EncryptBody(mixed, sizeof(mixed), key);
+    Check(static_cast<std::uint64_t>(mixed_checksum) == 0xa706a0a163565da1ULL,
+          "negative chunk and tail preserve legacy wraparound golden value");
+    Check(HexDump(mixed, sizeof(mixed)) == "5eec21ec121365ab7fbe60fcaf",
+          "mixed golden ciphertext");
+    Check(tnetlib::DecryptBody(mixed, sizeof(mixed), key, mixed_checksum),
+          "wrapped mixed checksum decrypts");
+
+    tnetlib::PacketHeader header{16, 0x1988, 0, 0};
+    const auto high_key = std::numeric_limits<std::int64_t>::max();
+    tnetlib::EncryptHeader(&header, high_key);
+    Check(HexDump(reinterpret_cast<const std::byte*>(&header), sizeof(header)) ==
+          "10008709898a8b8c8d8e8f9091929394", "header addition wraps at key boundary");
+    tnetlib::DecryptHeader(&header, high_key);
+    Check(header.wSize == 16 && header.wId == 0x1988 &&
+          header.dwNumber == 0 && header.llChecksum == 0,
+          "high key header decrypts");
 }
 
 void TestBodyTamperedRejected()
@@ -229,6 +267,7 @@ int main()
     TestBodyRoundTrip_TailBytes();
     TestBodyRoundTrip_MixedSize();
     TestBodyEmpty();
+    TestWrappingChecksumGoldenVectors();
     TestBodyTamperedRejected();
     TestHeaderRoundTrip();
     TestFullPacketRoundTrip();

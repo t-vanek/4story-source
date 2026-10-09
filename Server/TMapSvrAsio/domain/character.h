@@ -10,11 +10,23 @@
 
 #include <cstdint>
 #include <string>
+#include <memory>
+#include "domain/character_payload.h"
 
 namespace tmapsvr {
 
+struct CharacterClusterState {
+    std::uint32_t guild{},fame{},fame_color{},tactics{},party_chief{},riding{},soulmate{},soul_silence{};
+    std::uint16_t party{},commander{},castle{};
+    std::uint8_t guild_country{3},aid_country{3},duty{},peer{},camp{},party_type{},mode{};
+    std::int64_t chat_ban_time{};
+    std::string guild_name,tactics_name,soulmate_name,comment;
+    bool hydrated{};
+};
 struct CharSnapshot
 {
+    std::shared_ptr<const CharacterPayload> payload;
+    CharacterClusterState cluster;
     std::uint32_t  dwCharID         = 0;
     std::string    szNAME;
     std::uint8_t   bStartAct        = 0;
@@ -37,9 +49,9 @@ struct CharSnapshot
     std::uint32_t  dwCooper         = 0;
     std::uint32_t  dwEXP            = 0;
     std::uint32_t  dwHP             = 1;
-    std::uint32_t  dwMaxHP          = 1;   // = dwHP at load (real max needs the stat layer)
+    std::uint32_t  dwMaxHP          = 1;   // derived maximum, separate from current HP
     std::uint32_t  dwMP             = 1;
-    std::uint32_t  dwMaxMP          = 1;   // derived from the stat layer (class+race+level); see soci_player_service
+    std::uint32_t  dwMaxMP          = 1;   // native formula, equipment and passive derivation
     std::uint8_t   bDead            = 0;   // death state (legacy m_bStatus == OS_DEAD)
     std::uint16_t  wSkillPoint      = 0;
     std::uint32_t  dwRegion         = 0;

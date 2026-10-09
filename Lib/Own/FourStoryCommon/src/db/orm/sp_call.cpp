@@ -70,9 +70,15 @@ std::string SpCall::BuildSql() const
 SpResult SpCall::Execute(soci::session& sql) const
 {
     SpResult res;
+    if (sql.get_backend_name() != "odbc")
+    {
+        spdlog::error("SpCall::Execute '{}' requires a SQL Server repository replacement for this backend", m_name);
+        return res;
+    }
     const std::string query = BuildSql();
 
-    spdlog::debug("SpCall::Execute '{}' sql={}", m_name, query);
+    spdlog::debug("SpCall::Execute '{}' inputs={} outputs={}",
+        m_name, m_in.size(), m_out.size());
 
     try
     {
@@ -139,10 +145,10 @@ SpResult SpCall::Execute(soci::session& sql) const
         }
         res.m_ok = true;
     }
-    catch (const std::exception& ex)
+    catch (const std::exception&)
     {
-        spdlog::error("SpCall::Execute '{}' failed: {}\n  sql={}",
-            m_name, ex.what(), query);
+        // SQL text and backend errors may contain literal or bound secrets.
+        spdlog::error("SpCall::Execute '{}' failed", m_name);
     }
     return res;
 }

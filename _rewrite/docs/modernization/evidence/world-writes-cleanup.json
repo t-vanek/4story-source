@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-09",
+  "verified_at_utc": "2026-10-09T02:27:01.961536+00:00",
+  "owned_database_containers_removed": {
+    "pg_container": true
+  },
+  "owned_network_removed": true,
+  "remaining_labelled_test_containers": 0,
+  "temporary_env_and_private_key_files_removed": 13,
+  "private_diagnostics_retained": true,
+  "original_reference_snapshots_retained": true,
+  "sql_server_used": false,
+  "runtime_image_retained": "localhost/fourstory:postgresql-world-writes",
+  "continuation": "Create an owned PG-only lab, reuse pinned character/routing/actor manifests and unchanged migrations 001\u2013018. Next: separate fenced replica admission, source composite synchronization and then primary transfer/recovery, migration 019+ if required."
+}

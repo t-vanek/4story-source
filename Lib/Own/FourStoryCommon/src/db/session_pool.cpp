@@ -1,10 +1,16 @@
 #include "fourstory/db/session_pool.h"
 
 #include <soci/odbc/soci-odbc.h>
+#ifdef FOURSTORY_HAS_POSTGRESQL
+#include <soci/postgresql/soci-postgresql.h>
+#endif
 
 #include <spdlog/spdlog.h>
 
 #include <stdexcept>
+#include <charconv>
+#include <memory>
+#include <string_view>
 
 namespace fourstory::db {
 
@@ -15,13 +21,13 @@ const soci::backend_factory& BackendFactory(Backend b)
     switch (b)
     {
     case Backend::PostgreSQL:
-        // The vcpkg soci[postgresql] feature was dropped because libpq's
-        // Windows build is unreliable. Code keeps the enum + dialect
-        // branches so re-enabling is a single feature flip in vcpkg.json
-        // + restoring the soci-postgresql include here.
+#ifdef FOURSTORY_HAS_POSTGRESQL
+        return soci::postgresql;
+#else
         throw std::runtime_error(
-            "postgresql backend not compiled in (re-add soci[postgresql] "
-            "feature to vcpkg.json to enable)");
+            "PostgreSQL backend disabled; enable FOURSTORY_ENABLE_POSTGRESQL "
+            "and install the SOCI PostgreSQL backend");
+#endif
     case Backend::Sqlite3:
         // Similarly, sqlite3 isn't in the vcpkg feature set right now —
         // re-enable by adding the feature + restoring the include.
@@ -32,6 +38,52 @@ const soci::backend_factory& BackendFactory(Backend b)
     }
     throw std::runtime_error("unknown DB backend");
 }
+
+#ifdef FOURSTORY_HAS_POSTGRESQL
+std::string PostgreSQLConnectionOptions(const std::string& input)
+{
+    // libpq parses keyword strings and URIs. Parser errors can contain
+    // supplied secrets, so only fixed diagnostics may leave this boundary.
+    char* raw_error = nullptr;
+    std::unique_ptr<PQconninfoOption, decltype(&PQconninfoFree)> options(
+        PQconninfoParse(input.c_str(), &raw_error), &PQconninfoFree);
+    std::unique_ptr<char, decltype(&PQfreemem)> error(raw_error, &PQfreemem);
+    if (!options)
+        throw ConnectionError("Invalid PostgreSQL connection options");
+    std::string result;
+    bool has_timeout = false, has_tls = false;
+    for (auto* option = options.get(); option->keyword; ++option)
+    {
+        if (!option->val || !*option->val) continue;
+        const std::string_view key(option->keyword), value(option->val);
+        if (key == "connect_timeout")
+        {
+            int seconds = 0;
+            const auto parsed = std::from_chars(value.data(), value.data() + value.size(), seconds);
+            if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size()
+                || seconds < 1 || seconds > 300)
+                throw ConnectionError("PostgreSQL connect_timeout must be between 1 and 300 seconds");
+            has_timeout = true;
+        }
+        if (key == "sslmode")
+        {
+            if (value != "verify-full" && value != "verify-ca" && value != "require" && value != "disable")
+                throw ConnectionError("PostgreSQL sslmode must explicitly require TLS or disable it");
+            has_tls = true;
+        }
+        result += std::string(key) + "='";
+        for (char c : value)
+        {
+            if (c == '\\' || c == '\'') result += '\\';
+            result += c;
+        }
+        result += "' ";
+    }
+    if (!has_timeout) result += "connect_timeout=5 ";
+    if (!has_tls) result += "sslmode=verify-full ";
+    return result;
+}
+#endif
 
 } // namespace
 
@@ -64,10 +116,25 @@ SessionPool::SessionPool(Backend backend,
     , m_pool(m_pool_size)
 {
     const auto& factory = BackendFactory(m_backend);
+    std::string options = conn_string;
+#ifdef FOURSTORY_HAS_POSTGRESQL
+    if (m_backend == Backend::PostgreSQL)
+        options = PostgreSQLConnectionOptions(conn_string);
+#endif
     for (std::size_t i = 0; i < m_pool_size; ++i)
     {
         soci::session& sess = m_pool.at(i);
-        sess.open(factory, conn_string);
+        try
+        {
+            sess.open(factory, options);
+        }
+        catch (const soci::soci_error&)
+        {
+            // Caller-side startup logging must not disclose backend options.
+            // Failed connections are surfaced; writes are never auto-retried.
+            throw ConnectionError(std::string("Database connection failed (backend=")
+                                  + BackendName(m_backend) + ")");
+        }
     }
     spdlog::info("SessionPool ready: backend={} pool_size={} acquire_timeout_ms={}",
         BackendName(m_backend), m_pool_size,

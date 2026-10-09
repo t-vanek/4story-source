@@ -16,6 +16,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -145,15 +146,15 @@ int main()
     p1.connect(ep); p2.connect(ep); p3.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
-    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0044));
+    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0444));
     { auto [w, _] = ReadFramed(p3);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -170,9 +171,12 @@ int main()
 
     // Char 100: main 0x42 + con 0x43, a dead con on 0x44, logout+save set.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(100, 0xA1));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(100, 0xA1)));
     for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
+    EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(100, 0xA1), 0x43));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(100, 0xA1));
+    EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(100, 0xA1)));
     for (int i = 0; i < 1000 && cons_size(100) != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(100) == 2);
@@ -185,6 +189,7 @@ int main()
 
     // Char 200: main 0x42 only, with a handoff in flight (chg_main_id=0x43).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(200, 0xB0)));
     for (int i = 0; i < 1000 && cons_size(200) != 1; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(200) == 1);

@@ -1,0 +1,8 @@
+{
+  "owned_postgresql_container_removed": true,
+  "owned_network_removed": true,
+  "test_login_containers_removed_by_harness": true,
+  "sql_server_used": false,
+  "private_credentials_and_keys_removed": 19,
+  "backups_retained": true
+}

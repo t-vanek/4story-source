@@ -1,0 +1,11 @@
+{
+  "build": "Debug",
+  "sha256": {
+    "tloginsvr_asio": "7b5fb9e95f3f758c9630b547dd8c03d500fd4132df49c56e6a1ee5ecabc63edd",
+    "tpatchsvr_asio": "44f8b0c6548a4ba4989be8a5ba9f7c508785c81e42a02a68087bd67dd7e2e9bc",
+    "tlogsvr_asio": "35678764e08bf1d7f5def09a9c5e83754ad50202644b539b11a4b27766b51b19",
+    "tcontrolsvr_asio": "847bd623e4e1877168522c4472658e24b45d2a65710f54e802948f3db791714e",
+    "tmapsvr_asio": "c3407cba3878d06cb5f221520ec9815c461b78ed910c4999c07eb2fd43813d0f",
+    "tworldsvr_asio": "46ce248f0beaef0d983c33e40916aee9da86f0b9db693b87cb15f47d6655031b"
+  }
+}

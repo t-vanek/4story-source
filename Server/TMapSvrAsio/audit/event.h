@@ -52,7 +52,7 @@ struct LoginAttemptEvent
 {
     EventHeader    hdr;
     std::uint32_t  user_id    = 0;
-    std::uint32_t  key        = 0;
+    std::uint32_t  key        = 0; // reserved ABI slot, sink always zeroes
     std::uint32_t  char_id    = 0;
     std::uint8_t   channel    = 0;
     std::uint8_t   result     = 0;   // ConnectResult value (0 = OK)
@@ -64,10 +64,10 @@ struct CharLoadEvent
 {
     EventHeader    hdr;
     std::uint32_t  char_id    = 0;
-    std::uint32_t  key        = 0;
+    std::uint32_t  key        = 0; // reserved ABI slot, sink always zeroes
     std::uint32_t  user_id    = 0;
     std::uint32_t  latency_us = 0;
-    std::uint8_t   result     = 0;   // CN_* style: 0 OK, 3 INTERNAL, 6 NOCHAR
+    std::uint8_t   result     = 0;   // CN_*: 0 OK, 5 INTERNAL, 2 NOCHAR
 };
 
 // Every handler dispatch — useful for per-message-id traffic stats

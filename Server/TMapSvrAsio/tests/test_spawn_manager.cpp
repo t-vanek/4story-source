@@ -81,24 +81,30 @@ int main()
     spawns.rows.push_back(MakeSpawn(20, 60, 1, 4.f, 5.f, 6.f));  // 1 monster
     spawns.rows.push_back(MakeSpawn(30, 61, 3, 7.f, 8.f, 9.f));  // no map-mon rows
     spawns.rows.push_back(MakeSpawn(40, 62, 1, 0.f, 0.f, 0.f));  // monster w/o template
+    spawns.rows.push_back(MakeSpawn(50, 62, 1, 0.f, 0.f, 0.f));  // zero-HP attribute
 
     InMemoryMapMonChart map_mon;
     map_mon.Add({ 10, 100, /*ess=*/1, 0, 50 });
     map_mon.Add({ 10, 101, 0, 0, 50 });
     map_mon.Add({ 20, 100, 1, 0, 100 });
     map_mon.Add({ 40, 888, 1, 0, 100 });   // 888 has no template
+    map_mon.Add({ 50, 102, 1, 0, 100 });
 
     FakeMonsterChart monsters;
     monsters.Add(100, /*level=*/5);
     monsters.Add(101, /*level=*/10);
+    monsters.Add(102, /*level=*/10);
     // 888 deliberately absent.
 
     // Real combat stats for monster 100 @ lvl 5 only; monster 101 has no
-    // attr row → it should fall back to the level-scaled placeholder.
+    // attr row and must be refused instead of receiving invented HP.
     InMemoryMonAttrChart attrs;
     MonsterAttr a100;
     a100.wID = 100; a100.bLevel = 5; a100.dwMaxHP = 1500;
     attrs.Add(a100);
+    MonsterAttr a102;
+    a102.wID = 102; a102.bLevel = 10; a102.dwMaxHP = 0;
+    attrs.Add(a102);
 
     InMemoryMonsterRegistry registry;
     std::uint32_t next_id = 1000;
@@ -107,13 +113,13 @@ int main()
         SpawnAllStatic(spawns, map_mon, monsters, attrs, registry, next_id,
                        /*channel=*/0);
 
-    // SP10 → 2, SP20 → 1, SP30 → 0 (no rows), SP40 → 0 (no template) = 3.
-    EXPECT(spawned == 3);
-    EXPECT(registry.Size() == 3);
-    EXPECT(next_id == 1003);                  // 3 ids drawn from 1000
+    // SP10 → 1, SP20 → 1; missing and zero-HP attributes create no entities.
+    EXPECT(spawned == 2);
+    EXPECT(registry.Size() == 2);
+    EXPECT(next_id == 1002);
 
-    // All three are on channel 0 / map 60; map 61 + 62 produced nothing.
-    EXPECT(registry.ListInMap(0, 60).size() == 3);
+    // Both are on channel 0 / map 60; map 61 + 62 produced nothing.
+    EXPECT(registry.ListInMap(0, 60).size() == 2);
     EXPECT(registry.ListInMap(0, 61).empty());
     EXPECT(registry.ListInMap(0, 62).empty());
     EXPECT(registry.ListInMap(1, 60).empty());  // wrong channel
@@ -132,14 +138,14 @@ int main()
         EXPECT(first->fPosX == 1.f);
         EXPECT(first->fPosZ == 3.f);
     }
-    // SP10 slot 1 → monster 101 (lvl 10), no attr row → placeholder
-    // 100 * 10 = 1000.
+    // The rejected SP10 slot consumes no id; SP20 is the next valid spawn.
     const auto second = registry.Find(1001);
     EXPECT(second.has_value());
     if (second)
     {
-        EXPECT(second->wTemplateID == 101);
-        EXPECT(second->dwHP == 1000);    // placeholder fallback
+        EXPECT(second->wTemplateID == 100);
+        EXPECT(second->wSpawnID == 20);
+        EXPECT(second->dwHP == 1500);
     }
 
     if (g_fails == 0)

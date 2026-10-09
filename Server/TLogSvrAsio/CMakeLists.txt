@@ -58,6 +58,10 @@ target_link_libraries(tlogsvr_asio PRIVATE tlogsvr_asio_core)
 # Builds frames byte-for-byte the way UdpAuditLogger emits them and
 # round-trips them through DecodeLogDatagram. No DB or network. Runs
 # anywhere we can build the binary.
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
 add_executable(test_tlogsvr_asio_log_decoder
     ${TLOGSVR_ASIO_SRC}/tests/test_log_decoder.cpp)
 target_link_libraries(test_tlogsvr_asio_log_decoder PRIVATE

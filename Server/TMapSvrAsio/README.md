@@ -1,21 +1,64 @@
 # TMapSvrAsio — modernized 4Story map / gameplay server
 
-Layered C++20 + Boost.Asio port of `Server/TMapSvr/` (the legacy
-112 843-LOC gameplay engine). The transport, dispatcher, schema
-validators, and the SOCI service layer are complete; on top of that a
-**vertical slice of real gameplay** is now implemented and tested:
-the connection lifecycle plus an end-to-end **combat / loot / AI grind
-loop.** The large content subsystems (quests, NPC shops, skill effects)
-are **mostly not ported** (a kill-count quest slice is the first quest vertical) — see the status table below for the honest line.
+C++20 + Boost.Asio modernization of `Server/TMapSvr/`. The overall server is
+unfinished. Current verified scope and evidence are maintained in
+[`modernization/README.md`](../../_rewrite/docs/modernization/README.md).
 
-> The grind loop is real: **connect → enter map → see monsters → attack
-> (real damage) → kill → EXP + gold + item drops → loot the corpse →
-> respawn.** Monsters roam, chase, and hit back; you can die and revive.
+Native PostgreSQL now serves fresh normal-character admission through actual
+Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
+HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the
+legacy SOCI repositories must not be used against `app_world`. Guild/recall
+hydration, gameplay inventory mutations and original-client
+execution remain pending. Migration 018 adds periodic core checkpoints and fenced
+recovery to the last committed core; changes since that checkpoint can be lost on
+a crash, and older/drifted claims stay blocked. Native World-link loss now closes
+clients and waits for save/release before reconnecting; admission requires a valid
+registration acknowledgment. Failed saves keep the old account reserved.
+Map now distinguishes local claims from connections announced to World. A failed
+second-Map claim cannot send close-all for a valid primary on another Map.
+World INVALIDCHAR/DELCHAR/CLOSECHAR retire the exact local identity without an
+echo; a ready native primary still completes its durable save, including when
+DELCHAR carries save=0. See the
+[retirement contract](../../_rewrite/docs/modernization/evidence/map-retirement-contract.json).
+Migration 019 adds native secondary admission through a separate one-use grant.
+Only the primary loads the supported character graph and writes core checkpoints
+and logout state. A replica receives the
+original World ENTERCHAR summary, becomes ready through CONREADY, and releases
+only its own claim. The primary sends CHGCHANNEL and full CHARINFO on World CHARINFO, before final
+CONNECT and client map activation; CONREADY does not resend them. A replica
+receives no fabricated CHARINFO; movement updates
+do not duplicate primary broadcasts. Fresh two-Map admission and both disconnect
+directions are exercised with an explicit synthetic partition in a disposable DB.
+The complete source RELEASEMAIN/ENTERSVR DTO and codec now preserve the raw
+server graph, independently verified by an 861-byte all-section fixture. Native
+item loading retains full DWORD extensions and raw magic alongside the client
+projection. Fresh native admission restores skill reuse timers and teardown drops
+them; actual encrypted TCP checks verify SPEEDYUSE without an optional gameplay
+catalog. Migration 020 below now integrates native primary transfer and v2
+graph persistence for characters that enter this path.
+See [state contract](../../_rewrite/docs/modernization/evidence/main-transfer-state-contract.json).
+
+Normal-character boundary routing and primary transfer are now verified. Full AOI
+and secondary gameplay remain unfinished; see the [replica contract](../../_rewrite/docs/modernization/evidence/map-replica-contract.json).
+Migration 020 journals exact prepared/consumed transfers, fences writers with an
+authority epoch and atomically rebinds the primary, checkpoint and replicas.
+Actual RELEASEMAIN/ENTERSVR handlers freeze/drain gameplay, capture raw live state,
+hydrate the target through pinned catalogs and restore skill timers. Original
+CONNECT/CONREADY activates the target without another CHARINFO. Source and target
+recovery retain full v2 graph checkpoints, including close during target COMMIT;
+a same-socket round trip cannot reuse an old writer epoch. Drain waits are bounded.
+See the [native primary contract](../../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json).
+Typed extra sections still require their gameplay ports, and pure fresh characters
+that never transfer retain the earlier v1 core-only checkpoint behavior.
+
+Existing combat/loot/AI
+fixtures below describe older implemented subsets, not completed native gameplay
+or a full-client compatibility certificate.
 
 > Architecture deep-dive: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 > Porting recipe (one legacy handler at a time): [`CONSOLIDATION.md`](CONSOLIDATION.md)
 
-## Status — infra complete, gameplay vertical slice
+## Historical subsystem overview (see current acceptance scope above)
 
 ```
 Transport (Asio + RC4 + framing)    ████████████████████  100%
@@ -59,8 +102,8 @@ CS_* wire handlers ported           ██░░░░░░░░░░░░�
 Client (`CS_*`) — **functional** (real game logic):
 
 ```
-CS_CONNECT_REQ        session.cpp   validate TCURRENTUSER, bind registry, optimistic CS_CONNECT_ACK
-CS_CONREADY_REQ       session.cpp   → CS_CHARINFO_ACK + CS_ENTER (players) + CS_ADDMON (monsters)
+CS_CONNECT_REQ        session.cpp   validate claims, reserve pending session, announce MW_ADDCHAR_ACK
+CS_CONREADY_REQ       session.cpp   ready transition + local primary CS_ENTER; native CHARINFO already sent
 CS_MOVE_REQ           movement.cpp  position update + channel broadcast
 CS_ACTION_REQ         combat.cpp    attack animation broadcast (CS_ACTION_ACK)
 CS_DEFEND_REQ         combat.cpp    real damage (CalcDamage) → CS_HPMP / death → CS_DELMON + CS_EXP + loot + respawn;
@@ -103,11 +146,21 @@ MW_CLOSECHAR_REQ   close order → client CS_SHUTDOWN_ACK + teardown
 MW_ROUTELIST_REQ   resolve server ids → MW_ROUTE_ACK
 ```
 
-> **Connect-ack note:** `session.cpp::OnConnectReq` still emits an
-> optimistic `CS_CONNECT_ACK` at connect time so connect works with no
-> `[world]` peer configured. Once the full World connect loop is proven
-> end-to-end, that ack moves into `OnMWConResultReq` (the authoritative
-> path) to avoid a double ack.
+CONNECT now validates the exact 29-byte body, original version/checksum and
+selected character/session/group/channel. It reserves a pending session and sends
+MW_ADDCHAR_ACK without a client success response. World now requests ENTERSVR;
+only a matching, loaded session can accept the single MW_CONRESULT verdict.
+CONREADY publishes presence, and gameplay before that phase is refused. Duplicate
+sockets cannot replace a reservation while loading or saving. A disconnected World
+fails admission; a stalled admission times out.
+
+Map client dispatch and inbound World dispatch are awaited. Disconnect persistence
+finishes before releasing the session reservation; reported write failures retain
+runtime state and cause a nonzero shutdown status. The legacy SOCI path retains
+failed state in memory only. The native PostgreSQL path described above additionally
+uses fenced primary/replica claims and periodic core recovery. Complete character
+graph mutation and transfer remain pending; changing a legacy repository search
+path does not enable them. See the current modernization evidence.
 
 The remaining ~280 `CS_*` and the gameplay `DM_/MW_/SS_` handlers are
 catalogued in `CONSOLIDATION.md`. The porting recipe (locate → verify id

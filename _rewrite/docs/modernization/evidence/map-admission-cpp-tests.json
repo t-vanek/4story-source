@@ -1,0 +1,33 @@
+{
+  "ctest_entries": 190,
+  "passed_with_fixtures_present": 178,
+  "legacy_internal_skips": [
+    "tloginsvr_asio_soci_auth",
+    "tloginsvr_asio_soci_char",
+    "tloginsvr_asio_soci_map",
+    "tloginsvr_asio_soci_session_terminator",
+    "tloginsvr_asio_wire_e2e_soci",
+    "tpatchsvr_asio_soci_repository",
+    "tlogsvr_asio_soci_log_sink",
+    "tcontrolsvr_asio_soci_repositories"
+  ],
+  "explicit_native_skips": 4,
+  "failed": 0,
+  "admission_checks_per_transport": 85,
+  "transports": [
+    "plain sequenced transport",
+    "RC4 inbound and XOR outbound client transport"
+  ],
+  "asan_ubsan": {
+    "tests": 10,
+    "failed": 0,
+    "leak_detection": true,
+    "vptr_excluded": "packaged SOCI RTTI limitation preserved"
+  },
+  "junit": [
+    "map-admission-ctest.xml",
+    "map-admission-asan.xml"
+  ],
+  "native_postgresql_tests_run_this_increment": false,
+  "limits": "TCP Map uses controlled World and persistence services; World fresh-login test uses real World TCP and simulated Map. These do not establish the complete Login/World/Map/PostgreSQL/client flow."
+}

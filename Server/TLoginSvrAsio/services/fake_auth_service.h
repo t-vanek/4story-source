@@ -39,22 +39,10 @@ public:
     bool VerifyPassword(std::int32_t user_id,
                         const std::string& password) override;
     AuthResult AuthenticateTest(const std::string& client_ip) override;
-    bool VerifySecurityCode(std::int32_t user_id,
-                            const std::string& code) override;
-    std::string IssueSecurityCode(std::int32_t user_id) override;
-    std::optional<EmailRecord> LookupEmail(std::int32_t user_id) override;
-    bool IsTrustedIp(std::int32_t user_id,
-                     const std::string& client_ip) override;
-    void AddTrustedIp(std::int32_t user_id,
-                      const std::string& client_ip) override;
-    std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
-                                        const std::string& client_ip) override;
-    std::uint32_t LookupLastCharId(std::int32_t user_id) override;
-
-    // Test seeds for 2FA state.
-    void SetUserEmail(std::int32_t user_id, std::string email,
-                      bool two_factor_enabled);
-    void SeedTrustedIp(std::int32_t user_id, std::string ip);
+    // This fake does not model email verification; native integration does.
+    SecurityCodeResult VerifySecurityCode(const std::string&, const std::string&,
+                                         const std::string&) override { return SecurityCodeResult::Unavailable; }
+    void CancelSecurityChallenge(const std::string&) override {}
 
     // Test seed for last-played char (drives AuthResult.last_char_id).
     void SetLastCharId(std::int32_t user_id, std::uint32_t char_id);
@@ -75,9 +63,6 @@ private:
     std::unordered_map<std::int32_t, std::string>      m_user_bans; // db_id → reason
     std::unordered_set<std::string>                    m_ip_bans;
     std::unordered_set<std::int32_t>                   m_agreed;
-    std::unordered_map<std::int32_t, std::string>      m_security_codes; // uid → code
-    std::unordered_map<std::int32_t, EmailRecord>      m_emails;
-    std::unordered_set<std::string>                    m_trusted_ips; // "uid|ip"
     std::unordered_map<std::int32_t, std::uint32_t>    m_last_char;   // uid → last char id
     std::uint32_t                                      m_next_session_key = 1;
 };

@@ -1,0 +1,12 @@
+# Container smoke configuration: in-memory inventory, no database.
+[server]
+port = 12000
+
+[health]
+port = 18086
+
+[admin]
+port = 0
+
+[log]
+level = "info"

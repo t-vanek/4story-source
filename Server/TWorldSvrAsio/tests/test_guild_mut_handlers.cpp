@@ -28,6 +28,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -309,6 +310,7 @@ int main()
     // --- Scenario 1: load guild → TChar.guild_id set -----------------
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(42, 0xCAFEBABE));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(42, 0xCAFEBABE)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(42, 0xCAFEBABE, "Alice"));
     SendFramed(peer1, ToUint16(MessageId::DM_GUILDLOAD_ACK),
@@ -388,6 +390,7 @@ int main()
     //                 W3a-4b duty/fame/disorg cases ----------------
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(200, 0xBEEF1111));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(200, 0xBEEF1111)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(200, 0xBEEF1111, "Bob"));
     SendFramed(peer1, ToUint16(MessageId::DM_GUILDLOAD_ACK),
@@ -401,6 +404,7 @@ int main()
     // do once those land.
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(201, 0xBEEF2222));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(201, 0xBEEF2222)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(201, 0xBEEF2222, "Bravo2"));
     for (int i = 0; i < 50; ++i)
@@ -660,6 +664,7 @@ int main()
     // result=ASK_NO carrying empty guild meta.
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(400, 0xFEED0001));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(400, 0xFEED0001)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(400, 0xFEED0001, "Carol"));
     for (int i = 0; i < 50; ++i)
@@ -1458,6 +1463,7 @@ int main()
     // member for this scenario.
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(500, 0xECC00500));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(500, 0xECC00500)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(500, 0xECC00500, "Echo"));
     for (int i = 0; i < 50; ++i)
@@ -1576,6 +1582,7 @@ int main()
     //   - MW_GUILDESTABLISH_REQ reply with kSuccess + bEstablish=1
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(600, 0xF0F0F0F0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(600, 0xF0F0F0F0)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(600, 0xF0F0F0F0, "Foxtrot"));
     for (int i = 0; i < 50; ++i)
@@ -1682,6 +1689,7 @@ int main()
     // repo's CreateGuild scans by name and returns nullopt.
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(700, 0xA1B2C3D4));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(700, 0xA1B2C3D4)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(700, 0xA1B2C3D4, "Golf"));
     for (int i = 0; i < 50; ++i)

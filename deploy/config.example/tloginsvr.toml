@@ -1,0 +1,15 @@
+# Container smoke configuration: in-memory services, no database.
+[development]
+allow_no_database = true
+
+[server]
+port = 4816
+# Smoke mode does not accept CT_* control packets from other containers.
+# For a real cluster, pin this to the Control server's private IPv4 address.
+control_server_ip = "127.0.0.1"
+
+[health]
+port = 8815
+
+[log]
+level = "info"

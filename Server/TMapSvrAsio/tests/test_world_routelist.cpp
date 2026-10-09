@@ -7,6 +7,7 @@
 // route list (the production SOCI resolver is a follow-up).
 
 #include "handlers.h"
+#include "session_fixture.h"
 #include "handlers_world.h"
 #include "services/server_route_resolver.h"
 #include "services/world_client.h"
@@ -91,6 +92,7 @@ int main()
         resolver.Add(0x42, 0x0A00000A, 7016);   // 10.0.0.10
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client   = &wc;
         ctx.route_resolver = &resolver;
         ctx.expected_group = 1;
@@ -121,6 +123,7 @@ int main()
     {
         CapturingWorldClient wc;
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;   // route_resolver left null
 
         Run(MakeRouteListReq(kCharId, kKey, { 0x05, 0x42 }), ctx);
@@ -139,6 +142,7 @@ int main()
     {
         CapturingWorldClient wc;
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
 
         std::vector<std::byte> body;

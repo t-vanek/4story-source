@@ -1,0 +1,48 @@
+{
+  "scope": "Modern application policy for source non-direct 0x2918 email confirmation and LOGIN retry; no historical 2FA deployment or original executable claim",
+  "source_review": "security-source-review.json (pre-implementation findings retained)",
+  "packet_layout_changes": false,
+  "historical_rows_changed": false,
+  "source_backups_changed": false,
+  "profile": "non-direct source 0x2918; ordinary initial password is SHA1 form credential, confirmed retry contains form password",
+  "normalization": "SHA1 of retry bytes only when server-held token identifies verified matching account, connection IP, version and current process owner; normal LOGIN still verifies bcrypt over wire credential",
+  "policy": {
+    "challenge_seconds": 300,
+    "maximum_code_attempts": 5,
+    "issued_per_account_window": 3,
+    "issuance_window_seconds": 300,
+    "verified_retry_seconds": 30,
+    "persistent_ip_trust": false,
+    "mail_code_cleartext_storage": false
+  },
+  "production_paths": [
+    "LOGIN -> native Authenticate -> private challenge + SMTP worker -> SECURITYCONFIRM_REQ",
+    "SECURITYCONFIRM_ACK -> bounded native verification -> SECURITYRESULT_ACK only",
+    "client LOGIN retry -> full native Authenticate + atomic grant consumption/session/audit -> LOGIN_ACK",
+    "pending disconnect/denial/delivery failure -> revoke; ownership takeover -> old grants invalid"
+  ],
+  "additional_fixes": [
+    "agreement-needed ACK retains last-character/premium/PCBang fields",
+    "pending entries cannot invoke account/lobby handlers or replace each other",
+    "verified duplicate flushes requester ACK before closing, password-only attempt cannot evict an authenticated 2FA account",
+    "SMTP coalesced multiline replies retained, transaction deadline, redacted diagnostics",
+    "packet read close guard retains session through io_context teardown"
+  ],
+  "limitations": [
+    "Original issuance branch is commented out; feature is modern explicit account opt-in.",
+    "No client binary identified or executed.",
+    "JP/TW/direct profiles and non-ASCII credential encoding unverified.",
+    "Plain SMTP requires trusted local/private relay; no STARTTLS in this adapter.",
+    "Full historical agreement rewards, Map-owned duplicate routing and character/world persistence pending."
+  ],
+  "sha256": {
+    "Server/TLoginSvrAsio/handlers.cpp": "f5a0be00fbedbbb6aadd74a2eaa6b5011f88dd90303192969c0b21fb76798a1e",
+    "Server/TLoginSvrAsio/services/soci_auth_service.cpp": "f5c789636d594e5023e1016d1cff79730bbaf0ab543d6851d881cbeff34ed157",
+    "Server/TLoginSvrAsio/services/local_connection_registry.cpp": "9ba113ba113715366ef1f918dd8e3cdd3b85057d8bc36a5c276cf441876c92f5",
+    "Lib/Own/FourStoryCommon/src/smtp/asio_smtp_client.cpp": "b55c6765ee768e4bf2d866f3c5e716d05a9fe797e2e087fe82523f091e6d2eb5",
+    "Lib/Own/TNetLib/TNetLib/asio_session.cpp": "30557859a0697809ccb145d5920646bbb1c39bbfd0587026643bc91f4e1f91c0",
+    "database/postgresql/010-login-security-challenges.sql": "96d691deb917bdbf90523c9f20a84b8c85076ba670beabc97de51430d9e3126f",
+    "tools/database/verify_security_wire.py": "7111df6c5021cea262cf0a0a49eff36de65c8fad96a37c381d570a3722ecd72a",
+    "tools/database/run_native_verification.py": "4a96a156d40797e41c418eb6faa824a6317c3b086f1e548334996787eb2a9b0b"
+  }
+}

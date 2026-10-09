@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-08",
+  "runtime": "rootless Podman",
+  "containers": [
+    {
+      "container": "fourstory-forensic-mssql",
+      "image_id": "90488d58c6a5c19f24ff716e14330b85b5b26ee54b44a36ea24e6206533e7edd",
+      "image_name": "mcr.microsoft.com/mssql/server:2022-latest",
+      "digest": "sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89"
+    },
+    {
+      "container": "fourstory-forensic-postgres",
+      "image_id": "a6638641707cdf047e5d5c2781f437e2e809323cab22c70b280be8389fbb7878",
+      "image_name": "docker.io/library/postgres:18",
+      "digest": "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"
+    }
+  ],
+  "host_ports": "SQL Server none; PostgreSQL random localhost-only port",
+  "existing_databases_used": false
+}

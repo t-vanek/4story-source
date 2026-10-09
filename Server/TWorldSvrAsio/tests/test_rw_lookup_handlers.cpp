@@ -22,6 +22,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -203,6 +204,7 @@ int main()
     // sleep was flaky on slower CI hosts.
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(42, 0xCAFEBABE));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(42, 0xCAFEBABE)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(42, 0xCAFEBABE, "Alice"));
     for (int i = 0; i < 50; ++i)

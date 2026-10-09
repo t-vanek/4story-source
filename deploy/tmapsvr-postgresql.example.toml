@@ -1,0 +1,19 @@
+# Read-only content bootstrap. For verified native fresh-character admission
+# see tmapsvr-native.example.toml; full gameplay and original-client tests remain pending.
+[server]
+port = 5815
+
+[content]
+# Full native libpq connection options supplied in this environment variable.
+# Use a non-owner role with SELECT on game_compat only, and a trusted CA.
+connection_string_env = "FOURSTORY_CONTENT_CONNECTION"
+manifest_sha256 = "c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95"
+
+[health]
+port = 18916
+
+[shutdown]
+drain_ms = 1000
+
+[log]
+level = "info"

@@ -1,6 +1,7 @@
 #include "world_session.h"
 
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/experimental/channel.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/redirect_error.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -38,8 +39,21 @@ std::uint32_t ComputeChecksum(const std::byte* body, std::size_t len)
     return FoldChecksum(body, len);
 }
 
+struct WorldSession::SendState {
+    using Permit = boost::asio::experimental::channel<void(boost::system::error_code, int)>;
+    explicit SendState(boost::asio::any_io_executor executor) : permit(executor, 1) {
+        permit.try_send(boost::system::error_code{}, 0);
+    }
+    Permit permit;
+    std::size_t pending_frames = 0;
+    std::size_t pending_bytes = 0;
+    static constexpr std::size_t max_frames = 256;
+    static constexpr std::size_t max_bytes = 4 * 1024 * 1024;
+};
+
 WorldSession::WorldSession(Socket sock)
     : m_socket(std::move(sock))
+    , m_send_state(std::make_shared<SendState>(m_socket.get_executor()))
 {
     boost::system::error_code ec;
     auto ep = m_socket.remote_endpoint(ec);
@@ -57,6 +71,12 @@ boost::asio::awaitable<void>
 WorldSession::Run(PacketHandler on_packet)
 {
     using namespace boost::asio;
+    // Read EOF, malformed framing and escaping dispatch exceptions all retire
+    // the same writer, including callers waiting for their turn to send.
+    struct CloseOnExit {
+        std::shared_ptr<WorldSession> owner;
+        ~CloseOnExit() { owner->Close(); }
+    } close{shared_from_this()};
 
     while (m_socket.is_open())
     {
@@ -96,34 +116,55 @@ WorldSession::Run(PacketHandler on_packet)
 boost::asio::awaitable<void>
 WorldSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 {
+    const auto self = shared_from_this();
     if (!IsOpen()) co_return;
-    const std::size_t total = kPacketHeaderSize + body.size();
-    if (total > kMaxPacketSize)
-    {
-        spdlog::error("world_session[{}]: outbound packet too big ({})",
-            m_remote_ipv4, total);
+    if (body.size() > kMaxPacketSize - kPacketHeaderSize) {
+        spdlog::error("world_session[{}]: outbound body too big ({})", m_remote_ipv4, body.size());
         co_return;
     }
-    m_send_scratch.resize(total);
+    const std::size_t total = kPacketHeaderSize + body.size();
+    const auto state = m_send_state;
+    if (state->pending_frames >= SendState::max_frames || total > SendState::max_bytes - state->pending_bytes) {
+        spdlog::warn("world_session[{}]: outbound backlog exceeded; closing peer", m_remote_ipv4);
+        Close(); co_return;
+    }
+    ++state->pending_frames; state->pending_bytes += total;
+    struct Reservation {
+        std::shared_ptr<SendState> state;
+        std::size_t bytes;
+        ~Reservation() { --state->pending_frames; state->pending_bytes -= bytes; }
+    } reservation{state, total};
+    boost::system::error_code ec;
+    co_await state->permit.async_receive(boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec || !IsOpen()) co_return;
+    // A strand only serializes handlers, not composed writes across suspension.
+    // Keep the permit and this frame alive until async_write completes.
+    struct Release {
+        std::shared_ptr<SendState> state;
+        ~Release() { state->permit.try_send(boost::system::error_code{}, 0); }
+    } release{state};
+    std::vector<std::byte> frame(total);
     PacketHeader hdr{};
     hdr.wSize    = static_cast<std::uint16_t>(total);
     hdr.wID      = wId;
     hdr.dwChkSum = ComputeChecksum(body.data(), body.size());
-    std::memcpy(m_send_scratch.data(), &hdr, sizeof(hdr));
+    std::memcpy(frame.data(), &hdr, sizeof(hdr));
     if (!body.empty())
-        std::memcpy(m_send_scratch.data() + sizeof(hdr),
+        std::memcpy(frame.data() + sizeof(hdr),
                     body.data(), body.size());
-    boost::system::error_code ec;
     co_await boost::asio::async_write(m_socket,
-        boost::asio::buffer(m_send_scratch.data(), total),
+        boost::asio::buffer(frame.data(), total),
         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-    if (ec)
+    if (ec) {
         spdlog::debug("world_session[{}]: send wID=0x{:04X} failed: {}",
             m_remote_ipv4, wId, ec.message());
+        Close();
+    }
 }
 
 void WorldSession::Close()
 {
+    m_send_state->permit.close();
     boost::system::error_code ec;
     m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
     m_socket.close(ec);

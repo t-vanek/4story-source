@@ -27,6 +27,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -220,10 +221,12 @@ int main()
     // Inviter Alice on peer1 (msi 0x42), invitee Bob on peer2 (0x43).
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(42, 0xCAFEBABE));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(42, 0xCAFEBABE)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(42, 0xCAFEBABE, "Alice"));
     SendFramed(peer2, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(200, 0xD00D));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer2, AddCharBody(200, 0xD00D)));
     SendFramed(peer2, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(200, 0xD00D, "Bob"));
 

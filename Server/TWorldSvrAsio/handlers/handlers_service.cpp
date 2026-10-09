@@ -162,7 +162,7 @@ OnSmDelSessionReq(std::shared_ptr<PeerSession> peer,
     const std::uint8_t  group     = static_cast<std::uint8_t>(wid >> 8);
     const std::uint8_t  server_id = static_cast<std::uint8_t>(wid & 0xFF);
 
-    if (group == kSvrGrpMapSvr && ctx.chars)
+    if (group == kSvrGrpMapSvr && ctx.chars && ctx.peers && ctx.peers->Find(wid)==peer)
     {
         std::size_t closed = 0;
         for (std::uint32_t id : ctx.chars->SnapshotIds())
@@ -174,6 +174,7 @@ OnSmDelSessionReq(std::shared_ptr<PeerSession> peer,
                 std::lock_guard g(c->lock);
                 for (const auto& con : c->cons)
                     if (con.server_id == server_id) { has_con = true; break; }
+                if(c->main_handoff && (c->main_handoff->source.lock()==peer || c->main_handoff->target.lock()==peer))has_con=true;
             }
             if (!has_con) continue;
             co_await CloseChar(c, ctx);

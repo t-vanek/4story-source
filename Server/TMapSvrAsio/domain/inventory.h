@@ -4,8 +4,12 @@
 // inventory service + DM_LOADCHAR_ACK encoder.
 
 #include <cstdint>
+#include <vector>
+#include <utility>
+#include <memory>
 
 namespace tmapsvr {
+namespace transfer { struct Item; }
 
 struct InventoryRow
 {
@@ -45,7 +49,13 @@ struct ItemInstance
     std::uint16_t  wColor       = 0;   // IEV_COLOR dye
     std::uint16_t  wCustomTex   = 0;   // IEV_CUSTOMTEX
     std::uint32_t  dwGuildBound  = 0;  // IEV_GUILD — bRegGuild set when == viewer
-    // Magic options (m_mapTMAGIC) are deferred — descriptor writes count 0.
+    // Already derived client values, ordered by original magic ID.
+    std::vector<std::pair<std::uint8_t,std::uint16_t>> magic;
+    // Original server values retained alongside the client projection. In
+    // particular, derived magic and narrowed extended values are not invertible.
+    // Native transfer/persistence must use these source values, not reconstruct
+    // them from what CHARINFO happened to send to the client.
+    std::shared_ptr<const transfer::Item> source;
 };
 
 } // namespace tmapsvr

@@ -1,0 +1,240 @@
+{
+  "scope": "Native PostgreSQL characters with backup charts and source-derived TCP; original client PENDING",
+  "sql_server_used": false,
+  "tests": [
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [
+        "--options-only"
+      ],
+      "exit_code": 0,
+      "log": "PASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\n"
+    },
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-09 00:09:52.856] [info] SessionPool ready: backend=postgresql pool_size=2 acquire_timeout_ms=100\nPASS pool sessions are distinct native PostgreSQL connections\nPASS native PostgreSQL connection uses TLS with certificate verification\nPASS pool exhaustion has a bounded timeout\nPASS moved lease retains exclusive live session\nPASS native prepared binding preserves Unicode and literal punctuation\nPASS transaction destructor rolls back uncommitted writes\nPASS constraint failure rolls back entire transaction and session is reusable\nPASS unsupported T-SQL fails without submitting or logging secret literals\nPASS concurrent transactional updates do not lose writes\nPASS mutable test role has no historical snapshot access\nPASS untrusted PostgreSQL TLS certificate is rejected\n[2026-10-09 00:09:52.938] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS database disconnect is surfaced without retrying an operation\n[2026-10-09 00:09:52.943] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS fresh connection preserves committed state after a disconnect\n"
+    },
+    {
+      "binary": "test_tloginsvr_postgresql_char",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-09 00:09:53.142] [info] SessionPool ready: backend=postgresql pool_size=4 acquire_timeout_ms=30000\n[2026-10-09 00:09:53.147] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-09 00:09:53.233] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-09 00:09:53.297] [info] auth: user 'SyntheticChar301' (uid=301) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS real native authentication supplies character session\nPASS source starter character created atomically\nPASS lobby reads persisted source start action and equipped items\nPASS listing scopes both account and world\nPASS HP/MP match backed-up class/race formula (169/163)\nPASS ten backed-up starters allocated above original world-zero high-water\nPASS inventories preserve zero-date sentinel; skills and hotkeys persist\nPASS welcome mail preserves original encoded message and gold\nPASS veteran levels are original global catalog 19/29/93\nPASS case-insensitive directory blocks duplicate names\nPASS occupied live slot rejected\nPASS stale session key cannot create\nPASS unprovisioned world rejected\n[2026-10-09 00:09:53.324] [error] native char creation SQLSTATE=P0001\n[2026-10-09 00:09:53.324] [error] native char creation failed; transaction rolled back or commit outcome unavailable\nPASS late mail failure refuses success\nPASS late failure rolls back character, directory, items and allocator together\nPASS summoner source path creates successfully\nPASS recall uses backed-up summon attributes and SQL integer coordinate conversion\nPASS veteran creation returns original level and live count\nPASS wrong delete credential returns original DR_INVALIDPASSWD=1\nPASS guild membership blocks with original DR_GUILD=4\nPASS wrong world cannot delete owned character\nPASS low-level deletion commits\nPASS hard delete cleans children and releases global name\nPASS high-level deletion commits\nPASS soft-deleted veteran still reserves name\n[2026-10-09 00:09:53.666] [info] auth: user 'SyntheticChar302' (uid=302) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 00:09:53.720] [info] auth: user 'SyntheticChar303' (uid=303) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS concurrent cross-account name claim has exactly one winner\nPASS concurrent same-account slot claim serializes with safe retry\nPASS same account slot in another world is independent\nPASS second world item IDs use its separate 56-bit range\nPASS all concurrent allocations have globally unique item IDs\n[2026-10-09 00:09:53.746] [error] native char creation failed; transaction rolled back or commit outcome unavailable\nPASS old process token cannot mutate characters\nPASS wrong manifest fails before service startup\nCharacter checks complete, failures=0\n"
+    }
+  ],
+  "engine": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "migrations": [
+    "001-import-control.sql",
+    "002-legacy-snapshots.sql",
+    "003-canonical-content.sql",
+    "004-source-text-bytes.sql",
+    "005-runtime-catalog-control.sql",
+    "006-current-chart-contracts.sql",
+    "007-catalog-runtime-metadata.sql",
+    "008-native-login.sql",
+    "009-login-runtime-owner.sql",
+    "010-login-security-challenges.sql",
+    "011-character-reference-catalog.sql",
+    "012-native-characters.sql",
+    "013-character-item-allocation-floor.sql",
+    "014-routing-reference-catalog.sql",
+    "015-native-map-handoff.sql"
+  ],
+  "import": {
+    "run_id": 1,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "verified_tables": [
+      {
+        "table": "TVETERANCHART",
+        "rows": 3,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TCLASSCHART",
+        "rows": 6,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TFORMULACHART",
+        "rows": 34,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TITEMCHART",
+        "rows": 7706,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TLEVELCHART",
+        "rows": 126,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMAPMONCHART",
+        "rows": 23381,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONATTRCHART",
+        "rows": 9290,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONITEMCHART",
+        "rows": 16466,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSPAWNCHART",
+        "rows": 20357,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSTERCHART",
+        "rows": 3534,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TNPCCHART",
+        "rows": 2623,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQREWARDCHART",
+        "rows": 4322,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTCHART",
+        "rows": 6261,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTITEMCHART",
+        "rows": 715,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTTERMCHART",
+        "rows": 10687,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TRACECHART",
+        "rows": 88,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLCHART",
+        "rows": 765,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLDATA",
+        "rows": 1172,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTHOTKEY",
+        "rows": 12,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTITEMCHART",
+        "rows": 189,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTRECALL",
+        "rows": 3,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTSKILL",
+        "rows": 237,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 107977,
+    "canonical_items": {
+      "rows": 7706,
+      "six_fields_verified": true
+    }
+  },
+  "activation": {
+    "run_id": 1,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "changed": true,
+    "reference_tables": 22,
+    "verified_source_rows": 107977,
+    "starter_graph_gaps": {
+      "starter_item": 0,
+      "starter_recall": 0,
+      "veteran_level": 0,
+      "starter_slot_collision": 0
+    },
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "character_wire": {
+    "status": "passed",
+    "checks": [
+      "actual daemon refuses wrong character release before accepting clients",
+      "source encrypted login succeeds",
+      "reply opcode and ordered checksum match original source",
+      "new account has empty persisted character list",
+      "reply opcode and ordered checksum match original source",
+      "create ACK preserves name, 13 tail bytes, live count 1 and level 1",
+      "reply opcode and ordered checksum match original source",
+      "list returns created durable identity",
+      "list appearance and start action match source",
+      "equipment uses original twelve-byte records including custom texture",
+      "new source items have explicit empty custom texture",
+      "new source items have explicit empty custom texture",
+      "new source items have explicit empty custom texture",
+      "new source items have explicit empty custom texture",
+      "new source items have explicit empty custom texture",
+      "new source items have explicit empty custom texture",
+      "new source items have explicit empty custom texture",
+      "new source items have explicit empty custom texture",
+      "new source items have explicit empty custom texture",
+      "reply opcode and ordered checksum match original source",
+      "wrong delete password returns exact original DR_INVALIDPASSWD packet",
+      "daemon shuts down cleanly with durable character",
+      "source encrypted login succeeds",
+      "reply opcode and ordered checksum match original source",
+      "reconnect after process restart reads the same character and items",
+      "reply opcode and ordered checksum match original source",
+      "correct source SHA1 delete credential commits original success packet",
+      "reply opcode and ordered checksum match original source",
+      "deleted character is absent from subsequent list",
+      "TCP delete removes persisted child inventory",
+      "final SIGTERM exits zero"
+    ],
+    "scope": "source-derived protocol peer; original client execution PENDING"
+  },
+  "status": "passed"
+}

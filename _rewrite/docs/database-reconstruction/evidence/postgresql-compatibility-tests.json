@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-08",
+  "target": "fresh disposable fourstory_synthetic_compatibility_final PostgreSQL database",
+  "command": "FOURSTORY_DB_TESTS=1 python -m unittest discover -s tools/database/tests -v",
+  "tests_run": 21,
+  "duration_seconds": 0.947,
+  "exit_code": 0,
+  "failures": 0,
+  "errors": 0,
+  "test_groups": {
+    "lexical_and_hash_evidence": 7,
+    "postgresql_import_and_migration": 7,
+    "compatibility_generator": 1,
+    "database_compatibility_behavior": 6
+  },
+  "compatibility_behavior": [
+    "Monster-ID view derives original attribute-family stats; both quoted and unquoted names work",
+    "Original snapshot rows and raw-byte sidecars are unchanged after activation",
+    "Explicit release switch, rollback and retained missing source stats",
+    "Partial, unverified and incorrectly fingerprinted source imports are rejected",
+    "Target drift is rejected before selection changes",
+    "SQL contract failure rolls back selection and activation history",
+    "Reader role can read views but cannot access originals, write stats or alter active selection"
+  ],
+  "scope_limit": "Standalone PG SQL verification, not an enabled C++ SOCI PostgreSQL server or full gameplay test"
+}

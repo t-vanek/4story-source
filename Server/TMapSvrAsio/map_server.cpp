@@ -1,10 +1,16 @@
+#include "services/main_transfer_runtime.h"
 #include "map_server.h"
 
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/player_service.h"
+#include "services/session_validator.h"
+#include "services/world_client.h"
+#include "services/world_senders.h"
+#include "MessageId.h"
 #include "services/rate_limiter.h"
 #include "services/session_registry.h"
+#include "services/skill_cooldown.h"
 
 #include "fourstory/db/co_offload.h"
 
@@ -51,6 +57,12 @@ MapServer::Run()
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec) break;
 
+        if (m_cfg.require_registered_world &&
+            (!m_cfg.handlers.world_client || !m_cfg.handlers.world_client->IsRegistered())) {
+            boost::system::error_code ignored; sock.close(ignored);
+            continue;
+        }
+
         // max_connections gate — drop the new accept rather than queueing
         // it so the client gets an immediate RST and can retry against
         // another channel instead of waiting on a half-open socket.
@@ -83,41 +95,6 @@ MapServer::Run()
         Register(sess);
         m_active_connections.fetch_add(1, std::memory_order_relaxed);
 
-        // T5 pre-auth watchdog. Spawn a timer that closes the socket
-        // if the session hasn't completed CS_CONNECT_REQ within the
-        // configured grace window. A bound session (in session_reg)
-        // means auth cleared; absent means stuck or malicious.
-        if (m_cfg.pre_auth_timeout_seconds > 0 &&
-            m_cfg.handlers.session_reg)
-        {
-            const auto deadline = std::chrono::seconds(
-                m_cfg.pre_auth_timeout_seconds);
-            const auto* reg = m_cfg.handlers.session_reg;
-            boost::asio::co_spawn(
-                m_io,
-                [sess, deadline, reg, &io = m_io]()
-                    -> boost::asio::awaitable<void>
-                {
-                    boost::asio::steady_timer t(io);
-                    t.expires_after(deadline);
-                    boost::system::error_code ec;
-                    co_await t.async_wait(
-                        boost::asio::redirect_error(
-                            boost::asio::use_awaitable, ec));
-                    if (ec) co_return; // cancelled / executor stopping
-                    if (!sess->Socket().is_open()) co_return;
-                    if (reg->FindCharIdBySession(sess.get()))
-                        co_return; // already authenticated
-                    spdlog::warn("map_server: pre-auth watchdog closing "
-                                 "session (peer={} no CS_CONNECT_REQ within "
-                                 "{}s)",
-                        sess->RemoteIPv4(),
-                        static_cast<long long>(deadline.count()));
-                    sess->Close();
-                },
-                boost::asio::detached);
-        }
-
         // Absorb any exception that escapes the per-connection coroutine
         // so co_spawn's detached-rethrow doesn't terminate the whole
         // io_context.
@@ -135,78 +112,6 @@ MapServer::Run()
                 }
                 m_active_connections.fetch_sub(1, std::memory_order_relaxed);
                 Unregister(sess.get());
-
-                // --- SaveChar on disconnect ---------------------------------
-                // Resolve char_id BEFORE unbinding from the registries.
-                // Pull the latest position from ChannelPresence (updated
-                // by every CS_MOVE_REQ) and merge it into the stored
-                // snapshot so the saved position reflects the player's
-                // last known location, not the load-time position.
-                std::optional<std::uint32_t> char_id;
-                if (m_cfg.handlers.session_reg)
-                    char_id = m_cfg.handlers.session_reg
-                                  ->FindCharIdBySession(sess.get());
-
-                if (char_id && m_cfg.handlers.char_state
-                            && m_cfg.handlers.player_service)
-                {
-                    // Merge last-known position from presence map.
-                    if (m_cfg.handlers.presence)
-                    {
-                        const auto entry =
-                            m_cfg.handlers.presence->FindEntry(*char_id);
-                        if (entry)
-                        {
-                            m_cfg.handlers.char_state->Update(
-                                *char_id,
-                                [&entry](CharSnapshot& s) {
-                                    s.fPosX  = entry->pos.x;
-                                    s.fPosY  = entry->pos.y;
-                                    s.fPosZ  = entry->pos.z;
-                                    s.wMapID = entry->map_id;
-                                });
-                        }
-                    }
-
-                    auto snap = m_cfg.handlers.char_state->Get(*char_id);
-                    if (snap)
-                    {
-                        // Remove from state store now; SaveChar is async.
-                        m_cfg.handlers.char_state->Remove(*char_id);
-
-                        auto* player  = m_cfg.handlers.player_service;
-                        auto* db_pool = m_cfg.handlers.db_pool;
-                        auto  s       = std::move(*snap);
-                        boost::asio::co_spawn(
-                            m_io,
-                            [player, db_pool, s]()
-                                -> boost::asio::awaitable<void>
-                            {
-                                co_await fourstory::db::CoOffloadVoidIf(
-                                    db_pool,
-                                    [player, &s] { player->SaveChar(s); });
-                            },
-                            boost::asio::detached);
-                    }
-                }
-                // -----------------------------------------------------------
-
-                // Clean the char_id → session map so a future
-                // DM_LOADCHAR_REQ for this char doesn't resolve to a
-                // dead socket. Walks the registry once — see
-                // session_registry.h.
-                if (m_cfg.handlers.session_reg)
-                    m_cfg.handlers.session_reg->UnbindIfMatches(sess.get());
-                // Drop from the per-channel presence map too so a
-                // CS_MOVE_REQ broadcast doesn't try to fan out to a
-                // dead socket.
-                if (m_cfg.handlers.presence)
-                    m_cfg.handlers.presence->UnbindIfMatches(sess.get());
-                // T5: free the rate-limiter bucket so the map doesn't
-                // grow without bound across connection churn.
-                if (m_cfg.handlers.rate_limiter)
-                    m_cfg.handlers.rate_limiter->Remove(
-                        reinterpret_cast<std::uint64_t>(sess.get()));
             });
     }
 }
@@ -243,34 +148,107 @@ void MapServer::Unregister(tnetlib::AsioSession* raw)
 boost::asio::awaitable<void>
 MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> session)
 {
-    // The PacketHandler runs synchronously — the AsioSession wire loop
-    // wants to keep reading the next frame while a handler is in
-    // flight. Copy the body out of the recv buffer (the span is only
-    // valid for the duration of this callback) and co_spawn the
-    // awaitable dispatch detached so SendPacket calls don't block the
-    // read loop.
-    co_await session->RunPackets(
-        [this, session](const tnetlib::DecodedPacket& pkt) {
-            std::vector<std::byte> body(pkt.body.begin(), pkt.body.end());
-            const auto wId = pkt.wId;
-            boost::asio::co_spawn(
-                m_io,
-                Dispatch(session, wId, std::move(body), m_cfg.handlers),
-                [session](std::exception_ptr ep) {
-                    if (!ep) return;
-                    try { std::rethrow_exception(ep); }
-                    catch (const std::exception& ex) {
-                        spdlog::error("map_server: dispatch coroutine threw "
-                                      "(peer={}): {}",
-                            session->RemoteIPv4(), ex.what());
-                    }
-                    catch (...) {
-                        spdlog::error("map_server: dispatch coroutine threw "
-                                      "unknown (peer={})",
-                            session->RemoteIPv4());
-                    }
-                });
+    auto watchdog = std::make_shared<boost::asio::steady_timer>(m_io);
+    if (m_cfg.pre_auth_timeout_seconds > 0) {
+        watchdog->expires_after(std::chrono::seconds(m_cfg.pre_auth_timeout_seconds));
+        watchdog->async_wait([session, watchdog, reg = m_cfg.handlers.session_reg](auto ec) {
+            if (ec || !session->IsOpen()) return;
+            const auto id = reg ? reg->Identity(session.get()) : std::nullopt;
+            if (!id || (id->phase != SessionPhase::Admitted && id->phase != SessionPhase::Ready))
+                session->Close();
         });
+    }
+    try {
+        co_await session->RunPacketsAsync([this, session](tnetlib::DecodedPacket pkt)
+            -> boost::asio::awaitable<void> {
+            co_await Dispatch(session, pkt.wId,
+                std::vector<std::byte>(pkt.body.begin(), pkt.body.end()), m_cfg.handlers);
+        });
+    } catch (...) {
+        spdlog::error("map_server: packet loop failed");
+        session->Close();
+    }
+    watchdog->cancel();
+
+    const auto& ctx = m_cfg.handlers;
+    std::optional<SessionIdentity> identity;
+    if(ctx.session_reg) {
+        boost::asio::steady_timer drain(m_io);
+        do {
+            identity=ctx.session_reg->BeginClose(session.get());
+            if(identity||!ctx.session_reg->Identity(session.get()))break;
+            drain.expires_after(std::chrono::milliseconds(5));co_await drain.async_wait(boost::asio::use_awaitable);
+        }while(true);
+    }
+    if (identity) {
+        if((identity->phase==SessionPhase::Ready||identity->phase==SessionPhase::TransferOut) && identity->role==MapSessionRole::Primary &&
+           (!ctx.char_state||!ctx.player_service||!ctx.char_state->Get(identity->char_id))){
+            if(ctx.presence)ctx.presence->UnbindIfMatches(session.get());
+            spdlog::error("map_server: ready session has no saveable snapshot; reservation retained");
+            std::lock_guard lock(m_sessions_mtx);m_failed_saves.push_back(session);m_failed_save_count.fetch_add(1);co_return;
+        }
+        // Presence becomes invisible before a potentially slow database write.
+        if ((identity->phase == SessionPhase::Ready||identity->phase==SessionPhase::TransferOut) && identity->role == MapSessionRole::Primary && ctx.char_state && ctx.player_service) {
+            if (ctx.presence && identity->phase==SessionPhase::Ready) {
+                const auto entry = ctx.presence->FindEntry(identity->char_id);
+                if (entry) ctx.char_state->Update(identity->char_id, [&entry](CharSnapshot& snap) {
+                    snap.fPosX = entry->pos.x; snap.fPosY = entry->pos.y;
+                    snap.fPosZ = entry->pos.z; snap.wMapID = entry->map_id;
+                });
+            }
+            if (ctx.presence) ctx.presence->UnbindIfMatches(session.get());
+            if (auto snap = ctx.char_state->Get(identity->char_id)) {
+                bool saved = false;
+                try {
+                if(ctx.skill_cooldown&&identity->phase!=SessionPhase::TransferOut)
+                    *snap=transfer::PersistenceSnapshot(*snap,identity->key,*ctx.skill_cooldown,SkillClockMs());
+                    auto* player = ctx.player_service;
+                    co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+                        [player, &snap, claim=identity->Claim(ctx.expected_group)] { player->SaveAuthorized(claim,*snap); });
+                    saved = true;
+                } catch (...) { spdlog::error("map_server: character save failed; reservation retained char={}", identity->char_id); }
+                if (!saved) {
+                    // Retain the snapshot and closed-session reservation for operator
+                    // recovery. Reconnecting must not load stale data over dirty state.
+                    std::lock_guard lock(m_sessions_mtx);
+                    m_failed_saves.push_back(session);
+                    m_failed_save_count.fetch_add(1);
+                    co_return;
+                }
+            }
+        }
+        if(identity->role==MapSessionRole::Replica && ctx.presence)ctx.presence->UnbindIfMatches(session.get());
+        if (ctx.validator) {
+            try {
+                auto* validator=ctx.validator;const auto claim=identity->Claim(ctx.expected_group);
+                co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,[validator,claim] { validator->ReleaseSession(claim); });
+            } catch (...) {
+                spdlog::error("map_server: session release failed; reservation retained char={}",identity->char_id);
+                std::lock_guard lock(m_sessions_mtx);
+                m_failed_saves.push_back(session);m_failed_save_count.fetch_add(1);co_return;
+            }
+        }
+        // Re-read after database suspension: a World retirement may have
+        // arrived while local teardown was draining. Failed claims were never
+        // announced and cannot close a valid character on another Map.
+        const auto current = ctx.session_reg->Identity(session.get());
+        if(current && current->world_presence==WorldPresence::Announced &&
+           ctx.world_client && ctx.world_client->IsRegistered())
+            co_await ctx.world_client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::MW_CLOSECHAR_ACK),
+                EncodeEnterCharAck(identity->char_id,identity->key));
+        if (ctx.char_state) ctx.char_state->Remove(identity->char_id);
+        if (ctx.skill_cooldown) ctx.skill_cooldown->Forget(identity->char_id);
+    }
+    if (ctx.presence) ctx.presence->UnbindIfMatches(session.get());
+    if (ctx.session_reg) ctx.session_reg->UnbindIfMatches(session.get());
+    if (ctx.rate_limiter) ctx.rate_limiter->Remove(reinterpret_cast<std::uint64_t>(session.get()));
+}
+
+void MapServer::CloseSessions()
+{
+    std::lock_guard lock(m_sessions_mtx);
+    for (const auto& weak : m_sessions)
+        if (auto session = weak.lock()) session->Close();
 }
 
 } // namespace tmapsvr

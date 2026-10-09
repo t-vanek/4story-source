@@ -10,9 +10,13 @@
 namespace tmapsvr {
 
 SociSkillDataChart::SociSkillDataChart(fourstory::db::SessionPool& pool)
+    : SociSkillDataChart(*pool.Acquire())
 {
-    auto lease = pool.Acquire();
-    auto& sql  = *lease;
+    // The temporary Lease lives until the delegated constructor returns.
+}
+
+SociSkillDataChart::SociSkillDataChart(soci::session& sql)
+{
 
     std::int32_t row_skill = 0, row_action = 0, row_type = 0, row_attr = 0,
                  row_exec = 0, row_inc = 0, row_value = 0, row_value_inc = 0,

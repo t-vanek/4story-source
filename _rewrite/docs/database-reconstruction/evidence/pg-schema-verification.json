@@ -1,0 +1,7 @@
+{
+  "applied_migrations": [
+    "001-import-control.sql",
+    "002-legacy-snapshots.sql",
+    "003-canonical-content.sql"
+  ]
+}

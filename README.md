@@ -1,351 +1,179 @@
 # 4Story Emulator Server
 
-A modern, open re-implementation of the **4Story** MMORPG server cluster.
-The project hosts a private-server emulator that speaks the original game
-client's wire protocol byte-for-byte, so a shipped legacy 4Story client
-can connect to it without any binary patching and walk the full
-LOGIN → CHARLIST → CREATECHAR → START round-trip.
+An incremental **C++20** reimplementation of the 4Story server cluster, targeting
+**Linux containers and native PostgreSQL**. The compatibility goal is the original
+client with unchanged packet layouts. The project is **in development**: selected
+native database and protocol flows are verified, while complete gameplay and an
+actual original-client session remain unfinished.
 
-The original Win32 / ATL / IOCP server sources are kept in the tree
-under `Server/T*Svr/` as the authoritative reference for shipped
-behavior. The emulator binaries live next to them under
-`Server/T*SvrAsio/` and replace the legacy daemons one component at a
-time while staying wire-compatible.
+Original Windows sources live in `Server/T*Svr/`; the running modern implementations
+live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/modernization/README.md),
+[capability matrix](_rewrite/docs/modernization/capability-matrix.md) and
+[next implementation tasks](_rewrite/docs/modernization/next-steps.md).
 
-The emulator targets preservation, study, and private hosting of a game
-that is no longer commercially operated — the goal is a server cluster
-that boots on commodity hardware, builds cleanly on modern toolchains,
-and can be reasoned about without the original Win32-only build farm.
+## Verified functionality
 
-## Overall progress
+Updated 2026-10-09. These scopes describe executed tests; historical handler counts
+and completeness percentages are not evidence of native PostgreSQL feature parity.
 
-Cluster-wide rewrite status as of 2026-07-06:
+| Area | Verified scope | Remaining work |
+|---|---|---|
+| Linux containers | Six installed daemons, health endpoints, Map → World DNS connection and graceful SIGTERM shutdown | Full persistent deployment acceptance and pinned build dependencies |
+| Login | Native PostgreSQL authentication/session transactions, process ownership, duplicate protection, encrypted synthetic TCP and bounded email confirmation | Historical credential import, additional client profiles and original executable acceptance |
+| Characters | Native creation/list/deletion, starter inventory, atomic item IDs, fresh world admission, client hydration, core checkpoints, logout and reconnect | Complete item/economy mutations and ancillary character state |
+| Map content | Pinned source catalogs, real monster attributes, routing and actor catalogs loaded by the actual daemon | Complete spawn, movement validation, entity visibility and gameplay parity |
+| Primary Map handoff | Movement-triggered transfer between two Maps, one database writer, exact state transfer, skill timers, return trips and recovery after process replacement | Full effect/quest/companion simulation, multiple-neighbor changes and special transfer branches |
+| World, Control, Patch and Log | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-```
-Edge servers      ████████████████████  100%   (Login + Patch + Log + Control)
-TMapSvr           ███░░░░░░░░░░░░░░░░░   ~18% (combat/loot/AI grind loop + kill-quest slice; quests/shops mostly TODO)
-TWorldSvr         ███████████████░░░░░   73%   (W6-49 — RPS complete; 213/290 handlers, 103 tests)
-─────────────────────────────────────────
-Cluster total     ██████░░░░░░░░░░░░░░  ~32%   (LOC-weighted, see below)
-```
+Migration **020** adds the primary transfer journal, authority epochs and complete
+transfer-state checkpoints. A stale source cannot overwrite its successor's state.
+Original CONNECT/CONREADY packets switch the primary connection without duplicate
+CHARINFO. Tests cover rollback, interrupted transfers, source/target replacement,
+logout/relogin and client disconnect during commit.
 
-| Component | Legacy LOC | Modern LOC | Wire handlers | DB schema | Status |
-|---|---:|---:|---|---|---|
-| **TLoginSvrAsio** | 9 191 | 15 815 | 15/15 CS + 5/5 CT | ✅ validator | **✅ Production complete** |
-| **TPatchSvrAsio** | 3 824 | 2 813 | 9/9 CT | ✅ validator | **✅ Production complete** |
-| **TLogSvrAsio** | 3 908 | 2 664 | UDP `_UDPPACKET` | ✅ validator | **✅ Production complete** |
-| **TControlSvrAsio** | 7 290 | 19 599 | 63/65 CT + TLS peer auth | ✅ validator | **✅ F1–F5 complete + round-2 audit** |
-| **TMapSvrAsio** | 112 842 | 7 458 | 23 CS + 5 CT (vertical slice) | ✅ 12 validators | 🟡 **Grind loop: combat/loot/AI + kill-quests; shops/skill-fx TODO** |
-| **TWorldSvrAsio** | 38 851 | ~33 900 | 213/290 — guild/party/corps/friend/soulmate/chat/TMS/mail/territory+war/combat/connection-teleport + event broadcast/update/replay + full cash-shop sale family (incl. confirm barrier + DB persist) + CMGift result + ctrl-svr identification + item-state ops tool + service/control plane (monitor echo, CCU resync, help-message, map teardown) + APEX shipped-parity stubs + GM item tools (state/find/grant) + full MonthRank + complete war/castle family + complete CMGift family + complete event subsystem + complete RPS (incl. persistence); BR/Bow/Arena/Tournament/Apex/MonthRank and the DB-bound CMGift sub-paths remain (see sub-README gaps audit) | 🟡 W3a–W6 (TGUILD* + party/corps + friend/soulmate + TMS + TITEMCHART/TCashItemSale probes) | 🟡 **W6-49 — RPS complete** |
-| `Lib/Own/FourStoryCommon` | — | (shared) | — | — | ✅ SOCI + audit + smtp + ops |
+The latest native-primary-transfer verification records:
 
-LOC weighting: `(24 213 edge-complete + ~28 300 TWorldSvr functional
-[211/290 handlers ≈ 73 % of 38 851 LOC] + ~6 700 TMap scaffold) / 175 906
-legacy ≈ 34 %`.
-By cluster-edge functionality, the four daemons that gate access to the
-world (auth, patching, audit, ops) are **100 %** complete, and the World
-coordinator is ~63 % ported — what's left is mostly the Map gameplay
-surface plus the remaining World battle/event content (BR / Bow / Arena /
-Tournament / Apex / MonthRank) and the DB-bound CMGift / Cash admin
-sub-paths, ~64 % of the legacy LOC and where the architectural risk lives.
+- **197 Debug CTest entries:** 183 passes, eight internal legacy fixture skips,
+  six explicit native fixture skips and zero failures.
+- **32 ASan/UBSan CTest entries:** all passed.
+- **824 native database/network checks per configuration:** Debug, ASan/UBSan and
+  installed Release, using isolated PostgreSQL and source-derived synthetic peers.
+- Six installed daemon health/shutdown checks and the container DNS connection.
 
-Per-server detail (handler tables, schema, configuration, tests) lives
-in each component's README; an Araz-source-to-modern patch catalog
-lives in [`_rewrite/docs/PATCH_README.md`](_rewrite/docs/PATCH_README.md).
+See the [transfer contract and test reports](_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
+and [installed image evidence](_rewrite/docs/modernization/evidence/native-primary-transfer-container-verification.json).
+The tested local image is `localhost/fourstory:postgresql-native-primary`; it is
+not a published registry image. The original client executable has not been run.
 
-## Why re-write the emulator
+## Database authority
 
-The shipped server was tightly coupled to a 2000s-era Windows stack:
-ATL/COM, Win32 IOCP completion ports, MFC dialog ops UIs, per-server
-duplicated SQL access layers, and a hand-rolled threading model with
-implicit lock ordering. That code still runs, but it is hard to host
-outside its original environment, hard to instrument, and hard to extend.
+`TGAME_RAGEZONE.bak` and `TGLOBAL_RAGEZONE.bak` are the immutable historical source
+of truth. Keep their hashes and recovered values unchanged. When server contracts
+need adaptation, change the derived PostgreSQL schema through a new migration.
 
-Re-writing the emulator on a modern foundation buys us:
+- `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
+- `content` and the compatibility views expose explicit, versioned projections.
+- `app_global` and `app_world` own mutable application and operational state.
+- Applied migrations **001–020 are immutable**; the next schema change starts at 021.
+- Backups, credentials and private extraction output stay outside Git. Historical
+  accounts, player records and missing combat values are never invented.
 
-* **Portability** — the cluster builds on both MSVC 2022 and Linux
-  (GCC/Clang) from the same CMake. No more "Windows-only build server."
-* **Readability** — Boost.Asio coroutines (`co_await`) replace IOCP
-  callback chains; the handler flow reads top-to-bottom instead of
-  being scattered across `OnRead` / `OnWrite` / completion routines.
-* **Memory safety** — RAII sessions, `std::span`/`std::string_view`
-  framing, and bounded buffers replace raw `char*` arithmetic. The
-  legacy `CS_LOGIN_REQ` trailing XOR/add checksum is now actually
-  enforced server-side.
-* **Shared infrastructure** — SOCI connection pooling, structured
-  audit logging, SMTP, the admin shell, health probes, and rate
-  limiting are extracted once into `Lib/Own/FourStoryCommon` instead
-  of being copy-pasted per server.
-* **Testability** — handler dispatch, the wire codec, and per-service
-  business logic run in-process against `Fake*` services under CTest.
-  The SOCI integration suites skip cleanly when no DB is configured,
-  so CI passes without a database.
-* **Operability** — TOML config (`toml++`) replaces ad-hoc INI parsing;
-  `spdlog` gives structured logs and a dedicated audit channel; the
-  schema validator fails fast on DB drift instead of crashing mid-session.
-* **TLS peer fabric** — TControlSvrAsio's inter-server peer protocol
-  speaks mutual TLS with RFC 5280 SAN matching and RFC 6125 wildcard
-  rules; legacy clients still get the plain-text channel (hybrid
-  3-byte TLS-handshake detection).
-* **No anti-cheat lock-in** — HShield / XTrap / NPGame / `HwidManagerSvr`
-  are intentionally out of scope. The emulator does not call home to
-  any third-party anti-cheat service.
-* **Wire compatibility, not behavior drift** — every ACK structure is
-  reproduced byte-for-byte against the legacy `CSSender.cpp` /
-  `Sender.cpp` / `LogPacket.h` references, so the original client
-  binary stays the source of truth for what the server must emit.
+See [database setup and contracts](database/README.md),
+[forensic reconstruction](_rewrite/docs/database-reconstruction/README.md) and
+[preservation checks](_rewrite/docs/modernization/evidence/preservation.json).
+SQL Server is unnecessary for the verified native runtime paths. ODBC comparison
+paths and unported services remain in the repository and runtime image.
 
-## Technology stack
+## Linux quick start
 
-* **C++20** with Boost.Asio stackless coroutines (`co_await`, `async_*`)
-* **SOCI 4.x** with the ODBC backend → MS SQL Server
-  (PostgreSQL branches are kept but disabled)
-* **OpenSSL** EVP for RC4 + peer-link TLS; **libbcrypt** (vendored at
-  `Lib/3rdParty/bcrypt/`) for password hashing
-* **spdlog** for structured logging and the audit channel
-* **toml++** for configuration
-* **vcpkg** manifest mode (`vcpkg.json`) for dependency pinning
-* **CMake 3.20+** as the single build system across MSVC and Linux
-* **CTest** with in-process integration tests against test fakes; SOCI
-  suites skip cleanly when no DB is configured
+Install Git LFS when working with the original client/library assets:
 
-Builds with MSVC 2022 + vcpkg on Windows; the same CMake also builds on
-Linux against distro packages (`libsoci-dev`, `unixodbc-dev`,
-`libspdlog-dev`, `libtomlplusplus-dev`, `libssl-dev`, `libboost-all-dev`).
-
-## Repository layout
-
-```
-4Story_5.0_Source/
-├── CMakeLists.txt                  # root — picks up vcpkg + adds subprojects
-├── vcpkg.json                      # manifest mode dependency pin
-├── Client/                         # legacy TClient sources (unmodified)
-├── Lib/
-│   ├── 3rdParty/bcrypt/            # vendored libbcrypt (no working vcpkg port)
-│   └── Own/
-│       ├── TNetLib/                # wire codec + AsioSession (modernized)
-│       ├── TProtocol/              # wire structs / MessageId enum (shared)
-│       └── FourStoryCommon/        # shared infra: SOCI pool, audit, smtp, ops
-├── Server/
-│   ├── TLoginSvr/                  # legacy login (reference, unmodified)
-│   ├── TLoginSvrAsio/              # ✅ emulator login server
-│   ├── TPatchSvr/                  # legacy patch (reference, unmodified)
-│   ├── TPatchSvrAsio/              # ✅ emulator patch metadata server
-│   ├── TLogSvr/                    # legacy audit log collector (unmodified)
-│   ├── TLogSvrAsio/                # ✅ emulator audit UDP collector
-│   ├── TControlSvr/                # legacy control server (reference, unmodified)
-│   ├── TControlSvrAsio/            # ✅ emulator control / orchestration server
-│   ├── TMapSvr/                    # legacy gameplay engine (reference, unmodified)
-│   ├── TMapSvrAsio/                # 🟡 emulator map server — combat/loot/AI grind loop + kill-quests
-│   ├── TWorldSvr/                  # legacy cluster coordinator (reference)
-│   ├── TWorldSvrAsio/              # 🟡 cluster coordinator — W6-49 (cash-shop + CMGift + full event + RPS + MonthRank + war family)
-│   ├── TBRSvr/  TBoWSvr/           # legacy empty shells (BR/BoW compile flags)
-│   └── Tools/                      # legacy ops tools (unmodified)
-├── _rewrite/docs/                  # plan + analysis + patch catalog
-└── tools/                          # dev scripts
+```sh
+git lfs install --local
+git lfs pull
 ```
 
-Each emulator component has its own README with the full handler
-mapping, configuration schema, and bring-up notes:
+Run the six-service development topology with Docker Compose:
 
-* [`Server/TLoginSvrAsio/README.md`](Server/TLoginSvrAsio/README.md) — ✅ complete
-* [`Server/TPatchSvrAsio/README.md`](Server/TPatchSvrAsio/README.md) — ✅ complete
-* [`Server/TLogSvrAsio/README.md`](Server/TLogSvrAsio/README.md) — ✅ complete
-* [`Server/TControlSvrAsio/README.md`](Server/TControlSvrAsio/README.md) — ✅ complete
-* [`Server/TMapSvrAsio/README.md`](Server/TMapSvrAsio/README.md) — 🟡 grind loop: combat/loot/AI + kill-quests (see also `ARCHITECTURE.md` / `CONSOLIDATION.md`)
-* [`Server/TWorldSvrAsio/README.md`](Server/TWorldSvrAsio/README.md) — 🟡 W6-49 (guild/party/corps/social/territory/combat + connection/teleport + complete event + RPS subsystems + cash-shop + full CMGift + ctrl-svr + item tools + service plane + APEX stubs + MonthRank + war/castle family; gaps audit inside)
-* [`Lib/Own/FourStoryCommon/README.md`](Lib/Own/FourStoryCommon/README.md) — ✅ shared infrastructure
+```sh
+docker compose up --build -d
+docker compose ps
+docker compose logs -f
+docker compose down
+```
 
-## Build
+The committed Compose configuration uses in-memory services without a database.
+It is a process/transport smoke environment; native PostgreSQL requires the
+migrations, activated catalogs, dedicated database roles and private configuration
+in [deploy/README.md](deploy/README.md). Keep deployment secrets in ignored
+configuration files or private environment files.
 
-### Windows (MSVC 2022 + vcpkg)
+Build and verify a runtime image with rootless Podman:
+
+```sh
+podman build --target runtime --build-arg BUILD_JOBS=2 \
+  -t localhost/fourstory:linux .
+python3 tools/container_smoke.py --engine podman \
+  --image localhost/fourstory:linux
+```
+
+Each container runs one daemon as UID/GID `10001:10001`. The binaries are installed
+under `/opt/fourstory/bin/`: `tloginsvr_asio`, `tmapsvr_asio`, `tworldsvr_asio`,
+`tcontrolsvr_asio`, `tpatchsvr_asio` and `tlogsvr_asio`.
+
+## Build and test
+
+For a native Ubuntu 24.04 development environment:
+
+```sh
+sudo apt-get install build-essential cmake ninja-build pkg-config \
+  libboost-system-dev libssl-dev openssl libspdlog-dev \
+  libtomlplusplus-dev libsoci-dev unixodbc-dev libpq-dev
+cmake --preset linux-debug
+cmake --build --preset linux-debug
+ctest --preset linux-debug
+```
+
+`linux-release` builds the servers without test targets. `linux-asan` builds and
+runs the selected sanitizer suites:
+
+```sh
+cmake --preset linux-asan
+cmake --build --preset linux-asan
+ctest --preset linux-asan
+```
+
+Native integration tests need an owned disposable PostgreSQL lab. The
+[deployment guide](deploy/README.md) documents `run_native_verification.py`, pinned
+reference manifests and role grants. Tests needing absent fixtures are skipped;
+a passing default CTest run does not imply that those database checks executed.
+
+The [Linux CI workflow](.github/workflows/linux-container.yml) builds the container,
+runs tests and verifies synthetic PostgreSQL Login/pool flows. Local evidence does
+not establish the outcome of a GitHub Actions run.
+
+The Windows CMake/vcpkg build path remains available:
 
 ```powershell
 $env:VCPKG_ROOT = "C:\vcpkg"
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
-      -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 cmake --build build --config Release
 ```
 
-First configure pulls and builds Boost, OpenSSL, SOCI[odbc], spdlog,
-and toml++ (≈30 min). Subsequent configures are incremental.
+The latest native PostgreSQL runtime is verified on Linux; equivalent Windows
+verification is pending. The stack uses Boost.Asio coroutines, SOCI/libpq,
+OpenSSL, spdlog and toml++. Linux images use Ubuntu packages. The vcpkg baseline,
+container base digest and package versions still need release-level pinning.
 
-Targets produced under `build/bin/Release/`:
+## Repository and documentation
 
-* `tloginsvr_asio.exe`   — login + lobby + char flow
-* `tpatchsvr_asio.exe`   — patch metadata
-* `tlogsvr_asio.exe`     — audit UDP collector
-* `tcontrolsvr_asio.exe` — control / orchestration daemon
-* `tmapsvr_asio.exe`     — map server (scaffold; not production-ready)
+| Location | Purpose |
+|---|---|
+| `Server/T*Svr/`, `Client/` | Original server/client behavior and protocol references |
+| `Server/T*SvrAsio/` | Modern server implementations and component tests |
+| `Lib/Own/FourStoryCommon/` | Shared database, cluster, logging and operations infrastructure |
+| `Lib/Own/TNetLib/`, `Lib/Own/TProtocol/` | Transport, packet codec and protocol definitions |
+| `database/postgresql/` | Numbered migrations and database compatibility contracts |
+| `deploy/`, `Dockerfile`, `compose.yaml` | Linux deployment, sample configuration and role grants |
+| `tools/database/` | Extraction, migration and isolated integration verification |
+| `_rewrite/docs/modernization/` | Current status, protocol traceability, evidence and continuation |
+| `_rewrite/docs/database-reconstruction/` | Backup analysis, provenance and unresolved historical contracts |
 
-### Linux (GCC/Clang + distro packages)
+Component references: [Login](Server/TLoginSvrAsio/README.md),
+[Map](Server/TMapSvrAsio/README.md), [World](Server/TWorldSvrAsio/README.md),
+[Control](Server/TControlSvrAsio/README.md), [Patch](Server/TPatchSvrAsio/README.md),
+[Log](Server/TLogSvrAsio/README.md) and [shared infrastructure](Lib/Own/FourStoryCommon/README.md).
+The [older patch catalog](_rewrite/docs/PATCH_README.md) and
+[legacy-to-modern changelog](_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md) retain
+historical context; current acceptance is tracked in the modernization documents.
 
-```sh
-sudo apt install cmake g++ libboost-all-dev libssl-dev \
-                 libsoci-dev unixodbc-dev \
-                 libspdlog-dev libtomlplusplus-dev
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-```
-
-## Testing
-
-```sh
-ctest --test-dir build -C Release --output-on-failure
-```
-
-In-process tests (handler dispatch, wire codec, per-service business
-logic against `Fake*` services) run without a DB. The SOCI integration
-suites under `Server/T*Asio/tests/test_soci_*` skip automatically
-when the corresponding `*_TEST_MSSQL_CONN` env var is unset, so CI
-without a DB still passes. Set the env var to a connection string to
-run them:
-
-```sh
-export TLOGINSVR_TEST_MSSQL_CONN="DSN=4story;UID=sa;PWD=…"
-ctest --test-dir build -C Release --output-on-failure
-```
-
-## Documentation index
-
-* [`_rewrite/docs/MODERNIZATION_PLAN.md`](_rewrite/docs/MODERNIZATION_PLAN.md)
-  — cluster-wide phased roadmap
-* [`_rewrite/docs/PATCH_README.md`](_rewrite/docs/PATCH_README.md)
-  — **patch catalog** vs the legacy "Sources 5.0 (Araz)" distribution
-* [`_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md`](_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md)
-  — narrative behavioral diff between the shipped server and the emulator
-* [`_rewrite/docs/LOGIN_SERVER_COMPARISON.md`](_rewrite/docs/LOGIN_SERVER_COMPARISON.md)
-  — handler-by-handler legacy vs emulator parity audit
-* [`_rewrite/docs/TPATCH_AUDIT.md`](_rewrite/docs/TPATCH_AUDIT.md)
-  — TPatchSvr byte-level parity audit (P-1…P-6 closed)
-* [`_rewrite/docs/PROTOCOL.md`](_rewrite/docs/PROTOCOL.md) — wire codec
-  reference (header layout, RC4 keying, checksum algorithms)
-* [`_rewrite/docs/SCHEMA.md`](_rewrite/docs/SCHEMA.md) — DB column
-  catalog the emulator services read/write
-* [`_rewrite/docs/SQL_AUDIT.md`](_rewrite/docs/SQL_AUDIT.md) — SQL
-  injection / schema-drift audit across all SOCI call sites
-* [`_rewrite/docs/GAP_ANALYSIS.md`](_rewrite/docs/GAP_ANALYSIS.md) —
-  what's intentionally not emulated (and why)
-* [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md)
-  — design notes for the TControlSvrAsio port (F1–F5 + round 2)
-* [`_rewrite/docs/PEER_PROTOCOL_PLAN.md`](_rewrite/docs/PEER_PROTOCOL_PLAN.md)
-  — three-phase plan for peer-link TLS, access/refresh tokens, and
-  gRPC migration
-* [`_rewrite/docs/CLIENT_BUILD_NOTES.md`](_rewrite/docs/CLIENT_BUILD_NOTES.md)
-  — notes on rebuilding the legacy client from source
-
-## Roadmap
-
-### Completed (cluster edge)
-
-* **TLoginSvrAsio** — every legacy `CTLoginSvrModule` handler ported.
-  BCrypt-only auth, TUSERPROTECTED IP banlist, 2FA via TSECURECODE,
-  schema validator, rate limit, audit log (both spdlog + legacy
-  `_UDPPACKET` to TLogSvr), live TCURRENTUSER counts. Production
-  cutover ready against `TGLOBAL_RAGEZONE` + `TGAME_RAGEZONE`.
-* **TPatchSvrAsio** — all 9 `CT_*` handlers + boot-time schema
-  validator, periodic stale-client sweep, pre-version promotion
-  inline (works without legacy `TPreCompleteAdd` SP). Six audit
-  items P-1…P-6 closed.
-* **TLogSvrAsio** — UDP `_UDPPACKET` collector with `TLOG_AUDIT`
-  sink, bounded retry queue mirroring legacy `m_listReadCompleted`,
-  schema validator.
-* **TControlSvrAsio** — F1–F5 complete, 63/65 `CT_*` handlers wired,
-  Round-2 audit fixes applied (wire parity, event push, peer-ack
-  route-backs). Peer fabric speaks mutual TLS with RFC 5280 SAN
-  matching and RFC 6125 wildcard rules; hybrid first-byte detection
-  lets legacy clients still use the plain channel.
-* **FourStoryCommon** — SOCI pool, schema-validator framework,
-  audit/SMTP/rate-limit/admin-shell/health-endpoint plumbing pulled
-  into a single static lib so the four Asio daemons no longer
-  copy-paste this code.
-
-### In progress (cluster core)
-
-* **TMapSvrAsio** — Layered scaffold (transport → dispatch → handlers
-  → services → persistence) is built, and on top of it a vertical slice
-  of real gameplay: the connection lifecycle plus an end-to-end
-  **combat / loot / mob-AI grind loop** and a first **kill-count quest**
-  slice (accept → kill-progress → turn-in → gold/EXP reward). It ships
-  23 `CS_*` + 5 `CT_*` handlers wired through the dispatcher; twelve
-  `Validate*Schema` validators gate boot (incl. `TMONATTRCHART` /
-  `TMONITEMCHART` / `TMAPMONCHART`). **The large content subsystems —
-  NPC shops, skill effects (heal/buff/debuff), trade/guild/PvP, and the
-  rest of the quest catalogue — are NOT yet ported.** The 297 legacy
-  `OnCS_*` and 300+ `DM_/MW_/SS_` handlers are catalogued in
-  `CONSOLIDATION.md`.
-* **TWorldSvrAsio** — cluster coordinator, **~73 % ported** (213/290
-  handlers, 103 in-process tests). Functionally-complete verticals:
-  guild (+ tactics + cabinet), party, corps, friend / soulmate / chat /
-  TMS / mail, per-character visual state, territory + castle-war
-  broadcasts, combat / monster relays, the connection /
-  teleport cluster (reconcile → main-session handoff → teleport →
-  connect-check → CloseChar teardown), the BR / Bow battleground
-  openers + leave-battlefield + BattleMode / Arena trio, the RPS
-  event game, the event subsystem (timed-event broadcast +
-  CT_EVENTMSG + CT_EVENTUPDATE store/broadcast + replay-on-connect),
-  the **full cash-shop sale family** (CT_CASHITEMSALE +
-  CT_CASHSHOPSTOP + replay-on-connect + the W6-37 per-map confirm
-  barrier persisting through the TCashItemSale SP), the CMGift
-  result relay (in-game GM + admin paths), ctrl-svr peer
-  identification, the full GM item toolset (CT_ITEMSTATE toggle +
-  CT_ITEMFIND search + MW_ADDITEM grant route), and the service /
-  control plane (monitor echo, CCU resync, help-message
-  broadcast+persist, map-departure teardown).
-  Remaining: the heavier battle/event subsystems (Bow/BR matchmaking
-  + Tournament), the DB-bound CMGift admin sub-paths,
-  and the war/castle + guild extras (APEX closed as shipped-parity
-  stubs in W6-39). Full not-yet-ported checklist lives in the
-  sub-README's **gaps audit**.
-  Until the rest lands, the legacy `TWorldSvr` binary remains canonical.
-
-### Open (cluster edge wrap-up)
-
-* **End-to-end legacy `TController.exe` smoke test** — stand the
-  modernized control daemon up against a copy of `TGLOBAL_RAGEZONE`
-  and walk the GUI through login → service list → event manage to
-  confirm wire parity in a real bring-up. The `IServiceController`
-  interface is wired with both a disabled-by-default fallback and a
-  Windows SCM impl (Linux build links the SCM impl as a no-op stub).
-* **Operator tooling** — round out the admin shell (account lookup,
-  ban/unban, session kick) and expose a minimal HTTP health/metrics
-  endpoint so the cluster is observable without RDP.
-
-### Mid-term (gameplay surface)
-
-* **TMapSvrAsio gameplay layer** — port damage / AI / quest VM out of
-  `Server/TMapSvr/`. This is the big one (~113 kLOC legacy) and the
-  bulk of the remaining cluster work. The scaffolding is in place;
-  the rules layer is what needs design (Lua-via-sol2 vs data-driven
-  YAML interpreter for quests, register-based dispatch for the 20k-LOC
-  `SSHandler.cpp` switch, etc.).
-* **Map data pipeline** — reproducible extraction of map / NPC / drop
-  tables from the shipped data files, so world content can be
-  regenerated rather than restored from a binary backup.
-
-### Longer-term (preservation)
-
-* **Linux production deployment** — the code already builds on Linux;
-  the goal is a fully Linux-hosted cluster (systemd units, container
-  images, no Wine for the auxiliary tools).
-* **Schema migration story** — formalize the additive-only migration
-  flow so community deployments can upgrade between emulator versions
-  without hand-editing tables.
-* **Reference dataset** — publish a minimal, lawful starter DB seed so
-  new operators don't need access to an original `.bak` to stand the
-  cluster up.
-
-### Explicitly out of scope
-
-* HShield / XTrap / NPGame / `HwidManagerSvr` anti-cheat. The emulator
-  no-ops `CS_HOTSEND_REQ` so the legacy client's post-CHANNELLIST
-  heartbeat does not crash the session, and nothing more.
-* Japan channeling (`m_bNation == NATION_JAPAN`) as a *deployment*
-  target — the wire parser does read the trailing `DWORD dwSiteCode`
-  the JP/TW client sends, so the protocol path stays compatible.
+Next priorities are runtime timer persistence for characters that never transfer,
+complete entity visibility and active gameplay state, transactional item/economy
+operations, native social persistence and execution of the supported original
+client. Full feature parity is not yet established.
 
 ## License
 
-See `Server/TLoginSvr/` and other legacy sub-trees for original notices.
-Emulator code carries no separate license header; the project is for
-private-server preservation work.
+See the original notices in `Server/TLoginSvr/` and the other legacy subtrees.
+No separate project-wide license grant is established by this README.

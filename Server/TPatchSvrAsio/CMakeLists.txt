@@ -62,6 +62,10 @@ target_link_libraries(tpatchsvr_asio PRIVATE tpatchsvr_asio_core)
 # manufacture peered PatchSessions, exercises the sweep against the
 # real predicate (IsOpen + IsServerPeer + ConnectedAt). Runs anywhere
 # we can build the binary.
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
 add_executable(test_tpatchsvr_asio_stale_sweep
     ${TPATCHSVR_ASIO_SRC}/tests/test_stale_sweep.cpp)
 target_link_libraries(test_tpatchsvr_asio_stale_sweep PRIVATE

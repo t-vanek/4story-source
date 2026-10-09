@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstddef>
+#include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 #include <string_view>
@@ -117,6 +118,14 @@ AppConfig LoadConfig(const std::string& path)
     {
         if (auto b = (*db)["backend"].value<std::string>())           cfg.database.backend = *b;
         if (auto c = (*db)["connection_string"].value<std::string>()) cfg.database.connection_string = *c;
+        if(auto env=(*db)["connection_string_env"].value<std::string>()) {
+            if(!cfg.database.connection_string.empty())throw std::runtime_error("Configure only one database connection source");
+            if(env->empty()||env->find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_")!=std::string::npos)
+                throw std::runtime_error("Invalid database.connection_string_env name");
+            const char* value=std::getenv(env->c_str());
+            if(!value||!*value)throw std::runtime_error("database.connection_string_env is missing or empty");
+            cfg.database.connection_string=value;
+        }
         if (auto s = (*db)["pool_size"].value<std::int64_t>())
         {
             if (*s < 1 || *s > 256)
@@ -129,6 +138,33 @@ AppConfig LoadConfig(const std::string& path)
                 throw std::runtime_error("database.worker_threads out of range");
             cfg.database.worker_threads = static_cast<std::size_t>(*s);
         }
+    }
+    if(auto native=tbl["native_map"].as_table()) {
+        cfg.character_manifest=(*native)["character_manifest_sha256"].value_or(std::string{});
+        cfg.routing_manifest=(*native)["routing_manifest_sha256"].value_or(std::string{});
+        cfg.actor_manifest=(*native)["actor_manifest_sha256"].value_or(std::string{});
+        if(auto interval=(*native)["checkpoint_interval_ms"].value<std::int64_t>()) {
+            if(*interval<100||*interval>1800000)throw std::runtime_error("native_map.checkpoint_interval_ms out of range");
+            cfg.checkpoint_interval_ms=static_cast<std::uint32_t>(*interval);
+        }
+    }
+    if (auto content = tbl["content"].as_table())
+    {
+        cfg.content.connection_string = (*content)["connection_string"].value_or(std::string{});
+        cfg.content.manifest_sha256 = (*content)["manifest_sha256"].value_or(std::string{});
+        if (auto env = (*content)["connection_string_env"].value<std::string>())
+        {
+            if (!cfg.content.connection_string.empty())
+                throw std::runtime_error("Configure only one content connection source");
+            if (env->empty() || env->find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos)
+                throw std::runtime_error("Invalid content.connection_string_env name");
+            const char* value = std::getenv(env->c_str());
+            if (!value || !*value)
+                throw std::runtime_error("content.connection_string_env is missing or empty");
+            cfg.content.connection_string = value;
+        }
+        if (cfg.content.connection_string.empty())
+            throw std::runtime_error("Configured content requires a PostgreSQL connection");
     }
     if (auto w = tbl["world"].as_table())
     {

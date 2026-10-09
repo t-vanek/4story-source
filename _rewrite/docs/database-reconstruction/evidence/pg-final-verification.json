@@ -1,0 +1,9 @@
+{
+  "server_version": "18.6 (Debian 18.6-1.pgdg13+2)",
+  "snapshot_table_count": 268,
+  "applied_migration_count": 4,
+  "accepted_snapshot_run": 2,
+  "accepted_snapshot_status": "verified",
+  "accepted_text_byte_records": 23442,
+  "accepted_canonical_items": 7706
+}

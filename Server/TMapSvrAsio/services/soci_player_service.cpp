@@ -52,10 +52,6 @@ SociPlayerService::LoadChar(std::uint32_t char_id)
                                               snap.bRace, snap.bLevel);
             snap.dwMaxMP = stat_engine::MaxMP(*m_stat, snap.bClass,
                                               snap.bRace, snap.bLevel);
-            // A stored current of 0 on a live (non-dead) char means the dump
-            // never tracked it — start full rather than at-death.
-            if (snap.dwHP == 0) snap.dwHP = snap.dwMaxHP;
-            if (snap.dwMP == 0) snap.dwMP = snap.dwMaxMP;
             snap.dwHP = std::min(snap.dwHP, snap.dwMaxHP);
             snap.dwMP = std::min(snap.dwMP, snap.dwMaxMP);
         }
@@ -64,13 +60,13 @@ SociPlayerService::LoadChar(std::uint32_t char_id)
             snap.dwMaxHP = snap.dwHP;   // legacy placeholder
             snap.dwMaxMP = snap.dwMP;
         }
+        snap.bDead = snap.dwHP == 0;
         return snap;
     }
-    catch (const std::exception& ex)
+    catch (const std::exception&)
     {
-        spdlog::error("soci_player_service: LoadChar({}) threw: {}",
-            char_id, ex.what());
-        return std::nullopt;
+        spdlog::error("soci_player_service: LoadChar({}) failed", char_id);
+        throw;
     }
 }
 
@@ -125,6 +121,7 @@ void SociPlayerService::SaveChar(const CharSnapshot& s)
         // the DbContext leases, mirroring the guild repo's write split.
         DbContext ctx(m_pool);
         soci::session& sql = ctx.Session();
+        soci::transaction transaction(sql);
 
         sql << queries::SaveCharTchart,
             soci::use(s.szNAME,    "name"),
@@ -168,33 +165,19 @@ void SociPlayerService::SaveChar(const CharSnapshot& s)
             soci::use(stat_exp,    "stat_exp"),
             soci::use(cid,         "cid");
 
-        // TALLCHARTABLE: sync bLevel, dwEXP, dLogoutDate, dwPlayTime.
-        // Wrapped in try-catch so a missing cross-DB link (TALLCHARTABLE
-        // may be in a different DB on sharded deployments) degrades
-        // gracefully — TCHARTABLE save above already succeeded.
-        try
-        {
-            sql << queries::SaveCharTallchart,
-                soci::use(level, "level"),
-                soci::use(exp,   "exp"),
-                soci::use(cid,   "cid");
-        }
-        catch (const std::exception& ex)
-        {
-            spdlog::warn("soci_player_service: SaveChar char={} "
-                         "TALLCHARTABLE update skipped: {}",
-                s.dwCharID, ex.what());
-        }
+        sql << queries::SaveCharTallchart,
+            soci::use(level, "level"), soci::use(exp, "exp"), soci::use(cid, "cid");
+        transaction.commit();
 
         spdlog::info("soci_player_service: SaveChar char={} name='{}' "
                      "lvl={} exp={} hp={}/{} pos=({:.1f},{:.1f},{:.1f})",
             s.dwCharID, s.szNAME, s.bLevel, s.dwEXP,
             s.dwHP, s.dwMP, s.fPosX, s.fPosY, s.fPosZ);
     }
-    catch (const std::exception& ex)
+    catch (const std::exception&)
     {
-        spdlog::error("soci_player_service: SaveChar char={} threw: {}",
-            s.dwCharID, ex.what());
+        spdlog::error("soci_player_service: SaveChar char={} failed", s.dwCharID);
+        throw;
     }
 }
 

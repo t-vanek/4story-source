@@ -1,0 +1,22 @@
+{
+  "scope": "Synthetic native SOCI/PostgreSQL pool and TLS verification",
+  "sql_server_used": false,
+  "tests": [
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [
+        "--options-only"
+      ],
+      "exit_code": 0,
+      "log": "PASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\n"
+    },
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-08 20:46:14.651] [info] SessionPool ready: backend=postgresql pool_size=2 acquire_timeout_ms=100\nPASS pool sessions are distinct native PostgreSQL connections\nPASS native PostgreSQL connection uses TLS with certificate verification\nPASS pool exhaustion has a bounded timeout\nPASS moved lease retains exclusive live session\nPASS native prepared binding preserves Unicode and literal punctuation\nPASS transaction destructor rolls back uncommitted writes\nPASS constraint failure rolls back entire transaction and session is reusable\nPASS unsupported T-SQL fails without submitting or logging secret literals\nPASS concurrent transactional updates do not lose writes\nPASS mutable test role has no historical snapshot access\nPASS untrusted PostgreSQL TLS certificate is rejected\n[2026-10-08 20:46:14.727] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS database disconnect is surfaced without retrying an operation\n[2026-10-08 20:46:14.732] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS fresh connection preserves committed state after a disconnect\n"
+    }
+  ],
+  "engine": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "status": "passed"
+}

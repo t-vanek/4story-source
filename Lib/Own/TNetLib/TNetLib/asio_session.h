@@ -26,6 +26,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/experimental/channel.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/strand.hpp>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -73,6 +74,7 @@ public:
     // wire packet (header verified, body XOR-decrypted, checksum OK,
     // sequence number matches).
     using PacketHandler = std::function<void(const DecodedPacket&)>;
+    using AsyncPacketHandler = std::function<boost::asio::awaitable<void>(DecodedPacket)>;
 
     AsioSession(boost::asio::ip::tcp::socket socket, PeerType type);
     ~AsioSession();
@@ -97,7 +99,12 @@ public:
     // applies when `Type() == PeerType::Client`.
     boost::asio::awaitable<void> RunPackets(PacketHandler on_packet);
 
-    // Byte-level send.
+    // Backpressure: await the handler before reading the next frame. Packet
+    // storage remains valid until that handler finishes. No per-packet tasks.
+    boost::asio::awaitable<void> RunPacketsAsync(AsyncPacketHandler on_packet);
+
+    // Byte-level send. The caller must await each write before starting
+    // another raw write, and must not mix raw and packet sends.
     boost::asio::awaitable<void> Send(std::span<const std::byte> bytes);
 
     // Packet-level send. Enqueues the payload onto an internal
@@ -115,12 +122,11 @@ public:
     //   * Close() drops outstanding queued packets; in-flight writes
     //     finish or fail according to socket state.
     //
-    // Note: the drain isn't started until Run() or RunPackets() runs,
-    // so a SendPacket issued before the session is being read will
-    // block on the channel until then. Tests that only exercise the
-    // send path can short-circuit by also spawning the read loop.
+    // Send-only peers start the drain on their first SendPacket too.
+    // close_after_send closes only after the queued frame is written.
     boost::asio::awaitable<void> SendPacket(std::uint16_t wId,
-                                            std::span<const std::byte> body);
+                                            std::span<const std::byte> body,
+                                            bool close_after_send = false);
 
     // Maximum number of pending SendPacket payloads queued per
     // session. Default 256. Set once at process startup, before any
@@ -128,9 +134,11 @@ public:
     // they were built with.
     static void SetSendQueueCapacity(std::size_t n) noexcept;
 
-    // Close the socket. Idempotent. Safe to call from any thread that
-    // owns the executor.
+    // Request closure from any thread. Idempotent. IsOpen becomes false
+    // immediately; socket cancellation and queue teardown run on the
+    // session strand. Keep the executor running to finish pending work.
     void Close();
+    bool IsOpen() const noexcept { return !m_closed.load(std::memory_order_acquire); }
 
     // Optional sink for non-fatal protocol errors that would otherwise
     // silently terminate the read/write loop — RC4 transform failure,
@@ -156,6 +164,7 @@ public:
     // Server-side AsioSessions hosting a real legacy client should
     // enable this. Server-server links should NOT (legacy convention is
     // m_bUseCrypt=FALSE for server peers).
+    // Configure encryption before starting any session operations.
     void EnableInboundRC4(std::vector<std::byte> secret_key);
 
     // Enable RC4-over-entire-packet on the SEND side. Mirror of the
@@ -169,6 +178,8 @@ public:
     // XOR-only, no RC4 outbound.
     void EnableOutboundRC4(std::vector<std::byte> secret_key);
 
+    // Low-level access is for setup and externally synchronized code only;
+    // it bypasses the strand. Use IsOpen() for concurrent liveness checks.
     boost::asio::ip::tcp::socket&       Socket()       { return m_socket; }
     const boost::asio::ip::tcp::socket& Socket() const { return m_socket; }
     PeerType                            Type()   const { return m_type;   }
@@ -182,10 +193,13 @@ public:
     const std::string& RemoteIPv4() const { return m_remote_ipv4; }
 
 private:
+    std::atomic_bool m_closed{false};
+    bool m_close_queued = false; // strand-owned terminal response gate
     struct PendingSend
     {
         std::uint16_t           wId;
         std::vector<std::byte>  body;
+        bool close_after_send = false;
     };
     using SendChannel = boost::asio::experimental::channel<
         void(boost::system::error_code, PendingSend)>;
@@ -202,7 +216,14 @@ private:
     boost::asio::awaitable<void> DrainSendQueue();
 
     void StartDrainIfNeeded();
+    void CloseOnExecutor();
+    boost::asio::awaitable<void> RunOnExecutor(BytesHandler on_bytes);
+    boost::asio::awaitable<void> RunPacketsOnExecutor(AsyncPacketHandler on_packet);
+    boost::asio::awaitable<void> SendOnExecutor(std::span<const std::byte> bytes);
+    boost::asio::awaitable<void> SendPacketOnExecutor(
+        std::uint16_t wId, std::span<const std::byte> body, bool close_after_send);
 
+    boost::asio::strand<boost::asio::any_io_executor> m_strand;
     boost::asio::ip::tcp::socket m_socket;
     PeerType                     m_type;
     std::vector<std::byte>       m_recv_buffer;     // byte-level Run scratch
@@ -213,8 +234,8 @@ private:
     std::vector<std::byte>       m_rc4_inbound_key;   // empty = no RC4 on recv
     std::vector<std::byte>       m_rc4_outbound_key;  // empty = no RC4 on send
     std::string                  m_remote_ipv4;       // captured at ctor, empty if not connected
-    SendChannel                  m_send_chan;         // MPSC: many producers, drain consumer
-    std::atomic<bool>            m_drain_started{false};
+    SendChannel                  m_send_chan;         // accessed only on m_strand
+    bool                         m_drain_started = false;
 };
 
 // Accept loop. Binds to `port` on all interfaces (INADDR_ANY) and
@@ -232,6 +253,7 @@ public:
     boost::asio::awaitable<void> Run(AcceptHandler on_accept);
 
     std::uint16_t Port() const { return m_port; }
+    void Stop();
 
 private:
     boost::asio::ip::tcp::acceptor m_acceptor;

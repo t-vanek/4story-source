@@ -28,6 +28,7 @@
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
+#include <cstdlib>
 #include <stdexcept>
 
 namespace tloginsvr {
@@ -187,6 +188,9 @@ AppConfig LoadConfig(const std::string& path)
         }
     }
 
+    if (auto dev = tbl["development"].as_table())
+        cfg.allow_no_database = (*dev)["allow_no_database"].value_or(false);
+
     // [crypto]
     if (auto crypto = tbl["crypto"].as_table())
     {
@@ -283,6 +287,17 @@ AppConfig LoadConfig(const std::string& path)
             out.backend = *b;
         if (auto c = t["connection_string"].value<std::string>())
             out.connection_string = *c;
+        if (auto env = t["connection_string_env"].value<std::string>())
+        {
+            if (!out.connection_string.empty())
+                throw std::runtime_error(std::string(section) + ": configure one connection source");
+            if (env->empty() || env->find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos)
+                throw std::runtime_error(std::string(section) + ": invalid connection environment name");
+            const char* value = std::getenv(env->c_str());
+            if (!value || !*value)
+                throw std::runtime_error(std::string(section) + ": connection environment is missing or empty");
+            out.connection_string = value;
+        }
         if (auto p = t["pool_size"].value<std::int64_t>())
         {
             if (*p < 1 || *p > 1024)
@@ -307,6 +322,10 @@ AppConfig LoadConfig(const std::string& path)
             out.worker_threads = static_cast<std::size_t>(*w);
         }
     };
+    if (auto route = tbl["routing"].as_table())
+        cfg.routing_manifest = (*route)["manifest_sha256"].value_or(std::string{});
+    if (auto chars = tbl["characters"].as_table())
+        cfg.character_manifest = (*chars)["manifest_sha256"].value_or(std::string{});
     if (auto db = tbl["database"].as_table())
     {
         parse_db(*db, cfg.database, "database");

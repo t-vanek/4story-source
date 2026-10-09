@@ -1,0 +1,31 @@
+88/195 Testing: tworldsvr_asio_secondary_admission
+88/195 Test: tworldsvr_asio_secondary_admission
+Command: "/src/build/linux-debug/bin/test_tworldsvr_asio_secondary_admission"
+Directory: /src/build/linux-debug/Server/TWorldSvrAsio
+"tworldsvr_asio_secondary_admission" start time: Oct 09 02:39 UTC
+Output:
+----------------------------------------------------------
+[2026-10-09 02:39:33.650] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 02:39:33.654] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 02:39:33.656] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 02:39:33.658] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 02:39:33.715] [warning] OnCloseCharAck[127.0.0.1]: short body (9 bytes) — dropped
+[2026-10-09 02:39:33.757] [info] OnCloseCharAck[127.0.0.1]: char_id=42 closed (total=0)
+[2026-10-09 02:39:33.759] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0401 teardown — 0 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 02:39:33.759] [info] world_server: wID=1025 unregistered from peer registry
+[2026-10-09 02:39:33.759] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 02:39:33.759] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0402 teardown — 0 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 02:39:33.759] [info] world_server: wID=1026 unregistered from peer registry
+[2026-10-09 02:39:33.759] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 02:39:33.759] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0403 teardown — 0 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 02:39:33.759] [info] world_server: wID=1027 unregistered from peer registry
+[2026-10-09 02:39:33.759] [info] world_server: peer 127.0.0.1 disconnected
+31 secondary World admission checks passed
+<end of output>
+Test time =   0.11 sec
+----------------------------------------------------------
+Test Passed.
+"tworldsvr_asio_secondary_admission" end time: Oct 09 02:39 UTC
+"tworldsvr_asio_secondary_admission" time elapsed: 00:00:00
+----------------------------------------------------------
+

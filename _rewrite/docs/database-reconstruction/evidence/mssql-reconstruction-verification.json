@@ -1,0 +1,82 @@
+[
+  {
+    "database": "TGLOBAL_RAGEZONE",
+    "DDL_execution_exit_code": 0,
+    "columns_checked": 635,
+    "logical_table_definition_projection_matches_backup": true,
+    "physical_column_id_differences": [
+      {
+        "table": "TCASHITEMCABINETTABLE",
+        "column": "bWorldID",
+        "source_column_id": 31,
+        "reconstructed_column_id": 30
+      },
+      {
+        "table": "TCASHITEMCABINETTABLE",
+        "column": "dlID",
+        "source_column_id": 32,
+        "reconstructed_column_id": 31
+      },
+      {
+        "table": "TCASHITEMCABINETTABLE",
+        "column": "bGem",
+        "source_column_id": 33,
+        "reconstructed_column_id": 32
+      },
+      {
+        "table": "TCASHITEMCABINETTABLE",
+        "column": "wMoggItemID",
+        "source_column_id": 34,
+        "reconstructed_column_id": 33
+      },
+      {
+        "table": "TEVENT042501TL",
+        "column": "USER010_Serial",
+        "source_column_id": 2,
+        "reconstructed_column_id": 1
+      },
+      {
+        "table": "TEVENT042501TL",
+        "column": "EVENT042501_Cupon",
+        "source_column_id": 3,
+        "reconstructed_column_id": 2
+      },
+      {
+        "table": "TUSERPROTECTED",
+        "column": "sentBanMail",
+        "source_column_id": 15,
+        "reconstructed_column_id": 14
+      }
+    ],
+    "normalization": "Relative column order retained; historical dropped-column ID gaps are not invented. Ignore redundant outer parentheses in default expressions.",
+    "scope": "Columns, types, PK membership, nullability, defaults, collation, identity seed/increment; no secondary indexes, FKs, identity high-water values or module behavior"
+  },
+  {
+    "database": "TGAME_RAGEZONE",
+    "DDL_execution_exit_code": 0,
+    "columns_checked": 1770,
+    "logical_table_definition_projection_matches_backup": true,
+    "physical_column_id_differences": [
+      {
+        "table": "TGUILDMEMBERSKILLTABLE",
+        "column": "dwCharID",
+        "source_column_id": 7,
+        "reconstructed_column_id": 4
+      },
+      {
+        "table": "TPETTABLE",
+        "column": "bEffect",
+        "source_column_id": 6,
+        "reconstructed_column_id": 5
+      },
+      {
+        "table": "TPOSTTABLE",
+        "column": "bContain",
+        "source_column_id": 15,
+        "reconstructed_column_id": 14
+      }
+    ],
+    "normalization": "Relative column order retained; historical dropped-column ID gaps are not invented. Ignore redundant outer parentheses in default expressions.",
+    "scope": "Columns, types, PK membership, nullability, defaults, collation, identity seed/increment; no secondary indexes, FKs, identity high-water values or module behavior"
+  }
+]

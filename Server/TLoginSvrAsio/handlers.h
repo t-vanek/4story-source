@@ -29,6 +29,7 @@ namespace boost::asio { class thread_pool; }
 #include "nation.h"
 #include "fourstory/audit/audit_logger.h"
 #include "services/auth_service.h"
+#include "services/session_terminator.h"
 #include "services/char_service.h"
 #include "services/connection_registry.h"
 #include "services/event_registry.h"
@@ -81,7 +82,8 @@ boost::asio::awaitable<void> OnLoginReq(
     std::span<const std::uint16_t> accepted_versions = {},
     fourstory::smtp::ISmtpClient* smtp_client = nullptr,
     Nation nation = Nation::US,
-    boost::asio::thread_pool* db_pool = nullptr);
+    boost::asio::thread_pool* db_pool = nullptr,
+    services::ISessionTerminator* session_terminator = nullptr);
 
 // CS_GROUPLIST_REQ → CS_GROUPLIST_ACK. Phase-3 stub: returns an empty
 // world-group list (BYTE bCount = 0 + BYTE bCheckFilePoint = 0).
@@ -208,15 +210,17 @@ boost::asio::awaitable<void> OnTerminateReq(
 
 // CS_SECURITYCONFIRM_ACK(STRING strCode) → CS_SECURITYRESULT_ACK.
 // Validates a user-entered 2FA code via IAuthService::VerifySecurityCode
-// (TSECURECODE row lookup). Replies CODE_CORRECT (0) on match, CODE_INCORRECT
-// (1) otherwise. Empty / unauthenticated requests are rejected too.
+// using the pending connection challenge. CODE_CORRECT (0) permits a bounded
+// client-driven LOGIN retry; confirmation creates no session. CODE_INCORRECT
+// (1) reports invalid/expired codes. Missing pending state is refused.
 boost::asio::awaitable<void> OnSecurityConfirmAck(
     std::shared_ptr<tnetlib::AsioSession> session,
     std::span<const std::byte> body,
     services::IAuthService* auth_service = nullptr,
     services::IConnectionRegistry* connection_registry = nullptr,
     fourstory::audit::IAuditLogger* audit_logger = nullptr,
-    boost::asio::thread_pool* db_pool = nullptr);
+    boost::asio::thread_pool* db_pool = nullptr,
+    services::ISessionTerminator* session_terminator = nullptr);
 
 // CT_SERVICEMONITOR_ACK(DWORD dwTick) → CT_SERVICEMONITOR_REQ.
 // Control-server polling shim — replies with session counts so the GM

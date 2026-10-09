@@ -25,6 +25,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -105,7 +106,7 @@ std::vector<std::byte> EnterSvrBody(std::uint32_t char_id, std::uint32_t key,
                                     std::uint8_t channel, std::uint16_t map_id,
                                     float pos_x, float pos_y, float pos_z,
                                     std::uint16_t title_id,
-                                    std::uint32_t rank_point)
+                                    std::uint32_t rank_point, std::uint8_t result = 0)
 {
     using namespace tworldsvr::wire;
     std::vector<std::byte> b;
@@ -130,7 +131,7 @@ std::vector<std::byte> EnterSvrBody(std::uint32_t char_id, std::uint32_t key,
     WritePOD<float>(b, pos_z);
     WritePOD<std::uint8_t>(b, 0);          // logout
     WritePOD<std::uint8_t>(b, 0);          // save
-    WritePOD<std::uint8_t>(b, 0);          // result (0 = ok)
+    WritePOD<std::uint8_t>(b, result);     // source CN result
     WritePOD<std::uint16_t>(b, title_id);
     WritePOD<std::uint32_t>(b, rank_point);
     WritePOD<std::uint32_t>(b, 0x7f000001);// user_ip
@@ -154,7 +155,7 @@ struct CharInfo
     std::uint32_t party_chief;
     std::uint16_t title_id;
     std::uint32_t rank_point;
-    std::uint8_t  bow_release;
+    std::uint32_t bow_release;
 };
 
 CharInfo ParseCharInfo(const std::vector<std::byte>& body)
@@ -208,7 +209,7 @@ int main()
     p1.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
 
@@ -237,7 +238,9 @@ int main()
     // ADDCHAR for both — Alice (42) + Bob (200) — and seed Alice's
     // chat_ban_time + Bob's guild_id / party_id back-pointers.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, 0xA1));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(42, 0xA1)));
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(200, 0xB0)));
     for (int i = 0; i < 1000 && (!chars.Find(42) || !chars.Find(200)); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(42) != nullptr);
@@ -373,46 +376,52 @@ int main()
         auto [w3, _] = ReadFramed(p1);
         EXPECT(w3 == ToUint16(MessageId::MW_FRIENDLIST_REQ));
 
-        // No CHATBAN_REQ — verified by re-emitting ENTERSVR and
-        // confirming the very next packet is *its* CHARINFO_REQ. If
-        // Bob's path had emitted a CHATBAN_REQ, that would arrive
-        // first and trip the wID check below.
+        // Duplicate initial completion is now ignored. A source ROUTE reply
+        // provides an ordered barrier: any extra CHARINFO or CHATBAN fails.
         SendFramed(p1, ToUint16(MessageId::MW_ENTERSVR_ACK),
                    EnterSvrBody(200, 0xB0, "Bob", 40, 9, 5, 777,
                        11.0f, 22.0f, 33.0f, 99, 12345));
-        auto [w_next, _next] = ReadFramed(p1);
-        EXPECT(w_next == ToUint16(MessageId::MW_CHARINFO_REQ));
-        // Drain the follow-up ROUTE + FRIENDLIST so the close is clean.
-        { auto [w, _b] = ReadFramed(p1); (void)_b; (void)w; }
-        { auto [w, _b] = ReadFramed(p1); (void)_b; (void)w; }
+        std::vector<std::byte> route;
+        wire::WritePOD<std::uint32_t>(route,200);wire::WritePOD<std::uint32_t>(route,0xB0);
+        wire::WritePOD<std::uint8_t>(route,0);
+        SendFramed(p1,ToUint16(MessageId::MW_ROUTE_ACK),route);
+        auto [w_next,next]=ReadFramed(p1);
+        EXPECT(w_next==ToUint16(MessageId::MW_CHARDATA_REQ));
+        route.pop_back();EXPECT(next==route);
+
     }
 
-    // --- Test C: BR/Bow handoff — chg_main_id == BR sets bow_release
-    //             to 1 in the next CHARINFO_REQ (legacy parity,
-    //             SSHandler.cpp:1456). The W6-16 chg_main_id branch
-    //             excludes BR/Bow from the normal-handoff fast-path
-    //             and falls through to the W4-22 fresh-login chain;
-    //             chg_main_id stays set (not cleared by the
-    //             fresh-login path), so a follow-up ENTERSVR would
-    //             still see bow_release=1 too — that's the legacy
-    //             quirk this slice preserves.
+    // --- Test C: a separate fresh BR/Bow return request retains the
+    // source bow_release flag. It must not reuse Bob's consumed ENTERSVR.
     {
-        {
-            auto b = chars.Find(200);
-            std::lock_guard g(b->lock);
-            b->chg_main_id = 50;          // BR_SERVER_ID (NetCode.h)
-        }
-        SendFramed(p1, ToUint16(MessageId::MW_ENTERSVR_ACK),
-                   EnterSvrBody(200, 0xB0, "Bob", 40, 9, 5, 777,
-                       11.0f, 22.0f, 33.0f, 99, 12345));
-        auto [w1, b1] = ReadFramed(p1);
-        EXPECT(w1 == ToUint16(MessageId::MW_CHARINFO_REQ));
-        CharInfo c = ParseCharInfo(b1);
-        EXPECT(c.bow_release == 1);     // W4-23
-        // Drain ROUTE + FRIENDLIST so the close is clean.
-        { auto [w, _b] = ReadFramed(p1); (void)_b; (void)w; }
-        { auto [w, _b] = ReadFramed(p1); (void)_b; (void)w; }
+        SendFramed(p1,ToUint16(MessageId::MW_ADDCHAR_ACK),AddCharBody(201,0xB1));
+        EXPECT(world_test::ReadFreshEnter(ReadFramed,p1,AddCharBody(201,0xB1)));
+        {auto b=chars.Find(201);std::lock_guard guard(b->lock);b->chg_main_id=50;}
+        SendFramed(p1,ToUint16(MessageId::MW_ENTERSVR_ACK),
+            EnterSvrBody(201,0xB1,"BowReturn",40,9,5,777,11.0f,22.0f,33.0f,99,12345));
+        auto [w1,b1]=ReadFramed(p1);
+        EXPECT(w1==ToUint16(MessageId::MW_CHARINFO_REQ));
+        CharInfo c=ParseCharInfo(b1);EXPECT(c.bow_release==1);
+        {auto [w,b]=ReadFramed(p1);EXPECT(w==ToUint16(MessageId::MW_ROUTE_REQ));}
+        {auto [w,b]=ReadFramed(p1);EXPECT(w==ToUint16(MessageId::MW_FRIENDLIST_REQ));}
     }
+
+    // Failed load is returned to Map and the World reservation is unwound.
+    SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(900, 0xD0));
+    { const auto [w, b] = ReadFramed(p1);
+      EXPECT(w == ToUint16(MessageId::MW_ENTERSVR_REQ));
+      EXPECT(b.size() == 9 && b[0] == std::byte{1}); }
+    SendFramed(p1, ToUint16(MessageId::MW_ENTERSVR_ACK),
+        EnterSvrBody(900, 0xD0, "", 0, 0, 3, 0, 0, 0, 0, 0, 0, 2));
+    { const auto [w, b] = ReadFramed(p1);
+      EXPECT(w == ToUint16(MessageId::MW_CONRESULT_REQ));
+      wire::Reader r(b); std::uint32_t cid{}, key{}; std::uint8_t result{}, count{};
+      EXPECT(r.Read(cid) && r.Read(key) && r.Read(result) && r.Read(count));
+      EXPECT(cid == 900 && key == 0xD0 && result == 2 && count == 0); }
+    { const auto [w, b] = ReadFramed(p1);
+      EXPECT(w == ToUint16(MessageId::MW_DELCHAR_REQ)); }
+    for (int i = 0; i < 100 && chars.Find(900); ++i) std::this_thread::sleep_for(2ms);
+    EXPECT(!chars.Find(900));
 
     p1.close();
     io.stop();

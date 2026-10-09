@@ -1,0 +1,12 @@
+[2026-10-09 05:24:22.410] [info] world_server: accept from 127.0.0.1
+[2026-10-09 05:24:22.410] [info] world_server: accept from 127.0.0.1
+[2026-10-09 05:24:22.410] [info] world_server: accept from 127.0.0.1
+[2026-10-09 05:24:22.430] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 05:24:22.430] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 05:24:22.430] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 05:24:22.430] [info] OnRelaysvrReq[127.0.0.1]: wID=1092 registered as map peer (nation=0, registry_size=3)
+[2026-10-09 05:24:22.430] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 2 other peer(s)
+[2026-10-09 05:24:22.430] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 05:24:22.430] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[20...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]

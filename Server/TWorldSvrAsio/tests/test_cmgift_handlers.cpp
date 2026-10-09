@@ -24,6 +24,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -111,6 +112,7 @@ void AddChar(boost::asio::ip::tcp::socket& s, std::uint32_t id,
     wire::WritePOD<std::uint16_t>(b, 33500);
     wire::WritePOD<std::uint32_t>(b, user);
     SendFramed(s, ToUint16(MessageId::MW_ADDCHAR_ACK), b);
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, s, b));
 }
 
 } // namespace

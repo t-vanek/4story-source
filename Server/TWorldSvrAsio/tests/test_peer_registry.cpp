@@ -110,11 +110,18 @@ int main()
     // --- Scenario 6: Snapshot ---
     {
         PeerRegistry reg;
+        reg.Register(MakePeer(io, 3));
         reg.Register(MakePeer(io, 1));
         reg.Register(MakePeer(io, 2));
-        reg.Register(MakePeer(io, 3));
         auto snap = reg.Snapshot();
         EXPECT(snap.size() == 3);
+        EXPECT(snap[0]->Wid() == 1); // first peer handles shared mail work
+        EXPECT(snap[1]->Wid() == 2);
+        EXPECT(snap[2]->Wid() == 3);
+        const auto except = reg.SnapshotExcept(2);
+        EXPECT(except.size() == 2);
+        EXPECT(except[0]->Wid() == 1);
+        EXPECT(except[1]->Wid() == 3);
     }
 
     if (g_fails == 0)

@@ -1,0 +1,5 @@
+{
+  "Lib/Own/TNetLib/TNetLib/asio_session.cpp": "0a41ef30cd15b43c4baabf2ef53be8d4bd6dbff9c3e4206915e9dfdf374b9bc9",
+  "Lib/Own/TNetLib/TNetLib/asio_session.h": "6dc7c0dbbffbdd429231f4c709bc0fe4f0e1741a4a1f77cf091f2fe375235cfe",
+  "Lib/Own/TNetLib/tests/test_asio_session.cpp": "1b0d9c4771abc5a92a2d8e1b12a1865e344d5e54c355f2b5b333a57b482da656"
+}

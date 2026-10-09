@@ -180,7 +180,7 @@ SendMwCharInfoReq(std::shared_ptr<PeerSession> peer,
     // Trailer.
     WritePOD<std::uint16_t>(body, p.title_id);
     WritePOD<std::uint32_t>(body, p.rank_point);
-    WritePOD<std::uint8_t> (body, p.bow_release);
+    WritePOD<std::uint32_t>(body, p.bow_release); // original Windows BOOL
     co_await peer->Wire()->SendPacket(
         tnetlib::protocol::ToUint16(
             tnetlib::protocol::MessageId::MW_CHARINFO_REQ),

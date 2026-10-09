@@ -182,7 +182,7 @@ void RunTests(fourstory::db::Backend backend,
         Check(r.status == CreateCharResult::Success, "create Alpha → Success");
         Check(r.char_id > 0, "char_id assigned");
         Check(r.starting_level == 1, "starting_level == 1");
-        Check(r.remaining_slots == 5, "remaining_slots == 5 after first create");
+        Check(r.create_count == 1, "create_count == 1 after first create");
         alice_id = r.char_id;
     }
 

@@ -34,6 +34,7 @@ SociMapSessionValidator::LookupSession(std::uint32_t user_id, std::uint32_t key)
         std::int32_t row_channel   = 0;
         std::string  row_login_ip;
         std::int32_t row_locked    = 0;
+        std::int32_t row_character = 0;
         soci::indicator ind        = soci::i_null;
 
         sql << queries::SessionByUserKey,
@@ -44,7 +45,7 @@ SociMapSessionValidator::LookupSession(std::uint32_t user_id, std::uint32_t key)
             soci::into(row_group),
             soci::into(row_channel),
             soci::into(row_login_ip, ind),
-            soci::into(row_locked);
+            soci::into(row_locked), soci::into(row_character);
 
         if (!sql.got_data())
             return std::nullopt;
@@ -56,13 +57,13 @@ SociMapSessionValidator::LookupSession(std::uint32_t user_id, std::uint32_t key)
         info.bChannel  = db::Narrow8 (row_channel);
         info.szLoginIP = db::SafeString(row_login_ip, ind);
         info.bLocked   = row_locked != 0;
+        info.dwCharID = db::Narrow32(row_character);
         return info;
     }
-    catch (const std::exception& ex)
+    catch (const std::exception&)
     {
-        spdlog::error("soci_session_validator: lookup uid={} threw: {}",
-            user_id, ex.what());
-        return std::nullopt;
+        spdlog::error("soci_session_validator: lookup uid={} failed", user_id);
+        throw;
     }
 }
 

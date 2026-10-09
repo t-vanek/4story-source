@@ -1,0 +1,11 @@
+{
+  "owned_database_containers_removed": {
+    "mssql_container": true,
+    "pg_container": true
+  },
+  "owned_network_removed": true,
+  "temporary_env_and_private_key_files_removed": 32,
+  "private_forensic_metadata_and_reference_snapshot_retained": true,
+  "backup_files_untouched": true,
+  "runtime_image_retained": "localhost/fourstory:postgresql-characters"
+}

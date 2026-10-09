@@ -23,6 +23,7 @@
 #include "audit/event.h"
 #include "ops/metrics.h"
 #include "services/rate_limiter.h"
+#include "services/session_registry.h"
 
 #include "MessageId.h"
 
@@ -49,6 +50,17 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
     using tnetlib::protocol::ToMessageId;
 
     const auto id = ToMessageId(wId);
+    std::optional<SessionOperation> operation;
+    if (id != MessageId::CS_CONNECT_REQ && id != MessageId::CS_CONREADY_REQ) {
+        const auto identity = ctx.session_reg ? ctx.session_reg->Identity(sess.get()) : std::nullopt;
+        if(identity&&(identity->phase==SessionPhase::TransferOut||identity->phase==SessionPhase::TransferIn))co_return;
+        if (!identity || identity->phase != SessionPhase::Ready) { sess->Close(); co_return; }
+        // Secondary gameplay contracts are ported independently. Never run a
+        // full-graph mutation on the source's deliberately partial replica.
+        if(identity->role==MapSessionRole::Replica && id!=MessageId::CS_MOVE_REQ)co_return;
+        if(!ctx.session_reg->BeginGameplay(sess.get()))co_return;
+        operation.emplace(*ctx.session_reg,sess.get());
+    }
     switch (id)
     {
     case MessageId::CS_CONNECT_REQ:

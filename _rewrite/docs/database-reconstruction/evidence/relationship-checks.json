@@ -1,0 +1,76 @@
+[
+  {
+    "name": "quest_terms",
+    "child": "TQUESTTERMCHART",
+    "column": "dwQuestID",
+    "parent": "TQUESTCHART",
+    "parent_column": "dwQuestID",
+    "classification": "INFERRED from source/chart loading; raw comparison without sentinel exceptions",
+    "orphan_rows": 0
+  },
+  {
+    "name": "quest_rewards",
+    "child": "TQREWARDCHART",
+    "column": "dwQuestID",
+    "parent": "TQUESTCHART",
+    "parent_column": "dwQuestID",
+    "classification": "INFERRED from source/chart loading; raw comparison without sentinel exceptions",
+    "orphan_rows": 62
+  },
+  {
+    "name": "spawn_monsters",
+    "child": "TMAPMONCHART",
+    "column": "wMonID",
+    "parent": "TMONSTERCHART",
+    "parent_column": "wID",
+    "classification": "INFERRED from source/chart loading; raw comparison without sentinel exceptions",
+    "orphan_rows": 2
+  },
+  {
+    "name": "spawn_locations",
+    "child": "TMAPMONCHART",
+    "column": "wSpawnID",
+    "parent": "TMONSPAWNCHART",
+    "parent_column": "wID",
+    "classification": "INFERRED from source/chart loading; raw comparison without sentinel exceptions",
+    "orphan_rows": 6
+  },
+  {
+    "name": "monster_attributes",
+    "child": "TMONATTRCHART",
+    "column": "wID",
+    "parent": "TMONSTERCHART",
+    "parent_column": "wID",
+    "classification": "UNVERIFIED naive same-ID join; not a confirmed legacy FK; attribute template reuse possible",
+    "orphan_rows": 7170,
+    "evidence": "Server/TMapSvrAsio/services/spawn_manager.cpp:65 uses monster ID; legacy templates separately expose wMonAttr/wSummonAttr"
+  },
+  {
+    "name": "monster_loot",
+    "child": "TMONITEMCHART",
+    "column": "wMonID",
+    "parent": "TMONSTERCHART",
+    "parent_column": "wID",
+    "classification": "INFERRED from source/chart loading; raw comparison without sentinel exceptions",
+    "orphan_rows": 2
+  },
+  {
+    "name": "skill_data",
+    "child": "TSKILLDATA",
+    "column": "wSkillID",
+    "parent": "TSKILLCHART",
+    "parent_column": "wID",
+    "classification": "INFERRED from source/chart loading; raw comparison without sentinel exceptions",
+    "orphan_rows": 0
+  },
+  {
+    "name": "legacy_monster_attribute_lookup",
+    "classification": "INFERRED contract candidate based on wMonAttr and bLevel",
+    "missing_attr_for_legacy_template": 39
+  },
+  {
+    "name": "portable_monster_attribute_lookup",
+    "classification": "CONFIRMED source lookup contract; absence is compatibility gap",
+    "missing_attr_for_portable_lookup": 3468
+  }
+]

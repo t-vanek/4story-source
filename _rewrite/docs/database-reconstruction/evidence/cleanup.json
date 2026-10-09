@@ -1,0 +1,13 @@
+{
+  "removed_containers": [
+    "fourstory-forensic-mssql",
+    "fourstory-forensic-postgres"
+  ],
+  "remaining_owned_containers": [],
+  "removed_network": "fourstory-forensic-net",
+  "owned_anonymous_volume_count": 1,
+  "remaining_owned_anonymous_volumes": [],
+  "ephemeral_credential_files_removed": true,
+  "private_evidence_retained": "/tmp/fourstory-db-forensics (mode 0700)",
+  "existing_user_resources_modified": false
+}

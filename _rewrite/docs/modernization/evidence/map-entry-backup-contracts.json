@@ -1,0 +1,57 @@
+{
+  "authority": "Original backups restored in a labelled disposable lab; VERIFYONLY and both restores succeeded. Raw rows/module text kept private.",
+  "module_fingerprints": [
+    {
+      "database": "TGLOBAL_RAGEZONE",
+      "module": "TEnterServer",
+      "definition_utf8_sha256": "be12379a8a71c5ef9bb471414fb7230ce911a1a7e92fd501e915c6f6833a7223"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TEnterServer",
+      "definition_utf8_sha256": "b91e7199486dbf9ac42090d1015c670ad067024e420d162a5a59da846ee69457"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TFindServerID",
+      "definition_utf8_sha256": "f5d27e8cad392d20064071aba38a4effc56112c498e212df665865259c942f5b"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TSaveCharDataEnd",
+      "definition_utf8_sha256": "e9260f06f584e18cd221e5b9de59d10f0c11a5d1fd07d242b28e876dd8c6690a"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "module": "TSaveCharDataStart",
+      "definition_utf8_sha256": "f1f7d5b3db4df9f9d284ca2c8eaac88fb2c5616265f82052700b41efa6632ef4"
+    }
+  ],
+  "routing_review": {
+    "profile": "private routing review; not a published catalog release",
+    "tables": [
+      {
+        "table": "TSVRCHART",
+        "rows": 358,
+        "sha256": "891ef4a5cfd34c17ada54aaa17a1cae1f6025ea2c462a2e0204bea954e9e66a2"
+      },
+      {
+        "table": "TCHANNELCHART",
+        "rows": 361,
+        "sha256": "f0edeb6f5cd9eea9fdd83353e2c56981c9bee88bc7e29b1356ee9f3847c7c45f"
+      },
+      {
+        "table": "TSPAWNPOSCHART",
+        "rows": 417,
+        "sha256": "199a1bc99277e9c770a3ab73a0c73e2fa3798d6d1982360149e59cc4b39b9ce0"
+      }
+    ]
+  },
+  "findings": [
+    "TGLOBAL.TEnterServer validates user/key/unlocked, stamps char/group/channel/endpoint and conditionally grants title 50 during seven days after releaseDate via external TGAME_GSP; TGAME wrapper calls external TGLOBAL_GSP.",
+    "TSaveCharDataStart clears seven temp collections and invokes external TGLOBAL_GSP.TSaveDuringItemStart. Actual name includes Char.",
+    "TSaveCharDataEnd replaces inventory/cabinet/item-used/exp-item collections, then external global TSaveDuringItem. Item and skill replacement sections are commented out and are not executed.",
+    "TFindServerID joins logical/physical channel and map/unit charts, then falls back through spawn chart. SQL Server float-to-smallint unit conversion truncates; do not copy PostgreSQL rounding casts.",
+    "Routing review digest covers the saved private JSON bytes, not a published normalized catalog; publication must still use the existing extractor/import validation contracts."
+  ]
+}

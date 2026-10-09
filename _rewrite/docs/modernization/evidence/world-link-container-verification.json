@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-09",
+  "status": "passed",
+  "image": "localhost/fourstory:postgresql-world-link",
+  "image_id": "529effcfb3c59321a8b3ccd1d7151b00161af6a9da374a0dbb0860dd0eee8f86",
+  "uid_gid": "10001:10001",
+  "installed_release_daemon_sha256": {
+    "/opt/fourstory/bin/tloginsvr_asio": "acb387eed9d32bb6f1458c91ea19b77a6cb698935e0cd26841cba7535f359361",
+    "/opt/fourstory/bin/tmapsvr_asio": "041b0d0a16bd2f3987f3a85bdc742c1a3fc4d7f153940e0558f1cc0a3c93aaf2",
+    "/opt/fourstory/bin/tworldsvr_asio": "c6c799414eed56f94d817892073b44765303f8416b4544f17dd351ddab45e034",
+    "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef",
+    "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34"
+  },
+  "native_postgresql_and_three_daemon_wire": "native-world-link-release.json",
+  "native_map_checks": 59,
+  "three_daemon_tcp_checks": 131,
+  "pool_tls_checks": 29,
+  "six_daemon_health_dns_sigterm": "world-link-container-smoke.log",
+  "scope": "Installed Release Login/World/Map daemons; mounted Debug native integration executables. Synthetic account and source-derived encrypted peer, original client executable not run."
+}

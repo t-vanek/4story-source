@@ -92,6 +92,10 @@ target_link_libraries(tcontrolsvr_asio PRIVATE tcontrolsvr_asio_core)
 # auth + inventory, connects a loopback client, and verifies the
 # post-login ack chain (OPLOGIN, GROUPLIST, MACHINELIST, SVRTYPELIST,
 # SERVICEAUTOSTART). Pure unit — no DB, no external services.
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
 add_executable(test_tcontrolsvr_asio_operator_login
     ${TCONTROL_ASIO_SRC}/tests/test_operator_login.cpp)
 target_link_libraries(test_tcontrolsvr_asio_operator_login PRIVATE

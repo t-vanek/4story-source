@@ -1,4 +1,6 @@
 #include "handlers_world.h"
+#include "domain/connect.h"
+#include "fourstory/db/co_offload.h"
 
 #include "audit/audit_log.h"
 #include "audit/event.h"
@@ -10,8 +12,10 @@
 #include "services/player_service.h"
 #include "services/quest_service.h"
 #include "services/server_route_resolver.h"
+#include "services/session_validator.h"
 #include "services/session_registry.h"
 #include "services/skill_service.h"
+#include "services/skill_cooldown.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
 #include "wire_codec.h"
@@ -29,12 +33,21 @@ namespace tmapsvr {
 
 namespace {
 
-// CN_-style result codes for DM_LOADCHAR_ACK. Internal-only constants
-// — legacy header not yet recovered. Values match what other
-// handlers in this tree use.
-constexpr std::uint8_t CnSuccess  = 0;
-constexpr std::uint8_t CnInternal = 3;
-constexpr std::uint8_t CnNoChar   = 6;
+constexpr auto CnSuccess = static_cast<std::uint8_t>(ConnectResult::Ok);
+constexpr auto CnInternal = static_cast<std::uint8_t>(ConnectResult::Internal);
+constexpr auto CnNoChar = static_cast<std::uint8_t>(ConnectResult::InvalidChar);
+
+// Retirement may arrive while a disconnected socket is awaiting its final DB
+// write. Match the key without excluding Closing, so that late World instruction
+// still suppresses the subsequent close-all notification.
+std::shared_ptr<tnetlib::AsioSession>
+FindRetiringClient(const HandlerContext& ctx, std::uint32_t character, std::uint32_t key)
+{
+    auto client = ctx.session_reg ? ctx.session_reg->Find(character) : nullptr;
+    const auto identity = client ? ctx.session_reg->Identity(client.get()) : std::nullopt;
+    return identity && identity->key == key ? client : nullptr;
+}
+
 
 // DM_LOADCHAR_ACK error body — 9 bytes (dwCharID + dwKEY + result).
 // Mirrors the error path in legacy SSHandler.cpp:3379 / 3392 where
@@ -226,7 +239,7 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         audit::CharLoadEvent ev{};
         ev.hdr.corr  = ctx.audit->NextCorrelation();
         ev.char_id   = char_id;
-        ev.key       = key;
+        ev.key       = 0; // reserved wire slot; never export session credentials
         ev.user_id   = user_id;
         ev.latency_us = static_cast<std::uint32_t>(
             std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count());
@@ -246,6 +259,11 @@ OnDMLoadCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
             body.size());
         co_return;
     }
+
+    const auto bound = ctx.session_reg ? ctx.session_reg->Find(dwCharID, dwKEY) : nullptr;
+    if (!bound) co_return;
+    const auto identity = ctx.session_reg->Identity(bound.get());
+    if (!identity || identity->user_id != dwUserID || !r.Eof()) co_return;
 
     if (!ctx.world_client || !ctx.world_client->IsConnected())
     {
@@ -325,98 +343,48 @@ OnMWEnterSvrReq(std::vector<std::byte> body, const HandlerContext& ctx)
 {
     using tnetlib::protocol::MessageId;
 
-    // Wire layout from legacy SSHandler.cpp:3078 (9 bytes):
-    //   BYTE  bDBLoad     1 = load char from DB, 0 = snapshot embedded
-    //   DWORD dwCharID
-    //   DWORD dwKEY
-    // When bDBLoad == 0 the legacy World ships the char blob inline so
-    // the DB-batch process is spared a load. The modern map owns its DB
-    // access in-process, so the embedded fast path is intentionally not
-    // reproduced — any trailing bytes after dwKEY are ignored and the
-    // identity is resolved through the live cache / player service below.
     wire::Reader r(body.data(), body.size());
-    std::uint8_t  bDBLoad  = 0;
-    std::uint32_t dwCharID = 0, dwKEY = 0;
-    if (!r.Read(bDBLoad) || !r.Read(dwCharID) || !r.Read(dwKEY))
-    {
-        spdlog::warn("MW_ENTERSVR_REQ: short body ({} bytes) — dropping",
-            body.size());
-        co_return;
+    std::uint8_t dbload{};
+    std::uint32_t character{}, key{};
+    if (!r.Read(dbload) || !r.Read(character) || !r.Read(key)) co_return;
+    const auto session = ctx.session_reg ? ctx.session_reg->Find(character, key) : nullptr;
+    if (!session || !ctx.world_client || !ctx.world_client->IsConnected()) co_return;
+    const auto identity = ctx.session_reg->Identity(session.get());
+    if(dbload==0 && identity && identity->role==MapSessionRole::Replica) {
+        co_await OnMWTransferEnterReq(std::move(body),ctx);co_return;
     }
+    if (!identity || !ctx.session_reg->Transition(character, key,
+        SessionPhase::Pending, SessionPhase::Loading)) co_return;
 
-    // No world link → nowhere to route the ack. Legacy returns
-    // EC_NOERROR with no reply when FindPlayer misses; mirror the
-    // "stay silent, the peer will retry" behavior here.
-    if (!ctx.world_client || !ctx.world_client->IsConnected())
-    {
-        spdlog::warn("MW_ENTERSVR_REQ char={}: world peer not connected — "
-                     "ack dropped", dwCharID);
-        co_return;
-    }
-
-    // Channel claimed at CS_CONNECT_REQ — presence is bound on a clean
-    // handshake. Absent means the client never connected to this map (or
-    // already tore down); 0 is the legacy default and TWorld keys the
-    // session by char id, not channel, so a 0 here only loses the
-    // cosmetic channel echo on the error path.
-    std::uint8_t channel = 0;
-    if (ctx.presence)
-    {
-        if (const auto e = ctx.presence->FindEntry(dwCharID))
-            channel = e->channel;
-    }
-
-    // Resolve the char identity. Legacy chained DM_ENTERMAPSVR_REQ (DB-
-    // batch persist) → DM_ENTERMAPSVR_ACK → DM_LOADCHAR_REQ → … →
-    // MW_ENTERSVR_ACK across two processes (SSHandler.cpp:3096-3299).
-    // In-process that collapses to: reuse the snapshot the load path
-    // already cached, else pull it through the player service.
     std::optional<CharSnapshot> snap;
-    if (ctx.char_state)
-        snap = ctx.char_state->Get(dwCharID);
-    if (!snap && ctx.player_service)
-    {
-        snap = ctx.player_service->LoadChar(dwCharID);
-        if (snap && ctx.char_state)
-            ctx.char_state->Store(dwCharID, *snap);
+    std::uint8_t result = CnInternal;
+    // Embedded handoff blobs need a complete, separately verified parser. They
+    // must not silently reload stale persisted data and discard unsaved state.
+    if (dbload == 1 && r.Eof() && ctx.player_service && ctx.char_state) {
+        try {
+            auto* players = ctx.player_service;
+            snap = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [players, claim=identity->Claim(ctx.expected_group)] { return players->LoadAuthorized(claim); });
+            result = snap && snap->dwCharID == character ? CnSuccess : CnNoChar;
+        } catch (...) { result = CnInternal; }
     }
-
-    // No identity → CN_INTERNAL ack carrying just the char id. Mirrors
-    // the legacy error tail (SSHandler.cpp:3281) which still emits
-    // MW_ENTERSVR_ACK so TWorld unwinds the pending enter instead of
-    // waiting out a timeout.
-    if (!snap)
-    {
-        spdlog::warn("MW_ENTERSVR_REQ char={} key={} dbload={}: no identity "
-                     "(char_state miss + no/empty player service) — ack "
-                     "INTERNAL", dwCharID, dwKEY, bDBLoad);
-        CharSnapshot empty;
-        empty.dwCharID = dwCharID;
-        co_await ctx.world_client->SendPacket(
-            static_cast<std::uint16_t>(MessageId::MW_ENTERSVR_ACK),
-            EncodeEnterSvrAck(empty, dwKEY, /*aid_country=*/0, channel,
-                              /*logout=*/0, /*save=*/0, CnInternal,
-                              /*title_id=*/0, /*rank_point=*/0,
-                              /*user_ip=*/0));
-        co_return;
+    if (!session->IsOpen() || !ctx.session_reg->Find(character, key)) co_return;
+    if(result==CnSuccess && snap->payload && ctx.skill_cooldown) {
+        try {ctx.skill_cooldown->Restore(character,snap->payload->skills,SkillClockMs());}
+        catch (...) {result=CnInternal;}
     }
-
-    // Success — the char is now resident on this map server. title_id /
-    // rank_point live on the legacy CTPlayer, not the TCHARTABLE row, so
-    // they ship 0 until the title / ranking services land (same
-    // deferral the DM_LOADCHAR_ACK trailing sections use). result = 0 is
-    // the modern "apply this identity" contract TWorld's OnEnterSvrAck
-    // reads (proven in test_world_handshake).
-    spdlog::info("MW_ENTERSVR_REQ char={} key={} name='{}' lvl={} class={} "
-                 "map={} ch={} dbload={} — entered, ack SUCCESS",
-        dwCharID, dwKEY, snap->szNAME, snap->bLevel, snap->bClass,
-        snap->wMapID, channel, bDBLoad);
-
-    co_await ctx.world_client->SendPacket(
+    if (result == CnSuccess) {
+        ctx.char_state->Store(character, *snap);
+        if (!ctx.session_reg->Transition(character, key, SessionPhase::Loading, SessionPhase::Loaded)) co_return;
+    }
+    CharSnapshot empty{}; empty.dwCharID = character;
+    const bool sent = co_await ctx.world_client->SendPacket(
         static_cast<std::uint16_t>(MessageId::MW_ENTERSVR_ACK),
-        EncodeEnterSvrAck(*snap, dwKEY, /*aid_country=*/0, channel,
-                          /*logout=*/0, /*save=*/0, CnSuccess,
-                          /*title_id=*/0, /*rank_point=*/0, /*user_ip=*/0));
+        EncodeEnterSvrAck(result == CnSuccess ? *snap : empty, key,
+            snap&&snap->payload?snap->payload->aid_country:3, identity->channel, /*logout=*/0, /*save=*/0,
+            result, snap&&snap->payload?snap->payload->selected_title:0,
+            snap&&snap->payload?snap->payload->rank_point:0, /*user_ip=*/0));
+    if (!sent) session->Close();
 }
 
 boost::asio::awaitable<void>
@@ -444,6 +412,9 @@ OnMWEnterCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
+    const auto bound = ctx.session_reg ? ctx.session_reg->Find(dwCharID, dwKEY) : nullptr;
+    if (!bound) co_return;
+
     if (!ctx.world_client || !ctx.world_client->IsConnected())
     {
         spdlog::warn("MW_ENTERCHAR_REQ char={}: world peer not connected — "
@@ -451,6 +422,13 @@ OnMWEnterCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
+    const auto identity=ctx.session_reg->Identity(bound.get());
+    if(identity&&identity->role==MapSessionRole::Replica){
+        co_await OnMWNativeEnterCharReq(std::move(body),ctx);co_return;
+    }
+    if(ctx.char_state){auto native=ctx.char_state->Get(dwCharID);if(native&&native->payload){
+        co_await OnMWNativeEnterCharReq(std::move(body),ctx);co_return;
+    }}
     // Best-effort identity header (legacy reads these straight into the
     // CTPlayer): start_act, name, map_id, spawn pos. Used for the log
     // line and, when the char is already resident on this map, to track
@@ -466,7 +444,8 @@ OnMWEnterCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
 
     // Update() is a no-op when the char isn't resident, so this stays
     // safe for the entry-before-load ordering.
-    if (have_hdr && ctx.char_state)
+    if (!have_hdr || !ctx.char_state || !ctx.char_state->Get(dwCharID)) co_return;
+    if (ctx.char_state)
     {
         ctx.char_state->Update(dwCharID, [&](CharSnapshot& s) {
             s.wMapID = wMapID;
@@ -476,9 +455,9 @@ OnMWEnterCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
         });
     }
 
-    spdlog::info("MW_ENTERCHAR_REQ char={} key={} name='{}' map={} — "
+    spdlog::info("MW_ENTERCHAR_REQ char={} name='{}' map={} — "
                  "connection ready, ack",
-        dwCharID, dwKEY, have_hdr ? name : std::string("?"), wMapID);
+        dwCharID, have_hdr ? name : std::string("?"), wMapID);
 
     co_await ctx.world_client->SendPacket(
         static_cast<std::uint16_t>(MessageId::MW_ENTERCHAR_ACK),
@@ -519,12 +498,13 @@ OnMWAddConnectReq(std::vector<std::byte> body, const HandlerContext& ctx)
         }
         routes.push_back(cr);
     }
+    if(!r.Eof())co_return;
 
     // Relay to the client. The char must already be bound from its
     // CS_CONNECT_REQ; an unknown char means the socket dropped between
     // the world push and now — nothing to forward to (legacy FindPlayer
     // miss → silent return).
-    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID, dwKEY) : nullptr;
     if (!sess)
     {
         spdlog::warn("MW_ADDCONNECT_REQ char={}: no bound client session — "
@@ -532,8 +512,23 @@ OnMWAddConnectReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
-    spdlog::info("MW_ADDCONNECT_REQ char={} key={} routes={} — relaying "
-                 "CS_ADDCONNECT_ACK", dwCharID, dwKEY, routes.size());
+    const auto identity=ctx.session_reg->Identity(sess.get());
+    const auto native=ctx.char_state?ctx.char_state->Get(dwCharID):std::nullopt;
+    if(identity&&native&&native->payload&&!routes.empty()) {
+        std::vector<ServerRoute> endpoints;
+        for(const auto& r:routes)endpoints.push_back({r.ip_addr,r.port,r.server_id});
+        bool authorized=false;
+        try{auto* validator=ctx.validator;
+            if(validator)authorized=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [validator,claim=identity->Claim(ctx.expected_group),map=native->wMapID,x=native->fPosX,z=native->fPosZ,endpoints]{
+                    return validator->AuthorizeReplicas(claim,map,x,z,endpoints);});
+        }catch(...){sess->Close();co_return;}
+        if(!authorized){sess->Close();co_return;}
+        if(!sess->IsOpen())co_return;
+    }
+
+    spdlog::info("MW_ADDCONNECT_REQ char={} routes={} — relaying "
+                 "CS_ADDCONNECT_ACK", dwCharID, routes.size());
 
     const auto ack = EncodeAddConnectAck(routes);
     co_await sess->SendPacket(
@@ -564,6 +559,9 @@ OnMWCheckMainReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
+    const auto bound = ctx.session_reg ? ctx.session_reg->Find(dwCharID, dwKEY) : nullptr;
+    if (!bound) co_return;
+
     if (!ctx.world_client || !ctx.world_client->IsConnected())
     {
         spdlog::warn("MW_CHECKMAIN_REQ char={}: world peer not connected — "
@@ -571,25 +569,26 @@ OnMWCheckMainReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
-    // Legacy gates the ack on IsMainCell(channel, map, pos) — the cell
-    // grid that shards one logical map across server instances. The
-    // modern map hosts a whole map in-process, so cell ownership reduces
-    // to "is this char resident here?": a loaded snapshot or a live
-    // client session means this is its main map. Precise multi-instance
-    // cell ownership is a follow-up once the cell grid is modelled.
-    const bool resident =
-        (ctx.char_state  && ctx.char_state->Get(dwCharID).has_value()) ||
-        (ctx.session_reg && ctx.session_reg->Find(dwCharID) != nullptr);
+    bool resident=ctx.char_state&&ctx.char_state->Get(dwCharID).has_value();
+    const auto identity=ctx.session_reg->Identity(bound.get());
+    if(!r.Eof()||!identity||identity->channel!=bChannel)co_return;
+    if(resident&&ctx.validator){
+        try{auto* validator=ctx.validator;
+            resident=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[validator,claim=identity->Claim(ctx.expected_group),wMapID,fPosX,fPosZ]{
+                return validator->OwnsCell(claim,wMapID,fPosX,fPosZ);});
+        }catch(...){bound->Close();co_return;}
+        if(!bound->IsOpen())co_return;
+    }
 
     if (!resident)
     {
-        spdlog::info("MW_CHECKMAIN_REQ char={} key={} ch={} map={} — not "
-                     "resident here, no ack", dwCharID, dwKEY, bChannel, wMapID);
+        spdlog::info("MW_CHECKMAIN_REQ char={} ch={} map={} — not "
+                     "resident here, no ack", dwCharID, bChannel, wMapID);
         co_return;
     }
 
-    spdlog::info("MW_CHECKMAIN_REQ char={} key={} ch={} map={} — main cell, "
-                 "ack", dwCharID, dwKEY, bChannel, wMapID);
+    spdlog::info("MW_CHECKMAIN_REQ char={} ch={} map={} — main cell, "
+                 "ack", dwCharID, bChannel, wMapID);
 
     co_await ctx.world_client->SendPacket(
         static_cast<std::uint16_t>(MessageId::MW_CHECKMAIN_ACK),
@@ -632,7 +631,7 @@ OnMWConResultReq(std::vector<std::byte> body, const HandlerContext& ctx)
         server_ids.push_back(sid);
     }
 
-    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID, dwKEY) : nullptr;
     if (!sess)
     {
         spdlog::warn("MW_CONRESULT_REQ char={}: no bound client session — drop",
@@ -640,20 +639,27 @@ OnMWConResultReq(std::vector<std::byte> body, const HandlerContext& ctx)
         co_return;
     }
 
-    // Transitional: session.cpp::OnConnectReq still sends an optimistic
-    // CS_CONNECT_ACK at CS_CONNECT_REQ time, so a fully wired world loop
-    // makes this the second send. The optimistic ack moves here once the
-    // connect loop is proven end-to-end; today it keeps connect working
-    // when no world peer is configured. See README world-peer note.
+    if (!r.Eof() || bResult > CnInternal) co_return;
+    const auto identity = ctx.session_reg->Identity(sess.get());
+    if (!identity || identity->phase == SessionPhase::Admitted || identity->phase == SessionPhase::Ready) co_return;
+    const bool world_rejected = bResult != CnSuccess;
+    if (bResult == CnSuccess) {
+        if (!ctx.char_state || !ctx.char_state->Get(dwCharID) ||
+            identity->phase != SessionPhase::Loaded) bResult = CnInternal;
+    }
+    if (!ctx.session_reg->Transition(dwCharID, dwKEY, identity->phase,
+        bResult == CnSuccess ? SessionPhase::Admitted : SessionPhase::Rejected)) co_return;
+    if (world_rejected)
+        ctx.session_reg->SetWorldPresence(sess.get(), WorldPresence::Retired);
     const auto ack = EncodeConnectAck(bResult, server_ids);
     co_await sess->SendPacket(
-        static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK), ack);
+        static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK), ack, bResult != CnSuccess);
 
     if (bResult != CnSuccess)
     {
         spdlog::info("MW_CONRESULT_REQ char={} result={} — connect rejected, "
                      "closing session", dwCharID, bResult);
-        sess->Close();   // per-connection teardown hook unbinds registries
+        // Send queue closes after the rejection frame reaches the socket.
     }
     else
     {
@@ -670,20 +676,22 @@ OnMWCloseCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
     // Wire (legacy SSHandler.cpp:2201): DWORD dwCharID, DWORD dwKEY
     wire::Reader r(body.data(), body.size());
     std::uint32_t dwCharID = 0, dwKEY = 0;
-    if (!r.Read(dwCharID) || !r.Read(dwKEY))
+    if (!r.Read(dwCharID) || !r.Read(dwKEY) || !r.Eof())
     {
         spdlog::warn("MW_CLOSECHAR_REQ: short body ({} bytes) — dropping",
             body.size());
         co_return;
     }
 
-    auto sess = ctx.session_reg ? ctx.session_reg->Find(dwCharID) : nullptr;
+    auto sess = FindRetiringClient(ctx, dwCharID, dwKEY);
     if (!sess)
     {
         spdlog::warn("MW_CLOSECHAR_REQ char={}: no bound client session — drop",
             dwCharID);
         co_return;
     }
+
+    ctx.session_reg->SetWorldPresence(sess.get(), WorldPresence::Retired);
 
     // Legacy (SSHandler.cpp:2196): ExitMAP + m_bExit + SendCS_SHUTDOWN_ACK.
     // m_bCloseAll is FALSE on this path, so no MW_CLOSECHAR_ACK is sent
@@ -692,14 +700,12 @@ OnMWCloseCharReq(std::vector<std::byte> body, const HandlerContext& ctx)
     // the socket — the MapServer per-connection teardown hook persists
     // the snapshot (SaveChar) and unbinds the session / presence
     // registries (map_server.cpp:139).
-    spdlog::info("MW_CLOSECHAR_REQ char={} key={} — CS_SHUTDOWN_ACK + close",
-        dwCharID, dwKEY);
+    spdlog::info("MW_CLOSECHAR_REQ char={} — CS_SHUTDOWN_ACK + close",
+        dwCharID);
 
     co_await sess->SendPacket(
         static_cast<std::uint16_t>(MessageId::CS_SHUTDOWN_ACK),
-        std::span<const std::byte>{});
-
-    sess->Close();   // read loop ends → teardown hook saves + unbinds
+        std::span<const std::byte>{}, true);
 }
 
 boost::asio::awaitable<void>
@@ -738,6 +744,9 @@ OnMWRouteListReq(std::vector<std::byte> body, const HandlerContext& ctx)
         server_ids.push_back(sid);
     }
 
+    const auto bound = ctx.session_reg ? ctx.session_reg->Find(dwCharID, dwKEY) : nullptr;
+    if (!bound) co_return;
+
     if (!ctx.world_client || !ctx.world_client->IsConnected())
     {
         spdlog::warn("MW_ROUTELIST_REQ char={}: world peer not connected — "
@@ -751,20 +760,50 @@ OnMWRouteListReq(std::vector<std::byte> body, const HandlerContext& ctx)
     // the cluster server-registry table is the documented follow-up.
     std::vector<ServerRoute> routes;
     if (ctx.route_resolver)
-        routes = ctx.route_resolver->Resolve(ctx.expected_group, server_ids);
+    {
+        const auto identity=ctx.session_reg->Identity(bound.get());if(!identity||!r.Eof())co_return;
+        try{auto* resolver=ctx.route_resolver;
+            routes=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[resolver,claim=identity->Claim(ctx.expected_group),server_ids]{return resolver->ResolveAuthorized(claim,server_ids);});
+        }catch(...){bound->Close();co_return;}
+        if(!bound->IsOpen())co_return;
+    }
     else
         spdlog::warn("MW_ROUTELIST_REQ char={}: no route resolver — replying "
                      "empty MW_ROUTE_ACK ({} ids unresolved)",
             dwCharID, server_ids.size());
 
-    spdlog::info("MW_ROUTELIST_REQ char={} key={} ids={} resolved={} — "
-                 "MW_ROUTE_ACK", dwCharID, dwKEY, server_ids.size(),
+    spdlog::info("MW_ROUTELIST_REQ char={} ids={} resolved={} — "
+                 "MW_ROUTE_ACK", dwCharID, server_ids.size(),
                  routes.size());
 
     co_await ctx.world_client->SendPacket(
         static_cast<std::uint16_t>(MessageId::MW_ROUTE_ACK),
         EncodeRouteAck(dwCharID, dwKEY, routes));
 }
+
+namespace {
+boost::asio::awaitable<void>
+RetireFromWorld(std::vector<std::byte> body, const HandlerContext& ctx, bool invalid)
+{
+    using tnetlib::protocol::MessageId;
+    wire::Reader r(body.data(), body.size());
+    std::uint32_t character{}, key{};
+    std::uint8_t first{}, save{};
+    // INVALIDCHAR: char, key, release-main. DELCHAR: char, key, logout, save.
+    if (!r.Read(character) || !r.Read(key) || !r.Read(first) || first > 1 ||
+        (!invalid && (!r.Read(save) || save > 1)) || !r.Eof()) co_return;
+    auto client = FindRetiringClient(ctx, character, key);
+    if (!client) co_return;
+    ctx.session_reg->SetWorldPresence(client.get(), WorldPresence::Retired);
+    // Durable primary ownership, not a peer's save byte, decides whether native
+    // teardown must checkpoint/release. Never discard a dirty ready primary.
+    // Replicas need their own ownership/release path before native admission.
+    if (invalid)
+        co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_INVALIDCHAR_ACK),
+            std::span<const std::byte>{}, true);
+    else client->Close();
+}
+} // namespace
 
 boost::asio::awaitable<void>
 DispatchWorld(std::uint16_t          wId,
@@ -778,9 +817,21 @@ DispatchWorld(std::uint16_t          wId,
     switch (id)
     {
     case MessageId::DM_LOADCHAR_REQ:
-        co_await OnDMLoadCharReq(std::move(body), ctx);
+        // The original DM_* load request belongs to the local DB queue, not
+        // the World socket. Do not expose the incomplete legacy load encoder.
+        spdlog::warn("world link: rejected local-only DM_LOADCHAR_REQ");
         break;
 
+    case MessageId::MW_CHARINFO_REQ:
+        co_await OnMWCharInfoReq(std::move(body),ctx);break;
+    case MessageId::MW_ROUTE_REQ:
+        co_await OnMWNativeRouteReq(std::move(body),ctx,false);break;
+    case MessageId::MW_MAPSVRLIST_REQ:
+        co_await OnMWNativeRouteReq(std::move(body),ctx,true);break;
+    case MessageId::MW_CHARDATA_REQ:
+        co_await OnMWCharDataReq(std::move(body),ctx);break;
+    case MessageId::MW_RELEASEMAIN_REQ:
+        co_await OnMWReleaseMainReq(std::move(body),ctx);break;
     case MessageId::MW_ENTERSVR_REQ:
         co_await OnMWEnterSvrReq(std::move(body), ctx);
         break;
@@ -801,6 +852,12 @@ DispatchWorld(std::uint16_t          wId,
         co_await OnMWConResultReq(std::move(body), ctx);
         break;
 
+    case MessageId::MW_INVALIDCHAR_REQ:
+        co_await RetireFromWorld(std::move(body), ctx, true);
+        break;
+    case MessageId::MW_DELCHAR_REQ:
+        co_await RetireFromWorld(std::move(body), ctx, false);
+        break;
     case MessageId::MW_CLOSECHAR_REQ:
         co_await OnMWCloseCharReq(std::move(body), ctx);
         break;

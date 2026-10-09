@@ -1,7 +1,7 @@
 #pragma once
 
-// AsioSmtpClient — production-ready ISmtpClient backed by a plain
-// (non-TLS) SMTP TCP conversation driven by Boost.Asio's blocking API.
+// AsioSmtpClient — ISmtpClient backed by a plain
+// (non-TLS) SMTP TCP conversation with a bounded Boost.Asio transaction.
 //
 // Capabilities:
 //   * EHLO with fallback to HELO
@@ -61,9 +61,8 @@ struct AsioSmtpConfig
     // speaks ESMTP, but the fallback is cheap insurance.
     bool         prefer_ehlo = true;
 
-    // Per-step timeout. Applied to connect + each request/response
-    // exchange. Default 15s — generous for a healthy relay, hostile to
-    // a dead one (caller's auth flow shouldn't hang on a flaky network).
+    // Total deadline including DNS, connect and all SMTP exchanges.
+    // Send remains synchronous to callers and runs on the server worker pool.
     std::chrono::seconds io_timeout{ 15 };
 };
 

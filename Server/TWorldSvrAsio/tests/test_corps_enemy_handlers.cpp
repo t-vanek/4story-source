@@ -27,6 +27,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -168,9 +169,13 @@ int main()
     reg(p4, 0x0045); drain(p1); drain(p2); drain(p3);
 
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, 0xA1));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(42, 0xA1)));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p2, AddCharBody(200, 0xB0)));
     SendFramed(p3, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(400, 0xCA));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p3, AddCharBody(400, 0xCA)));
     SendFramed(p4, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(600, 0xDD));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p4, AddCharBody(600, 0xDD)));
     for (int i = 0; i < 100; ++i)
     {
         if (chars.Find(42) && chars.Find(200) && chars.Find(400) &&

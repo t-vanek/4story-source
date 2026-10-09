@@ -21,6 +21,7 @@
 // CTLoginSvrModule::OnEnter's CSPClearLoginUser call.
 
 #include "soci_session_terminator.h"
+#include "postgresql_login_owner.h"
 #include "fourstory/db/session_pool.h"
 #include "fourstory/db/orm/db_context.h"
 #include "fourstory/db/orm/examples.h"
@@ -31,8 +32,8 @@
 
 namespace tloginsvr::services {
 
-SociSessionTerminator::SociSessionTerminator(fourstory::db::SessionPool& pool)
-    : m_pool(pool)
+SociSessionTerminator::SociSessionTerminator(fourstory::db::SessionPool& pool, std::string owner_token)
+    : m_pool(pool), m_owner_token(std::move(owner_token))
 {
 }
 
@@ -53,6 +54,46 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
 
     try
     {
+        if (m_pool.GetBackend() == fourstory::db::Backend::PostgreSQL)
+        {
+            // The account lock is shared with login. A delayed close from an
+            // older socket must never delete or overwrite a newer session.
+            if (user_id == 0 || session_key == 0) return;
+            auto tx = BeginLoginTransaction(m_pool, sql, m_owner_token);
+            int account = 0;
+            sql << "SELECT \"dwUserID\" FROM \"TACCOUNT_PW\" WHERE \"dwUserID\"=:u FOR UPDATE",
+                soci::use(user_id), soci::into(account);
+            if (!sql.got_data()) return;
+            const int key = static_cast<std::int32_t>(session_key);
+            int group = 0, channel = 0, current_char = 0;
+            sql << "SELECT \"bGroupID\",\"bChannel\",\"dwCharID\" FROM \"TCURRENTUSER\" "
+                   "WHERE \"dwUserID\"=:u AND \"dwKEY\"=:k FOR UPDATE",
+                soci::use(user_id), soci::use(key), soci::into(group),
+                soci::into(channel), soci::into(current_char);
+            if (!sql.got_data()) return;
+            int pending=0;
+            sql << "SELECT (SELECT count(*) FROM app_global.map_handoff WHERE session_key=:k AND user_id=:u) + "
+                   "(SELECT count(*) FROM app_world.map_sessions WHERE session_key=:k AND user_id=:u)",
+                soci::use(key,"k"),soci::use(user_id,"u"),soci::into(pending);
+            if (pending) {
+                // START may commit while the socket is already disconnecting.
+                // The durable reservation, not the in-memory close reason, wins.
+                tx->commit(); return;
+            }
+            const int audit_char = char_id != 0 ? char_id : current_char;
+            sql << "UPDATE \"TLOG\" SET \"timeLOGOUT\"=CURRENT_TIMESTAMP,\"dwCharID\"=:c,"
+                   "\"bGroupID\"=:g,\"bChannel\"=:ch WHERE \"dwKEY\"=:k AND \"dwUserID\"=:u",
+                soci::use(audit_char), soci::use(group), soci::use(channel),
+                soci::use(key), soci::use(user_id);
+            if (audit_char != 0)
+                sql << "UPDATE \"TUSERINFOTABLE\" SET \"dwLastCharID\"=:c WHERE \"dwUserID\"=:u",
+                    soci::use(audit_char), soci::use(user_id);
+            if (reason != TerminationReason::MapHandoff)
+                sql << "DELETE FROM \"TCURRENTUSER\" WHERE \"dwUserID\"=:u AND \"dwKEY\"=:k",
+                    soci::use(user_id), soci::use(key);
+            tx->commit();
+            return;
+        }
         // Stamp logout time on the audit row regardless of reason — ops
         // wants to see the session-end timestamp even on Map handoffs
         // (it's the boundary between "Login holds the session" and
@@ -153,8 +194,8 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
                 soci::use(user_id);
         }
 
-        spdlog::debug("session.Terminate uid={} key={} char={} reason={}",
-            user_id, session_key, char_id, static_cast<int>(reason));
+        spdlog::debug("session.Terminate uid={} char={} reason={}",
+            user_id, char_id, static_cast<int>(reason));
     }
     catch (const std::exception& ex)
     {
@@ -162,8 +203,7 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
         // log + swallow so we don't crash the cleanup chain. The next
         // login attempt for this user will encounter LR_DUPLICATE and
         // trigger the stale-row cleanup path in SociAuthService.
-        spdlog::error("session.Terminate uid={} key={} DB error: {}",
-            user_id, session_key, ex.what());
+        spdlog::error("session.Terminate uid={} DB operation failed", user_id);
     }
 }
 
@@ -178,6 +218,31 @@ int SociSessionTerminator::ClearStaleSessions()
 
     try
     {
+        if (m_pool.GetBackend() == fourstory::db::Backend::PostgreSQL)
+        {
+            auto lease = m_pool.Acquire();
+            auto tx = BeginLoginTransaction(m_pool, *lease, m_owner_token);
+            int removed = 0;
+            // A restarted process cannot resume connection-bound email grants.
+            *lease << "DELETE FROM app_global.login_security_challenge WHERE owner_token<>:o OR expires_at<=clock_timestamp()",
+                soci::use(m_owner_token);
+            *lease << "WITH stale AS (DELETE FROM \"TCURRENTUSER\" WHERE \"dwCharID\"=0 "
+                      "RETURNING \"dwKEY\"), audit AS (UPDATE \"TLOG\" "
+                      "SET \"timeLOGOUT\"=CURRENT_TIMESTAMP WHERE \"dwKEY\" IN (SELECT \"dwKEY\" FROM stale)) "
+                      "SELECT count(*) FROM stale", soci::into(removed);
+            std::vector<int> expired_users;
+            { soci::rowset<int> users=(*lease).prepare <<
+                "SELECT DISTINCT user_id FROM app_global.map_handoff WHERE expires_at<=clock_timestamp() ORDER BY user_id";
+              for (int user:users) expired_users.push_back(user); }
+            for (int user:expired_users) {
+                int locked=0;
+                *lease << "SELECT \"dwUserID\" FROM app_global.\"TACCOUNT_PW\" WHERE \"dwUserID\"=:u FOR UPDATE",
+                    soci::use(user,"u"),soci::into(locked);
+                if (locked) removed+=ExpirePendingHandoff(*lease,user);
+            }
+            tx->commit();
+            return removed;
+        }
         DbContext ctx(m_pool);
         auto repo = ctx.Set<CurrentUser>();
 
@@ -218,7 +283,7 @@ int SociSessionTerminator::ClearStaleSessions()
     }
     catch (const std::exception& ex)
     {
-        spdlog::error("session.ClearStaleSessions DB error: {}", ex.what());
+        spdlog::error("session.ClearStaleSessions DB operation failed");
         return -1;
     }
 }

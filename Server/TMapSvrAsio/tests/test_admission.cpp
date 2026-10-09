@@ -1,0 +1,482 @@
+// Source-derived CONNECT vectors + real TCP MapServer admission/teardown.
+// The World and persistence interfaces are controlled test doubles; this is
+// deliberately not a certificate for the original client or PostgreSQL play.
+#include "map_server.h"
+#include "handlers_world.h"
+#include "domain/connect.h"
+#include "services/session_registry.h"
+#include "services/skill_cooldown.h"
+#include "services/session_validator.h"
+#include "services/player_service.h"
+#include "services/char_state_store.h"
+#include "services/channel_presence.h"
+#include "services/world_client.h"
+#include "wire_codec.h"
+#include "audit/audit_log.h"
+#include "services/log_peer.h"
+#include <cstring>
+#include <algorithm>
+#include "MessageId.h"
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/use_awaitable.hpp>
+#include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <stdexcept>
+#include <thread>
+
+namespace asio = boost::asio;
+using asio::ip::tcp;
+using namespace std::chrono_literals;
+using tnetlib::protocol::MessageId;
+using tmapsvr::wire::WritePOD;
+using Bytes = std::vector<std::byte>;
+int passed = 0;
+Bytes transport_secret;
+void Check(bool ok, const char* label) {
+    if (!ok) throw std::runtime_error(label);
+    ++passed; std::printf("PASS %s\n", label);
+}
+asio::awaitable<void> Pause(std::chrono::milliseconds ms) {
+    asio::steady_timer timer(co_await asio::this_coro::executor);
+    timer.expires_after(ms); co_await timer.async_wait(asio::use_awaitable);
+}
+template<class F> asio::awaitable<void> Until(F predicate, const char* label,
+    std::chrono::milliseconds limit = 1500ms) {
+    const auto deadline = std::chrono::steady_clock::now() + limit;
+    while (!predicate() && std::chrono::steady_clock::now() < deadline) co_await Pause(2ms);
+    Check(predicate(), label);
+}
+constexpr std::uint32_t kUser = 17, kChar = 42, kKey = 0xf2345679;
+Bytes Connect(std::uint32_t character = kChar) {
+    Bytes b;
+    WritePOD<std::uint16_t>(b, 0x2918); WritePOD<std::uint8_t>(b, 2);
+    WritePOD(b, kUser); WritePOD(b, character); WritePOD(b, kKey);
+    WritePOD<std::uint32_t>(b, 0x0100007f); WritePOD<std::uint16_t>(b, 5815);
+    // Fixed known answer for the valid request. Wrong-character case needs its
+    // own valid checksum so it tests authorization instead of checksum rejection.
+    WritePOD<std::uint64_t>(b, character == kChar ? 0x66d875d8acd02a12ULL :
+        tmapsvr::ConnectChecksum(0x2918, kUser, character, kKey));
+    return b;
+}
+Bytes Verdict(std::uint32_t key, std::uint8_t result = 0) {
+    Bytes b; WritePOD(b, kChar); WritePOD(b, key); WritePOD(b, result);
+    WritePOD<std::uint8_t>(b, 2); WritePOD<std::uint8_t>(b, 4); WritePOD<std::uint8_t>(b, 7);
+    return b;
+}
+struct Validator final : tmapsvr::IMapSessionValidator {
+    std::atomic<int> calls{0}; std::atomic<bool> slow{false};
+    int claim_failure=0;
+    std::atomic<int> replica_loads{0},replica_readies{0},replica_releases{0};
+    tmapsvr::MapSessionInfo info;
+    Validator() { info.dwUserID=kUser; info.dwKEY=kKey; info.dwCharID=kChar;
+        info.bGroupID=3; info.bChannel=2; }
+    std::optional<tmapsvr::MapSessionInfo> ClaimSession(const tmapsvr::MapSessionClaim&, const tmapsvr::MapSessionInfo& candidate) override {
+        if (claim_failure==2) throw std::runtime_error("synthetic claim error");
+        if (claim_failure==1) return std::nullopt;
+        return candidate;
+    }
+    std::optional<tmapsvr::MapSessionInfo> LookupSession(std::uint32_t user, std::uint32_t key) override {
+        ++calls; if (slow) std::this_thread::sleep_for(60ms);
+        if (user != kUser || key != kKey) return std::nullopt;
+        return info;
+    }
+    bool LoadReplica(const tmapsvr::MapSessionClaim& c,std::uint16_t map,float x,float z) override {
+        ++replica_loads;return c.role==tmapsvr::MapSessionRole::Replica&&map==0&&x==4080&&z==3584;
+    }
+    void MarkReady(const tmapsvr::MapSessionClaim& c,const tmapsvr::CharSnapshot&) override {
+        if(c.role==tmapsvr::MapSessionRole::Replica)++replica_readies;
+    }
+    void ReleaseSession(const tmapsvr::MapSessionClaim& c) override {
+        if(c.role==tmapsvr::MapSessionRole::Replica)++replica_releases;
+    }
+};
+struct Players final : tmapsvr::IPlayerService {
+    std::atomic<int> loads{0}, saves{0};
+    std::atomic<bool> save_started{false}, hold_save{false}, fail_save{false};
+    tmapsvr::CharSnapshot saved;
+    bool native_payload=false;
+    std::optional<tmapsvr::CharSnapshot> LoadChar(std::uint32_t cid) override {
+        ++loads; tmapsvr::CharSnapshot s; s.dwCharID=cid; s.szNAME="Admission";
+        s.bLevel=1; s.dwHP=169; s.dwMP=163; s.wMapID=2010; s.fPosX=3664.405f;
+        s.fPosY=86.16578f; s.fPosZ=557.2542f;
+        if(native_payload)s.payload=std::make_shared<tmapsvr::CharacterPayload>();
+        return s;
+    }
+    void SaveChar(const tmapsvr::CharSnapshot& s) override {
+        save_started=true;
+        const auto deadline=std::chrono::steady_clock::now()+1s;
+        while (hold_save && std::chrono::steady_clock::now()<deadline) std::this_thread::sleep_for(2ms);
+        if (fail_save) throw std::runtime_error("injected save failure");
+        saved=s; ++saves;
+    }
+};
+struct World final : tmapsvr::IWorldClient {
+    bool connected=true, registered=true, send_ok=true;
+    std::vector<std::pair<std::uint16_t,Bytes>> packets;
+    bool IsConnected() const override { return connected; }
+    bool IsRegistered() const override { return connected && registered; }
+    asio::awaitable<bool> SendPacket(std::uint16_t id, Bytes b) override {
+        packets.emplace_back(id,std::move(b)); co_return send_ok;
+    }
+};
+struct Client {
+    std::shared_ptr<tnetlib::AsioSession> wire;
+    std::vector<std::pair<std::uint16_t,Bytes>> packets;
+    bool ended=false;
+    std::size_t Count(MessageId id) const {
+        std::size_t n=0; for (const auto& p:packets) n+=p.first==static_cast<std::uint16_t>(id); return n;
+    }
+};
+std::shared_ptr<Client> Dial(asio::io_context& io, std::uint16_t port) {
+    auto client=std::make_shared<Client>(); tcp::socket socket(io);
+    socket.connect({asio::ip::address_v4::loopback(),port});
+    client->wire=std::make_shared<tnetlib::AsioSession>(std::move(socket),
+        transport_secret.empty() ? tnetlib::PeerType::Server : tnetlib::PeerType::Client);
+    if (!transport_secret.empty()) client->wire->EnableOutboundRC4(transport_secret);
+    asio::co_spawn(io,[client]() -> asio::awaitable<void> {
+        co_await client->wire->RunPackets([client](const tnetlib::DecodedPacket& packet) {
+            client->packets.emplace_back(packet.wId,Bytes(packet.body.begin(),packet.body.end()));
+        }); client->ended=true;
+    },asio::detached);
+    return client;
+}
+asio::awaitable<void> Send(std::shared_ptr<Client> c, MessageId id, Bytes b) {
+    co_await c->wire->SendPacket(static_cast<std::uint16_t>(id),b);
+}
+struct LogPeer final : tmapsvr::ILogPeer {
+    Bytes body;
+    bool Enabled() const override { return true; }
+    bool Send(std::span<const std::byte> data) override {body.assign(data.begin(),data.end());return true;}
+};
+void AuditRedaction() {
+    LogPeer peer; tmapsvr::audit::AuditLog log(&peer);
+    tmapsvr::audit::LoginAttemptEvent login{}; login.key=kKey; login.char_id=kChar;
+    log.Emit(login);
+    tmapsvr::audit::LoginAttemptEvent decoded{};
+    Check(peer.body.size()==sizeof(decoded),"login audit retains existing binary layout");
+    std::memcpy(&decoded,peer.body.data(),sizeof(decoded));
+    Check(decoded.key==0 && decoded.char_id==kChar && login.key==kKey,"login audit sink redacts token without mutating caller");
+    tmapsvr::audit::CharLoadEvent load{}; load.key=kKey; load.char_id=kChar;
+    log.Emit(load);
+    tmapsvr::audit::CharLoadEvent received{};
+    Check(peer.body.size()==sizeof(received),"load audit retains existing binary layout");
+    std::memcpy(&received,peer.body.data(),sizeof(received));
+    Check(received.key==0 && received.char_id==kChar,"load audit sink redacts token before UDP transport");
+}
+void Vectors() {
+    constexpr std::uint64_t expected[]{0x2918,0x336c3aebf71ab742,0x66d875d7ee353d6a,
+        0x9a44b0c3e54fc350,0xcdb0ebafdc6a517c,0x011d269bd384df66,
+        0x34896187ca9f654e,0x67f59c73c1b9eb74};
+    for (std::uint32_t i=0;i<8;++i) Check(tmapsvr::ConnectChecksum(0x2918,1,1,i)==expected[i],"checksum mixing count known answer");
+    Check(tmapsvr::ConnectChecksum(0x2918,0xffffffff,0xffffffff,0xffffffff)==0x336c3aecd71ab73cULL,"DWORD initial product and sum wrap before widening");
+}
+Bytes ReplicaComposite(std::uint32_t key=kKey) {
+    Bytes b;WritePOD(b,kChar);WritePOD(b,key);WritePOD<std::uint8_t>(b,0);
+    tmapsvr::wire::WriteString(b,"Replica");WritePOD<std::uint16_t>(b,0);
+    WritePOD<float>(b,4080);WritePOD<float>(b,80);WritePOD<float>(b,3584);
+    for(int i=0;i<3;++i)WritePOD<std::uint32_t>(b,0);
+    tmapsvr::wire::WriteString(b,"");WritePOD<std::uint8_t>(b,0);WritePOD<std::uint8_t>(b,0);
+    WritePOD<std::uint16_t>(b,0);WritePOD<std::uint8_t>(b,0);WritePOD<std::uint32_t>(b,0);
+    tmapsvr::wire::WriteString(b,"");WritePOD<std::uint16_t>(b,0);WritePOD<std::uint8_t>(b,0);
+    WritePOD<std::uint32_t>(b,0);WritePOD<std::uint16_t>(b,0);
+    for(auto v:{1,0,4,3,0})WritePOD<std::uint8_t>(b,v);
+    WritePOD<std::uint32_t>(b,0);WritePOD<std::int64_t>(b,0);WritePOD<std::uint32_t>(b,0);WritePOD<std::uint32_t>(b,0);
+    tmapsvr::wire::WriteString(b,"");WritePOD<std::uint8_t>(b,0);WritePOD<std::uint8_t>(b,0);tmapsvr::wire::WriteString(b,"source comment");
+    return b;
+}
+Bytes CharacterMetadata() {
+    Bytes b;WritePOD(b,kChar);WritePOD(b,kKey);WritePOD<std::uint32_t>(b,0);WritePOD<std::uint8_t>(b,3);
+    tmapsvr::wire::WriteString(b,"");for(int i=0;i<3;++i)WritePOD<std::uint32_t>(b,0);
+    tmapsvr::wire::WriteString(b,"");WritePOD<std::uint8_t>(b,0);WritePOD<std::uint8_t>(b,0);
+    WritePOD<std::uint16_t>(b,0);WritePOD<std::uint8_t>(b,0);WritePOD<std::uint16_t>(b,0);WritePOD<std::uint8_t>(b,0);
+    WritePOD<std::uint32_t>(b,0);WritePOD<std::uint16_t>(b,0);WritePOD<std::uint32_t>(b,0);WritePOD<std::int32_t>(b,0);
+    return b;
+}
+void TransferReservations() {
+    asio::io_context io;tcp::socket socket(io);socket.open(tcp::v4());
+    auto session=std::make_shared<tnetlib::AsioSession>(std::move(socket),tnetlib::PeerType::Server);
+    tmapsvr::InMemorySessionRegistry registry;tmapsvr::InMemoryCharStateStore state;
+    using tmapsvr::SessionPhase;using tmapsvr::MapSessionRole;
+    Check(registry.TryBind({41,17,123,1,SessionPhase::Ready},session),"transfer test binds ready primary");
+    Check(registry.BeginGameplay(session.get()),"in-flight gameplay holds a session operation");
+    Check(registry.BeginTransfer(session.get(),MapSessionRole::Primary)&&registry.Operations(session.get())==2,
+          "transfer phase stops new gameplay while retaining in-flight operation");
+    Check(!registry.BeginGameplay(session.get())&&!registry.BeginClose(session.get()),"freeze excludes new gameplay and premature teardown");
+    registry.EndOperation(session.get());
+    Check(registry.Operations(session.get())==1&&!registry.BeginClose(session.get()),"teardown still waits for ownership transaction publication");
+    tmapsvr::CharSnapshot snap;snap.dwCharID=41;snap.dwEXP=10;state.Store(41,snap);
+    auto frozen=state.Freeze(41,[](auto& s){s.dwEXP=11;});state.Update(41,[](auto& s){s.dwEXP=99;});
+    Check(frozen&&state.Get(41)->dwEXP==11&&!state.Freeze(41,[](auto&){}),"frozen snapshot rejects late AI or combat mutation and duplicate freeze");
+    registry.EndOperation(session.get());
+    Check(!registry.FinishTransfer(session.get(),MapSessionRole::Replica,0)&&
+          registry.FinishTransfer(session.get(),MapSessionRole::Replica,1),"demotion requires a newer authority epoch");
+    state.Store(41,*frozen);state.Update(41,[](auto& s){s.dwEXP=12;});
+    Check(state.Get(41)->dwEXP==12,"explicit replica publication releases frozen state");
+    Check(registry.BeginTransfer(session.get(),MapSessionRole::Replica),"same retained socket can receive a return transfer");
+    session->Close();
+    Check(!registry.BeginClose(session.get())&&registry.FinishTransfer(session.get(),MapSessionRole::Primary,2),
+          "closed socket still receives committed promotion before teardown");
+    registry.EndOperation(session.get());auto closed=registry.BeginClose(session.get());
+    Check(closed&&closed->role==MapSessionRole::Primary&&closed->authority_epoch==2&&closed->phase==SessionPhase::Loaded,
+          "teardown acquires final promoted identity and authority atomically");
+    Check(!registry.BeginTransfer(session.get(),MapSessionRole::Primary),"closing session cannot begin a later transfer");
+}
+void TransferDrain() {
+    for(bool disconnect:{true,false}) {
+        asio::io_context io;tcp::socket socket(io);socket.open(tcp::v4());
+        auto session=std::make_shared<tnetlib::AsioSession>(std::move(socket),tnetlib::PeerType::Server);
+        tmapsvr::InMemorySessionRegistry registry;tmapsvr::InMemoryCharStateStore state;
+        Players players;World world;tmapsvr::SkillCooldownTracker timers;
+        tmapsvr::HandlerContext ctx;ctx.session_reg=&registry;ctx.char_state=&state;
+        ctx.player_service=&players;ctx.world_client=&world;ctx.skill_cooldown=&timers;
+        registry.TryBind({41,17,123,1,tmapsvr::SessionPhase::Ready},session);
+        registry.BeginGameplay(session.get()); // a different recipient's blocked send
+        tmapsvr::CharSnapshot snap;snap.dwCharID=41;snap.payload=std::make_shared<tmapsvr::CharacterPayload>();state.Store(41,snap);
+        Bytes request;WritePOD<std::uint32_t>(request,41);WritePOD<std::uint32_t>(request,123);
+        WritePOD<std::uint8_t>(request,1);WritePOD<std::uint16_t>(request,0);
+        WritePOD<float>(request,1);WritePOD<float>(request,0);WritePOD<float>(request,1);
+        asio::steady_timer stop(io);stop.expires_after(disconnect?20ms:4000ms);
+        stop.async_wait([&](auto ec){if(!ec){if(disconnect)session->Close();else io.stop();}});
+        bool finished=false;std::exception_ptr error;
+        asio::co_spawn(io,tmapsvr::OnMWReleaseMainReq(request,ctx),[&](std::exception_ptr e){error=e;finished=true;stop.cancel();});
+        io.run();if(error)std::rethrow_exception(error);
+        Check(finished&&!session->IsOpen(),disconnect?"closed source interrupts transfer gameplay drain":"blocked gameplay cannot indefinitely stall World transfer dispatch");
+        Check(registry.Operations(session.get())==1&&state.Get(41)->fPosX==0,
+              "aborted drain releases only transfer operation and never captures a partial gameplay state");
+        registry.EndOperation(session.get());
+    }
+}
+int main(int argc, char**) {
+    if (argc > 1) transport_secret.assign(64, std::byte{0x5a});
+    try {
+        Vectors(); AuditRedaction(); TransferReservations(); TransferDrain(); asio::io_context io; asio::thread_pool workers(2);
+        Validator validator; Players players; World world;
+        tmapsvr::InMemorySessionRegistry registry; tmapsvr::InMemoryCharStateStore state;
+        tmapsvr::InMemoryChannelPresence presence;
+        tmapsvr::HandlerContext ctx; ctx.validator=&validator; ctx.player_service=&players;
+        ctx.world_client=&world; ctx.session_reg=&registry; ctx.char_state=&state;
+        ctx.presence=&presence; ctx.expected_group=3; ctx.db_pool=&workers;
+        tmapsvr::MapServerConfig cfg; cfg.port=0; cfg.pre_auth_timeout_seconds=1; cfg.handlers=ctx; cfg.rc4_secret_key=transport_secret;
+        tmapsvr::MapServer server(io,cfg);
+        asio::co_spawn(io,server.Run(),asio::detached);
+        std::exception_ptr error;
+        asio::co_spawn(io,[&]() -> asio::awaitable<void> {
+            // Each malformed request uses a separate socket and must close.
+            for (int scenario=0;scenario<9;++scenario) {
+                auto c=Dial(io,server.Port()); auto b=Connect();
+                const int before=validator.calls;
+                int expected=-1;
+                if (scenario==0 || scenario==7) { b[0]=std::byte{0}; expected=4; }
+                if (scenario==1) b.back()^=std::byte{1};
+                if (scenario==2) b.pop_back();
+                if (scenario==3) b.push_back(std::byte{0});
+                if (scenario==4) { b=Connect(43); expected=2; }
+                if (scenario==5) { world.connected=false; expected=5; }
+                if (scenario==8) { world.registered=false; expected=5; }
+                if (scenario==6) { validator.info.bChannel=9; expected=1; }
+                co_await Send(c,MessageId::CS_CONNECT_REQ,std::move(b));
+                if (scenario==7) co_await Send(c,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return c->ended;},"rejected admission closes socket");
+                if (expected<0) Check(c->packets.empty(),"malformed/checksum request has no ACK");
+                else Check(c->packets.size()==1 && c->packets[0].first==static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK) &&
+                    c->packets[0].second==Bytes{std::byte(expected),std::byte{0}},"source CN result and empty server list exact bytes");
+                if (scenario<4 || scenario==5 || scenario==7 || scenario==8) Check(validator.calls==before,"invalid framing/version/checksum or unavailable World never touches database");
+                Check(registry.Size()==0,"failed admission reserves no character");
+                world.connected=true; world.registered=true; validator.info.bChannel=2;
+            }
+            // A rejected durable claim was never announced to World and must
+            // not remove an already-online character on a different Map.
+            for (int failure=1; failure<=2; ++failure) {
+                validator.claim_failure=failure;world.packets.clear();
+                auto rejected=Dial(io,server.Port());
+                co_await Send(rejected,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return rejected->ended && server.LiveSessions()==0;},"failed durable claim completes teardown");
+                Check(rejected->packets.size()==1 && rejected->packets[0].second==Bytes{std::byte(failure==1?2:5),std::byte{0}},"claim rejection or exception preserves exact client error");
+                Check(world.packets.empty(),"unannounced claim failure sends neither ADDCHAR nor CLOSECHAR to World");
+                Check(registry.Size()==0,"failed durable claim releases only its local reservation");
+            }
+            validator.claim_failure=0;
+            // Pipelining CONNECT twice cannot launch concurrent authentication.
+            validator.slow=true; auto pipeline=Dial(io,server.Port()); const int before=validator.calls;
+            co_await Send(pipeline,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Send(pipeline,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return pipeline->ended;},"second CONNECT closes original connection");
+            Check(validator.calls==before+1,"per-connection dispatch awaits authentication"); validator.slow=false;
+            co_await Until([&]{return server.LiveSessions()==0;},"pipelined connection cleanup completes");
+
+            auto c=Dial(io,server.Port()); world.packets.clear();
+            co_await Send(c,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return registry.Size()==1;},"valid request reserves character");
+            co_await Until([&]{return world.packets.size()==1;},"valid request announces to World");
+            Check(world.packets[0].first==static_cast<std::uint16_t>(MessageId::MW_ADDCHAR_ACK) && world.packets[0].second.size()==18,"original MW_ADDCHAR_ACK layout");
+            Check(c->packets.empty() && !presence.FindEntry(kChar),"no optimistic ACK or AOI visibility while pending");
+            auto duplicate=Dial(io,server.Port());
+            co_await Send(duplicate,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return duplicate->ended;},"duplicate socket rejected");
+            Check(duplicate->packets.size()==1 && duplicate->packets[0].second[0]==std::byte{3},"duplicate uses CN_ALREADYEXIST");
+            Check(!c->ended && registry.Size()==1,"duplicate cannot replace or evict reservation");
+            Bytes enter; WritePOD<std::uint8_t>(enter,1); WritePOD(enter,kChar); WritePOD(enter,kKey);
+            co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+            Check(players.loads==1 && state.Get(kChar).has_value(),"World enter loads character once through worker");
+            co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+            Check(players.loads==1,"repeated enter does not load or overwrite live state");
+            co_await tmapsvr::OnMWConResultReq(Verdict(kKey-1),ctx);
+            Check(c->packets.empty(),"stale World verdict cannot admit new session");
+            co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+            co_await Until([&]{return c->Count(MessageId::CS_CONNECT_ACK)==1;},"authoritative World verdict produces one client ACK");
+            Check(c->packets[0].second==Bytes{std::byte{0},std::byte{2},std::byte{4},std::byte{7}},"client ACK preserves World server IDs");
+            co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+            co_await Pause(15ms);
+            Check(c->Count(MessageId::CS_CONNECT_ACK)==1,"duplicate World verdict produces no second ACK");
+            Bytes close; WritePOD(close,kChar); WritePOD(close,kKey-1);
+            co_await tmapsvr::OnMWCloseCharReq(close,ctx);
+            Check(!c->ended && registry.Find(kChar),"stale World close cannot affect new session");
+            co_await Send(c,MessageId::CS_CONREADY_REQ,{});
+            co_await Until([&]{return c->Count(MessageId::CS_CHARINFO_ACK)==1;},"admitted CONREADY dispatches character info");
+            Check(presence.FindEntry(kChar).has_value(),"presence published after admission and CONREADY");
+            presence.UpdatePosition(kChar,2010,{3700,87,600});
+            players.hold_save=true;
+            server.CloseSessions();
+            co_await Until([&]{return players.save_started.load();},"disconnect starts awaited save");
+            Check(server.LiveSessions()==1 && registry.Find(kChar) && state.Get(kChar),"active count, reservation and snapshot retained during save");
+            Check(!presence.FindEntry(kChar),"disconnect is invisible to AOI while save waits");
+            auto during_save=Dial(io,server.Port());
+            co_await Send(during_save,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return during_save->ended;},"reconnect cannot overtake outstanding save");
+            Check(during_save->packets[0].second[0]==std::byte{3},"saving reservation rejects duplicate");
+            Bytes during_teardown;WritePOD(during_teardown,kChar);WritePOD(during_teardown,kKey);
+            WritePOD<std::uint8_t>(during_teardown,1);WritePOD<std::uint8_t>(during_teardown,1);
+            co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_DELCHAR_REQ),during_teardown,ctx);
+            players.hold_save=false;
+            co_await Until([&]{return server.LiveSessions()==0;},"save completes before active count reaches zero");
+            Check(players.saves==1 && players.saved.fPosX==3700 && players.saved.fPosZ==600,"latest live position saved once");
+            Check(registry.Size()==0 && !state.Get(kChar),"successful save releases state and reservation");
+            Check(std::none_of(world.packets.begin(),world.packets.end(),[](const auto& p){return p.first==static_cast<std::uint16_t>(MessageId::MW_CLOSECHAR_ACK);}),"retirement during delayed final save suppresses close-all echo");
+            // A pending handshake is covered by the admission deadline too.
+            auto stalled=Dial(io,server.Port());
+            co_await Send(stalled,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return stalled->ended;},"World-stalled admission closes at deadline",1800ms);
+            Check(stalled->packets.empty() && players.saves==1,"timeout never claims success or saves unentered character");
+            // Gameplay before CONNECT is rejected by the real dispatch path.
+            auto unauth=Dial(io,server.Port()); co_await Send(unauth,MessageId::CS_MOVE_REQ,{});
+            co_await Until([&]{return unauth->ended;},"unauthenticated gameplay is closed");
+            // World verdict arriving before a complete load cannot claim success.
+            auto early=Dial(io,server.Port()); co_await Send(early,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return registry.Size()==1;},"early-verdict test reserves character");
+            co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+            co_await Until([&]{return early->ended;},"success verdict before load is rejected");
+            Check(early->packets.size()==1 && early->packets[0].second[0]==std::byte{5},"incomplete load returns CN_INTERNAL");
+            co_await Until([&]{return server.LiveSessions()==0;},"all connections drained");
+            // World retirement is terminal for the exact generation; malformed
+            // or stale packets never affect it, and no close-all echo is sent.
+            for (int ready=0; ready<2; ++ready) for (int command=0; command<3; ++command) {
+                world.packets.clear(); const int saves_before=players.saves;
+                auto retired=Dial(io,server.Port());
+                co_await Send(retired,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return world.packets.size()==1;},"retirement fixture announced");
+                if (ready) {
+                    co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+                    co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+                    co_await Send(retired,MessageId::CS_CONREADY_REQ,{});
+                    co_await Until([&]{return retired->Count(MessageId::CS_CHARINFO_ACK)==1;},"retirement fixture ready");
+                }
+                const auto opcode=command==0?MessageId::MW_INVALIDCHAR_REQ:command==1?MessageId::MW_DELCHAR_REQ:MessageId::MW_CLOSECHAR_REQ;
+                Bytes request;WritePOD(request,kChar);WritePOD(request,kKey);
+                if(command<2)WritePOD<std::uint8_t>(request,0);
+                if(command==1)WritePOD<std::uint8_t>(request,0);
+                auto bad=request;bad[4]^=std::byte{1};
+                co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(opcode),bad,ctx);
+                bad=request;bad.pop_back();
+                co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(opcode),bad,ctx);
+                bad=request;bad.push_back(std::byte{0});
+                co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(opcode),bad,ctx);
+                if(command<2){bad=request;bad[8]=std::byte{2};co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(opcode),bad,ctx);}
+                Check(registry.Find(kChar) && !retired->ended,"wrong-key/truncated/trailing/non-boolean retirement leaves current session alive");
+                const auto sent_before=retired->packets.size();
+                co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(opcode),request,ctx);
+                co_await Until([&]{return retired->ended && server.LiveSessions()==0;},"World retirement drains local generation");
+                if(command==1)Check(retired->packets.size()==sent_before,"DELCHAR closes without invented client ACK");
+                else Check(retired->packets.size()==sent_before+1 && retired->packets.back().second.empty() &&
+                    retired->packets.back().first==static_cast<std::uint16_t>(command==0?MessageId::CS_INVALIDCHAR_ACK:MessageId::CS_SHUTDOWN_ACK),"exact empty terminal client opcode");
+                Check(std::none_of(world.packets.begin(),world.packets.end(),[](const auto& p){return p.first==static_cast<std::uint16_t>(MessageId::MW_CLOSECHAR_ACK);}),"World-initiated retirement never echoes close-all");
+                Check(players.saves==saves_before+ready && registry.Size()==0 && !state.Get(kChar),"ready retirement saves once; pending retirement never saves");
+            }
+            world.packets.clear();
+            auto rejected_by_world=Dial(io,server.Port());
+            co_await Send(rejected_by_world,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return world.packets.size()==1;},"World rejection fixture announced");
+            co_await tmapsvr::OnMWConResultReq(Verdict(kKey,2),ctx);
+            co_await Until([&]{return rejected_by_world->ended && server.LiveSessions()==0;},"World negative connect verdict retires local claim");
+            Check(world.packets.size()==1,"World rejection does not echo CLOSECHAR");
+            validator.info.role=tmapsvr::MapSessionRole::Replica;
+            for(int variant=0;variant<4;++variant) {
+                world.packets.clear();const int saves=players.saves,loads=players.loads,releases=validator.replica_releases;
+                auto replica=Dial(io,server.Port());co_await Send(replica,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return world.packets.size()==1;},"replica claim announces its exact World identity");
+                co_await tmapsvr::OnMWEnterCharReq(ReplicaComposite(kKey-1),ctx);
+                Check(!state.Get(kChar)&&!replica->ended,"wrong-key replica composite cannot hydrate current connection");
+                auto body=ReplicaComposite();
+                if(variant==1)body.pop_back();
+                if(variant==2)body.push_back(std::byte{0});
+                if(variant==3) { // valid syntax, unauthorized source location
+                    const float wrong=4079;std::memcpy(body.data()+22,&wrong,sizeof(wrong));
+                }
+                co_await tmapsvr::OnMWEnterCharReq(std::move(body),ctx);
+                if(variant==0) {
+                    auto snap=state.Get(kChar);
+                    Check(snap&&!snap->payload&&snap->szNAME=="Replica"&&snap->cluster.comment=="source comment"&&snap->cluster.aid_country==3,"replica stores exact source summary without fabricating a primary graph");
+                    Check(world.packets.size()==2&&world.packets.back().first==static_cast<std::uint16_t>(MessageId::MW_ENTERCHAR_ACK),"replica sends original ENTERCHAR confirmation");
+                    co_await Send(replica,MessageId::CS_CONREADY_REQ,{});
+                    co_await Until([&]{return presence.FindEntry(kChar).has_value();},"replica becomes ready without its own CONRESULT");
+                    Check(registry.ReadySessions().empty()&&validator.replica_readies==1,"replica is excluded from primary checkpoint sweep");
+                    Check(replica->packets.empty(),"replica emits neither CONNECT nor CHARINFO success");
+                    Bytes del;WritePOD(del,kChar);WritePOD(del,kKey);WritePOD<std::uint8_t>(del,1);WritePOD<std::uint8_t>(del,0);
+                    co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_DELCHAR_REQ),del,ctx);
+                }
+                co_await Until([&]{return replica->ended&&server.LiveSessions()==0;},"replica lifecycle drains its local connection");
+                Check(players.saves==saves&&players.loads==loads&&validator.replica_releases==releases+1,"replica releases its own claim without loading or saving primary data");
+                Check(registry.Size()==0&&!state.Get(kChar),"replica cleanup retains no local graph or reservation");
+            }
+            validator.info.role=tmapsvr::MapSessionRole::Primary;
+            world.packets.clear();players.native_payload=true;
+            auto native=Dial(io,server.Port());co_await Send(native,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return world.packets.size()==1;},"native primary order fixture announced");
+            co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+            co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
+            co_await Until([&]{return native->Count(MessageId::CS_CHARINFO_ACK)==1;},"native CHARINFO arrives before World confirms CONNECT");
+            Check(native->packets.size()==2&&native->packets.front().first==static_cast<std::uint16_t>(MessageId::CS_CHGCHANNEL_ACK),"source channel then character hydration order is exact");
+            co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
+            co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+            co_await Until([&]{return native->Count(MessageId::CS_CONNECT_ACK)==1;},"CONNECT follows complete client character hydration");
+            Check(native->packets.size()==3&&native->Count(MessageId::CS_CHARINFO_ACK)==1,"duplicate World metadata cannot reset the client");
+            co_await Send(native,MessageId::CS_CONREADY_REQ,{});
+            co_await Until([&]{return presence.FindEntry(kChar).has_value();},"native CONREADY completes after prior CHARINFO");
+            co_await Pause(10ms);
+            Check(native->Count(MessageId::CS_CHARINFO_ACK)==1,"native CONREADY never sends duplicate CHARINFO");
+            native->wire->Close();co_await Until([&]{return server.LiveSessions()==0;},"native order fixture saves and drains");
+            players.native_payload=false;
+            // A failed write keeps dirty state and blocks a new login in this process.
+            players.save_started=false; players.fail_save=true;
+            auto dirty=Dial(io,server.Port()); co_await Send(dirty,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return registry.Size()==1;},"save-failure fixture reserved");
+            co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+            co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+            co_await Until([&]{return dirty->Count(MessageId::CS_CONNECT_ACK)==1;},"save-failure fixture admitted");
+            co_await Send(dirty,MessageId::CS_CONREADY_REQ,{});
+            co_await Until([&]{return presence.FindEntry(kChar).has_value();},"save-failure fixture ready");
+            server.CloseSessions();
+            co_await Until([&]{return server.LiveSessions()==0;},"failed save is observed by teardown");
+            Check(registry.Size()==1 && state.Get(kChar).has_value() && server.FailedSaves()==1,"failed save retains dirty snapshot and reservation and reports failure");
+            auto retry=Dial(io,server.Port()); co_await Send(retry,MessageId::CS_CONNECT_REQ,Connect());
+            co_await Until([&]{return retry->ended;},"dirty reservation rejects reconnect");
+            Check(retry->packets.size()==1 && retry->packets[0].second[0]==std::byte{3},"failed save cannot be hidden by stale reload");
+            co_await Until([&]{return server.LiveSessions()==0;},"final connection drained");
+            server.StopAccepting(); io.stop();
+        },[&](std::exception_ptr ep){ if(ep) {error=ep; io.stop();} });
+        io.run(); workers.join(); if(error)std::rethrow_exception(error);
+        std::printf("%d admission checks passed\n",passed); return 0;
+    } catch(const std::exception& e) {std::fprintf(stderr,"FAIL %s\n",e.what());return 1;}
+}

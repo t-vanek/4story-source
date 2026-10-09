@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-09",
+  "verified_at_utc": "2026-10-09T02:01:29.319417+00:00",
+  "owned_database_containers_removed": {
+    "pg_container": true
+  },
+  "owned_network_removed": true,
+  "remaining_labelled_test_containers": 0,
+  "temporary_env_and_private_key_files_removed": 16,
+  "private_diagnostics_retained": true,
+  "original_reference_snapshots_retained": true,
+  "sql_server_used": false,
+  "runtime_image_retained": "localhost/fourstory:postgresql-world-link",
+  "new_installed_release_image": true,
+  "continuation": "Create a new owned PG lab and reuse pinned character/routing/actor manifests; apply immutable migrations 001\u2013018. Next: repair WorldSession concurrent composed writes before secondary Map transfer work."
+}

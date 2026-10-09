@@ -38,9 +38,13 @@ void LoadStatBlocks(soci::session& sql, const char* query,
 } // namespace
 
 SociStatChart::SociStatChart(fourstory::db::SessionPool& pool)
+    : SociStatChart(*pool.Acquire())
 {
-    auto lease = pool.Acquire();
-    auto& sql  = *lease;
+    // The temporary Lease lives until the delegated constructor returns.
+}
+
+SociStatChart::SociStatChart(soci::session& sql)
+{
 
     // 1) TFORMULACHART — bID keys the formula directly (legacy keys its
     //    map on the raw bID, which equals the FTYPE_ ordinal).

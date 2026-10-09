@@ -1,0 +1,9 @@
+# Container smoke configuration: in-memory registries, no database.
+[server]
+port = 3815
+
+[health]
+port = 18087
+
+[log]
+level = "info"

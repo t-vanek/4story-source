@@ -1,0 +1,6 @@
+{
+  "owned_database_containers_and_network_removed": true,
+  "smoke_containers_and_network_removed": true,
+  "private_secret_files_remaining": [],
+  "private_review_directory": "/tmp/fourstory-map-entry-20261009/routing-review"
+}

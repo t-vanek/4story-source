@@ -32,6 +32,28 @@ void ValidateGlobalSchema(fourstory::db::SessionPool& pool)
     // Columns SociAuthService + SociMapServerLocator + the global-side
     // parts of SociCharService read or write.
     auto lease = pool.Acquire();
+    if (pool.GetBackend() == fourstory::db::Backend::PostgreSQL)
+    {
+        std::string schema;
+        *lease << "SELECT current_schema()", soci::into(schema);
+        if (schema != "app_global")
+            throw fourstory::db::SchemaError("Native login requires app_global as its application schema");
+        fourstory::db::CheckColumns(*lease, "native login", {
+            {"login_runtime_owner", "owner_token"}, {"login_runtime_owner", "backend_pid"},
+            {"login_security_challenge", "token"}, {"login_security_challenge", "owner_token"},
+            {"login_security_challenge", "user_id"}, {"login_security_challenge", "client_ip"},
+            {"login_security_challenge", "client_version"}, {"login_security_challenge", "code_digest"},
+            {"login_security_challenge", "attempts"}, {"login_security_challenge", "expires_at"},
+            {"login_security_challenge", "verified_at"},
+            {"login_security_rate", "user_id"}, {"login_security_rate", "window_start"},
+            {"login_security_rate", "issued_count"},
+            {"TIPAUTHORITY", "szIP"}, {"USERIPLOG", "IP"},
+            {"USERIPLOG", "Username"}, {"USERIPLOG", "Date_time"},
+            {"TPCBANG", "szIPRange"}, {"TUSERPREMIUM", "dtExpire"},
+            {"TUSERINFOTABLE", "dwLastCharID"}, {"TCURRENTUSER", "dwSiteCode"},
+            {"TCURRENTUSER", "bChanneling"}
+        });
+    }
     fourstory::db::CheckColumns(*lease, "global", {
         // Accounts + credentials
         { "TACCOUNT_PW",      "dwUserID" },

@@ -26,6 +26,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -190,15 +191,15 @@ int main()
     // Three map peers — p1=0x42 (main), p2=0x43, p3=0x44. Drain the
     // RELAYCONNECT fan-out each registration causes on the already-
     // joined peers.
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
-    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0044));
+    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0444));
     { auto [w, _] = ReadFramed(p3);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -209,6 +210,7 @@ int main()
     // Char A (100) on p1's connection (main=0x42).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(/*char_id=*/100, /*key=*/0xA1));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(/*char_id=*/100, /*key=*/0xA1)));
     for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     {
@@ -262,18 +264,20 @@ int main()
         bool ok = false;
         for (int i = 0; i < 1000; ++i)
         {
-            auto a = chars.Find(100);
-            std::lock_guard g(a->lock);
-            auto it = std::find_if(a->cons.begin(), a->cons.end(),
-                [](const tworldsvr::TCharCon& c) {
-                    return c.server_id == 0x44;
-                });
-            if (it != a->cons.end() && !it->ready && !it->valid &&
-                it->ip_addr == client_ip && it->port == client_port)
             {
-                ok = true;
-                break;
-            }
+                auto a = chars.Find(100);
+                std::lock_guard g(a->lock);
+                auto it = std::find_if(a->cons.begin(), a->cons.end(),
+                    [](const tworldsvr::TCharCon& c) {
+                        return c.server_id == 0x44;
+                    });
+                if (it != a->cons.end() && !it->ready && !it->valid &&
+                    it->ip_addr == client_ip && it->port == client_port)
+                {
+                    ok = true;
+                    break;
+                }
+            } // release the char lock before waiting for the handler
             std::this_thread::sleep_for(10ms);
         }
         EXPECT(ok);
@@ -284,17 +288,19 @@ int main()
         SendFramed(p1, ToUint16(MessageId::MW_ENTERCHAR_ACK),
                    EnterCharBody(100, 0xA1));
         bool ok = false;
-        // 10 s window — the original 2 s flaked under full-suite
-        // parallel load (io thread starvation).
+        // Poll without holding the char lock during the sleep so the
+        // handler can update readiness on its io_context thread.
         for (int i = 0; i < 1000; ++i)
         {
-            auto a = chars.Find(100);
-            std::lock_guard g(a->lock);
-            auto it = std::find_if(a->cons.begin(), a->cons.end(),
-                [](const tworldsvr::TCharCon& c) {
-                    return c.server_id == 0x42;
-                });
-            if (it != a->cons.end() && it->ready) { ok = true; break; }
+            {
+                auto a = chars.Find(100);
+                std::lock_guard g(a->lock);
+                auto it = std::find_if(a->cons.begin(), a->cons.end(),
+                    [](const tworldsvr::TCharCon& c) {
+                        return c.server_id == 0x42;
+                    });
+                if (it != a->cons.end() && it->ready) { ok = true; break; }
+            } // release the char lock before waiting for the handler
             std::this_thread::sleep_for(10ms);
         }
         EXPECT(ok);
@@ -309,6 +315,16 @@ int main()
             EXPECT(it != a->cons.end());
             if (it != a->cons.end()) EXPECT(it->ready == false);
         }
+    }
+
+    // Accept the planned endpoint before it can report ENTERCHAR readiness.
+    {
+        auto add=EnterCharBody(100,0xA1);
+        wire::WritePOD<std::uint32_t>(add,0x0A000001);
+        wire::WritePOD<std::uint16_t>(add,33501);
+        wire::WritePOD<std::uint32_t>(add,100);
+        SendFramed(p3,ToUint16(MessageId::MW_ADDCHAR_ACK),add);
+        EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed,p1,add));
     }
 
     // --- Test D: ENTERCHAR_ACK from p3 (0x44) — all ready → CHECKMAIN
@@ -360,10 +376,12 @@ int main()
         bool ok = false;
         for (int i = 0; i < 1000; ++i)
         {
-            auto a = chars.Find(100);
-            std::lock_guard g(a->lock);
-            if (a->level == 42 && a->max_hp == 1000 && a->hp == 950 &&
-                a->max_mp == 500 && a->mp == 480) { ok = true; break; }
+            {
+                auto a = chars.Find(100);
+                std::lock_guard g(a->lock);
+                if (a->level == 42 && a->max_hp == 1000 && a->hp == 950 &&
+                    a->max_mp == 500 && a->mp == 480) { ok = true; break; }
+            } // release the char lock before waiting for the handler
             std::this_thread::sleep_for(10ms);
         }
         EXPECT(ok);

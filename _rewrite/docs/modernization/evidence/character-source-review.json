@@ -1,0 +1,34 @@
+{
+  "status": "PRELIMINARY ANALYSIS; no character schema or repository port claimed",
+  "modules": [
+    {
+      "database": "TGLOBAL_RAGEZONE",
+      "object": "TCreateChar",
+      "definition_sha256": "14a36109bd78037ce86fa34ee2f31e475f516d8565c410ed54cdf0c8b709f198"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "object": "TSaveCharDataEnd",
+      "definition_sha256": "e9260f06f584e18cd221e5b9de59d10f0c11a5d1fd07d242b28e876dd8c6690a"
+    },
+    {
+      "database": "TGAME_RAGEZONE",
+      "object": "TSaveCharDataStart",
+      "definition_sha256": "f1f7d5b3db4df9f9d284ca2c8eaac88fb2c5616265f82052700b41efa6632ef4"
+    }
+  ],
+  "findings": [
+    "TGLOBAL.TCreateChar checks the name across TALLCHARTABLE without filtering bDelete; current C++ world-only name check is narrower.",
+    "TGLOBAL.TCreateChar permits a reserved name when its dwUserID matches the creator; current C++ rejects any reserved match.",
+    "TGLOBAL.TCreateChar writes a global directory row in its own named transaction and returns count of non-deleted account characters; slot/count return semantics must be compared with original handler before changing ACKs.",
+    "Current SociCharService::Create performs world writes and the global directory insert on separate pool leases without a shared transaction; failed later writes can leave partial state.",
+    "Backed-up TSaveCharDataStart clears temporary inventories/items/skills then calls TGLOBAL_GSP.DBO.TSaveDuringItemStart. TSaveCharDataEnd replaces selected durable tables from temporaries then calls TSaveDuringItem; several item/skill statements are commented out.",
+    "External database procedure dependencies and the precise save batch lifecycle need explicit contracts; copying all commented SQL into new runtime behavior would be incorrect.",
+    "Migration 008 only provides minimal global lobby projections; character service is unavailable without a configured world repository. Extend via migration 009 or later, never edit 008."
+  ],
+  "next_checks": [
+    "Compare backed-up TGAME.TCreateChar and original Login/Map callers, including starting chart data and item allocator.",
+    "Choose one native transaction boundary for global index and per-world writes before enabling mutable character operations.",
+    "Derive global name/slot uniqueness and soft-delete retention from original consumers; test concurrent creation and injected failures."
+  ]
+}

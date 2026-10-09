@@ -1,0 +1,134 @@
+{
+  "version": 2,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "linux-release",
+      "displayName": "Linux portable servers (Release)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "OFF",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "Linux servers and tests (Debug)",
+      "inherits": "linux-release",
+      "binaryDir": "${sourceDir}/build/linux-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "linux-asan",
+      "displayName": "Linux Login/Map/transport sanitizer verification",
+      "inherits": "linux-debug",
+      "binaryDir": "${sourceDir}/build/linux-asan",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer",
+        "CMAKE_C_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release",
+      "jobs": 2
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
+      "jobs": 2
+    },
+    {
+      "name": "linux-asan",
+      "configurePreset": "linux-asan",
+      "jobs": 2,
+      "targets": [
+        "test_tnetlib_crypto",
+        "test_tnetlib_packet_codec",
+        "test_tnetlib_asio",
+        "test_tloginsvr_asio_auth_flow",
+        "test_tloginsvr_asio_session_terminator",
+        "test_tloginsvr_asio_shutdown_sweep",
+        "test_fourstory_postgresql",
+        "test_tloginsvr_postgresql_auth",
+        "test_tloginsvr_postgresql_char",
+        "test_tloginsvr_asio_char_flow",
+        "tloginsvr_asio",
+        "test_tmapsvr_asio_admission",
+        "test_tmapsvr_asio_world_enter",
+        "test_tworldsvr_asio_entersvr_fresh_login_handlers",
+        "test_tloginsvr_postgresql_handoff",
+        "test_tloginsvr_asio_start_flow",
+        "tmapsvr_asio",
+        "tworldsvr_asio",
+        "test_tmapsvr_postgresql_map",
+        "test_tmapsvr_asio_client_senders",
+        "test_tmapsvr_asio_world_enterchar",
+        "test_tmapsvr_asio_world_checkmain",
+        "test_tmapsvr_asio_world_routelist",
+        "test_tmapsvr_asio_loot_senders",
+        "test_tworldsvr_asio_route_completion_handlers",
+        "test_tworldsvr_asio_chardata_drift_handlers",
+        "test_tworldsvr_asio_closechar_handlers",
+        "test_tworldsvr_asio_service_plane_handlers",
+        "test_cluster_world_handshake",
+        "test_cluster_world_reconnect",
+        "test_tworldsvr_asio_session_writes",
+        "test_tworldsvr_asio_secondary_admission",
+        "test_tworldsvr_asio_main_handoff",
+        "test_tworldsvr_asio_checkmain_handlers",
+        "test_tworldsvr_asio_releasemain_handlers",
+        "test_tworldsvr_asio_entersvr_handoff_handlers",
+        "test_tworldsvr_asio_teleport_handlers",
+        "test_tmapsvr_asio_main_transfer_codec",
+        "test_tmapsvr_asio_skill_cooldown",
+        "test_tworldsvr_asio_checkconnect_handlers"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "timeout": 60,
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "linux-asan",
+      "configurePreset": "linux-asan",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+      },
+      "filter": {
+        "include": {
+          "name": "^(tnetlib_crypto_kat|tnetlib_packet_codec|tnetlib_asio_echo|tloginsvr_asio_auth_flow|tloginsvr_asio_start_flow|tloginsvr_asio_session_terminator|tloginsvr_asio_shutdown_sweep|tmapsvr_asio_admission(_encrypted)?|tmapsvr_asio_world_enter|tmapsvr_asio_client_senders|tmapsvr_asio_world_enterchar|tmapsvr_asio_world_checkmain|tmapsvr_asio_world_routelist|tmapsvr_asio_loot_senders|tmapsvr_asio_main_transfer_codec|tworldsvr_asio_entersvr_fresh_login_handlers|tworldsvr_asio_route_completion_handlers|tworldsvr_asio_chardata_drift_handlers|tworldsvr_asio_closechar_handlers|tworldsvr_asio_service_plane_handlers|cluster_world_handshake|cluster_world_reconnect|tworldsvr_asio_session_writes|tworldsvr_asio_secondary_admission|tworldsvr_asio_main_handoff|tworldsvr_asio_checkmain_handlers|tworldsvr_asio_releasemain_handlers|tworldsvr_asio_entersvr_handoff_handlers|tworldsvr_asio_teleport_handlers|tmapsvr_asio_skill_cooldown|tworldsvr_asio_checkconnect_handlers)$"
+        }
+      },
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "timeout": 60,
+        "noTestsAction": "error"
+      }
+    }
+  ]
+}

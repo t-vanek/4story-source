@@ -1,0 +1,12 @@
+{
+  "scope": "Owned Login lifecycle/native catalog verification lab only",
+  "postgresql_container_removed": true,
+  "owned_network_removed": true,
+  "remaining_private_env_or_key_files": [],
+  "private_key_files_removed_after_stop": 31,
+  "native_daemon_containers": "removed by verification harness",
+  "six_daemon_smoke_resources": "removed by smoke harness",
+  "original_backups_untouched": true,
+  "private_source_extract_retained": true,
+  "stop_log": "Owned database containers and network removed; private evidence directory retained.\n"
+}

@@ -21,6 +21,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -195,6 +196,7 @@ int main()
         wire::WritePOD<std::uint16_t>(b, 33500);
         wire::WritePOD<std::uint32_t>(b, 500);
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), b);
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, b));
     }
     for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);

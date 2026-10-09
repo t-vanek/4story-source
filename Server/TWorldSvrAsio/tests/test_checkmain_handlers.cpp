@@ -17,6 +17,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -130,15 +131,15 @@ int main()
     p1.connect(ep); p2.connect(ep); p3.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
-    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0044));
+    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0444));
     { auto [w, _] = ReadFramed(p3);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -160,12 +161,18 @@ int main()
     auto establish = [&](std::uint32_t id, std::uint32_t key) {
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(id, key)));
         for (int i = 0; i < 1000 && !chars.Find(id); ++i)
             std::this_thread::sleep_for(10ms);
+        EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(id, key), 0x43));
         SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
+        EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(id, key)));
         for (int i = 0; i < 1000 && cons_size(id) != 2; ++i)
             std::this_thread::sleep_for(10ms);
+        {auto ch=chars.Find(id);std::lock_guard guard(ch->lock);
+         for(auto& con:ch->cons)con.ready=true;} // fixture begins after ENTERCHAR
+
     };
     establish(100, 0xA1);
     establish(200, 0xB0);
@@ -189,6 +196,7 @@ int main()
 
     // --- main confirmed: CHECKMAIN_ACK from the main (0x42 = p1) ----
     {
+        EXPECT(world_test::RequestMainCheck(SendFramed,ReadFramed,p1,p2,AddCharBody(100,0xA1),0x43));
         SendFramed(p1, ToUint16(MessageId::MW_CHECKMAIN_ACK),
                    CharKeyBody(100, 0xA1));
         // p3 (0x44) gets CLOSECHAR for the dead con.
@@ -223,6 +231,7 @@ int main()
 
     // --- main handoff: CHECKMAIN_ACK from a non-main (0x43 = p2) ----
     {
+        EXPECT(world_test::RequestMainCheck(SendFramed,ReadFramed,p1,p2,AddCharBody(200,0xB0),0x43));
         SendFramed(p2, ToUint16(MessageId::MW_CHECKMAIN_ACK),
                    CharKeyBody(200, 0xB0));
         // Old main (0x42 = p1) gets RELEASEMAIN with the char's pos.

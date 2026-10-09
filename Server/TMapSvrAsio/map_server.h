@@ -33,6 +33,9 @@ struct MapServerConfig
     std::vector<std::byte>  rc4_secret_key;
     std::uint32_t           max_connections = 8000;
 
+    // Native clients require an acknowledged World registration.
+    bool require_registered_world = false;
+
     // T5 pre-auth watchdog. After this many seconds, sessions that
     // haven't yet completed CS_CONNECT_REQ (= not bound in
     // session_reg) get their socket closed. Zero disables.
@@ -57,6 +60,7 @@ public:
     // per-connection coroutines keep running until they finish or
     // hit the drain timeout from main().
     void StopAccepting();
+    void CloseSessions();
 
     std::uint16_t Port() const { return m_port; }
 
@@ -64,6 +68,8 @@ public:
     // sweep without standing up the full accept loop.
     void Register(std::shared_ptr<tnetlib::AsioSession> session);
     void Unregister(tnetlib::AsioSession* raw);
+
+    std::uint32_t FailedSaves() const { return m_failed_save_count.load(); }
 
     std::uint32_t LiveSessions() const { return m_active_connections.load(); }
 
@@ -76,7 +82,9 @@ private:
     std::uint16_t                   m_port;
     MapServerConfig                 m_cfg;
     std::atomic<std::uint32_t>      m_active_connections{0};
+    std::atomic<std::uint32_t>      m_failed_save_count{0};
 
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> m_failed_saves;
     std::mutex                                            m_sessions_mtx;
     std::vector<std::weak_ptr<tnetlib::AsioSession>>      m_sessions;
 };

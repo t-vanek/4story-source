@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-09",
+  "status": "passed",
+  "image": "localhost/fourstory:postgresql-world-handoff",
+  "image_id": "d29f4c8869b897fdaa3ddd947ff4aeea067316cd34a50d67f844882b2ed918c9",
+  "uid_gid": "10001:10001",
+  "installed_release_daemon_sha256": {
+    "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+    "/opt/fourstory/bin/tworldsvr_asio": "51aba9350a1fee9454de37660c7626147dba446fe0da6501438c70f246eaa8cf",
+    "/opt/fourstory/bin/tmapsvr_asio": "9ec4dc8a268d9c3b8e3ff1f5613005b78a4e379748a282e3064227ee9a10661b",
+    "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+    "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef"
+  },
+  "native_verification": {
+    "report": "native-world-handoff-release.json",
+    "status": "passed",
+    "native_map_checks": 96,
+    "pool_tls_checks": 29,
+    "four_daemon_tcp_checks": 153,
+    "world_secondary_wire_checks": 66,
+    "world_handoff_wire_checks": 295,
+    "second_native_map_rejection_checks": 7,
+    "native_replica_wire_checks": 36,
+    "sql_server_used": false
+  },
+  "six_daemon_health_dns_sigterm": "world-handoff-container-smoke.log",
+  "build_command": "podman build --network host --build-arg BUILD_JOBS=2 --target runtime -t localhost/fourstory:postgresql-world-handoff .",
+  "scope": "Installed Release Login/World/two-Map daemons; mounted Debug native integration executables. Independent synthetic TCP peers; original client not executed."
+}

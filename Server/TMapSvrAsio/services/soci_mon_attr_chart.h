@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 namespace fourstory::db { class SessionPool; }
+namespace soci { class session; }
 
 namespace tmapsvr {
 
@@ -14,6 +15,8 @@ class SociMonAttrChart final : public IMonAttrChart
 {
 public:
     explicit SociMonAttrChart(fourstory::db::SessionPool& pool);
+    // Shared boot transaction: all catalogs observe the same content release.
+    explicit SociMonAttrChart(soci::session& sql);
 
     std::optional<MonsterAttr>
         Find(std::uint16_t mon_id, std::uint8_t level) const override

@@ -171,16 +171,18 @@ struct LoginReqFields
 // to break the ctest suite just to enforce the check.
 bool VerifyLoginChecksum(std::uint16_t version, std::int64_t recv_checksum)
 {
-    constexpr std::int64_t kKey = 0x336c3aebf71a8b08LL;
-    std::int64_t ck = static_cast<std::int64_t>(version) * 2 - 500;
-    const std::int64_t idx  = ck % 8;
-    const std::int64_t body = ck / 8;
+    constexpr std::uint64_t kKey = 0x336c3aebf71a8b08ULL;
+    const std::int64_t seed = static_cast<std::int64_t>(version) * 2 - 500;
+    const std::int64_t idx = seed % 8;
+    const auto body = static_cast<std::uint64_t>(seed / 8);
+    // Keep signed seed division/remainder, then wrap additions modulo 2^64.
+    auto ck = static_cast<std::uint64_t>(seed);
     for (std::int64_t i = 0; i < idx; ++i)
     {
         ck ^= body;
         ck += kKey;
     }
-    return ck == recv_checksum;
+    return ck == static_cast<std::uint64_t>(recv_checksum);
 }
 
 constexpr std::size_t kMaxLoginStringLen = 64;
@@ -264,7 +266,7 @@ std::int32_t ResolveUserId(
 {
     if (!registry) return 0;
     const auto entry = registry->Lookup(session);
-    return entry ? entry->user_id : 0;
+    return entry && !entry->awaiting_security && entry->session_key != 0 ? entry->user_id : 0;
 }
 
 // Per-session agreement gate. Mirrors legacy
@@ -278,7 +280,7 @@ bool IsAgreed(const std::shared_ptr<tnetlib::AsioSession>& session,
 {
     if (!registry) return true;
     const auto entry = registry->Lookup(session);
-    return entry && entry->agreed;
+    return entry && !entry->awaiting_security && entry->session_key != 0 && entry->agreed;
 }
 
 } // namespace
@@ -296,6 +298,7 @@ fourstory::audit::LoginOutcome ToLoginOutcome(services::AuthStatus s)
     case S::WrongPassword:   return O::WrongPassword;
     case S::Duplicate:       return O::Duplicate;
     case S::Banned:          return O::Banned;
+    case S::IpRestricted:
     case S::IpBanned:        return O::IpBanned;
     case S::AgreementNeeded: return O::AgreementNeeded;
     case S::VersionMismatch: return O::VersionMismatch;
@@ -344,7 +347,8 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
            std::span<const std::uint16_t> accepted_versions,
            fourstory::smtp::ISmtpClient* smtp_client,
            Nation nation,
-           boost::asio::thread_pool* db_pool)
+           boost::asio::thread_pool* db_pool,
+           services::ISessionTerminator* session_terminator)
 {
     // Default to the legacy single value if the caller passed nothing.
     // This keeps the unit-test path (which doesn't thread the config)
@@ -360,6 +364,7 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
         return false;
     };
     auto& sref = *session;
+    bool close_after_ack = false;
     LoginAck ack{};
     ack.bCreateCnt = 6;  // CHARSLOT_MAX default
 
@@ -459,6 +464,15 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
         }
         else
         {
+            std::string retry_token;
+            if (connection_registry)
+                if (auto pending = connection_registry->Lookup(session); pending && pending->awaiting_security)
+                {
+                    if (!pending->security_verified || pending->security_token.empty() ||
+                        std::chrono::steady_clock::now() >= pending->security_deadline)
+                    { sref.Close(); co_return; }
+                    retry_token = pending->security_token;
+                }
             services::AuthRequest req{
                 .user_id = fields.user_id,
                 .password = fields.password,
@@ -466,10 +480,36 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
                 .client_version = fields.version,
                 .site_code = fields.site_code,
                 .site_code_present = fields.site_code_present,
+                .security_retry_token = retry_token,
             };
             const auto result = co_await fourstory::db::CoOffloadIf(
                 db_pool, [&] { return auth_service->Authenticate(req); });
-            ack.bResult    = static_cast<std::uint8_t>(result.status);
+            // The grant belongs to one retry attempt. Authentication consumes it
+            // atomically on commit; cancellation also covers denied/rolled-back work.
+            if (!retry_token.empty())
+            {
+                co_await fourstory::db::CoOffloadVoidIf(db_pool,
+                    [&] { auth_service->CancelSecurityChallenge(retry_token); });
+                if (result.status != services::AuthStatus::Success &&
+                    result.status != services::AuthStatus::AgreementNeeded)
+                    close_after_ack = true;
+            }
+            // TCP may close while the DB worker commits the login. The read
+            // coroutine can already have run its cleanup without an entry.
+            if (!sref.IsOpen())
+            {
+                if (result.security_challenge)
+                    co_await fourstory::db::CoOffloadVoidIf(db_pool, [&] {
+                        auth_service->CancelSecurityChallenge(result.security_challenge->token);
+                    });
+                if (result.session_key && session_terminator)
+                    co_await fourstory::db::CoOffloadVoidIf(db_pool, [&] {
+                        session_terminator->Terminate(result.user_id, result.session_key,
+                            services::TerminationReason::Disconnect);
+                    });
+                co_return;
+            }
+            ack.bResult    = services::ToLoginWireResult(result.status);
             ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
             ack.dwCharID   = result.last_char_id;   // legacy: SP TLogin OUT m_dwCharID
             ack.dwKEY      = result.session_key;
@@ -489,63 +529,55 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
                     fields.user_id,
                     static_cast<std::uint64_t>(fields.dl_check));
             }
-            spdlog::info("CS_LOGIN_REQ user={} → status={} key=0x{:08X}",
-                fields.user_id, ack.bResult, ack.dwKEY);
+            spdlog::info("CS_LOGIN_REQ user={} → status={}",
+                fields.user_id, ack.bResult);
 
-            // 2FA challenge — Authenticate held off the TCURRENTUSER /
-            // TLOG inserts; we issue a code, mail it, register the
-            // session in pending state, and send CS_SECURITYCONFIRM_REQ.
-            // The client shows the code-entry dialog; on success
-            // OnSecurityConfirmAck completes the login + delivers the
-            // deferred CS_LOGIN_ACK.
-            if (result.status == services::AuthStatus::SecurityRequired
-                && connection_registry != nullptr
-                && auth_service != nullptr)
+            if (result.status == services::AuthStatus::Duplicate)
             {
-                const std::string code = co_await fourstory::db::CoOffloadIf(
-                    db_pool,
-                    [&] { return auth_service->IssueSecurityCode(result.user_id); });
-                const auto email_rec = co_await fourstory::db::CoOffloadIf(
-                    db_pool,
-                    [&] { return auth_service->LookupEmail(result.user_id); });
-                if (!code.empty() && email_rec && smtp_client != nullptr)
+                // Legacy LR_DUPLICATE closes both login connections. A session
+                // already owned by Map requires its separate world kick path.
+                if (connection_registry)
+                    for (const auto& live : connection_registry->Snapshot())
+                        if (live.session != session && live.entry.user_id == result.user_id &&
+                            !live.entry.awaiting_security && !live.entry.handoff_to_map)
+                            live.session->Close();
+                close_after_ack = true;
+            }
+
+            // The service issued a connection-bound challenge after validating
+            // credentials. Confirmation sends only SECURITYRESULT; the original
+            // client then drives a fresh LOGIN through the full auth transaction.
+            if (result.status == services::AuthStatus::SecurityRequired)
+            {
+                if (!result.security_challenge || !connection_registry || !smtp_client)
                 {
-                    smtp_client->Send(email_rec->email,
-                        "4Story — login verification code",
-                        "A login attempt from a new device was detected.\n\n"
-                        "If this was you, enter the following code in the "
-                        "verification dialog:\n\n"
-                        "    " + code + "\n\n"
-                        "If it wasn't you, change your password immediately.");
+                    if (result.security_challenge)
+                        co_await fourstory::db::CoOffloadVoidIf(db_pool, [&] {
+                            auth_service->CancelSecurityChallenge(result.security_challenge->token);
+                        });
+                    sref.Close(); co_return;
                 }
+                const auto& challenge = *result.security_challenge;
                 services::ConnectionEntry entry{
                     .user_id = result.user_id,
-                    .session_key = 0,             // assigned after confirm
-                    .handoff_to_map = false,
-                    .agreed = false,
-                    .group_id = 0,
-                    .check_key = 0,
                     .awaiting_security = true,
                     .pending_client_ip = sref.RemoteIPv4(),
+                    .security_token = challenge.token,
+                    .security_deadline = std::chrono::steady_clock::now() + std::chrono::minutes(5),
                 };
-                connection_registry->Register(entry, session);
-
-                // Server → client: prompt the code-entry dialog.
+                connection_registry->Register(std::move(entry), session);
+                const bool queued = co_await fourstory::db::CoOffloadIf(db_pool, [&] { return smtp_client->Send(challenge.email,
+                    "4Story — login verification code",
+                    "A login attempt needs verification.\n\n"
+                    "Enter the following code in the verification dialog within five minutes:\n\n"
+                    "    " + challenge.code + "\n\n"
+                    "If this was not you, change your password.\n"); });
+                if (!queued) { spdlog::warn("auth: security challenge delivery unavailable"); sref.Close(); co_return; }
                 co_await sref.SendPacket(
-                    tnetlib::protocol::ToUint16(
-                        tnetlib::protocol::MessageId::CS_SECURITYCONFIRM_REQ),
+                    tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_SECURITYCONFIRM_REQ),
                     std::span<const std::byte>{});
-
-                if (audit_logger != nullptr)
-                {
-                    audit_logger->LogLogin(
-                        fourstory::audit::LoginOutcome::AgreementNeeded, // closest existing label
-                        fields.user_id, result.user_id, sref.RemoteIPv4(), 0);
-                }
-                spdlog::info("CS_LOGIN_REQ user={} → SecurityRequired "
-                             "(2FA email sent, awaiting CONFIRM_ACK)",
-                    fields.user_id);
-                co_return;  // do NOT send CS_LOGIN_ACK now
+                spdlog::info("auth: awaiting security confirmation uid={}", result.user_id);
+                co_return;
             }
 
             // Per-session bookkeeping on any "the user is now known"
@@ -582,13 +614,8 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
                 auto previous = connection_registry->Register(entry, session);
                 if (previous)
                 {
-                    // Modern divergence: legacy closed BOTH old and new
-                    // sessions on duplicate. Modern "newest wins" UX —
-                    // close the previous holder and let the new one
-                    // proceed. The SociAuthService::Authenticate side
-                    // already set bLocked=1 on the existing
-                    // TCURRENTUSER row so the old session's close path
-                    // cleans up correctly.
+                    // Defensive local replacement (e.g. test services). Native
+                    // DB duplicates take the explicit close-both branch above.
                     spdlog::warn(
                         "duplicate login for user_id={} — kicking previous session",
                         result.user_id);
@@ -612,7 +639,7 @@ OnLoginReq(std::shared_ptr<tnetlib::AsioSession> session, std::span<const std::b
     const auto payload = EncodeLoginAck(ack);
     co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_LOGIN_ACK),
-        std::span<const std::byte>(payload.data(), payload.size()));
+        std::span<const std::byte>(payload.data(), payload.size()), close_after_ack);
 }
 
 boost::asio::awaitable<void>
@@ -986,7 +1013,7 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         p.U8(echo ? echo->pants      : 0);
         p.U8(echo ? echo->hand       : 0);
         p.U8(echo ? echo->foot       : 0);
-        p.U8(0);  // remaining_slots — unchanged on rejection
+        p.U8(0);  // create_count — unchanged on rejection
         p.U8(0);  // starting_level
         co_await sref.SendPacket(
             tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
@@ -1038,7 +1065,7 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         p.U8(req.sex);
         p.U8(req.hair); p.U8(req.face); p.U8(req.body);
         p.U8(req.pants); p.U8(req.hand); p.U8(req.foot);
-        p.U8(0); // remaining_slots — unchanged on rejection
+        p.U8(0); // create_count — unchanged on rejection
         p.U8(0); // starting_level
         co_await sref.SendPacket(
             tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_CREATECHAR_ACK),
@@ -1046,6 +1073,9 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         co_return;
     }
 
+    if (connection_registry) {
+        if (auto entry = connection_registry->Lookup(session)) req.session_key = entry->session_key;
+    }
     const auto result = co_await fourstory::db::CoOffloadIf(db_pool,
         [&] { return char_service->Create(req); });
 
@@ -1070,7 +1100,7 @@ OnCreateCharReq(std::shared_ptr<tnetlib::AsioSession> session,
     p.U8(req.pants);
     p.U8(req.hand);
     p.U8(req.foot);
-    p.U8(result.remaining_slots);
+    p.U8(result.create_count);
     p.U8(result.starting_level);
 
     // Build a unified CharLobbySummary via the registered MapperProfile.
@@ -1113,7 +1143,7 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
 
     // Legacy DR_* result codes from CSHandler.cpp:1208 — DR_INVALIDPASSWD
     // signals "password didn't match" (CSPCheckPasswd's RETURN 1).
-    constexpr std::uint8_t kDrInvalidPassword = 2;
+    constexpr std::uint8_t kDrInvalidPassword = 1;
 
     auto reply_with = [&](std::uint8_t result, std::int32_t char_id)
         -> boost::asio::awaitable<void>
@@ -1214,8 +1244,12 @@ OnDelCharReq(std::shared_ptr<tnetlib::AsioSession> session,
         co_return;
     }
 
+    std::uint32_t session_key = 0;
+    if (connection_registry) {
+        if (auto entry = connection_registry->Lookup(session)) session_key = entry->session_key;
+    }
     const auto result = co_await fourstory::db::CoOffloadIf(db_pool,
-        [&] { return char_service->Delete(user_id, group_id, char_id, password); });
+        [&] { return char_service->DeleteAuthorized(user_id, group_id, char_id, password, session_key); });
     spdlog::info("CS_DELCHAR_REQ user={} group={} char={} → {}",
         user_id, group_id, char_id, static_cast<std::uint8_t>(result));
     if (audit_logger != nullptr)
@@ -1249,7 +1283,8 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
     std::uint8_t  bGroupID = 0;
     std::uint8_t  bChannel = 0;
     std::int32_t  dwCharID = 0;
-    if (body.size() >= 6)
+    if (body.size() != 6) { sref.Close(); co_return; }
+    if (body.size() == 6)
     {
         bGroupID = static_cast<std::uint8_t>(body[0]);
         bChannel = static_cast<std::uint8_t>(body[1]);
@@ -1264,20 +1299,21 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
     std::uint8_t resolved_server_id = 0;
     bool start_ok = false;
 
-    auto ep = (map_server_locator == nullptr)
-        ? std::optional<services::MapEndpoint>{}
-        : co_await fourstory::db::CoOffloadIf(db_pool,
-            [&] {
-                return map_server_locator->Lookup(
-                    resolved_user_id, bGroupID, bChannel, dwCharID);
-            });
+    std::uint32_t session_key=0;
+    if (connection_registry) {
+        if (auto entry=connection_registry->Lookup(session)) session_key=entry->session_key;
+    }
+    const services::StartRequest request{resolved_user_id,session_key,bGroupID,bChannel,dwCharID};
+    const auto result = map_server_locator == nullptr ? services::StartResponse{} :
+        co_await fourstory::db::CoOffloadIf(db_pool, [&] { return map_server_locator->StartAuthorized(request); });
+    const auto& ep=result.endpoint;
     if (map_server_locator == nullptr)
     {
-        payload[0] = static_cast<std::byte>(kSrNoServer);
+        payload[0] = static_cast<std::byte>(result.status);
         spdlog::info("CS_START_REQ group={} ch={} char={} → CS_START_ACK (stub: SR_NOSERVER)",
             bGroupID, bChannel, dwCharID);
     }
-    else if (ep)
+    else if (result.status==services::StartStatus::Success && ep)
     {
         payload[0] = static_cast<std::byte>(0); // SR_SUCCESS
         start_ok = true;
@@ -1312,10 +1348,10 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
     }
     else
     {
-        payload[0] = static_cast<std::byte>(kSrNoServer);
+        payload[0] = static_cast<std::byte>(result.status);
         spdlog::warn("CS_START_REQ group={} ch={} char={} → CS_START_ACK "
-                     "(SR_NOSERVER — no map endpoint registered)",
-            bGroupID, bChannel, dwCharID);
+                     "(result={})",
+            bGroupID, bChannel, dwCharID, static_cast<unsigned>(result.status));
     }
 
     if (audit_logger != nullptr)
@@ -1326,7 +1362,7 @@ OnStartReq(std::shared_ptr<tnetlib::AsioSession> session,
 
     co_await sref.SendPacket(
         tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_START_ACK),
-        std::span<const std::byte>(payload, sizeof(payload)));
+        std::span<const std::byte>(payload, sizeof(payload)), start_ok);
 }
 
 boost::asio::awaitable<void>
@@ -1459,114 +1495,34 @@ OnSecurityConfirmAck(std::shared_ptr<tnetlib::AsioSession> session,
                      services::IAuthService* auth_service,
                      services::IConnectionRegistry* connection_registry,
                      fourstory::audit::IAuditLogger* audit_logger,
-                     boost::asio::thread_pool* db_pool)
+                     boost::asio::thread_pool* db_pool,
+           services::ISessionTerminator* session_terminator)
 {
-    auto& sref = *session;
+    if (!connection_registry || !auth_service) { session->Close(); co_return; }
+    const auto entry = connection_registry->Lookup(session);
+    if (!entry || !entry->awaiting_security || entry->security_verified || entry->security_token.empty() ||
+        std::chrono::steady_clock::now() >= entry->security_deadline)
+    { session->Close(); co_return; }
 
-    // Wire body: STRING strCode (INT32 length + bytes). Same shape
-    // as CSHandler.cpp:1510-1540.
-    std::string code;
-    if (body.size() >= 4)
-    {
-        std::int32_t len = 0;
-        std::memcpy(&len, body.data(), 4);
-        if (len >= 0 && len <= 64 &&
-            static_cast<std::size_t>(4 + len) <= body.size())
-        {
-            code.assign(reinterpret_cast<const char*>(body.data() + 4),
-                        static_cast<std::size_t>(len));
-        }
-    }
-
-    constexpr std::uint8_t kCodeIncorrect = 1;
-    std::uint8_t result_code = kCodeIncorrect;
-
-    // Recover the pending login state (user_id + pending_client_ip)
-    // from the registry entry we stamped during the LOGIN_REQ path.
-    std::int32_t user_id = 0;
-    std::string  client_ip;
-    bool         was_awaiting_security = false;
-    if (connection_registry != nullptr)
-    {
-        if (auto entry = connection_registry->Lookup(session))
-        {
-            user_id = entry->user_id;
-            client_ip = entry->pending_client_ip;
-            was_awaiting_security = entry->awaiting_security;
-        }
-    }
-    if (client_ip.empty()) client_ip = sref.RemoteIPv4();
-
-    if (code.empty() || user_id == 0)
-    {
-        spdlog::warn("CS_SECURITYCONFIRM_ACK empty/anon (uid={} code_len={})",
-            user_id, code.size());
-    }
-    else if (auth_service != nullptr)
-    {
-        const bool ok = co_await fourstory::db::CoOffloadIf(db_pool,
-            [&] { return auth_service->VerifySecurityCode(user_id, code); });
-        if (ok) result_code = kCodeCorrect;
-    }
-
-    std::byte payload[1] = { static_cast<std::byte>(result_code) };
-    spdlog::info("CS_SECURITYCONFIRM_ACK uid={} → CS_SECURITYRESULT_ACK result={}",
-        user_id, result_code);
-    co_await sref.SendPacket(
-        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_SECURITYRESULT_ACK),
-        std::span<const std::byte>(payload, sizeof(payload)));
-
-    // If we were in 2FA-pending mode AND the code matched, complete
-    // the deferred login: whitelist the IP, insert TCURRENTUSER + TLOG,
-    // flip the session's pending flag, then send the long-awaited
-    // CS_LOGIN_ACK so the client can move on to the lobby.
-    if (was_awaiting_security && result_code == kCodeCorrect
-        && auth_service != nullptr && connection_registry != nullptr)
-    {
-        co_await fourstory::db::CoOffloadVoidIf(db_pool,
-            [&] { auth_service->AddTrustedIp(user_id, client_ip); });
-        const std::uint32_t key = co_await fourstory::db::CoOffloadIf(
-            db_pool, [&] {
-                return auth_service->CompleteSecurityLogin(
-                    user_id, client_ip);
-            });
-        if (key == 0)
-        {
-            spdlog::error("CS_SECURITYCONFIRM_ACK uid={} — complete login "
-                          "failed (DB error)", user_id);
-            sref.Close();
-            co_return;
-        }
-        connection_registry->CompleteSecurityLogin(session, key);
-
-        // Build the deferred CS_LOGIN_ACK with full session info. The
-        // client sees this and moves on as if the original LOGIN had
-        // succeeded.
-        LoginAck ack{};
-        ack.bResult    = static_cast<std::uint8_t>(services::AuthStatus::Success);
-        ack.dwUserID   = static_cast<std::uint32_t>(user_id);
-        ack.dwCharID   = co_await fourstory::db::CoOffloadIf(db_pool,
-            [&] { return auth_service->LookupLastCharId(user_id); });
-        ack.dwKEY      = key;
-        ack.bCreateCnt = 6;
-        ack.dCurTime = static_cast<std::int64_t>(
-            std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
-        thread_local std::mt19937_64 rng{ std::random_device{}() };
-        ack.dlCheckKey = static_cast<std::int64_t>(rng());
-        const auto payload2 = EncodeLoginAck(ack);
-        spdlog::info("CS_SECURITYCONFIRM_ACK uid={} → deferred CS_LOGIN_ACK "
-                     "(key=0x{:08X}, ip whitelisted)", user_id, key);
-        co_await sref.SendPacket(
-            tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_LOGIN_ACK),
-            std::span<const std::byte>(payload2.data(), payload2.size()));
-
-        if (audit_logger != nullptr)
-        {
-            audit_logger->LogLogin(fourstory::audit::LoginOutcome::Success,
-                "<2fa>", user_id, client_ip, key);
-        }
-    }
+    // Original STRING = int32 length followed by bytes. Consume exactly one
+    // field; malformed confirmation cannot probe or consume another challenge.
+    std::int32_t length = -1;
+    if (body.size() >= 4) std::memcpy(&length, body.data(), 4);
+    if (length < 0 || length > 64 || body.size() != 4 + static_cast<std::size_t>(length))
+    { session->Close(); co_return; }
+    const std::string code(reinterpret_cast<const char*>(body.data() + 4), length);
+    const auto result = co_await fourstory::db::CoOffloadIf(db_pool, [&] {
+        return auth_service->VerifySecurityCode(entry->security_token, entry->pending_client_ip, code);
+    });
+    if (!session->IsOpen()) co_return;
+    if (result == services::SecurityCodeResult::Correct)
+        connection_registry->MarkSecurityVerified(session);
+    const std::byte payload[] = {result == services::SecurityCodeResult::Correct ? std::byte{0} : std::byte{1}};
+    co_await session->SendPacket(
+        tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::CS_SECURITYRESULT_ACK), payload,
+        result == services::SecurityCodeResult::Unavailable);
+    // No session creation, IP trust or unsolicited LOGIN_ACK here. The source
+    // client sends LOGIN again; that path rechecks credentials and current bans.
 }
 
 // ===== Control-server (CT_*) handlers =======================================
@@ -1802,7 +1758,7 @@ OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession> session,
         const auto remote_ip = sref.RemoteIPv4();
         const auto result = co_await fourstory::db::CoOffloadIf(db_pool,
             [&] { return auth_service->AuthenticateTest(remote_ip); });
-        ack.bResult    = static_cast<std::uint8_t>(result.status);
+        ack.bResult    = services::ToLoginWireResult(result.status);
         ack.dwUserID   = static_cast<std::uint32_t>(result.user_id);
         ack.dwCharID   = result.last_char_id;
         ack.dwKEY      = result.session_key;

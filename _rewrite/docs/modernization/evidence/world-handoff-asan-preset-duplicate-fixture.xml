@@ -1,0 +1,484 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-c++"
+	tests="29"
+	failures="2"
+	disabled="0"
+	skipped="0"
+	hostname="947f4fe80c5c"
+	time="71"
+	timestamp="2026-10-09T03:47:10"
+	>
+	<testcase name="cluster_world_handshake" classname="cluster_world_handshake" time="0.170709" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:10.128] [info] world_client: connected to 127.0.0.1:34987
+[2026-10-09 03:47:10.128] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:10.128] [info] world_client: sent RW_RELAYSVR_REQ wid=0x0405 (server_id=5, server_type=4)
+[2026-10-09 03:47:10.129] [info] OnRelaysvrReq[127.0.0.1]: wID=1029 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:10.129] [info] world_client: registration acknowledged wid=0x0405
+[2026-10-09 03:47:10.138] [info] OnAddCharAck[127.0.0.1]: char_id=2882400001 user_id=4242 server_id=5 ip=127.0.0.1:12345 — registered (total=1, active_users=1)
+[2026-10-09 03:47:10.149] [info] OnEnterSvrAck[127.0.0.1]: char_id=2882400001 'Hero' entered (lvl=77 map=60 region=0) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 03:47:10.158] [info] OnEnterCharReq[127.0.0.1]: char_id=2882400001 name='Hero' country=0 guild_id=0 guild_chief=0 duty=0 map=60 — replying bResult=1
+test_world_handshake: register + char-add + entersvr + entercharack OK (wid=0x0405 char=0x...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="cluster_world_reconnect" classname="cluster_world_reconnect" time="0.646295" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:10.249] [info] world_client: connected to 127.0.0.1:41229
+[2026-10-09 03:47:10.250] [info] world_client: sent RW_RELAYSVR_REQ wid=0x0401 (server_id=1, server_type=4)
+[2026-10-09 03:47:10.349] [warning] world_client: registration deadline expired; closing
+[2026-10-09 03:47:10.350] [info] world_client: disconnected from 127.0.0.1:41229; draining before reconnect
+[2026-10-09 03:47:10.411] [info] world_client: connected to 127.0.0.1:43591
+[2026-10-09 03:47:10.412] [info] world_client: sent RW_RELAYSVR_REQ wid=0x0401 (server_id=1, server_type=4)
+[2026-10-09 03:47:10.412] [warning] world_client: invalid registration acknowledgment; closing
+[2026-10-09 03:47:10.412] [info] world_client: disconnected from 127.0.0.1:43591; draining before reconnect
+[2026-10-09 03:47:10.475] [info] world_client: connected to 127.0.0.1:39615
+[2026-10-09 03:47:10.475] [info] world_client: sent RW_RELAYSVR_REQ wid=0x0401 (server_id=1, server_type=4)
+[2026-10-09 03:47:10.475] [warning] world_client: invalid registration a...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tnetlib_crypto_kat" classname="tnetlib_crypto_kat" time="0.0130495" status="run">
+		<properties/>
+		<system-out>=== tnetlib_crypto tests ===
+[rfc6229 40-bit key]
+  PASS  RC4Transform returns true
+  PASS  RC4 output matches RFC vector (got b2396305f03dc027ccc3524a0a1118a8)
+[rfc6229 128-bit key]
+  PASS  RC4Transform returns true
+  PASS  RC4 output matches RFC vector (got 9ac7cc9a609d1ef7b2932899cde41b97)
+[symmetry: encrypt twice == identity]
+  PASS  first RC4MD5Transform returns true
+  PASS  ciphertext differs from plaintext
+  PASS  second RC4MD5Transform returns true
+  PASS  second transform restored plaintext (RC4 is symmetric)
+[4story legacy secret key]
+  PASS  RC4MD5Transform with legacy secret returns true
+  INFO  keystream[0..15] = 9ddb8dfbf62e22dc78f6b5e3eb8dc360
+  PASS  encrypt with legacy secret
+  PASS  ciphertext differs from plaintext
+  PASS  decrypt with legacy secret
+  PASS  decrypted output matches plaintext
+[copy variant: distinct in/out buffers]
+  PASS  RC4MD5TransformCopy returns true
+  PASS  Copy variant produces identical bytes to in-place
+[edge cases]
+  PASS  zero-length buffer is legal
+  PASS  zero-l...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tnetlib_asio_echo" classname="tnetlib_asio_echo" time="0.471903" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>/usr/include/boost/asio/detail/impl/epoll_reactor.ipp:393:25: runtime error: member access within null pointer of type 'struct descriptor_state'
+    #0 0x55ba550eb200 in boost::asio::detail::epoll_reactor::deregister_descriptor(int, boost::asio::detail::epoll_reactor::descriptor_state*&amp;, bool) /usr/include/boost/asio/detail/impl/epoll_reactor.ipp:393
+    #1 0x55ba550fc66f in boost::asio::detail::reactive_socket_service_base::close(boost::asio::detail::reactive_socket_service_base::base_implementation_type&amp;, boost::system::error_code&amp;) /usr/include/boost/asio/detail/impl/reactive_socket_service_base.ipp:110
+    #2 0x55ba5511cf4a in boost::asio::basic_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;::close(boost::system::error_code&amp;) /usr/include/boost/asio/basic_socket.hpp:547
+    #3 0x55ba5518bf1b in tnetlib::AsioSession::Close() /src/Lib/Own/TNetLib/TNetLib/asio_session.cpp:445
+    #4 0x55ba5517f65d in RunPacketsAsync /src/Lib/Own/TNetLib/TNetLib/asio_session.cpp:289
+    #5 0x55ba550ce21d in std::__n4861::coroutine_handle&lt;void&gt;::resume() const /usr/include/c++/13/coroutine:135
+    #6 0x55ba55149928 in boost::asio::detail::awaitable_frame_base&lt;boost::asio::any_io_executor&gt;::resume() /usr/include/boost/asio/impl/awaitable.hpp:501
+    #7 0x55ba55143c7b in boost::asio::detail::awaitable_thread&lt;boost::asio::any_io_executor&gt;::pump() /usr/include/boost/asio/impl/awaitable.hpp:769
+    #8 0x55ba551e90fe in void boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt;::operator()&lt;unsigned long const&amp;&gt;(unsigned long const&amp;) /usr/include/boost/asio/impl/use_awaitable.hpp:131
+    #9 0x55ba551e2ba4 in void boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt;::operator()&lt;unsigned long const&amp;&gt;(boost::system::error_code const&amp;, unsigned long const&amp;) /usr/include/boost/asio/impl/redirect_error.hpp:79
+    #10 0x55ba551dcda7 in boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;::operator()(boost::system::error_code, unsigned long, int) /usr/include/boost/asio/impl/read.hpp:397
+    #11 0x55ba5521946c in boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;::operator()() /usr/include/boost/asio/detail/bind_handler.hpp:289
+    #12 0x55ba5521920f in void boost::asio::asio_handler_invoke&lt;boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt; &gt;(boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;&amp;, ...) /usr/include/boost/asio/handler_invoke_hook.hpp:88
+    #13 0x55ba552174d8 in void boost_asio_handler_invoke_helpers::invoke&lt;boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;, boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt;(boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;&amp;, boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt;&amp;) /usr/include/boost/asio/detail/handler_invoke_helpers.hpp:54
+    #14 0x55ba55215362 in void boost::asio::detail::asio_handler_invoke&lt;boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;, boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt;(boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;&amp;, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt;*) /usr/include/boost/asio/impl/redirect_error.hpp:171
+    #15 0x55ba552122ba in void boost_asio_handler_invoke_helpers::invoke&lt;boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;(boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;&amp;, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt;&amp;) /usr/include/boost/asio/detail/handler_invoke_helpers.hpp:54
+    #16 0x55ba5520f098 in void boost::asio::detail::asio_handler_invoke&lt;boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;, boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;(boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;&amp;, boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;*) /usr/include/boost/asio/impl/read.hpp:465
+    #17 0x55ba5520c60a in void boost_asio_handler_invoke_helpers::invoke&lt;boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;, boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt; &gt;(boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;&amp;, boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;&amp;) /usr/include/boost/asio/detail/handler_invoke_helpers.hpp:54
+    #18 0x55ba55207731 in void boost::asio::detail::handler_work&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::asio::any_io_executor, void&gt;::complete&lt;boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt; &gt;(boost::asio::detail::binder2&lt;boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::system::error_code, unsigned long&gt;&amp;, boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;&amp;) /usr/include/boost/asio/detail/handler_work.hpp:488
+    #19 0x55ba55200e1c in boost::asio::detail::reactive_socket_recv_op&lt;boost::asio::mutable_buffers_1, boost::asio::detail::read_op&lt;boost::asio::basic_stream_socket&lt;boost::asio::ip::tcp, boost::asio::any_io_executor&gt;, boost::asio::mutable_buffers_1, boost::asio::mutable_buffer const*, boost::asio::detail::transfer_all_t, boost::asio::detail::redirect_error_handler&lt;boost::asio::detail::awaitable_handler&lt;boost::asio::any_io_executor, unsigned long&gt; &gt; &gt;, boost::asio::any_io_executor&gt;::do_complete(void*, boost::asio::detail::scheduler_operation*, boost::system::error_code const&amp;, unsigned long) /usr/include/boost/asio/detail/reactive_socket_recv_op.hpp:152
+    #20 0x55ba550e1dd0 in boost::asio::detail::scheduler_operation::complete(void*, boost::system::error_code const&amp;, unsigned long) /usr/include/boost/asio/detail/scheduler_operation.hpp:40
+    #21 0x55ba550f5615 in boost::asio::detail::scheduler::do_run_one(boost::asio::detail::conditionally_enabled_mutex::scoped_lock&amp;, boost::asio::detail::scheduler_thread_info&amp;, boost::system::error_code const&amp;) /usr/include/boost/asio/detail/impl/scheduler.ipp:493
+    #22 0x55ba550f39a6 in boost::asio::detail::scheduler::run(boost::system::error_code&amp;) /usr/include/boost/asio/detail/impl/scheduler.ipp:210
+    #23 0x55ba550f6dec in boost::asio::io_context::run() (/src/build/linux-asan/bin/test_tnetlib_asio+0x430dec) (BuildId: 9f274a217ac6b1406747faebf980afbae5f467aa)
+    #24 0x55ba5505df13 in operator() /src/Lib/Own/TNetLib/tests/test_asio_session.cpp:625
+    #25 0x55ba550cce4d in __invoke_impl&lt;void, (anonymous namespace)::TestConcurrentSendPacketSerializes()::&lt;lambda()&gt; &gt; /usr/include/c++/13/bits/invoke.h:61
+    #26 0x55ba550cc0c7 in __invoke&lt;(anonymous namespace)::TestConcurrentSendPacketSerializes()::&lt;lambda()&gt; &gt; /usr/include/c++/13/bits/invoke.h:96
+    #27 0x55ba550cb76b in _M_invoke&lt;0&gt; /usr/include/c++/13/bits/std_thread.h:292
+    #28 0x55ba550cb3f9 in operator() /usr/include/c++/13/bits/std_thread.h:299
+    #29 0x55ba550cadad in _M_run /usr/include/c++/13/bits/std_thread.h:244
+    #30 0x7f140e784db3  (/lib/x86_64-linux-gnu/libstdc++.so.6+0xecdb3) (BuildId: 753c6c8608b61d4e67be8f0c890e03e0aa046b8b)
+    #31 0x7f140ee8da41 in asan_thread_start ../../../../src/libsanitizer/asan/asan_interceptors.cpp:234
+    #32 0x7f140ddf2b83  (/lib/x86_64-linux-gnu/libc.so.6+0x9cb83) (BuildId: a4a7992a8e66555c8141ab2a08a8465ff6e0ea65)
+    #33 0x7f140de7fecb  (/lib/x86_64-linux-gnu/libc.so.6+0x129ecb) (BuildId: a4a7992a8e66555c8141ab2a08a8465ff6e0ea65)
+
+</system-out>
+	</testcase>
+	<testcase name="tnetlib_packet_codec" classname="tnetlib_packet_codec" time="0.00645381" status="run">
+		<properties/>
+		<system-out>=== tnetlib packet_codec tests ===
+[key table parity with legacy g_4skey]
+  PASS  slot 0 matches legacy
+  PASS  slot 6 matches legacy
+  PASS  sequence wrap: 8 % 7 == 1
+[body round-trip — aligned size, 16 bytes / 2 INT64 chunks]
+  PASS  cipher differs from plain
+  PASS  decrypt succeeds
+  PASS  decrypt restores plaintext
+[body round-trip — partial tail (5 bytes only)]
+  PASS  5-byte tail: cipher differs
+  PASS  5-byte tail: decrypt succeeds
+  PASS  5-byte tail: plaintext restored
+[body round-trip — mixed (11 bytes = 1 chunk + 3 tail)]
+  PASS  decrypt succeeds
+  PASS  plaintext restored
+[empty body]
+  PASS  empty body produces zero checksum
+  PASS  empty body decrypt with 0 checksum ok
+  PASS  empty body with wrong checksum rejected
+  PASS  tail checksum preserves legacy wraparound golden value
+  PASS  tail golden ciphertext
+  PASS  wrapped tail checksum decrypts
+  PASS  tail golden plaintext
+  PASS  negative chunk and tail preserve legacy wraparound golden value
+  PASS  mixed golden ciphertext
+  PASS  wr...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_auth_flow" classname="tloginsvr_asio_auth_flow" time="0.120972" status="run">
+		<properties/>
+		<system-out>=== tloginsvr_asio auth-flow test ===
+[in-memory auth backend: good / bad-password / no-user / banned-user]
+  PASS  server bound
+[2026-10-09 03:47:11.445] [info] CS_LOGIN_REQ user=alice → status=0
+  PASS  alice + correct password → LR_SUCCESS (0)
+[2026-10-09 03:47:11.455] [info] CS_LOGIN_REQ user=alice → status=2
+  PASS  alice + wrong password → LR_INVALIDPASSWD (2)
+[2026-10-09 03:47:11.466] [info] CS_LOGIN_REQ user=charlie → status=1
+  PASS  unknown user → LR_NOUSER (1)
+[2026-10-09 03:47:11.476] [info] CS_LOGIN_REQ user=bob → status=7
+  PASS  account ban → backed-up TLogin LR_IPBLOCK (7)
+
+Results: 5 passed, 0 failed
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_start_flow" classname="tloginsvr_asio_start_flow" time="0.102622" status="run">
+		<properties/>
+		<system-out>=== tloginsvr_asio start-flow test ===
+[CS_START_REQ via IMapServerLocator — hit + miss]
+  PASS  server bound
+[2026-10-09 03:47:11.570] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 192.168.42.7:5815 server_id=2)
+  PASS  group 1: ack received
+  PASS  group 1: bResult == SR_SUCCESS (0)
+  PASS  group 1: IPv4 octets match 192.168.42.7
+  PASS  group 1: wPort matches 5815
+  PASS  group 1: bServerID matches 2
+[2026-10-09 03:47:11.580] [warning] CS_START_REQ group=99 ch=0 char=1 → CS_START_ACK (result=1)
+  PASS  group 99: ack received
+  PASS  group 99: bResult == SR_NOSERVER (1)
+  PASS  group 99: IPv4 octets zeroed
+
+Results: 9 passed, 0 failed
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_session_terminator" classname="tloginsvr_asio_session_terminator" time="0.355624" status="run">
+		<properties/>
+		<system-out>=== tloginsvr_asio session-terminator test ===
+[plain disconnect → SessionTerminator called with Disconnect]
+[2026-10-09 03:47:11.674] [info] CS_LOGIN_REQ user=alice → status=0
+  PASS  exactly one terminator call
+  PASS  user_id = 1001
+  PASS  session_key = 1 (first session)
+  PASS  reason = Disconnect
+[LOGIN + START_REQ + close → terminator called with MapHandoff]
+[2026-10-09 03:47:11.735] [info] CS_LOGIN_REQ user=bob → status=0
+[2026-10-09 03:47:11.735] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+  PASS  exactly one terminator call
+  PASS  user_id = 2002
+  PASS  reason = MapHandoff (CS_START_REQ marked it)
+[connect + disconnect without login → no terminator call]
+  PASS  terminator not called for never-authenticated session
+
+Results: 8 passed, 0 failed
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_shutdown_sweep" classname="tloginsvr_asio_shutdown_sweep" time="0.0611631" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:11.984] [info] CS_LOGIN_REQ user=lobby → status=0
+[2026-10-09 03:47:11.984] [info] CS_LOGIN_REQ user=handoff → status=0
+PASS successful client ACK
+[2026-10-09 03:47:11.984] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+PASS successful client ACK
+PASS successful client ACK
+PASS Stop completes without exception
+PASS graceful stop drains actual accepted sessions before deadline
+PASS registry empty when Stop completes
+PASS each authenticated session cleaned exactly once
+PASS lobby session terminates on shutdown
+PASS shutdown preserves Map handoff reason and selected character
+[2026-10-09 03:47:11.996] [info] CS_LOGIN_REQ user=lobby → status=0
+[2026-10-09 03:47:11.997] [info] CS_LOGIN_REQ user=handoff → status=0
+PASS successful client ACK
+[2026-10-09 03:47:11.997] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+PASS successful client ACK
+PASS successful client ACK
+PASS Stop completes wi...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_enter" classname="tmapsvr_asio_world_enter" time="0.0193189" status="run">
+		<properties/>
+		<system-out>test_world_enter: load + rejected-blob + no-char + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_enterchar" classname="tmapsvr_asio_world_enterchar" time="0.0192321" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:12.047] [info] MW_ENTERCHAR_REQ char=2882400001 name='Hero' map=60 — connection ready, ack
+[2026-10-09 03:47:12.048] [warning] MW_ENTERCHAR_REQ: short body (4 bytes) — dropping
+test_world_enterchar: resident + non-resident + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_client_senders" classname="tmapsvr_asio_client_senders" time="0.0128253" status="run">
+		<properties/>
+		<system-out>test_client_senders: addconnect + connect + charinfo + enter + addmon + action + die + revival + money layout OK
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_checkmain" classname="tmapsvr_asio_world_checkmain" time="0.0245325" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:12.083] [info] MW_CHECKMAIN_REQ char=2882400001 ch=1 map=60 — main cell, ack
+[2026-10-09 03:47:12.083] [info] MW_CHECKMAIN_REQ char=2882400001 ch=1 map=60 — not resident here, no ack
+[2026-10-09 03:47:12.084] [warning] MW_CHECKMAIN_REQ: short body (4 bytes) — dropping
+test_world_checkmain: resident + non-resident + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_routelist" classname="tmapsvr_asio_world_routelist" time="0.0207393" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:12.106] [info] MW_ROUTELIST_REQ char=2882400001 ids=3 resolved=2 — MW_ROUTE_ACK
+[2026-10-09 03:47:12.106] [warning] MW_ROUTELIST_REQ char=2882400001: no route resolver — replying empty MW_ROUTE_ACK (2 ids unresolved)
+[2026-10-09 03:47:12.106] [info] MW_ROUTELIST_REQ char=2882400001 ids=2 resolved=0 — MW_ROUTE_ACK
+[2026-10-09 03:47:12.106] [warning] MW_ROUTELIST_REQ: short body (4 bytes) — dropping
+test_world_routelist: resolve + empty + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_loot_senders" classname="tmapsvr_asio_loot_senders" time="0.0128946" status="run">
+		<properties/>
+		<system-out>test_loot_senders: item descriptor (38B) + MONITEMLIST + MONITEMTAKE byte layouts OK
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_admission" classname="tmapsvr_asio_admission" time="1.26263" status="run">
+		<properties/>
+		<system-out>PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-09 03:47:12.154] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-09 03:47:12.154] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+PASS rejected admission closes soc...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_admission_encrypted" classname="tmapsvr_asio_admission_encrypted" time="1.26424" status="run">
+		<properties/>
+		<system-out>PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-09 03:47:13.414] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-09 03:47:13.414] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+PASS rejected admission closes soc...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_session_writes" classname="tworldsvr_asio_session_writes" time="0.406275" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:14.913] [error] world_session[127.0.0.1]: outbound body too big (65528)
+[2026-10-09 03:47:15.044] [warning] world_session[127.0.0.1]: outbound backlog exceeded; closing peer
+[2026-10-09 03:47:15.050] [warning] world_session[127.0.0.1]: outbound backlog exceeded; closing peer
+147 World write checks passed
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_secondary_admission" classname="tworldsvr_asio_secondary_admission" time="0.201836" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:15.124] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 03:47:15.128] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 03:47:15.130] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 03:47:15.132] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 03:47:15.190] [warning] OnCloseCharAck[127.0.0.1]: short body (9 bytes) — dropped
+[2026-10-09 03:47:15.233] [info] OnCloseCharAck[127.0.0.1]: char_id=42 closed (total=0)
+[2026-10-09 03:47:15.235] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0401 teardown — 0 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 03:47:15.235] [info] world_server: wID=1025 unregistered from peer registry
+[2026-10-09 03:47:15.235] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 03:47:15.235] [info] OnSmDelSessionReq[127.0....
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_main_handoff" classname="tworldsvr_asio_main_handoff" time="3.95569" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:15.328] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 03:47:15.332] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 03:47:15.337] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 'TransferHero' entered (lvl=10 map=7 region=0) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 03:47:15.379] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 03:47:15.420] [info] OnCharDataAck[127.0.0.1]: char_id=42 3 con(s) not ready — ENTERCHAR_REQ fan-out
+[2026-10-09 03:47:15.422] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=1 ready; waiting for others
+[2026-10-09 03:47:15.422] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=2 ready; waiting for others
+[2026-10-09 03:47:15.423] [info] OnEnterCharAck[127.0.0.1]: char_id=42 all cons ready — CheckMainCon
+[2026-10-09 03:47:15.618] [info] world_server: peer 127.0.0.1 disconnec...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_service_plane_handlers" classname="tworldsvr_asio_service_plane_handlers" time="0.325675" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:19.299] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:19.299] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:19.299] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:19.319] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:19.319] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 03:47:19.319] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 03:47:19.319] [info] OnCtCtrlsvrReq[127.0.0.1]: registered as cluster ctrl-svr (wID=0)
+[2026-10-09 03:47:19.340] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=500 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:47:19.340] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[2026-10-09 03:47:19.382] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=501 server_id=67 ip=1.0.0.127:33500 — regist...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_checkmain_handlers" classname="tworldsvr_asio_checkmain_handlers" time="0.256427" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:19.626] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:19.627] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:19.627] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:19.647] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:19.647] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 03:47:19.647] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 03:47:19.647] [info] OnRelaysvrReq[127.0.0.1]: wID=1092 registered as map peer (nation=0, registry_size=3)
+[2026-10-09 03:47:19.647] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 2 other peer(s)
+[2026-10-09 03:47:19.648] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:47:19.648] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[20...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_releasemain_handlers" classname="tworldsvr_asio_releasemain_handlers" time="0.383431" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:19.884] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:19.884] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:19.904] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:19.905] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 03:47:19.905] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 03:47:19.905] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:47:19.905] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[2026-10-09 03:47:19.947] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=2, active_users=1)
+[2026-10-09 03:47:19.947] [info] OnRouteAck[127.0.0.1]: char_id=200 ADDCONNECT count=1 via reporter
+[2026-10-09 03:47:19.988] [info] OnCo...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_entersvr_handoff_handlers" classname="tworldsvr_asio_entersvr_handoff_handlers" time="0.257262" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:20.268] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:20.269] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:20.288] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:20.289] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 03:47:20.289] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 03:47:20.289] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:47:20.290] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[2026-10-09 03:47:20.331] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=67 ip=1.0.0.127:33500 — registered (total=2, active_users=1)
+[2026-10-09 03:47:20.331] [info] OnConListAck[127.0.0.1]: char_id=100 CHECKMAIN to 2 connection(s)
+[2026-10-09 03:47:20.373] [info] OnEnt...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_teleport_handlers" classname="tworldsvr_asio_teleport_handlers" time="0.296487" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:20.525] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:20.525] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:20.545] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:20.545] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 03:47:20.545] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 03:47:20.545] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:47:20.546] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[2026-10-09 03:47:20.629] [info] BeginTeleport: char_id=100 → channel=2 map=300 (STARTTELEPORT to 2 con(s))
+[2026-10-09 03:47:20.629] [info] OnBeginTeleportAck[127.0.0.1]: char_id=100 deferred behind an in-flight handoff
+[2026-10-09 03:47:20.670] [info] OnConListAck[127.0.0.1]: char_id=100...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_closechar_handlers" classname="tworldsvr_asio_closechar_handlers" time="0.21338" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:20.818] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:20.819] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:20.819] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:20.838] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:20.839] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 03:47:20.839] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 03:47:20.839] [info] OnRelaysvrReq[127.0.0.1]: wID=1092 registered as map peer (nation=0, registry_size=3)
+[2026-10-09 03:47:20.839] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 2 other peer(s)
+[2026-10-09 03:47:20.840] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:47:20.840] [info] OnRouteAck[127.0.0.1]: char_id=100 ADDCONNECT count=1 via reporter
+[20...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_route_completion_handlers" classname="tworldsvr_asio_route_completion_handlers" time="0.223178" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:47:21.031] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:21.031] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:21.031] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:21.051] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:21.051] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 03:47:21.052] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 03:47:21.052] [info] OnRelaysvrReq[127.0.0.1]: wID=1092 registered as map peer (nation=0, registry_size=3)
+[2026-10-09 03:47:21.052] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 2 other peer(s)
+[2026-10-09 03:47:21.052] [info] OnAddCharAck[127.0.0.1]: char_id=100 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:47:21.052] [info] OnRouteAck[127.0.0.1]: char_id=100 no new cons — CHARDATA_REQ
+[2026-...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_entersvr_fresh_login_handlers" classname="tworldsvr_asio_entersvr_fresh_login_handlers" time="60.0708" status="fail">
+		<failure message="Timeout"/>
+		<properties/>
+		<system-out>[2026-10-09 03:47:21.259] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:47:21.279] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:47:21.280] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:47:21.280] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=2, active_users=1)
+[2026-10-09 03:47:21.281] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 'Alice' entered (lvl=10 map=100 region=5) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 03:47:21.322] [info] OnEnterSvrAck[127.0.0.1]: char_id=200 'Bob' entered (lvl=40 map=777 region=9) — CHARINFO/ROUTE/FRIENDLIST sent
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_chardata_drift_handlers" classname="tworldsvr_asio_chardata_drift_handlers" time="0.173055" status="run">
+		<properties/>
+		<system-out>[2026-10-09 03:48:21.328] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:48:21.329] [info] world_server: accept from 127.0.0.1
+[2026-10-09 03:48:21.348] [info] OnRelaysvrReq[127.0.0.1]: wID=1090 registered as map peer (nation=0, registry_size=1)
+[2026-10-09 03:48:21.349] [info] OnRelaysvrReq[127.0.0.1]: wID=1091 registered as map peer (nation=0, registry_size=2)
+[2026-10-09 03:48:21.349] [info] OnRelaysvrReq[127.0.0.1]: broadcast RELAYCONNECT to 1 other peer(s)
+[2026-10-09 03:48:21.349] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-09 03:48:21.350] [info] OnRouteAck[127.0.0.1]: char_id=200 ADDCONNECT count=1 via reporter
+[2026-10-09 03:48:21.392] [info] OnCharDataAck[127.0.0.1]: char_id=200 1 con(s) not ready — ENTERCHAR_REQ fan-out
+[2026-10-09 03:48:21.392] [info] OnEnterCharAck[127.0.0.1]: char_id=200 all cons ready — CheckMainCon
+PASS test_tworldsvr_asio_chardata_drift_handlers
+</system-out>
+	</testcase>
+</testsuite>

@@ -1,0 +1,23 @@
+[
+  {
+    "backup_name": "TGetMountSaddle",
+    "fragment_declaration_name": "TGetMountSaddle_copy",
+    "path": "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TGetMountSaddle.sql",
+    "signature_and_body_match_after_header_removal": true,
+    "automatic_alias_applied": false
+  },
+  {
+    "backup_name": "TSetMountSaddle",
+    "fragment_declaration_name": "TSetMountSaddle_copy",
+    "path": "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TSetMountSaddle.sql",
+    "signature_and_body_match_after_header_removal": true,
+    "automatic_alias_applied": false
+  },
+  {
+    "backup_name": "TDelMountSaddle",
+    "fragment_declaration_name": "TDelMountSaddle_copy",
+    "path": "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TDelMountSaddle.sql",
+    "signature_and_body_match_after_header_removal": true,
+    "automatic_alias_applied": false
+  }
+]

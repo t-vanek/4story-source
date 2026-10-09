@@ -169,11 +169,11 @@ struct StagedPeer
 StagedPeer StagePeer(asio::io_context& io, PeerRegistry& registry,
                      const ServiceInstance& svc)
 {
-    asio::io_context client_io;
+    // The returned socket must not outlive its io_context.
     tcp::acceptor acc(io, tcp::endpoint(tcp::v4(), 0));
     const auto port = acc.local_endpoint().port();
 
-    tcp::socket client(client_io);
+    tcp::socket client(io);
     std::thread connector([&client, port] {
         client.connect({asio::ip::make_address_v4("127.0.0.1"), port});
     });

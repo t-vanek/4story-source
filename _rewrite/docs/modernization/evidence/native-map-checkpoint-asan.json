@@ -1,0 +1,379 @@
+{
+  "scope": "Native PostgreSQL Map claim/load/checkpoint/save/crash recovery; original client PENDING",
+  "sql_server_used": false,
+  "tests": [
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [
+        "--options-only"
+      ],
+      "exit_code": 0,
+      "log": "PASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\n"
+    },
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-09 01:34:04.847] [info] SessionPool ready: backend=postgresql pool_size=2 acquire_timeout_ms=100\nPASS pool sessions are distinct native PostgreSQL connections\nPASS native PostgreSQL connection uses TLS with certificate verification\nPASS pool exhaustion has a bounded timeout\nPASS moved lease retains exclusive live session\nPASS native prepared binding preserves Unicode and literal punctuation\nPASS transaction destructor rolls back uncommitted writes\nPASS constraint failure rolls back entire transaction and session is reusable\nPASS unsupported T-SQL fails without submitting or logging secret literals\nPASS concurrent transactional updates do not lose writes\nPASS mutable test role has no historical snapshot access\nPASS untrusted PostgreSQL TLS certificate is rejected\n[2026-10-09 01:34:04.946] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS database disconnect is surfaced without retrying an operation\n[2026-10-09 01:34:04.959] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS fresh connection preserves committed state after a disconnect\n"
+    },
+    {
+      "binary": "test_tmapsvr_postgresql_map",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-09 01:34:05.222] [info] SessionPool ready: backend=postgresql pool_size=4 acquire_timeout_ms=30000\n[2026-10-09 01:34:05.269] [info] SessionPool ready: backend=postgresql pool_size=4 acquire_timeout_ms=30000\n[2026-10-09 01:34:05.284] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-09 01:34:05.474] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-09 01:34:05.491] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS Map owns dedicated advisory session and persisted token\n[2026-10-09 01:34:05.509] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS second live owner refused\nPASS wrong actor manifest refused before use\n[2026-10-09 01:34:05.666] [info] auth: user 'SyntheticMap701' (uid=701) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS foreign character cannot consume Login handoff\nPASS wrong channel cannot consume Login handoff\nPASS native Map atomically consumes exact Login handoff\nPASS consumed handoff cannot be replayed\nPASS one durable claim replaces pending handoff\nPASS uncheckpointed admission cannot become ready\nPASS stale connection generation cannot release claim\nPASS delayed Login disconnect preserves already claimed Map session\nPASS actual backup-derived starter bags skills and hotkeys loaded\nPASS spawn fallback and source experience/stat charts hydrated\nPASS synthetic raw magic derives client values through backup chart\nPASS duplicate load cannot replace resident state\nPASS main-cell decision uses pinned routing and exact claim\nPASS native route resolver returns active IPv4 octets only\nPASS CHARINFO includes hydrated variable lists\nPASS pre-ready save refused\nPASS ready session cannot be released without save\nPASS ready admission has an atomic initial checkpoint\nPASS checkpoint advances receipt while preserving the active claim\nPASS checkpoint does not log out the online character\nPASS identical checkpoint revision confirms prior commit\nPASS same revision with different core is refused\nPASS checkpoint cannot skip a revision\nPASS stale generation cannot checkpoint\nPASS late receipt failure refuses checkpoint\nPASS core and receipt roll back together\nPASS logout audit failure rolls back core save and claim release\nPASS failed save keeps original durable state and ready reservation\nPASS successful save atomically closes current session and map claim\nPASS core save preserves progression and every child item\nPASS exact final receipt confirms a lost commit response without rewriting\nPASS different stale final payload cannot overwrite saved character\nPASS late checkpoint cannot recreate a logged-out claim\n[2026-10-09 01:34:05.951] [info] auth: user 'SyntheticMap702' (uid=702) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS second character handoff accepted\nPASS zero stored HP means dead and zero MP stays zero\n[2026-10-09 01:34:06.166] [info] auth: user 'SyntheticMap703' (uid=703) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS concurrent claims have exactly one winner\nPASS Map core role cannot rewrite inventory\nPASS Map runtime role cannot discard recovery receipts\nPASS Map core role cannot access historical tables\n[2026-10-09 01:34:06.340] [info] auth: user 'SyntheticMap709' (uid=709) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS checkpoint/final race fixture claimed\nPASS concurrent checkpoint cannot overwrite or outlive final save\n[2026-10-09 01:34:06.562] [info] auth: user 'SyntheticMap709' (uid=709) authenticated, agreement=1 pc_bang=0 premium=0 last_char=4\nPASS authorized low-level deletion cleans its completed checkpoint receipt\n[2026-10-09 01:34:06.858] [info] auth: user 'SyntheticMap704' (uid=704) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS pre-ready recovery fixture claimed\n[2026-10-09 01:34:07.020] [info] auth: user 'SyntheticMap705' (uid=705) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS dirty recovery fixture claimed\n[2026-10-09 01:34:07.223] [info] auth: user 'SyntheticMap707' (uid=707) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS recoverable fixture claimed\n[2026-10-09 01:34:07.425] [info] auth: user 'SyntheticMap708' (uid=708) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS drift fixture claimed\nPASS owner connection loss detected\n[2026-10-09 01:34:07.498] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS recovery audit failure refuses replacement startup\nPASS failed recovery retains ready claim and committed receipt\n[2026-10-09 01:34:07.517] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS replacement owner safely closes pre-ready claim\nPASS replacement preserves pre-checkpoint ready state as orphaned\nPASS old process token cannot save after ownership replacement\nPASS replacement recovers an exact committed checkpoint and releases the account\nPASS recovery retains last committed core and an explicit recovery receipt\nPASS core drift refuses automatic recovery\nPASS old process cannot checkpoint after recovery\nNative Map integration: 59 checks passed\n"
+    }
+  ],
+  "engine": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "migrations": [
+    "001-import-control.sql",
+    "002-legacy-snapshots.sql",
+    "003-canonical-content.sql",
+    "004-source-text-bytes.sql",
+    "005-runtime-catalog-control.sql",
+    "006-current-chart-contracts.sql",
+    "007-catalog-runtime-metadata.sql",
+    "008-native-login.sql",
+    "009-login-runtime-owner.sql",
+    "010-login-security-challenges.sql",
+    "011-character-reference-catalog.sql",
+    "012-native-characters.sql",
+    "013-character-item-allocation-floor.sql",
+    "014-routing-reference-catalog.sql",
+    "015-native-map-handoff.sql",
+    "016-native-map-ownership.sql",
+    "017-map-actor-reference-catalog.sql",
+    "018-native-map-checkpoints.sql"
+  ],
+  "import": {
+    "run_id": 1,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "verified_tables": [
+      {
+        "table": "TVETERANCHART",
+        "rows": 3,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TCLASSCHART",
+        "rows": 6,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TFORMULACHART",
+        "rows": 34,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TITEMCHART",
+        "rows": 7706,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TLEVELCHART",
+        "rows": 126,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMAPMONCHART",
+        "rows": 23381,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONATTRCHART",
+        "rows": 9290,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONITEMCHART",
+        "rows": 16466,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSPAWNCHART",
+        "rows": 20357,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSTERCHART",
+        "rows": 3534,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TNPCCHART",
+        "rows": 2623,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQREWARDCHART",
+        "rows": 4322,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTCHART",
+        "rows": 6261,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTITEMCHART",
+        "rows": 715,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTTERMCHART",
+        "rows": 10687,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TRACECHART",
+        "rows": 88,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLCHART",
+        "rows": 765,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLDATA",
+        "rows": 1172,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTHOTKEY",
+        "rows": 12,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTITEMCHART",
+        "rows": 189,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTRECALL",
+        "rows": 3,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTSKILL",
+        "rows": 237,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 107977,
+    "canonical_items": {
+      "rows": 7706,
+      "six_fields_verified": true
+    }
+  },
+  "activation": {
+    "run_id": 1,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "changed": true,
+    "reference_tables": 22,
+    "verified_source_rows": 107977,
+    "starter_graph_gaps": {
+      "starter_item": 0,
+      "starter_recall": 0,
+      "veteran_level": 0,
+      "starter_slot_collision": 0
+    },
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "routing_import": {
+    "run_id": 2,
+    "manifest_sha256": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+    "verified_tables": [
+      {
+        "table": "TCHANNELCHART",
+        "rows": 361,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMAPCHART",
+        "rows": 301,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSPAWNPOSCHART",
+        "rows": 417,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TUNITCHART",
+        "rows": 361,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 1440,
+    "canonical_items": null
+  },
+  "routing_activation": {
+    "run_id": 2,
+    "manifest_sha256": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+    "changed": true,
+    "reference_tables": 4,
+    "verified_source_rows": 1440,
+    "unmapped_source_channel_cells": 3,
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "routing_publication": {
+    "status": "passed",
+    "checks": [
+      "same verified release activation is idempotent",
+      "COMPLETE_ROUTING_MANIFEST_REQUIRED",
+      "PINNED_BACKUP_FINGERPRINT_MISMATCH",
+      "CHECKPOINT_TARGET_DRIFT",
+      "failed publications preserve independent character, Map and routing selectors",
+      "idempotent and failed publications add no activation history",
+      "original TSVRCHART view join produces 358 routing rows"
+    ]
+  },
+  "actor_import": {
+    "run_id": 3,
+    "manifest_sha256": "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381",
+    "verified_tables": [
+      {
+        "table": "TITEMMAGICCHART",
+        "rows": 27,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLPOINTCHART",
+        "rows": 719,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 746,
+    "canonical_items": null
+  },
+  "actor_activation": {
+    "run_id": 3,
+    "manifest_sha256": "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381",
+    "changed": true,
+    "reference_tables": 2,
+    "verified_source_rows": 746,
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "daemon_binaries": {
+    "image": "localhost/fourstory:build-deps",
+    "directory": "/src/build/linux-asan/bin/",
+    "integration_test_directory": "/src/build/linux-asan/bin/"
+  },
+  "map_wire": {
+    "status": "passed",
+    "checks": [
+      "Map connects actual World peer",
+      "real Login authenticates test account",
+      "real Login creates character from backup charts",
+      "real START selects native Map endpoint",
+      "Login closes after committed START",
+      "World CHARINFO produces original channel notification",
+      "actual World route/CHARDATA/ENTERCHAR/CHECKMAIN completes CONNECT",
+      "CONREADY returns CHARINFO through encrypted transport",
+      "fresh character has no fabricated maintained effects",
+      "fresh character has no fabricated item cooldowns",
+      "CHARINFO parsed to exact end with original field widths",
+      "native character identity and fallback location match",
+      "every original starter bag is present on wire",
+      "every actual starter item is present on wire",
+      "every learned skill and cooldown matches PostgreSQL",
+      "original neutral aid country and level thresholds match",
+      "disconnect saves and releases native claim",
+      "actual movement persists exact float32 bits on disconnect",
+      "core save preserves all item fields exactly",
+      "real Login authenticates test account",
+      "real START selects native Map endpoint",
+      "Login closes after committed START",
+      "new Login issues a fresh key",
+      "World CHARINFO produces original channel notification",
+      "actual World route/CHARDATA/ENTERCHAR/CHECKMAIN completes CONNECT",
+      "CONREADY returns CHARINFO through encrypted transport",
+      "fresh character has no fabricated maintained effects",
+      "fresh character has no fabricated item cooldowns",
+      "CHARINFO parsed to exact end with original field widths",
+      "reconnect through same World restores movement and identical inventory",
+      "second disconnect completes save",
+      "real Login authenticates test account",
+      "real START selects native Map endpoint",
+      "Login closes after committed START",
+      "shutdown-race client reaches admitted state",
+      "ready transaction is deterministically in flight",
+      "SIGTERM during ready commit drains save and exits zero",
+      "closed-during-ready session leaves no stranded account reservation",
+      "restarted Map becomes healthy",
+      "real Login authenticates test account",
+      "real START selects native Map endpoint",
+      "Login closes after committed START",
+      "World CHARINFO produces original channel notification",
+      "actual World route/CHARDATA/ENTERCHAR/CHECKMAIN completes CONNECT",
+      "CONREADY returns CHARINFO through encrypted transport",
+      "fresh character has no fabricated maintained effects",
+      "fresh character has no fabricated item cooldowns",
+      "CHARINFO parsed to exact end with original field widths",
+      "real Map process restart restores saved character",
+      "periodic checkpoint saves movement while client remains online",
+      "periodic checkpoint preserves ready ownership",
+      "periodic checkpoint is deterministically in flight before crash",
+      "hard crash kills the real Map process",
+      "killed transaction cannot advance core without its receipt",
+      "crash retains the last active checkpoint receipt",
+      "Map restarts after hard crash",
+      "replacement owner records checkpoint recovery",
+      "recovery releases the crashed account for authentication",
+      "real Login authenticates test account",
+      "real START selects native Map endpoint",
+      "Login closes after committed START",
+      "World CHARINFO produces original channel notification",
+      "actual World route/CHARDATA/ENTERCHAR/CHECKMAIN completes CONNECT",
+      "CONREADY returns CHARINFO through encrypted transport",
+      "fresh character has no fabricated maintained effects",
+      "fresh character has no fabricated item cooldowns",
+      "CHARINFO parsed to exact end with original field widths",
+      "same World reconnect restores last committed checkpoint and all items",
+      "checkpoint is in flight at graceful shutdown",
+      "SIGTERM drains checkpoint and final save",
+      "checkpoint/shutdown race keeps final position without a stranded claim",
+      "Map restarts after checkpoint shutdown",
+      "control connection loss stops actual Map process",
+      "owner loss exits nonzero rather than advertising healthy service",
+      "Map log across restart and owner loss has no sanitizer failure",
+      "actual daemon exits zero on SIGTERM",
+      "daemon log has no sanitizer failure",
+      "actual daemon exits zero on SIGTERM",
+      "daemon log has no sanitizer failure"
+    ],
+    "scope": "Actual Login/World/Map TCP, periodic core checkpoints and SIGKILL/SIGTERM recovery; synthetic account, original backup content; real client and persisted social systems pending"
+  },
+  "status": "passed"
+}

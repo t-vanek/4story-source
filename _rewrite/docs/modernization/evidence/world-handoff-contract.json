@@ -1,0 +1,204 @@
+{
+  "date": "2026-10-09",
+  "status": "IMPLEMENTED, INTEGRATED and VERIFIED for expected World main-handoff coordination and plain TCP session serialization; native Map/PostgreSQL primary transfer and full server remain in progress",
+  "authority": {
+    "backups": "Both authoritative .bak and historical values unchanged",
+    "migrations": "001–019 unchanged; no migration added; future changes use 020+",
+    "source": [
+      "Server/TWorldSvr/SSHandler.cpp:1095 original CHECKMAIN selection and RELEASEMAIN request",
+      "Server/TWorldSvr/SSHandler.cpp:2284 exact RELEASEMAIN body forwarded as ENTERSVR",
+      "Server/TMapSvr/SSSender.cpp:1999 complete transient Map transfer graph remains to be implemented",
+      "Server/TWorldSvr/SSHandler.cpp ENTERSVR acknowledgment, server-list and final CHECKMAIN flow"
+    ]
+  },
+  "production_paths": [
+    "Server/TWorldSvrAsio/services/main_handoff.h",
+    "Server/TWorldSvrAsio/services/char_registry.h",
+    "Server/TWorldSvrAsio/services/peer_registry.h",
+    "Server/TWorldSvrAsio/handlers/handlers.h",
+    "Server/TWorldSvrAsio/handlers/handlers_char.cpp",
+    "Server/TWorldSvrAsio/handlers/handlers_conn.cpp",
+    "Server/TWorldSvrAsio/handlers/handlers_service.cpp",
+    "Lib/Own/TNetLib/TNetLib/asio_session.h",
+    "Lib/Own/TNetLib/TNetLib/asio_session.cpp",
+    "Server/TLoginSvrAsio/handlers.cpp",
+    "Server/TMapSvrAsio/handlers_native_entry.cpp",
+    "Server/TMapSvrAsio/handlers_world.cpp",
+    "Server/TMapSvrAsio/handlers/session.cpp",
+    "Server/TMapSvrAsio/map_server.cpp",
+    "Server/TMapSvrAsio/main.cpp"
+  ],
+  "contract": [
+    "CHECKMAIN must answer an outstanding request to the exact current typed Map socket for an accepted ready character connection. One winner consumes the round. Unaccepted, unrequested, repeated and malformed replies cannot replace the primary.",
+    "Before awaiting RELEASEMAIN send, World pins the old source and target sockets, publishes the selected main and enters Release. Only that source can forward state once; only that target can acknowledge Enter and final Confirm. ID reuse on another socket cannot authorize a reply.",
+    "World forwards the exact opaque source transfer body. The target Map remains responsible for complete graph validation; no database reload is substituted by the coordinator.",
+    "Fresh ENTERSVR requires an outstanding load and is consumed once. Exact packet lengths, Boolean flags and finite coordinates gate metadata. Accepted valid ENTERCHAR becomes ready once; repeated ACKs cannot rearm CHECKMAIN.",
+    "Connection-list changes cannot disturb Release/Enter. Confirm permits only the pinned target list, including legitimate new secondary admission before final confirmation.",
+    "A modern 5000ms total deadline covers Release/Enter/Confirm. Timeout, target failure or pinned-source/target disconnect retires the World character. Source loss is recognized even after it leaves live cons. Close is idempotent and cancels the timer; typed Map notifications prevent low-ID aliases.",
+    "Original opcodes, packet bodies and source state byte order are unchanged. CHECKMAIN has no wire epoch; an arbitrarily delayed old reply on a still-current socket can be indistinguishable from a newly requested round. Durable native transfer still requires independent transaction fencing.",
+    "AsioSession runs all internal plain TCP operations, channel operations and composed handlers on one strand. Atomic IsOpen changes immediately on Close; actual cancellation runs on the strand. Login/Map use IsOpen rather than unsynchronized raw socket queries.",
+    "Shutdown cancels channel waiters before close so full-queue senders complete. Encryption is configured before runtime, raw socket access is externally synchronized, one read loop is allowed, and raw writes must be awaited serially. This transport guarantee does not make shared application state or the separate optional TLS transport thread-safe."
+  ],
+  "verification": {
+    "debug_ctest": {
+      "report": "world-handoff-ctest.xml",
+      "entries": 196,
+      "actual_passes": 182,
+      "legacy_internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "native_explicit_skips": 6,
+      "failures": 0
+    },
+    "asan_ubsan_preset": {
+      "report": "world-handoff-asan-preset.xml",
+      "entries": 29,
+      "actual_passes": 29,
+      "legacy_internal_skips": [],
+      "native_explicit_skips": 0,
+      "failures": 0
+    },
+    "world_cpp": {
+      "report": "world-handoff-world-main.log",
+      "checks": 117,
+      "scope": "Actual WorldServer::Drive with TCP peers, accepted protocol setup, duplicate sockets, exact opaque forwarding, all three deadlines and handoff phases"
+    },
+    "transport": {
+      "checks": 33,
+      "debug": "world-handoff-transport-debug.log",
+      "asan": "world-handoff-transport-asan.log",
+      "original_ubsan_failure": "world-handoff-transport-ubsan-before.log",
+      "before_source_fingerprints": "world-handoff-transport-before-fingerprints.json",
+      "backpressure_before": "world-handoff-transport-backpressure-before.log",
+      "scope": "400 packets from eight producers on two runner threads preserve per-producer order; 24 partial-read/backpressured-write races each use four concurrent external closers and require every reader/producer to finish"
+    },
+    "admission": {
+      "checks_per_transport": 173,
+      "plain": "world-handoff-admission-asan.log",
+      "encrypted": "world-handoff-admission-encrypted-asan.log"
+    },
+    "unsolicited_reassignment_regression": {
+      "cpp_before": "world-handoff-before.log",
+      "daemon_before": "world-handoff-daemon-before.json",
+      "before_fingerprints": "world-handoff-before-fingerprints.json",
+      "before_result": "World handoff wire: unaccepted CHECKMAIN cannot replace primary or emit RELEASEMAIN (expected 0x9012, got 0x9017, 23 bytes)",
+      "after": [
+        "native-world-handoff.json",
+        "native-world-handoff-asan.json",
+        "native-world-handoff-release.json"
+      ]
+    },
+    "native_runs": {
+      "debug": {
+        "report": "native-world-handoff.json",
+        "status": "passed",
+        "native_map_checks": 96,
+        "pool_tls_checks": 29,
+        "four_daemon_tcp_checks": 153,
+        "world_secondary_wire_checks": 66,
+        "world_handoff_wire_checks": 295,
+        "second_native_map_rejection_checks": 7,
+        "native_replica_wire_checks": 36,
+        "sql_server_used": false
+      },
+      "asan": {
+        "report": "native-world-handoff-asan.json",
+        "status": "passed",
+        "native_map_checks": 96,
+        "pool_tls_checks": 29,
+        "four_daemon_tcp_checks": 153,
+        "world_secondary_wire_checks": 66,
+        "world_handoff_wire_checks": 295,
+        "second_native_map_rejection_checks": 7,
+        "native_replica_wire_checks": 36,
+        "sql_server_used": false
+      },
+      "release": {
+        "report": "native-world-handoff-release.json",
+        "status": "passed",
+        "native_map_checks": 96,
+        "pool_tls_checks": 29,
+        "four_daemon_tcp_checks": 153,
+        "world_secondary_wire_checks": 66,
+        "world_handoff_wire_checks": 295,
+        "second_native_map_rejection_checks": 7,
+        "native_replica_wire_checks": 36,
+        "sql_server_used": false
+      }
+    },
+    "installed_release": {
+      "date": "2026-10-09",
+      "status": "passed",
+      "image": "localhost/fourstory:postgresql-world-handoff",
+      "image_id": "d29f4c8869b897fdaa3ddd947ff4aeea067316cd34a50d67f844882b2ed918c9",
+      "uid_gid": "10001:10001",
+      "installed_release_daemon_sha256": {
+        "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+        "/opt/fourstory/bin/tworldsvr_asio": "51aba9350a1fee9454de37660c7626147dba446fe0da6501438c70f246eaa8cf",
+        "/opt/fourstory/bin/tmapsvr_asio": "9ec4dc8a268d9c3b8e3ff1f5613005b78a4e379748a282e3064227ee9a10661b",
+        "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+        "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+        "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef"
+      },
+      "native_verification": {
+        "report": "native-world-handoff-release.json",
+        "status": "passed",
+        "native_map_checks": 96,
+        "pool_tls_checks": 29,
+        "four_daemon_tcp_checks": 153,
+        "world_secondary_wire_checks": 66,
+        "world_handoff_wire_checks": 295,
+        "second_native_map_rejection_checks": 7,
+        "native_replica_wire_checks": 36,
+        "sql_server_used": false
+      },
+      "six_daemon_health_dns_sigterm": "world-handoff-container-smoke.log",
+      "build_command": "podman build --network host --build-arg BUILD_JOBS=2 --target runtime -t localhost/fourstory:postgresql-world-handoff .",
+      "scope": "Installed Release Login/World/two-Map daemons; mounted Debug native integration executables. Independent synthetic TCP peers; original client not executed."
+    },
+    "login_transport_regression": {
+      "report": "world-handoff-login-regression.json",
+      "status": "passed",
+      "build": "linux-asan",
+      "encrypted_login_checks": 15,
+      "encrypted_security_checks": 54,
+      "native_tests": [
+        {
+          "binary": "test_fourstory_postgresql",
+          "arguments": [
+            "--options-only"
+          ],
+          "checks": 16
+        },
+        {
+          "binary": "test_fourstory_postgresql",
+          "arguments": [],
+          "checks": 13
+        },
+        {
+          "binary": "test_tloginsvr_postgresql_auth",
+          "arguments": [],
+          "checks": 68
+        }
+      ],
+      "scope": "Native PostgreSQL Login with synthetic accounts and source-derived encrypted packets; original-client test PENDING",
+      "extra_lifecycle": "Disconnect during auth, silent SMTP deadline/reactor health, refused second owner, owner loss/replacement and SIGTERM during auth all pass."
+    },
+    "topology": "Synthetic Map peers exercise only World coordination and use explicitly opaque transfer bytes. Native replica tests separately substitute a single-cell partition through a temporary compatibility view and restore its definition; authoritative historical rows stay unchanged.",
+    "intermediate_reports": "Development and before-transport-fix native reports predate the final transport fix. Earlier CTest reports retain test-fixture mistakes and the actual transport UB. The fixture-opcode report retains an incorrect test DELCHAR literal, corrected from source to 0x900e. Use the final three native runs and final two CTest reports above."
+  },
+  "remaining": [
+    "Native Map full transient transfer encoder/decoder, fenced PostgreSQL primary transition/recovery and movement-triggered route-set changes remain unimplemented. Never promote summary-only replicas or reload stale durable core as a substitute. Preserve 001–019 and use 020+.",
+    "Full distributed AOI/actor ownership, secondary gameplay, guild/recall hydration, ancillary client initialization and complete durable inventory/economy/social gameplay remain incomplete.",
+    "Original client executable/version and actual client execution remain unverified. Windows native PostgreSQL has not been verified.",
+    "World durability, peer authentication/heartbeat, silent network partitions and the separate optional TlsAsioSession concurrency/shutdown path still require work.",
+    "Historical collation/encoding/timezone and a populated-player corpus remain unresolved. SQL Server packages remain installed for unported paths; these native runtime tests do not use SQL Server."
+  ]
+}

@@ -15,7 +15,7 @@
 // respawn-on-death timer, the prob-weighted / essential / leader
 // selection semantics, and the roam / chase / attack AI tick are the
 // next phase (TAICmd* via a register table — see DISPATCH.md). A monster
-// with no TMONATTRCHART row falls back to a level-scaled placeholder HP.
+// with no TMONATTRCHART row is skipped, as in the legacy spawn/regen checks.
 
 #include "domain/monster.h"
 
@@ -37,7 +37,8 @@ class IMonsterRegistry;
 // A spawn point with no TMAPMONCHART rows, or whose monster id has no
 // TMONSTERCHART template, is skipped (a data hole, counted in the log).
 // HP comes from TMONATTRCHART (monster id + level); a monster missing a
-// stat row falls back to a level-scaled placeholder.
+// stat row is skipped. Zero-HP rows are quarantined; no substitute stats
+// or instance ids are created for rejected monsters.
 std::size_t SpawnAllStatic(const ISpawnChart&    spawns,
                            const IMapMonChart&   map_mon,
                            const IMonsterChart&  monsters,

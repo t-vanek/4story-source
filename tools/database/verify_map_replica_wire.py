@@ -1,0 +1,152 @@
+"""Actual two-Map native admission with an explicitly synthetic cell partition.
+
+Only the disposable compatibility VIEW is temporarily overridden. Imported rows
+and original backups are unchanged; its exact definition is restored in finally.
+The synthetic split is not claimed to be topology recovered from the backup.
+"""
+import select
+import socket
+import struct
+import time
+from verify_login_wire import frame, read_packet
+
+
+def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start, connect_request, parse_character):
+    checks = []
+    sockets = []
+    def check(ok, label):
+        if not ok:
+            raise RuntimeError('Map replica wire: ' + label)
+        checks.append(label)
+    def until(predicate, label):
+        deadline = time.monotonic()+8
+        while not predicate():
+            if time.monotonic() >= deadline:
+                raise RuntimeError('Map replica wait: ' + label)
+            time.sleep(.025)
+        check(True, label)
+    def no_packet(s, label):
+        readable, _, _ = select.select([s], [], [], .15)
+        check(not readable, label)
+    definition = conn.execute('SELECT pg_get_viewdef(\'route_compat."TSVRCHART"\'::regclass,true)').fetchone()[0]
+    before = conn.execute('SELECT "wMapID","fPosX","fPosY","fPosZ" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s', (cid,)).fetchone()
+    old_port = conn.execute('SELECT "wPort" FROM app_global."TSERVER" WHERE "bGroupID"=1 AND "bServerID"=2 AND "bType"=4').fetchone()[0]
+    items = conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"', (cid,)).fetchall()
+    def enter():
+        _, key = start(login_port, cid)
+        primary = socket.create_connection(('127.0.0.1', primary_port), timeout=8);sockets.append(primary)
+        primary.sendall(frame(connect_request(706, cid, key), 0x5281, 1))
+        op, body = read_packet(primary, 1)
+        check(op == 0x53be and body == b'\0\1', 'primary receives source channel notification')
+        op, body = read_packet(primary, 2)
+        check(op == 0x5285, 'source primary CHARINFO precedes ADDCONNECT and CONNECT')
+        character = parse_character(body)
+        op, body = read_packet(primary, 3)
+        check(op == 0x5284 and body == b'\1\x7f\0\0\1'+struct.pack('<HB', replica_port, 2), 'exact ADDCONNECT carries the authorized second Map endpoint')
+        grant = conn.execute('SELECT phase,connection_id FROM app_world.map_replicas WHERE char_id=%s AND target_server=2', (cid,)).fetchone()
+        check(grant == ('granted', None), 'one-use grant commits before endpoint is sent to client')
+        replica = socket.create_connection(('127.0.0.1', replica_port), timeout=8);sockets.append(replica)
+        request = bytearray(connect_request(706, cid, key));struct.pack_into('<H', request, 19, replica_port)
+        replica.sendall(frame(bytes(request), 0x5281, 1))
+        op, body = read_packet(primary, 4)
+        check(op == 0x5282 and body == b'\0\2\1\2', 'primary CONNECT lists both actual Map connections after composite synchronization')
+        check(conn.execute('SELECT phase FROM app_world.map_replicas WHERE char_id=%s', (cid,)).fetchone() == ('loaded',), 'World ENTERCHAR hydrates replica without durable character reload')
+        replica.sendall(frame(b'', 0x5288, 2))
+        until(lambda: conn.execute('SELECT phase FROM app_world.map_replicas WHERE char_id=%s', (cid,)).fetchone() == ('ready',), 'replica accepts CONREADY without a separate CONRESULT')
+        no_packet(replica, 'replica does not invent CONNECT or CHARINFO acknowledgments')
+        check(conn.execute('SELECT phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == ('loaded',), 'replica readiness does not promote or checkpoint the primary')
+        primary.sendall(frame(b'', 0x5288, 2))
+        until(lambda: conn.execute('SELECT phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == ('ready',), 'CONREADY commits the already hydrated primary')
+        no_packet(primary, 'CONREADY does not reset the client with duplicate CHARINFO')
+        check(character['position'][0] >= 4080 and len(character['items']) > 0, 'primary retains its live position and complete original starter inventory')
+        check(conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s AND server_id=1 AND phase=\'ready\'', (cid,)).fetchone()[0] == 1, 'two client sockets retain exactly one mutable primary')
+        return primary, replica, key
+    try:
+        conn.execute('UPDATE app_global."TSERVER" SET "wPort"=%s WHERE "bGroupID"=1 AND "bServerID"=2 AND "bType"=4', (replica_port,))
+        conn.execute('CREATE OR REPLACE VIEW route_compat."TSVRCHART" AS SELECT release_id,"bGroup",'
+                     'CASE WHEN "wMapID"=0 AND "wUnitID"=772 AND "bChannel"=1 THEN 2::smallint ELSE "bServerID" END AS "bServerID",'
+                     '"wMapID","wUnitID","bChannel" FROM ('+definition.rstrip().rstrip(';')+') original')
+        conn.execute('UPDATE app_world."TCHARTABLE" SET "wMapID"=0,"fPosX"=4080,"fPosY"=80,"fPosZ"=3584 WHERE "dwCharID"=%s', (cid,))
+        primary, replica, key = enter()
+        replica.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4083, 80, 3584, 0, 90, 0, 0, 0, 0, 1.0), 0x5289, 3))
+        no_packet(primary, 'replica movement does not broadcast a duplicate primary actor')
+        primary.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4081, 80, 3584, 0, 90, 0, 0, 0, 0, 1.0), 0x5289, 3))
+        time.sleep(.1);primary.close()
+        until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'primary disconnect saves and closes both durable roles')
+        check(replica.recv(1) == b'', 'World retires the actual replica client after primary close')
+        check(conn.execute('SELECT count(*) FROM app_world.map_replicas WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'primary final save cascades the replica claim')
+        check(conn.execute('SELECT "fPosX" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s', (cid,)).fetchone()[0] == 4081, 'replica position cannot overwrite primary core at teardown')
+        primary, replica, key = enter()
+        replica.close()
+        check(primary.recv(1) == b'', 'accepted secondary disconnect follows source close-all through World')
+        until(lambda: conn.execute('SELECT count(*) FROM app_global."TCURRENTUSER" WHERE "dwKEY"=%s', (key,)).fetchone()[0] == 0, 'secondary-triggered close completes primary save and account release')
+        check(conn.execute('SELECT count(*) FROM app_world.map_replicas WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'secondary-triggered close leaves no stranded replica')
+        # A third lifecycle crosses the synthetic unit boundary in both
+        # directions using only original encrypted client MOVE/CONREADY packets.
+        conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=300000 WHERE "dwCharID"=%s', (cid,))
+        primary, replica, key = enter()
+        primary.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4100, 80, 3584, 0, 91, 0, 0, 0, 0, 1.0), 0x5289, 3))
+        try:
+            op, body = read_packet(replica, 1)
+        except (OSError, TimeoutError, RuntimeError) as error:
+            raise RuntimeError('Map primary transfer: target CONNECT missing after original client MOVE crossed the cell boundary') from error
+        check(op == 0x5282 and body == b'\0\2\1\2', 'crossing cell boundary promotes the actual second Map and sends original CONNECT')
+        until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (2,1,'loaded'), 'target ownership epoch commits before client CONREADY')
+        receipt = conn.execute("SELECT source_epoch,target_epoch,phase,octet_length(body) FROM app_world.map_transfers WHERE char_id=%s ORDER BY transfer_id DESC LIMIT 1", (cid,)).fetchone()
+        check(receipt[:3] == (0,1,'consumed') and receipt[3] > 200, 'actual native transfer retains complete original wire graph receipt')
+        replica.sendall(frame(b'', 0x5288, 3));primary.sendall(frame(b'', 0x5288, 4))
+        until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (2,1,'ready'), 'promoted native target enters gameplay after client confirmation')
+        no_packet(replica, 'promotion does not reload client CHARINFO or invent protocol fields')
+        no_packet(primary, 'retained source accepts repeated CONREADY as a replica')
+        replica.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4080, 80, 3584, 0, 92, 0, 0, 0, 0, 1.0), 0x5289, 4))
+        op, body = read_packet(primary, 5)
+        check(op == 0x5282 and body == b'\0\2\1\2', 'return crossing promotes the same original socket with source CONNECT')
+        until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (1,2,'loaded'), 'round trip increments authority despite reusing original process and connection')
+        primary.sendall(frame(b'', 0x5288, 5));replica.sendall(frame(b'', 0x5288, 5))
+        until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (1,2,'ready'), 'returned primary becomes ready without replacing either client connection')
+        no_packet(primary, 'return handoff keeps existing client character state')
+        no_packet(replica, 'returned secondary remains connected without duplicate admission')
+        primary.close()
+        until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'transferred primary performs final native save and releases account')
+        check(replica.recv(1) == b'', 'final close after round trip retires the retained replica')
+        check(conn.execute('SELECT "fPosX","wDIR" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s', (cid,)).fetchone() == (4080,92), 'round trip preserves the latest live position and direction through final save')
+        saved_graph = conn.execute('SELECT transfer_body,transfer_hash FROM app_world.map_checkpoints WHERE char_id=%s', (cid,)).fetchone()
+        check(saved_graph[0] is not None and saved_graph[1], 'final transfer logout checkpoints the complete graph with a verified digest')
+        # Durable skill rows deliberately disagree: the saved live graph must
+        # remain authoritative for a character that already transferred.
+        conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=0 WHERE "dwCharID"=%s', (cid,))
+        primary, replica, key = enter()
+        skill = conn.execute('SELECT "wSkillID" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s ORDER BY "wSkillID" LIMIT 1', (cid,)).fetchone()[0]
+        request = struct.pack('<IBBHHBIIfffB',cid,1,1,0,skill & 65535,0,0,0,4080,80,3584,0)
+        primary.sendall(frame(request,0x52b4,3));op,body = read_packet(primary,5)
+        check(op == 0x52b5 and body[0] == 6, 'relogin restores transferred runtime cooldown despite stale durable skill rows')
+        primary.close()
+        until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'restored graph can complete a fresh Login lifecycle')
+        check(replica.recv(1) == b'', 'restored lifecycle closes its secondary through actual World')
+        primary, replica, key = enter()
+        conn.execute("CREATE FUNCTION public.delay_native_transfer() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.server_id=2 AND NEW.phase='loaded' AND NEW.authority_epoch>0 THEN PERFORM pg_sleep(.8); END IF; RETURN NEW; END $$")
+        conn.execute('CREATE TRIGGER synthetic_native_transfer_delay BEFORE UPDATE ON app_world.map_sessions FOR EACH ROW EXECUTE FUNCTION public.delay_native_transfer()')
+        try:
+            primary.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4100, 80, 3584, 0, 93, 0, 0, 0, 0, 1.0), 0x5289, 3))
+            until(lambda: conn.execute("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event='PgSleep'").fetchone()[0] > 0, 'actual target transfer pauses inside its ownership transaction')
+            replica.close()
+            until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'client close during transfer commit drains promoted ownership before teardown')
+            check(read_packet(primary,5) == (0x5283,b''), 'World invalidates original source through the source INVALIDCHAR packet during failed transfer')
+            check(primary.recv(1) == b'', 'World closes retained source after target disconnect during transfer')
+            check(conn.execute('SELECT "fPosX","wDIR" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s', (cid,)).fetchone() == (4100,93), 'commit-close race preserves frozen source movement without a stale source overwrite')
+            check(conn.execute("SELECT outcome,recovery_contract,transfer_body IS NOT NULL FROM app_world.map_checkpoints WHERE char_id=%s", (cid,)).fetchone() == ('logout',2,True), 'commit-close race leaves a complete recoverable graph and confirmed logout')
+        finally:
+            conn.execute('DROP TRIGGER synthetic_native_transfer_delay ON app_world.map_sessions')
+            conn.execute('DROP FUNCTION public.delay_native_transfer()')
+        # Explicitly remove only this synthetic operational graph before the
+        # outer harness restores its synthetic position/core test fixture.
+        conn.execute('UPDATE app_world.map_checkpoints SET recovery_contract=1,transfer_body=NULL,transfer_hash=NULL,character_manifest=NULL,routing_manifest=NULL,actor_manifest=NULL WHERE char_id=%s', (cid,))
+
+        check(items == conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"', (cid,)).fetchall(), 'two-Map lifecycle preserves all original item fields')
+    finally:
+        for s in sockets:s.close()
+        conn.execute('UPDATE app_global."TSERVER" SET "wPort"=%s WHERE "bGroupID"=1 AND "bServerID"=2 AND "bType"=4', (old_port,))
+        conn.execute('CREATE OR REPLACE VIEW route_compat."TSVRCHART" AS '+definition)
+        conn.execute('UPDATE app_world."TCHARTABLE" SET "wMapID"=%s,"fPosX"=%s,"fPosY"=%s,"fPosZ"=%s WHERE "dwCharID"=%s', (*before, cid))
+    check(conn.execute('SELECT pg_get_viewdef(\'route_compat."TSVRCHART"\'::regclass,true)').fetchone()[0] == definition, 'exact original routing view restored after synthetic partition test')
+    return {'status':'passed','checks':checks,'scope':'Actual Login/World/two native Maps, source-sized encrypted client packets, explicitly synthetic single-cell partition; original historical rows untouched. Includes primary transfer round trip; full AOI, secondary gameplay and original-client verification remain pending.'}

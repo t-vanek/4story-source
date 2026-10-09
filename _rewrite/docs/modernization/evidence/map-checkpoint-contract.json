@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-09",
+  "status": "IMPLEMENTED, INTEGRATED and VERIFIED: atomic native core checkpoint and eligible ready-session recovery; overall mission remains active",
+  "authority": {
+    "historical_backups_unchanged": true,
+    "applied_001_to_017_unchanged": true,
+    "new_migration": "database/postgresql/018-native-map-checkpoints.sql",
+    "preservation_checks": 20,
+    "player_corpus_imported": false,
+    "original_reference_releases": "Same independent character/routing/actor manifests as map-runtime-contract.json; no selector or source-value changes.",
+    "database_runtime": "PostgreSQL-only disposable lab, no SQL Server process in this verification."
+  },
+  "source_behavior": [
+    {
+      "source": "Server/TMapSvr/TMapType.h:CHAR_SAVE_TICK",
+      "finding": "30*60*1000 milliseconds; default native interval preserved."
+    },
+    {
+      "source": "Server/TMapSvr/TPlayer.cpp:CTPlayer::OnTimer around line 1001",
+      "finding": "Periodic save when the character is main and not in tournament; BOW has a separate branch."
+    },
+    {
+      "source": "Server/TMapSvr/SSSender.cpp:SendDM_SAVECHAR_REQ",
+      "finding": "Copies state for DB persistence, excludes unsupported/locked/special contexts; native scope remains normal fresh characters."
+    },
+    {
+      "source": "Server/TMapSvr/SSSender.cpp:SendMW_CONNECT_ACK; Lib/Own/TProtocol/include/CTProtocol.h",
+      "finding": "Map peer word is MAKEWORD(server_id, SVRGRP_MAPSVR=4). High byte is server type, not application world."
+    },
+    {
+      "source": "Server/TWorldSvr/SSHandler.cpp:OnSM_DELSESSION_REQ",
+      "finding": "Close every character with a connection on the departing Map. Native crash cleanup preserves fenced database ownership instead of the legacy bulk current-user clear."
+    },
+    {
+      "source": "map-entry-backup-contracts.json and map-runtime-contract.json",
+      "finding": "Previously recovered TSaveChar/TSaveCharDataStart/End evidence remains authoritative. Checkpoint receipts are an explicit new application contract, not reconstructed historical tables."
+    }
+  ],
+  "production_paths": [
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_service.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_owner.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_owner.h",
+    "Server/TMapSvrAsio/services/session_validator.h",
+    "Server/TMapSvrAsio/services/session_registry.h",
+    "Server/TMapSvrAsio/handlers/session.cpp",
+    "Server/TMapSvrAsio/main.cpp",
+    "Server/TMapSvrAsio/config.cpp",
+    "Server/TMapSvrAsio/config.h",
+    "Server/TMapSvrAsio/services/world_client.cpp",
+    "Server/TWorldSvrAsio/world_server.cpp",
+    "deploy/sql/map-runtime-grants.sql",
+    "deploy/tmapsvr-native.example.toml"
+  ],
+  "persistence_contract": [
+    "Record initial core plus revision 0 atomically with loaded-to-ready transition; no checkpoint-less native admission.",
+    "One latest receipt per character, bounded by character count and removed by authorized hard deletion via FK; not an append-only history or an economy journal.",
+    "Receipt contains exact world/character/user/session/node/process/connection identity, recovery version, monotonic revision, stable SHA256 of explicit ordered core bits, SQL core image, timestamp and outcome.",
+    "Periodic save holds existing owner-row/account/session locks; updates core and receipt in one transaction, retaining the active login and leaving logout timestamps unchanged.",
+    "Identical revision and fingerprint can confirm a previous commit; conflicting payload, skipped/old revision, wrong generation and core drift are refused. Unknown writes are not automatically replayed.",
+    "Final save locks the same account and claim, supersedes earlier checkpoints, stamps logout and releases claim/current-user atomically. Exact prior final receipt can confirm completion without another write.",
+    "Checkpoint and final-save faults roll back together; late checkpoints cannot recreate a closed claim or overwrite its final core.",
+    "One sequential background sweep bounds queued work; each snapshot has an exact claim. Shutdown stops sweeps and awaits background DB operations plus client/World drain.",
+    "A checkpoint failure closes the client for a final save; failed final save retains the existing in-memory failure path and nonzero shutdown result. No blind reconnect or write replay is introduced."
+  ],
+  "recovery_contract": [
+    "Replacement process first owns the dedicated advisory lock and replaces the token under the owner-row lock, fencing surviving old workers.",
+    "Pre-ready claims retain their existing safe cleanup. Ready claims require contract 1, active receipt, exact account/session/character/node/generation and current core equal to recorded core.",
+    "Eligible recovery keeps last committed core, changes receipt outcome to recovered, records observed recovery/UTC logout time and removes old claim/current-user in one transaction.",
+    "Transient state after saved_at is lost on crash. The interval defaults to 30 minutes, can be shortened to 100..1800000 ms; scheduler/DB backlog affects actual checkpoint age. This is not a zero-loss guarantee.",
+    "Already orphaned, pre-018 no-receipt, externally drifted or inconsistent claims stay blocked. Never manufacture receipts or remove claims to make login succeed.",
+    "Recovery audit failure refuses startup and preserves prior owner/claim/receipt transaction state.",
+    "World retires in-memory characters on unexpected Map TCP loss, without clearing native current-user rows. Correct source server-type ID makes this sweep apply to the actual Map process."
+  ],
+  "verification": {
+    "runs": {
+      "debug": {
+        "report": "native-map-checkpoint.json",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "three_daemon_encrypted_tcp_checks": 79,
+        "status": "passed"
+      },
+      "asan": {
+        "report": "native-map-checkpoint-asan.json",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "three_daemon_encrypted_tcp_checks": 79,
+        "status": "passed"
+      },
+      "release": {
+        "report": "native-map-checkpoint-release.json",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "three_daemon_encrypted_tcp_checks": 79,
+        "status": "passed",
+        "note": "Installed Release daemons; mounted Debug integration tests."
+      }
+    },
+    "debug_ctest": {
+      "entries": 192,
+      "actual_passes": 178,
+      "legacy_internal_skips": 8,
+      "explicit_native_skips": 6,
+      "failures": 0,
+      "report": "map-checkpoint-ctest.xml"
+    },
+    "sanitizer_preset": {
+      "entries": 20,
+      "failures": 0,
+      "report": "map-checkpoint-asan-preset.xml",
+      "leak_detection": true,
+      "vptr_excluded": "Existing packaged SOCI RTTI limitation; SIGKILL itself cannot execute process-exit leak detection."
+    },
+    "python_tests": {
+      "count": 31,
+      "passed": 31,
+      "report": "map-checkpoint-python-tests.log"
+    },
+    "real_faults": [
+      "SIGKILL during a delayed actual PostgreSQL checkpoint: previous committed core/receipt survive; replacement relogin succeeds through the same World.",
+      "SIGTERM during ready commit: no stranded account.",
+      "SIGTERM during periodic checkpoint: checkpoint and final-save work drain with final position retained.",
+      "Control PostgreSQL connection loss: daemon stops with exit 2.",
+      "Injected receipt/audit failures: atomic rollback; failed recovery preserves claims.",
+      "Concurrent checkpoint/final save: final state wins.",
+      "Actual low-level character deletion removes its completed receipt using the Login role."
+    ],
+    "test_data": "Synthetic accounts and explicit fault triggers; original backup-derived reference values unchanged.",
+    "client": "Independent source-derived encrypted Python peer. Original executable not run.",
+    "release": {
+      "date": "2026-10-09",
+      "status": "passed",
+      "image": "localhost/fourstory:postgresql-checkpoint",
+      "image_id": "e061e3a704196ea884b28c20a557b9c5f40c9b777eab0f8df37cd313eea3d58b",
+      "uid_gid": "10001:10001",
+      "installed_release_daemon_sha256": {
+        "/opt/fourstory/bin/tloginsvr_asio": "acb387eed9d32bb6f1458c91ea19b77a6cb698935e0cd26841cba7535f359361",
+        "/opt/fourstory/bin/tworldsvr_asio": "c6c799414eed56f94d817892073b44765303f8416b4544f17dd351ddab45e034",
+        "/opt/fourstory/bin/tmapsvr_asio": "d31e776824a72c0f032c07f4e4f696a8fed5ca75fcb77e9071b20d1341938bdb",
+        "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef",
+        "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+        "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34"
+      },
+      "six_daemon_health_dns_sigterm": "map-checkpoint-container-smoke.log",
+      "native_postgresql_and_three_daemon_wire": "native-map-checkpoint-release.json",
+      "native_map_checks": 59,
+      "tcp_checks": 79,
+      "pool_tls_checks": 29,
+      "scope": "Installed Release Login/World/Map tested. Native integration executables are mounted Debug builds. No original client execution."
+    }
+  },
+  "remaining": [
+    "World-link interruption while Map stays alive still needs explicit client drain/rebind behavior; the existing world client reconnect loop alone does not rebuild character registration. Address before secondary transfers.",
+    "Secondary Map connections, map/channel transfer claims, full composite synchronization and failure recovery.",
+    "Atomic native inventory/equipment/economy/reward operations and their own recovery contracts; do not extend the core receipt into a claim of item/event journaling.",
+    "Guilds/active recalls/social persistence, full ancillary synchronization, skills/buffs/quests/combat and original gameplay parity.",
+    "Original-client execution/build identification, non-ASCII/historical credential/timezone imports and performance acceptance.",
+    "Legacy packaged SQL Server drivers remain for unported paths; native tested runtime uses PostgreSQL only."
+  ],
+  "next_implementation": "Close and durably drain native client sessions when the World peer connection is lost, gate admission on a registered replacement peer, and verify World restart/connection interruption before adding secondary Map transfer ownership."
+}

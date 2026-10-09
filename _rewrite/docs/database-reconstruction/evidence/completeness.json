@@ -1,0 +1,34 @@
+{
+  "schema": {
+    "tables_confirmed": 268,
+    "columns_confirmed": 2405,
+    "readable_modules": 353,
+    "scope": "relative to the two supplied database snapshots only"
+  },
+  "relationships": {
+    "declared_FKs": 5,
+    "untrusted_FKs": 1,
+    "game_FKs": 0,
+    "scope": "inferred gameplay relations are separately tested, not claimed complete"
+  },
+  "static_reference": {
+    "known_CHART_tables": 93,
+    "nonempty_CHART_tables": 81,
+    "imported_game_CHART_tables": 14,
+    "additional_imported_tables": [
+      "TSKILLDATA"
+    ],
+    "rows_imported_and_value_verified": 106692
+  },
+  "persistence": {
+    "source_portable_object_names_excluding_system_catalog": 158,
+    "backup_name_matches": 143,
+    "populated_characters": 0,
+    "populated_item_instances": 0,
+    "populated_guilds": 0
+  },
+  "operational": {
+    "backup_restore_and_checkdb": "passed",
+    "game_server_on_PostgreSQL": "not executed; backend disabled and T-SQL dependencies unresolved"
+  }
+}

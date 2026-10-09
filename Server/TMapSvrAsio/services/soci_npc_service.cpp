@@ -12,9 +12,13 @@
 namespace tmapsvr {
 
 SociNpcService::SociNpcService(fourstory::db::SessionPool& pool)
+    : SociNpcService(*pool.Acquire())
 {
-    auto lease = pool.Acquire();
-    auto& sql  = *lease;
+    // The temporary Lease lives until the delegated constructor returns.
+}
+
+SociNpcService::SociNpcService(soci::session& sql)
+{
 
     std::int32_t row_id = 0, row_type = 0, row_country = 0, row_local = 0,
                  row_condition = 0, row_disc = 0, row_addprob = 0,

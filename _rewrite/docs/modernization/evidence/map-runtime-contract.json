@@ -1,0 +1,252 @@
+{
+  "date": "2026-10-09",
+  "status": "IMPLEMENTED, INTEGRATED and VERIFIED for native fresh single-owner Map admission and core persistence; complete server mission remains active",
+  "authority": {
+    "backup_files_immutable": true,
+    "source_fingerprints": {
+      "TGAME_RAGEZONE.bak": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259",
+      "TGLOBAL_RAGEZONE.bak": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+    },
+    "migrations_001_through_015_unchanged": true,
+    "new_applied_immutable_migrations": [
+      "016-native-map-ownership.sql",
+      "017-map-actor-reference-catalog.sql"
+    ],
+    "all_current_preservation_checks": 19,
+    "historical_player_or_account_import": false,
+    "sql_server_runtime_dependency_for_tested_flow": false,
+    "source_restores": {
+      "TGLOBAL_RAGEZONE": {
+        "restore": "passed",
+        "verifyonly": [
+          {
+            "verification": "passed"
+          }
+        ]
+      },
+      "TGAME_RAGEZONE": {
+        "restore": "passed",
+        "verifyonly": [
+          {
+            "verification": "passed"
+          }
+        ]
+      }
+    },
+    "module_fingerprints": [
+      {
+        "database": "TGAME_RAGEZONE",
+        "module": "TFindServerID",
+        "definition_utf8_sha256": "f5d27e8cad392d20064071aba38a4effc56112c498e212df665865259c942f5b"
+      },
+      {
+        "database": "TGAME_RAGEZONE",
+        "module": "TSaveChar",
+        "definition_utf8_sha256": "9d8c3149acd9f2bd0bcbfdd895e57834a3bc8e50880dafb0fb703407057b8006"
+      },
+      {
+        "database": "TGAME_RAGEZONE",
+        "module": "TSaveCharBase",
+        "definition_utf8_sha256": "460149e4ed343b207a9ef75fdbfae9a46e30269eefc74d400b6eae08f22f6589"
+      },
+      {
+        "database": "TGAME_RAGEZONE",
+        "module": "TSaveCharDataEnd",
+        "definition_utf8_sha256": "e9260f06f584e18cd221e5b9de59d10f0c11a5d1fd07d242b28e876dd8c6690a"
+      },
+      {
+        "database": "TGAME_RAGEZONE",
+        "module": "TSaveCharDataStart",
+        "definition_utf8_sha256": "f1f7d5b3db4df9f9d284ca2c8eaac88fb2c5616265f82052700b41efa6632ef4"
+      },
+      {
+        "database": "TGAME_RAGEZONE",
+        "module": "TSaveCharPosition",
+        "definition_utf8_sha256": "57b81f2f046013ec4d6362d49001b48ce673eedaf86b226e4a7c288a66636361"
+      },
+      {
+        "database": "TGLOBAL_RAGEZONE",
+        "module": "TEnterServer",
+        "definition_utf8_sha256": "be12379a8a71c5ef9bb471414fb7230ce911a1a7e92fd501e915c6f6833a7223"
+      },
+      {
+        "database": "TGLOBAL_RAGEZONE",
+        "module": "TLogout",
+        "definition_utf8_sha256": "21a3fc099d89b5c1b9fc73ff03a7603fc44340f34d3c12f6839b289abb6ba30a"
+      },
+      {
+        "database": "TGLOBAL_RAGEZONE",
+        "module": "TRoute",
+        "definition_utf8_sha256": "0ca47c5ea943e146b54dee594e9f0ca8ebafcdeb51fc6ad2af2136066f7442b2"
+      }
+    ]
+  },
+  "catalog_releases": {
+    "characters": {
+      "run_id": 1,
+      "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+      "changed": true,
+      "reference_tables": 22,
+      "verified_source_rows": 107977,
+      "starter_graph_gaps": {
+        "starter_item": 0,
+        "starter_recall": 0,
+        "veteran_level": 0,
+        "starter_slot_collision": 0
+      },
+      "snapshot_values_and_original_text_bytes_verified": true
+    },
+    "routing": {
+      "run_id": 2,
+      "manifest_sha256": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+      "changed": true,
+      "reference_tables": 4,
+      "verified_source_rows": 1440,
+      "unmapped_source_channel_cells": 3,
+      "snapshot_values_and_original_text_bytes_verified": true
+    },
+    "actor": {
+      "run_id": 3,
+      "manifest_sha256": "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381",
+      "changed": true,
+      "reference_tables": 2,
+      "verified_source_rows": 746,
+      "snapshot_values_and_original_text_bytes_verified": true
+    },
+    "actor_tables": [
+      {
+        "table": "TITEMMAGICCHART",
+        "rows": 27,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLPOINTCHART",
+        "rows": 719,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "original_map_15_table_selector": "Independent, unchanged; optional separate content connection. Native runtime test uses character/routing/actor releases."
+  },
+  "production_paths": [
+    "Server/TMapSvrAsio/main.cpp",
+    "Server/TMapSvrAsio/config.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_owner.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_service.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_route.cpp",
+    "Server/TMapSvrAsio/handlers/session.cpp",
+    "Server/TMapSvrAsio/handlers/movement.cpp",
+    "Server/TMapSvrAsio/handlers_world.cpp",
+    "Server/TMapSvrAsio/handlers_native_entry.cpp",
+    "Server/TMapSvrAsio/map_server.cpp",
+    "Server/TMapSvrAsio/services/client_senders.cpp",
+    "Server/TMapSvrAsio/domain/character_payload.h",
+    "Server/TWorldSvrAsio/senders/senders_relay.cpp",
+    "Server/TLoginSvrAsio/services/soci_session_terminator.cpp",
+    "Server/TLoginSvrAsio/services/postgresql_char_service.cpp",
+    "deploy/sql/map-runtime-grants.sql",
+    "deploy/sql/login-runtime-grants.sql",
+    "deploy/tmapsvr-native.example.toml"
+  ],
+  "legacy_evidence": [
+    "Server/TMapSvr/SSHandler.cpp: OnMW_CHARINFO_REQ, OnMW_CHARDATA_REQ, OnMW_ENTERCHAR_REQ, OnMW_ROUTE_REQ",
+    "Server/TMapSvr/CSSender.cpp: CTPlayer::SendCS_CHARINFO_ACK and SendCS_ENTER_ACK",
+    "Server/TMapSvr/TItem.cpp: CTItem::GetMagicValue and WrapPacket (extension values and wire widths)",
+    "Server/TMapSvr/TObjBase.cpp: CalcAbilityValue, CalcItemAbility, GetCON, GetMEN, GetMaxHP, GetMaxMP",
+    "Server/TMapSvr/TPlayer.cpp: GetCON/GetMEN aftermath adjustment",
+    "Server/TWorldSvr/SSSender.cpp: CTServer::SendMW_CHARINFO_REQ Windows BOOL trailer",
+    "Lib/Own/TProtocol/include/CSProtocol.h and SSProtocol.h; Client/TClient original source profile 0x2918",
+    "map-entry-backup-contracts.json: original core save/data replacement and cross-database side effects"
+  ],
+  "ownership_contract": [
+    "One dedicated advisory connection per (world, server), random process token, persisted control backend PID; refuse a second active owner.",
+    "Claim requires exact unexpired Login reservation, account/key/world/character/channel and source route; consumes pending reservation atomically.",
+    "All native mutations hold process-row shared lock and account/claim locks, checking exact process token and monotonically assigned connection generation.",
+    "Current-user FK restricts deletion; delayed Login termination cannot delete a claimed Map session.",
+    "Load only from claimed phase, ready only from loaded phase; unkeyed native LoadChar/SaveChar/Resolve refused.",
+    "Core save, logout audit and release are atomic; rollback retains durable claim and resident snapshot. No automatic replay after uncertain commit.",
+    "Socket close during MarkReady commit still advances local ready state and drains authorized save; deterministic PG delay/SIGTERM test covers the race.",
+    "Disconnect sends original keyed MW_CLOSECHAR_ACK to clear actual World registry; same-World reconnect is tested.",
+    "Lost control connection stops listener and clients; daemon exits 2. Replacement safely closes pre-ready claims but retains unsaved ready claims as orphaned. No completed crash recovery claim."
+  ],
+  "hydration_and_wire_contract": [
+    "Repeatable-read snapshot verifies independent character/routing/actor releases; loads native core, inventories/items, skills/hotkeys, titles, cabinet, mail, recall and pet records.",
+    "Native fresh admission refuses persisted guild membership, active recalls, and any source cell requiring secondary Map connections.",
+    "CHARINFO uses actual bags/items/magic, skills and twelve keys per hotkey inventory, selected title, lucky/rank values, level thresholds and source neutral aid country 3.",
+    "Maximum HP/MP follow recovered class/race/formula, equipped item magic and learned passive rows for supported fresh state. Active maintained effects remain unfinished. Current HP/MP clamp to maximum; zero HP stays dead, zero MP remains zero.",
+    "Item dwTime1..6 are extension values: ELD, wrap, color, guild binding, companion, custom texture. Login lobby uses dwTime6 for texture.",
+    "Item magic last-valid duplicate ID wins; source revision multiplies raw WORD then truncates to WORD before division by 100; minimum positive value 1.",
+    "World CHARINFO BOOL trailer is four bytes, matching original Windows representation. ENTERCHAR fully parses its fresh composite and validates exact identity and core attributes before ACK.",
+    "CHECKMAIN and neighbor lookup use original logical/physical channel and unit/cell ownership. Endpoint resolver uses actual active deployment rows with atomic machine rotation.",
+    "MOVE requires exact body, finite numeric fields and unchanged map; core snapshot retains position/direction for logout save. Full speed/ghost/AOI validation remains pending.",
+    "Core save updates explicit character columns and validates directory identity; it never replaces inventory or other children. Modern directory has no bLevel/dwEXP; progress belongs to character core.",
+    "New application timestamps have explicit UTC policy; source historical timezone is not inferred. Source pre-2000 expiration sentinel maps to wire zero for new native state."
+  ],
+  "modern_repairs": [
+    "Explicit durable claims and connection generations replace unsafe unkeyed access.",
+    "Fail closed for unsupported graph/secondary transfers rather than fabricate empty state.",
+    "One core/logout transaction, no destructive child replacement on partial save.",
+    "Separate least-privilege Map role cannot read credential hashes, rewrite inventory, or access historical schemas.",
+    "Legacy zero-HP auto-heal removed; no fixture-only success in actual native server path."
+  ],
+  "verification": {
+    "runs": {
+      "debug": {
+        "report": "native-map-runtime.json",
+        "native_map_checks": 36,
+        "encrypted_three_daemon_tcp_checks": 57,
+        "pool_tls_checks": 29,
+        "status": "passed"
+      },
+      "asan": {
+        "report": "native-map-runtime-asan.json",
+        "native_map_checks": 36,
+        "encrypted_three_daemon_tcp_checks": 57,
+        "pool_tls_checks": 29,
+        "status": "passed"
+      }
+    },
+    "debug_ctest": {
+      "entries": 192,
+      "actual_passes": 178,
+      "legacy_internal_skips": 8,
+      "native_explicit_skips": 6,
+      "failures": 0,
+      "evidence": "map-runtime-ctest.xml"
+    },
+    "asan_preset": {
+      "entries": 19,
+      "passes": 19,
+      "failures": 0,
+      "evidence": "map-runtime-asan-preset.xml",
+      "previous_targeted_entries": 12,
+      "detect_leaks": true,
+      "halt_on_error": true,
+      "vptr_excluded": "Existing packaged SOCI RTTI limitation"
+    },
+    "python_tests": {
+      "count": 31,
+      "passed": 31,
+      "evidence": "map-runtime-python-tests.log"
+    },
+    "character_regression": "map-runtime-character-regression.json",
+    "test_accounts_and_mutations": "Synthetic only; one explicitly synthetic nonzero item-magic row exercises source-chart derivation, never presented as historical starter data.",
+    "client": "Independent Python encoding/decoding and actual encrypted TCP. No original client executable executed.",
+    "world": "Actual World process and in-memory registry; no native social repository.",
+    "build": "Mounted Debug and sanitizer binaries in local build-deps image; all sources linked into actual executables.",
+    "ci": "Preset and workflow updated; local preset built/tested, remote CI not executed.",
+    "installed_image": "localhost/fourstory:postgresql-characters is older and does not include this Map increment."
+  },
+  "remaining": [
+    "Durable checkpoints and explicitly fenced recovery of orphaned ready claims, including unknown commit outcomes; do not clear uncertain claims to permit login.",
+    "Secondary Map claims, transfer composite, border/channel/map transitions and transfer failure recovery.",
+    "Guild/social state and active recall/companion hydration; full mail/cabinet/pet/title client synchronization.",
+    "Persistent inventory/equipment mutations, currency/reward atomicity, quest/skill/buff state and full combat/spawn/movement parity.",
+    "Original TFindServerID active-character/scamming-post/pet conversions and TEnterServer timed title; BR/BOW modes.",
+    "Runnable original client/build/assets, non-ASCII/collation and historical timezone/credential import evidence.",
+    "Installed Release image refresh, all gameplay reliability/performance checks and complete legacy feature parity."
+  ],
+  "next_implementation": "Design and integrate durable core checkpoints/recovery under the existing owner+generation fence, with kill-during-write/restart tests and explicit unknown-commit handling before enabling recovery of ready claims."
+}

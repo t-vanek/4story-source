@@ -65,6 +65,8 @@ namespace tworldsvr {
 struct HandlerContext
 {
     boost::asio::io_context*  io         = nullptr;
+    // Bound a live but stalled main-release/enter/confirm exchange.
+    std::uint32_t main_handoff_timeout_ms = 5000;
 
     // Worker pool for synchronous SOCI calls. Handlers offload DB
     // roundtrips here via fourstory::db::CoOffloadIf. nullptr →

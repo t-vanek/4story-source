@@ -19,6 +19,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace tmapsvr {
 
@@ -37,6 +38,10 @@ public:
 
     // Snapshot by value — copy so callers don't hold the lock.
     virtual std::optional<CharSnapshot> Get(std::uint32_t char_id) const = 0;
+    // Freeze under the same lock used by combat/AI mutations. The returned
+    // snapshot is the final source state until an explicit Store replaces it.
+    virtual std::optional<CharSnapshot> Freeze(std::uint32_t char_id,
+        const std::function<void(CharSnapshot&)>& fn) = 0;
 
     // Remove by char_id (called after SaveChar completes).
     virtual void Remove(std::uint32_t char_id) = 0;
@@ -55,6 +60,7 @@ public:
     {
         std::lock_guard<std::mutex> lk(m_mtx);
         m_rows[char_id] = snap;
+        m_frozen.erase(char_id);
     }
 
     void Update(std::uint32_t char_id,
@@ -62,7 +68,13 @@ public:
     {
         std::lock_guard<std::mutex> lk(m_mtx);
         const auto it = m_rows.find(char_id);
-        if (it != m_rows.end()) fn(it->second);
+        if (it != m_rows.end() && !m_frozen.contains(char_id)) fn(it->second);
+    }
+
+    std::optional<CharSnapshot> Freeze(std::uint32_t char_id,const std::function<void(CharSnapshot&)>& fn) override {
+        std::lock_guard lock(m_mtx);auto it=m_rows.find(char_id);
+        if(it==m_rows.end()||m_frozen.contains(char_id))return {};
+        fn(it->second);m_frozen.insert(char_id);return it->second;
     }
 
     std::optional<CharSnapshot> Get(std::uint32_t char_id) const override
@@ -77,6 +89,7 @@ public:
     {
         std::lock_guard<std::mutex> lk(m_mtx);
         m_rows.erase(char_id);
+        m_frozen.erase(char_id);
     }
 
     // No per-session pointer stored here — the session_registry has
@@ -90,6 +103,7 @@ public:
 private:
     mutable std::mutex                                       m_mtx;
     std::unordered_map<std::uint32_t, CharSnapshot>         m_rows;
+    std::unordered_set<std::uint32_t> m_frozen;
 };
 
 } // namespace tmapsvr

@@ -1,0 +1,12 @@
+[2026-10-09 02:22:19.175] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 02:22:19.179] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 02:22:19.236] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0403 teardown — 1 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 02:22:19.236] [info] world_server: wID=1027 unregistered from peer registry
+[2026-10-09 02:22:19.236] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 02:22:19.236] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0401 teardown — 1 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 02:22:19.236] [info] world_server: wID=1025 unregistered from peer registry
+[2026-10-09 02:22:19.236] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 02:22:19.236] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0402 teardown — 1 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 02:22:19.236] [info] world_server: wID=1026 unregistered from peer registry
+[2026-10-09 02:22:19.236] [info] world_server: peer 127.0.0.1 disconnected
+24 secondary World admission checks passed

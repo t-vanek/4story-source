@@ -1,0 +1,27 @@
+{
+  "run_id": 2,
+  "manifest_sha256": "c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95",
+  "verified_tables": [],
+  "skipped_verified_tables": [
+    "TCLASSCHART",
+    "TFORMULACHART",
+    "TITEMCHART",
+    "TMAPMONCHART",
+    "TMONATTRCHART",
+    "TMONITEMCHART",
+    "TMONSPAWNCHART",
+    "TMONSTERCHART",
+    "TNPCCHART",
+    "TQREWARDCHART",
+    "TQUESTCHART",
+    "TQUESTTERMCHART",
+    "TRACECHART",
+    "TSKILLCHART",
+    "TSKILLDATA"
+  ],
+  "source_rows": 106692,
+  "canonical_items": {
+    "rows": 7706,
+    "six_fields_verified": true
+  }
+}

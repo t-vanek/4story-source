@@ -1,0 +1,140 @@
+[
+  {
+    "path": "Lib/Own/FourStoryCommon/fourstory/db/orm/db_context.h",
+    "line": 65,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "shared"
+  },
+  {
+    "path": "Lib/Own/FourStoryCommon/fourstory/db/orm/db_context.h",
+    "line": 69,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "shared"
+  },
+  {
+    "path": "Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h",
+    "line": 14,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "shared"
+  },
+  {
+    "path": "Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h",
+    "line": 91,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "shared"
+  },
+  {
+    "path": "Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h",
+    "line": 187,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "shared"
+  },
+  {
+    "path": "Lib/Own/FourStoryCommon/src/db/orm/sp_call.cpp",
+    "line": 23,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "shared"
+  },
+  {
+    "path": "Lib/Own/FourStoryCommon/src/db/orm/sp_call.cpp",
+    "line": 73,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "shared"
+  },
+  {
+    "path": "Server/TControlSvrAsio/services/soci_alerter.cpp",
+    "line": 22,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TControlSvrAsio/services/soci_event_repository.cpp",
+    "line": 131,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TControlSvrAsio/services/soci_operator_auth_service.cpp",
+    "line": 27,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TControlSvrAsio/services/soci_user_protected_service.cpp",
+    "line": 26,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TLogSvrAsio/services/log_sink.cpp",
+    "line": 34,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TLogSvrAsio/services/log_sink.cpp",
+    "line": 96,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TLogSvrAsio/services/log_sink.cpp",
+    "line": 252,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TLogSvrAsio/services/log_sink.h",
+    "line": 149,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TPatchSvrAsio/services/patch_repository.cpp",
+    "line": 138,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TWorldSvrAsio/services/month_rank_registry.cpp",
+    "line": 24,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TWorldSvrAsio/services/month_rank_registry.cpp",
+    "line": 126,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TWorldSvrAsio/services/month_rank_registry.cpp",
+    "line": 140,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TWorldSvrAsio/services/month_rank_registry.cpp",
+    "line": 150,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TWorldSvrAsio/services/month_rank_registry.cpp",
+    "line": 156,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TWorldSvrAsio/services/month_rank_registry.cpp",
+    "line": 186,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  },
+  {
+    "path": "Server/TWorldSvrAsio/services/month_rank_registry.h",
+    "line": 138,
+    "kind": "SQL_GENERATOR_REVIEW_SITE",
+    "implementation": "portable"
+  }
+]

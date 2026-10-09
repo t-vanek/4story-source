@@ -1208,7 +1208,7 @@ SociCharService::Create(const CharacterCreateRequest& req)
         }
 
         const std::uint8_t remaining = static_cast<std::uint8_t>(
-            std::max(0, kMaxCharsPerUser - (live_count + 1)));
+            live_count + 1);
 
         spdlog::info("char.Create user_id={} world={} → char_id={} "
                      "(name='{}', level={}, items_source={})",
@@ -1219,7 +1219,7 @@ SociCharService::Create(const CharacterCreateRequest& req)
         return CharacterCreateResponse{
             .status          = CreateCharResult::Success,
             .char_id         = next_id,
-            .remaining_slots = remaining,
+            .create_count = remaining,
             .starting_level  = starting_level,
         };
     }

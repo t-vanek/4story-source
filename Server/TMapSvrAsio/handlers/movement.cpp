@@ -11,7 +11,12 @@
 #include "handlers.h"
 
 #include "services/channel_presence.h"
+#include "services/char_state_store.h"
+#include <cmath>
 #include "services/session_registry.h"
+#include "services/session_validator.h"
+#include "services/world_client.h"
+#include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -92,6 +97,8 @@ OnMoveReq(std::shared_ptr<tnetlib::AsioSession> sess,
         co_return;
     }
 
+    if(!r.Eof()||!std::isfinite(fPosX)||!std::isfinite(fPosY)||!std::isfinite(fPosZ)||!std::isfinite(fSpeed))co_return;
+
     if (!ctx.session_reg || !ctx.presence)
     {
         spdlog::debug("CS_MOVE_REQ: presence/session_reg not configured — "
@@ -115,11 +122,39 @@ OnMoveReq(std::shared_ptr<tnetlib::AsioSession> sess,
             dwCharID);
         co_return;
     }
+    // A MOVE cannot perform a world transfer; the selected map is authoritative.
+    if(entry->map_id!=wMapID)co_return;
     const std::uint8_t mover_channel = entry->channel;
+    if(ctx.char_state)ctx.char_state->Update(dwCharID,[&](CharSnapshot& s){
+        s.wDIR=wDIR;s.fPosX=fPosX;s.fPosY=fPosY;s.fPosZ=fPosZ;
+    });
 
     // Persist the new position so the next ForEachInChannel snapshot
     // (or a later F8/F9 spatial query) reads the up-to-date value.
     ctx.presence->UpdatePosition(dwCharID, wMapID, Position{fPosX, fPosY, fPosZ});
+    // The original broadcasts movement only from m_bMain. Replicas track their
+    // client's position for local visibility, but cannot duplicate that actor.
+    if(const auto identity=ctx.session_reg->Identity(sess.get());identity&&identity->role==MapSessionRole::Replica)co_return;
+
+    const auto identity=ctx.session_reg->Identity(sess.get());
+    const auto native=ctx.char_state?ctx.char_state->Get(dwCharID):std::nullopt;
+    if(identity&&native&&native->payload&&ctx.validator&&ctx.world_client&&
+       (std::floor(entry->pos.x/64)!=std::floor(fPosX/64)||std::floor(entry->pos.z/64)!=std::floor(fPosZ/64))) {
+        std::optional<std::vector<std::uint8_t>> ids;
+        try {auto* validator=ctx.validator;
+            ids=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[validator,claim=identity->Claim(ctx.expected_group),wMapID,fPosX,fPosZ]{
+                return validator->MovementServers(claim,wMapID,fPosX,fPosZ);
+            });
+        }catch(...){sess->Close();co_return;}
+        const auto current=ctx.session_reg->Identity(sess.get());
+        if(!current||current->phase!=SessionPhase::Ready||current->authority_epoch!=identity->authority_epoch||!sess->IsOpen())co_return;
+        if(!ids){sess->Close();co_return;}
+        std::vector<std::byte> check;
+        wire::WritePOD(check,dwCharID);wire::WritePOD(check,identity->key);wire::WritePOD(check,identity->channel);wire::WritePOD(check,wMapID);
+        wire::WritePOD(check,fPosX);wire::WritePOD(check,fPosY);wire::WritePOD(check,fPosZ);
+        wire::WritePOD<std::uint8_t>(check,static_cast<std::uint8_t>(ids->size()));for(auto id:*ids)wire::WritePOD(check,id);
+        if(!co_await ctx.world_client->SendPacket(static_cast<std::uint16_t>(MessageId::MW_CHECKCONNECT_ACK),std::move(check))){sess->Close();co_return;}
+    }
 
     // Collect every other in-channel session, then broadcast on the
     // same coroutine. The visit snapshot inside InMemoryChannelPresence

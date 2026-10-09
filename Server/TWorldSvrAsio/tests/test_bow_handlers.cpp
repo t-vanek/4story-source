@@ -27,6 +27,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -146,6 +147,12 @@ int main()
     tworldsvr::GuildRegistry guilds;
     tworldsvr::PeerRegistry  peers;
     tworldsvr::BowRegistry   bow;
+    // W6-54 requires configured settings and an active queue window.
+    bow.Configure(tworldsvr::bow::kBowMapId, 0, 1, 60, 30, 120);
+    bow.AddStartTime(1000);
+    bow.Init(500);
+    bow.Tick(1001, 1000, true);
+    bow.Tick(1002, 1000, true);
     tworldsvr::HandlerContext ctx{};
     ctx.io = &io; ctx.chars = &chars; ctx.guilds = &guilds;
     ctx.peers = &peers; ctx.bow = &bow; ctx.nation = 0;
@@ -171,8 +178,10 @@ int main()
 
     // Alice: country=C (1), guild=10, tactics=0.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, 0xA1));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(42, 0xA1)));
     // Bob: country=B (2), aid=PEACE (4) — both > kCountryC → reject.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(99, 0xCC));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(99, 0xCC)));
     for (int i = 0; i < 1000 && (!chars.Find(42) || !chars.Find(99)); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(42) != nullptr);
@@ -201,7 +210,7 @@ int main()
         EXPECT(q.result  == tworldsvr::bow::kSuccess);
         EXPECT(q.char_id == 42);
         EXPECT(q.key     == 0xA1);
-        EXPECT(bow.Contains(42));
+        EXPECT(bow.InQueue(42));
         EXPECT(bow.QueueSize() == 1);
     }
 
@@ -212,7 +221,7 @@ int main()
         auto [w, b] = ReadFramed(p1);
         EXPECT(w == ToUint16(MessageId::MW_ADDTOBOWQUEUE_ACK));
         auto q = ParseQueueReply(b);
-        EXPECT(q.result == tworldsvr::bow::kAlreadyInQueue);
+        EXPECT(q.result == tworldsvr::bow::kFail); // duplicate guild entry
         EXPECT(bow.QueueSize() == 1);
     }
 
@@ -224,7 +233,7 @@ int main()
         EXPECT(w == ToUint16(MessageId::MW_ADDTOBOWQUEUE_ACK));
         auto q = ParseQueueReply(b);
         EXPECT(q.result == tworldsvr::bow::kCountry);
-        EXPECT(!bow.Contains(99));
+        EXPECT(!bow.InQueue(99));
     }
 
     // --- Test D: cancel Alice → SUCCESS -----------------------------
@@ -235,7 +244,7 @@ int main()
         EXPECT(w == ToUint16(MessageId::MW_CANCELBOWQUEUE_ACK));
         auto q = ParseQueueReply(b);
         EXPECT(q.result == tworldsvr::bow::kSuccess);
-        EXPECT(!bow.Contains(42));
+        EXPECT(!bow.InQueue(42));
         EXPECT(bow.QueueSize() == 0);
     }
 
@@ -251,15 +260,21 @@ int main()
 
     // --- Test F: BOWPOINTSUPDATE bumps the scoreboard ---------------
     //  No reply emitted; verify directly. Send two updates for D + one
-    //  for C and confirm the per-country counters.
-    EXPECT(bow.Points(tworldsvr::bow::kCountryD) == 0);
-    EXPECT(bow.Points(tworldsvr::bow::kCountryC) == 0);
+    //  for C. W6-54 starts at 5:5 and transfers points between nations.
+    EXPECT(bow.Points(tworldsvr::bow::kCountryD) == 5);
+    EXPECT(bow.Points(tworldsvr::bow::kCountryC) == 5);
     SendFramed(p1, ToUint16(MessageId::MW_BOWPOINTSUPDATE_REQ),
                PointsBody(tworldsvr::bow::kCountryD));
     SendFramed(p1, ToUint16(MessageId::MW_BOWPOINTSUPDATE_REQ),
                PointsBody(tworldsvr::bow::kCountryD));
     SendFramed(p1, ToUint16(MessageId::MW_BOWPOINTSUPDATE_REQ),
                PointsBody(tworldsvr::bow::kCountryC));
+    // W6-54 broadcasts the scoreboard after each points update.
+    for (int i = 0; i < 3; ++i)
+    {
+        auto [notify_id, notify_body] = ReadFramed(p1);
+        EXPECT(notify_id == ToUint16(MessageId::MW_BOWTIMEUPDATE_ACK));
+    }
     // Send a follow-up enqueue + read its ACK to ensure handler queue
     // drained both packets in order.
     SendFramed(p1, ToUint16(MessageId::MW_ADDTOBOWQUEUE_REQ),
@@ -268,8 +283,8 @@ int main()
     EXPECT(w == ToUint16(MessageId::MW_ADDTOBOWQUEUE_ACK));
     auto q = ParseQueueReply(b);
     EXPECT(q.result == tworldsvr::bow::kSuccess);
-    EXPECT(bow.Points(tworldsvr::bow::kCountryD) == 2);
-    EXPECT(bow.Points(tworldsvr::bow::kCountryC) == 1);
+    EXPECT(bow.Points(tworldsvr::bow::kCountryD) == 6);
+    EXPECT(bow.Points(tworldsvr::bow::kCountryC) == 4);
 
     p1.close();
     io.stop();

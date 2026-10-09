@@ -3,9 +3,8 @@
 // One peer (0x42 = Alice's main). Test cases:
 //   * BATTLEMODESTATUS_REQ → BATTLEMODESTATUS_ACK with the quiescent
 //     payload (Bow + BR both zero, bow_winner = TCONTRY_N).
-//   * CMTELEPORTBATTLEMODE_REQ(SYSTEM_BOW) → BowRegistry::AddPlayer
-//     enqueues Alice with country=TCONTRY_C (verified via the
-//     registry directly — no reply on the wire).
+//   * CMTELEPORTBATTLEMODE_REQ(SYSTEM_BOW) → no-op without configured
+//     Bow settings (W6-54 legacy module gate).
 //   * CMTELEPORTBATTLEMODE_REQ(SYSTEM_BR) → legacy no-op; the BR
 //     queue is unchanged (verified directly).
 
@@ -21,6 +20,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -152,6 +152,7 @@ int main()
     // Alice (10, key=0xAA) on p1. Tactics + guild id set so we can
     // verify CM-teleport picks tactics_id first for the guild hint.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(10, 0xAA));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(10, 0xAA)));
     for (int i = 0; i < 1000 && !chars.Find(10); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Find(10) != nullptr);
@@ -187,19 +188,17 @@ int main()
         EXPECT(br_type == 0);
     }
 
-    // --- Test B: CMTELEPORTBATTLEMODE(SYSTEM_BOW) enqueues Alice ----
+    // --- Test B: no Bow module means no admin teleport or queue entry.
     EXPECT(bow.QueueSize() == 0);
-    {
-        SendFramed(p1, ToUint16(MessageId::MW_CMTELEPORTBATTLEMODE_REQ),
-                   CmTeleportBody(10, 0xAA, /*system_type=*/0));
-        bool ok = false;
-        for (int i = 0; i < 1000; ++i)
-        {
-            if (bow.Contains(10)) { ok = true; break; }
-            std::this_thread::sleep_for(10ms);
-        }
-        EXPECT(ok);
-    }
+    SendFramed(p1, ToUint16(MessageId::MW_CMTELEPORTBATTLEMODE_REQ),
+               CmTeleportBody(10, 0xAA, /*system_type=*/0));
+    // A status reply synchronizes the silent teleport request.
+    SendFramed(p1, ToUint16(MessageId::MW_BATTLEMODESTATUS_REQ),
+               Idkey(10, 0xAA));
+    auto [sync_id, sync_body] = ReadFramed(p1);
+    EXPECT(sync_id == ToUint16(MessageId::MW_BATTLEMODESTATUS_ACK));
+    EXPECT(bow.QueueSize() == 0);
+    EXPECT(!bow.Contains(10));
 
     // --- Test C: CMTELEPORTBATTLEMODE(SYSTEM_BR) is a no-op ---------
     //  Legacy body is empty (SSHandler.cpp:14400 — TODO in original).

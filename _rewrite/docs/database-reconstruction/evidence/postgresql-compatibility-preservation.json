@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-08",
+  "original_hash_checks": [
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "original_sha256_matches": true
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "original_sha256_matches": true
+    },
+    {
+      "path": "database/postgresql/001-import-control.sql",
+      "original_sha256_matches": true
+    },
+    {
+      "path": "database/postgresql/002-legacy-snapshots.sql",
+      "original_sha256_matches": true
+    },
+    {
+      "path": "database/postgresql/003-canonical-content.sql",
+      "original_sha256_matches": true
+    },
+    {
+      "path": "database/postgresql/004-source-text-bytes.sql",
+      "original_sha256_matches": true
+    }
+  ],
+  "json_and_documentation_links_valid": true,
+  "python_compileall_passed": true
+}

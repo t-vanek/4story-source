@@ -1,0 +1,190 @@
+84/195 Testing: tmapsvr_asio_admission
+84/195 Test: tmapsvr_asio_admission
+Command: "/src/build/linux-debug/bin/test_tmapsvr_asio_admission"
+Directory: /src/build/linux-debug/Server/TMapSvrAsio
+"tmapsvr_asio_admission" start time: Oct 09 02:39 UTC
+Output:
+----------------------------------------------------------
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-09 02:39:30.831] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-09 02:39:30.831] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+PASS rejected admission closes socket
+PASS malformed/checksum request has no ACK
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+PASS rejected admission closes socket
+PASS malformed/checksum request has no ACK
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+PASS rejected admission closes socket
+PASS malformed/checksum request has no ACK
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+[2026-10-09 02:39:30.840] [info] CS_CONNECT_REQ uid=17 char=43 result=2
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS failed admission reserves no character
+[2026-10-09 02:39:30.842] [info] CS_CONNECT_REQ uid=17 char=42 result=5
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+[2026-10-09 02:39:30.844] [info] CS_CONNECT_REQ uid=17 char=42 result=1
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS failed admission reserves no character
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+[2026-10-09 02:39:30.849] [info] CS_CONNECT_REQ uid=17 char=42 result=5
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+[2026-10-09 02:39:30.851] [info] CS_CONNECT_REQ uid=17 char=42 result=2
+PASS failed durable claim completes teardown
+PASS claim rejection or exception preserves exact client error
+PASS unannounced claim failure sends neither ADDCHAR nor CLOSECHAR to World
+PASS failed durable claim releases only its local reservation
+[2026-10-09 02:39:30.853] [info] CS_CONNECT_REQ uid=17 char=42 result=5
+PASS failed durable claim completes teardown
+PASS claim rejection or exception preserves exact client error
+PASS unannounced claim failure sends neither ADDCHAR nor CLOSECHAR to World
+PASS failed durable claim releases only its local reservation
+PASS second CONNECT closes original connection
+PASS per-connection dispatch awaits authentication
+PASS pipelined connection cleanup completes
+PASS valid request reserves character
+PASS valid request announces to World
+PASS original MW_ADDCHAR_ACK layout
+PASS no optimistic ACK or AOI visibility while pending
+[2026-10-09 02:39:30.918] [info] CS_CONNECT_REQ uid=17 char=42 result=3
+PASS duplicate socket rejected
+PASS duplicate uses CN_ALREADYEXIST
+PASS duplicate cannot replace or evict reservation
+PASS World enter loads character once through worker
+PASS repeated enter does not load or overwrite live state
+[2026-10-09 02:39:30.920] [warning] MW_CONRESULT_REQ char=42: no bound client session — drop
+PASS stale World verdict cannot admit new session
+[2026-10-09 02:39:30.920] [info] MW_CONRESULT_REQ char=42 result=SUCCESS servers=2 — CS_CONNECT_ACK relayed
+PASS authoritative World verdict produces one client ACK
+PASS client ACK preserves World server IDs
+PASS duplicate World verdict produces no second ACK
+[2026-10-09 02:39:30.937] [warning] MW_CLOSECHAR_REQ char=42: no bound client session — drop
+PASS stale World close cannot affect new session
+[2026-10-09 02:39:30.937] [info] CS_CONREADY_REQ char=42 name='Admission' map=2010 — CS_CHARINFO_ACK (AOI flood deferred)
+PASS admitted CONREADY dispatches character info
+PASS presence published after admission and CONREADY
+PASS disconnect starts awaited save
+PASS active count, reservation and snapshot retained during save
+PASS disconnect is invisible to AOI while save waits
+[2026-10-09 02:39:30.941] [info] CS_CONNECT_REQ uid=17 char=42 result=3
+PASS reconnect cannot overtake outstanding save
+PASS saving reservation rejects duplicate
+PASS save completes before active count reaches zero
+PASS latest live position saved once
+PASS successful save releases state and reservation
+PASS retirement during delayed final save suppresses close-all echo
+PASS World-stalled admission closes at deadline
+PASS timeout never claims success or saves unentered character
+PASS unauthenticated gameplay is closed
+PASS early-verdict test reserves character
+[2026-10-09 02:39:31.950] [info] MW_CONRESULT_REQ char=42 result=5 — connect rejected, closing session
+PASS success verdict before load is rejected
+PASS incomplete load returns CN_INTERNAL
+PASS all connections drained
+PASS retirement fixture announced
+PASS wrong-key/truncated/trailing/non-boolean retirement leaves current session alive
+PASS World retirement drains local generation
+PASS exact empty terminal client opcode
+PASS World-initiated retirement never echoes close-all
+PASS ready retirement saves once; pending retirement never saves
+PASS retirement fixture announced
+PASS wrong-key/truncated/trailing/non-boolean retirement leaves current session alive
+PASS World retirement drains local generation
+PASS DELCHAR closes without invented client ACK
+PASS World-initiated retirement never echoes close-all
+PASS ready retirement saves once; pending retirement never saves
+PASS retirement fixture announced
+[2026-10-09 02:39:31.963] [warning] MW_CLOSECHAR_REQ char=42: no bound client session — drop
+[2026-10-09 02:39:31.963] [warning] MW_CLOSECHAR_REQ: short body (7 bytes) — dropping
+[2026-10-09 02:39:31.963] [warning] MW_CLOSECHAR_REQ: short body (9 bytes) — dropping
+PASS wrong-key/truncated/trailing/non-boolean retirement leaves current session alive
+[2026-10-09 02:39:31.963] [info] MW_CLOSECHAR_REQ char=42 — CS_SHUTDOWN_ACK + close
+PASS World retirement drains local generation
+PASS exact empty terminal client opcode
+PASS World-initiated retirement never echoes close-all
+PASS ready retirement saves once; pending retirement never saves
+PASS retirement fixture announced
+[2026-10-09 02:39:31.967] [info] MW_CONRESULT_REQ char=42 result=SUCCESS servers=2 — CS_CONNECT_ACK relayed
+[2026-10-09 02:39:31.967] [info] CS_CONREADY_REQ char=42 name='Admission' map=2010 — CS_CHARINFO_ACK (AOI flood deferred)
+PASS retirement fixture ready
+PASS wrong-key/truncated/trailing/non-boolean retirement leaves current session alive
+PASS World retirement drains local generation
+PASS exact empty terminal client opcode
+PASS World-initiated retirement never echoes close-all
+PASS ready retirement saves once; pending retirement never saves
+PASS retirement fixture announced
+[2026-10-09 02:39:31.973] [info] MW_CONRESULT_REQ char=42 result=SUCCESS servers=2 — CS_CONNECT_ACK relayed
+[2026-10-09 02:39:31.974] [info] CS_CONREADY_REQ char=42 name='Admission' map=2010 — CS_CHARINFO_ACK (AOI flood deferred)
+PASS retirement fixture ready
+PASS wrong-key/truncated/trailing/non-boolean retirement leaves current session alive
+PASS World retirement drains local generation
+PASS DELCHAR closes without invented client ACK
+PASS World-initiated retirement never echoes close-all
+PASS ready retirement saves once; pending retirement never saves
+PASS retirement fixture announced
+[2026-10-09 02:39:31.980] [info] MW_CONRESULT_REQ char=42 result=SUCCESS servers=2 — CS_CONNECT_ACK relayed
+[2026-10-09 02:39:31.980] [info] CS_CONREADY_REQ char=42 name='Admission' map=2010 — CS_CHARINFO_ACK (AOI flood deferred)
+PASS retirement fixture ready
+[2026-10-09 02:39:31.982] [warning] MW_CLOSECHAR_REQ char=42: no bound client session — drop
+[2026-10-09 02:39:31.982] [warning] MW_CLOSECHAR_REQ: short body (7 bytes) — dropping
+[2026-10-09 02:39:31.982] [warning] MW_CLOSECHAR_REQ: short body (9 bytes) — dropping
+PASS wrong-key/truncated/trailing/non-boolean retirement leaves current session alive
+[2026-10-09 02:39:31.982] [info] MW_CLOSECHAR_REQ char=42 — CS_SHUTDOWN_ACK + close
+PASS World retirement drains local generation
+PASS exact empty terminal client opcode
+PASS World-initiated retirement never echoes close-all
+PASS ready retirement saves once; pending retirement never saves
+PASS World rejection fixture announced
+[2026-10-09 02:39:31.986] [info] MW_CONRESULT_REQ char=42 result=2 — connect rejected, closing session
+PASS World negative connect verdict retires local claim
+PASS World rejection does not echo CLOSECHAR
+PASS save-failure fixture reserved
+[2026-10-09 02:39:31.990] [info] MW_CONRESULT_REQ char=42 result=SUCCESS servers=2 — CS_CONNECT_ACK relayed
+PASS save-failure fixture admitted
+[2026-10-09 02:39:31.992] [info] CS_CONREADY_REQ char=42 name='Admission' map=2010 — CS_CHARINFO_ACK (AOI flood deferred)
+PASS save-failure fixture ready
+[2026-10-09 02:39:31.994] [error] map_server: character save failed; reservation retained char=42
+PASS failed save is observed by teardown
+PASS failed save retains dirty snapshot and reservation and reports failure
+[2026-10-09 02:39:31.996] [info] CS_CONNECT_REQ uid=17 char=42 result=3
+PASS dirty reservation rejects reconnect
+PASS failed save cannot be hidden by stale reload
+PASS final connection drained
+140 admission checks passed
+<end of output>
+Test time =   1.17 sec
+----------------------------------------------------------
+Test Passed.
+"tmapsvr_asio_admission" end time: Oct 09 02:39 UTC
+"tmapsvr_asio_admission" time elapsed: 00:00:01
+----------------------------------------------------------
+

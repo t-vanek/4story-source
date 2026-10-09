@@ -1,0 +1,6 @@
+{
+  "status": "passed",
+  "exit_code": 2,
+  "concurrent_same_lab_rejected_before_tls_mutation": true,
+  "scope": "The lab owns one PostgreSQL TLS identity; each verification now holds an exclusive work-directory lock."
+}

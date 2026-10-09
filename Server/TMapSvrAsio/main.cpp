@@ -1,3 +1,6 @@
+#include "services/main_transfer_runtime.h"
+#include <map>
+#include <set>
 // Entry point for the modernized TMapSvrAsio binary.
 //
 // Phase F17: control protocol + ops endpoints. Five CT_* ids land
@@ -55,6 +58,10 @@
 #include "services/soci_map_mon_chart.h"
 #include "services/soci_mon_attr_chart.h"
 #include "services/soci_mon_item_chart.h"
+#include "services/postgresql_catalog.h"
+#include "services/postgresql_map_owner.h"
+#include "services/postgresql_map_service.h"
+#include "fourstory/db/co_offload.h"
 #include "services/soci_skill_service.h"
 #include "services/skill_chart.h"
 #include "services/skill_cooldown.h"
@@ -85,6 +92,8 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace {
 
@@ -125,30 +134,39 @@ int main(int argc, char** argv)
         // a pointer to the MapServer that we can't construct yet;
         // declared here and filled in once the server is built.
         tmapsvr::MapServer* server_ptr = nullptr;
+        std::size_t world_operations = 0;
+        std::size_t background_operations = 0;
+        bool stopping=false;
+        bool ownership_lost=false;
         const auto drain = std::chrono::milliseconds(cfg.shutdown.drain_ms);
 
         boost::asio::signal_set signals(io, SIGINT, SIGTERM);
-        signals.async_wait([&io, &server_ptr, drain](auto, int sig) {
+        signals.async_wait([&io, &server_ptr, &world_operations, &background_operations, &stopping, drain](auto, int sig) {
+            stopping=true;
             spdlog::info("received signal {}, beginning graceful shutdown "
                          "(drain {}ms)",
                 sig, static_cast<long long>(drain.count()));
             if (server_ptr) server_ptr->StopAccepting();
 
-            // Sleep drain ms via a steady_timer so in-flight handlers
-            // and outbound peer sends have a chance to finish before
-            // io.stop() yanks the executor.
-            auto t = std::make_shared<boost::asio::steady_timer>(io);
-            t->expires_after(drain);
-            t->async_wait([&io, t](auto) {
-                spdlog::info("graceful shutdown drain elapsed — stopping io_context");
+            boost::asio::co_spawn(io, [&io, &server_ptr, &world_operations, &background_operations, drain]() -> boost::asio::awaitable<void> {
+                boost::asio::steady_timer timer(io);
+                timer.expires_after(drain);
+                co_await timer.async_wait(boost::asio::use_awaitable);
+                if (server_ptr) server_ptr->CloseSessions();
+                // LiveSessions includes awaited disconnect writes. Keep the executor
+                // alive for their completions instead of abandoning queued saves.
+                while (world_operations != 0 || background_operations != 0 || (server_ptr && server_ptr->LiveSessions() != 0)) {
+                    timer.expires_after(std::chrono::milliseconds(20));
+                    co_await timer.async_wait(boost::asio::use_awaitable);
+                }
                 io.stop();
-            });
+            }, boost::asio::detached);
         });
 
-        // Optional SOCI pool — without one, no validators / services
-        // come up. The listener still binds so dev runs can netcat-
-        // poke the wire codec, but every handler that needs DB data
-        // refuses with INTERNAL.
+        // Optional mutable SOCI pool — without one, no persistence
+        // services come up. Read-only catalogs have their own connection.
+        // The listener still binds for transport development, but player
+        // authentication and persistence require the mutable pool below.
         std::unique_ptr<fourstory::db::SessionPool>     pool;
         std::unique_ptr<boost::asio::thread_pool>       db_thread_pool;
         std::unique_ptr<tmapsvr::IMapSessionValidator>  validator;
@@ -168,6 +186,9 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::ISkillDataChart>       skill_data_chart;
         std::unique_ptr<tmapsvr::ICompanionService>     companion_service;
 
+        std::unique_ptr<tmapsvr::PostgreSQLMapOwner> native_owner;
+        std::unique_ptr<tmapsvr::PostgreSQLMapService> native_map;
+
         // Configure the fourstory::mapper Automapper once at startup
         // (mirrors TWorldSvrAsio / TControlSvrAsio). CharMappingProfile
         // wires CharRow→CharSnapshot so SociPlayerService maps the
@@ -184,6 +205,23 @@ int main(int argc, char** argv)
             }
         }
 
+        if (!cfg.content.connection_string.empty())
+        {
+            fourstory::db::SessionPool content_pool(fourstory::db::Backend::PostgreSQL,
+                cfg.content.connection_string, 1);
+            auto catalog = tmapsvr::LoadPostgreSQLCatalog(content_pool, cfg.content.manifest_sha256);
+            stat_chart = std::move(catalog.stats);
+            npc_service = std::move(catalog.npcs);
+            quest_chart = std::move(catalog.quests);
+            monster_chart = std::move(catalog.monsters);
+            spawn_chart = std::move(catalog.spawns);
+            map_mon_chart = std::move(catalog.map_mon);
+            mon_attr_chart = std::move(catalog.attributes);
+            mon_item_chart = std::move(catalog.drops);
+            skill_chart = std::move(catalog.skills);
+            skill_data_chart = std::move(catalog.skill_data);
+        }
+
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -194,6 +232,14 @@ int main(int argc, char** argv)
             if (cfg.database.worker_threads > 0)
                 db_thread_pool = std::make_unique<boost::asio::thread_pool>(
                     cfg.database.worker_threads);
+            if(backend==fourstory::db::Backend::PostgreSQL) {
+                if(cfg.mode!=tmapsvr::Mode::PvE||cfg.database.worker_threads==0||cfg.world.port==0)
+                    throw std::runtime_error("Native Map requires normal mode, DB workers and World peer");
+                native_owner=std::make_unique<tmapsvr::PostgreSQLMapOwner>(cfg.database.connection_string,cfg.cluster.group_id,cfg.cluster.server_id);
+                native_map=std::make_unique<tmapsvr::PostgreSQLMapService>(*pool,tmapsvr::PostgreSQLMapConfig{
+                    cfg.cluster.group_id,cfg.cluster.server_id,native_owner->Token(),cfg.character_manifest,cfg.routing_manifest,cfg.actor_manifest});
+                spdlog::info("native PostgreSQL Map ready; recovered checkpoints={}, orphaned prior sessions={}",native_owner->RecoveredSessions(),native_owner->OrphanedSessions());
+            } else {
             tmapsvr::db::ValidateUserSchema(*pool);
             tmapsvr::db::ValidateCharSchema(*pool);
             tmapsvr::db::ValidateInventorySchema(*pool);
@@ -205,26 +251,31 @@ int main(int argc, char** argv)
             validator         = std::make_unique<tmapsvr::SociMapSessionValidator>(*pool);
             // Stat chart first — the player service reads it to derive
             // max-HP/MP at char load (must outlive + precede it).
-            stat_chart        = std::make_unique<tmapsvr::SociStatChart>(*pool);
+            if (!stat_chart)
+                stat_chart = std::make_unique<tmapsvr::SociStatChart>(*pool);
             player_service    = std::make_unique<tmapsvr::SociPlayerService>(
                                     *pool, stat_chart.get());
             inventory_service = std::make_unique<tmapsvr::SociInventoryService>(*pool);
-            npc_service       = std::make_unique<tmapsvr::SociNpcService>(*pool);
+            if (!npc_service)
+                npc_service = std::make_unique<tmapsvr::SociNpcService>(*pool);
             skill_service     = std::make_unique<tmapsvr::SociSkillService>(*pool);
             quest_service     = std::make_unique<tmapsvr::SociQuestService>(*pool);
-            quest_chart       = std::make_unique<tmapsvr::SociQuestChart>(*pool);
-            monster_chart     = std::make_unique<tmapsvr::SociMonsterChart>(*pool);
-            spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
-            map_mon_chart     = std::make_unique<tmapsvr::SociMapMonChart>(*pool);
-            mon_attr_chart    = std::make_unique<tmapsvr::SociMonAttrChart>(*pool);
-            mon_item_chart    = std::make_unique<tmapsvr::SociMonItemChart>(*pool);
-            // The skill templates carry the level-scale base the legacy
-            // loader stamps from the formula chart (TMapSvr.cpp:2730) —
-            // TFORMULACHART[FTYPE_1ST].fRateX, already loaded above.
-            skill_chart       = std::make_unique<tmapsvr::SociSkillChart>(
-                                    *pool,
-                                    stat_chart->Formula(tmapsvr::FTYPE_1ST).fRateX);
-            skill_data_chart  = std::make_unique<tmapsvr::SociSkillDataChart>(*pool);
+            if (cfg.content.connection_string.empty())
+            {
+                quest_chart       = std::make_unique<tmapsvr::SociQuestChart>(*pool);
+                monster_chart     = std::make_unique<tmapsvr::SociMonsterChart>(*pool);
+                spawn_chart       = std::make_unique<tmapsvr::SociSpawnChart>(*pool);
+                map_mon_chart     = std::make_unique<tmapsvr::SociMapMonChart>(*pool);
+                mon_attr_chart    = std::make_unique<tmapsvr::SociMonAttrChart>(*pool);
+                mon_item_chart    = std::make_unique<tmapsvr::SociMonItemChart>(*pool);
+                // The skill templates carry the level-scale base the legacy
+                // loader stamps from the formula chart (TMapSvr.cpp:2730) —
+                // TFORMULACHART[FTYPE_1ST].fRateX, already loaded above.
+                skill_chart       = std::make_unique<tmapsvr::SociSkillChart>(
+                                        *pool,
+                                        stat_chart->Formula(tmapsvr::FTYPE_1ST).fRateX);
+                skill_data_chart  = std::make_unique<tmapsvr::SociSkillDataChart>(*pool);
+            }
             companion_service = std::make_unique<tmapsvr::SociCompanionService>(*pool);
             spdlog::info("schema OK ({}) — services ready: {} NPC, {} monster "
                          "template(s), {} spawn point(s), {} spawn-mon link(s), "
@@ -236,13 +287,14 @@ int main(int argc, char** argv)
                 map_mon_chart->Size(),
                 mon_attr_chart->Size(),
                 mon_item_chart->Size());
+            }
         }
         else
         {
             spdlog::warn("no [database] configured — CS_CONNECT_REQ and "
                          "DM_LOADCHAR_REQ will refuse with INTERNAL, "
                          "CS_NPCTALK_REQ / CS_SKILLUSE_REQ / CS_QUEST*_REQ "
-                         "will silently drop, monster registry stays empty");
+                         "require mutable persistence; static catalogs may still be configured via [content]");
         }
 
         // In-memory monster registry. Populated once at boot by the
@@ -322,10 +374,12 @@ int main(int argc, char** argv)
         // lambda can capture it by reference (the context's pointer
         // fields are filled in below as each service comes online).
         tmapsvr::HandlerContext ctx{};
-        ctx.validator         = validator.get();
+        ctx.validator         = native_map?static_cast<tmapsvr::IMapSessionValidator*>(native_map.get()):validator.get();
         ctx.session_reg       = &session_reg;
         ctx.presence          = &presence;
-        ctx.player_service    = player_service.get();
+        ctx.player_service    = native_map?static_cast<tmapsvr::IPlayerService*>(native_map.get()):player_service.get();
+        ctx.expected_group    = cfg.cluster.group_id;
+        ctx.route_resolver    = native_map.get();
         ctx.inventory_service = inventory_service.get();
         ctx.npc_service       = npc_service.get();
         ctx.skill_service     = skill_service.get();
@@ -358,48 +412,45 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::AsioWorldClient> world_client;
         if (cfg.world.port != 0)
         {
-            // Inbound dispatch — synchronous callback fired from the
-            // world's read loop; copy the body (the span is only
-            // valid during the callback) and co_spawn the awaitable
-            // DispatchWorld detached so SendPacket calls don't block
-            // the read.
-            auto on_world_packet =
-                [&io, &ctx](std::uint16_t wId,
-                            std::span<const std::byte> body)
-                {
-                    std::vector<std::byte> owned(body.begin(), body.end());
-                    boost::asio::co_spawn(
-                        io,
-                        tmapsvr::DispatchWorld(wId, std::move(owned), ctx),
-                        [wId](std::exception_ptr ep) {
-                            if (!ep) return;
-                            try { std::rethrow_exception(ep); }
-                            catch (const std::exception& ex) {
-                                spdlog::error("world dispatch threw (wId=0x{:04X}): {}",
-                                    wId, ex.what());
-                            }
-                            catch (...) {
-                                spdlog::error("world dispatch threw unknown (wId=0x{:04X})",
-                                    wId);
-                            }
-                        });
-                };
+            auto on_world_packet = [&ctx, &world_operations](std::uint16_t wId, std::span<const std::byte> body)
+                -> boost::asio::awaitable<void> {
+                ++world_operations;
+                try {
+                    co_await tmapsvr::DispatchWorld(wId,
+                        std::vector<std::byte>(body.begin(), body.end()), ctx);
+                } catch (...) { spdlog::error("world dispatch failed wId=0x{:04X}", wId); }
+                --world_operations;
+            };
             world_client = std::make_unique<tmapsvr::AsioWorldClient>(
                 io, cfg.world.host, cfg.world.port,
                 std::move(on_world_packet));
             // Map identity advertised to TWorld via RW_RELAYSVR_REQ on
-            // connect. Convention: LOBYTE = server_id, HIBYTE = group_id
-            // (TWorld derives main_server_id = LOBYTE(wID)). A zero wid
-            // (both ids unset) leaves the link anonymous — log a warning
-            // so a misconfigured deploy is visible.
-            const std::uint16_t relay_wid = static_cast<std::uint16_t>(
-                (static_cast<std::uint16_t>(cfg.cluster.group_id) << 8) |
-                 static_cast<std::uint16_t>(cfg.cluster.server_id));
+            // connect. Original MAKEWORD(server_id, SVRGRP_MAPSVR=4):
+            // the high byte is a server TYPE, not the application world ID.
+            // Conflating these prevented World's disconnect sweep for world 1.
+            const std::uint16_t relay_wid = (cfg.cluster.group_id||cfg.cluster.server_id)
+                ? static_cast<std::uint16_t>(0x0400U|cfg.cluster.server_id) : 0;
             if (relay_wid == 0)
                 spdlog::warn("world_client: [server] group_id/server_id "
                              "unset — relay wid=0, TWorld link stays "
                              "anonymous (no MW routing back)");
             world_client->SetRelayWid(relay_wid);
+            if (native_owner) {
+                world_client->SetDisconnectHandler([&]() -> boost::asio::awaitable<bool> {
+                    ++world_operations;
+                    spdlog::warn("native Map World link lost; closing clients and awaiting persistence");
+                    if (server_ptr) server_ptr->CloseSessions();
+                    boost::asio::steady_timer timer(io);
+                    while (background_operations || (server_ptr && server_ptr->LiveSessions())) {
+                        timer.expires_after(std::chrono::milliseconds(20));
+                        co_await timer.async_wait(boost::asio::use_awaitable);
+                    }
+                    spdlog::info("native Map World-loss drain complete; retained failed saves={}",
+                        server_ptr ? server_ptr->FailedSaves() : 0);
+                    --world_operations;
+                    co_return !stopping;
+                });
+            }
             boost::asio::co_spawn(io, world_client->Run(), boost::asio::detached);
             spdlog::info("world_client: dialing {}:{} as wid=0x{:04X} "
                          "(background)",
@@ -416,6 +467,7 @@ int main(int argc, char** argv)
         // captured a nullptr by reference into the dispatch lambda.
         ctx.world_client = world_client.get();
         cfg.server.handlers = ctx;
+        cfg.server.require_registered_world = static_cast<bool>(native_owner);
 
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
@@ -426,6 +478,67 @@ int main(int argc, char** argv)
                      server.Port(), mode_name,
                      crypto_on ? "on" : "off");
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
+
+        if(native_owner) {
+            // One sequential sweep bounds queued DB work. Each captured snapshot
+            // carries its exact connection generation; a concurrent final save
+            // either follows it or makes its stale claim fail without a write.
+            boost::asio::co_spawn(io,[&]() -> boost::asio::awaitable<void> {
+                boost::asio::steady_timer timer(io);
+                std::map<std::pair<std::uint64_t,std::uint64_t>,std::uint64_t> revisions;
+                while(!stopping){
+                    timer.expires_after(std::chrono::milliseconds(cfg.checkpoint_interval_ms));
+                    co_await timer.async_wait(boost::asio::use_awaitable);
+                    if(stopping)co_return;
+                    const auto ready=session_reg.ReadySessions();
+                    std::set<std::pair<std::uint64_t,std::uint64_t>> live;
+                    for(const auto& [identity,client]:ready)live.emplace(identity.connection_id,identity.authority_epoch);
+                    std::erase_if(revisions,[&](const auto& row){return !live.contains(row.first);});
+                    for(const auto& [identity,client]:ready){
+                        if(stopping)co_return;
+                        if(!client->IsOpen())continue;
+                        const auto current=session_reg.Identity(client.get());
+                        if(!current||current->phase!=tmapsvr::SessionPhase::Ready||current->connection_id!=identity.connection_id||current->authority_epoch!=identity.authority_epoch||current->role!=tmapsvr::MapSessionRole::Primary)continue;
+                        auto snap=char_state.Get(identity.char_id);
+                        if(!snap){client->Close();continue;}
+                        const auto revision=revisions[{identity.connection_id,identity.authority_epoch}]+1;
+                        ++background_operations;
+                        try {
+                        *snap=tmapsvr::transfer::PersistenceSnapshot(*snap,identity.key,skill_cooldown,tmapsvr::SkillClockMs());
+                            co_await fourstory::db::CoOffloadVoidIf(db_thread_pool.get(),[&native_map,&snap,claim=identity.Claim(ctx.expected_group),revision]{
+                                native_map->CheckpointAuthorized(claim,*snap,revision);
+                            });
+                            revisions[{identity.connection_id,identity.authority_epoch}]=revision;
+                        }catch(...){
+                            const auto after=session_reg.Identity(client.get());
+                            if(client->IsOpen()&&after&&after->phase==tmapsvr::SessionPhase::Ready&&after->role==tmapsvr::MapSessionRole::Primary&&after->authority_epoch==identity.authority_epoch){
+                                spdlog::error("native checkpoint failed; closing character for final save char={}",identity.char_id);
+                                client->Close();
+                            }
+                        }
+                        --background_operations;
+                    }
+                }
+            },boost::asio::detached);
+            boost::asio::co_spawn(io,[&]() -> boost::asio::awaitable<void> {
+                boost::asio::steady_timer timer(io);
+                while(!stopping){
+                    timer.expires_after(std::chrono::seconds(1));co_await timer.async_wait(boost::asio::use_awaitable);
+                    if(stopping)co_return;
+                    ++background_operations;
+                    const bool healthy=co_await fourstory::db::CoOffloadIf(db_thread_pool.get(),[&]{return native_owner->Healthy();});
+                    --background_operations;
+                    if(healthy)continue;
+                    stopping=true;
+                    ownership_lost=true;spdlog::critical("native Map ownership lost; stopping listener and draining sessions");
+                    server.StopAccepting();server.CloseSessions();
+                    while(world_operations||background_operations||server.LiveSessions()){
+                        timer.expires_after(std::chrono::milliseconds(20));co_await timer.async_wait(boost::asio::use_awaitable);
+                    }
+                    io.stop();co_return;
+                }
+            },boost::asio::detached);
+        }
 
         // Monster AI — the roam / chase / attack tick. Detached; runs for
         // the life of the io_context. Needs the monster chart (attack
@@ -503,8 +616,12 @@ int main(int argc, char** argv)
         // the pool is destroyed (same pattern as TControlSvrAsio).
         if (db_thread_pool)
         {
-            db_thread_pool->stop();
             db_thread_pool->join();
+        }
+        if(ownership_lost)return 2;
+        if (server_ptr && server_ptr->FailedSaves() != 0) {
+            spdlog::critical("shutdown with {} unsaved characters; runtime snapshots are not durable recovery", server_ptr->FailedSaves());
+            return 2;
         }
 
 

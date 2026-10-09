@@ -1,26 +1,28 @@
 # TLoginSvrAsio — modernized 4Story login server
 
-Production-grade reimplementation of `Server/TLoginSvr/` on a portable
-C++20 stack: Boost.Asio coroutines, SOCI database access, OpenSSL
-crypto, libbcrypt, spdlog, toml++. Runs as a separate binary; the
-legacy `TLoginSvr.exe` is untouched and can be A/B-compared during the
-cutover. Wire-format byte-for-byte compatible with the shipped legacy
-client (RC4 + XOR codec, RFC 6229 verified).
+Incremental reimplementation of `Server/TLoginSvr/` in portable C++20 using
+Boost.Asio, SOCI/libpq, OpenSSL, libbcrypt, spdlog and toml++. PostgreSQL is the
+target database. Original-client packet definitions are preserved; an exact
+original executable has not yet been verified.
 
-> Cluster context: [main README](../../README.md#overall-progress) ·
-> patch catalog vs legacy Araz sources:
-> [`_rewrite/docs/PATCH_README.md` §1](../../_rewrite/docs/PATCH_README.md#1-tloginsvr--tloginsvrasio)
+## Current verification scope
 
-## Status — production complete (minus anticheat)
+Native PostgreSQL authentication/session transactions, one-active-process ownership
+with fenced failover, sequential packet handling and graceful cleanup are exercised
+against an actual disposable DB and an independent encrypted TCP peer. Schema
+migrations 008–010 introduce separate empty application tables and operational
+ownership/challenge metadata. They do not modify backup truth or invent historical accounts.
+No-database startup requires explicit `[development] allow_no_database=true`.
+Connection-bound email confirmation now follows the source non-direct 0x2918
+client's CODE_CORRECT → fresh LOGIN sequence, with bounded attempts/expiry and no
+IP trust. Direct-login/JP/TW email verification, character/world persistence,
+remote Map duplicate handling, historical agreement gifts and complete client
+acceptance remain pending.
 
-Every legacy `CTLoginSvrModule` handler is ported, every operational
-piece (audit log, schema validator, rate limit, 2FA) is wired, and the
-binary runs end-to-end against the restored MSSQL databases
-(`TGLOBAL_RAGEZONE` + `TGAME_RAGEZONE`). Shared infrastructure (SOCI
-pool, audit, SMTP, health, rate limit, registry refresher) was lifted
-into the [`fourstory_common`](../../Lib/Own/FourStoryCommon/README.md)
-static library and is now also consumed by `TPatchSvrAsio` and
-`TLogSvrAsio`.
+See [current status and test evidence](../../_rewrite/docs/modernization/README.md)
+and the [PostgreSQL example](../../deploy/tloginsvr-postgresql.example.toml).
+The architecture/reference notes below describe the existing implementation; they
+are not evidence of complete production or PostgreSQL gameplay parity.
 
 Operator admin access is **centralized in `TControlSvrAsio`** — this
 binary intentionally does NOT expose a local admin shell. Status,
@@ -59,7 +61,7 @@ the peer-forwarder pipeline (`CT_*` control protocol).
 | `CS_VETERAN_REQ` | ✅ real | `ICharService::GetVeteranLevels` (cached TVETERANCHART, 30s refresh) |
 | `CS_TERMINATE_REQ` | ✅ real | legacy magic check + `ISessionTerminator` cleanup |
 | `CS_HOTSEND_REQ` | ✅ silently dropped | Legacy client's exec-file integrity heartbeat; validation is anti-cheat tooling, intentionally out of scope |
-| `CS_SECURITYCONFIRM_ACK` | ✅ real | TSECURECODE compare + `ISmtpClient` for the issuance side |
+| `CS_SECURITYCONFIRM_ACK` | ✅ real | Native connection challenge; reply only SECURITYRESULT, then await client LOGIN retry |
 | `CS_TESTLOGIN_REQ` | ✅ real | TTESTLOGINUSER pick; gated `test_handlers_enabled = false` |
 | `CS_TESTVERSION_REQ` | ✅ real | returns server's protocol version |
 | `SM_QUITSERVICE_REQ` | ✅ real | graceful `io.stop()` via `on_quit_request` hook |
@@ -82,14 +84,14 @@ without a DB.
 
 | Interface | Production impl | Test fake | Notes |
 |---|---|---|---|
-| `IAuthService` | `SociAuthService` | `FakeAuthService` | BCrypt-only (`tloginsvr_bcrypt_migrate`), TUSERINFOTABLE agreement, TSECURECODE 2FA |
+| `IAuthService` | `SociAuthService` | `FakeAuthService` | BCrypt-only (`tloginsvr_bcrypt_migrate`), TUSERINFOTABLE agreement, migration 010 connection-bound email challenge |
 | `ICharService` | `SociCharService` | `FakeCharService` | TGLOBAL + TGAME split; items, fame, BR shard |
 | `IMapServerLocator` | `SociMapServerLocator` | `FakeMapServerLocator` | TFindServerID port + BR/BOW |
 | `ISessionTerminator` | `SociSessionTerminator` | `FakeSessionTerminator` | DELETE TCURRENTUSER / UPDATE TLOG.timeLOGOUT |
 | `IConnectionRegistry` | `LocalConnectionRegistry` | — (in-process is canonical) | duplicate-kick + agreement gate state |
 | `IAuditLogger` | `SpdlogAuditLogger` (+ `UdpAuditLogger` decorator) | — | structured stderr or legacy `_UDPPACKET` UDP shim to TLogSvr |
 | `IEventRegistry` | `LocalEventRegistry` | — | GM-broadcast events from CT_EVENTUPDATE_REQ |
-| `ISmtpClient` | `SpdlogSmtpClient` (log-only default) or `AsioSmtpClient` (plain SMTP via Boost.Asio when `[smtp] host` is set) | — | EHLO/HELO + optional AUTH LOGIN; no STARTTLS — front with a Postfix loopback relay if TLS is required |
+| `ISmtpClient` | `SpdlogSmtpClient` (delivery-unavailable default) or `AsioSmtpClient` (plain SMTP via Boost.Asio when `[smtp] host` is set) | — | EHLO/HELO + optional AUTH LOGIN; no STARTTLS — front with a Postfix loopback relay if TLS is required |
 | `LoginRateLimiter` | concrete class | — | token bucket per peer IP |
 
 **Production = SOCI/Local/Spdlog impls.** `Fake*` are only wired when
@@ -116,8 +118,10 @@ Real legacy split — the new server respects it:
   `TUSERINFOTABLE`, `TUSERPROTECTED`, `TCURRENTUSER`, `TLOG`,
   `IPBLACKLIST_game`, `TSERVER`, `TIPADDR`, `TGROUP`, `TCHANNEL`,
   `TALLCHARTABLE`, `TVETERANCHART`, `TRESERVEDNAME`, `TKEEPINGNAME`,
-  `TTESTLOGINUSER`, `TSECURECODE`, `TUSEREMAIL`, `TUSERTRUSTEDIP`
-  (2FA — apply `schema/2fa-tables.sql` if missing).
+  `TTESTLOGINUSER`, `TUSEREMAIL`. Native email verification uses
+  `login_security_challenge` and `login_security_rate` (migration 010), without
+  touching historical `TSECURECODE` or adding `TUSERTRUSTEDIP` records.
+  Old `schema/2fa-tables.sql` is not the native verification migration.
 
 * **TGAME** (`tloginsvr.toml [database.world]`) — per-world chars,
   items, guilds, shard tables. Tables: `TCHARTABLE`, `TITEMTABLE`,
@@ -126,8 +130,8 @@ Real legacy split — the new server respects it:
 
 Schemas:
 * `schema/mssql-dev.sql` — minimal dev fixture for the auth flow
-* `schema/postgres-dev.sql` — PG-dialect equivalent (PG backend
-  currently not in vcpkg feature set; code branches retained)
+* `schema/postgres-dev.sql` — older dialect fixture; use numbered migrations in
+  `database/postgresql` for the native runtime
 * `schema/dev-account.sql` — seeds `dev` / `dev123` (BCrypt hash,
   agreement set) against a real `TGLOBAL_RAGEZONE`
 
@@ -176,7 +180,7 @@ port = 8815                          # /healthz HTTP endpoint; 0 disables
 # host = "192.168.1.5"               # legacy TLogSvr collector — sends wire-faithful _UDPPACKET
 # port = 2000
 
-[smtp]                               # 2FA mail relay; leave empty for log-only fallback
+[smtp]                               # 2FA mail relay; leave empty for delivery-unavailable fallback
 # host = "127.0.0.1"                 # plain SMTP via Boost.Asio; no STARTTLS — front with Postfix for TLS
 # port = 25
 # from_address = "noreply@example.com"
@@ -294,7 +298,7 @@ Then point a legacy client at `localhost:4816` and log in as
 | `HwidManagerSvr` (HWID anticheat) | Out of scope by user request; not wired into auth flow in legacy build anyway |
 | `m_qCheckPoint` HotSend queue | Trigger path commented out in legacy build (`m_hExecFile == INVALID_HANDLE_VALUE`) |
 | `CDebugSocket` outbound client | Per-server admin access centralized in `TControlSvrAsio` (CT_* peer protocol) |
-| `CSmtp` / `jwsmtp` direct linkage | Replaced by `ISmtpClient` interface (`SpdlogSmtpClient` log-only or `AsioSmtpClient` for real SMTP) |
+| `CSmtp` / `jwsmtp` direct linkage | Replaced by `ISmtpClient` interface (`SpdlogSmtpClient` delivery-unavailable or `AsioSmtpClient` for real SMTP) |
 | `base64.cpp` / `md5.cpp` | Replaced by OpenSSL EVP + libbcrypt |
 | Win32 IOCP | Replaced by Boost.Asio coroutines |
 | Win32 Registry config | Replaced by TOML |
@@ -329,7 +333,7 @@ Services (production wiring in main.cpp):
 ├── LocalEventRegistry (in-process — matches legacy m_mapEVENT)
 ├── LoginRateLimiter
 ├── SpdlogAuditLogger [+ UdpAuditLogger decorator if [audit.udp] set]
-└── ISmtpClient (SpdlogSmtpClient log-only default; AsioSmtpClient
+└── ISmtpClient (SpdlogSmtpClient delivery-unavailable default; AsioSmtpClient
     when [smtp] host is configured — plain SMTP over Boost.Asio with
     EHLO/HELO + AUTH LOGIN + dot-stuffing)
 ```
@@ -346,7 +350,7 @@ parsers. The non-obvious gaps:
 | 2 | JP/TW logins silently drop trailing bytes; high site_code values get truncated | `TNetSender.cpp:46` emits `DWORD dwSiteCode` when `MODIFY_DIRECTLOGIN` is on; legacy server (and round-1 impl) read only the low byte | `handlers.cpp::ParseLoginReq` reads 4 bytes when nation is JP/TW; `AuthRequest::site_code` carries the full DWORD |
 | 3 | Non-ASCII names in JP/KR/TW/RU/DE always returned `CR_PROTECTED` | `IsValidCharName` ASCII-only | `services/charname_validator.cpp` — per-locale byte filters (Latin-1 umlauts, Shift-JIS, Big5, EUC-KR, CP1251) |
 | 4 | `bInPcBang` / `dwPremium` always 0 in `CS_LOGIN_ACK` regardless of DB state | `AuthResult` fields hard-coded | `SociAuthService::Authenticate` queries `TPCBANG` (IP match or LIKE pattern) + `TUSERPREMIUM` (non-expired tier) |
-| 5 | 2FA codes never reached users | `SpdlogSmtpClient` log-only default | `AsioSmtpClient` (Boost.Asio plain SMTP, EHLO/HELO + AUTH LOGIN) wired when `[smtp] host` is set |
+| 5 | 2FA codes never reached users | `SpdlogSmtpClient` delivery-unavailable default | `AsioSmtpClient` (Boost.Asio plain SMTP, EHLO/HELO + AUTH LOGIN) wired when `[smtp] host` is set |
 | 6 | Any peer could fire `CT_EVENTUPDATE_REQ` and poison the event registry | Dispatcher didn't gate CT_* on peer IP | `LoginServer::Dispatch` checks `sess->RemoteIPv4() == m_control_server_ip` before invoking `OnControl*` handlers |
 | 7 | Lobby never highlighted the user's last-played slot | `LoginAck.dwCharID` always 0 | `AuthResult::last_char_id` populated from `TUSERINFOTABLE.dwLastCharID` (schema-optional; falls back to 0) |
 | 8 | `LR_NEEDAGREEMENT` users could pull `CS_GROUPLIST_ACK` / `CS_CHANNELLIST_ACK` before completing EULA | Two handlers missed the `IsAgreed` gate | `handlers.cpp::OnGroupListReq` + `OnChannelListReq` now `Close()` on miss |

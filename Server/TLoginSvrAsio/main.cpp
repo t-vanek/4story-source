@@ -12,7 +12,7 @@
 //        c. LocalEventRegistry       (always — GM event store; matches
 //                                     legacy m_mapEVENT).
 //        d. ISmtpClient              (AsioSmtpClient when [smtp] host
-//                                     set, else log-only fallback).
+//                                     set, else delivery-unavailable fallback).
 //        e. IAuditLogger             (SpdlogAuditLogger + optional UDP
 //                                     shim to legacy TLogSvr collector).
 //        f. SOCI services            (auth, char, map, terminator) +
@@ -25,7 +25,7 @@
 //      CSPClearLoginUser in CTLoginSvrModule::OnEnter — prevents
 //      every account hitting LR_DUPLICATE after a crash).
 //   5. Wire SIGINT/SIGTERM + SM_QUITSERVICE_REQ → graceful shutdown
-//      (snapshot the registry, terminate each live session, io.stop).
+//      (stop accepting, close sockets, await handlers and cleanup, io.stop).
 //   6. co_spawn LoginServer::Run + the health endpoint; hand control
 //      to io.run(). Admin shell intentionally NOT spawned here — the
 //      cluster's single operator entry point is TControlSvrAsio.
@@ -47,7 +47,10 @@
 #include "fourstory/ops/rate_limiter.h"
 #include "fourstory/ops/registry_refresher.h"
 #include "services/soci_auth_service.h"
+#include "services/postgresql_login_owner.h"
+#include "fourstory/db/co_offload.h"
 #include "services/soci_char_service.h"
+#include "services/postgresql_char_service.h"
 #include "services/soci_map_server_locator.h"
 #include "services/soci_session_terminator.h"
 #include "fourstory/audit/spdlog_audit_logger.h"
@@ -59,6 +62,8 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/thread_pool.hpp>
 
 #include <spdlog/spdlog.h>
@@ -89,6 +94,7 @@ void Usage()
 
 int main(int argc, char** argv)
 {
+    int exit_status = 0;
     std::string config_path = "tloginsvr.toml";
     for (int i = 1; i < argc; ++i)
     {
@@ -173,9 +179,8 @@ int main(int argc, char** argv)
         cfg.server.event_registry = event_registry.get();
 
         // SMTP client for 2FA emails. `[smtp] host` set → real
-        // Asio-based SMTP transport; empty → log-only fallback (codes
-        // land in the spdlog stream so dev / staging deploys still
-        // exercise the 2FA path without a relay).
+        // Asio-based SMTP transport; empty → delivery-unavailable fallback.
+        // Challenge contents are never logged.
         std::unique_ptr<fourstory::smtp::ISmtpClient> smtp_client;
         if (!cfg.smtp.host.empty())
         {
@@ -194,7 +199,7 @@ int main(int argc, char** argv)
         else
         {
             smtp_client = std::make_unique<fourstory::smtp::SpdlogSmtpClient>();
-            spdlog::info("smtp: log-only (no [smtp] host configured)");
+            spdlog::info("smtp: delivery unavailable (no [smtp] host configured)");
         }
         cfg.server.smtp_client = smtp_client.get();
 
@@ -221,39 +226,26 @@ int main(int argc, char** argv)
         // later (only after [database] is validated).
         std::unique_ptr<fourstory::db::SessionPool>                  global_pool;
         std::unique_ptr<fourstory::db::SessionPool>                  world_pool;
+        std::unique_ptr<tloginsvr::services::PostgreSQLLoginOwner> login_owner;
         std::unique_ptr<boost::asio::thread_pool>                    db_pool;
         std::unique_ptr<tloginsvr::services::SociAuthService>        soci_auth;
         std::unique_ptr<tloginsvr::services::SociCharService>        soci_char;
+        std::unique_ptr<tloginsvr::services::PostgreSQLCharService> native_char;
         std::unique_ptr<tloginsvr::services::SociMapServerLocator>   soci_map;
         std::unique_ptr<tloginsvr::services::SociSessionTerminator>  soci_term;
 
-        // Pre-shutdown sweep: legacy CTLoginSvrModule::UpdateData walks
-        // m_mapTSESSION and calls CSPLogout for every session with
-        // m_bLogout=TRUE. We do the same: snapshot the registry, drive
-        // SessionTerminator::Terminate (Disconnect reason → DELETE
-        // TCURRENTUSER + UPDATE TLOG.timeLOGOUT) for each live entry,
-        // then signal io.stop. Without this every live session leaves a
-        // stale TCURRENTUSER row that has to be reaped on the next
-        // boot's ClearStaleSessions sweep.
-        auto* registry_raw = registry.get();
-        auto graceful_shutdown = [&io, registry_raw, &soci_term]() {
-            if (registry_raw != nullptr && soci_term != nullptr)
-            {
-                const auto live = registry_raw->Snapshot();
-                if (!live.empty())
-                {
-                    spdlog::info("shutdown: terminating {} live session(s)",
-                        live.size());
-                    for (const auto& it : live)
-                    {
-                        soci_term->Terminate(it.entry.user_id,
-                            it.entry.session_key,
-                            tloginsvr::services::TerminationReason::Disconnect,
-                            it.entry.last_char_id);
-                    }
-                }
-            }
-            io.stop();
+        // Keep the reactor alive until accepted requests and their cleanup have
+        // returned from DB workers. Do not stop/discard queued worker jobs.
+        tloginsvr::LoginServer* running_server = nullptr;
+        bool stopping = false;
+        auto graceful_shutdown = [&io, &running_server, &stopping, &exit_status]() {
+            if (stopping) return;
+            stopping = true;
+            if (!running_server) { io.stop(); return; }
+            boost::asio::co_spawn(io, running_server->Stop(), [&io, &exit_status](std::exception_ptr error) {
+                if (error) { exit_status = 1; spdlog::error("Login shutdown cleanup failed"); }
+                io.stop();
+            });
         };
 
         boost::asio::signal_set signals(io, SIGINT, SIGTERM);
@@ -273,6 +265,8 @@ int main(int argc, char** argv)
         // surface that as a fatal startup error (failing fast is correct:
         // running with a connection_string set but no DB would silently
         // downgrade to no-auth, which is worse).
+        if (cfg.database.connection_string.empty() && !cfg.allow_no_database)
+            throw std::runtime_error("Login requires database configuration; no-database mode needs explicit development.allow_no_database=true");
         if (!cfg.database.connection_string.empty())
         {
             if (cfg.database.backend.empty())
@@ -284,6 +278,8 @@ int main(int argc, char** argv)
                 backend, cfg.database.connection_string, cfg.database.pool_size,
                 std::chrono::seconds(cfg.database.acquire_timeout_secs));
             tloginsvr::db::ValidateGlobalSchema(*global_pool);
+            if (backend == fourstory::db::Backend::PostgreSQL)
+                login_owner = std::make_unique<tloginsvr::services::PostgreSQLLoginOwner>(cfg.database.connection_string);
 
             // Worker pool for off-loop SOCI calls. Handlers call
             // through fourstory::db::CoOffloadIf — non-null pool
@@ -303,6 +299,8 @@ int main(int argc, char** argv)
                              "(SOCI calls run on io_context thread)");
             }
 
+            if (backend == fourstory::db::Backend::PostgreSQL && !cfg.database_world.connection_string.empty())
+                throw std::runtime_error("Native characters share the global PostgreSQL database; configure characters.manifest_sha256 instead of a second world pool");
             if (!cfg.database_world.connection_string.empty())
             {
                 if (cfg.database_world.backend.empty())
@@ -320,17 +318,18 @@ int main(int argc, char** argv)
             }
 
             soci_auth = std::make_unique<tloginsvr::services::SociAuthService>(
-                *global_pool);
+                *global_pool, login_owner ? login_owner->Token() : "");
             soci_term = std::make_unique<tloginsvr::services::SociSessionTerminator>(
-                *global_pool);
+                *global_pool, login_owner ? login_owner->Token() : "");
             soci_map  = std::make_unique<tloginsvr::services::SociMapServerLocator>(
-                *global_pool, world_pool.get());
+                *global_pool, world_pool.get(), login_owner ? login_owner->Token() : "", cfg.routing_manifest);
 
             // Crash-recovery: legacy CTLoginSvrModule::OnEnter calls
             // CSPClearLoginUser here so a previous process's stale
             // session rows don't lock every account into LR_DUPLICATE.
             // The new server runs the same one-shot DELETE.
-            soci_term->ClearStaleSessions();
+            if (soci_term->ClearStaleSessions() < 0)
+                throw std::runtime_error("Login session recovery failed");
 
             cfg.server.auth_service        = soci_auth.get();
             cfg.server.map_server_locator  = soci_map.get();
@@ -342,7 +341,12 @@ int main(int argc, char** argv)
             // DB is configured. Without TGAME we'd be unable to do real
             // create/list/delete — fall back to in-memory so the lobby
             // path still works for smoke tests.
-            if (world_pool != nullptr)
+            if (!cfg.character_manifest.empty()) {
+                native_char = std::make_unique<tloginsvr::services::PostgreSQLCharService>(
+                    *global_pool, login_owner ? login_owner->Token() : "", cfg.character_manifest);
+                cfg.server.char_service = native_char.get();
+            }
+            else if (world_pool != nullptr)
             {
                 soci_char = std::make_unique<tloginsvr::services::SociCharService>(
                     *global_pool, *world_pool);
@@ -366,9 +370,9 @@ int main(int argc, char** argv)
             }
             else
             {
+                cfg.server.char_service = nullptr;
                 spdlog::warn("services: SOCI ({}) — auth + map + terminator. "
-                             "char_service stays in-memory: [database.world] "
-                             "not configured",
+                             "character operations unavailable: [database.world] not configured",
                     fourstory::db::BackendName(backend));
             }
         }
@@ -400,6 +404,33 @@ int main(int argc, char** argv)
             security_gate->TrustCount());
 
         tloginsvr::LoginServer server(io, cfg.server);
+        running_server = &server;
+        if (login_owner)
+            boost::asio::co_spawn(io, [&]() -> boost::asio::awaitable<void> {
+                boost::asio::steady_timer timer(io);
+                while (!stopping)
+                {
+                    timer.expires_after(std::chrono::seconds(1));
+                    co_await timer.async_wait(boost::asio::use_awaitable);
+                    if (stopping) break;
+                    const bool healthy = co_await fourstory::db::CoOffloadIf(db_pool.get(),
+                        [&] { return login_owner->Healthy(); });
+                    if (!healthy)
+                    {
+                        exit_status = 1;
+                        spdlog::critical("Native Login ownership lost; shutting down");
+                        graceful_shutdown();
+                        break;
+                    }
+                }
+            }, [graceful_shutdown, &exit_status](std::exception_ptr error) {
+                if (error)
+                {
+                    exit_status = 1;
+                    spdlog::critical("Native Login owner monitor failed; shutting down");
+                    graceful_shutdown();
+                }
+            });
         spdlog::info("login server listening on 0.0.0.0:{} (RC4: {})",
             server.Port(),
             cfg.server.rc4_secret_key.empty() ? "disabled" : "enabled");
@@ -412,16 +443,16 @@ int main(int argc, char** argv)
         // daemon exposed its own localhost shell with diverging
         // command sets.
 
+        // Own the endpoint inside the io_context lifetime, including shutdown.
+        std::unique_ptr<fourstory::ops::HealthEndpoint> health;
         // Optional health endpoint on a separate port.
         if (cfg.health_port != 0)
         {
             try
             {
-                auto health = std::make_unique<fourstory::ops::HealthEndpoint>(io, cfg.health_port);
+                health = std::make_unique<fourstory::ops::HealthEndpoint>(io, cfg.health_port);
                 spdlog::info("health endpoint listening on 0.0.0.0:{}", health->Port());
                 boost::asio::co_spawn(io, health->Run(), boost::asio::detached);
-                static std::unique_ptr<fourstory::ops::HealthEndpoint> s_health;
-                s_health = std::move(health);
             }
             catch (const std::exception& ex)
             {
@@ -473,7 +504,6 @@ int main(int argc, char** argv)
         // doesn't lose its session lease on shutdown.
         if (db_pool)
         {
-            db_pool->stop();
             db_pool->join();
         }
     }
@@ -482,5 +512,5 @@ int main(int argc, char** argv)
         spdlog::critical("fatal: {}", ex.what());
         return 1;
     }
-    return 0;
+    return exit_status;
 }

@@ -42,7 +42,7 @@ public:
     // value is 30s — matches the legacy update tick.
     static std::shared_ptr<RegistryRefresher> Make(
         boost::asio::io_context& io,
-        std::chrono::seconds period);
+        std::chrono::milliseconds period);
 
     // Add a refresh hook. Must be wired before Start().
     void AddHook(RefreshFn fn);
@@ -60,12 +60,12 @@ public:
 
 private:
     RegistryRefresher(boost::asio::io_context& io,
-                      std::chrono::seconds period);
+                      std::chrono::milliseconds period);
 
     boost::asio::awaitable<void> Loop();
 
     boost::asio::io_context&            m_io;
-    std::chrono::seconds                m_period;
+    std::chrono::milliseconds           m_period;
     std::vector<RefreshFn>              m_hooks;
     std::vector<CoroutineRefreshFn>     m_coro_hooks;
 

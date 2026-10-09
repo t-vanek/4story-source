@@ -36,6 +36,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/ssl/stream.hpp>
 
@@ -89,8 +90,8 @@ struct PeerClientOptions
     // max_backoff. Reset to initial_backoff on every successful
     // registration so a flapping link doesn't get permanently stuck
     // on the cap.
-    std::chrono::seconds initial_backoff{1};
-    std::chrono::seconds max_backoff{30};
+    std::chrono::milliseconds initial_backoff{1000};
+    std::chrono::milliseconds max_backoff{30000};
 
     // Optional TLS: when non-null, the PeerClient wraps its socket
     // in boost::asio::ssl::stream<tcp::socket> and drives a client-
@@ -203,6 +204,8 @@ private:
     boost::asio::io_context&        m_io;
     PeerClientOptions               m_opts;
     SocketVariant                   m_socket;
+    boost::asio::steady_timer        m_heartbeat_timer;
+    boost::asio::steady_timer        m_retry_timer;
     UserCountsFn                    m_user_counts;
     std::atomic<bool>               m_registered{false};
     std::atomic<std::uint64_t>      m_lease_epoch{0};

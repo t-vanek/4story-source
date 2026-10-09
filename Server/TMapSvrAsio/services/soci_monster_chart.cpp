@@ -12,9 +12,13 @@
 namespace tmapsvr {
 
 SociMonsterChart::SociMonsterChart(fourstory::db::SessionPool& pool)
+    : SociMonsterChart(*pool.Acquire())
 {
-    auto lease = pool.Acquire();
-    auto& sql  = *lease;
+    // The temporary Lease lives until the delegated constructor returns.
+}
+
+SociMonsterChart::SociMonsterChart(soci::session& sql)
+{
 
     std::int32_t row_id = 0, row_race = 0, row_class = 0, row_kind = 0,
                  row_level = 0, row_ai = 0, row_range = 0, row_chase = 0,

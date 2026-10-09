@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 namespace fourstory::db { class SessionPool; }
+namespace soci { class session; }
 
 namespace tmapsvr {
 
@@ -19,6 +20,8 @@ public:
     // (no growth) for the no-stat-chart path.
     explicit SociSkillChart(fourstory::db::SessionPool& pool,
                             float f1st_rate_x = 1.0f);
+    // Shared boot transaction: all catalogs observe the same content release.
+    explicit SociSkillChart(soci::session& sql, float f1st_rate_x = 1.0f);
 
     std::optional<SkillTemplate>
         Find(std::uint16_t skill_id) const override

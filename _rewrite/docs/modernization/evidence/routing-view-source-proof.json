@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "source": "dbo.TSVRCHART restored from TGAME_RAGEZONE.bak",
+  "source_rows": 358,
+  "source_view_multiset_sha256": "c7cc6c1913fea16b2937d9e7b6b7b25e652587d1fde809c9fb1f8bb026c59afe",
+  "independent_join_multiset_sha256": "c7cc6c1913fea16b2937d9e7b6b7b25e652587d1fde809c9fb1f8bb026c59afe",
+  "exact_values_equal": true,
+  "note": "Original view is a join of TUNITCHART and TMAPCHART. This digest has a deliberately separate JSON-multiset encoding from migration table_hash; no private rows published."
+}

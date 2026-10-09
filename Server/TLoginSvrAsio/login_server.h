@@ -32,6 +32,7 @@ namespace boost::asio { class thread_pool; }
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <unordered_set>
 
 namespace tloginsvr {
 
@@ -178,6 +179,9 @@ public:
 
     std::uint16_t Port() const;
 
+    // I/O-executor only: stop accepting, close peers, await DB-backed cleanup.
+    boost::asio::awaitable<void> Stop();
+
 private:
     boost::asio::io_context& m_io;
     tnetlib::AsioListener    m_listener;
@@ -198,8 +202,14 @@ private:
     std::function<void()>          m_on_quit_request;                // SM_QUITSERVICE_REQ → io.stop() etc. May be null.
     Nation                         m_nation = Nation::US;            // deployment locale — selects JP wire tail + CheckCharName charset
     std::string                    m_control_server_ip;              // empty = no peer-IP gate on CT_* dispatch
+    bool m_stopping = false;
+    struct ConnectionState {
+        std::atomic<std::uint32_t> active{0};
+        std::unordered_set<std::shared_ptr<tnetlib::AsioSession>> sessions;
+    };
+    // Guards can outlive this object when an embedding test stops its io_context.
+    std::shared_ptr<ConnectionState> m_connections = std::make_shared<ConnectionState>();
     std::uint32_t                  m_max_connections = 0;            // 0 = no cap
-    std::atomic<std::uint32_t>     m_active_connections{ 0 };        // live AsioSession count for max_connections gate
 
     // Per-connection coroutine: hand off the socket to a fresh
     // AsioSession, drive RunPackets, dispatch each decoded packet.
@@ -210,7 +220,7 @@ private:
     // so handlers can `co_await` SendPacket calls.
     boost::asio::awaitable<void> Dispatch(
         std::shared_ptr<tnetlib::AsioSession> sess,
-        const tnetlib::DecodedPacket& packet);
+        std::uint16_t w_id, std::vector<std::byte> body);
 };
 
 } // namespace tloginsvr

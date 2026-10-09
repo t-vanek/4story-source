@@ -1,0 +1,30 @@
+{
+  "status": "complete",
+  "labs": [
+    {
+      "work_directory": "/tmp/fourstory-security-20261009",
+      "owned_database_removed": true,
+      "owned_network_removed": true,
+      "temporary_credentials_and_private_keys_removed": true,
+      "mail_spools_removed": true
+    },
+    {
+      "work_directory": "/tmp/fourstory-security-asan-20261009",
+      "owned_database_removed": true,
+      "owned_network_removed": true,
+      "temporary_credentials_and_private_keys_removed": true,
+      "mail_spools_removed": true
+    },
+    {
+      "work_directory": "/tmp/fourstory-security-release-20261009",
+      "owned_database_removed": true,
+      "owned_network_removed": true,
+      "temporary_credentials_and_private_keys_removed": true,
+      "mail_spools_removed": true
+    }
+  ],
+  "backups_preserved": true,
+  "private_reference_extract_preserved": true,
+  "release_image_preserved": "localhost/fourstory:postgresql-security",
+  "no_external_mail_sent": true
+}

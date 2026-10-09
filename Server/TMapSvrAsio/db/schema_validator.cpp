@@ -28,6 +28,7 @@ void ValidateUserSchema(fourstory::db::SessionPool& pool)
     // claims the client passes in CS_VERIFYSESSION_REQ.
     fourstory::db::CheckColumns(*lease, "map_user", {
         { "TCURRENTUSER", "dwKEY" },
+        { "TCURRENTUSER", "dwCharID" },
         { "TCURRENTUSER", "dwUserID" },
         { "TCURRENTUSER", "szLoginIP" },
         { "TCURRENTUSER", "bLocked" },

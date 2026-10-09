@@ -93,9 +93,19 @@ WorldServer::HandleConnection(std::shared_ptr<PeerSession> peer)
     // tear down.
     if (m_cfg.ctx.peers && peer->Wid() != 0)
     {
-        if (m_cfg.ctx.peers->Unregister(peer->Wid()))
+        if(m_cfg.ctx.peers->Find(peer->Wid())==peer) {
+            // TCP loss is the same character-lifecycle event as the original
+            // SM_DELSESSION_REQ. Keep the peer registered until cleanup drains
+            // so a replacement cannot acquire its ID during this sweep. Durable
+            // current-user recovery belongs to the fenced native Map owner;
+            // never run the legacy bulk database clear on unexpected wire loss.
+            auto cleanup=m_cfg.ctx;cleanup.service_ops=nullptr;
+            try { co_await handlers::OnSmDelSessionReq(peer,{},cleanup); }
+            catch(...) { spdlog::error("world_server: disconnected peer cleanup failed"); }
+            m_cfg.ctx.peers->Unregister(peer->Wid());
             spdlog::info("world_server: wID={} unregistered from peer registry",
                 peer->Wid());
+        }
     }
 
     m_live.fetch_sub(1);

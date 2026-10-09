@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-c++"
+	tests="10"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="947f4fe80c5c"
+	time="3"
+	timestamp="2026-10-08T23:46:48"
+	>
+	<testcase name="tnetlib_crypto_kat" classname="tnetlib_crypto_kat" time="0.012497" status="run">
+		<properties/>
+		<system-out>=== tnetlib_crypto tests ===
+[rfc6229 40-bit key]
+  PASS  RC4Transform returns true
+  PASS  RC4 output matches RFC vector (got b2396305f03dc027ccc3524a0a1118a8)
+[rfc6229 128-bit key]
+  PASS  RC4Transform returns true
+  PASS  RC4 output matches RFC vector (got 9ac7cc9a609d1ef7b2932899cde41b97)
+[symmetry: encrypt twice == identity]
+  PASS  first RC4MD5Transform returns true
+  PASS  ciphertext differs from plaintext
+  PASS  second RC4MD5Transform returns true
+  PASS  second transform restored plaintext (RC4 is symmetric)
+[4story legacy secret key]
+  PASS  RC4MD5Transform with legacy secret returns true
+  INFO  keystream[0..15] = 9ddb8dfbf62e22dc78f6b5e3eb8dc360
+  PASS  encrypt with legacy secret
+  PASS  ciphertext differs from plaintext
+  PASS  decrypt with legacy secret
+  PASS  decrypted output matches plaintext
+[copy variant: distinct in/out buffers]
+  PASS  RC4MD5TransformCopy returns true
+  PASS  Copy variant produces identical bytes to in-place
+[edge cases]
+  PASS  zero-length buffer is legal
+  PASS  zero-l...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tnetlib_asio_echo" classname="tnetlib_asio_echo" time="0.422151" status="run">
+		<properties/>
+		<system-out>=== tnetlib AsioSession tests ===
+[echo roundtrip on ephemeral port]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  client wrote all bytes
+  PASS  client read same byte count back
+  PASS  echoed bytes match original
+[full packet round-trip via codec]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  received all three echoed packets
+  PASS  packet 0 wId matches
+  PASS  packet 0 body matches
+  PASS  packet 1 wId matches
+  PASS  packet 1 body matches
+  PASS  packet 2 wId matches
+  PASS  packet 2 body matches
+[full packet round-trip via RC4 + codec]
+  PASS  listener bound
+  PASS  fake-client connected
+  PASS  received both echoed packets through RC4 layer
+  PASS  packet 0 wId + body match after RC4 round-trip
+  PASS  packet 1 wId + body match after RC4 round-trip
+[error logger fires on protocol error]
+  PASS  listener bound to ephemeral port
+  PASS  client connected
+  PASS  logger captured at least one message
+  PASS  captured message is a 'recv:' diagnostic
+[Se...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tnetlib_packet_codec" classname="tnetlib_packet_codec" time="0.0062037" status="run">
+		<properties/>
+		<system-out>=== tnetlib packet_codec tests ===
+[key table parity with legacy g_4skey]
+  PASS  slot 0 matches legacy
+  PASS  slot 6 matches legacy
+  PASS  sequence wrap: 8 % 7 == 1
+[body round-trip — aligned size, 16 bytes / 2 INT64 chunks]
+  PASS  cipher differs from plain
+  PASS  decrypt succeeds
+  PASS  decrypt restores plaintext
+[body round-trip — partial tail (5 bytes only)]
+  PASS  5-byte tail: cipher differs
+  PASS  5-byte tail: decrypt succeeds
+  PASS  5-byte tail: plaintext restored
+[body round-trip — mixed (11 bytes = 1 chunk + 3 tail)]
+  PASS  decrypt succeeds
+  PASS  plaintext restored
+[empty body]
+  PASS  empty body produces zero checksum
+  PASS  empty body decrypt with 0 checksum ok
+  PASS  empty body with wrong checksum rejected
+  PASS  tail checksum preserves legacy wraparound golden value
+  PASS  tail golden ciphertext
+  PASS  wrapped tail checksum decrypts
+  PASS  tail golden plaintext
+  PASS  negative chunk and tail preserve legacy wraparound golden value
+  PASS  mixed golden ciphertext
+  PASS  wr...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_auth_flow" classname="tloginsvr_asio_auth_flow" time="0.114021" status="run">
+		<properties/>
+		<system-out>=== tloginsvr_asio auth-flow test ===
+[in-memory auth backend: good / bad-password / no-user / banned-user]
+  PASS  server bound
+[2026-10-08 23:46:49.296] [info] CS_LOGIN_REQ user=alice → status=0
+  PASS  alice + correct password → LR_SUCCESS (0)
+[2026-10-08 23:46:49.307] [info] CS_LOGIN_REQ user=alice → status=2
+  PASS  alice + wrong password → LR_INVALIDPASSWD (2)
+[2026-10-08 23:46:49.317] [info] CS_LOGIN_REQ user=charlie → status=1
+  PASS  unknown user → LR_NOUSER (1)
+[2026-10-08 23:46:49.328] [info] CS_LOGIN_REQ user=bob → status=7
+  PASS  account ban → backed-up TLogin LR_IPBLOCK (7)
+
+Results: 5 passed, 0 failed
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_session_terminator" classname="tloginsvr_asio_session_terminator" time="0.348564" status="run">
+		<properties/>
+		<system-out>=== tloginsvr_asio session-terminator test ===
+[plain disconnect → SessionTerminator called with Disconnect]
+[2026-10-08 23:46:49.412] [info] CS_LOGIN_REQ user=alice → status=0
+  PASS  exactly one terminator call
+  PASS  user_id = 1001
+  PASS  session_key = 1 (first session)
+  PASS  reason = Disconnect
+[LOGIN + START_REQ + close → terminator called with MapHandoff]
+[2026-10-08 23:46:49.474] [info] CS_LOGIN_REQ user=bob → status=0
+[2026-10-08 23:46:49.474] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+  PASS  exactly one terminator call
+  PASS  user_id = 2002
+  PASS  reason = MapHandoff (CS_START_REQ marked it)
+[connect + disconnect without login → no terminator call]
+  PASS  terminator not called for never-authenticated session
+
+Results: 8 passed, 0 failed
+</system-out>
+	</testcase>
+	<testcase name="tloginsvr_asio_shutdown_sweep" classname="tloginsvr_asio_shutdown_sweep" time="0.0479384" status="run">
+		<properties/>
+		<system-out>[2026-10-08 23:46:49.711] [info] CS_LOGIN_REQ user=lobby → status=0
+[2026-10-08 23:46:49.711] [info] CS_LOGIN_REQ user=handoff → status=0
+PASS successful client ACK
+[2026-10-08 23:46:49.711] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+PASS successful client ACK
+PASS successful client ACK
+PASS Stop completes without exception
+PASS graceful stop drains actual accepted sessions before deadline
+PASS registry empty when Stop completes
+PASS each authenticated session cleaned exactly once
+PASS lobby session terminates on shutdown
+PASS shutdown preserves Map handoff reason and selected character
+[2026-10-08 23:46:49.723] [info] CS_LOGIN_REQ user=lobby → status=0
+[2026-10-08 23:46:49.723] [info] CS_LOGIN_REQ user=handoff → status=0
+PASS successful client ACK
+[2026-10-08 23:46:49.723] [info] CS_START_REQ group=1 ch=0 char=42 → CS_START_ACK (SR_SUCCESS, 127.0.0.1:5815 server_id=1)
+PASS successful client ACK
+PASS successful client ACK
+PASS Stop completes wi...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_world_enter" classname="tmapsvr_asio_world_enter" time="0.0173035" status="run">
+		<properties/>
+		<system-out>test_world_enter: load + rejected-blob + no-char + short-body OK (char=0xABCDEF01)
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_admission" classname="tmapsvr_asio_admission" time="1.16865" status="run">
+		<properties/>
+		<system-out>PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-08 23:46:49.782] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-08 23:46:49.782] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+PASS rejected admission closes soc...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tmapsvr_asio_admission_encrypted" classname="tmapsvr_asio_admission_encrypted" time="1.17862" status="run">
+		<properties/>
+		<system-out>PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS checksum mixing count known answer
+PASS DWORD initial product and sum wrap before widening
+[2026-10-08 23:46:50.954] [info] [audit] login uid=0 char=42 ch=0 ver=0 result=0 corr=0
+PASS login audit retains existing binary layout
+PASS login audit sink redacts token without mutating caller
+[2026-10-08 23:46:50.954] [info] [audit] char_load char=42 user=0 latency_us=0 result=0 corr=0
+PASS load audit retains existing binary layout
+PASS load audit sink redacts token before UDP transport
+PASS rejected admission closes socket
+PASS source CN result and empty server list exact bytes
+PASS invalid framing/version/checksum or unavailable World never touches database
+PASS failed admission reserves no character
+PASS rejected admission closes soc...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tworldsvr_asio_entersvr_fresh_login_handlers" classname="tworldsvr_asio_entersvr_fresh_login_handlers" time="0.340311" status="run">
+		<properties/>
+		<system-out>[2026-10-08 23:46:52.190] [info] world_server: accept from 127.0.0.1
+[2026-10-08 23:46:52.211] [info] OnRelaysvrReq[127.0.0.1]: wID=66 registered as map peer (nation=0, registry_size=1)
+[2026-10-08 23:46:52.211] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=1, active_users=1)
+[2026-10-08 23:46:52.212] [info] OnAddCharAck[127.0.0.1]: char_id=200 user_id=100 server_id=66 ip=1.0.0.127:33500 — registered (total=2, active_users=1)
+[2026-10-08 23:46:52.212] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 'Alice' entered (lvl=10 map=100 region=5) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-08 23:46:52.253] [info] OnEnterSvrAck[127.0.0.1]: char_id=200 'Bob' entered (lvl=40 map=777 region=9) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-08 23:46:52.294] [info] OnEnterSvrAck[127.0.0.1]: char_id=200 'Bob' entered (lvl=40 map=777 region=9) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-08 23:46:52.336] [info] OnEnterSvrAck[127.0.0.1]: char_id=200 'Bob' entered (lvl=...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

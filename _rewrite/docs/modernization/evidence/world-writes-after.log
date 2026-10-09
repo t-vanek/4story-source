@@ -1,0 +1,4 @@
+[2026-10-09 02:17:31.578] [error] world_session[127.0.0.1]: outbound body too big (65528)
+[2026-10-09 02:17:31.708] [warning] world_session[127.0.0.1]: outbound backlog exceeded; closing peer
+[2026-10-09 02:17:31.714] [warning] world_session[127.0.0.1]: outbound backlog exceeded; closing peer
+147 World write checks passed

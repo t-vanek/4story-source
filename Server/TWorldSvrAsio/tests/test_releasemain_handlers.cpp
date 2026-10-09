@@ -17,6 +17,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -136,10 +137,10 @@ int main()
     p1.connect(ep); p2.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -156,24 +157,27 @@ int main()
     auto establish = [&](std::uint32_t id, std::uint32_t key) {
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(id, key)));
         for (int i = 0; i < 1000 && !chars.Find(id); ++i)
             std::this_thread::sleep_for(10ms);
+        EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(id, key), 0x43));
         SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
+        EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(id, key)));
         for (int i = 0; i < 1000 && cons_size(id) != 2; ++i)
             std::this_thread::sleep_for(10ms);
+        {auto ch=chars.Find(id);std::lock_guard guard(ch->lock);
+         for(auto& con:ch->cons)con.ready=true;} // fixture begins after ENTERCHAR
+
     };
     establish(100, 0xA1);
     establish(200, 0xB0);
     EXPECT(cons_size(100) == 2);
     EXPECT(cons_size(200) == 2);
 
-    // Simulate the post-handoff state: char 100's main is now 0x43
-    // (new main); char 200's main points at an offline server (0x99).
-    if (auto a = chars.Find(100))
-    { std::lock_guard g(a->lock); a->main_server_id = 0x43; }
-    if (auto b = chars.Find(200))
-    { std::lock_guard g(b->lock); b->main_server_id = 0x99; }
+    // Real request/answer flow pins the old and new peer before RELEASEMAIN.
+    EXPECT(world_test::StartMainHandoff(SendFramed,ReadFramed,p1,p2,AddCharBody(100,0xA1),0x43));
+    EXPECT(world_test::StartMainHandoff(SendFramed,ReadFramed,p1,p2,AddCharBody(200,0xB0),0x43));
 
     // --- normal: old main (0x42=p1) releases char 100 --------------
     {
@@ -201,19 +205,6 @@ int main()
         EXPECT(ok);
     }
 
-    // --- new main offline: char 200 main=0x99 → INVALIDCHAR --------
-    {
-        SendFramed(p1, ToUint16(MessageId::MW_RELEASEMAIN_ACK),
-                   ReleaseMainBody(1, 200, 0xB0, 0));
-        auto [w, got] = ReadFramed(p1);
-        EXPECT(w == ToUint16(MessageId::MW_INVALIDCHAR_REQ));
-        wire::Reader r(got);
-        std::uint32_t cid = 0, key = 0; std::uint8_t release_main = 0;
-        r.Read(cid); r.Read(key); r.Read(release_main);
-        EXPECT(cid == 200); EXPECT(key == 0xB0);
-        EXPECT(release_main == 1);
-    }
-
     // --- unknown char → DELCHAR ------------------------------------
     {
         SendFramed(p2, ToUint16(MessageId::MW_RELEASEMAIN_ACK),
@@ -224,6 +215,24 @@ int main()
         std::uint32_t cid = 0, key = 0; std::uint8_t logout = 0, save = 1;
         r.Read(cid); r.Read(key); r.Read(logout); r.Read(save);
         EXPECT(cid == 999); EXPECT(logout == 1); EXPECT(save == 0);
+    }
+
+    // --- new main offline: char 200 main=0x99 → INVALIDCHAR --------
+    {
+        peers.Unregister(0x0443);
+        SendFramed(p1, ToUint16(MessageId::MW_RELEASEMAIN_ACK),
+                   ReleaseMainBody(1, 200, 0xB0, 0));
+        auto [w, got] = ReadFramed(p1);
+        EXPECT(w == ToUint16(MessageId::MW_INVALIDCHAR_REQ));
+        wire::Reader r(got);
+        std::uint32_t cid = 0, key = 0; std::uint8_t release_main = 0;
+        r.Read(cid); r.Read(key); r.Read(release_main);
+        EXPECT(cid == 200); EXPECT(key == 0xB0);
+        EXPECT(release_main == 1);
+        auto [del_id,del_body]=ReadFramed(p1);
+        EXPECT(del_id==ToUint16(MessageId::MW_DELCHAR_REQ));
+        for(int i=0;i<1000&&chars.Find(200);++i)std::this_thread::sleep_for(1ms);
+        EXPECT(!chars.Find(200));
     }
 
     p1.close(); p2.close();

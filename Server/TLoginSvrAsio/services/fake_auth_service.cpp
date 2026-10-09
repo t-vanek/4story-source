@@ -6,10 +6,7 @@
 //
 // Authenticate() and VerifyPassword() compare plaintext; the
 // production SOCI impl runs bcrypt_checkpw against TACCOUNT_PW
-// instead. Two-factor flows (IssueSecurityCode / VerifySecurityCode /
-// CompleteSecurityLogin) write into in-memory side tables so the
-// ctest 2FA flow can exercise the handler path without needing
-// TSECURECODE / TUSEREMAIL / TUSERTRUSTEDIP wired up.
+// instead. Email verification is tested against the real PostgreSQL service.
 //
 // **Not for production.** Wired only when [database] is empty in TOML.
 
@@ -120,97 +117,10 @@ bool FakeAuthService::VerifyPassword(std::int32_t user_id,
     return false;
 }
 
-namespace {
-std::string Upper(std::string s)
-{
-    for (auto& c : s) if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
-    return s;
-}
-} // namespace
-
-bool FakeAuthService::VerifySecurityCode(std::int32_t user_id,
-                                        const std::string& code)
-{
-    if (user_id == 0 || code.empty()) return false;
-    std::lock_guard<std::mutex> lock(m_mtx);
-    auto it = m_security_codes.find(user_id);
-    if (it == m_security_codes.end() || it->second.empty()) return false;
-    const bool ok = Upper(code) == Upper(it->second);
-    if (ok) m_security_codes.erase(it);
-    return ok;
-}
-
-std::string FakeAuthService::IssueSecurityCode(std::int32_t user_id)
-{
-    if (user_id == 0) return {};
-    // Deterministic fake code per user — easier for tests to assert against
-    // than a random string.
-    std::string code = "TEST" + std::to_string(user_id);
-    std::lock_guard<std::mutex> lock(m_mtx);
-    m_security_codes[user_id] = code;
-    return code;
-}
-
-std::optional<IAuthService::EmailRecord>
-FakeAuthService::LookupEmail(std::int32_t user_id)
-{
-    if (user_id == 0) return std::nullopt;
-    std::lock_guard<std::mutex> lock(m_mtx);
-    if (auto it = m_emails.find(user_id); it != m_emails.end())
-        return it->second;
-    return std::nullopt;
-}
-
-bool FakeAuthService::IsTrustedIp(std::int32_t user_id, const std::string& client_ip)
-{
-    if (user_id == 0 || client_ip.empty()) return false;
-    std::lock_guard<std::mutex> lock(m_mtx);
-    return m_trusted_ips.contains(std::to_string(user_id) + "|" + client_ip);
-}
-
-void FakeAuthService::AddTrustedIp(std::int32_t user_id, const std::string& client_ip)
-{
-    if (user_id == 0 || client_ip.empty()) return;
-    std::lock_guard<std::mutex> lock(m_mtx);
-    m_trusted_ips.insert(std::to_string(user_id) + "|" + client_ip);
-}
-
-std::uint32_t FakeAuthService::CompleteSecurityLogin(std::int32_t user_id,
-                                                    const std::string& /*client_ip*/)
-{
-    if (user_id == 0) return 0;
-    std::lock_guard<std::mutex> lock(m_mtx);
-    return m_next_session_key++;
-}
-
-void FakeAuthService::SetUserEmail(std::int32_t user_id, std::string email,
-                                  bool two_factor_enabled)
-{
-    std::lock_guard<std::mutex> lock(m_mtx);
-    m_emails[user_id] = EmailRecord{
-        .email = std::move(email),
-        .two_factor_enabled = two_factor_enabled,
-    };
-}
-
-void FakeAuthService::SeedTrustedIp(std::int32_t user_id, std::string ip)
-{
-    std::lock_guard<std::mutex> lock(m_mtx);
-    m_trusted_ips.insert(std::to_string(user_id) + "|" + ip);
-}
-
 void FakeAuthService::SetLastCharId(std::int32_t user_id, std::uint32_t char_id)
 {
     std::lock_guard<std::mutex> lock(m_mtx);
     m_last_char[user_id] = char_id;
-}
-
-std::uint32_t FakeAuthService::LookupLastCharId(std::int32_t user_id)
-{
-    std::lock_guard<std::mutex> lock(m_mtx);
-    if (auto it = m_last_char.find(user_id); it != m_last_char.end())
-        return it->second;
-    return 0;
 }
 
 AuthResult FakeAuthService::AuthenticateTest(const std::string& /*client_ip*/)

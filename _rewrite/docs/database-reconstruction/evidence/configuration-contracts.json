@@ -1,0 +1,321 @@
+[
+  {
+    "path": "Server/TControlSvrAsio/tcontrolsvr.example.toml",
+    "keys": [
+      "server.port",
+      "server.auto_start",
+      "discovery.enabled",
+      "health.port",
+      "admin.bind",
+      "admin.port",
+      "login_rate.burst",
+      "login_rate.refill_seconds",
+      "inventory.refresh_seconds",
+      "log.level",
+      "fake.operators",
+      "fake.groups",
+      "fake.machines",
+      "fake.types"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TControlSvrAsio/tcontrolsvr.local.toml",
+    "keys": [
+      "server.port",
+      "server.auto_start",
+      "discovery.enabled",
+      "database.backend",
+      "database.connection_string",
+      "database.pool_size",
+      "database.worker_threads",
+      "health.port",
+      "admin.bind",
+      "admin.port",
+      "login_rate.burst",
+      "login_rate.refill_seconds",
+      "inventory.refresh_seconds",
+      "log.level"
+    ],
+    "declared_backends": [
+      "odbc"
+    ],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TControlSvrAsio/tcontrolsvr.security.toml",
+    "keys": [
+      "port",
+      "admin_port",
+      "health_port",
+      "database.backend",
+      "database.connection_string",
+      "database.pool_size",
+      "log.level",
+      "security.ip_allowlist",
+      "security.ip_allowlist_enforce",
+      "security.peer_auth_required",
+      "security.master_key_env",
+      "security.nonce_window_seconds",
+      "security.db_trust_store",
+      "security.audit_failed_attempts"
+    ],
+    "declared_backends": [
+      "odbc"
+    ],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TLogSvrAsio/tlogsvr.example.toml",
+    "keys": [
+      "server.bind",
+      "server.port",
+      "server.target_table",
+      "log.level",
+      "health.port",
+      "backpressure.sample_interval_secs",
+      "backpressure.always_log",
+      "retry.max_queue",
+      "retry.drain_interval_secs",
+      "retry.drain_batch_size"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TLogSvrAsio/tlogsvr.local.toml",
+    "keys": [
+      "port",
+      "bind_address",
+      "target_table",
+      "database.backend",
+      "database.connection_string",
+      "database.worker_threads",
+      "retry.max_queue",
+      "retry.drain_interval_seconds",
+      "retry.drain_batch_size",
+      "health.port",
+      "log.level",
+      "security.ip_allowlist",
+      "security.ip_allowlist_enforce"
+    ],
+    "declared_backends": [
+      "odbc"
+    ],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TLoginSvrAsio/tloginsvr.example.toml",
+    "keys": [
+      "server.port",
+      "crypto.disable_rc4",
+      "log.level",
+      "health.port"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TLoginSvrAsio/tloginsvr.local.toml",
+    "keys": [
+      "server.port",
+      "server.nation",
+      "server.control_server_gate_open",
+      "crypto.disable_rc4",
+      "log.level",
+      "health.port",
+      "database.backend",
+      "database.connection_string",
+      "database.pool_size",
+      "database.world.backend",
+      "database.world.connection_string",
+      "database.world.pool_size"
+    ],
+    "declared_backends": [
+      "odbc",
+      "odbc"
+    ],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TMapSvrAsio/tmapsvr.example.toml",
+    "keys": [
+      "server.port",
+      "server.max_connections",
+      "crypto.disable",
+      "mode.type",
+      "world.host",
+      "world.port",
+      "audit.host",
+      "audit.port",
+      "rate_limit.burst",
+      "rate_limit.refill_per_s",
+      "shutdown.drain_ms",
+      "admin.bind",
+      "admin.port",
+      "admin.secret",
+      "metrics.port",
+      "health.port",
+      "log.level",
+      "database.backend",
+      "database.connection_string",
+      "database.pool_size",
+      "database.worker_threads"
+    ],
+    "declared_backends": [
+      "odbc"
+    ],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TMapSvrAsio/tmapsvr.local.toml",
+    "keys": [
+      "server.port",
+      "server.max_connections",
+      "crypto.disable",
+      "mode.type",
+      "world.host",
+      "world.port",
+      "log.level",
+      "health.port",
+      "metrics.port",
+      "database.backend",
+      "database.connection_string",
+      "database.pool_size",
+      "database.worker_threads"
+    ],
+    "declared_backends": [
+      "odbc"
+    ],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TPatchSvrAsio/tpatchsvr.example.toml",
+    "keys": [
+      "server.port",
+      "patch.ftp_url",
+      "patch.pre_ftp_url",
+      "login.host",
+      "login.port",
+      "health.port",
+      "log.level",
+      "database.backend",
+      "database.connection_string",
+      "database.pool_size"
+    ],
+    "declared_backends": [
+      "odbc"
+    ],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TPatchSvrAsio/tpatchsvr.security.toml",
+    "keys": [
+      "port",
+      "ftp_url",
+      "login_host",
+      "login_port",
+      "database.backend",
+      "database.connection_string",
+      "database.pool_size",
+      "health.port",
+      "log.level",
+      "security.ip_allowlist",
+      "security.ip_allowlist_enforce",
+      "security.peer_auth_required",
+      "security.master_key_env",
+      "security.nonce_window_seconds",
+      "security.db_trust_store",
+      "security.audit_failed_attempts"
+    ],
+    "declared_backends": [
+      "odbc"
+    ],
+    "values_redacted": true
+  },
+  {
+    "path": "Server/TWorldSvrAsio/tworldsvr.example.toml",
+    "keys": [
+      "server.port",
+      "server.max_connections",
+      "health.port",
+      "log.level"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "deploy/config.example/tcontrolsvr.toml",
+    "keys": [
+      "server.port",
+      "health.port",
+      "admin.port",
+      "log.level"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "deploy/config.example/tloginsvr.toml",
+    "keys": [
+      "server.port",
+      "server.control_server_ip",
+      "health.port",
+      "log.level"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "deploy/config.example/tlogsvr.toml",
+    "keys": [
+      "server.bind",
+      "server.port",
+      "health.port",
+      "log.level"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "deploy/config.example/tmapsvr.toml",
+    "keys": [
+      "server.port",
+      "world.host",
+      "world.port",
+      "audit.host",
+      "audit.port",
+      "crypto.disable",
+      "health.port",
+      "metrics.port",
+      "admin.port",
+      "shutdown.drain_ms",
+      "log.level"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "deploy/config.example/tpatchsvr.toml",
+    "keys": [
+      "server.port",
+      "login.host",
+      "login.port",
+      "health.port",
+      "log.level"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  },
+  {
+    "path": "deploy/config.example/tworldsvr.toml",
+    "keys": [
+      "server.port",
+      "health.port",
+      "log.level"
+    ],
+    "declared_backends": [],
+    "values_redacted": true
+  }
+]

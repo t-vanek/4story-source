@@ -4,6 +4,7 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/read.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/redirect_error.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/ssl/stream_base.hpp>
@@ -128,6 +129,8 @@ PeerClient::PeerClient(boost::asio::io_context& io, PeerClientOptions opts)
     : m_io(io)
     , m_opts(std::move(opts))
     , m_socket(MakeInitialSocket(m_io, m_opts.ssl_ctx))
+    , m_heartbeat_timer(m_io)
+    , m_retry_timer(m_io)
 {
     // Auto-fill platform identifiers when the caller leaves them
     // at default — saves every peer server from duplicating the
@@ -163,11 +166,17 @@ PeerClient::PlainSocket& PeerClient::UnderlyingTcp()
 
 void PeerClient::Stop()
 {
-    m_stop.store(true);
-    boost::system::error_code ec;
-    auto& sock = UnderlyingTcp();
-    sock.cancel(ec);
-    sock.close(ec);
+    // Serialize cancellation with Run(), including Stop() from another
+    // thread. Keep the socket open until Run() sends DEREGISTER.
+    boost::asio::post(m_io, [self = shared_from_this()] {
+        // Publish stop on the executor too: Run() must not start its
+        // final write before this cancellation has finished.
+        if (self->m_stop.exchange(true)) return;
+        self->m_heartbeat_timer.cancel();
+        self->m_retry_timer.cancel();
+        boost::system::error_code ec;
+        self->UnderlyingTcp().cancel(ec);
+    });
 }
 
 boost::asio::awaitable<bool>
@@ -335,14 +344,13 @@ boost::asio::awaitable<bool> PeerClient::ConnectAndRegister()
 
 boost::asio::awaitable<void> PeerClient::HeartbeatLoop()
 {
-    boost::asio::steady_timer timer(m_io);
     while (!m_stop.load() && m_registered.load())
     {
         const auto interval = std::chrono::seconds(
             m_heartbeat_interval_sec.load());
-        timer.expires_after(interval);
+        m_heartbeat_timer.expires_after(interval);
         boost::system::error_code ec;
-        co_await timer.async_wait(
+        co_await m_heartbeat_timer.async_wait(
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec || m_stop.load()) co_return;
 
@@ -361,6 +369,7 @@ boost::asio::awaitable<void> PeerClient::HeartbeatLoop()
 
         if (!co_await SendOneFrame(kPeerHeartbeatReq, std::move(body)))
         {
+            if (m_stop.load()) co_return;
             spdlog::warn("peer_client: heartbeat send failed — reconnecting");
             m_registered.store(false);
             co_return;
@@ -368,6 +377,7 @@ boost::asio::awaitable<void> PeerClient::HeartbeatLoop()
         std::vector<std::byte> reply;
         if (!co_await RecvOneFrame(kPeerHeartbeatAck, reply) || reply.size() < 9)
         {
+            if (m_stop.load()) co_return;
             spdlog::warn("peer_client: heartbeat-ack read failed");
             m_registered.store(false);
             co_return;
@@ -389,7 +399,6 @@ boost::asio::awaitable<void> PeerClient::HeartbeatLoop()
 boost::asio::awaitable<void> PeerClient::Run()
 {
     auto backoff = m_opts.initial_backoff;
-    boost::asio::steady_timer timer(m_io);
 
     while (!m_stop.load())
     {
@@ -407,10 +416,10 @@ boost::asio::awaitable<void> PeerClient::Run()
         boost::system::error_code ec;
         UnderlyingTcp().close(ec);
 
-        spdlog::info("peer_client: retrying in {}s",
+        spdlog::info("peer_client: retrying in {}ms",
             static_cast<long long>(backoff.count()));
-        timer.expires_after(backoff);
-        co_await timer.async_wait(
+        m_retry_timer.expires_after(backoff);
+        co_await m_retry_timer.async_wait(
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (m_stop.load()) break;
 

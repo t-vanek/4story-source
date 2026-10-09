@@ -1,0 +1,191 @@
+{
+  "date": "2026-10-09",
+  "status": "IMPLEMENTED, INTEGRATED and VERIFIED: World composed writer and expected-secondary admission subset; complete modern server mission remains active",
+  "authority": {
+    "backups": "Both authoritative .bak unchanged; historical values remain authoritative",
+    "migrations": "001–018 unchanged; no new migration",
+    "source": [
+      "Lib/Own/TNetLib/TNetLib/Packet.cpp: original framing/checksum semantics",
+      "Server/TWorldSvr/SSHandler.cpp:704 OnMW_ADDCHAR_ACK",
+      "Server/TWorldSvr/SSHandler.cpp:1903 OnMW_ROUTE_ACK",
+      "Server/TWorldSvr/SSHandler.cpp:847 OnMW_CHARDATA_ACK",
+      "Server/TWorldSvr/SSHandler.cpp:2284 OnMW_RELEASEMAIN_ACK"
+    ]
+  },
+  "production_paths": [
+    "Server/TWorldSvrAsio/world_session.h",
+    "Server/TWorldSvrAsio/world_session.cpp",
+    "Server/TWorldSvrAsio/handlers/handlers_char.cpp"
+  ],
+  "contract": [
+    "Each SendPacket owns its body/frame. One asynchronous permit is held through the complete composed write, preventing interleaved frames and scratch-buffer corruption across suspension.",
+    "At most 256 outstanding frames or 4 MiB of framed data per peer; excess closes the transport and wakes waiting writers. Oversize bodies are rejected before size addition. No queued write replay.",
+    "RAII holds session/send state through suspended writes and cancellation. Read EOF, malformed framing, write errors and escaping read-handler exceptions retire that writer. Run/SendPacket/Close require the actual single runtime I/O thread.",
+    "Existing-character ADDCHAR must match an exact registered nonzero typed Map peer (0x0400 | server_id), live typed main, key, account, and previously planned server/IP/port with valid=false. Exact 18-byte body required.",
+    "Accepted secondary becomes valid and not-ready. Only when all expected connections are valid does the original main receive MW_CHARDATA_REQ. This does not transfer primary ownership.",
+    "Invalid/duplicate secondary receives original MW_INVALIDCHAR_REQ(char,key,release_main=0). Modern failure policy preserves existing main/account instead of the original CloseChar; account and exact-peer checks are additional protections.",
+    "Native Map still rejects neighboring connections and uses one durable primary claim. No secondary authorization or persistence is implied by World admission success. Client wire opcodes/fields remain unchanged."
+  ],
+  "verification": {
+    "debug_ctest": {
+      "report": "world-writes-ctest.xml",
+      "entries": 195,
+      "actual_passes": 181,
+      "legacy_internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "native_explicit_skips": 6,
+      "failures": 0
+    },
+    "asan_ubsan_preset": {
+      "report": "world-writes-asan-preset.xml",
+      "entries": 24,
+      "actual_passes": 24,
+      "legacy_internal_skips": [],
+      "native_explicit_skips": 0,
+      "failures": 0
+    },
+    "regressions": {
+      "world_writer": {
+        "before": "world-writes-before.log",
+        "before_result": "failed independent checksum under overlapping stalled writes",
+        "before_source_sha256": "f2c198bf416da416f69f75a2af75e7ac81dd7185311f57d1d7fc7f4062afbb89",
+        "after": "world-writes-after.log",
+        "after_checks": 147,
+        "cases": [
+          "concurrent empty/varied/max-size frames decoded independently",
+          "oversize followed by empty frame",
+          "explicit close and TCP reset release all pending writers",
+          "message and byte backlog overflow",
+          "read-loop EOF closes without server wrapper"
+        ]
+      },
+      "secondary_admission": {
+        "before": "secondary-admission-before.log",
+        "before_result": "unplanned secondary incorrectly appended, expected rejection absent",
+        "after": "secondary-admission-after.log",
+        "after_checks": 24,
+        "cases": [
+          "unplanned endpoint",
+          "wrong key/account/IP/port",
+          "partial set waits",
+          "duplicate admission and duplicate completion rejected",
+          "complete set sends CHARDATA only to original main"
+        ]
+      },
+      "fixture_repairs": {
+        "files": [
+          "Server/TWorldSvrAsio/tests/test_appearance_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_chardata_drift_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_checkconnect_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_checkmain_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_closechar_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_conn_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_entersvr_handoff_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_monthrank_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_recallmon_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_releasemain_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_service_plane_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_solomap_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_spolecnikmon_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_teleport_confirm_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_teleport_handlers.cpp"
+        ],
+        "details": "Fifteen downstream fixtures now register typed Map IDs, plan the endpoint using ROUTE/ADDCONNECT and consume exact CHARDATA before checking their original behavior. No downstream assertions removed. First full CTest stopped after confirmed obsolete-fixture failures, then rebuilt and all 195 entries completed; initial log retained.",
+        "first_run_log": "world-writes-fixture-failures.log"
+      },
+      "native_peer_fixture": "First actual-daemon fixture omitted rank/tournament replays. It now validates exact empty registry wire bodies and permits only the defined zero-valued registration relay broadcast; no arbitrary packet filter."
+    },
+    "native_runs": {
+      "debug": {
+        "report": "native-world-writes.json",
+        "status": "passed",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "three_daemon_tcp_checks": 131,
+        "world_secondary_wire_checks": 66,
+        "sql_server_used": false
+      },
+      "asan": {
+        "report": "native-world-writes-asan.json",
+        "status": "passed",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "three_daemon_tcp_checks": 131,
+        "world_secondary_wire_checks": 66,
+        "sql_server_used": false
+      },
+      "release": {
+        "report": "native-world-writes-release.json",
+        "status": "passed",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "three_daemon_tcp_checks": 131,
+        "world_secondary_wire_checks": 66,
+        "sql_server_used": false
+      }
+    },
+    "installed_release": {
+      "date": "2026-10-09",
+      "status": "passed",
+      "image": "localhost/fourstory:postgresql-world-writes",
+      "image_id": "39e62e27a5c1176e564a0e1e364fea28cb87a9d43ef7b5763f4b42218759c14f",
+      "uid_gid": "10001:10001",
+      "installed_release_daemon_sha256": {
+        "/opt/fourstory/bin/tloginsvr_asio": "acb387eed9d32bb6f1458c91ea19b77a6cb698935e0cd26841cba7535f359361",
+        "/opt/fourstory/bin/tmapsvr_asio": "041b0d0a16bd2f3987f3a85bdc742c1a3fc4d7f153940e0558f1cc0a3c93aaf2",
+        "/opt/fourstory/bin/tworldsvr_asio": "9dc0de5296fa9747f84f19378c73e5f478e2393d8cfdb38c58da9af414093f9c",
+        "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef",
+        "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+        "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34"
+      },
+      "native_verification": {
+        "report": "native-world-writes-release.json",
+        "status": "passed",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "three_daemon_tcp_checks": 131,
+        "world_secondary_wire_checks": 66,
+        "sql_server_used": false
+      },
+      "six_daemon_health_dns_sigterm": "world-writes-container-smoke.log",
+      "build_command": "podman build --network host --build-arg BUILD_JOBS=2 --target runtime -t localhost/fourstory:postgresql-world-writes .",
+      "scope": "Installed Release Login/World/Map daemons; mounted Debug native integration executables; independent synthetic TCP peers, original client not executed"
+    }
+  },
+  "next_native_replica_contract": {
+    "source": [
+      "Client/TClient/CSHandler.cpp:93 CONNECT_ACK sends CONREADY to every returned server ID",
+      "Client/TClient/CSHandler.cpp:176 ADDCONNECT_ACK opens secondary endpoints",
+      "Client/TClient/CSSenderAll.cpp:5 CONREADY has no body and targets the server ID",
+      "Server/TMapSvr/CSHandler.cpp:402 CONREADY initializes the map; main-only re-entry",
+      "Server/TMapSvr/SSHandler.cpp:1426 CHARDATA_REQ serializes transient state",
+      "Server/TMapSvr/SSHandler.cpp:1447 ENTERCHAR_REQ hydrates secondary summary/recalls",
+      "Server/TMapSvr/SSHandler.cpp:6779 ADDCONNECT_REQ forwards endpoints to client",
+      "Server/TMapSvr/SSHandler.cpp:6823 RELEASEMAIN_REQ relinquishes main and sends blob"
+    ],
+    "current_gaps": [
+      "PostgreSQLMapService::ClaimSession consumes a one-use Login handoff into a unique primary map_sessions row; no replica grant exists.",
+      "OnMWNativeRouteReq refuses nonempty neighbors. OnMWNativeEnterCharReq requires an existing hydrated primary payload; it is not a replica loader."
+    ],
+    "next_steps": [
+      "Define separate source-bound replica roles/grants with owner and connection fencing in migration 019+, preserving the single mutable primary.",
+      "Integrate actual secondary CONNECT/World admission/composite state/CONREADY and replica teardown without releasing the primary account.",
+      "Then implement primary transfer epochs and failure recovery; test both live Map processes with independently encoded client traffic. Never reload stale durable core as a substitute for transient handoff."
+    ]
+  },
+  "remaining": [
+    "Native secondary Map replicas, primary transfer and full social/gameplay persistence remain pending.",
+    "Original client executable/build and actual client execution remain unverified.",
+    "No general World peer heartbeat/blackhole recovery contract yet.",
+    "Historical encoding/collation/timezone and populated-player corpus remain unresolved.",
+    "SQL Server driver is still installed for unported runtime paths; these verification runs use native PostgreSQL only."
+  ]
+}

@@ -15,6 +15,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -130,6 +131,7 @@ int main()
 
     const std::uint32_t kKey = 0xA1;
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, kKey));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(42, kKey)));
     for (int i = 0; i < 100; ++i)
     {
         auto c = chars.Find(42);

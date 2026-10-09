@@ -23,6 +23,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -233,14 +234,17 @@ int main()
 
     SendFramed(peer1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(42, 0xA11CE));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer1, AddCharBody(42, 0xA11CE)));
     SendFramed(peer1, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(42, 0xA11CE, "Alice"));
     SendFramed(peer2, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(200, 0xB0B));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer2, AddCharBody(200, 0xB0B)));
     SendFramed(peer2, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(200, 0xB0B, "Bob"));
     SendFramed(peer3, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(400, 0xCA801));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, peer3, AddCharBody(400, 0xCA801)));
     SendFramed(peer3, ToUint16(MessageId::MW_CHANGECHARBASE_ACK),
         NameBody(400, 0xCA801, "Carol"));
 

@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-09",
+  "verified_at_utc": "2026-10-09T04:39:11.442988+00:00",
+  "owned_database_containers_removed": {
+    "pg_container": true
+  },
+  "owned_network_removed": true,
+  "remaining_owned_labelled_test_containers": 0,
+  "temporary_env_and_private_key_files_removed": 13,
+  "private_diagnostics_retained": true,
+  "original_reference_snapshots_retained": true,
+  "sql_server_used": false,
+  "runtime_image_retained": "localhost/fourstory:postgresql-main-transfer",
+  "continuation": "Create a new PostgreSQL-only lab. The full wire codec and native raw-item/cooldown prerequisites are verified; continue live graph capture/restoration, fenced primary ownership/recovery and dynamic routing with migration 020+. Preserve 001\u2013019 and the authoritative backups."
+}

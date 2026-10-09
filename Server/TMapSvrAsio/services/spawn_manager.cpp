@@ -21,6 +21,7 @@ std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
                            std::uint8_t         channel)
 {
     std::size_t spawned = 0, skipped_no_entry = 0, skipped_no_tmpl = 0;
+    std::size_t skipped_no_attr = 0, skipped_zero_hp = 0;
 
     for (const auto& p : spawns.All())
     {
@@ -47,6 +48,22 @@ std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
                 continue;
             }
 
+            // Legacy TMap.cpp rejects an essential spawn without attributes;
+            // TAICmdRegen.cpp returns FALSE for the corresponding regen case.
+            // Preserve that refusal without the legacy whole-spawn early exit.
+            // Zero HP is quarantined as unusable live content, never invented.
+            const auto attr = attrs.Find(e.wMonID, tmpl->bLevel);
+            if (!attr)
+            {
+                ++skipped_no_attr;
+                continue;
+            }
+            if (attr->dwMaxHP == 0)
+            {
+                ++skipped_zero_hp;
+                continue;
+            }
+
             MonsterInstance m;
             m.dwInstanceID = next_instance_id++;
             m.wTemplateID  = e.wMonID;
@@ -56,27 +73,12 @@ std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
             m.fPosX        = p.fPosX;
             m.fPosY        = p.fPosY;
             m.fPosZ        = p.fPosZ;
-            // Real spawn HP + combat stats from TMONATTRCHART (monster id +
-            // level). A monster with no stat row falls back to a
-            // level-scaled placeholder HP so it still shows a sane, non-zero
-            // bar (0 = dead/reaped); its attack/defense then default to 0,
-            // which the damage formula floors to the legacy 5/7 minimums.
-            const std::uint8_t lvl = std::max<std::uint8_t>(1, tmpl->bLevel);
-            if (const auto attr = attrs.Find(e.wMonID, tmpl->bLevel))
-            {
-                m.dwMaxHP  = attr->dwMaxHP > 0
-                                 ? attr->dwMaxHP
-                                 : 100u * static_cast<std::uint32_t>(lvl);
-                m.wAP      = attr->wAP;
-                m.wMinWAP  = attr->wMinWAP;
-                m.wMaxWAP  = attr->wMaxWAP;
-                m.wDP      = attr->wDP;
-                m.wMDP     = attr->wMDP;
-            }
-            else
-            {
-                m.dwMaxHP = 100u * static_cast<std::uint32_t>(lvl);
-            }
+            m.dwMaxHP  = attr->dwMaxHP;
+            m.wAP      = attr->wAP;
+            m.wMinWAP  = attr->wMinWAP;
+            m.wMaxWAP  = attr->wMaxWAP;
+            m.wDP      = attr->wDP;
+            m.wMDP     = attr->wMDP;
             m.dwHP = m.dwMaxHP;   // spawns at full health
 
             registry.Insert(m);
@@ -86,8 +88,10 @@ std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
 
     spdlog::info("spawn_manager: spawned {} monster(s) on channel {} "
                  "({} spawn point(s) had no TMAPMONCHART rows, {} skipped "
-                 "for missing TMONSTERCHART template)",
-        spawned, channel, skipped_no_entry, skipped_no_tmpl);
+                 "for missing TMONSTERCHART template, {} missing attribute "
+                 "rows, {} zero-HP rows quarantined)",
+        spawned, channel, skipped_no_entry, skipped_no_tmpl,
+        skipped_no_attr, skipped_zero_hp);
 
     return spawned;
 }

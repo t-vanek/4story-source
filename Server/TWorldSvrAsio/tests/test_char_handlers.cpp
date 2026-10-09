@@ -7,8 +7,7 @@
 //      dwUserID=100 } → registry has the entry, user 100 marked
 //      active.
 //   2. Second ADDCHAR_ACK for the same char_id with the same key
-//      and a different (ip:port) → "additional connection" branch
-//      pushes a second TCharCon onto the existing TChar's cons[].
+//      and a different (ip:port) cannot append an unplanned connection.
 //   3. ADDCHAR_ACK for char_id=42 with a different key → dropped
 //      (W3 will fire MW_INVALIDCHAR_REQ; W2 just logs).
 //   4. CLOSECHAR_ACK for char_id=42 → registry empties, user 100
@@ -22,6 +21,7 @@
 #include "../config.h"
 #include "../handlers/handlers.h"
 #include "../services/char_registry.h"
+#include "../services/peer_registry.h"
 #include "../wire_codec.h"
 #include "../world_server.h"
 #include "../world_session.h"
@@ -104,9 +104,11 @@ int main()
     boost::asio::io_context io;
 
     tworldsvr::CharRegistry chars;
+    tworldsvr::PeerRegistry peers;
     tworldsvr::HandlerContext ctx{};
     ctx.io    = &io;
     ctx.chars = &chars;
+    ctx.peers = &peers;
 
     tworldsvr::WorldServerConfig svr_cfg{};
     svr_cfg.port            = 0;
@@ -125,6 +127,10 @@ int main()
     sock.connect(tcp::endpoint(
         boost::asio::ip::make_address_v4("127.0.0.1"), port));
     std::this_thread::sleep_for(20ms);
+
+    std::vector<std::byte> registration;
+    tworldsvr::wire::WritePOD<std::uint16_t>(registration, 0x0401);
+    SendFramed(sock, ToUint16(MessageId::RW_RELAYSVR_REQ), registration);
 
     // --- Scenario 1: ADDCHAR_ACK inserts ----------------------------
     SendFramed(sock, ToUint16(MessageId::MW_ADDCHAR_ACK),
@@ -150,7 +156,7 @@ int main()
         EXPECT(chars.Size() == 1);
     }
 
-    // --- Scenario 2: additional connection appends TCharCon ---------
+    // --- Scenario 2: unplanned connection preserves the valid main --
     SendFramed(sock, ToUint16(MessageId::MW_ADDCHAR_ACK),
         BuildAddCharBody(42, 0xCAFEBABE, 0x0200007F /*127.0.0.2*/,
                          33501, 100));
@@ -160,9 +166,9 @@ int main()
         EXPECT(ch != nullptr);
         if (ch)
         {
-            EXPECT(ch->cons.size() == 2);
-            if (ch->cons.size() == 2)
-                EXPECT(ch->cons[1].port == 33501);
+            EXPECT(ch->cons.size() == 1);
+            if (ch->cons.size() == 1)
+                EXPECT(ch->cons[0].port == 33500);
         }
     }
 
@@ -176,8 +182,8 @@ int main()
         if (ch)
         {
             // No new connection was appended; the wrong-key frame
-            // was dropped with a warning.
-            EXPECT(ch->cons.size() == 2);
+            // received INVALIDCHAR without mutating the main.
+            EXPECT(ch->cons.size() == 1);
             EXPECT(ch->key == 0xCAFEBABE); // unchanged
         }
     }

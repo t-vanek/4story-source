@@ -1,0 +1,36 @@
+{
+  "scope": "Read-only next-slice review; these Map behaviors have NOT been repaired by the character lobby increment.",
+  "priority": "Do not enable native Map character entry until session ownership, checksum and save boundaries are replaced and tested.",
+  "findings": [
+    {
+      "source": "Server/TMapSvrAsio/handlers/session.cpp",
+      "issue": "ConnectResult numeric values differ from NetCode.h. Current invalid-version=1/internal=3/no-channel=4/duplicate=5; original no-channel=1/no-char=2/already-exist=3/invalid-version=4/internal=5."
+    },
+    {
+      "source": "Server/TMapSvrAsio/handlers/session.cpp",
+      "issue": "Version/checksum are parsed but not verified; session is looked up by user/key only, requested character ID is not verified against TCURRENTUSER selected ID or character owner before Bind. Replace last-write-wins duplicate binding."
+    },
+    {
+      "source": "Server/TMapSvrAsio/handlers/session.cpp",
+      "issue": "Logs and LoginAttemptEvent include live session key. Remove secret logging across downstream sinks before native Map enablement."
+    },
+    {
+      "source": "Server/TMapSvrAsio/services/soci_player_service.cpp",
+      "issue": "LoadChar has no owner/world parameter; current HP/MP zero is guessed as full. SaveChar catches all errors, updates global directory separately and can silently lose progress. Replace with explicit scoped snapshot/load-save transaction and failure propagation."
+    },
+    {
+      "source": "Server/TMapSvrAsio/services/soci_player_service.cpp",
+      "issue": "Generic mutable row targets lack new app_world world scope and global schema qualification. Do not point current service at PostgreSQL merely by changing search_path."
+    },
+    {
+      "source": "Server/TMapSvrAsio/services/player_service.h",
+      "issue": "Load snapshot and DM_LOADCHAR_ACK still omit/default several initial subsections, while native create now persists actual skills/items/recall/mail. Implement read/encode from durable state before claiming client entry."
+    }
+  ],
+  "dependencies": [
+    "Review original CS_CONNECT_REQ/CS_CONREADY_REQ senders/receivers plus World MW_ADDCHAR/DM_LOADCHAR flow.",
+    "Review backed-up TSaveCharDataStart/TSaveCharDataEnd and external TSaveDuringItem* dependencies; comments are not executed behavior.",
+    "World/Map process ownership and single-session save ordering must protect character deletion and overwrite races.",
+    "Continue numbered migrations at 014; migrations 001\u2013013 and the two backups are now fingerprinted."
+  ]
+}

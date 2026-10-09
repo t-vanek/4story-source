@@ -19,11 +19,25 @@ void CheckColumns(soci::session& sql,
         int hits = 0;
         try
         {
+            if (sql.get_backend_name() == "postgresql")
+            {
+                // Resolve precisely the relation that unqualified repository
+                // SQL will use; a same-named historical table is not sufficient.
+                const std::string relation = std::string("\"") + table + "\"";
+                const std::string col = column;
+                sql << "SELECT count(*) FROM pg_catalog.pg_attribute "
+                       "WHERE attrelid=pg_catalog.to_regclass(:relation) "
+                       "AND attname=:column AND attnum>0 AND NOT attisdropped",
+                    soci::use(relation), soci::use(col), soci::into(hits);
+            }
+            else
+            {
             std::string q =
                 std::string("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS "
                             "WHERE TABLE_NAME = '") + table +
                 "' AND COLUMN_NAME = '" + column + "'";
             sql << q, soci::into(hits);
+            }
         }
         catch (const std::exception& ex)
         {

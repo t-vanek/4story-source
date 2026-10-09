@@ -1,0 +1,50 @@
+# Native Login slice: migrations 001–015 applied, empty modern app_global.
+# Synthetic integration is verified; historical account import and the complete
+# character/world flow are not ready. One active Login per application DB is enforced.
+# The owner lock needs one extra direct/session-pooled PostgreSQL connection.
+[server]
+port = 4816
+# Replace with the actual Control server IP before use.
+control_server_ip = "127.0.0.1"
+
+[database]
+backend = "postgresql"
+connection_string_env = "FOURSTORY_LOGIN_CONNECTION"
+pool_size = 4
+worker_threads = 2
+acquire_timeout_secs = 5
+
+[security]
+# Native persistent peer-auth is a separate outstanding contract.
+db_trust_store = false
+
+[health]
+port = 18816
+
+[shutdown]
+drain_ms = 1000
+
+[log]
+level = "info"
+
+# Optional native email verification for explicitly provisioned TUSEREMAIL opt-ins.
+# Source non-direct 0x2918 profile only; no persistent IP/device trust.
+# Use a trusted local/private relay; this SMTP hop has no STARTTLS.
+# [smtp]
+# host = "mail-relay"
+# port = 25
+# from_address = "verification@example.invalid"
+
+# Optional native normal-world character lobby. Same PostgreSQL DB as [database].
+# First import/publish the explicitly reviewed 22-table character reference release,
+# apply deploy/sql/character-runtime-grants.sql and provision app_world.worlds.
+# Do not configure [database.world] for PostgreSQL mode.
+# [characters]
+# manifest_sha256 = "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8"
+
+# Optional native normal-world START routing. Import/publish the four-table routing
+# profile, apply routing-runtime-grants.sql, and provision app_world.routing_worlds
+# plus operational TCHANNEL/TSERVER/TMACHINE/TIPADDR. Missing cells/endpoints fail.
+# This enables Login selection only; native Map claim/load/save remains unfinished.
+# [routing]
+# manifest_sha256 = "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74"

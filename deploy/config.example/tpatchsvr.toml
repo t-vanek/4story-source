@@ -1,0 +1,14 @@
+# Container smoke configuration: in-memory metadata, no database.
+[server]
+port = 3715
+
+[login]
+# Address advertised to the game client running on the container host.
+host = "127.0.0.1"
+port = 4816
+
+[health]
+port = 8915
+
+[log]
+level = "info"

@@ -21,6 +21,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -138,15 +139,15 @@ int main()
     std::this_thread::sleep_for(20ms);
 
     // p1=0x42 (main), p2=0x43, p3=0x44; drain the RELAYCONNECT fan-out.
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
-    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0044));
+    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0444));
     { auto [w, _] = ReadFramed(p3);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -165,6 +166,7 @@ int main()
     // pos so the happy-path reply carries something verifiable.
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(/*char_id=*/100, /*key=*/0xA1));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(/*char_id=*/100, /*key=*/0xA1)));
     for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
     {
@@ -184,10 +186,13 @@ int main()
     // test_conn_handlers.cpp).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(200, 0xB0)));
     for (int i = 0; i < 1000 && !chars.Find(200); ++i)
         std::this_thread::sleep_for(10ms);
+    EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(200, 0xB0), 0x43));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(200, 0xB0)));
     for (int i = 0; i < 1000 && cons_size(200) != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(200) == 2);

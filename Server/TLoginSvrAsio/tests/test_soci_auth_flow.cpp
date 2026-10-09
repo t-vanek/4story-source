@@ -379,8 +379,8 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
                 .client_ip = prefix + "9.42.42.42",
             };
             const auto r = svc.Authenticate(req);
-            Check(r.status == AuthStatus::IpBanned,
-                "TIPAUTHORITY pattern match → IpBanned");
+            Check(r.status == AuthStatus::IpRestricted,
+                "TIPAUTHORITY pattern match → IpRestricted");
 
             // Negative: an IP outside the pattern should NOT be banned
             // by TIPAUTHORITY (would still need to bypass everything
@@ -391,8 +391,8 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
                 .client_ip = prefix + "8.42.42.42",
             };
             const auto r_ok = svc.Authenticate(req_ok);
-            Check(r_ok.status != AuthStatus::IpBanned,
-                "TIPAUTHORITY non-matching IP → not IpBanned");
+            Check(r_ok.status != AuthStatus::IpRestricted,
+                "TIPAUTHORITY non-matching IP → not IpRestricted");
         }
         else
         {

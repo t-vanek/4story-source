@@ -1,115 +1,136 @@
-// Regression for round-2 #4: shutdown bulk-logout. Exercises the
-// IConnectionRegistry::Snapshot + ISessionTerminator::Terminate
-// chain that main.cpp's graceful_shutdown lambda drives on SIGINT/
-// SIGTERM/SM_QUITSERVICE_REQ. Without this sweep every live session
-// leaves a stale TCURRENTUSER row until the next boot's
-// ClearStaleSessions kicks in.
-
-#include "services/local_connection_registry.h"
+// Exercise the actual LoginServer::Stop path over live TCP sessions. Lobby
+// sessions are terminated, successful Map handoffs retain their reason, and
+// Stop completes only after connection cleanup (also with no connection cap).
+#include "login_server.h"
+#include "services/fake_auth_service.h"
+#include "services/fake_map_server_locator.h"
 #include "services/fake_session_terminator.h"
+#include "services/local_connection_registry.h"
 #include "asio_session.h"
+#include "MessageId.h"
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/redirect_error.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/use_awaitable.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace asio = boost::asio;
-
+using tnetlib::protocol::MessageId;
+using tnetlib::protocol::ToUint16;
 namespace {
-
-int g_passed = 0;
-int g_failed = 0;
+int failed = 0;
 void Check(bool ok, const char* label)
 {
-    if (ok) { ++g_passed; std::printf("  PASS  %s\n", label); }
-    else    { ++g_failed; std::printf("  FAIL  %s\n", label); }
+    std::printf("%s %s\n", ok ? "PASS" : "FAIL", label);
+    if (!ok) ++failed;
 }
 
-// Build a "session" we can register: a real AsioSession over an
-// unbound TCP socket. The shutdown sweep doesn't touch the socket,
-// only the registry entry + terminator. PeerType::Server skips the
-// RC4 handshake bookkeeping.
-std::shared_ptr<tnetlib::AsioSession> MakeFakeSession(asio::io_context& io)
+std::vector<std::byte> LoginBody(const std::string& user)
 {
-    asio::ip::tcp::socket sock(io);
-    return std::make_shared<tnetlib::AsioSession>(
-        std::move(sock), tnetlib::PeerType::Server);
+    std::vector<std::byte> body;
+    const auto append = [&](const auto& value) {
+        const auto* p = reinterpret_cast<const std::byte*>(&value);
+        body.insert(body.end(), p, p + sizeof(value));
+    };
+    append(std::uint16_t{0x2918});
+    for (const auto& s : {std::string{}, std::string{"pw"}, std::string{}, std::string{}, user})
+    {
+        append(static_cast<std::int32_t>(s.size()));
+        const auto* p = reinterpret_cast<const std::byte*>(s.data());
+        body.insert(body.end(), p, p + s.size());
+    }
+    append(std::uint64_t{0});
+    append(std::uint64_t{0xcdb0ebafdc6a7c5cULL}); // fixed original-client version checksum
+    return body;
 }
 
-void TestShutdownSweepHitsEveryLiveSession()
+void TestStop(std::size_t connection_cap)
 {
-    std::printf("[shutdown_sweep — every live session gets Terminate]\n");
-
     asio::io_context io;
+    tloginsvr::services::FakeAuthService auth;
+    auth.AddUser("lobby", "pw", 101);
+    auth.AddUser("handoff", "pw", 202);
     tloginsvr::services::LocalConnectionRegistry registry;
-    tloginsvr::services::FakeSessionTerminator   terminator;
+    tloginsvr::services::FakeSessionTerminator terminator;
+    tloginsvr::services::FakeMapServerLocator locator;
+    locator.AddMapServer(1, {{127, 0, 0, 1}, 5815, 1});
+    tloginsvr::LoginServerConfig cfg{};
+    cfg.port = 0;
+    cfg.max_connections = connection_cap;
+    cfg.auth_service = &auth;
+    cfg.connection_registry = &registry;
+    cfg.session_terminator = &terminator;
+    cfg.map_server_locator = &locator;
+    tloginsvr::LoginServer server(io, cfg);
+    bool stopped = false;
+    bool timed_out = false;
+    int ready = 0;
+    asio::steady_timer deadline(io, std::chrono::seconds(3));
+    deadline.async_wait([&](boost::system::error_code ec) {
+        if (!ec) { timed_out = true; io.stop(); }
+    });
+    asio::co_spawn(io, server.Run(), asio::detached);
 
-    // Seed three "live" sessions with distinct user_id + session_key.
-    auto s1 = MakeFakeSession(io);
-    auto s2 = MakeFakeSession(io);
-    auto s3 = MakeFakeSession(io);
-    registry.Register({.user_id = 101, .session_key = 1001, .agreed = true}, s1);
-    registry.Register({.user_id = 202, .session_key = 1002, .agreed = true}, s2);
-    registry.Register({.user_id = 303, .session_key = 1003, .agreed = true}, s3);
-    Check(registry.Count() == 3, "three sessions registered");
-
-    // This is the body of graceful_shutdown in main.cpp — Snapshot +
-    // Terminate(Disconnect) for each. Keeping the loop inline so the
-    // test asserts exactly the shape main.cpp's lambda performs.
-    const auto live = registry.Snapshot();
-    Check(live.size() == 3, "snapshot returns all three");
-    for (const auto& it : live)
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> clients;
+    for (bool handoff : {false, true})
     {
-        terminator.Terminate(it.entry.user_id, it.entry.session_key,
-            tloginsvr::services::TerminationReason::Disconnect);
+        asio::ip::tcp::socket socket(io);
+        socket.connect({asio::ip::address_v4::loopback(), server.Port()});
+        auto session = std::make_shared<tnetlib::AsioSession>(std::move(socket), tnetlib::PeerType::Server);
+        clients.push_back(session);
+        asio::co_spawn(io, [&, session, handoff]() -> asio::awaitable<void> {
+            co_await session->RunPackets([&, handoff, seen = 0](const tnetlib::DecodedPacket& packet) mutable {
+                Check(!packet.body.empty() && packet.body[0] == std::byte{0}, "successful client ACK");
+                if (++seen == (handoff ? 2 : 1) && ++ready == 2)
+                    asio::co_spawn(io, server.Stop(), [&](std::exception_ptr error) {
+                        Check(!error, "Stop completes without exception");
+                        stopped = !error;
+                        deadline.cancel();
+                        io.stop();
+                    });
+            });
+        }, asio::detached);
+        asio::co_spawn(io, [session, handoff]() -> asio::awaitable<void> {
+            const auto login = LoginBody(handoff ? "handoff" : "lobby");
+            co_await session->SendPacket(ToUint16(MessageId::CS_LOGIN_REQ), login);
+            if (handoff)
+            {
+                // Pipeline START immediately behind LOGIN, as an original peer may.
+                std::vector<std::byte> start{std::byte{1}, std::byte{0}, std::byte{42},
+                                             std::byte{0}, std::byte{0}, std::byte{0}};
+                co_await session->SendPacket(ToUint16(MessageId::CS_START_REQ), start);
+            }
+        }, asio::detached);
     }
-
-    const auto history = terminator.History();
-    Check(history.size() == 3, "three Terminate calls recorded");
-
-    // Order isn't guaranteed (registry walks an unordered_map). Sort
-    // by user_id and compare against the expected sequence.
-    std::vector<std::int32_t> uids;
-    uids.reserve(history.size());
-    for (const auto& r : history) uids.push_back(r.user_id);
-    std::sort(uids.begin(), uids.end());
-    Check(uids == std::vector<std::int32_t>{101, 202, 303},
-        "every registered uid received Terminate");
-
-    for (const auto& r : history)
+    io.run();
+    Check(stopped && !timed_out, "graceful stop drains actual accepted sessions before deadline");
+    Check(registry.Count() == 0, "registry empty when Stop completes");
+    auto calls = terminator.History();
+    std::sort(calls.begin(), calls.end(), [](const auto& a, const auto& b) { return a.user_id < b.user_id; });
+    Check(calls.size() == 2, "each authenticated session cleaned exactly once");
+    if (calls.size() == 2)
     {
-        Check(r.reason == tloginsvr::services::TerminationReason::Disconnect,
-            "reason == Disconnect");
+        Check(calls[0].user_id == 101 && calls[0].session_key != 0 &&
+              calls[0].reason == tloginsvr::services::TerminationReason::Disconnect,
+              "lobby session terminates on shutdown");
+        Check(calls[1].user_id == 202 && calls[1].session_key != 0 && calls[1].char_id == 42 &&
+              calls[1].reason == tloginsvr::services::TerminationReason::MapHandoff,
+              "shutdown preserves Map handoff reason and selected character");
     }
 }
-
-void TestShutdownSweepOnEmptyRegistryIsHarmless()
-{
-    std::printf("[shutdown_sweep — empty registry is a no-op]\n");
-    tloginsvr::services::LocalConnectionRegistry registry;
-    tloginsvr::services::FakeSessionTerminator   terminator;
-
-    const auto live = registry.Snapshot();
-    Check(live.empty(), "empty snapshot");
-    for (const auto& it : live)
-    {
-        terminator.Terminate(it.entry.user_id, it.entry.session_key,
-            tloginsvr::services::TerminationReason::Disconnect);
-    }
-    Check(terminator.Count() == 0, "no Terminate calls made");
 }
-
-} // namespace
-
 int main()
 {
-    TestShutdownSweepHitsEveryLiveSession();
-    TestShutdownSweepOnEmptyRegistryIsHarmless();
-
-    std::printf("%d passed, %d failed\n", g_passed, g_failed);
-    return g_failed == 0 ? 0 : 1;
+    TestStop(10);
+    TestStop(0);
+    return failed == 0 ? 0 : 1;
 }

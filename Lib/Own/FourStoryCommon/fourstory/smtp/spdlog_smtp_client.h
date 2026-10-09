@@ -1,15 +1,7 @@
 #pragma once
 
-// SpdlogSmtpClient — log-only ISmtpClient. Writes the would-be email
-// to spdlog instead of delivering it over SMTP. Suitable for:
-//   * dev environments without a mail relay
-//   * production deploys that ship the security-code flow via
-//     out-of-band channels (push notifications, SMS) and just want
-//     an audit trail of when codes were generated
-//   * tests
-//
-// Real SMTP deployment plugs a different ISmtpClient impl in main —
-// the interface stays the same.
+// Unconfigured-relay fallback: logs a fixed warning without message contents
+// and returns false. It must not make a login challenge appear delivered.
 
 #include "fourstory/smtp/smtp_client.h"
 

@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-09",
+  "verified_at_utc": "2026-10-09T05:34:07.031646+00:00",
+  "labs": [
+    {
+      "work_directory": "/tmp/fourstory-native-transfer-20261009",
+      "owned_database_container_removed": true,
+      "owned_network_removed": true,
+      "remaining_owned_labelled_test_containers": 0,
+      "temporary_env_and_private_key_files_removed": 37
+    },
+    {
+      "work_directory": "/tmp/fourstory-native-transfer-before-20261009",
+      "owned_database_container_removed": true,
+      "owned_network_removed": true,
+      "remaining_owned_labelled_test_containers": 0,
+      "temporary_env_and_private_key_files_removed": 7
+    }
+  ],
+  "private_diagnostics_retained": true,
+  "original_reference_snapshots_retained": true,
+  "sql_server_used": false,
+  "runtime_image_retained": "localhost/fourstory:postgresql-native-primary",
+  "continuation": "Create a new PostgreSQL-only lab. Preserve immutable migrations 001\u2013020 and the authoritative backups. Continue fresh-character runtime timer persistence, then source-derived active state and distributed AOI; follow next-steps.md. No original client execution is claimed."
+}

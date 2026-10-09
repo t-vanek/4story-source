@@ -44,6 +44,14 @@ struct DbConfig
     std::size_t  worker_threads = 4;
 };
 
+// Immutable game content uses a separate least-privilege native PG connection.
+// It is read once in a consistent transaction, then released before listening.
+struct ContentConfig
+{
+    std::string connection_string;
+    std::string manifest_sha256;
+};
+
 // TWorldSvr peer address. Populated for forward compatibility — the
 // outbound link is implemented in F5 (services/world_client.cpp).
 struct WorldPeerConfig
@@ -111,6 +119,11 @@ struct AppConfig
 
     // TUSER DB (TCURRENTUSER for the F4 handshake; TCHARTABLE for F5+).
     DbConfig       database;
+    ContentConfig  content;
+    // Explicit native releases, separately published from the map charts.
+    std::string character_manifest, routing_manifest, actor_manifest;
+    // Original CHAR_SAVE_TICK is thirty minutes; operational deployments may shorten it.
+    std::uint32_t checkpoint_interval_ms = 30 * 60 * 1000;
 
     // TWorldSvr peer (F5+).
     WorldPeerConfig world;

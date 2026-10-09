@@ -15,10 +15,12 @@
 //   C. identity nowhere                      → ACK CN_INTERNAL carrying just the char id
 
 #include "handlers.h"
+#include "session_fixture.h"
 #include "handlers_world.h"
 #include "services/char_state_store.h"
 #include "services/channel_presence.h"
 #include "services/fake_player_service.h"
+#include "services/skill_cooldown.h"
 #include "services/world_client.h"
 #include "domain/character.h"
 #include "wire_codec.h"
@@ -45,11 +47,9 @@ int g_fails = 0;
     } \
 } while (0)
 
-// Result codes mirror the file-local CN_* constants in handlers_world.cpp
-// (the legacy header hasn't been recovered; 0 = success is the modern
-// "apply this identity" contract TWorld's OnEnterSvrAck reads).
+// Source constants: Lib/Own/TProtocol/include/NetCode.h.
 constexpr std::uint8_t kCnSuccess  = 0;
-constexpr std::uint8_t kCnInternal = 3;
+constexpr std::uint8_t kCnInternal = 5;
 
 // Capturing world client — records the (wId, body) of the last SendPacket
 // so the test can decode the ack. IsConnected() is true so the handler
@@ -164,17 +164,26 @@ int main()
         tmapsvr::FakePlayerService  players;
         tmapsvr::InMemoryChannelPresence presence;
         tmapsvr::InMemoryCharStateStore  char_state;
-        players.Add(MakeHero(kCharId));
+        auto hero=MakeHero(kCharId);
+        auto payload=std::make_shared<tmapsvr::CharacterPayload>();
+        payload->skills.push_back({40000,7,300000});hero.payload=payload;
+        players.Add(hero);
+        tmapsvr::SkillCooldownTracker cooldowns;
         presence.Bind(kCharId, kChannel, nullptr);   // channel echo source
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client   = &wc;
         ctx.player_service = &players;
         ctx.presence       = &presence;
         ctx.char_state     = &char_state;
+        ctx.skill_cooldown = &cooldowns;
 
         RunEnter(/*dbload=*/1, kCharId, kKey, ctx);
 
+        const auto remaining=cooldowns.RemainMs(kCharId,40000,tmapsvr::SkillClockMs());
+        EXPECT(remaining>290000&&remaining<=300000);
+        EXPECT(!cooldowns.TryUse(kCharId,40000,tmapsvr::SkillClockMs(),0));
         EXPECT(wc.sends == 1);
         EXPECT(wc.last_id == static_cast<std::uint16_t>(MessageId::MW_ENTERSVR_ACK));
         EnterAck a;
@@ -195,9 +204,7 @@ int main()
         EXPECT(char_state.Get(kCharId).has_value());
     }
 
-    // --- Scenario B: cache hit, no player service ----------------------
-    // The snapshot is already live in char_state; the handler must reply
-    // from cache without any player service configured.
+    // Embedded handoff blobs cannot substitute a stale cached identity.
     {
         CapturingWorldClient             wc;
         tmapsvr::InMemoryChannelPresence presence;
@@ -206,6 +213,7 @@ int main()
         presence.Bind(kCharId, kChannel, nullptr);
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
         ctx.presence     = &presence;
         ctx.char_state   = &char_state;
@@ -216,10 +224,9 @@ int main()
         EXPECT(wc.sends == 1);
         EnterAck a;
         EXPECT(Decode(wc.last_body, a));
-        EXPECT(a.result  == kCnSuccess);
+        EXPECT(a.result  == kCnInternal);
         EXPECT(a.char_id == kCharId);
-        EXPECT(a.name    == "Hero");
-        EXPECT(a.level   == 77);
+        EXPECT(a.name.empty());
         EXPECT(a.channel == kChannel);
     }
 
@@ -232,6 +239,7 @@ int main()
         tmapsvr::InMemoryCharStateStore char_state;  // empty
 
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client   = &wc;
         ctx.player_service = &players;
         ctx.char_state     = &char_state;
@@ -243,17 +251,18 @@ int main()
         EXPECT(wc.last_id == static_cast<std::uint16_t>(MessageId::MW_ENTERSVR_ACK));
         EnterAck a;
         EXPECT(Decode(wc.last_body, a));
-        EXPECT(a.result  == kCnInternal);
+        EXPECT(a.result  == 2); // CN_NOCHAR
         EXPECT(a.char_id == kCharId);   // error ack still identifies the char
         EXPECT(a.key     == kKey);
         EXPECT(a.name.empty());
-        EXPECT(a.channel == 0);
+        EXPECT(a.channel == 1);
     }
 
     // --- Scenario D: short body is dropped silently (no ack) -----------
     {
         CapturingWorldClient wc;
         tmapsvr::HandlerContext ctx;
+        SessionFixture binding(ctx, kCharId, kKey);
         ctx.world_client = &wc;
 
         std::vector<std::byte> body;             // 0 bytes — truncated REQ
@@ -269,7 +278,7 @@ int main()
     }
 
     if (g_fails == 0)
-        std::printf("test_world_enter: load + cache-hit + no-char + short-body "
+        std::printf("test_world_enter: load + rejected-blob + no-char + short-body "
                     "OK (char=0x%08X)\n", kCharId);
     return g_fails == 0 ? 0 : 1;
 }

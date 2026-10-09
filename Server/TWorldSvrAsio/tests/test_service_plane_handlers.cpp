@@ -23,6 +23,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -158,12 +159,16 @@ int main()
     // 0x43 only (user 501).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(100, 0xA1, 500));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(100, 0xA1, 500)));
     for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
+    EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(100, 0xA1, 500), 0x43));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(100, 0xA1, 500));
+    EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(100, 0xA1, 500)));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
         AddCharBody(200, 0xB2, 501));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p2, AddCharBody(200, 0xB2, 501)));
     for (int i = 0; i < 1000 && !chars.Find(200); ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(chars.Size() == 2);
@@ -304,6 +309,13 @@ int main()
     }
 
     p2.close();
+    // Unexpected Map TCP loss must retire its World characters too, while
+    // preserving the native database claim for fenced checkpoint recovery.
+    for(int i=0;i<1000 && chars.Find(200);++i)
+        std::this_thread::sleep_for(10ms);
+    EXPECT(chars.Find(200)==nullptr);
+    EXPECT(chars.ActiveUserCount()==0);
+    EXPECT(ops_repo.ClearCalls().size()==1); // no legacy bulk clear on TCP loss
     io.stop();
     io_thread.join();
 

@@ -1,0 +1,3351 @@
+{
+  "TGLOBAL_RAGEZONE": {
+    "exact_row_counts": [
+      {
+        "schema_name": "dbo",
+        "table_name": "IPBLACKLIST",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "IPBLACKLIST_game",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "releaseDate",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TACCOUNT",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TACCOUNT_PW",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TALLCHARTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TALLCHARTABLE_TRIGGER",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TALLLOCALTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TALLRANKGUILDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TALLRANKTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCABINETITEMCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHBONUSITEMCHART",
+        "row_count": 427,
+        "exact_count": 427,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHCATEGORYCHART",
+        "row_count": 23,
+        "exact_count": 23,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHGAMBLECHART",
+        "row_count": 520,
+        "exact_count": 520,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHITEMBUYTABLE",
+        "row_count": 251,
+        "exact_count": 0,
+        "partition_count_matches": false
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHITEMCABINETTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHITEMCABINETTABLE_PW",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHITEMCABINETTABLE_temp",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHITEMINFOCHART",
+        "row_count": 14,
+        "exact_count": 14,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHITEMPRICETABLE",
+        "row_count": 114,
+        "exact_count": 114,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHSHOPITEMCHART",
+        "row_count": 709,
+        "exact_count": 709,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASHTESTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCHANNEL",
+        "row_count": 4,
+        "exact_count": 4,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCURRENTUSER",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TDURINGITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TempEvent",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEMPUSERID",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEVENT042501TL",
+        "row_count": 2104,
+        "exact_count": 2104,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEVENTCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEVENTGIVEERROR",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEVENTHORSE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGROUP",
+        "row_count": 2,
+        "exact_count": 2,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TIPADDR",
+        "row_count": 2,
+        "exact_count": 2,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TIPAUTHORITY",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMCHART",
+        "row_count": 2519,
+        "exact_count": 2519,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TKEEPINGNAME",
+        "row_count": 27,
+        "exact_count": 27,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TLIMITEDLEVELCHART",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TLOG",
+        "row_count": 699982,
+        "exact_count": 699982,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TLogTest",
+        "row_count": 5,
+        "exact_count": 5,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMACHINE",
+        "row_count": 3,
+        "exact_count": 3,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMANAGER",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMANAGERLOG",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONSTERCHART",
+        "row_count": 1811,
+        "exact_count": 1811,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TNETWORK",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPCBANGMASTERTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPCBANGPLAYTABLE",
+        "row_count": 31,
+        "exact_count": 31,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPREVERSION",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TREGIONCHART",
+        "row_count": 326,
+        "exact_count": 326,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TRESERVEDNAME",
+        "row_count": 29,
+        "exact_count": 29,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSECURECODE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSERVER",
+        "row_count": 13,
+        "exact_count": 13,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSMSTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSVRTYPE",
+        "row_count": 8,
+        "exact_count": 8,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPCASHITEM",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPDURINGITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "ttemplevel",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "ttempuser",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTESTLOGINUSER",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUNIFYCASHITEM",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUNIFYPOSTITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUSER_INTERFACE",
+        "row_count": 2,
+        "exact_count": 2,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUSERATTENDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUSERINFOTABLE",
+        "row_count": 11976,
+        "exact_count": 11976,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUSERPROTECTED",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUSERPROTECTED_old",
+        "row_count": 149,
+        "exact_count": 149,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TVERSION",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TVETERANCHART",
+        "row_count": 3,
+        "exact_count": 3,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "USERIPLOG",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      }
+    ],
+    "numeric_profiles": [
+      {
+        "table": "TITEMCHART",
+        "columns": [
+          {
+            "column": "wItemID",
+            "min": 1,
+            "max": 20053,
+            "negative_count": 0
+          },
+          {
+            "column": "bType",
+            "min": 0,
+            "max": 41,
+            "negative_count": 0
+          },
+          {
+            "column": "bKind",
+            "min": 0,
+            "max": 43,
+            "negative_count": 0
+          },
+          {
+            "column": "wAttrID",
+            "min": 0,
+            "max": 20934,
+            "negative_count": 0
+          },
+          {
+            "column": "wUseValue",
+            "min": 0,
+            "max": 1200,
+            "negative_count": 0
+          },
+          {
+            "column": "dwSlotID",
+            "min": 0,
+            "max": 12288,
+            "negative_count": 0
+          },
+          {
+            "column": "dwClassID",
+            "min": 1,
+            "max": 63,
+            "negative_count": 0
+          },
+          {
+            "column": "bPrmSlotID",
+            "min": 0,
+            "max": 255,
+            "negative_count": 0
+          },
+          {
+            "column": "bSubSlotID",
+            "min": 1,
+            "max": 255,
+            "negative_count": 0
+          },
+          {
+            "column": "bLevel",
+            "min": 0,
+            "max": 34,
+            "negative_count": 0
+          },
+          {
+            "column": "fPrice",
+            "min": 0.0,
+            "max": 900000000.0,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsSell",
+            "min": 0,
+            "max": 7,
+            "negative_count": 0
+          },
+          {
+            "column": "bMinRange",
+            "min": 0,
+            "max": 5,
+            "negative_count": 0
+          },
+          {
+            "column": "bMaxRange",
+            "min": 0,
+            "max": 30,
+            "negative_count": 0
+          },
+          {
+            "column": "bStack",
+            "min": 1,
+            "max": 200,
+            "negative_count": 0
+          },
+          {
+            "column": "bEquipSkill",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bSlotCount",
+            "min": 0,
+            "max": 16,
+            "negative_count": 0
+          },
+          {
+            "column": "bUseItemKind",
+            "min": 0,
+            "max": 25,
+            "negative_count": 0
+          },
+          {
+            "column": "bUseItemCount",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bGrade",
+            "min": 0,
+            "max": 80,
+            "negative_count": 0
+          },
+          {
+            "column": "wUseTime",
+            "min": 0,
+            "max": 30,
+            "negative_count": 0
+          },
+          {
+            "column": "bUseType",
+            "min": 0,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanGrade",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanMagic",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanRare",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bDropLevel",
+            "min": 0,
+            "max": 61,
+            "negative_count": 0
+          },
+          {
+            "column": "dwSpeedInc",
+            "min": 0,
+            "max": 900,
+            "negative_count": 0
+          },
+          {
+            "column": "bItemCountry",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsSpecial",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "dwDelay",
+            "min": 0,
+            "max": 900000,
+            "negative_count": 0
+          },
+          {
+            "column": "fRevision",
+            "min": 0.0,
+            "max": 1.0,
+            "negative_count": 0
+          },
+          {
+            "column": "fMRevision",
+            "min": 0.0,
+            "max": 1.0,
+            "negative_count": 0
+          },
+          {
+            "column": "fAtRate",
+            "min": 0.0,
+            "max": 0.3,
+            "negative_count": 0
+          },
+          {
+            "column": "fMAtRate",
+            "min": 0.0,
+            "max": 0.24,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanGamble",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "wItemProb_G",
+            "min": 0,
+            "max": 5,
+            "negative_count": 0
+          },
+          {
+            "column": "bDestroyProb",
+            "min": 0,
+            "max": 15,
+            "negative_count": 0
+          },
+          {
+            "column": "bGambleProb",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "dwDuraMax",
+            "min": 0,
+            "max": 4774,
+            "negative_count": 0
+          },
+          {
+            "column": "bRefineMax",
+            "min": 0,
+            "max": 5,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanRepair",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "wDelayGroupID",
+            "min": 0,
+            "max": 9001,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanColor",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          }
+        ]
+      },
+      {
+        "table": "TMONSTERCHART",
+        "columns": [
+          {
+            "column": "wID",
+            "min": 0,
+            "max": 31009,
+            "negative_count": 0
+          },
+          {
+            "column": "bRace",
+            "min": 51,
+            "max": 236,
+            "negative_count": 0
+          },
+          {
+            "column": "bClass",
+            "min": 0,
+            "max": 5,
+            "negative_count": 0
+          },
+          {
+            "column": "wKind",
+            "min": 0,
+            "max": 15306,
+            "negative_count": 0
+          },
+          {
+            "column": "bLevel",
+            "min": 1,
+            "max": 80,
+            "negative_count": 0
+          },
+          {
+            "column": "bAIType",
+            "min": 1,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "bRange",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "wChaseRange",
+            "min": 0,
+            "max": 500,
+            "negative_count": 0
+          },
+          {
+            "column": "bRoamProb",
+            "min": 0,
+            "max": 50,
+            "negative_count": 0
+          },
+          {
+            "column": "bMoneyProb",
+            "min": 1,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "dwMinMoney",
+            "min": 0,
+            "max": 578,
+            "negative_count": 0
+          },
+          {
+            "column": "dwMaxMoney",
+            "min": 0,
+            "max": 1156,
+            "negative_count": 0
+          },
+          {
+            "column": "bItemProb",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "bDropCount",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "wExp",
+            "min": 0,
+            "max": 356,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsSelf",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bRecallType",
+            "min": 0,
+            "max": 7,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanSelect",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanAttack",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bTame",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bCall",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsSpecial",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "bRemove",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "wMonAttr",
+            "min": 1001,
+            "max": 21810,
+            "negative_count": 0
+          },
+          {
+            "column": "wSummonAttr",
+            "min": 201,
+            "max": 2301,
+            "negative_count": 0
+          },
+          {
+            "column": "wTransSkillID",
+            "min": 0,
+            "max": 739,
+            "negative_count": 0
+          },
+          {
+            "column": "fSize",
+            "min": 0.4,
+            "max": 5.0,
+            "negative_count": 0
+          },
+          {
+            "column": "wSkill1",
+            "min": 0,
+            "max": 703,
+            "negative_count": 0
+          },
+          {
+            "column": "wSkill2",
+            "min": 0,
+            "max": 740,
+            "negative_count": 0
+          },
+          {
+            "column": "wSkill3",
+            "min": 0,
+            "max": 735,
+            "negative_count": 0
+          },
+          {
+            "column": "wSkill4",
+            "min": 0,
+            "max": 736,
+            "negative_count": 0
+          }
+        ]
+      }
+    ],
+    "codepage": [
+      {
+        "codepage": 1252
+      }
+    ]
+  },
+  "TGAME_RAGEZONE": {
+    "exact_row_counts": [
+      {
+        "schema_name": "dbo",
+        "table_name": "ACCESSORYMAGICTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "charkilling_log",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "dtproperties",
+        "row_count": 7,
+        "exact_count": 7,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "OTESTER",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "STATISTICACCOUNT",
+        "row_count": 10317,
+        "exact_count": 10317,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "STATISTICTEMP",
+        "row_count": 1118,
+        "exact_count": 1118,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TACTIVECHARTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TAICHART",
+        "row_count": 47,
+        "exact_count": 47,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TAICMDCHART",
+        "row_count": 18,
+        "exact_count": 18,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TAICONCHART",
+        "row_count": 6,
+        "exact_count": 6,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TAIDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TARENACHART",
+        "row_count": 2,
+        "exact_count": 2,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TAUCTIONBIDDER",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TAUCTIONINTEREST",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TAUCTIONTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBATTLERANKCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBATTLETIMECHART",
+        "row_count": 5,
+        "exact_count": 5,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBATTLEZONECHART",
+        "row_count": 26,
+        "exact_count": 26,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBOWBONUSITEMCHART",
+        "row_count": 11,
+        "exact_count": 11,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBOWITEMCHART",
+        "row_count": 31,
+        "exact_count": 31,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBOWITEMCHART1",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBOWSETTINGSCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBRPLAYERTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBRSETTINGSCHART",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBRSPAWNPOSCHART",
+        "row_count": 8,
+        "exact_count": 8,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TBRSUPPLIESCHART",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCABINETITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCABINETTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASTLEAPPLICANTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCASTLETABLE",
+        "row_count": 4,
+        "exact_count": 4,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCHANGEDITEM",
+        "row_count": 960,
+        "exact_count": 960,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCHANNELCHART",
+        "row_count": 361,
+        "exact_count": 361,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCHARTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCLASSCHART",
+        "row_count": 6,
+        "exact_count": 6,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCMGIFTCHART",
+        "row_count": 16,
+        "exact_count": 16,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCMGIFTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCOMPANIONBONUSCHART",
+        "row_count": 12,
+        "exact_count": 12,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCOMPANIONBONUSCHART_EMPTY",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCOMPANIONITEMTABLE",
+        "row_count": 11,
+        "exact_count": 11,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCOMPANIONTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCUSTOMCLOAKTABLE",
+        "row_count": 11,
+        "exact_count": 11,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TCUSTOMTIMECHART",
+        "row_count": 3,
+        "exact_count": 3,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TDBITEMINDEXTABLE",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TDESTINATIONCHART",
+        "row_count": 1097,
+        "exact_count": 1097,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TDUELCHARTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TDUELSCORETABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEQUIPCREATECHARCHART",
+        "row_count": 36,
+        "exact_count": 36,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TERASECHARLOG",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TERASEITEM",
+        "row_count": 960,
+        "exact_count": 960,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEST",
+        "row_count": 28,
+        "exact_count": 28,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEVENTITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEVENTQUARTERCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEVENTQUARTERGIVETABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TEXPITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TFAKECHARCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TFAKESHOPCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TFORMULACHART",
+        "row_count": 34,
+        "exact_count": 34,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TFRIENDGROUPTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TFRIENDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGAMBLECHART",
+        "row_count": 78,
+        "exact_count": 78,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGATECHART",
+        "row_count": 277,
+        "exact_count": 277,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGEMGRADECHART",
+        "row_count": 6,
+        "exact_count": 6,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGMREWARDCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGMREWARDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGODBALLCHART",
+        "row_count": 16,
+        "exact_count": 16,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGODTOWERCHART",
+        "row_count": 16,
+        "exact_count": 16,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDARTICLETABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDCABINETTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDCHART",
+        "row_count": 11,
+        "exact_count": 11,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDMEMBERSKILLTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDMEMBERTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDPLAYLOG",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDPVPOINTREWARDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDPVPRECORDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDRELATION",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDSKILLCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDSTATSTABLE",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDTABLE_copy",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDTACTICSTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDTACTICSWANTEDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDVOLUNTEERTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TGUILDWANTEDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "THELPMESSAGETABLE",
+        "row_count": 3,
+        "exact_count": 3,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "THEROTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "THOTKEYTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TINDUNCHART",
+        "row_count": 20,
+        "exact_count": 20,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TINVENTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TINVENTOURNAMENTCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMATTRCHART",
+        "row_count": 9002,
+        "exact_count": 9002,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMCHANGE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMCHART",
+        "row_count": 7706,
+        "exact_count": 7706,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMCHART_bak",
+        "row_count": 5957,
+        "exact_count": 5957,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMGRADECHART",
+        "row_count": 25,
+        "exact_count": 25,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMLEVELCHART",
+        "row_count": 125,
+        "exact_count": 125,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMLOG",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMMAGICCHART",
+        "row_count": 27,
+        "exact_count": 27,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMMAGICLEVELCHART",
+        "row_count": 71,
+        "exact_count": 71,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMMAGICSKILLCHART",
+        "row_count": 4,
+        "exact_count": 4,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMSETCHART",
+        "row_count": 393,
+        "exact_count": 393,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMTOURNAMENTCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TITEMUSEDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TLASTCOMPANIONTABLE",
+        "row_count": 16,
+        "exact_count": 16,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TLEVELCHART",
+        "row_count": 126,
+        "exact_count": 126,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TLOCALOCCUPYTABLE",
+        "row_count": 72,
+        "exact_count": 72,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TLOCALTABLE",
+        "row_count": 12,
+        "exact_count": 12,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMAPCHART",
+        "row_count": 301,
+        "exact_count": 301,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMAPMONCHART",
+        "row_count": 23381,
+        "exact_count": 23381,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMEDALS",
+        "row_count": 17,
+        "exact_count": 17,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMENTORTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMISSIONTABLE",
+        "row_count": 8,
+        "exact_count": 8,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONATTRCHART",
+        "row_count": 9290,
+        "exact_count": 9290,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONITEMCHART",
+        "row_count": 16466,
+        "exact_count": 16466,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONSPAWNCHART",
+        "row_count": 20357,
+        "exact_count": 20357,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONSTERCHART",
+        "row_count": 3534,
+        "exact_count": 3534,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONSTERSHOPCHART",
+        "row_count": 128,
+        "exact_count": 128,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONTHPVPOINTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONTHRANKCHART",
+        "row_count": 9,
+        "exact_count": 9,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMONTHRANKTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMOUNTCHART",
+        "row_count": 40,
+        "exact_count": 40,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMOUNTITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TMOUNTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TNPCCHART",
+        "row_count": 2623,
+        "exact_count": 2623,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TNPCITEMCHART",
+        "row_count": 3364,
+        "exact_count": 3364,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TOPERATORTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPETCHART",
+        "row_count": 156,
+        "exact_count": 156,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPETTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPLAYTIMETABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPORTALCHART",
+        "row_count": 529,
+        "exact_count": 529,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPOSTERRORTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPOSTITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPOSTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPREMIUMSKILLCHART",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPROTECTEDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPVPOINTCHART",
+        "row_count": 66,
+        "exact_count": 66,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPVPOINTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPVPRECENTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TPVPRECORDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQCLASSCHART",
+        "row_count": 336,
+        "exact_count": 336,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQCONDITIONCHART",
+        "row_count": 5712,
+        "exact_count": 5712,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQREWARDCHART",
+        "row_count": 4322,
+        "exact_count": 4322,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQTITLECHART",
+        "row_count": 6248,
+        "exact_count": 6248,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQUESTCHART",
+        "row_count": 6261,
+        "exact_count": 6261,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQUESTITEMCHART",
+        "row_count": 715,
+        "exact_count": 715,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQUESTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQUESTTERMCHART",
+        "row_count": 10687,
+        "exact_count": 10687,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TQUESTTERMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TRACECHART",
+        "row_count": 88,
+        "exact_count": 88,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TRANKING",
+        "row_count": 4,
+        "exact_count": 4,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TRECALLMAINTAINTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TRECALLMONTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TRESERVEDPOST",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TRPSGAMECHART",
+        "row_count": 48,
+        "exact_count": 48,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TRPSGAMERECORDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSAVEDCUSTOMCLOAKTABLE",
+        "row_count": 2,
+        "exact_count": 2,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKILLCHART",
+        "row_count": 765,
+        "exact_count": 765,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKILLDATA",
+        "row_count": 1172,
+        "exact_count": 1172,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKILLLOG",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKILLMAINTAINTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKILLPOINTCHART",
+        "row_count": 719,
+        "exact_count": 719,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKILLREWARD",
+        "row_count": 1134,
+        "exact_count": 1134,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKILLREWARDMONEY",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKILLTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSKYGARDENTABLE",
+        "row_count": 1,
+        "exact_count": 1,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSOULMATETABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSPAWNPATHCHART",
+        "row_count": 668,
+        "exact_count": 668,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSPAWNPOSCHART",
+        "row_count": 417,
+        "exact_count": 417,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSPECIALBOXCHART",
+        "row_count": 5,
+        "exact_count": 5,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSTARTHOTKEY",
+        "row_count": 12,
+        "exact_count": 12,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSTARTITEMCHART",
+        "row_count": 189,
+        "exact_count": 189,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSTARTRECALL",
+        "row_count": 3,
+        "exact_count": 3,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSTARTSKILL",
+        "row_count": 237,
+        "exact_count": 237,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSVRMSGCHART",
+        "row_count": 51,
+        "exact_count": 51,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSWITCHCHART",
+        "row_count": 399,
+        "exact_count": 399,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTAXTABLE",
+        "row_count": 8,
+        "exact_count": 8,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPCABINETITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPCABINETTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPEXPITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPINVENTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPITEMTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPITEMUSEDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPSKILLMAINTAINTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTEMPSKILLTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTITLECHART",
+        "row_count": 111,
+        "exact_count": 111,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTITLETABLE",
+        "row_count": 88538,
+        "exact_count": 88538,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTNMTEVENTREWARDTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTNMTEVENTSCHEDULETABLE",
+        "row_count": 78,
+        "exact_count": 78,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTNMTEVENTTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTNMTEVENTTIMETABLE",
+        "row_count": 6,
+        "exact_count": 6,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTOURNAMENTCHART",
+        "row_count": 8,
+        "exact_count": 8,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTOURNAMENTPLAYERTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTOURNAMENTREWARDCHART",
+        "row_count": 32,
+        "exact_count": 32,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTOURNAMENTREWARDCHART_weap",
+        "row_count": 32,
+        "exact_count": 32,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTOURNAMENTSCHEDULECHART",
+        "row_count": 33,
+        "exact_count": 33,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TTOURNAMENTSTATUSTABLE",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUNIFYPET",
+        "row_count": 0,
+        "exact_count": 0,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TUNITCHART",
+        "row_count": 361,
+        "exact_count": 361,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "tgame",
+        "table_name": "TLASTMONTHPOINTTABLE",
+        "row_count": 200,
+        "exact_count": 200,
+        "partition_count_matches": true
+      },
+      {
+        "schema_name": "tgame",
+        "table_name": "TLASTTOTALPOINTTABLE",
+        "row_count": 200,
+        "exact_count": 200,
+        "partition_count_matches": true
+      }
+    ],
+    "numeric_profiles": [
+      {
+        "table": "TITEMCHART",
+        "columns": [
+          {
+            "column": "wItemID",
+            "min": 1,
+            "max": 32766,
+            "negative_count": 0
+          },
+          {
+            "column": "bType",
+            "min": 0,
+            "max": 41,
+            "negative_count": 0
+          },
+          {
+            "column": "bKind",
+            "min": 0,
+            "max": 250,
+            "negative_count": 0
+          },
+          {
+            "column": "wAttrID",
+            "min": 0,
+            "max": 21568,
+            "negative_count": 0
+          },
+          {
+            "column": "wUseValue",
+            "min": 0,
+            "max": 31140,
+            "negative_count": 0
+          },
+          {
+            "column": "dwSlotID",
+            "min": 0,
+            "max": 262144,
+            "negative_count": 0
+          },
+          {
+            "column": "dwClassID",
+            "min": 0,
+            "max": 63,
+            "negative_count": 0
+          },
+          {
+            "column": "bPrmSlotID",
+            "min": 0,
+            "max": 255,
+            "negative_count": 0
+          },
+          {
+            "column": "bSubSlotID",
+            "min": 1,
+            "max": 255,
+            "negative_count": 0
+          },
+          {
+            "column": "bLevel",
+            "min": 0,
+            "max": 255,
+            "negative_count": 0
+          },
+          {
+            "column": "fPrice",
+            "min": 0.0,
+            "max": 250000000.0,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsSell",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "bMinRange",
+            "min": 0,
+            "max": 7,
+            "negative_count": 0
+          },
+          {
+            "column": "bMaxRange",
+            "min": 0,
+            "max": 30,
+            "negative_count": 0
+          },
+          {
+            "column": "bStack",
+            "min": 0,
+            "max": 200,
+            "negative_count": 0
+          },
+          {
+            "column": "bEquipSkill",
+            "min": 0,
+            "max": 200,
+            "negative_count": 0
+          },
+          {
+            "column": "bSlotCount",
+            "min": 0,
+            "max": 19,
+            "negative_count": 0
+          },
+          {
+            "column": "bUseItemKind",
+            "min": 0,
+            "max": 25,
+            "negative_count": 0
+          },
+          {
+            "column": "bUseItemCount",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bGrade",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "wUseTime",
+            "min": 0,
+            "max": 365,
+            "negative_count": 0
+          },
+          {
+            "column": "bUseType",
+            "min": 0,
+            "max": 130,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanGrade",
+            "min": 0,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanMagic",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanRare",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bDropLevel",
+            "min": 0,
+            "max": 90,
+            "negative_count": 0
+          },
+          {
+            "column": "dwSpeedInc",
+            "min": 0,
+            "max": 900,
+            "negative_count": 0
+          },
+          {
+            "column": "bItemCountry",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsSpecial",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "dwDelay",
+            "min": 0,
+            "max": 1200000,
+            "negative_count": 0
+          },
+          {
+            "column": "fRevision",
+            "min": 0.0,
+            "max": 1200000.0,
+            "negative_count": 0
+          },
+          {
+            "column": "fMRevision",
+            "min": 0.0,
+            "max": 1.0,
+            "negative_count": 0
+          },
+          {
+            "column": "fAtRate",
+            "min": 0.0,
+            "max": 1.0,
+            "negative_count": 0
+          },
+          {
+            "column": "fMAtRate",
+            "min": 0.0,
+            "max": 1.0,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanGamble",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "wItemProb_G",
+            "min": 0,
+            "max": 5,
+            "negative_count": 0
+          },
+          {
+            "column": "bDestroyProb",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "bGambleProb",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "dwDuraMax",
+            "min": 0,
+            "max": 31736,
+            "negative_count": 0
+          },
+          {
+            "column": "bRefineMax",
+            "min": 0,
+            "max": 5,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanRepair",
+            "min": 0,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "wDelayGroupID",
+            "min": 0,
+            "max": 31241,
+            "negative_count": 0
+          },
+          {
+            "column": "wWeight",
+            "min": 0,
+            "max": 4,
+            "negative_count": 0
+          },
+          {
+            "column": "bGroupID",
+            "min": 0,
+            "max": 19,
+            "negative_count": 0
+          },
+          {
+            "column": "bInitState",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanWrap",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "dwCode",
+            "min": 0,
+            "max": 1048783,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanColor",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "fPvPrice",
+            "min": 0.0,
+            "max": 100000.0,
+            "negative_count": 0
+          },
+          {
+            "column": "bConsumable",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "wExpandValue",
+            "min": 0,
+            "max": 31132,
+            "negative_count": 0
+          }
+        ]
+      },
+      {
+        "table": "TQUESTCHART",
+        "columns": [
+          {
+            "column": "dwQuestID",
+            "min": 7,
+            "max": 30000,
+            "negative_count": 0
+          },
+          {
+            "column": "dwParentID",
+            "min": 0,
+            "max": 8937,
+            "negative_count": 0
+          },
+          {
+            "column": "bType",
+            "min": 0,
+            "max": 19,
+            "negative_count": 0
+          },
+          {
+            "column": "bForceRun",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "bTriggerType",
+            "min": 0,
+            "max": 13,
+            "negative_count": 0
+          },
+          {
+            "column": "dwTriggerID",
+            "min": 0,
+            "max": 46661640,
+            "negative_count": 0
+          },
+          {
+            "column": "bCountMax",
+            "min": 0,
+            "max": 7,
+            "negative_count": 0
+          },
+          {
+            "column": "bLevel",
+            "min": 0,
+            "max": 90,
+            "negative_count": 0
+          },
+          {
+            "column": "bMain",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "bConditionCheck",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          }
+        ]
+      },
+      {
+        "table": "TNPCCHART",
+        "columns": [
+          {
+            "column": "wID",
+            "min": 19000,
+            "max": 30001,
+            "negative_count": 0
+          },
+          {
+            "column": "bType",
+            "min": 0,
+            "max": 26,
+            "negative_count": 0
+          },
+          {
+            "column": "dwClass",
+            "min": 0,
+            "max": 255,
+            "negative_count": 0
+          },
+          {
+            "column": "bCountryID",
+            "min": 0,
+            "max": 69,
+            "negative_count": 0
+          },
+          {
+            "column": "wLocalID",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "bCondition",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "bDiscountRate",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "bAddProb",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "wItemID",
+            "min": 0,
+            "max": 29545,
+            "negative_count": 0
+          },
+          {
+            "column": "wMapID",
+            "min": 0,
+            "max": 2100,
+            "negative_count": 0
+          },
+          {
+            "column": "fPosX",
+            "min": -2.775558e-17,
+            "max": 7124.35,
+            "negative_count": 1
+          },
+          {
+            "column": "fPosY",
+            "min": -20.4,
+            "max": 247.8,
+            "negative_count": 30
+          },
+          {
+            "column": "fPosZ",
+            "min": -9.409742e+26,
+            "max": 7125.72,
+            "negative_count": 1
+          }
+        ]
+      },
+      {
+        "table": "TMONSTERCHART",
+        "columns": [
+          {
+            "column": "wID",
+            "min": 0,
+            "max": 32767,
+            "negative_count": 0
+          },
+          {
+            "column": "bRace",
+            "min": 0,
+            "max": 236,
+            "negative_count": 0
+          },
+          {
+            "column": "bClass",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "wKind",
+            "min": 0,
+            "max": 31847,
+            "negative_count": 0
+          },
+          {
+            "column": "bLevel",
+            "min": 1,
+            "max": 140,
+            "negative_count": 0
+          },
+          {
+            "column": "bAIType",
+            "min": 1,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "bRange",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "wChaseRange",
+            "min": 0,
+            "max": 535,
+            "negative_count": 0
+          },
+          {
+            "column": "bRoamProb",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "bMoneyProb",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "dwMinMoney",
+            "min": 0,
+            "max": 10000,
+            "negative_count": 0
+          },
+          {
+            "column": "dwMaxMoney",
+            "min": 0,
+            "max": 60000,
+            "negative_count": 0
+          },
+          {
+            "column": "bItemProb",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "bDropCount",
+            "min": 0,
+            "max": 14,
+            "negative_count": 0
+          },
+          {
+            "column": "wExp",
+            "min": 0,
+            "max": 1760,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsSelf",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bRecallType",
+            "min": 0,
+            "max": 7,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanSelect",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanAttack",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bTame",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bCall",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsSpecial",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "bRemove",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "wMonAttr",
+            "min": 0,
+            "max": 32618,
+            "negative_count": 0
+          },
+          {
+            "column": "wSummonAttr",
+            "min": 201,
+            "max": 2301,
+            "negative_count": 0
+          },
+          {
+            "column": "wTransSkillID",
+            "min": 0,
+            "max": 809,
+            "negative_count": 0
+          },
+          {
+            "column": "fSize",
+            "min": 0.100000001490116,
+            "max": 27.0,
+            "negative_count": 0
+          },
+          {
+            "column": "wSkill1",
+            "min": 0,
+            "max": 1627,
+            "negative_count": 0
+          },
+          {
+            "column": "wSkill2",
+            "min": 0,
+            "max": 1545,
+            "negative_count": 0
+          },
+          {
+            "column": "wSkill3",
+            "min": 0,
+            "max": 1364,
+            "negative_count": 0
+          },
+          {
+            "column": "wSkill4",
+            "min": 0,
+            "max": 1343,
+            "negative_count": 0
+          }
+        ]
+      },
+      {
+        "table": "TSKILLCHART",
+        "columns": [
+          {
+            "column": "wID",
+            "min": 1,
+            "max": 3605,
+            "negative_count": 0
+          },
+          {
+            "column": "wPrevActiveID",
+            "min": 0,
+            "max": 802,
+            "negative_count": 0
+          },
+          {
+            "column": "wParentSkillID",
+            "min": 0,
+            "max": 600,
+            "negative_count": 0
+          },
+          {
+            "column": "wItemID",
+            "min": 0,
+            "max": 31241,
+            "negative_count": 0
+          },
+          {
+            "column": "wMaxRange",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "wMinRange",
+            "min": 0,
+            "max": 5,
+            "negative_count": 0
+          },
+          {
+            "column": "wPosture",
+            "min": 0,
+            "max": 601,
+            "negative_count": 0
+          },
+          {
+            "column": "dwConditionID",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "dwWeaponID",
+            "min": 0,
+            "max": 2048,
+            "negative_count": 0
+          },
+          {
+            "column": "dwClassID",
+            "min": 0,
+            "max": 63,
+            "negative_count": 0
+          },
+          {
+            "column": "bKind",
+            "min": 0,
+            "max": 101,
+            "negative_count": 0
+          },
+          {
+            "column": "fPrice",
+            "min": 0.0,
+            "max": 1.0275000333786,
+            "negative_count": 0
+          },
+          {
+            "column": "dwUseMP",
+            "min": 0,
+            "max": 8335,
+            "negative_count": 0
+          },
+          {
+            "column": "bUseMPType",
+            "min": 0,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "dwUseHP",
+            "min": 0,
+            "max": 20,
+            "negative_count": 0
+          },
+          {
+            "column": "bUseHPType",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "dwReuseDelay",
+            "min": 0,
+            "max": 3600000,
+            "negative_count": 0
+          },
+          {
+            "column": "nReuseDelayInc",
+            "min": -40000,
+            "max": 750,
+            "negative_count": 1
+          },
+          {
+            "column": "dwLoopDelay",
+            "min": 0,
+            "max": 3600000,
+            "negative_count": 0
+          },
+          {
+            "column": "dwActionTime",
+            "min": 0,
+            "max": 10000,
+            "negative_count": 0
+          },
+          {
+            "column": "dwDuration",
+            "min": -1702967296,
+            "max": 86400000,
+            "negative_count": 2
+          },
+          {
+            "column": "dwDurationInc",
+            "min": 0,
+            "max": 300000,
+            "negative_count": 0
+          },
+          {
+            "column": "dwKindDelay",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "dwAggro",
+            "min": 0,
+            "max": 4332,
+            "negative_count": 0
+          },
+          {
+            "column": "dwAggroInc",
+            "min": 0,
+            "max": 0,
+            "negative_count": 0
+          },
+          {
+            "column": "bLevel",
+            "min": 0,
+            "max": 94,
+            "negative_count": 0
+          },
+          {
+            "column": "bMaxLevel",
+            "min": 0,
+            "max": 12,
+            "negative_count": 0
+          },
+          {
+            "column": "bNextLevel",
+            "min": 0,
+            "max": 28,
+            "negative_count": 0
+          },
+          {
+            "column": "bTarget",
+            "min": 0,
+            "max": 22,
+            "negative_count": 0
+          },
+          {
+            "column": "bTargetRange",
+            "min": 0,
+            "max": 7,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsuse",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bTargetHit",
+            "min": 1,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "bPositive",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "bPriority",
+            "min": 0,
+            "max": 255,
+            "negative_count": 0
+          },
+          {
+            "column": "bSpeedApply",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanLearn",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bORadius",
+            "min": 0,
+            "max": 8,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsRide",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsDismount",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "wTargetActiveID",
+            "min": 0,
+            "max": 600,
+            "negative_count": 0
+          },
+          {
+            "column": "bMaintainType",
+            "min": 0,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "bDuraSlot",
+            "min": 0,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "bCanCancel",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bHitTest",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bHitInit",
+            "min": 0,
+            "max": 100,
+            "negative_count": 0
+          },
+          {
+            "column": "bHitInc",
+            "min": 0,
+            "max": 30,
+            "negative_count": 0
+          },
+          {
+            "column": "bGlobal",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bRadius",
+            "min": 0,
+            "max": 30,
+            "negative_count": 0
+          },
+          {
+            "column": "bStatic",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bEraseAct",
+            "min": 0,
+            "max": 7,
+            "negative_count": 0
+          },
+          {
+            "column": "bEraseHide",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "bIsHideSkill",
+            "min": 0,
+            "max": 1,
+            "negative_count": 0
+          },
+          {
+            "column": "bRunFromServer",
+            "min": 0,
+            "max": 2,
+            "negative_count": 0
+          },
+          {
+            "column": "bCheckAttacker",
+            "min": 0,
+            "max": 3,
+            "negative_count": 0
+          },
+          {
+            "column": "wTriggerID",
+            "min": 0,
+            "max": 3605,
+            "negative_count": 0
+          },
+          {
+            "column": "wMapID",
+            "min": -1,
+            "max": 550,
+            "negative_count": 763
+          },
+          {
+            "column": "bRepeatCount",
+            "min": null,
+            "max": null,
+            "negative_count": 0
+          }
+        ]
+      }
+    ],
+    "codepage": [
+      {
+        "codepage": 1252
+      }
+    ]
+  }
+}

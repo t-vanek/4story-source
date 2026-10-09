@@ -48,6 +48,13 @@ set(TNETLIB_HEADERS
     ${TNETLIB_SRC_DIR}/packet_codec.h
 )
 
+option(FOURSTORY_BUILD_LEGACY_TNETLIB
+    "Build the original Win32/ATL TNetLib (requires a Windows toolchain)" ${WIN32})
+if(FOURSTORY_BUILD_LEGACY_TNETLIB AND NOT WIN32)
+    message(FATAL_ERROR "Legacy TNetLib requires Windows; use tnetlib_portable on Linux")
+endif()
+
+if(FOURSTORY_BUILD_LEGACY_TNETLIB)
 add_library(tnetlib STATIC ${TNETLIB_SOURCES} ${TNETLIB_HEADERS})
 add_library(FourStory::TNetLib ALIAS tnetlib)
 
@@ -89,6 +96,9 @@ else()
     target_link_libraries(tnetlib PUBLIC boost_system)
 endif()
 
+endif() # FOURSTORY_BUILD_LEGACY_TNETLIB
+
+if(BUILD_TESTING)
 # Standalone crypto test (no external test framework needed — pure
 # C++ + OpenSSL). Run via `ctest --test-dir build -R tnetlib_crypto`.
 if(NOT WIN32 OR FOURSTORY_FORCE_OPENSSL_CRYPTO)
@@ -224,6 +234,8 @@ set_source_files_properties(
     TARGET_DIRECTORY test_tnetlib_messageid)
 add_test(NAME tnetlib_messageid COMMAND test_tnetlib_messageid)
 
+endif() # BUILD_TESTING
+
 # tnetlib_portable — subset target with ONLY the new portable .cpp
 # files (no stdafx.h, no winsock, no ATL). Servers being migrated
 # off the legacy CSession/CPacket should link this, not the full
@@ -264,6 +276,7 @@ if(NOT WIN32)
     target_link_libraries(tnetlib_portable PUBLIC pthread)
 endif()
 
+if(FOURSTORY_BUILD_LEGACY_TNETLIB)
 # Crypto backend selection:
 #   - Non-Windows: must use OpenSSL (no Win32 CryptoAPI exists)
 #   - Windows:     defaults to Win32 CryptoAPI for ABI-stable backward
@@ -315,3 +328,5 @@ target_compile_definitions(tnetlib
         $<$<BOOL:${FOURSTORY_HAS_WIN32}>:FOURSTORY_TNETLIB_HAS_WIN32=1>
         $<$<NOT:$<BOOL:${FOURSTORY_HAS_WIN32}>>:FOURSTORY_TNETLIB_PORTABLE=1>
 )
+
+endif() # FOURSTORY_BUILD_LEGACY_TNETLIB

@@ -4,9 +4,9 @@
 // backend; service impls acquire a session, run their query, and the
 // session returns to the pool on Lease destruction.
 //
-// Backend-agnostic: same code targets PostgreSQL, MSSQL (via ODBC),
-// SQLite. Connection-string format differs per backend — see
-// services/db/CONFIG.md for examples.
+// Native PostgreSQL and the existing MSSQL/ODBC compatibility backend.
+// SQLite remains an enum value but is not compiled in. Selecting a backend
+// does not translate repository SQL or stored procedure calls.
 //
 // Thread-safety: the underlying soci::connection_pool serializes
 // acquisitions across threads. Each leased session is exclusive to
@@ -38,7 +38,9 @@ class SessionPool
 {
 public:
     // Open `pool_size` sessions to the named backend with the given
-    // connection string. Throws soci::soci_error on connect failure.
+    // connection string. Throws ConnectionError on connect failure with
+    // credential-safe diagnostics. PostgreSQL defaults to connect_timeout=5
+    // and sslmode=verify-full; the native disposable tests use a one-use CA.
     //
     // Connection string examples (SOCI dialect):
     //   PostgreSQL: "host=localhost port=5432 dbname=tloginsvr_dev
@@ -111,6 +113,12 @@ private:
 // specifically and reply with a "service busy" error to the client
 // instead of falling through into the generic exception path.
 class AcquireTimeout : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
+
+class ConnectionError : public std::runtime_error
 {
 public:
     using std::runtime_error::runtime_error;

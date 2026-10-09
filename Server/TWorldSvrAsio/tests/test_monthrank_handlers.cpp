@@ -21,6 +21,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -257,7 +258,10 @@ int main()
         wire::WritePOD<std::uint32_t>(b, 0x7f000001);
         wire::WritePOD<std::uint16_t>(b, 33500);
         wire::WritePOD<std::uint32_t>(b, 700);
+        if (s == &p2) EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, b, 0x43));
         SendFramed(*s, ToUint16(MessageId::MW_ADDCHAR_ACK), b);
+        if (s == &p1) EXPECT(world_test::ReadFreshEnter(ReadFramed, *s, b));
+        else EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, b));
         std::this_thread::sleep_for(20ms);
     }
     {

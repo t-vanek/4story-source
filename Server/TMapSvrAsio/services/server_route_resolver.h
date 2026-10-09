@@ -14,6 +14,7 @@
 // (same interface/fake/soci staging the other map services use).
 
 #include <cstdint>
+#include "domain/session.h"
 #include <unordered_map>
 #include <vector>
 
@@ -35,6 +36,9 @@ class IServerRouteResolver
 public:
     virtual ~IServerRouteResolver() = default;
 
+    virtual std::vector<ServerRoute> ResolveAuthorized(const MapSessionClaim& c,const std::vector<std::uint8_t>& ids) {
+        return Resolve(c.group,ids);
+    }
     // Resolve the given server ids (within the map's group) to their
     // endpoints. Unknown ids are omitted from the result — the legacy
     // CSPRoute query simply returned no row for them.

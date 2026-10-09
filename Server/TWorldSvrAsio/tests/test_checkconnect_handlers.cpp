@@ -16,6 +16,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -29,6 +30,7 @@
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <limits>
 #include <string>
 #include <thread>
 #include <vector>
@@ -142,15 +144,15 @@ int main()
     p1.connect(ep); p2.connect(ep); p3.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
-    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0044));
+    SendFramed(p3, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0444));
     { auto [w, _] = ReadFramed(p3);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -167,10 +169,13 @@ int main()
     auto establish = [&](std::uint32_t id, std::uint32_t key) {
         SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(id, key)));
         for (int i = 0; i < 1000 && !chars.Find(id); ++i)
             std::this_thread::sleep_for(10ms);
+        EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(id, key), 0x43));
         SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                    AddCharBody(id, key));
+        EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(id, key)));
         for (int i = 0; i < 1000 && cons_size(id) != 2; ++i)
             std::this_thread::sleep_for(10ms);
     };
@@ -184,6 +189,22 @@ int main()
         std::lock_guard g(c->lock);
         return c->map_id;
     };
+
+    // A valid unknown-character request is a wire barrier after malformed
+    // input; there must be no earlier response or mutation of the live char.
+    const auto initial_map=map_of(100);
+    for(int scenario=0;scenario<4;++scenario) {
+        auto malformed=CheckConnectBody(100,0xA1,5,601,7,8,9,{});
+        if(scenario==0)malformed.push_back(std::byte{0});
+        if(scenario==1)malformed.back()=std::byte{1};
+        if(scenario==2)malformed=CheckConnectBody(100,0xA1,5,601,std::numeric_limits<float>::quiet_NaN(),8,9,{});
+        auto& sender=scenario==3?p2:p1;
+        SendFramed(sender,ToUint16(MessageId::MW_CHECKCONNECT_ACK),malformed);
+        SendFramed(sender,ToUint16(MessageId::MW_CHECKCONNECT_ACK),CheckConnectBody(990+scenario,0xCC,0,0,0,0,0,{}));
+        const auto [opcode,ignored]=ReadFramed(sender);
+        EXPECT(opcode==ToUint16(MessageId::MW_DELCHAR_REQ));
+        EXPECT(map_of(100)==initial_map);
+    }
 
     // --- count=0: position update + CHECKMAIN sweep to every con ----
     {

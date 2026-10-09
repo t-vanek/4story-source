@@ -27,6 +27,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -193,9 +194,11 @@ int main()
     struct C { std::uint32_t id; std::uint32_t key; tcp::socket* sock; };
     C alice{42, 0xA1, &p1}, bob{200, 0xB0, &p2}, carol{400, 0xCA, &p3},
       dave{600, 0xDA, &p4};
-    for (auto* c : {&alice, &bob, &carol, &dave})
+    for (auto* c : {&alice, &bob, &carol, &dave}) {
         SendFramed(*c->sock, ToUint16(MessageId::MW_ADDCHAR_ACK),
             AddCharBody(c->id, c->key));
+        EXPECT(world_test::ReadFreshEnter(ReadFramed, *c->sock, AddCharBody(c->id, c->key)));
+    }
 
     for (int i = 0; i < 100; ++i)
     {

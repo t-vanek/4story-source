@@ -19,7 +19,7 @@ namespace tmapsvr::queries {
 
 // TCURRENTUSER — session lookup for the F4 handshake handler.
 inline constexpr const char* SessionByUserKey =
-    "SELECT dwUserID, dwKEY, bGroupID, bChannel, szLoginIP, bLocked "
+    "SELECT dwUserID, dwKEY, bGroupID, bChannel, szLoginIP, bLocked, dwCharID "
     "FROM TCURRENTUSER WHERE dwUserID = :uid AND dwKEY = :key";
 
 // TCHARTABLE — F8 player snapshot (40 columns matching CharSnapshot).

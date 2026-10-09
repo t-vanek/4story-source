@@ -16,9 +16,11 @@
 #include <boost/asio/post.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 
 #include <array>
 #include <atomic>
+#include <barrier>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -623,6 +625,7 @@ void TestConcurrentSendPacketSerializes()
     }
 
     std::thread client_thread([&client_io] { client_io.run(); });
+    std::thread client_thread2([&client_io] { client_io.run(); });
 
     const auto deadline = std::chrono::steady_clock::now() +
                           std::chrono::seconds(5);
@@ -641,6 +644,7 @@ void TestConcurrentSendPacketSerializes()
         std::lock_guard<std::mutex> lk(server_wids_mtx);
         std::vector<int> per_producer(kProducers, 0);
         bool all_in_range = true;
+        bool producer_order = true;
         for (auto w : server_wids)
         {
             const int pid = w / 1000;
@@ -651,21 +655,93 @@ void TestConcurrentSendPacketSerializes()
                 all_in_range = false;
                 break;
             }
-            per_producer[pid]++;
+            if (idx != per_producer[pid]++) producer_order = false;
         }
         Check(all_in_range, "every wId falls in an expected producer range");
         bool counts_ok = true;
         for (int c : per_producer)
             if (c != kPacketsPerOne) counts_ok = false;
         Check(counts_ok, "each producer's packets all arrived");
+        Check(producer_order, "each producer arrives in order without duplicates or gaps");
     }
 
     client_sess->Close();
     client_io.stop();
     if (client_thread.joinable()) client_thread.join();
+    if (client_thread2.joinable()) client_thread2.join();
     io.stop();
     if (io_thread1.joinable()) io_thread1.join();
     if (io_thread2.joinable()) io_thread2.join();
+}
+
+// Public Close races with outstanding composed reads, a blocked write,
+// backpressured producers and other Close calls. All coroutine completions
+// must return without stopping the executor to force their destruction.
+void TestConcurrentCloseWithBackpressure()
+{
+    std::printf("[concurrent close with read/write and queue backpressure]\n");
+    tnetlib::AsioSession::SetSendQueueCapacity(1);
+    bool all_finished = true, all_closed = true, no_errors = true;
+    for (int round = 0; round < 24; ++round)
+    {
+        asio::io_context io, peer_io;
+        auto work = asio::make_work_guard(io);
+        tcp::acceptor acceptor(io, {tcp::v4(), 0});
+        tcp::socket peer(peer_io);
+        peer.connect({asio::ip::address_v4::loopback(), acceptor.local_endpoint().port()});
+        auto socket = acceptor.accept();
+        socket.set_option(asio::socket_base::send_buffer_size(1024));
+        auto session = std::make_shared<tnetlib::AsioSession>(
+            std::move(socket), tnetlib::PeerType::Server);
+        std::atomic<int> entered{0}, finished{0}, errors{0};
+        auto complete = [&](std::exception_ptr error) {
+            if (error) ++errors;
+            ++finished;
+        };
+        asio::co_spawn(io, session->RunPackets([](const auto&) {}), complete);
+        for (int producer = 0; producer < 8; ++producer)
+            asio::co_spawn(io, [session, &entered]() -> asio::awaitable<void> {
+                std::vector<std::byte> body(32000, std::byte{0xAB});
+                ++entered;
+                for (int packet = 0; packet < 32; ++packet)
+                    co_await session->SendPacket(0x1234, body);
+            }, complete);
+        std::thread first([&] { io.run(); });
+        std::thread second([&] { io.run(); });
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (entered.load() != 8 && std::chrono::steady_clock::now() < deadline)
+            std::this_thread::yield();
+        // Leave a partial header pending while writers cannot drain to peer.
+        const std::array<unsigned char, 2> partial_header{32, 0};
+        asio::write(peer, asio::buffer(partial_header));
+        std::barrier start(5);
+        std::vector<std::thread> closers;
+        for (int n = 0; n < 4; ++n)
+            closers.emplace_back([&] {
+                start.arrive_and_wait();
+                for (int repeat = 0; repeat < 16; ++repeat) session->Close();
+            });
+        start.arrive_and_wait();
+        peer.close();
+        for (auto& closer : closers) closer.join();
+        all_closed &= !session->IsOpen();
+        while (finished.load() != 9 && std::chrono::steady_clock::now() < deadline)
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        all_finished &= entered.load() == 8 && finished.load() == 9;
+        if (!all_finished) std::printf("  close round %d: entered=%d finished=%d errors=%d\n",
+            round, entered.load(), finished.load(), errors.load());
+        no_errors &= errors.load() == 0;
+        work.reset();
+        if (finished.load() != 9) io.stop();
+        first.join(); second.join();
+        // After both runners finish, direct socket inspection is synchronized.
+        all_closed &= !session->Socket().is_open();
+        if (!all_finished) break;
+    }
+    tnetlib::AsioSession::SetSendQueueCapacity(256);
+    Check(all_finished, "24 close races finish every reader and backpressured producer");
+    Check(all_closed, "close is visible immediately and releases the socket on the executor");
+    Check(no_errors, "concurrent shutdown does not throw from packet operations");
 }
 
 } // namespace
@@ -686,6 +762,7 @@ int main()
         TestErrorLoggerOnMalformedPacket();
         TestSendPacketRejectsOversizedBody();
         TestConcurrentSendPacketSerializes();
+        TestConcurrentCloseWithBackpressure();
     }
     catch (const std::exception& ex)
     {

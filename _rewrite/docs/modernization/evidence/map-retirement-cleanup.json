@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-09",
+  "verified_at_utc": "2026-10-09T02:46:45.840423+00:00",
+  "owned_database_containers_removed": {
+    "pg_container": true
+  },
+  "owned_network_removed": true,
+  "remaining_labelled_test_containers": 0,
+  "temporary_env_and_private_key_files_removed": 13,
+  "private_diagnostics_retained": true,
+  "original_reference_snapshots_retained": true,
+  "sql_server_used": false,
+  "runtime_image_retained": "localhost/fourstory:postgresql-map-retirement",
+  "continuation": "Create an owned PG-only lab and reuse pinned character/routing/actor manifests. Next implement separate fenced replica grants, transient synchronization, then primary transfer/recovery; add migration 019+ without modifying 001\u2013018."
+}

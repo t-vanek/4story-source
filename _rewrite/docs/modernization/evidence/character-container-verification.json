@@ -1,0 +1,13 @@
+{
+  "image": "localhost/fourstory:postgresql-characters",
+  "image_id": "684c7dbddae8411dfe1e5469b9ff86eead661cf21ee8ad00b6bb281b98336b9d",
+  "uid_gid": "10001:10001",
+  "status": "passed",
+  "six_daemon_smoke": "world: /healthz OK\nlog: /healthz OK\ncontrol: /healthz OK\nlogin: /healthz OK\npatch: /healthz OK\nmap: /healthz OK\nmap -> world: connected over container DNS\nmap: SIGTERM exit 0\npatch: SIGTERM exit 0\nlogin: SIGTERM exit 0\ncontrol: SIGTERM exit 0\nlog: SIGTERM exit 0\nworld: SIGTERM exit 0\n",
+  "installed_login": "/opt/fourstory/bin/tloginsvr_asio",
+  "installed_login_tcp": "characters-release.json",
+  "cpp_test_binaries": "Mounted Debug integration binaries run under runtime image; installed daemon separately verified through TCP.",
+  "installed_map_pinned_catalog": "character-map-catalog-release.json",
+  "original_map_reference_rows": 106692,
+  "original_map_manifest": "c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95"
+}

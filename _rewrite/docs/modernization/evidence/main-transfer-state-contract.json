@@ -1,0 +1,153 @@
+{
+  "date": "2026-10-09",
+  "status": "VERIFIED full source transfer wire representation, INTEGRATED/VERIFIED native raw item retention and fresh-admission skill cooldown restoration; full native primary transfer remains IMPLEMENTING",
+  "authority": {
+    "backups": "Both immutable .bak retain their SHA256 values",
+    "migrations": "001–019 unchanged, no migration added; ownership transfer will require 020+",
+    "source": [
+      "Server/TMapSvr/SSSender.cpp:1999–2638 complete RELEASEMAIN body",
+      "Server/TMapSvr/TItem.cpp:468 raw server item wrapping",
+      "Server/TMapSvr/SSHandler.cpp:4424 non-login load parser",
+      "Server/TMapSvr/TMapType.h:2131 saddle item is DWORD despite its name",
+      "Server/TMapSvr/SSHandler.cpp:4880–4915 restores dwRemainTick into m_dwDelayTick",
+      "Server/TMapSvr/TSkill.cpp:73–117 stored reuse duration, use and remaining time"
+    ]
+  },
+  "production_paths": [
+    "Server/TMapSvrAsio/domain/main_transfer.h",
+    "Server/TMapSvrAsio/services/main_transfer_codec.h",
+    "Server/TMapSvrAsio/services/main_transfer_codec.cpp",
+    "Server/TMapSvrAsio/domain/inventory.h",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp",
+    "Server/TMapSvrAsio/services/skill_cooldown.h",
+    "Server/TMapSvrAsio/handlers_world.cpp",
+    "Server/TMapSvrAsio/handlers/skill.cpp",
+    "Server/TMapSvrAsio/map_server.cpp"
+  ],
+  "contract": [
+    "Full source graph DTO and explicit little-endian codec cover core/security/aid/mail metadata, bags/cabinets, raw items, skills/effects, quests/terms, hotkeys/item cooldowns, saddle/pets/timed items/recalls, protected characters, PvP/duels, auctions, titles, companions and final counters.",
+    "Strings retain source bytes; time values remain signed int64; high bits and raw magic survive. Saddle item uses DWORD. Client narrowed item extensions and derived magic are never used to reconstruct source values.",
+    "Decoder bounds the body at 65527 bytes, requires exact EOF, validates structural selectors and finite core positions, and allocates entries only after each successful parse. Semantic gameplay validity remains a separate contract.",
+    "Actual native PostgreSQL item hydration stores immutable raw server fields alongside existing client projections. No historical rows or client field widths change.",
+    "Actual fresh ENTERSVR admission restores learned remaining cooldown durations after the live-session check and before publishing the snapshot. Skill use honors the restored duration even without the optional gameplay catalog, checks resources first and does not rearm on rejection. Successful teardown removes that character only.",
+    "Timer snapshots are sorted remaining durations at one supplied instant. Restoration uses a new local clock origin, rejects duplicate IDs before changing state, and handles tick zero, large DWORD duration, deadline overflow and backwards-clock bypass. Template changes cannot shorten an active timer."
+  ],
+  "verification": {
+    "debug_ctest": {
+      "report": "main-transfer-ctest.xml",
+      "entries": 197,
+      "actual_passes": 183,
+      "internal_legacy_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "explicit_native_skips": 6,
+      "failures": 0
+    },
+    "asan_ubsan_preset": {
+      "report": "main-transfer-asan-preset.xml",
+      "entries": 31,
+      "actual_passes": 31,
+      "internal_legacy_skips": [],
+      "explicit_native_skips": 0,
+      "failures": 0
+    },
+    "wire_fixture": {
+      "generator": "tools/database/build_main_transfer_fixture.py",
+      "bytes": 861,
+      "named_fields": 319,
+      "unit_checks": 43,
+      "truncated_prefixes_rejected": 861,
+      "independent": "Python fixture manually follows original source and does not import C++ codec/schema; all variable sections are populated. Raw CP bytes, high integers and negative times are included.",
+      "reports": [
+        "main-transfer-codec-debug.log",
+        "main-transfer-codec-asan.log"
+      ]
+    },
+    "cooldowns": {
+      "reports": [
+        "main-transfer-cooldown-debug.log",
+        "main-transfer-cooldown-asan.log"
+      ],
+      "cases": "Exact expiry, unchanged export, cross-process restoration, all skill IDs and DWORD durations, isolation/cleanup, atomic duplicate rejection, tick zero/backwards/max clock and eight concurrent gate contenders; actual World-enter handler restoration is also tested."
+    },
+    "native_runs": {
+      "debug": {
+        "report": "native-main-transfer.json",
+        "native_map_checks": 98,
+        "pool_tls_checks": 29,
+        "outer_tcp_checks": 156,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 36
+      },
+      "asan": {
+        "report": "native-main-transfer-asan.json",
+        "native_map_checks": 98,
+        "pool_tls_checks": 29,
+        "outer_tcp_checks": 156,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 36
+      },
+      "release": {
+        "report": "native-main-transfer-release.json",
+        "native_map_checks": 98,
+        "pool_tls_checks": 29,
+        "outer_tcp_checks": 156,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 36
+      }
+    },
+    "before": {
+      "report": "main-transfer-cooldown-before.json",
+      "image": "localhost/fourstory:postgresql-world-handoff",
+      "image_id": "d29f4c8869b897fdaa3ddd947ff4aeea067316cd34a50d67f844882b2ed918c9",
+      "result": "Map runtime wire: native daemon rejects restored skill cooldown with source SKILL_SPEEDYUSE3",
+      "scope": "Previous installed Map daemon fails the new encrypted TCP cooldown assertion. Mounted current native C++ tests separately pass; they are not a before/after backend comparison."
+    },
+    "installed_release": {
+      "date": "2026-10-09",
+      "image": "localhost/fourstory:postgresql-main-transfer",
+      "image_id": "92e23c3012003086f3e03b9cd143a6ee7523b2072fa580b93c32c0911f395e7f",
+      "uid_gid": "10001:10001",
+      "installed_release_daemon_sha256": {
+        "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef",
+        "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+        "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+        "/opt/fourstory/bin/tmapsvr_asio": "9fbd4483766f90dd0f08de7a64cf733afc16ef135ca5915677e6b7cdf5de4215",
+        "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+        "/opt/fourstory/bin/tworldsvr_asio": "51aba9350a1fee9454de37660c7626147dba446fe0da6501438c70f246eaa8cf"
+      },
+      "native_verification": {
+        "report": "native-main-transfer-release.json",
+        "native_map_checks": 98,
+        "pool_tls_checks": 29,
+        "outer_tcp_checks": 156,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 36
+      },
+      "six_daemon_health_dns_sigterm": "main-transfer-container-smoke.log",
+      "scope": "Installed Release daemons, mounted Debug C++ PostgreSQL integration executables; original client not executed."
+    }
+  },
+  "remaining": [
+    "The codec is linked to the actual Map core but not yet used to authorize a live primary transfer. Embedded ENTERSVR remains refused; no stale durable reload or summary-only replica promotion was added.",
+    "Implement complete live graph capture and target restoration plus frozen source state, a fenced/idempotent PostgreSQL ownership transition, checkpoint/replica rebinding, lost-commit confirmation and abort/restart/World-timeout recovery. Source cell transitions and dynamic routing remain unported. Use a new migration after 019.",
+    "Representing quests, buffs, summons, companions and PvP records on wire does not implement their native persistence or gameplay. Native guild/active-recall admission is still refused. Source tutorial/Bow/start-action reload branches and the shadowed quest timer need explicit review.",
+    "Current checkpoints persist only core values; newly used skill cooldowns and other child changes are not durable yet. Fresh CHARINFO uses the loaded duration, not a fresh timestamp at transmission. Rank/attack-speed reuse modifiers, full skill learning and costs remain incomplete.",
+    "Original client executable/version, actual original-client execution, full AOI/gameplay/social parity, historical player corpus/encoding/timezone evidence and Windows native PostgreSQL verification remain outstanding. World test registry remains in memory."
+  ]
+}

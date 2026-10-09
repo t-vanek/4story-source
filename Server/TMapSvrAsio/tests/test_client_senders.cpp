@@ -103,6 +103,8 @@ int main()
         s.dwCooper    = 7;
         s.dwEXP       = 999;
         s.dwHP        = 500;
+        s.dwMaxHP     = 1000;
+        s.dwMaxMP     = 900;
         s.dwMP        = 250;
         s.dwRegion    = 0x0A;
         s.wMapID      = 60;
@@ -112,6 +114,15 @@ int main()
         s.wDIR        = 180;
         s.wSkillPoint = 9;
 
+        auto payload=std::make_shared<CharacterPayload>();
+        payload->selected_title=27;payload->prev_exp=900;payload->next_exp=1200;
+        payload->rank_point=44;payload->lucky_number=73;payload->skill_points={1,2,3,4};
+        CharacterBag bag;bag.bag={254,0x1234,12345678,0};
+        ItemInstance item;item.bItemID=9;item.wItemID=0xf123;item.wCustomTex=0xbeef;
+        item.dwGuildBound=s.dwCharID;item.magic={{3,9},{50,120}};bag.items.push_back(item);payload->bags.push_back(bag);
+        payload->skills.push_back({0xf234,2,123});
+        CharacterHotkeys keys;keys.inventory=7;keys.keys[0]={2,0xf234};payload->hotkeys.push_back(keys);s.payload=payload;
+
         const std::string clock = "AM 09 : 05";
         auto b = EncodeCharInfoAck(s, clock);
 
@@ -119,16 +130,17 @@ int main()
         auto u8  = [&](std::uint8_t  e) { std::uint8_t  v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
         auto u16 = [&](std::uint16_t e) { std::uint16_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
         auto u32 = [&](std::uint32_t e) { std::uint32_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
+        auto i64 = [&](std::int64_t e) { std::int64_t v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
         auto f32 = [&](float         e) { float         v = 0; EXPECT(r.Read(v)); EXPECT(v == e); };
         auto str = [&](const std::string& e) { std::string v; EXPECT(r.ReadString(v)); EXPECT(v == e); };
 
         u32(0xABCDEF01);                 // char id
         u8(0); u8(0); u8(0);             // secure created / unlocked / disabled
-        u16(0);                          // title id
+        u16(27);                         // selected title
         str("Hero");
         u8(1);                           // start act
         u8(3); u8(2);                    // class, race
-        u8(1); u8(4);                    // country, aid country (bOriCountry)
+        u8(1); u8(3);                    // country, absent TAIDTABLE sentinel
         u8(0); u8(0); u8(0); u8(0); u8(0); u8(0); u8(0); u8(0); // sex,hair,face,body,pants,hand,foot,helmet
         u8(77);                          // level
         u16(0);                          // party id
@@ -136,19 +148,26 @@ int main()
         str("");                         // guild name
         u32(0); str("");                 // tactics id, tactics name
         u32(123456); u32(22); u32(7);    // gold, silver, cooper
-        u32(0); u32(0);                  // prev/next exp
+        u32(900); u32(1200);             // prev/next exp
         u32(999);                        // exp
-        u32(500); u32(500);              // max hp == hp
-        u32(250); u32(250);              // max mp == mp
+        u32(1000); u32(500);             // independent max/current HP
+        u32(900); u32(250);              // independent max/current MP
         u32(0); u16(0);                  // party chief, commander
         u32(0x0A); u16(60);              // region, map id
         f32(100.5f); f32(7.0f); f32(-50.25f);
         u16(180); u16(9);                // dir, skill point
-        u8(0); u32(0);                   // lucky, aid left time
-        u16(0); u16(0); u16(0); u16(0);  // skill-kind points
-        u32(0);                          // rank point
+        u8(73); u32(0);                  // lucky, aid left time
+        u16(1); u16(2); u16(3); u16(4);  // skill-kind points
+        u32(44);                         // rank point
         u8(0);                           // bow-death flag
-        u8(0); u8(0); u8(0); u8(0); u8(0); // five list counts — all empty
+        u8(1);u8(254);u16(0x1234);i64(12345678);u8(1); // bag and its item count
+        u8(9);u16(0xf123);u8(0);u8(0);u16(0);u16(0);u8(1); // item placement/template
+        u32(0);u32(0);u8(0);u8(0);u8(0);i64(0);u8(0);u8(0);u8(0);u16(0);u16(0xbeef);u8(1);
+        u8(2);u8(3);u16(9);u8(50);u16(120); // actual derived magic options
+        u8(1);u16(0xf234);u8(2);u32(123); // skill and cooldown
+        u8(0); // maintained effects
+        u8(1);u8(7);u8(2);u16(0xf234);for(int i=1;i<12;++i){u8(0);u16(0);} // twelve hotkeys
+        u8(0); // item cooldowns
         u32(0); u32(0); u32(0);          // pvp total / useable / month
         str(clock);                      // server clock
         u32(0);                          // medals
@@ -171,6 +190,8 @@ int main()
         s.bLevel      = 42;
         s.bHelmetHide = 1;
         s.dwHP        = 300;
+        s.dwMaxHP     = 1000;
+        s.dwMaxMP     = 1200;
         s.dwMP        = 800;
         s.wDIR        = 90;
         s.dwRegion    = 0x11;
@@ -201,8 +222,8 @@ int main()
         u8(1); u8(7); u8(4);             // sex, hair, face
         u8(0); u8(0); u8(0); u8(0);      // body, pants, hand, foot
         u8(42); u8(1);                   // level, helmet hide
-        u32(300); u32(300);              // max hp == hp
-        u32(800); u32(800);              // max mp == mp
+        u32(1000); u32(300);
+        u32(1200); u32(800);
         u32(0); u16(0); u16(0);          // party chief, party id, commander
         f32(12.5f); f32(3.0f); f32(-4.25f);
         u8(0); u8(0); u8(0);             // action, block, mode

@@ -1,0 +1,9 @@
+{
+  "Server/TLoginSvrAsio/services/postgresql_map_handoff.cpp": "f83cfe24a66e4be6d89075aded00ae1c461fb75486dcf0c00fa472fad51d06cc",
+  "database/postgresql/014-routing-reference-catalog.sql": "fd52051223376feea3993fc3db25e6c0d085e208bb3ae3434af0822652023dca",
+  "database/postgresql/015-native-map-handoff.sql": "d209d882b64367ea6f23c9703ecd5ae07e3ee558b6ad9204a3a1774f864c3258",
+  "build/linux-debug/bin/tloginsvr_asio": "dbf4ae7a02302cd0f9949528ed1edb03e0c006a728a5cba97a63786b5b3dbd68",
+  "build/linux-debug/bin/test_tloginsvr_postgresql_handoff": "6770bea583d1431789bdf21ad58ac1ee6392b7eb8426d61dcf9ea2d1dd195f3c",
+  "build/linux-asan/bin/tloginsvr_asio": "12b61d79e1d808bfc998db234e42c917fc7b143d74d3aef8241b889f006f1045",
+  "build/linux-asan/bin/test_tloginsvr_postgresql_handoff": "bd0f9df5954408b537c4f99daded2f7589c673d36bb0156c0e0a8da14e708aa5"
+}

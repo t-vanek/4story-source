@@ -5,6 +5,12 @@
 #include "MessageId.h"
 
 #include <spdlog/spdlog.h>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/redirect_error.hpp>
+#include <boost/asio/use_awaitable.hpp>
+#include <chrono>
+#include <cmath>
 
 #include <algorithm>
 #include <cstdint>
@@ -23,7 +29,7 @@ FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
 {
     if (msi == 0 || !ctx.peers) return nullptr;
     for (auto& p : ctx.peers->Snapshot())
-        if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
+        if (ctx.peers->IsCurrentMap(p) && static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
             return p;
     return nullptr;
 }
@@ -42,6 +48,26 @@ CheckConnect(std::shared_ptr<PeerSession> peer,
              const HandlerContext&        ctx);
 boost::asio::awaitable<void>
 PopConCess(std::shared_ptr<TChar> ch, const HandlerContext& ctx);
+boost::asio::awaitable<void>
+CheckMainCon(std::shared_ptr<TChar> ch, const HandlerContext& ctx);
+
+void StartHandoffDeadline(const HandlerContext& ctx, const std::shared_ptr<TChar>& ch,
+                          const std::shared_ptr<MainHandoff>& handoff)
+{
+    handoff->deadline=std::make_shared<boost::asio::steady_timer>(*ctx.io);
+    handoff->deadline->expires_after(std::chrono::milliseconds(ctx.main_handoff_timeout_ms));
+    boost::asio::co_spawn(*ctx.io,[ctx,weak=std::weak_ptr<TChar>(ch),handoff]() -> boost::asio::awaitable<void> {
+        boost::system::error_code ec;
+        co_await handoff->deadline->async_wait(boost::asio::redirect_error(boost::asio::use_awaitable,ec));
+        if(ec)co_return;
+        auto current=weak.lock();
+        if(!current||!ctx.chars||ctx.chars->Find(current->char_id)!=current)co_return;
+        {std::lock_guard guard(current->lock);if(current->main_handoff!=handoff||current->closing)co_return;}
+        spdlog::warn("World main handoff timed out; closing char={}",current->char_id);
+        co_await CloseChar(current,ctx);
+    },boost::asio::detached);
+}
+
 
 // Push a deferred handoff packet. Returns true if the char already had
 // one in flight (this one must wait); false if it's now the only entry
@@ -112,6 +138,14 @@ ReconcileConList(std::shared_ptr<PeerSession> peer,
         co_await senders::SendMwDelCharReq(peer, char_id, key,
             /*logout=*/1, /*save=*/0);
         co_return;
+    }
+
+    if(!ctx.peers->IsCurrentMap(peer)||!r.Eof())co_return;
+    {
+        std::lock_guard guard(ch->lock);
+        const auto con=std::find_if(ch->cons.begin(),ch->cons.end(),[reporting_id](const auto& c){return c.server_id==reporting_id&&c.valid;});
+        if(ch->closing||con==ch->cons.end()||(ch->main_handoff&&
+           (ch->main_handoff->phase!=MainHandoffPhase::Confirm||ch->main_handoff->target.lock()!=peer)))co_return;
     }
 
     // Reconcile under the char lock, snapshotting everything the
@@ -198,10 +232,7 @@ ReconcileConList(std::shared_ptr<PeerSession> peer,
     // every remaining connection (legacy CheckMainCON).
     spdlog::info("{}[{}]: char_id={} CHECKMAIN to {} connection(s)",
         what, ip, char_id, live_servers.size());
-    for (std::uint8_t sid : live_servers)
-        if (auto p = FindMapPeer(ctx, sid))
-            co_await senders::SendMwCheckMainReq(p, char_id, key,
-                channel, map_id, px, py, pz);
+    co_await CheckMainCon(ch,ctx);
 }
 
 // BeginTeleport — the actual teleport once the cession queue lets it
@@ -289,10 +320,20 @@ CheckMainCon(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
         for (const auto& c : ch->cons)
             live.push_back(c.server_id);
     }
-    for (std::uint8_t sid : live)
-        if (auto p = FindMapPeer(ctx, sid))
-            co_await senders::SendMwCheckMainReq(p, char_id, key,
-                channel, map_id, px, py, pz);
+    std::vector<std::shared_ptr<PeerSession>> targets;
+    for(auto sid:live) {
+        auto p=ctx.peers?ctx.peers->Find(static_cast<std::uint16_t>(0x0400U|sid)):nullptr;
+        if(ctx.peers&&ctx.peers->IsCurrentMap(p))targets.push_back(std::move(p));
+    }
+    {
+        std::lock_guard guard(ch->lock);
+        if(ch->closing || (ch->main_handoff && ch->main_handoff->phase!=MainHandoffPhase::Confirm))co_return;
+        ch->main_checks.clear();
+        for(const auto& p:targets)ch->main_checks.push_back(p);
+    }
+    for(const auto& p:targets)
+        co_await senders::SendMwCheckMainReq(p,char_id,key,channel,map_id,px,py,pz);
+
 }
 
 // CheckConnect — a map reports the char's current position + the set of
@@ -316,6 +357,10 @@ CheckConnect(std::shared_ptr<PeerSession> peer,
         !r.Read(count))
         co_return;
 
+    if(!ctx.peers->IsCurrentMap(peer)||!std::isfinite(px)||!std::isfinite(py)||!std::isfinite(pz))co_return;
+    std::vector<std::uint8_t> needed;needed.reserve(count);
+    for(std::uint8_t i=0;i<count;++i){std::uint8_t sid{};if(!r.Read(sid)||!sid)co_return;needed.push_back(sid);}
+    if(!r.Eof())co_return;
     auto ch = ctx.chars->Find(char_id);
     if (!ch) co_return;          // char gone (legacy CloseChar — deferred)
 
@@ -353,14 +398,6 @@ CheckConnect(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    std::vector<std::uint8_t> needed;
-    needed.reserve(count);
-    for (std::uint8_t i = 0; i < count; ++i)
-    {
-        std::uint8_t sid = 0;
-        if (!r.Read(sid)) co_return;
-        needed.push_back(sid);
-    }
     std::sort(needed.begin(), needed.end());
     needed.erase(std::unique(needed.begin(), needed.end()), needed.end());
 
@@ -457,192 +494,78 @@ OnMapSvrListAck(std::shared_ptr<PeerSession> peer,
 }
 
 boost::asio::awaitable<void>
-OnCheckMainAck(std::shared_ptr<PeerSession> peer,
-               std::vector<std::byte>       body,
-               const HandlerContext&        ctx)
+OnCheckMainAck(std::shared_ptr<PeerSession> peer, std::vector<std::byte> body,
+               const HandlerContext& ctx)
 {
-    const std::string& ip = peer->Wire()->RemoteIPv4();
-    if (!ctx.chars || !ctx.peers)
+    wire::Reader r(body);std::uint32_t cid{},key{};
+    if(!ctx.chars||!ctx.peers||!r.Read(cid)||!r.Read(key)||!r.Eof()||!ctx.peers->IsCurrentMap(peer))co_return;
+    auto ch=ctx.chars->Find(cid);
+    if(!ch){co_await senders::SendMwDelCharReq(peer,cid,key,1,0);co_return;}
+    const auto sid=static_cast<std::uint8_t>(peer->Wid());
+    std::uint8_t old{},channel{};std::uint16_t map{};float x{},y{},z{};
+    std::shared_ptr<PeerSession> main;
+    std::shared_ptr<MainHandoff> handoff;
+    std::vector<std::uint8_t> dead,live;
     {
-        spdlog::warn("OnCheckMainAck[{}]: registries not wired", ip);
-        co_return;
-    }
-
-    wire::Reader r(body.data(), body.size());
-    std::uint32_t char_id = 0, key = 0;
-    if (!r.Read(char_id) || !r.Read(key))
-    {
-        spdlog::warn("OnCheckMainAck[{}]: short body ({} bytes)", ip,
-            body.size());
-        co_return;
-    }
-
-    auto ch = ctx.chars->Find(char_id);
-    if (!ch)
-    {
-        spdlog::info("OnCheckMainAck[{}]: char_id={} not registered — DELCHAR",
-            ip, char_id);
-        co_await senders::SendMwDelCharReq(peer, char_id, key,
-            /*logout=*/1, /*save=*/0);
-        co_return;
-    }
-
-    const std::uint8_t responding_id =
-        static_cast<std::uint8_t>(peer->Wid() & 0xFF);
-
-    // Snapshot under the char lock. For the "responder is main" case
-    // we also drain dead_cons + capture the live con set here (the
-    // responder is `peer`, so its main peer is guaranteed present —
-    // no INVALIDCHAR can intervene before the drain). For the
-    // "main changes" case we defer the main_server_id / save mutation
-    // until after the old-main lookup succeeds (legacy checks
-    // pMAIN before reassigning).
-    bool          key_ok = true, is_main = false;
-    std::uint8_t  old_main_id = 0, channel = 0;
-    std::uint16_t map_id = 0;
-    float         px = 0, py = 0, pz = 0;
-    std::vector<std::uint8_t> dead;          // drained dead_cons
-    std::vector<std::uint8_t> live_servers;  // current con set
-    {
-        std::lock_guard g(ch->lock);
-        if (ch->key != key)
-        {
-            key_ok = false;
-        }
-        else
-        {
-            old_main_id = ch->main_server_id;
-            channel = ch->channel; map_id = ch->map_id;
-            px = ch->pos_x; py = ch->pos_y; pz = ch->pos_z;
-            is_main = (responding_id == old_main_id);
-            if (is_main)
-            {
-                dead.swap(ch->dead_cons);
-                for (const auto& c : ch->cons)
-                    live_servers.push_back(c.server_id);
-            }
+        std::lock_guard guard(ch->lock);
+        const auto con=std::find_if(ch->cons.begin(),ch->cons.end(),[sid](const auto& c){return c.server_id==sid;});
+        const bool requested=std::any_of(ch->main_checks.begin(),ch->main_checks.end(),[&](const auto& p){return p.lock()==peer;});
+        if(ch->closing||ch->key!=key||!requested||con==ch->cons.end()||!con->valid||!con->ready)co_return;
+        if(ch->main_handoff&&(ch->main_handoff->phase!=MainHandoffPhase::Confirm||ch->main_handoff->target.lock()!=peer))co_return;
+        old=ch->main_server_id;
+        main=ctx.peers->Find(static_cast<std::uint16_t>(0x0400U|old));
+        if(!ctx.peers->IsCurrentMap(main))co_return;
+        if(sid!=old&&!ctx.io)co_return;
+        ch->main_checks.clear(); // one winner consumes this request round
+        channel=ch->channel;map=ch->map_id;x=ch->pos_x;y=ch->pos_y;z=ch->pos_z;
+        if(sid==old) {
+            dead.swap(ch->dead_cons);
+            for(const auto& c:ch->cons)if(c.valid)live.push_back(c.server_id);
+            if(ch->main_handoff&&ch->main_handoff->deadline)ch->main_handoff->deadline->cancel();
+            ch->main_handoff.reset();
+        } else {
+            handoff=std::make_shared<MainHandoff>();
+            handoff->source_id=old;handoff->target_id=sid;handoff->source=main;handoff->target=peer;
+            ch->main_handoff=handoff;
+            ch->chg_main_id=old;
+            ch->main_server_id=sid;
+            ch->saving=false;
         }
     }
-
-    if (!key_ok)
-    {
-        spdlog::warn("OnCheckMainAck[{}]: char_id={} key mismatch — DELCHAR",
-            ip, char_id);
-        co_await senders::SendMwDelCharReq(peer, char_id, key,
-            /*logout=*/1, /*save=*/0);
+    if(handoff) {
+        // Publish the expected source/target before suspending to send. An ACK
+        // may already arrive while the composed write is completing.
+        StartHandoffDeadline(ctx,ch,handoff);
+        co_await senders::SendMwReleaseMainReq(main,cid,key,channel,map,x,y,z);
         co_return;
     }
-
-    auto main_peer = FindMapPeer(ctx, old_main_id);
-    if (!main_peer)
-    {
-        spdlog::info("OnCheckMainAck[{}]: char_id={} main_server_id={} "
-                     "offline — INVALIDCHAR", ip, char_id, old_main_id);
-        co_await senders::SendMwInvalidCharReq(peer, char_id, key,
-            /*release_main=*/0);
-        co_return;
-    }
-
-    // TODO (full-logout slice): legacy runs `if(!m_bSave) CloseChar`
-    // here — the friend/TMS/party/guild/tactics teardown + DELCHAR of
-    // every connection. CloseChar is a subsystem of its own; the
-    // logout path lands in a later slice.
-
-    if (is_main)
-    {
-        // Responder owns the main session: close the dead connections
-        // (ClearDeadCON) and confirm the connection set to the main.
-        spdlog::info("OnCheckMainAck[{}]: char_id={} main confirmed "
-                     "(server={}); closing {} dead con(s), CONRESULT {} "
-                     "live", ip, char_id, old_main_id, dead.size(),
-            live_servers.size());
-        for (std::uint8_t sid : dead)
-            if (auto p = FindMapPeer(ctx, sid))
-                co_await senders::SendMwCloseCharReq(p, char_id, key);
-        co_await senders::SendMwConResultReq(main_peer, char_id, key,
-            kConSuccess, live_servers);
-        // The confirmed main session completes any in-flight cession
-        // entry (teleport / connect); pop it and replay the next.
-        co_await PopConCess(ch, ctx);
-        co_return;
-    }
-
-    // Responder is a different map → hand the main session over: tell
-    // the old main to release, then re-point main at the responder.
-    spdlog::info("OnCheckMainAck[{}]: char_id={} main handoff {} -> {}",
-        ip, char_id, old_main_id, responding_id);
-    co_await senders::SendMwReleaseMainReq(main_peer, char_id, key,
-        channel, map_id, px, py, pz);
-    {
-        std::lock_guard g(ch->lock);
-        ch->main_server_id = responding_id;
-        ch->saving = false;
-    }
+    for(auto id:dead)if(auto p=ctx.peers->Find(static_cast<std::uint16_t>(0x0400U|id)))co_await senders::SendMwCloseCharReq(p,cid,key);
+    co_await senders::SendMwConResultReq(main,cid,key,kConSuccess,live);
+    co_await PopConCess(ch,ctx);
 }
 
 boost::asio::awaitable<void>
-OnReleaseMainAck(std::shared_ptr<PeerSession> peer,
-                 std::vector<std::byte>       body,
-                 const HandlerContext&        ctx)
+OnReleaseMainAck(std::shared_ptr<PeerSession> peer, std::vector<std::byte> body,
+                 const HandlerContext& ctx)
 {
-    const std::string& ip = peer->Wire()->RemoteIPv4();
-    if (!ctx.chars || !ctx.peers)
+    wire::Reader r(body);std::uint8_t db_load{};std::uint32_t cid{},key{};
+    if(!ctx.chars||!ctx.peers||!r.Read(db_load)||db_load>1||!r.Read(cid)||!r.Read(key)||
+       r.Eof()||!ctx.peers->IsCurrentMap(peer))co_return;
+    auto ch=ctx.chars->Find(cid);
+    if(!ch){co_await senders::SendMwDelCharReq(peer,cid,key,1,0);co_return;}
+    std::shared_ptr<PeerSession> target;
     {
-        spdlog::warn("OnReleaseMainAck[{}]: registries not wired", ip);
-        co_return;
+        std::lock_guard guard(ch->lock);
+        const auto h=ch->main_handoff;
+        if(ch->closing||ch->key!=key||!h||h->phase!=MainHandoffPhase::Release||h->source.lock()!=peer)co_return;
+        target=h->target.lock();
+        if(ctx.peers->IsCurrentMap(target))h->phase=MainHandoffPhase::Enter;
+        else target.reset();
     }
-
-    // Body is opaque past these three fields — the tail is the char's
-    // saved state, forwarded verbatim to the new main.
-    wire::Reader r(body.data(), body.size());
-    std::uint8_t  db_load = 0;
-    std::uint32_t char_id = 0, key = 0;
-    if (!r.Read(db_load) || !r.Read(char_id) || !r.Read(key))
-    {
-        spdlog::warn("OnReleaseMainAck[{}]: short body ({} bytes)", ip,
-            body.size());
-        co_return;
-    }
-
-    auto ch = ctx.chars->Find(char_id);
-    bool found = ch != nullptr;
-    std::uint8_t new_main_id = 0;
-    if (found)
-    {
-        std::lock_guard g(ch->lock);
-        if (ch->key != key) found = false;
-        else                new_main_id = ch->main_server_id;
-    }
-    if (!found)
-    {
-        spdlog::info("OnReleaseMainAck[{}]: char_id={} not registered / key "
-                     "mismatch — DELCHAR", ip, char_id);
-        co_await senders::SendMwDelCharReq(peer, char_id, key,
-            /*logout=*/1, /*save=*/0);
-        co_return;
-    }
-
-    // The new main is whatever CHECKMAIN_ACK re-pointed main at; the
-    // responder here is the *old* main that just released.
-    auto main_peer = FindMapPeer(ctx, new_main_id);
-    if (!main_peer)
-    {
-        spdlog::info("OnReleaseMainAck[{}]: char_id={} new main={} offline — "
-                     "INVALIDCHAR", ip, char_id, new_main_id);
-        co_await senders::SendMwInvalidCharReq(peer, char_id, key,
-            /*release_main=*/1);
-        co_return;
-    }
-
-    // Forward the released char to the new main; it loads the char and
-    // replies MW_ENTERSVR_ACK to complete the handoff.
-    co_await senders::SendMwEnterSvrReq(main_peer, body);
-    {
-        std::lock_guard g(ch->lock);
-        ch->chg_main_id = static_cast<std::uint8_t>(peer->Wid() & 0xFF);
-    }
-    spdlog::info("OnReleaseMainAck[{}]: char_id={} forwarded to new main={} "
-                 "(old main={})", ip, char_id, new_main_id, ch->chg_main_id);
+    if(!target){co_await CloseChar(ch,ctx);co_return;}
+    // The target Map must validate the complete source-format state. World
+    // neither decodes/rebuilds that graph nor substitutes a database reload.
+    co_await senders::SendMwEnterSvrReq(target,body);
 }
 
 boost::asio::awaitable<void>
@@ -729,12 +652,18 @@ OnCheckConnectAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
+    std::uint8_t channel{},count{};std::uint16_t map{};float x{},y{},z{};
+    if(!ctx.peers->IsCurrentMap(peer)||!r.Read(channel)||!r.Read(map)||!r.Read(x)||!r.Read(y)||!r.Read(z)||!r.Read(count)||
+       !std::isfinite(x)||!std::isfinite(y)||!std::isfinite(z))co_return;
+    for(std::uint8_t i=0;i<count;++i){std::uint8_t sid{};if(!r.Read(sid)||!sid)co_return;}
+    if(!r.Eof())co_return;
     auto ch = ctx.chars->Find(char_id);
     bool ok = ch != nullptr;
     if (ok)
     {
         std::lock_guard g(ch->lock);
         if (ch->key != key) ok = false;
+        if(ch->closing || ch->main_server_id!=static_cast<std::uint8_t>(peer->Wid()&0xff))co_return;
     }
     if (!ok)
     {
@@ -798,6 +727,11 @@ OnRouteAck(std::shared_ptr<PeerSession> peer,
     }
 
     auto ch = ctx.chars->Find(char_id);
+    if(!ctx.peers->IsCurrentMap(peer))co_return;
+    if(ch) {
+        std::lock_guard guard(ch->lock);
+        if(ch->closing||ch->key!=key||ch->main_server_id!=static_cast<std::uint8_t>(peer->Wid())||(ch->main_handoff&&ch->main_handoff->phase!=MainHandoffPhase::Confirm))co_return;
+    }
     bool ok = ch != nullptr;
     if (ok)
     {
@@ -873,6 +807,7 @@ OnEnterCharAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
+    if(!r.Eof()||!ctx.peers->IsCurrentMap(peer))co_return;
     auto ch = ctx.chars->Find(char_id);
     if (!ch)
     {
@@ -891,14 +826,14 @@ OnEnterCharAck(std::shared_ptr<PeerSession> peer,
     bool all_ready = false;
     {
         std::lock_guard g(ch->lock);
-        if (ch->key != key)
+        if (ch->closing || ch->key != key || (ch->main_handoff && ch->main_handoff->phase!=MainHandoffPhase::Confirm))
         {
             key_ok = false;
         }
         else
         {
             for (auto& c : ch->cons)
-                if (c.server_id == reporting_id)
+                if (c.server_id == reporting_id && c.valid && !c.ready)
                 {
                     c.ready = true;
                     found_con = true;
@@ -977,6 +912,11 @@ OnCharDataAck(std::shared_ptr<PeerSession> peer,
                                              body.end());
 
     auto ch = ctx.chars->Find(char_id);
+    if(!ctx.peers->IsCurrentMap(peer))co_return;
+    if(ch) {
+        std::lock_guard guard(ch->lock);
+        if(ch->closing||ch->key!=key||ch->main_server_id!=static_cast<std::uint8_t>(peer->Wid())||(ch->main_handoff&&ch->main_handoff->phase!=MainHandoffPhase::Confirm))co_return;
+    }
     if (!ch)
     {
         spdlog::info("OnCharDataAck[{}]: char_id={} not registered — DELCHAR",

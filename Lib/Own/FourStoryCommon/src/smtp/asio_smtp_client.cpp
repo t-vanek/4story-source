@@ -5,6 +5,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/streambuf.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/system/error_code.hpp>
 
@@ -65,17 +66,20 @@ class Transaction
 {
 public:
     Transaction(boost::asio::io_context& io, std::chrono::seconds timeout)
-        : m_io(io), m_socket(io), m_timeout(timeout) {}
+        : m_io(io), m_socket(io), m_resolver(io), m_reply(8192),
+          m_deadline(std::chrono::steady_clock::now() + timeout) {}
 
     void Connect(const std::string& host, std::uint16_t port)
     {
-        // Resolve + connect. Asio's resolver is synchronous in this
-        // mode — the auth handler runs on its own coroutine, so a
-        // blocking Send is acceptable for the 2FA path (low volume,
-        // happens once per new device).
-        boost::asio::ip::tcp::resolver res(m_io);
-        const auto endpoints = res.resolve(host, std::to_string(port));
-        boost::asio::connect(m_socket, endpoints);
+        boost::asio::ip::tcp::resolver::results_type endpoints;
+        Run([&](auto done) {
+            m_resolver.async_resolve(host, std::to_string(port),
+                [&, done](auto ec, auto result) { endpoints = std::move(result); done(ec); });
+        });
+        Run([&](auto done) {
+            boost::asio::async_connect(m_socket, endpoints,
+                [done](auto ec, auto) { done(ec); });
+        });
     }
 
     // Send a CRLF-terminated command. The terminator is added here so
@@ -86,7 +90,10 @@ public:
     {
         std::string line = cmd;
         line += "\r\n";
-        boost::asio::write(m_socket, boost::asio::buffer(line));
+        Run([&](auto done) {
+            boost::asio::async_write(m_socket, boost::asio::buffer(line),
+                [done](auto ec, auto) { done(ec); });
+        });
     }
 
     // Read one SMTP reply. Each reply is one or more lines of the form
@@ -99,10 +106,11 @@ public:
         int code = 0;
         for (;;)
         {
-            boost::asio::streambuf buf;
-            const auto n = boost::asio::read_until(m_socket, buf, "\r\n");
-            if (n == 0) throw std::runtime_error("smtp: relay closed mid-reply");
-            std::istream is(&buf);
+            Run([&](auto done) {
+                boost::asio::async_read_until(m_socket, m_reply, "\r\n",
+                    [done](auto ec, auto) { done(ec); });
+            });
+            std::istream is(&m_reply);
             std::string line;
             std::getline(is, line);
             if (!line.empty() && line.back() == '\r') line.pop_back();
@@ -118,6 +126,7 @@ public:
             }
             if (!accumulated.empty()) accumulated += '\n';
             accumulated += line;
+            if (accumulated.size() > 16384) throw std::runtime_error("smtp: reply too large");
             if (line[3] == ' ') break;  // last line
             if (line[3] != '-')
                 throw std::runtime_error("smtp: malformed continuation in '" + line + "'");
@@ -163,7 +172,10 @@ public:
         }
         // RFC 5321: DATA ends with a line containing a single dot.
         out.append(".\r\n");
-        boost::asio::write(m_socket, boost::asio::buffer(out));
+        Run([&](auto done) {
+            boost::asio::async_write(m_socket, boost::asio::buffer(out),
+                [done](auto ec, auto) { done(ec); });
+        });
     }
 
     void Close()
@@ -176,7 +188,24 @@ public:
 private:
     boost::asio::io_context&    m_io;
     boost::asio::ip::tcp::socket m_socket;
-    std::chrono::seconds        m_timeout;
+    boost::asio::ip::tcp::resolver m_resolver;
+    boost::asio::streambuf m_reply;
+    std::chrono::steady_clock::time_point m_deadline;
+
+    template<class Initiate> void Run(Initiate initiate)
+    {
+        m_io.restart();
+        boost::asio::steady_timer timer(m_io, m_deadline);
+        boost::system::error_code result;
+        bool timed_out = false;
+        timer.async_wait([&](auto ec) {
+            if (!ec) { timed_out = true; m_resolver.cancel(); Close(); }
+        });
+        initiate([&](boost::system::error_code ec) { result = ec; timer.cancel(); });
+        m_io.run(); // Drain both handlers before their stack captures disappear.
+        if (timed_out) throw std::runtime_error("smtp: transaction timed out");
+        if (result) throw boost::system::system_error(result);
+    }
 };
 
 // Quick check whether an EHLO reply text advertises an AUTH LOGIN
@@ -224,7 +253,11 @@ bool AsioSmtpClient::Send(const std::string& to_address,
                           const std::string& subject,
                           const std::string& body)
 {
-    if (to_address.empty())
+    auto line_break = [](const std::string& value) {
+        return value.find_first_of("\r\n") != std::string::npos;
+    };
+    if (to_address.empty() || line_break(to_address) || line_break(subject) ||
+        line_break(m_config.from_address) || line_break(m_config.from_display))
     {
         spdlog::warn("smtp.Send: empty to_address — refusing");
         return false;
@@ -318,14 +351,12 @@ bool AsioSmtpClient::Send(const std::string& to_address,
         tx.ReadReply();  // 221 — but don't fail the Send on a missing QUIT ack
         tx.Close();
 
-        spdlog::info("smtp.Send to='{}' subject='{}' → ok ({}:{})",
-            to_address, subject, m_config.host, m_config.port);
+        spdlog::info("smtp: message accepted by configured relay");
         return true;
     }
     catch (const std::exception& ex)
     {
-        spdlog::warn("smtp.Send to='{}' failed: {} ({}:{})",
-            to_address, ex.what(), m_config.host, m_config.port);
+        spdlog::warn("smtp: delivery failed");
         tx.Close();
         return false;
     }

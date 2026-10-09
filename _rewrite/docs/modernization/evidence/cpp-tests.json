@@ -1,0 +1,1139 @@
+{
+  "configuration": "Linux Debug, assertions enabled, native PostgreSQL compiled in",
+  "summary": {
+    "registered": 187,
+    "passed": 176,
+    "failed": 0,
+    "ctest_explicit_skips": 3,
+    "legacy_internal_skips": 8
+  },
+  "note": "Three native tests skip without explicit fixtures; native pool/catalog and Login have separate actual-PG evidence. Eight legacy silent skips are excluded from verified tests.",
+  "tests": [
+    {
+      "name": "tcontrolsvr_asio_admin_shell_cluster",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_guild_mut_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_peer_client",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_releasemain_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_control_gate",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_tournament_player_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_char_base_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tnetlib_asio_echo",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tnetlib_tls",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_session_terminator",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_register_san",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_tournament_match_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_guild_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_char_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_duplicate_kick",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_entersvr_fresh_login_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_admin_shell_stream",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_tournament_tick_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_relay_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_br_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tpatchsvr_asio_stale_sweep",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_bow_scheduler_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_cashsale_confirm_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_lottery_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_service_plane_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_cashshop_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_monthrank_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_wire_parity",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_handshake",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_site_code",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_rw_lookup_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_tms_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_registry_refresher",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_war_extras_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_corps_leave_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_char_flow",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_dispatch",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_battlemode_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_teleport_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_leavebattlefield_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_party_join_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_party_del_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_admin_forwarders",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_operator_login",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_register_cn",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_party_recall_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_corps_reply_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_bow_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_chat_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_soulmate_persist_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_itemtools_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_edge_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_checkmain_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_teleport_confirm_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_entersvr_handoff_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_arenajoin_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_evqt_expired_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_patch_metadata",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_monthrank_rollover_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_closechar_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_party_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_corps_commander_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_castlewarinfo_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_rps_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_party_attr_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_corps_enemy_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_admin_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_protected_check_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_tms_logout_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_recallmon_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_castle_apply_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_reply_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_spolecnikmon_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_tournament_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_control_session_tls",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_rps_persist_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_cmgift_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_persist_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_hybrid",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "cluster_world_handshake",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_route_completion_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_itemstate_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_checkconnect_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_conn_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_charmsg_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_apex_stub_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_monresult_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_entersvr_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_levelup_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_post_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_solomap_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_castle_occupy_reset_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_auth_flow",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_combat_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_corps_cmd_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_chatban_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_eventquarter_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_item_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_event_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_party_move_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_load_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_region_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_peer_registry",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_soulmate_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_group_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_corps_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_list_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_presence_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_party_order_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_appearance_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_chardata_drift_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_friend_protected_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "fourstory_peer_client_tls",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_charstat_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_event_replay_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_start_flow",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_peer_monitor",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_guildrank_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_battlestatus_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_rank_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_co_offload",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_char_registry",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_occupy_handlers",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_guild_registry",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_peer_dialer_cn",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "fourstory_postgresql_options",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_char_name_index",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "fourstory_security",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_message_router",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_admin_shell_route",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_admin_shell",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_wire_e2e_soci",
+      "status": "skipped",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": true
+    },
+    {
+      "name": "tworldsvr_asio_corps_registry",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_shutdown_sweep",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_soci_auth",
+      "status": "skipped",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": true
+    },
+    {
+      "name": "tlogsvr_asio_soci_log_sink",
+      "status": "skipped",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": true
+    },
+    {
+      "name": "tpatchsvr_asio_soci_repository",
+      "status": "skipped",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": true
+    },
+    {
+      "name": "tworldsvr_asio_party_registry",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_soci_repositories",
+      "status": "skipped",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": true
+    },
+    {
+      "name": "tloginsvr_asio_soci_char",
+      "status": "skipped",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": true
+    },
+    {
+      "name": "tloginsvr_asio_soci_map",
+      "status": "skipped",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": true
+    },
+    {
+      "name": "tloginsvr_asio_soci_session_terminator",
+      "status": "skipped",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": true
+    },
+    {
+      "name": "tnetlib_crypto_kat",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tcontrolsvr_asio_event_scheduler",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tpatchsvr_asio_handlers_wire",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_rc4_secret_length",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_world_enter",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_world_checkmain",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_world_routelist",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tlogsvr_asio_retry_queue",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_world_enterchar",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_combat",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_guild_wanted_sweep",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_tactics_sweep",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_spawn_manager",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_guild_level_cache",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tlogsvr_asio_log_decoder",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_peer_registry",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_world_senders",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_client_senders",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tnetlib_packet_codec",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_skill_engine",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tnetlib_messageid",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_mapper_profiles",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_charname_validator",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_pvp_aggregate",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_fake_guild_repo",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "fourstory_mapper",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_mapper_profiles",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_loot_take",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_skill_effect",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_loot_senders",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_skill_cooldown",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_stat_engine",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tworldsvr_asio_guild_peerage",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_corpse",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_asio_event_registry",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_damage_formula",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_quest_engine",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_money",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_inventory",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_quest_senders",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_asio_loot",
+      "status": "passed",
+      "ctest_explicit_skip": false,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "fourstory_postgresql_integration",
+      "status": "skipped",
+      "ctest_explicit_skip": true,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tloginsvr_postgresql_auth",
+      "status": "skipped",
+      "ctest_explicit_skip": true,
+      "legacy_internal_skip": false
+    },
+    {
+      "name": "tmapsvr_postgresql_catalog",
+      "status": "skipped",
+      "ctest_explicit_skip": true,
+      "legacy_internal_skip": false
+    }
+  ],
+  "verified_at": "2026-10-09 Europe/Prague",
+  "increment": "Native Login ownership, serial dispatch, graceful shutdown and defined wire arithmetic; no original client executable",
+  "login_security_increment": "Final Debug rebuild and full suite passed after adding ownership to the packet close guard. An earlier full-suite attempt exposed the ASan-confirmed teardown use-after-free; the failure was fixed, not omitted.",
+  "final_ctest_log": "Test project /src/build/linux-debug\n        Start   3: tnetlib_asio_echo\n        Start  49: tcontrolsvr_asio_peer_client\n  1/187 Test   #3: tnetlib_asio_echo ..............................   Passed    0.37 sec\n        Start  45: tcontrolsvr_asio_admin_shell_cluster\n  2/187 Test  #45: tcontrolsvr_asio_admin_shell_cluster ...........   Passed    2.50 sec\n        Start  91: tworldsvr_asio_guild_mut_handlers\n  3/187 Test  #49: tcontrolsvr_asio_peer_client ...................   Passed    4.70 sec\n        Start  20: tloginsvr_asio_control_gate\n  4/187 Test  #91: tworldsvr_asio_guild_mut_handlers ..............   Passed    1.87 sec\n        Start 142: tworldsvr_asio_tournament_player_handlers\n  5/187 Test #142: tworldsvr_asio_tournament_player_handlers ......   Passed    0.45 sec\n        Start  89: tworldsvr_asio_char_base_handlers\n  6/187 Test  #20: tloginsvr_asio_control_gate ....................   Passed    0.50 sec\n        Start 172: tworldsvr_asio_releasemain_handlers\n  7/187 Test #172: tworldsvr_asio_releasemain_handlers ............   Passed    0.10 sec\n        Start   4: tnetlib_tls\n  8/187 Test  #89: tworldsvr_asio_char_base_handlers ..............   Passed    0.40 sec\n        Start  16: tloginsvr_asio_session_terminator\n  9/187 Test   #4: tnetlib_tls ....................................   Passed    0.37 sec\n        Start  53: tcontrolsvr_asio_register_san\n 10/187 Test  #16: tloginsvr_asio_session_terminator ..............   Passed    0.33 sec\n        Start 141: tworldsvr_asio_tournament_match_handlers\n 11/187 Test  #53: tcontrolsvr_asio_register_san ..................   Passed    0.33 sec\n        Start  84: tworldsvr_asio_guild_handlers\n 12/187 Test #141: tworldsvr_asio_tournament_match_handlers .......   Passed    0.33 sec\n        Start  14: tloginsvr_asio_duplicate_kick\n 13/187 Test  #84: tworldsvr_asio_guild_handlers ..................   Passed    0.32 sec\n        Start  82: tworldsvr_asio_char_handlers\n 14/187 Test  #14: tloginsvr_asio_duplicate_kick ..................   Passed    0.31 sec\n        Start  46: tcontrolsvr_asio_admin_shell_stream\n 15/187 Test  #82: tworldsvr_asio_char_handlers ...................   Passed    0.28 sec\n        Start 180: tworldsvr_asio_entersvr_fresh_login_handlers\n 16/187 Test  #46: tcontrolsvr_asio_admin_shell_stream ............   Passed    0.26 sec\n        Start 143: tworldsvr_asio_tournament_tick_handlers\n 17/187 Test #180: tworldsvr_asio_entersvr_fresh_login_handlers ...   Passed    0.26 sec\n        Start  87: tworldsvr_asio_relay_handlers\n 18/187 Test #143: tworldsvr_asio_tournament_tick_handlers ........   Passed    0.25 sec\n        Start  30: tpatchsvr_asio_stale_sweep\n 19/187 Test  #87: tworldsvr_asio_relay_handlers ..................   Passed    0.24 sec\n        Start 140: tworldsvr_asio_bow_scheduler_handlers\n 20/187 Test  #30: tpatchsvr_asio_stale_sweep .....................   Passed    0.24 sec\n        Start 157: tworldsvr_asio_cashsale_confirm_handlers\n 21/187 Test #140: tworldsvr_asio_bow_scheduler_handlers ..........   Passed    0.24 sec\n        Start 156: tworldsvr_asio_service_plane_handlers\n 22/187 Test #157: tworldsvr_asio_cashsale_confirm_handlers .......   Passed    0.23 sec\n        Start 183: tworldsvr_asio_br_handlers\n 23/187 Test #156: tworldsvr_asio_service_plane_handlers ..........   Passed    0.24 sec\n        Start  12: tloginsvr_asio_handshake\n 24/187 Test #183: tworldsvr_asio_br_handlers .....................   Passed    0.22 sec\n        Start 139: tworldsvr_asio_cashshop_handlers\n 25/187 Test  #12: tloginsvr_asio_handshake .......................   Passed    0.26 sec\n        Start 153: tworldsvr_asio_monthrank_handlers\n 26/187 Test #139: tworldsvr_asio_cashshop_handlers ...............   Passed    0.23 sec\n        Start 147: tworldsvr_asio_lottery_handlers\n 27/187 Test #153: tworldsvr_asio_monthrank_handlers ..............   Passed    0.23 sec\n        Start  41: tcontrolsvr_asio_wire_parity\n 28/187 Test #147: tworldsvr_asio_lottery_handlers ................   Passed    0.21 sec\n        Start  22: tloginsvr_asio_site_code\n 29/187 Test  #41: tcontrolsvr_asio_wire_parity ...................   Passed    0.22 sec\n        Start  90: tworldsvr_asio_rw_lookup_handlers\n 30/187 Test  #22: tloginsvr_asio_site_code .......................   Passed    0.21 sec\n        Start 123: tworldsvr_asio_tms_handlers\n 31/187 Test  #90: tworldsvr_asio_rw_lookup_handlers ..............   Passed    0.21 sec\n        Start  56: tcontrolsvr_asio_registry_refresher\n 32/187 Test #123: tworldsvr_asio_tms_handlers ....................   Passed    0.21 sec\n        Start 151: tworldsvr_asio_war_extras_handlers\n 33/187 Test  #56: tcontrolsvr_asio_registry_refresher ............   Passed    0.20 sec\n        Start 108: tworldsvr_asio_corps_leave_handlers\n 34/187 Test #151: tworldsvr_asio_war_extras_handlers .............   Passed    0.20 sec\n        Start  80: tworldsvr_asio_dispatch\n 35/187 Test #108: tworldsvr_asio_corps_leave_handlers ............   Passed    0.20 sec\n        Start  17: tloginsvr_asio_char_flow\n 36/187 Test  #80: tworldsvr_asio_dispatch ........................   Passed    0.19 sec\n        Start 185: tworldsvr_asio_battlemode_handlers\n 37/187 Test  #17: tloginsvr_asio_char_flow .......................   Passed    0.18 sec\n        Start 174: tworldsvr_asio_teleport_handlers\n 38/187 Test #185: tworldsvr_asio_battlemode_handlers .............   Passed    0.17 sec\n        Start 100: tworldsvr_asio_party_join_handlers\n 39/187 Test #174: tworldsvr_asio_teleport_handlers ...............   Passed    0.18 sec\n        Start 101: tworldsvr_asio_party_del_handlers\n 40/187 Test #100: tworldsvr_asio_party_join_handlers .............   Passed    0.18 sec\n        Start  38: tcontrolsvr_asio_admin_forwarders\n 41/187 Test #101: tworldsvr_asio_party_del_handlers ..............   Passed    0.17 sec\n        Start  36: tcontrolsvr_asio_operator_login\n 42/187 Test  #38: tcontrolsvr_asio_admin_forwarders ..............   Passed    0.17 sec\n        Start  52: tcontrolsvr_asio_register_cn\n 43/187 Test  #36: tcontrolsvr_asio_operator_login ................   Passed    0.17 sec\n        Start 103: tworldsvr_asio_party_recall_handlers\n 44/187 Test  #52: tcontrolsvr_asio_register_cn ...................   Passed    0.17 sec\n        Start 117: tworldsvr_asio_chat_handlers\n 45/187 Test #103: tworldsvr_asio_party_recall_handlers ...........   Passed    0.17 sec\n        Start 107: tworldsvr_asio_corps_reply_handlers\n 46/187 Test #117: tworldsvr_asio_chat_handlers ...................   Passed    0.17 sec\n        Start 184: tworldsvr_asio_leavebattlefield_handlers\n 47/187 Test #107: tworldsvr_asio_corps_reply_handlers ............   Passed    0.17 sec\n        Start 182: tworldsvr_asio_bow_handlers\n 48/187 Test #184: tworldsvr_asio_leavebattlefield_handlers .......   Passed    0.12 sec\n        Start 171: tworldsvr_asio_checkmain_handlers\n 49/187 Test #182: tworldsvr_asio_bow_handlers ....................   Passed    0.13 sec\n        Start 154: tworldsvr_asio_itemtools_handlers\n 50/187 Test #171: tworldsvr_asio_checkmain_handlers ..............   Passed    0.14 sec\n        Start 129: tworldsvr_asio_friend_edge_handlers\n 51/187 Test #154: tworldsvr_asio_itemtools_handlers ..............   Passed    0.14 sec\n        Start 130: tworldsvr_asio_soulmate_persist_handlers\n 52/187 Test #129: tworldsvr_asio_friend_edge_handlers ............   Passed    0.14 sec\n        Start 186: tworldsvr_asio_arenajoin_handlers\n 53/187 Test #130: tworldsvr_asio_soulmate_persist_handlers .......   Passed    0.14 sec\n        Start 178: tworldsvr_asio_teleport_confirm_handlers\n 54/187 Test #186: tworldsvr_asio_arenajoin_handlers ..............   Passed    0.14 sec\n        Start 173: tworldsvr_asio_entersvr_handoff_handlers\n 55/187 Test #178: tworldsvr_asio_teleport_confirm_handlers .......   Passed    0.14 sec\n        Start 146: tworldsvr_asio_evqt_expired_handlers\n 56/187 Test #173: tworldsvr_asio_entersvr_handoff_handlers .......   Passed    0.14 sec\n        Start  40: tcontrolsvr_asio_patch_metadata\n 57/187 Test #146: tworldsvr_asio_evqt_expired_handlers ...........   Passed    0.14 sec\n        Start 152: tworldsvr_asio_monthrank_rollover_handlers\n 58/187 Test  #40: tcontrolsvr_asio_patch_metadata ................   Passed    0.14 sec\n        Start  99: tworldsvr_asio_party_handlers\n 59/187 Test #152: tworldsvr_asio_monthrank_rollover_handlers .....   Passed    0.14 sec\n        Start 176: tworldsvr_asio_closechar_handlers\n 60/187 Test  #99: tworldsvr_asio_party_handlers ..................   Passed    0.13 sec\n        Start 150: tworldsvr_asio_castlewarinfo_handlers\n 61/187 Test #176: tworldsvr_asio_closechar_handlers ..............   Passed    0.13 sec\n        Start 113: tworldsvr_asio_friend_handlers\n 62/187 Test #150: tworldsvr_asio_castlewarinfo_handlers ..........   Passed    0.13 sec\n        Start 109: tworldsvr_asio_corps_commander_handlers\n 63/187 Test #113: tworldsvr_asio_friend_handlers .................   Passed    0.13 sec\n        Start 112: tworldsvr_asio_corps_enemy_handlers\n 64/187 Test #109: tworldsvr_asio_corps_commander_handlers ........   Passed    0.13 sec\n        Start 187: tworldsvr_asio_rps_handlers\n 65/187 Test #112: tworldsvr_asio_corps_enemy_handlers ............   Passed    0.13 sec\n        Start 168: tworldsvr_asio_recallmon_handlers\n 66/187 Test #187: tworldsvr_asio_rps_handlers ....................   Passed    0.13 sec\n        Start 102: tworldsvr_asio_party_attr_handlers\n 67/187 Test #168: tworldsvr_asio_recallmon_handlers ..............   Passed    0.13 sec\n        Start 179: tworldsvr_asio_protected_check_handlers\n 68/187 Test #102: tworldsvr_asio_party_attr_handlers .............   Passed    0.12 sec\n        Start 166: tworldsvr_asio_admin_handlers\n 69/187 Test #179: tworldsvr_asio_protected_check_handlers ........   Passed    0.12 sec\n        Start 124: tworldsvr_asio_tms_logout_handlers\n 70/187 Test #166: tworldsvr_asio_admin_handlers ..................   Passed    0.12 sec\n        Start 134: tworldsvr_asio_castle_apply_handlers\n 71/187 Test #124: tworldsvr_asio_tms_logout_handlers .............   Passed    0.13 sec\n        Start 169: tworldsvr_asio_spolecnikmon_handlers\n 72/187 Test #134: tworldsvr_asio_castle_apply_handlers ...........   Passed    0.12 sec\n        Start 114: tworldsvr_asio_friend_reply_handlers\n 73/187 Test #169: tworldsvr_asio_spolecnikmon_handlers ...........   Passed    0.12 sec\n        Start 144: tworldsvr_asio_tournament_handlers\n 74/187 Test #114: tworldsvr_asio_friend_reply_handlers ...........   Passed    0.13 sec\n        Start 145: tworldsvr_asio_rps_persist_handlers\n 75/187 Test #144: tworldsvr_asio_tournament_handlers .............   Passed    0.12 sec\n        Start  50: tcontrolsvr_asio_control_session_tls\n 76/187 Test #145: tworldsvr_asio_rps_persist_handlers ............   Passed    0.12 sec\n        Start 149: tworldsvr_asio_cmgift_handlers\n 77/187 Test  #50: tcontrolsvr_asio_control_session_tls ...........   Passed    0.12 sec\n        Start 128: tworldsvr_asio_friend_persist_handlers\n 78/187 Test #149: tworldsvr_asio_cmgift_handlers .................   Passed    0.11 sec\n        Start   1: cluster_world_handshake\n 79/187 Test #128: tworldsvr_asio_friend_persist_handlers .........   Passed    0.11 sec\n        Start  51: tcontrolsvr_asio_hybrid\n 80/187 Test   #1: cluster_world_handshake ........................   Passed    0.11 sec\n        Start 158: tworldsvr_asio_itemstate_handlers\n 81/187 Test  #51: tcontrolsvr_asio_hybrid ........................   Passed    0.11 sec\n        Start 175: tworldsvr_asio_checkconnect_handlers\n 82/187 Test #158: tworldsvr_asio_itemstate_handlers ..............   Passed    0.10 sec\n        Start 170: tworldsvr_asio_conn_handlers\n 83/187 Test #175: tworldsvr_asio_checkconnect_handlers ...........   Passed    0.10 sec\n        Start 155: tworldsvr_asio_apex_stub_handlers\n 84/187 Test #170: tworldsvr_asio_conn_handlers ...................   Passed    0.10 sec\n        Start 177: tworldsvr_asio_route_completion_handlers\n 85/187 Test #155: tworldsvr_asio_apex_stub_handlers ..............   Passed    0.10 sec\n        Start 162: tworldsvr_asio_charmsg_handlers\n 86/187 Test #177: tworldsvr_asio_route_completion_handlers .......   Passed    0.09 sec\n        Start 160: tworldsvr_asio_monresult_handlers\n 87/187 Test #162: tworldsvr_asio_charmsg_handlers ................   Passed    0.09 sec\n        Start 132: tworldsvr_asio_entersvr_handlers\n 88/187 Test #160: tworldsvr_asio_monresult_handlers ..............   Passed    0.09 sec\n        Start 135: tworldsvr_asio_castle_occupy_reset_handlers\n 89/187 Test #132: tworldsvr_asio_entersvr_handlers ...............   Passed    0.09 sec\n        Start 125: tworldsvr_asio_post_handlers\n 90/187 Test #135: tworldsvr_asio_castle_occupy_reset_handlers ....   Passed    0.09 sec\n        Start  13: tloginsvr_asio_auth_flow\n 91/187 Test #125: tworldsvr_asio_post_handlers ...................   Passed    0.09 sec\n        Start 161: tworldsvr_asio_solomap_handlers\n 92/187 Test  #13: tloginsvr_asio_auth_flow .......................   Passed    0.09 sec\n        Start 131: tworldsvr_asio_chatban_handlers\n 93/187 Test #161: tworldsvr_asio_solomap_handlers ................   Passed    0.09 sec\n        Start 111: tworldsvr_asio_corps_cmd_handlers\n 94/187 Test #131: tworldsvr_asio_chatban_handlers ................   Passed    0.09 sec\n        Start 159: tworldsvr_asio_combat_handlers\n 95/187 Test #111: tworldsvr_asio_corps_cmd_handlers ..............   Passed    0.09 sec\n        Start 148: tworldsvr_asio_eventquarter_handlers\n 96/187 Test #159: tworldsvr_asio_combat_handlers .................   Passed    0.09 sec\n        Start 164: tworldsvr_asio_item_handlers\n 97/187 Test #148: tworldsvr_asio_eventquarter_handlers ...........   Passed    0.09 sec\n        Start 137: tworldsvr_asio_event_handlers\n 98/187 Test #164: tworldsvr_asio_item_handlers ...................   Passed    0.09 sec\n        Start 121: tworldsvr_asio_levelup_handlers\n 99/187 Test #137: tworldsvr_asio_event_handlers ..................   Passed    0.09 sec\n        Start 110: tworldsvr_asio_party_move_handlers\n100/187 Test #121: tworldsvr_asio_levelup_handlers ................   Passed    0.09 sec\n        Start 127: tworldsvr_asio_friend_load_handlers\n101/187 Test #110: tworldsvr_asio_party_move_handlers .............   Passed    0.09 sec\n        Start 120: tworldsvr_asio_region_handlers\n102/187 Test #127: tworldsvr_asio_friend_load_handlers ............   Passed    0.09 sec\n        Start  44: tcontrolsvr_asio_peer_registry\n103/187 Test #120: tworldsvr_asio_region_handlers .................   Passed    0.09 sec\n        Start 106: tworldsvr_asio_corps_handlers\n104/187 Test  #44: tcontrolsvr_asio_peer_registry .................   Passed    0.08 sec\n        Start 118: tworldsvr_asio_soulmate_handlers\n105/187 Test #106: tworldsvr_asio_corps_handlers ..................   Passed    0.08 sec\n        Start 115: tworldsvr_asio_friend_group_handlers\n106/187 Test #118: tworldsvr_asio_soulmate_handlers ...............   Passed    0.08 sec\n        Start 181: tworldsvr_asio_chardata_drift_handlers\n107/187 Test #115: tworldsvr_asio_friend_group_handlers ...........   Passed    0.08 sec\n        Start 119: tworldsvr_asio_friend_presence_handlers\n108/187 Test #181: tworldsvr_asio_chardata_drift_handlers .........   Passed    0.08 sec\n        Start 116: tworldsvr_asio_friend_list_handlers\n109/187 Test #119: tworldsvr_asio_friend_presence_handlers ........   Passed    0.08 sec\n        Start 126: tworldsvr_asio_appearance_handlers\n110/187 Test #116: tworldsvr_asio_friend_list_handlers ............   Passed    0.08 sec\n        Start 122: tworldsvr_asio_charstat_handlers\n111/187 Test #126: tworldsvr_asio_appearance_handlers .............   Passed    0.08 sec\n        Start 104: tworldsvr_asio_party_order_handlers\n112/187 Test #122: tworldsvr_asio_charstat_handlers ...............   Passed    0.08 sec\n        Start 163: tworldsvr_asio_friend_protected_handlers\n113/187 Test #104: tworldsvr_asio_party_order_handlers ............   Passed    0.08 sec\n        Start   9: fourstory_peer_client_tls\n114/187 Test #163: tworldsvr_asio_friend_protected_handlers .......   Passed    0.08 sec\n        Start  15: tloginsvr_asio_start_flow\n115/187 Test   #9: fourstory_peer_client_tls ......................   Passed    0.08 sec\n        Start 138: tworldsvr_asio_event_replay_handlers\n116/187 Test  #15: tloginsvr_asio_start_flow ......................   Passed    0.07 sec\n        Start 165: tworldsvr_asio_guildrank_handlers\n117/187 Test #138: tworldsvr_asio_event_replay_handlers ...........   Passed    0.06 sec\n        Start  37: tcontrolsvr_asio_peer_monitor\n118/187 Test #165: tworldsvr_asio_guildrank_handlers ..............   Passed    0.05 sec\n        Start 136: tworldsvr_asio_battlestatus_handlers\n119/187 Test #136: tworldsvr_asio_battlestatus_handlers ...........   Passed    0.04 sec\n        Start 133: tworldsvr_asio_occupy_handlers\n120/187 Test  #37: tcontrolsvr_asio_peer_monitor ..................   Passed    0.05 sec\n        Start 167: tworldsvr_asio_rank_handlers\n121/187 Test #133: tworldsvr_asio_occupy_handlers .................   Passed    0.04 sec\n        Start  55: tcontrolsvr_asio_co_offload\n122/187 Test #167: tworldsvr_asio_rank_handlers ...................   Passed    0.04 sec\n        Start  81: tworldsvr_asio_char_registry\n123/187 Test  #81: tworldsvr_asio_char_registry ...................   Passed    0.02 sec\n        Start  54: tcontrolsvr_asio_peer_dialer_cn\n124/187 Test  #55: tcontrolsvr_asio_co_offload ....................   Passed    0.02 sec\n        Start  83: tworldsvr_asio_guild_registry\n125/187 Test  #54: tcontrolsvr_asio_peer_dialer_cn ................   Passed    0.01 sec\n        Start  88: tworldsvr_asio_char_name_index\n126/187 Test  #83: tworldsvr_asio_guild_registry ..................   Passed    0.01 sec\n        Start  21: tloginsvr_asio_shutdown_sweep\n127/187 Test  #88: tworldsvr_asio_char_name_index .................   Passed    0.01 sec\n        Start  10: fourstory_postgresql_options\n128/187 Test  #10: fourstory_postgresql_options ...................   Passed    0.00 sec\n        Start   8: fourstory_security\n129/187 Test   #8: fourstory_security .............................   Passed    0.01 sec\n        Start  48: tcontrolsvr_asio_message_router\n130/187 Test  #21: tloginsvr_asio_shutdown_sweep ..................   Passed    0.02 sec\n        Start  47: tcontrolsvr_asio_admin_shell_route\n131/187 Test  #48: tcontrolsvr_asio_message_router ................   Passed    0.00 sec\n        Start  43: tcontrolsvr_asio_admin_shell\n132/187 Test  #47: tcontrolsvr_asio_admin_shell_route .............   Passed    0.00 sec\n        Start  28: tloginsvr_asio_wire_e2e_soci\n133/187 Test  #43: tcontrolsvr_asio_admin_shell ...................   Passed    0.00 sec\n        Start  24: tloginsvr_asio_soci_auth\n134/187 Test  #28: tloginsvr_asio_wire_e2e_soci ...................   Passed    0.00 sec\n        Start  42: tcontrolsvr_asio_soci_repositories\n135/187 Test  #24: tloginsvr_asio_soci_auth .......................   Passed    0.00 sec\n        Start  35: tlogsvr_asio_soci_log_sink\n136/187 Test  #42: tcontrolsvr_asio_soci_repositories .............   Passed    0.00 sec\n        Start  32: tpatchsvr_asio_soci_repository\n137/187 Test  #35: tlogsvr_asio_soci_log_sink .....................   Passed    0.00 sec\n        Start 105: tworldsvr_asio_corps_registry\n138/187 Test #105: tworldsvr_asio_corps_registry ..................   Passed    0.00 sec\n        Start  25: tloginsvr_asio_soci_char\n139/187 Test  #32: tpatchsvr_asio_soci_repository .................   Passed    0.00 sec\n        Start  26: tloginsvr_asio_soci_map\n140/187 Test  #25: tloginsvr_asio_soci_char .......................   Passed    0.00 sec\n        Start  27: tloginsvr_asio_soci_session_terminator\n141/187 Test  #26: tloginsvr_asio_soci_map ........................   Passed    0.00 sec\n        Start  98: tworldsvr_asio_party_registry\n142/187 Test  #98: tworldsvr_asio_party_registry ..................   Passed    0.00 sec\n        Start   2: tnetlib_crypto_kat\n143/187 Test  #27: tloginsvr_asio_soci_session_terminator .........   Passed    0.00 sec\n        Start  31: tpatchsvr_asio_handlers_wire\n144/187 Test   #2: tnetlib_crypto_kat .............................   Passed    0.00 sec\n        Start  39: tcontrolsvr_asio_event_scheduler\n145/187 Test  #31: tpatchsvr_asio_handlers_wire ...................   Passed    0.00 sec\n        Start  60: tmapsvr_asio_world_enter\n146/187 Test  #39: tcontrolsvr_asio_event_scheduler ...............   Passed    0.00 sec\n        Start  23: tloginsvr_asio_rc4_secret_length\n147/187 Test  #60: tmapsvr_asio_world_enter .......................   Passed    0.00 sec\n        Start  63: tmapsvr_asio_world_checkmain\n148/187 Test  #23: tloginsvr_asio_rc4_secret_length ...............   Passed    0.00 sec\n        Start  64: tmapsvr_asio_world_routelist\n149/187 Test  #63: tmapsvr_asio_world_checkmain ...................   Passed    0.00 sec\n        Start  61: tmapsvr_asio_world_enterchar\n150/187 Test  #64: tmapsvr_asio_world_routelist ...................   Passed    0.00 sec\n        Start  34: tlogsvr_asio_retry_queue\n151/187 Test  #61: tmapsvr_asio_world_enterchar ...................   Passed    0.00 sec\n        Start  66: tmapsvr_asio_combat\n152/187 Test  #34: tlogsvr_asio_retry_queue .......................   Passed    0.00 sec\n        Start  95: tworldsvr_asio_guild_wanted_sweep\n153/187 Test  #66: tmapsvr_asio_combat ............................   Passed    0.00 sec\n        Start  97: tworldsvr_asio_tactics_sweep\n154/187 Test  #95: tworldsvr_asio_guild_wanted_sweep ..............   Passed    0.00 sec\n        Start  65: tmapsvr_asio_spawn_manager\n155/187 Test  #97: tworldsvr_asio_tactics_sweep ...................   Passed    0.00 sec\n        Start  92: tworldsvr_asio_guild_level_cache\n156/187 Test  #65: tmapsvr_asio_spawn_manager .....................   Passed    0.00 sec\n        Start  86: tworldsvr_asio_peer_registry\n157/187 Test  #92: tworldsvr_asio_guild_level_cache ...............   Passed    0.00 sec\n        Start  33: tlogsvr_asio_log_decoder\n158/187 Test  #86: tworldsvr_asio_peer_registry ...................   Passed    0.00 sec\n        Start  59: tmapsvr_asio_world_senders\n159/187 Test  #33: tlogsvr_asio_log_decoder .......................   Passed    0.00 sec\n        Start  62: tmapsvr_asio_client_senders\n160/187 Test  #59: tmapsvr_asio_world_senders .....................   Passed    0.00 sec\n        Start  78: tmapsvr_asio_skill_engine\n161/187 Test  #62: tmapsvr_asio_client_senders ....................   Passed    0.00 sec\n        Start   5: tnetlib_packet_codec\n162/187 Test  #78: tmapsvr_asio_skill_engine ......................   Passed    0.00 sec\n        Start  18: tloginsvr_asio_charname_validator\n163/187 Test   #5: tnetlib_packet_codec ...........................   Passed    0.00 sec\n        Start  96: tworldsvr_asio_pvp_aggregate\n164/187 Test  #18: tloginsvr_asio_charname_validator ..............   Passed    0.00 sec\n        Start  58: tmapsvr_asio_mapper_profiles\n165/187 Test  #96: tworldsvr_asio_pvp_aggregate ...................   Passed    0.00 sec\n        Start   7: fourstory_mapper\n166/187 Test  #58: tmapsvr_asio_mapper_profiles ...................   Passed    0.00 sec\n        Start   6: tnetlib_messageid\n167/187 Test   #7: fourstory_mapper ...............................   Passed    0.00 sec\n        Start  85: tworldsvr_asio_fake_guild_repo\n168/187 Test   #6: tnetlib_messageid ..............................   Passed    0.00 sec\n        Start  93: tworldsvr_asio_mapper_profiles\n169/187 Test  #85: tworldsvr_asio_fake_guild_repo .................   Passed    0.00 sec\n        Start  74: tmapsvr_asio_loot_take\n170/187 Test  #93: tworldsvr_asio_mapper_profiles .................   Passed    0.00 sec\n        Start  94: tworldsvr_asio_guild_peerage\n171/187 Test  #74: tmapsvr_asio_loot_take .........................   Passed    0.00 sec\n        Start  71: tmapsvr_asio_loot_senders\n172/187 Test  #94: tworldsvr_asio_guild_peerage ...................   Passed    0.00 sec\n        Start  69: tmapsvr_asio_skill_cooldown\n173/187 Test  #71: tmapsvr_asio_loot_senders ......................   Passed    0.00 sec\n        Start  77: tmapsvr_asio_stat_engine\n174/187 Test  #69: tmapsvr_asio_skill_cooldown ....................   Passed    0.00 sec\n        Start  79: tmapsvr_asio_skill_effect\n175/187 Test  #77: tmapsvr_asio_stat_engine .......................   Passed    0.00 sec\n        Start  72: tmapsvr_asio_inventory\n176/187 Test  #79: tmapsvr_asio_skill_effect ......................   Passed    0.00 sec\n        Start  68: tmapsvr_asio_money\n177/187 Test  #72: tmapsvr_asio_inventory .........................   Passed    0.00 sec\n        Start  73: tmapsvr_asio_corpse\n178/187 Test  #68: tmapsvr_asio_money .............................   Passed    0.00 sec\n        Start  19: tloginsvr_asio_event_registry\n179/187 Test  #73: tmapsvr_asio_corpse ............................   Passed    0.00 sec\n        Start  70: tmapsvr_asio_loot\n180/187 Test  #19: tloginsvr_asio_event_registry ..................   Passed    0.00 sec\n        Start  67: tmapsvr_asio_damage_formula\n181/187 Test  #70: tmapsvr_asio_loot ..............................   Passed    0.00 sec\n        Start  76: tmapsvr_asio_quest_senders\n182/187 Test  #67: tmapsvr_asio_damage_formula ....................   Passed    0.00 sec\n        Start  75: tmapsvr_asio_quest_engine\n183/187 Test  #76: tmapsvr_asio_quest_senders .....................   Passed    0.00 sec\n        Start  11: fourstory_postgresql_integration\n184/187 Test  #75: tmapsvr_asio_quest_engine ......................   Passed    0.00 sec\n        Start  29: tloginsvr_postgresql_auth\n185/187 Test  #11: fourstory_postgresql_integration ...............***Skipped   0.00 sec\n        Start  57: tmapsvr_postgresql_catalog\n186/187 Test  #29: tloginsvr_postgresql_auth ......................***Skipped   0.00 sec\n187/187 Test  #57: tmapsvr_postgresql_catalog .....................***Skipped   0.00 sec\n\n100% tests passed, 0 tests failed out of 187\n\nLabel Time Summary:\nintegration    =   0.01 sec*proc (2 tests)\npostgresql     =   0.01 sec*proc (2 tests)\n\nTotal Test time (real) =  13.96 sec\n\nThe following tests did not run:\n\t 11 - fourstory_postgresql_integration (Skipped)\n\t 29 - tloginsvr_postgresql_auth (Skipped)\n\t 57 - tmapsvr_postgresql_catalog (Skipped)\n"
+}

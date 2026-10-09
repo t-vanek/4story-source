@@ -98,6 +98,7 @@ struct CharacterCreateRequest
     std::uint8_t  pants = 0;
     std::uint8_t  hand = 0;
     std::uint8_t  foot = 0;
+    std::uint32_t session_key = 0; // authenticated connection, never read from create payload
     std::uint8_t  level_option = 0;  // veteran-bonus selector
 };
 
@@ -118,7 +119,7 @@ struct CharacterCreateResponse
 {
     CreateCharResult status = CreateCharResult::Internal;
     std::int32_t     char_id = 0;
-    std::uint8_t     remaining_slots = 0;
+    std::uint8_t     create_count = 0; // backup TGLOBAL.TCreateChar: live characters across worlds
     std::uint8_t     starting_level = 1;
 };
 
@@ -126,10 +127,10 @@ struct CharacterCreateResponse
 enum class DeleteCharResult : std::uint8_t
 {
     Success         = 0,
-    Failed          = 1,  // in-guild
-    InvalidPassword = 2,
+    Failed          = 4,  // DR_GUILD: any nonzero TDeleteChar result
+    InvalidPassword = 1,
     Internal        = 3,
-    NoGroup         = 4,
+    NoGroup         = 2,
 };
 
 // Three veteran-bonus level entries for CS_VETERAN_ACK. The wire
@@ -165,6 +166,11 @@ public:
            std::uint8_t group_id,
            std::int32_t char_id,
            const std::string& password) = 0;
+
+    virtual DeleteCharResult DeleteAuthorized(std::int32_t user_id, std::uint8_t group_id,
+        std::int32_t char_id, const std::string& password, std::uint32_t /*session_key*/) {
+        return Delete(user_id, group_id, char_id, password);
+    }
 
     // CS_VETERAN_REQ — first three rows of TVETERANCHART, cached at
     // construction. Returned to the client so the create-char screen

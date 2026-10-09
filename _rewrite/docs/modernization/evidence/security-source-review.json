@@ -1,0 +1,90 @@
+{
+  "scope": "Review evidence for next original-client 2FA slice; no 2FA parity claim",
+  "sources": [
+    {
+      "path": "Server/TLoginSvr/CSHandler.cpp",
+      "sha256": "1996b6d8003062a686113cd539f7b43121a7a73ae03760e8a632c2699fdcbb89"
+    },
+    {
+      "path": "Client/TClient/TNetHandler.cpp",
+      "sha256": "a3a107b46bf2517be68a31e95837ce64d4db399b9649fddd241a5bdd10671e8b"
+    },
+    {
+      "path": "Server/TLoginSvrAsio/handlers.cpp",
+      "sha256": "2ccceeecb2d8cc27d1c7a55dab2b3e828b3a7b95a124156c179e46ff9b7a47a4"
+    },
+    {
+      "path": "Server/TLoginSvrAsio/services/soci_auth_service.cpp",
+      "sha256": "4abed40cf8d122d7b4a8e299f9603f1dd3f68a6783171e5348e5341f5eed46ef"
+    },
+    {
+      "path": "Client/TClient/TClientWnd.cpp",
+      "sha256": "38eecf7f63bbc0e78f3fc990c64c839ba86f141c84e112ee7c02c691eaab47ca"
+    },
+    {
+      "path": "Client/TClient/TClientGame.cpp",
+      "sha256": "0625b25d2cc4541bfa5ce650573537ec8da714a001875d5a81c7e9c9c495c8b1"
+    },
+    {
+      "path": "Client/TClient/TNetSender.cpp",
+      "sha256": "877196ae4fb6b18682ac86b57b32dfc9df240a7c8257e2f65cf343e922d6d799"
+    }
+  ],
+  "findings": [
+    {
+      "reference": "Client/TClient/TNetHandler.cpp:789",
+      "finding": "CODE_CORRECT closes the security dialog and sends CS_LOGIN_REQ again using the login form credentials. The client drives the second login."
+    },
+    {
+      "reference": "Server/TLoginSvr/CSHandler.cpp:1508",
+      "finding": "Original security confirmation adds a MAC-address trust record and sends only CS_SECURITYRESULT_ACK; it does not allocate a session or send a deferred CS_LOGIN_ACK."
+    },
+    {
+      "reference": "Server/TLoginSvr/CSHandler.cpp:371",
+      "finding": "LR_SECURITY challenge issuance branch is inside a block comment in this source snapshot. Presence of the handler/client reader is not proof this deployment enabled the branch."
+    },
+    {
+      "reference": "Server/TLoginSvrAsio/handlers.cpp:1492",
+      "finding": "Current modern confirmation sends SECURITYRESULT then completes a session and sends LOGIN_ACK. That conflicts with the source client retry and can cause a duplicate login. It trusts IP before session completion in separate transactions and does not require awaiting_security before VerifySecurityCode."
+    },
+    {
+      "reference": "Server/TLoginSvrAsio/services/soci_auth_service.cpp:692",
+      "finding": "Current one-use row lock works, but bTries is only incremented; no bound/expiry. CompleteSecurityLogin lacks fresh ban/agreement/site-code checks and produces incomplete ACK state."
+    },
+    {
+      "reference": "Pinned TGLOBAL catalog",
+      "finding": "TSECURECODE has five nullable source columns, but no matching MAC-address/security-code helper module was found by name/definition scan. TUSEREMAIL/TUSERTRUSTEDIP are explicit modern extensions. Do not assign invented historical expiry or hardware-trust semantics."
+    },
+    {
+      "reference": "Client/TClient/TNetSender.cpp:11 / Server/TLoginSvr/CSHandler.cpp:162",
+      "finding": "Current login sender includes three empty Zombie strings; server MAC parse is commented out. A persisted hardware trust identity cannot be inferred from these packets. A connection-bound retry grant is an explicit modern policy; do not pretend IP trust is historical MAC trust."
+    },
+    {
+      "reference": "Client/TClient/TClientWnd.cpp:327 vs Client/TClient/TNetHandler.cpp:816 and TNetSender.cpp:11",
+      "finding": "Normal initial login applies GetSHA1String(form password), but CODE_CORRECT retries SendCS_LOGIN_REQ with the form password directly; the sender does no hashing. Retry also omits explicit site-code argument. A byte-identical credential/site-code retry cannot be assumed. The disabled source challenge branch and unknown executable mean this path needs an explicit source-client adapter/fixture, not a general plaintext fallback."
+    }
+  ],
+  "next_acceptance": [
+    "Original source client sequence: LOGIN -> SECURITYCONFIRM_REQ -> SECURITYCONFIRM_ACK -> SECURITYRESULT_ACK -> client LOGIN retry -> LOGIN_ACK; no unsolicited deferred login acknowledgement.",
+    "Bind the verification challenge to the pending connection and account; consume verification and narrowly scoped retry permission atomically. Do not grant broad IP/device trust merely because a code matched.",
+    "Retry must revalidate current credentials, bans, agreement, site code, slots/premium and duplicate rules in the existing auth transaction.",
+    "Introduce expiry/attempt policy in new numbered migration 010+, explicitly as a modern application policy rather than guessed historical data.",
+    "Use a local fake mail sink and real encrypted TCP peer; test two pending connections, wrong/expired/replayed code, interleaved ban/agreement changes, disconnect and failover. No external email.",
+    "Model the source client raw-form-password retry separately from normal SHA1 wire credentials; any normalization must be restricted to the verified pending challenge/connection and supported profile, while preserving stored bcrypt policy. Test account switching and wrong credential after confirmation; direct-login/site-code profile needs independent evidence."
+  ],
+  "wire": {
+    "CS_SECURITYCONFIRM_REQ": {
+      "id": "0x199f",
+      "body": "empty"
+    },
+    "CS_SECURITYCONFIRM_ACK": {
+      "id": "0x19a0",
+      "body": "int32 byte length, string bytes"
+    },
+    "CS_SECURITYRESULT_ACK": {
+      "id": "0x19a7",
+      "body": "uint8 result; correct=0, incorrect=1"
+    },
+    "source_code_length": 6
+  }
+}

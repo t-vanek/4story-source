@@ -7,13 +7,11 @@
 //   1. User A is logged in on session X.
 //   2. User A logs in again on a fresh session Y.
 //   3. Registry: Register(A, Y) returns X (previous holder).
-//   4. Login handler closes X. Y stays.
+//   4. A defensive local replacement closes X; native DB duplicate handling
+//      sends LR_DUPLICATE to Y and closes both authenticated connections.
 //
-// Modern divergence from legacy: legacy CSHandler.cpp:271-289 closes
-// BOTH X (old TCP socket) AND Y (sent LR_DUPLICATE then closed). We
-// keep Y because the modern UX expectation is "I just logged in,
-// give me the working session" — the older session is the stale one.
-// Documented in handlers::OnLoginReq.
+// Duplicate replies close both authenticated Login connections. Pending security
+// challenges remain connection-specific and do not displace another connection.
 //
 // Implementation pointer: registry holds weak_ptr to each AsioSession
 // (sessions are owned by their per-connection HandleConnection
@@ -22,6 +20,7 @@
 
 #include "asio_session.h"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -31,9 +30,9 @@
 
 namespace tloginsvr::services {
 
-// Per-session metadata stamped at LOGIN-success time. The registry
-// holds one Entry per live authenticated session; HandleConnection
-// reads it back at close to drive SessionTerminator.
+// Per-connection pending or authenticated state. Pending entries have no
+// session key or account permissions. Close-time cleanup revokes their challenge;
+// authenticated entries instead drive key-specific SessionTerminator cleanup.
 struct ConnectionEntry
 {
     std::int32_t  user_id = 0;
@@ -61,12 +60,13 @@ struct ConnectionEntry
     // populates it to match the wire layout.
     std::int64_t  check_key = 0;
 
-    // 2FA pending state. Set when SociAuthService::Authenticate
-    // returns SecurityRequired. session_key is 0 until the
-    // CS_SECURITYCONFIRM_ACK match completes the deferred login.
-    // pending_client_ip is what gets whitelisted on success.
-    bool          awaiting_security = false;
-    std::string   pending_client_ip;
+    // A challenge is private to this connection. Confirmation leaves the session
+    // pending until a client-driven LOGIN retry passes full authentication.
+    bool awaiting_security = false;
+    std::string pending_client_ip;
+    std::string security_token;
+    bool security_verified = false;
+    std::chrono::steady_clock::time_point security_deadline{};
 
     // Character ID the client launched into (from CS_START_REQ
     // SR_SUCCESS). Stamped by OnStartReq right before MarkHandoff;
@@ -126,12 +126,9 @@ public:
         const std::shared_ptr<tnetlib::AsioSession>& session,
         std::uint8_t group_id) = 0;
 
-    // Promote a 2FA-pending session to fully authenticated. Stamps
-    // session_key + clears awaiting_security so downstream handlers
-    // accept the session as a regular login.
-    virtual void CompleteSecurityLogin(
-        const std::shared_ptr<tnetlib::AsioSession>& session,
-        std::uint32_t session_key) = 0;
+    // Permit only the next LOGIN request on this still-pending connection.
+    virtual void MarkSecurityVerified(
+        const std::shared_ptr<tnetlib::AsioSession>& session) = 0;
 
     // Remove a session. No-op if not registered. Always safe to call
     // from connection-close paths.

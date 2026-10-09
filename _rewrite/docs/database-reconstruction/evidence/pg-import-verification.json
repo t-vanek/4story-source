@@ -1,0 +1,87 @@
+{
+  "run_id": 1,
+  "manifest_sha256": "5eba3ef01a812c323f6d3ff48e8b630d7a5bd34033442def12c44a4886e9471e",
+  "verified_tables": [
+    {
+      "table": "TCLASSCHART",
+      "rows": 6,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TFORMULACHART",
+      "rows": 34,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TITEMCHART",
+      "rows": 7706,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TMAPMONCHART",
+      "rows": 23381,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TMONATTRCHART",
+      "rows": 9290,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TMONITEMCHART",
+      "rows": 16466,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TMONSPAWNCHART",
+      "rows": 20357,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TMONSTERCHART",
+      "rows": 3534,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TNPCCHART",
+      "rows": 2623,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TQREWARDCHART",
+      "rows": 4322,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TQUESTCHART",
+      "rows": 6261,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TQUESTTERMCHART",
+      "rows": 10687,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TRACECHART",
+      "rows": 88,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TSKILLCHART",
+      "rows": 765,
+      "value_hash_matches": true
+    },
+    {
+      "table": "TSKILLDATA",
+      "rows": 1172,
+      "value_hash_matches": true
+    }
+  ],
+  "skipped_verified_tables": [],
+  "source_rows": 106692,
+  "canonical_items": {
+    "rows": 7706,
+    "six_fields_verified": true
+  }
+}

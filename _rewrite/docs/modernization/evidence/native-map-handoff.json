@@ -1,0 +1,286 @@
+{
+  "scope": "Native PostgreSQL Login START handoff using original routing charts; native Map claim/load/save and original client PENDING",
+  "sql_server_used": false,
+  "tests": [
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [
+        "--options-only"
+      ],
+      "exit_code": 0,
+      "log": "PASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\n"
+    },
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-09 00:12:22.854] [info] SessionPool ready: backend=postgresql pool_size=2 acquire_timeout_ms=100\nPASS pool sessions are distinct native PostgreSQL connections\nPASS native PostgreSQL connection uses TLS with certificate verification\nPASS pool exhaustion has a bounded timeout\nPASS moved lease retains exclusive live session\nPASS native prepared binding preserves Unicode and literal punctuation\nPASS transaction destructor rolls back uncommitted writes\nPASS constraint failure rolls back entire transaction and session is reusable\nPASS unsupported T-SQL fails without submitting or logging secret literals\nPASS concurrent transactional updates do not lose writes\nPASS mutable test role has no historical snapshot access\nPASS untrusted PostgreSQL TLS certificate is rejected\n[2026-10-09 00:12:22.932] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS database disconnect is surfaced without retrying an operation\n[2026-10-09 00:12:22.938] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS fresh connection preserves committed state after a disconnect\n"
+    },
+    {
+      "binary": "test_tloginsvr_postgresql_handoff",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-09 00:12:23.135] [info] SessionPool ready: backend=postgresql pool_size=4 acquire_timeout_ms=30000\n[2026-10-09 00:12:23.140] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-09 00:12:23.238] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-09 00:12:23.303] [info] auth: user 'SyntheticRoute501' (uid=501) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 00:12:23.368] [info] auth: user 'SyntheticRoute502' (uid=502) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS backup creation starts on map 2010 before routing fallback\nPASS wrong session key refused\nPASS zero character retains original missing-character result 1\nPASS unsupported unsigned character sentinel is refused with result 1\nPASS other account character refused\nPASS character identity scoped to world\nPASS unprovisioned world returns SR_NOGROUP=2\nPASS unprovisioned channel refused\nPASS database agreement is required\nPASS locked duplicate session cannot hand off\nPASS deleted directory entry cannot enter map\nPASS unmapped cell and spawn never fall back to first server\nPASS inactive endpoint refused\nPASS all rejected requests preserve coordinates, counters and reservation state\n[2026-10-09 00:12:23.401] [error] native map handoff transaction failed\nPASS late database failure returns SR_INTERNAL=3\nPASS late failure rolls back fallback, rotation and selected character together\nPASS logical channel 2 resolves original owner 2, not first registered server\nPASS fallback persists backed-up spawn X/Z and original Y=0 behavior\nPASS pending handoff stores selected identity and bounded lucky number\nPASS idempotent START retains endpoint and original expiry\nPASS pending session cannot change selected channel\nPASS post-handoff lobby cannot create another character\nPASS post-handoff lobby cannot delete selected character\nPASS disconnect after committed START preserves pending session without premature logout\n[2026-10-09 00:12:23.470] [info] auth: user 'SyntheticRoute501' (uid=501) authenticated, agreement=1 pc_bang=0 premium=0 last_char=1\nPASS expired unclaimed handoff allows fresh login with new key\nPASS expiry stamps only old session logout audit\nPASS concurrent same-session START commits one rotation and identical endpoint\nPASS unkeyed native API refuses routing\n[2026-10-09 00:12:23.475] [error] native map handoff transaction failed\nPASS stale process token cannot create a handoff\nPASS unpublished routing manifest is rejected at startup\n[2026-10-09 00:12:23.478] [error] native map handoff transaction failed\nPASS catalog status drift refuses new handoff after startup\n[2026-10-09 00:12:23.532] [info] auth: user 'SyntheticRoute503' (uid=503) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS explicit world 2 to source group 1 mapping routes independent world\n[2026-10-09 00:12:23.595] [info] auth: user 'SyntheticRoute504' (uid=504) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS concurrent START versus delete has exactly one committed outcome\nPASS startup removes expired pending handoff while retaining Map session and unexpired handoff\nHandoff checks complete, failures=0\n"
+    }
+  ],
+  "engine": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "migrations": [
+    "001-import-control.sql",
+    "002-legacy-snapshots.sql",
+    "003-canonical-content.sql",
+    "004-source-text-bytes.sql",
+    "005-runtime-catalog-control.sql",
+    "006-current-chart-contracts.sql",
+    "007-catalog-runtime-metadata.sql",
+    "008-native-login.sql",
+    "009-login-runtime-owner.sql",
+    "010-login-security-challenges.sql",
+    "011-character-reference-catalog.sql",
+    "012-native-characters.sql",
+    "013-character-item-allocation-floor.sql",
+    "014-routing-reference-catalog.sql",
+    "015-native-map-handoff.sql"
+  ],
+  "import": {
+    "run_id": 1,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "verified_tables": [
+      {
+        "table": "TVETERANCHART",
+        "rows": 3,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TCLASSCHART",
+        "rows": 6,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TFORMULACHART",
+        "rows": 34,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TITEMCHART",
+        "rows": 7706,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TLEVELCHART",
+        "rows": 126,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMAPMONCHART",
+        "rows": 23381,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONATTRCHART",
+        "rows": 9290,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONITEMCHART",
+        "rows": 16466,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSPAWNCHART",
+        "rows": 20357,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSTERCHART",
+        "rows": 3534,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TNPCCHART",
+        "rows": 2623,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQREWARDCHART",
+        "rows": 4322,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTCHART",
+        "rows": 6261,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTITEMCHART",
+        "rows": 715,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTTERMCHART",
+        "rows": 10687,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TRACECHART",
+        "rows": 88,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLCHART",
+        "rows": 765,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLDATA",
+        "rows": 1172,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTHOTKEY",
+        "rows": 12,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTITEMCHART",
+        "rows": 189,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTRECALL",
+        "rows": 3,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTSKILL",
+        "rows": 237,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 107977,
+    "canonical_items": {
+      "rows": 7706,
+      "six_fields_verified": true
+    }
+  },
+  "activation": {
+    "run_id": 1,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "changed": true,
+    "reference_tables": 22,
+    "verified_source_rows": 107977,
+    "starter_graph_gaps": {
+      "starter_item": 0,
+      "starter_recall": 0,
+      "veteran_level": 0,
+      "starter_slot_collision": 0
+    },
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "routing_import": {
+    "run_id": 2,
+    "manifest_sha256": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+    "verified_tables": [
+      {
+        "table": "TCHANNELCHART",
+        "rows": 361,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMAPCHART",
+        "rows": 301,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSPAWNPOSCHART",
+        "rows": 417,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TUNITCHART",
+        "rows": 361,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 1440,
+    "canonical_items": null
+  },
+  "routing_activation": {
+    "run_id": 2,
+    "manifest_sha256": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+    "changed": true,
+    "reference_tables": 4,
+    "verified_source_rows": 1440,
+    "unmapped_source_channel_cells": 3,
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "routing_publication": {
+    "status": "passed",
+    "checks": [
+      "same verified release activation is idempotent",
+      "COMPLETE_ROUTING_MANIFEST_REQUIRED",
+      "PINNED_BACKUP_FINGERPRINT_MISMATCH",
+      "CHECKPOINT_TARGET_DRIFT",
+      "failed publications preserve independent character, Map and routing selectors",
+      "idempotent and failed publications add no activation history",
+      "original TSVRCHART view join produces 358 routing rows"
+    ]
+  },
+  "routing_wire": {
+    "status": "passed",
+    "checks": [
+      "actual daemon refuses wrong routing release before accepting clients",
+      "encrypted login succeeds",
+      "source reply opcode, sequence and checksum match",
+      "native TCP character creation succeeds",
+      "source reply opcode, sequence and checksum match",
+      "missing group returns exact eight-byte SR_NOGROUP ACK",
+      "START ACK preserves IPv4 octets, little-endian port and owner server byte",
+      "success ACK is fully flushed before original Login connection closes",
+      "actual disconnect preserves committed pending handoff without logout",
+      "queued post-START create was suppressed",
+      "first SIGTERM exits zero",
+      "real Login process restart preserves unexpired Map handoff",
+      "encrypted login succeeds",
+      "source reply opcode, sequence and checksum match",
+      "expired unclaimed handoff reauthenticates with same persisted character",
+      "encrypted login succeeds",
+      "non-six-byte START closes without fabricated request fields",
+      "encrypted login succeeds",
+      "non-six-byte START closes without fabricated request fields",
+      "encrypted login succeeds",
+      "non-six-byte START closes without fabricated request fields",
+      "final SIGTERM exits zero",
+      "daemon log contains no sanitizer diagnostics"
+    ],
+    "scope": "original-source protocol peer; native Map acceptance and original client PENDING"
+  },
+  "status": "passed"
+}

@@ -1,0 +1,48 @@
+# Verified fresh normal-character runtime. Full gameplay, social persistence,
+# primary Map transfers and active recall admission are still being implemented.
+# Apply 001-019 and deploy/sql/map-runtime-grants.sql to a dedicated Map role.
+[server]
+port = 5815
+
+[database]
+backend = "postgresql"
+connection_string_env = "FOURSTORY_MAP_CONNECTION"
+pool_size = 4
+worker_threads = 4
+
+[native_map]
+character_manifest_sha256 = "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8"
+routing_manifest_sha256 = "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74"
+actor_manifest_sha256 = "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381"
+# Original CHAR_SAVE_TICK is 30 minutes. Allowed range: 100..1800000 ms.
+# After a crash, transient changes since the latest committed checkpoint are lost.
+# Shorten this interval for the deployment's recovery target; final logout always saves.
+checkpoint_interval_ms = 1800000
+
+[cluster]
+group_id = 1
+server_id = 1
+
+[world]
+host = "world"
+port = 3815
+
+[mode]
+type = "pve"
+
+[crypto]
+# Fixed 0x2918 protocol bytes from the original client, including trailing NUL.
+# This is the public legacy wire constant, not an account/database credential.
+rc4_secret_hex = "4135242438414653313341313a3a2d313123212e2e27923139373136414326942f44313b3b312300"
+
+# Optional read-only static map catalogs use an independent role/release.
+# See tmapsvr-postgresql.example.toml for the [content] section.
+
+[health]
+port = 18916
+[metrics]
+port = 18917
+[shutdown]
+drain_ms = 1000
+[log]
+level = "info"

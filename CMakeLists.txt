@@ -1,9 +1,8 @@
 # Root CMake for 4Story server modernization.
 #
-# Status: Phase 1 (TNetLib modernization). The legacy MSBuild solution at
-# Server/TServer.sln remains authoritative for Windows builds today; this
-# CMake tree is being grown alongside it to enable Linux builds and a path
-# to dropping ATL/MFC/Win32-specific surface.
+# Builds the portable Asio server cluster on Linux and Windows.
+# The legacy MSBuild solution at Server/TServer.sln is kept as a reference;
+# its Win32 TNetLib target is optional and disabled by default on Linux.
 #
 # See _rewrite/docs/MODERNIZATION_PLAN.md for the full plan.
 
@@ -22,6 +21,17 @@ project(FourStory
     VERSION 5.0
     LANGUAGES C CXX
 )
+
+# Linux is the primary PostgreSQL target. Windows opts in together with
+# the vcpkg 'postgresql' manifest feature.
+if(WIN32)
+    set(_fourstory_pg_default OFF)
+else()
+    set(_fourstory_pg_default ON)
+endif()
+option(FOURSTORY_ENABLE_POSTGRESQL "Build the native SOCI PostgreSQL backend"
+    ${_fourstory_pg_default})
+unset(_fourstory_pg_default)
 
 # Fallback CMAKE_PREFIX_PATH when the vcpkg toolchain integration
 # isn't active (e.g. someone reconfigured without
@@ -44,7 +54,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Where Windows builds land — outside the source tree.
+# Build outputs — outside the source tree.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -119,12 +129,20 @@ if(NOT FOURSTORY_OSSL_LEGACY_MODULE)
         endforeach()
         unset(_fourstory_legacy_candidates)
     else()
-        find_file(FOURSTORY_OSSL_LEGACY_MODULE
+        find_file(_fourstory_ossl_legacy_module
             NAMES legacy.so
-            HINTS "/usr/lib/x86_64-linux-gnu/ossl-modules"
+            HINTS "/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/ossl-modules"
+                  "/usr/lib/x86_64-linux-gnu/ossl-modules"
                   "/usr/lib/ossl-modules"
+                  "/usr/lib64/ossl-modules"
                   "/usr/local/lib/ossl-modules"
             NO_DEFAULT_PATH)
+        if(_fourstory_ossl_legacy_module)
+            set(FOURSTORY_OSSL_LEGACY_MODULE
+                "${_fourstory_ossl_legacy_module}" CACHE FILEPATH
+                "Path to OpenSSL 3 legacy provider module" FORCE)
+        endif()
+        unset(_fourstory_ossl_legacy_module CACHE)
     endif()
 endif()
 if(FOURSTORY_OSSL_LEGACY_MODULE)
@@ -172,7 +190,6 @@ endif()
 # Test infrastructure (must be enabled at the top level so add_test()
 # calls inside subprojects register with ctest).
 include(CTest)
-enable_testing()
 
 # Subprojects. Add new servers / libs here as they get a CMakeLists.txt.
 add_subdirectory(Lib/3rdParty/bcrypt)
@@ -192,11 +209,23 @@ add_subdirectory(Server/TWorldSvrAsio)
 # listed first so any bare-named transitive includes (wire_codec.h,
 # config.h — present under both server roots) resolve to TWorld, while
 # the TMap-specific paths (services/world_client.h) stay unambiguous.
-if(TARGET tworldsvr_asio_core AND TARGET tmapsvr_asio_core)
+if(BUILD_TESTING AND TARGET tworldsvr_asio_core AND TARGET tmapsvr_asio_core)
     add_executable(test_cluster_world_handshake
         ${CMAKE_CURRENT_SOURCE_DIR}/Server/TMapSvrAsio/tests/test_world_handshake.cpp)
     target_link_libraries(test_cluster_world_handshake PRIVATE
         tworldsvr_asio_core tmapsvr_asio_core)
     add_test(NAME cluster_world_handshake
         COMMAND test_cluster_world_handshake)
+    add_executable(test_cluster_world_reconnect
+        ${CMAKE_CURRENT_SOURCE_DIR}/Server/TMapSvrAsio/tests/test_world_reconnect.cpp)
+    target_link_libraries(test_cluster_world_reconnect PRIVATE
+        tworldsvr_asio_core tmapsvr_asio_core)
+    add_test(NAME cluster_world_reconnect COMMAND test_cluster_world_reconnect)
 endif()
+
+# Install only the portable daemons and the offline account migration tool.
+include(GNUInstallDirs)
+install(TARGETS
+    tloginsvr_asio tpatchsvr_asio tlogsvr_asio tcontrolsvr_asio
+    tmapsvr_asio tworldsvr_asio tloginsvr_bcrypt_migrate
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

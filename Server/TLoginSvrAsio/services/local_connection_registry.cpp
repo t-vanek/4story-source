@@ -2,22 +2,24 @@
 // kick + agreement gate state.
 //
 // Production-grade (not a test fake) for any single-process login
-// deployment. Two maps under a single mutex:
+// deployment. Indexes under a single mutex:
 //   m_by_user      (user_id → LiveEntry)  — for duplicate-kick lookup
 //                                            on a fresh successful login.
 //   m_by_session   (session ptr → user_id) — for the reverse lookup
 //                                            used by lobby handlers
 //                                            and the close-time cleanup.
+//   m_sessions     (session ptr → weak session) — includes pending challenges.
 //
 // Register() returns any prior session that needs to be kicked — the
 // caller (handlers::OnLoginReq) is responsible for closing it so the
-// duplicate user sees a disconnect. Snapshot() is used by main.cpp's
-// graceful_shutdown lambda to drive a final TCURRENTUSER sweep.
+// duplicate user sees a disconnect. Snapshot includes pending connections for
+// shutdown/inspection; connection coroutines perform their own cleanup.
 //
 // Legacy parity: Server/TLoginSvr/CTLoginSvrModule::m_mapTUSER +
 // m_csLI critical section.
 
 #include "local_connection_registry.h"
+#include <algorithm>
 
 namespace tloginsvr::services {
 
@@ -28,27 +30,21 @@ LocalConnectionRegistry::Register(ConnectionEntry entry,
     std::lock_guard<std::mutex> lock(m_mtx);
 
     std::shared_ptr<tnetlib::AsioSession> previous;
-    if (auto it = m_by_user.find(entry.user_id); it != m_by_user.end())
+    if (!entry.awaiting_security)
+        if (auto it = m_by_user.find(entry.user_id); it != m_by_user.end())
+            previous = it->second.lock();
+    if (previous && previous != session)
     {
-        previous = it->second.lock();
-        if (previous)
-        {
-            // Drop the reverse mapping for the old session before
-            // overwriting; otherwise the eventual Unregister(old)
-            // would no-op for user_id but leak the by_session entry.
-            m_by_session.erase(previous.get());
-        }
+        m_by_session.erase(previous.get());
+        m_sessions.erase(previous.get());
     }
-
-    // Defensive: drop any prior reverse mapping for the new session.
     if (auto it = m_by_session.find(session.get()); it != m_by_session.end())
-    {
-        m_by_user.erase(it->second.user_id);
-        m_by_session.erase(it);
-    }
-
-    m_by_user[entry.user_id] = session;
-    m_by_session[session.get()] = entry;
+        if (auto u = m_by_user.find(it->second.user_id); u != m_by_user.end() && u->second.lock() == session)
+            m_by_user.erase(u);
+    if (!entry.awaiting_security) m_by_user[entry.user_id] = session;
+    m_by_session[session.get()] = std::move(entry);
+    m_sessions[session.get()] = session;
+    if (previous == session) previous.reset();
     return previous;
 }
 
@@ -107,15 +103,18 @@ void LocalConnectionRegistry::SetGroupId(
     }
 }
 
-void LocalConnectionRegistry::CompleteSecurityLogin(
-    const std::shared_ptr<tnetlib::AsioSession>& session,
-    std::uint32_t session_key)
+void LocalConnectionRegistry::MarkSecurityVerified(
+    const std::shared_ptr<tnetlib::AsioSession>& session)
 {
     std::lock_guard<std::mutex> lock(m_mtx);
     if (auto it = m_by_session.find(session.get()); it != m_by_session.end())
     {
-        it->second.session_key = session_key;
-        it->second.awaiting_security = false;
+        if (it->second.awaiting_security)
+        {
+            it->second.security_verified = true;
+            it->second.security_deadline = std::min(it->second.security_deadline,
+                std::chrono::steady_clock::now() + std::chrono::seconds(30));
+        }
     }
 }
 
@@ -129,6 +128,7 @@ void LocalConnectionRegistry::Unregister(
 
     const auto user_id = it->second.user_id;
     m_by_session.erase(it);
+    m_sessions.erase(session.get());
 
     // Only erase the by_user entry if it still points at THIS session.
     // (If a later Register replaced us, that entry now belongs to the
@@ -154,13 +154,8 @@ LocalConnectionRegistry::Snapshot() const
     std::lock_guard<std::mutex> lock(m_mtx);
     std::vector<LiveEntry> out;
     out.reserve(m_by_session.size());
-    // Walk m_by_user so we can lock the weak_ptr → shared_ptr cheaply.
-    // m_by_session keys are raw pointers; the strong ref we need lives
-    // on the user-side map. Sessions whose weak_ptr has expired since
-    // the by_user insert but before Unregister fires (rare but possible
-    // during a connection-close race) are silently skipped — the caller
-    // doesn't need them: there's nobody to Terminate against.
-    for (const auto& [uid, weak] : m_by_user)
+    // Include pending connections without indexing them as authenticated users.
+    for (const auto& [ptr, weak] : m_sessions)
     {
         auto sess = weak.lock();
         if (!sess) continue;

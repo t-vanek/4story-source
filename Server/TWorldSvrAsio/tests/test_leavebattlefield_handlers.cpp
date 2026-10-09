@@ -7,9 +7,9 @@
 //     her from the queue.
 //   * Char B — channel=BR_SERVER_ID, in a BR premade team. LEAVE
 //     drops her from the team.
-//   * Char C — map_id=BOW_MAP_ID, in Bow queue. LEAVE drops her.
+//   * Char C — map_id=BOW_MAP_ID, in a decided Bow match. LEAVE drops her.
 //   * Char D — channel=0, map_id=0 (not on a battlefield). LEAVE
-//     is a no-op; her state in BR + Bow stays put.
+//     is a no-op; her BR queue and Bow match state stay put.
 
 #include "../handlers/handlers.h"
 #include "../services/bow_constants.h"
@@ -24,6 +24,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -132,6 +133,12 @@ int main()
     tworldsvr::GuildRegistry guilds;
     tworldsvr::PeerRegistry  peers;
     tworldsvr::BowRegistry   bow;
+    // W6-54 requires configured settings and an active queue window.
+    bow.Configure(tworldsvr::bow::kBowMapId, 0, 1, 60, 30, 120);
+    bow.AddStartTime(1000);
+    bow.Init(500);
+    bow.Tick(1001, 1000, true);
+    bow.Tick(1002, 1000, true);
     tworldsvr::BrRegistry    br;
     tworldsvr::HandlerContext ctx{};
     ctx.io = &io; ctx.chars = &chars; ctx.guilds = &guilds;
@@ -159,9 +166,13 @@ int main()
     // ADDCHAR four chars on p1: A=10, B=20 (premade chief), C=30
     // (Bow queue), D=40 (off-battlefield baseline).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(10, 0xAA));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(10, 0xAA)));
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(20, 0xBB));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(20, 0xBB)));
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(30, 0xCC));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(30, 0xCC)));
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(40, 0xDD));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(40, 0xDD)));
     EXPECT(WaitFor([&]{
         return chars.Find(10) && chars.Find(20) &&
                chars.Find(30) && chars.Find(40);
@@ -189,23 +200,34 @@ int main()
                        200, /*mate_key=*/0, /*klass=*/1, "Mate");
     EXPECT(br.GetPremadePlayerCountByChief(20) == 2);
 
-    // Char C in Bow queue, on Bow map.
+    // Char C queues for Bow and will enter the match below.
     {
         auto c = chars.Find(30);
         std::lock_guard g(c->lock);
         c->map_id  = tworldsvr::bow::kBowMapId;
         c->country = tworldsvr::bow::kCountryC;
     }
-    EXPECT(bow.AddPlayer(30, 0xCC, tworldsvr::bow::kCountryC, /*guild=*/0)
+    EXPECT(bow.AddPlayer(30, 0xCC, tworldsvr::bow::kCountryC, /*guild=*/0).result
            == tworldsvr::bow::kSuccess);
 
     // Char D off-battlefield (channel=0, map_id=0) but with state in
-    // BOTH the BR queue and the Bow queue. LEAVE must NOT touch
+    // BOTH the BR queue and the Bow match. LEAVE must NOT touch
     // either (handler's channel/map gate rejects the branch).
     EXPECT(br.AddPlayerToQueue(40, 0xDD, /*klass=*/1, "D")
            == tworldsvr::br::kSuccess);
-    EXPECT(bow.AddPlayer(40, 0xDD, tworldsvr::bow::kCountryD, /*guild=*/0)
+    EXPECT(bow.AddPlayer(40, 0xDD, tworldsvr::bow::kCountryD, /*guild=*/0).result
            == tworldsvr::bow::kSuccess);
+
+    // W6-54 LEAVE releases an active Bow player only after a winner
+    // is decided. Build that state using the scheduler and score updates.
+    bow.Tick(1061, 2000, true);
+    EXPECT(bow.MatchSize() == 2);
+    for (int i = 0; i < 5; ++i)
+        bow.UpdatePoints(tworldsvr::bow::kCountryD, 3000);
+    bow.Tick(1062, 4000, true); // decides winner before the release window
+    EXPECT(bow.Winner() == tworldsvr::bow::kWinnerDefugel);
+    EXPECT(bow.Contains(30));
+    EXPECT(bow.Contains(40));
 
     // --- Test A: BR queue cleanup -----------------------------------
     SendFramed(p1, ToUint16(MessageId::MW_LEAVEBATTLEFIELD_REQ),
@@ -219,29 +241,21 @@ int main()
     EXPECT(WaitFor([&]{ return br.GetPremadePlayerCountByChief(20) == 0; }));
     EXPECT(br.TeamCount() == 0);
 
-    // --- Test C: Bow queue cleanup ----------------------------------
+    // --- Test C: decided Bow match cleanup ----------------------------------
     SendFramed(p1, ToUint16(MessageId::MW_LEAVEBATTLEFIELD_REQ),
                Idkey(30, 0xCC));
     EXPECT(WaitFor([&]{ return !bow.Contains(30); }));
 
     // --- Test D: off-battlefield → no-op ---------------------------
-    //   Char D stays in both BR and Bow queues after the LEAVE. We
-    //   verify by sending the LEAVE and then a stimulus (Bow
-    //   enqueue + read its ACK) and confirming the registries are
-    //   unchanged.
     SendFramed(p1, ToUint16(MessageId::MW_LEAVEBATTLEFIELD_REQ),
                Idkey(40, 0xDD));
-    // Send an ADDTOBOWQUEUE for Char A to give us a synchronisation
-    // point — Char A was already in the BR queue and has now been
-    // removed (Test A); enqueueing her in Bow gives us an ACK to
-    // read. Her TChar.aid_country is 0 (= TCONTRY_D, eligible).
-    SendFramed(p1, ToUint16(MessageId::MW_ADDTOBOWQUEUE_REQ),
+    // Status synchronizes the silent LEAVE without mutating either queue.
+    SendFramed(p1, ToUint16(MessageId::MW_BATTLEMODESTATUS_REQ),
                Idkey(10, 0xAA));
     auto [w, b] = ReadFramed(p1);
-    EXPECT(w == ToUint16(MessageId::MW_ADDTOBOWQUEUE_ACK));
-    // Char D's pre-LEAVE state is intact.
-    EXPECT(br.QueueSize() == 1);     // only Char D
-    EXPECT(bow.Contains(40));        // still in Bow queue
+    EXPECT(w == ToUint16(MessageId::MW_BATTLEMODESTATUS_ACK));
+    EXPECT(br.QueueSize() == 1); // Char D stays queued for BR
+    EXPECT(bow.Contains(40));    // Char D stays in the Bow roster
 
     p1.close();
     io.stop();

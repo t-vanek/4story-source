@@ -1,0 +1,15 @@
+{
+  "image": "localhost/fourstory:postgresql-security",
+  "image_id": "f8335e8dac8f03f15f85a152eb20479fb28eb7393af610f4ceb1bcd0d5176b25",
+  "user": "10001:10001",
+  "health_checks_passed": 6,
+  "sigterm_exit_zero": 6,
+  "container_dns_map_to_world": true,
+  "smoke_log": "world: /healthz OK\nlog: /healthz OK\ncontrol: /healthz OK\nlogin: /healthz OK\npatch: /healthz OK\nmap: /healthz OK\nmap -> world: connected over container DNS\nmap: SIGTERM exit 0\npatch: SIGTERM exit 0\nlogin: SIGTERM exit 0\ncontrol: SIGTERM exit 0\nlog: SIGTERM exit 0\nworld: SIGTERM exit 0\n",
+  "installed_login_report": "login-security-release.json",
+  "installed_map_report": "security-catalog-release.json",
+  "scope": "Local Release image build and six-daemon smoke; separate reports verify native Login email/ownership flow and Map historical catalog. Original client and complete persistent gameplay pending.",
+  "installed_login_status": "passed",
+  "installed_map_status": "passed",
+  "status": "passed"
+}

@@ -15,6 +15,7 @@
 #include <unordered_map>
 
 namespace fourstory::db { class SessionPool; }
+namespace soci { class session; }
 
 namespace tmapsvr {
 
@@ -22,6 +23,8 @@ class SociNpcService final : public INpcService
 {
 public:
     explicit SociNpcService(fourstory::db::SessionPool& pool);
+    // Shared boot transaction: all catalogs observe the same content release.
+    explicit SociNpcService(soci::session& sql);
 
     std::optional<NpcRow>
         FindNpc(std::uint16_t npc_id) const override;

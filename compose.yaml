@@ -1,0 +1,73 @@
+name: fourstory
+
+x-server: &server
+  image: fourstory:linux
+  build:
+    context: .
+    target: runtime
+    args:
+      BUILD_JOBS: ${BUILD_JOBS:-2}
+  user: "10001:10001"
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  volumes:
+    - ${FOURSTORY_CONFIG_DIR:-./deploy/config.example}:/etc/fourstory:ro,z
+  stop_grace_period: 30s
+  healthcheck:
+    test: ["CMD-SHELL", "curl --fail --silent --max-time 3 http://127.0.0.1:$${HEALTH_PORT}/healthz > /dev/null"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+
+services:
+  login:
+    <<: *server
+    command: ["tloginsvr_asio", "--config", "/etc/fourstory/tloginsvr.toml"]
+    environment:
+      HEALTH_PORT: "8815"
+    ports:
+      - "127.0.0.1:4816:4816"
+  patch:
+    <<: *server
+    command: ["tpatchsvr_asio", "--config", "/etc/fourstory/tpatchsvr.toml"]
+    environment:
+      HEALTH_PORT: "8915"
+    ports:
+      - "127.0.0.1:3715:3715"
+  log:
+    <<: *server
+    command: ["tlogsvr_asio", "--config", "/etc/fourstory/tlogsvr.toml"]
+    environment:
+      HEALTH_PORT: "8800"
+    expose:
+      - "2000/udp"
+  control:
+    <<: *server
+    command: ["tcontrolsvr_asio", "--config", "/etc/fourstory/tcontrolsvr.toml"]
+    environment:
+      HEALTH_PORT: "18086"
+    expose:
+      - "12000"
+  world:
+    <<: *server
+    command: ["tworldsvr_asio", "--config", "/etc/fourstory/tworldsvr.toml"]
+    environment:
+      HEALTH_PORT: "18087"
+    expose:
+      - "3815"
+  map:
+    <<: *server
+    command: ["tmapsvr_asio", "--config", "/etc/fourstory/tmapsvr.toml"]
+    environment:
+      HEALTH_PORT: "8916"
+    ports:
+      - "127.0.0.1:5815:5815"
+    depends_on:
+      world:
+        condition: service_healthy

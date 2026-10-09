@@ -1,0 +1,15 @@
+{
+  "image": "localhost/fourstory:postgresql-lifecycle",
+  "image_id": "ed11366ef7719d3c5e29a2d41d0a7e47d6603fb46d1dc1035a124dd2bcb9af83",
+  "user": "10001:10001",
+  "release_build": "passed",
+  "six_daemon_smoke": "passed",
+  "log": "world: /healthz OK\nlog: /healthz OK\ncontrol: /healthz OK\nlogin: /healthz OK\npatch: /healthz OK\nmap: /healthz OK\nmap -> world: connected over container DNS\nmap: SIGTERM exit 0\npatch: SIGTERM exit 0\nlogin: SIGTERM exit 0\ncontrol: SIGTERM exit 0\nlog: SIGTERM exit 0\nworld: SIGTERM exit 0\n",
+  "native_login_release_verification": "login-lifecycle-release.json",
+  "native_catalog_release_verification": "lifecycle-catalog-release.json",
+  "notes": [
+    "Smoke uses explicit development no-DB configuration.",
+    "Native integration reports separately verify installed binaries against PostgreSQL.",
+    "Original-client and complete character/world persistence remain pending."
+  ]
+}

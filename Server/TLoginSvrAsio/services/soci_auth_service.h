@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 // SOCI-backed IAuthService. Talks to:
 //   IPBLACKLIST_game   — IP banlist, exact match (inlined inside legacy
@@ -41,7 +42,7 @@ class SociAuthService : public IAuthService
 {
 public:
     // `pool` is non-owning; lifetime must exceed this service.
-    explicit SociAuthService(fourstory::db::SessionPool& pool);
+    explicit SociAuthService(fourstory::db::SessionPool& pool, std::string owner_token = {});
 
     AuthResult Authenticate(const AuthRequest& req) override;
 
@@ -64,20 +65,14 @@ public:
     // password / agreement check). Performs the same TCURRENTUSER +
     // TLOG inserts as a normal login so disconnect cleanup works.
     AuthResult AuthenticateTest(const std::string& client_ip) override;
-    bool VerifySecurityCode(std::int32_t user_id,
-                            const std::string& code) override;
-    std::string IssueSecurityCode(std::int32_t user_id) override;
-    std::optional<EmailRecord> LookupEmail(std::int32_t user_id) override;
-    bool IsTrustedIp(std::int32_t user_id,
-                     const std::string& client_ip) override;
-    void AddTrustedIp(std::int32_t user_id,
-                      const std::string& client_ip) override;
-    std::uint32_t CompleteSecurityLogin(std::int32_t user_id,
-                                        const std::string& client_ip) override;
-    std::uint32_t LookupLastCharId(std::int32_t user_id) override;
+    SecurityCodeResult VerifySecurityCode(const std::string& token,
+                                         const std::string& client_ip,
+                                         const std::string& code) override;
+    void CancelSecurityChallenge(const std::string& token) override;
 
 private:
     fourstory::db::SessionPool& m_pool;
+    std::string m_owner_token;
 };
 
 } // namespace tloginsvr::services

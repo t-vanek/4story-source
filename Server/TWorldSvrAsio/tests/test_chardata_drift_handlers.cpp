@@ -21,6 +21,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -161,10 +162,10 @@ int main()
 
     // p1=0x42 (Bob's main), p2=0x43 (his other con). Drain the
     // RELAYCONNECT fan-out the second registration causes on p1.
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -197,10 +198,13 @@ int main()
     };
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(200, 0xB0)));
     for (int i = 0; i < 1000 && !chars.Find(200); ++i)
         std::this_thread::sleep_for(10ms);
+    EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(200, 0xB0), 0x43));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK),
                AddCharBody(200, 0xB0));
+    EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(200, 0xB0)));
     for (int i = 0; i < 1000 && cons_size(200) != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(200) == 2);

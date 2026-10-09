@@ -24,8 +24,20 @@
     {
       "name": "soci",
       "features": ["odbc"],
-      "$comment": "C++ DB access library for the modernized auth/char/map services. ODBC backend covers MSSQL (via msodbcsql driver — works on Linux + Windows). PostgreSQL feature was tried but vcpkg's libpq build on Windows fails on meson configure; drop it until we need PG cross-compat. The dialect branches in services/soci_*.cpp stay so adding the feature back is a one-liner here."
+      "$comment": "Existing ODBC compatibility. Enable the postgresql manifest feature with FOURSTORY_ENABLE_POSTGRESQL for the native target backend."
+    },
+    {
+      "name": "soci",
+      "features": ["postgresql"],
+      "platform": "!windows",
+      "$comment": "Native PostgreSQL is enabled by default for Linux/container builds."
     }
   ],
+  "features": {
+    "postgresql": {
+      "description": "Native PostgreSQL persistence through SOCI and libpq",
+      "dependencies": [{"name": "soci", "features": ["postgresql"]}]
+    }
+  },
   "$comment-baseline": "Pin a builtin-baseline (a microsoft/vcpkg commit SHA) when you want reproducible builds across machines. Until then, vcpkg will use whatever ports tree the user's vcpkg checkout has. Example: \"builtin-baseline\": \"<sha>\""
 }

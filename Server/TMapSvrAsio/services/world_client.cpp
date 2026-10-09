@@ -63,15 +63,18 @@ AsioWorldClient::AsioWorldClient(boost::asio::io_context& io,
                                  std::uint16_t port,
                                  InboundHandler on_packet,
                                  std::chrono::milliseconds backoff_initial,
-                                 std::chrono::milliseconds backoff_max)
+                                 std::chrono::milliseconds backoff_max,
+                                 std::chrono::milliseconds registration_timeout)
     : m_io(io)
-    , m_send_strand(boost::asio::make_strand(io.get_executor()))
+    , m_write_permit(std::make_shared<WritePermit>(io, 1))
+    , m_registration_timeout(registration_timeout)
     , m_host(std::move(host))
     , m_port(port)
     , m_on_packet(std::move(on_packet))
     , m_backoff_initial(backoff_initial)
     , m_backoff_max(backoff_max)
 {
+    m_write_permit->try_send(boost::system::error_code{}, 0);
 }
 
 bool AsioWorldClient::IsConnected() const
@@ -135,58 +138,17 @@ AsioWorldClient::Run()
         m_session = sock;
         backoff   = m_backoff_initial;
 
-        // Identify this map to TWorld before reading. Until the
-        // RW_RELAYSVR_REQ lands, TWorld holds the session anonymous
-        // (wID=0) and won't route MW traffic back to us.
-        co_await SendRegister();
-
-        // Inbound read loop — 8-byte header + body, verify checksum,
-        // hand the decoded (wId, body) to the installed handler.
+        m_registered = false;
+        try { co_await ReadConnection(sock); }
+        catch (...) { spdlog::error("world_client: connection handler failed; draining clients"); }
+        // Close the admission gate before client teardown can suspend. No queued
+        // sender or old World callback may target a replacement connection.
+        m_registered = false;
         boost::system::error_code ec;
-        while (sock->is_open())
-        {
-            SsHeader hdr{};
-            co_await boost::asio::async_read(*sock,
-                buffer(&hdr, sizeof(hdr)),
-                boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-            if (ec) break;
-            if (hdr.wSize < kSsHeaderSize || hdr.wSize > kSsMaxPacket)
-            {
-                spdlog::warn("world_client: framing error wSize={} — closing",
-                    hdr.wSize);
-                break;
-            }
-            const std::size_t body_size = hdr.wSize - kSsHeaderSize;
-            std::vector<std::byte> body(body_size);
-            if (body_size > 0)
-            {
-                co_await boost::asio::async_read(*sock,
-                    buffer(body.data(), body_size),
-                    boost::asio::redirect_error(
-                        boost::asio::use_awaitable, ec));
-                if (ec) break;
-            }
-            const std::uint32_t expected =
-                FoldChecksum(body.data(), body_size);
-            if (expected != hdr.dwChkSum)
-            {
-                spdlog::warn("world_client: checksum mismatch wID=0x{:04X} "
-                             "got=0x{:08X} expected=0x{:08X} — closing",
-                    hdr.wID, hdr.dwChkSum, expected);
-                break;
-            }
-            if (m_on_packet)
-                m_on_packet(hdr.wID,
-                    std::span<const std::byte>(body.data(), body.size()));
-        }
-
-        spdlog::info("world_client: disconnected from {}:{} — reconnecting",
-            m_host, m_port);
-        {
-            boost::system::error_code ig;
-            m_session->close(ig);
-        }
+        sock->close(ec);
         m_session.reset();
+        spdlog::info("world_client: disconnected from {}:{}; draining before reconnect", m_host, m_port);
+        if (m_on_disconnect && !co_await m_on_disconnect()) co_return;
 
         // Brief pause before the next dial so a flapping peer doesn't
         // burn a CPU on tight reconnect spin.
@@ -195,6 +157,87 @@ AsioWorldClient::Run()
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec) co_return;
     }
+}
+
+boost::asio::awaitable<void>
+AsioWorldClient::ReadConnection(std::shared_ptr<boost::asio::ip::tcp::socket> sock)
+{
+    using boost::asio::buffer;
+    auto deadline = std::make_shared<boost::asio::steady_timer>(m_io);
+    if (m_relay_wid != 0) {
+        deadline->expires_after(m_registration_timeout);
+        deadline->async_wait([sock, deadline](auto ec) {
+            if (!ec) {
+                spdlog::warn("world_client: registration deadline expired; closing");
+                boost::system::error_code ignored; sock->close(ignored);
+            }
+        });
+    }
+    // Always cancel even if an inbound handler throws.
+    struct Cancel { std::shared_ptr<boost::asio::steady_timer> timer; ~Cancel() { timer->cancel(); } } cancel{deadline};
+    co_await SendRegister();
+    // Inbound read loop — 8-byte header + body, verify checksum,
+    // hand the decoded (wId, body) to the installed handler.
+    boost::system::error_code ec;
+    while (sock->is_open())
+    {
+        SsHeader hdr{};
+        co_await boost::asio::async_read(*sock,
+            buffer(&hdr, sizeof(hdr)),
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        if (ec) break;
+        if (hdr.wSize < kSsHeaderSize || hdr.wSize > kSsMaxPacket)
+        {
+            spdlog::warn("world_client: framing error wSize={} — closing",
+                hdr.wSize);
+            break;
+        }
+        const std::size_t body_size = hdr.wSize - kSsHeaderSize;
+        std::vector<std::byte> body(body_size);
+        if (body_size > 0)
+        {
+            co_await boost::asio::async_read(*sock,
+                buffer(body.data(), body_size),
+                boost::asio::redirect_error(
+                    boost::asio::use_awaitable, ec));
+            if (ec) break;
+        }
+        const std::uint32_t expected =
+            FoldChecksum(body.data(), body_size);
+        if (expected != hdr.dwChkSum)
+        {
+            spdlog::warn("world_client: checksum mismatch wID=0x{:04X} "
+                         "got=0x{:08X} expected=0x{:08X} — closing",
+                hdr.wID, hdr.dwChkSum, expected);
+            break;
+        }
+        if (m_relay_wid != 0 && !m_registered) {
+            wire::Reader reader(body.data(), body.size());
+            std::uint8_t nation{};
+            std::uint16_t count{};
+            bool valid = hdr.wID == static_cast<std::uint16_t>(
+                tnetlib::protocol::MessageId::RW_RELAYSVR_ACK) && reader.Read(nation) && reader.Read(count);
+            for (std::uint32_t i=0; valid && i<count; ++i) {
+                std::uint32_t user{}; valid=reader.Read(user);
+            }
+            valid = valid && reader.Read(count);
+            for (std::uint32_t i=0; valid && i<count; ++i) {
+                std::string key, value; valid=reader.ReadString(key) && reader.ReadString(value);
+            }
+            if (!valid || !reader.Eof()) {
+                spdlog::warn("world_client: invalid registration acknowledgment; closing");
+                break;
+            }
+            m_registered = true;
+            deadline->cancel();
+            spdlog::info("world_client: registration acknowledged wid=0x{:04X}", m_relay_wid);
+            continue;
+        }
+        if (m_on_packet)
+            co_await m_on_packet(hdr.wID,
+                std::span<const std::byte>(body.data(), body.size()));
+    }
+
 }
 
 boost::asio::awaitable<void>
@@ -214,7 +257,7 @@ AsioWorldClient::SendRegister()
         std::move(body));
     if (ok)
         spdlog::info("world_client: sent RW_RELAYSVR_REQ wid=0x{:04X} "
-                     "(server_id={}, group_id={})",
+            "(server_id={}, server_type={})",
             m_relay_wid, m_relay_wid & 0xFF, (m_relay_wid >> 8) & 0xFF);
     else
         spdlog::warn("world_client: RW_RELAYSVR_REQ wid=0x{:04X} not sent "
@@ -224,17 +267,16 @@ AsioWorldClient::SendRegister()
 boost::asio::awaitable<bool>
 AsioWorldClient::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 {
-    // Hop to the send strand so concurrent SendPacket calls from
-    // multiple handler coroutines serialize correctly on the socket.
-    co_await boost::asio::dispatch(m_send_strand,
-        boost::asio::use_awaitable);
-
-    if (!IsConnected())
-    {
-        spdlog::warn("world_client: SendPacket wId=0x{:04X} dropped — "
-                     "world peer not connected", wId);
-        co_return false;
-    }
+    auto sock = m_session;
+    if (!sock || !sock->is_open()) co_return false;
+    // A strand alone does not serialize composed async_write operations across
+    // suspension. Hold this permit until the whole frame is written.
+    co_await m_write_permit->async_receive(boost::asio::use_awaitable);
+    struct Release {
+        std::shared_ptr<WritePermit> permit;
+        ~Release() { permit->try_send(boost::system::error_code{}, 0); }
+    } release{m_write_permit};
+    if (sock != m_session || !sock->is_open()) co_return false;
     const std::size_t total = kSsHeaderSize + body.size();
     if (total > kSsMaxPacket)
     {
@@ -253,7 +295,6 @@ AsioWorldClient::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 
     // Capture the session locally so a disconnect mid-send doesn't null
     // the member out from under us.
-    auto sock = m_session;
     boost::system::error_code ec;
     co_await boost::asio::async_write(*sock,
         boost::asio::buffer(frame.data(), frame.size()),
@@ -262,9 +303,11 @@ AsioWorldClient::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
     {
         spdlog::warn("world_client: SendPacket wId=0x{:04X} write failed: {}",
             wId, ec.message());
+        if (sock == m_session) m_registered = false;
+        boost::system::error_code ignored; sock->close(ignored);
         co_return false;
     }
-    co_return true;
+    co_return sock == m_session;
 }
 
 } // namespace tmapsvr

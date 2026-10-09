@@ -107,6 +107,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/ops/metrics.cpp
     ${TMAPSVR_ASIO_SRC}/ops/metrics_endpoint.cpp
     ${TMAPSVR_ASIO_SRC}/handlers_world.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_native_entry.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers_main_transfer.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/dispatch.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/session.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/movement.cpp
@@ -136,6 +138,16 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/soci_mon_item_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_quest_chart.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_stat_chart.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_catalog.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_owner.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_service.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_load.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_checkpoint.cpp
+    services/postgresql_map_transfer.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_route.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_replica.cpp
+    ${TMAPSVR_ASIO_SRC}/services/main_transfer_codec.cpp
+    services/main_transfer_runtime.cpp
     ${TMAPSVR_ASIO_SRC}/services/spawn_manager.cpp
     ${TMAPSVR_ASIO_SRC}/services/monster_ai.cpp
     ${TMAPSVR_ASIO_SRC}/services/world_client.cpp
@@ -174,6 +186,21 @@ target_link_libraries(tmapsvr_asio PRIVATE tmapsvr_asio_core)
 
 # Tests — in-process, no DB. First suite: Automapper profile wiring
 # (CharRow→CharSnapshot field-by-field + numeric narrowing).
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
+if(FOURSTORY_ENABLE_POSTGRESQL)
+    add_executable(test_tmapsvr_postgresql_map tests/test_postgresql_map.cpp)
+    target_link_libraries(test_tmapsvr_postgresql_map PRIVATE tmapsvr_asio_core tloginsvr_asio_core)
+    add_test(NAME tmapsvr_postgresql_map COMMAND test_tmapsvr_postgresql_map)
+    set_tests_properties(tmapsvr_postgresql_map PROPERTIES SKIP_RETURN_CODE 77 LABELS "postgresql;integration")
+    add_executable(test_tmapsvr_postgresql_catalog tests/test_postgresql_catalog.cpp)
+    target_link_libraries(test_tmapsvr_postgresql_catalog PRIVATE tmapsvr_asio_core)
+    add_test(NAME tmapsvr_postgresql_catalog COMMAND test_tmapsvr_postgresql_catalog)
+    set_tests_properties(tmapsvr_postgresql_catalog PROPERTIES SKIP_RETURN_CODE 77 LABELS "postgresql;integration")
+endif()
+
 add_executable(test_tmapsvr_asio_mapper_profiles
     ${TMAPSVR_ASIO_SRC}/tests/test_mapper_profiles.cpp)
 target_link_libraries(test_tmapsvr_asio_mapper_profiles PRIVATE
@@ -375,3 +402,15 @@ target_link_libraries(test_tmapsvr_asio_skill_effect PRIVATE
     tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_skill_effect
     COMMAND test_tmapsvr_asio_skill_effect)
+
+add_executable(test_tmapsvr_asio_admission ${TMAPSVR_ASIO_SRC}/tests/test_admission.cpp)
+add_executable(test_tmapsvr_asio_main_transfer_codec ${TMAPSVR_ASIO_SRC}/tests/test_main_transfer_codec.cpp)
+target_link_libraries(test_tmapsvr_asio_main_transfer_codec PRIVATE tmapsvr_asio_core)
+target_compile_definitions(test_tmapsvr_asio_main_transfer_codec PRIVATE
+    TRANSFER_FIXTURE_PATH="${TMAPSVR_ASIO_SRC}/tests/fixtures/main-transfer.hex")
+add_test(NAME tmapsvr_asio_main_transfer_codec COMMAND test_tmapsvr_asio_main_transfer_codec)
+target_link_libraries(test_tmapsvr_asio_admission PRIVATE tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_admission COMMAND test_tmapsvr_asio_admission)
+set_tests_properties(tmapsvr_asio_admission PROPERTIES TIMEOUT 20)
+add_test(NAME tmapsvr_asio_admission_encrypted COMMAND test_tmapsvr_asio_admission --encrypted)
+set_tests_properties(tmapsvr_asio_admission_encrypted PROPERTIES TIMEOUT 20)

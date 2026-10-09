@@ -1,5 +1,35 @@
 # TWorldSvrAsio — modernized cluster coordinator
 
+World main handoff now requires an outstanding CHECKMAIN request to an accepted
+ready connection on the current typed Map peer. It pins the expected source and
+target across RELEASEMAIN → ENTERSVR → final confirmation, forwards the source
+state unchanged, consumes replies once and closes incomplete transfers after five
+seconds or participant loss. Fresh ENTERSVR responses are also tied to the main
+and consumed once. This is the World coordination contract; native PostgreSQL
+primary ownership transfer and its complete Map state codec remain unfinished.
+See [handoff evidence](../../_rewrite/docs/modernization/evidence/world-handoff-contract.json).
+
+
+Current native modernization status (2026-10-09): outbound SS composed writes use
+owned buffers, one complete write at a time, and bounded outstanding work
+(256 frames / 4 MiB including headers). Overflow disconnects the peer. Existing
+characters admit only a registered, route-planned secondary endpoint matching
+key/account/IP/port, with a live main. All expected connections must be valid
+before requesting CHARDATA from that main. Rejected secondary connections preserve
+the valid primary; this intentionally differs from legacy CloseChar on rejection.
+See [current evidence](../../_rewrite/docs/modernization/evidence/world-writes-contract.json).
+Close-all also requires the reporting socket to be the registered typed Map peer
+with an accepted connection for that character and key. Unannounced, pending or
+stale connections cannot evict a valid primary. Map handles the resulting
+retirement without echoing close-all; see the
+[two-Map regression and contract](../../_rewrite/docs/modernization/evidence/map-retirement-contract.json).
+Native Map now uses migration 019 for separate fenced replica grants and actual
+secondary admission, including source ENTERCHAR and client CONREADY. World still
+holds its coordination registry in memory. Dynamic route changes, primary
+transfers and complete native social persistence remain unfinished;
+the historical feature entries below must not be read as native/full-client parity.
+
+
 Wire-compatible replacement for `Server/TWorldSvr/` (38 851 LOC,
 30 files) running on the `FourStoryCommon` infrastructure (SOCI
 pool, spdlog audit, health endpoint) and the `boost::asio` reactor
@@ -6042,15 +6072,17 @@ W-2.
   up. W2 doesn't issue any queries; W3a is the first phase that
   exercises this.
 * `handlers/handlers_char.cpp` — `OnAddCharAck` (MW_ADDCHAR_ACK)
-  inserts into the registry, marks user active, and handles the
-  "additional connection" branch (TCharCon push). `OnCloseCharAck`
+  inserts into the registry and marks the user active. W2 originally appended
+  additional connections; the 2026-10-09 refinement above replaces this with
+  validated route-planned connections and all-valid CHARDATA completion. `OnCloseCharAck`
   (MW_CLOSECHAR_ACK) removes the entry, deactivates the user
   when no other char of theirs is online.
 * Tests: `test_char_registry` (6 scenarios — insert/find/remove,
   duplicate-insert rejection, snapshot consistency, active-user
   index, concurrent inserts × 16k chars, shared_ptr lifetime),
-  `test_char_handlers` (5 wire scenarios — happy path, additional
-  connection, wrong key, close + user deactivation, stale close).
+  `test_char_handlers` (5 wire scenarios — happy path, rejection of an
+  unplanned additional connection, wrong key, close + user deactivation, stale close).
+  Planned secondary success/error cases now have a separate regression test.
 
 **Deferred to W3+ (each gated on a piece that doesn't exist yet):**
 * **Peer-server registry** — `OnAddCharAck` records

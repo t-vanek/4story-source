@@ -1,21 +1,6 @@
-// Session-lifecycle handlers — CS_CONNECT_REQ and CS_CONREADY_REQ.
-//
-//   CS_CONNECT_REQ   — 29-byte handshake from the legacy client. The
-//                      server validates the TCURRENTUSER row written
-//                      by TLoginSvrAsio, binds the session into both
-//                      registries, sends CS_CONNECT_ACK back, and on
-//                      success fires MW_ADDCHAR_ACK to the World peer
-//                      to register the char for inter-map routing.
-//   CS_CONREADY_REQ  — empty-body signal from the client that local
-//                      scene load finished. F7 keeps this as a stub
-//                      log; the enter-map flood (CHARINFO_ACK + AOI
-//                      players + monsters) is gameplay-policy work
-//                      that lands with the F13 spawn / AI phase.
-//
-// Legacy parity: CSHandler.cpp:249 (OnCS_CONNECT_REQ),
-// CSHandler.cpp:402 (OnCS_CONREADY_REQ).
-
 #include "handlers.h"
+#include "domain/connect.h"
+#include "fourstory/db/co_offload.h"
 
 #include "audit/audit_log.h"
 #include "audit/event.h"
@@ -26,6 +11,8 @@
 #include "services/monster_registry.h"
 #include "services/session_registry.h"
 #include "services/session_validator.h"
+#include "services/player_service.h"
+#include "services/skill_cooldown.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
 #include "wire_codec.h"
@@ -45,72 +32,6 @@
 
 namespace tmapsvr {
 
-namespace {
-
-// Numeric result codes the legacy CS_CONNECT_ACK sends back. Names
-// match the CN_* constants the legacy CSHandler.cpp uses; the values
-// are operator-controlled until the legacy header turns up — keeping
-// 0 = OK so a default-zero byte means success matches the convention
-// used elsewhere on the wire.
-enum class ConnectResult : std::uint8_t
-{
-    Ok          = 0,
-    InvalidVer  = 1,
-    InvalidChar = 2,
-    Internal    = 3,
-    NoChannel   = 4,
-    Duplicate   = 5,
-};
-
-const char* ConnectResultName(ConnectResult r)
-{
-    switch (r) {
-        case ConnectResult::Ok:          return "OK";
-        case ConnectResult::InvalidVer:  return "INVALID_VER";
-        case ConnectResult::InvalidChar: return "INVALID_CHAR";
-        case ConnectResult::Internal:    return "INTERNAL";
-        case ConnectResult::NoChannel:   return "NO_CHANNEL";
-        case ConnectResult::Duplicate:   return "DUPLICATE";
-    }
-    return "?";
-}
-
-// CS_CONNECT_ACK body — single result byte followed by an empty
-// vServerID vector (length 0). Mirrors CTPlayer::SendCS_CONNECT_ACK
-// in CSSender.cpp:78. The vServerID list is populated by the World
-// peer in later phases; F4/F5 always send an empty list.
-std::vector<std::byte> EncodeConnectAck(ConnectResult r)
-{
-    std::vector<std::byte> body;
-    body.reserve(2);
-    wire::WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(r));
-    wire::WritePOD<std::uint8_t>(body, 0); // vServerID.size()
-    return body;
-}
-
-// MW_ADDCHAR_ACK encoding moved to services/world_senders.h so the
-// map↔world body encoders live in one place (and stay unit-testable).
-
-// "AM/PM HH:MM" server clock string CS_CHARINFO_ACK carries (legacy
-// CSSender.cpp:344 formats the wall-clock the same way). Cosmetic — the
-// client displays it; kept here so the pure encoder takes it as data.
-std::string FormatServerClock()
-{
-    const std::time_t t = std::time(nullptr);
-    std::tm tm{};
-#ifdef _WIN32
-    localtime_s(&tm, &t);
-#else
-    localtime_r(&t, &tm);
-#endif
-    const char* ampm = (tm.tm_hour < 12) ? "AM" : "PM";
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%s %02d : %02d", ampm, tm.tm_hour,
-        tm.tm_min);
-    return std::string(buf);
-}
-
-} // namespace
 
 boost::asio::awaitable<void>
 OnConnectReq(std::shared_ptr<tnetlib::AsioSession> sess,
@@ -119,136 +40,93 @@ OnConnectReq(std::shared_ptr<tnetlib::AsioSession> sess,
 {
     using tnetlib::protocol::MessageId;
 
-    // Wire layout from legacy CSHandler.cpp::OnCS_CONNECT_REQ (decode
-    // order matches CPacket::operator>>):
-    //   WORD  wVersion
-    //   BYTE  bChannel
-    //   DWORD dwUserID
-    //   DWORD dwID         (char id)
-    //   DWORD dwKEY        (session token)
-    //   DWORD dwIPAddr
-    //   WORD  wPort
-    //   INT64 llChecksum1  (validated against a derived value;
-    //                       version + checksum checks land in a
-    //                       follow-up commit — for F4 we trust the
-    //                       framing and only verify the DB lookup)
     wire::Reader r(body.data(), body.size());
-
-    std::uint16_t wVersion = 0;
-    std::uint8_t  bChannel = 0;
-    std::uint32_t dwUserID = 0;
-    std::uint32_t dwID     = 0;
-    std::uint32_t dwKEY    = 0;
-    std::uint32_t dwIPAddr = 0;
-    std::uint16_t wPort    = 0;
-    std::int64_t  llChecksum1 = 0;
-
-    if (!r.Read(wVersion) ||
-        !r.Read(bChannel) ||
-        !r.Read(dwUserID) ||
-        !r.Read(dwID)     ||
-        !r.Read(dwKEY)    ||
-        !r.Read(dwIPAddr) ||
-        !r.Read(wPort)    ||
-        !r.Read(llChecksum1))
-    {
-        spdlog::warn("CS_CONNECT_REQ: short body ({} bytes) — dropping",
-            body.size());
-        co_await sess->SendPacket(
-            static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK),
-            EncodeConnectAck(ConnectResult::Internal));
+    std::uint16_t version{}, port{};
+    std::uint8_t channel{};
+    std::uint32_t user{}, character{}, key{}, ip{};
+    std::uint64_t checksum{};
+    if (body.size() != 29 || !r.Read(version) || !r.Read(channel) ||
+        !r.Read(user) || !r.Read(character) || !r.Read(key) || !r.Read(ip) ||
+        !r.Read(port) || !r.Read(checksum)) {
+        sess->Close(); co_return;
+    }
+    if (version != kClientVersion) {
+        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK),
+            EncodeConnectAck(static_cast<std::uint8_t>(ConnectResult::InvalidVer), {}), true);
         co_return;
     }
-
-    // Run the validator. No DB pool → no validator → handshake fails
-    // (the F3 boot log already warned the operator).
-    if (!ctx.validator)
-    {
-        spdlog::warn("CS_CONNECT_REQ uid={} key={}: validator not configured "
-                     "(no [database] in TOML) — refusing",
-            dwUserID, dwKEY);
-        co_await sess->SendPacket(
-            static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK),
-            EncodeConnectAck(ConnectResult::Internal));
-        co_return;
+    // The original server closes silently on checksum/repeated-handshake errors.
+    if (checksum != ConnectChecksum(version, user, character, key) ||
+        (ctx.session_reg && ctx.session_reg->Identity(sess.get()))) {
+        sess->Close(); co_return;
     }
 
-    const auto row = ctx.validator->LookupSession(dwUserID, dwKEY);
-    ConnectResult result = ConnectResult::Ok;
-    if (!row)
-        result = ConnectResult::InvalidChar;
-    else if (row->bLocked)
-        result = ConnectResult::InvalidChar;
-    else if (ctx.expected_group != 0 && row->bGroupID != ctx.expected_group)
-        result = ConnectResult::NoChannel;
-    else if (row->bChannel != bChannel)
-        result = ConnectResult::NoChannel;
-
-    spdlog::info("CS_CONNECT_REQ uid={} key={} char={} ch={} ver={} -> {}",
-        dwUserID, dwKEY, dwID, bChannel, wVersion,
-        ConnectResultName(result));
-
-    // T4 audit: structured login event for the operations dashboard.
-    // Always emitted (success and failure) so security tooling can
-    // alert on InvalidChar / Internal spikes.
-    if (ctx.audit)
-    {
+    ConnectResult result = ConnectResult::Internal;
+    std::optional<MapSessionInfo> row;
+    SessionIdentity requested{character,user,key,channel};
+    requested.endpoint_ip=ip;requested.endpoint_port=port;
+    if (ctx.validator && ctx.session_reg && ctx.world_client && ctx.world_client->IsRegistered()) {
+        auto* validator = ctx.validator;
+        try {
+            row = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [validator, user, key] { return validator->LookupSession(user, key); });
+            result = ConnectResult::Ok;
+        } catch (...) { result = ConnectResult::Internal; }
+        if (!sess->IsOpen()) co_return;
+        if (result == ConnectResult::Ok) {
+            if (!row || row->bLocked || row->dwUserID != user || row->dwKEY != key ||
+                row->dwCharID != character || character == 0)
+                result = ConnectResult::InvalidChar;
+            else if (row->bGroupID != ctx.expected_group || row->bChannel != channel)
+                result = ConnectResult::NoChannel;
+            else if (!ctx.session_reg->TryBind(requested, sess))
+                result = ConnectResult::Duplicate;
+        }
+    }
+    if (result==ConnectResult::Ok) {
+        const auto identity=ctx.session_reg->Identity(sess.get());
+        if (!identity) { sess->Close(); co_return; }
+        const auto claim=identity->Claim(ctx.expected_group);
+        try {
+            auto* validator=ctx.validator;
+            const auto candidate=*row; // the read-only check precedes reservation
+            const auto acquired=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [validator,claim,candidate] { return validator->ClaimSession(claim,candidate); });
+            if (!acquired || acquired->bLocked || acquired->dwCharID!=character ||
+                acquired->dwUserID!=user || acquired->dwKEY!=key)
+                result=ConnectResult::InvalidChar;
+            else if (acquired->bGroupID!=ctx.expected_group || acquired->bChannel!=channel)
+                result=ConnectResult::NoChannel;
+            else if(!ctx.session_reg->SetRole(sess.get(),acquired->role))
+                result=ConnectResult::Internal;
+        } catch (...) { result=ConnectResult::Internal; }
+        // The registry already owns the generation. Teardown releases even a
+        // claim whose commit raced this close or whose acknowledgement was lost.
+        if (!sess->IsOpen()) co_return;
+    }
+    if (ctx.audit) {
         audit::LoginAttemptEvent ev{};
         ev.hdr.corr = ctx.audit->NextCorrelation();
-        ev.user_id  = dwUserID;
-        ev.key      = dwKEY;
-        ev.char_id  = dwID;
-        ev.channel  = bChannel;
-        ev.result   = static_cast<std::uint8_t>(result);
-        ev.version  = wVersion;
+        ev.user_id = user; ev.char_id = character; ev.channel = channel;
+        ev.version = version; ev.result = static_cast<std::uint8_t>(result);
         ctx.audit->Emit(ev);
     }
-
-    // Register the session under its char id BEFORE the ack flushes
-    // so a fast world reply (DM_LOADCHAR_REQ on this same char) can
-    // resolve back to this socket. Bind overwrites any stale entry —
-    // the legacy m_mapPLAYER had the same "last-write-wins" behavior
-    // when a duplicate connect raced an outstanding session. Also
-    // pre-binds the per-channel presence entry so subsequent
-    // CS_MOVE_REQ broadcasts know which channel the client is on.
-    if (result == ConnectResult::Ok && ctx.session_reg)
-        ctx.session_reg->Bind(dwID, sess);
-    if (result == ConnectResult::Ok && ctx.presence)
-        ctx.presence->Bind(dwID, bChannel, sess);
-
-    co_await sess->SendPacket(
-        static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK),
-        EncodeConnectAck(result));
-
-    // On success, announce the new char to the World peer so it can
-    // route MW_/DM_ traffic our way. Mirrors the legacy
-    // CSHandler.cpp::OnCS_CONNECT_REQ tail-call into
-    // SendMW_ADDCHAR_ACK (SSSender.cpp:237). The send is fire-and-
-    // forget — IsConnected gate prevents queueing into a dead peer
-    // (F5 doesn't buffer; F5+ phases may add a retry queue).
-    if (result == ConnectResult::Ok && ctx.world_client &&
-        ctx.world_client->IsConnected())
-    {
-        const bool sent = co_await ctx.world_client->SendPacket(
+    if (result == ConnectResult::Ok) {
+        // Only an attempted World announcement may later request World close.
+        // Set before suspension: a reply/close can arrive while the write waits.
+        if (!ctx.session_reg->SetWorldPresence(sess.get(), WorldPresence::Announced)) {
+            sess->Close(); co_return;
+        }
+        // No client success here: MW_CONRESULT_REQ is the only authoritative ACK.
+        if (co_await ctx.world_client->SendPacket(
             static_cast<std::uint16_t>(MessageId::MW_ADDCHAR_ACK),
-            EncodeAddCharAck(dwID, dwKEY, dwIPAddr, wPort, dwUserID));
-        if (!sent)
-            spdlog::warn("MW_ADDCHAR_ACK uid={} char={}: world send returned "
-                         "false (peer dropped between IsConnected and send)",
-                dwUserID, dwID);
+            EncodeAddCharAck(character, key, ip, port, user))) co_return;
+        ctx.session_reg->Transition(character, key, SessionPhase::Pending, SessionPhase::Rejected);
+        result = ConnectResult::Internal;
     }
-    else if (result == ConnectResult::Ok && !ctx.world_client)
-    {
-        spdlog::debug("MW_ADDCHAR_ACK uid={} char={}: world peer not "
-                      "configured — char registration skipped",
-            dwUserID, dwID);
-    }
-    else if (result == ConnectResult::Ok)
-    {
-        spdlog::warn("MW_ADDCHAR_ACK uid={} char={}: world peer disconnected "
-                     "— char registration deferred",
-            dwUserID, dwID);
-    }
+    spdlog::info("CS_CONNECT_REQ uid={} char={} result={}", user, character, static_cast<unsigned>(result));
+    co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CONNECT_ACK),
+        EncodeConnectAck(static_cast<std::uint8_t>(result), {}), true);
 }
 
 boost::asio::awaitable<void>
@@ -258,36 +136,43 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
 {
     using tnetlib::protocol::MessageId;
 
-    // CS_CONREADY_REQ has no body fields — it's a one-shot signal from
-    // the client that it's done loading the local scene. Legacy
-    // CSHandler.cpp:402 calls InitMap() / EnterMAP(), which floods the
-    // client with its own CS_CHARINFO_ACK plus every surrounding entity
-    // (other players, monsters, NPCs). This bounded step sends the
-    // player's own CS_CHARINFO_ACK from the loaded snapshot; the
-    // surrounding-entity AOI flood lands with the gameplay / spawn pass.
-    (void)body;
-
-    std::uint32_t cid = 0;
-    if (ctx.session_reg)
-    {
-        if (const auto found = ctx.session_reg->FindCharIdBySession(sess.get()))
-            cid = *found;
-    }
-
-    std::optional<CharSnapshot> snap;
-    if (cid != 0 && ctx.char_state)
-        snap = ctx.char_state->Get(cid);
-
-    // No snapshot means the World load handshake (DM_LOADCHAR /
-    // MW_ENTERSVR) hasn't populated char_state for this char yet — the
-    // client readied before its data arrived. Nothing to send; the
-    // enter flood will be driven once the snapshot lands.
-    if (!snap)
-    {
-        spdlog::info("CS_CONREADY_REQ char={} — no loaded snapshot yet, "
-                     "CHARINFO_ACK skipped", cid);
+    auto identity = ctx.session_reg ? ctx.session_reg->Identity(sess.get()) : std::nullopt;
+    if(body.empty()&&identity&&identity->phase==SessionPhase::Ready)co_return;
+    if(body.empty()&&identity&&identity->phase==SessionPhase::TransferOut&&ctx.player_service) {
+        bool committed=false;
+        try {auto* players=ctx.player_service;
+            committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[players,claim=identity->Claim(ctx.expected_group)]{return players->OutgoingTransferCommitted(claim);});
+        }catch(...){sess->Close();co_return;}
+        if(!committed||!ctx.session_reg->FinishTransfer(sess.get(),MapSessionRole::Replica,identity->authority_epoch+1)){sess->Close();co_return;}
+        if(ctx.skill_cooldown)ctx.skill_cooldown->Forget(identity->char_id);
+        if(auto s=ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt) {
+            // Retained source becomes the same partial observer as initial
+            // replica admission. Its old graph is preserved in the journal.
+            s->payload.reset();ctx.char_state->Store(identity->char_id,*s);
+            if(sess->IsOpen()&&ctx.presence){ctx.presence->Bind(identity->char_id,identity->channel,sess);
+                ctx.presence->UpdatePosition(identity->char_id,s->wMapID,{s->fPosX,s->fPosY,s->fPosZ});}
+        }
         co_return;
     }
+    if (!body.empty() || !identity || identity->phase != SessionPhase::Admitted) {
+        sess->Close(); co_return;
+    }
+    const auto cid=identity->char_id;
+    const auto snap=ctx.char_state?ctx.char_state->Get(cid):std::nullopt;
+    if(!snap){sess->Close();co_return;}
+    if (ctx.validator) {
+        const auto claim=identity->Claim(ctx.expected_group);auto* validator=ctx.validator;
+        try { co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,[validator,claim,&snap] { validator->MarkReady(claim,*snap); }); }
+        catch (...) { sess->Close(); co_return; }
+    }
+    // Even if the socket closed during the commit, teardown now owns a complete
+    // snapshot and must save/release the committed ready claim. Do not leave it
+    // labelled Admitted in memory and strand an otherwise clean account.
+    if(!ctx.session_reg->Transition(cid,identity->key,SessionPhase::Admitted,SessionPhase::Ready)){
+        sess->Close();co_return;
+    }
+    if(!sess->IsOpen())co_return;
+    if (ctx.presence) ctx.presence->Bind(cid, identity->channel, sess);
 
     // Seed the live presence position from the loaded snapshot so AOI and
     // the monster-chase AI have a real location before the first
@@ -296,12 +181,15 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
         ctx.presence->UpdatePosition(cid, snap->wMapID,
             Position{ snap->fPosX, snap->fPosY, snap->fPosZ });
 
-    spdlog::info("CS_CONREADY_REQ char={} name='{}' map={} — CS_CHARINFO_ACK "
-                 "(AOI flood deferred)", cid, snap->szNAME, snap->wMapID);
+    spdlog::info("CS_CONREADY_REQ char={} name='{}' map={} — connection ready "
+                 "(source CHARINFO already sent on native primary)", cid, snap->szNAME, snap->wMapID);
 
-    const auto ack = EncodeCharInfoAck(*snap, FormatServerClock());
-    co_await sess->SendPacket(
-        static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK), ack);
+    const bool primary=identity->role==MapSessionRole::Primary;
+    if(primary&&!snap->payload) {
+        const auto ack = EncodeCharInfoAck(*snap, FormatServerClock());
+        co_await sess->SendPacket(
+            static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK), ack);
+    }
 
     // Enter-map AOI exchange: show the newcomer everyone already on its
     // channel, and announce the newcomer to them. The presence visitor
@@ -322,33 +210,36 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
             {
                 CharSnapshot                          snap;
                 std::shared_ptr<tnetlib::AsioSession> sess;
+                bool primary{};
             };
             std::vector<Nearby> nearby;
             ctx.presence->ForEachInChannel(me->channel, cid,
                 [&](const ChannelPresenceEntry& e,
                     std::shared_ptr<tnetlib::AsioSession> osess)
                 {
-                    if (auto osnap = ctx.char_state->Get(e.char_id))
-                        nearby.push_back({ std::move(*osnap), std::move(osess) });
+                    const auto other=ctx.session_reg->Identity(osess.get());
+                    if (auto osnap = ctx.char_state->Get(e.char_id);osnap&&other)
+                        nearby.push_back({ std::move(*osnap), std::move(osess),other->role==MapSessionRole::Primary });
                 });
 
             // Faction tint (legacy CanFight / TNCOLOR) is PvP gameplay —
             // default friendly until the combat layer lands.
             constexpr std::uint8_t kColorFriendly = 0;
             const Position my_pos{ snap->fPosX, snap->fPosY, snap->fPosZ };
-            const auto my_enter =
-                EncodeEnterAck(*snap, my_pos, kColorFriendly, /*new_member=*/1);
+            const auto my_enter = primary?
+                EncodeEnterAck(*snap, my_pos, kColorFriendly, /*new_member=*/1):std::vector<std::byte>{};
 
             for (auto& n : nearby)
             {
                 const Position their_pos{ n.snap.fPosX, n.snap.fPosY,
                                           n.snap.fPosZ };
-                const auto their =
-                    EncodeEnterAck(n.snap, their_pos, kColorFriendly,
-                                   /*new_member=*/0);
-                co_await sess->SendPacket(                 // I see them
-                    static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK), their);
-                if (n.sess)
+                // Original TCell::EnterPlayer exposes only primary actors;
+                // a replica is an observer, not another full character graph.
+                if(n.primary) {
+                    const auto their = EncodeEnterAck(n.snap, their_pos, kColorFriendly,/*new_member=*/0);
+                    co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK), their);
+                }
+                if (primary&&n.sess)
                     co_await n.sess->SendPacket(           // they see me arrive
                         static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK),
                         my_enter);

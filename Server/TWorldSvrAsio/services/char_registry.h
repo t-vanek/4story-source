@@ -39,6 +39,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include "main_handoff.h"
 
 namespace tworldsvr {
 
@@ -124,6 +125,10 @@ struct TChar
     bool          logout            = false;
     bool          saving            = false;
     bool          db_loading        = false;
+    bool          closing           = false;
+    std::shared_ptr<MainHandoff> main_handoff;
+    // Only peers actually sent CHECKMAIN in the current round may answer.
+    std::vector<std::weak_ptr<PeerSession>> main_checks;
 
     // W6-15 — the *old* main map's id while a main-session handoff is
     // in flight (legacy m_bCHGMainID; 0 = no handoff). Set when world

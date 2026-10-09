@@ -1,0 +1,102 @@
+{
+  "run_id": 2,
+  "manifest_sha256": "c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95",
+  "verified_tables": [
+    {
+      "table": "TCLASSCHART",
+      "rows": 6,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TFORMULACHART",
+      "rows": 34,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TITEMCHART",
+      "rows": 7706,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TMAPMONCHART",
+      "rows": 23381,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TMONATTRCHART",
+      "rows": 9290,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TMONITEMCHART",
+      "rows": 16466,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TMONSPAWNCHART",
+      "rows": 20357,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TMONSTERCHART",
+      "rows": 3534,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TNPCCHART",
+      "rows": 2623,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TQREWARDCHART",
+      "rows": 4322,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TQUESTCHART",
+      "rows": 6261,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TQUESTTERMCHART",
+      "rows": 10687,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TRACECHART",
+      "rows": 88,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TSKILLCHART",
+      "rows": 765,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    },
+    {
+      "table": "TSKILLDATA",
+      "rows": 1172,
+      "value_hash_matches": true,
+      "source_text_bytes_verified": true
+    }
+  ],
+  "skipped_verified_tables": [],
+  "source_rows": 106692,
+  "canonical_items": {
+    "rows": 7706,
+    "six_fields_verified": true
+  }
+}

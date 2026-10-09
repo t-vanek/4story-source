@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-09",
+  "status": "passed",
+  "image": "localhost/fourstory:postgresql-map-retirement",
+  "image_id": "7e05599b59b6e91e722fd1476d1875ba40b430037c9b6295abd8d8de39aa2a6e",
+  "uid_gid": "10001:10001",
+  "installed_release_daemon_sha256": {
+    "/opt/fourstory/bin/tloginsvr_asio": "acb387eed9d32bb6f1458c91ea19b77a6cb698935e0cd26841cba7535f359361",
+    "/opt/fourstory/bin/tmapsvr_asio": "ad54fda612bd751c34f083ade26b3d6037d8a749bdf9b1f7b451490c23715020",
+    "/opt/fourstory/bin/tworldsvr_asio": "2a534faa8d44881d4cdd139316ec9f223ee286ccf5ac6ca0096a07c9bd1c8bd2",
+    "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef",
+    "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34"
+  },
+  "native_verification": {
+    "report": "native-map-retirement-release.json",
+    "status": "passed",
+    "native_map_checks": 59,
+    "pool_tls_checks": 29,
+    "four_daemon_tcp_checks": 134,
+    "world_secondary_wire_checks": 66,
+    "second_native_map_rejection_checks": 7,
+    "sql_server_used": false
+  },
+  "six_daemon_health_dns_sigterm": "map-retirement-container-smoke.log",
+  "build_command": "podman build --network host --build-arg BUILD_JOBS=2 --target runtime -t localhost/fourstory:postgresql-map-retirement .",
+  "scope": "Installed Release Login/World/two-Map daemons; mounted Debug native integration executables; independent synthetic TCP peers, original client not executed"
+}

@@ -1,0 +1,68 @@
+{
+  "scope": "Native PostgreSQL Login with synthetic accounts and source-derived encrypted packets; original-client test PENDING",
+  "sql_server_used": false,
+  "tests": [
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [
+        "--options-only"
+      ],
+      "exit_code": 0,
+      "log": "PASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\n"
+    },
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-08 21:14:20.746] [info] SessionPool ready: backend=postgresql pool_size=2 acquire_timeout_ms=100\nPASS pool sessions are distinct native PostgreSQL connections\nPASS native PostgreSQL connection uses TLS with certificate verification\nPASS pool exhaustion has a bounded timeout\nPASS moved lease retains exclusive live session\nPASS native prepared binding preserves Unicode and literal punctuation\nPASS transaction destructor rolls back uncommitted writes\nPASS constraint failure rolls back entire transaction and session is reusable\nPASS unsupported T-SQL fails without submitting or logging secret literals\nPASS concurrent transactional updates do not lose writes\nPASS mutable test role has no historical snapshot access\nPASS untrusted PostgreSQL TLS certificate is rejected\n[2026-10-08 21:14:20.834] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS database disconnect is surfaced without retrying an operation\n[2026-10-08 21:14:20.839] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS fresh connection preserves committed state after a disconnect\n"
+    },
+    {
+      "binary": "test_tloginsvr_postgresql_auth",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "PASS production startup schema validator accepts migrated app_global\nPASS incorrect wire credential rejected\nPASS embedded NUL cannot alias bcrypt credential\nPASS unknown account rejected\nPASS native login accepts ASCII case and trailing-space policy with original ACK fields\nPASS successful transaction commits current session, audit and last-login time\nPASS relogin gets a fresh session key\nPASS delayed logout cannot delete newer session\nPASS handoff preserves current session and persists last character\nPASS concurrent login has exactly one success and one duplicate\nPASS concurrent loser locks existing session without adding audit\nPASS injected audit failure refuses login\nPASS audit failure rolls back session, IP audit and last-login timestamp\nPASS pool connection is usable after transaction rollback\nPASS agreement gate retains committed session\nPASS agreement persistence is idempotent\nPASS IP blacklist rejects before session creation\nPASS eternal account ban rejects login\nPASS 2FA defers persistent session creation\nPASS CSPRNG code preserves original six-character alphabet\nPASS security code can be consumed once under concurrent verification\nPASS deferred login commits session and audit after confirmation\nPASS startup cleanup removes lobby sessions and preserves map-owned rows\nPASS runtime role cannot provision accounts\nPASS runtime login role cannot read historical game records\nPASS missing SMTP relay cannot claim delivery\nPASS logs exclude database diagnostics, wire credentials and email contents\n"
+    }
+  ],
+  "engine": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "migrations": [
+    "001-import-control.sql",
+    "002-legacy-snapshots.sql",
+    "003-canonical-content.sql",
+    "004-source-text-bytes.sql",
+    "005-runtime-catalog-control.sql",
+    "006-current-chart-contracts.sql",
+    "007-catalog-runtime-metadata.sql",
+    "008-native-login.sql"
+  ],
+  "wire": {
+    "scope": "synthetic source-derived peer, original executable not tested",
+    "client_encryption": "RC4/MD5 over XOR frames, legacy secret includes NUL",
+    "checks": [
+      "unknown account result 1",
+      "wrong credential result 2",
+      "unsupported version result 4",
+      "backed-up account ban result 7",
+      "agreement result 8",
+      "rate limit uses original internal-error result 5",
+      "fragmented RC4/MD5+XOR login returns account, fresh key and six slots",
+      "ACK time is current Unix seconds",
+      "duplicate reply 3 reaches socket before close",
+      "duplicate requester closes after ACK",
+      "original login socket also closes on duplicate",
+      "relogin succeeds after duplicate cleanup",
+      "bad login checksum closes connection",
+      "disconnect sent while fixture login transaction was delayed; database cleanup checked by harness"
+    ],
+    "status": "passed"
+  },
+  "wire_audit_rows": 2,
+  "disconnect_during_auth": "committed audit retained, current session cleaned",
+  "login_server": {
+    "health_http_status": 200,
+    "sigterm_exit_code": 0,
+    "image": "localhost/fourstory:build-deps",
+    "binary": "/src/build/linux-debug/bin/tloginsvr_asio",
+    "log": "[2026-10-08 21:14:21.981] [info] loaded config from '/run/fourstory-test/login.toml' \u2014 server.port=4816 nation=us health.port=18916 rc4=enabled db_global=postgresql (pool=4) db_world=in-memory log_level=info\n[2026-10-08 21:14:21.981] [info] mapper: 1 profile(s) configured\n[2026-10-08 21:14:21.981] [info] smtp: delivery unavailable (no [smtp] host configured)\n[2026-10-08 21:14:22.005] [info] SessionPool ready: backend=postgresql pool_size=4 acquire_timeout_ms=30000\n[2026-10-08 21:14:22.007] [info] schema_validator (native login) OK (13 columns checked)\n[2026-10-08 21:14:22.011] [info] schema_validator (global) OK (50 columns checked)\n[2026-10-08 21:14:22.012] [info] db worker pool: 2 thread(s)\n[2026-10-08 21:14:22.012] [warning] services: SOCI (postgresql) \u2014 auth + map + terminator. character operations unavailable: [database.world] not configured\n[2026-10-08 21:14:22.012] [info] security: ip_allowlist=0 enforce=false peer_auth=false trust_store=0\n[2026-10-08 21:14:22.012] [info] login server listening on 0.0.0.0:4816 (RC4: enabled)\n[2026-10-08 21:14:22.012] [info] health endpoint listening on 0.0.0.0:18916\n[2026-10-08 21:14:22.058] [info] auth: user 'AbsentSynthetic' not found\n[2026-10-08 21:14:22.058] [info] CS_LOGIN_REQ user=AbsentSynthetic \u2192 status=1\n[2026-10-08 21:14:22.058] [audit] [info] event=login outcome=NoUser uid_str='AbsentSynthetic' uid=0 ip=10.89.3.22\n[2026-10-08 21:14:22.110] [info] auth: user 'SyntheticWire' (uid=201) wrong password\n[2026-10-08 21:14:22.111] [info] CS_LOGIN_REQ user=SyntheticWire \u2192 status=2\n[2026-10-08 21:14:22.111] [audit] [info] event=login outcome=WrongPassword uid_str='SyntheticWire' uid=0 ip=10.89.3.22\n[2026-10-08 21:14:22.111] [warning] CS_LOGIN_REQ version mismatch (got 0x2917, accepted_versions has 1 entries)\n[2026-10-08 21:14:22.164] [warning] auth: user_id=105 is banned (eternal)\n[2026-10-08 21:14:22.164] [info] CS_LOGIN_REQ user=Synthetic105 \u2192 status=7\n[2026-10-08 21:14:22.164] [audit] [info] event=login outcome=Banned uid_str='Synthetic105' uid=105 ip=10.89.3.22\n[2026-10-08 21:14:22.218] [info] auth: user_id=202 needs agreement (bAgreement != 1)\n[2026-10-08 21:14:22.226] [info] CS_LOGIN_REQ user=SyntheticAgreement \u2192 status=8\n[2026-10-08 21:14:22.226] [audit] [info] event=login outcome=AgreementNeeded uid_str='SyntheticAgreement' uid=202 ip=10.89.3.22\n[2026-10-08 21:14:22.229] [warning] CS_LOGIN_REQ from ip=10.89.3.22 rate-limited\n[2026-10-08 21:14:22.229] [audit] [info] event=login outcome=InternalError uid_str='' uid=0 ip=10.89.3.22\n[2026-10-08 21:14:32.398] [info] auth: user 'SyntheticWire' (uid=201) success, pc_bang=0 premium=0 last_char=0\n[2026-10-08 21:14:32.398] [info] CS_LOGIN_REQ user=SyntheticWire \u2192 status=0\n[2026-10-08 21:14:32.398] [audit] [info] event=login outcome=Success uid_str='SyntheticWire' uid=201 ip=10.89.3.22\n[2026-10-08 21:14:42.560] [warning] auth: user_id=201 duplicate session \u2014 flagged for kick\n[2026-10-08 21:14:42.561] [info] CS_LOGIN_REQ user=SyntheticWire \u2192 status=3\n[2026-10-08 21:14:42.561] [audit] [info] event=login outcome=Duplicate uid_str='SyntheticWire' uid=201 ip=10.89.3.22\n[2026-10-08 21:14:52.733] [info] auth: user 'SyntheticWire' (uid=201) success, pc_bang=0 premium=0 last_char=0\n[2026-10-08 21:14:52.733] [info] CS_LOGIN_REQ user=SyntheticWire \u2192 status=0\n[2026-10-08 21:14:52.733] [audit] [info] event=login outcome=Success uid_str='SyntheticWire' uid=201 ip=10.89.3.22\n[2026-10-08 21:15:02.834] [warning] CS_LOGIN_REQ checksum mismatch (got 0xCCB0EBAFDC6A7C5C) \u2014 closing\n[2026-10-08 21:15:13.492] [info] auth: user 'SyntheticAbandoned' (uid=203) success, pc_bang=0 premium=0 last_char=0\n[2026-10-08 21:15:13.974] [info] received signal 15, shutting down"
+  },
+  "status": "passed"
+}

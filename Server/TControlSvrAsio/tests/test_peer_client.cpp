@@ -385,6 +385,30 @@ void TestStaleHeartbeatDropsToReconnect()
     runner.join();
 }
 
+void TestStopDuringRetry()
+{
+    std::printf("[peer_client — Stop cancels long reconnect backoff]\n");
+    asio::io_context io;
+    tcp::acceptor unused(io, tcp::endpoint(tcp::v4(), 0));
+    const auto port = unused.local_endpoint().port();
+    unused.close(); // local connect fails, entering reconnect backoff
+    auto opts = MakeOpts(port);
+    opts.initial_backoff = 10s;
+    opts.max_backoff = 10s;
+    auto pc = std::make_shared<fourstory::cluster::PeerClient>(io, opts);
+    asio::co_spawn(io, pc->Run(), asio::detached);
+    asio::steady_timer stop_timer(io);
+    stop_timer.expires_after(100ms);
+    stop_timer.async_wait([pc](boost::system::error_code ec) {
+        if (!ec) pc->Stop();
+    });
+    const auto started = std::chrono::steady_clock::now();
+    io.run();
+    Check(std::chrono::steady_clock::now() - started < 2s,
+        "Stop returns promptly during a 10s retry backoff");
+    Check(!pc->IsRegistered(), "stopped retry has no lease");
+}
+
 } // namespace
 
 int main()
@@ -395,6 +419,7 @@ int main()
         TestRegisterAndHeartbeatRoundTrip();
         TestRejectedRegistrationTriggersReconnect();
         TestStaleHeartbeatDropsToReconnect();
+        TestStopDuringRetry();
     }
     catch (const std::exception& ex)
     {

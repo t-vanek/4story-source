@@ -18,7 +18,7 @@ struct RegistryRefresher::Impl
 };
 
 RegistryRefresher::RegistryRefresher(boost::asio::io_context& io,
-                                     std::chrono::seconds period)
+                                     std::chrono::milliseconds period)
     : m_io(io)
     , m_period(period)
     , m_impl(std::make_unique<Impl>(io))
@@ -27,7 +27,7 @@ RegistryRefresher::RegistryRefresher(boost::asio::io_context& io,
 
 std::shared_ptr<RegistryRefresher>
 RegistryRefresher::Make(boost::asio::io_context& io,
-                        std::chrono::seconds period)
+                        std::chrono::milliseconds period)
 {
     return std::shared_ptr<RegistryRefresher>(
         new RegistryRefresher(io, period));
@@ -50,7 +50,7 @@ void RegistryRefresher::Start()
         return;
     boost::asio::co_spawn(m_io, shared_from_this()->Loop(),
                           boost::asio::detached);
-    spdlog::info("registry_refresher: tick every {}s ({} sync hook(s), "
+    spdlog::info("registry_refresher: tick every {}ms ({} sync hook(s), "
                  "{} coroutine hook(s))",
         m_period.count(), m_hooks.size(), m_coro_hooks.size());
 }

@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-09",
+  "timezone": "Europe/Prague",
+  "status": "verified bounded admission increment; full master goal remains active",
+  "production_paths": [
+    "Server/TMapSvrAsio/handlers/session.cpp",
+    "Server/TMapSvrAsio/handlers_world.cpp",
+    "Server/TMapSvrAsio/map_server.cpp",
+    "Server/TMapSvrAsio/main.cpp",
+    "Server/TWorldSvrAsio/handlers/handlers_char.cpp",
+    "Lib/Own/TNetLib/TNetLib/asio_session.cpp"
+  ],
+  "verified_boundaries": [
+    "Original CN result bytes 0..5, exact 29-byte CONNECT parsing, version 0x2918, 32-bit initial checksum wrap and unsigned 64-bit mixing",
+    "Selected character, account key, group, channel and lock validation; this is not yet native directory ownership or a durable Map lease",
+    "Awaited per-client dispatch and World inbound dispatch; database lookup/load/save offloaded from the reactor",
+    "Pending/loading/loaded/admitted/ready/closing/rejected phases, no optimistic success ACK, one keyed authoritative verdict, no pre-ready gameplay",
+    "World fresh registration sends the 9-byte ENTERSVR request; failed load returns CONRESULT and releases World reservation",
+    "Live duplicate reservation cannot be overwritten during authentication/load/save; old-key World messages cannot target a new binding",
+    "Post-flush terminal close suppresses later packets on that connection; both plain and RC4/XOR TCP framing covered",
+    "CONREADY publishes presence once; disconnect hides it and keeps snapshot/reservation until SaveChar completes",
+    "Reported save failure retains memory state and blocks reload in that process; failure count is surfaced and daemon shutdown returns nonzero",
+    "Login/load audit sinks clear token field before text/UDP emission; ABI slot remains present",
+    "DM_LOADCHAR_REQ is rejected on World socket because original DM flow is local; unparsed bDBLoad=0 handoff is refused instead of replacing unsaved data from stale DB/cache"
+  ],
+  "explicit_modern_repairs": [
+    "Competing client is rejected with CN_ALREADYEXIST instead of closing/suspending the earlier client as in the original source",
+    "Selected character must be stamped before CONNECT; original TGLOBAL.TEnterServer performed that update later",
+    "Existing ODBC character/directory SaveChar statements now share one transaction and propagate errors; actual legacy DB execution was not verified in this increment"
+  ],
+  "tests": {
+    "ctest_entries": 190,
+    "passed_with_fixtures_present": 178,
+    "legacy_internal_skips": [
+      "tloginsvr_asio_soci_auth",
+      "tloginsvr_asio_soci_char",
+      "tloginsvr_asio_soci_map",
+      "tloginsvr_asio_soci_session_terminator",
+      "tloginsvr_asio_wire_e2e_soci",
+      "tpatchsvr_asio_soci_repository",
+      "tlogsvr_asio_soci_log_sink",
+      "tcontrolsvr_asio_soci_repositories"
+    ],
+    "explicit_native_skips": 4,
+    "failed": 0,
+    "admission_checks_per_transport": 85,
+    "transports": [
+      "plain sequenced transport",
+      "RC4 inbound and XOR outbound client transport"
+    ],
+    "asan_ubsan": {
+      "tests": 10,
+      "failed": 0,
+      "leak_detection": true,
+      "vptr_excluded": "packaged SOCI RTTI limitation preserved"
+    },
+    "junit": [
+      "map-admission-ctest.xml",
+      "map-admission-asan.xml"
+    ],
+    "native_postgresql_tests_run_this_increment": false,
+    "limits": "TCP Map uses controlled World and persistence services; World fresh-login test uses real World TCP and simulated Map. These do not establish the complete Login/World/Map/PostgreSQL/client flow."
+  },
+  "runtime_container": {
+    "base_image": "localhost/fourstory:postgresql-characters",
+    "base_image_id": "684c7dbddae8411dfe1e5469b9ff86eead661cf21ee8ad00b6bb281b98336b9d",
+    "uid_gid": "10001:10001",
+    "binaries": "current Debug build mounted read-only; no new installed Release image produced",
+    "six_daemon_health": true,
+    "map_world_dns_link": true,
+    "six_sigterm_exit_zero": true,
+    "command": "python tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-characters --binary-directory build/linux-debug/bin"
+  },
+  "preservation": {
+    "backups_and_migrations_001_to_013": "all 15 SHA256 fingerprints unchanged",
+    "map_15_table_and_character_22_table_releases": "unchanged"
+  },
+  "next_required_work": [
+    "014+ native atomic Login-to-Map handoff: ownership, exact key, selected world/channel/char and durable fenced Map lease. Retire blanket login-owner startup deletion of active Map sessions.",
+    "Publish routing reference tables and reproduce TFindServerID logical/physical-channel, map/unit and spawn fallback behavior; current resident-only CHECKMAIN is not cell ownership.",
+    "Implement one scoped native character bundle: actual starter items/skills/hotkeys/titles/cabinet/mail/recall/mount state, limits/maxima, complete original client packet sections. Current identity loader/CHARINFO encoder remains incomplete.",
+    "Native owner/world/generation-bound atomic save and crash recovery; memory-only failed-save quarantine is insufficient.",
+    "Complete missing World-to-Map ROUTE/CHARDATA/CHARINFO and multi-map handoff flow, then actual PG restart/reconnect/rollback/race tests.",
+    "Verify an identified original client executable; current tests cannot certify it."
+  ]
+}

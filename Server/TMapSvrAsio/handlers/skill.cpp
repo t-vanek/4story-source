@@ -127,11 +127,12 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
     // unaffordable cast doesn't burn the cooldown. Both run only when we
     // know the char and the skill has a chart row; an unknown skill passes
     // through (no rank/learn validation yet).
-    std::uint32_t req_mp = 0, req_hp = 0;
+    std::uint32_t req_mp = 0, req_hp = 0, reuse_delay = 0;
     if (cid && ctx.skill_chart)
     {
         if (const auto tmpl = ctx.skill_chart->Find(wSkillID))
         {
+            reuse_delay=tmpl->dwReuseDelay;
             // Resource cost (Wave 4b) — type-2 (%-of-max) exact, type-1
             // deferred to 0 (see services/skill_engine.h). 0 when char
             // state isn't loaded (no-DB / test path).
@@ -168,30 +169,16 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
                 }
             }
 
-            // Reuse-cooldown gate (legacy CTSkill::CanUse): reject a re-use
-            // that arrives faster than the skill's TSKILLCHART reuse delay.
-            // TryUse arms the cooldown, so it runs only after the resource
-            // check.
-            if (tmpl->dwReuseDelay > 0 && ctx.skill_cooldown)
-            {
-                const auto now_ms = static_cast<std::uint64_t>(
-                    std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::steady_clock::now().time_since_epoch())
-                        .count());
-                if (!ctx.skill_cooldown->TryUse(cid, wSkillID, now_ms,
-                                                tmpl->dwReuseDelay))
-                {
-                    spdlog::info("CS_SKILLUSE_REQ char={} skill={} on cooldown "
-                                 "(reuse={}ms) — SKILL_SPEEDYUSE",
-                        cid, wSkillID, tmpl->dwReuseDelay);
-                    ack.result = SKILL_SPEEDYUSE;
-                    co_await sess->SendPacket(
-                        static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),
-                        EncodeSkillUseAck(ack, {}));
-                    co_return;
-                }
-            }
         }
+    }
+    // Imported remaining time is authoritative even without the optional full
+    // gameplay chart. Resource checks precede the gate; rejected casts cannot
+    // spend HP/MP or restart the timer.
+    if(cid && ctx.skill_cooldown &&
+       !ctx.skill_cooldown->TryUse(cid,wSkillID,SkillClockMs(),reuse_delay)) {
+        ack.result=SKILL_SPEEDYUSE;
+        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),EncodeSkillUseAck(ack,{}));
+        co_return;
     }
 
     // Gates passed — commit the cost to the live char state (clamped so a

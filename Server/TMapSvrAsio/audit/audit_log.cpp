@@ -62,12 +62,13 @@ void AuditLog::Emit(const LoginAttemptEvent& src)
 {
     // Local copy so we can stamp the header without const-cast.
     LoginAttemptEvent ev = src;
+    ev.key = 0; // reserved ABI slot; redact at the sink, including UDP
     ev.hdr.kind  = static_cast<std::uint16_t>(EventKind::LoginAttempt);
     ev.hdr.size  = sizeof(ev);
     ev.hdr.ts_ms = NowMillis();
 
-    spdlog::info("[audit] login uid={} key={} char={} ch={} ver={} result={} corr={}",
-        ev.user_id, ev.key, ev.char_id, ev.channel, ev.version, ev.result,
+    spdlog::info("[audit] login uid={} char={} ch={} ver={} result={} corr={}",
+        ev.user_id, ev.char_id, ev.channel, ev.version, ev.result,
         ev.hdr.corr);
 
     if (m_peer && m_peer->Enabled())
@@ -77,12 +78,13 @@ void AuditLog::Emit(const LoginAttemptEvent& src)
 void AuditLog::Emit(const CharLoadEvent& src)
 {
     CharLoadEvent ev = src;
+    ev.key = 0; // reserved ABI slot; redact at the sink, including UDP
     ev.hdr.kind  = static_cast<std::uint16_t>(EventKind::CharLoad);
     ev.hdr.size  = sizeof(ev);
     ev.hdr.ts_ms = NowMillis();
 
-    spdlog::info("[audit] char_load char={} key={} user={} latency_us={} result={} corr={}",
-        ev.char_id, ev.key, ev.user_id, ev.latency_us, ev.result, ev.hdr.corr);
+    spdlog::info("[audit] char_load char={} user={} latency_us={} result={} corr={}",
+        ev.char_id, ev.user_id, ev.latency_us, ev.result, ev.hdr.corr);
 
     if (m_peer && m_peer->Enabled())
         m_peer->Send(AsBytes(ev));

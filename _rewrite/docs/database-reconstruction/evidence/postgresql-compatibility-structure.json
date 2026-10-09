@@ -1,0 +1,10 @@
+{
+  "postgresql_version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "compatibility_views": 30,
+  "updatable_views": 0,
+  "insertable_views": 0,
+  "active_run_id": 1,
+  "activation_records_after_replay": 1,
+  "migration_replay_applied_files": [],
+  "migrations_001_through_006_applied": true
+}

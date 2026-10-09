@@ -1,0 +1,193 @@
+{
+  "scope": "Native SOCI/PostgreSQL + real map catalog startup; original-client testing PENDING",
+  "sql_server_used": false,
+  "tests": [
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [
+        "--options-only"
+      ],
+      "exit_code": 0,
+      "log": "PASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\n"
+    },
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-08 20:45:15.370] [info] SessionPool ready: backend=postgresql pool_size=2 acquire_timeout_ms=100\nPASS pool sessions are distinct native PostgreSQL connections\nPASS native PostgreSQL connection uses TLS with certificate verification\nPASS pool exhaustion has a bounded timeout\nPASS moved lease retains exclusive live session\nPASS native prepared binding preserves Unicode and literal punctuation\nPASS transaction destructor rolls back uncommitted writes\nPASS constraint failure rolls back entire transaction and session is reusable\nPASS unsupported T-SQL fails without submitting or logging secret literals\nPASS concurrent transactional updates do not lose writes\nPASS mutable test role has no historical snapshot access\nPASS untrusted PostgreSQL TLS certificate is rejected\n[2026-10-08 20:45:15.452] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS database disconnect is surfaced without retrying an operation\n[2026-10-08 20:45:15.457] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS fresh connection preserves committed state after a disconnect\n"
+    },
+    {
+      "binary": "test_tmapsvr_postgresql_catalog",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-08 20:45:15.635] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS unselected manifest is refused without fallback\n[2026-10-08 20:45:15.658] [info] soci_stat_chart: loaded 34 formula row(s), 6 class(es), 88 race(s) from TFORMULACHART/TCLASSCHART/TRACECHART\n[2026-10-08 20:45:15.662] [info] soci_npc_service: loaded 2623 NPC row(s) from TNPCCHART\n[2026-10-08 20:45:15.675] [info] soci_quest_chart: loaded 6261 quest(s), 10687 term(s), 4260 reward(s) from TQUESTCHART/TQUESTTERMCHART/TQREWARDCHART\n[2026-10-08 20:45:15.675] [warning] soci_quest_chart: retained source gaps: 0 unknown-quest terms, 62 unknown-quest rewards\n[2026-10-08 20:45:15.680] [info] soci_monster_chart: loaded 3534 row(s) from TMONSTERCHART\n[2026-10-08 20:45:15.699] [info] soci_spawn_chart: loaded 20357 row(s) from TMONSPAWNCHART\n[2026-10-08 20:45:15.712] [info] soci_map_mon_chart: loaded 23381 row(s) from TMAPMONCHART across 20358 spawn point(s)\n[2026-10-08 20:45:15.717] [info] soci_mon_attr_chart: loaded 3495 (monster,level) stat row(s) from TMONATTRCHART\n[2026-10-08 20:45:15.734] [info] soci_mon_item_chart: loaded 16466 row(s) from TMONITEMCHART across 2114 monster(s)\n[2026-10-08 20:45:15.735] [info] soci_skill_chart: loaded 765 skill template(s) (reuse + MP/HP cost + level scale, f1stRateX=1.03) from TSKILLCHART\n[2026-10-08 20:45:15.736] [info] soci_skill_data_chart: loaded 1172 effect row(s) from TSKILLDATA across 764 skill(s)\n[2026-10-08 20:45:15.736] [info] PostgreSQL catalog ready: run=1 manifest=c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95 source_tables=15 monster_attributes=3495 unresolved_monster_attributes=39 unresolved_quest_terms=0 unresolved_quest_rewards=62\nPASS all fifteen pinned backup tables verified\nPASS real C++ stat caches loaded\nPASS real C++ NPC and quest caches loaded\nPASS real C++ monster and spawn caches loaded\nPASS source attribute mappings and all gaps retained\nPASS real C++ loot and skill caches loaded\nPASS unmatched original quest rewards are observable\nPASS native DB-to-domain attribute values retain protocol-width bits\nPASS catalog reader cannot access original snapshots\nPASS catalog reader cannot overwrite combat data\n[2026-10-08 20:45:15.752] [info] spawn_manager: spawned 20944 monster(s) on channel 0 (5 spawn point(s) had no TMAPMONCHART rows, 2 skipped for missing TMONSTERCHART template, 27 missing attribute rows, 0 zero-HP rows quarantined)\nPASS actual spawn population uses only recovered combat HP\nNative catalog integration: run=1 source_rows=106692 spawned=20944\n"
+    }
+  ],
+  "engine": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "migrations": [
+    "001-import-control.sql",
+    "002-legacy-snapshots.sql",
+    "003-canonical-content.sql",
+    "004-source-text-bytes.sql",
+    "005-runtime-catalog-control.sql",
+    "006-current-chart-contracts.sql",
+    "007-catalog-runtime-metadata.sql"
+  ],
+  "import": {
+    "run_id": 1,
+    "manifest_sha256": "c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95",
+    "verified_tables": [
+      {
+        "table": "TCLASSCHART",
+        "rows": 6,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TFORMULACHART",
+        "rows": 34,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TITEMCHART",
+        "rows": 7706,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMAPMONCHART",
+        "rows": 23381,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONATTRCHART",
+        "rows": 9290,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONITEMCHART",
+        "rows": 16466,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSPAWNCHART",
+        "rows": 20357,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSTERCHART",
+        "rows": 3534,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TNPCCHART",
+        "rows": 2623,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQREWARDCHART",
+        "rows": 4322,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTCHART",
+        "rows": 6261,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTTERMCHART",
+        "rows": 10687,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TRACECHART",
+        "rows": 88,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLCHART",
+        "rows": 765,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLDATA",
+        "rows": 1172,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 106692,
+    "canonical_items": {
+      "rows": 7706,
+      "six_fields_verified": true
+    }
+  },
+  "activation": {
+    "run_id": 1,
+    "manifest_sha256": "c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95",
+    "changed": true,
+    "reference_tables": 15,
+    "verified_source_rows": 106692,
+    "current_chart_queries_verified": [
+      "AllNpcs",
+      "AllQuestChart",
+      "AllQuestTermChart",
+      "AllQuestRewardChart",
+      "AllMonsters",
+      "AllSpawns",
+      "AllMapMon",
+      "AllMonAttr",
+      "AllMonItems",
+      "AllFormula",
+      "AllClassStats",
+      "AllRaceStats",
+      "AllSkillTemplate",
+      "AllSkillData"
+    ],
+    "query_row_counts": {
+      "AllNpcs": 2623,
+      "AllQuestChart": 6261,
+      "AllQuestTermChart": 10687,
+      "AllQuestRewardChart": 4322,
+      "AllMonsters": 3534,
+      "AllSpawns": 20357,
+      "AllMapMon": 23381,
+      "AllMonAttr": 3495,
+      "AllMonItems": 16466,
+      "AllFormula": 34,
+      "AllClassStats": 6,
+      "AllRaceStats": 88,
+      "AllSkillTemplate": 765,
+      "AllSkillData": 1172
+    },
+    "monster_templates": 3534,
+    "monster_attribute_rows": 3495,
+    "source_monster_attribute_gaps": 39,
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "map_rejected_manifest": {
+    "exit_code": 1,
+    "log": "[2026-10-08 20:45:15.947] [info] loaded config from '/run/fourstory-test/wrong-manifest.toml' \u2014 port=0 mode=pve crypto=off world=127.0.0.1:0 db=(none)\n[2026-10-08 20:45:15.947] [info] mapper: 1 profile(s) applied\n[2026-10-08 20:45:15.955] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-08 20:45:15.956] [critical] fatal: Active catalog does not match the configured verified manifest\n"
+  },
+  "map_server": {
+    "health_http_status": 200,
+    "sigterm_exit_code": 0,
+    "image": "localhost/fourstory:postgresql",
+    "binary": "/opt/fourstory/bin/tmapsvr_asio",
+    "log": "[2026-10-08 20:45:16.161] [info] loaded config from '/run/fourstory-test/map.toml' \u2014 port=0 mode=pve crypto=off world=127.0.0.1:0 db=(none)\n[2026-10-08 20:45:16.161] [info] mapper: 1 profile(s) applied\n[2026-10-08 20:45:16.168] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-08 20:45:16.192] [info] soci_stat_chart: loaded 34 formula row(s), 6 class(es), 88 race(s) from TFORMULACHART/TCLASSCHART/TRACECHART\n[2026-10-08 20:45:16.195] [info] soci_npc_service: loaded 2623 NPC row(s) from TNPCCHART\n[2026-10-08 20:45:16.204] [info] soci_quest_chart: loaded 6261 quest(s), 10687 term(s), 4260 reward(s) from TQUESTCHART/TQUESTTERMCHART/TQREWARDCHART\n[2026-10-08 20:45:16.204] [warning] soci_quest_chart: retained source gaps: 0 unknown-quest terms, 62 unknown-quest rewards\n[2026-10-08 20:45:16.208] [info] soci_monster_chart: loaded 3534 row(s) from TMONSTERCHART\n[2026-10-08 20:45:16.227] [info] soci_spawn_chart: loaded 20357 row(s) from TMONSPAWNCHART\n[2026-10-08 20:45:16.237] [info] soci_map_mon_chart: loaded 23381 row(s) from TMAPMONCHART across 20358 spawn point(s)\n[2026-10-08 20:45:16.242] [info] soci_mon_attr_chart: loaded 3495 (monster,level) stat row(s) from TMONATTRCHART\n[2026-10-08 20:45:16.254] [info] soci_mon_item_chart: loaded 16466 row(s) from TMONITEMCHART across 2114 monster(s)\n[2026-10-08 20:45:16.255] [info] soci_skill_chart: loaded 765 skill template(s) (reuse + MP/HP cost + level scale, f1stRateX=1.03) from TSKILLCHART\n[2026-10-08 20:45:16.256] [info] soci_skill_data_chart: loaded 1172 effect row(s) from TSKILLDATA across 764 skill(s)\n[2026-10-08 20:45:16.256] [info] PostgreSQL catalog ready: run=1 manifest=c4a43e0657002913be45a096caa4b329f198abcc5553737a98a8d586ae572d95 source_tables=15 monster_attributes=3495 unresolved_monster_attributes=39 unresolved_quest_terms=0 unresolved_quest_rewards=62\n[2026-10-08 20:45:16.256] [warning] no [database] configured \u2014 CS_CONNECT_REQ and DM_LOADCHAR_REQ will refuse with INTERNAL, CS_NPCTALK_REQ / CS_SKILLUSE_REQ / CS_QUEST*_REQ require mutable persistence; static catalogs may still be configured via [content]\n[2026-10-08 20:45:16.258] [info] spawn_manager: spawned 20944 monster(s) on channel 0 (5 spawn point(s) had no TMAPMONCHART rows, 2 skipped for missing TMONSTERCHART template, 27 missing attribute rows, 0 zero-HP rows quarantined)\n[2026-10-08 20:45:16.258] [info] log_peer: disabled (empty host or port = 0) \u2014 audit events will go to spdlog only\n[2026-10-08 20:45:16.258] [warning] no [world] port configured \u2014 MW_ADDCHAR_ACK and future DM_/MW_ traffic will be skipped\n[2026-10-08 20:45:16.258] [info] tmapsvr_asio: F17 listener on 0.0.0.0:37223 (mode=pve, crypto=off) \u2014 send SIGINT/SIGTERM to exit\n[2026-10-08 20:45:16.258] [info] health endpoint listening on 0.0.0.0:18916\n[2026-10-08 20:45:16.258] [info] monster_ai: roam/chase/attack tick every 2000ms, up to 256 monster(s) per tick\n[2026-10-08 20:45:16.310] [info] received signal 15, beginning graceful shutdown (drain 50ms)\n[2026-10-08 20:45:16.360] [info] graceful shutdown drain elapsed \u2014 stopping io_context"
+  },
+  "status": "passed"
+}

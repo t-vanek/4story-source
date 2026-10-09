@@ -1,0 +1,6 @@
+{
+  "status": "failed",
+  "error": "World handoff wire: unaccepted CHECKMAIN cannot replace primary or emit RELEASEMAIN (expected 0x9012, got 0x9017, 23 bytes)",
+  "image": "localhost/fourstory:postgresql-map-replica",
+  "image_id": "bebc88410bb885dd7eb6ee0a2b0faa49454681ed5cd3a56b54ce4d6fd238664f"
+}

@@ -3,6 +3,7 @@
 
 #include "packet_codec.h"
 
+#include <bit>
 #include <cassert>
 #include <cstring>
 
@@ -72,8 +73,9 @@ std::int64_t EncryptBody(std::byte* body, std::size_t body_len, std::int64_t key
 {
     if (body_len == 0) return 0;
 
-    std::int64_t checksum = 0;
-    std::int64_t crc      = 0;
+    // Legacy wire arithmetic wraps modulo 2^64; signed overflow is undefined.
+    std::uint64_t checksum = 0;
+    std::uint64_t crc      = 0;
 
     const std::size_t chunks = body_len / sizeof(std::int64_t);
     const std::size_t tail   = body_len % sizeof(std::int64_t);
@@ -83,7 +85,7 @@ std::int64_t EncryptBody(std::byte* body, std::size_t body_len, std::int64_t key
     {
         std::byte* slot = body + i * sizeof(std::int64_t);
         const std::int64_t plain = LoadInt64(slot);
-        checksum ^= plain;
+        checksum ^= static_cast<std::uint64_t>(plain);
         StoreInt64(slot, plain ^ key);
     }
 
@@ -93,13 +95,13 @@ std::int64_t EncryptBody(std::byte* body, std::size_t body_len, std::int64_t key
     for (std::size_t i = 0; i < tail; ++i)
     {
         const std::uint8_t plain = Read8(tail_ptr + i);
-        checksum ^= static_cast<std::int64_t>(plain);
+        checksum ^= plain;
         Write8(tail_ptr + i, plain ^ KeyByteLE(key, i));
-        crc = ((static_cast<std::uint64_t>(crc) >> 4) & 0x0FFD) ^ key;
+        crc = ((crc >> 4) & 0x0FFD) ^ static_cast<std::uint64_t>(key);
         checksum += crc;
     }
 
-    return checksum;
+    return std::bit_cast<std::int64_t>(checksum);
 }
 
 bool DecryptBody(std::byte* body, std::size_t body_len, std::int64_t key,
@@ -108,8 +110,9 @@ bool DecryptBody(std::byte* body, std::size_t body_len, std::int64_t key,
     if (body_len == 0)
         return expected_checksum == 0;
 
-    std::int64_t checksum = 0;
-    std::int64_t crc      = 0;
+    // Legacy wire arithmetic wraps modulo 2^64; signed overflow is undefined.
+    std::uint64_t checksum = 0;
+    std::uint64_t crc      = 0;
 
     const std::size_t chunks = body_len / sizeof(std::int64_t);
     const std::size_t tail   = body_len % sizeof(std::int64_t);
@@ -120,7 +123,7 @@ bool DecryptBody(std::byte* body, std::size_t body_len, std::int64_t key,
         std::byte* slot = body + i * sizeof(std::int64_t);
         const std::int64_t plain = LoadInt64(slot) ^ key;
         StoreInt64(slot, plain);
-        checksum ^= plain;
+        checksum ^= static_cast<std::uint64_t>(plain);
     }
 
     // Tail in the inverse interleaving of Encrypt.
@@ -130,12 +133,12 @@ bool DecryptBody(std::byte* body, std::size_t body_len, std::int64_t key,
         const std::uint8_t recovered =
             static_cast<std::uint8_t>(Read8(tail_ptr + i) ^ KeyByteLE(key, i));
         Write8(tail_ptr + i, recovered);
-        checksum ^= static_cast<std::int64_t>(recovered);
-        crc = ((static_cast<std::uint64_t>(crc) >> 4) & 0x0FFD) ^ key;
+        checksum ^= recovered;
+        crc = ((crc >> 4) & 0x0FFD) ^ static_cast<std::uint64_t>(key);
         checksum += crc;
     }
 
-    return checksum == expected_checksum;
+    return checksum == static_cast<std::uint64_t>(expected_checksum);
 }
 
 void EncryptHeader(PacketHeader* header, std::int64_t key) noexcept
@@ -152,8 +155,8 @@ void EncryptHeader(PacketHeader* header, std::int64_t key) noexcept
     for (std::size_t i = 0; i < span; ++i)
     {
         const std::uint8_t mix = (i < 2)
-            ? static_cast<std::uint8_t>(key + wSize + static_cast<std::int64_t>(i))
-            : static_cast<std::uint8_t>(key + wId   + static_cast<std::int64_t>(i));
+            ? static_cast<std::uint8_t>(static_cast<std::uint64_t>(key) + wSize + i)
+            : static_cast<std::uint8_t>(static_cast<std::uint64_t>(key) + wId + i);
         Write8(hdr_bytes + i, Read8(hdr_bytes + i) ^ mix);
     }
 }
@@ -173,8 +176,8 @@ void DecryptHeader(PacketHeader* header, std::int64_t key) noexcept
     for (std::size_t i = 0; i < span; ++i)
     {
         const std::uint8_t mix = (i < 2)
-            ? static_cast<std::uint8_t>(key + wSize + static_cast<std::int64_t>(i))
-            : static_cast<std::uint8_t>(key + header->wId + static_cast<std::int64_t>(i));
+            ? static_cast<std::uint8_t>(static_cast<std::uint64_t>(key) + wSize + i)
+            : static_cast<std::uint8_t>(static_cast<std::uint64_t>(key) + header->wId + i);
         Write8(hdr_bytes + i, Read8(hdr_bytes + i) ^ mix);
     }
 }

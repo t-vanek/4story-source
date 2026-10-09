@@ -25,6 +25,8 @@
 
 namespace tmapsvr {
 
+std::string FormatServerClock();
+
 // One entry of the cross-server connect/route list: where a peer map
 // server lives. Shared by CS_ADDCONNECT_ACK (MW_ADDCONNECT_REQ relay)
 // and, later, CS_ROUTE_ACK.

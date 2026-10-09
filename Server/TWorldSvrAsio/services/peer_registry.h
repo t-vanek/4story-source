@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <memory>
 #include <shared_mutex>
-#include <unordered_map>
+#include <map>
 #include <vector>
 
 namespace tworldsvr {
@@ -47,10 +47,17 @@ public:
     // Lookup by wID. nullptr if absent.
     std::shared_ptr<PeerSession> Find(std::uint16_t wid) const;
 
+    bool IsCurrentMap(const std::shared_ptr<PeerSession>& peer) const {
+        return peer && (peer->Wid() >> 8) == 4 && (peer->Wid() & 255) != 0 &&
+            Find(peer->Wid()) == peer && peer->Wire()->IsOpen();
+    }
+
     std::size_t Size() const;
 
     // Snapshot every registered peer (e.g. for cluster-wide
-    // broadcasts). Holds the shared lock for the duration of the
+    // broadcasts), ordered by wID as in legacy MAPTSERVER. The first
+    // map receives shared mail work, so hash iteration is not suitable.
+    // Holds the shared lock for the duration of the
     // copy.
     std::vector<std::shared_ptr<PeerSession>> Snapshot() const;
 
@@ -63,7 +70,7 @@ public:
 
 private:
     mutable std::shared_mutex                                       m_mtx;
-    std::unordered_map<std::uint16_t, std::shared_ptr<PeerSession>> m_peers;
+    std::map<std::uint16_t, std::shared_ptr<PeerSession>> m_peers;
 };
 
 } // namespace tworldsvr

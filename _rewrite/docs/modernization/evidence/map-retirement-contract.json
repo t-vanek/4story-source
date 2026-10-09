@@ -1,0 +1,175 @@
+{
+  "date": "2026-10-09",
+  "status": "IMPLEMENTED, INTEGRATED and VERIFIED: Map retirement prerequisite; full modern server and native replica admission remain in progress",
+  "authority": {
+    "backups": "Both authoritative .bak and historical values unchanged",
+    "migrations": "001–018 unchanged; no new migration",
+    "source": [
+      "Server/TMapSvr/SSHandler.cpp:26 OnSM_DELSESSION_REQ gates close-all on m_bCloseAll",
+      "Server/TMapSvr/SSHandler.cpp:1212 OnMW_DELCHAR_REQ",
+      "Server/TMapSvr/SSHandler.cpp:1249 OnMW_INVALIDCHAR_REQ",
+      "Server/TMapSvr/SSHandler.cpp:2196 OnMW_CLOSECHAR_REQ",
+      "Server/TWorldSvr/SSHandler.cpp:1990 OnMW_CLOSECHAR_ACK"
+    ]
+  },
+  "production_paths": [
+    "Server/TMapSvrAsio/services/session_registry.h",
+    "Server/TMapSvrAsio/handlers/session.cpp",
+    "Server/TMapSvrAsio/map_server.cpp",
+    "Server/TMapSvrAsio/handlers_world.cpp",
+    "Server/TWorldSvrAsio/handlers/handlers_char.cpp"
+  ],
+  "reproduced_bug": "A second native Map bound local identity before its durable claim failed, then unconditionally sent MW_CLOSECHAR_ACK during teardown. World accepted the key-only close and deleted a valid character on the first Map. Both a targeted TCP test and two real native Map processes reproduced this before the fix.",
+  "contract": [
+    "WorldPresence (Unannounced/Announced/Retired) is independent of local loading/ready/closing phase and fenced by exact socket identity. Claim failures remain Unannounced. Announced is set before suspending to send ADDCHAR; a retired identity cannot be reannounced.",
+    "Map rereads WorldPresence after awaited save/release and sends CLOSECHAR only for Announced identity on a registered World link. World retirement received during a slow final save suppresses its echo.",
+    "MW_INVALIDCHAR_REQ has exact 9-byte body (DWORD char/key, BYTE release-main) and sends empty CS_INVALIDCHAR_ACK before closing. MW_DELCHAR_REQ has exact 10-byte body (DWORD char/key, BYTE logout/save) and closes without inventing a client ACK. MW_CLOSECHAR_REQ has exact 8-byte body and sends empty CS_SHUTDOWN_ACK before closing. Truncation/trailing data/nonboolean flags/wrong keys have no effect.",
+    "World-originated rejection/retirement marks Retired while preserving local phase: a locally Ready primary still follows existing atomic save/release. DELCHAR save=0 cannot discard a dirty native primary; this and no close-all echo on every World retirement are explicit modern policies. Successful replica teardown will require its own role-specific release path.",
+    "World CLOSECHAR requires matching key, nonzero typed Map ID 0x0400|sid, exact currently registered peer, and an accepted valid connection for that character. Pending/unaccepted/stale peers receive original DELCHAR(logout=1,save=0) without evicting the primary. This strengthens the legacy key-only lookup; accepted secondary close-all remains possible.",
+    "Client field widths/opcodes are unchanged. A local admission error after a premature World success still notifies World; a genuine World rejection suppresses echo. Failed persistence retains dirty snapshot/reservation as before."
+  ],
+  "verification": {
+    "debug_ctest": {
+      "report": "map-retirement-ctest.xml",
+      "entries": 195,
+      "actual_passes": 181,
+      "legacy_internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "native_explicit_skips": 6,
+      "failures": 0
+    },
+    "asan_ubsan_preset": {
+      "report": "map-retirement-asan-preset.xml",
+      "entries": 24,
+      "actual_passes": 24,
+      "legacy_internal_skips": [],
+      "native_explicit_skips": 0,
+      "failures": 0
+    },
+    "regressions": {
+      "unannounced_claim": {
+        "before": "map-retirement-before.log",
+        "before_result": "FAIL unannounced claim failure sends neither ADDCHAR nor CLOSECHAR to World",
+        "after": "map-retirement-after.log",
+        "encrypted_after": "map-retirement-encrypted-after.log",
+        "checks_per_transport": 140,
+        "cases": [
+          "durable claim rejection and exception preserve client codes without World close",
+          "pending and ready INVALIDCHAR/DELCHAR/CLOSECHAR exact replies and EOF",
+          "malformed bodies and stale keys do not retire",
+          "ready teardown saves once even DELCHAR save=0; pending never saves",
+          "retirement during delayed final save suppresses close-all",
+          "genuine World CONRESULT rejection suppresses close-all; local failure still notifies"
+        ]
+      },
+      "world_close_gate": {
+        "after": "map-retirement-world-after.log",
+        "checks": 31,
+        "cases": [
+          "unplanned Map close refused",
+          "planned but not-yet-valid Map close refused",
+          "trailing CLOSECHAR body ignored",
+          "accepted Map close retires character/user",
+          "earlier secondary admission checks retained"
+        ]
+      },
+      "native_two_map": {
+        "before": "native-map-retirement-before.json",
+        "before_result": "Map rejection wire: rejected second Map removed the valid World character",
+        "after_reports": [
+          "native-map-retirement.json",
+          "native-map-retirement-asan.json",
+          "native-map-retirement-release.json"
+        ],
+        "checks": 7,
+        "scope": "Actual second Map rejects absent grant with exact CN_NOCHAR and EOF, preserving actual World character/user and exact primary PostgreSQL owner/generation/ready phase/current-user key"
+      },
+      "fixture_repairs": {
+        "files": [
+          "Server/TWorldSvrAsio/tests/test_char_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_tms_logout_handlers.cpp",
+          "Server/TWorldSvrAsio/tests/test_friend_presence_handlers.cpp"
+        ],
+        "details": "Existing fixtures now register typed Map peers before reporting character closure; downstream assertions retained."
+      }
+    },
+    "native_runs": {
+      "debug": {
+        "report": "native-map-retirement.json",
+        "status": "passed",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "four_daemon_tcp_checks": 134,
+        "world_secondary_wire_checks": 66,
+        "second_native_map_rejection_checks": 7,
+        "sql_server_used": false
+      },
+      "asan": {
+        "report": "native-map-retirement-asan.json",
+        "status": "passed",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "four_daemon_tcp_checks": 134,
+        "world_secondary_wire_checks": 66,
+        "second_native_map_rejection_checks": 7,
+        "sql_server_used": false
+      },
+      "release": {
+        "report": "native-map-retirement-release.json",
+        "status": "passed",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "four_daemon_tcp_checks": 134,
+        "world_secondary_wire_checks": 66,
+        "second_native_map_rejection_checks": 7,
+        "sql_server_used": false
+      }
+    },
+    "installed_release": {
+      "date": "2026-10-09",
+      "status": "passed",
+      "image": "localhost/fourstory:postgresql-map-retirement",
+      "image_id": "7e05599b59b6e91e722fd1476d1875ba40b430037c9b6295abd8d8de39aa2a6e",
+      "uid_gid": "10001:10001",
+      "installed_release_daemon_sha256": {
+        "/opt/fourstory/bin/tloginsvr_asio": "acb387eed9d32bb6f1458c91ea19b77a6cb698935e0cd26841cba7535f359361",
+        "/opt/fourstory/bin/tmapsvr_asio": "ad54fda612bd751c34f083ade26b3d6037d8a749bdf9b1f7b451490c23715020",
+        "/opt/fourstory/bin/tworldsvr_asio": "2a534faa8d44881d4cdd139316ec9f223ee286ccf5ac6ca0096a07c9bd1c8bd2",
+        "/opt/fourstory/bin/tcontrolsvr_asio": "56de5de6706d3fb0b2a5c070d3329e61312fe0da42987b128b660fa3e2abddef",
+        "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+        "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34"
+      },
+      "native_verification": {
+        "report": "native-map-retirement-release.json",
+        "status": "passed",
+        "native_map_checks": 59,
+        "pool_tls_checks": 29,
+        "four_daemon_tcp_checks": 134,
+        "world_secondary_wire_checks": 66,
+        "second_native_map_rejection_checks": 7,
+        "sql_server_used": false
+      },
+      "six_daemon_health_dns_sigterm": "map-retirement-container-smoke.log",
+      "build_command": "podman build --network host --build-arg BUILD_JOBS=2 --target runtime -t localhost/fourstory:postgresql-map-retirement .",
+      "scope": "Installed Release Login/World/two-Map daemons; mounted Debug native integration executables; independent synthetic TCP peers, original client not executed"
+    },
+    "debug_report_scope_note": "Debug execution began before a docstring/report-scope wording update from three to four daemons. Its nested map_rejection_wire section and extra registration/cleanup checks record the actual second Map; behavior is identical to sanitizer/Release.",
+    "artifact_fingerprints": "map-retirement-build-fingerprints.json",
+    "owned_lab_cleanup": "map-retirement-cleanup.json"
+  },
+  "remaining": [
+    "Separate PostgreSQL replica grants/roles and source transient CHARDATA/ENTERCHAR synchronization must be implemented before enabling neighboring-map admission.",
+    "Then implement primary ownership transfer and failure recovery using migration 019+ as required, preserving immutable 001–018 and the unique mutable primary.",
+    "Full gameplay, social persistence, original-client executable/build and actual client execution remain unverified.",
+    "No general World peer authentication/heartbeat/blackhole recovery contract is established by this close gate.",
+    "Historical encoding/collation/timezone and populated-player corpus remain unresolved. SQL Server packages remain for unported paths; these runs use native PostgreSQL only."
+  ]
+}

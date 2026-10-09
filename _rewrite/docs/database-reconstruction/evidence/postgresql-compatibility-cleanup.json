@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-08",
+  "owned_disposable_resources_removed": {
+    "mssql_container": true,
+    "pg_container": true,
+    "network": true
+  },
+  "ephemeral_credential_files_removed": true,
+  "existing_user_resources_modified": false
+}

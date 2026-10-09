@@ -1,0 +1,105 @@
+name: Linux container
+
+on:
+  push:
+    paths:
+      - '.github/workflows/linux-container.yml'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - 'Lib/Own/**'
+      - 'Lib/3rdParty/bcrypt/**'
+      - 'Server/*Asio/**'
+      - 'deploy/**'
+      - 'tools/container_smoke.py'
+      - 'tools/database/**'
+      - 'tools/modernization_inventory.py'
+      - 'database/postgresql/**'
+  pull_request:
+    paths:
+      - '.github/workflows/linux-container.yml'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - 'Lib/Own/**'
+      - 'Lib/3rdParty/bcrypt/**'
+      - 'Server/*Asio/**'
+      - 'deploy/**'
+      - 'tools/container_smoke.py'
+      - 'tools/database/**'
+      - 'tools/modernization_inventory.py'
+      - 'database/postgresql/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build portable servers and run Debug CTest suites
+        run: docker build --target test -t fourstory:tests .
+      - name: Build runtime image
+        run: docker build -t fourstory:linux .
+      - name: Verify all daemons and graceful shutdown
+        run: python3 tools/container_smoke.py --image fourstory:linux
+
+  native-postgresql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [linux-debug, linux-asan]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install disposable test runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman openssl python3-venv
+          python3 -m venv /tmp/fourstory-native-python
+          /tmp/fourstory-native-python/bin/pip install 'psycopg[binary]==3.3.6'
+      - name: Check original opcode definitions
+        run: python3 tools/modernization_inventory.py
+      - name: Build native PostgreSQL test executable
+        run: |
+          podman build --target build-deps -t localhost/fourstory:build-deps .
+          podman run --rm --network none -v "$PWD:/src:rw,z" localhost/fourstory:build-deps sh -c '
+            cd /src && cmake --preset ${{ matrix.preset }} &&
+            if [ "${{ matrix.preset }}" = linux-asan ]; then
+              cmake --build --preset linux-asan
+            else
+              cmake --build build/${{ matrix.preset }} --parallel 2 --target test_fourstory_postgresql test_tloginsvr_postgresql_auth tloginsvr_asio
+            fi'
+      - name: Verify instrumented transport and shutdown
+        if: matrix.preset == 'linux-asan'
+        run: podman run --rm --network none -v "$PWD:/src:rw,z" localhost/fourstory:build-deps sh -c 'cd /src && ctest --preset linux-asan'
+      - name: Start PostgreSQL without SQL Server
+        run: python3 tools/database/disposable_environment.py start --work /tmp/fourstory-native-ci --postgresql-only
+      - name: Verify native pool, transactions, TLS and secret handling
+        run: /tmp/fourstory-native-python/bin/python tools/database/run_native_verification.py --work /tmp/fourstory-native-ci --build-dir build/${{ matrix.preset }} --pool-only --report /tmp/fourstory-native-pool.json
+      - name: Verify native Login transactions and encrypted TCP flow
+        run: /tmp/fourstory-native-python/bin/python tools/database/run_native_verification.py --work /tmp/fourstory-native-ci --build-dir build/${{ matrix.preset }} --login-only --report /tmp/fourstory-native-login.json
+      - name: Remove owned test containers
+        if: always()
+        run: |
+          if test -f /tmp/fourstory-native-ci/state.json; then
+            python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-native-ci
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-postgresql-verification-${{ matrix.preset }}
+          path: |
+            /tmp/fourstory-native-pool.json
+            /tmp/fourstory-native-login.json
+          if-no-files-found: ignore

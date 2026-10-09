@@ -65,9 +65,11 @@ std::vector<std::byte> MakeLoginReq(const std::string& user,
     bytes(&v, 2);
     str(""); str(pass); str(""); str(""); str(user);
     // Legacy checksum (CSHandler.cpp:185-202).
-    constexpr std::int64_t kKey = 0x336c3aebf71a8b08LL;
-    std::int64_t ck = static_cast<std::int64_t>(v) * 2 - 500;
-    const std::int64_t idx = ck % 8, body = ck / 8;
+    constexpr std::uint64_t kKey = 0x336c3aebf71a8b08ULL;
+    const std::int64_t seed = static_cast<std::int64_t>(v) * 2 - 500;
+    const std::int64_t idx = seed % 8;
+    const auto body = static_cast<std::uint64_t>(seed / 8);
+    auto ck = static_cast<std::uint64_t>(seed);
     for (std::int64_t i = 0; i < idx; ++i) { ck ^= body; ck += kKey; }
     std::int64_t dlCheck = 0;
     bytes(&dlCheck, 8);

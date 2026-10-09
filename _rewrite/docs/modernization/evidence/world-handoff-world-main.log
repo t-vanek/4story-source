@@ -1,0 +1,54 @@
+89/196 Testing: tworldsvr_asio_main_handoff
+89/196 Test: tworldsvr_asio_main_handoff
+Command: "/src/build/linux-asan/bin/test_tworldsvr_asio_main_handoff"
+Directory: /src/build/linux-asan/Server/TWorldSvrAsio
+"tworldsvr_asio_main_handoff" start time: Oct 09 03:58 UTC
+Output:
+----------------------------------------------------------
+[2026-10-09 03:58:28.776] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 03:58:28.780] [info] OnCloseCharAck[127.0.0.1]: char_id=42 not registered / key mismatch — DELCHAR
+[2026-10-09 03:58:28.785] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 'TransferHero' entered (lvl=10 map=7 region=0) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 03:58:28.827] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 03:58:28.868] [info] OnCharDataAck[127.0.0.1]: char_id=42 3 con(s) not ready — ENTERCHAR_REQ fan-out
+[2026-10-09 03:58:28.871] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=1 ready; waiting for others
+[2026-10-09 03:58:28.871] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=2 ready; waiting for others
+[2026-10-09 03:58:28.871] [info] OnEnterCharAck[127.0.0.1]: char_id=42 all cons ready — CheckMainCon
+[2026-10-09 03:58:29.065] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 03:58:29.147] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 handoff complete (old main=1) — MAPSVRLIST to new main
+[2026-10-09 03:58:29.192] [info] OnMapSvrListAck[127.0.0.1]: char_id=42 CHECKMAIN to 3 connection(s)
+[2026-10-09 03:58:30.324] [warning] World main handoff timed out; closing char=42
+[2026-10-09 03:58:30.368] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 03:58:30.370] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 'TransferHero' entered (lvl=10 map=7 region=0) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 03:58:30.412] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 03:58:30.455] [info] OnCharDataAck[127.0.0.1]: char_id=42 3 con(s) not ready — ENTERCHAR_REQ fan-out
+[2026-10-09 03:58:30.457] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=1 ready; waiting for others
+[2026-10-09 03:58:30.457] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=2 ready; waiting for others
+[2026-10-09 03:58:30.457] [info] OnEnterCharAck[127.0.0.1]: char_id=42 all cons ready — CheckMainCon
+[2026-10-09 03:58:31.501] [warning] World main handoff timed out; closing char=42
+[2026-10-09 03:58:31.503] [info] OnAddCharAck[127.0.0.1]: char_id=42 user_id=51 server_id=1 ip=127.0.0.1:4001 — registered (total=1, active_users=1)
+[2026-10-09 03:58:31.505] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 'TransferHero' entered (lvl=10 map=7 region=0) — CHARINFO/ROUTE/FRIENDLIST sent
+[2026-10-09 03:58:31.548] [info] OnRouteAck[127.0.0.1]: char_id=42 ADDCONNECT count=2 via reporter
+[2026-10-09 03:58:31.591] [info] OnCharDataAck[127.0.0.1]: char_id=42 3 con(s) not ready — ENTERCHAR_REQ fan-out
+[2026-10-09 03:58:31.593] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=1 ready; waiting for others
+[2026-10-09 03:58:31.593] [info] OnEnterCharAck[127.0.0.1]: char_id=42 con server=2 ready; waiting for others
+[2026-10-09 03:58:31.593] [info] OnEnterCharAck[127.0.0.1]: char_id=42 all cons ready — CheckMainCon
+[2026-10-09 03:58:31.647] [info] OnEnterSvrAck[127.0.0.1]: char_id=42 handoff complete (old main=1) — MAPSVRLIST to new main
+[2026-10-09 03:58:32.634] [warning] World main handoff timed out; closing char=42
+[2026-10-09 03:58:32.635] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0401 teardown — 0 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 03:58:32.635] [info] world_server: wID=1025 unregistered from peer registry
+[2026-10-09 03:58:32.635] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 03:58:32.635] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0402 teardown — 0 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 03:58:32.635] [info] world_server: wID=1026 unregistered from peer registry
+[2026-10-09 03:58:32.635] [info] world_server: peer 127.0.0.1 disconnected
+[2026-10-09 03:58:32.635] [info] OnSmDelSessionReq[127.0.0.1]: map wID=0x0403 teardown — 0 char(s) closed, current-user clear skipped (no DB)
+[2026-10-09 03:58:32.636] [info] world_server: wID=1027 unregistered from peer registry
+[2026-10-09 03:58:32.636] [info] world_server: peer 127.0.0.1 disconnected
+117 World handoff checks passed
+<end of output>
+Test time =   3.96 sec
+----------------------------------------------------------
+Test Passed.
+"tworldsvr_asio_main_handoff" end time: Oct 09 03:58 UTC
+"tworldsvr_asio_main_handoff" time elapsed: 00:00:03
+----------------------------------------------------------
+

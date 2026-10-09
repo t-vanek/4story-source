@@ -16,6 +16,7 @@
 #include "../world_session.h"
 
 #include "MessageId.h"
+#include "admission_fixture.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -149,10 +150,10 @@ int main()
     p1.connect(ep); p2.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -166,12 +167,16 @@ int main()
     };
     // Char 100, main 0x42, con on 0x43 (serialise the inserts).
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(100, 0xA1));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(100, 0xA1)));
     for (int i = 0; i < 1000 && !chars.Find(100); ++i)
         std::this_thread::sleep_for(10ms);
+    EXPECT(world_test::PlanSecondary(SendFramed, ReadFramed, p1, AddCharBody(100, 0xA1), 0x43));
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(100, 0xA1));
+    EXPECT(world_test::ReadSecondaryDataRequest(ReadFramed, p1, AddCharBody(100, 0xA1)));
     for (int i = 0; i < 1000 && cons_size(100) != 2; ++i)
         std::this_thread::sleep_for(10ms);
     EXPECT(cons_size(100) == 2);
+    {auto ch=chars.Find(100);std::lock_guard guard(ch->lock);for(auto& con:ch->cons)con.ready=true;} // post-ENTERCHAR fixture
 
     auto read_startteleport = [](tcp::socket& s, std::uint8_t exp_ch,
                                  std::uint16_t exp_map) {
@@ -232,6 +237,7 @@ int main()
 
     // --- CHECKMAIN confirms main → pops A, replays B ----------------
     {
+        EXPECT(world_test::RequestMainCheck(SendFramed,ReadFramed,p1,p2,AddCharBody(100,0xA1),0x43));
         SendFramed(p1, ToUint16(MessageId::MW_CHECKMAIN_ACK),
                    CharKeyBody(100, 0xA1));
         // Main (p1) gets CONRESULT first, then B's STARTTELEPORT.

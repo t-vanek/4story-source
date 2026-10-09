@@ -1,0 +1,142 @@
+{
+  "date": "2026-10-09",
+  "scope": "Native owned-PC ordinary cast map/active-prerequisite/non-consuming item gates; source rejection ordering and timer side effects.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2569-2584",
+      "contract": "Ordinary cast checks source wMapID against owning player map, except INVALID_MAPID, before resource/prerequisite/reuse gates."
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2727-2863",
+      "contract": "MP then HP (strict HP > cost), CheckPrevAct(wPrevActiveID), CanUse, SkillUse, then UseSkillItem. Unsuitable weapon retains already-armed own and same-kind timers without HP/MP deduction."
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "3040-3368",
+      "contract": "Loop has different ordering and uses wTargetActiveID; no normal map restriction or timer arming on unsuitable weapon rejection."
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2798-2955",
+      "contract": "UseSkillItem handles reagents/cash/ammunition and first matching powered equipment. CheckPrevAct searches maintained effects, never learned skills."
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "4568-4586",
+      "contract": "SkillUse arms the own cooldown and extends all learned same-kind peers."
+    },
+    {
+      "path": "Server/TMapSvr/DBAccess.h",
+      "lines": "1752-1929",
+      "contract": "Original wPrevActiveID, wTargetActiveID, wMapID and item/weapon column mapping."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "lines": "352-371",
+      "contract": "Original result codes NEEDPREVACT=10, UNSUITWEAPON=9, WRONGREGION=17."
+    }
+  ],
+  "implementation": {
+    "hydration": "Fresh and transferred native hydration load wPrevActiveID and wMapID with unsigned WORD conversion; source -1 remains 0xffff. Existing per-character equipment eligibility is shared by normal and repeated casts.",
+    "authority": "Existing ready-primary operation fence, owned PC, exact channel/map, learned rank, and full packet parsing remain required.",
+    "ordering": "Ordinary region, MP, HP, previous active prerequisite, cooldown, then item eligibility; live timer arming on supported unsuitable weapon follows original SkillUse ordering. All checks and mutations share the character lock.",
+    "effects": "An unbuffed graph with a required previous active effect returns NEEDPREVACT, even if that skill is learned. Buff-backed prerequisites await authoritative effect lifetime and close before mutation.",
+    "unsupported": "Ordinary casts now also refuse unsupported reagent/ammunition/cash inventory branches before any timer/resource change. This deliberately preflights unsupported work before the source side effect, rather than acknowledging a free cast.",
+    "wire": "Existing CS_SKILLUSE_ACK, LOOPSKILL_ACK and HPMP layouts unchanged. Rejections never deduct HP/MP or emit HPMP; supported ordinary weapon rejection alone arms its source timers.",
+    "migration": "No new migration. Backups and applied migrations 001-021 retain hashes; next is 022."
+  },
+  "pinned_content": {
+    "normal_active_prerequisites": 3,
+    "map_restricted_templates": 2,
+    "wire_fixture": {
+      "skill_1329": "Requires map550; synthetic native caster is in source fallback map0.",
+      "skill_736": "Requires maintained skill733. Both are learned only on a disposable character; no effect is fabricated."
+    },
+    "note": "All source charts are read-only. Only synthetic learned rows/resource values in the owned test DB are seeded."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-skill-gates-debug.json",
+      "status": "passed",
+      "native_map_checks": 203,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 38,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 933
+    },
+    "asan": {
+      "report": "native-skill-gates-asan.json",
+      "status": "passed",
+      "native_map_checks": 203,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 38,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 933
+    },
+    "ctest_debug": {
+      "report": "skill-gates-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "skill-gates-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_legacy_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "skill-gates-before.json",
+      "image_id": "d4a8bc5990d871e051853c37097842288f6886b6d5c4e1e8d209bd9cca7b873e",
+      "expected_failure": "Native skill wire: ordinary cast outside source map550 returns original WRONGREGION",
+      "scope": "Previous installed loop daemons; current mounted backend executable. Old runtime accepts the source map550-only skill in map0."
+    },
+    "targeted": {
+      "report": "skill-gates-targeted.xml",
+      "entries": 2,
+      "scope": "Plain/encrypted actual dispatch, normal-vs-loop gate selection, same-kind timer side effects, learned-vs-maintained prerequisites and unsupported state drain."
+    },
+    "container_smoke": {
+      "report": "skill-gates-container-verification.json",
+      "image": "localhost/fourstory:postgresql-skill-gates",
+      "image_id": "745e22cc4acafd7dd304a5fbc60bd1292c8869d690e13ae06412a45b386ad85d",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    },
+    "installed_release": {
+      "report": "native-skill-gates-release.json",
+      "status": "passed",
+      "native_map_checks": 203,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 38,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 933
+    }
+  },
+  "limitations": [
+    "Only native owned-PC casts. Monster/recall, replica gameplay and the old no-payload path are not extended.",
+    "Reagent/ammunition/cash transactions, durability consumption, premium medal costs, toggle effects and active buff lifetimes remain unported.",
+    "Non-consuming item eligibility is cached; equipment/skill mutation must rebuild it. Out-of-range source bit shifts remain unsupported.",
+    "Cancellation requires authoritative cast lifecycle. Damage, powers, full target/action/peace-zone/tournament rules, multi-hit expansion and AOI remain incomplete.",
+    "No original client executable was run; network tests use source-derived encrypted synthetic peers."
+  ]
+}

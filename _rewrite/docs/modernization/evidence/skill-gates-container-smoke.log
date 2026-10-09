@@ -1,0 +1,13 @@
+world: /healthz OK
+log: /healthz OK
+control: /healthz OK
+login: /healthz OK
+patch: /healthz OK
+map: /healthz OK
+map -> world: connected over container DNS
+map: SIGTERM exit 0
+patch: SIGTERM exit 0
+login: SIGTERM exit 0
+control: SIGTERM exit 0
+log: SIGTERM exit 0
+world: SIGTERM exit 0

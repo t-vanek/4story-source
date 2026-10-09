@@ -18,7 +18,47 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: native repeated skill casting
+## Current verified increment: native ordinary cast requirements
+
+Normal owned-PC casting now enforces the source map restriction, previous active
+effect and non-consuming weapon eligibility. `wMapID=-1` remains the original
+unsigned `0xffff` sentinel. The error order is map, MP, HP, previous active effect,
+reuse, then weapon. The normal prerequisite uses `wPrevActiveID`; loop retains
+`wTargetActiveID` and its own source ordering. Learned skills are not active buffs.
+
+Original normal `SkillUse` arms own and same-kind cooldowns before `UseSkillItem`
+rejects an unsuitable weapon. The implementation preserves that side effect
+without deducting HP/MP or sending updated bars. Loop rejection still arms nothing.
+Both paths preflight unsupported consumable/buff work before changing state;
+reagents, ammunition, cash exceptions and authoritative active effects still need
+their full transactional/lifecycle port. Full combat and original-client execution
+remain unfinished. See [source contract](evidence/skill-gates-contract.json).
+
+The new encrypted wire fixture uses source skill1329 (map550 only) and skill736
+(requires maintained733). All three skills are learned only on a disposable
+character; no source chart or active effect is fabricated. The previous installed
+loop image wrongly accepts the off-map request and fails this regression. Existing
+powered/broken weapon hydration tests now check both normal and loop fields.
+
+[Debug](evidence/native-skill-gates-debug.json),
+[ASan/UBSan](evidence/native-skill-gates-asan.json) and
+[installed Release](evidence/native-skill-gates-release.json) each pass **933 checks**:
+203 native Map, 29 pool/TLS, 196 outer TCP, 38 skill-cast, 295 World handoff,
+66 World secondary, 99 two-Map and seven rejection checks. Full suites pass 186
+actual Debug tests (200 entries, eight internal legacy and six explicit fixture
+skips) and all 33 sanitizer suites. Plain/encrypted admission tests cover gate
+precedence, matching map/sentinel, learned versus maintained prerequisites,
+normal weapon-failure timers and unsupported-state drain.
+
+Current local image: `localhost/fourstory:postgresql-skill-gates` (also `:main`),
+ID `745e22cc4acafd7dd304a5fbc60bd1292c8869d690e13ae06412a45b386ad85d`,
+UID/GID 10001:10001. All six services pass health/DNS/SIGTERM smoke. See
+[container evidence](evidence/skill-gates-container-verification.json),
+[build fingerprints](evidence/skill-gates-build-fingerprints.json) and
+[owned-lab cleanup](evidence/skill-gates-cleanup.json). Both backups and migrations
+001–021 retain their hashes. No migration or client packet change was needed.
+
+## Earlier verified increment: native repeated skill casting
 
 The original 23-byte LOOPSKILL request and 45-byte ACK are integrated for native
 owned PCs. Cooldown precedes affordability; HP equality is allowed by this source
@@ -44,7 +84,7 @@ and 33 sanitizer entries, all passing. The previous image cannot answer LOOPSKIL
 Tests also cover packet golden bytes, HP equality, missing maintained effects,
 powered/broken weapon eligibility, unsupported-state refusal and durable timers.
 
-Current local image: `localhost/fourstory:postgresql-skill-loop` (also `:main`),
+That increment used `localhost/fourstory:postgresql-skill-loop`,
 ID `d4a8bc5990d871e051853c37097842288f6886b6d5c4e1e8d209bd9cca7b873e`,
 UID/GID 10001:10001. All six installed daemons pass health/DNS/SIGTERM smoke.
 See [container evidence](evidence/skill-loop-container-verification.json),

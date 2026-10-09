@@ -78,7 +78,10 @@ authoritative for historical values, original code/client for supported behavior
    timing and authoritative effect expiry; speed-dependent casts currently close
    without mutation when a transferred graph has buffs. Native owned-PC loop
    timing/resource/wire gates and non-consuming weapon checks are now integrated;
-   see `skill-loop-contract.json`. Port consumable inventory transactions, full
+   see `skill-loop-contract.json`. Ordinary map/previous-active-effect and shared
+   non-consuming weapon gates now preserve source rejection precedence, including
+   timer arming before normal weapon rejection; see `skill-gates-contract.json`.
+   Port consumable inventory transactions, full
    effects and cancellation; recompute timing/item eligibility when equipment or
    learned skills mutate.
    CHARINFO and initial readiness now sample live skill durations without
@@ -365,14 +368,14 @@ Continue active buff/disarm/disguise simulation, effect expiry and source-traced
 active loop effects, consumables and cancellation. The original client executable remains an acceptance
 gate. Preserve backups and migrations 001–021; the next schema migration is 022.
 
-Latest verified loop increment (2026-10-09): native owned-PC `CS_LOOPSKILL_REQ`
+Earlier verified loop increment (2026-10-09): native owned-PC `CS_LOOPSKILL_REQ`
 and its original ACK now implement distinct loop timing, cooldown-first resource
 gates, HP equality, missing maintained-effect rejection and non-consuming weapon
 checks. Shared timer state prevents switching normal/loop opcodes to bypass reuse.
 Read `skill-loop-contract.json`: 929 native checks per Debug/ASan/installed Release,
 186 actual Debug passes (200 entries, 14 skips), all 33 sanitizer suites and
 six-daemon smoke pass. Previous installed admission-timers image lacks LOOPSKILL_ACK.
-Current image `localhost/fourstory:postgresql-skill-loop` (also `:main`) is
+That increment used `localhost/fourstory:postgresql-skill-loop`, image
 `d4a8bc5990d871e051853c37097842288f6886b6d5c4e1e8d209bd9cca7b873e`, UID/GID
 10001:10001. See `skill-loop-cleanup.json` for owned lab cleanup. Next port
 consumable inventory transactions, authoritative active effects and cast lifecycle
@@ -380,3 +383,22 @@ before exposing cancellation. Preserve the source's cancellation context: the
 client sends CANCELSKILL when an acknowledged cast cannot activate; arbitrary
 client timer resets are not an acceptable substitute for a cast lifecycle.
 Full combat/AOI/target rules and original-client execution remain unfinished.
+
+
+Latest verified cast-requirement increment (2026-10-09): native ordinary casts
+now check source map, previous active effect and non-consuming weapon eligibility.
+The source arms own/shared-kind timers before a supported ordinary weapon failure;
+HP/MP stay unchanged. Loop ordering remains distinct. Unsupported consumables or
+buff-dependent work close before mutation. See `skill-gates-contract.json` and
+its Debug/ASan/installed Release evidence: 933 native checks per configuration,
+186 actual Debug passes (200 entries, 14 skips), all 33 sanitizer suites and
+six-daemon health/DNS/SIGTERM smoke pass. The previous installed loop image wrongly
+accepts skill1329 outside its source map550 and fails the new encrypted regression.
+
+Current local image `localhost/fourstory:postgresql-skill-gates` (also `:main`),
+`745e22cc4acafd7dd304a5fbc60bd1292c8869d690e13ae06412a45b386ad85d`, UID/GID
+10001:10001. See `skill-gates-cleanup.json` for owned lab cleanup. Preserve backups
+and migrations 001–021; next migration is 022. Continue the durable consumable/
+ammunition/durability transaction, authoritative effects and cast lifecycle ports.
+Normal premium-medal/toggle/tournament/peace-zone rules, combat powers/damage,
+full target/AOI behavior and original-client execution remain unfinished.

@@ -162,18 +162,12 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             const auto t=std::find_if(templates.begin(),templates.end(),[&](const auto& s){return s.wID==wSkillID;});
             if(t==templates.end())throw std::runtime_error("Native learned skill lacks pinned template");
             definition=*t;
+            // Ordinary use alone checks its source map restriction, before
+            // resource, prerequisite and reuse gates (CSHandler.cpp:2556).
+            if(!loop&&t->wMapID!=0xffff&&t->wMapID!=cs.wMapID){ack.result=SKILL_WRONGREGION;return;}
             if(!ctx.skill_cooldown)throw std::runtime_error("Native skill cooldown tracker is missing");
             // The loop branch checks its existing gate BEFORE affordability.
             if(loop&&ctx.skill_cooldown->RemainMs(cid,wSkillID,now)){ack.result=SKILL_SPEEDYUSE;return;}
-            SkillAttackTiming timing; // TAD_NONE is source delay 0, rate 100
-            if(t->bSpeedApply) {
-                if(t->bSpeedApply>3||!cs.payload->skill_attack_timing)
-                    throw std::runtime_error("Native skill attack timing is unsupported for this state");
-                timing=(*cs.payload->skill_attack_timing)[t->bSpeedApply-1];
-            }
-            reuse_delay=loop?skill_timing::LoopDelay(*t,timing):skill_timing::ReuseDelay(*t,rank,timing);
-            kind_delay=loop?0:t->dwKindDelay;
-            if(kind_delay)for(const auto& other:templates)if(other.bKind==t->bKind)same_kind.push_back(other.wID);
         }
         if(definition) {
             req_mp=skill_engine::RequiredMP(*definition,cs.dwMaxMP,rank);
@@ -182,20 +176,35 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
         if(cs.dwMP<req_mp){ack.result=SKILL_NEEDMP;return;}
         // Source refuses HP <= cost even for cost zero (dead caster).
         if(loop?cs.dwHP<req_hp:cs.dwHP<=req_hp){ack.result=SKILL_NEEDHP;return;}
-        if(loop) {
+        if(cs.payload) {
             // CheckPrevAct searches maintained effects, not learned skills.
-            if(definition->wTargetActiveID) {
+            const auto& t=*definition;
+            if(loop?t.wTargetActiveID:t.wPrevActiveID) {
                 if(cs.payload->transfer_state&&!cs.payload->transfer_state->buffs.empty())
-                    throw std::runtime_error("Native loop requires authoritative active effects");
+                    throw std::runtime_error("Native cast requires authoritative active effects");
                 ack.result=SKILL_NEEDPREVACT;return;
             }
-            if(definition->loop_items==SkillItemGate::Unsupported)
-                throw std::runtime_error("Native loop consumable mutation is unsupported");
-            if(definition->loop_items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}
+            if(!loop&&ctx.skill_cooldown->RemainMs(cid,wSkillID,now)){ack.result=SKILL_SPEEDYUSE;return;}
+            // Preflight unsupported inventory transactions before any mutation.
+            // For a supported unsuitable weapon, ordinary SkillUse arms own and
+            // shared-kind timers BEFORE UseSkillItem rejects; loop does not.
+            if(t.items==SkillItemGate::Unsupported)
+                throw std::runtime_error("Native cast consumable mutation is unsupported");
+            if(loop&&t.items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}
+            SkillAttackTiming timing; // TAD_NONE is source delay 0, rate 100
+            if(t.bSpeedApply) {
+                if(t.bSpeedApply>3||!cs.payload->skill_attack_timing)
+                    throw std::runtime_error("Native skill attack timing is unsupported for this state");
+                timing=(*cs.payload->skill_attack_timing)[t.bSpeedApply-1];
+            }
+            reuse_delay=loop?skill_timing::LoopDelay(t,timing):skill_timing::ReuseDelay(t,rank,timing);
+            kind_delay=loop?0:t.dwKindDelay;
+            if(kind_delay)for(const auto& other:cs.payload->skill_templates)if(other.bKind==t.bKind)same_kind.push_back(other.wID);
         }
         if(ctx.skill_cooldown&&!ctx.skill_cooldown->TryUse(cid,wSkillID,now,reuse_delay,same_kind,kind_delay)) {
             ack.result=SKILL_SPEEDYUSE;return;
         }
+        if(cs.payload&&!loop&&definition->items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}
         cs.dwMP-=req_mp;cs.dwHP-=req_hp;
         hp=cs.dwHP;mp=cs.dwMP;max_hp=cs.dwMaxHP;max_mp=cs.dwMaxMP;
         char_level=cs.bLevel;char_country=cs.bCountry;

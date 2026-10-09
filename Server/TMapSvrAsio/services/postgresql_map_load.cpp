@@ -83,15 +83,17 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.bSpeedApply=U8(chart,"bSpeedApply");
         definition.dwLoopDelay=U32(chart,"dwLoopDelay");
         definition.wTargetActiveID=U16(chart,"wTargetActiveID");
+        definition.wPrevActiveID=U16(chart,"wPrevActiveID");
+        definition.wMapID=U16(chart,"wMapID");
         const auto weapon=U32(chart,"dwWeaponID");
         // DBAccess.h binds source wItemID to m_wUseItem. Item/cash-ammunition
         // consumption needs its own fenced inventory transaction. Never waive it.
         if(!U16(chart,"wItemID")&&weapon!=96) {
-            definition.loop_items=weapon?SkillItemGate::Unsuitable:SkillItemGate::Allowed;
+            definition.items=weapon?SkillItemGate::Unsuitable:SkillItemGate::Allowed;
             if(weapon)for(const auto& item:skill_equipment) {
-                if(!item.kind||item.kind>32) {definition.loop_items=SkillItemGate::Unsupported;break;}
+                if(!item.kind||item.kind>32) {definition.items=SkillItemGate::Unsupported;break;}
                 if(!(weapon&(std::uint32_t{1}<<(item.kind-1))))continue;
-                definition.loop_items=!item.powered?SkillItemGate::Unsuitable:
+                definition.items=!item.powered?SkillItemGate::Unsuitable:
                     item.consumable_kind?SkillItemGate::Unsupported:SkillItemGate::Allowed;
                 break; // source checks the first matching equipped item
             }

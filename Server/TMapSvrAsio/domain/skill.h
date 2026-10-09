@@ -50,7 +50,9 @@ struct SkillTemplate
     std::uint16_t  wTargetActiveID = 0;
     // Per-character UseSkillItem projection. Consumable mutations are not yet
     // native; Unsupported must never be interpreted as a free cast.
-    SkillItemGate loop_items = SkillItemGate::Unsupported;
+    SkillItemGate items = SkillItemGate::Unsupported;
+    std::uint16_t  wPrevActiveID = 0; // normal use; loop uses wTargetActiveID
+    std::uint16_t  wMapID = 0xffff;  // source INVALID_MAPID: unrestricted
 };
 
 struct SkillAttackTiming {

@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-09",
+  "scope": "Only the two uniquely labelled PostgreSQL-only labs created for this increment. Private reference snapshots and diagnostics retained.",
+  "labs": [
+    {
+      "work_directory": "/tmp/fourstory-skill-gates-debug-20261009",
+      "postgresql_container_removed": true,
+      "owned_labelled_containers_remaining": [],
+      "network_removed": true,
+      "temporary_env_key_files_removed": 10,
+      "remaining_env_key_files": 0
+    },
+    {
+      "work_directory": "/tmp/fourstory-skill-gates-asan-20261009",
+      "postgresql_container_removed": true,
+      "owned_labelled_containers_remaining": [],
+      "network_removed": true,
+      "temporary_env_key_files_removed": 4,
+      "remaining_env_key_files": 0
+    }
+  ]
+}

@@ -71,7 +71,7 @@ magic attack delay, powered weapon slots and passive/item speed rates. Same-kind
 learned timers extend atomically and never shorten a longer timer. Imported timers
 and periodic/final/transfer persistence remain in force. See the
 [skill timing contract](../../_rewrite/docs/modernization/evidence/skill-timing-contract.json).
-Active buff/disarm/disguise timing, loop/cancel branches, learning and combat damage
+Active buff/disarm/disguise timing, cancellation, learning and combat damage
 remain separate ports. Buff-bearing transferred graphs retain their data but
 speed-dependent casts close before mutation until effect simulation is available.
 Any future equipment/learned-skill mutation must rebuild the derived timing cache.
@@ -83,6 +83,14 @@ extends same-kind peers. The original 45-byte ACK omits normal action/transform
 fields. Cached non-consuming weapon requirements and missing active prerequisites
 are checked; consumables and buff-dependent prerequisites remain unsupported.
 See the [loop contract](../../_rewrite/docs/modernization/evidence/skill-loop-contract.json).
+
+Native ordinary casts now check source `wMapID` (`0xffff` is unrestricted) before
+resources, and `wPrevActiveID` after HP/MP but before reuse. Loops retain their
+separate `wTargetActiveID` rule. Both use the same pinned non-consuming weapon
+projection. Source ordinary weapon failure retains own/shared-kind timers but
+never deducts HP/MP; loop weapon failure arms nothing. Unsupported consumable or
+buff-dependent work closes before mutation. See the
+[cast requirement contract](../../_rewrite/docs/modernization/evidence/skill-gates-contract.json).
 
 Native CHARINFO samples live skill cooldowns after the channel notification;
 CONREADY independently samples them for the initial durable checkpoint. Admission

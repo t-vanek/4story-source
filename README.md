@@ -108,7 +108,7 @@ run**. The previous image fails the delayed-readiness regression. That increment
 installed daemons pass health/DNS/SIGTERM checks. See
 [container evidence](_rewrite/docs/modernization/evidence/admission-timers-container-verification.json).
 
-The latest increment implements **native repeated skill casting** with the original
+The preceding increment implements **native repeated skill casting** with the original
 `CS_LOOPSKILL_REQ` / `CS_LOOPSKILL_ACK` layouts. Loops use source `dwLoopDelay`,
 check existing cooldowns before HP/MP costs, retain learned ranks and share the
 same live timer with ordinary casts. They do not rearm other same-kind skills.
@@ -120,9 +120,24 @@ branches remain explicitly unsupported. See the
 Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
 **33 ASan/UBSan tests** and **929 native database/network checks** in each Debug,
 sanitizer and installed Release run. The previous image fails the loop-ACK
-regression. Current local image: `localhost/fourstory:postgresql-skill-loop`
-(also `:main`); all six installed services pass health/DNS/SIGTERM smoke. See
+regression. That increment used `localhost/fourstory:postgresql-skill-loop`;
+all six installed services pass health/DNS/SIGTERM smoke. See
 [container evidence](_rewrite/docs/modernization/evidence/skill-loop-container-verification.json).
+
+The latest implementation adds **ordinary native cast requirements**: source map
+restriction, the distinct previous-active-effect requirement and non-consuming
+weapon eligibility. Rejection codes and ordering follow the original server.
+An unsuitable weapon on normal use retains the source own/shared-kind cooldowns
+without charging HP/MP; the loop branch keeps its separate behavior. Unsupported
+consumable or buff-dependent work closes before mutation. See the
+[cast requirement contract](_rewrite/docs/modernization/evidence/skill-gates-contract.json).
+
+This increment passes **186 Debug tests** (200 entries, 14 fixture skips), all
+**33 ASan/UBSan suites** and **933 native database/network checks** in each Debug,
+sanitizer and installed Release run. The previous installed image fails the map
+restriction regression. Current local image: `localhost/fourstory:postgresql-skill-gates`
+(also `:main`); all six services pass health/DNS/SIGTERM smoke. See
+[container evidence](_rewrite/docs/modernization/evidence/skill-gates-container-verification.json).
 
 ## Database authority
 

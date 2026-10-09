@@ -27,7 +27,7 @@ def seed_skill_cast(conn,cid):
     # 351 MP (MEN 1+5+11, formula19 rate 20.66), so 8% costs 28; assert it again on the actual wire before charging.
     physical_cost=28
     loop_cost=17 # source skill34: five percent of the native 351 max MP
-    for skill in (34,213):
+    for skill in (34,213,733,736,1329):
         conn.execute('INSERT INTO app_world."TSKILLTABLE"("bWorldID","dwCharID","wSkillID","bLevel","dwRemainTick") VALUES(1,%s,%s,1,0) ON CONFLICT DO NOTHING',(cid,skill))
     conn.execute('UPDATE app_world."TCHARTABLE" SET "dwMP"=%s WHERE "dwCharID"=%s',(cost+physical_cost+loop_cost+5,cid))
     return {'skill':134,'rank':2,'cost':cost,'initial_mp':cost+physical_cost+loop_cost+5,'physical_cost':physical_cost,'loop_cost':loop_cost}
@@ -59,6 +59,11 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
         send(body)
     send(request(65535));verdict(1,'spoofed identity route and malformed targets have no cast response or side effects')
     maximum_hp,hp,maximum_mp,initial_mp=character['hpmp']
+    requirements=conn.execute('SELECT "wID","wPrevActiveID","wTargetActiveID","wMapID","dwWeaponID" FROM character_compat."TSKILLCHART" WHERE "wID" IN (736,1329) ORDER BY "wID"').fetchall()
+    check(requirements==[(736,733,0,-1,0),(1329,0,0,550,0)],
+          'ordinary map and active prerequisite requirements match immutable backup')
+    send(request(1329));verdict(17,'ordinary cast outside source map550 returns original WRONGREGION')
+    send(request(736));verdict(10,'learned skill733 is not an active prerequisite for ordinary skill736')
     chart=conn.execute('SELECT "dwReuseDelay","nReuseDelayInc","bSpeedApply","bUseMPType","dwUseMP" FROM character_compat."TSKILLCHART" WHERE "wID"=102').fetchone()
     check(chart==(28000,500,1,2,8) and ((maximum_mp*8)&0xffffffff)//100==fixture['physical_cost'],
           'source physical rank2 timing and resource fixture match pinned chart and actual maxMP')
@@ -126,4 +131,6 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
     loop_send(loop_request(34));loop_verdict(7,'expired loop cooldown exposes NEEDMP without consuming or rearming')
     loop_send(loop_request());loop_verdict(0,'normal-use cooldown expires and free loop rearms successfully')
     send(request(31));verdict(6,'normal use cannot bypass a cooldown armed by loop use')
+    check(conn.execute('SELECT "dwRemainTick" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID" IN (736,1329)',(cid,)).fetchall()==[(0,),(0,)],
+          'ordinary map and active-effect rejections checkpoint no fabricated cooldowns')
     return client_sequence,{'status':'passed','checks':checks,'source_skill':fixture['skill'],'rank':fixture['rank'],'source_mp_cost':fixture['cost']}

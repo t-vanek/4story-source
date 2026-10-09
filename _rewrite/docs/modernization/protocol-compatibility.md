@@ -471,15 +471,15 @@ DWORD wrap before division. Invalid/out-of-range arithmetic closes the session
 through the existing dispatch exception path.
 
 Under the character-state lock, MP is checked before HP, HP must exceed its cost,
-and the live cooldown gate precedes exact deduction. A rejection leaves resources
-and timers unchanged. Success echoes the actual learned rank in the existing ACK
+and the live cooldown gate precedes exact deduction. These resource rejections
+leave resources and timers unchanged; the later ordinary weapon gate below has
+a source-defined timer side effect. Success echoes the actual learned rank in the existing ACK
 and broadcasts the original HPMP layout when charged. Existing checkpoint/final
 save paths persist those core values; learned ranks remain unchanged.
 
-This is resource/ownership acceptance. Native new-use attack-speed/rank/shared-kind
-cooldowns, previous-action conditions, full target validation, effects, damage,
-learning and the original client executable remain pending. Imported live timers
-and optional gameplay-chart base delays continue to be enforced. Source trace and
+This increment established resource/ownership acceptance. Later sections describe
+native new-use timers and previous-action gates. Full target validation, effects,
+damage, learning and the original client executable remain pending. Source trace and
 executed evidence: [skill resource contract](evidence/skill-costs-contract.json).
 
 
@@ -498,7 +498,8 @@ apply before item speed reductions, which cap at 100 percent.
 A successful cast arms its own timer and extends all learned same-kind timers
 under one cooldown lock while still holding the character-state lock. Kind delay
 is used directly, including kind zero, and cannot shorten a longer running timer.
-Rejected use changes neither peer timers nor HP/MP. Existing snapshots, database
+Resource/reuse rejection changes neither peer timers nor HP/MP; the later ordinary
+weapon gate retains the source timer side effect described below. Existing snapshots, database
 receipts and transfer restoration now carry these generated timers as well.
 
 Pinned definitions and timing are rebuilt at native fresh/transfer hydration;
@@ -506,7 +507,7 @@ they add no wire fields or persistent columns. An unported buff-bearing transfer
 retains its full graph but leaves speed-dependent timing unavailable. Such casts
 fail before mutation, rather than calculate guessed buff/disarm/disguise effects.
 No-speed casts retain the original zero attack delay and 100 percent rate. Active
-effect expiry, loop/cancel rules, full target validation and original-client
+effect expiry, cancellation, full target validation and original-client
 execution remain pending. See [timing contract](evidence/skill-timing-contract.json).
 
 
@@ -525,3 +526,23 @@ loop packets share timer state. Reagents, ammunition/cash bypasses and active
 buff-dependent branches remain unsupported. Full target/action/peace-zone checks,
 combat powers/damage, multi-hit expansion and actual-client acceptance remain
 pending. See [source contract and evidence](evidence/skill-loop-contract.json).
+
+
+## Native ordinary cast prerequisites
+
+`CS_SKILLUSE_REQ` retains the existing packet layout and ready-primary/owned-PC
+fences. Native hydration reads source `wMapID` and `wPrevActiveID`, including
+signed database `-1` as the original unsigned WORD sentinel `0xffff`.
+The supported checks run in source order: map restriction (WRONGREGION=17),
+MP (7), HP (8), maintained previous effect (10), reuse (6), and weapon (9).
+The normal prerequisite uses `wPrevActiveID`; loops use `wTargetActiveID` and do
+not inherit the ordinary map-template restriction. A learned prerequisite is
+insufficient without a maintained effect.
+
+Original normal `SkillUse` precedes `UseSkillItem`: supported unsuitable weapon
+rejection therefore retains own and same-kind timers without resource deduction.
+Loop weapon rejection leaves timers unchanged. Unsupported reagent/ammunition,
+cash exceptions and buff-backed prerequisites close before any timer/resource
+mutation; their unfinished side effects are not acknowledged as success.
+The 62-byte ordinary reject and 45-byte loop reject formats remain unchanged.
+See [source contract and verification](evidence/skill-gates-contract.json).

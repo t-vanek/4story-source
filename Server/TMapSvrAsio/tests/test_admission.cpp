@@ -113,7 +113,7 @@ struct Players final : tmapsvr::IPlayerService {
             auto p=std::make_shared<tmapsvr::CharacterPayload>();p->skills.push_back({7,3,0});
             tmapsvr::SkillTemplate t;t.wID=7;t.bUseMPType=1;t.dwUseMP=1000;
             t.bUseHPType=2;t.dwUseHP=10;t.f1stRateX=2.0f;t.bStartLevel=1;t.bNextLevel=1;
-            t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.dwLoopDelay=2000;t.loop_items=tmapsvr::SkillItemGate::Allowed;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
+            t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.dwLoopDelay=2000;t.items=tmapsvr::SkillItemGate::Allowed;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
             p->skill_templates.push_back(t);
             for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;p->skill_templates.push_back(other);}
             if(admission_timers){p->skills[0].dwRemainTick=300000;p->skills[1].dwRemainTick=1;}
@@ -563,6 +563,47 @@ int main(int argc, char**) {
                   "cooldown rejection does not deduct resources or emit changed bars");
             Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=48800&&timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>47000,
                   "resource rejections preserve existing live cooldown");
+            // Ordinary source gate ordering: region, MP, HP, previous active
+            // effect, reuse, then item eligibility. The item rejection follows
+            // SkillUse and therefore retains own AND shared-kind timers.
+            std::size_t ordinary_replies=native->Count(MessageId::CS_SKILLUSE_ACK);
+            auto ordinary_verdict=[&](std::uint16_t skill,std::uint8_t code)->asio::awaitable<void> {
+                co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(skill));++ordinary_replies;
+                co_await Until([&]{return native->Count(MessageId::CS_SKILLUSE_ACK)==ordinary_replies;},"ordinary prerequisite verdict received");
+                Check(verdict(code),"ordinary cast follows original gate precedence");
+            };
+            state.Update(kChar,[](auto& v){
+                v.dwMP=0;v.dwHP=0;auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);
+                auto& t=p->skill_templates[0];t.wMapID=550;t.wPrevActiveID=8;t.items=tmapsvr::SkillItemGate::Unsuitable;v.payload=p;
+            });
+            co_await ordinary_verdict(7,tmapsvr::SKILL_WRONGREGION);
+            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].wMapID=2010;v.payload=p;});
+            co_await ordinary_verdict(7,tmapsvr::SKILL_NEEDMP);
+            state.Update(kChar,[](auto& v){v.dwMP=100;v.dwHP=16;});
+            co_await ordinary_verdict(7,tmapsvr::SKILL_NEEDHP);
+            state.Update(kChar,[](auto& v){v.dwHP=169;});
+            co_await ordinary_verdict(7,tmapsvr::SKILL_NEEDPREVACT);
+            Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=48800,"prerequisite rejection does not extend imported or live cooldown");
+            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].wPrevActiveID=0;v.payload=p;});
+            co_await ordinary_verdict(7,tmapsvr::SKILL_SPEEDYUSE);
+            timers.Forget(kChar);
+            co_await ordinary_verdict(7,tmapsvr::SKILL_UNSUITWEAPON);
+            Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>47000&&timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=48800&&
+                  timers.RemainMs(kChar,8,tmapsvr::SkillClockMs())>3000&&timers.RemainMs(kChar,8,tmapsvr::SkillClockMs())<=4000&&
+                  timers.RemainMs(kChar,9,tmapsvr::SkillClockMs())==0,
+                  "ordinary unsuitable weapon retains source own and same-kind cooldowns");
+            co_await ordinary_verdict(7,tmapsvr::SKILL_SPEEDYUSE);
+            Check(state.Get(kChar)->dwMP==100&&state.Get(kChar)->dwHP==169&&native->Count(MessageId::CS_HPMP_ACK)==1,
+                  "region prerequisite and weapon rejections never deduct resources or send bars");
+            state.Update(kChar,[](auto& v){
+                auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);
+                auto& t=p->skill_templates[2];t.wMapID=2010;t.wTargetActiveID=8;t.items=tmapsvr::SkillItemGate::Allowed;
+                // A source map restriction is specific to ordinary use.
+                p->skill_templates[0].wMapID=550;p->skill_templates[0].items=tmapsvr::SkillItemGate::Allowed;v.payload=p;
+            });
+            co_await ordinary_verdict(9,tmapsvr::SKILL_SUCCESS);
+            Check(state.Get(kChar)->dwMP==100&&state.Get(kChar)->dwHP==169,
+                  "ordinary use accepts matching source map and ignores loop-only target prerequisite");
             // The loop packet omits action/animation fields, has its own ACK,
             // checks cooldown before costs, and never rearms same-kind peers.
             auto loop_request=[&](std::uint16_t skill=7,std::uint32_t caster=kChar) {
@@ -586,10 +627,10 @@ int main(int argc, char**) {
             co_await loop_verdict(loop_request(),tmapsvr::SKILL_NEEDHP);
             state.Update(kChar,[](auto& v){v.dwHP=16;auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].wTargetActiveID=8;v.payload=p;});
             co_await loop_verdict(loop_request(),tmapsvr::SKILL_NEEDPREVACT);
-            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].wTargetActiveID=0;p->skill_templates[0].loop_items=tmapsvr::SkillItemGate::Unsuitable;v.payload=p;});
+            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].wTargetActiveID=0;p->skill_templates[0].items=tmapsvr::SkillItemGate::Unsuitable;v.payload=p;});
             co_await loop_verdict(loop_request(),tmapsvr::SKILL_UNSUITWEAPON);
             Check(state.Get(kChar)->dwHP==16&&state.Get(kChar)->dwMP==100&&timers.Snapshot(kChar,tmapsvr::SkillClockMs()).empty(),"loop rejections never deduct or arm timers; learned prerequisite is not an active effect");
-            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].loop_items=tmapsvr::SkillItemGate::Allowed;v.payload=p;});
+            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].items=tmapsvr::SkillItemGate::Allowed;v.payload=p;});
             auto bad_loop=loop_request();bad_loop.back()=std::byte{1};
             co_await Send(native,MessageId::CS_LOOPSKILL_REQ,bad_loop);
             bad_loop=loop_request();bad_loop.push_back(std::byte{0});
@@ -605,11 +646,11 @@ int main(int argc, char**) {
             Check(state.Get(kChar)->dwMP==20&&native->Count(MessageId::CS_HPMP_ACK)==2,"loop repeat rejects before resource checks without another charge");
             timers.Forget(kChar);
             state.Update(kChar,[](auto& v){v.dwMP=100;v.dwHP=169;});
-            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_attack_timing.reset();v.payload=p;});
+            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].wMapID=0xffff;p->skill_attack_timing.reset();v.payload=p;});
             co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
             co_await Until([&]{return native->ended&&server.LiveSessions()==0;},"unsupported native timing closes and durably drains");
             Check(players.saved.dwMP==100&&players.saved.dwHP==169,"unsupported native timing never guesses or charges a cast");
-            for(int unsupported=0;unsupported<2;++unsupported) {
+            for(int unsupported=0;unsupported<4;++unsupported) {
                 world.packets.clear();const auto saves=players.saves.load();
                 auto guarded=Dial(io,server.Port());co_await Send(guarded,MessageId::CS_CONNECT_REQ,Connect());
                 co_await Until([&]{return world.packets.size()==1;},"unsupported loop fixture announced");
@@ -620,19 +661,23 @@ int main(int argc, char**) {
                 co_await Until([&]{return presence.FindEntry(kChar).has_value();},"unsupported loop fixture ready");
                 state.Update(kChar,[&](auto& v){
                     auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);
-                    if(!unsupported)p->skill_templates[0].loop_items=tmapsvr::SkillItemGate::Unsupported;
+                    if(unsupported%2==0)p->skill_templates[0].items=tmapsvr::SkillItemGate::Unsupported;
                     else {
-                        p->skill_templates[0].bSpeedApply=0;p->skill_templates[0].wTargetActiveID=8;
+                        auto& t=p->skill_templates[0];t.bSpeedApply=0;
+                        (unsupported<2?t.wTargetActiveID:t.wPrevActiveID)=8;
                         auto graph=std::make_shared<tmapsvr::transfer::State>();graph->buffs.push_back({});graph->buffs[0].skill=8;
                         p->transfer_state=graph;
                     }
                     v.payload=p;
                 });
-                co_await Send(guarded,MessageId::CS_LOOPSKILL_REQ,loop_request());
-                co_await Until([&]{return guarded->ended&&server.LiveSessions()==0;},"unsupported consumable or active-effect loop closes and drains");
+                co_await Send(guarded,unsupported<2?MessageId::CS_LOOPSKILL_REQ:MessageId::CS_SKILLUSE_REQ,unsupported<2?loop_request():skill_request(7));
+                co_await Until([&]{return guarded->ended&&server.LiveSessions()==0;},"unsupported consumable or active-effect cast closes and drains");
                 Check(players.saves==saves+1&&players.saved.dwHP==169&&players.saved.dwMP==163&&
+                      guarded->Count(MessageId::CS_SKILLUSE_ACK)==0&&
                       guarded->Count(MessageId::CS_LOOPSKILL_ACK)==0&&guarded->Count(MessageId::CS_HPMP_ACK)==0,
-                      "unsupported loop never acknowledges success or consumes resources");
+                      "unsupported cast never acknowledges success or consumes resources");
+                Check(std::all_of(players.saved.payload->skills.begin(),players.saved.payload->skills.end(),[](const auto& skill){return skill.dwRemainTick==0;}),
+                      "unsupported cast never arms timers before closing");
             }
             for(int variant=0;variant<4;++variant) {
                 world.packets.clear();const auto saves=players.saves.load(),readies=validator.primary_readies.load();

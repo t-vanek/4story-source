@@ -23,7 +23,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "TGLOBAL_RAGEZONE.bak",
@@ -48,7 +49,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/001-import-control.sql",
@@ -73,7 +75,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/002-legacy-snapshots.sql",
@@ -98,7 +101,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/003-canonical-content.sql",
@@ -123,7 +127,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/004-source-text-bytes.sql",
@@ -148,7 +153,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/005-runtime-catalog-control.sql",
@@ -174,7 +180,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/006-current-chart-contracts.sql",
@@ -200,7 +207,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/007-catalog-runtime-metadata.sql",
@@ -226,7 +234,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/008-native-login.sql",
@@ -250,7 +259,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/009-login-runtime-owner.sql",
@@ -273,7 +283,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/010-login-security-challenges.sql",
@@ -295,7 +306,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/011-character-reference-catalog.sql",
@@ -316,7 +328,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/012-native-characters.sql",
@@ -337,7 +350,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/013-character-item-allocation-floor.sql",
@@ -358,7 +372,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/014-routing-reference-catalog.sql",
@@ -377,7 +392,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/015-native-map-handoff.sql",
@@ -396,7 +412,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/016-native-map-ownership.sql",
@@ -414,7 +431,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/017-map-actor-reference-catalog.sql",
@@ -432,7 +450,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/018-native-map-checkpoints.sql",
@@ -450,7 +469,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/019-native-map-replicas.sql",
@@ -464,7 +484,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/020-native-main-transfer.sql",
@@ -475,7 +496,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     },
     {
       "path": "database/postgresql/021-native-skill-checkpoints.sql",
@@ -485,7 +507,8 @@
       "skill_cost_increment_matches": true,
       "skill_timing_increment_matches": true,
       "admission_timer_increment_matches": true,
-      "skill_loop_increment_matches": true
+      "skill_loop_increment_matches": true,
+      "skill_gate_increment_matches": true
     }
   ]
 }

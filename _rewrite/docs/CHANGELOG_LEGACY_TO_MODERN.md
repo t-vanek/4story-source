@@ -1,5 +1,26 @@
 # Changelog — Legacy → Modernizovaný server cluster
 
+## Aktuální přehled pro komunitu — 2026-10-09
+
+Moderní C++20 servery cílí na Linuxové kontejnery a PostgreSQL. Ověřené
+nativní cesty zahrnují přihlášení, životní cyklus postavy, vstup do světa,
+uložení a předání postavy mezi dvěma Map servery. Původní klientský formát
+paketů zůstává zachovaný; samotný původní klient zatím spuštěný nebyl.
+
+Originální `.bak` soubory jsou neměnným historickým podkladem. Úpravy patří
+do odvozené PostgreSQL databáze prostřednictvím migrací; aplikované migrace
+001–020 se nepřepisují. Úplná hratelnost, ekonomika a nativní sociální
+persistence zůstávají rozpracované.
+
+Aktuální instalace a rozsah ověření: [hlavní README](../../README.md).
+Podrobné výsledky a zbývající práce: [modernizace](modernization/README.md).
+
+## Historický technický changelog
+
+Následující záznamy zachovávají stav a terminologii starších etap. Jejich
+údaje o MSSQL, heslech, hotových funkcích a kompatibilitě klienta nejsou
+potvrzením aktuálního provozního stavu; rozhodující jsou výše odkazované testy.
+
 Stav k 2026-05-19, branch `claude/analyze-legacy-changelog-fmm2D`.
 Srovnání legacy `Server/T*Svr/` (Win32 / ATL / IOCP / VS 2017, ~389 kLOC)
 proti modernizovaným `Server/T*SvrAsio/` + `Lib/Own/FourStoryCommon`.

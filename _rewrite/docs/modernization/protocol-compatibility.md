@@ -446,9 +446,16 @@ No packet field or opcode changes. Native encrypted TCP checks cover countdown
 while online, logout/relogin, SPEEDYUSE enforcement and SIGKILL recovery. Backend
 fault tests cover rollback after receipt/audit failure, expiry to zero, new use,
 full DWORD durations, malformed skill sets and restricted SQL grants. Full graph
-contract 2 remains unchanged in meaning. Skill learning, full effect/quest timers,
-CHARINFO timer refresh at the send instant and original-client execution remain
-pending. See [contract and evidence](evidence/skill-checkpoints-contract.json).
+contract 2 remains unchanged in meaning. Skill learning, full effect/quest timers
+and original-client execution remain pending. See [contract and evidence](evidence/skill-checkpoints-contract.json).
+
+Native CHARINFO now samples `GetReuseRemainTick`-equivalent values from the live
+tracker immediately before encoding, after the channel notification. CONREADY
+samples again for revision-zero durability; neither sample updates loaded values
+or resets timer origins. Expired values become zero. Missing trackers and active
+unknown skills refuse admission. This preserves the source BYTE skill count and
+WORD/BYTE/DWORD skill rows without adding an opcode or changing packet order.
+See [admission timer evidence](evidence/admission-timers-contract.json).
 
 
 ## Native learned-skill resource gates (2026-10-09)

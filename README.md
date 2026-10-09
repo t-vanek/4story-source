@@ -78,7 +78,7 @@ all six daemons pass health/DNS/SIGTERM checks. See
 [container evidence](_rewrite/docs/modernization/evidence/skill-costs-container-verification.json).
 Active effects and combat damage remain unfinished.
 
-The latest increment generates **native cooldowns on normal skill use** from
+The preceding increment generates **native cooldowns on normal skill use** from
 learned rank, source attack delay, powered weapon slots and passive/item speed
 rates. Same-kind timers extend atomically without shortening a longer timer.
 Actual encrypted tests cover immediate-repeat rejection, expiration and durable
@@ -86,13 +86,27 @@ save. Debug, ASan/UBSan and installed Release each pass **906 database/network
 checks**; 200 Debug CTest entries have 186 passes and 14 skips, and all 33 sanitizer
 entries pass. The preceding image fails the new repeated-cast assertion.
 
-Current local image: `localhost/fourstory:postgresql-skill-timing` (also `:main`).
+That increment used `localhost/fourstory:postgresql-skill-timing`.
 Its six daemons pass health/DNS/SIGTERM smoke. See the
 [timing contract](_rewrite/docs/modernization/evidence/skill-timing-contract.json) and
 [container evidence](_rewrite/docs/modernization/evidence/skill-timing-container-verification.json).
 Buff-dependent timing and effect expiry, loop/cancel rules and the original client
 executable remain pending. Speed-dependent casts on buff-bearing transferred
 characters close before mutation; no buff speed is guessed.
+
+The latest increment samples **current skill cooldowns during admission**.
+CHARINFO subtracts time since character loading, and CONREADY samples again for
+the initial PostgreSQL checkpoint. A short cooldown can expire during admission;
+neither message restarts it or changes learned ranks. A missing runtime tracker or
+an active timer for an unlearned skill refuse admission. Packet layouts stay
+unchanged. See the [admission timer contract](_rewrite/docs/modernization/evidence/admission-timers-contract.json).
+
+Verification: **186 Debug passes** (200 entries, 14 skips), **33 ASan/UBSan passes**
+and **910 native database/network checks per Debug, sanitizer and installed Release
+run**. The previous image fails the delayed-readiness regression. Current local
+image: `localhost/fourstory:postgresql-admission-timers` (also `:main`); all six
+installed daemons pass health/DNS/SIGTERM checks. See
+[container evidence](_rewrite/docs/modernization/evidence/admission-timers-container-verification.json).
 
 ## Database authority
 

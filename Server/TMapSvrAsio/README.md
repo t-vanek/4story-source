@@ -76,6 +76,12 @@ remain separate ports. Buff-bearing transferred graphs retain their data but
 speed-dependent casts close before mutation until effect simulation is available.
 Any future equipment/learned-skill mutation must rebuild the derived timing cache.
 
+Native CHARINFO samples live skill cooldowns after the channel notification;
+CONREADY independently samples them for the initial durable checkpoint. Admission
+delays and expiry therefore reach both the client and PostgreSQL without rearming
+timers. Missing trackers or active timers without learned ownership close before
+readiness. See the [admission timer contract](../../_rewrite/docs/modernization/evidence/admission-timers-contract.json).
+
 Existing combat/loot/AI
 fixtures below describe older implemented subsets, not completed native gameplay
 or a full-client compatibility certificate.

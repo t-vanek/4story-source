@@ -73,6 +73,8 @@ struct Validator final : tmapsvr::IMapSessionValidator {
     std::atomic<int> calls{0}; std::atomic<bool> slow{false};
     int claim_failure=0;
     std::atomic<int> replica_loads{0},replica_readies{0},replica_releases{0};
+    std::atomic<int> primary_readies{0};
+    tmapsvr::CharSnapshot ready_snapshot;
     tmapsvr::MapSessionInfo info;
     Validator() { info.dwUserID=kUser; info.dwKEY=kKey; info.dwCharID=kChar;
         info.bGroupID=3; info.bChannel=2; }
@@ -89,8 +91,9 @@ struct Validator final : tmapsvr::IMapSessionValidator {
     bool LoadReplica(const tmapsvr::MapSessionClaim& c,std::uint16_t map,float x,float z) override {
         ++replica_loads;return c.role==tmapsvr::MapSessionRole::Replica&&map==0&&x==4080&&z==3584;
     }
-    void MarkReady(const tmapsvr::MapSessionClaim& c,const tmapsvr::CharSnapshot&) override {
+    void MarkReady(const tmapsvr::MapSessionClaim& c,const tmapsvr::CharSnapshot& s) override {
         if(c.role==tmapsvr::MapSessionRole::Replica)++replica_readies;
+        else {ready_snapshot=s;++primary_readies;}
     }
     void ReleaseSession(const tmapsvr::MapSessionClaim& c) override {
         if(c.role==tmapsvr::MapSessionRole::Replica)++replica_releases;
@@ -100,7 +103,7 @@ struct Players final : tmapsvr::IPlayerService {
     std::atomic<int> loads{0}, saves{0};
     std::atomic<bool> save_started{false}, hold_save{false}, fail_save{false};
     tmapsvr::CharSnapshot saved;
-    bool native_payload=false;
+    bool native_payload=false,admission_timers=false;
     std::optional<tmapsvr::CharSnapshot> LoadChar(std::uint32_t cid) override {
         ++loads; tmapsvr::CharSnapshot s; s.dwCharID=cid; s.szNAME="Admission";
         s.bLevel=1; s.dwHP=169; s.dwMP=163; s.wMapID=2010; s.fPosX=3664.405f;
@@ -112,6 +115,7 @@ struct Players final : tmapsvr::IPlayerService {
             t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
             p->skill_templates.push_back(t);
             for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;p->skill_templates.push_back(other);}
+            if(admission_timers){p->skills[0].dwRemainTick=300000;p->skills[1].dwRemainTick=1;}
             p->skill_attack_timing=std::array<tmapsvr::SkillAttackTiming,3>{tmapsvr::SkillAttackTiming{500,80},{},{}};
             s.payload=p;s.dwMaxHP=169;s.dwMaxMP=163;
         }
@@ -142,6 +146,21 @@ struct Client {
         std::size_t n=0; for (const auto& p:packets) n+=p.first==static_cast<std::uint16_t>(id); return n;
     }
 };
+// Source CHARINFO layout for this inventory-free fixture. Independent of the
+// encoder's offsets; variable strings are consumed at their original boundaries.
+std::vector<tmapsvr::SkillRow> AdmissionSkills(const Client& client) {
+    auto it=std::find_if(client.packets.begin(),client.packets.end(),[](const auto& p){return p.first==static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK);});
+    if(it==client.packets.end())throw std::runtime_error("Missing CHARINFO");
+    tmapsvr::wire::Reader r(it->second);
+    auto skip=[&](unsigned n){std::uint8_t v;while(n--)if(!r.Read(v))throw std::runtime_error("Truncated CHARINFO");};
+    auto string=[&]{std::string s;if(!r.ReadString(s))throw std::runtime_error("Invalid CHARINFO string");};
+    skip(9);string();skip(30);string();skip(4);string();skip(86);
+    std::uint8_t bags{},count{};
+    if(!r.Read(bags)||bags||!r.Read(count))throw std::runtime_error("Unexpected admission inventory");
+    std::vector<tmapsvr::SkillRow> skills(count);
+    for(auto& s:skills)if(!r.Read(s.wSkillID)||!r.Read(s.bLevel)||!r.Read(s.dwRemainTick))throw std::runtime_error("Truncated skill list");
+    return skills;
+}
 std::shared_ptr<Client> Dial(asio::io_context& io, std::uint16_t port) {
     auto client=std::make_shared<Client>(); tcp::socket socket(io);
     socket.connect({asio::ip::address_v4::loopback(),port});
@@ -454,21 +473,39 @@ int main(int argc, char**) {
                 Check(registry.Size()==0&&!state.Get(kChar),"replica cleanup retains no local graph or reservation");
             }
             validator.info.role=tmapsvr::MapSessionRole::Primary;
-            world.packets.clear();players.native_payload=true;
+            world.packets.clear();players.native_payload=true;players.admission_timers=true;
             auto native=Dial(io,server.Port());co_await Send(native,MessageId::CS_CONNECT_REQ,Connect());
             co_await Until([&]{return world.packets.size()==1;},"native primary order fixture announced");
             co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+            const auto loaded=state.Get(kChar);
+            // Inject an earlier local restore origin instead of sleeping three
+            // seconds. The immutable payload still holds its database values.
+            timers.Restore(kChar,loaded->payload->skills,tmapsvr::SkillClockMs()-3000);
             co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
             co_await Until([&]{return native->Count(MessageId::CS_CHARINFO_ACK)==1;},"native CHARINFO arrives before World confirms CONNECT");
+            const auto wire_skills=AdmissionSkills(*native);
+            Check(wire_skills.size()==3&&wire_skills[0].wSkillID==7&&wire_skills[0].bLevel==3&&
+                  wire_skills[0].dwRemainTick>295000&&wire_skills[0].dwRemainTick<=297000&&wire_skills[1].dwRemainTick==0,
+                  "CHARINFO samples current duration and expiration after World admission delay");
             Check(native->packets.size()==2&&native->packets.front().first==static_cast<std::uint16_t>(MessageId::CS_CHGCHANNEL_ACK),"source channel then character hydration order is exact");
             co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
             co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
             co_await Until([&]{return native->Count(MessageId::CS_CONNECT_ACK)==1;},"CONNECT follows complete client character hydration");
             Check(native->packets.size()==3&&native->Count(MessageId::CS_CHARINFO_ACK)==1,"duplicate World metadata cannot reset the client");
+            co_await Pause(30ms);
             co_await Send(native,MessageId::CS_CONREADY_REQ,{});
             co_await Until([&]{return presence.FindEntry(kChar).has_value();},"native CONREADY completes after prior CHARINFO");
+            const auto ready_skills=validator.ready_snapshot.payload->skills;
+            Check(ready_skills[0].dwRemainTick>295000&&ready_skills[0].dwRemainTick+20<wire_skills[0].dwRemainTick&&ready_skills[1].dwRemainTick==0,
+                  "initial checkpoint independently samples live timers after client admission delay");
+            Check(loaded->payload->skills[0].dwRemainTick==300000&&state.Get(kChar)->payload->skills[0].dwRemainTick==300000&&
+                  timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=ready_skills[0].dwRemainTick,
+                  "wire and ready sampling neither mutate loaded payload nor restart live timers");
+            const auto ready_count=validator.primary_readies.load();
+            co_await Send(native,MessageId::CS_CONREADY_REQ,{});
             co_await Pause(10ms);
-            Check(native->Count(MessageId::CS_CHARINFO_ACK)==1,"native CONREADY never sends duplicate CHARINFO");
+            Check(native->Count(MessageId::CS_CHARINFO_ACK)==1&&validator.primary_readies==ready_count,"duplicate CONREADY never repeats CHARINFO or initial checkpoint");
+            timers.Forget(kChar);players.admission_timers=false;
             // Native skill authority, learned rank and atomic resource gates.
             auto skill_request=[&](std::uint16_t skill,std::uint32_t caster=kChar) {
                 Bytes b;WritePOD(b,caster);WritePOD<std::uint8_t>(b,1);WritePOD<std::uint8_t>(b,2);
@@ -529,6 +566,26 @@ int main(int argc, char**) {
             co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
             co_await Until([&]{return native->ended&&server.LiveSessions()==0;},"unsupported native timing closes and durably drains");
             Check(players.saved.dwMP==100&&players.saved.dwHP==169,"unsupported native timing never guesses or charges a cast");
+            for(int variant=0;variant<4;++variant) {
+                world.packets.clear();const auto saves=players.saves.load(),readies=validator.primary_readies.load();
+                auto invalid=Dial(io,server.Port());co_await Send(invalid,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return world.packets.size()==1;},"invalid admission timer fixture announced");
+                co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+                if(variant>=2) {
+                    co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
+                    co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+                }
+                auto invalid_ctx=ctx;
+                if(variant%2==0)invalid_ctx.skill_cooldown=nullptr;
+                else timers.TryUse(kChar,65534,tmapsvr::SkillClockMs(),10000);
+                if(variant<2)
+                    co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),invalid_ctx);
+                else co_await tmapsvr::OnConReadyReq(registry.Find(kChar,kKey),{},invalid_ctx);
+                co_await Until([&]{return invalid->ended&&server.LiveSessions()==0;},"missing tracker or unlearned timer refuses native admission and drains");
+                Check(validator.primary_readies==readies&&players.saves==saves&&!state.Get(kChar)&&registry.Size()==0,
+                      "invalid admission timers cannot create readiness or save unverified state");
+                if(variant<2)Check(invalid->Count(MessageId::CS_CHARINFO_ACK)==0,"invalid native timers never emit stale CHARINFO");
+            }
             players.native_payload=false;
             // A failed write keeps dirty state and blocks a new login in this process.
             players.save_started=false; players.fail_save=true;

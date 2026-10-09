@@ -78,7 +78,8 @@ authoritative for historical values, original code/client for supported behavior
    timing and authoritative effect expiry; speed-dependent casts currently close
    without mutation when a transferred graph has buffs. Port loop/cancellation
    branches and recompute cached timing when equipment or learned skills mutate.
-   Refresh CHARINFO remaining timers at send time, then implement active
+   CHARINFO and initial readiness now sample live skill durations without
+   restarting timers; preserve `admission-timers-contract.json`. Implement active
    effect/quest/recall/companion timer semantics and simulation
    using the existing typed graph. Merely retaining these sections is not native
    gameplay. Trace original bStartAct=2/tutorial/Bow/dbload=1 branches and classify
@@ -187,7 +188,7 @@ The helper creates labelled disposable containers; reuse no unrelated databases.
 Build in the Ubuntu image with `/src` bound to the checkout because the current
 `build/linux-debug` CMake cache contains container paths.
 
-Do not overwrite migrations `001`–`020` after application. Add migrations `021` onward.
+Do not overwrite migrations `001`–`021` after application. Add migrations `022` onward.
 Do not revert unrelated pre-existing client/binary/library working-tree changes.
 
 
@@ -335,14 +336,28 @@ with the later timing increment and active gameplay as described above;
 this increment does not establish a complete combat loop or original-client run.
 
 
-Latest verified timing increment (2026-10-09): `skill-timing-contract.json` and its
+Earlier verified timing increment (2026-10-09): `skill-timing-contract.json` and its
 Debug/ASan/installed Release reports each record 906 native database/network
 checks. All 33 sanitizer entries pass; Debug has 200 entries (186 actual passes,
-14 skips). Current local image `localhost/fourstory:postgresql-skill-timing`
-(also `:main`) is `81b6c61dca05fae4150e2079de58ba7e6adc685aaaa79e087430974bee3f32ec`,
+14 skips). That increment's local image `localhost/fourstory:postgresql-skill-timing`
+is `81b6c61dca05fae4150e2079de58ba7e6adc685aaaa79e087430974bee3f32ec`,
 UID/GID 10001:10001; six-daemon smoke passed. See `skill-timing-cleanup.json` for
 owned lab cleanup; original reference manifests are retained. Continue active
-buff/disarm/disguise simulation, loop/cancel branches and CHARINFO timer refresh;
+buff/disarm/disguise simulation and loop/cancel branches;
 normal rank/weapon/passive/item/same-kind cooldown generation is now integrated.
 Equipment/learned-skill changes must rebuild the cache. Migrations 001–021 remain
 immutable; no historical source values were changed by this increment.
+
+Latest verified admission-timer increment (2026-10-09): CHARINFO and initial
+CONREADY checkpoints now sample live remaining skill durations independently.
+Loaded payloads and timer origins remain unchanged; expired durations become zero.
+Read `admission-timers-contract.json` and its Debug/ASan/installed Release reports:
+910 native checks per configuration, 186 actual Debug passes (200 entries, 14
+skips), all 33 sanitizer entries and six-daemon health/DNS/SIGTERM smoke passed.
+The previous installed image fails the delayed-readiness regression. Current
+local image `localhost/fourstory:postgresql-admission-timers` (also `:main`) is
+`7007a8af428eef454ef1033e286d6b7a2a8ec32b1c6b2f70aaa56833a8f30c52`, UID/GID
+10001:10001. Consult `admission-timers-cleanup.json` before reusing lab paths.
+Continue active buff/disarm/disguise simulation, effect expiry and source-traced
+loop/cancellation behavior. The original client executable remains an acceptance
+gate. Preserve backups and migrations 001–021; the next schema migration is 022.

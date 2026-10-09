@@ -5,9 +5,18 @@ void VerifyFreshSkillCheckpoint(soci::session& admin,tmapsvr::PostgreSQLMapServi
     using namespace tmapsvr;
     auto candidate=map.LookupSession(c.user_id,c.key);
     Check(candidate&&map.ClaimSession(c,*candidate).has_value(),"fresh skill fixture claims native primary");
-    auto loaded=map.LoadAuthorized(c);map.MarkReady(c,*loaded);
-    SkillCooldownTracker timers;timers.Restore(c.char_id,loaded->payload->skills,100);
+    auto loaded=map.LoadAuthorized(c);
+    SkillCooldownTracker timers;
     const auto ordinary=loaded->payload->skills.front().wSkillID;
+    timers.TryUse(c.char_id,ordinary,100,500);
+    auto ready=transfer::PersistenceSnapshot(*loaded,c.key,timers,225);
+    map.MarkReady(c,ready);
+    Check(Number(admin,"SELECT \"dwRemainTick\" FROM app_world.\"TSKILLTABLE\" WHERE \"dwCharID\"="+std::to_string(c.char_id)+
+                       " AND \"wSkillID\"="+std::to_string(ordinary))==375&&
+          Number(admin,"SELECT count(*) FROM app_world.map_checkpoints WHERE char_id="+std::to_string(c.char_id)+
+                       " AND revision=0 AND recovery_contract=3 AND app_world.map_checkpoint_matches(map_checkpoints)")==1,
+          "initial checkpoint commits current skill duration with an exact revision-zero receipt");
+    timers.Restore(c.char_id,loaded->payload->skills,100);
     Check(timers.TryUse(c.char_id,ordinary,100,0xffffffffU),"new runtime skill cooldown arms without transfer");
     auto sampled=transfer::PersistenceSnapshot(*loaded,c.key,timers,125);
     Check(!sampled.payload->transfer_state&&sampled.payload!=loaded->payload&&loaded->payload->skills.front().dwRemainTick==0&&

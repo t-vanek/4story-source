@@ -18,7 +18,36 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: native normal-cast cooldown generation
+## Current verified increment: admission timer refresh
+
+CHARINFO now samples remaining skill durations immediately before encoding, after
+the channel notification. CONREADY independently samples the same live tracker for
+the initial PostgreSQL checkpoint. Sampling copies the payload and preserves timer
+origins, learned IDs/ranks and the existing packet layout. Expired skills send and
+persist zero; missing runtime state or an unknown active skill refuses admission.
+Duplicate World metadata and CONREADY do not resend hydration or create another
+initial checkpoint. See [source contract and verification](evidence/admission-timers-contract.json).
+
+[Debug](evidence/native-admission-timers-debug.json),
+[ASan/UBSan](evidence/native-admission-timers-asan.json) and
+[installed Release](evidence/native-admission-timers-release.json) each pass
+**910 checks**: 199 native Map, 29 pool/TLS, 195 outer TCP, 20 skill-cast,
+295 World handoff, 66 World secondary, 99 two-Map and seven rejection checks.
+Standard suites pass 186 of 200 Debug entries (eight internal and six explicit
+fixture skips) and all 33 sanitizer entries. The prior installed image fails
+the new delayed-CONREADY check; source-derived plain/encrypted admission tests
+also verify CHARINFO after an injected three-second delay and timer expiry.
+
+Current local image: `localhost/fourstory:postgresql-admission-timers` (also `:main`),
+ID `7007a8af428eef454ef1033e286d6b7a2a8ec32b1c6b2f70aaa56833a8f30c52`,
+UID/GID 10001:10001. All six installed daemons pass health/DNS/SIGTERM checks.
+See [container evidence](evidence/admission-timers-container-verification.json),
+[build fingerprints](evidence/admission-timers-build-fingerprints.json) and
+[owned-lab cleanup](evidence/admission-timers-cleanup.json). No migration was added;
+both backups and migrations 001–021 are unchanged. Active buff/timer simulation,
+loop/cancel rules and original-client execution remain pending.
+
+## Earlier verified increment: native normal-cast cooldown generation
 
 Normal native skill use now generates cooldowns from learned rank, original
 physical/ranged/magic attack formulae, powered weapon slots and passive/item speed
@@ -40,7 +69,7 @@ assertion. Standard suites pass **200 Debug entries** (186 actual passes, eight
 internal legacy skips, six explicit native skips) and **33 sanitizer entries**.
 The deterministic timing suite has 56 checks, including same-kind concurrency.
 
-Current local image: `localhost/fourstory:postgresql-skill-timing` (also `:main`),
+That increment's local image: `localhost/fourstory:postgresql-skill-timing`,
 ID `81b6c61dca05fae4150e2079de58ba7e6adc685aaaa79e087430974bee3f32ec`,
 UID/GID 10001:10001. Six daemons pass health/DNS/SIGTERM checks. See the
 [source contract](evidence/skill-timing-contract.json),

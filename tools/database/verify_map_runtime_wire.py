@@ -87,15 +87,21 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
             check(op==0x1995 and data==b'\x00\x7f\x00\x00\x01'+struct.pack('<HB',5815,1),'real START selects native Map endpoint')
             check(s.recv(1)==b'','Login closes after committed START')
         return cid,key
-    def enter(port,cid,key):
+    def enter(port,cid,key,ready_delay=0):
+        started_at=time.monotonic()
         s=socket.create_connection(('127.0.0.1',port),timeout=8);s.sendall(frame(connect_request(706,cid,key),0x5281,1))
         op,data=read_packet(s,1);check(op==0x53be and data==bytes([0,1]),'World CHARINFO produces original channel notification')
         op,data=read_packet(s,2);check(op==0x5285,'source CHARINFO precedes CONNECT and client map activation')
         character=parse_character(data)
+        character['admission_ms']=int((time.monotonic()-started_at)*1000)+20
         op,data=read_packet(s,3);check(op==0x5282 and data==bytes([0,1,1]),'actual World route/CHARDATA/ENTERCHAR/CHECKMAIN completes CONNECT')
+        if ready_delay:time.sleep(ready_delay)
         s.sendall(frame(b'',0x5288,2))
         until(lambda:conn.execute('SELECT phase FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==('ready',),'CONREADY commits readiness after client character hydration')
         return s,character
+    def countdown(character,skill,loaded,label):
+        check(any(i==(skill&65535) and max(0,loaded-character['admission_ms'])<=t<=loaded
+                  for i,l,t in character['skills']),label)
     def parse_character(data):
         offset=0
         def read(fmt):
@@ -161,10 +167,16 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         check(before==conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall(),'core save preserves all item fields exactly')
         cooldown_skill=skills[0][0]
         conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=300000 WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,cooldown_skill))
+        short_skill=next(i for i,l,t in skills if i!=cooldown_skill)
+        conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=150 WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,short_skill))
         cid,newkey=start(login_port,cid);check(newkey!=key,'new Login issues a fresh key')
-        s,second=enter(map_port,cid,newkey);check(second['position']==destination and second['items']==first['items'],'reconnect through same World restores movement and identical inventory')
-        check(any(i==(cooldown_skill&65535) and t==300000 for i,l,t in second['skills']),
+        s,second=enter(map_port,cid,newkey,ready_delay=.35);check(second['position']==destination and second['items']==first['items'],'reconnect through same World restores movement and identical inventory')
+        countdown(second,cooldown_skill,300000,
               'synthetic persisted skill cooldown reaches original CHARINFO layout')
+        countdown(second,short_skill,150,'short admission cooldown reaches CHARINFO with its current remaining duration')
+        ready_skills=dict(conn.execute('SELECT "wSkillID","dwRemainTick" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s',(cid,)).fetchall())
+        check(0<ready_skills[cooldown_skill]<=299650 and ready_skills[short_skill]==0,
+              'delayed CONREADY persists elapsed long cooldown and expired short cooldown before gameplay')
         request=struct.pack('<IBBHHBIIfffB',cid,1,1,0,cooldown_skill&65535,0,0,0,*destination,0)
         for sequence in (3,4):
             s.sendall(frame(request,0x52b4,sequence));op,data=read_packet(s,sequence+1)
@@ -178,8 +190,9 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         check(0<saved_cooldown<300000 and conn.execute('SELECT recovery_contract,transfer_body IS NULL,app_world.map_checkpoint_matches(map_checkpoints) FROM app_world.map_checkpoints WHERE char_id=%s',(cid,)).fetchone()==(3,True,True),
               'fresh logout commits exact timer receipt without replacing ordinary character hydration')
         cid,cooldown_key=start(login_port,cid);s,resumed=enter(map_port,cid,cooldown_key)
-        check(any(i==(cooldown_skill&65535) and t==saved_cooldown for i,l,t in resumed['skills']) and resumed['items']==first['items'],
+        countdown(resumed,cooldown_skill,saved_cooldown,
               'fresh reconnect restores saved remaining duration without offline decay or lost inventory')
+        check(resumed['items']==first['items'],'fresh cooldown reconnect preserves every inventory descriptor')
         s.sendall(frame(request,0x52b4,3));op,data=read_packet(s,4)
         check(op==0x52b5 and data[0]==6,'fresh reconnected native daemon still enforces the saved cooldown')
         s.close();until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()[0]==0,'fresh cooldown relogin disconnect completes save')
@@ -302,7 +315,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         cid,recovered_key=start(login_port,cid);s,fourth=enter(map_port,cid,recovered_key)
         check(fourth['position']==checkpoint_position and fourth['items']==first['items'],
               'same World reconnect restores last committed checkpoint and all items')
-        check(any(i==(cooldown_skill&65535) and t==crashed_cooldown for i,l,t in fourth['skills']),
+        countdown(fourth,cooldown_skill,crashed_cooldown,
               'replacement process restores last committed fresh cooldown after hard crash')
         # Shutdown must drain both a pending checkpoint and the final save.
         conn.execute('CREATE TRIGGER synthetic_checkpoint_delay BEFORE UPDATE ON app_world."TCHARTABLE" FOR EACH ROW EXECUTE FUNCTION public.synthetic_checkpoint_delay()')

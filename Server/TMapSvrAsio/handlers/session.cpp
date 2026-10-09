@@ -13,6 +13,7 @@
 #include "services/session_validator.h"
 #include "services/player_service.h"
 #include "services/skill_cooldown.h"
+#include "services/main_transfer_runtime.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
 #include "wire_codec.h"
@@ -158,8 +159,15 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
         sess->Close(); co_return;
     }
     const auto cid=identity->char_id;
-    const auto snap=ctx.char_state?ctx.char_state->Get(cid):std::nullopt;
+    auto snap=ctx.char_state?ctx.char_state->Get(cid):std::nullopt;
     if(!snap){sess->Close();co_return;}
+    if(snap->payload) {
+        if(!ctx.skill_cooldown){sess->Close();co_return;}
+        // Initial durability uses the current timer sample just like periodic
+        // and final saves. Client/World admission must not restart a cooldown.
+        try {*snap=transfer::PersistenceSnapshot(*snap,identity->key,*ctx.skill_cooldown,SkillClockMs());}
+        catch(...){sess->Close();co_return;}
+    }
     if (ctx.validator) {
         const auto claim=identity->Claim(ctx.expected_group);auto* validator=ctx.validator;
         try { co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,[validator,claim,&snap] { validator->MarkReady(claim,*snap); }); }

@@ -4,6 +4,7 @@
 #include "services/session_validator.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
+#include "services/main_transfer_runtime.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
 #include "fourstory/db/co_offload.h"
@@ -22,6 +23,7 @@ boost::asio::awaitable<void> OnMWCharInfoReq(std::vector<std::byte> body,const H
     if(!client||!snap||!snap->payload)co_return;
     const auto identity=ctx.session_reg->Identity(client.get());
     if(!identity||identity->role!=MapSessionRole::Primary||identity->phase!=SessionPhase::Loaded||snap->cluster.hydrated)co_return;
+    if(!ctx.skill_cooldown){client->Close();co_return;}
     auto c=snap->cluster;std::uint16_t title{};std::uint32_t rank{},bow{};
     if(!r.Read(c.guild)||!r.Read(c.guild_country)||!r.ReadString(c.guild_name)||!r.Read(c.fame)||!r.Read(c.fame_color)||
        !r.Read(c.tactics)||!r.ReadString(c.tactics_name)||!r.Read(c.duty)||!r.Read(c.peer)||!r.Read(c.castle)||!r.Read(c.camp)||
@@ -35,8 +37,16 @@ boost::asio::awaitable<void> OnMWCharInfoReq(std::vector<std::byte> body,const H
     // Legacy OnMW_CHARINFO_REQ sends this before the route/CONRESULT exchange.
     // Client OnCS_CONNECT_ACK activates its frame and calls OnRegionChanged;
     // its map/character must already be hydrated at that point.
-    co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK),
-        EncodeCharInfoAck(*hydrated,FormatServerClock()));
+    // CSSender.cpp samples GetReuseRemainTick(dwTick) while constructing the
+    // packet. Loading, World hydration and the preceding write can take time;
+    // reuse the live snapshot path without changing or rearming loaded timers.
+    if(!client->IsOpen())co_return;
+    std::vector<std::byte> info;
+    try {
+        const auto current=transfer::PersistenceSnapshot(*hydrated,key,*ctx.skill_cooldown,SkillClockMs());
+        info=EncodeCharInfoAck(current,FormatServerClock());
+    }catch(...){client->Close();co_return;}
+    co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK),std::move(info));
 }
 boost::asio::awaitable<void> OnMWNativeRouteReq(std::vector<std::byte> body,const HandlerContext& ctx,bool server_list){
     wire::Reader r(body.data(),body.size());std::uint32_t cid{},key{};std::uint8_t channel{};std::uint16_t map{};float x{},y{},z{};

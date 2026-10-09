@@ -1,0 +1,119 @@
+{
+  "date": "2026-10-09",
+  "scope": "Live learned-skill cooldown samples for native client hydration and initial PostgreSQL readiness.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "278-289",
+      "contract": "SendCS_CHARINFO_ACK sends learned WORD skill ID, BYTE rank and GetReuseRemainTick(dwTick) DWORD sampled while constructing the packet."
+    },
+    {
+      "path": "Server/TMapSvr/TSkill.cpp",
+      "lines": "73-117",
+      "contract": "Remaining reuse duration decreases from the local timer origin and clamps at zero."
+    },
+    {
+      "path": "Server/TMapSvr/SSHandler.cpp",
+      "lines": "4880-4915",
+      "contract": "Load restores persisted remaining duration on the current local clock; no offline decay is introduced."
+    }
+  ],
+  "implementation": {
+    "charinfo": "After CS_CHGCHANNEL_ACK completes, copy the hydrated character through the existing PersistenceSnapshot path at one steady-clock instant and encode the unchanged CHARINFO layout.",
+    "readiness": "Before offloading MarkReady, sample live timers again into a private immutable input. Existing core/skill or full-graph transaction and receipt rules apply.",
+    "invariants": "Samples do not rearm timers or replace the shared loaded payload. Learned IDs/ranks and timer origins remain unchanged. Expired skills have zero remaining duration.",
+    "failures": "Missing tracker or active timer absent from the learned set closes before readiness; no stale CHARINFO or initial checkpoint is emitted for an invalid sample.",
+    "duplicates": "Existing hydrated/ready phase gates prevent duplicate CHARINFO and repeated initial checkpoints.",
+    "migration": "None. Backups and migrations 001-021 retain their hashes; next migration remains 022."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-admission-timers-debug.json",
+      "status": "passed",
+      "native_map_checks": 199,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 195,
+      "skill_cast_checks": 20,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 910
+    },
+    "asan_ubsan": {
+      "report": "native-admission-timers-asan.json",
+      "status": "passed",
+      "native_map_checks": 199,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 195,
+      "skill_cast_checks": 20,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 910
+    },
+    "ctest_debug": {
+      "report": "admission-timers-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "admission-timers-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_legacy_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "admission-timers-before.json",
+      "image_id": "81b6c61dca05fae4150e2079de58ba7e6adc685aaaa79e087430974bee3f32ec",
+      "expected_failure": "Map runtime wire: delayed CONREADY persists elapsed long cooldown and expired short cooldown before gameplay",
+      "scope": "Prior installed daemon with current mounted backend integration executable and the same encrypted TCP checks."
+    },
+    "targeted": {
+      "report": "admission-timers-targeted.xml",
+      "entries": 3,
+      "scope": "Plain/encrypted real TCP admission and pure client encoding: injected load-to-hydration clock, expired timer, delayed client readiness, unchanged loaded payload/origin, duplicate messages and missing/unknown tracker refusal."
+    },
+    "native_wire_fixture": {
+      "long_cooldown_ms": 300000,
+      "short_cooldown_ms": 150,
+      "client_ready_delay_ms": 350,
+      "chart_mutations": false,
+      "scope": "Only disposable character skill rows are seeded. Reconnect and hard-crash recovery compare wire timers against persisted duration bounded by measured online admission time."
+    },
+    "container_smoke": {
+      "report": "admission-timers-container-verification.json",
+      "image": "localhost/fourstory:postgresql-admission-timers",
+      "image_id": "7007a8af428eef454ef1033e286d6b7a2a8ec32b1c6b2f70aaa56833a8f30c52",
+      "status": "passed",
+      "daemons": 6,
+      "uid_gid": "10001:10001"
+    },
+    "installed_release": {
+      "report": "native-admission-timers-release.json",
+      "status": "passed",
+      "native_map_checks": 199,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 195,
+      "skill_cast_checks": 20,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 910
+    }
+  },
+  "limitations": [
+    "CHARINFO samples before encoding/enqueue, not at remote receipt; network and write-queue latency are not added to the protocol.",
+    "Readiness samples before database offload, not at transaction commit; later checkpoints continue the live countdown.",
+    "Active buff/effect/quest/recall timers, loop/cancellation and complete gameplay remain separate work.",
+    "No original client executable was run. Wire checks use encrypted source-derived synthetic peers.",
+    "Crash recovery retains the last committed timer sample; later unsaved time/state can be lost."
+  ]
+}

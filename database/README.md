@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **024** are also immutable. Current
-native Map deployment requires migrations through 024 and the existing
+All subsequently applied migrations through **025** are also immutable. Current
+native Map deployment requires migrations through 025 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -76,12 +76,21 @@ deploying the new binaries, including for fresh-primary consumption. See the
 
 Migration 024 adds `consumption_kind` to the existing item ledger, retaining old
 receipts as `reagent` and marking new arrow/bolt transactions as `ammunition`.
-Supported ammunition casts use one non-expanded hit and a weapon requiring one
-unit. Fresh transactions lock the selecting inventory and compare the equipped
-weapon's loaded fingerprint, then validate the first matching item kind. Complete
-graph transactions derive the same selection from their authoritative checkpoint.
-Existing process/claim/epoch/catalog fences and atomic core/timer/item publication
-remain in force. No extra role privileges are needed; apply 024 before deployment.
+Migration 025 extends this ledger for multi-unit and multi-stack debits.
+`cast_id` groups all stack receipts of one transaction; existing records retain
+separate cast identities. `hit_count` is 1–16 for non-expanded ammunition targets,
+while reagent receipts still debit exactly one unit. All stack changes, core,
+timers and the recovery checkpoint commit atomically. A second-stack conflict or
+second-receipt failure rolls back the whole operation. The existing receipt
+sequence allocates cast IDs; rollback gaps are expected and casts are not retried
+after unknown outcomes.
+
+Fresh transactions lock the selecting inventory and revalidate the loaded weapon
+fingerprint, then recompute source per-bag/slot selection with BYTE arithmetic.
+Complete graph transactions derive selection from their authoritative checkpoint.
+No extra role privileges are needed. Apply migrations through 025 before these
+binaries; 001–025 are immutable and the next migration is 026. See the
+[batch contract](../_rewrite/docs/modernization/evidence/ammo-batch-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
 all requiring one unit. Premium templates 25020, 25021 and 25022 referenced by the

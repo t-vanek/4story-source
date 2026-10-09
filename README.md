@@ -1,5 +1,9 @@
 # 4Story Emulator Server
 
+**Development policy (owner instruction, 2026-10-09):** version changes only through
+local commits on `main` until complete gameplay is finished. GitHub pushes,
+publication and deployment are paused.
+
 An incremental **C++20** reimplementation of the 4Story server cluster, targeting
 **Linux containers and native PostgreSQL**. The compatibility goal is the original
 client with unchanged packet layouts. The project is **in development**: selected
@@ -167,7 +171,7 @@ normalized item/skill rows untouched and never uses them to restore consumed ite
 Apply migrations through **023** before deploying these binaries; existing Map
 runtime grants suffice. See the
 [graph reagent contract](_rewrite/docs/modernization/evidence/graph-reagents-contract.json).
-Equipped reagents, ammunition/cash, inventory movement and full combat remain pending.
+Equipped reagents, premium-item overrides, inventory movement and full combat remain pending.
 Verification uses encrypted test peers derived from the original source; the
 original client executable has not been run.
 
@@ -178,26 +182,33 @@ DNS and SIGTERM checks. That increment used
 `localhost/fourstory:postgresql-graph-reagents`. See
 [container evidence](_rewrite/docs/modernization/evidence/graph-reagents-container-verification.json).
 
-The latest implementation adds **durable arrows and bolts for single-hit casts**.
-The first compatible equipped weapon selects the ammunition kind; one item from
-the first matching bag/slot is consumed. Ordinary and loop requests commit the
-item, core, cooldown and audit receipt before original inventory/success packets.
-Fresh and transferred characters use their existing storage contracts, including
-relogin and recovery. Broken or changed weapons cannot authorize consumption.
+The latest implementation adds **atomic multi-target ammunition consumption**.
+Ordinary and loop casts support 1–16 flagged, non-expanded targets. Source-ordered
+selection finds the first sufficient bag, preserving BYTE count arithmetic and
+consuming its stacks in slot order, including different arrow/bolt templates of
+the same kind. Counts from separate bags are never combined.
 
-Apply migration **024** before these binaries; existing Map grants suffice.
-Zero-target, multiple-target and source-expanded ammunition attacks remain outside
-this increment and cannot charge an unsupported cast. Source premium item templates
-25020–25022 are absent from the backups; their values and overrides are not invented.
-See the [ammunition contract](_rewrite/docs/modernization/evidence/ammunition-contract.json).
-Full combat damage, equipment mutation and original-client execution remain pending.
+All selected stack debits, core, cooldowns and grouped audit receipts commit in
+one PostgreSQL transaction before the ordered UPDATEITEM/DELITEM packets, one
+MOVEITEM and the original cast response. This works for fresh inventory and the
+complete transferred graph, including return transfers, relogin and recovery.
+A stale second stack or failed second receipt rolls back the entire cast.
+
+Apply migration **025** before these binaries; existing Map grants suffice.
+Zero-target and source-expanded ammunition attacks, equipment mutation, premium
+exceptions and full combat damage remain pending. Source premium templates
+25020–25022 are absent from the backups and are not invented. See the
+[batch consumption contract](_rewrite/docs/modernization/evidence/ammo-batch-contract.json).
+The original client executable has not been run.
 
 Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
-**33 ASan/UBSan suites**, and **1,341 native database/network checks** in each Debug,
-sanitizer and installed Release run. The previous image fails the new ammunition
-regression. Six-service health/DNS/SIGTERM smoke passes. Current local image:
-`localhost/fourstory:postgresql-ammunition` (also `:main`); see
-[container evidence](_rewrite/docs/modernization/evidence/ammunition-container-verification.json).
+**33 ASan/UBSan suites**, and **1,472 native database/network checks** in each Debug,
+sanitizer and installed Release run. Nine isolated migration-upgrade checks pass.
+The preceding single-hit image fails the new multi-target regression. All six
+container services pass health/DNS/SIGTERM smoke. The installed run uses Release
+daemons with the verified Debug backend/pool test executables. Current local image:
+`localhost/fourstory:postgresql-ammo-batch` (also `:main`); see
+[container evidence](_rewrite/docs/modernization/evidence/ammo-batch-container-verification.json).
 
 ## Database authority
 
@@ -208,7 +219,7 @@ need adaptation, change the derived PostgreSQL schema through a new migration.
 - `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
 - `content` and the compatibility views expose explicit, versioned projections.
 - `app_global` and `app_world` own mutable application and operational state.
-- Applied migrations **001–024 are immutable**; the next schema change starts at 025.
+- Applied migrations **001–025 are immutable**; the next schema change starts at 026.
 - Backups, credentials and private extraction output stay outside Git. Historical
   accounts, player records and missing combat values are never invented.
 

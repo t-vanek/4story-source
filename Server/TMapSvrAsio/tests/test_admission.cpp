@@ -141,13 +141,13 @@ struct Players final : tmapsvr::IPlayerService {
         if (fail_save) throw std::runtime_error("injected save failure");
         saved=s; ++saves;
     }
-    std::string ConsumeSkillItem(const tmapsvr::MapSessionClaim&,std::uint16_t,
-        const tmapsvr::ItemInstance&,const tmapsvr::CharSnapshot& s) override {
+    std::vector<std::string> ConsumeSkillItems(const tmapsvr::MapSessionClaim&,std::uint16_t,std::uint8_t,
+        const std::vector<tmapsvr::SkillItemDebit>& debits,const tmapsvr::CharSnapshot& s) override {
         consumption_started=true;
         const auto deadline=std::chrono::steady_clock::now()+1s;
         while(hold_consumption&&std::chrono::steady_clock::now()<deadline)std::this_thread::sleep_for(2ms);
         if(fail_consumption)throw std::runtime_error("synthetic unknown item transaction outcome");
-        committed=s;++consumptions;return std::string(64,'b');
+        committed=s;++consumptions;return std::vector<std::string>(debits.size(),std::string(64,'b'));
     }
 };
 struct World final : tmapsvr::IWorldClient {
@@ -277,6 +277,26 @@ void ReagentSelection() {
           after.payload->transfer_state->items[0].count==1&&after.payload->transfer_state->items[0].texture==0xfedcba98&&
           after.payload->transfer_state->quests[0].remaining==12345,
           "graph reagent plan retains raw extensions and unrelated state without mutating its source");
+    // Bag 4 has only one arrow; bag 255 has two different arrow templates.
+    // Exact source order skips the insufficient bag, without combining bags.
+    item.bKind=24;item.bInvenID=4;item.bCount=1;item.dlID=10;item.bItemID=0;
+    auto a=item;a.bInvenID=255;a.dlID=11;a.bItemID=2;
+    auto b=a;b.dlID=12;b.bItemID=3;b.bCount=4;b.wItemID=11054;
+    p->bags={{{255,0,0,0},{b,a}},{{4,0,0,0},{item}}};s.payload=p;
+    const auto batch=FindSkillAmmunition(s,24,4);
+    Check(batch.size()==2&&batch[0].before.dlID==11&&batch[0].count==1&&batch[1].before.dlID==12&&batch[1].count==3,
+          "ammunition uses first sufficient bag and ordered same-kind mixed-template stacks");
+    after=s;ConsumeSkillItemProjection(after,batch);
+    Check(after.payload->bags[0].items.size()==1&&after.payload->bags[0].items[0].bCount==1&&s.payload->bags[0].items.size()==2,
+          "batch projection deletes whole first stack and partially decrements second in isolation");
+    Check(FindSkillAmmunition(s,24,6).empty(),"insufficient bags cannot be combined even when their total covers the cast");
+    b.bCount=255;a.bCount=1;
+    Check(SelectSkillAmmunition({a,b},24,2).empty(),"source BYTE accumulation wraps before checking per-bag sufficiency");
+    auto c=b;c.dlID=13;c.bItemID=4;c.bCount=2;
+    const auto wrapped=SelectSkillAmmunition({c,b,a},24,2);
+    Check(wrapped.size()==2&&wrapped[1].before.dlID==12&&wrapped[1].count==1,
+          "source wrapped count may qualify later but consumption still starts at first ordered stack");
+
 }
 void TransferReservations() {
     asio::io_context io;tcp::socket socket(io);socket.open(tcp::v4());
@@ -756,15 +776,42 @@ int main(int argc, char**) {
                     for(int i=0;i<hits;++i){WritePOD(body,std::uint32_t(1234+i));WritePOD(body,std::uint8_t(2));WritePOD(body,std::uint8_t(1));}
                     return body;
                 };
-                if(mode>=4) {
+                if(mode==4) {
                     const auto body=target_request(mode==4?skill_request(7):loop_request());
                     co_await Send(item_client,mode==4?MessageId::CS_SKILLUSE_REQ:MessageId::CS_LOOPSKILL_REQ,body);
                     co_await Until([&]{return item_client->ended&&server.LiveSessions()==0;},"unsupported ammunition hit count closes before charging");
                     Check(players.consumptions==consumes&&players.saved.dwMP==163&&players.saved.payload->bags[0].items[0].bCount==2&&
                           item_client->Count(MessageId::CS_UPDATEITEM_ACK)==0&&item_client->Count(MessageId::CS_SKILLUSE_ACK)==0&&item_client->Count(MessageId::CS_LOOPSKILL_ACK)==0,
-                          "zero or multiple ammunition hits never consume inventory or acknowledge success");
+                          "zero ammunition hits never consume inventory or acknowledge success");
                     Check(std::all_of(players.saved.payload->skills.begin(),players.saved.payload->skills.end(),[](const auto& skill){return skill.dwRemainTick==0;}),
                           "unsupported ammunition hit counts preserve all cooldowns");
+                    continue;
+                }
+                if(mode==5) {
+                    // Three stacks in reverse DTO order; two are consumed by
+                    // one ordinary two-target cast; the remainder cannot fund a loop.
+                    state.Update(kChar,[](auto& v){
+                        auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);
+                        auto item=p->bags[0].items[0];item.bCount=1;
+                        p->bags[0].items.clear();
+                        for(int slot:{6,5,4}){item.bItemID=slot;item.dlID=slot;p->bags[0].items.push_back(item);}
+                        v.payload=p;
+                    });
+                    co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,target_request(skill_request(7)));
+                    co_await Until([&]{return item_client->Count(MessageId::CS_HPMP_ACK)==1;},"multi-stack cast committed");
+                    const auto n=item_client->packets.size();
+                    Check(item_client->packets[n-5]==std::pair{static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK),Bytes{std::byte{255},std::byte{4}}}&&
+                          item_client->packets[n-4]==std::pair{static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK),Bytes{std::byte{255},std::byte{5}}}&&
+                          item_client->packets[n-3].first==static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK)&&
+                          item_client->packets[n-2].second.size()==72&&players.consumptions==consumes+1,
+                          "two stack deletions precede one MOVEITEM and original two-target success");
+                    timers.Forget(kChar);
+                    co_await Send(item_client,MessageId::CS_LOOPSKILL_REQ,target_request(loop_request()));
+                    co_await Until([&]{return item_client->Count(MessageId::CS_LOOPSKILL_ACK)==1;},"insufficient multi-hit loop rejected");
+                    Check(players.consumptions==consumes+1&&state.Get(kChar)->payload->bags[0].items.size()==1&&
+                          timers.Snapshot(kChar,tmapsvr::SkillClockMs()).empty(),"insufficient loop preserves remaining stack and timers");
+                    item_client->wire->Close();
+                    co_await Until([&]{return item_client->ended&&server.LiveSessions()==0;},"multi-stack fixture closes");
                     continue;
                 }
                 players.hold_consumption=true;players.consumption_started=false;players.fail_consumption=mode==2;

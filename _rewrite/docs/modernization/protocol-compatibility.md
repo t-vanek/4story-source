@@ -589,20 +589,29 @@ trigger proves that no item/success response is emitted before commit.
 See [source contract and acceptance boundaries](evidence/graph-reagents-contract.json).
 
 
-## Single-hit arrow and bolt consumption
+## Arrow and bolt consumption across targets and stacks
 
-Migration 024 uses the existing UPDATEITEM/DELITEM → MOVEITEM → ordinary/loop
-success order for one non-expanded target. Request targets retain DWORD/BYTE/BYTE
-layout; the success response carries DWORD/BYTE targets (67 bytes ordinary or
-50 bytes loop for one target). Reject packets remain 62/45 bytes. No new packet
-fields were introduced. Runtime single-hit validation precedes any supported ammo
-mutation, and original own/shared timer side effects distinguish ordinary and loop
-missing-item rejection. Source multi-attack ability entries remain unsupported.
+Migrations 024–025 retain the original request DWORD/BYTE/BYTE target tuples.
+Only flagged entries, capped at 16, participate in the supported non-expanded
+cast. Success uses DWORD/BYTE tuples: 62 + 5×targets bytes for ordinary use and
+45 + 5×targets for loop. Reject bodies remain 62/45 bytes; no new wire fields exist.
 
-The first matching equipped weapon must have power and require one unit. Its
-`bUseItemKind` selects the earliest bag/slot whose pinned `bKind` matches. The
-fresh row or complete transferred graph is committed with core, cooldowns and a
-receipt before any private item or success response. New writes require migration
-024. The absent cash templates 25020–25022 remain an explicit content gap.
-See [source contract](evidence/ammunition-contract.json). Full damage/target rules
-and actual original-client execution remain outside this acceptance scope.
+A powered compatible weapon with base use count one charges one unit per flagged
+target. Source `UseSkillItem` scans inventories and slots in unsigned order,
+accumulates BYTE counts within each bag, chooses its first sufficient bag and
+consumes matching-kind stacks until the charge is met. Different templates of
+one kind may combine within that bag. Cross-bag totals never authorize a cast.
+Runtime selection and locked PostgreSQL validation use the same source arithmetic.
+
+Every selected stack commits with core, timers and grouped audit receipts before
+private UPDATEITEM/DELITEM responses in slot order, one MOVEITEM and cast success.
+Fresh storage validates owned rows and the loaded weapon hash; graph storage
+validates the entire checkpoint and preserves raw fields and unrelated state.
+Original timer side effects still distinguish ordinary and loop missing-item
+rejections. Unknown commit outcomes close the client and retain the reservation;
+a stale final save must not replace possibly committed state.
+
+Zero-target casts and source-generated multi-attack expansion remain unsupported.
+Cash templates 25020–25022 are absent from the pinned backup. Full damage/target
+rules, equipment mutation and actual original-client execution remain pending.
+See [batch source contract and evidence](evidence/ammo-batch-contract.json).

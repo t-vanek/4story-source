@@ -27,7 +27,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "TGLOBAL_RAGEZONE.bak",
@@ -56,7 +57,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/001-import-control.sql",
@@ -85,7 +87,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/002-legacy-snapshots.sql",
@@ -114,7 +117,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/003-canonical-content.sql",
@@ -143,7 +147,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/004-source-text-bytes.sql",
@@ -172,7 +177,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/005-runtime-catalog-control.sql",
@@ -202,7 +208,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/006-current-chart-contracts.sql",
@@ -232,7 +239,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/007-catalog-runtime-metadata.sql",
@@ -262,7 +270,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/008-native-login.sql",
@@ -290,7 +299,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/009-login-runtime-owner.sql",
@@ -317,7 +327,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/010-login-security-challenges.sql",
@@ -343,7 +354,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/011-character-reference-catalog.sql",
@@ -368,7 +380,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/012-native-characters.sql",
@@ -393,7 +406,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/013-character-item-allocation-floor.sql",
@@ -418,7 +432,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/014-routing-reference-catalog.sql",
@@ -441,7 +456,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/015-native-map-handoff.sql",
@@ -464,7 +480,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/016-native-map-ownership.sql",
@@ -486,7 +503,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/017-map-actor-reference-catalog.sql",
@@ -508,7 +526,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/018-native-map-checkpoints.sql",
@@ -530,7 +549,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/019-native-map-replicas.sql",
@@ -548,7 +568,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/020-native-main-transfer.sql",
@@ -563,7 +584,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/021-native-skill-checkpoints.sql",
@@ -577,7 +599,8 @@
       "skill_gate_increment_matches": true,
       "skill_reagent_increment_matches": true,
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/022-native-skill-consumption.sql",
@@ -585,19 +608,27 @@
       "skill_reagent_increment_matches": true,
       "note": "First applied for native single-reagent consumption; immutable after application.",
       "graph_reagent_increment_matches": true,
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/023-graph-skill-consumption.sql",
       "sha256": "c351303ca4d96f1430de79a8c8d58d17f6918c2ea54decbc8e10fda25c7fcf11",
       "graph_reagent_increment_matches": true,
       "note": "First applied for complete-graph reagent receipts; immutable after application.",
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
     },
     {
       "path": "database/postgresql/024-native-skill-ammunition.sql",
       "sha256": "088059e091e2c632f20d9901dcc1623a6ffcea34245841583e053e5e06c8a635",
-      "ammunition_increment_matches": true
+      "ammunition_increment_matches": true,
+      "ammunition_batch_increment_matches": true
+    },
+    {
+      "path": "database/postgresql/025-native-ammunition-batches.sql",
+      "sha256": "c7934f1fc30722268cdeb00bbdc9069223916f35df7cc953ff2595d8dcaa3372",
+      "ammunition_batch_increment_matches": true
     }
   ]
 }

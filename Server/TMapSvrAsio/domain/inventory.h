@@ -62,4 +62,10 @@ struct ItemInstance
     std::uint8_t bKind = 0; // pinned item chart, server-only ammunition selection
 };
 
+// One ordered stack debit in a single durable cast transaction.
+struct SkillItemDebit {
+    ItemInstance before;
+    std::uint8_t count = 1;
+};
+
 } // namespace tmapsvr

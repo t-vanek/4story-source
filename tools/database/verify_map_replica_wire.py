@@ -98,7 +98,8 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         check(conn.execute('SELECT count(*) FROM app_world.map_replicas WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'secondary-triggered close leaves no stranded replica')
         # A third lifecycle crosses the synthetic unit boundary in both
         # directions using only original encrypted client MOVE/CONREADY packets.
-        reagent_id=seed_graph_reagent(conn,cid,ammunition);expected_reagent=3
+        reagent_id=seed_graph_reagent(conn,cid,ammunition);expected_reagent=9 if ammunition else 3
+        if ammunition:conn.execute('UPDATE app_world."TITEMTABLE" SET "bCount"=9 WHERE "dlID"=%s',(reagent_id,))
         conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=CASE WHEN "wSkillID"=%s THEN 0 ELSE 300000 END WHERE "dwCharID"=%s', (32 if ammunition else 1623,cid))
         primary, replica, key = enter()
         primary.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4100, 80, 3584, 0, 91, 0, 0, 0, 0, 1.0), 0x5289, 3))
@@ -114,8 +115,8 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (2,1,'ready'), 'promoted native target enters gameplay after client confirmation')
         no_packet(replica, 'promotion does not reload client CHARINFO or invent protocol fields')
         no_packet(primary, 'retained source accepts repeated CONREADY as a replica')
-        graph_reagent_cast(conn,replica,cid,reagent_id,reagent_descriptor,4,2,3,False,check,delay=True,ammunition=ammunition)
-        expected_reagent=2
+        graph_reagent_cast(conn,replica,cid,reagent_id,reagent_descriptor,4,2,9 if ammunition else 3,False,check,delay=True,ammunition=ammunition)
+        expected_reagent=5 if ammunition else 2
         no_packet(primary,'former primary receives no private inventory response from its successor')
         replica.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4080, 80, 3584, 0, 92, 0, 0, 0, 0, 1.0), 0x5289, 5))
         op, body = read_packet(primary, 5)
@@ -125,7 +126,7 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (1,2,'ready'), 'returned primary becomes ready without replacing either client connection')
         no_packet(primary, 'return handoff keeps existing client character state')
         no_packet(replica, 'returned secondary remains connected without duplicate admission')
-        graph_reagent_cast(conn,primary,cid,reagent_id,reagent_descriptor,6,6,2,True,check,ammunition=ammunition)
+        graph_reagent_cast(conn,primary,cid,reagent_id,reagent_descriptor,6,6,5 if ammunition else 2,True,check,ammunition=ammunition)
         expected_reagent=1
         primary.close()
         until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'transferred primary performs final native save and releases account')

@@ -115,22 +115,28 @@ preserves unrelated state and leaves stale normalized item/skill rows untouched.
 Transfer back, relogin and process recovery retain the committed change.
 
 Checkpoint leases prevent stale periodic overwrites; uncertain outcomes retain
-reservations and refuse stale logout writes. Equipped reagents, ammunition, cash
+reservations and refuse stale logout writes. Equipped reagents and cash
 exceptions and complete combat remain pending. Apply migrations through 023 and
 existing Map runtime grants before deployment. See the
 [fresh reagent contract](../../_rewrite/docs/modernization/evidence/skill-reagents-contract.json)
 and [graph extension](../../_rewrite/docs/modernization/evidence/graph-reagents-contract.json).
 
-Migration 024 extends the transaction to single-hit arrows/bolts selected by the
-first compatible powered weapon. The runtime requires one flagged target and
-rejects source multi-attack expansion; weapon counts other than one stay unsupported.
-Fresh writes revalidate the equipped row fingerprint and ordered ammo selection;
-graph writes validate against the full checkpoint. Item, core, timers and typed
-audit receipt commit before original responses. Equipped-item changes, multiple
-hits/stacks and cash overrides remain pending. Premium templates 25020–25022 are
-absent from the pinned backup. See the
-[ammunition contract](../../_rewrite/docs/modernization/evidence/ammunition-contract.json).
-Deploy migration 024 before the new binaries; current Map grants suffice.
+Migrations 024–025 extend the transaction to arrows/bolts and atomic batches for
+1–16 non-expanded flagged targets. The first compatible powered weapon requires
+one base unit; additional targets add one unit each. Selection uses source BYTE
+arithmetic to find the first sufficient bag, then consumes matching-kind stacks
+in slot order. Different bags never combine. Fresh writes lock the selecting
+inventory and validate weapon/item fingerprints; graph writes validate the entire
+checkpoint without consulting stale child rows.
+
+Every debit, core/timer update and per-stack audit row shares one transaction;
+`cast_id` groups receipts and `hit_count` records the charge. Only confirmed commit
+publishes ordered item responses, one MOVEITEM and cast success. Tests cover a
+stale second item, second-receipt failure, transfer return and process recovery.
+Equipment changes, zero-target casts, source multi-attack expansion and cash
+exceptions remain pending. Deploy migration 025 before these binaries; current
+Map grants suffice. See the
+[batch contract](../../_rewrite/docs/modernization/evidence/ammo-batch-contract.json).
 
 ## Historical subsystem overview (see current acceptance scope above)
 

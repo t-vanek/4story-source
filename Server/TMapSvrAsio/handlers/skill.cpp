@@ -149,7 +149,7 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
         if(t.wID==wSkillID)reagent=t.items==SkillItemGate::Reagent||t.items==SkillItemGate::Ammunition;
     SkillCooldownTracker planned_timers;
     auto* timers=ctx.skill_cooldown;
-    std::optional<ItemInstance> consumed;
+    std::vector<SkillItemDebit> consumed;
     auto apply=[&](CharSnapshot& cs) {
         visited=true;
         if(loop&&!cs.payload){ignored=true;return;}
@@ -203,12 +203,13 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             // shared-kind timers BEFORE UseSkillItem rejects; loop does not.
             if(t.items==SkillItemGate::Unsupported)
                 throw std::runtime_error("Native cast consumable mutation is unsupported");
-            if(t.items==SkillItemGate::Ammunition&&targets.size()!=1)
-                throw std::runtime_error("Native ammunition requires exactly one non-expanded hit");
+            if(t.items==SkillItemGate::Ammunition&&targets.empty())
+                throw std::runtime_error("Native ammunition requires at least one non-expanded hit");
             if(t.items==SkillItemGate::Reagent||t.items==SkillItemGate::Ammunition) {
                 if(!reagent)throw std::runtime_error("Reagent definition changed during cast");
-                consumed=t.items==SkillItemGate::Ammunition?FindSkillAmmunition(cs,t.bAmmoKind):FindSkillReagent(cs,t.wUseItem);
-                if(loop&&!consumed){ack.result=SKILL_UNSUITWEAPON;return;}
+                if(t.items==SkillItemGate::Ammunition)consumed=FindSkillAmmunition(cs,t.bAmmoKind,static_cast<std::uint8_t>(targets.size()));
+                else if(const auto item=FindSkillReagent(cs,t.wUseItem))consumed.push_back({*item,1});
+                if(loop&&consumed.empty()){ack.result=SKILL_UNSUITWEAPON;return;}
             }
             if(loop&&t.items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}
             SkillAttackTiming timing; // TAD_NONE is source delay 0, rate 100
@@ -225,8 +226,8 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             ack.result=SKILL_SPEEDYUSE;return;
         }
         if(cs.payload&&!loop&&definition->items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}
-        if(reagent&&!consumed){ack.result=SKILL_UNSUITWEAPON;return;}
-        if(consumed)ConsumeReagentProjection(cs,*consumed);
+        if(reagent&&consumed.empty()){ack.result=SKILL_UNSUITWEAPON;return;}
+        if(!consumed.empty())ConsumeSkillItemProjection(cs,consumed);
         cs.dwMP-=req_mp;cs.dwHP-=req_hp;
         hp=cs.dwHP;mp=cs.dwMP;max_hp=cs.dwMaxHP;max_mp=cs.dwMaxMP;
         char_level=cs.bLevel;char_country=cs.bCountry;
@@ -248,16 +249,18 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
         const auto sampled_at=SkillClockMs();
         try{planned=transfer::PersistenceSnapshot(planned,identity->key,planned_timers,sampled_at);}
         catch(...){ctx.char_state->Store(cid,*original);throw;}
-        const bool commit=consumed&&visited&&!ignored&&ack.result==SKILL_SUCCESS;
+        const bool commit=!consumed.empty()&&visited&&!ignored&&ack.result==SKILL_SUCCESS;
         try {
         if(commit) {
-            std::string new_hash;
+            std::vector<std::string> new_hashes;
             auto* service=ctx.player_service;
-            new_hash=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),wSkillID,&consumed,&planned] {
-                    return service->ConsumeSkillItem(claim,wSkillID,*consumed,planned);
+            new_hashes=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),wSkillID,hits=static_cast<std::uint8_t>(targets.size()),&consumed,&planned] {
+                    return service->ConsumeSkillItems(claim,wSkillID,hits,consumed,planned);
             });
             auto p=std::make_shared<CharacterPayload>(*planned.payload);
-            for(auto& bag:p->bags)for(auto& item:bag.items)if(item.dlID==consumed->dlID)item.durable_hash=new_hash;
+            if(new_hashes.size()!=consumed.size())throw std::runtime_error("Incomplete consumption result");
+            for(std::size_t i=0;i<consumed.size();++i)
+                for(auto& bag:p->bags)for(auto& item:bag.items)if(item.dlID==consumed[i].before.dlID)item.durable_hash=new_hashes[i];
             planned.payload=std::move(p);
         }
         ctx.skill_cooldown->Restore(cid,planned.payload->skills,sampled_at);
@@ -272,18 +275,21 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await sess->SendPacket(static_cast<std::uint16_t>(opcode),encode(ack,{}));
         co_return;
     }
-    if(consumed) {
-        // Original UseItem sends private inventory changes and MOVEITEM before
-        // the cast broadcast. Emit only after PostgreSQL confirms the commit.
-        std::vector<std::byte> item_ack;
-        wire::WritePOD(item_ack,consumed->bInvenID);
-        if(consumed->bCount==1)wire::WritePOD(item_ack,consumed->bItemID);
-        else {
-            auto after=*consumed;--after.bCount;
-            const auto descriptor=EncodeItemDescriptor(after,cid,true);
-            item_ack.insert(item_ack.end(),descriptor.begin(),descriptor.end());
+    if(!consumed.empty()) {
+        // All stack changes commit together before ordered private item ACKs.
+        for(const auto& debit:consumed) {
+            const auto& before=debit.before;
+            const bool deleted=before.bCount==debit.count;
+            std::vector<std::byte> item_ack;
+            wire::WritePOD(item_ack,before.bInvenID);
+            if(deleted)wire::WritePOD(item_ack,before.bItemID);
+            else {
+                auto after=before;after.bCount-=debit.count;
+                const auto descriptor=EncodeItemDescriptor(after,cid,true);
+                item_ack.insert(item_ack.end(),descriptor.begin(),descriptor.end());
+            }
+            co_await sess->SendPacket(static_cast<std::uint16_t>(deleted?MessageId::CS_DELITEM_ACK:MessageId::CS_UPDATEITEM_ACK),item_ack);
         }
-        co_await sess->SendPacket(static_cast<std::uint16_t>(consumed->bCount==1?MessageId::CS_DELITEM_ACK:MessageId::CS_UPDATEITEM_ACK),item_ack);
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),std::vector<std::byte>{std::byte{0}});
     }
 

@@ -30,6 +30,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "skill_timing_fixture.h"
 #include "skill_reagent_fixture.h"
 #include "graph_reagent_fixture.h"
+#include "ammunition_batch_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -42,7 +43,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=725;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=728;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -220,6 +221,21 @@ int main(){
             }
             map.SaveAuthorized(resumed,restored);
         }
+        stage="ammunition batches";
+        VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,create(726,"AmmoBatch",726),false);
+        VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,create(727,"GraphBatch",727),true);
+        auto batch_recovery=create(728,"BatchRecovery",728);
+        VerifyAmmunitionBatch(admin,mpool,map,mapconn,manifest,routing,actor,batch_recovery,true,true);
+        const auto batch_login=auth.Authenticate({"SyntheticMap728",credential,"192.0.2.50",0x2918});
+        Check(batch_login.status==login::AuthStatus::Success&&routes.StartAuthorized({728,batch_login.session_key,1,1,static_cast<int>(batch_recovery.char_id)}).status==login::StartStatus::Success,
+              "batch recovery can obtain fresh Login handoff");
+        batch_recovery.key=batch_login.session_key;batch_recovery.connection_id+=2000;
+        Check(claim(batch_recovery),"batch recovery relogin claims epoch zero");
+        auto batch_restored=*map.LoadAuthorized(batch_recovery);map.MarkReady(batch_recovery,batch_restored);
+        const auto rest=tmapsvr::FindSkillAmmunition(batch_restored,24,2);
+        Check(batch_restored.payload->transfer_state&&rest.size()==1&&rest[0].before.bCount==2,"batch recovery relogin retains exact unconsumed quantity");
+        tmapsvr::ConsumeSkillItemProjection(batch_restored,rest);map.ConsumeSkillItems(batch_recovery,32,2,rest,batch_restored);
+        map.SaveAuthorized(batch_recovery,batch_restored);
         stage="primary transfer";VerifyMainTransfer(admin,mpool,map,mapconn,manifest,routing,actor,create(711,"TransferHero",11));
         stage="transfer recovery";auto transferred_crash=create(712,"TransferCrash",12);
         VerifyMainTransferRecovery(admin,mpool,map,mapconn,manifest,routing,actor,transferred_crash);

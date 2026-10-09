@@ -51,8 +51,12 @@ public:
     virtual bool PrepareTransfer(const MapSessionClaim&,const CharSnapshot&,std::span<const std::byte>) {return false;}
     virtual std::optional<TransferredCharacter> AcceptTransfer(const MapSessionClaim&,std::span<const std::byte>) {return {};}
     virtual bool OutgoingTransferCommitted(const MapSessionClaim&) {return false;}
-    virtual std::string ConsumeSkillItem(const MapSessionClaim&,std::uint16_t,
-        const ItemInstance&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}
+    virtual std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,
+        const std::vector<SkillItemDebit>&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}
+    std::string ConsumeSkillItem(const MapSessionClaim& c,std::uint16_t skill,
+        const ItemInstance& before,const CharSnapshot& after) {
+        return ConsumeSkillItems(c,skill,1,{{before,1}},after).at(0);
+    }
 
 };
 

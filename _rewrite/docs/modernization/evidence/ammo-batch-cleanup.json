@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-09",
+  "scope": "Only uniquely labelled PostgreSQL-only labs created for this increment. Private source snapshots and diagnostics retained.",
+  "labs": [
+    {
+      "work_directory": "/tmp/fourstory-ammo-batch-asan-20261009",
+      "postgresql_container_removed": true,
+      "owned_labelled_containers_remaining": [],
+      "network_removed": true,
+      "temporary_env_key_files_removed": 7,
+      "remaining_env_key_files": 0
+    },
+    {
+      "work_directory": "/tmp/fourstory-ammo-batch-debug-20261009",
+      "postgresql_container_removed": true,
+      "owned_labelled_containers_remaining": [],
+      "network_removed": true,
+      "temporary_env_key_files_removed": 13,
+      "remaining_env_key_files": 0
+    }
+  ]
+}

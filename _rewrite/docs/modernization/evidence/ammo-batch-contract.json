@@ -1,0 +1,168 @@
+{
+  "date": "2026-10-09",
+  "scope": "Owned-PC ordinary and loop ammunition for 1..16 flagged non-expanded targets, consumed atomically from ordered same-kind stacks within the first sufficient bag. Fresh and transferred character storage.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2871-2945",
+      "contract": "UseSkillItem computes BYTE need = weapon base count + additional hits; accumulates BYTE counts separately in each bag, selects its matching-kind slots and consumes min(need,stack) in slot order, then one MOVEITEM."
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2663-2720, 2848, 3148-3207, 3254",
+      "contract": "Without IsMultiAttack, flagged decoded targets become vDEFEND up to MAX_TARGET16. Both request paths pass BYTE(bTotalHit-1) to UseSkillItem. Unflagged and excess decoded targets do not charge supported ammo."
+    },
+    {
+      "path": "Server/TMapSvr/TSkillTemp.cpp",
+      "lines": "359-370",
+      "contract": "SDT_ABILITY/MTYPE_EFC makes a skill a multi-attack. Those ammunition skills still fail closed before mutation."
+    },
+    {
+      "path": "Server/TMapSvr/TMapSvr.cpp",
+      "lines": "9520-9569",
+      "contract": "UseItem decrements or deletes an exact stack and sends its original inventory ACK."
+    }
+  ],
+  "pinned_content": {
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "weapon_base_count": 1,
+    "arrow_weapon_templates": 65,
+    "bolt_weapon_templates": 77,
+    "cash_templates_absent": [
+      25020,
+      25021,
+      25022
+    ],
+    "fixture_templates": {
+      "skill": 32,
+      "bow": 701,
+      "crossbow": 801,
+      "arrow": 8401,
+      "second_arrow": 11054,
+      "bolt": 8402
+    },
+    "historical_mutations": "None. Fixture-owned items and skills plus temporarily restored routing view only."
+  },
+  "implementation": {
+    "selection": "Stable unsigned bag/slot ordering, original BYTE accumulation (including wrap), matching ammunition kind rather than template equality, and no cross-bag combination. Require 1..16 non-expanded targets and a powered compatible weapon with base count1 and no separate reagent.",
+    "fresh_storage": "One transaction locks selecting carried inventory, validates pinned charts and loaded equipped weapon fingerprint, recomputes ordered selection, then validates every exact owned row/full hash and quantity. A second-stack failure rolls back earlier writes.",
+    "graph_storage": "Locked complete checkpoint supplies equipment, item counts and full unsigned identities. Validate every item raw hash, apply ordered debits and compare the complete candidate graph allowing only live core and sampled timer durations. Preserve unrelated graph sections and never modify stale child tables.",
+    "audit": "Migration025 permits multi-unit ammunition decrements, retains reagent decrement1, adds cast_id and hit_count with per-cast/item uniqueness. Existing receipt IDs seed individual legacy casts. New casts reserve a shared ID from the existing granted sequence; rollback sequence gaps are expected.",
+    "publication": "Private planned state, character freeze and checkpoint-operation lease persist through the whole transaction. Only confirmed commit publishes one inventory ACK per touched stack in slot order, one MOVEITEM and original cast success. Normal missing ammo arms source own/shared timers; loop does not.",
+    "uncertain_commit": "No automatic retry. Close the socket, preserve the reservation and refuse stale final save. Existing modeled-unknown-outcome handler coverage remains; native new coverage injects actual rollback and recovers confirmed multi-stack commits.",
+    "deployment": "Migrations001-024 and backups remain unchanged;025 is now immutable and required before these binaries. Existing Map grants suffice; next026. Owner requires only local versioning until complete gameplay; no remote publication."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-ammo-batch-debug.json",
+      "status": "passed",
+      "native_map_checks": 406,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 314,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "total_checks": 1472
+    },
+    "asan": {
+      "report": "native-ammo-batch-asan.json",
+      "status": "passed",
+      "native_map_checks": 406,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 314,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "total_checks": 1472
+    },
+    "release": {
+      "report": "native-ammo-batch-release.json",
+      "status": "passed",
+      "native_map_checks": 406,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 314,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 124,
+      "map_ammunition_wire_checks": 124,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "total_checks": 1472,
+      "scope": "Installed Release Login/World/Map daemons; backend/pool integration executables mounted from the verified Debug build."
+    },
+    "ctest_debug": {
+      "report": "ammo-batch-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "ammo-batch-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "ammo-batch-before.json",
+      "image_id": "0eac33bc3a33a7981dba32a33e22e21a9f4dd50d711bf3fc661e467815ca09d2",
+      "expected_failure": "Map replica wire: graph cast emits no item or success response before delayed transaction completes",
+      "error_location": [
+        {
+          "file": "run_native_verification.py",
+          "line": 261
+        },
+        {
+          "file": "verify_map_runtime_wire.py",
+          "line": 204
+        },
+        {
+          "file": "verify_map_replica_wire.py",
+          "line": 118
+        },
+        {
+          "file": "verify_graph_reagent_wire.py",
+          "line": 39
+        },
+        {
+          "file": "verify_map_replica_wire.py",
+          "line": 21
+        }
+      ],
+      "scope": "Previous installed single-hit ammunition daemons with current mounted backend/pool executables and migrations. The old server rejects multiple flagged ammunition targets."
+    },
+    "migration_upgrade": {
+      "report": "ammo-batch-migration-upgrade.json",
+      "checks": 9,
+      "status": "passed"
+    },
+    "container_smoke": {
+      "report": "ammo-batch-container-verification.json",
+      "image": "localhost/fourstory:postgresql-ammo-batch",
+      "image_id": "1766f88f4fafcec132022d0e1913ac9f42af54470a306c7eee7645b4bab44531",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    }
+  },
+  "limitations": [
+    "Source MTYPE_EFC target expansion, zero-target ammo, reagent-plus-weapon combinations, cash overrides and equipment/durability mutation remain unsupported.",
+    "Multiple stacks in a complete graph are verified through native service/transfer/recovery fixtures; actual two-Map TCP uses multiple targets against one stack, and actual fresh TCP uses multiple stacks.",
+    "Full combat powers, damage, authoritative target/AOI rules and active effects remain incomplete. Encrypted source-derived peers are not original-client executable acceptance."
+  ]
+}

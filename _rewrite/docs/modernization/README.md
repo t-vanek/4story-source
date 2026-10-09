@@ -18,7 +18,56 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: single-hit ammunition
+## Current verified increment: atomic ammunition batches
+
+Owner policy: commit only locally on `main`; GitHub pushes, publication and
+remote deployment remain paused until complete gameplay is finished.
+
+Owned-PC ordinary and loop casts now charge 1–16 flagged non-expanded targets
+across multiple stacks in a single bag. Original `UseSkillItem` ordering, BYTE
+accumulation, same-kind template selection and no cross-bag aggregation are
+preserved. Selection and durable validation agree on the exact ordered debits.
+
+All stack writes, core, timers, checkpoint and audit rows commit together before
+any item response or cast success. Migration **025** groups per-stack receipts by
+`cast_id` and records `hit_count`; reagent receipts still consume one unit.
+Existing Map grants suffice. Fresh storage revalidates owned rows and the loaded
+weapon; transferred storage validates the complete original graph and preserves
+raw extensions and unrelated data without writing stale normalized children.
+The same behavior survives return transfer, relogin at epoch zero and recovery.
+
+Tests inject stale second-stack hashes and second-receipt failures, reject wrong
+quantities/order/duplicates, and prove whole-transaction rollback. Encrypted
+ordinary/loop tests cover 4 and 16 targets, unflagged and overflow tuples, mixed
+arrow templates, bolt stacks, delayed commit, cooldown and depletion. Two-Map
+network tests charge four targets before and after the return transfer; service
+fixtures additionally cover multi-stack complete-graph mutation and recovery.
+
+[Debug](evidence/native-ammo-batch-debug.json),
+[ASan/UBSan](evidence/native-ammo-batch-asan.json) and
+[installed Release](evidence/native-ammo-batch-release.json) each pass **1,472 checks**:
+406 native Map, 29 pool/TLS, 314 outer TCP, 53 skill, 295 World handoff, 66 World
+secondary, 124 reagent two-Map, 124 multi-target ammunition two-Map, 24 fresh
+single-hit, 30 fresh batch and seven rejection checks. There are 186 actual Debug
+CTest passes (200 entries, 14 fixture skips) and 33 passing sanitizer suites.
+Nine separate migration-upgrade checks preserve old receipts and reject invalid
+or duplicate debits. The previous single-hit image fails the new regression.
+
+The installed run uses Release daemons and verified Debug backend/pool test
+executables. Six-service health/DNS/SIGTERM smoke passes. Local image
+`localhost/fourstory:postgresql-ammo-batch` (also `:main`), ID
+`1766f88f4fafcec132022d0e1913ac9f42af54470a306c7eee7645b4bab44531`,
+UID/GID 10001:10001. See [container evidence](evidence/ammo-batch-container-verification.json).
+
+Backups and migrations 001–024 retain their original hashes; 025 is now immutable
+and the next migration is **026**. Source multi-attack expansion, zero-target casts,
+premium overrides, reagent-plus-weapon combinations, equipment mutation, effects
+and full damage remain pending. No original client executable was run. See the
+[batch contract](evidence/ammo-batch-contract.json),
+[build fingerprints](evidence/ammo-batch-build-fingerprints.json) and
+[owned-lab cleanup](evidence/ammo-batch-cleanup.json).
+
+## Earlier verified increment: single-hit ammunition
 
 Ordinary and loop casts now consume one arrow or bolt when the pinned skill has
 no separate reagent and its first compatible powered weapon requires one unit.

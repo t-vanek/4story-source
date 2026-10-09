@@ -4,6 +4,10 @@ The master mission remains active. This file records the next coherent slices;
 it does not defer ordinary implementation for permission. Source backups remain
 authoritative for historical values, original code/client for supported behavior.
 
+Owner instruction (2026-10-09): keep implementation and versioning local on `main`
+until complete gameplay is finished. Do not push, publish or deploy to GitHub.
+Local builds, disposable verification containers and local commits remain authorized.
+
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
    cleanup, process ownership/fencing, sequential dispatch and graceful drain.
@@ -17,7 +21,7 @@ authoritative for historical values, original code/client for supported behavior
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–024 and the checkpoint, retirement and replica contract evidence. Actual
+   001–025 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -84,7 +88,9 @@ authoritative for historical values, original code/client for supported behavior
    Fresh and transferred-primary reagent consumption commits with core/timers via
    022–023; preserve `skill-reagents-contract.json` and `graph-reagents-contract.json`.
    Single-hit arrow/bolt transactions now use 024; preserve `ammunition-contract.json`.
-   Port equipment, multi-hit ammunition, cash branches, full effects and cancellation;
+   Multi-target, per-bag multi-stack transactions now use 025; preserve
+   `ammo-batch-contract.json`. Next port source multi-attack target expansion,
+   equipment, cash branches, full effects and cancellation;
    recompute timing/item eligibility when equipment or learned skills mutate.
    CHARINFO and initial readiness now sample live skill durations without
    restarting timers; preserve `admission-timers-contract.json`. Implement active
@@ -196,7 +202,7 @@ The helper creates labelled disposable containers; reuse no unrelated databases.
 Build in the Ubuntu image with `/src` bound to the checkout because the current
 `build/linux-debug` CMake cache contains container paths.
 
-Do not overwrite migrations `001`–`024` after application. Add migrations `025` onward.
+Do not overwrite migrations `001`–`025` after application. Add migrations `026` onward.
 Do not revert unrelated pre-existing client/binary/library working-tree changes.
 
 
@@ -430,23 +436,24 @@ and six-service container smoke. That increment used
 `7a25026d3c20798049579845d0ea653b313b2f45aa772222da49f54a5758adad`.
 See graph-reagents container/build/cleanup evidence for identities and scope.
 
-Migration 024 now consumes one arrow/bolt for one non-expanded target on fresh or
-transferred primary characters. Preserve the first compatible powered weapon,
-exact loaded weapon fingerprint, source item kind and ordered bag/slot selection.
-Do not aggregate across bags when extending the source per-bag stack algorithm.
-Trace `bTotalHit-1`, BYTE arithmetic and CTSkill multi-attack expansion before adding
-multi-target/stack consumption. Premium templates 25020–25022 are absent from the
-backup; cash support must not fabricate their historical definitions.
+Migrations 024–025 now consume ammunition for 1–16 non-expanded flagged targets
+on fresh or transferred primary characters. Preserve the first compatible powered
+weapon, loaded weapon fingerprint, same-kind selection and ordered per-bag stack
+algorithm including BYTE overflow. All stack writes and grouped `cast_id` receipts
+must remain atomic with core, timers and the recovery checkpoint. Keep complete
+transfer graphs authoritative; never fall back to stale normalized item rows.
 
-Latest verified ammunition increment: 1,341 native checks in each Debug, sanitizer
-and installed Release run; 186 actual Debug passes (14 fixture skips), all 33
-ASan/UBSan suites and six-daemon smoke. Current local image
-`localhost/fourstory:postgresql-ammunition` (also `:main`), ID
-`0eac33bc3a33a7981dba32a33e22e21a9f4dd50d711bf3fc661e467815ca09d2`.
-See `ammunition-contract.json` and its build/container/cleanup evidence.
+The batch increment covers rollback on a stale second stack or failed second
+receipt, return transfer, graph-backed relogin and process recovery. Preserve
+`ammo-batch-contract.json` and its Debug/sanitizer/Release, migration-upgrade,
+container and cleanup evidence. Version this work only locally on `main` until
+complete gameplay is finished; do not push or deploy to GitHub.
 
-Preserve backups and migrations 001–024; next schema change is 025. Continue with
-multi-hit/stack transactions, reagent-plus-weapon combinations, equipped-item
-consumption, durability and derived-stat invalidation. Preserve private inventory
-packet ordering and ordinary-versus-loop rejection side effects. Finish active
-effects, cast lifecycle, combat/target/AOI rules and original-client acceptance.
+Preserve backups and migrations 001–025; next schema change is 026. Continue with
+source `CTSkill::GetCountMultiAttack`/`MTYPE_EFC` target expansion, including rank
+scaling, random per-target duplication, target caps and ammo charge. Zero-target
+ammo and reagent-plus-weapon combinations remain outside the current contract.
+Premium templates 25020–25022 are absent from the backup; cash support must not
+fabricate historical definitions. Then port equipment/durability mutation and
+derived-stat invalidation, active effects, cast lifecycle and combat/target/AOI
+rules. Original-client executable acceptance is still required.

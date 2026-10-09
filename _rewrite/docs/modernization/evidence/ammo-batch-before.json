@@ -1,0 +1,328 @@
+{
+  "scope": "Native PostgreSQL Login with synthetic accounts and source-derived encrypted packets; original-client test PENDING",
+  "sql_server_used": false,
+  "tests": [
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [
+        "--options-only"
+      ],
+      "exit_code": 0,
+      "log": "PASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\nPASS invalid connection diagnostics redact values\nPASS invalid or unbounded connection options refused before connection\n"
+    },
+    {
+      "binary": "test_fourstory_postgresql",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-09 10:11:37.919] [info] SessionPool ready: backend=postgresql pool_size=2 acquire_timeout_ms=100\nPASS pool sessions are distinct native PostgreSQL connections\nPASS native PostgreSQL connection uses TLS with certificate verification\nPASS pool exhaustion has a bounded timeout\nPASS moved lease retains exclusive live session\nPASS native prepared binding preserves Unicode and literal punctuation\nPASS transaction destructor rolls back uncommitted writes\nPASS constraint failure rolls back entire transaction and session is reusable\nPASS unsupported T-SQL fails without submitting or logging secret literals\nPASS concurrent transactional updates do not lose writes\nPASS mutable test role has no historical snapshot access\nPASS untrusted PostgreSQL TLS certificate is rejected\n[2026-10-09 10:11:37.999] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS database disconnect is surfaced without retrying an operation\n[2026-10-09 10:11:38.005] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=100\nPASS fresh connection preserves committed state after a disconnect\n"
+    },
+    {
+      "binary": "test_tmapsvr_postgresql_map",
+      "arguments": [],
+      "exit_code": 0,
+      "log": "[2026-10-09 10:11:38.223] [info] SessionPool ready: backend=postgresql pool_size=4 acquire_timeout_ms=30000\n[2026-10-09 10:11:38.244] [info] SessionPool ready: backend=postgresql pool_size=4 acquire_timeout_ms=30000\n[2026-10-09 10:11:38.249] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-09 10:11:38.413] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\n[2026-10-09 10:11:38.423] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS Map owns dedicated advisory session and persisted token\n[2026-10-09 10:11:38.434] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS second live owner refused\nPASS wrong actor manifest refused before use\n[2026-10-09 10:11:38.495] [info] auth: user 'SyntheticMap701' (uid=701) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS foreign character cannot consume Login handoff\nPASS wrong channel cannot consume Login handoff\nPASS native Map atomically consumes exact Login handoff\nPASS consumed handoff cannot be replayed\nPASS one durable claim replaces pending handoff\nPASS uncheckpointed admission cannot become ready\nPASS stale connection generation cannot release claim\nPASS delayed Login disconnect preserves already claimed Map session\nPASS actual backup-derived starter bags skills and hotkeys loaded\nPASS spawn fallback and source experience/stat charts hydrated\nPASS synthetic raw magic derives client values through backup chart\nPASS native hydration retains raw magic and full DWORD item attributes alongside the client projection\nPASS native loaded items enter the complete source transfer codec without database reload\nPASS duplicate load cannot replace resident state\nPASS main-cell decision uses pinned routing and exact claim\nPASS native route resolver returns active IPv4 octets only\nPASS CHARINFO includes hydrated variable lists\nPASS pre-ready save refused\nPASS ready session cannot be released without save\nPASS ready admission has an atomic initial checkpoint\nPASS checkpoint advances receipt while preserving the active claim\nPASS checkpoint does not log out the online character\nPASS identical checkpoint revision confirms prior commit\nPASS same revision with different core is refused\nPASS checkpoint cannot skip a revision\nPASS stale generation cannot checkpoint\nPASS late receipt failure refuses checkpoint\nPASS core and receipt roll back together\nPASS logout audit failure rolls back core save and claim release\nPASS failed save keeps original durable state and ready reservation\nPASS successful save atomically closes current session and map claim\nPASS core save preserves progression and every child item\nPASS exact final receipt confirms a lost commit response without rewriting\nPASS different stale final payload cannot overwrite saved character\nPASS late checkpoint cannot recreate a logged-out claim\n[2026-10-09 10:11:38.670] [info] auth: user 'SyntheticMap715' (uid=715) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS fresh skill fixture claims native primary\nPASS initial checkpoint commits current skill duration with an exact revision-zero receipt\nPASS new runtime skill cooldown arms without transfer\nPASS fresh snapshot samples live timers without mutating loaded payload or fabricating transfer graph\nPASS native checkpoint preserves learned rank and full DWORD remaining bits\nPASS same core and revision with changed fresh timers is refused\nPASS reordered identical skills confirm exact checkpoint commit\nPASS receipt failure rejects fresh timer checkpoint\nPASS failed fresh checkpoint rolls core and timers back atomically\nPASS core save refuses changed rank missing or duplicate learned skill\nPASS core save refuses changed rank missing or duplicate learned skill\nPASS core save refuses changed rank missing or duplicate learned skill\nPASS expired runtime cooldown persists zero instead of rearming loaded value\nPASS expired skill can arm a new runtime cooldown\nPASS late logout audit failure rolls back fresh cooldown save\nPASS failed final save retains previous skill checkpoint\nPASS lost final response confirms exact timers and refuses stale remaining duration\nPASS fresh final save commits sampled timers and closes primary\nPASS unknown active timer cannot be dropped during fresh persistence\n[2026-10-09 10:11:38.812] [info] auth: user 'SyntheticMap715' (uid=715) authenticated, agreement=1 pc_bang=0 premium=0 last_char=2\nPASS fresh timer logout allows authenticated relogin\nPASS fresh timer relogin claims new generation\nPASS fresh relogin hydrates exact saved skill timer and rank through ordinary database load\n[2026-10-09 10:11:38.908] [info] auth: user 'SyntheticMap717' (uid=717) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS native timing fixture has a real starter primary weapon\nPASS pinned attack formulas have original zero base; weapon values remain authoritative\nPASS native timing fixture claims primary\nPASS native character hydrates physical ranged and magic timing\nPASS native timing uses correct weapon slots for physical ranged and magic attacks\nPASS source option projection supplies exact twelve percent speed reductions\nPASS every learned skill has its pinned timing definition\nPASS native loop delay normal/loop prerequisites and map restriction including unsigned sentinel match pinned charts\nPASS native loop weapon gate follows source mask and powered equipment\n[2026-10-09 10:11:39.045] [info] auth: user 'SyntheticMap718' (uid=718) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS native timing fixture has a real starter primary weapon\nPASS pinned attack formulas have original zero base; weapon values remain authoritative\nPASS native timing fixture claims primary\nPASS native character hydrates physical ranged and magic timing\nPASS native timing uses correct weapon slots for physical ranged and magic attacks\nPASS broken weapon contributes neither speed nor speed magic\nPASS every learned skill has its pinned timing definition\nPASS native loop delay normal/loop prerequisites and map restriction including unsigned sentinel match pinned charts\nPASS native loop weapon gate follows source mask and powered equipment\n[2026-10-09 10:11:39.172] [info] auth: user 'SyntheticMap719' (uid=719) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS reagent fixture claims native primary\nPASS reagent fixture changes an existing synthetic-owned starter slot\nPASS native reagent retains full-row fingerprint and source default bag\nPASS stale generation cannot consume reagent\nPASS replica cannot consume primary inventory\nPASS changed item fingerprint refuses consumption before mutation\nPASS reagent transaction validates immutable skill requirement\nPASS reagent transaction rejects unlearned skill\nPASS full-row drift rejects matching id template placement and count\nPASS late consumption receipt failure rolls transaction back\nPASS failed reagent write preserves count resources and timers atomically\nPASS confirmed reagent decrement returns new exact durable fingerprint\nPASS item audit core and skill recovery receipt commit before periodic revision advances\nPASS replaying consumed item snapshot cannot charge twice\nPASS periodic revision continues after immediate consumption\nPASS last reagent deletes exactly its owned row and appends atomic deletion receipt\nPASS unknown item outcome cannot overwrite committed state through logout\nPASS confirmed reagent state survives normal final save\n[2026-10-09 10:11:39.326] [info] auth: user 'SyntheticMap720' (uid=720) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS reagent fixture claims native primary\nPASS reagent fixture changes an existing synthetic-owned starter slot\nPASS native reagent retains full-row fingerprint and source default bag\nPASS confirmed reagent decrement returns new exact durable fingerprint\nPASS item audit core and skill recovery receipt commit before periodic revision advances\n[2026-10-09 10:11:39.441] [info] auth: user 'SyntheticMap702' (uid=702) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS second character handoff accepted\nPASS zero stored HP means dead and zero MP stays zero\n[2026-10-09 10:11:39.548] [info] auth: user 'SyntheticMap703' (uid=703) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS concurrent claims have exactly one winner\nPASS Map consumption role cannot change item templates\nPASS Map consumption role cannot discard its audit receipts\nPASS Map cooldown role cannot change learned ranks\nPASS Map cooldown role cannot forget skills\nPASS Map runtime role cannot discard recovery receipts\nPASS Map core role cannot access historical tables\n[2026-10-09 10:11:39.620] [info] auth: user 'SyntheticMap709' (uid=709) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS checkpoint/final race fixture claimed\nPASS concurrent checkpoint cannot overwrite or outlive final save\n[2026-10-09 10:11:39.732] [info] auth: user 'SyntheticMap709' (uid=709) authenticated, agreement=1 pc_bang=0 premium=0 last_char=9\nPASS authorized low-level deletion cleans its completed checkpoint receipt\n[2026-10-09 10:11:39.842] [info] auth: user 'SyntheticMap710' (uid=710) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:39.863] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS replica fixture primary claimed\nPASS explicit synthetic partition resolves neighboring Map\nPASS ungranted replica cannot reuse Login handoff\nPASS non-neighbor cannot receive a replica grant\nPASS unpublished endpoint cannot receive a grant\nPASS stale primary cannot authorize replicas\nPASS primary authorizes exact one-use replica endpoint\nPASS repeated grant does not extend expiry\nPASS wrong replica endpoint cannot consume grant\nPASS wrong replica channel cannot consume grant\nPASS expired replica grant rejected\nPASS new route decision can replace expired unconsumed grant\nPASS grant from stale primary generation rejected\nPASS concurrent replica claims have exactly one winner\nPASS consumption returns explicit replica role\nPASS consumed replica grant cannot be replayed\nPASS replica cannot reload stale durable primary graph\nPASS replica cannot claim primary cell ownership\nPASS replica cannot become ready before composite hydration\nPASS wrong replica composite location rejected\nPASS replica validates source composite against grant\nPASS replica reaches ready without primary core write\nPASS replica readiness does not promote primary\nPASS replica cannot save or checkpoint primary state\nPASS stale replica teardown cannot retire current generation\nPASS replica retirement preserves primary account reservation\nPASS retired replica grant cannot be replayed\nPASS new source route decision renews retired replica\nPASS renewed replica uses a fresh connection generation\nPASS renewed replica composite loads before target restart\n[2026-10-09 10:11:39.986] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS target restart cleans only its replica token and preserves primary\nPASS replaced replica process cannot write\nPASS target restart cannot reuse an old grant\nPASS primary can grant the replacement target token\nPASS replacement consumes newly authorized target grant\nPASS primary final save atomically cascades replica grants and account release\nPASS deleted primary cannot be revived by delayed replica readiness\n[2026-10-09 10:11:40.065] [info] auth: user 'SyntheticMap725' (uid=725) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS backup omits premium ammunition templates; no historical values invented\nPASS reagent fixture claims native primary\nPASS reagent fixture changes an existing synthetic-owned starter slot\nPASS native reagent retains full-row fingerprint and source default bag\nPASS stale generation cannot consume reagent\nPASS replica cannot consume primary inventory\nPASS changed item fingerprint refuses consumption before mutation\nPASS reagent transaction validates immutable skill requirement\nPASS reagent transaction rejects unlearned skill\nPASS full-row drift rejects matching id template placement and count\nPASS broken first compatible weapon cannot consume ammunition\nPASS weapon fingerprint drift fences stale loaded attack state\nPASS wrong ammunition kind cannot use a matching item id and hash\nPASS late consumption receipt failure rolls transaction back\nPASS failed reagent write preserves count resources and timers atomically\nPASS confirmed reagent decrement returns new exact durable fingerprint\nPASS item audit core and skill recovery receipt commit before periodic revision advances\nPASS ammunition receipt distinguishes its source weapon requirement\nPASS replaying consumed item snapshot cannot charge twice\nPASS periodic revision continues after immediate consumption\nPASS last reagent deletes exactly its owned row and appends atomic deletion receipt\nPASS unknown item outcome cannot overwrite committed state through logout\nPASS confirmed reagent state survives normal final save\n[2026-10-09 10:11:40.231] [info] auth: user 'SyntheticMap721' (uid=721) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:40.250] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS graph reagent source claims Login handoff\nPASS graph reagent target receives replica grant\nPASS graph reagent target claims replica\nPASS graph reagent target loads summary\nPASS graph reagent fixture starts with actual source-owned starter slot\nPASS graph reagent source prepares complete transient inventory\nPASS graph reagent target promotes complete state\nPASS transferred item hashes original server fields and keeps unsigned 64-bit identity\nPASS graph item consumption fences stale authority epoch\nPASS replica cannot charge graph inventory\nPASS graph item full-field hash rejects stale input\nPASS reagent transaction cannot alter unrelated quest graph\nPASS graph consumption cannot silently change learned rank\nPASS transferred authority cannot downgrade to fresh row storage\nPASS late graph reagent receipt failure aborts transaction\nPASS failed graph charge preserves complete item graph core timers and audit atomically\nPASS confirmed graph decrement preserves every other source field with current core and timers\nPASS graph receipt records unsigned item bits exact graph transition and unchanged periodic revision\nPASS graph consumption never reloads or rewrites stale normalized item rows\nPASS replayed graph snapshot cannot consume twice\nPASS consumed graph can transfer back through original source socket\nPASS returned graph preserves newer authority\nPASS return hydration retains consumed stack and rebuilds its graph item hash\nPASS original same-socket epoch cannot charge returned inventory\nPASS last graph reagent disappears without consuming same-template cabinet item\nPASS final graph save retains unrelated cabinet item and quest state after deletion\n[2026-10-09 10:11:40.478] [info] auth: user 'SyntheticMap721' (uid=721) authenticated, agreement=1 pc_bang=0 premium=0 last_char=12\nPASS graph reagent account can authenticate after save or recovery\nPASS graph reagent character receives fresh Login handoff\nPASS graph reagent relogin claims fresh epoch zero\nPASS relogin uses consumed graph inventory instead of stale normalized item rows\n[2026-10-09 10:11:40.578] [info] auth: user 'SyntheticMap722' (uid=722) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:40.599] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS graph reagent source claims Login handoff\nPASS graph reagent target receives replica grant\nPASS graph reagent target claims replica\nPASS graph reagent target loads summary\nPASS graph reagent fixture starts with actual source-owned starter slot\nPASS graph reagent source prepares complete transient inventory\nPASS graph reagent target promotes complete state\nPASS transferred item hashes original server fields and keeps unsigned 64-bit identity\nPASS confirmed graph decrement preserves every other source field with current core and timers\nPASS graph receipt records unsigned item bits exact graph transition and unchanged periodic revision\nPASS graph consumption never reloads or rewrites stale normalized item rows\n[2026-10-09 10:11:40.707] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS target replacement recovers exact committed graph charge before any periodic sweep\nPASS replaced target process cannot consume graph state again\n[2026-10-09 10:11:40.770] [info] auth: user 'SyntheticMap722' (uid=722) authenticated, agreement=1 pc_bang=0 premium=0 last_char=13\nPASS graph reagent account can authenticate after save or recovery\nPASS graph reagent character receives fresh Login handoff\nPASS graph reagent relogin claims fresh epoch zero\nPASS relogin uses consumed graph inventory instead of stale normalized item rows\nPASS restored graph can consume at epoch zero without downgrading storage contract\n[2026-10-09 10:11:40.874] [info] auth: user 'SyntheticMap723' (uid=723) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:40.893] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS graph reagent source claims Login handoff\nPASS graph reagent target receives replica grant\nPASS graph reagent target claims replica\nPASS graph reagent target loads summary\nPASS graph reagent fixture starts with actual source-owned starter slot\nPASS transferred ammunition fixture has source equipment slot\nPASS graph reagent source prepares complete transient inventory\nPASS graph reagent target promotes complete state\nPASS transferred item hashes original server fields and keeps unsigned 64-bit identity\nPASS graph item consumption fences stale authority epoch\nPASS replica cannot charge graph inventory\nPASS graph item full-field hash rejects stale input\nPASS reagent transaction cannot alter unrelated quest graph\nPASS graph consumption cannot silently change learned rank\nPASS transferred authority cannot downgrade to fresh row storage\nPASS late graph reagent receipt failure aborts transaction\nPASS failed graph charge preserves complete item graph core timers and audit atomically\nPASS confirmed graph decrement preserves every other source field with current core and timers\nPASS graph receipt records unsigned item bits exact graph transition and unchanged periodic revision\nPASS graph consumption never reloads or rewrites stale normalized item rows\nPASS replayed graph snapshot cannot consume twice\nPASS consumed graph can transfer back through original source socket\nPASS returned graph preserves newer authority\nPASS return hydration retains consumed stack and rebuilds its graph item hash\nPASS original same-socket epoch cannot charge returned inventory\nPASS last graph reagent disappears without consuming same-template cabinet item\nPASS final graph save retains unrelated cabinet item and quest state after deletion\n[2026-10-09 10:11:41.123] [info] auth: user 'SyntheticMap723' (uid=723) authenticated, agreement=1 pc_bang=0 premium=0 last_char=14\nPASS graph reagent account can authenticate after save or recovery\nPASS graph reagent character receives fresh Login handoff\nPASS graph reagent relogin claims fresh epoch zero\nPASS relogin uses consumed graph inventory instead of stale normalized item rows\n[2026-10-09 10:11:41.219] [info] auth: user 'SyntheticMap724' (uid=724) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:41.238] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS graph reagent source claims Login handoff\nPASS graph reagent target receives replica grant\nPASS graph reagent target claims replica\nPASS graph reagent target loads summary\nPASS graph reagent fixture starts with actual source-owned starter slot\nPASS transferred ammunition fixture has source equipment slot\nPASS graph reagent source prepares complete transient inventory\nPASS graph reagent target promotes complete state\nPASS transferred item hashes original server fields and keeps unsigned 64-bit identity\nPASS confirmed graph decrement preserves every other source field with current core and timers\nPASS graph receipt records unsigned item bits exact graph transition and unchanged periodic revision\nPASS graph consumption never reloads or rewrites stale normalized item rows\n[2026-10-09 10:11:41.351] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS target replacement recovers exact committed graph charge before any periodic sweep\nPASS replaced target process cannot consume graph state again\n[2026-10-09 10:11:41.414] [info] auth: user 'SyntheticMap724' (uid=724) authenticated, agreement=1 pc_bang=0 premium=0 last_char=15\nPASS graph reagent account can authenticate after save or recovery\nPASS graph reagent character receives fresh Login handoff\nPASS graph reagent relogin claims fresh epoch zero\nPASS relogin uses consumed graph inventory instead of stale normalized item rows\nPASS restored graph can consume at epoch zero without downgrading storage contract\n[2026-10-09 10:11:41.518] [info] auth: user 'SyntheticMap726' (uid=726) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS batch source claims native handoff\nPASS native four-target selection spans ordered mixed-template arrow stacks\nPASS stale second stack rolls back every earlier debit\nPASS reordered batch cannot bypass original selection\nPASS debit quantity must match verified target count\nPASS duplicate item cannot be debited twice in one cast\nPASS second receipt failure rolls back both stack writes and first receipt\nPASS failed batch leaves exact inventory checkpoint core and audit unchanged\nPASS batch returns one exact hash or deletion per ordered debit\nPASS both durable stack receipts identify one four-hit cast and correct storage contract\nPASS batch replay cannot charge again\nPASS remaining arrows survive batch and return hydration\nPASS last two-target cast depletes remaining stack\n[2026-10-09 10:11:41.674] [info] auth: user 'SyntheticMap727' (uid=727) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:41.699] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS batch source claims native handoff\nPASS batch graph replica grant\nPASS batch graph replica claimed\nPASS batch graph replica loaded\nPASS batch graph transfer prepared\nPASS batch graph promoted\nPASS native four-target selection spans ordered mixed-template arrow stacks\nPASS stale second stack rolls back every earlier debit\nPASS reordered batch cannot bypass original selection\nPASS debit quantity must match verified target count\nPASS duplicate item cannot be debited twice in one cast\nPASS second receipt failure rolls back both stack writes and first receipt\nPASS failed batch leaves exact inventory checkpoint core and audit unchanged\nPASS batch returns one exact hash or deletion per ordered debit\nPASS both durable stack receipts identify one four-hit cast and correct storage contract\nPASS batch replay cannot charge again\nPASS graph batch preserves complete raw item extensions and unrelated quest\nPASS batch graph never touches stale normalized inventory\nPASS batch graph prepares return transfer\nPASS batch return retains authority epoch\nPASS remaining arrows survive batch and return hydration\nPASS last two-target cast depletes remaining stack\n[2026-10-09 10:11:41.931] [info] auth: user 'SyntheticMap728' (uid=728) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:41.961] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS batch source claims native handoff\nPASS batch graph replica grant\nPASS batch graph replica claimed\nPASS batch graph replica loaded\nPASS batch graph transfer prepared\nPASS batch graph promoted\nPASS native four-target selection spans ordered mixed-template arrow stacks\nPASS stale second stack rolls back every earlier debit\nPASS reordered batch cannot bypass original selection\nPASS debit quantity must match verified target count\nPASS duplicate item cannot be debited twice in one cast\nPASS second receipt failure rolls back both stack writes and first receipt\nPASS failed batch leaves exact inventory checkpoint core and audit unchanged\nPASS batch returns one exact hash or deletion per ordered debit\nPASS both durable stack receipts identify one four-hit cast and correct storage contract\nPASS batch replay cannot charge again\nPASS graph batch preserves complete raw item extensions and unrelated quest\nPASS batch graph never touches stale normalized inventory\n[2026-10-09 10:11:42.091] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS replacement recovers both stack debits before periodic checkpoint\n[2026-10-09 10:11:42.155] [info] auth: user 'SyntheticMap728' (uid=728) authenticated, agreement=1 pc_bang=0 premium=0 last_char=18\nPASS batch recovery can obtain fresh Login handoff\nPASS batch recovery relogin claims epoch zero\nPASS batch recovery relogin retains exact unconsumed quantity\n[2026-10-09 10:11:42.259] [info] auth: user 'SyntheticMap711' (uid=711) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:42.279] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS transfer source consumes Login claim\nPASS transfer target receives source grant\nPASS transfer target claims its replica\nPASS transfer target loads composite\nPASS transfer fixture arms live skill timer\nPASS source freezes complete live graph into transfer journal\nPASS exact prepare retry confirms same transfer\nPASS prepared transfer fences in-flight primary checkpoints\nPASS wrong target socket cannot consume transfer\nPASS changed transfer body cannot consume journal\nPASS late checkpoint failure aborts transfer transaction\nPASS failed transfer rolls back core ownership replicas and journal together\nPASS target atomically promotes replica and restores unsaved live core\nPASS target retains exact full transfer and live remaining cooldown\nPASS buff-bearing transfer preserves effects but refuses guessed attack timing\nPASS exact target retry confirms previously committed load\nPASS source confirms exact outgoing authority receipt\nPASS consumed transfer cannot overwrite target after readiness\nPASS old source close confirmation cannot overwrite newer target core\nPASS return transfer uses retained original source socket as replica\nPASS same original socket regains primary with a new authority epoch\nPASS old same-socket primary epoch cannot checkpoint after round trip\nPASS old same-socket final save is read-only after round trip\nPASS same checkpoint revision rejects a changed full graph even when core is equal\nPASS third transfer can prepare after a complete round trip\nPASS expired prepared transfer cannot gain ownership\nPASS final primary logout releases session while retaining transfer receipts\nPASS source final save cancels unconsumed transfer atomically\n[2026-10-09 10:11:42.565] [info] auth: user 'SyntheticMap712' (uid=712) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:42.585] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS transfer crash fixture claims source\nPASS transfer crash fixture grants target\nPASS transfer crash target consumes replica\nPASS transfer crash target loads replica\nPASS transfer crash source prepares graph\nPASS ordinary transfer rebuilds pinned skill timing on its new authority\nPASS transfer crash target commits before client readiness\n[2026-10-09 10:11:42.684] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS target process replacement recovers committed pre-ready transfer and releases account\nPASS transfer crash recovery retains exact graph and unsaved source progression\nPASS replaced target token cannot confirm old transfer\n[2026-10-09 10:11:42.748] [info] auth: user 'SyntheticMap712' (uid=712) authenticated, agreement=1 pc_bang=0 premium=0 last_char=20\nPASS recovered transferred account can authenticate again\nPASS recovered transferred character can request a fresh Login handoff\nPASS new primary claims recovered transfer under fresh key and generation\nPASS fresh load restores recovered graph instead of stale durable skill and core rows\n[2026-10-09 10:11:42.847] [info] auth: user 'SyntheticMap712' (uid=712) authenticated, agreement=1 pc_bang=0 premium=0 last_char=20\nPASS authorized low-level deletion removes transferred character graph and journal receipts\n[2026-10-09 10:11:42.964] [info] auth: user 'SyntheticMap714' (uid=714) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:42.985] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS transfer crash fixture claims source\nPASS transfer crash fixture grants target\nPASS transfer crash target consumes replica\nPASS transfer crash target loads replica\nPASS transfer crash source prepares graph\nPASS ordinary transfer rebuilds pinned skill timing on its new authority\nPASS transfer crash target commits before client readiness\n[2026-10-09 10:11:43.092] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS target process replacement recovers committed pre-ready transfer and releases account\nPASS transfer crash recovery retains exact graph and unsaved source progression\nPASS replaced target token cannot confirm old transfer\n[2026-10-09 10:11:43.156] [info] auth: user 'SyntheticMap713' (uid=713) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\n[2026-10-09 10:11:43.174] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS transfer crash fixture claims source\nPASS transfer crash fixture grants target\nPASS transfer crash target consumes replica\nPASS transfer crash target loads replica\nPASS transfer crash source prepares graph\n[2026-10-09 10:11:43.287] [info] auth: user 'SyntheticMap704' (uid=704) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS pre-ready recovery fixture claimed\n[2026-10-09 10:11:43.355] [info] auth: user 'SyntheticMap705' (uid=705) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS dirty recovery fixture claimed\n[2026-10-09 10:11:43.457] [info] auth: user 'SyntheticMap707' (uid=707) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS recoverable fixture claimed\n[2026-10-09 10:11:43.564] [info] auth: user 'SyntheticMap708' (uid=708) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS drift fixture claimed\n[2026-10-09 10:11:43.667] [info] auth: user 'SyntheticMap716' (uid=716) authenticated, agreement=1 pc_bang=0 premium=0 last_char=0\nPASS skill drift recovery fixture claimed\nPASS durable skill drift refuses checkpoint and logout without overwriting external change\nPASS owner connection loss detected\n[2026-10-09 10:11:43.725] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS recovery audit failure refuses replacement startup\nPASS failed recovery retains ready claim and committed receipt\n[2026-10-09 10:11:43.735] [info] SessionPool ready: backend=postgresql pool_size=1 acquire_timeout_ms=30000\nPASS replacement owner safely closes pre-ready claim\nPASS replacement preserves pre-checkpoint ready state as orphaned\nPASS old process token cannot save after ownership replacement\nPASS replacement recovers an exact committed checkpoint and releases the account\nPASS recovery retains last committed core and an explicit recovery receipt\nPASS core drift refuses automatic recovery\nPASS skill drift refuses automatic crash recovery\nPASS crash recovery retains exact committed skill cooldown alongside core\nPASS old process cannot checkpoint after recovery\nPASS source replacement recovers exact frozen prepared graph and cancels its unconsumed transfer\nPASS process replacement preserves committed reagent decrement with recovered core and skill receipt\nNative Map integration: 406 checks passed\n"
+    }
+  ],
+  "image": {
+    "reference": "localhost/fourstory:postgresql-ammunition",
+    "id": "0eac33bc3a33a7981dba32a33e22e21a9f4dd50d711bf3fc661e467815ca09d2"
+  },
+  "engine": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "migrations": [
+    "001-import-control.sql",
+    "002-legacy-snapshots.sql",
+    "003-canonical-content.sql",
+    "004-source-text-bytes.sql",
+    "005-runtime-catalog-control.sql",
+    "006-current-chart-contracts.sql",
+    "007-catalog-runtime-metadata.sql",
+    "008-native-login.sql",
+    "009-login-runtime-owner.sql",
+    "010-login-security-challenges.sql",
+    "011-character-reference-catalog.sql",
+    "012-native-characters.sql",
+    "013-character-item-allocation-floor.sql",
+    "014-routing-reference-catalog.sql",
+    "015-native-map-handoff.sql",
+    "016-native-map-ownership.sql",
+    "017-map-actor-reference-catalog.sql",
+    "018-native-map-checkpoints.sql",
+    "019-native-map-replicas.sql",
+    "020-native-main-transfer.sql",
+    "021-native-skill-checkpoints.sql",
+    "022-native-skill-consumption.sql",
+    "023-graph-skill-consumption.sql",
+    "024-native-skill-ammunition.sql",
+    "025-native-ammunition-batches.sql"
+  ],
+  "import": {
+    "run_id": 1,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "verified_tables": [
+      {
+        "table": "TVETERANCHART",
+        "rows": 3,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TCLASSCHART",
+        "rows": 6,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TFORMULACHART",
+        "rows": 34,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TITEMCHART",
+        "rows": 7706,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TLEVELCHART",
+        "rows": 126,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMAPMONCHART",
+        "rows": 23381,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONATTRCHART",
+        "rows": 9290,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONITEMCHART",
+        "rows": 16466,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSPAWNCHART",
+        "rows": 20357,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMONSTERCHART",
+        "rows": 3534,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TNPCCHART",
+        "rows": 2623,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQREWARDCHART",
+        "rows": 4322,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTCHART",
+        "rows": 6261,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTITEMCHART",
+        "rows": 715,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TQUESTTERMCHART",
+        "rows": 10687,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TRACECHART",
+        "rows": 88,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLCHART",
+        "rows": 765,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLDATA",
+        "rows": 1172,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTHOTKEY",
+        "rows": 12,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTITEMCHART",
+        "rows": 189,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTRECALL",
+        "rows": 3,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSTARTSKILL",
+        "rows": 237,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 107977,
+    "canonical_items": {
+      "rows": 7706,
+      "six_fields_verified": true
+    }
+  },
+  "activation": {
+    "run_id": 1,
+    "manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "changed": true,
+    "reference_tables": 22,
+    "verified_source_rows": 107977,
+    "starter_graph_gaps": {
+      "starter_item": 0,
+      "starter_recall": 0,
+      "veteran_level": 0,
+      "starter_slot_collision": 0
+    },
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "routing_import": {
+    "run_id": 2,
+    "manifest_sha256": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+    "verified_tables": [
+      {
+        "table": "TCHANNELCHART",
+        "rows": 361,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TMAPCHART",
+        "rows": 301,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSPAWNPOSCHART",
+        "rows": 417,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TUNITCHART",
+        "rows": 361,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 1440,
+    "canonical_items": null
+  },
+  "routing_activation": {
+    "run_id": 2,
+    "manifest_sha256": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+    "changed": true,
+    "reference_tables": 4,
+    "verified_source_rows": 1440,
+    "unmapped_source_channel_cells": 3,
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "routing_publication": {
+    "status": "passed",
+    "checks": [
+      "same verified release activation is idempotent",
+      "COMPLETE_ROUTING_MANIFEST_REQUIRED",
+      "PINNED_BACKUP_FINGERPRINT_MISMATCH",
+      "CHECKPOINT_TARGET_DRIFT",
+      "failed publications preserve independent character, Map and routing selectors",
+      "idempotent and failed publications add no activation history",
+      "original TSVRCHART view join produces 358 routing rows"
+    ]
+  },
+  "actor_import": {
+    "run_id": 3,
+    "manifest_sha256": "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381",
+    "verified_tables": [
+      {
+        "table": "TITEMMAGICCHART",
+        "rows": 27,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      },
+      {
+        "table": "TSKILLPOINTCHART",
+        "rows": 719,
+        "value_hash_matches": true,
+        "source_text_bytes_verified": true
+      }
+    ],
+    "skipped_verified_tables": [],
+    "source_rows": 746,
+    "canonical_items": null
+  },
+  "actor_activation": {
+    "run_id": 3,
+    "manifest_sha256": "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381",
+    "changed": true,
+    "reference_tables": 2,
+    "verified_source_rows": 746,
+    "snapshot_values_and_original_text_bytes_verified": true
+  },
+  "daemon_binaries": {
+    "image": "0eac33bc3a33a7981dba32a33e22e21a9f4dd50d711bf3fc661e467815ca09d2",
+    "directory": "/opt/fourstory/bin/",
+    "integration_test_directory": "/src/build/linux-debug/bin/"
+  },
+  "status": "failed",
+  "error": "Map replica wire: graph cast emits no item or success response before delayed transaction completes",
+  "error_location": [
+    {
+      "file": "run_native_verification.py",
+      "line": 261
+    },
+    {
+      "file": "verify_map_runtime_wire.py",
+      "line": 204
+    },
+    {
+      "file": "verify_map_replica_wire.py",
+      "line": 118
+    },
+    {
+      "file": "verify_graph_reagent_wire.py",
+      "line": 39
+    },
+    {
+      "file": "verify_map_replica_wire.py",
+      "line": 21
+    }
+  ]
+}

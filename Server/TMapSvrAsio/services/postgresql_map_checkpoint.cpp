@@ -183,22 +183,27 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
     }else StoreTransferCheckpoint(sql,claim,s);
     CloseClaim(sql,claim);tx->commit();
 }
-std::string PostgreSQLMapService::ConsumeSkillItem(const MapSessionClaim& c,std::uint16_t skill,
-    const ItemInstance& before,const CharSnapshot& after) {
+std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessionClaim& c,std::uint16_t skill,
+    std::uint8_t hits,const std::vector<SkillItemDebit>& debits,const CharSnapshot& after) {
     const bool graph=after.payload&&after.payload->transfer_state;
-    if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!after.payload||
-       !before.bCount||before.bInvenID==254||before.durable_hash.size()!=64||!before.dlID||
-       (!graph&&before.dlID>static_cast<std::uint64_t>(std::numeric_limits<long long>::max())))
-        throw std::runtime_error("Unsupported native reagent transaction");
+    if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!after.payload||debits.empty()||debits.size()>16)
+        throw std::runtime_error("Unsupported native consumption transaction");
     if(std::none_of(after.payload->skills.begin(),after.payload->skills.end(),[&](const auto& row){return row.wSkillID==skill&&row.bLevel;}))
-        throw std::runtime_error("Reagent skill is not learned");
-    unsigned found=0;
-    for(const auto& bag:after.payload->bags)for(const auto& item:bag.items)if(item.dlID==before.dlID) {
-        ++found;
-        if(bag.bag.bInvenID!=before.bInvenID||item.bItemID!=before.bItemID||item.wItemID!=before.wItemID||
-           item.bCount+1!=before.bCount)throw std::runtime_error("Reagent projection differs from exact decrement");
+        throw std::runtime_error("Consumption skill is not learned");
+    std::vector<std::uint64_t> seen;
+    for(const auto& debit:debits) {
+        const auto& before=debit.before;
+        if(!debit.count||debit.count>before.bCount||before.bInvenID==254||before.durable_hash.size()!=64||!before.dlID||
+           (!graph&&before.dlID>static_cast<std::uint64_t>(std::numeric_limits<long long>::max()))||
+           std::find(seen.begin(),seen.end(),before.dlID)!=seen.end())throw std::runtime_error("Invalid consumption stack debit");
+        seen.push_back(before.dlID);unsigned found=0;
+        for(const auto& bag:after.payload->bags)for(const auto& item:bag.items)if(item.dlID==before.dlID) {
+            ++found;
+            if(bag.bag.bInvenID!=before.bInvenID||item.bInvenID!=before.bInvenID||item.bItemID!=before.bItemID||item.wItemID!=before.wItemID||
+               item.bCount+debit.count!=before.bCount)throw std::runtime_error("Consumption projection differs from exact debit");
+        }
+        if(found!=(before.bCount>debit.count?1U:0U))throw std::runtime_error("Consumption projection has wrong item cardinality");
     }
-    if(found!=(before.bCount>1?1U:0U))throw std::runtime_error("Reagent projection has wrong item cardinality");
     const auto fingerprint=Fingerprint(c,after);
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;
@@ -210,40 +215,53 @@ std::string PostgreSQLMapService::ConsumeSkillItem(const MapSessionClaim& c,std:
     const long long session_key=c.key;int unlocked=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(session_key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Reagent session was revoked");
-    const int world=c.group,character=c.char_id,slot=before.bItemID,bag=before.bInvenID;
-    const int item=std::bit_cast<std::int16_t>(before.wItemID);
-    const long long id=std::bit_cast<std::int64_t>(before.dlID);const int count=before.bCount;
-    ReagentGraphPlan graph_plan;std::string after_hash;bool ammunition=false;
+    const int world=c.group,character=c.char_id;
+    ReagentGraphPlan graph_plan;std::vector<std::string> hashes;bool ammunition=false;
     if(graph) {
-        graph_plan=ValidateGraphReagent(sql,c,skill,before,after);after_hash=graph_plan.item_hash;ammunition=graph_plan.ammunition;
+        graph_plan=ValidateGraphReagent(sql,c,skill,hits,debits,after);hashes=graph_plan.item_hashes;ammunition=graph_plan.ammunition;
     }else {
-    ammunition=ValidateSkillConsumption(sql,c,skill,before,after,nullptr);
-    std::string hash;
-    sql<<"SELECT app_world.item_fingerprint(i) FROM app_world.\"TITEMTABLE\" i WHERE \"bWorldID\"=:w AND \"dlID\"=:id "
-         "AND \"dwOwnerID\"=:c AND \"bOwnerType\"=0 AND \"bStorageType\"=0 AND \"dwStorageID\"=:bag AND \"bItemID\"=:slot "
-         "AND \"wItemID\"=:item AND \"bCount\"=:count FOR UPDATE",
-        soci::use(world,"w"),soci::use(id,"id"),soci::use(character,"c"),soci::use(bag,"bag"),soci::use(slot,"slot"),
-        soci::use(item,"item"),soci::use(count,"count"),soci::into(hash);
-    if(!sql.got_data()||hash!=before.durable_hash)throw std::runtime_error("Reagent item changed since hydration");
-    if(count==1)sql<<"DELETE FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dlID\"=:id",soci::use(world,"w"),soci::use(id,"id");
-    else sql<<"UPDATE app_world.\"TITEMTABLE\" i SET \"bCount\"=\"bCount\"-1 WHERE \"bWorldID\"=:w AND \"dlID\"=:id RETURNING app_world.item_fingerprint(i)",
-        soci::use(world,"w"),soci::use(id,"id"),soci::into(after_hash);
+        ammunition=ValidateSkillConsumption(sql,c,skill,hits,debits,after,nullptr);
+        for(const auto& debit:debits) {
+            const auto& before=debit.before;
+            const int slot=before.bItemID,bag=before.bInvenID,item=std::bit_cast<std::int16_t>(before.wItemID),count=before.bCount,quantity=debit.count;
+            const long long id=std::bit_cast<std::int64_t>(before.dlID);std::string hash,after_hash;
+            sql<<"SELECT app_world.item_fingerprint(i) FROM app_world.\"TITEMTABLE\" i WHERE \"bWorldID\"=:w AND \"dlID\"=:id "
+                 "AND \"dwOwnerID\"=:c AND \"bOwnerType\"=0 AND \"bStorageType\"=0 AND \"dwStorageID\"=:bag AND \"bItemID\"=:slot "
+                 "AND \"wItemID\"=:item AND \"bCount\"=:count FOR UPDATE",
+                soci::use(world,"w"),soci::use(id,"id"),soci::use(character,"c"),soci::use(bag,"bag"),soci::use(slot,"slot"),
+                soci::use(item,"item"),soci::use(count,"count"),soci::into(hash);
+            if(!sql.got_data()||hash!=before.durable_hash)throw std::runtime_error("Consumption item changed since hydration");
+            if(count==quantity)sql<<"DELETE FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dlID\"=:id",soci::use(world,"w"),soci::use(id,"id");
+            else sql<<"UPDATE app_world.\"TITEMTABLE\" i SET \"bCount\"=\"bCount\"-:q WHERE \"bWorldID\"=:w AND \"dlID\"=:id RETURNING app_world.item_fingerprint(i)",
+                soci::use(quantity,"q"),soci::use(world,"w"),soci::use(id,"id"),soci::into(after_hash);
+            hashes.push_back(after_hash);
+        }
     }
     WriteCore(sql,c,after,0);
     // This is an immediate gameplay receipt, not a periodic revision. The
     // runtime checkpoint lease prevents an older sweep overwriting this state.
     RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
-    const int server=m_config.server,unsigned_skill=skill,remaining=count-1,contract=graph?2:3;
+    const int server=m_config.server,unsigned_skill=skill,contract=graph?2:3,hit_count=ammunition?hits:1;
     const long long generation=c.connection_id,epoch=c.authority_epoch;
     const std::string consumption_kind=ammunition?"ammunition":"reagent";
-    sql<<"INSERT INTO app_world.skill_item_consumptions(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,skill_id,item_id,"
-         "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash,consumption_kind) "
-         "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''),:kind)",
-        soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
-        soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(unsigned_skill,"skill"),soci::use(id,"id"),
-        soci::use(count,"before"),soci::use(remaining,"after"),soci::use(before.durable_hash,"bh"),soci::use(after_hash,"ah"),soci::use(fingerprint,"f"),
-        soci::use(contract,"contract"),soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga"),soci::use(consumption_kind,"kind");
-    tx->commit();return after_hash;
+    // Reserve one ID from the existing granted receipt sequence to group the
+    // whole cast. Sequence gaps on rollback are intentional; never retry a cast.
+    long long cast_id=0;
+    sql<<"SELECT nextval('app_world.skill_item_consumptions_consumption_id_seq')",soci::into(cast_id);
+    for(std::size_t i=0;i<debits.size();++i) {
+        const auto& before=debits[i].before;const auto& after_hash=hashes[i];
+        const int count=before.bCount,remaining=count-debits[i].count;
+        const long long id=std::bit_cast<std::int64_t>(before.dlID);
+        sql<<"INSERT INTO app_world.skill_item_consumptions(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,skill_id,item_id,"
+             "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash,consumption_kind,cast_id,hit_count) "
+             "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''),:kind,:cast,:hits)",
+            soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
+            soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(unsigned_skill,"skill"),soci::use(id,"id"),
+            soci::use(count,"before"),soci::use(remaining,"after"),soci::use(before.durable_hash,"bh"),soci::use(after_hash,"ah"),soci::use(fingerprint,"f"),
+            soci::use(contract,"contract"),soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga"),soci::use(consumption_kind,"kind"),
+            soci::use(cast_id,"cast"),soci::use(hit_count,"hits");
+    }
+    tx->commit();return hashes;
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
     const int world=claim.group;const long long character=claim.char_id,user=claim.user_id;

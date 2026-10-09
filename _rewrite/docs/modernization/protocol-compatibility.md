@@ -704,3 +704,29 @@ and do not retry or save a stale snapshot. Actual two-Map packet tests split and
 move on the promoted server, transfer back and merge on the new primary while
 stale normalized rows remain untouched. See [stack contract](evidence/inventory-stacks-contract.json)
 and the [confirmed client acceptance gate](client-acceptance.md).
+
+## Log write outcomes and binary payloads (2026-10-09)
+
+`LogPacket.h` and `CUdpSocket.cpp:212,514` establish the original LP_LOG layout
+and connectivity-based requeue behavior. This increment changes no opcode, size,
+field order or receive decoder. An independent Python fixture uses the original
+Win32 offsets and reaches the actual installed UDP daemon and PostgreSQL.
+
+The modern correction is explicit transaction outcome handling: failed COMMIT or
+unconfirmed rollback is never automatically replayed. Those records are counted
+as unknown, without a success count or acknowledgement. No acknowledgement or
+idempotency field was added to the original UDP protocol. A received duplicate
+UDP event remains indistinguishable from a separate identical event; no global
+exactly-once or lossless delivery claim is made. Empty payload retains the existing
+modern NULL behavior; nonempty payload retains exactly the transmitted bytes.
+The original writer always wrote its 512-byte array, so short payload equivalence
+to a released sender still needs capture evidence. Timestamp fractions and legacy
+code-page handling remain outside this test's scope.
+
+PostgreSQL binding now uses hexadecimal bytea input for single and bulk writes;
+raw zero bytes no longer pass through a text parameter. Parameterized batches
+replace interpolated text, and DWORD/WORD values are not narrowed to signed
+32/16-bit values. The fixture schema can store their full width; production schema
+and read-side acceptance remain pending. Tests use loopback plaintext PostgreSQL
+to inject reply loss deliberately; they do not replace the separate pool TLS tests.
+See `evidence/log-outcomes-contract.json` for the exact guarantees and limitations.

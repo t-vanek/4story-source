@@ -483,7 +483,23 @@ only until complete gameplay; next new migration 029.
 The owner confirmed that only uncompiled client sources are available, without
 client data. Track binary/data/environment acceptance in `client-acceptance.md`;
 continue independent server work and do not declare a supported executable build.
-A current code audit also finds Log's generic exception retry after COMMIT:
-`SociLogSink` single/bulk paths can requeue an unknown outcome. That production
-persistence path needs explicit outcome handling and native fault acceptance before
-Log can be called complete; its transport/smoke tests do not meet that gate.
+The Log unknown-COMMIT retry defect is now fixed and verified with actual PostgreSQL
+reply loss for single/bulk transactions; see `evidence/log-outcomes-contract.json`.
+Preserve the separate confirmed/unknown counters and never requeue an unknown
+outcome. Next implement the production audit schema/grants and native read side,
+retention/reconciliation and LP_CHAT after source/backup review. The current native
+Log test schema is synthetic, retries are RAM-only and discarded connections need
+pool replacement; full Log crash/restart guarantees are not complete. The Asio
+worker's posted-arrival backlog is also separate from the bounded retry queue and
+still needs explicit admission/backpressure limits.
+
+Equipment continuation source notes: `TObjBase::CanEquip` checks wrap, learned
+equipment skill, slot mask, class mask and effective level in that order.
+`CSHandler::OnCS_MOVEITEM_REQ` normalizes secondary slots, displaces conflicting
+weapons through CanPush/PushTItem, handles warrior maintains and local-zone item
+attributes. `CTPlayer::ChangeEquipItem` sends EQUIP to neighbors, MOVEITEM and
+CHARSTATINFO to self, clamps HP/MP, sends HPMP and checks equipment skills; the
+caller also sends its final MOVEITEM. Port these dependencies and sender ordering
+before enabling equipment as an ordinary bag relocation. Recomputing the current
+native DeriveStats must also reset accumulated skill-point groups before adding
+rank totals; its current fresh-hydration use is not proof of repeatable recompute.

@@ -1,0 +1,61 @@
+{
+  "scope": "Log transaction outcome and synthetic native PostgreSQL/UDP verification",
+  "production_schema_verified": false,
+  "original_client_verified": false,
+  "completed": true,
+  "tls": "disabled on loopback for deterministic PostgreSQL wire fault injection",
+  "image": {
+    "reference": "localhost/fourstory:build-deps",
+    "id": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190"
+  },
+  "build_dir": "build/linux-debug",
+  "checks": [
+    {
+      "name": "native C++ PostgreSQL sink checks",
+      "passed": true
+    },
+    {
+      "name": "single and bulk COMMIT replies lost after PostgreSQL completed them",
+      "passed": true
+    },
+    {
+      "name": "INSERT reply lost before COMMIT",
+      "passed": true
+    },
+    {
+      "name": "original-layout UDP persists exact native fields",
+      "passed": true
+    },
+    {
+      "name": "empty UDP payload persists as NULL",
+      "passed": true
+    },
+    {
+      "name": "health reactor responds during a blocked periodic database drain",
+      "passed": true
+    },
+    {
+      "name": "periodic worker retry recovers exact UDP payload after confirmed rollback",
+      "passed": true
+    },
+    {
+      "name": "daemon separates malformed datagram and confirmed inserts",
+      "passed": true
+    },
+    {
+      "name": "SIGTERM joins accepted work and reports outcome counters",
+      "passed": true
+    },
+    {
+      "name": "no sanitizer diagnostics",
+      "passed": true
+    }
+  ],
+  "backend": {
+    "passed": 29,
+    "failed": 0,
+    "log_sha256": "1583c12637ee4aed12e68477e8c1c07a55539ba176b13ec5cd8ef9c51af0aa50"
+  },
+  "daemon_log_sha256": "15b6984cb6bb2c92a5b3f3bb7510b127798fbad24a27a8aaa1b996818b9164b8",
+  "owned_database_removed": true
+}

@@ -1,6 +1,6 @@
 {
   "date": "2026-10-09",
-  "base_commit": "e4e52c087751eba37b17ea18cba60ea88cdd26ee",
+  "base_commit": "5293a487d2db39c6f5cab05bc6f23e292a399736",
   "method": "Read current README/capability/continuation/protocol documents, inspected cited actual production paths and immutable source contracts, compared prior evidence and ran the updated current test matrix. This is a scoped audit, not a full behavioral review of every legacy file.",
   "overall_goal": "not_complete",
   "supported_client_binary": null,
@@ -68,13 +68,19 @@
     },
     {
       "area": "Log",
-      "claim": "Generic single and bulk failure handling requeues every exception, including an unknown result of COMMIT.",
-      "status": "incomplete_known_risk",
+      "claim": "Single/bulk explicit transactions never requeue unknown COMMIT outcomes; real reply-loss and UDP/PostgreSQL fixture tests verify this scope.",
+      "status": "verified_scoped_ingest_incomplete_production",
       "code": [
         "Server/TLogSvrAsio/services/log_sink.cpp",
         "Server/TLogSvrAsio/services/log_sink.h"
       ],
-      "limit": "Must distinguish outcomes and preserve uncertain records without automatic write replay; existing transport/retry mocks do not prove the required persistence guarantee."
+      "limit": "Synthetic audit schema only. Production migrations/grants/native reads, LP_CHAT, code pages, retention/durable reconciliation, bounded posted-worker backlog and closed-pool replacement remain pending.",
+      "evidence": [
+        "log-outcomes-contract.json",
+        "log-outcomes-debug.json",
+        "log-outcomes-asan.json",
+        "log-outcomes-release.json"
+      ]
     },
     {
       "area": "Original client",
@@ -96,8 +102,8 @@
     "Lib/Own/TProtocol/include/ProtocolBase.h": "22cd4db1c03215170f1d04de18b66ab0a060af4921af3029c932b4ea3e7851d1",
     "Server/TControlSvrAsio/services/disabled_service_controller.h": "f31ea71fed0e11432478233b3eafbcefd6c6443bd91c20e7a6a92f048613f74e",
     "Server/TControlSvrAsio/services/soci_registry_persistence.cpp": "3d03b0436fd43055dc2292148750b833f42ede434227ea591b4b5c8eec05a36a",
-    "Server/TLogSvrAsio/services/log_sink.cpp": "a1a88b44801b9eecee7c9bb311ded66a5a00b26556331e3316a84c2d7ab1d552",
-    "Server/TLogSvrAsio/services/log_sink.h": "87804c946d521984a4c6f82f626f950f273cbd8ee7f72e507e0eebdbfaf59ee6",
+    "Server/TLogSvrAsio/services/log_sink.cpp": "8ed05b92b64b28b44c18d0adb54f7cdc216d44f278e16e57e03fc0b01a905b18",
+    "Server/TLogSvrAsio/services/log_sink.h": "b1cd2779c86746ce8fb60339db0b1de09e7c31259c90ce21a606c1d8f4732523",
     "Server/TLoginSvrAsio/services/postgresql_char_service.cpp": "73cff6faf08a44ba9c4ecd17c2565162e4f8d6e2cb45b3517c3078bb1590f9b2",
     "Server/TMapSvrAsio/handlers/inventory.cpp": "b8a0afa81f9b9e8575eb8578f29d30fe9439560ed033e0761963d0f52477fd87",
     "Server/TMapSvrAsio/services/inventory_move.h": "31ca0e948f767ae767f49bf21698a5d18ff6042d9f438f73c83b6d5a54eb2598",
@@ -116,5 +122,6 @@
     "all_required_failure_guarantees_verified": false,
     "no_required_placeholders_or_blockers": false
   },
-  "policy": "Only local main commits and local containers; no external publication. Existing Asio modules retained. Historical percentages and handler counts are not acceptance."
+  "policy": "Only local main commits and local containers; no external publication. Existing Asio modules retained. Historical percentages and handler counts are not acceptance.",
+  "latest_scope": "Log transaction outcome correction; prior inventory/gameplay evidence retained without rerun"
 }

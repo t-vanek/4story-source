@@ -12,12 +12,14 @@
 // main.cpp wire-up change with no impact on the receive path.
 
 #include "fourstory/db/session_pool.h"
+#include "audit_transaction.h"
 
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -55,7 +57,8 @@ public:
     // Persist the record. Synchronous from the caller's perspective;
     // SociLogSink may move the record onto its internal retry queue
     // when the DB is unavailable, in which case the actual INSERT is
-    // deferred to the drain loop.
+    // deferred to the drain loop. Unknown commit outcomes are counted and
+    // reported separately, without automatic retry.
     virtual void Write(const LogRecord& rec) = 0;
 };
 
@@ -125,25 +128,17 @@ public:
     std::uint64_t DroppedQueueFull() const { return m_drops_full.load(); }
     std::uint64_t DrainedAfterRetry() const{ return m_drained.load(); }
     std::size_t   QueueDepth() const;
+    // Count records whose durability cannot be determined. They are never
+    // retried automatically and are not included in confirmed insert totals.
+    std::uint64_t UnknownOutcomes() const { return m_unknown.load(); }
+    // Flush one bounded batch synchronously. Also used by the periodic worker.
+    // Serialized with writes so failed drains cannot exceed the queue bound.
+    void DrainPending();
 
 private:
-    // Run one INSERT against the DB. Returns true on success, false
-    // if the operation hit a transient failure (connection lost,
-    // pool exhausted, …) the caller should retry later. Permanent
-    // errors (constraint violations, schema drift) are also reported
-    // as false here — audit logs have no foreign keys and the boot
-    // validator already caught the schema, so any exception is
-    // treated as transient.
-    bool TryInsert(const LogRecord& rec);
-
-    // Bulk INSERT for the drain path. Builds a single multi-row
-    // `INSERT … VALUES (…), (…), …` statement with dialect-aware BLOB
-    // literal encoding (MSSQL `0xHEX`, PG `'\xHEX'::bytea`, SQLite
-    // `X'HEX'`). On a hot drain after DB outage, 64 records → 1 wire
-    // round-trip instead of 64. Caller treats `false` / exceptions
-    // the same way as TryInsert — push the whole batch back to the
-    // queue head and wait for the next tick. Empty batch returns true.
-    bool TryBulkInsert(const std::vector<LogRecord>& batch);
+    AuditWriteOutcome TryInsert(const LogRecord& rec);
+    AuditWriteOutcome TryBulkInsert(const std::vector<LogRecord>& batch);
+    void WriteNow(const LogRecord& rec);
 
     fourstory::db::SessionPool&  m_pool;
     std::string                  m_table;
@@ -154,6 +149,9 @@ private:
     // the receive coroutine). Set via SetWorkerPool. Non-owning.
     boost::asio::thread_pool*    m_worker_pool = nullptr;
 
+    std::mutex                   m_write_mutex;
+    std::atomic<bool>            m_drain_pending{false};
+    std::atomic<std::uint64_t>   m_unknown{0};
     std::atomic<std::uint64_t>   m_inserts{0};
     std::atomic<std::uint64_t>   m_enqueued{0};
     std::atomic<std::uint64_t>   m_drops_full{0};

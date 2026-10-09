@@ -137,8 +137,8 @@ int main(int argc, char** argv)
         });
 
         std::unique_ptr<fourstory::db::SessionPool> pool;
-        std::unique_ptr<boost::asio::thread_pool>   db_pool;
         std::unique_ptr<tlogsvr::ILogSink>           sink;
+        std::unique_ptr<boost::asio::thread_pool>   db_pool;
         tlogsvr::SociLogSink*                        soci_sink = nullptr;
         if (!cfg.database.connection_string.empty())
         {
@@ -290,7 +290,6 @@ int main(int argc, char** argv)
         // so a record posted just before io.stop() doesn't disappear.
         if (db_pool)
         {
-            db_pool->stop();
             db_pool->join();
         }
 
@@ -299,12 +298,12 @@ int main(int argc, char** argv)
             spdlog::info(
                 "totals: received={} drops_bad_format={} "
                 "inserted={} enqueued={} drained={} dropped_queue_full={} "
-                "queue_depth_at_shutdown={}",
+                "queue_depth_at_shutdown={} outcome_unknown={}",
                 server.PacketsReceived(), server.DropsBadFormat(),
                 soci_sink->Inserts(), soci_sink->EnqueuedOnError(),
                 soci_sink->DrainedAfterRetry(),
                 soci_sink->DroppedQueueFull(),
-                soci_sink->QueueDepth());
+                soci_sink->QueueDepth(), soci_sink->UnknownOutcomes());
         }
         else
         {

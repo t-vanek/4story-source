@@ -28,13 +28,11 @@
 
 namespace tlogsvr::db {
 
-namespace {
-
 // Identifier whitelist: SQL Server unquoted regular identifiers.
 // We reject anything else rather than trying to escape it; the
 // configured table name is operator-controlled, so a refusal here is
 // strictly better than guessing at quoting semantics that vary by DB.
-bool IsSafeIdentifier(const std::string& s)
+bool IsSafeAuditIdentifier(const std::string& s)
 {
     if (s.empty() || s.size() > 128) return false;
     const char first = s.front();
@@ -46,12 +44,10 @@ bool IsSafeIdentifier(const std::string& s)
     });
 }
 
-} // namespace
-
 void ValidateAuditSchema(fourstory::db::SessionPool& pool,
                          const std::string& target_table)
 {
-    if (!IsSafeIdentifier(target_table))
+    if (!IsSafeAuditIdentifier(target_table))
     {
         throw fourstory::db::SchemaError(
             "schema_validator (audit): target_table '" + target_table +
@@ -82,11 +78,20 @@ void ValidateAuditSchema(fourstory::db::SessionPool& pool,
         int hits = 0;
         try
         {
-            std::string q =
-                std::string("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS "
-                            "WHERE TABLE_NAME = '") + target_table +
-                "' AND COLUMN_NAME = '" + column + "'";
-            *lease << q, soci::into(hits);
+            if (pool.GetBackend() == fourstory::db::Backend::PostgreSQL) {
+                // Resolve exactly the relation INSERT will use, not a same-named
+                // table elsewhere in search_path. Unquoted LT_* fold to lower case.
+                const auto relation = "\"" + target_table + "\"";
+                const std::string name(column);
+                *lease << "SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid=pg_catalog.to_regclass(:t) "
+                          "AND attname=lower(:c) AND attnum>0 AND NOT attisdropped",
+                    soci::use(relation), soci::use(name), soci::into(hits);
+            } else {
+                const std::string q =
+                    std::string("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '") + target_table +
+                    "' AND COLUMN_NAME = '" + column + "'";
+                *lease << q, soci::into(hits);
+            }
         }
         catch (const std::exception& ex)
         {

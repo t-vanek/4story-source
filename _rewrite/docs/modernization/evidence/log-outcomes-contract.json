@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-09",
+  "base_commit": "5293a487d2db39c6f5cab05bc6f23e292a399736",
+  "scope": "Existing Log UDP ingest and single/bulk transaction outcomes; synthetic native PostgreSQL fixture, not complete production Log migration",
+  "protocol": {
+    "source": "Lib/Own/TProtocol/include/LogPacket.h",
+    "source_behavior": "CUdpSocket::ReadPacket requeues if disconnected; LogDBSave builds date-partitioned INSERT and writes 512 blob bytes.",
+    "wire_change": false,
+    "independent_fixture": "Explicit Win32 original header 36 bytes; LogData prefix 500 bytes, not imported from the modern encoder.",
+    "original_client_run": false
+  },
+  "modern_correction": {
+    "committed": "Only acknowledged COMMIT increments Inserts or DrainedAfterRetry.",
+    "retryable": "Pool acquisition timeout, failure before any INSERT during BEGIN, or acknowledged ROLLBACK after an INSERT failure.",
+    "unknown": "Any COMMIT exception or unconfirmed rollback closes the connection, increments UnknownOutcomes by record count, logs a fixed error and never requeues the affected record/batch. Even a negative COMMIT reply is conservatively unknown.",
+    "connection": "The shared pool has no automatic closed-session replacement; process/pool replacement remains necessary.",
+    "batch": "One parameterized INSERT and transaction; at most 72 rows (2016 parameters) per drain. A serialization mutex covers new writes and drained-batch restoration.",
+    "binary": "Nonempty native PostgreSQL payload is bound as hexadecimal bytea text, preserving all bytes including NUL. Empty remains NULL. Full DWORD/WORD values use widened bind storage.",
+    "worker": "Periodic drain uses configured worker pool and one scheduling guard. Graceful shutdown joins worker jobs without first dropping queued jobs."
+  },
+  "verification": {
+    "unit": "test_tlogsvr_audit_transaction: 20 assertions, including failures at begin/insert/rollback/commit/close for single and batch.",
+    "debug_ctest": {
+      "entries": 202,
+      "actual_passes": 187,
+      "internal_legacy_skips": 8,
+      "explicit_fixture_skips": 7,
+      "failures": 0,
+      "evidence": "log-outcomes-ctest.xml"
+    },
+    "sanitizer_ctest": {
+      "entries": 37,
+      "passes": 37,
+      "failures": 0,
+      "evidence": "log-outcomes-asan-ctest.xml"
+    },
+    "native_per_configuration": {
+      "cpp_checks": 29,
+      "runner_udp_checks": 10,
+      "fault": "Loopback PostgreSQL proxy drops CommandComplete COMMIT only after PostgreSQL executed it; both single and bulk remain persisted once after repeated drains. INSERT reply-loss separately exercises unconfirmed rollback.",
+      "concurrency": "Concurrent failed writes/drains preserve bounded queue; confirmed rollback retains a complete rejected batch; joining workers completes 32 accepted jobs.",
+      "daemon": "Original-layout UDP to actual native persisted fields, malformed datagram, binary/null payloads, confirmed rollback retry, health during pg_sleep in periodic drain and SIGTERM.",
+      "reports": [
+        "log-outcomes-debug.json",
+        "log-outcomes-asan.json",
+        "log-outcomes-release.json"
+      ],
+      "release_limit": "Installed Release UDP daemon; backend C++ executable remains the verified Debug build."
+    },
+    "builds": "log-outcomes-build-fingerprints.json",
+    "container_smoke": "log-outcomes-container-smoke.log",
+    "harness_correction": "Initial installed daemon test could not read its private configuration. Final runner maps the host owner to container UID/GID 10001 and retains private configuration permissions; repeated Release run passed."
+  },
+  "not_verified": [
+    "Production audit migration, runtime grants and historical audit imports",
+    "Native AuditQueryRepository read paths (still SQL Server oriented)",
+    "LP_CHAT and full legacy audit format behavior",
+    "Non-ASCII legacy encoding and timestamp fractions",
+    "Durable spool, retention, crash/restart recovery of RAM backlog and reconciliation of unknown events",
+    "Bounded Asio posted-arrival queue; only retry queue bounded here",
+    "ODBC/SQL Server live behavior in this increment (legacy fixture absent)",
+    "Original executable/client assets and captures",
+    "The previous 1861 native gameplay checks were not rerun by this independent Log increment"
+  ],
+  "preservation": {
+    "schema_change": false,
+    "backups_changed": false,
+    "migrations_001_028_changed": false,
+    "next_migration": "029",
+    "evidence": "preservation.json"
+  },
+  "source_sha256": {
+    "Lib/Own/TProtocol/include/LogPacket.h": "0cbbf40bf17adc81c51dbf25d769809b50e51f7c6f2bea56e4f603aa1ed2fdee",
+    "Server/TLogSvr/CUdpSocket.cpp": "6b4af075073e4fff281d05a69bae2a3967622443cfbdffb011d8873a7ab61285",
+    "Server/TLogSvr/StdAfx.h": "9afd27420c8c980cda422e1a3853bee1b73d4f6cd1d81a24003dfbde38f5b97e",
+    "Server/TLogSvrAsio/log_server.cpp": "6ae819fb42e58604529b4d1582d3b1f632eb7c9feaec0566a04359d389d64cdc",
+    "Server/TLogSvrAsio/services/audit_transaction.h": "610a6eca2a756b4d07c96916f4641b6cd47f1eb76d6b42f856a24722e848d102",
+    "Server/TLogSvrAsio/services/log_sink.cpp": "8ed05b92b64b28b44c18d0adb54f7cdc216d44f278e16e57e03fc0b01a905b18",
+    "Server/TLogSvrAsio/tests/test_audit_transaction.cpp": "d10ca08f06879b6dbb09256557d2e86185b96c667a8eecb072df657db13c1992",
+    "Server/TLogSvrAsio/tests/test_postgresql_sink.cpp": "4841f47fbff6b00258162ad9d6d526e33cf9fd84dd6b9d8cd6f9b4ed1d8d167d",
+    "tools/database/verify_log_outcomes.py": "103561f7cf1e560c6b2fa755933f660d0d019733854b879919c93e3c05ca9f6d"
+  },
+  "policy": "Local main commits and owned local test containers only; no push/publication/deployment."
+}

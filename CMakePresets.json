@@ -96,7 +96,12 @@
         "test_tmapsvr_asio_skill_cooldown",
         "test_tmapsvr_asio_skill_engine",
         "test_tmapsvr_asio_inventory",
-        "test_tworldsvr_asio_checkconnect_handlers"
+        "test_tworldsvr_asio_checkconnect_handlers",
+        "test_tlogsvr_audit_transaction",
+        "test_tlogsvr_postgresql_sink",
+        "test_tlogsvr_asio_log_decoder",
+        "test_tlogsvr_asio_retry_queue",
+        "tlogsvr_asio"
       ]
     }
   ],
@@ -121,7 +126,7 @@
       },
       "filter": {
         "include": {
-          "name": "^(tnetlib_crypto_kat|tnetlib_packet_codec|tnetlib_asio_echo|tloginsvr_asio_auth_flow|tloginsvr_asio_start_flow|tloginsvr_asio_session_terminator|tloginsvr_asio_shutdown_sweep|tmapsvr_asio_admission(_encrypted)?|tmapsvr_asio_world_enter|tmapsvr_asio_client_senders|tmapsvr_asio_world_enterchar|tmapsvr_asio_world_checkmain|tmapsvr_asio_world_routelist|tmapsvr_asio_loot_senders|tmapsvr_asio_main_transfer_codec|tworldsvr_asio_entersvr_fresh_login_handlers|tworldsvr_asio_route_completion_handlers|tworldsvr_asio_chardata_drift_handlers|tworldsvr_asio_closechar_handlers|tworldsvr_asio_service_plane_handlers|cluster_world_handshake|cluster_world_reconnect|tworldsvr_asio_session_writes|tworldsvr_asio_secondary_admission|tworldsvr_asio_main_handoff|tworldsvr_asio_checkmain_handlers|tworldsvr_asio_releasemain_handlers|tworldsvr_asio_entersvr_handoff_handlers|tworldsvr_asio_teleport_handlers|tmapsvr_asio_skill_cooldown|tmapsvr_asio_skill_engine|tmapsvr_asio_inventory|tworldsvr_asio_checkconnect_handlers)$"
+          "name": "^(tnetlib_crypto_kat|tnetlib_packet_codec|tnetlib_asio_echo|tloginsvr_asio_auth_flow|tloginsvr_asio_start_flow|tloginsvr_asio_session_terminator|tloginsvr_asio_shutdown_sweep|tmapsvr_asio_admission(_encrypted)?|tmapsvr_asio_world_enter|tmapsvr_asio_client_senders|tmapsvr_asio_world_enterchar|tmapsvr_asio_world_checkmain|tmapsvr_asio_world_routelist|tmapsvr_asio_loot_senders|tmapsvr_asio_main_transfer_codec|tworldsvr_asio_entersvr_fresh_login_handlers|tworldsvr_asio_route_completion_handlers|tworldsvr_asio_chardata_drift_handlers|tworldsvr_asio_closechar_handlers|tworldsvr_asio_service_plane_handlers|cluster_world_handshake|cluster_world_reconnect|tworldsvr_asio_session_writes|tworldsvr_asio_secondary_admission|tworldsvr_asio_main_handoff|tworldsvr_asio_checkmain_handlers|tworldsvr_asio_releasemain_handlers|tworldsvr_asio_entersvr_handoff_handlers|tworldsvr_asio_teleport_handlers|tmapsvr_asio_skill_cooldown|tmapsvr_asio_skill_engine|tmapsvr_asio_inventory|tworldsvr_asio_checkconnect_handlers|tlogsvr_audit_transaction|tlogsvr_asio_log_decoder|tlogsvr_asio_retry_queue)$"
         }
       },
       "output": {

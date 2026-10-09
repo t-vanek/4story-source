@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-09",
+  "base_commit": "5293a487d2db39c6f5cab05bc6f23e292a399736",
+  "release_image": {
+    "reference": "localhost/fourstory:postgresql-log-outcomes",
+    "id": "874e188cf4f118cf38d7c24478e251156d225610286551741615794b31d9a27b",
+    "user": "10001:10001"
+  },
+  "installed_sha256": {
+    "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+    "/opt/fourstory/bin/tlogsvr_asio": "186c5394092b1f90efbd9a764a81057821b76df3f9c6113215d83f7902eca247",
+    "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+    "/opt/fourstory/bin/tmapsvr_asio": "4691687ef1d648fc81bdec5a143c031ac617e73eedc5de42e5cc2f0282fb7063",
+    "/opt/fourstory/bin/tworldsvr_asio": "da5696c7efcb13cd2a6f91248224a288de036c058e9b7ab8e4b7b538fbc5a8ff"
+  },
+  "sha256": {
+    "Server/TLogSvrAsio/CMakeLists.txt": "29a4c68f32f32f5e3bc50fdebeadf9a4dbe04e24e0dcd6955db933518e536228",
+    "Server/TLogSvrAsio/main.cpp": "6735fb55fbd3e3de4178578a9f3696853c878fd4b1fa2b475eb45e80d4423d43",
+    "Server/TLogSvrAsio/log_server.cpp": "6ae819fb42e58604529b4d1582d3b1f632eb7c9feaec0566a04359d389d64cdc",
+    "Server/TLogSvrAsio/db/schema_validator.cpp": "822db3c1ada2013aae3cdc89a64a6c77c837e1599e05ce3de5c1cc49832e303e",
+    "Server/TLogSvrAsio/db/schema_validator.h": "dc369bd41b015dbd16569b41b193a66086fdf22cddf346eadd434d1c254615c1",
+    "Server/TLogSvrAsio/services/log_sink.cpp": "8ed05b92b64b28b44c18d0adb54f7cdc216d44f278e16e57e03fc0b01a905b18",
+    "Server/TLogSvrAsio/services/log_sink.h": "b1cd2779c86746ce8fb60339db0b1de09e7c31259c90ce21a606c1d8f4732523",
+    "Server/TLogSvrAsio/services/audit_transaction.h": "610a6eca2a756b4d07c96916f4641b6cd47f1eb76d6b42f856a24722e848d102",
+    "Server/TLogSvrAsio/services/retry_queue.cpp": "6ee95647f2a70b29ccdc612bfcd6cb1843182c466d875bc10aff3a901b8d7273",
+    "Server/TLogSvrAsio/tests/test_audit_transaction.cpp": "d10ca08f06879b6dbb09256557d2e86185b96c667a8eecb072df657db13c1992",
+    "Server/TLogSvrAsio/tests/test_postgresql_sink.cpp": "4841f47fbff6b00258162ad9d6d526e33cf9fd84dd6b9d8cd6f9b4ed1d8d167d",
+    "CMakePresets.json": "f4fb9ac55d8eb140fc63a26d8b8922405ddc7b25d6a14dd6bf75bb604bd24ed1",
+    "Dockerfile": "3417a1fb094a810d52fb56de53e3ea3cc8be5f8188363517598e3f9c0e662c5b",
+    "README.md": "cf38603b527dffd91ec271e88171279c955f11eb6417dc118504a50482be72b4",
+    "tools/database/verify_log_outcomes.py": "103561f7cf1e560c6b2fa755933f660d0d019733854b879919c93e3c05ca9f6d",
+    "deploy/README.md": "0d142a2dc2ba02ae500e61d1c7d3dce733e4804fde7daff22f7d0faeb25dd1c2",
+    "_rewrite/docs/modernization/README.md": "f95e8c59e2b0cec5b7d2cb9a51d6139b95286a98661c2ddb20ef7a8d26f05487",
+    "_rewrite/docs/modernization/next-steps.md": "ad2eb114a0a3d465919b968045b32d988a1cb01a2cbddd025dd9036513652cef",
+    "_rewrite/docs/modernization/capability-matrix.md": "b1580c7d9235e04f504971c946b6a54fbe3291dfefce8b07073c91e5700ca264",
+    "_rewrite/docs/modernization/protocol-compatibility.md": "98abcef7b633d92198d7289cd7eedbb14450afb30b5eab8a7f0f53f9e61916ab",
+    "build/linux-debug/bin/tlogsvr_asio": "c8a4659ebf71c5d59413b987063ba9ad0dc8b1ad12be745978f99f0c89879e3d",
+    "build/linux-debug/bin/test_tlogsvr_audit_transaction": "bdad30e8dff11e5e3119532a038ce379a9a45cfd6004839a40eb7fdca56f5354",
+    "build/linux-debug/bin/test_tlogsvr_postgresql_sink": "30937a5c1a7da6e6896660fb0c2a62b1b687ffb203be6be1c3015d297a6a8356",
+    "build/linux-asan/bin/tlogsvr_asio": "ef3912732611518eb74370f5468c15bcb2af1759e41f6ef157a6a3a04b8d8f20",
+    "build/linux-asan/bin/test_tlogsvr_audit_transaction": "99ff36dea80a84679bcf8928911b949661b7fee7714d8108e0b5906e3ae3d66d",
+    "build/linux-asan/bin/test_tlogsvr_postgresql_sink": "01bb1d98ba47fb841e57d31d6ad2b03ae0f748c6202464f1d54f74473912c3e6"
+  },
+  "native_reports": [
+    "log-outcomes-debug.json",
+    "log-outcomes-asan.json",
+    "log-outcomes-release.json"
+  ],
+  "container_smoke": "log-outcomes-container-smoke.log",
+  "release_backend_test": "Debug executable; actual UDP service is installed Release",
+  "published": false
+}

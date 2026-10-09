@@ -16,6 +16,8 @@ namespace fourstory::db { class SessionPool; }
 
 namespace tlogsvr::db {
 
+bool IsSafeAuditIdentifier(const std::string& value);
+
 // Verify the configured audit table (default `TLOG_AUDIT`) carries
 // every LT_* column the SociLogSink INSERT binds. Column list is
 // pinned to schema/tlog-audit.sql.

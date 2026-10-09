@@ -428,3 +428,36 @@ Use separate owned labs for parallel runs. The tested original routing catalog
 separates channels; two-Map boundary tests explicitly override and restore a
 compatibility view in a disposable database. They do not change historical rows
 or establish real-client/gameplay compatibility.
+
+## Log transaction fault verification
+
+The Log transaction correction needs no migration. Its native acceptance runner
+creates and removes its own **synthetic** PostgreSQL audit table/database; it is
+not a production Log installation script. The production audit migration/grants,
+read-side queries, retention and code-page contracts remain unfinished.
+
+After building `linux-debug` (or `linux-asan`) with the documented build-deps image
+and activating the Python environment containing psycopg:
+
+```bash
+python3 tools/database/disposable_environment.py start \
+  --work /tmp/fourstory-log-check --postgresql-only
+python3 tools/database/verify_log_outcomes.py \
+  --work /tmp/fourstory-log-check --build-dir build/linux-debug \
+  --report /tmp/fourstory-log-check-result.json
+python3 tools/database/disposable_environment.py stop \
+  --work /tmp/fourstory-log-check
+```
+
+The runner verifies the C++ sink and actual UDP daemon, injects lost single/bulk
+COMMIT replies, checks rollback/concurrency and probes health during a blocked
+periodic retry. It keeps secrets in private files and removes its temporary DSNs
+and database. The lab's PostgreSQL environment file remains private until cleanup.
+The loopback fault proxy deliberately disables TLS; separate pool tests cover TLS.
+
+For installed Release, add `--image localhost/fourstory:postgresql-log-outcomes
+--runtime-bin-dir /opt/fourstory/bin`. The backend test executable still comes from
+`--build-dir`; the UDP test then runs the installed Release daemon. The image is
+local only. Unknown outcomes emit `outcome_unknown` counters and are never queued
+for replay. This is not a persistent audit spool: investigate unknowns explicitly,
+and replace a discarded pool/process before relying on further audit writes.

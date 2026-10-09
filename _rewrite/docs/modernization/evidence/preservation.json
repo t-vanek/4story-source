@@ -31,7 +31,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "TGLOBAL_RAGEZONE.bak",
@@ -64,7 +65,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/001-import-control.sql",
@@ -97,7 +99,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/002-legacy-snapshots.sql",
@@ -130,7 +133,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/003-canonical-content.sql",
@@ -163,7 +167,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/004-source-text-bytes.sql",
@@ -196,7 +201,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/005-runtime-catalog-control.sql",
@@ -230,7 +236,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/006-current-chart-contracts.sql",
@@ -264,7 +271,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/007-catalog-runtime-metadata.sql",
@@ -298,7 +306,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/008-native-login.sql",
@@ -330,7 +339,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/009-login-runtime-owner.sql",
@@ -361,7 +371,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/010-login-security-challenges.sql",
@@ -391,7 +402,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/011-character-reference-catalog.sql",
@@ -420,7 +432,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/012-native-characters.sql",
@@ -449,7 +462,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/013-character-item-allocation-floor.sql",
@@ -478,7 +492,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/014-routing-reference-catalog.sql",
@@ -505,7 +520,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/015-native-map-handoff.sql",
@@ -532,7 +548,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/016-native-map-ownership.sql",
@@ -558,7 +575,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/017-map-actor-reference-catalog.sql",
@@ -584,7 +602,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/018-native-map-checkpoints.sql",
@@ -610,7 +629,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/019-native-map-replicas.sql",
@@ -632,7 +652,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/020-native-main-transfer.sql",
@@ -651,7 +672,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/021-native-skill-checkpoints.sql",
@@ -669,7 +691,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/022-native-skill-consumption.sql",
@@ -681,7 +704,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/023-graph-skill-consumption.sql",
@@ -692,7 +716,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/024-native-skill-ammunition.sql",
@@ -701,7 +726,8 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/025-native-ammunition-batches.sql",
@@ -709,25 +735,29 @@
       "ammunition_batch_increment_matches": true,
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/026-native-multi-attack.sql",
       "sha256": "1b05100142e0400f3d1a04c76426a4834d3786a1dab9c515f80b1ec27b35c41a",
       "multi_attack_increment_matches": true,
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/027-native-inventory-moves.sql",
       "sha256": "46a1edb1c57e39c4a59a030e4cc0b9a312071655d4eed9df4e29c29e1896a596",
       "inventory_move_increment_matches": true,
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     },
     {
       "path": "database/postgresql/028-native-inventory-stacks.sql",
       "sha256": "36567359900ab451167486d20f73b46a5b466605924e62b92b65213caaa3447e",
-      "inventory_stack_increment_matches": true
+      "inventory_stack_increment_matches": true,
+      "log_outcomes_increment_matches": true
     }
   ]
 }

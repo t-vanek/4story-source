@@ -32,6 +32,16 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Inventory | Native whole-stack moves, raw-attribute swaps, splitting and capacity-clamped merging; atomic IDs/receipts, two-Map round trips and recovery | Equipment, drops, timed bags, secured state and full economy |
 | World, Control, Patch and Log | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
+The latest reliability increment prevents **Log audit duplication after an unknown
+COMMIT result**, preserves binary payload bytes in native PostgreSQL writes and
+keeps periodic retries off the network thread. Debug has **187 actual passes and
+15 fixture skips across 202 entries**; all **37 sanitizer suites** pass. Real
+PostgreSQL fault tests and actual UDP daemon checks pass in Debug, sanitizer and
+installed Release configurations. These use a synthetic audit table; complete
+production Log persistence remains unfinished. See the
+[transaction contract](_rewrite/docs/modernization/evidence/log-outcomes-contract.json)
+and [current status](_rewrite/docs/modernization/README.md).
+
 Migration **020** adds the primary transfer journal, authority epochs and complete
 transfer-state checkpoints. A stale source cannot overwrite its successor's state.
 Original CONNECT/CONREADY packets switch the primary connection without duplicate

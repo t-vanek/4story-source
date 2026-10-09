@@ -90,3 +90,14 @@ target_link_libraries(test_tlogsvr_asio_soci_log_sink PRIVATE
     tlogsvr_asio_core)
 add_test(NAME tlogsvr_asio_soci_log_sink
     COMMAND test_tlogsvr_asio_soci_log_sink)
+
+add_executable(test_tlogsvr_audit_transaction ${TLOGSVR_ASIO_SRC}/tests/test_audit_transaction.cpp)
+target_link_libraries(test_tlogsvr_audit_transaction PRIVATE tlogsvr_asio_core)
+add_test(NAME tlogsvr_audit_transaction COMMAND test_tlogsvr_audit_transaction)
+
+if(FOURSTORY_ENABLE_POSTGRESQL)
+    add_executable(test_tlogsvr_postgresql_sink ${TLOGSVR_ASIO_SRC}/tests/test_postgresql_sink.cpp)
+    target_link_libraries(test_tlogsvr_postgresql_sink PRIVATE tlogsvr_asio_core)
+    add_test(NAME tlogsvr_postgresql_sink COMMAND test_tlogsvr_postgresql_sink)
+    set_tests_properties(tlogsvr_postgresql_sink PROPERTIES SKIP_RETURN_CODE 77)
+endif()

@@ -18,7 +18,41 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: native stack split/merge and two-Map inventory
+## Current verified increment: Log transaction outcomes
+
+The existing Log sink now puts both individual and batched inserts inside explicit
+transactions. Pool/begin failures and acknowledged rollbacks may enter the bounded
+retry queue. A failed COMMIT or unconfirmed rollback is counted as an unknown
+outcome, closes that connection and is never replayed automatically. Unknowns are
+reported separately from confirmed inserts. This deliberately improves on the
+legacy connectivity-based retry decision; it does not promise lossless UDP audit.
+
+Single and batch writes share parameter binding, including PostgreSQL bytea hex
+input that retains embedded NUL and all byte values. Full DWORD/WORD values reach
+the test schema without signed narrowing. Writes and drains are serialized; the
+periodic drain uses the configured worker, and shutdown joins accepted worker jobs.
+The actual daemon stays responsive to health requests while its retry INSERT is
+blocked in PostgreSQL.
+
+Verification: **202 Debug CTest entries: 187 actual passes, eight internal legacy
+skips and seven explicit fixture skips; 37 ASan/UBSan entries all pass.** The native
+fault runner passes **29 C++ checks plus 10 runner/UDP checks per configuration**
+(Debug, ASan/UBSan and installed Release). Its loopback proxy discards PostgreSQL's
+COMMIT response only after the server confirms execution; single/bulk durable row
+counts remain unchanged across subsequent drains. See the
+[contract](evidence/log-outcomes-contract.json) and
+[Debug](evidence/log-outcomes-debug.json), [sanitizer](evidence/log-outcomes-asan.json)
+and [Release](evidence/log-outcomes-release.json) results.
+
+The PostgreSQL audit table is an explicitly synthetic test fixture. Production
+Log migration/grants, native read-side queries, non-ASCII code-page compatibility,
+LP_CHAT, retention and durable reconciliation remain incomplete. The retry buffer
+is in memory; unknown records have counters/diagnostics, not a persistent recovery
+spool. Discarded pool connections currently require pool/process replacement.
+No existing migration or backup changes; migration 029 remains available. Original
+client acceptance remains blocked by the missing executable and data.
+
+## Earlier verified increment: native stack split/merge and two-Map inventory
 
 The existing native inventory handler now implements the source partial-copy and
 merge branches, plus same-template unequal swaps. Raw magic and all six DWORD

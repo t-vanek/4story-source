@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-c++"
+	tests="3"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="947f4fe80c5c"
+	time="0"
+	timestamp="2026-10-09T05:43:27"
+	>
+	<testcase name="tcontrolsvr_asio_scm_status_reconcile" classname="tcontrolsvr_asio_scm_status_reconcile" time="0.0370332" status="run">
+		<properties/>
+		<system-out>=== tcontrolsvr_asio scm-status reconcile test ===
+[reconcile — cache update + ScmStatusChanged publish]
+[2026-10-09 05:43:27.806] [info] scm.reconcile: svc_id=0x1 'map-1' unknown → running
+  PASS  one transition observed (Unknown → Running)
+  PASS  controller.QueryStatus called once
+  PASS  cached RuntimeStatus.status updated to Running
+  PASS  exactly one event published
+  PASS  event kind = ScmStatusChanged
+  PASS  event.service_id
+  PASS  event.reported_name
+  PASS  event.prev = Unknown (initial cache)
+  PASS  event.status = Running (live read)
+[reconcile — no transition → no event]
+  PASS  no transitions
+  PASS  no ScmStatusChanged events published when state matches
+[reconcile — multi-service tick visits everything]
+[2026-10-09 05:43:27.806] [info] scm.reconcile: svc_id=0x1 'map-1' unknown → stopped
+[2026-10-09 05:43:27.806] [info] scm.reconcile: svc_id=0x2 'map-2' unknown → running
+  PASS  all three services queried
+  PASS  exactly two transitions (svc 1 + svc 2)
+  PASS  two events publ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tcontrolsvr_asio_registry_persistence" classname="tcontrolsvr_asio_registry_persistence" time="0.0136174" status="run">
+		<properties/>
+		<system-out>=== tcontrolsvr_asio registry-persistence test ===
+[persistence — Register propagates to Upsert]
+  PASS  exactly one Upsert call
+  PASS  Upsert.entry.service_id
+  PASS  Upsert.entry.reported_name
+  PASS  Upsert.entry.reported_addr
+  PASS  Upsert.entry.reported_port
+  PASS  Upsert.entry.version
+  PASS  Upsert.entry.pid
+  PASS  Upsert.entry.lease_epoch matches returned value
+[persistence — Heartbeat propagates to Touch]
+  PASS  exactly one Touch call
+  PASS  Touch.sid
+  PASS  Touch.lease echoed
+  PASS  Touch.cur_users
+  PASS  Touch.max_users
+  PASS  Touch.heartbeat_unix populated
+[persistence — stale-lease heartbeat skips Touch]
+  PASS  no Touch call when epoch mismatches
+[persistence — Deregister propagates to Remove]
+  PASS  Deregister returns true
+  PASS  one Remove call
+  PASS  Remove.sid matches
+[persistence — ExpireStale propagates to Remove]
+  PASS  ExpireStale reaped one entry
+  PASS  one Remove call from sweep
+  PASS  Remove.sid is the reaped entry
+[persistence — Hydrate replays entries, ad...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="tcontrolsvr_asio_service_controller" classname="tcontrolsvr_asio_service_controller" time="0.0177759" status="run">
+		<properties/>
+		<system-out>=== tcontrolsvr_asio service-controller test ===
+[resolver — every placeholder substitutes]
+  PASS  default template
+  PASS  all five tokens replaced
+  PASS  template without placeholders is verbatim
+  PASS  unknown placeholder is silently dropped
+  PASS  surrounding literals preserved
+[resolver — override beats template]
+  PASS  override applied for matching sid
+  PASS  non-matching sid falls back to template
+  PASS  empty override is treated as no override
+[factory — backend='disabled' returns disabled controller]
+[2026-10-09 05:43:27.844] [info] scm: backend=disabled (cluster start/stop are no-ops)
+  PASS  factory returns a controller
+  PASS  disabled.QueryStatus → Unknown
+  PASS  disabled.Start → NotSupported
+  PASS  disabled.Stop → NotSupported
+[factory — backend='auto' returns a non-null controller]
+[2026-10-09 05:43:27.844] [info] scm: backend=systemd (template='{type_name}-{group}-{server}', overrides=0, user_scope=false, systemctl='systemctl')
+  PASS  auto returns *something* on every p...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

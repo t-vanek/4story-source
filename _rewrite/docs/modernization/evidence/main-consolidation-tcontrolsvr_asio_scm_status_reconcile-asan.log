@@ -1,0 +1,43 @@
+=== tcontrolsvr_asio scm-status reconcile test ===
+[reconcile — cache update + ScmStatusChanged publish]
+[2026-10-09 05:43:27.806] [info] scm.reconcile: svc_id=0x1 'map-1' unknown → running
+  PASS  one transition observed (Unknown → Running)
+  PASS  controller.QueryStatus called once
+  PASS  cached RuntimeStatus.status updated to Running
+  PASS  exactly one event published
+  PASS  event kind = ScmStatusChanged
+  PASS  event.service_id
+  PASS  event.reported_name
+  PASS  event.prev = Unknown (initial cache)
+  PASS  event.status = Running (live read)
+[reconcile — no transition → no event]
+  PASS  no transitions
+  PASS  no ScmStatusChanged events published when state matches
+[reconcile — multi-service tick visits everything]
+[2026-10-09 05:43:27.806] [info] scm.reconcile: svc_id=0x1 'map-1' unknown → stopped
+[2026-10-09 05:43:27.806] [info] scm.reconcile: svc_id=0x2 'map-2' unknown → running
+  PASS  all three services queried
+  PASS  exactly two transitions (svc 1 + svc 2)
+  PASS  two events published
+  PASS  event for svc-1 (→ Stopped)
+  PASS  event for svc-2 (→ Running)
+[reconcile — prev/new pair captured on flip]
+[2026-10-09 05:43:27.807] [info] scm.reconcile: svc_id=0x1 'map-1' running → stopped
+  PASS  one event
+  PASS  prev = Running
+  PASS  new = Stopped
+[reconcile — empty inventory returns 0 with no events]
+  PASS  no services → 0 transitions
+  PASS  controller not consulted
+  PASS  no events
+[reconcile — second tick is idempotent when stable]
+[2026-10-09 05:43:27.807] [info] scm.reconcile: svc_id=0x1 'map-1' unknown → running
+  PASS  first tick: Unknown → Running
+  PASS  second tick: no transition
+  PASS  exactly one event across both ticks
+[2026-10-09 05:43:27.808] [info] scm.reconcile: svc_id=0x2 'retained-map' unknown → running
+  PASS  pending queries retain their original service values across inventory replacement
+  PASS  removed service is ignored and retained service is reconciled
+  PASS  new services wait for the next reconciliation tick
+
+Results: 28 passed, 0 failed

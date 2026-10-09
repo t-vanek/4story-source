@@ -47,6 +47,13 @@ and [installed image evidence](_rewrite/docs/modernization/evidence/native-prima
 The tested local image is `localhost/fourstory:postgresql-native-primary`; it is
 not a published registry image. The original client executable has not been run.
 
+The subsequent branch consolidation also passes **200 Debug CTest entries**
+(186 passes, eight internal skips and six explicit skips), plus **87 Control
+checks across three ASan/UBSan suites**. Its six-daemon image is
+`localhost/fourstory:main`. See the [merge verification report](_rewrite/docs/modernization/evidence/main-consolidation.json)
+for the integrated branch tips, container smoke results and remaining Control
+persistence limits.
+
 ## Database authority
 
 `TGAME_RAGEZONE.bak` and `TGLOBAL_RAGEZONE.bak` are the immutable historical source

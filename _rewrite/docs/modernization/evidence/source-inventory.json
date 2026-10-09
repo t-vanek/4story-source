@@ -3,7 +3,7 @@
   "client_build": "UNKNOWN; source TVERSION=0x2918 is not a binary client version",
   "summary": {
     "legacy_translation_units": 206,
-    "modern_translation_units": 234,
+    "modern_translation_units": 239,
     "legacy_packet_definitions": 1542,
     "modern_enum_entries": 1542,
     "opcode_mismatches": [],
@@ -5052,15 +5052,20 @@
     "Server/TControlSvrAsio/services/operator_registry.cpp",
     "Server/TControlSvrAsio/services/peer_registry.cpp",
     "Server/TControlSvrAsio/services/registry_event_bus.cpp",
+    "Server/TControlSvrAsio/services/scm_name_resolver.cpp",
+    "Server/TControlSvrAsio/services/service_controller.cpp",
+    "Server/TControlSvrAsio/services/service_controller_factory.cpp",
     "Server/TControlSvrAsio/services/soci_admin_audit_logger.cpp",
     "Server/TControlSvrAsio/services/soci_alerter.cpp",
     "Server/TControlSvrAsio/services/soci_event_repository.cpp",
     "Server/TControlSvrAsio/services/soci_operator_auth_service.cpp",
     "Server/TControlSvrAsio/services/soci_patch_metadata_service.cpp",
     "Server/TControlSvrAsio/services/soci_peer_repository.cpp",
+    "Server/TControlSvrAsio/services/soci_registry_persistence.cpp",
     "Server/TControlSvrAsio/services/soci_service_inventory.cpp",
     "Server/TControlSvrAsio/services/soci_user_protected_service.cpp",
     "Server/TControlSvrAsio/services/spdlog_admin_audit_logger.cpp",
+    "Server/TControlSvrAsio/services/systemd_service_controller.cpp",
     "Server/TControlSvrAsio/services/windows_scm_service_controller.cpp",
     "Server/TLogSvrAsio/config.cpp",
     "Server/TLogSvrAsio/db/schema_validator.cpp",
@@ -21000,7 +21005,7 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TControlSvrAsio/admin_shell.h:18",
-        "Server/TControlSvrAsio/config.h:80",
+        "Server/TControlSvrAsio/config.h:81",
         "Server/TControlSvrAsio/control_server.cpp:81",
         "Server/TControlSvrAsio/handlers/handlers.h:6",
         "Server/TControlSvrAsio/handlers/handlers_auth.cpp:39",
@@ -21162,10 +21167,10 @@
         "Server/TControlSvrAsio/handlers/handlers_auth.cpp:224",
         "Server/TControlSvrAsio/handlers/handlers_registry.cpp:4",
         "Server/TControlSvrAsio/handlers/handlers_service.cpp:53",
-        "Server/TControlSvrAsio/main.cpp:340",
+        "Server/TControlSvrAsio/main.cpp:384",
         "Server/TControlSvrAsio/peer_dialer.h:11",
         "Server/TControlSvrAsio/peer_session.h:12",
-        "Server/TControlSvrAsio/services/peer_registry.h:83",
+        "Server/TControlSvrAsio/services/peer_registry.h:89",
         "Server/TControlSvrAsio/services/soci_service_inventory.cpp:15"
       ],
       "test_references": [
@@ -21822,7 +21827,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TControlSvrAsio/config.h:70",
+        "Server/TControlSvrAsio/config.h:71",
         "Server/TControlSvrAsio/handlers/handlers.h:12",
         "Server/TControlSvrAsio/handlers/handlers_auth.cpp:176"
       ]
@@ -23953,6 +23958,22 @@
       "classification": "UNREVIEWED_TEXT_MARKER_NOT_A_CONFIRMED_GAP"
     },
     {
+      "path": "Server/TControlSvrAsio/services/systemd_service_controller.cpp",
+      "lines": [
+        105,
+        110
+      ],
+      "classification": "UNREVIEWED_TEXT_MARKER_NOT_A_CONFIRMED_GAP"
+    },
+    {
+      "path": "Server/TControlSvrAsio/services/systemd_service_controller.h",
+      "lines": [
+        38,
+        47
+      ],
+      "classification": "UNREVIEWED_TEXT_MARKER_NOT_A_CONFIRMED_GAP"
+    },
+    {
       "path": "Server/TControlSvrAsio/services/windows_scm_service_controller.h",
       "lines": [
         15
@@ -23986,6 +24007,15 @@
         322,
         370,
         382
+      ],
+      "classification": "UNREVIEWED_TEXT_MARKER_NOT_A_CONFIRMED_GAP"
+    },
+    {
+      "path": "Server/TControlSvrAsio/tests/test_service_controller.cpp",
+      "lines": [
+        7,
+        82,
+        92
       ],
       "classification": "UNREVIEWED_TEXT_MARKER_NOT_A_CONFIRMED_GAP"
     },

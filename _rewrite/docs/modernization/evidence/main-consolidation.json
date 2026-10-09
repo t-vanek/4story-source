@@ -1,0 +1,710 @@
+{
+  "date": "2026-10-09",
+  "scope": "Consolidate all existing branch histories into main without dropping commits. Integrate previously unmerged Control service management code and current community documentation; preserve the native PostgreSQL/Map implementation.",
+  "base_commit": "47762c5bb462842e4df94a66e3667caafe144b7a",
+  "modernization_commit": "61bfece",
+  "integration_head": "52bbf15afddc81901530c7aa3f7f5658e97d97ff",
+  "branch_tips": [
+    {
+      "branch": "archive/phase-a-complete",
+      "commit": "bc7bfe0a2b26cf9584d02cb3cbdcca7f1eae39f4",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/add-login-server-comments-0DwJf",
+      "commit": "8f92002a26ad24bd024bbff9839921fc64d5689b",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/admin-centralize",
+      "commit": "b43a049869640a0a8b992a6ee4c698b463edf8be",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/adoring-beaver-0d0e09",
+      "commit": "5683cebaff94cdfe10e57b9b878abecf5c8cbc90",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/analyze-legacy-changelog-fmm2D",
+      "commit": "e8fc291755dc3f4f7c81d102d05af094774b5b89",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/analyze-login-server-migration-olS2l",
+      "commit": "8480b64b9ed43f74bf26bd1c1a5b37890a15e809",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/analyze-login-server-vVcv5",
+      "commit": "650f0b65d8605413ea600534e4b44bb940a7e6e4",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/asio-servers-finish",
+      "commit": "12a4f0fd5d91d27a579df0d09eeae3295263a6e7",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/beautiful-galileo-Pg8Rk",
+      "commit": "18f7f2a3531660a1fc7ae9506f16430792f794f2",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/charming-gould-c99fcd",
+      "commit": "ed0ca8bb0f07b2873b008c6ff3185feaea42b2fa",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/compare-login-servers-ADUJi",
+      "commit": "f69778a9d6d9f3fd1bb4cd670c4b05c66c554795",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/compare-login-servers-aDhh0",
+      "commit": "b824ba14d3ba6f2d3f0757a0096f37614275c27f",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/compare-login-servers-zeUDp",
+      "commit": "06350c47c8bf37eae1a04f46463140c385803caa",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-Y810Y",
+      "commit": "9a6296818e989b582ec1d5bc1fd80938e6dfa901",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phase3-Y810Y",
+      "commit": "bb1a72809d3af6fd90e9f2185127c5ba0a2d8a21",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-cn-validation-Y810Y",
+      "commit": "550a3fd8178173fb6e02cf0e097f0ea1d3dbdaa3",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-completion-Y810Y",
+      "commit": "1dc9281d7666bf1201720a878bc9272c48629615",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-controlsvr-tls-Y810Y",
+      "commit": "d7e80a5fb45bf1deee386d9c689c6258c082b882",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-dialer-cn-enforce-Y810Y",
+      "commit": "e90c6f845b54990da0ec1f10b6d18a7ad8efd253",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-followup-Y810Y",
+      "commit": "1d5eb171deb8921fadec4c18bcda141573248602",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-hybrid-peek-fix-Y810Y",
+      "commit": "e82336c79c18ec64af0ca3c216fc9f946473c2b3",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-peerclient-tls-Y810Y",
+      "commit": "56b4a6b55f473330447f188392f9037efffc9221",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-san-Y810Y",
+      "commit": "df36638d3066829b29ae7230d63354940f866ff4",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-tlogsvr-tls-Y810Y",
+      "commit": "50152bf0c937e2bc913b644fc9b9fb13234e3632",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-tls-Y810Y",
+      "commit": "0ea079cacc24acb678e35b5b57f4b3126f2ef625",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA-wildcard-san-Y810Y",
+      "commit": "0b6fda6aeed1a6c7d3c90b21b4548889a087c635",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-phaseA2-hybrid-Y810Y",
+      "commit": "fa0b71c5be04c57d56442fdb6659fc531c2f9105",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/design-improvements-protocol-plan-Y810Y",
+      "commit": "a5116bc48b3393d874f1f4bc68ce0b189ebd6142",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/funny-mendel-203823",
+      "commit": "0230d00899d02b4f2b1160af2fafab50f415e93d",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/gracious-planck-uXa69",
+      "commit": "c5eeb2c557716f22d51bb3c05a1573425655d0da",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/keen-lamport-9vMMi",
+      "commit": "f8ab38617555c12d5b3fd7d4d87451a5e8aa1f79",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/migrate-tcontrolsvr-keEAs",
+      "commit": "5416db45f279d60b916db9f8fb36d4834bf4065d",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/migrate-tlogsvr-biRtb",
+      "commit": "35e6a4067b98570fc249ce51076868733f16ab3b",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/migrate-tpatchsrv-database-QkhoH",
+      "commit": "57f05f8b5c2d9d316921dd6710027cffa5801287",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/orm-mapper-security",
+      "commit": "9a3e37f9689ae04c901b8950eaa724dd3b381535",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/readme-progress-w6-35",
+      "commit": "51b87ae06012bb965a5cb3c9514dbee9c2e09977",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/redesign-control-server-kKk0k",
+      "commit": "a610620b12dc4800e039dae623646bc25c725535",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/refactor-tmapsrv-asio-zaF4b",
+      "commit": "8ebf0f57f1c55dc4cbd35575fe9bf7e36fdc21f6",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/rewrite-readme-4story-uJhCQ",
+      "commit": "8dd0cc8c69efe2211fa4682cc1a95233c97e5d2f",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/session-permissions-cache",
+      "commit": "28e5d0336b6a9b3d18fdb366815c410db8442e51",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tmap-savechar",
+      "commit": "eb1b7cb1d6b33f9e9d80f55f0110b95d056ff6b8",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tmapsvr-asio-t-consolidation",
+      "commit": "801f7321adc0c4f87f8d046a7a1441c6d8aae721",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tmapsvr-tcontrol-db",
+      "commit": "6b80eccd1cd419c6b117f4b1cd6e89a0e5b1dd6d",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tpatchsvr-tests-and-dialect-branch",
+      "commit": "57f05f8b5c2d9d316921dd6710027cffa5801287",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-migration-review-k4oe0",
+      "commit": "224dd8005cdbf88ada7bff4c1f7dec9c103ccb74",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w2-char-persistence",
+      "commit": "bcce764508c34f70f18d6ac7026287e42f71475f",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-10-money-extinction",
+      "commit": "6353207842c2ee976f4169ea5fcd5935c0cc90cf",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-11-wanted-board",
+      "commit": "491902474c1028d758a11fff59f31a450b8abaaa",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-12-volunteer-flow",
+      "commit": "588784706c4cc0b31c6889740e33d97956acdadb",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-13-refactor-pvp",
+      "commit": "0278148cd8b465d6443f70f8c17beff805f0fc80",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-14-dm-fanin",
+      "commit": "919eea6e8b60d91f733ef0552d7c53a183a372bd",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-15-fame-articles-fanin",
+      "commit": "64ed3e55cd10c88fa6833ecfc4838ea7bd955cf6",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-16-wanted-volunteer-fanin",
+      "commit": "9afca75f89dd09eed5c904e6dc4a5151d6402e48",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-17-leave-kickout-fanin",
+      "commit": "8c134ad6b34d3ff3a8d4c295097df3db5e52b85d",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-18-guild-establish",
+      "commit": "05ee6b42521d26919fac948d3bd88f7be059c4eb",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-19-wanted-expiry-sweep",
+      "commit": "09f74e247d2b5fb1fce41c13dcc75f871bd82658",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-2-peer-session",
+      "commit": "aad628252dbc8f4d18b98bb229312cc153a73e10",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-20-vestigial-db-acks",
+      "commit": "84c816087a4aba57c11588ef13f57ad6081ecd93",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-21-pvp-record-log",
+      "commit": "2713ae53d129d033f6d2db93953f94580557f56f",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-22-guild-update-fanin",
+      "commit": "04e3c302b91d18daeaa00d862625cf0ffc0adc5d",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-23-pvp-record-read",
+      "commit": "0281527d1a302c1cd4510e4bd19386188eb11882",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-24-localrecord-fanin",
+      "commit": "93aef4bd34fe7ac2ea237032259152f1ae1d0bbd",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-25-alliance-enemy",
+      "commit": "8d379ab050bd2fd919144419c4d580ea70d37554",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-26-cabinet-list-stub",
+      "commit": "93de197e44e0363b85dc21d66bee0ee31974d9ff",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-27-point-reward-log",
+      "commit": "025cba6be3b0d4bcd5f3e956bd0fb0b6da94ecea",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-28-per-day-vrecord",
+      "commit": "bb176b4fbc2cacb5770f6416ab6cbec779c46af0",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-29-pvpoint-gain",
+      "commit": "ae1cb81ccc8e47f081aa5204adaded9022b175ad",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-3-rw-handlers",
+      "commit": "bb4e442a6e47ec4cd4c47db0110e319023e6f0a5",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-30-pointlog-boot-load",
+      "commit": "da07e96840b3758fbc5049c353f9edf0aaf80d3e",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-31-tactics-wanted",
+      "commit": "b4c3d45a7722912f5510316c5865e590ba8cbe0b",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-32-tactics-volunteer",
+      "commit": "c8947797b38b1affec246c419ab28662e07625ea",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-33-tactics-reply",
+      "commit": "9eb642f154b856485327ca46dc7230fb0c1e3ccc",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-34-tactics-kickout-list",
+      "commit": "687f23b21cc995c77ee31e0208fa158a34a07a92",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-35-tactics-invite",
+      "commit": "dec10ae0e0b5c39d25b365740b332a79e19ab5e4",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-36-tactics-expiry-sweep",
+      "commit": "692720963ad2ce877fa029c7bc817d1512ceba98",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-37-cabinet-items",
+      "commit": "284e120b75e9f8dc8bae75b363abf98038d3c1bc",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-38-disorg-pointreward-mw",
+      "commit": "80cc183f7c84586da3713f95c8d0c6a745307b69",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-4-mutating-guild",
+      "commit": "a9e5d7388d6245dfcc33e1de63641d3f5c816afb",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-4b-guild-mut-batch",
+      "commit": "3c7b5d937ceaa3122b3ddcdc0f603370f2ce3d29",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-4c-guild-mut-batch2",
+      "commit": "3e8595901f6db832e3742366aad9612823b79d11",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-4d-cooffload-glcache",
+      "commit": "7484b538c20d7dd9f8901f71b103110506867259",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-5-peer-invite-cabinet",
+      "commit": "9f93536f4e0f71bba12662e0833de43cbc81c352",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-6-guild-invite",
+      "commit": "9fbc655863abfaa132783fc3f90893319f5f2d37",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-7-memberlist-broadcast",
+      "commit": "bec77347d5818a9b6220246a94be61ccd85c19ca",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-8-articles",
+      "commit": "d25180c3dfb5bb3ab32d37471fb0ca3b16628f66",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-9-info-broadcast",
+      "commit": "e6e8123270bc89852e6c44f449aa359fd63fdcea",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/tworld-w3a-guild-infra",
+      "commit": "fa0c433f355a24526de2a119c743668c687717ab",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-30-event-msg",
+      "commit": "675b04fa2f24e962142a7ffcce24b8885074140a",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-31-event-update",
+      "commit": "b60737a35b52a399131d528084daabf439c73cb7",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-32-event-replay",
+      "commit": "276ba485dddef64cb463c79df3c7d381c11027c2",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-33-cashshop-sale",
+      "commit": "eb25180e3021089ef91c926d61a6b0b427d59097",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-34-cmgift-result",
+      "commit": "9551c58643f310b96b6385b460fa4105a8ba7766",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-35-ctrlsvr-identification",
+      "commit": "de380d34228dd56d81c3db7e45cb78d33cf5a0e5",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-50-tournament-core",
+      "commit": "93648ea41c5fd223d320744f0db695403fcc9765",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-51-tournament-tick",
+      "commit": "7c125b636ff8d723f87c0c6545cd5e8688740a87",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-52-tournament-players",
+      "commit": "a23a485b07c52f674d0d88f9fe68181e44e62edb",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-53-tournament-match",
+      "commit": "291b8717fa7ba2147363d998c9f0019f94548d66",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/w6-54-bow-scheduler",
+      "commit": "7aff9e1bd5f11f88ee2278a75c4fb3f628ca14af",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "claude/wonderful-moore-b8dd92",
+      "commit": "887c0a69c562e6fee015bc6881e978fda7acba39",
+      "ancestor_of_main": true
+    },
+    {
+      "branch": "master",
+      "commit": "018c54aaf508801c30f0f52c7c6140bc5e942de3",
+      "ancestor_of_main": true
+    }
+  ],
+  "branch_tip_count": 100,
+  "already_merged_tips": 86,
+  "history_only_tips": 12,
+  "new_content_branches": [
+    "claude/admin-centralize",
+    "claude/analyze-legacy-changelog-fmm2D"
+  ],
+  "integration_fixes": [
+    "Preserve current peer TLS/security configuration alongside SCM and registry configuration.",
+    "Select one registry persistence adapter; the old and optional snapshot schemas cannot write the same TPEER_REGISTRY concurrently.",
+    "Use a stable inventory copy across awaited SCM queries; regression replaces the inventory while suspended.",
+    "Replace the nested default Options argument with a delegating constructor for GCC.",
+    "Disable host SCM control and reconciliation in the container smoke profile.",
+    "Keep the updated PostgreSQL README and add an accurate community overview above the historical changelog."
+  ],
+  "verification": {
+    "debug": {
+      "report": "main-consolidation-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "explicit_fixture_skips": 6,
+      "failures": 0
+    },
+    "control_asan_ubsan": {
+      "report": "main-consolidation-control-asan.xml",
+      "entries": 3,
+      "actual_passes": 3,
+      "internal_legacy_skips": [],
+      "explicit_fixture_skips": 0,
+      "failures": 0
+    },
+    "control_checks": {
+      "service_controller": 32,
+      "registry_persistence": 27,
+      "status_reconciliation": 28
+    },
+    "runtime_image": "localhost/fourstory:main",
+    "runtime_image_id": "a3e6e11a04aac78888b207c2069484c0928d3b06d3ba3bac6e823d798b7add79",
+    "uid_gid": "10001:10001",
+    "container_smoke": "main-consolidation-container-smoke.log",
+    "installed_daemon_sha256": {
+      "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+      "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+      "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+      "/opt/fourstory/bin/tmapsvr_asio": "b8a0a9f38197e533a6704ae0ab38d600e6462a6aa4f519aef403c9761e521bae",
+      "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+      "/opt/fourstory/bin/tworldsvr_asio": "da5696c7efcb13cd2a6f91248224a288de036c058e9b7ab8e4b7b538fbc5a8ff"
+    },
+    "source_inventory": "source-inventory.json"
+  },
+  "limits": [
+    "Control tests use fake SCM/systemctl and registry persistence adapters; no real host services were started or stopped.",
+    "The optional Control snapshot adapter and legacy Control repositories are not certified native PostgreSQL persistence.",
+    "Original-client execution and complete gameplay remain pending. Native primary-transfer database/network evidence belongs to its separately recorded installed image.",
+    "Base images/package versions are not fully pinned; remote GitHub Actions results are not asserted by this local report."
+  ],
+  "sha256": {
+    ".gitattributes": "3681da3e06bbdd9a53a122697f6739252896ecfde2bbf82d23226f5746eeaf97",
+    "README.md": "51eadee57b095dc1e0b87b27e81d8de4c734d69a6681f728d43a489e2fb38e25",
+    "Server/TControlSvrAsio/CMakeLists.txt": "0343cc410e46e1fff3abc6790b499524738ad03a26ebe4ce443bbe16befbca7d",
+    "Server/TControlSvrAsio/README.md": "eb92371088c437ffb27c9f5f5ac5ae2facc52efbf07e977ff3855babc471a3c5",
+    "Server/TControlSvrAsio/admin_shell.cpp": "e77c1e0fc9005cbb5c1594602725eed9ad534f65486c09e37816953861c82cfd",
+    "Server/TControlSvrAsio/admin_shell.h": "9fb485c43f6f192563321b5aae5a53a3269ed8cf2ab12b4cd847b339f1013022",
+    "Server/TControlSvrAsio/config.cpp": "ae2e75133a39e392685811bd9385ec38e195c3f0781f21dcb95e9eedd93fbe4a",
+    "Server/TControlSvrAsio/config.h": "348c3a1adbedc629efec85ac7d0b6876697aa7185eb70c7bee14c80d990ff3a8",
+    "Server/TControlSvrAsio/control_server.cpp": "706946831cfdaa9eebb72042d159bd0910da5aff921b098dff70d3537772b378",
+    "Server/TControlSvrAsio/control_server.h": "8e934470c69ebdd65221f888056e781f85603f93fd028bd5ac64a71142147459",
+    "Server/TControlSvrAsio/control_session.cpp": "e170305ba74a24c0cf9f22ff30e099e165f2d8c1e5afc12755842c6a8e225807",
+    "Server/TControlSvrAsio/control_session.h": "7c867581660f23eda0badedb488fca1d8c961770baca93d382899c1df1f71207",
+    "Server/TControlSvrAsio/db/schema_validator.cpp": "17600955c46f9c56279879e78224d4fb72a0cd2c4f73f2d895148940c3a8cae2",
+    "Server/TControlSvrAsio/db/schema_validator.h": "cf63baf40130b81a1627d6011585d9686a2a5002bfbf9dd032f7b63882d98dfc",
+    "Server/TControlSvrAsio/event_codec.cpp": "a8bba3baf374bb6bc2ff407b978fe0d9998f7a526b8fd38677a56697bfa2cf22",
+    "Server/TControlSvrAsio/event_codec.h": "6afe41980ad675d2d7b5fd4a17d9dd6eb51efe8a1d737ee0616119f08d071d6b",
+    "Server/TControlSvrAsio/event_scheduler.cpp": "c8b9ef95a21ee0834df6b45af1cdb6ebae91c421e1d66ea9be926319a23efbd2",
+    "Server/TControlSvrAsio/event_scheduler.h": "97c880ea94ea2d0128c754cd977ebaee52ebd03cbaf77eb57edb1c86683699c1",
+    "Server/TControlSvrAsio/handlers/handlers.h": "4cebaed0ce1455df8af7ef31892d6bb2d3e275cdf88ab0eb0c344695ad80c231",
+    "Server/TControlSvrAsio/handlers/handlers_admin.cpp": "a648af1c5fcf2652a4f17d7b63982d8a42e4c4468eb72911cb7aee351e9dc66e",
+    "Server/TControlSvrAsio/handlers/handlers_auth.cpp": "ddcc66e119122139bf3c5831c7020b6bb8c0d6a8e8383df71a959e9e779f701c",
+    "Server/TControlSvrAsio/handlers/handlers_event.cpp": "494dc8c3f79ce2c89135e1c4c6a9b35b2fda157cd620d0a0938cda46f7830337",
+    "Server/TControlSvrAsio/handlers/handlers_extra.cpp": "7a2dfc554673a2b45c074744248c619f3c02f247672724b3ae6d77e0a875c093",
+    "Server/TControlSvrAsio/handlers/handlers_patch.cpp": "2cae0b2f8a6c8548ef8d8ec58826248ddb7d96f1b03ea98e951ab2bf5e02ffe4",
+    "Server/TControlSvrAsio/handlers/handlers_registry.cpp": "d57fc0325f0db999db83aa803eb0d9d0f7b1d731a77e1119af5436aa8897bc68",
+    "Server/TControlSvrAsio/handlers/handlers_service.cpp": "a081936b0f0cbd5061d70d756fd57c1b586dbd27bf2211da4cc8fbde692586e8",
+    "Server/TControlSvrAsio/main.cpp": "e624b2d64ae3bc317b6ddfedf5d6170ebb0be96967580f3dcadc55dd21eada13",
+    "Server/TControlSvrAsio/message_router.cpp": "8d6f441e80db93dbd8e9aa2cec7d6e1c8ec1f6df76e5eec1f4dd28d2133da307",
+    "Server/TControlSvrAsio/message_router.h": "500387757ec72ff51bbe3fb4e7cbdd173e3fc2f648f2b665eefc9bf369866b19",
+    "Server/TControlSvrAsio/operator_session.h": "591f547636bb9a13e4e48cd2dff6e531174acf97e2a8e298b93088d7b8ca21df",
+    "Server/TControlSvrAsio/peer_dialer.cpp": "6e89a3ec1390c78aec1f90b7cea91f2366477d1882a7101387bc2a2d22622681",
+    "Server/TControlSvrAsio/peer_dialer.h": "d79f6090afc6dad20b034e47809ddc0d3152e6342b82141c17250525d457a337",
+    "Server/TControlSvrAsio/peer_session.h": "bc02d100c6b1a3c9bc2f2d4896e09c98d499374e017d8fe63d32c1636cc9a829",
+    "Server/TControlSvrAsio/schema/tcontrol-peer-registry.sql": "aac4fdc39f45cddbc4bec63a48fb45a9d7da4049eebbb855be0e52d8b8ecd416",
+    "Server/TControlSvrAsio/senders.cpp": "e5f9ac213256e90c727cc36b72a4a98922eaf9f5867d993f3a75663bf6d5941e",
+    "Server/TControlSvrAsio/senders.h": "c5752b8733fab31bee57c9bac4b6056b507fdc5ee0ba4aab3620c1a1db2f7619",
+    "Server/TControlSvrAsio/services/admin_audit_logger.h": "4415129e0670f00628f071e8329214394f09b7f96ce4692394933054824cba7b",
+    "Server/TControlSvrAsio/services/alerter.h": "750c1af9c683c27819fa3e543b82eddedaf0833ba51e21242ec352c250b65af5",
+    "Server/TControlSvrAsio/services/authority_gate.h": "cc8a40246dd564a1c6288efc7cab3c1b95a249a6258aea0d810ec8d45a7338e7",
+    "Server/TControlSvrAsio/services/chat_ban_repository.cpp": "13f47229d76794ffd9464154b96fc2e4e5b5304f867a4d2b3047c78e4b6ff57b",
+    "Server/TControlSvrAsio/services/chat_ban_repository.h": "34007e8444f44e32004fb429985885edbfdcc3392b4292673add10c5d64cfe39",
+    "Server/TControlSvrAsio/services/disabled_service_controller.h": "f31ea71fed0e11432478233b3eafbcefd6c6443bd91c20e7a6a92f048613f74e",
+    "Server/TControlSvrAsio/services/event_registry.cpp": "13cfb81f954623b50b1cf2903b8fdec98e8de5b69541d5d6acaa29c1cc0c605a",
+    "Server/TControlSvrAsio/services/event_registry.h": "7e49ae78231e8a1aff12e452ed5f2374feac67281b178ba7f1da8833c1cefb5a",
+    "Server/TControlSvrAsio/services/event_repository.h": "91d89712d4a49572043ef0771e647625fbf3c9d566e64079a5532880aebdf138",
+    "Server/TControlSvrAsio/services/event_types.h": "e3c30fe17a9532bfe1847fb65d6ff4b83ae0251227827a071336b52d89e39116",
+    "Server/TControlSvrAsio/services/fake_admin_audit_logger.h": "33cea5e8b41542d86abd4e0ec46f7da2c3c34094eb577240b6cb34fab87cb011",
+    "Server/TControlSvrAsio/services/fake_event_repository.h": "2e11b2c1ac8f1222b4feec8c6d4849efc54a9a87200e7ea1147e15dc155d0e5d",
+    "Server/TControlSvrAsio/services/fake_operator_auth_service.cpp": "f6c74f06c63fae18f5002b0a16dc1aef98ff5771b4893e735c1d4bcd7c6cacbc",
+    "Server/TControlSvrAsio/services/fake_operator_auth_service.h": "3d2a6ef66f3d0451eee7a1d4028086a3932c10eda533d6f89a66f6f9911e4375",
+    "Server/TControlSvrAsio/services/fake_patch_metadata_service.h": "f24116ed6f59d73d8ff97fa1068fabfd988d9056db7c01ff7675263b794db49c",
+    "Server/TControlSvrAsio/services/fake_service_inventory.h": "f5b23ad29189fe6f2438ced2e6b52b967377e576401853a59a4c53aa09b22853",
+    "Server/TControlSvrAsio/services/fake_user_protected_service.h": "6fbd300a17fa1bc31310f791dd359520132f931396d23f9c843eec86cd753e51",
+    "Server/TControlSvrAsio/services/mapper_profiles.h": "3be105ee60f1afd9be1ec0df6d14c05a17d5ce8ddca225d8c1081ff5976c7b6e",
+    "Server/TControlSvrAsio/services/operator_auth_service.h": "4fd0a70c863abb5667bc101b5d41a453e72c6cdd67d2c0fc88931619b5eba00d",
+    "Server/TControlSvrAsio/services/operator_registry.cpp": "834b19cfdb5a961d346aaea5dc55334e23e47c2ad4e684f806d18b3e092cbeca",
+    "Server/TControlSvrAsio/services/operator_registry.h": "283da1578a18e045430fc2737a072675385334edf10ceb34a10bfb83b32b2a1d",
+    "Server/TControlSvrAsio/services/patch_metadata_service.h": "3b24c67bb2e00b6e663b51b7659c9d5064ddc17cc5f1e0db5a28f5775d8cf614",
+    "Server/TControlSvrAsio/services/peer_registry.cpp": "ca612593498c16266b0c2a082139bf257005d8048bff5aee0da30a469aa23ebc",
+    "Server/TControlSvrAsio/services/peer_registry.h": "f92c77fb796670b089562e141c43d59046b89e4858458ca05512b681a9adb9e9",
+    "Server/TControlSvrAsio/services/peer_repository.h": "ec5425158182c3c0d703f2aaa8af28821b67eaef9659d125cbf108f0e93b3587",
+    "Server/TControlSvrAsio/services/registry_event_bus.cpp": "5506a776802baa3b41e82f5270d8a11f1c75c30587627b16092ea451910b31f1",
+    "Server/TControlSvrAsio/services/registry_event_bus.h": "67634eee928b3c09291436fef8d33f9a540f0325a4b89bf76b49ccd60fcd566d",
+    "Server/TControlSvrAsio/services/registry_persistence.h": "93585ccdbf1a9163878a6ea73e56e99bbca9d92d219da440bf9d03de23ad3753",
+    "Server/TControlSvrAsio/services/scm_name_resolver.cpp": "5e75dfb7d718fae932fcb4642c5b6f4601a0c277e7df56b5192e622fd1a97bb9",
+    "Server/TControlSvrAsio/services/scm_name_resolver.h": "63b3002d9f2404eb73d010be61a7f0f0fe5f73b6836121706b5ae4b0946eaa56",
+    "Server/TControlSvrAsio/services/service_controller.cpp": "6e23ec012b579cb786dad26bb3b8bb7b86555889d24c16194d35b377651156fe",
+    "Server/TControlSvrAsio/services/service_controller.h": "55583d054fd2f6ced87d0590089726a85bfd8b5b18628c2e143c5b0c02ef2db3",
+    "Server/TControlSvrAsio/services/service_controller_factory.cpp": "57051d3b6dbf7f13d0d636e14a07e41a87beab7d85debf2b52fdb6ad468505e2",
+    "Server/TControlSvrAsio/services/service_controller_factory.h": "99c64de4610a1fc02f009c72bbe2aaf6ebdf4053c3c1ad2b209da8b965b745aa",
+    "Server/TControlSvrAsio/services/service_inventory.h": "5abb7434d3525728c62a3687cef97cf99efa5c531e5b1c3b778cbb6c5de83f91",
+    "Server/TControlSvrAsio/services/soci_admin_audit_logger.cpp": "4d41c68edcce44a508cf042028b4e931ab054ce41f9678319792993361b4f0ff",
+    "Server/TControlSvrAsio/services/soci_admin_audit_logger.h": "eb870777dc3dcd593a4d229924767bee01be0e6b2a7ea480fbc73a4a3731e3a4",
+    "Server/TControlSvrAsio/services/soci_alerter.cpp": "1ee444816b0729e013cc1c9e4791936f04831eda15b826a7633e97a847beae2e",
+    "Server/TControlSvrAsio/services/soci_alerter.h": "1c575c20058fa1223986cf37533b54b220aa5134b96f7cda21feec42e3ba20db",
+    "Server/TControlSvrAsio/services/soci_event_repository.cpp": "28742acb47c87a808dabe52ae1f0e318f0aeebbe5fa0fc54f03282d78db242a0",
+    "Server/TControlSvrAsio/services/soci_event_repository.h": "4960bca3b9f5ad2d1d7a3c4702ca02d3bcc185a9dc6dc37cc7935f621711c291",
+    "Server/TControlSvrAsio/services/soci_operator_auth_service.cpp": "44e97536fe836034b5b525093392e8e3a30588b2a1d6fcbc0821ebb985eac197",
+    "Server/TControlSvrAsio/services/soci_operator_auth_service.h": "f279b16a64f701404607f0d2a54a74d6ec3bd367cd83d91be65d82598efd5f6b",
+    "Server/TControlSvrAsio/services/soci_patch_metadata_service.cpp": "7bf609c02e4b79717b03e09002fa194c0c4d48750de4c70eb6afc5491ad4c3d4",
+    "Server/TControlSvrAsio/services/soci_patch_metadata_service.h": "a07d19f4eaa95878a791ea19b3b7a291706a97838ea94947b6e6122558a4447e",
+    "Server/TControlSvrAsio/services/soci_peer_repository.cpp": "5d9e8d7bc6480d647137f739b25bbd5a8a5d21f7be522163a8afeed451d36fc2",
+    "Server/TControlSvrAsio/services/soci_peer_repository.h": "010f924302c939a80aef9ea9e06bf0f58d59ad6262665196da0cb8221fa33ae0",
+    "Server/TControlSvrAsio/services/soci_registry_persistence.cpp": "3d03b0436fd43055dc2292148750b833f42ede434227ea591b4b5c8eec05a36a",
+    "Server/TControlSvrAsio/services/soci_registry_persistence.h": "2ae44154f7760a166eb54a31e7bb18b7e0eabe514f0d553f3b692ac93d60b6d1",
+    "Server/TControlSvrAsio/services/soci_service_inventory.cpp": "9d133e550adf8ed13bd1423dca6175002d4cc57590e651629f921ab82195e3f2",
+    "Server/TControlSvrAsio/services/soci_service_inventory.h": "30a68ad6ce2832d130cd6fac81a3be541bbe46a69bb21c93179cacb683a9113a",
+    "Server/TControlSvrAsio/services/soci_user_protected_service.cpp": "e4742826376c3aff30586f412cc2a90e4798ccf65405078db8835ece736db94d",
+    "Server/TControlSvrAsio/services/soci_user_protected_service.h": "6ba18e7f78aa49100333c2ba89a757de859efc0fe00fa9896a7424d0bc026a23",
+    "Server/TControlSvrAsio/services/spdlog_admin_audit_logger.cpp": "b22ebef96ff761a505d58313fea6941d012c40496c5036e388dada1aedd87b2d",
+    "Server/TControlSvrAsio/services/spdlog_admin_audit_logger.h": "452b8a9ac8a0cbe1396d840a44747316492beefeb1078595c7e9268d80839041",
+    "Server/TControlSvrAsio/services/spdlog_alerter.h": "7e28f8cd52533daf8f12bc9fcdb3b6909c9a949faa69038323b317beb6e14cda",
+    "Server/TControlSvrAsio/services/svr_type.h": "017ffad39f9209d6011772b0d3af7a30b3ffe7261cb7a0d6664faf5bb77def81",
+    "Server/TControlSvrAsio/services/systemd_service_controller.cpp": "faa9f2e4391032ae608c20691e3c0dcc1cd41b03927117ea65a823fa3c148d45",
+    "Server/TControlSvrAsio/services/systemd_service_controller.h": "cce3e7d95a5cbe16b45ad144357e0387ed244d0dcfd3df6c4864a1f62a38eb0e",
+    "Server/TControlSvrAsio/services/user_protected_service.h": "03f73a27dc9a969c6032100eecad322acb09f766e4d9223eca21af5a0ab890d0",
+    "Server/TControlSvrAsio/services/windows_scm_service_controller.cpp": "98a7cfbb0f39b264e9f3dbc8b301aba27712143e3fe08b55e8d4f15a2e963cb8",
+    "Server/TControlSvrAsio/services/windows_scm_service_controller.h": "002cedc75db5cc1b551db5698cea9754fa76da2638a40f1eafa67d4206b6b6c5",
+    "Server/TControlSvrAsio/tests/test_admin_forwarders.cpp": "2c1f8f6b5a4394bfbc83e00ad61a60d940e1157bcae192e9708e457b31de8477",
+    "Server/TControlSvrAsio/tests/test_admin_shell.cpp": "281d6476f939ba158460d505f3564440f054b154608c49f6ceec4ec7fe1feacd",
+    "Server/TControlSvrAsio/tests/test_admin_shell_cluster.cpp": "f91be66fef278c33019c90764c3a48398f7b6d857ecf38fd9684057d9ab98bcf",
+    "Server/TControlSvrAsio/tests/test_admin_shell_route.cpp": "4b6a9830128cb3e6489c359d18c1023679a861ff6512caf569bd4e74e41c9f94",
+    "Server/TControlSvrAsio/tests/test_admin_shell_stream.cpp": "dc897a89ffe11ca17e1c42eaa5253c99e15559c055051aba83aff4e9423a8f60",
+    "Server/TControlSvrAsio/tests/test_co_offload.cpp": "419a81dec28f499b713861ba5ebe2f6724bfb05ae988732e691ed92ec8da972a",
+    "Server/TControlSvrAsio/tests/test_control_server_hybrid.cpp": "c442f51eac41fd26c8e2a27077f1eafcaf33c45c016499bc05dcb6927640db26",
+    "Server/TControlSvrAsio/tests/test_control_session_tls.cpp": "bcee75a2b33e720ffe4f8bbff0e3a14f6abcb2654fb6c97fbd6d1531cb9e6da3",
+    "Server/TControlSvrAsio/tests/test_event_scheduler.cpp": "0dff9f9887d7b5f795df3525be55293f75900c49a2abf1a4d43a3ea279f58f8b",
+    "Server/TControlSvrAsio/tests/test_message_router.cpp": "3887f69b4196d3874233e166a543ffebb8707dd5bc6e4caeb18894ec5532bcd6",
+    "Server/TControlSvrAsio/tests/test_operator_login.cpp": "7a768983a14f41321930de024bf0a61faba0ac5eef000b868f74bcb640d691db",
+    "Server/TControlSvrAsio/tests/test_patch_metadata.cpp": "59fddf03d9b53027b098274f79413ff91201b39765a83a8c4243bb67072a7d01",
+    "Server/TControlSvrAsio/tests/test_peer_client.cpp": "6c1d0f275db66e97129d307f173e93723a83219abbcf8748b88792f7376c3b9e",
+    "Server/TControlSvrAsio/tests/test_peer_dialer_cn_enforce.cpp": "20c1fb53368bd29b0ea6b18d2ce46cdb7c93011be4e99ee604cf23e8f190bf95",
+    "Server/TControlSvrAsio/tests/test_peer_monitor.cpp": "31b6ef38be8446d0653a9d248bf472fb46ca9de643d037f3435927b53387eedb",
+    "Server/TControlSvrAsio/tests/test_peer_registry.cpp": "517b49cd28970dcdc2b917a271a0661c47276d3742410e83b569a545483bb2ab",
+    "Server/TControlSvrAsio/tests/test_register_cn_validation.cpp": "ba941fab9bf966f7e41dd6ffc673f0b2630854f38c2c1bffedbe5c3e6f5cd896",
+    "Server/TControlSvrAsio/tests/test_register_san_validation.cpp": "42c9581911d84ea3d67df6746ca206db1dd53c9800a8b3b57585a4a7f3f91c32",
+    "Server/TControlSvrAsio/tests/test_registry_persistence.cpp": "3462be13e2c71620afefce6c0c4fa84b058c07b74c0ceaa8ce631b911bc7024e",
+    "Server/TControlSvrAsio/tests/test_registry_refresher.cpp": "f178cbfb89399a5fbff6446cf0f53a441b872580b1281b754a435211d7dd56ed",
+    "Server/TControlSvrAsio/tests/test_scm_status_reconcile.cpp": "de3da6c3444a45acc69e76d61e32adced2da874dc2c106bde98efa57424c5eaa",
+    "Server/TControlSvrAsio/tests/test_service_controller.cpp": "95a7ff8ce9b11d9a17d441b3f54eb5a79f6e8b977e23d72e57fb06f81dee1350",
+    "Server/TControlSvrAsio/tests/test_soci_repositories.cpp": "e35f262d0d39dbac6db889598fab3075c60e2e60dada987edee910d738191ebd",
+    "Server/TControlSvrAsio/tests/test_wire_parity.cpp": "824fcaf3a093ac375cc7158079dfcdc905e618383a5674edf25f263036fa934a",
+    "Server/TControlSvrAsio/wire_codec.h": "98a153a7cab4b1a8172aa865581833e6c026664a5db65613ac416d26b860eb8c",
+    "_rewrite/docs/modernization/README.md": "1c1a28b7d690ac8907dc481facc0b9ce52bf2b15c6bbaab0063f45a2c4c99e05",
+    "_rewrite/docs/modernization/evidence/main-consolidation-container-smoke.log": "5b25ec8469f014d81d59196724a3f16e10bc3e76ccbae3338fe919c478bfe4e7",
+    "_rewrite/docs/modernization/evidence/main-consolidation-control-asan.xml": "687fe7cd5b0a4e5cc020c0fc0d2c636aeeb85792e5aef1253a1ec1b46816bede",
+    "_rewrite/docs/modernization/evidence/main-consolidation-ctest.xml": "97c323e51d08b0f40a4e34bf9785e15bf2ef62b7499c4f7838dfc89ef47a1318",
+    "_rewrite/docs/modernization/evidence/main-consolidation-tcontrolsvr_asio_registry_persistence-asan.log": "552bf174b571c5e84edec1b533c127ab9ab0ab3a2c20f332406f179e25f0a4d1",
+    "_rewrite/docs/modernization/evidence/main-consolidation-tcontrolsvr_asio_scm_status_reconcile-asan.log": "be2feffa68a845cfdb8b3c0f4bd06b42454e33efa8fa40b9e43a1f96738fad2a",
+    "_rewrite/docs/modernization/evidence/main-consolidation-tcontrolsvr_asio_service_controller-asan.log": "237c3ef976d84336bdd569c704cf36d6e71b6d3fb94463592ba56e007596741f",
+    "_rewrite/docs/modernization/evidence/source-inventory.json": "270e4fcb851f898eac7a5c2b82fcc3d4b5d5cda96c2964e2d892b572a3066feb",
+    "database/README.md": "1aa45006a5eee01b74a0a41b843de8b92cb640bc2a0927348d85d2018f81d49f",
+    "deploy/config.example/tcontrolsvr.toml": "74caaa9ea1579774845877ed9c8520b5f2e93d00ad3043b41f208742044e8dd0"
+  }
+}

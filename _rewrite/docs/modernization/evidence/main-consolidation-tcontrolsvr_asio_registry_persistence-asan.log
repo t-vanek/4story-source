@@ -1,0 +1,37 @@
+=== tcontrolsvr_asio registry-persistence test ===
+[persistence — Register propagates to Upsert]
+  PASS  exactly one Upsert call
+  PASS  Upsert.entry.service_id
+  PASS  Upsert.entry.reported_name
+  PASS  Upsert.entry.reported_addr
+  PASS  Upsert.entry.reported_port
+  PASS  Upsert.entry.version
+  PASS  Upsert.entry.pid
+  PASS  Upsert.entry.lease_epoch matches returned value
+[persistence — Heartbeat propagates to Touch]
+  PASS  exactly one Touch call
+  PASS  Touch.sid
+  PASS  Touch.lease echoed
+  PASS  Touch.cur_users
+  PASS  Touch.max_users
+  PASS  Touch.heartbeat_unix populated
+[persistence — stale-lease heartbeat skips Touch]
+  PASS  no Touch call when epoch mismatches
+[persistence — Deregister propagates to Remove]
+  PASS  Deregister returns true
+  PASS  one Remove call
+  PASS  Remove.sid matches
+[persistence — ExpireStale propagates to Remove]
+  PASS  ExpireStale reaped one entry
+  PASS  one Remove call from sweep
+  PASS  Remove.sid is the reaped entry
+[persistence — Hydrate replays entries, advances epoch]
+  PASS  Hydrate populated svc-1
+  PASS  Hydrate populated svc-2
+  PASS  stored lease epoch preserved
+  PASS  Hydrate did not write back through persistence
+  PASS  Register after Hydrate assigns lease > max(stored)
+[persistence — Noop default does nothing]
+  PASS  Noop persistence accepts all mutators without throwing
+
+Results: 27 passed, 0 failed

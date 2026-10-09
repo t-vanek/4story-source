@@ -7,6 +7,17 @@ Older C#/.NET plans and percentage estimates in `GAP_ANALYSIS.md`,
 `COMPLETENESS_ANALYSIS.md` and `PROTOCOL.md` are historical planning material;
 use current code and the evidence linked here to assess the C++ rewrite.
 
+Repository consolidation on 2026-10-09 integrates the previously unmerged Control
+service-management work and preserves every existing branch tip in `main`.
+The subsequent Debug run has 200 entries: 186 actual passes, eight internal
+legacy skips, six explicit native skips and no failures. Three additional Control
+ASan/UBSan suites pass 87 checks, including inventory replacement during an
+awaited status query. Container configuration leaves service lifecycle to
+Compose/Podman. The optional Control registry adapter remains distinct from
+native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consolidation.json)
+for the `localhost/fourstory:main` image and branch integration; the feature
+reports below retain their original tested image identities and counts.
+
 ## Current verified increment: native primary Map handoff and graph recovery
 
 Movement across a cell boundary now drives the actual World/Map primary handoff.

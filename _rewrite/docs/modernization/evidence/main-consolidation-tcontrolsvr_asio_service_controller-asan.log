@@ -1,0 +1,62 @@
+=== tcontrolsvr_asio service-controller test ===
+[resolver — every placeholder substitutes]
+  PASS  default template
+  PASS  all five tokens replaced
+  PASS  template without placeholders is verbatim
+  PASS  unknown placeholder is silently dropped
+  PASS  surrounding literals preserved
+[resolver — override beats template]
+  PASS  override applied for matching sid
+  PASS  non-matching sid falls back to template
+  PASS  empty override is treated as no override
+[factory — backend='disabled' returns disabled controller]
+[2026-10-09 05:43:27.844] [info] scm: backend=disabled (cluster start/stop are no-ops)
+  PASS  factory returns a controller
+  PASS  disabled.QueryStatus → Unknown
+  PASS  disabled.Start → NotSupported
+  PASS  disabled.Stop → NotSupported
+[factory — backend='auto' returns a non-null controller]
+[2026-10-09 05:43:27.844] [info] scm: backend=systemd (template='{type_name}-{group}-{server}', overrides=0, user_scope=false, systemctl='systemctl')
+  PASS  auto returns *something* on every platform (disabled fallback as worst case)
+[factory — empty backend treated as auto]
+[2026-10-09 05:43:27.844] [info] scm: backend=systemd (template='{type_name}-{group}-{server}', overrides=0, user_scope=false, systemctl='systemctl')
+  PASS  empty backend defaults to auto, never null
+[factory — explicit backend on wrong platform = disabled]
+[2026-10-09 05:43:27.844] [info] scm: backend=windows (template='{type_name}-{group}-{server}', overrides=0)
+[2026-10-09 05:43:27.844] [warning] scm: backend='windows' requested on non-Windows build — falling back to disabled controller
+  PASS  wrong-platform backend doesn't throw
+  PASS  wrong-platform fallback behaves like disabled
+[factory — unknown backend value throws clear error]
+  PASS  unknown backend throws
+  PASS  exception names the offending backend value
+[systemd — is-active=active maps to Running]
+  PASS  'active' → Running
+  PASS  argv = ['is-active', '<unit>.service']
+[systemd — is-active maps inactive/failed to Stopped]
+  PASS  'inactive' → Stopped
+  PASS  'failed' → Stopped
+[systemd — activating/deactivating map to pending]
+  PASS  'activating' → StartPending
+  PASS  'deactivating' → StopPending
+[systemd — exit_code=4 → NotInstalled]
+  PASS  exit 4 → NotInstalled
+[systemd — Start: exit 0 → Ok, non-zero → Failed]
+[2026-10-09 05:43:27.845] [info] systemctl start 'X-1-1.service' ok
+  PASS  exit 0 → Ok
+  PASS  Start uses 'start' verb + unit name
+[2026-10-09 05:43:27.845] [warning] systemctl start 'X-1-1.service' failed: rc=1 Failed to start X-1-1.service
+  PASS  non-zero exit → Failed
+[systemd — user_scope=true prepends '--user']
+[2026-10-09 05:43:27.845] [info] systemctl stop 'X-1-1.service' ok
+  PASS  argv = ['--user', 'stop', '<unit>.service']
+[systemd — override beats template (already-suffixed accepted)]
+[2026-10-09 05:43:27.846] [info] systemctl start 'custom.service' ok
+  PASS  override applied without double-suffixing
+[systemd — bare override gets .service appended]
+[2026-10-09 05:43:27.846] [info] systemctl start 'bareunit.service' ok
+  PASS  bare override is suffixed
+[systemd — runner error → ServiceStatus::Unknown]
+[2026-10-09 05:43:27.846] [warning] systemctl is-active 'X-1-1.service': runner error: popen failed: no such file
+  PASS  runner -1 surfaces as Unknown
+
+Results: 32 passed, 0 failed

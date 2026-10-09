@@ -1,6 +1,7 @@
 #pragma once
 #include "domain/character.h"
 #include "domain/main_transfer.h"
+#include "equipment_move.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -28,6 +29,7 @@ inline InventoryMovePlan PlanInventoryMove(const CharSnapshot& s,const Inventory
     if(!s.payload)throw std::runtime_error("Inventory move requires native state");
     if(s.payload->transfer_state&&!s.payload->transfer_state->new_security)
         throw std::runtime_error("Native secured inventory mutation is unsupported");
+    if(r.source_bag==254||r.destination_bag==254)return PlanEquipmentMove(s,r,StackEquivalent);
     const auto& bags=s.payload->bags;
     const auto src=std::find_if(bags.begin(),bags.end(),[&](const auto& b){return b.bag.bInvenID==r.source_bag;});
     if(src==bags.end())return {InventoryMoveResult::NoSourceBag,{}};
@@ -75,7 +77,8 @@ inline InventoryMovePlan PlanInventoryMove(const CharSnapshot& s,const Inventory
 }
 
 inline void ApplyInventoryMove(CharSnapshot& s,const InventoryMovePlan& plan,std::uint64_t created_id=0) {
-    if(!s.payload||plan.result!=InventoryMoveResult::Success||plan.items.empty()||plan.items.size()>2)
+    if(!s.payload||plan.result!=InventoryMoveResult::Success||
+       (plan.kind!=InventoryMoveKind::Equipment&&(plan.items.empty()||plan.items.size()>2)))
         throw std::runtime_error("Invalid inventory move projection");
     auto p=std::make_shared<CharacterPayload>(*s.payload);
     if(created_id&&std::any_of(p->bags.begin(),p->bags.end(),[&](const auto& b){
@@ -107,7 +110,7 @@ inline void ApplyInventoryMove(CharSnapshot& s,const InventoryMovePlan& plan,std
 }
 inline void PublishInventoryMove(CharSnapshot& s,const InventoryMovePlan& plan,const InventoryMoveCommit& commit) {
     if(commit.hashes.size()!=plan.items.size()||
-       ((plan.kind==InventoryMoveKind::Split)!=bool(commit.created_id)))
+       (std::any_of(plan.items.begin(),plan.items.end(),[](const auto& m){return m.created;})!=bool(commit.created_id)))
         throw std::runtime_error("Incomplete inventory commit receipt");
     ApplyInventoryMove(s,plan,commit.created_id);
     auto p=std::make_shared<CharacterPayload>(*s.payload);

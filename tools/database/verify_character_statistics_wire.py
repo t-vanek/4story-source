@@ -13,7 +13,7 @@ from verify_login_wire import frame, read_packet
 
 
 def f32(x):return struct.unpack('<f',struct.pack('<f',x))[0]
-def source_statistics(conn,cid):
+def source_statistics(conn,cid,equipment_rows=None):
     def rows(schema,table,where='',args=()):
         return [r[0] for r in conn.execute(f'SELECT row_to_json(t) FROM {schema}."{table}" t '+where,args)]
     ch=rows('app_world','TCHARTABLE','WHERE "dwCharID"=%s',(cid,))[0]
@@ -26,7 +26,7 @@ def source_statistics(conn,cid):
     grades={r['bLevel']:r['bGrade'] for r in rows('actor_compat','TITEMGRADECHART')}
     attributes={r['wID']&65535:r for r in rows('actor_compat','TITEMATTRCHART')}
     magic_chart={r['bMagic']:r for r in rows('actor_compat','TITEMMAGICCHART')}
-    for item in rows('app_world','TITEMTABLE','WHERE "dwOwnerID"=%s AND "dwStorageID"=254',(cid,)):
+    for item in (equipment_rows if equipment_rows is not None else rows('app_world','TITEMTABLE','WHERE "dwOwnerID"=%s AND "dwStorageID"=254',(cid,))):
         if item['dwDuraMax'] and not item['dwDuraCur']:continue
         template=rows('character_compat','TITEMCHART','WHERE "wItemID"=%s',(item['wItemID'],))[0]
         for i in range(1,7):

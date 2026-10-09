@@ -44,6 +44,7 @@ struct CharacterPayload {
     // Static definitions for learned skills, hydrated from the pinned character
     // catalog on both fresh load and transfer. Never serialized as player data.
     std::vector<SkillTemplate> skill_templates;
+    std::array<bool,256> equipment_kinds{}; // learned SDT_EQUIP entries, independent of rank
     // Source-derived physical/long/magic timing (TAD 1..3). Buff-bearing
     // transfers leave this absent until active-effect timing is implemented.
     std::optional<std::array<SkillAttackTiming,3>> skill_attack_timing;

@@ -814,3 +814,44 @@ source-frozen movement, current stat inspection and repeat login. The cell split
 and accounts are explicit isolated fixtures. This proves the recorded runtime
 upgrade scenarios, not all legacy graph variants or an original client session.
 See [contract and reproducible evidence](evidence/actor-transition-contract.json).
+
+
+## Native equipment boundary (migration 032)
+
+`CS_MOVEITEM_REQ` remains exactly five BYTE fields at `0x52A8`. The existing
+handler now accepts ordinary equipment positions, using `CanEquip` precedence:
+full-DWORD raw wrap → learned SDT_EQUIP kind → slot mask → class mask → level.
+Original `GetEquipLevel` compares default level against the full DWORD ELD before
+subtracting a BYTE; an ELD at or above the required level does not reduce it.
+Database TITEMCHART.bLevel is the original query's m_bDefaultLevel. The source
+forces count one for equipment, remaps a two-hand secondary request to primary,
+normalizes equipment-to-occupied-carried swaps, and plans displacement before the
+incoming carried slot becomes free. Default-bag merge, other-bag merge,
+default-bag blank and other-bag blank priority is retained. Equal equipped
+items produce no item diff but still run the original equipment response sequence.
+
+After the complete PostgreSQL commit: original DEL/ADD/UPDATE side effects;
+`CS_EQUIP_ACK` (`0x52AD`, DWORD character, BYTE count, complete source item
+descriptors ordered by slot) to self and local neighboring cells; MOVEITEM success;
+87-byte CHARSTATINFO; 21-byte HPMP (DWORD ID, BYTE PC type, four DWORD values);
+final MOVEITEM success. Both MOVEITEM successes are intentional source behavior.
+Statistics, weapon gates and attack timing are rederived from the pinned charts.
+HP/MP above the new maxima are clamped in the same transaction as the items;
+reequipping raises maxima without healing. Original item bytes/opaque raw values
+are retained and new split IDs use the existing world allocator.
+
+Modern documented corrections: reply-after-commit and transactional allocation;
+reject malformed aliasing after two-hand remapping and overlapping displacement
+instead of reproducing original pointer alias/double-free paths; retain the
+existing refusal of positions outside pinned bag capacity. No changes to framing,
+crypto, checksums, opcodes, widths, endianity or client code. Native equal-item
+receipts may contain zero changes, without inventing item updates.
+
+Supported scope excludes active effects, warrior auto-postures (including the
+original source-pointer lifetime condition), their cancellation, active recalls/
+companions, party/guild/local battle rules, race-costume changes and special-item
+combat consequences. Those implementations remain required. Local 3×3-cell EQUIP
+broadcast is integrated; complete cross-Map visibility/replica updates and original
+client appearance/UI acceptance remain open. Timed bags, trade/store and secure
+code integration are also unfinished. No successful fallback represents these
+missing contracts. See [equipment evidence](evidence/equipment-contract.json).

@@ -95,12 +95,15 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         }
     std::vector<Passive> passives;
     p.skill_templates.clear();
+    p.equipment_kinds.fill(false);
     p.skill_points.fill(0);
     p.statistics.reset();
     for(const auto& skill:p.skills) {
         const int id=std::bit_cast<std::int16_t>(skill.wSkillID);soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
         if(!sql.got_data())throw std::runtime_error("Learned skill has no source template");
+        {soci::rowset<int> kinds=(sql.prepare<<"SELECT \"bExec\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=0",soci::use(id));
+         for(int kind:kinds)if(kind>=0&&kind<256)p.equipment_kinds[kind]=true;}
         SkillTemplate definition;
         definition.wID=skill.wSkillID;definition.dwReuseDelay=U32(chart,"dwReuseDelay");
         definition.nReuseDelayInc=std::bit_cast<std::int32_t>(U32(chart,"nReuseDelayInc"));
@@ -234,6 +237,8 @@ ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw) {
     sql<<"SELECT * FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(template_id),soci::into(chart);
     if(!sql.got_data())throw std::runtime_error("Character item has no source template");
     item.bRefineMax=U8(chart,"bRefineMax");item.bKind=U8(chart,"bKind");item.stack_limit=U8(chart,"bStack");
+    item.equipment=EquipmentRules{U32(chart,"dwSlotID"),U32(chart,"dwClassID"),U8(chart,"bPrmSlotID"),
+        U8(chart,"bSubSlotID"),U8(chart,"bLevel"),U8(chart,"bEquipSkill")};
     std::set<std::uint8_t> ids;
     for(const auto& m:raw.magic){
         const int id=m.id;const auto value=m.value;
@@ -250,6 +255,26 @@ ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw) {
     return item;
 }
 
+}
+void PostgreSQLMapService::RefreshEquipment(soci::session& sql,CharSnapshot& s,bool derive) {
+    auto p=std::make_shared<CharacterPayload>(*s.payload);
+    if(!p->statistics)throw std::runtime_error("Equipment requires supported source-derived statistics");
+    if(!p->recalls.empty()||s.cluster.party)
+        throw std::runtime_error("Equipment active recall or party dependencies are not implemented");
+    // TPETTABLE is account-owned inactive pet inventory, not an active stat
+    // effect. Active companion/recall graphs already lack a supported sheet.
+    for(auto& bag:p->bags)for(auto& item:bag.items) {
+        if(!item.source)throw std::runtime_error("Equipment item lacks original values");
+        auto projected=ProjectItem(sql,*item.source);projected.durable_hash=item.durable_hash;item=std::move(projected);
+    }
+    p->equipment_kinds.fill(false);
+    for(const auto& skill:p->skills) {
+        const int id=std::bit_cast<std::int16_t>(skill.wSkillID);
+        soci::rowset<int> kinds=(sql.prepare<<"SELECT \"bExec\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=0",soci::use(id));
+        for(int kind:kinds)if(kind>=0&&kind<256)p->equipment_kinds[kind]=true;
+    }
+    if(derive)DeriveStats(sql,s,*p);
+    s.payload=std::move(p);
 }
 std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessionClaim& claim) {
     auto lease=m_pool.Acquire();auto& sql=*lease;

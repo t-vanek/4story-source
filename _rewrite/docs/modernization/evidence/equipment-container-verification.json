@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "image": "localhost/fourstory:postgresql-equipment",
+  "image_id": "01068c3c9172618f79801612d01f269a9ebc8f6c6708195f6e58f31c19e1c850",
+  "user": "10001:10001",
+  "installed_services": [
+    "login",
+    "world",
+    "map",
+    "control",
+    "patch",
+    "log"
+  ],
+  "stdout": "world: /healthz OK\nlog: /healthz OK\ncontrol: /healthz OK\nlogin: /healthz OK\npatch: /healthz OK\nmap: /healthz OK\nmap -> world: connected over container DNS\nmap: SIGTERM exit 0\npatch: SIGTERM exit 0\nlogin: SIGTERM exit 0\ncontrol: SIGTERM exit 0\nlog: SIGTERM exit 0\nworld: SIGTERM exit 0\n",
+  "scope": "Installed local Release service health, Map to World DNS, graceful exit. This smoke does not prove native repositories for every service or original-client gameplay."
+}

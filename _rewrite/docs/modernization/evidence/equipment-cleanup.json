@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "environments": [
+    {
+      "work": "/tmp/fourstory-equipment-20261009",
+      "owned_containers_and_network_removed": true,
+      "private_environment_key_and_runtime_config_files_removed": 21,
+      "private_exports_and_reports_retained": true
+    },
+    {
+      "work": "/tmp/fourstory-equipment-asan-20261009",
+      "owned_containers_and_network_removed": true,
+      "private_environment_key_and_runtime_config_files_removed": 8,
+      "private_exports_and_reports_retained": true
+    },
+    {
+      "work": "/tmp/fourstory-equipment-release-20261009",
+      "owned_containers_and_network_removed": true,
+      "private_environment_key_and_runtime_config_files_removed": 8,
+      "private_exports_and_reports_retained": true
+    }
+  ],
+  "external_publication": false
+}

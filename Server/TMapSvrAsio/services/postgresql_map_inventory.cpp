@@ -6,6 +6,7 @@
 #include <openssl/sha.h>
 #include <bit>
 #include <limits>
+#include <map>
 
 namespace tmapsvr {
 namespace {
@@ -21,8 +22,11 @@ std::string InventoryHash(std::span<const std::byte> bytes) {
 }
 PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInventoryMove(soci::session& sql,
     const MapSessionClaim& c,const InventoryMoveRequest& request,const CharSnapshot& before,const CharSnapshot& after) const {
-    InventoryStoragePlan out;out.move=PlanInventoryMove(before,request);
-    if(out.move.result!=InventoryMoveResult::Success||out.move.items.empty())throw std::runtime_error("Rejected inventory move cannot commit");
+    const bool equipment=request.source_bag==254||request.destination_bag==254;
+    auto verified_before=before;
+    if(equipment)RefreshEquipment(sql,verified_before,false);
+    InventoryStoragePlan out;out.move=PlanInventoryMove(verified_before,request);
+    if(out.move.result!=InventoryMoveResult::Success||(!equipment&&out.move.items.empty()))throw std::runtime_error("Rejected inventory move cannot commit");
     auto expected=before;ApplyInventoryMove(expected,out.move);
     const auto candidate=CaptureInventory(after,c.key);
     if(transfer::Encode(CaptureInventory(expected,c.key))!=transfer::Encode(candidate))
@@ -30,6 +34,26 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
     const bool graph=bool(before.payload->transfer_state);
     if(graph!=bool(after.payload->transfer_state))throw std::runtime_error("Inventory storage contract changed");
     const int world=c.group,character=c.char_id;
+    if(equipment&&!graph) {
+        // Stats and displacement inspect more than the two requested slots.
+        // Fence every fresh item and learned rank, including unchanged equipment.
+        std::map<long long,std::string> durable;
+        soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"dlID\",app_world.item_fingerprint(i) AS hash FROM app_world.\"TITEMTABLE\" i "
+            "WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c ORDER BY \"dlID\" FOR UPDATE",soci::use(world,"w"),soci::use(character,"c"));
+        for(const auto& row:rows)durable.emplace(row.get<long long>(0),row.get<std::string>(1));
+        std::size_t count=0;
+        for(const auto& bag:before.payload->bags)for(const auto& item:bag.items) {
+            ++count;const auto i=durable.find(std::bit_cast<long long>(item.dlID));
+            if(i==durable.end()||i->second!=item.durable_hash)throw std::runtime_error("Equipment inventory changed since hydration");
+        }
+        if(count!=durable.size())throw std::runtime_error("Equipment inventory membership changed");
+        std::map<std::uint16_t,int> ranks;
+        soci::rowset<soci::row> skills=(sql.prepare<<"SELECT \"wSkillID\",\"bLevel\" FROM app_world.\"TSKILLTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c",soci::use(world,"w"),soci::use(character,"c"));
+        for(const auto& row:skills)ranks.emplace(static_cast<std::uint16_t>(row.get<int>(0)),row.get<int>(1));
+        if(ranks.size()!=before.payload->skills.size())throw std::runtime_error("Equipment learned skill membership changed");
+        for(const auto& skill:before.payload->skills)if(!ranks.contains(skill.wSkillID)||ranks.at(skill.wSkillID)!=skill.bLevel)
+            throw std::runtime_error("Equipment learned skill rank changed");
+    }
     if(graph) {
         std::string hex,core;
         sql<<"SELECT encode(transfer_body,'hex'),transfer_hash,fingerprint FROM app_world.map_checkpoints "
@@ -58,12 +82,16 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
     }
     // Claim/checkpoint locks serialize supported inventory writers. Re-read bag
     // metadata and pinned capacities in this transaction; do not trust the DTO.
-    for(const auto id:{request.source_bag,request.destination_bag}) {
+    std::vector<std::uint8_t> inventories;
+    if(equipment)for(const auto& bag:before.payload->bags)inventories.push_back(bag.bag.bInvenID);
+    else inventories={request.source_bag,request.destination_bag};
+    for(const auto id:inventories) {
         const auto bag=std::find_if(before.payload->bags.begin(),before.payload->bags.end(),[&](const auto& b){return b.bag.bInvenID==id;});
         const int template_id=std::bit_cast<std::int16_t>(bag->bag.wItemID);int capacity=0,type=0;
         sql<<"SELECT \"bSlotCount\",\"bType\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:i",
             soci::use(template_id),soci::into(capacity),soci::into(type);
-        if(!sql.got_data()||type!=11||capacity!=bag->slot_count||!capacity)
+        const bool equipment_bag=id==254&&template_id==2&&type==0&&capacity==19;
+        if(!sql.got_data()||(id==254?!equipment_bag:type!=11)||capacity!=bag->slot_count||!capacity)
             throw std::runtime_error("Inventory bag capacity disagrees with pinned template");
         if(!graph) {
             const int inventory=id;int actual_item=0,eld=0,permanent=0;
@@ -83,7 +111,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
         if(!sql.got_data()||limit!=destination.stack_limit)throw std::runtime_error("Pinned stack capacity changed");
     }
     out.after=after;
-    if(out.move.kind==InventoryMoveKind::Split) {
+    if(std::any_of(out.move.items.begin(),out.move.items.end(),[](const auto& move){return move.created;})) {
         long long allocated=0;
         sql<<"UPDATE app_world.worlds SET item_high_water=item_high_water+1 WHERE group_id=:w "
              "AND item_high_water::numeric+1 < (item_world::numeric+1)*72057594037927936 RETURNING item_high_water",
@@ -92,6 +120,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
         out.committed.created_id=static_cast<std::uint64_t>(allocated);
         out.after=before;ApplyInventoryMove(out.after,out.move,out.committed.created_id);
     }
+    if(equipment)RefreshEquipment(sql,out.after,true);
     const auto committed_graph=CaptureInventory(out.after,c.key);
     if(graph)out.after_graph=TransferFingerprint(c,out.after);
     for(const auto& move:out.move.items) {
@@ -149,6 +178,14 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
             out.committed.hashes.push_back(hash);
         }
         sql<<"SET CONSTRAINTS app_world.item_slot IMMEDIATE";
+    }
+    if(equipment) {
+        auto p=std::make_shared<CharacterPayload>(*out.after.payload);
+        for(std::size_t n=0;n<out.move.items.size();++n) {
+            const auto& move=out.move.items[n];const auto id=move.created?out.committed.created_id:move.before.dlID;
+            for(auto& bag:p->bags)for(auto& item:bag.items)if(item.dlID==id)item.durable_hash=out.committed.hashes.at(n);
+        }
+        out.after.payload=std::move(p);out.committed.equipment_snapshot=std::make_shared<const CharSnapshot>(out.after);
     }
     return out;
 }

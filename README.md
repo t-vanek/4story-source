@@ -27,21 +27,43 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Linux containers | Six installed daemons, health endpoints, Map → World DNS connection and graceful SIGTERM shutdown | Full persistent deployment acceptance and pinned build dependencies |
 | Login | Native PostgreSQL authentication/session transactions, process ownership, duplicate protection, encrypted synthetic TCP and bounded email confirmation | Historical credential import, additional client profiles and original executable acceptance |
 | Characters | Native creation/list/deletion, starter inventory, atomic item IDs, fresh world admission, client hydration, core checkpoints, logout and reconnect | Complete item/economy mutations and ancillary character state |
-| Character statistics | Native 87-byte self-inspection and two-Map round-trip preservation using backup formulas and equipment | Advanced effects, equipment mutation, complete remote-player and original-client acceptance |
+| Character statistics | Native 87-byte self-inspection and two-Map round-trip preservation using backup formulas and equipment | Advanced effects, special equipment branches, complete remote-player and original-client acceptance |
 | Map content | Pinned source catalogs, real monster attributes, routing and actor catalogs loaded by the actual daemon | Complete spawn, movement validation, entity visibility and gameplay parity |
 | Primary Map handoff | Movement-triggered transfer between two Maps, one database writer, exact state transfer, skill timers, return trips and recovery after process replacement | Full effect/quest/companion simulation, multiple-neighbor changes and special transfer branches |
-| Inventory | Native whole-stack moves, raw-attribute swaps, splitting and capacity-clamped merging; atomic IDs/receipts, two-Map round trips and recovery | Equipment, drops, timed bags, secured state and full economy |
+| Inventory/equipment | Native carried moves/splits/merges and ordinary equip/unequip/swap; atomic displacement, IDs, HP/MP clamp and graph recovery | Warrior postures/active effects, advanced equipment, drops, timed/security/trade/store cases and full economy |
 | Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
 | World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The latest increment adds **safe offline actor-catalog upgrades** (migration 031).
+The latest increment adds **native equipment transactions** (migration **032**)
+to the existing Map server. Ordinary equip/unequip/swap, eligibility, displaced
+items and one-unit splits commit atomically with recalculated stats, HP/MP limits,
+item IDs and recovery state. Responses retain the original item → EQUIP → MOVEITEM
+→ CHARSTATINFO → HPMP → final MOVEITEM order. Actual two-Map tests preserve the
+authoritative graph; disconnect during commit and subsequent reconnect retain the
+new equipment.
+
+**2,111 native database/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release. Debug CTest has **188 actual passes**, eight
+internal legacy fixture skips and seven explicit native skips (203 entries);
+all **39 sanitizer suites** pass. Release uses installed daemons with the Debug
+backend test. Six service health/DNS/SIGTERM checks also pass. See the
+[equipment contract and evidence](_rewrite/docs/modernization/evidence/equipment-contract.json)
+and [local build/startup procedure](deploy/README.md#native-equipment-transactions).
+Current local image: `localhost/fourstory:postgresql-equipment`.
+
+Warrior postures, active effects/cancellation, advanced equipment and complete
+gameplay remain unfinished. Only uncompiled client sources are available; no
+supported executable build/hash, assets or original-client acceptance is claimed.
+Backups and applied migrations **001–032** are immutable; next migration **033**.
+
+The preceding increment adds **safe offline actor-catalog upgrades** (migration 031).
 A verified certificate lets the existing Map server restore old graph checkpoints
 under the extended statistics catalog. Publication preserves original saved packets,
 fences old writers and refuses live Maps or incompatible data. Tests use an actual
 previous installed Map to create logout, crash and interrupted-transfer states.
 See the [upgrade contract](_rewrite/docs/modernization/evidence/actor-transition-contract.json)
 and [local upgrade procedure](deploy/README.md#offline-actor-catalog-transition).
-The current local image is `localhost/fourstory:postgresql-actor-transition`.
+That increment used `localhost/fourstory:postgresql-actor-transition`.
 The upgrade suite passes **852 checks per configuration** in Debug, ASan/UBSan and
 installed Release; the existing **1,915-check** native regression suite also passes
 in each configuration. Complete gameplay and actual-client acceptance remain open.

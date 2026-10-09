@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "checks": [
+    "original 001-030 apply unchanged",
+    "old manifest is exactly the previous actor contract",
+    "upgrade applies only new migration 031",
+    "all 30 prior receipt hashes and timestamps are unchanged",
+    "second migration run is a no-op",
+    "old release does not falsely satisfy new stat contract",
+    "complete verified four-table release activates",
+    "native runtime readiness identifies the new complete release",
+    "explicit old manifest creates a directional additive certificate",
+    "runtime projection exposes only the verified exact old/current pair",
+    "repeated activation adds no duplicate release",
+    "prior imported values remain unchanged after upgrade and activation",
+    "previous item-magic and skill-point catalogs are identical in the extended release"
+  ],
+  "activation": {
+    "run_id": 2,
+    "manifest_sha256": "bc17bc975c398ae2c05c2cc92e029df807be3c1fdc94b9cc43fe3659a280b878",
+    "changed": true,
+    "reference_tables": 4,
+    "verified_source_rows": 9773,
+    "snapshot_values_and_original_text_bytes_verified": true,
+    "compatible_previous_manifest": "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381",
+    "compatibility_created": true,
+    "retired_map_owners": 0
+  },
+  "scope": "Migration and actual pinned-backup proof verification. Player recovery is exercised separately by actor-transition-{debug,asan,release}.json; no original client executable.",
+  "owned_database_removed": true
+}

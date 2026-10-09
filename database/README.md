@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **031** are also immutable. Current
-native Map deployment requires migrations through 031 and the existing
+All subsequently applied migrations through **032** are also immutable. Current
+native Map deployment requires migrations through 032 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,7 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 032+.
+for tests and remaining gameplay requirements. Add schema changes as 033+.
 
 Migration 021 adds fresh-primary skill checkpoints (contract 3). Initial readiness,
 periodic checkpoints and final logout atomically store remaining skill durations
@@ -115,8 +115,8 @@ Splits use the same `worlds.item_high_water` transaction as Login starter creati
 rollback restores the allocator along with items and recovery state. Graph splits
 reserve a global ID without materializing stale normalized child rows. Apply the
 updated Map grants for item INSERT, stack receipt INSERT and narrow high-water
-UPDATE. Migrations 001–030 are now immutable; native audit uses 029, statistics uses 030
-and the next schema change is 031. See the
+UPDATE. Native audit uses 029, statistics 030, actor compatibility 031 and
+equipment 032. All are immutable; the next schema change is 033. See the
 [stack contract](../_rewrite/docs/modernization/evidence/inventory-stacks-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
@@ -272,4 +272,26 @@ journals keep their original bytes/hashes/identities. Map receives SELECT only o
 the current-target view, never certificate-write permission. Recovery checks remain
 strict for character/routing catalogs and unsupported graph sections. See the
 [offline procedure](../deploy/README.md#offline-actor-catalog-transition).
-Backups and applied migrations 001–031 are immutable; next migration is 032.
+At that increment, migrations 001–031 became immutable; migration 032 follows below.
+
+
+### Native equipment receipts
+
+Migration **032** adds `equipment_operations` and `equipment_item_changes` to
+`app_world`. The header records the exact five-byte original request, ownership
+identity/epoch, storage contract, graph hashes, core fingerprint and final diff
+size. Child rows distinguish created/deleted identities from existing items with
+nullable before/after hashes and preserve the source parent of each allocation.
+Zero-diff source-equivalent equipment requests are valid operations. These are
+new operational records, not an import of historical item logs.
+
+The existing Map transaction locks ownership/checkpoints, verifies the complete
+fresh inventory or authoritative graph, rechecks learned ranks and pinned bag
+rules, then persists displacement/split/swap, identity allocation, rederived
+HP/MP clamping, sampled skill timers and receipts atomically. Graph operations
+retain stale normalized rows unchanged. No automatic retry follows an unknown
+commit. Equipment eligibility uses the original `bLevel` chart column and raw
+full-width item extensions. Inactive account pets are preserved separately from
+active-effect dependencies. Apply the current Map grants after migration.
+See [contract and limits](../_rewrite/docs/modernization/evidence/equipment-contract.json).
+Backups and migrations **001–032** are immutable; next migration **033**.

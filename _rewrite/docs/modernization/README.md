@@ -18,7 +18,52 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: verified actor-catalog transition
+## Current increment: native equipment transactions
+
+The existing `CS_MOVEITEM_REQ` path now handles ordinary equipment with native
+PostgreSQL: equip/unequip, unequal swaps, reverse swap normalization, two-hand
+slot remapping and conflicts, displaced items, one-unit splits and the original
+equal-equipped no-op. Eligibility follows raw wrap state, learned `SDT_EQUIP`
+permissions, slot/class masks and the original level/ELD rule. The source query
+maps database `bLevel` to `m_bDefaultLevel`; equipment bag template 2 has type 0
+and 19 slots, unlike ordinary type-11 bags.
+
+Migration **032** adds an equipment operation header and per-identity changes.
+Ownership, item changes, new IDs, core HP/MP clamping, sampled skill timers and
+recovery state commit together. Fresh rows and authoritative transfer graphs use
+separate existing persistence paths; graph operations never overwrite stale
+normalized children. Statistics and weapon/timing gates are recalculated from
+pinned charts. Client item notifications precede EQUIP, MOVEITEM, CHARSTATINFO,
+HPMP and the final MOVEITEM, all after confirmed commit. No new client fields
+are introduced. An uncertain result closes the client and retains ownership for
+recovery without automatically retrying or saving the old state.
+
+Verification passes **2,111 native database/network checks per configuration**:
+664 native backend, 29 pool/TLS, 470 outer TCP and 948 nested protocol checks,
+including 50 direct equipment checks and two 162-check Map transfer suites.
+Debug CTest has **188 actual passes**, eight internal legacy fixture skips and
+seven explicit native fixture skips (203 entries). All **39 ASan/UBSan suites**
+pass. Installed Release uses the Debug backend test, while Login/World/Map are
+installed Release daemons. Six service health/DNS/SIGTERM checks and 13 historical
+actor-upgrade regression checks pass. Local image:
+`localhost/fourstory:postgresql-equipment`, ID
+`01068c3c9172618f79801612d01f269a9ebc8f6c6708195f6e58f31c19e1c850`.
+
+See [equipment contract and evidence](evidence/equipment-contract.json) and
+[local startup/verification](../../../deploy/README.md#native-equipment-transactions).
+Verification results are recorded there; this is a bounded gameplay increment,
+not completion of equipment or the server. Warrior automatic postures 131/132,
+active-effect cancellation/expiry, special-equipment combat behavior, active
+companions/recalls, party/guild/local-battle dependencies, race costumes, timed
+bags, secured/trade/store state and complete cross-Map visibility remain open.
+Unsupported state-changing branches fail before mutation instead of returning
+successful equipment results. Ordinary inactive account pet inventory is retained.
+
+Backups and migrations **001–032** are immutable; next schema migration **033**.
+Only uncompiled client sources are available. Client binary build/hash, assets
+and original-client acceptance remain unverified.
+
+## Previous verified increment: actor-catalog transition
 
 Migration **031** and the existing Map recovery path now support the specific
 additive transition from the old two-table actor catalog to the four-table
@@ -54,15 +99,15 @@ Map → World DNS and SIGTERM checks. Installed Release uses a Debug backend tes
 the old producing Map is installed Release in all three configurations.
 
 The previous statistics image fails the first old-graph admission in the same
-scenario; this is recorded as an intentional negative control. Current local image:
+scenario; this is recorded as an intentional negative control. Image verified for that increment:
 `localhost/fourstory:postgresql-actor-transition`, ID
 `d0f19575951c2b8d48478372046b7048266454d0b43cc5dbf59e702eed311cc6`.
 No publisher lost-COMMIT proxy fault was injected; the no-retry path is code-inspected
 and uncertain-outcome operator handling is documented separately.
 
-Backups and migrations **001–031** are immutable. Next migration: **032**.
-Equipment transactions, advanced effects, remote-player inspection over two actual
-Maps and the remaining gameplay/services are still open. Client acceptance remains
+At this previous increment, backups and migrations **001–031** became immutable.
+The equipment increment above follows it; advanced effects, remote-player
+inspection over two actual Maps and remaining gameplay/services are still open. Client acceptance remains
 blocked by the missing executable/assets; only uncompiled client sources exist.
 
 ## Previous verified increment: source-compatible character statistics
@@ -458,7 +503,7 @@ Service-level buff retention in a graph does not establish live buff simulation.
 
 The installed run uses Release daemons and the verified Debug backend/pool
 integration executables. The previous graph-reagents image fails the new delayed
-ammunition transaction assertion. Current local image:
+ammunition transaction assertion. Image verified for that increment:
 `localhost/fourstory:postgresql-ammunition` (also `:main`), ID
 `0eac33bc3a33a7981dba32a33e22e21a9f4dd50d711bf3fc661e467815ca09d2`,
 UID/GID 10001:10001. All six services pass health/DNS/SIGTERM smoke. See
@@ -951,8 +996,8 @@ Dynamic movement-triggered routing, primary transfer/recovery, full distributed
 AOI/gameplay, guild/recall hydration and ancillary initial client packets remain
 unfinished. Fresh replica admission is one implemented part of the complete
 server objective. Older increment records below retain their historical scope,
-test counts and images; use this section and [next steps](next-steps.md) for current
-status.
+test counts and images; use the topmost increment and [next steps](next-steps.md)
+for current status.
 
 ## Earlier verified increment: safe Map retirement
 

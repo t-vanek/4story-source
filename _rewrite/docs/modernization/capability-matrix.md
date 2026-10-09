@@ -74,7 +74,8 @@ all response bytes, original grade/gem/broken-weapon/aftermath rules, two-Map
 round-trip preservation and regression recovery; **VERIFIED** World relay
 loopback/wrong-peer rejection. Full remote-player real-Map and original-client UI
 acceptance remain **UNVERIFIED**. Buff/companion/guild/local-battle stat variants
-and equipment mutations remain **IMPLEMENTING**. See
+remain **IMPLEMENTING**; ordinary equipment transactions now have the narrower
+verified scope below. See
 [evidence/character-statistics-contract.json](evidence/character-statistics-contract.json).
 Migration 030 requires a complete four-table actor release. Migration 031 adds
 **IMPLEMENTED/INTEGRATED/VERIFIED** offline two-table → four-table transition:
@@ -83,6 +84,21 @@ unchanged receipt bytes, graph-only inventory/timers, fenced inactive owners and
 atomic publication. Arbitrary content changes, transitive compatibility and actual
 client acceptance remain **UNVERIFIED/UNSUPPORTED**. See
 [evidence/actor-transition-contract.json](evidence/actor-transition-contract.json).
+
+
+Native equipment (032) is **IMPLEMENTED/INTEGRATED** in the existing Map request
+and PostgreSQL paths. **VERIFIED** ordinary armor equip/unequip/swap and exact
+source-ordered TCP responses; original eligibility and two-hand/displacement
+rules have unit coverage. Real PG covers zero-diff requests, forced one-unit
+split/displacement, allocator/receipt rollback, concurrent writers, stale claims,
+unchanged-item/rank drift, HP/MP clamp and authoritative transferred graphs.
+Two real Maps exercise graph equipment after a round trip. Local neighboring-cell
+EQUIP delivery is integrated but multi-character and complete cross-Map visibility
+acceptance is still **UNVERIFIED**. Active-effect/posture cancellation, special
+combat flags, party/guild/companions/local battle, race costumes, timed/security/
+trade/store cases and actual original-client UI remain **IMPLEMENTING/UNVERIFIED**.
+See [equipment contract](evidence/equipment-contract.json); no branch is dropped
+from scope.
 
 
 | Legacy behavior / references | Modern production path and replacement work | PG dependency | Protocol and test evidence | Status / next acceptance |
@@ -96,7 +112,7 @@ client acceptance remain **UNVERIFIED/UNSUPPORTED**. See
 | Damage, death, rewards | Existing combat/damage-formula, corpse/loot services | Durable reward/item/currency transactions pending | Combat, damage, corpse and loot tests | IMPLEMENTING; no complete original-client combat loop |
 | Skills/effects/buffs | Native learned ownership/rank, pinned cost/timing definitions, atomic HP/MP and same-kind gates | Native character hydration; live CHARINFO/readiness samples; learned-skill cooldown persistence via 021 | `skill-costs-contract.json`, `skill-timing-contract.json`, `admission-timers-contract.json`, `skill-loop-contract.json`, `skill-gates-contract.json` and `skill-reagents-contract.json` / `graph-reagents-contract.json` / `ammunition-contract.json` / `ammo-batch-contract.json` / `multi-attack-contract.json`: encrypted use, delayed admission/expiry, equipment/transfer hydration and persistence | VERIFIED normal native cost/ownership and rank/weapon/passive/item/shared-kind cooldown scope; native owned-PC loop gate/wire and ordinary map/previous-effect/non-consuming weapon gates also verified; active buff timing, cancellation, broader consumables, learning and effects pending; multi-attack uses pinned learned-rank budgets; fresh and transferred-primary single-reagent transactions via 022–023 and 1–16-target per-bag ammunition batches via 024–025 and source multi-attack expansion via 026 are verified |
 | Quest types and branches (`Quest*.cpp`) | Map quest engine/chart/service; original per-type sources all indexed | Native definitions, 62 orphan rewards visible; mutable progress/rewards pending | Quest engine/sender tests | IMPLEMENTING; retain unported original quest actions in file index |
-| Inventory, bags, equipment, storage | Native starter creation, Map hydration, fresh/transferred-primary consumption and whole-stack carried moves/swaps; legacy gameplay inventory and World storage repositories | Starter ownership/slot constraints; actual bags/items on wire; atomic moves/splits/merges via 027–028; equipment and expiry pending | Native character/Map and `skill-reagents-contract.json` / `graph-reagents-contract.json` / `ammunition-contract.json` / `ammo-batch-contract.json` / `multi-attack-contract.json` evidence plus existing inventory/loot tests | VERIFIED starter load, one-reagent transactions, atomic ammunition batches and whole-stack moves/different-template swaps via 027 (`inventory-moves-contract.json`); native splits/merges and same-template unequal swaps via 028 are integrated with server evidence in `inventory-stacks-contract.json`; equipment IMPLEMENTING; historical expiry/timezone import remains gated |
+| Inventory, bags, equipment, storage | Native starter creation, Map hydration, fresh/transferred-primary consumption and whole-stack carried moves/swaps; legacy gameplay inventory and World storage repositories | Starter ownership/slot constraints; actual bags/items on wire; atomic moves/splits/merges via 027–028; ordinary equipment via 032; advanced equipment and expiry pending | Native character/Map and `skill-reagents-contract.json` / `graph-reagents-contract.json` / `ammunition-contract.json` / `ammo-batch-contract.json` / `multi-attack-contract.json` evidence plus existing inventory/loot tests | VERIFIED starter load, one-reagent transactions, atomic ammunition batches and whole-stack moves/different-template swaps via 027 (`inventory-moves-contract.json`); native splits/merges and same-template unequal swaps via 028 are integrated with server evidence in `inventory-stacks-contract.json`; ordinary equipment integrated via 032 (`equipment-contract.json`); active effects/postures and advanced equipment IMPLEMENTING; historical expiry/timezone import remains gated |
 | Item IDs (`TGenerateDBItemID`) | Native character starter allocator in the create transaction; extend to gameplay creation | Proven `2^56` world ranges and world-zero floor 735812; independent item-world mapping | Native character concurrent allocation/rollback tests | VERIFIED native starter allocation; native stack splitting now shares this allocator; other creators and signed-negative allocation worlds pending |
 | Money, trade, shops, crafting/upgrades | Existing money/loot/NPC handlers and World cash/item operations; enumerate original CS branches | Atomic ownership and currency changes, rollback/races | Money/loot/item tool/cashsale tests are partial | IMPLEMENTING; duplication/race/reconnect acceptance pending |
 | Parties and corps | World party/corps registries and handler modules | Persistence only where original durability is proven | Party join/order/move/delete/corps suites | INTEGRATED subset; full Map/World/client behavior comparison pending |

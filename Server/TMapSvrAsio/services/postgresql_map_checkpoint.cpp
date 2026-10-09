@@ -270,7 +270,6 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
     if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!before.payload||!after.payload||
        before.dwCharID!=c.char_id||before.persistence_uncertain||before.bDead||!before.dwHP)
         throw std::runtime_error("Unsupported native inventory move");
-    const auto fingerprint=Fingerprint(c,after);
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;
     if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Inventory claim is not ready primary");
@@ -282,14 +281,36 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Inventory session was revoked");
     const auto plan=ValidateInventoryMove(sql,c,request,before,after);
+    const auto fingerprint=Fingerprint(c,plan.after);
     WriteCore(sql,c,plan.after,0);RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,plan.after);
     long long operation=0;
     sql<<"SELECT nextval('app_world.inventory_movements_movement_id_seq')",soci::into(operation);
     const int world=c.group,character=c.char_id,server=m_config.server,contract=graph?2:3;
     const long long generation=c.connection_id,epoch=c.authority_epoch;
+    if(plan.move.kind==InventoryMoveKind::Equipment) {
+        constexpr char digits[]="0123456789abcdef";std::string wire;
+        for(auto value:{request.source_bag,request.source_slot,request.destination_bag,request.destination_slot,request.count}){wire+=digits[value>>4];wire+=digits[value&15];}
+        const int changed=static_cast<int>(plan.move.items.size());
+        sql<<"INSERT INTO app_world.equipment_operations(operation_id,world_id,char_id,server_id,owner_token,connection_id,authority_epoch,state_contract,request,changed_items,before_graph_hash,after_graph_hash,core_fingerprint) "
+             "VALUES(:op,:w,:c,:s,:t,:g,:e,:contract,decode(:request,'hex'),:n,NULLIF(:gb,''),NULLIF(:ga,''),:f)",
+            soci::use(operation,"op"),soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
+            soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(contract,"contract"),soci::use(wire,"request"),soci::use(changed,"n"),
+            soci::use(plan.before_graph,"gb"),soci::use(plan.after_graph,"ga"),soci::use(fingerprint,"f");
+    }
     for(std::size_t i=0;i<plan.move.items.size();++i) {
         const auto& move=plan.move.items[i];const long long id=std::bit_cast<std::int64_t>(move.before.dlID);
         const int source_bag=move.before.bInvenID,source_slot=move.before.bItemID,dest_bag=move.bag,dest_slot=move.slot,count=move.before.bCount;
+        if(plan.move.kind==InventoryMoveKind::Equipment) {
+            const long long changed_id=move.created?static_cast<long long>(plan.committed.created_id):id;
+            const int ordinal=static_cast<int>(i),old_count=move.created?0:count,new_count=move.count;
+            const std::string old_hash=move.created?"":move.before.durable_hash;
+            sql<<"INSERT INTO app_world.equipment_item_changes(operation_id,ordinal,item_id,parent_id,source_bag,source_slot,destination_bag,destination_slot,before_count,after_count,before_hash,after_hash) "
+                 "VALUES(:op,:ord,:id,:parent,:sb,:ss,:db,:ds,:bc,:ac,NULLIF(:bh,''),NULLIF(:ah,''))",
+                soci::use(operation,"op"),soci::use(ordinal,"ord"),soci::use(changed_id,"id"),soci::use(id,"parent"),
+                soci::use(source_bag,"sb"),soci::use(source_slot,"ss"),soci::use(dest_bag,"db"),soci::use(dest_slot,"ds"),
+                soci::use(old_count,"bc"),soci::use(new_count,"ac"),soci::use(old_hash,"bh"),soci::use(plan.committed.hashes[i],"ah");
+            continue;
+        }
         if(plan.move.kind==InventoryMoveKind::Split||plan.move.kind==InventoryMoveKind::Merge) {
             const std::string kind=plan.move.kind==InventoryMoveKind::Split?"split":"merge";
             const long long changed_id=move.created?static_cast<long long>(plan.committed.created_id):id;

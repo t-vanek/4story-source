@@ -27,6 +27,7 @@ namespace tmapsvr {
 
 // Exactly 87 source bytes, shared by local inspect and the World stat relay.
 std::vector<std::byte> EncodeCharacterStatistics(const CharSnapshot& s,const CharacterStatistics& values);
+std::vector<std::byte> EncodeEquipment(const CharSnapshot& s);
 
 std::string FormatServerClock();
 

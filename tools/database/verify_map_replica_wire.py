@@ -12,12 +12,14 @@ from verify_login_wire import frame, read_packet
 from verify_graph_reagent_wire import seed_graph_reagent, graph_reagent_cast
 from verify_inventory_stack_wire import graph_stack_packet
 from verify_character_statistics_wire import source_statistics
+from verify_equipment_wire import descriptor
 
 
 def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start, connect_request, parse_character, ammunition=False):
     checks = []
     sockets = []
     reagent_id=None;expected_reagent=None;reagent_descriptor=None
+    current_character=None
     def check(ok, label):
         if not ok:
             raise RuntimeError('Map replica wire: ' + label)
@@ -44,7 +46,7 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
     old_port = conn.execute('SELECT "wPort" FROM app_global."TSERVER" WHERE "bGroupID"=1 AND "bServerID"=2 AND "bType"=4').fetchone()[0]
     items = conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"', (cid,)).fetchall()
     def enter():
-        nonlocal reagent_descriptor
+        nonlocal reagent_descriptor,current_character
         _, key = start(login_port, cid)
         primary = socket.create_connection(('127.0.0.1', primary_port), timeout=8);sockets.append(primary)
         primary.sendall(frame(connect_request(706, cid, key), 0x5281, 1))
@@ -53,6 +55,7 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         op, body = read_packet(primary, 2)
         check(op == 0x5285, 'source primary CHARINFO precedes ADDCONNECT and CONNECT')
         character = parse_character(body)
+        current_character=character
         if expected_reagent is not None:
             rows=[item for bag,item,options in character['items'] if bag==255 and item[0]==2]
             check((len(rows)==1 and rows[0][6]==expected_reagent) if expected_reagent else not rows,
@@ -140,6 +143,32 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
               'complete stat sheet survives both ownership transfers and graph inventory/cooldown commits')
         replica.sendall(frame(struct.pack('<I',cid),0x5323,9))
         no_packet(replica,'former primary cannot serve a stale stat sheet after demotion')
+        # Exercise equipment while contract-2 graph is authoritative. The stale
+        # normalized item rows remain unchanged; expected stats use the original
+        # chart calculation with the requested independent equipment placement.
+        equipped={i[0]:(i,m) for bag,i,m in current_character['items'] if bag==254}
+        head=equipped[3]
+        initial_equipped=[r[0] for r in conn.execute('SELECT row_to_json(i) FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s AND "dwStorageID"=254',(cid,))]
+        graph_rows=conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall()
+        ss=13
+        for cs,remove in ((9,True),(10,False)):
+            sb,db=(254,255) if remove else (255,254)
+            primary.sendall(frame(bytes([sb,3,db,3,255]),0x52a8,cs))
+            if remove:equipped.pop(3)
+            else:equipped[3]=head
+            expected_rows=[i for i in initial_equipped if i['bItemID']!=3] if remove else initial_equipped
+            hp,mp=conn.execute('SELECT "dwHP","dwMP" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()
+            expected=[(0x52ac,bytes([sb,3])),(0x52ab,bytes([db])+descriptor(*head)),
+                      (0x52ad,struct.pack('<IB',cid,len(equipped))+b''.join(descriptor(*equipped[k]) for k in sorted(equipped))),
+                      (0x52a9,b'\0'),(0x5324,source_statistics(conn,cid,expected_rows)),
+                      (0x52a2,struct.pack('<IBIIII',cid,1,current_character['hpmp'][0],hp,current_character['hpmp'][2],mp)),(0x52a9,b'\0')]
+            for message in expected:
+                check(read_packet(primary,ss)==message,'graph equipment exact source packet '+hex(message[0]));ss+=1
+            check(conn.execute('SELECT state_contract,changed_items FROM app_world.equipment_operations WHERE char_id=%s ORDER BY operation_id DESC LIMIT 1',(cid,)).fetchone()==(2,1),
+                  'graph equipment commits one identity diff under contract two')
+            check(conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall()==graph_rows,
+                  'graph equipment never overwrites stale normalized item rows')
+        no_packet(replica,'equipment item and stat replies stay on the current primary connection')
         primary.close()
         until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'transferred primary performs final native save and releases account')
         check(replica.recv(1) == b'', 'final close after round trip retires the retained replica')

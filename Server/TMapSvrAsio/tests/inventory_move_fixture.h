@@ -1,6 +1,7 @@
 #pragma once
 #include "services/inventory_move.h"
 #include "inventory_stack_fixture.h"
+#include "equipment_fixture.h"
 
 void VerifyInventoryMoves(soci::session& admin,SessionPool& pool,tmapsvr::PostgreSQLMapService& source,
     const char* connection,const char* manifest,const char* routing,const char* actor,tmapsvr::MapSessionClaim primary,
@@ -8,6 +9,9 @@ void VerifyInventoryMoves(soci::session& admin,SessionPool& pool,tmapsvr::Postgr
     using namespace tmapsvr;
     const auto cid=std::to_string(primary.char_id);
     admin<<"INSERT INTO app_world.\"TINVENTABLE\"(\"bWorldID\",\"dwCharID\",\"bInvenID\",\"wItemID\",\"dEndTime\") VALUES(1,"+cid+",4,4,'1900-01-01')";
+    admin<<"UPDATE app_world.\"TITEMTABLE\" SET \"bMagic1\"=50,\"wValue1\"=100,\"bMagic2\"=51,\"wValue2\"=100 WHERE \"dwOwnerID\"="+cid+" AND \"dwStorageID\"=254 AND \"bItemID\"=3";
+    admin<<"INSERT INTO app_world.\"TITEMTABLE\" SELECT (jsonb_populate_record(NULL::app_world.\"TITEMTABLE\",to_jsonb(i)||jsonb_build_object('dlID',9300000+\"dwOwnerID\",'dwStorageID',4,'bItemID',0,'bCount',3,'bGem',\"bGem\"+1))).* FROM app_world.\"TITEMTABLE\" i WHERE \"dwOwnerID\"="+cid+" AND \"dwStorageID\"=254 AND \"bItemID\"=3";
+    admin<<"INSERT INTO app_world.\"TITEMTABLE\" SELECT (jsonb_populate_record(NULL::app_world.\"TITEMTABLE\",to_jsonb(i)||jsonb_build_object('dlID',9400000+\"dwOwnerID\",'dwStorageID',4,'bItemID',1))).* FROM app_world.\"TITEMTABLE\" i WHERE \"dwOwnerID\"="+cid+" AND \"dwStorageID\"=254 AND \"bItemID\"=3";
     admin<<"INSERT INTO app_world.\"TITEMTABLE\" SELECT (jsonb_populate_record(NULL::app_world.\"TITEMTABLE\",to_jsonb(i)||jsonb_build_object('dlID',9200000+\"dwOwnerID\",'bItemID',0,'wItemID',8401,'bCount',8))).* FROM app_world.\"TITEMTABLE\" i WHERE \"dwOwnerID\"="+cid+" AND \"dwStorageID\"=255 AND \"bItemID\"=1";
     admin<<"UPDATE app_world.\"TITEMTABLE\" SET \"wItemID\"=11054,\"bCount\"=3 WHERE \"dwOwnerID\"="+cid+" AND \"dwStorageID\"=255 AND \"bItemID\"=1";
     const auto item_rows=[&]{std::string rows;admin<<"SELECT jsonb_agg(to_jsonb(i) ORDER BY \"dlID\")::text FROM app_world.\"TITEMTABLE\" i WHERE \"dwOwnerID\"="+cid,soci::into(rows);return rows;};
@@ -25,6 +29,7 @@ void VerifyInventoryMoves(soci::session& admin,SessionPool& pool,tmapsvr::Postgr
     Check(source.ClaimSession(primary,*source.LookupSession(primary.user_id,primary.key)).has_value(),"inventory source claims native handoff");
     auto live=*source.LoadAuthorized(primary);auto active=primary;auto* service=&source;
     live.wMapID=0;live.fPosX=4080;live.fPosY=80;live.fPosZ=3584;
+    live.dwHP=live.dwMaxHP;live.dwMP=live.dwMaxMP;
     source.MarkReady(primary,live);
     if(graph) {
         Check(source.AuthorizeReplicas(primary,0,4080,3584,{{0x0100007f,5815,2}}),"inventory graph replica grant");
@@ -98,6 +103,7 @@ void VerifyInventoryMoves(soci::session& admin,SessionPool& pool,tmapsvr::Postgr
           "cross-bag whole-stack move preserves source identity and raw attributes");
     Check(Number(admin,"SELECT count(*) FROM app_world.inventory_movements WHERE char_id="+cid)==3,"move adds exactly one receipt after swap");
     VerifyInventoryStacks(admin,*service,active,after,recover);
+    VerifyEquipmentMoves(admin,*service,active,after);
     if(graph) {
         SkillCooldownTracker timers;timers.Restore(primary.char_id,after.payload->skills,0);
         Check(transfer::Encode(StoredReagentGraph(admin,primary.char_id))==transfer::Encode(transfer::Capture(after,primary.key,timers,0)),

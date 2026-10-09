@@ -39,6 +39,7 @@ public:
 private:
     struct InventoryStoragePlan {InventoryMovePlan move;CharSnapshot after;InventoryMoveCommit committed;std::string before_graph,after_graph;};
     InventoryStoragePlan ValidateInventoryMove(soci::session&,const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) const;
+    static void RefreshEquipment(soci::session&,CharSnapshot&,bool derive);
     enum class ConsumptionKind { Reagent, Ammunition, MultiAttackAmmunition };
     struct ReagentGraphPlan {std::string before_hash,after_hash;std::vector<std::string> item_hashes;ConsumptionKind kind=ConsumptionKind::Reagent;};
     static std::string GraphItemFingerprint(const transfer::Item&);

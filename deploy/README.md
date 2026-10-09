@@ -6,7 +6,7 @@ one daemon as UID/GID 10001, logs to stdout, and receives SIGTERM directly.
 
 ## Current native PostgreSQL verification contract
 
-The current native Login/Map path requires migrations **001–031**, current
+The current native Login/Map path requires migrations **001–032**, current
 `sql/login-runtime-grants.sql` and `sql/map-runtime-grants.sql`, plus explicitly
 activated character/routing/four-table actor catalogs. The Map role now has bounded gameplay
 writes for consumption and inventory moves/splits/merges, including item INSERT
@@ -532,7 +532,7 @@ acceptance remains blocked because no original executable/assets are available.
 
 ### Offline actor-catalog transition
 
-Current local image: `localhost/fourstory:postgresql-actor-transition` (build with
+Previous increment image: `localhost/fourstory:postgresql-actor-transition` (build with
 `podman build --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-actor-transition .`).
 The supported transition is exactly the old two-table actor release to the
 four-table statistics release, with identical original item-magic/skill-point rows.
@@ -574,3 +574,54 @@ source prepare. Use `--build-dir build/linux-asan` for the sanitizers, or
 /opt/fourstory/bin` for installed Release daemons (backend integration binary remains
 Debug). Run the general native matrix separately without the upgrade flags.
 See [transition evidence](../_rewrite/docs/modernization/evidence/actor-transition-contract.json).
+
+
+## Native equipment transactions
+
+Current local runtime: `localhost/fourstory:postgresql-equipment`. Build locally:
+
+```sh
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-equipment .
+```
+
+Apply migrations **001–032** with the schema owner and reapply
+`deploy/sql/map-runtime-grants.sql` for the configured Map role. Migration 032
+adds two empty runtime receipt tables; it does not rewrite historical data,
+existing items, actor releases or recovery packets. Map receives INSERT and
+SELECT on those tables, with no UPDATE/DELETE grant. Do not alter migrations
+001–032 after application. Next schema change: 033.
+
+Use the existing native Login/World/Map configuration, owner/session fencing and
+verified character/routing/four-table actor manifests described above. An existing
+old two-table world must first follow the certified offline transition; merely
+switching a hash does not authorize old-graph recovery. Start with the local
+Compose/Podman procedure above; no external deployment/publication is authorized.
+
+Reproduce the native equipment and full Map regression against a disposable lab:
+
+```sh
+python3 tools/database/disposable_environment.py start --work /tmp/fourstory-equipment-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-equipment-test --map-runtime-only --build-dir build/linux-debug \
+  --snapshot /private/character/manifest.json \
+  --routing-snapshot /private/routing/manifest.json \
+  --actor-snapshot /private/four-table-actor/manifest.json \
+  --report /tmp/native-equipment-debug.json
+```
+
+Use the Python environment with psycopg from the database reconstruction setup;
+manifest paths must refer to verified exports of the immutable backups. Replace
+`--build-dir` with `build/linux-asan` for sanitizer daemons/backend, or add
+`--image localhost/fourstory:postgresql-equipment --runtime-bin-dir /opt/fourstory/bin`
+for installed Release daemons with the Debug backend integration binary. Execute
+CTest Debug and sanitizer presets separately. Stop the owned lab using
+`disposable_environment.py stop --work /tmp/fourstory-equipment-test`, then remove
+its private credentials/keys. Runtime authentication pacing is intentional.
+
+The suite covers normal equipment items/stat packets, graph authority after two
+Map transfers, item/core/timer atomicity, HP/MP clamping, concurrent writes,
+rollback, reconnect and the existing process/DB fault matrix. It does not prove
+original-client acceptance. No supported executable build/hash or assets can be
+listed yet because only uncompiled client sources are available. Finish warrior
+postures, active effects and the remaining equipment/gameplay dependencies before
+claiming a complete server. See [equipment contract](../_rewrite/docs/modernization/evidence/equipment-contract.json).

@@ -1,0 +1,227 @@
+{
+  "date": "2026-10-09",
+  "status": "verified_bounded_increment",
+  "scope": "Existing native Map MOVEITEM equipment path, PostgreSQL atomicity, original-source packet/stat expectations and authoritative transfer graphs. Complete equipment/gameplay and original-client acceptance remain unfinished.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "1782-2183",
+      "contract": "Original five-BYTE request, eligibility order, source/destination normalization, forced quantity one, secondary-slot displacement before source slot becomes empty, equal-equipped no-op, warrior posture pointer condition, final MOVEITEM."
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "128-296,2198-2214",
+      "contract": "CanEquip raw wrap, learned SDT_EQUIP kind, slot/class/level checks; CanPush simulates complete displaced capacity; special-equipment combat flag remains an open dependency."
+    },
+    {
+      "path": "Server/TMapSvr/TItem.cpp",
+      "lines": "47-126,550-553,629-637",
+      "contract": "Raw equality/copy and raw full-DWORD CanUse; GetEquipLevel compares full ELD before subtracting BYTE, retaining requirement if ELD is at least default level."
+    },
+    {
+      "path": "Server/TMapSvr/DBAccess.h",
+      "lines": "1144-1218",
+      "contract": "CTBLItemChart selects database bLevel into m_bDefaultLevel; no new database field or inferred value."
+    },
+    {
+      "path": "Server/TMapSvr/TPlayer.cpp",
+      "lines": "1775-1880,4901-4945",
+      "contract": "Default merge, other merge, default blank, other blank order; DEL all displaced equipment first. EQUIP to neighbors, private MOVEITEM, CHARSTATINFO, clamp and HPMP, then CheckEquipSkill."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1315-1346,1420-1496",
+      "contract": "Original item/EQUIP full descriptors and 21-byte HPMP. Final MOVEITEM in caller intentionally duplicates the earlier success."
+    },
+    {
+      "path": "Client/TClient/CSHandler.cpp",
+      "lines": "3492-3535,3957-3995,4278-4350",
+      "contract": "Unchanged client parses HPMP fields and remote EQUIP descriptors; own EQUIP triggers appearance/UI reset after private item updates. Source inspection, not binary/UI acceptance."
+    }
+  ],
+  "implementation": {
+    "production": "OnMoveItemReq -> PlanEquipmentMove -> PostgreSQLMapService::MoveInventoryItems/ValidateInventoryMove -> existing fresh item or authoritative graph writes -> committed derived snapshot -> original item/EQUIP/stat/HPMP packets.",
+    "schema": "032 adds append-only equipment_operations header and equipment_item_changes final per-identity diff. Header preserves five request bytes, owner/generation/epoch, state contract, graph/core hashes. Zero-diff operations and new/deleted IDs are explicit. Existing 027/028 receipts and applied migrations remain unchanged.",
+    "atomicity": "Native process/account/session/authority/checkpoint locks enclose complete fresh item fingerprint/membership and rank validation or full graph comparison, pinned bags/rules, displacement/splits/swaps, shared identity high-water, rederived/clamped HP/MP, sampled skill timers, graph/recovery and all operation receipts. Late failures roll back items, resource changes, allocator and audit together.",
+    "source_rules": "Raw wrap DWORD, learned SDT_EQUIP kind regardless of rank, slot then class then original level/ELD. Equipment bag is recovered template2/type0/19 slots; ordinary bags are type11. Two-hand secondary request remaps primary; displaced stacks merge before taking a blank and cannot use a not-yet-vacated source slot.",
+    "response": "Original DEL/ADD/UPDATE displacement and main move order; complete EQUIP; MOVEITEM success; independently source-derived 87-byte statistics; 21-byte HPMP; final MOVEITEM success. Every response follows commit. Self and same Map/channel 3x3 local cells receive EQUIP; full cross-Map/multi-character acceptance pending.",
+    "derivation": "Database reprojects raw items from the verified charts and recomputes character sheet, equipment skill permissions, weapon eligibility and attack timing. Unequip clamps HP/MP in the same commit; reequip does not heal. Inactive account pet inventory is not an active companion effect and is preserved.",
+    "recovery": "Actual disconnect during delayed commit retains new equipment through final save and a fresh Login. Graph mutations remain authoritative over stale normalized rows; native backend process replacement and actual two-Map round trip preserve complete graphs, allocated IDs and timers. Existing daemon SIGKILL/SIGTERM/World/DB fault matrix is rerun.",
+    "unknown_commit": "No automatic retry or stale save; handler marks persistence uncertain, closes without success and retains ownership for recovery. A lost COMMIT-response proxy specific to equipment was not injected; late rollback and disconnect during confirmed commit were exercised.",
+    "corrections": [
+      "Atomic DB writes and reply-after-commit replace original deferred persistence and process-local ID allocation.",
+      "Remap alias to the same item is rejected as SAMEPOS; overlapping displacement is refused instead of reproducing pointer alias/double-free behavior.",
+      "Existing pinned bag-capacity bounds remain enforced instead of allowing invisible slots."
+    ]
+  },
+  "verification": {
+    "debug": {
+      "report": "native-equipment-debug.json",
+      "status": "passed",
+      "backend_checks": 664,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 470,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 162,
+      "map_ammunition_wire_checks": 162,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "inventory_stack_wire_checks": 32,
+      "character_statistics_wire_checks": 15,
+      "equipment_wire_checks": 50,
+      "total_checks": 2111,
+      "daemon_binaries": {
+        "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+        "directory": "/src/build/linux-debug/bin/",
+        "integration_test_directory": "/src/build/linux-debug/bin/"
+      }
+    },
+    "asan": {
+      "report": "native-equipment-asan.json",
+      "status": "passed",
+      "backend_checks": 664,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 470,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 162,
+      "map_ammunition_wire_checks": 162,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "inventory_stack_wire_checks": 32,
+      "character_statistics_wire_checks": 15,
+      "equipment_wire_checks": 50,
+      "total_checks": 2111,
+      "daemon_binaries": {
+        "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+        "directory": "/src/build/linux-asan/bin/",
+        "integration_test_directory": "/src/build/linux-asan/bin/"
+      }
+    },
+    "release": {
+      "report": "native-equipment-release.json",
+      "status": "passed",
+      "backend_checks": 664,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 470,
+      "skill_cast_wire_checks": 53,
+      "world_secondary_wire_checks": 66,
+      "world_handoff_wire_checks": 295,
+      "map_rejection_wire_checks": 7,
+      "map_replica_wire_checks": 162,
+      "map_ammunition_wire_checks": 162,
+      "ammunition_wire_checks": 24,
+      "ammunition_batch_wire_checks": 30,
+      "multi_attack_wire_checks": 23,
+      "inventory_move_wire_checks": 29,
+      "inventory_stack_wire_checks": 32,
+      "character_statistics_wire_checks": 15,
+      "equipment_wire_checks": 50,
+      "total_checks": 2111,
+      "daemon_binaries": {
+        "image": "01068c3c9172618f79801612d01f269a9ebc8f6c6708195f6e58f31c19e1c850",
+        "directory": "/opt/fourstory/bin/",
+        "integration_test_directory": "/src/build/linux-debug/bin/"
+      },
+      "scope": "Installed Release Login/World/Map daemons; mounted Debug backend/pool integration executables."
+    }
+  },
+  "ctest": {
+    "debug": {
+      "report": "equipment-debug-ctest.xml",
+      "entries": 203,
+      "actual_passes": 188,
+      "explicit_skips": [
+        "fourstory_postgresql_integration",
+        "tloginsvr_postgresql_auth",
+        "tloginsvr_postgresql_char",
+        "tloginsvr_postgresql_handoff",
+        "tlogsvr_postgresql_sink",
+        "tmapsvr_postgresql_map",
+        "tmapsvr_postgresql_catalog"
+      ],
+      "internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "failures": 0
+    },
+    "asan": {
+      "report": "equipment-asan-ctest.xml",
+      "entries": 39,
+      "actual_passes": 39,
+      "explicit_skips": [],
+      "internal_skips": [],
+      "failures": 0
+    }
+  },
+  "actor_upgrade_regression": "equipment-actor-upgrade-regression.json",
+  "container": "equipment-container-verification.json",
+  "image": "localhost/fourstory:postgresql-equipment",
+  "image_id": "01068c3c9172618f79801612d01f269a9ebc8f6c6708195f6e58f31c19e1c850",
+  "acceptance": {
+    "original_client": "BLOCKED: user has uncompiled client sources only; no executable/assets or binary build identity. Source protocol0x2918 is not sufficient evidence.",
+    "supported_client_binary": null,
+    "complete_gameplay": false,
+    "remaining": [
+      "Warrior automatic postures131/132 and durable active-effect creation/cancellation/expiry (including original source-pointer lifetime branch).",
+      "Active buff/disarm/disguise derivation, special-equipment combat flag/consequences, companion/recall/guild/party/local-battle updates.",
+      "Race costume rules, timed bags, secure-code/trade/store integration, drop and other economy/storage paths.",
+      "Full cell/AOI, remote equipment visibility and multi-character/repeated-neighbor acceptance across Map servers.",
+      "All unfinished original systems in capability-matrix.md remain in scope; no feature is declared complete merely because its handlers/build pass."
+    ]
+  },
+  "development_failures_resolved": [
+    "Initial fresh load used in-memory m_bDefaultLevel as a column; corrected to backup bLevel using original DBAccess query.",
+    "Recovered equipment bag has type0 and template2, not carried type11.",
+    "Inactive account pet inventory was incorrectly treated as active companions; removed that guard while supported-stat/active-recall/party gates remain."
+  ],
+  "preservation": {
+    "report": "preservation.json",
+    "entries": 34,
+    "immutable_migrations": "001-032",
+    "next_migration": "033",
+    "historical_backup_changes": false,
+    "prior_applied_migration_changes": false
+  },
+  "source_fingerprints": {
+    "Server/TMapSvrAsio/domain/character_payload.h": "2ddc7171c7aa2de2a0ae17cbf4255cdb0d23ea8f7bf49ad07ed8cf6430107ccd",
+    "Server/TMapSvrAsio/domain/inventory.h": "baf96dc1fd4f258c76f015f52590468bac9c76d539c23fc90397a9e8d0cf154c",
+    "Server/TMapSvrAsio/handlers/inventory.cpp": "3724d3d98028597015e2f56f1138f66a555401dbbc3479fc1c535f1d6a802b97",
+    "Server/TMapSvrAsio/services/client_senders.cpp": "396c2a3428611351f9490e560b471ba7d5e892fcbc6ebcbf08563ce9a436cf8c",
+    "Server/TMapSvrAsio/services/client_senders.h": "c689aaff0dbc3c75767b72d58a5ab419ab38de26d4518ff5c0e6b64375fb9a9a",
+    "Server/TMapSvrAsio/services/equipment_move.h": "982d2972ad1b692053d5249183f77a3a34eb3f2f59d364c7089809fd0b480fa1",
+    "Server/TMapSvrAsio/services/inventory_move.h": "39925f5baeb97d790549128c311523bfd61b0826ebb696394d05e0fe9aa1198d",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "9517390ceb2fd8658276334442d19241cd63fdc4629fda23d49394d70f66d0c0",
+    "Server/TMapSvrAsio/services/postgresql_map_inventory.cpp": "202c6df85810a8ca79d6511abdab888bbecf509da2f3307007947d32d831ad6b",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "51257b55cc4eb4d7e8e3c5518f7ea3ee7c80ec5a8056ef359290e2ead03cd321",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "174a4e6892930522b0fd24e4b3fea96a1766c0370677c0849ebdb1bbb9e6f05b",
+    "Server/TMapSvrAsio/tests/equipment_fixture.h": "709d33b4c5914e2d0e475bbc80d43ed9023f56fdfbe5101e7d5249b0db33b794",
+    "Server/TMapSvrAsio/tests/inventory_move_fixture.h": "0ee93d67e466843d4ab3c6c3e64609bab25b8b9092c837726886a9c3032bcb54",
+    "Server/TMapSvrAsio/tests/test_inventory.cpp": "79fa2eb1790ebdafa9be4fd4dfc549c38aa175d58ae67a7016401607215c5764",
+    "database/postgresql/032-native-equipment.sql": "a554dbfdf1238c689c9ef9f4163b0b8e853417ccc90227520207d5402410b6c2",
+    "deploy/sql/map-runtime-grants.sql": "10f3cc6060b1172139e2e340e9ede8b7c5430f4be7decfa0946616df98a2d54f",
+    "tools/database/verify_actor_upgrade.py": "1265a160628335766b689b1fc3fd3ad6b3cacf539582ba15abd30cee1aa92303",
+    "tools/database/verify_character_statistics_wire.py": "88d1bd5b7931184bfdfd3a781b3fe0aaa5fcc1e578e2e983fc4302b3ef3f0091",
+    "tools/database/verify_equipment_wire.py": "5a561fe9583d4cfac4bf41f3e072a0d97926cd5cef420783a8105b263326d633",
+    "tools/database/verify_map_replica_wire.py": "37172d8886f235d9e08af2c5e56f4ef0bd660f68d15489d2ebbd632ca5fbd078",
+    "tools/database/verify_map_runtime_wire.py": "3f8b56551b7f907c39277c2a58ac4b97b2b071fdfd3ffdd533f63d90dcf18105"
+  },
+  "local_only": true,
+  "cleanup": "equipment-cleanup.json"
+}

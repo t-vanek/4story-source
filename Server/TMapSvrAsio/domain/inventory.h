@@ -8,9 +8,16 @@
 #include <utility>
 #include <memory>
 #include <string>
+#include <optional>
 
 namespace tmapsvr {
 namespace transfer { struct Item; }
+struct CharSnapshot;
+struct EquipmentRules {
+    std::uint32_t slots{},classes{};
+    std::uint8_t primary{},secondary{},level{},skill_required{};
+    bool operator==(const EquipmentRules&) const=default;
+};
 
 struct InventoryRow
 {
@@ -61,6 +68,7 @@ struct ItemInstance
     std::string durable_hash;
     std::uint8_t bKind = 0; // pinned item chart, server-only ammunition selection
     std::uint8_t stack_limit = 0; // pinned bStack; never serialized to the client
+    std::optional<EquipmentRules> equipment; // original TITEMCHART eligibility
 };
 
 // One ordered stack debit in a single durable cast transaction.
@@ -78,18 +86,23 @@ struct ItemRelocation {
     std::uint8_t count{}; // resulting quantity; zero deletes the source
     bool created=false; // split destination receives a transactionally allocated ID
 };
-enum class InventoryMoveKind { Move,Swap,Split,Merge };
+enum class InventoryMoveKind { Move,Swap,Split,Merge,Equipment };
 enum class InventoryMoveResult : std::uint8_t {
-    Success=0,NoDestinationBag=1,NoSourceBag=2,NoSourceItem=3,SamePosition=4
+    Success=0,NoDestinationBag=1,NoSourceBag=2,NoSourceItem=3,SamePosition=4,
+    CannotEquip=5,InventoryFull=6,BothHands=8,NoSkill=9,WrongClass=10,LowLevel=11,Wrapped=15
 };
+enum class InventoryWireKind { Delete,Add,Update };
+struct InventoryWireChange {InventoryWireKind kind;ItemInstance item;};
 struct InventoryMovePlan {
     InventoryMoveResult result=InventoryMoveResult::Success;
     std::vector<ItemRelocation> items; // source first, optional swapped destination second
     InventoryMoveKind kind=InventoryMoveKind::Move;
+    std::vector<InventoryWireChange> wire{}; // source-ordered equipment side effects
 };
 struct InventoryMoveCommit {
     std::vector<std::string> hashes; // empty for a deleted item, in plan order
     std::uint64_t created_id=0;
+    std::shared_ptr<const CharSnapshot> equipment_snapshot{}; // DB-derived stats/core after equipment commit
 };
 
 } // namespace tmapsvr

@@ -48,9 +48,13 @@ def main():
             c.execute('INSERT INTO runtime_control.actor_catalog(singleton,run_id) VALUES(true,%s)',(old['run_id'],))
             receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
             old_hashes=[table_hash(read_target(c,model,old['run_id']),model['column_mapping']) for _,model,_ in tables]
-            check(apply_migrations(c,repo/'database/postgresql')==['031-actor-graph-compatibility.sql'],'upgrade applies only new migration 031')
+            # Keep this historical 030 -> 031 proof bounded when subsequent
+            # migrations are added; all files retain their original contents.
+            source=repo/'database/postgresql/031-actor-graph-compatibility.sql'
+            shutil.copyfile(source,before/source.name)
+            check(apply_migrations(c,before)==['031-actor-graph-compatibility.sql'],'upgrade applies only new migration 031')
             check(c.execute('SELECT * FROM migration_control.applied WHERE name<%s ORDER BY name',('031',)).fetchall()==receipts,'all 30 prior receipt hashes and timestamps are unchanged')
-            check(apply_migrations(c,repo/'database/postgresql')==[],'second migration run is a no-op')
+            check(apply_migrations(c,before)==[],'second migration run is a no-op')
             check(c.execute('SELECT count(*) FROM actor_compat.statistics_release').fetchone()==(0,),'old release does not falsely satisfy new stat contract')
             new=import_snapshot(c,a.manifest,MAPPING)
             published=activate_actor_catalog(c,a.manifest,previous_manifest=a.previous_manifest)

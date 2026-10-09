@@ -8,18 +8,21 @@ Owner instruction (2026-10-09): keep implementation and versioning local on `mai
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current continuation (actor-catalog transition): preserve migration **031** and
-`actor-transition-contract.json`. Offline publication now proves unchanged old
-actor charts and permits recovery of old logged-out/crashed/prepared graphs; it
-never rewrites historical player receipts. Resume native equipment moves next:
-original eligibility and slot conflicts, atomic displaced items, recalculated
-stats/timing, EQUIP → MOVEITEM → CHARSTATINFO → HPMP and final MOVEITEM ordering.
-Add actual remote-player inspection across two native Maps and active
-buff/companion/guild/local-battle derivation. The compatibility certificate supports
-only the evidenced two-table → four-table actor extension, not arbitrary content
-changes, character/routing releases or transitive upgrades. Preserve all existing
-native transactions. Backups and migrations **001–031** are now immutable; next
-schema migration is **032**.
+Current continuation (native equipment): preserve migration **032** and
+`equipment-contract.json`. Ordinary equipment transactions now integrate original
+eligibility/displacement rules, complete source-ordered item/EQUIP/stat/HPMP replies,
+native item/core/timer receipts and authoritative transfer graphs. Continue with
+**durable active effects**, starting with warrior automatic postures 131/132 and
+`CheckEquipSkill` cancellation, source stat/timing effects and expiry. These are
+required to finish equipment; unsupported posture branches must remain visible.
+Then complete special-equipment combat state, party/companion/guild/local-battle
+updates, race costumes and remote visibility. Keep drops, timed bags, secured
+inventory/trade/store integration and all economy systems in scope.
+
+Preserve the explicitly certified old-two-table → current-four-table actor upgrade
+and its immutable graph receipts. It does not authorize arbitrary content changes,
+character/routing releases or transitive upgrades. All backups and migrations
+**001–032** are immutable; the next schema migration is **033**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -34,7 +37,7 @@ schema migration is **032**.
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–031 and the checkpoint, retirement and replica contract evidence. Actual
+   001–032 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -103,7 +106,7 @@ schema migration is **032**.
    Single-hit arrow/bolt transactions now use 024; preserve `ammunition-contract.json`.
    Multi-target, per-bag multi-stack transactions now use 025; preserve
    `ammo-batch-contract.json`. Source multi-attack expansion now uses 026; preserve
-   `multi-attack-contract.json`. Next port equipment, cash branches, full effects and cancellation;
+   `multi-attack-contract.json`. Next finish equipment-triggered effects, cash branches, full effects and cancellation;
    recompute timing/item eligibility when equipment or learned skills mutate.
    CHARINFO and initial readiness now sample live skill durations without
    restarting timers; preserve `admission-timers-contract.json`. Implement active
@@ -469,12 +472,12 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–030; next schema change is 031. Native
+Preserve backups and migrations 001–032; next schema change is 033. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
-Continue with equipment/durability mutation and recomputation of derived stats, timing
-and item eligibility. Then add authoritative effect expiry, cast lifecycle and
+Continue with equipment-triggered active effects and durability mutation; preserve
+the ordinary equipment stat/timing and eligibility recomputation now integrated by 032. Then add authoritative effect expiry, cast lifecycle and
 combat/target/AOI rules. Reagent-plus-weapon combinations and zero-target ammo
 remain unsupported. Premium templates 25020–25022 are absent from the backup;
 do not fabricate historical definitions. Original-client executable acceptance
@@ -487,10 +490,13 @@ Inventory continuation: the normal five-byte MOVEITEM path is integrated, using
 post-commit original item descriptors. Preserve initially-immediate slot uniqueness,
 per-operation receipt grouping, canonical graph state and uncertain-outcome
 reservation retention. Migration 028 now integrates source CTItem equality, split/merge and the shared
-allocator, including actual two-Map split/move/return/merge packets. Next implement equipment
-slot/class/level/two-hand rules and derived-stat/timing invalidation. Preserve actual two-Map inventory packet coverage and native process-recovery tests.
+allocator, including actual two-Map split/move/return/merge packets. Migration 032 now implements ordinary equipment
+slot/class/level/two-hand rules and derived-stat/timing recomputation. Continue
+active-effect/posture and advanced equipment dependencies. Preserve actual two-Map
+inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
-only until complete gameplay; native Log uses 029, character statistics uses 030, next new migration 031.
+only until complete gameplay; Log uses 029, statistics 030, actor transition 031
+and equipment 032. Next new migration: 033.
 
 
 The owner confirmed that only uncompiled client sources are available, without
@@ -502,7 +508,8 @@ Preserve the separate confirmed/unknown counters and never requeue an unknown
 outcome. Migration 029 and the real runtime grant script now supply native LP_LOG
 storage and native Count/LatestN/WhereUserId, with exact raw CHAR byte preservation
 and startup contract checks. Keep the native-audit grants/query/wire/restart evidence.
-Next implement retention/reconciliation and LP_CHAT after source/backup review.
+Next implement retention/reconciliation and original log-tool integrations;
+retain the source LP_CHAT no-op classification described below.
 Retries remain RAM-only and discarded connections need pool replacement; verified
 committed-row SIGKILL recovery is not recovery of queued or unknown records. The Asio
 worker's posted-arrival backlog is also separate from the bounded retry queue and
@@ -514,10 +521,11 @@ equipment skill, slot mask, class mask and effective level in that order.
 weapons through CanPush/PushTItem, handles warrior maintains and local-zone item
 attributes. `CTPlayer::ChangeEquipItem` sends EQUIP to neighbors, MOVEITEM and
 CHARSTATINFO to self, clamps HP/MP, sends HPMP and checks equipment skills; the
-caller also sends its final MOVEITEM. Port these dependencies and sender ordering
-before enabling equipment as an ordinary bag relocation. Recomputing the current
-native DeriveStats must also reset accumulated skill-point groups before adding
-rank totals; its current fresh-hydration use is not proof of repeatable recompute.
+caller also sends its final MOVEITEM. Migration 032 preserves this ordering and
+recomputes native stats/timing without accumulating skill-point groups. Continue
+warrior maintains, CheckEquipSkill cancellation and local-zone/advanced effects;
+their unsupported branches are still refused before mutation. See the equipment
+contract for exact tested cases and the source pointer-lifetime posture condition.
 
 Log source clarification: `CUdpSocket.cpp:442–450` initializes all `LP_COUNT`
 handlers to `Packet_Nothing` and assigns only LP_LOG to Packet_LogDB. LP_CHAT is

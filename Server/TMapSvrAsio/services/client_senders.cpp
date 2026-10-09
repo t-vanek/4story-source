@@ -453,6 +453,19 @@ std::vector<std::byte> EncodeMoneyAck(
     return b;
 }
 
+std::vector<std::byte> EncodeEquipment(const CharSnapshot& s) {
+    std::vector<std::byte> out;wire::WritePOD(out,s.dwCharID);
+    const CharacterBag* equip=nullptr;
+    if(s.payload)for(const auto& bag:s.payload->bags)if(bag.bag.bInvenID==254)equip=&bag;
+    if(equip&&equip->items.size()>255)throw std::length_error("Equipment exceeds source BYTE count");
+    wire::WritePOD<std::uint8_t>(out,equip?static_cast<std::uint8_t>(equip->items.size()):0);
+    if(equip)for(const auto& item:equip->items) {
+        auto descriptor=EncodeItemDescriptor(item,s.dwCharID,true);
+        out.insert(out.end(),descriptor.begin(),descriptor.end());
+    }
+    return out;
+}
+
 std::vector<std::byte> EncodeItemDescriptor(
     const ItemInstance& it, std::uint32_t viewer_char_id, bool add_item_id)
 {

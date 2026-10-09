@@ -405,7 +405,14 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
     }
     tx->commit();return plan.committed;
 }
+void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    if(!s.payload)throw std::runtime_error("Cast ledger requires native snapshot");
+    const int world=c.group,character=c.char_id;long long head=0;
+    sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
+    if(static_cast<std::uint64_t>(head)!=s.payload->last_cast_id)throw std::runtime_error("Snapshot predates accepted cast");
+}
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
+    CheckCastHead(sql,claim,s);
     const int world=claim.group;const long long character=claim.char_id,user=claim.user_id;
     // Core snapshot only. Durable children are never deleted/recreated here.
     // Signed bindings reproduce SQL Server SMALLINT/INT storage of wire bits.

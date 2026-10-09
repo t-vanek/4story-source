@@ -34,6 +34,8 @@ GRANT INSERT ON app_world.equipment_operations,app_world.equipment_item_changes 
 GRANT INSERT ON app_world.inventory_stack_changes,app_world."TITEMTABLE" TO :"map_role";
 GRANT UPDATE(item_high_water) ON app_world.worlds TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.inventory_movements_movement_id_seq TO :"map_role";
+GRANT INSERT ON app_world.accepted_skill_casts TO :"map_role";
+GRANT USAGE ON SEQUENCE app_world.accepted_skill_casts_cast_id_seq TO :"map_role";
 GRANT INSERT ON app_world.skill_item_consumptions TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.skill_item_consumptions_consumption_id_seq TO :"map_role";
 GRANT UPDATE("bLevel","dwEXP","dwHP","dwMP","dwGold","dwSilver","dwCooper","wSkillPoint","dwRegion",

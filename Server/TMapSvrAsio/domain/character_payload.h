@@ -40,6 +40,7 @@ struct CharacterPayload {
     // character has no payload pointer, avoiding a shared ownership cycle.
     std::shared_ptr<const transfer::State> transfer_state;
     std::uint64_t transfer_received_ms{};
+    std::uint64_t last_cast_id{}; // native ledger head; rehydrated, never sent to the client
     std::vector<CharacterBag> bags;
     std::vector<SkillRow> skills;
     // Optional only for legacy/test projections which have not hydrated effects.

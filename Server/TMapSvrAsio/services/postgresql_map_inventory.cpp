@@ -23,6 +23,7 @@ std::string InventoryHash(std::span<const std::byte> bytes) {
 }
 std::string PostgreSQLMapService::ValidateInventoryState(soci::session& sql,const MapSessionClaim& c,
     const CharSnapshot& before,bool all_fresh_items) const {
+    CheckCastHead(sql,c,before);
     const bool graph=bool(before.payload->transfer_state);const int world=c.group,character=c.char_id;
     std::string graph_hash;
     if(!graph&&!MaintainCheckpointMatches(sql,c,before))throw std::runtime_error("Maintained state changed since hydration");

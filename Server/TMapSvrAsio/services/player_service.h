@@ -13,6 +13,7 @@
 
 #include "domain/character.h"
 #include "domain/session.h"
+#include "domain/skill_cast.h"
 
 #include <cstdint>
 #include <optional>
@@ -53,6 +54,7 @@ public:
     virtual bool OutgoingTransferCommitted(const MapSessionClaim&) {return false;}
     virtual std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,
         const std::vector<SkillItemDebit>&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}
+    virtual SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) {throw std::runtime_error("Native cast transaction unavailable");}
     virtual InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,
         const CharSnapshot&,const CharSnapshot&) {throw std::runtime_error("Native inventory move transaction unavailable");}
     virtual EffectEndCommit EndMaintainedEffect(const MapSessionClaim&,const EffectEndRequest&,

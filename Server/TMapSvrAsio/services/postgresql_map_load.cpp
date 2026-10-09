@@ -85,6 +85,9 @@ void ReadPostures(soci::session& sql,CharacterPayload& p) {
     }
 }
 void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
+    const int character=s.dwCharID;long long head=0;
+    sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE char_id=:c",soci::use(character),soci::into(head);
+    p.last_cast_id=static_cast<std::uint64_t>(head);
     for(auto& bag:p.bags) {
         const int item=std::bit_cast<std::int16_t>(bag.bag.wItemID);int slots=0;
         sql<<"SELECT \"bSlotCount\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:i",soci::use(item),soci::into(slots);

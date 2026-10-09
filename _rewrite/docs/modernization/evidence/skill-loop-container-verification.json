@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-09",
+  "image_reference": "localhost/fourstory:postgresql-skill-loop",
+  "image_id": "d4a8bc5990d871e051853c37097842288f6886b6d5c4e1e8d209bd9cca7b873e",
+  "uid_gid": "10001:10001",
+  "build": "podman build --layers --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-skill-loop .",
+  "smoke_report": "skill-loop-container-smoke.log",
+  "installed_daemon_sha256": {
+    "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+    "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+    "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+    "/opt/fourstory/bin/tmapsvr_asio": "c631acf9c2147ed70a978e5e24ee6a4ff85fce749f4aab567c7b3176e3f43010",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+    "/opt/fourstory/bin/tworldsvr_asio": "da5696c7efcb13cd2a6f91248224a288de036c058e9b7ab8e4b7b538fbc5a8ff"
+  },
+  "six_daemon_health_dns_sigterm": "passed"
+}

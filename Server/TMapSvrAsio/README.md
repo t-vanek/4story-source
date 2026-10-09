@@ -76,6 +76,14 @@ remain separate ports. Buff-bearing transferred graphs retain their data but
 speed-dependent casts close before mutation until effect simulation is available.
 Any future equipment/learned-skill mutation must rebuild the derived timing cache.
 
+Native `CS_LOOPSKILL_REQ` now handles owned-PC repeated casts with the source
+cooldown-first gate, HP equality boundary, rank-based resource costs and separate
+loop delay. It shares existing timer persistence with normal casts and never
+extends same-kind peers. The original 45-byte ACK omits normal action/transform
+fields. Cached non-consuming weapon requirements and missing active prerequisites
+are checked; consumables and buff-dependent prerequisites remain unsupported.
+See the [loop contract](../../_rewrite/docs/modernization/evidence/skill-loop-contract.json).
+
 Native CHARINFO samples live skill cooldowns after the channel notification;
 CONREADY independently samples them for the initial durable checkpoint. Admission
 delays and expiry therefore reach both the client and PostgreSQL without rearming

@@ -53,15 +53,19 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     if(!sql.got_data())throw std::runtime_error("Missing character race");
     std::map<int,std::uint32_t> equipment;
     std::int64_t short_weapon_delay=0,long_weapon_delay=0;
+    struct EquippedSkillItem {std::uint8_t kind,consumable_kind;bool powered;};
+    std::vector<EquippedSkillItem> skill_equipment;
     for(const auto& bag:p.bags)if(bag.bag.bInvenID==254)
-        for(const auto& item:bag.items)if(!item.dwDuraMax||item.dwDuraCur) {
-            for(const auto& [id,value]:item.magic)equipment[id]+=value;
-            // Original equipment slots 0/1 contribute to physical AND magic
-            // speed, slot 2 to ranged speed. Broken weapons have no power.
+        for(const auto& item:bag.items) {
+            const int id=std::bit_cast<std::int16_t>(item.wItemID);soci::row chart;
+            sql<<"SELECT \"dwSpeedInc\",\"bKind\",\"bUseItemKind\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(id),soci::into(chart);
+            if(!sql.got_data())throw std::runtime_error("Equipped item lacks source template");
+            const bool powered=!item.dwDuraMax||item.dwDuraCur;
+            skill_equipment.push_back({U8(chart,"bKind"),U8(chart,"bUseItemKind"),powered});
+            if(!powered)continue;
+            for(const auto& [magic,value]:item.magic)equipment[magic]+=value;
+            // Original slots 0/1 supply physical AND magic, slot 2 ranged speed.
             if(item.bItemID<=2) {
-                const int id=std::bit_cast<std::int16_t>(item.wItemID);soci::row chart;
-                sql<<"SELECT \"dwSpeedInc\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(id),soci::into(chart);
-                if(!sql.got_data())throw std::runtime_error("Equipped weapon lacks source timing");
                 const auto increment=std::bit_cast<std::int32_t>(U32(chart,"dwSpeedInc"));
                 (item.bItemID==2?long_weapon_delay:short_weapon_delay)+=increment;
             }
@@ -77,6 +81,21 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.nReuseDelayInc=std::bit_cast<std::int32_t>(U32(chart,"nReuseDelayInc"));
         definition.dwKindDelay=U32(chart,"dwKindDelay");definition.bKind=U8(chart,"bKind");
         definition.bSpeedApply=U8(chart,"bSpeedApply");
+        definition.dwLoopDelay=U32(chart,"dwLoopDelay");
+        definition.wTargetActiveID=U16(chart,"wTargetActiveID");
+        const auto weapon=U32(chart,"dwWeaponID");
+        // DBAccess.h binds source wItemID to m_wUseItem. Item/cash-ammunition
+        // consumption needs its own fenced inventory transaction. Never waive it.
+        if(!U16(chart,"wItemID")&&weapon!=96) {
+            definition.loop_items=weapon?SkillItemGate::Unsuitable:SkillItemGate::Allowed;
+            if(weapon)for(const auto& item:skill_equipment) {
+                if(!item.kind||item.kind>32) {definition.loop_items=SkillItemGate::Unsupported;break;}
+                if(!(weapon&(std::uint32_t{1}<<(item.kind-1))))continue;
+                definition.loop_items=!item.powered?SkillItemGate::Unsuitable:
+                    item.consumable_kind?SkillItemGate::Unsupported:SkillItemGate::Allowed;
+                break; // source checks the first matching equipped item
+            }
+        }
         definition.bUseMPType=U8(chart,"bUseMPType");definition.dwUseMP=U32(chart,"dwUseMP");
         definition.bUseHPType=U8(chart,"bUseHPType");definition.dwUseHP=U32(chart,"dwUseHP");
         definition.bStartLevel=U8(chart,"bLevel");definition.bNextLevel=U8(chart,"bNextLevel");

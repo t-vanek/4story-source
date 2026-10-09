@@ -5,6 +5,7 @@
 #include <cstdint>
 
 namespace tmapsvr {
+enum class SkillItemGate : std::uint8_t { Unsupported, Allowed, Unsuitable };
 
 struct SkillRow
 {
@@ -45,6 +46,11 @@ struct SkillTemplate
     std::uint32_t  dwKindDelay = 0;
     std::uint8_t   bKind = 0;
     std::uint8_t   bSpeedApply = 0; // TAD_NONE / PHYSICAL / LONG / MAGIC
+    std::uint32_t  dwLoopDelay = 0;
+    std::uint16_t  wTargetActiveID = 0;
+    // Per-character UseSkillItem projection. Consumable mutations are not yet
+    // native; Unsupported must never be interpreted as a free cast.
+    SkillItemGate loop_items = SkillItemGate::Unsupported;
 };
 
 struct SkillAttackTiming {

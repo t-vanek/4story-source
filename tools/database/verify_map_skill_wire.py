@@ -26,8 +26,11 @@ def seed_skill_cast(conn,cid):
     # Maximum MP is independently parsed from CHARINFO. This source fixture has
     # 351 MP (MEN 1+5+11, formula19 rate 20.66), so 8% costs 28; assert it again on the actual wire before charging.
     physical_cost=28
-    conn.execute('UPDATE app_world."TCHARTABLE" SET "dwMP"=%s WHERE "dwCharID"=%s',(cost+physical_cost+5,cid))
-    return {'skill':134,'rank':2,'cost':cost,'initial_mp':cost+physical_cost+5,'physical_cost':physical_cost}
+    loop_cost=17 # source skill34: five percent of the native 351 max MP
+    for skill in (34,213):
+        conn.execute('INSERT INTO app_world."TSKILLTABLE"("bWorldID","dwCharID","wSkillID","bLevel","dwRemainTick") VALUES(1,%s,%s,1,0) ON CONFLICT DO NOTHING',(cid,skill))
+    conn.execute('UPDATE app_world."TCHARTABLE" SET "dwMP"=%s WHERE "dwCharID"=%s',(cost+physical_cost+loop_cost+5,cid))
+    return {'skill':134,'rank':2,'cost':cost,'initial_mp':cost+physical_cost+loop_cost+5,'physical_cost':physical_cost,'loop_cost':loop_cost}
 
 
 def verify_skill_cast(conn,s,cid,character,fixture,until):
@@ -73,7 +76,7 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
           'native flat MP cost follows backup formula and exact HPMP layout')
     for _ in range(2):
         send(request());verdict(7,'unaffordable native cast returns original SKILL_NEEDMP without changed bars')
-    until(lambda:conn.execute('SELECT "dwMP" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()==(5,),
+    until(lambda:conn.execute('SELECT "dwMP" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()==(fixture['loop_cost']+5,),
           'periodic checkpoint persists actual native cast cost')
     check(conn.execute('SELECT "bLevel" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,fixture['skill'])).fetchone()==(fixture['rank'],),
           'native cast cannot mutate its learned rank')
@@ -87,4 +90,40 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
     send(request(31));verdict(6,'free native cast cannot bypass its new cooldown')
     time.sleep(.7)
     send(request(31));verdict(0,'source cooldown expires and a new cast rearms it')
+    def loop_request(skill=31,caster=cid,kind=1,channel=1,map_id=0,x=0):
+        return struct.pack('<IBBHHfffB',caster,kind,channel,map_id,skill,x,0,0,0)
+    def loop_send(body):
+        nonlocal client_sequence
+        s.sendall(frame(body,0x5372,client_sequence));client_sequence+=1
+    def loop_verdict(code,label):
+        try:op,data=reply()
+        except TimeoutError as error:raise RuntimeError('Native skill wire: LOOPSKILL_ACK missing') from error
+        check(op==0x5373 and len(data)==45 and data[0]==code,label);return data
+    loop_send(loop_request());loop_verdict(6,'loop cannot bypass a cooldown armed by normal use')
+    loop_send(loop_request(65535));loop_verdict(1,'loop returns original NOTFOUND and its distinct 45-byte ACK')
+    for body in (loop_request(caster=cid+1),loop_request(kind=2),loop_request(channel=2),loop_request(map_id=1),
+                 loop_request(x=float('nan')),loop_request()[:-1]+b'\x01',loop_request()+b'\x00'):
+        loop_send(body)
+    loop_send(loop_request(65535));loop_verdict(1,'malformed and foreign loop requests have no response or mutation')
+    loop_send(loop_request(134));loop_verdict(6,'loop checks live cooldown before insufficient MP unlike ordinary cast')
+    loop_send(loop_request(213));loop_verdict(10,'loop requiring maintained skill209 rejects missing active effect')
+    row=conn.execute('SELECT "dwLoopDelay","wTargetActiveID","wItemID","dwWeaponID","bSpeedApply","bUseMPType","dwUseMP" FROM character_compat."TSKILLCHART" WHERE "wID"=34').fetchone()
+    check(row==(1200,0,0,0,3,2,5),'actual loop source magic timing and item-free cost contract match backup')
+    loop_started=time.monotonic()
+    loop_send(loop_request(34));data=loop_verdict(0,'native magic loop succeeds and uses original success layout')
+    check(data[8]==1 and data[29]==character['appearance'][3] and data[30]==character['appearance'][4],
+          'loop ACK carries learned rank and original country and aid-country fields')
+    op,bars=reply();check(op==0x52a2 and struct.unpack('<IBIIII',bars)==(cid,1,maximum_hp,hp,maximum_mp,5),
+          'native loop deducts exact source percentage MP and broadcasts unchanged HPMP layout')
+    loop_send(loop_request(34));loop_verdict(6,'loop repeat rejects before newly insufficient resources')
+    until(lambda:conn.execute('SELECT "dwMP" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()==(5,),
+          'periodic checkpoint persists loop resource deduction')
+    loop_delay=1200+max(delay,0) # same primary/secondary slots supply magic speed
+    elapsed=int((time.monotonic()-loop_started)*1000)+20
+    tick=conn.execute('SELECT "dwRemainTick" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=34',(cid,)).fetchone()[0]
+    check(max(0,loop_delay-elapsed)<=tick<=loop_delay,'native loop-generated duration reaches PostgreSQL checkpoint')
+    time.sleep(max(0,loop_started+loop_delay/1000+.1-time.monotonic()))
+    loop_send(loop_request(34));loop_verdict(7,'expired loop cooldown exposes NEEDMP without consuming or rearming')
+    loop_send(loop_request());loop_verdict(0,'normal-use cooldown expires and free loop rearms successfully')
+    send(request(31));verdict(6,'normal use cannot bypass a cooldown armed by loop use')
     return client_sequence,{'status':'passed','checks':checks,'source_skill':fixture['skill'],'rank':fixture['rank'],'source_mp_cost':fixture['cost']}

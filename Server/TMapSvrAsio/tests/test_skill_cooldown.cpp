@@ -40,6 +40,12 @@ int main()
         SkillTemplate t;t.dwReuseDelay=1000;t.nReuseDelayInc=-100;
         EXPECT(ReuseDelay(t,3,{200,75})==750);
         EXPECT(ReuseDelay(t,0,{200,75})==975);
+        t.dwLoopDelay=2000;
+        EXPECT(LoopDelay(t,{200,75})==1650); // no signed rank increment
+        t.dwLoopDelay=0xffffffffU;
+        EXPECT(LoopDelay(t,{0,100})==42949671);
+        EXPECT(LoopDelay(t,{1,100})==0);
+        EXPECT(LoopDelay(t,{0,0})==0);
         t.dwReuseDelay=0xffffffffU;t.nReuseDelayInc=0;
         EXPECT(ReuseDelay(t,1,{0,100})==42949671);
         EXPECT(ReuseDelay(t,1,{1,100})==0);

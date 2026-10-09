@@ -39,4 +39,9 @@ inline std::uint32_t ReuseDelay(const SkillTemplate& t,std::uint8_t rank,SkillAt
     const std::uint32_t delay=t.dwReuseDelay+static_cast<std::uint32_t>(increment)+timing.delay;
     return static_cast<std::uint32_t>(std::uint64_t(delay)*timing.rate)/100;
 }
+inline std::uint32_t LoopDelay(const SkillTemplate& t,SkillAttackTiming timing) {
+    // SDELAY_LOOP has no rank increment and never arms same-kind peers.
+    const std::uint32_t delay=t.dwLoopDelay+timing.delay;
+    return static_cast<std::uint32_t>(std::uint64_t(delay)*timing.rate)/100;
+}
 } // namespace tmapsvr::skill_timing

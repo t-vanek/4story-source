@@ -90,11 +90,11 @@ That increment used `localhost/fourstory:postgresql-skill-timing`.
 Its six daemons pass health/DNS/SIGTERM smoke. See the
 [timing contract](_rewrite/docs/modernization/evidence/skill-timing-contract.json) and
 [container evidence](_rewrite/docs/modernization/evidence/skill-timing-container-verification.json).
-Buff-dependent timing and effect expiry, loop/cancel rules and the original client
-executable remain pending. Speed-dependent casts on buff-bearing transferred
+Buff-dependent timing, effect expiry, cancellation and the original client
+executable remain pending; the loop extension is described below. Speed-dependent casts on buff-bearing transferred
 characters close before mutation; no buff speed is guessed.
 
-The latest increment samples **current skill cooldowns during admission**.
+The preceding increment samples **current skill cooldowns during admission**.
 CHARINFO subtracts time since character loading, and CONREADY samples again for
 the initial PostgreSQL checkpoint. A short cooldown can expire during admission;
 neither message restarts it or changes learned ranks. A missing runtime tracker or
@@ -103,10 +103,26 @@ unchanged. See the [admission timer contract](_rewrite/docs/modernization/eviden
 
 Verification: **186 Debug passes** (200 entries, 14 skips), **33 ASan/UBSan passes**
 and **910 native database/network checks per Debug, sanitizer and installed Release
-run**. The previous image fails the delayed-readiness regression. Current local
-image: `localhost/fourstory:postgresql-admission-timers` (also `:main`); all six
+run**. The previous image fails the delayed-readiness regression. That increment used
+`localhost/fourstory:postgresql-admission-timers`; all six
 installed daemons pass health/DNS/SIGTERM checks. See
 [container evidence](_rewrite/docs/modernization/evidence/admission-timers-container-verification.json).
+
+The latest increment implements **native repeated skill casting** with the original
+`CS_LOOPSKILL_REQ` / `CS_LOOPSKILL_ACK` layouts. Loops use source `dwLoopDelay`,
+check existing cooldowns before HP/MP costs, retain learned ranks and share the
+same live timer with ordinary casts. They do not rearm other same-kind skills.
+Item-free weapon checks honor the original mask and durability; missing active
+prerequisites return the original result code. Consumable and active-effect
+branches remain explicitly unsupported. See the
+[loop contract](_rewrite/docs/modernization/evidence/skill-loop-contract.json).
+
+Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
+**33 ASan/UBSan tests** and **929 native database/network checks** in each Debug,
+sanitizer and installed Release run. The previous image fails the loop-ACK
+regression. Current local image: `localhost/fourstory:postgresql-skill-loop`
+(also `:main`); all six installed services pass health/DNS/SIGTERM smoke. See
+[container evidence](_rewrite/docs/modernization/evidence/skill-loop-container-verification.json).
 
 ## Database authority
 
@@ -231,7 +247,7 @@ The [older patch catalog](_rewrite/docs/PATCH_README.md) and
 [legacy-to-modern changelog](_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md) retain
 historical context; current acceptance is tracked in the modernization documents.
 
-Next priorities are active buff/timer semantics and skill loop/cancellation rules,
+Next priorities are active buff/timer semantics, skill cancellation and consumable inventory,
 complete entity visibility, transactional item/economy
 operations, native social persistence and execution of the supported original
 client. Full feature parity is not yet established.

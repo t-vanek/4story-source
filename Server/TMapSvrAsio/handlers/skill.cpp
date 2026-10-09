@@ -29,6 +29,7 @@
 #include "handlers.h"
 
 #include "domain/character.h"
+#include "domain/main_transfer.h"
 #include "domain/skill_data.h"
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
@@ -59,15 +60,16 @@ namespace {
 constexpr std::uint8_t kOtPc      = 1;    // OBJ_TYPE::OT_PC (NetCode.h:1030)
 constexpr std::size_t  kMaxTarget = 16;   // MAX_TARGET (TMapType.h)
 
-} // namespace
-
 boost::asio::awaitable<void>
-OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
+HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
               std::vector<std::byte>                body,
-              const HandlerContext&                 ctx)
+              const HandlerContext&                 ctx, bool loop)
 {
     using tnetlib::protocol::MessageId;
 
+    const auto opcode=loop?MessageId::CS_LOOPSKILL_ACK:MessageId::CS_SKILLUSE_ACK;
+    const auto encode=loop?EncodeLoopSkillAck:EncodeSkillUseAck;
+    // LOOPSKILL omits the action/animation fields (23 bytes including count).
     // CS_SKILLUSE_REQ header (legacy CSHandler.cpp:2429) — 31 bytes, then
     // BYTE count × { DWORD target, BYTE target_type, BYTE is_target }.
     wire::Reader r(body.data(), body.size());
@@ -85,13 +87,12 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
 
     if (!r.Read(dwAttackID)  || !r.Read(bAttackType) ||
         !r.Read(bChannel)    || !r.Read(wMapID)      ||
-        !r.Read(wSkillID)    || !r.Read(bActionID)   ||
-        !r.Read(dwActID)     || !r.Read(dwAniID)     ||
+        !r.Read(wSkillID)    || (!loop && (!r.Read(bActionID) ||
+        !r.Read(dwActID)     || !r.Read(dwAniID)))   ||
         !r.Read(fPosX) || !r.Read(fPosY) || !r.Read(fPosZ) ||
         !r.Read(bCount))
     {
-        spdlog::warn("CS_SKILLUSE_REQ: short body ({} bytes) — dropping",
-            body.size());
+        spdlog::warn("Skill request: short body ({} bytes) — dropping", body.size());
         co_return;
     }
 
@@ -132,12 +133,14 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
     // must not invalidate a read-only affordability check before deduction.
     // The lock order (character, then cooldown) matches transfer capture.
     std::uint32_t req_mp=0,req_hp=0,hp=0,mp=0,max_hp=0,max_mp=0;
-    std::uint8_t char_level=1,char_country=0,rank=1;
+    std::uint8_t char_level=1,char_country=0,aid_country=0,rank=1;
     bool visited=false,ignored=false;
     if(!cid||!ctx.char_state)co_return;
     const auto identity=ctx.session_reg->Identity(sess.get());
     ctx.char_state->Update(cid,[&](CharSnapshot& cs) {
         visited=true;
+        if(loop&&!cs.payload){ignored=true;return;}
+        const auto now=SkillClockMs();
         std::optional<SkillTemplate> definition;
         std::uint32_t reuse_delay=0,kind_delay=0;
         std::vector<std::uint16_t> same_kind;
@@ -160,13 +163,16 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
             if(t==templates.end())throw std::runtime_error("Native learned skill lacks pinned template");
             definition=*t;
             if(!ctx.skill_cooldown)throw std::runtime_error("Native skill cooldown tracker is missing");
+            // The loop branch checks its existing gate BEFORE affordability.
+            if(loop&&ctx.skill_cooldown->RemainMs(cid,wSkillID,now)){ack.result=SKILL_SPEEDYUSE;return;}
             SkillAttackTiming timing; // TAD_NONE is source delay 0, rate 100
             if(t->bSpeedApply) {
                 if(t->bSpeedApply>3||!cs.payload->skill_attack_timing)
                     throw std::runtime_error("Native skill attack timing is unsupported for this state");
                 timing=(*cs.payload->skill_attack_timing)[t->bSpeedApply-1];
             }
-            reuse_delay=skill_timing::ReuseDelay(*t,rank,timing);kind_delay=t->dwKindDelay;
+            reuse_delay=loop?skill_timing::LoopDelay(*t,timing):skill_timing::ReuseDelay(*t,rank,timing);
+            kind_delay=loop?0:t->dwKindDelay;
             if(kind_delay)for(const auto& other:templates)if(other.bKind==t->bKind)same_kind.push_back(other.wID);
         }
         if(definition) {
@@ -175,17 +181,30 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
         }
         if(cs.dwMP<req_mp){ack.result=SKILL_NEEDMP;return;}
         // Source refuses HP <= cost even for cost zero (dead caster).
-        if(cs.dwHP<=req_hp){ack.result=SKILL_NEEDHP;return;}
-        if(ctx.skill_cooldown&&!ctx.skill_cooldown->TryUse(cid,wSkillID,SkillClockMs(),reuse_delay,same_kind,kind_delay)) {
+        if(loop?cs.dwHP<req_hp:cs.dwHP<=req_hp){ack.result=SKILL_NEEDHP;return;}
+        if(loop) {
+            // CheckPrevAct searches maintained effects, not learned skills.
+            if(definition->wTargetActiveID) {
+                if(cs.payload->transfer_state&&!cs.payload->transfer_state->buffs.empty())
+                    throw std::runtime_error("Native loop requires authoritative active effects");
+                ack.result=SKILL_NEEDPREVACT;return;
+            }
+            if(definition->loop_items==SkillItemGate::Unsupported)
+                throw std::runtime_error("Native loop consumable mutation is unsupported");
+            if(definition->loop_items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}
+        }
+        if(ctx.skill_cooldown&&!ctx.skill_cooldown->TryUse(cid,wSkillID,now,reuse_delay,same_kind,kind_delay)) {
             ack.result=SKILL_SPEEDYUSE;return;
         }
         cs.dwMP-=req_mp;cs.dwHP-=req_hp;
         hp=cs.dwHP;mp=cs.dwMP;max_hp=cs.dwMaxHP;max_mp=cs.dwMaxMP;
-        char_level=cs.bLevel;char_country=cs.bCountry;ack.result=SKILL_SUCCESS;
+        char_level=cs.bLevel;char_country=cs.bCountry;
+        if(cs.payload)aid_country=cs.payload->aid_country;
+        ack.result=SKILL_SUCCESS;
     });
     if(!visited||ignored)co_return;
     if(ack.result!=SKILL_SUCCESS) {
-        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),EncodeSkillUseAck(ack,{}));
+        co_await sess->SendPacket(static_cast<std::uint16_t>(opcode),encode(ack,{}));
         co_return;
     }
 
@@ -198,10 +217,11 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
     ack.skill_level    = rank;
     ack.attacker_level = char_level;
     ack.country        = char_country;
+    if(loop)ack.aid_country=aid_country;
     ack.gnd_x          = fPosX;
     ack.gnd_y          = fPosY;
     ack.gnd_z          = fPosZ;
-    const auto use_ack = EncodeSkillUseAck(ack, targets);
+    const auto use_ack = encode(ack, targets);
     const auto bars    = EncodeHpMpAck(cid, kOtPc, max_hp, hp, max_mp, mp);
     const bool charged = (req_mp > 0 || req_hp > 0) && max_hp > 0;
 
@@ -222,20 +242,30 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
     for (auto& w : watchers)
     {
         co_await w->SendPacket(
-            static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK), use_ack);
+            static_cast<std::uint16_t>(opcode), use_ack);
         if (charged)
             co_await w->SendPacket(
                 static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), bars);
     }
 
-    spdlog::info("CS_SKILLUSE_REQ char={} skill={} action={} target={} type={} "
+    spdlog::info("{} char={} skill={} action={} target={} type={} "
                  "ch={} map={} pos=({:.1f},{:.1f},{:.1f}) targets={} — "
                  "SKILL_SUCCESS broadcast to {} watcher(s)",
-        cid, wSkillID, bActionID, dwAttackID, bAttackType,
+        loop?"CS_LOOPSKILL_REQ":"CS_SKILLUSE_REQ",cid, wSkillID, bActionID, dwAttackID, bAttackType,
         bChannel, wMapID, fPosX, fPosY, fPosZ, targets.size(),
         watchers.size());
 
     co_return;
 }
 
+} // namespace
+
+boost::asio::awaitable<void> OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte> body,const HandlerContext& ctx) {
+    co_await HandleSkillReq(std::move(sess),std::move(body),ctx,false);
+}
+boost::asio::awaitable<void> OnLoopSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte> body,const HandlerContext& ctx) {
+    co_await HandleSkillReq(std::move(sess),std::move(body),ctx,true);
+}
 } // namespace tmapsvr

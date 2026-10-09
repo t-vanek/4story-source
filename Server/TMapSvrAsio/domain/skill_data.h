@@ -19,6 +19,8 @@ enum SkillResult : std::uint8_t
     SKILL_SPEEDYUSE = 6,
     SKILL_NEEDMP    = 7,
     SKILL_NEEDHP    = 8,
+    SKILL_UNSUITWEAPON = 9,
+    SKILL_NEEDPREVACT = 10,
 };
 
 // NetCode.h:1521 (SKILL_DATA_INC) — how a computed value combines with the

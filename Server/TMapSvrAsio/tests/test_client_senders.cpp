@@ -322,6 +322,28 @@ int main()
         EXPECT(r.Eof());
     }
 
+    // Independent source LOOPSKILL layout, including raw unsigned fields and
+    // target boundary. Ordinary animation/transform fields must be absent.
+    {
+        SkillUseAckFields f;f.result=7;f.attack_id=0xf1234567;f.attack_type=1;f.skill_id=0x8123;
+        f.skill_level=3;f.attack_level=0x4567;f.attacker_level=80;
+        f.pys_min_power=11;f.pys_max_power=22;f.mg_min_power=33;f.mg_max_power=44;
+        f.can_select=1;f.country=2;f.aid_country=3;f.cp=4;
+        f.gnd_x=1.25f;f.gnd_y=-2.5f;f.gnd_z=3.75f;
+        f.action_id=255;f.trans_hp=65535; // not LOOPSKILL fields
+        const auto b=EncodeLoopSkillAck(f,{{0xabcdef01,2},{42,1}});
+        const unsigned char expected[]{
+            7,0x67,0x45,0x23,0xf1,1,0x23,0x81,3,0x67,0x45,80,
+            11,0,0,0,22,0,0,0,33,0,0,0,44,0,0,0,1,2,3,4,
+            0,0,0xa0,0x3f,0,0,0x20,0xc0,0,0,0x70,0x40,2,
+            1,0xef,0xcd,0xab,2,42,0,0,0,1};
+        EXPECT(b.size()==sizeof(expected));
+        EXPECT(std::memcmp(b.data(),expected,sizeof(expected))==0);
+        f=SkillUseAckFields{};f.result=1;f.attack_id=42;f.attack_type=1;f.skill_id=65535;
+        const auto reject=EncodeLoopSkillAck(f,{});
+        EXPECT(reject.size()==45&&reject[0]==std::byte{1}&&reject[28]==std::byte{1}&&reject[44]==std::byte{0});
+    }
+
     // --- CS_MONEY_ACK: gold + silver + cooper ------------------------
     {
         auto b = EncodeMoneyAck(7, 42, 999);

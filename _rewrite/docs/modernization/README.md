@@ -18,7 +18,41 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: admission timer refresh
+## Current verified increment: native repeated skill casting
+
+The original 23-byte LOOPSKILL request and 45-byte ACK are integrated for native
+owned PCs. Cooldown precedes affordability; HP equality is allowed by this source
+branch. Loop delay has no rank increment and only arms the cast skill. Ordinary
+and repeated casts share the same timer, so switching packet types cannot bypass
+reuse. Learned rank, source HP/MP costs, finite positions and complete target
+parsing remain authoritative.
+
+Fresh and transfer hydration cache the original loop delay, active prerequisite
+and equipment eligibility. Non-consuming weapon checks preserve source masks,
+first matching equipment and durability. Missing effects return NEEDPREVACT;
+consumable/ammunition branches and buff-backed prerequisites close before mutation.
+The full effect, cancellation and inventory mutation lifecycles remain unported.
+See [source contract and verification](evidence/skill-loop-contract.json).
+
+[Debug](evidence/native-skill-loop-debug.json),
+[ASan/UBSan](evidence/native-skill-loop-asan.json) and
+[installed Release](evidence/native-skill-loop-release.json) each pass **929 checks**:
+203 native Map, 29 pool/TLS, 196 outer TCP, 34 skill-cast, 295 World handoff,
+66 World secondary, 99 two-Map and seven rejection checks. Full suites have 200
+Debug entries (186 actual passes, eight internal and six explicit fixture skips)
+and 33 sanitizer entries, all passing. The previous image cannot answer LOOPSKILL.
+Tests also cover packet golden bytes, HP equality, missing maintained effects,
+powered/broken weapon eligibility, unsupported-state refusal and durable timers.
+
+Current local image: `localhost/fourstory:postgresql-skill-loop` (also `:main`),
+ID `d4a8bc5990d871e051853c37097842288f6886b6d5c4e1e8d209bd9cca7b873e`,
+UID/GID 10001:10001. All six installed daemons pass health/DNS/SIGTERM smoke.
+See [container evidence](evidence/skill-loop-container-verification.json),
+[build fingerprints](evidence/skill-loop-build-fingerprints.json) and
+[owned-lab cleanup](evidence/skill-loop-cleanup.json). Backups and migrations
+001–021 retain their hashes; no migration or client protocol change is required.
+
+## Earlier verified increment: admission timer refresh
 
 CHARINFO now samples remaining skill durations immediately before encoding, after
 the channel notification. CONREADY independently samples the same live tracker for
@@ -38,14 +72,14 @@ fixture skips) and all 33 sanitizer entries. The prior installed image fails
 the new delayed-CONREADY check; source-derived plain/encrypted admission tests
 also verify CHARINFO after an injected three-second delay and timer expiry.
 
-Current local image: `localhost/fourstory:postgresql-admission-timers` (also `:main`),
+That increment's image: `localhost/fourstory:postgresql-admission-timers`,
 ID `7007a8af428eef454ef1033e286d6b7a2a8ec32b1c6b2f70aaa56833a8f30c52`,
 UID/GID 10001:10001. All six installed daemons pass health/DNS/SIGTERM checks.
 See [container evidence](evidence/admission-timers-container-verification.json),
 [build fingerprints](evidence/admission-timers-build-fingerprints.json) and
 [owned-lab cleanup](evidence/admission-timers-cleanup.json). No migration was added;
 both backups and migrations 001–021 are unchanged. Active buff/timer simulation,
-loop/cancel rules and original-client execution remain pending.
+cancellation, active loop effects and original-client execution remain pending.
 
 ## Earlier verified increment: native normal-cast cooldown generation
 
@@ -80,7 +114,7 @@ UID/GID 10001:10001. Six daemons pass health/DNS/SIGTERM checks. See the
 Active buff/disarm/disguise timing and expiry are unported. Such transferred
 characters retain their graph, but speed-dependent casts fail before mutation.
 The pinned release has no passive speed rows; nonzero passive arithmetic uses
-explicit deterministic fixtures. Loop/cancellation, equipment/skill mutation with
+explicit deterministic fixtures. Active loop effects/cancellation, equipment/skill mutation with
 cache refresh, full target validation and original-client execution remain pending.
 Both backups and migrations 001–021 retain their hashes.
 

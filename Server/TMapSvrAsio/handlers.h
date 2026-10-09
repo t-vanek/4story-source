@@ -129,6 +129,9 @@ boost::asio::awaitable<void> OnSkillUseReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
+boost::asio::awaitable<void> OnLoopSkillReq(
+    std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte> body, const HandlerContext& ctx);
 
 // CS_ACTION_REQ — the *animation* half of an attack/skill. The legacy
 // OnCS_ACTION_REQ (CSHandler.cpp:1233) only broadcasts the action to

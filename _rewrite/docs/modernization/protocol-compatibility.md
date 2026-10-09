@@ -508,3 +508,20 @@ fail before mutation, rather than calculate guessed buff/disarm/disguise effects
 No-speed casts retain the original zero attack delay and 100 percent rate. Active
 effect expiry, loop/cancel rules, full target validation and original-client
 execution remain pending. See [timing contract](evidence/skill-timing-contract.json).
+
+
+## Native LOOPSKILL branch
+
+`CS_LOOPSKILL_REQ` (0x5372) retains its 23-byte header/count and six-byte target
+rows. The response 0x5373 retains the 45-byte body followed by five-byte targets;
+normal skill animation, transform and back-skill fields are absent. The same ACK
+layout serves rejection and success. Native identity/channel/map and learned rank
+are checked before any mutation. Cooldown precedes MP then HP (`HP < cost`),
+followed by the active-effect prerequisite and non-consuming weapon requirements.
+Only then does the character lock enclose timer arming and exact resource costs.
+Loop duration uses `(dwLoopDelay + attackSpeed) * rate / 100`, preserving DWORD
+wrap and omitting normal rank increment and same-kind extension. Ordinary and
+loop packets share timer state. Reagents, ammunition/cash bypasses and active
+buff-dependent branches remain unsupported. Full target/action/peace-zone checks,
+combat powers/damage, multi-hit expansion and actual-client acceptance remain
+pending. See [source contract and evidence](evidence/skill-loop-contract.json).

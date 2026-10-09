@@ -5,6 +5,7 @@
 #include "handlers_world.h"
 #include "domain/connect.h"
 #include "domain/skill_data.h"
+#include "domain/main_transfer.h"
 #include "services/session_registry.h"
 #include "services/skill_cooldown.h"
 #include "services/skill_chart.h"
@@ -112,7 +113,7 @@ struct Players final : tmapsvr::IPlayerService {
             auto p=std::make_shared<tmapsvr::CharacterPayload>();p->skills.push_back({7,3,0});
             tmapsvr::SkillTemplate t;t.wID=7;t.bUseMPType=1;t.dwUseMP=1000;
             t.bUseHPType=2;t.dwUseHP=10;t.f1stRateX=2.0f;t.bStartLevel=1;t.bNextLevel=1;
-            t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
+            t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.dwLoopDelay=2000;t.loop_items=tmapsvr::SkillItemGate::Allowed;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
             p->skill_templates.push_back(t);
             for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;p->skill_templates.push_back(other);}
             if(admission_timers){p->skills[0].dwRemainTick=300000;p->skills[1].dwRemainTick=1;}
@@ -562,10 +563,77 @@ int main(int argc, char**) {
                   "cooldown rejection does not deduct resources or emit changed bars");
             Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=48800&&timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>47000,
                   "resource rejections preserve existing live cooldown");
+            // The loop packet omits action/animation fields, has its own ACK,
+            // checks cooldown before costs, and never rearms same-kind peers.
+            auto loop_request=[&](std::uint16_t skill=7,std::uint32_t caster=kChar) {
+                Bytes b;WritePOD(b,caster);WritePOD<std::uint8_t>(b,1);WritePOD<std::uint8_t>(b,2);
+                WritePOD<std::uint16_t>(b,2010);WritePOD(b,skill);
+                WritePOD<float>(b,1.25f);WritePOD<float>(b,0);WritePOD<float>(b,-2.5f);WritePOD<std::uint8_t>(b,0);return b;
+            };
+            std::size_t loop_replies=0;
+            auto loop_verdict=[&](Bytes body,std::uint8_t code)->asio::awaitable<void> {
+                co_await Send(native,MessageId::CS_LOOPSKILL_REQ,std::move(body));++loop_replies;
+                co_await Until([&]{return native->Count(MessageId::CS_LOOPSKILL_ACK)==loop_replies;},"native loop verdict received");
+                auto it=std::find_if(native->packets.rbegin(),native->packets.rend(),[](const auto& p){return p.first==static_cast<std::uint16_t>(MessageId::CS_LOOPSKILL_ACK);});
+                Check(it->second.size()==45&&it->second[0]==std::byte(code),"loop result has original opcode and 45-byte layout");
+            };
+            co_await loop_verdict(loop_request(999),tmapsvr::SKILL_NOTFOUND);
+            state.Update(kChar,[](auto& v){v.dwMP=0;v.dwHP=0;});
+            co_await loop_verdict(loop_request(),tmapsvr::SKILL_SPEEDYUSE);
+            timers.Forget(kChar);
+            co_await loop_verdict(loop_request(),tmapsvr::SKILL_NEEDMP);
+            state.Update(kChar,[](auto& v){v.dwMP=100;v.dwHP=15;});
+            co_await loop_verdict(loop_request(),tmapsvr::SKILL_NEEDHP);
+            state.Update(kChar,[](auto& v){v.dwHP=16;auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].wTargetActiveID=8;v.payload=p;});
+            co_await loop_verdict(loop_request(),tmapsvr::SKILL_NEEDPREVACT);
+            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].wTargetActiveID=0;p->skill_templates[0].loop_items=tmapsvr::SkillItemGate::Unsuitable;v.payload=p;});
+            co_await loop_verdict(loop_request(),tmapsvr::SKILL_UNSUITWEAPON);
+            Check(state.Get(kChar)->dwHP==16&&state.Get(kChar)->dwMP==100&&timers.Snapshot(kChar,tmapsvr::SkillClockMs()).empty(),"loop rejections never deduct or arm timers; learned prerequisite is not an active effect");
+            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_templates[0].loop_items=tmapsvr::SkillItemGate::Allowed;v.payload=p;});
+            auto bad_loop=loop_request();bad_loop.back()=std::byte{1};
+            co_await Send(native,MessageId::CS_LOOPSKILL_REQ,bad_loop);
+            bad_loop=loop_request();bad_loop.push_back(std::byte{0});
+            co_await Send(native,MessageId::CS_LOOPSKILL_REQ,bad_loop);
+            co_await Send(native,MessageId::CS_LOOPSKILL_REQ,loop_request(7,kChar+1));
+            co_await loop_verdict(loop_request(),tmapsvr::SKILL_SUCCESS);
+            co_await Until([&]{return native->Count(MessageId::CS_HPMP_ACK)==2;},"loop resource bars delivered");
+            const auto remaining=timers.RemainMs(kChar,7,tmapsvr::SkillClockMs());
+            Check(remaining>1500&&remaining<=2000&&timers.RemainMs(kChar,8,tmapsvr::SkillClockMs())==0,
+                  "loop uses (2000+500)*80/100 without rank increment or shared-kind extension");
+            Check(state.Get(kChar)->dwMP==20&&state.Get(kChar)->dwHP==0,"loop source HP equality is accepted and exact learned-rank costs deducted once");
+            co_await loop_verdict(loop_request(),tmapsvr::SKILL_SPEEDYUSE);
+            Check(state.Get(kChar)->dwMP==20&&native->Count(MessageId::CS_HPMP_ACK)==2,"loop repeat rejects before resource checks without another charge");
+            timers.Forget(kChar);
+            state.Update(kChar,[](auto& v){v.dwMP=100;v.dwHP=169;});
             state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_attack_timing.reset();v.payload=p;});
             co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
             co_await Until([&]{return native->ended&&server.LiveSessions()==0;},"unsupported native timing closes and durably drains");
             Check(players.saved.dwMP==100&&players.saved.dwHP==169,"unsupported native timing never guesses or charges a cast");
+            for(int unsupported=0;unsupported<2;++unsupported) {
+                world.packets.clear();const auto saves=players.saves.load();
+                auto guarded=Dial(io,server.Port());co_await Send(guarded,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return world.packets.size()==1;},"unsupported loop fixture announced");
+                co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+                co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
+                co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+                co_await Send(guarded,MessageId::CS_CONREADY_REQ,{});
+                co_await Until([&]{return presence.FindEntry(kChar).has_value();},"unsupported loop fixture ready");
+                state.Update(kChar,[&](auto& v){
+                    auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);
+                    if(!unsupported)p->skill_templates[0].loop_items=tmapsvr::SkillItemGate::Unsupported;
+                    else {
+                        p->skill_templates[0].bSpeedApply=0;p->skill_templates[0].wTargetActiveID=8;
+                        auto graph=std::make_shared<tmapsvr::transfer::State>();graph->buffs.push_back({});graph->buffs[0].skill=8;
+                        p->transfer_state=graph;
+                    }
+                    v.payload=p;
+                });
+                co_await Send(guarded,MessageId::CS_LOOPSKILL_REQ,loop_request());
+                co_await Until([&]{return guarded->ended&&server.LiveSessions()==0;},"unsupported consumable or active-effect loop closes and drains");
+                Check(players.saves==saves+1&&players.saved.dwHP==169&&players.saved.dwMP==163&&
+                      guarded->Count(MessageId::CS_LOOPSKILL_ACK)==0&&guarded->Count(MessageId::CS_HPMP_ACK)==0,
+                      "unsupported loop never acknowledges success or consumes resources");
+            }
             for(int variant=0;variant<4;++variant) {
                 world.packets.clear();const auto saves=players.saves.load(),readies=validator.primary_readies.load();
                 auto invalid=Dial(io,server.Port());co_await Send(invalid,MessageId::CS_CONNECT_REQ,Connect());

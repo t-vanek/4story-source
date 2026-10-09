@@ -329,6 +329,22 @@ std::vector<std::byte> EncodeSkillUseAck(
     return b;
 }
 
+std::vector<std::byte> EncodeLoopSkillAck(
+    const SkillUseAckFields& f,const std::vector<SkillTarget>& targets)
+{
+    if(targets.size()>255)throw std::length_error("Loop skill target count exceeds BYTE");
+    std::vector<std::byte> b;b.reserve(45+targets.size()*5);
+    wire::WritePOD(b,f.result);wire::WritePOD(b,f.attack_id);wire::WritePOD(b,f.attack_type);
+    wire::WritePOD(b,f.skill_id);wire::WritePOD(b,f.skill_level);wire::WritePOD(b,f.attack_level);
+    wire::WritePOD(b,f.attacker_level);wire::WritePOD(b,f.pys_min_power);wire::WritePOD(b,f.pys_max_power);
+    wire::WritePOD(b,f.mg_min_power);wire::WritePOD(b,f.mg_max_power);wire::WritePOD(b,f.can_select);
+    wire::WritePOD(b,f.country);wire::WritePOD(b,f.aid_country);wire::WritePOD(b,f.cp);
+    wire::WritePOD(b,f.gnd_x);wire::WritePOD(b,f.gnd_y);wire::WritePOD(b,f.gnd_z);
+    wire::WritePOD(b,static_cast<std::uint8_t>(targets.size()));
+    for(const auto& t:targets){wire::WritePOD(b,t.id);wire::WritePOD(b,t.type);}
+    return b;
+}
+
 std::vector<std::byte> EncodeDelMonAck(
     std::uint32_t mon_id, std::uint8_t exit_map)
 {

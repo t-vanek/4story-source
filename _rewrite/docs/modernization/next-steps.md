@@ -76,8 +76,11 @@ authoritative for historical values, original code/client for supported behavior
    powered weapon slots, passive/item speed rates and same-kind extension are
    integrated. See `skill-timing-contract.json`. Next add active buff/disarm/disguise
    timing and authoritative effect expiry; speed-dependent casts currently close
-   without mutation when a transferred graph has buffs. Port loop/cancellation
-   branches and recompute cached timing when equipment or learned skills mutate.
+   without mutation when a transferred graph has buffs. Native owned-PC loop
+   timing/resource/wire gates and non-consuming weapon checks are now integrated;
+   see `skill-loop-contract.json`. Port consumable inventory transactions, full
+   effects and cancellation; recompute timing/item eligibility when equipment or
+   learned skills mutate.
    CHARINFO and initial readiness now sample live skill durations without
    restarting timers; preserve `admission-timers-contract.json`. Implement active
    effect/quest/recall/companion timer semantics and simulation
@@ -343,21 +346,37 @@ checks. All 33 sanitizer entries pass; Debug has 200 entries (186 actual passes,
 is `81b6c61dca05fae4150e2079de58ba7e6adc685aaaa79e087430974bee3f32ec`,
 UID/GID 10001:10001; six-daemon smoke passed. See `skill-timing-cleanup.json` for
 owned lab cleanup; original reference manifests are retained. Continue active
-buff/disarm/disguise simulation and loop/cancel branches;
+buff/disarm/disguise simulation and remaining cancellation branches;
 normal rank/weapon/passive/item/same-kind cooldown generation is now integrated.
 Equipment/learned-skill changes must rebuild the cache. Migrations 001–021 remain
 immutable; no historical source values were changed by this increment.
 
-Latest verified admission-timer increment (2026-10-09): CHARINFO and initial
+Earlier verified admission-timer increment (2026-10-09): CHARINFO and initial
 CONREADY checkpoints now sample live remaining skill durations independently.
 Loaded payloads and timer origins remain unchanged; expired durations become zero.
 Read `admission-timers-contract.json` and its Debug/ASan/installed Release reports:
 910 native checks per configuration, 186 actual Debug passes (200 entries, 14
 skips), all 33 sanitizer entries and six-daemon health/DNS/SIGTERM smoke passed.
-The previous installed image fails the delayed-readiness regression. Current
-local image `localhost/fourstory:postgresql-admission-timers` (also `:main`) is
+The previous installed image fails the delayed-readiness regression. That increment
+used `localhost/fourstory:postgresql-admission-timers`, image
 `7007a8af428eef454ef1033e286d6b7a2a8ec32b1c6b2f70aaa56833a8f30c52`, UID/GID
 10001:10001. Consult `admission-timers-cleanup.json` before reusing lab paths.
 Continue active buff/disarm/disguise simulation, effect expiry and source-traced
-loop/cancellation behavior. The original client executable remains an acceptance
+active loop effects, consumables and cancellation. The original client executable remains an acceptance
 gate. Preserve backups and migrations 001–021; the next schema migration is 022.
+
+Latest verified loop increment (2026-10-09): native owned-PC `CS_LOOPSKILL_REQ`
+and its original ACK now implement distinct loop timing, cooldown-first resource
+gates, HP equality, missing maintained-effect rejection and non-consuming weapon
+checks. Shared timer state prevents switching normal/loop opcodes to bypass reuse.
+Read `skill-loop-contract.json`: 929 native checks per Debug/ASan/installed Release,
+186 actual Debug passes (200 entries, 14 skips), all 33 sanitizer suites and
+six-daemon smoke pass. Previous installed admission-timers image lacks LOOPSKILL_ACK.
+Current image `localhost/fourstory:postgresql-skill-loop` (also `:main`) is
+`d4a8bc5990d871e051853c37097842288f6886b6d5c4e1e8d209bd9cca7b873e`, UID/GID
+10001:10001. See `skill-loop-cleanup.json` for owned lab cleanup. Next port
+consumable inventory transactions, authoritative active effects and cast lifecycle
+before exposing cancellation. Preserve the source's cancellation context: the
+client sends CANCELSKILL when an acknowledged cast cannot activate; arbitrary
+client timer resets are not an acceptable substitute for a cast lifecycle.
+Full combat/AOI/target rules and original-client execution remain unfinished.

@@ -214,6 +214,10 @@ struct SkillTarget
 
 std::vector<std::byte> EncodeSkillUseAck(
     const SkillUseAckFields& f, const std::vector<SkillTarget>& targets);
+// Source LOOPSKILL_ACK: 45-byte fixed body, then DWORD/BYTE targets. No
+// animation/back-skill/transform fields from the ordinary skill-use packet.
+std::vector<std::byte> EncodeLoopSkillAck(
+    const SkillUseAckFields& f, const std::vector<SkillTarget>& targets);
 
 // CS_DIE_ACK body — an object died (DWORD id + BYTE obj type). Mirrors
 // legacy CTPlayer::SendCS_DIE_ACK (CSSender.cpp:1392), broadcast to

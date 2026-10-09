@@ -1,0 +1,142 @@
+{
+  "date": "2026-10-09",
+  "scope": "Native owned-PC LOOPSKILL request/ACK, resource and shared live-timer gates, plus non-consuming equipment eligibility.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "3040-3368",
+      "contract": "Original loop request fields; cooldown before MP before HP; HP equality allowed; target active prerequisite then UseSkillItem; own SDELAY_LOOP without SkillUse shared-kind extension."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1619-1681",
+      "contract": "LOOPSKILL_ACK has a fixed 45-byte body including target count, followed by DWORD/BYTE target rows; no ordinary animation or transform fields."
+    },
+    {
+      "path": "Server/TMapSvr/TSkill.cpp",
+      "lines": "73-98",
+      "contract": "Loop delay is (dwLoopDelay + attack speed) * rate / 100 with DWORD wrapping and no rank increment."
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2798-2955",
+      "contract": "UseSkillItem checks item consumption, weapon mask, first matching powered equipment and ammunition; CheckPrevAct requires a maintained effect, not a learned skill."
+    },
+    {
+      "path": "Server/TMapSvr/DBAccess.h",
+      "lines": "1815-1880",
+      "contract": "Source wItemID binds positionally to m_wUseItem; pinned backup values remain unchanged."
+    },
+    {
+      "path": "Client/TClient/CSHandler.cpp",
+      "lines": "2584-2607",
+      "contract": "Client CANCELSKILL follows inability to activate an acknowledged cast. Cancellation needs an authoritative cast lifecycle before exposing cooldown reset."
+    }
+  ],
+  "implementation": {
+    "wire": "CS_LOOPSKILL_REQ 0x5372 uses its original 23-byte header/count and strict complete target parsing. CS_LOOPSKILL_ACK 0x5373 uses the original 45-byte fixed layout.",
+    "authority": "Existing ready-primary gameplay operation fence plus exact owned PC/channel/map and learned skill checks. Replica, transferred, malformed and foreign actor requests cannot perform a loop cast.",
+    "atomicity": "Character lock encloses all checks, live own-timer arming and exact learned-rank HP/MP deduction. Loop checks cooldown first and accepts HP equal to cost. It never extends shared-kind peers. Ordinary skill-use behavior remains unchanged.",
+    "timing": "Fresh and transferred hydration load original dwLoopDelay and wTargetActiveID. Both cast forms share the same tracker, snapshots, checkpoints, logout and recovery.",
+    "equipment": "Per-character cached loop eligibility follows source item-free/no-weapon and first matching powered equipment with no ammunition. Broken or missing matching equipment returns UNSUITWEAPON. Reagent, ammunition/cash bypass and out-of-range source shift cases are unsupported and close before mutation.",
+    "effects": "Missing required active effect in an unbuffed graph returns NEEDPREVACT. Buff-bearing effect prerequisites remain unsupported; stored/learned effects are not guessed as active. Existing speed-dependent buff rejection remains.",
+    "migration": "None; backups and migrations 001-021 unchanged; next migration remains 022."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-skill-loop-debug.json",
+      "status": "passed",
+      "native_map_checks": 203,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 34,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 929
+    },
+    "ctest_debug": {
+      "report": "skill-loop-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "skill-loop-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_legacy_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "skill-loop-before.json",
+      "image_id": "7007a8af428eef454ef1033e286d6b7a2a8ec32b1c6b2f70aaa56833a8f30c52",
+      "expected_failure": "Native skill wire: LOOPSKILL_ACK missing",
+      "scope": "Previous installed admission-timers daemons; current mounted backend executable. Encrypted peer times out waiting for the unimplemented loop ACK."
+    },
+    "targeted": {
+      "report": "skill-loop-targeted.xml",
+      "entries": 4,
+      "timing_checks": 60,
+      "scope": "Initial packet golden bytes, DWORD/rank loop arithmetic and plain/encrypted native loop resource/timer gates. The subsequent full CTest run also covers unsupported consumable and active-effect refusal."
+    },
+    "asan_ubsan": {
+      "report": "native-skill-loop-asan.json",
+      "status": "passed",
+      "native_map_checks": 203,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 34,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 929
+    },
+    "container_smoke": {
+      "report": "skill-loop-container-verification.json",
+      "image": "localhost/fourstory:postgresql-skill-loop",
+      "image_id": "d4a8bc5990d871e051853c37097842288f6886b6d5c4e1e8d209bd9cca7b873e",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    },
+    "installed_release": {
+      "report": "native-skill-loop-release.json",
+      "status": "passed",
+      "native_map_checks": 203,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 34,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 929
+    }
+  },
+  "limitations": [
+    "Full damage/healing, combat powers, peace-zone/target/action validation, multi-hit expansion and other gameplay remain unfinished, as in the preceding ordinary cast scope.",
+    "Only native owned-PC loops are implemented. Legacy no-payload and monster/recall/secondary casting have no new behavior.",
+    "Consumable inventory transactions, active buff lifetime semantics and cancellation remain separate ports.",
+    "Equipment and learned-skill mutations must rebuild both derived timing and loop item eligibility.",
+    "No original client executable was run; actual TCP uses source-derived encrypted synthetic peers."
+  ],
+  "pinned_content": {
+    "skill_templates": 765,
+    "nonzero_loop_delays": 472,
+    "active_prerequisites": 10,
+    "item_requirements": 84,
+    "wire_fixture": {
+      "skill_31": "Free 600ms normal/loop gate interoperability.",
+      "skill_34": "Magic loop, base 1200ms plus equipped attack delay, 5% of native maxMP351 = 17 MP.",
+      "skill_134": "Existing long cooldown must produce SPEEDYUSE before NEEDMP in loop branch.",
+      "skill_213": "Missing maintained skill209 produces NEEDPREVACT."
+    },
+    "note": "Only disposable learned rows and current character MP are seeded; original charts are read-only."
+  }
+}

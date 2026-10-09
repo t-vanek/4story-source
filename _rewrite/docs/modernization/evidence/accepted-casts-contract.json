@@ -1,0 +1,178 @@
+{
+  "status": "verified_bounded_increment",
+  "date": "2026-10-09",
+  "scope": "Existing native SKILLUSE/LOOPSKILL accepted-cast persistence and permanent-posture zero-MP removal; not complete combat",
+  "implementation": [
+    "Actual handler stages every successful native cast and freezes player mutation until confirmed commit",
+    "PostgreSQL rederives source costs, timers, debits, possible ordered target expansion and exact ACK",
+    "One commit binds accepted request/ACK, resources, skills, item receipts, supported effect removals and recovery",
+    "Per-world/character predecessor chain rejects stale snapshots including free casts; no raw request deduplication",
+    "Server-only ledger identity is hydrated separately from original client/SS bytes",
+    "Ordinary zero-MP removal follows instance power calculation; LOOPSKILL retains effects"
+  ],
+  "source_authority": [
+    "Server/TMapSvr/CSHandler.cpp:2429-3038 ordinary cast; especially 2943-2972",
+    "Server/TMapSvr/CSHandler.cpp LOOPSKILL implementation",
+    "Server/TMapSvr/TObjBase.cpp:2562 CheckEternalBuff and EraseMaintainSkill",
+    "Pinned TSKILLCHART/TSKILLDATA/TFORMULACHART and actor charts from authoritative backups"
+  ],
+  "protocol": {
+    "request_headers": {
+      "ordinary": 32,
+      "loop": 23
+    },
+    "ack_headers": {
+      "ordinary": 62,
+      "loop": 45
+    },
+    "unchanged_client": true,
+    "new_wire_fields": false,
+    "supported_binary": null,
+    "source_version": "0x2918, not a binary compatibility proof"
+  },
+  "schema": {
+    "new_migration": "database/postgresql/035-native-skill-casts.sql",
+    "preserved": "both authoritative .bak files and migrations 001-034",
+    "requires_stopped_maps_and_grants_reapplication": true,
+    "migration_sha256": "f397cca9582c10c162d4d74af72adcac7e8f193e083704b7aec804567a7d01e4"
+  },
+  "verification": {
+    "backend": "passed in Debug, ASan/UBSan and installed Release harness",
+    "debug_ctest": "203 entries, 188 actual passes, 8 internal fixture skips, 7 explicit native fixture skips",
+    "asan_ctest": "39 passed",
+    "schema_upgrade": "35 passed",
+    "native_debug": "passed",
+    "native_asan": "passed",
+    "installed_release": "passed; installed daemons with mounted Debug backend integration test",
+    "negative_control": {
+      "report": "accepted-casts-previous-image.json",
+      "expected_failure": "Native cast powers: level60: skill217 ACK follows durable exact raw request, powers, costs and timers",
+      "image": "localhost/fourstory:postgresql-cast-powers"
+    },
+    "issues_found_and_fixed": [
+      "Fixture upsert must replace an existing rank-zero learned row",
+      "Prepared-transfer recovery must rehydrate ledger metadata absent from original SS bytes",
+      "PrepareTransfer must fence stale pre-cast snapshots before storing a graph",
+      "Zero-MP wire fixture must respect original no-posture whole-two-hand/empty-slot branch"
+    ],
+    "counts": {
+      "debug": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql options": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 834
+        },
+        "outer_tcp": 635,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163
+        },
+        "total": 2761
+      },
+      "asan": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql options": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 834
+        },
+        "outer_tcp": 635,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163
+        },
+        "total": 2761
+      },
+      "release": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql options": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 834
+        },
+        "outer_tcp": 635,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163
+        },
+        "total": 2761
+      }
+    },
+    "reports": {
+      "debug": "native-accepted-casts-debug.json",
+      "asan": "native-accepted-casts-asan.json",
+      "release": "native-accepted-casts-release.json"
+    },
+    "schema_upgrade_report": "accepted-casts-schema-upgrade.json",
+    "ctest_reports": [
+      "accepted-casts-debug-ctest.xml",
+      "accepted-casts-asan-ctest.xml"
+    ],
+    "container_report": "accepted-casts-container.json",
+    "source_inventory": {
+      "legacy_translation_units": 206,
+      "modern_translation_units": 245,
+      "exact_opcodes": 1542,
+      "collisions": 9,
+      "mismatches": 0
+    },
+    "cleanup_report": "accepted-casts-cleanup.json",
+    "cleanup": "4 owned labs/networks removed; 116 credential/TLS/runtime files deleted"
+  },
+  "limits": [
+    "No real original executable, assets or acceptance environment",
+    "Defend does not yet consume accepted target occurrences; hit replay prevention remains unfinished",
+    "Generic effects, durability, transHP/MP, rewards and complete gameplay remain unfinished",
+    "No proxy-induced lost COMMIT acknowledgement test yet; handler fail-close and no-retry behavior tested separately",
+    "Cooldowns persist sampled remaining durations; recovery can restore the last committed sample, including time spent waiting for its commit"
+  ],
+  "policy": "local main only; no push, publication or external deployment",
+  "image": {
+    "tag": "localhost/fourstory:postgresql-accepted-casts",
+    "id": "a50983e061cd6df3f076824f8037f297a52441baf3dd003ca8bfe2fece3afe01",
+    "user": "10001:10001"
+  },
+  "skipped": {
+    "debug_ctest_internal_fixture_skips": 8,
+    "debug_ctest_explicit_native_skips": 7,
+    "original_client": "Unavailable executable/assets; only source exists",
+    "unknown_commit_proxy": "Not injected; fail-close/no-retry, late SQL rollback and disconnect during commit are tested"
+  }
+}

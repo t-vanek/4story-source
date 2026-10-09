@@ -973,6 +973,38 @@ stat isolation, cancellation refresh, restart and two-Map handoff. These are
 synthetic TCP acceptance checks; original executable/assets remain unavailable.
 Complete hit authorization, Defend, transfer HP/MP costs, durability, generic
 effects, zero-MP removal and combat persistence are separate unfinished work.
-No new persistence or stronger crash guarantee for cost-only casts is claimed:
-they still use the existing periodic checkpoints; item costs retain their existing
-atomic transaction. See [bounded cast-profile results](evidence/cast-powers-contract.json).
+At that previous cast-profile baseline, no stronger crash guarantee for cost-only
+casts was claimed: they used periodic checkpoints, while item costs retained
+the existing atomic transaction. Migration 035 below closes this accepted-cast
+persistence gap. See [bounded cast-profile results](evidence/cast-powers-contract.json).
+
+## Accepted native casts and ordinary zero-MP removal (2026-10-09)
+
+The same original SKILLUSE (32-byte request header including count) and LOOPSKILL
+(23-byte header) handlers now commit accepted state before publishing success.
+The 62/45-byte ACK headers and five-byte ordered target occurrences are unchanged.
+No cast ID is appended to any client or SS packet. PostgreSQL migration 035 stores
+raw request/ACK and a server-only accepted-cast identity; hydration reads the
+per-world/character head independently of source transfer bytes.
+
+The backend rederives rank-based costs, timing, inventory selection and outgoing
+powers from pinned source catalogs. It checks a possible original random target
+expansion without drawing again. Valid later identical zero-cooldown requests
+are separate casts. The ledger's predecessor uniqueness and account/claim locks
+reject concurrent same-state writes, including free casts. All accepted resources,
+timers, item receipts, supported effect removals and recovery writes share one
+transaction. Unknown outcomes close without retry or saving the previous snapshot.
+
+Original `CSHandler.cpp:2943–2972` computes instance powers, clears the instance,
+calls EraseBuffByAttack and then CheckEternalBuff before the cast ACK.
+`TObjBase.cpp:2562` erases is-use/zero-duration PC effects when MP is zero.
+The supported pinned 131/132 templates have is-use=1, duration=0 and erase-act=0;
+ordinary casts remove them in stored order with END, conditional HPMP and own STAT
+before cast ACK, retaining the pre-removal powers. LOOPSKILL has no such call.
+Generic attack cancellation, transHP/MP, durability, other effects and Defend
+remain unfinished. The ledger records acceptance; target-hit authorization and
+one-use consumption still require integration and verification.
+
+See [verification scope and reproduction](evidence/accepted-casts-contract.json).
+No real-client binary/assets exist in the available environment. Synthetic peers
+and the source version 0x2918 do not establish a supported executable build.

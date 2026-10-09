@@ -19,6 +19,7 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
         checks.append(label)
     def items():return [r[0] for r in conn.execute('SELECT row_to_json(i) FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,))]
     original=items()
+    original_mp=conn.execute('SELECT "dwMP" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()[0]
     conn.execute('UPDATE app_world."TITEMTABLE" SET "dwStorageID"=255,"bItemID"=13 WHERE "dwOwnerID"=%s AND "dwStorageID"=254 AND "bItemID"=1',(cid,))
     learned={r[0] for r in conn.execute('SELECT "wSkillID" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s',(cid,))}
     weapon=next(i for i in original if i['dwStorageID']==254 and i['bItemID']==0)
@@ -44,7 +45,7 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
         client.sendall(frame(bytes([sb,sp,db,dp,1]),0x52a8,cs));cs+=1
     def response(op,data,label):
         nonlocal ss
-        actual=read_packet(client,ss);check(actual==(op,data),label);ss+=1
+        actual=read_packet(client,ss);check(actual==(op,data),label+' expected='+hex(op)+':'+data.hex()+' received='+hex(actual[0])+':'+actual[1].hex() if actual!=(op,data) else label);ss+=1
     def relocate(table,slot,target):
         item,magic=table.pop(slot);return (tuple([target,*item[1:]]),magic)
     def stats(effects,label):response(0x5324,source_statistics(conn,cid,effects=[(i,1) for i in effects]),label)
@@ -196,12 +197,70 @@ def verify_postures(conn,cid,start,enter,login_port,map_port,until,restart):
         finally:
             conn.execute('DROP TRIGGER synthetic_posture_delay ON app_world.equipment_operations');conn.execute('DROP FUNCTION public.delay_posture_commit()')
         connect();check(character['effects']==[] and 0 not in equipment and 12 in carried,'disconnect during commit preserves unequipped weapon and cancelled posture together')
+        # Reequip the two-handed source item, then reconnect at zero MP.
+        # Source LOOPSKILL retains it; ordinary SKILLUSE erases it after powers.
+        request(255,12,254,0);equipment[0]=relocate(carried,12,0)
+        response(0x52ac,b'\xff\x0c','eternal fixture removes carried two-hand')
+        response(0x52ab,b'\xfe'+descriptor(*equipment[0]),'eternal fixture equips two-hand')
+        equip([]) # original whole-two-hand/empty-slot branch creates no posture
+        for posture in (None,132):
+            request(255,11,254,0)
+            old=relocate(equipment,0,11);equipment[0]=relocate(carried,11,0);carried[11]=old
+            response(0x52aa,b'\xfe'+descriptor(*equipment[0]),'eternal fixture swaps occupied main slot')
+            response(0x52aa,b'\xff'+descriptor(*carried[11]),'eternal fixture retains displaced main weapon')
+            if posture:defend(posture)
+            equip([posture] if posture else [])
+        disconnect()
+        conn.execute('UPDATE app_world."TCHARTABLE" SET "dwMP"=0 WHERE "dwCharID"=%s',(cid,));connect()
+        check(character['effects'][0][:3]==(132,1,0),'zero MP hydration alone retains original eternal effect')
+        raw=struct.pack('<IBBHHfffB',cid,1,1,0,917,0,0,0,0)
+        client.sendall(frame(raw,0x5372,cs));cs+=1
+        op,data=read_packet(client,ss);ss+=1
+        check(op==0x5373 and check_cast_fields(conn,cid,917,1,data,True,effects=[(132,1)]),'zero MP LOOPSKILL preserves preexisting posture powers without SKILLEND')
+        check(conn.execute('SELECT maintain_state FROM app_world.map_checkpoints WHERE char_id=%s',(cid,)).fetchone()==([[132,1,0,1,cid,1,cid,4]],),'loop commit at zero MP retains posture durably')
+        raw=struct.pack('<IBBHHBIIfffB',cid,1,1,0,917,0,0,0,0,0,0,0)
+        conn.execute("CREATE FUNCTION public.reject_accepted_cast() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic accepted cast fault'; END $$")
+        conn.execute('CREATE TRIGGER synthetic_accepted_cast_fault BEFORE INSERT ON app_world.accepted_skill_casts FOR EACH ROW EXECUTE FUNCTION public.reject_accepted_cast()')
+        count=conn.execute('SELECT count(*) FROM app_world.accepted_skill_casts WHERE char_id=%s',(cid,)).fetchone()[0]
+        try:
+            client.sendall(frame(raw,0x52b4,cs));cs+=1
+            check(client.recv(1)==b'','failed zero MP cast sends no END, stats or successful cast ACK')
+            client.close();client=None
+            check(conn.execute('SELECT count(*) FROM app_world.accepted_skill_casts WHERE char_id=%s',(cid,)).fetchone()==(count,),'failed cast is not automatically retried')
+            check(conn.execute('SELECT maintain_state,app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=%s',(cid,)).fetchone()==([[132,1,0,1,cid,1,cid,4]],True),'cast failure rolls back eternal effect and recovery checkpoint')
+        finally:
+            conn.execute('DROP TRIGGER synthetic_accepted_cast_fault ON app_world.accepted_skill_casts');conn.execute('DROP FUNCTION public.reject_accepted_cast()')
+        map_port=restart()
+        until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'replacement recovers failed accepted cast owner')
+        connect();check(character['effects'][0][:3]==(132,1,0),'failed cast posture survives process replacement')
+        client.sendall(frame(raw,0x52b4,cs));cs+=1
+        end(132,[],'ordinary zero MP CheckEternalBuff before cast ACK')
+        op,data=read_packet(client,ss);ss+=1
+        check(op==0x52b5 and check_cast_fields(conn,cid,917,1,data,effects=[(132,1)]),'ordinary cast powers retain removed posture instance contribution')
+        check(conn.execute('SELECT request,acknowledgement,before_effects,after_effects FROM app_world.accepted_skill_casts WHERE char_id=%s ORDER BY cast_id DESC LIMIT 1',(cid,)).fetchone()==(raw,data,[[132,1,0,1,cid,1,cid,4]],[]),'zero MP cast ledger atomically stores pre-removal powers and effect diff')
+        map_port=restart();client.close();client=None
+        until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'replacement recovers committed zero MP cast')
+        connect();check(character['effects']==[] and character['hpmp'][3]==0,'SIGKILL after accepted cast cannot restore posture or MP')
+        conn.execute("CREATE FUNCTION public.delay_accepted_cast() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(.3); RETURN NEW; END $$")
+        conn.execute('CREATE TRIGGER synthetic_accepted_cast_delay BEFORE INSERT ON app_world.accepted_skill_casts FOR EACH ROW EXECUTE FUNCTION public.delay_accepted_cast()')
+        count=conn.execute('SELECT count(*) FROM app_world.accepted_skill_casts WHERE char_id=%s',(cid,)).fetchone()[0]
+        try:
+            client.sendall(frame(raw,0x52b4,cs));cs+=1
+            until(lambda:conn.execute("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event='PgSleep'").fetchone()[0]>0,'accepted cast waits before PostgreSQL commit')
+            check(not select.select([client],[],[],.02)[0],'free cast publishes no success before PostgreSQL commit')
+            client.close();client=None
+            until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'disconnect during accepted cast drains committed state')
+        finally:
+            conn.execute('DROP TRIGGER synthetic_accepted_cast_delay ON app_world.accepted_skill_casts');conn.execute('DROP FUNCTION public.delay_accepted_cast()')
+        check(conn.execute('SELECT count(*) FROM app_world.accepted_skill_casts WHERE char_id=%s',(cid,)).fetchone()==(count+1,),'disconnect during accepted cast commits exactly once')
+        connect();check(character['effects']==[],'reconnect after cast commit/disconnect preserves empty effects')
         disconnect()
     finally:
         if client is not None:client.close()
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'posture fixture is offline before cleanup')
         conn.execute('DELETE FROM app_world."TITEMTABLE" WHERE "dwOwnerID"=%s',(cid,))
         for row in original:insert(row)
+        conn.execute('UPDATE app_world."TCHARTABLE" SET "dwMP"=%s WHERE "dwCharID"=%s',(original_mp,cid))
         for skill in (8,14,917):
             if skill not in learned:conn.execute('DELETE FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,skill))
     return {'status':'passed','checks':checks,'scope':'Permanent 131/132 equipment postures, original synthetic TCP, native PG, actual process SIGKILL; no original-client acceptance'},map_port

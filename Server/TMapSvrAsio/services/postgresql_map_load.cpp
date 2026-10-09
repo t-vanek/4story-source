@@ -66,7 +66,8 @@ void ReadPostures(soci::session& sql,CharacterPayload& p) {
     for(int id=131;id<=132;++id) {
         soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
         if(!sql.got_data()||U32(chart,"dwDuration")||U32(chart,"dwDurationInc")||
-           !U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture"))
+           !U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||
+           !U8(chart,"bIsuse")||U8(chart,"bEraseAct")||U8(chart,"bEraseHide"))
             throw std::runtime_error("Pinned automatic posture requires additional effect semantics");
         auto& def=p.posture_templates[id-131];def={static_cast<std::uint16_t>(id),U32(chart,"dwWeaponID"),{}};
         bool posture=false;
@@ -85,9 +86,6 @@ void ReadPostures(soci::session& sql,CharacterPayload& p) {
     }
 }
 void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
-    const int character=s.dwCharID;long long head=0;
-    sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE char_id=:c",soci::use(character),soci::into(head);
-    p.last_cast_id=static_cast<std::uint64_t>(head);
     for(auto& bag:p.bags) {
         const int item=std::bit_cast<std::int16_t>(bag.bag.wItemID);int slots=0;
         sql<<"SELECT \"bSlotCount\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:i",soci::use(item),soci::into(slots);
@@ -500,6 +498,10 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
         (i?p.next_exp:p.prev_exp)=static_cast<std::uint32_t>(experience);}
     ByteCount(p.bags.size());ByteCount(p.skills.size());ByteCount(p.hotkeys.size());
     for(const auto& bag:p.bags)ByteCount(bag.items.size());
+    {const int cast_world=claim.group,cast_character=s.dwCharID;long long head=0;
+     sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_cast_id=static_cast<std::uint64_t>(head);}
     DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
     tx->commit();return s;
@@ -535,6 +537,10 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
         if(!sql.got_data())throw std::runtime_error("Transferred level has no source threshold");
         (i?p.next_exp:p.prev_exp)=static_cast<std::uint32_t>(experience);}
     ByteCount(p.bags.size());ByteCount(p.skills.size());ByteCount(p.hotkeys.size());for(const auto& b:p.bags)ByteCount(b.items.size());
+    {const int cast_world=m_config.world,cast_character=s.dwCharID;long long head=0;
+     sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_cast_id=static_cast<std::uint64_t>(head);}
     DeriveStats(sql,s,p);
     // Never silently clamp unsaved transferred core to an incomplete derived
     // stat model. Active-effect stat derivation remains a gameplay dependency.

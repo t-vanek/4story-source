@@ -73,6 +73,7 @@ bool PostgreSQLMapService::PrepareTransfer(const MapSessionClaim& c,const CharSn
     if(CoreFingerprint(c,wire_core)!=fingerprint)return false;
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||(phase!="ready"&&phase!="transferring"))return false;
+    CheckCastHead(sql,c,snapshot);
     CheckCatalogs(sql);
     const auto& s=state->character;const int target=CellOwner(sql,c,s.wMapID,s.fPosX,s.fPosZ);
     if(!target||target==m_config.server)return false;
@@ -246,6 +247,14 @@ int RecoverPreparedMapTransfers(soci::session& sql,int world,int server,const st
         MapSessionClaim claim{static_cast<std::uint32_t>(user),static_cast<std::uint32_t>(key),static_cast<std::uint32_t>(character),
             static_cast<std::uint8_t>(world),static_cast<std::uint8_t>(channel),static_cast<std::uint64_t>(generation)};
         claim.authority_epoch=epoch;
+        // This is the locked durable prepared graph, not a caller-supplied
+        // live snapshot. No cast can commit while this claim is transferring.
+        // Rehydrate server-only metadata absent from the original SS packet.
+        long long head=0;
+        sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",
+            soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
+        auto payload=std::make_shared<CharacterPayload>();payload->last_cast_id=static_cast<std::uint64_t>(head);
+        graph->character.payload=std::move(payload);
         PostgreSQLMapService::WriteCore(sql,claim,graph->character,1);
         sql<<R"SQL(UPDATE app_world.map_checkpoints p SET recovery_contract=2,skill_state=NULL,maintain_state=NULL,revision=p.revision+1,fingerprint=t.core_fingerprint,
           core_state=app_world.map_core_state(p.world_id,p.char_id),transfer_body=t.body,transfer_hash=t.body_sha256,

@@ -1,6 +1,6 @@
 // Skill-use handler — CS_SKILLUSE_REQ decode + server-side gates + ack.
 //
-// F11 decodes the 31-byte header + the defender list, then enforces the
+// F11 decodes the 32-byte header + the defender list, then enforces the
 // server-authoritative skill gates faithful to the legacy
 // OnCS_SKILLUSE_REQ (CSHandler.cpp:2429 → CTSkill::CanUse /
 // GetRequiredMP / GetRequiredHP):
@@ -77,7 +77,7 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
     const auto opcode=loop?MessageId::CS_LOOPSKILL_ACK:MessageId::CS_SKILLUSE_ACK;
     const auto encode=loop?EncodeLoopSkillAck:EncodeSkillUseAck;
     // LOOPSKILL omits the action/animation fields (23 bytes including count).
-    // CS_SKILLUSE_REQ header (legacy CSHandler.cpp:2429) — 31 bytes, then
+    // CS_SKILLUSE_REQ header (legacy CSHandler.cpp:2429) — 32 bytes, then
     // BYTE count × { DWORD target, BYTE target_type, BYTE is_target }.
     wire::Reader r(body.data(), body.size());
 
@@ -144,19 +144,21 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
     bool visited=false,ignored=false;
     if(!cid||!ctx.char_state)co_return;
     const auto identity=ctx.session_reg->Identity(sess.get());
-    // Immediate reagent writes need an unpublished plan and a temporary freeze.
+    // Every native accepted cast needs an unpublished plan and a temporary freeze.
     // The dispatch operation excludes periodic checkpoint capture until commit.
     const auto initial=ctx.char_state->Get(cid);
     bool reagent=false;
     if(initial&&initial->payload)for(const auto& t:initial->payload->skill_templates)
         if(t.wID==wSkillID)reagent=t.items==SkillItemGate::Reagent||t.items==SkillItemGate::Ammunition;
     SkillCooldownTracker planned_timers;
+    std::optional<std::uint64_t> planning_now;
+    std::vector<EquipmentEffectEvent> ended_effects;
     auto* timers=ctx.skill_cooldown;
     std::vector<SkillItemDebit> consumed;
     auto apply=[&](CharSnapshot& cs) {
         visited=true;
         if(loop&&!cs.payload){ignored=true;return;}
-        const auto now=SkillClockMs();
+        const auto now=planning_now.value_or(SkillClockMs());
         std::optional<SkillTemplate> definition;
         std::uint32_t reuse_delay=0,kind_delay=0;
         std::vector<std::uint16_t> same_kind;
@@ -250,35 +252,34 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             ack.mg_min_power=power.magic_min;ack.mg_max_power=power.magic_max;ack.cp=power.critical;
         }
         ack.result=SKILL_SUCCESS;
+        ack.skill_level=rank;ack.attacker_level=char_level;ack.country=char_country;ack.aid_country=aid_country;
+        ack.gnd_x=fPosX;ack.gnd_y=fPosY;ack.gnd_z=fPosZ;
     };
-    if(!reagent)ctx.char_state->Update(cid,apply);
+    if(!initial||!initial->payload)ctx.char_state->Update(cid,apply);
     else {
-        if(!ctx.skill_cooldown||!ctx.player_service||!identity)throw std::runtime_error("Reagent transaction context missing");
+        if(!ctx.skill_cooldown||!ctx.player_service||!identity)throw std::runtime_error("Native cast transaction context missing");
         const auto original=ctx.char_state->Freeze(cid,[](auto&){});
         if(!original)co_return;
-        auto planned=*original;
+        auto planned=*original;CharSnapshot before;
+        const auto started=SkillClockMs();planning_now=started;
         try {
-            const auto started=SkillClockMs();
-            const auto sampled=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,started);
-            planned_timers.Restore(cid,sampled.payload->skills,started);timers=&planned_timers;
+            before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,started);planned=before;
+            planned_timers.Restore(cid,before.payload->skills,started);timers=&planned_timers;
             apply(planned);
         }catch(...){ctx.char_state->Store(cid,*original);throw;}
         const auto sampled_at=SkillClockMs();
         try{planned=transfer::PersistenceSnapshot(planned,identity->key,planned_timers,sampled_at);}
         catch(...){ctx.char_state->Store(cid,*original);throw;}
-        const bool commit=!consumed.empty()&&visited&&!ignored&&ack.result==SKILL_SUCCESS;
+        const bool commit=visited&&!ignored&&ack.result==SKILL_SUCCESS;
         try {
         if(commit) {
-            std::vector<std::string> new_hashes;
+            SkillCastRequest request{wSkillID,loop,sampled_at-started,body,encode(ack,targets),consumed};
             auto* service=ctx.player_service;
-            new_hashes=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),wSkillID,hits=static_cast<std::uint8_t>(targets.size()),&consumed,&planned] {
-                    return service->ConsumeSkillItems(claim,wSkillID,hits,consumed,planned);
+            auto committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&request,&before,&planned] {
+                return service->CommitSkillCast(claim,request,before,planned);
             });
-            auto p=std::make_shared<CharacterPayload>(*planned.payload);
-            if(new_hashes.size()!=consumed.size())throw std::runtime_error("Incomplete consumption result");
-            for(std::size_t i=0;i<consumed.size();++i)
-                for(auto& bag:p->bags)for(auto& item:bag.items)if(item.dlID==consumed[i].before.dlID)item.durable_hash=new_hashes[i];
-            planned.payload=std::move(p);
+            if(!committed.snapshot||!committed.snapshot->payload)throw std::runtime_error("Incomplete cast commit result");
+            planned=*committed.snapshot;ended_effects=std::move(committed.ended);
         }
         ctx.skill_cooldown->Restore(cid,planned.payload->skills,sampled_at);
         ctx.char_state->Store(cid,planned);
@@ -308,6 +309,23 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             co_await sess->SendPacket(static_cast<std::uint16_t>(deleted?MessageId::CS_DELITEM_ACK:MessageId::CS_UPDATEITEM_ACK),item_ack);
         }
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),std::vector<std::byte>{std::byte{0}});
+    }
+
+    // Original CheckEternalBuff runs after powers are captured and before the
+    // ordinary cast ACK. EraseMaintainSkill sends END, conditional bars, own stats.
+    for(const auto& event:ended_effects) {
+        const auto& state=*event.state;
+        std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{sess};
+        const auto cell=[](float v)->int{return std::isfinite(v)&&v>=0&&v<65536?static_cast<std::uint16_t>(v)/64:-10000;};
+        if(ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto client){
+            if(entry.map_id==state.wMapID&&std::abs(cell(entry.pos.x)-cell(state.fPosX))<=1&&
+               std::abs(cell(entry.pos.z)-cell(state.fPosZ))<=1)neighbors.push_back(std::move(client));
+        });
+        for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),EncodeSkillEnd(cid,event.skill));
+        if(max_hp!=state.dwMaxHP||max_mp!=state.dwMaxMP)
+            for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
+                EncodeHpMpAck(cid,1,state.dwMaxHP,state.dwHP,state.dwMaxMP,state.dwMP));
+        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(state,*state.payload->statistics));
     }
 
     // Success — broadcast the fat SKILL_SUCCESS ack (the cast + its

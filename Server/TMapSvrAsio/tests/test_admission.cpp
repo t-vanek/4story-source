@@ -167,6 +167,17 @@ struct Players final : tmapsvr::IPlayerService {
         committed=before;tmapsvr::PublishInventoryMove(committed,plan,result);++moves;
         return result;
     }
+    tmapsvr::SkillCastCommit CommitSkillCast(const tmapsvr::MapSessionClaim& claim,const tmapsvr::SkillCastRequest& request,
+        const tmapsvr::CharSnapshot&,const tmapsvr::CharSnapshot& after) override {
+        auto state=after;auto payload=std::make_shared<tmapsvr::CharacterPayload>(*after.payload);
+        if(!request.debits.empty()) {
+            const auto hashes=ConsumeSkillItems(claim,request.skill,1,request.debits,after);
+            for(std::size_t i=0;i<request.debits.size();++i)for(auto& bag:payload->bags)for(auto& item:bag.items)
+                if(item.dlID==request.debits[i].before.dlID)item.durable_hash=hashes[i];
+        }
+        ++payload->last_cast_id;state.payload=std::move(payload);committed=state;
+        return {std::make_shared<const tmapsvr::CharSnapshot>(state),{}};
+    }
     std::vector<std::string> ConsumeSkillItems(const tmapsvr::MapSessionClaim&,std::uint16_t,std::uint8_t,
         const std::vector<tmapsvr::SkillItemDebit>& debits,const tmapsvr::CharSnapshot& s) override {
         consumption_started=true;

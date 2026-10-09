@@ -726,7 +726,7 @@ is for local verification and has not been published or deployed externally.
 
 ## Native cast attack profiles
 
-The current local image is `localhost/fourstory:postgresql-cast-powers`. Use the
+The preceding local image is `localhost/fourstory:postgresql-cast-powers`. Use the
 same native schema **001–034**, runtime grants and pinned character/routing/four-table
 actor catalogs described above. This increment requires no new migration. It
 populates source-derived outgoing cast fields; complete combat and actual-client
@@ -772,3 +772,44 @@ SQL Server is used only for that historical query observation. Native server
 execution and the cast-profile wire tests use PostgreSQL. The explicit ascending
 source-key ordering and its historical-query uncertainty are documented in the
 protocol contract. All images, tests and commits stay local; nothing is published.
+
+## Native accepted cast transactions
+
+Migration **035** is required for the current accepted-cast path. Stop local Map
+writers, apply migrations through 035 with the existing migration runner, then
+reapply `deploy/sql/map-runtime-grants.sql` to the configured Map role before
+starting the new binaries. Keep both backups and previously applied migration
+files unchanged. Existing checkpoints and historical item receipts are preserved;
+old receipts retain a NULL accepted-cast reference. No historical cast is invented.
+The character/routing/four-table actor manifest pins remain unchanged.
+
+Local reproduction (Python requires the documented psycopg environment):
+
+```sh
+podman run --rm --network none --userns keep-id -v "$PWD:/src:z" -w /src \
+  localhost/fourstory:build-deps cmake --build --preset linux-debug
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 \
+  -t localhost/fourstory:postgresql-accepted-casts .
+python3 tools/database/disposable_environment.py start \
+  --work /tmp/fourstory-accepted-casts-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-accepted-casts-test --map-runtime-only --build-dir build/linux-debug \
+  --image localhost/fourstory:postgresql-accepted-casts --runtime-bin-dir /opt/fourstory/bin \
+  --snapshot /private/character/reference/manifest.json \
+  --routing-snapshot /private/routing/reference/manifest.json \
+  --actor-snapshot /private/statistics/actor-reference/manifest.json \
+  --report /tmp/native-accepted-casts-release.json
+python3 tools/database/verify_posture_upgrade.py \
+  --work /tmp/fourstory-accepted-casts-test --through-casts \
+  --report /tmp/accepted-casts-schema-upgrade.json
+python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-accepted-casts
+python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-accepted-casts-test
+```
+
+Use separate labs for concurrent configurations. For Debug omit image/runtime-bin
+arguments; for sanitizers build and use `linux-asan`. Installed Release exercises
+installed daemons with the mounted Debug backend integration executable. Remove
+owned credentials/TLS keys after stopping the lab. Preserve operator handling of
+unknown commits: no automatic retry, no stale final save, fenced process recovery.
+This is still an incomplete gameplay server. See the
+[accepted-cast contract and verification status](../_rewrite/docs/modernization/evidence/accepted-casts-contract.json).

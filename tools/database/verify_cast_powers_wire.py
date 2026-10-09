@@ -62,6 +62,10 @@ def verify_cast_powers(conn,cid,start,enter,login_port,map_port,until):
                 send(body,0x52b4);op,data=receive()
                 check(op==0x52b5 and len(data)==62 and data[0]==0 and data[19]==rank and
                       check_cast_fields(conn,cid,skill,rank,data),mode+': ordinary skill'+str(skill)+' matches source rank, AL, four powers, critical and countries')
+                receipt=conn.execute('SELECT request,acknowledgement,after_mp,after_hp,after_skills FROM app_world.accepted_skill_casts WHERE char_id=%s ORDER BY cast_id DESC LIMIT 1',(cid,)).fetchone()
+                core=conn.execute('SELECT "dwMP","dwHP" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()
+                check(receipt is not None and receipt[:2]==(body,data) and receipt[2:4]==core and
+                      any(row[:2]==[skill,rank] for row in receipt[4]),mode+': skill'+str(skill)+' ACK follows durable exact raw request, powers, costs and timers')
                 cost=conn.execute('SELECT "dwUseHP","dwUseMP" FROM character_compat."TSKILLCHART" WHERE "wID"=%s',(skill,)).fetchone()
                 if any(cost):check(receive()[0]==0x52a2,mode+': charged skill'+str(skill)+' retains following HPMP packet')
                 # No instance modifiers may leak into persistent inspection.

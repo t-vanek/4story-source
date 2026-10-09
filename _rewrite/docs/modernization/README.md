@@ -18,7 +18,34 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: native outgoing cast attack profiles
+## Current increment: accepted cast transactions
+
+Native SKILLUSE/LOOPSKILL now stages every successful request, independently
+validates source costs/timers/item selection/expanded targets/ACK inside the PostgreSQL transaction,
+and publishes only the committed snapshot. Migration 035 records the original
+request and ACK plus ordered effects, skills, resource deltas and graph hashes.
+Linked item receipts commit with the accepted cast. A ledger head, kept outside
+original packet layouts, fences stale state even for free zero-cooldown casts.
+Hydration and locked interrupted-transfer recovery restore that head; statistic
+recalculation preserves it. Identical legal subsequent requests remain distinct.
+
+Ordinary zero-MP casts erase permanent 131/132 postures in source order, retaining
+pre-removal outgoing powers and emitting END/stat notifications before the cast
+ACK. LOOPSKILL retains the posture. Other effects, hit occurrence consumption,
+Defend, damage/rewards, durability and transHP/MP remain unfinished.
+
+**2,761 native checks pass per configuration** in Debug, ASan/UBSan and installed
+Release: 834 backend, 29 pool/options/TLS, 635 outer TCP and 1,263 nested checks.
+Release uses installed daemons with the Debug backend test. Debug CTest has 188
+actual passes and 15 fixture skips; all 39 sanitizer suites and 35 schema-upgrade
+checks pass. Six installed services pass health/DNS/SIGTERM. The prior image fails
+the new durable-cast assertion. Four owned labs are removed, along with 116 private
+credential/TLS/runtime files. See [accepted-cast contract](evidence/accepted-casts-contract.json)
+and [local reproduction](../../../deploy/README.md#native-accepted-cast-transactions).
+Backups and applied migrations **001–035** are immutable; next migration **036**.
+Only client source exists; no executable identity or original-client acceptance.
+
+## Previous increment: native outgoing cast attack profiles
 
 The actual native Map cast handlers now send original-source attack powers,
 attack level, critical probability and aid country. The selected learned skill's
@@ -47,7 +74,7 @@ The source query does not guarantee row order. Explicit native ordering uses the
 recovered clustered key; twelve restored SQL Server reads agree for the four
 mixed-attribute skills. This modern determinism correction and its limits are
 recorded in [source-order evidence](evidence/cast-powers-source-order.json).
-Cost-only casts retain their periodic-checkpoint crash window. Accepted-cast/hit
+At this previous baseline, cost-only casts retained their periodic-checkpoint crash window. Accepted-cast/hit
 transactions, full Defend, durability, transHP/MP, generic effects and zero-MP
 removal remain pending. The previous Defend-only CheckEternalBuff claim is
 corrected below and in the protocol contract. Only client source is available;
@@ -1660,7 +1687,7 @@ selection/ID/essential-spawn differences.
   pool test without backups; suitable for CI. CI wiring is supplied, remote CI
   execution is not claimed.
 - [Source index](evidence/source-inventory.json): 206 legacy translation units,
-  231 production Asio translation units, all 1,542 source opcode values matching
+  245 production Asio translation units, all 1,542 source opcode values matching
   the modern enum, and nine preserved collision values. Lexical references are
   navigation aids, **not functional coverage**. Tools are included in the legacy
   index; they are not all runtime daemons.

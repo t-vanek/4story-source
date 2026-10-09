@@ -34,21 +34,40 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
 | World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The latest increment replaces placeholder attack fields in **native SKILLUSE and
+The current increment integrates **accepted native cast transactions** (migration
+**035**) into the existing SKILLUSE/LOOPSKILL handler. Cost-only and free casts now
+join item-consuming casts in an immediate PostgreSQL commit containing core
+resources, cooldowns, raw request/ACK, inventory receipts and recovery state.
+A per-character ledger chain rejects stale snapshots. Ordinary casts remove
+supported permanent postures at zero MP after computing outgoing powers; loops
+retain them, as in the original source.
+
+**2,761 native checks pass per configuration** in Debug, ASan/UBSan and installed
+Release (installed daemons with the Debug backend test). Debug CTest records 188
+actual passes and 15 fixture skips; all 39 sanitizer suites and 35 schema-upgrade
+checks pass. All six installed services pass health, DNS and SIGTERM checks. See the
+[accepted-cast contract](_rewrite/docs/modernization/evidence/accepted-casts-contract.json).
+Current local image: `localhost/fourstory:postgresql-accepted-casts`;
+[local build/startup procedure](deploy/README.md#native-accepted-cast-transactions).
+This implements accepted-cast persistence; authoritative hit consumption and
+complete Defend remain unfinished. The original client EXE/assets are unavailable.
+
+The preceding increment replaces placeholder attack fields in **native SKILLUSE and
 LOOPSKILL** with the original learned-rank instance-skill calculation. Physical,
 ranged and magic powers, attack level, critical and aid country come from pinned
 PostgreSQL catalogs and current equipment/effects. Profiles refresh on equipment
 changes, cancellation, reconnect and Map handoff. The ordinary/loop AL distinction
 and original packet layouts are preserved. See the [cast-profile contract](_rewrite/docs/modernization/evidence/cast-powers-contract.json)
 and [local build/startup procedure](deploy/README.md#native-cast-attack-profiles).
-Current local image: `localhost/fourstory:postgresql-cast-powers`.
+Previous verified image: `localhost/fourstory:postgresql-cast-powers`.
 
 **2,582 native database/network checks pass per configuration** in Debug,
 ASan/UBSan and installed Release. Debug CTest has 188 actual passes and 15 fixture
 skips; all 39 sanitizer suites pass. Six installed services pass health, DNS and
 SIGTERM. The previous image fails the new independent outgoing-power assertion.
-This does not complete combat: accepted-cast persistence, authoritative Defend,
-full effects and unchanged-client acceptance remain unfinished.
+This projection alone does not complete combat. Accepted-cast persistence is
+tracked above; authoritative Defend, full effects and unchanged-client acceptance
+remain unfinished.
 
 The preceding increment implements **client-requested cancellation of permanent warrior
 postures** through the existing Map handler and native PostgreSQL (migration **034**).
@@ -73,11 +92,11 @@ recovery. Its recorded baseline is 2,221 native checks per configuration; see th
 [posture evidence](_rewrite/docs/modernization/evidence/postures-contract.json).
 
 Complete active-effect lifecycle, combat and gameplay remain unfinished. General
-cancellation side effects, timed expiry, zero-MP removal during ordinary casts and `Defend`, dependent
+cancellation side effects, timed expiry, zero-MP removal during `Defend` and item use, dependent
 posture skills and remote visibility still require implementation and acceptance.
 Only uncompiled client sources are available; no supported executable build/hash,
 assets or original-client acceptance is claimed. Backups and applied migrations
-**001–034** are immutable; next migration **035**.
+**001–035** are immutable; next migration **036**.
 
 The preceding **native equipment** increment (032) verified ordinary equip,
 unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per

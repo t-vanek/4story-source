@@ -3,7 +3,7 @@
   "client_build": "UNKNOWN; source TVERSION=0x2918 is not a binary client version",
   "summary": {
     "legacy_translation_units": 206,
-    "modern_translation_units": 244,
+    "modern_translation_units": 245,
     "legacy_packet_definitions": 1542,
     "modern_enum_entries": 1542,
     "opcode_mismatches": [],
@@ -5131,6 +5131,7 @@
     "Server/TMapSvrAsio/services/main_transfer_runtime.cpp",
     "Server/TMapSvrAsio/services/monster_ai.cpp",
     "Server/TMapSvrAsio/services/postgresql_catalog.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_cast.cpp",
     "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
     "Server/TMapSvrAsio/services/postgresql_map_inventory.cpp",
     "Server/TMapSvrAsio/services/postgresql_map_load.cpp",
@@ -5705,7 +5706,7 @@
         "Server/TMapSvrAsio/services/world_senders.h:23"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:414"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:425"
       ]
     },
     {
@@ -5723,7 +5724,7 @@
         "Server/TMapSvrAsio/services/client_senders.h:54"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:418",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:429",
         "Server/TMapSvrAsio/tests/test_client_senders.cpp:68"
       ]
     },
@@ -5739,7 +5740,7 @@
         "Server/TMapSvrAsio/handlers_world.cpp:802"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:537"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:548"
       ]
     },
     {
@@ -5774,7 +5775,7 @@
         "Server/TMapSvrAsio/services/client_senders.h:63"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:199",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:210",
         "Server/TMapSvrAsio/tests/test_client_senders.cpp:90"
       ]
     },
@@ -5817,7 +5818,7 @@
         "Server/TMapSvrAsio/services/client_senders.h:64"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:471"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:482"
       ]
     },
     {
@@ -5836,7 +5837,7 @@
         "Server/TMapSvrAsio/services/channel_presence.h:6"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:498"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:509"
       ]
     },
     {
@@ -6079,12 +6080,12 @@
         "Server/TMapSvrAsio/handlers/combat.cpp:166",
         "Server/TMapSvrAsio/handlers/inventory.cpp:92",
         "Server/TMapSvrAsio/handlers/maintained_effect.cpp:62",
-        "Server/TMapSvrAsio/handlers/skill.cpp:350",
+        "Server/TMapSvrAsio/handlers/skill.cpp:326",
         "Server/TMapSvrAsio/services/client_senders.h:123",
         "Server/TMapSvrAsio/services/monster_ai.cpp:187"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:640",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:651",
         "Server/TMapSvrAsio/tests/test_combat.cpp:66"
       ]
     },
@@ -6173,7 +6174,7 @@
         "Server/TMapSvrAsio/handlers/dispatch.cpp:81"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:938"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:949"
       ]
     },
     {
@@ -6186,10 +6187,10 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/inventory.cpp:36",
-        "Server/TMapSvrAsio/handlers/skill.cpp:310"
+        "Server/TMapSvrAsio/handlers/skill.cpp:311"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:853"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:864"
       ]
     },
     {
@@ -6202,10 +6203,10 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/inventory.cpp:65",
-        "Server/TMapSvrAsio/handlers/skill.cpp:308"
+        "Server/TMapSvrAsio/handlers/skill.cpp:309"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:832"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:843"
       ]
     },
     {
@@ -6222,7 +6223,7 @@
         "Server/TMapSvrAsio/services/client_senders.h:249"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:951"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:962"
       ]
     },
     {
@@ -6235,10 +6236,10 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/inventory.cpp:61",
-        "Server/TMapSvrAsio/handlers/skill.cpp:308"
+        "Server/TMapSvrAsio/handlers/skill.cpp:309"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:851"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:862"
       ]
     },
     {
@@ -6334,7 +6335,7 @@
         "Server/TMapSvrAsio/main.cpp:296"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:624"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:635"
       ]
     },
     {
@@ -6351,7 +6352,7 @@
         "Server/TMapSvrAsio/services/client_senders.h:169"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:620",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:631",
         "Server/TMapSvrAsio/tests/test_skill_effect.cpp:4"
       ]
     },
@@ -6377,7 +6378,8 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/inventory.cpp:79",
-        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:30"
+        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:30",
+        "Server/TMapSvrAsio/handlers/skill.cpp:324"
       ]
     },
     {
@@ -7192,7 +7194,8 @@
         "Server/TMapSvrAsio/domain/character_statistics.h:7",
         "Server/TMapSvrAsio/handlers/character_statistics.cpp:37",
         "Server/TMapSvrAsio/handlers/inventory.cpp:81",
-        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:64"
+        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:64",
+        "Server/TMapSvrAsio/handlers/skill.cpp:328"
       ]
     },
     {
@@ -7891,10 +7894,10 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/dispatch.cpp:91",
-        "Server/TMapSvrAsio/handlers/skill.cpp:356"
+        "Server/TMapSvrAsio/handlers/skill.cpp:374"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:723"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:734"
       ]
     },
     {
@@ -7909,7 +7912,7 @@
         "Server/TMapSvrAsio/handlers/skill.cpp:77"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:724"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:735"
       ]
     },
     {
@@ -8542,7 +8545,7 @@
         "Server/TMapSvrAsio/handlers_world.h:80"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:537"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:548"
       ]
     },
     {
@@ -8575,7 +8578,7 @@
         "Server/TMapSvrAsio/handlers_native_entry.cpp:36"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:592"
+        "Server/TMapSvrAsio/tests/test_admission.cpp:603"
       ]
     },
     {
@@ -12576,7 +12579,7 @@
         "Server/TWorldSvrAsio/main.cpp:10"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:448",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:459",
         "Server/TMapSvrAsio/tests/test_world_handshake.cpp:9",
         "Server/TMapSvrAsio/tests/test_world_senders.cpp:37",
         "Server/TWorldSvrAsio/tests/test_admin_handlers.cpp:129",
@@ -12740,7 +12743,7 @@
         "Server/TWorldSvrAsio/senders/senders.h:231"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:565",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:576",
         "Server/TMapSvrAsio/tests/test_world_enterchar.cpp:5",
         "Server/TWorldSvrAsio/tests/test_chardata_drift_handlers.cpp:329",
         "Server/TWorldSvrAsio/tests/test_main_handoff.cpp:102",
@@ -12815,7 +12818,7 @@
         "Server/TWorldSvrAsio/senders/senders_conn.cpp:84"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:520",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:531",
         "Server/TWorldSvrAsio/tests/test_char_handlers.cpp:12",
         "Server/TWorldSvrAsio/tests/test_closechar_handlers.cpp:219",
         "Server/TWorldSvrAsio/tests/test_main_handoff.cpp:77",
@@ -12864,7 +12867,7 @@
         "Server/TWorldSvrAsio/services/char_registry.h:149"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:520",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:531",
         "Server/TWorldSvrAsio/tests/test_checkmain_handlers.cpp:204"
       ]
     },
@@ -12883,7 +12886,7 @@
         "Server/TWorldSvrAsio/main.cpp:10"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:491",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:502",
         "Server/TWorldSvrAsio/tests/test_char_handlers.cpp:1",
         "Server/TWorldSvrAsio/tests/test_closechar_handlers.cpp:1",
         "Server/TWorldSvrAsio/tests/test_friend_presence_handlers.cpp:212",
@@ -12907,7 +12910,7 @@
         "Server/TWorldSvrAsio/senders/senders_conn.cpp:67"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:486",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:497",
         "Server/TWorldSvrAsio/tests/test_checkconnect_handlers.cpp:205",
         "Server/TWorldSvrAsio/tests/test_checkmain_handlers.cpp:266",
         "Server/TWorldSvrAsio/tests/test_closechar_handlers.cpp:107",
@@ -12935,7 +12938,7 @@
         "Server/TWorldSvrAsio/senders/senders_relay.cpp:186"
       ],
       "test_references": [
-        "Server/TMapSvrAsio/tests/test_admission.cpp:586",
+        "Server/TMapSvrAsio/tests/test_admission.cpp:597",
         "Server/TWorldSvrAsio/tests/test_entersvr_fresh_login_handlers.cpp:276",
         "Server/TWorldSvrAsio/tests/test_entersvr_handoff_handlers.cpp:228",
         "Server/TWorldSvrAsio/tests/test_main_handoff.cpp:88"
@@ -24279,16 +24282,16 @@
     {
       "path": "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
       "lines": [
-        312
+        371
       ],
       "classification": "UNREVIEWED_TEXT_MARKER_NOT_A_CONFIRMED_GAP"
     },
     {
       "path": "Server/TMapSvrAsio/services/postgresql_map_load.cpp",
       "lines": [
-        340,
-        435,
-        493
+        341,
+        436,
+        494
       ],
       "classification": "UNREVIEWED_TEXT_MARKER_NOT_A_CONFIRMED_GAP"
     },

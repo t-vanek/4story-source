@@ -33,6 +33,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "ammunition_batch_fixture.h"
 #include "inventory_move_fixture.h"
 #include "posture_fixture.h"
+#include "accepted_cast_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -45,7 +46,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=736;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=738;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -64,6 +65,10 @@ int main(){
         auto config=[&]{return tmapsvr::PostgreSQLMapConfig{1,1,owner->Token(),manifest,routing,actor};};
         tmapsvr::PostgreSQLMapService map(mpool,config());
         Check(owner->Healthy(),"Map owns dedicated advisory session and persisted token");
+        {auto runtime=mpool.Acquire();
+         Check(Number(*runtime,"SELECT CASE WHEN has_table_privilege(current_user,'app_world.accepted_skill_casts','SELECT') AND has_table_privilege(current_user,'app_world.accepted_skill_casts','INSERT') AND has_sequence_privilege(current_user,'app_world.accepted_skill_casts_cast_id_seq','USAGE') THEN 1 ELSE 0 END")==1,"actual Map role can read append and allocate accepted casts");
+         for(const auto* privilege:{"UPDATE","DELETE","TRUNCATE"})
+             Check(Number(*runtime,std::string("SELECT CASE WHEN has_table_privilege(current_user,'app_world.accepted_skill_casts','")+privilege+"') THEN 1 ELSE 0 END")==0,"actual Map role cannot rewrite or erase accepted cast history");}
         Check(Throws([&]{tmapsvr::PostgreSQLMapOwner duplicate(mapconn,1,1);}),"second live owner refused");
         auto wrong=config();wrong.actor_manifest=std::string(64,'0');
         Check(Throws([&]{tmapsvr::PostgreSQLMapService bad(mpool,wrong);}),"wrong actor manifest refused before use");
@@ -269,6 +274,17 @@ int main(){
         auto move_after=move_restored;tmapsvr::ApplyInventoryMove(move_after,move_plan);
         const auto move_hashes=map.MoveInventoryItems(move_recovery,{4,3,255,1,8},move_restored,move_after);
         PublishReagentHash(move_after,move_plan.items[0].before.dlID,move_hashes.hashes.at(0));map.SaveAuthorized(move_recovery,move_after);
+        stage="accepted casts";
+        for(int user:{737,738}) {
+            auto cast=create(user,user==737?"CastFresh":"CastGraph",user);
+            VerifyAcceptedCasts(admin,mpool,map,mapconn,manifest,routing,actor,cast,user==738);
+            auto login=auth.Authenticate({"SyntheticMap"+std::to_string(user),credential,"192.0.2.50",0x2918});
+            Check(login.status==login::AuthStatus::Success&&routes.StartAuthorized({user,login.session_key,1,1,static_cast<int>(cast.char_id)}).status==login::StartStatus::Success,"cast logout allows new Login handoff");
+            cast.key=login.session_key;cast.connection_id+=2000;Check(claim(cast),"cast reconnect claims primary");
+            auto restored=*map.LoadAuthorized(cast);map.MarkReady(cast,restored);
+            Check(restored.payload->last_cast_id>0&&restored.dwMP==0&&restored.payload->effects->empty(),"cast costs ledger and removed effects survive reconnect");
+            map.SaveAuthorized(cast,restored);
+        }
         stage="maintained postures";
         for(int user:{735,736}) {
             auto posture=create(user,user==735?"PostureFresh":"PostureGraph",user);

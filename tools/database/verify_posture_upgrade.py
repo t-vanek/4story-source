@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--work',type=Path,required=True)
     parser.add_argument('--report',type=Path,required=True)
     parser.add_argument('--through-cancellation',action='store_true',help='Also verify additive migration034 preserves all four recovery contracts')
+    parser.add_argument('--through-casts',action='store_true',help='Also verify additive accepted-cast migration035 after cancellation034')
     args=parser.parse_args();repo=Path(__file__).resolve().parents[2]
     state=json.loads((args.work/'state.json').read_text());verify_container(state,state['pg_container'])
     values=dict(line.split('=',1) for line in (args.work/'postgres.env').read_text().splitlines())
@@ -72,7 +73,7 @@ def main():
             c.execute('INSERT INTO app_world.map_maintained_effects VALUES(1,2,0,132,1,0,1,2,1,2,4)')
             check(c.execute('SELECT app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=2').fetchone()==(True,),'graph recovery continues to ignore stale normalized effects')
             check(c.execute("SELECT has_table_privilege('public','app_world.map_maintained_effects','INSERT') OR has_function_privilege('public','app_world.map_maintain_state(smallint,integer)','EXECUTE')").fetchone()==(False,),'new maintained mutation/comparison have no PUBLIC grant')
-            if args.through_cancellation:
+            if args.through_cancellation or args.through_casts:
                 receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
                 checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
                 effects=c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()
@@ -85,6 +86,22 @@ def main():
                 check(c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()==effects,'effect upgrade preserves ordered native maintained fields')
                 check(c.execute('SELECT to_jsonb(o) FROM app_world.equipment_operations o').fetchall()==equipment,'effect upgrade preserves historical equipment operation bytes')
                 check(c.execute("SELECT has_table_privilege('public','app_world.maintained_effect_operations','INSERT') OR has_sequence_privilege('public','app_world.maintained_effect_operations_operation_id_seq','USAGE')").fetchone()==(False,),'effect ledger and its identity allocator have no PUBLIC mutation grant')
+            if args.through_casts:
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
+                effects=c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()
+                c.execute("INSERT INTO app_world.skill_item_consumptions(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,skill_id,item_id,before_count,after_count,before_hash,after_hash,core_fingerprint) VALUES(1,1,1,%s,1,0,36,1,2,1,%s,%s,%s)",('a'*64,'b'*64,'c'*64,'d'*64))
+                items=c.execute('SELECT to_jsonb(i) FROM app_world.skill_item_consumptions i').fetchall()
+                source=repo/'database/postgresql/035-native-skill-casts.sql';shutil.copyfile(source,path/source.name)
+                check(apply_migrations(c,path)==[source.name],'accepted-cast upgrade applies only migration035')
+                check(apply_migrations(c,path)==[],'accepted-cast upgrade is idempotent')
+                check(c.execute("SELECT * FROM migration_control.applied WHERE name<'035' ORDER BY name").fetchall()==receipts,'all 34 prior migration receipts remain exact')
+                check(c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()==checkpoints,'accepted-cast upgrade preserves every recovery checkpoint byte')
+                check(c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()==effects,'accepted-cast upgrade preserves all maintained effects')
+                check(c.execute("SELECT to_jsonb(i)-'accepted_cast_id' FROM app_world.skill_item_consumptions i").fetchall()==items,'accepted-cast upgrade preserves historical item receipts')
+                check(c.execute('SELECT accepted_cast_id FROM app_world.skill_item_consumptions').fetchall()==[(None,)],'historical item receipt is not attributed to an invented accepted cast')
+                check(c.execute('SELECT count(*) FROM app_world.accepted_skill_casts').fetchone()==(0,),'upgrade fabricates no historical accepted casts')
+                check(c.execute("SELECT has_table_privilege('public','app_world.accepted_skill_casts','INSERT') OR has_sequence_privilege('public','app_world.accepted_skill_casts_cast_id_seq','USAGE')").fetchone()==(False,),'accepted-cast ledger and allocator have no PUBLIC mutation grants')
             report.update(status='passed',scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
     finally:
         with psycopg.connect(dbname='postgres',**admin) as conn:conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db)))

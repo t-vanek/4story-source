@@ -8,15 +8,36 @@ Owner instruction (2026-10-09): keep implementation and versioning local on `mai
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current continuation (combat): outgoing instance-skill powers, attack levels,
-critical probability and aid country now use backup-derived native projections.
-Preserve `cast-powers-contract.json` and the explicit source-key ordering correction
-for mixed-attribute skills. The next write path must atomically record accepted
-casts with costs/timers/items/effects under current owner/epoch, keeping outgoing
-powers from before `CheckEternalBuff` and preventing hit replay. Cost-only casts
-still have the existing periodic-checkpoint crash window; no new durability is
-claimed by the projection change. Then make `CS_DEFEND_REQ` consume authoritative
-cast state and recompute source hit/effect rules instead of trusting client powers.
+Current continuation (combat): migration **035** and the actual cast transaction
+are integrated and pass 2,761 native checks per Debug, ASan/UBSan and installed
+Release configuration, plus schema preservation and failure/recovery tests. Preserve
+`accepted-casts-contract.json` and its bounded verification evidence. The per-character
+accepted-cast chain now records request/ACK, costs/timers/items/effects and fences
+stale snapshots. Preserve outgoing powers before ordinary zero-MP effect removal;
+LOOPSKILL must retain the source distinction. Do not treat this ledger as hit
+replay protection until Defend actually consumes ordered target occurrences.
+
+Next make `CS_DEFEND_REQ` consume authoritative accepted-cast state and recompute
+source hit/effect rules instead of trusting client powers. Original packets have
+no new cast ID: reconstruct legitimate matching/order from the original client
+and server before choosing an expiry/matching contract. Include primary transfer,
+late packets, repeated targets, concurrent defenders and retries. No invented
+matching window or client protocol extension is authorized. Preserve source-derived
+power ordering and the mixed-attribute correction in `cast-powers-contract.json`.
+
+Source audit for the next hit transaction: `CSHandler.cpp:1520–1610` resolves
+`wTriggerID`, rejects server-only/map-restricted effects, and recomputes rank,
+critical, countries and powers when the attacker is present; it has distinct
+missing-attacker rules. Stored cast ACK powers therefore cannot universally
+replace this calculation. `Client/TClient/TClientGame.cpp:14457` sends the
+**defender's** action/animation IDs, not the cast's action IDs. Match authorization
+without assuming these IDs are equal. Resolve `CheckDEFMSG`, target ownership,
+trigger skills, pursuit overrides, area/delayed hits and cross-Map delivery before
+claiming replay-safe complete hit compatibility. `CheckDEFMSG` at
+`Client/TClient/TClientGame.cpp:22799` sends player-to-monster hits from the attacker
+and hits against a player from that defender, after resolving recall/self owners;
+`CSSenderAll.cpp:245–317` uses SayToAll. A universal sender==attacker check would
+break original PvP. Record this distinction in the hit authorization tests.
 
 Previous continuation (active effects): preserve migrations **032–034** and
 `equipment-contract.json`, `postures-contract.json`, `effect-end-contract.json`.
@@ -33,7 +54,7 @@ calculation and `EraseBuffByAttack`) and `OnCS_ACTITEMSUSE_REQ` (CSHandler.cpp:2
 The previous Defend-only conclusion was incomplete. LOOPSKILL and `OnTimer` do not
 call it. The modern Defend prototype still lacks complete accepted-cast authority
 and durable effects. Preserve ordinary cast powers before any effect removal,
-then commit costs and zero-MP removal atomically. Continue with timer expiry,
+and retain the atomic costs/zero-MP removal now integrated by 035. Continue with timer expiry,
 death/static rules, dependent `wPosture` skills and complete collisions/attack effects. Preserve permanent remaining=0 and the
 source whole-two-hand/empty-slot pointer-lifetime quirk.
 Then complete special-equipment combat state, party/companion/guild/local-battle
@@ -43,7 +64,7 @@ inventory/trade/store integration and all economy systems in scope.
 Preserve the explicitly certified old-two-table → current-four-table actor upgrade
 and its immutable graph receipts. It does not authorize arbitrary content changes,
 character/routing releases or transitive upgrades. All backups and migrations
-**001–034** are immutable; the next schema migration is **035**.
+**001–035** are immutable; the next schema migration is **036**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -493,7 +514,7 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–034; next schema change is 035. Native
+Preserve backups and migrations 001–035; next schema change is 036. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
@@ -517,7 +538,7 @@ generic effect and advanced equipment dependencies. Preserve actual two-Map
 inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
 only until complete gameplay; Log uses 029, statistics 030, actor transition 031
-equipment 032, postures 033 and explicit cancellation 034. Next new migration: 035.
+equipment 032, postures 033, explicit cancellation 034 and accepted casts 035. Next new migration: 036.
 
 
 The owner confirmed that only uncompiled client sources are available, without

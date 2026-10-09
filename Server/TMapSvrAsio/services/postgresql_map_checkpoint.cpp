@@ -145,6 +145,7 @@ void PostgreSQLMapService::CheckpointAuthorized(const MapSessionClaim& claim,con
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;
     if(!LockAccount(sql,claim)||!LockClaim(sql,claim,phase)||phase!="ready")throw std::runtime_error("Checkpoint claim is not ready");
+    CheckCastHead(sql,claim,s);
     const auto r=ReadReceipt(sql,claim,m_config.server,m_config.owner_token);
     if(!r.found||!r.core_matches||r.outcome!="active")throw std::runtime_error("Native checkpoint receipt missing or durable state drifted");
     if(revision==static_cast<std::uint64_t>(r.revision)&&fingerprint==r.fingerprint&&TransferFingerprint(claim,s)==r.transfer_hash&&((r.contract!=3&&r.contract!=4)||SkillCheckpointMatches(sql,claim,s))){tx->commit();return;}
@@ -203,8 +204,23 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
 }
 std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessionClaim& c,std::uint16_t skill,
     std::uint8_t hits,const std::vector<SkillItemDebit>& debits,const CharSnapshot& after) {
+    return CommitSkillMutation(c,skill,hits,debits,after,nullptr,nullptr,nullptr);
+}
+SkillCastCommit PostgreSQLMapService::CommitSkillCast(const MapSessionClaim& c,const SkillCastRequest& request,
+    const CharSnapshot& before,const CharSnapshot& after) {
+    const std::size_t fixed=request.loop?45:62;
+    if(request.acknowledgement.size()<fixed)throw std::runtime_error("Invalid cast acknowledgement");
+    SkillCastCommit result;
+    CommitSkillMutation(c,request.skill,std::to_integer<std::uint8_t>(request.acknowledgement[fixed-1]),
+        request.debits,after,&request,&before,&result);
+    return result;
+}
+std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSessionClaim& c,std::uint16_t skill,
+    std::uint8_t hits,const std::vector<SkillItemDebit>& debits,const CharSnapshot& proposed,
+    const SkillCastRequest* cast,const CharSnapshot* cast_before,SkillCastCommit* cast_result) {
+    auto after=proposed;
     const bool graph=after.payload&&after.payload->transfer_state;
-    if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!after.payload||debits.empty()||debits.size()>16)
+    if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!after.payload||(!cast&&debits.empty())||debits.size()>16)
         throw std::runtime_error("Unsupported native consumption transaction");
     if(std::none_of(after.payload->skills.begin(),after.payload->skills.end(),[&](const auto& row){return row.wSkillID==skill&&row.bLevel;}))
         throw std::runtime_error("Consumption skill is not learned");
@@ -222,7 +238,6 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
         }
         if(found!=(before.bCount>debit.count?1U:0U))throw std::runtime_error("Consumption projection has wrong item cardinality");
     }
-    const auto fingerprint=Fingerprint(c,after);
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;
     if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Reagent claim is not ready primary");
@@ -235,9 +250,13 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
     if(!sql.got_data())throw std::runtime_error("Reagent session was revoked");
     const int world=c.group,character=c.char_id;
     ReagentGraphPlan graph_plan;std::vector<std::string> hashes;auto kind=ConsumptionKind::Reagent;
-    if(graph) {
+    if(cast) {
+        graph_plan.before_hash=ValidateInventoryState(sql,c,*cast_before,true);
+        after=ValidateSkillCast(sql,c,*cast,*cast_before,proposed);
+    }else CheckCastHead(sql,c,after);
+    if(graph&&!debits.empty()) {
         graph_plan=ValidateGraphReagent(sql,c,skill,hits,debits,after);hashes=graph_plan.item_hashes;kind=graph_plan.kind;
-    }else {
+    }else if(!debits.empty()) {
         kind=ValidateSkillConsumption(sql,c,skill,hits,debits,after,nullptr);
         for(const auto& debit:debits) {
             const auto& before=debit.before;
@@ -255,6 +274,45 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
             hashes.push_back(after_hash);
         }
     }
+    long long accepted_cast=0;
+    if(cast) {
+        auto p=std::make_shared<CharacterPayload>(*after.payload);
+        for(std::size_t i=0;i<debits.size();++i)for(auto& bag:p->bags)for(auto& item:bag.items)
+            if(item.dlID==debits[i].before.dlID)item.durable_hash=hashes[i];
+        after.payload=p;
+        if(!cast->loop&&!after.dwMP) {
+            if(!SupportedPostures(*p))throw std::runtime_error("Zero-MP cast requires supported eternal effect semantics");
+            while(!after.payload->effects->empty()) {
+                p=std::make_shared<CharacterPayload>(*after.payload);
+                const auto ended=p->effects->front().skill;p->effects->erase(p->effects->begin());after.payload=p;
+                RefreshEquipment(sql,after,true);
+                cast_result->ended.push_back({false,ended,std::make_shared<const CharSnapshot>(after)});
+            }
+            if(!graph)WriteMaintainedEffects(sql,c,after);
+        }
+        if(graph)graph_plan.after_hash=TransferFingerprint(c,after);
+        const auto hex=[](const auto& bytes){constexpr char digits[]="0123456789abcdef";std::string out;
+            for(auto v:bytes){const auto b=std::to_integer<unsigned>(v);out+=digits[b>>4];out+=digits[b&15];}return out;};
+        const auto request_hex=hex(cast->request),ack_hex=hex(cast->acknowledgement);
+        const auto bs=SkillJson(*cast_before),as=SkillJson(after),be=MaintainJson(*cast_before),ae=MaintainJson(after);
+        const auto cast_fingerprint=Fingerprint(c,after);
+        const int server=m_config.server,contract=graph?2:3,id=skill;
+        const auto learned=std::find_if(after.payload->skills.begin(),after.payload->skills.end(),[&](const auto& row){return row.wSkillID==skill;});
+        const int rank=learned->bLevel;
+        const long long generation=c.connection_id,epoch=c.authority_epoch,previous=cast_before->payload->last_cast_id;
+        const long long bhp=cast_before->dwHP,ahp=after.dwHP,bmp=cast_before->dwMP,amp=after.dwMP;
+        const int is_loop=cast->loop?1:0;
+        sql<<"INSERT INTO app_world.accepted_skill_casts(world_id,char_id,server_id,owner_token,connection_id,session_key,authority_epoch,previous_cast_id,state_contract,skill_id,skill_rank,is_loop,request,acknowledgement,before_hp,after_hp,before_mp,after_mp,before_skills,after_skills,before_effects,after_effects,before_graph_hash,after_graph_hash,core_fingerprint) "
+             "VALUES(:w,:c,:s,:t,:g,:k,:e,:prev,:contract,:skill,:rank,:loop=1,decode(:req,'hex'),decode(:ack,'hex'),:bhp,:ahp,:bmp,:amp,CAST(:bs AS jsonb),CAST(:as AS jsonb),CAST(:be AS jsonb),CAST(:ae AS jsonb),NULLIF(:gb,''),NULLIF(:ga,''),:f) RETURNING cast_id",
+            soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
+            soci::use(generation,"g"),soci::use(session_key,"k"),soci::use(epoch,"e"),soci::use(previous,"prev"),
+            soci::use(contract,"contract"),soci::use(id,"skill"),soci::use(rank,"rank"),soci::use(is_loop,"loop"),
+            soci::use(request_hex,"req"),soci::use(ack_hex,"ack"),soci::use(bhp,"bhp"),soci::use(ahp,"ahp"),soci::use(bmp,"bmp"),soci::use(amp,"amp"),
+            soci::use(bs,"bs"),soci::use(as,"as"),soci::use(be,"be"),soci::use(ae,"ae"),
+            soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga"),soci::use(cast_fingerprint,"f"),soci::into(accepted_cast);
+        p=std::make_shared<CharacterPayload>(*after.payload);p->last_cast_id=static_cast<std::uint64_t>(accepted_cast);after.payload=std::move(p);
+    }
+    const auto fingerprint=Fingerprint(c,after);
     WriteCore(sql,c,after,0);
     // This is an immediate gameplay receipt, not a periodic revision. The
     // runtime checkpoint lease prevents an older sweep overwriting this state.
@@ -266,20 +324,21 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
     // Reserve one ID from the existing granted receipt sequence to group the
     // whole cast. Sequence gaps on rollback are intentional; never retry a cast.
     long long cast_id=0;
-    sql<<"SELECT nextval('app_world.skill_item_consumptions_consumption_id_seq')",soci::into(cast_id);
+    if(!debits.empty())sql<<"SELECT nextval('app_world.skill_item_consumptions_consumption_id_seq')",soci::into(cast_id);
     for(std::size_t i=0;i<debits.size();++i) {
         const auto& before=debits[i].before;const auto& after_hash=hashes[i];
         const int count=before.bCount,remaining=count-debits[i].count;
         const long long id=std::bit_cast<std::int64_t>(before.dlID);
         sql<<"INSERT INTO app_world.skill_item_consumptions(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,skill_id,item_id,"
-             "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash,consumption_kind,cast_id,hit_count,hit_mode) "
-             "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''),:kind,:cast,:hits,:mode)",
+             "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash,consumption_kind,cast_id,hit_count,hit_mode,accepted_cast_id) "
+             "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''),:kind,:cast,:hits,:mode,NULLIF(:accepted,0))",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
             soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(unsigned_skill,"skill"),soci::use(id,"id"),
             soci::use(count,"before"),soci::use(remaining,"after"),soci::use(before.durable_hash,"bh"),soci::use(after_hash,"ah"),soci::use(fingerprint,"f"),
             soci::use(contract,"contract"),soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga"),soci::use(consumption_kind,"kind"),
-            soci::use(cast_id,"cast"),soci::use(hit_count,"hits"),soci::use(hit_mode,"mode");
+            soci::use(cast_id,"cast"),soci::use(hit_count,"hits"),soci::use(hit_mode,"mode"),soci::use(accepted_cast,"accepted");
     }
+    if(cast_result)cast_result->snapshot=std::make_shared<const CharSnapshot>(after);
     tx->commit();return hashes;
 }
 EffectEndCommit PostgreSQLMapService::EndMaintainedEffect(const MapSessionClaim& c,const EffectEndRequest& request,

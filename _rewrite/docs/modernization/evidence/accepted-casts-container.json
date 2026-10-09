@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "image": "localhost/fourstory:postgresql-accepted-casts",
+  "image_id": "a50983e061cd6df3f076824f8037f297a52441baf3dd003ca8bfe2fece3afe01",
+  "user": "10001:10001",
+  "smoke_log": "world: /healthz OK\nlog: /healthz OK\ncontrol: /healthz OK\nlogin: /healthz OK\npatch: /healthz OK\nmap: /healthz OK\nmap -> world: connected over container DNS\nmap: SIGTERM exit 0\npatch: SIGTERM exit 0\nlogin: SIGTERM exit 0\ncontrol: SIGTERM exit 0\nlog: SIGTERM exit 0\nworld: SIGTERM exit 0\n",
+  "source_sha256": {
+    "Server/TMapSvrAsio/domain/skill_cast.h": "7f6c9bc51bc18b608a2abefd66776e23fdd51afb45fe20e611e0460bff04d583",
+    "Server/TMapSvrAsio/domain/character_payload.h": "6110e9f16df1d5cab0474fd1c4686477b62a9640b9be23ce560a6560d7888a7c",
+    "Server/TMapSvrAsio/services/player_service.h": "6ef411ae79361f1fa80b766c677b0bf95f891a6ac0df9ed24b7a36679235170d",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "008bb603bd1e1e718160d0b7a64751df263ac93be2c42c4e5675818a36c0328b",
+    "Server/TMapSvrAsio/services/postgresql_map_cast.cpp": "ea5944d42c9a12f0d905a530ef4a2002b7d58dffd1c6ac5c1e2baf48673e7dfc",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "c22f2e6118c966fcb83288b6b2adb220bc28d2aa8af33b98f8313c54087b8a06",
+    "Server/TMapSvrAsio/services/postgresql_map_inventory.cpp": "5a1052f89d3ecea5e17451aeb8062c18c59047886311f03ff381243577f24a70",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "56a8bfdb041dc4c2e68d02ceb0368d4c19d174fe40a0e8bdc236ed80936917f9",
+    "Server/TMapSvrAsio/services/postgresql_map_transfer.cpp": "1ee249af1375d85b2f08cf8c74077de57a236d4a0af12bd67fc89b7f98300dfa",
+    "Server/TMapSvrAsio/handlers/skill.cpp": "86bfa0a75fc3a1721ef1ea0fbf51000a8e880acebf87c2f62b2dd37712eda4e5",
+    "Server/TMapSvrAsio/CMakeLists.txt": "e331568f01cee44fcd91054e18e3dfed736c624b5415fb92b7a941846d247022",
+    "database/postgresql/035-native-skill-casts.sql": "f397cca9582c10c162d4d74af72adcac7e8f193e083704b7aec804567a7d01e4",
+    "deploy/sql/map-runtime-grants.sql": "36fea0a20f10e59ad51107c6d3fa7ad66ea2cbdf511b68abb1c2ad7eccd2f61a"
+  },
+  "scope": "Local installed six-daemon health, Map-to-World DNS and graceful SIGTERM. Complete gameplay and original client acceptance are not claimed."
+}

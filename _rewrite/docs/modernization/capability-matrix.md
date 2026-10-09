@@ -68,6 +68,14 @@ secondary gameplay remain IMPLEMENTING.
 
 ## Gameplay and durable state
 
+Accepted native casts: **IMPLEMENTED/INTEGRATED** in the actual ordinary/loop
+request handler and PostgreSQL service. Immediate costs/timers/items/recovery,
+raw request and independently checked ACK, stale ledger-head fencing, and ordinary
+zero-MP removal of 131/132 postures are implemented. **VERIFIED** for the recorded Debug, ASan/UBSan and installed Release synthetic/native scenarios;
+see [accepted-cast evidence](evidence/accepted-casts-contract.json). The accepted
+ledger does not yet authorize or consume target hits. Complete Defend, rewards,
+full effects and original-client acceptance remain **IMPLEMENTING/UNVERIFIED**.
+
 Native outgoing SKILLUSE/LOOPSKILL powers: **IMPLEMENTED/INTEGRATED** selected-skill
 instance modifiers at learned rank, physical/magic/ranged powers, source ordinary
 versus loop AL selection, critical and aid country. Fresh loads, equipment/effect
@@ -76,9 +84,9 @@ and ordering limits are recorded in [cast-powers-contract.json](evidence/cast-po
 **VERIFIED** for the recorded native PostgreSQL/synthetic TCP scope in Debug,
 ASan/UBSan and installed Release: rank modifiers, source packet fields, current
 stats after equipment/effect changes, reconnect/restart and two-Map handoff.
-This projection does not complete Defend, accepted-cast persistence, damage,
+This projection alone does not complete Defend, damage,
 generic effects, durability or original-client acceptance. Those remain
-**IMPLEMENTING/UNVERIFIED**. Cost-only cast durability still uses periodic checkpoints.
+**IMPLEMENTING/UNVERIFIED**. Accepted-cast persistence is tracked separately above.
 
 Current stat inspection increment: **IMPLEMENTED/INTEGRATED** native derived
 statistics and local/World relay handlers. **VERIFIED** native self-inspection,

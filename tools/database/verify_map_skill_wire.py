@@ -30,7 +30,13 @@ def seed_skill_cast(conn,cid):
     for skill in (34,213,733,736,1329):
         conn.execute('INSERT INTO app_world."TSKILLTABLE"("bWorldID","dwCharID","wSkillID","bLevel","dwRemainTick") VALUES(1,%s,%s,1,0) ON CONFLICT DO NOTHING',(cid,skill))
     conn.execute('UPDATE app_world."TCHARTABLE" SET "dwMP"=%s WHERE "dwCharID"=%s',(cost+physical_cost+loop_cost+5,cid))
-    return {'skill':134,'rank':2,'cost':cost,'initial_mp':cost+physical_cost+loop_cost+5,'physical_cost':physical_cost,'loop_cost':loop_cost}
+    # Use an existing synthetic-owned starter row; source charts stay untouched.
+    reagent=conn.execute('SELECT "wItemID","dwWeaponID","dwReuseDelay","dwLoopDelay","bSpeedApply","bUseMPType","bUseHPType","dwKindDelay","wMapID","wPrevActiveID","wTargetActiveID" FROM character_compat."TSKILLCHART" WHERE "wID"=1623').fetchone()
+    if reagent!=(31238,0,0,0,0,0,0,0,-1,0,0):raise RuntimeError('Pinned source reagent fixture changed')
+    conn.execute('INSERT INTO app_world."TSKILLTABLE" VALUES(1,%s,1623,1,0) ON CONFLICT DO NOTHING',(cid,))
+    rows=conn.execute('UPDATE app_world."TITEMTABLE" SET "wItemID"=31238,"bCount"=2,"dwDuraMax"=0,"dwDuraCur"=0 WHERE "dwOwnerID"=%s AND "dwStorageID"=255 AND "bItemID"=1 RETURNING "dlID"',(cid,)).fetchall()
+    if len(rows)!=1:raise RuntimeError('Reagent requires exactly one synthetic starter row')
+    return {'reagent_id':rows[0][0],'skill':134,'rank':2,'cost':cost,'initial_mp':cost+physical_cost+loop_cost+5,'physical_cost':physical_cost,'loop_cost':loop_cost}
 
 
 def verify_skill_cast(conn,s,cid,character,fixture,until):
@@ -133,4 +139,33 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
     send(request(31));verdict(6,'normal use cannot bypass a cooldown armed by loop use')
     check(conn.execute('SELECT "dwRemainTick" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID" IN (736,1329)',(cid,)).fetchall()==[(0,),(0,)],
           'ordinary map and active-effect rejections checkpoint no fabricated cooldowns')
-    return client_sequence,{'status':'passed','checks':checks,'source_skill':fixture['skill'],'rank':fixture['rank'],'source_mp_cost':fixture['cost']}
+    item=next(item for bag,item,options in character['items'] if bag==255 and item[0]==1)
+    check(item[1]==31238 and item[6]==2,'source reagent occupies exact synthetic default-bag slot')
+    before=conn.execute('SELECT "dlID",to_jsonb(i) FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall()
+    expected=list(item);expected[6]=1
+    expected_ack=b'\xff'+struct.pack('<BHBBHHBIIBBBqBBBHHBB',*expected)
+    # Source fixture has no magic options; compare the entire original descriptor.
+    check(item[-1]==0,'source reagent descriptor has no synthetic magic options')
+    send(request(1623))
+    op,data=reply();check(op==0x52aa and data==expected_ack,'normal reagent cast sends exact UPDATEITEM bag and descriptor before cast ACK')
+    check(reply()==(0x52a9,b'\x00'),'normal reagent cast sends original MOVEITEM success after item change')
+    verdict(0,'ordinary reagent cast succeeds after confirmed inventory transaction')
+    after=conn.execute('SELECT "dlID",to_jsonb(i) FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall()
+    expected_rows=[(ident,{**row,'bCount':1} if ident==fixture['reagent_id'] else row) for ident,row in before]
+    check(after==expected_rows,'confirmed decrement changes only count and preserves all other full item rows')
+    check(conn.execute('SELECT before_count,after_count FROM app_world.skill_item_consumptions WHERE char_id=%s ORDER BY consumption_id',(cid,)).fetchall()==[(2,1)],
+          'receipt is already durable when ordinary client success arrives')
+    loop_send(loop_request(1623))
+    check(reply()==(0x52ac,b'\xff\x01'),'loop consuming last reagent sends exact DELITEM bag and slot before success')
+    check(reply()==(0x52a9,b'\x00'),'loop last-item consumption preserves MOVEITEM success ordering')
+    loop_verdict(0,'loop reagent cast succeeds only after confirmed last-row deletion')
+    check(conn.execute('SELECT "dlID",to_jsonb(i) FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall()==[(i,r) for i,r in before if i!=fixture['reagent_id']],
+          'last reagent deletes only its exact row while retaining every other item field')
+    loop_send(loop_request(1623));loop_verdict(9,'missing loop reagent returns original UNSUITWEAPON without item or success ACK')
+    send(request(1623));verdict(9,'missing ordinary reagent returns original UNSUITWEAPON without item or success ACK')
+    check(conn.execute('SELECT before_count,after_count,after_hash IS NULL FROM app_world.skill_item_consumptions WHERE char_id=%s ORDER BY consumption_id',(cid,)).fetchall()==[(2,1,False),(1,0,True)],
+          'rejected depleted-stack repeats cannot create another consumption receipt')
+    check(conn.execute('SELECT "dwMP" FROM app_world."TCHARTABLE" WHERE "dwCharID"=%s',(cid,)).fetchone()==(5,) and
+          conn.execute('SELECT app_world.map_checkpoint_matches(map_checkpoints) FROM app_world.map_checkpoints WHERE char_id=%s',(cid,)).fetchone()==(True,),
+          'reagent transactions retain original zero resource costs and valid core plus timer recovery receipt')
+    return client_sequence,{'status':'passed','checks':checks,'source_skill':fixture['skill'],'rank':fixture['rank'],'source_mp_cost':fixture['cost'],'source_reagent_skill':1623,'source_reagent_item':31238}

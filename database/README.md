@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **021** are also immutable. Current
-native Map startup requires 021 and the updated
+All subsequently applied migrations through **022** are also immutable. Current
+native Map startup requires 022 and the updated
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,7 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 022+.
+for tests and remaining gameplay requirements. Add schema changes as 023+.
 
 Migration 021 adds fresh-primary skill checkpoints (contract 3). Initial readiness,
 periodic checkpoints and final logout atomically store remaining skill durations
@@ -49,6 +49,16 @@ grant; learning, deleting skills and changing ranks remain separate work. Contra
 updated Map grants before deploying these binaries; old binaries cannot write
 contract-3 receipts. Historical data and migrations 001–020 are unchanged. See the
 [skill checkpoint contract](../_rewrite/docs/modernization/evidence/skill-checkpoints-contract.json).
+
+Migration 022 adds immediate single-reagent consumption for fresh primary PCs.
+The exact item row fingerprint fences a decrement or last-item deletion. Inventory,
+core HP/MP, learned timers and a consumption receipt commit before client success.
+The runtime coordinates these writes with periodic checkpoints; an uncertain
+transaction closes the client and blocks stale final saves until process recovery.
+Map grants add only item-count updates, item deletion, fingerprint execution and
+receipt insertion. Transferred graphs, equipped reagents, ammunition and cash
+exceptions remain outside this scope. See the
+[reagent contract](../_rewrite/docs/modernization/evidence/skill-reagents-contract.json).
 
 `game_compat."TMONATTRCHART"` maps the current monster-ID lookup to the original
 `TMONSTERCHART.wMonAttr` attribute family at the template's `bLevel`. It exposes

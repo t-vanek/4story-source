@@ -8,7 +8,7 @@ Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the
 legacy SOCI repositories must not be used against `app_world`. Guild/recall
-hydration, gameplay inventory mutations and original-client
+hydration, complete gameplay inventory mutations and original-client
 execution remain pending. Migration 018 adds periodic core checkpoints and fenced
 recovery to the last committed core; changes since that checkpoint can be lost on
 a crash, and older/drifted claims stay blocked. Native World-link loss now closes
@@ -81,7 +81,8 @@ cooldown-first gate, HP equality boundary, rank-based resource costs and separat
 loop delay. It shares existing timer persistence with normal casts and never
 extends same-kind peers. The original 45-byte ACK omits normal action/transform
 fields. Cached non-consuming weapon requirements and missing active prerequisites
-are checked; consumables and buff-dependent prerequisites remain unsupported.
+are checked. Migration 022 below adds single-reagent consumption; ammunition/cash
+and buff-dependent prerequisites remain unsupported.
 See the [loop contract](../../_rewrite/docs/modernization/evidence/skill-loop-contract.json).
 
 Native ordinary casts now check source `wMapID` (`0xffff` is unrestricted) before
@@ -104,6 +105,15 @@ or a full-client compatibility certificate.
 
 > Architecture deep-dive: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 > Porting recipe (one legacy handler at a time): [`CONSOLIDATION.md`](CONSOLIDATION.md)
+
+Migration 022 now implements a first inventory mutation: ordinary/loop casts can
+consume one bag reagent on a fresh primary PC. A fenced PostgreSQL transaction
+commits count/deletion, core, timers and a receipt before item and success ACKs.
+Checkpoint leases prevent stale periodic overwrites; uncertain outcomes retain
+reservations and refuse stale logout writes. Full transferred graphs, equipped
+reagents, ammunition, cash exceptions and complete combat remain pending. Apply
+022 plus updated Map grants before deployment. See the
+[reagent contract](../../_rewrite/docs/modernization/evidence/skill-reagents-contract.json).
 
 ## Historical subsystem overview (see current acceptance scope above)
 

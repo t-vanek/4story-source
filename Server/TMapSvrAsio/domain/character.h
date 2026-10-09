@@ -25,6 +25,9 @@ struct CharacterClusterState {
 };
 struct CharSnapshot
 {
+    // Unknown outcome of an immediate item transaction: retain the reservation
+    // and let process recovery inspect the last committed receipt.
+    bool persistence_uncertain = false;
     std::shared_ptr<const CharacterPayload> payload;
     CharacterClusterState cluster;
     std::uint32_t  dwCharID         = 0;

@@ -7,13 +7,14 @@
 #include <vector>
 #include <utility>
 #include <memory>
+#include <string>
 
 namespace tmapsvr {
 namespace transfer { struct Item; }
 
 struct InventoryRow
 {
-    std::uint8_t   bInvenID  = 0;  // slot id (1..N for tabs, 254 = EQUIP, 255 = tab marker)
+    std::uint8_t   bInvenID  = 0;  // 254 = EQUIP, 255 = DEFAULT (NetCode.h)
     std::uint16_t  wItemID   = 0;  // item template id
     std::int64_t   dEndTime  = 0;  // expiry tick (0 = permanent)
     std::uint8_t   bELD      = 0;  // legacy "ease lord drop" flag
@@ -30,7 +31,7 @@ struct ItemInstance
 {
     std::uint64_t  dlID         = 0;   // unique instance id (legacy GenItemID)
     std::uint8_t   bItemID      = 0;   // slot within its inventory tab
-    std::uint8_t   bInvenID     = 0;   // which inventory (INVEN_DEFAULT = 0, …)
+    std::uint8_t   bInvenID     = 0;   // which inventory (INVEN_DEFAULT = 255)
     std::uint16_t  wItemID      = 0;   // item template id
     std::uint8_t   bLevel       = 0;   // item level
     std::uint8_t   bGem         = 0;   // gem socket count
@@ -56,6 +57,8 @@ struct ItemInstance
     // Native transfer/persistence must use these source values, not reconstruct
     // them from what CHARINFO happened to send to the client.
     std::shared_ptr<const transfer::Item> source;
+    // Opaque PostgreSQL row fingerprint for fenced consumption; never on wire.
+    std::string durable_hash;
 };
 
 } // namespace tmapsvr

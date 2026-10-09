@@ -34,6 +34,7 @@ public:
     bool PrepareTransfer(const MapSessionClaim&,const CharSnapshot&,std::span<const std::byte>) override;
     std::optional<TransferredCharacter> AcceptTransfer(const MapSessionClaim&,std::span<const std::byte>) override;
     bool OutgoingTransferCommitted(const MapSessionClaim&) override;
+    std::string ConsumeSkillItem(const MapSessionClaim&,std::uint16_t,const ItemInstance&,const CharSnapshot&) override;
 private:
     friend int RecoverPreparedMapTransfers(soci::session&,int,int,const std::string&);
     static void StoreSkillCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&);

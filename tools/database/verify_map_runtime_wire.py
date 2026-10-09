@@ -157,8 +157,9 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         skills=conn.execute('SELECT "wSkillID","bLevel","dwRemainTick" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s ORDER BY ("wSkillID"::integer & 65535)',(cid,)).fetchall()
         check(first['skills']==[(i&65535,l,t&0xffffffff) for i,l,t in skills],'every learned skill and cooldown matches PostgreSQL')
         check(first['appearance'][4]==3 and first['exp']==(0,30,1),'original neutral aid country and level thresholds match')
-        before=conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall()
         next_sequence,skill_wire=verify_skill_cast(conn,s,cid,first,skill_fixture,until)
+        before=conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"',(cid,)).fetchall()
+        remaining_items=[(bag,item,options) for bag,item,options in first['items'] if not (bag==255 and item[0]==1)]
         x,y,z=first['position'];destination=(x+3,y,z+2)
         s.sendall(frame(struct.pack('<HfffHHBBBBf',0,*destination,0,90,0,0,0,0,1.0),0x5289,next_sequence));time.sleep(.1);s.close()
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()[0]==0,'disconnect saves and releases native claim')
@@ -170,7 +171,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         short_skill=next(i for i,l,t in skills if i!=cooldown_skill)
         conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=150 WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,short_skill))
         cid,newkey=start(login_port,cid);check(newkey!=key,'new Login issues a fresh key')
-        s,second=enter(map_port,cid,newkey,ready_delay=.35);check(second['position']==destination and second['items']==first['items'],'reconnect through same World restores movement and identical inventory')
+        s,second=enter(map_port,cid,newkey,ready_delay=.35);check(second['position']==destination and second['items']==remaining_items,'reconnect through same World restores movement and exact inventory after reagent consumption')
         countdown(second,cooldown_skill,300000,
               'synthetic persisted skill cooldown reaches original CHARINFO layout')
         countdown(second,short_skill,150,'short admission cooldown reaches CHARINFO with its current remaining duration')
@@ -192,7 +193,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         cid,cooldown_key=start(login_port,cid);s,resumed=enter(map_port,cid,cooldown_key)
         countdown(resumed,cooldown_skill,saved_cooldown,
               'fresh reconnect restores saved remaining duration without offline decay or lost inventory')
-        check(resumed['items']==first['items'],'fresh cooldown reconnect preserves every inventory descriptor')
+        check(resumed['items']==remaining_items,'fresh cooldown reconnect preserves every inventory descriptor')
         s.sendall(frame(request,0x52b4,3));op,data=read_packet(s,4)
         check(op==0x52b5 and data[0]==6,'fresh reconnected native daemon still enforces the saved cooldown')
         s.close();until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()[0]==0,'fresh cooldown relogin disconnect completes save')
@@ -225,7 +226,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
               conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()[0]==0,
               'World-loss save atomically releases the native claim with logout receipt')
         cid,world_key=start(login_port,cid);live,world_after=enter(map_port,cid,world_key)
-        check(world_after['position']==world_position and world_after['items']==first['items'],
+        check(world_after['position']==world_position and world_after['items']==remaining_items,
               'replacement World admission restores final movement and unchanged inventory')
         live.close();until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()[0]==0,
                            'replacement World client disconnect completes')
@@ -278,7 +279,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         map_port=int(command(['port',names[1],'5815/tcp']).rsplit(':',1)[1])
         conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=300000 WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,cooldown_skill))
         cid,restarted_key=start(login_port,cid);s,third=enter(map_port,cid,restarted_key)
-        check(third['position']==world_position and third['items']==first['items'],'real Map process restart restores saved character')
+        check(third['position']==world_position and third['items']==remaining_items,'real Map process restart restores saved character')
         # Verify the actual periodic saver before crashing it inside the next
         # core transaction. PostgreSQL must retain the previous receipt and core.
         checkpoint_position=(destination[0]+4,destination[1],destination[2]+4)
@@ -313,7 +314,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         check(conn.execute('SELECT count(*) FROM app_global."TCURRENTUSER" WHERE "dwUserID"=706').fetchone()[0]==0,
               'recovery releases the crashed account for authentication')
         cid,recovered_key=start(login_port,cid);s,fourth=enter(map_port,cid,recovered_key)
-        check(fourth['position']==checkpoint_position and fourth['items']==first['items'],
+        check(fourth['position']==checkpoint_position and fourth['items']==remaining_items,
               'same World reconnect restores last committed checkpoint and all items')
         countdown(fourth,cooldown_skill,crashed_cooldown,
               'replacement process restores last committed fresh cooldown after hard crash')

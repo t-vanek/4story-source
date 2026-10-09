@@ -499,6 +499,8 @@ int main(int argc, char** argv)
                         if(!client->IsOpen())continue;
                         const auto current=session_reg.Identity(client.get());
                         if(!current||current->phase!=tmapsvr::SessionPhase::Ready||current->connection_id!=identity.connection_id||current->authority_epoch!=identity.authority_epoch||current->role!=tmapsvr::MapSessionRole::Primary)continue;
+                        if(!session_reg.BeginCheckpoint(client.get()))continue;
+                        tmapsvr::SessionOperation checkpoint_operation(session_reg,client.get());
                         auto snap=char_state.Get(identity.char_id);
                         if(!snap){client->Close();continue;}
                         const auto revision=revisions[{identity.connection_id,identity.authority_epoch}]+1;

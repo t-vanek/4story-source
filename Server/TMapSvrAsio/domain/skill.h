@@ -5,7 +5,7 @@
 #include <cstdint>
 
 namespace tmapsvr {
-enum class SkillItemGate : std::uint8_t { Unsupported, Allowed, Unsuitable };
+enum class SkillItemGate : std::uint8_t { Unsupported, Allowed, Unsuitable, Reagent };
 
 struct SkillRow
 {
@@ -53,6 +53,7 @@ struct SkillTemplate
     SkillItemGate items = SkillItemGate::Unsupported;
     std::uint16_t  wPrevActiveID = 0; // normal use; loop uses wTargetActiveID
     std::uint16_t  wMapID = 0xffff;  // source INVALID_MAPID: unrestricted
+    std::uint16_t  wUseItem = 0;
 };
 
 struct SkillAttackTiming {

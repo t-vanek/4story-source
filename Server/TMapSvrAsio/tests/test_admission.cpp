@@ -9,6 +9,7 @@
 #include "services/session_registry.h"
 #include "services/skill_cooldown.h"
 #include "services/skill_chart.h"
+#include "services/skill_reagent.h"
 #include "services/client_senders.h"
 #include "services/session_validator.h"
 #include "services/player_service.h"
@@ -105,6 +106,10 @@ struct Players final : tmapsvr::IPlayerService {
     std::atomic<bool> save_started{false}, hold_save{false}, fail_save{false};
     tmapsvr::CharSnapshot saved;
     bool native_payload=false,admission_timers=false;
+    bool reagent_fixture=false;
+    std::atomic<bool> hold_consumption{false},consumption_started{false},fail_consumption{false};
+    std::atomic<int> consumptions{0};
+    tmapsvr::CharSnapshot committed;
     std::optional<tmapsvr::CharSnapshot> LoadChar(std::uint32_t cid) override {
         ++loads; tmapsvr::CharSnapshot s; s.dwCharID=cid; s.szNAME="Admission";
         s.bLevel=1; s.dwHP=169; s.dwMP=163; s.wMapID=2010; s.fPosX=3664.405f;
@@ -115,6 +120,12 @@ struct Players final : tmapsvr::IPlayerService {
             t.bUseHPType=2;t.dwUseHP=10;t.f1stRateX=2.0f;t.bStartLevel=1;t.bNextLevel=1;
             t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.dwLoopDelay=2000;t.items=tmapsvr::SkillItemGate::Allowed;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
             p->skill_templates.push_back(t);
+            if(reagent_fixture) {
+                p->skill_templates[0].items=tmapsvr::SkillItemGate::Reagent;p->skill_templates[0].wUseItem=8412;
+                tmapsvr::ItemInstance item;item.dlID=123;item.wItemID=8412;item.bInvenID=255;item.bItemID=4;item.bCount=2;
+                item.source=std::make_shared<tmapsvr::transfer::Item>();item.durable_hash=std::string(64,'a');
+                p->bags.push_back({{255,3,0,0},{item}});
+            }
             for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;p->skill_templates.push_back(other);}
             if(admission_timers){p->skills[0].dwRemainTick=300000;p->skills[1].dwRemainTick=1;}
             p->skill_attack_timing=std::array<tmapsvr::SkillAttackTiming,3>{tmapsvr::SkillAttackTiming{500,80},{},{}};
@@ -128,6 +139,14 @@ struct Players final : tmapsvr::IPlayerService {
         while (hold_save && std::chrono::steady_clock::now()<deadline) std::this_thread::sleep_for(2ms);
         if (fail_save) throw std::runtime_error("injected save failure");
         saved=s; ++saves;
+    }
+    std::string ConsumeSkillItem(const tmapsvr::MapSessionClaim&,std::uint16_t,
+        const tmapsvr::ItemInstance&,const tmapsvr::CharSnapshot& s) override {
+        consumption_started=true;
+        const auto deadline=std::chrono::steady_clock::now()+1s;
+        while(hold_consumption&&std::chrono::steady_clock::now()<deadline)std::this_thread::sleep_for(2ms);
+        if(fail_consumption)throw std::runtime_error("synthetic unknown item transaction outcome");
+        committed=s;++consumptions;return std::string(64,'b');
     }
 };
 struct World final : tmapsvr::IWorldClient {
@@ -227,13 +246,40 @@ Bytes CharacterMetadata() {
     WritePOD<std::uint32_t>(b,0);WritePOD<std::uint16_t>(b,0);WritePOD<std::uint32_t>(b,0);WritePOD<std::int32_t>(b,0);
     return b;
 }
+void ReagentSelection() {
+    using namespace tmapsvr;
+    CharSnapshot s;auto p=std::make_shared<CharacterPayload>();
+    ItemInstance item;item.wItemID=8412;item.bCount=2;item.source=std::make_shared<transfer::Item>();item.durable_hash=std::string(64,'a');
+    item.dlID=3;item.bInvenID=255;item.bItemID=0;p->bags.push_back({{255,3,0,0},{item}});
+    item.dlID=2;item.bInvenID=4;item.bItemID=8;
+    auto first=item;first.dlID=1;first.bItemID=2;
+    p->bags.push_back({{4,3,0,0},{item,first}});s.payload=p;
+    Check(FindSkillReagent(s,8412)->dlID==1,"reagent selection follows unsigned bag and slot order despite reversed vectors");
+    auto after=s;ConsumeReagentProjection(after,first);
+    Check(s.payload->bags[1].items[1].bCount==2&&after.payload->bags[1].items[1].bCount==1&&after.payload->bags[0].items[0].bCount==2,
+          "reagent plan is isolated from live payload and changes only selected item");
+    Check(!FindSkillReagent(s,42),"missing reagent has no fallback item");
+    p->bags[1].items[1].bCount=0;
+    bool failed=false;try{FindSkillReagent(s,8412);}catch(...){failed=true;}
+    Check(failed,"invalid zero stack refuses consumption without skipping to a later stack");
+    p->bags.clear();item.bInvenID=254;p->bags.push_back({{254,0,0,0},{item}});
+    failed=false;try{FindSkillReagent(s,8412);}catch(...){failed=true;}
+    Check(failed,"equipped reagent refuses unsupported equipment mutation");
+    p->bags.clear();p->transfer_state=std::make_shared<transfer::State>();
+    failed=false;try{FindSkillReagent(s,8412);}catch(...){failed=true;}
+    Check(failed,"transferred graph refuses unsupported inventory rewrite even with no matching item");
+}
 void TransferReservations() {
     asio::io_context io;tcp::socket socket(io);socket.open(tcp::v4());
     auto session=std::make_shared<tnetlib::AsioSession>(std::move(socket),tnetlib::PeerType::Server);
     tmapsvr::InMemorySessionRegistry registry;tmapsvr::InMemoryCharStateStore state;
     using tmapsvr::SessionPhase;using tmapsvr::MapSessionRole;
     Check(registry.TryBind({41,17,123,1,SessionPhase::Ready},session),"transfer test binds ready primary");
+    Check(registry.BeginCheckpoint(session.get())&&!registry.BeginCheckpoint(session.get())&&
+          !registry.BeginGameplay(session.get())&&!registry.BeginClose(session.get()),"checkpoint lease excludes newer gameplay and teardown");
+    registry.EndOperation(session.get());
     Check(registry.BeginGameplay(session.get()),"in-flight gameplay holds a session operation");
+    Check(!registry.BeginCheckpoint(session.get()),"pending gameplay prevents stale periodic checkpoint capture");
     Check(registry.BeginTransfer(session.get(),MapSessionRole::Primary)&&registry.Operations(session.get())==2,
           "transfer phase stops new gameplay while retaining in-flight operation");
     Check(!registry.BeginGameplay(session.get())&&!registry.BeginClose(session.get()),"freeze excludes new gameplay and premature teardown");
@@ -284,7 +330,7 @@ void TransferDrain() {
 int main(int argc, char**) {
     if (argc > 1) transport_secret.assign(64, std::byte{0x5a});
     try {
-        Vectors(); AuditRedaction(); TransferReservations(); TransferDrain(); asio::io_context io; asio::thread_pool workers(2);
+        Vectors(); AuditRedaction(); ReagentSelection(); TransferReservations(); TransferDrain(); asio::io_context io; asio::thread_pool workers(2);
         Validator validator; Players players; World world;
         tmapsvr::InMemorySessionRegistry registry; tmapsvr::InMemoryCharStateStore state;
         tmapsvr::InMemoryChannelPresence presence;
@@ -679,6 +725,73 @@ int main(int argc, char**) {
                 Check(std::all_of(players.saved.payload->skills.begin(),players.saved.payload->skills.end(),[](const auto& skill){return skill.dwRemainTick==0;}),
                       "unsupported cast never arms timers before closing");
             }
+            players.reagent_fixture=true;
+            for(int mode=0;mode<3;++mode) {
+                world.packets.clear();const auto saves=players.saves.load(),consumes=players.consumptions.load();
+                const auto failures=server.FailedSaves();
+                auto item_client=Dial(io,server.Port());co_await Send(item_client,MessageId::CS_CONNECT_REQ,Connect());
+                co_await Until([&]{return world.packets.size()==1;},"reagent fixture announced");
+                co_await tmapsvr::OnMWEnterSvrReq(enter,ctx);
+                co_await tmapsvr::DispatchWorld(static_cast<std::uint16_t>(MessageId::MW_CHARINFO_REQ),CharacterMetadata(),ctx);
+                co_await tmapsvr::OnMWConResultReq(Verdict(kKey),ctx);
+                co_await Send(item_client,MessageId::CS_CONREADY_REQ,{});
+                co_await Until([&]{return presence.FindEntry(kChar).has_value();},"reagent fixture ready");
+                players.hold_consumption=true;players.consumption_started=false;players.fail_consumption=mode==2;
+                auto server_session=registry.Find(kChar,kKey);
+                if(mode==0)Check(registry.BeginCheckpoint(server_session.get()),"fixture holds a periodic checkpoint lease");
+                co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+                if(mode==0) {
+                    co_await Pause(20ms);
+                    Check(!players.consumption_started&&item_client->Count(MessageId::CS_SKILLUSE_ACK)==0,"cast waits for checkpoint without dropping packet");
+                    registry.EndOperation(server_session.get());
+                }
+                co_await Until([&]{return players.consumption_started.load();},"reagent write runs on worker");
+                Check(state.Get(kChar)->dwMP==163&&state.Get(kChar)->payload->bags[0].items[0].bCount==2&&
+                      item_client->Count(MessageId::CS_UPDATEITEM_ACK)==0&&!registry.BeginCheckpoint(server_session.get()),
+                      "uncommitted reagent plan is invisible and excludes periodic capture");
+                if(mode==1)item_client->wire->Close();
+                players.hold_consumption=false;
+                if(mode==0) {
+                    co_await Until([&]{return item_client->Count(MessageId::CS_HPMP_ACK)==1;},"committed normal reagent cast publishes inventory and bars");
+                    Check(players.consumptions==consumes+1&&state.Get(kChar)->dwMP==83&&state.Get(kChar)->payload->bags[0].items[0].bCount==1,
+                          "confirmed transaction publishes exact item and resource decrement once");
+                    const auto n=item_client->packets.size();
+                    Check(item_client->packets[n-4].first==static_cast<std::uint16_t>(MessageId::CS_UPDATEITEM_ACK)&&
+                          item_client->packets[n-4].second[0]==std::byte{255}&&item_client->packets[n-4].second[10]==std::byte{1}&&
+                          item_client->packets[n-3].first==static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK)&&
+                          item_client->packets[n-2].first==static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK),
+                          "private UPDATEITEM and MOVEITEM precede cast and HPMP in source order");
+                    co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+                    co_await Until([&]{return item_client->Count(MessageId::CS_SKILLUSE_ACK)==2;},"reagent cooldown rejection delivered");
+                    Check(players.consumptions==consumes+1,"cooldown repeat cannot consume another item");
+                    timers.Forget(kChar);
+                    co_await Send(item_client,MessageId::CS_LOOPSKILL_REQ,loop_request());
+                    co_await Until([&]{return item_client->Count(MessageId::CS_HPMP_ACK)==2;},"loop consumes final reagent");
+                    Check(players.consumptions==consumes+2&&state.Get(kChar)->payload->bags[0].items.empty()&&state.Get(kChar)->dwMP==3,
+                          "last stack element disappears with atomic loop costs");
+                    const auto del=std::find_if(item_client->packets.begin(),item_client->packets.end(),[](const auto& p){return p.first==static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK);});
+                    Check(del!=item_client->packets.end()&&del->second==Bytes({std::byte{255},std::byte{4}}),"DELITEM retains original two-byte bag/slot layout");
+                    timers.Forget(kChar);state.Update(kChar,[](auto& v){v.dwMP=163;});
+                    co_await Send(item_client,MessageId::CS_LOOPSKILL_REQ,loop_request());
+                    co_await Until([&]{return item_client->Count(MessageId::CS_LOOPSKILL_ACK)==2;},"missing loop reagent rejection delivered");
+                    Check(timers.Snapshot(kChar,tmapsvr::SkillClockMs()).empty()&&players.consumptions==consumes+2,"missing loop reagent arms no timers or write");
+                    co_await Send(item_client,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+                    co_await Until([&]{return item_client->Count(MessageId::CS_SKILLUSE_ACK)==3;},"missing ordinary reagent rejection delivered");
+                    Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>47000&&players.consumptions==consumes+2,"missing ordinary reagent retains source timer without item write");
+                    item_client->wire->Close();
+                }
+                co_await Until([&]{return item_client->ended&&server.LiveSessions()==0;},"reagent fixture drains after disconnect or transaction failure");
+                if(mode==1)Check(players.saves==saves+1&&players.saved.dwMP==83&&players.saved.payload->bags[0].items[0].bCount==1,
+                                "disconnect during commit publishes committed state before final save");
+                if(mode==2) {
+                    Check(players.saves==saves&&players.consumptions==consumes&&server.FailedSaves()==failures+1&&
+                          state.Get(kChar)->persistence_uncertain&&registry.Size()==1&&item_client->Count(MessageId::CS_UPDATEITEM_ACK)==0,
+                          "unknown commit outcome retains reservation and refuses stale final save without success ACK");
+                    // Explicitly simulate a new test process after recovery; production never clears this reservation automatically.
+                    registry.Unbind(kChar);state.Remove(kChar);timers.Forget(kChar);
+                }
+            }
+            players.reagent_fixture=false;players.fail_consumption=false;
             for(int variant=0;variant<4;++variant) {
                 world.packets.clear();const auto saves=players.saves.load(),readies=validator.primary_readies.load();
                 auto invalid=Dial(io,server.Port());co_await Send(invalid,MessageId::CS_CONNECT_REQ,Connect());
@@ -711,7 +824,7 @@ int main(int argc, char**) {
             co_await Until([&]{return presence.FindEntry(kChar).has_value();},"save-failure fixture ready");
             server.CloseSessions();
             co_await Until([&]{return server.LiveSessions()==0;},"failed save is observed by teardown");
-            Check(registry.Size()==1 && state.Get(kChar).has_value() && server.FailedSaves()==1,"failed save retains dirty snapshot and reservation and reports failure");
+            Check(registry.Size()==1 && state.Get(kChar).has_value() && server.FailedSaves()==2,"failed save retains dirty snapshot and reservation and reports failure");
             auto retry=Dial(io,server.Port()); co_await Send(retry,MessageId::CS_CONNECT_REQ,Connect());
             co_await Until([&]{return retry->ended;},"dirty reservation rejects reconnect");
             Check(retry->packets.size()==1 && retry->packets[0].second[0]==std::byte{3},"failed save cannot be hidden by stale reload");

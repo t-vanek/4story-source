@@ -51,6 +51,7 @@ public:
     virtual bool HasOperation(const tnetlib::AsioSession*) const = 0;
     virtual unsigned Operations(const tnetlib::AsioSession*) const = 0;
     virtual bool BeginGameplay(const tnetlib::AsioSession*) = 0;
+    virtual bool BeginCheckpoint(const tnetlib::AsioSession*) = 0;
     // Atomic with BeginTransfer: teardown cannot race a new ownership operation.
     virtual std::optional<SessionIdentity> BeginClose(const tnetlib::AsioSession*) = 0;
     virtual bool Transition(std::uint32_t char_id, std::uint32_t key,
@@ -149,6 +150,7 @@ public:
         std::lock_guard lock(m_mtx);
         for(auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session) {
             if(row.operations)--row.operations;
+            if(!row.operations)row.checkpoint=false;
             return;
         }
     }
@@ -163,8 +165,16 @@ public:
     bool BeginGameplay(const tnetlib::AsioSession* session) override {
         std::lock_guard lock(m_mtx);
         for(auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session) {
-            if(row.id.phase!=SessionPhase::Ready)return false;
+            if(row.id.phase!=SessionPhase::Ready||row.checkpoint)return false;
             ++row.operations;return true;
+        }
+        return false;
+    }
+    bool BeginCheckpoint(const tnetlib::AsioSession* session) override {
+        std::lock_guard lock(m_mtx);
+        for(auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session) {
+            if(row.id.phase!=SessionPhase::Ready||row.id.role!=MapSessionRole::Primary||row.operations)return false;
+            row.checkpoint=true;++row.operations;return true;
         }
         return false;
     }
@@ -198,7 +208,7 @@ public:
         return out;
     }
 private:
-    struct Row { SessionIdentity id; std::weak_ptr<tnetlib::AsioSession> session; unsigned operations=0; };
+    struct Row { SessionIdentity id; std::weak_ptr<tnetlib::AsioSession> session; unsigned operations=0; bool checkpoint=false; };
     std::uint64_t m_generation=0;
     mutable std::mutex m_mtx;
     std::unordered_map<std::uint32_t, Row> m_rows;

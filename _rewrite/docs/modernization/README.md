@@ -18,7 +18,46 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: native ordinary cast requirements
+## Current verified increment: durable skill reagents
+
+Fresh owned-PC ordinary and repeated casts now consume exactly one required bag
+item when the pinned skill has a reagent and no weapon mask. Selection follows
+unsigned bag/slot order, including default inventory255. A PostgreSQL transaction
+locks the exact item and checks its full-row fingerprint, process/claim ownership,
+generation, catalog release and contract-3 receipt. Item decrement/deletion, core
+resources, learned timers and an append-only receipt commit together.
+
+The server plans the cast privately, then publishes after confirmed COMMIT.
+Original private UPDATEITEM or DELITEM and MOVEITEM packets precede cast success
+and charged HPMP. Ordinary missing-item rejection retains source own/shared timers;
+loop rejection arms none. A checkpoint lease prevents older periodic snapshots
+from overwriting an immediate consumption. Unknown write outcomes close the client,
+retain the claim and refuse stale final saves until process recovery.
+
+[Debug](evidence/native-skill-reagents-debug.json),
+[ASan/UBSan](evidence/native-skill-reagents-asan.json) and
+[installed Release](evidence/native-skill-reagents-release.json) each pass **973 checks**:
+228 Map, 29 pool/TLS, 196 outer TCP, 53 skill-cast, 295 World handoff, 66 World
+secondary, 99 two-Map and seven rejection checks. Full CTest passes 186 Debug tests
+(200 entries, eight internal and six explicit fixture skips) and all 33 sanitizer
+suites. Actual encrypted tests use source skill1623/item31238 on a disposable
+character and verify full descriptors, two consumed units, exhausted-stack rejection,
+unchanged other item rows, logout/relogin and restart. Native tests cover full-row
+drift, late-trigger rollback and committed process recovery. Runtime tests cover
+checkpoint waiting, disconnect during commit and a modeled unknown outcome.
+
+Current local image: `localhost/fourstory:postgresql-skill-reagents` (also `:main`),
+UID/GID 10001:10001. See [container evidence](evidence/skill-reagents-container-verification.json),
+[build fingerprints](evidence/skill-reagents-build-fingerprints.json) and
+[owned-lab cleanup](evidence/skill-reagents-cleanup.json). Migration **022** and updated
+Map grants are required. Backups and migrations 001–021 retain hashes; 022 is now
+also immutable, and the next migration is 023.
+
+See the [source contract and boundaries](evidence/skill-reagents-contract.json).
+Full transferred graphs, equipped reagents, ammunition/cash and trade/store branches,
+active effects, full combat and original-client execution remain unfinished.
+
+## Earlier verified increment: native ordinary cast requirements
 
 Normal owned-PC casting now enforces the source map restriction, previous active
 effect and non-consuming weapon eligibility. `wMapID=-1` remains the original
@@ -50,7 +89,7 @@ skips) and all 33 sanitizer suites. Plain/encrypted admission tests cover gate
 precedence, matching map/sentinel, learned versus maintained prerequisites,
 normal weapon-failure timers and unsupported-state drain.
 
-Current local image: `localhost/fourstory:postgresql-skill-gates` (also `:main`),
+Image used for that increment: `localhost/fourstory:postgresql-skill-gates`,
 ID `745e22cc4acafd7dd304a5fbc60bd1292c8869d690e13ae06412a45b386ad85d`,
 UID/GID 10001:10001. All six services pass health/DNS/SIGTERM smoke. See
 [container evidence](evidence/skill-gates-container-verification.json),

@@ -18,6 +18,7 @@
 #include <optional>
 #include <span>
 #include <cstddef>
+#include <stdexcept>
 
 namespace tmapsvr {
 
@@ -43,10 +44,15 @@ public:
     virtual std::optional<CharSnapshot> LoadAuthorized(const MapSessionClaim& claim) {
         return LoadChar(claim.char_id);
     }
-    virtual void SaveAuthorized(const MapSessionClaim&, const CharSnapshot& snap) { SaveChar(snap); }
+    virtual void SaveAuthorized(const MapSessionClaim&, const CharSnapshot& snap) {
+        if(snap.persistence_uncertain)throw std::runtime_error("Uncertain durable gameplay outcome");
+        SaveChar(snap);
+    }
     virtual bool PrepareTransfer(const MapSessionClaim&,const CharSnapshot&,std::span<const std::byte>) {return false;}
     virtual std::optional<TransferredCharacter> AcceptTransfer(const MapSessionClaim&,std::span<const std::byte>) {return {};}
     virtual bool OutgoingTransferCommitted(const MapSessionClaim&) {return false;}
+    virtual std::string ConsumeSkillItem(const MapSessionClaim&,std::uint16_t,
+        const ItemInstance&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}
 
 };
 

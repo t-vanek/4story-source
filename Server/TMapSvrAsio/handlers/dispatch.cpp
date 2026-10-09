@@ -26,7 +26,9 @@
 #include "services/session_registry.h"
 
 #include "MessageId.h"
-
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <spdlog/spdlog.h>
 
 #include <chrono>
@@ -58,7 +60,14 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         // Secondary gameplay contracts are ported independently. Never run a
         // full-graph mutation on the source's deliberately partial replica.
         if(identity->role==MapSessionRole::Replica && id!=MessageId::CS_MOVE_REQ)co_return;
-        if(!ctx.session_reg->BeginGameplay(sess.get()))co_return;
+        // A periodic snapshot must finish before a new immediate durable cast.
+        // Wait rather than dropping a packet while the checkpoint owns the lease.
+        boost::asio::steady_timer wait(co_await boost::asio::this_coro::executor);
+        while(!ctx.session_reg->BeginGameplay(sess.get())) {
+            const auto current=ctx.session_reg->Identity(sess.get());
+            if(!sess->IsOpen()||!current||current->phase!=SessionPhase::Ready)co_return;
+            wait.expires_after(std::chrono::milliseconds(5));co_await wait.async_wait(boost::asio::use_awaitable);
+        }
         operation.emplace(*ctx.session_reg,sess.get());
     }
     switch (id)

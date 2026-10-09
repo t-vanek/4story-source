@@ -124,7 +124,7 @@ regression. That increment used `localhost/fourstory:postgresql-skill-loop`;
 all six installed services pass health/DNS/SIGTERM smoke. See
 [container evidence](_rewrite/docs/modernization/evidence/skill-loop-container-verification.json).
 
-The latest implementation adds **ordinary native cast requirements**: source map
+The preceding implementation adds **ordinary native cast requirements**: source map
 restriction, the distinct previous-active-effect requirement and non-consuming
 weapon eligibility. Rejection codes and ordering follow the original server.
 An unsuitable weapon on normal use retains the source own/shared-kind cooldowns
@@ -135,9 +135,25 @@ consumable or buff-dependent work closes before mutation. See the
 This increment passes **186 Debug tests** (200 entries, 14 fixture skips), all
 **33 ASan/UBSan suites** and **933 native database/network checks** in each Debug,
 sanitizer and installed Release run. The previous installed image fails the map
-restriction regression. Current local image: `localhost/fourstory:postgresql-skill-gates`
-(also `:main`); all six services pass health/DNS/SIGTERM smoke. See
+restriction regression. That increment used `localhost/fourstory:postgresql-skill-gates`; all six services pass health/DNS/SIGTERM smoke. See
 [container evidence](_rewrite/docs/modernization/evidence/skill-gates-container-verification.json).
+
+The latest implementation adds **durable single-reagent consumption** for ordinary
+and repeated casts on fresh primary characters. Migration **022** commits the item
+count or deletion, HP/MP, timers and a receipt in one PostgreSQL transaction before
+the original inventory and success packets. Checkpoint coordination prevents an
+older save from undoing a cast; uncertain outcomes retain the reservation for
+recovery. Depleted stacks reject further casts without another charge.
+
+Verification: **186 Debug passes** (200 entries, 14 fixture skips), **33 ASan/UBSan
+passes** and **973 native database/network checks per Debug, sanitizer and installed
+Release run**. Current local image: `localhost/fourstory:postgresql-skill-reagents`
+(also `:main`); six services pass health/DNS/SIGTERM checks. See the
+[reagent contract](_rewrite/docs/modernization/evidence/skill-reagents-contract.json) and
+[container evidence](_rewrite/docs/modernization/evidence/skill-reagents-container-verification.json).
+Apply 022 and updated Map grants before deployment. Full transferred-graph,
+equipped-item, ammunition/cash branches and complete combat remain pending.
+The original client executable has not been run.
 
 ## Database authority
 
@@ -148,7 +164,7 @@ need adaptation, change the derived PostgreSQL schema through a new migration.
 - `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
 - `content` and the compatibility views expose explicit, versioned projections.
 - `app_global` and `app_world` own mutable application and operational state.
-- Applied migrations **001–021 are immutable**; the next schema change starts at 022.
+- Applied migrations **001–022 are immutable**; the next schema change starts at 023.
 - Backups, credentials and private extraction output stay outside Git. Historical
   accounts, player records and missing combat values are never invented.
 

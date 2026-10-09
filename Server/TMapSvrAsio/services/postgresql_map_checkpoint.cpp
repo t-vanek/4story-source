@@ -29,7 +29,7 @@ std::string SkillJson(const CharSnapshot& s) {
     return json+']';
 }
 std::string Fingerprint(const MapSessionClaim& claim,const CharSnapshot& s) {
-    if(s.dwCharID!=claim.char_id||!s.payload||!std::isfinite(s.fPosX)||!std::isfinite(s.fPosY)||!std::isfinite(s.fPosZ))
+    if(s.persistence_uncertain||s.dwCharID!=claim.char_id||!s.payload||!std::isfinite(s.fPosX)||!std::isfinite(s.fPosY)||!std::isfinite(s.fPosZ))
         throw std::runtime_error("Invalid native character checkpoint");
     // Recovery contract v1: exact, ordered little-endian core values. Never hash
     // struct padding, pointers, derived stats or timestamps assigned by PostgreSQL.
@@ -134,6 +134,7 @@ void PostgreSQLMapService::CheckpointAuthorized(const MapSessionClaim& claim,con
     WriteCore(sql,claim,s,0);RecordCheckpoint(sql,claim,static_cast<long long>(revision),fingerprint,"active");StoreTransferCheckpoint(sql,claim,s);tx->commit();
 }
 void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const CharSnapshot& s){
+    if(s.persistence_uncertain)throw std::runtime_error("Item transaction outcome requires process recovery");
     if(claim.role!=MapSessionRole::Primary)throw std::runtime_error("Replica cannot save primary state");
     const auto fingerprint=Fingerprint(claim,s);
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
@@ -181,6 +182,62 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
             soci::use(world,"w"),soci::use(character,"c"),soci::use(m_config.owner_token,"token"),soci::use(generation,"g"),soci::use(epoch,"e");
     }else StoreTransferCheckpoint(sql,claim,s);
     CloseClaim(sql,claim);tx->commit();
+}
+std::string PostgreSQLMapService::ConsumeSkillItem(const MapSessionClaim& c,std::uint16_t skill,
+    const ItemInstance& before,const CharSnapshot& after) {
+    if(c.role!=MapSessionRole::Primary||c.authority_epoch||!after.payload||after.payload->transfer_state||
+       !before.bCount||before.bInvenID==254||before.durable_hash.size()!=64||!before.dlID||
+       before.dlID>static_cast<std::uint64_t>(std::numeric_limits<long long>::max()))
+        throw std::runtime_error("Unsupported native reagent transaction");
+    if(std::none_of(after.payload->skills.begin(),after.payload->skills.end(),[&](const auto& row){return row.wSkillID==skill&&row.bLevel;}))
+        throw std::runtime_error("Reagent skill is not learned");
+    unsigned found=0;
+    for(const auto& bag:after.payload->bags)for(const auto& item:bag.items)if(item.dlID==before.dlID) {
+        ++found;
+        if(bag.bag.bInvenID!=before.bInvenID||item.bItemID!=before.bItemID||item.wItemID!=before.wItemID||
+           item.bCount+1!=before.bCount)throw std::runtime_error("Reagent projection differs from exact decrement");
+    }
+    if(found!=(before.bCount>1?1U:0U))throw std::runtime_error("Reagent projection has wrong item cardinality");
+    const auto fingerprint=Fingerprint(c,after);
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Reagent claim is not ready primary");
+    CheckCatalogs(sql);
+    const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||receipt.contract!=3)
+        throw std::runtime_error("Reagent recovery receipt changed");
+    const long long session_key=c.key;int unlocked=0;
+    sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(session_key),soci::into(unlocked);
+    if(!sql.got_data())throw std::runtime_error("Reagent session was revoked");
+    const int world=c.group,character=c.char_id,slot=before.bItemID,bag=before.bInvenID;
+    const int item=std::bit_cast<std::int16_t>(before.wItemID),skill_id=std::bit_cast<std::int16_t>(skill);
+    const long long id=before.dlID;const int count=before.bCount;int matched=0;
+    sql<<"SELECT 1 FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:s AND \"wItemID\"=:i AND \"dwWeaponID\"=0",
+        soci::use(skill_id,"s"),soci::use(item,"i"),soci::into(matched);
+    if(!sql.got_data())throw std::runtime_error("Reagent requirement differs from pinned chart");
+    std::string hash;
+    sql<<"SELECT app_world.item_fingerprint(i) FROM app_world.\"TITEMTABLE\" i WHERE \"bWorldID\"=:w AND \"dlID\"=:id "
+         "AND \"dwOwnerID\"=:c AND \"bOwnerType\"=0 AND \"bStorageType\"=0 AND \"dwStorageID\"=:bag AND \"bItemID\"=:slot "
+         "AND \"wItemID\"=:item AND \"bCount\"=:count FOR UPDATE",
+        soci::use(world,"w"),soci::use(id,"id"),soci::use(character,"c"),soci::use(bag,"bag"),soci::use(slot,"slot"),
+        soci::use(item,"item"),soci::use(count,"count"),soci::into(hash);
+    if(!sql.got_data()||hash!=before.durable_hash)throw std::runtime_error("Reagent item changed since hydration");
+    std::string after_hash;
+    if(count==1)sql<<"DELETE FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dlID\"=:id",soci::use(world,"w"),soci::use(id,"id");
+    else sql<<"UPDATE app_world.\"TITEMTABLE\" i SET \"bCount\"=\"bCount\"-1 WHERE \"bWorldID\"=:w AND \"dlID\"=:id RETURNING app_world.item_fingerprint(i)",
+        soci::use(world,"w"),soci::use(id,"id"),soci::into(after_hash);
+    WriteCore(sql,c,after,0);
+    // This is an immediate gameplay receipt, not a periodic revision. The
+    // runtime checkpoint lease prevents an older sweep overwriting this state.
+    RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreSkillCheckpoint(sql,c,after);
+    const int server=m_config.server,unsigned_skill=skill,remaining=count-1;
+    const long long generation=c.connection_id,epoch=c.authority_epoch;
+    sql<<"INSERT INTO app_world.skill_item_consumptions(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,skill_id,item_id,"
+         "before_count,after_count,before_hash,after_hash,core_fingerprint) VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f)",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
+        soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(unsigned_skill,"skill"),soci::use(id,"id"),
+        soci::use(count,"before"),soci::use(remaining,"after"),soci::use(before.durable_hash,"bh"),soci::use(after_hash,"ah"),soci::use(fingerprint,"f");
+    tx->commit();return after_hash;
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
     const int world=claim.group;const long long character=claim.char_id,user=claim.user_id;

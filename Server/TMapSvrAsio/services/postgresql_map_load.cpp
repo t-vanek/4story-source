@@ -85,6 +85,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.wTargetActiveID=U16(chart,"wTargetActiveID");
         definition.wPrevActiveID=U16(chart,"wPrevActiveID");
         definition.wMapID=U16(chart,"wMapID");
+        definition.wUseItem=U16(chart,"wItemID");
         const auto weapon=U32(chart,"dwWeaponID");
         // DBAccess.h binds source wItemID to m_wUseItem. Item/cash-ammunition
         // consumption needs its own fenced inventory transaction. Never waive it.
@@ -98,6 +99,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
                 break; // source checks the first matching equipped item
             }
         }
+        if(definition.wUseItem&&!weapon)definition.items=SkillItemGate::Reagent;
         definition.bUseMPType=U8(chart,"bUseMPType");definition.dwUseMP=U32(chart,"dwUseMP");
         definition.bUseHPType=U8(chart,"bUseHPType");definition.dwUseHP=U32(chart,"dwUseHP");
         definition.bStartLevel=U8(chart,"bLevel");definition.bNextLevel=U8(chart,"bNextLevel");
@@ -288,7 +290,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     for(const auto& r:children("TINVENTABLE","dwCharID",","+Epoch("dEndTime")," ORDER BY \"bInvenID\"")) {
         p.bags.push_back({{U8(r,"bInvenID"),U16(r,"wItemID"),Number(r,"epoch"),U8(r,"bELD")},{}});
     }
-    for(const auto& r:children("TITEMTABLE","dwOwnerID",","+Epoch("dEndTime")," ORDER BY \"dwStorageID\",\"bItemID\"")) {
+    for(const auto& r:children("TITEMTABLE","dwOwnerID",","+Epoch("dEndTime")+",app_world.item_fingerprint(\"TITEMTABLE\") AS durable_hash"," ORDER BY \"dwStorageID\",\"bItemID\"")) {
         const auto bag_id=Number(r,"dwStorageID");
         auto bag=std::find_if(p.bags.begin(),p.bags.end(),[&](const auto& b){return b.bag.bInvenID==bag_id;});
         if(bag==p.bags.end())throw std::runtime_error("Character item has no inventory bag");
@@ -307,6 +309,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
             const auto value=U16(r,"wValue"+suffix);if(value_id&&value)magic[id]=value;}
         for(const auto& [id,value]:magic)raw.magic.push_back({static_cast<std::uint8_t>(id),value});
         bag->items.push_back(ProjectItem(sql,raw));
+        bag->items.back().durable_hash=r.get<std::string>("durable_hash");
     }
     for(const auto& r:children("TSKILLTABLE","dwCharID",""," ORDER BY (\"wSkillID\"::integer & 65535)"))
         p.skills.push_back({U16(r,"wSkillID"),U8(r,"bLevel"),U32(r,"dwRemainTick")});

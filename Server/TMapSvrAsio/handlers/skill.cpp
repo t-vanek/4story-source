@@ -39,6 +39,10 @@
 #include "services/skill_cooldown.h"
 #include "services/skill_engine.h"
 #include "services/skill_timing.h"
+#include "services/skill_reagent.h"
+#include "services/main_transfer_runtime.h"
+#include "services/player_service.h"
+#include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -137,7 +141,16 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
     bool visited=false,ignored=false;
     if(!cid||!ctx.char_state)co_return;
     const auto identity=ctx.session_reg->Identity(sess.get());
-    ctx.char_state->Update(cid,[&](CharSnapshot& cs) {
+    // Immediate reagent writes need an unpublished plan and a temporary freeze.
+    // The dispatch operation excludes periodic checkpoint capture until commit.
+    const auto initial=ctx.char_state->Get(cid);
+    bool reagent=false;
+    if(initial&&initial->payload)for(const auto& t:initial->payload->skill_templates)
+        if(t.wID==wSkillID)reagent=t.items==SkillItemGate::Reagent;
+    SkillCooldownTracker planned_timers;
+    auto* timers=ctx.skill_cooldown;
+    std::optional<ItemInstance> consumed;
+    auto apply=[&](CharSnapshot& cs) {
         visited=true;
         if(loop&&!cs.payload){ignored=true;return;}
         const auto now=SkillClockMs();
@@ -165,9 +178,9 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             // Ordinary use alone checks its source map restriction, before
             // resource, prerequisite and reuse gates (CSHandler.cpp:2556).
             if(!loop&&t->wMapID!=0xffff&&t->wMapID!=cs.wMapID){ack.result=SKILL_WRONGREGION;return;}
-            if(!ctx.skill_cooldown)throw std::runtime_error("Native skill cooldown tracker is missing");
+            if(!timers)throw std::runtime_error("Native skill cooldown tracker is missing");
             // The loop branch checks its existing gate BEFORE affordability.
-            if(loop&&ctx.skill_cooldown->RemainMs(cid,wSkillID,now)){ack.result=SKILL_SPEEDYUSE;return;}
+            if(loop&&timers->RemainMs(cid,wSkillID,now)){ack.result=SKILL_SPEEDYUSE;return;}
         }
         if(definition) {
             req_mp=skill_engine::RequiredMP(*definition,cs.dwMaxMP,rank);
@@ -184,12 +197,17 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
                     throw std::runtime_error("Native cast requires authoritative active effects");
                 ack.result=SKILL_NEEDPREVACT;return;
             }
-            if(!loop&&ctx.skill_cooldown->RemainMs(cid,wSkillID,now)){ack.result=SKILL_SPEEDYUSE;return;}
+            if(!loop&&timers->RemainMs(cid,wSkillID,now)){ack.result=SKILL_SPEEDYUSE;return;}
             // Preflight unsupported inventory transactions before any mutation.
             // For a supported unsuitable weapon, ordinary SkillUse arms own and
             // shared-kind timers BEFORE UseSkillItem rejects; loop does not.
             if(t.items==SkillItemGate::Unsupported)
                 throw std::runtime_error("Native cast consumable mutation is unsupported");
+            if(t.items==SkillItemGate::Reagent) {
+                if(!reagent)throw std::runtime_error("Reagent definition changed during cast");
+                consumed=FindSkillReagent(cs,t.wUseItem);
+                if(loop&&!consumed){ack.result=SKILL_UNSUITWEAPON;return;}
+            }
             if(loop&&t.items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}
             SkillAttackTiming timing; // TAD_NONE is source delay 0, rate 100
             if(t.bSpeedApply) {
@@ -201,20 +219,70 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             kind_delay=loop?0:t.dwKindDelay;
             if(kind_delay)for(const auto& other:cs.payload->skill_templates)if(other.bKind==t.bKind)same_kind.push_back(other.wID);
         }
-        if(ctx.skill_cooldown&&!ctx.skill_cooldown->TryUse(cid,wSkillID,now,reuse_delay,same_kind,kind_delay)) {
+        if(timers&&!timers->TryUse(cid,wSkillID,now,reuse_delay,same_kind,kind_delay)) {
             ack.result=SKILL_SPEEDYUSE;return;
         }
         if(cs.payload&&!loop&&definition->items==SkillItemGate::Unsuitable){ack.result=SKILL_UNSUITWEAPON;return;}
+        if(reagent&&!consumed){ack.result=SKILL_UNSUITWEAPON;return;}
+        if(consumed)ConsumeReagentProjection(cs,*consumed);
         cs.dwMP-=req_mp;cs.dwHP-=req_hp;
         hp=cs.dwHP;mp=cs.dwMP;max_hp=cs.dwMaxHP;max_mp=cs.dwMaxMP;
         char_level=cs.bLevel;char_country=cs.bCountry;
         if(cs.payload)aid_country=cs.payload->aid_country;
         ack.result=SKILL_SUCCESS;
-    });
+    };
+    if(!reagent)ctx.char_state->Update(cid,apply);
+    else {
+        if(!ctx.skill_cooldown||!ctx.player_service||!identity)throw std::runtime_error("Reagent transaction context missing");
+        const auto original=ctx.char_state->Freeze(cid,[](auto&){});
+        if(!original)co_return;
+        auto planned=*original;
+        try {
+            const auto started=SkillClockMs();
+            const auto sampled=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,started);
+            planned_timers.Restore(cid,sampled.payload->skills,started);timers=&planned_timers;
+            apply(planned);
+        }catch(...){ctx.char_state->Store(cid,*original);throw;}
+        const auto sampled_at=SkillClockMs();
+        try{planned=transfer::PersistenceSnapshot(planned,identity->key,planned_timers,sampled_at);}
+        catch(...){ctx.char_state->Store(cid,*original);throw;}
+        const bool commit=consumed&&visited&&!ignored&&ack.result==SKILL_SUCCESS;
+        try {
+        if(commit) {
+            std::string new_hash;
+            auto* service=ctx.player_service;
+            new_hash=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),wSkillID,&consumed,&planned] {
+                    return service->ConsumeSkillItem(claim,wSkillID,*consumed,planned);
+            });
+            auto p=std::make_shared<CharacterPayload>(*planned.payload);
+            for(auto& bag:p->bags)for(auto& item:bag.items)if(item.dlID==consumed->dlID)item.durable_hash=new_hash;
+            planned.payload=std::move(p);
+        }
+        ctx.skill_cooldown->Restore(cid,planned.payload->skills,sampled_at);
+        ctx.char_state->Store(cid,planned);
+        }catch(...) {
+            auto uncertain=*original;uncertain.persistence_uncertain=commit;
+            ctx.char_state->Store(cid,uncertain);sess->Close();throw;
+        }
+    }
     if(!visited||ignored)co_return;
     if(ack.result!=SKILL_SUCCESS) {
         co_await sess->SendPacket(static_cast<std::uint16_t>(opcode),encode(ack,{}));
         co_return;
+    }
+    if(consumed) {
+        // Original UseItem sends private inventory changes and MOVEITEM before
+        // the cast broadcast. Emit only after PostgreSQL confirms the commit.
+        std::vector<std::byte> item_ack;
+        wire::WritePOD(item_ack,consumed->bInvenID);
+        if(consumed->bCount==1)wire::WritePOD(item_ack,consumed->bItemID);
+        else {
+            auto after=*consumed;--after.bCount;
+            const auto descriptor=EncodeItemDescriptor(after,cid,true);
+            item_ack.insert(item_ack.end(),descriptor.begin(),descriptor.end());
+        }
+        co_await sess->SendPacket(static_cast<std::uint16_t>(consumed->bCount==1?MessageId::CS_DELITEM_ACK:MessageId::CS_UPDATEITEM_ACK),item_ack);
+        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),std::vector<std::byte>{std::byte{0}});
     }
 
     // Success — broadcast the fat SKILL_SUCCESS ack (the cast + its

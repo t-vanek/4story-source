@@ -22,6 +22,10 @@ GRANT INSERT,UPDATE ON app_world.map_checkpoints TO :"map_role";
 GRANT EXECUTE ON FUNCTION app_world.map_core_state(smallint,integer) TO :"map_role";
 GRANT EXECUTE ON FUNCTION app_world.map_skill_state(smallint,integer),app_world.map_checkpoint_matches(app_world.map_checkpoints) TO :"map_role";
 GRANT UPDATE("dwRemainTick") ON app_world."TSKILLTABLE" TO :"map_role";
+GRANT EXECUTE ON FUNCTION app_world.item_fingerprint(app_world."TITEMTABLE") TO :"map_role";
+GRANT UPDATE("bCount"),DELETE ON app_world."TITEMTABLE" TO :"map_role";
+GRANT INSERT ON app_world.skill_item_consumptions TO :"map_role";
+GRANT USAGE ON SEQUENCE app_world.skill_item_consumptions_consumption_id_seq TO :"map_role";
 GRANT UPDATE("bLevel","dwEXP","dwHP","dwMP","dwGold","dwSilver","dwCooper","wSkillPoint","dwRegion",
     "wMapID","wSpawnID","wLastSpawnID","dwLastDestination","wTemptedMon","bAftermath","bStartAct",
     "fPosX","fPosY","fPosZ","wDIR","bStatLevel","bStatPoint","dwStatExp","dLogoutDate")

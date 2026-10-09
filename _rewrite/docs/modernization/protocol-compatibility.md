@@ -522,8 +522,8 @@ followed by the active-effect prerequisite and non-consuming weapon requirements
 Only then does the character lock enclose timer arming and exact resource costs.
 Loop duration uses `(dwLoopDelay + attackSpeed) * rate / 100`, preserving DWORD
 wrap and omitting normal rank increment and same-kind extension. Ordinary and
-loop packets share timer state. Reagents, ammunition/cash bypasses and active
-buff-dependent branches remain unsupported. Full target/action/peace-zone checks,
+loop packets share timer state. Migration 022 below adds single-reagent support.
+Ammunition/cash bypasses and active buff-dependent branches remain unsupported. Full target/action/peace-zone checks,
 combat powers/damage, multi-hit expansion and actual-client acceptance remain
 pending. See [source contract and evidence](evidence/skill-loop-contract.json).
 
@@ -541,8 +541,29 @@ insufficient without a maintained effect.
 
 Original normal `SkillUse` precedes `UseSkillItem`: supported unsuitable weapon
 rejection therefore retains own and same-kind timers without resource deduction.
-Loop weapon rejection leaves timers unchanged. Unsupported reagent/ammunition,
-cash exceptions and buff-backed prerequisites close before any timer/resource
+Loop weapon rejection leaves timers unchanged. Unsupported graph-backed reagents,
+ammunition/cash exceptions and buff-backed prerequisites close before any timer/resource
 mutation; their unfinished side effects are not acknowledged as success.
 The 62-byte ordinary reject and 45-byte loop reject formats remain unchanged.
 See [source contract and verification](evidence/skill-gates-contract.json).
+
+
+## Native single-reagent consumption
+
+The later reagent increment implements source `wItemID` requirements with no
+weapon mask for fresh owned PCs. Select the first matching item in unsigned
+bag/slot order, including default bag255. Ordinary failure keeps already-armed
+own/shared-kind timers; loop failure arms nothing. A depleted stack returns the
+original UNSUITWEAPON result and charges no resources.
+
+After a confirmed PostgreSQL commit, send private `CS_UPDATEITEM_ACK` (0x52AA:
+bag BYTE plus the original item descriptor) or `CS_DELITEM_ACK` (0x52AC: bag and
+slot BYTEs), followed by `CS_MOVEITEM_ACK` (0x52A9: zero result BYTE), then the
+existing cast ACK and HPMP if charged. No item or success ACK precedes commit.
+Unknown transaction outcomes close the session and retain the reservation for
+recovery; stale final saves are refused. Checkpoints and immediate writes share
+an operation fence. See [source contract](evidence/skill-reagents-contract.json).
+
+Full transferred graphs, equipped reagents, ammunition/cash branches and active
+trade/store/effect lifecycles remain outside this increment. This is source-derived
+wire verification; original-client execution and complete combat are pending.

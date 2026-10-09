@@ -28,6 +28,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "main_transfer_fixture.h"
 #include "skill_checkpoint_fixture.h"
 #include "skill_timing_fixture.h"
+#include "skill_reagent_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -40,7 +41,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=718;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=720;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -161,6 +162,9 @@ int main(){
         stage="native timing";
         VerifyNativeSkillTiming(admin,map,create(717,"TimingHero",17),false);
         VerifyNativeSkillTiming(admin,map,create(718,"BrokenTimingHero",18),true);
+        stage="native reagents";
+        VerifyNativeReagent(admin,map,create(719,"ReagentHero",19),false);
+        VerifyNativeReagent(admin,map,create(720,"ReagentRecovery",20),true);
         stage="zero HP";auto dead=create(702,"DeadHero",2);
         admin<<"UPDATE app_world.\"TCHARTABLE\" SET \"dwHP\"=0,\"dwMP\"=0 WHERE \"dwUserID\"=702";
         Check(claim(dead),"second character handoff accepted");auto ds=map.LoadAuthorized(dead);
@@ -168,7 +172,8 @@ int main(){
         stage="race";auto race=create(703,"RaceHero",3);auto other=race;other.connection_id=4;std::barrier gate(3);bool accepted[2]{};
         std::thread t1([&]{gate.arrive_and_wait();accepted[0]=claim(race);});std::thread t2([&]{gate.arrive_and_wait();accepted[1]=claim(other);});gate.arrive_and_wait();t1.join();t2.join();
         Check(accepted[0]!=accepted[1],"concurrent claims have exactly one winner");map.ReleaseSession(accepted[0]?race:other);
-        stage="permissions";{auto l=mpool.Acquire();Check(Throws([&]{*l<<"UPDATE app_world.\"TITEMTABLE\" SET \"bCount\"=0";}),"Map core role cannot rewrite inventory");
+        stage="permissions";{auto l=mpool.Acquire();Check(Throws([&]{*l<<"UPDATE app_world.\"TITEMTABLE\" SET \"wItemID\"=0";}),"Map consumption role cannot change item templates");
+            Check(Throws([&]{*l<<"DELETE FROM app_world.skill_item_consumptions";}),"Map consumption role cannot discard its audit receipts");
             Check(Throws([&]{*l<<"UPDATE app_world.\"TSKILLTABLE\" SET \"bLevel\"=2";}),"Map cooldown role cannot change learned ranks");
             Check(Throws([&]{*l<<"DELETE FROM app_world.\"TSKILLTABLE\"";}),"Map cooldown role cannot forget skills");
             Check(Throws([&]{*l<<"DELETE FROM app_world.map_checkpoints";}),"Map runtime role cannot discard recovery receipts");
@@ -242,7 +247,7 @@ int main(){
         Check(Number(admin,"SELECT count(*) FROM app_global.\"TCURRENTUSER\" WHERE \"dwUserID\"=704")==0,"replacement owner safely closes pre-ready claim");
         Check(owner->OrphanedSessions()==3&&Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=705 AND phase='orphaned'")==1,"replacement preserves pre-checkpoint ready state as orphaned");
         Check(Throws([&]{map.SaveAuthorized(dirty,*dirty_snap);}),"old process token cannot save after ownership replacement");
-        Check(owner->RecoveredSessions()==2&&Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=707")==0&&
+        Check(owner->RecoveredSessions()==3&&Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=707")==0&&
               Number(admin,"SELECT count(*) FROM app_global.\"TCURRENTUSER\" WHERE \"dwUserID\"=707")==0,
               "replacement recovers an exact committed checkpoint and releases the account");
         Check(Number(admin,"SELECT \"dwEXP\" FROM app_world.\"TCHARTABLE\" WHERE \"dwUserID\"=707")==12&&
@@ -261,6 +266,9 @@ int main(){
               Number(admin,"SELECT \"dwEXP\" FROM app_world.\"TCHARTABLE\" WHERE \"dwUserID\"=713")==95&&
               Number(admin,"SELECT count(*) FROM app_world.map_checkpoints WHERE user_id=713 AND outcome='recovered' AND transfer_body IS NOT NULL")==1,
               "source replacement recovers exact frozen prepared graph and cancels its unconsumed transfer");
+        Check(Number(admin,"SELECT count(*) FROM app_world.map_checkpoints WHERE user_id=720 AND outcome='recovered' AND app_world.map_checkpoint_matches(map_checkpoints)")==1&&
+              Number(admin,"SELECT i.\"bCount\" FROM app_world.\"TITEMTABLE\" i JOIN app_world.\"TCHARTABLE\" c ON c.\"dwCharID\"=i.\"dwOwnerID\" WHERE c.\"dwUserID\"=720 AND i.\"wItemID\"=8412")==1,
+              "process replacement preserves committed reagent decrement with recovered core and skill receipt");
         std::cout<<"Native Map integration: "<<passed<<" checks passed\n";
     }catch(const soci::soci_error&){std::cerr<<"FAIL native Map stage="<<stage<<" (backend details suppressed)\n";return 1;}
     catch(const std::exception& e){std::cerr<<"FAIL native Map stage="<<stage<<": "<<e.what()<<"\n";return 1;}

@@ -1,0 +1,133 @@
+{
+  "date": "2026-10-09",
+  "scope": "Fresh native ready-primary owned-PC single-reagent consumption for ordinary and loop casts; durable inventory, core resources and cooldowns before original client acknowledgments.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2798-2877, 4713-4749",
+      "contract": "UseSkillItem calls DeleteSkillItem for wItemID. With no weapon mask, scan ordered bag and slot maps, consume one first matching item, then send MOVEITEM success."
+    },
+    {
+      "path": "Server/TMapSvr/TMapSvr.cpp",
+      "lines": "9520-9569",
+      "contract": "UseItem decrements count; sends UPDATEITEM for a remaining stack, DELITEM for its last element."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1420-1465",
+      "contract": "MOVEITEM one result BYTE; UPDATEITEM bag BYTE then original item descriptor; DELITEM bag BYTE and slot BYTE."
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2727-2863, 3230-3368",
+      "contract": "Ordinary SkillUse arms own/shared timers before item failure; loop checks item before arming. Rejected missing reagent returns UNSUITWEAPON=9 without HP/MP costs."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "lines": "45-46",
+      "contract": "Equipment inventory 254 and default inventory 255, both unsigned BYTE."
+    }
+  ],
+  "implementation": {
+    "eligibility": "Pinned wItemID != 0 and dwWeaponID == 0; exact learned skill and owned fresh PC. Earliest unsigned bag/slot match. No equipped-item consumption, no full transferred graph, no nonzero authority epoch.",
+    "transaction": "Migration 022 adds a full-row item fingerprint and append-only consumption receipts. One transaction validates process/account/claim/generation/epoch, catalog releases, ready contract-3 checkpoint, learned skill and source requirement. Lock exact owner/storage/slot/id/template/count and compare full-row hash; decrement/delete, core, timers and receipt commit together.",
+    "publication": "Plan privately under character freeze with scratch timers. Publish only after confirmed COMMIT, preserving original timer clock origin. Private UPDATEITEM/DELITEM then MOVEITEM precede cast success and charged HPMP. No client packet fields added.",
+    "checkpoint_order": "A checkpoint operation lease starts only without active gameplay; gameplay waits for an active checkpoint rather than dropping requests. Consumption holds gameplay operation through commit/publication. Separate consumption ledger leaves periodic revision unchanged.",
+    "uncertain_commit": "No automatic retry. Close client, retain reservation and mark snapshot persistence_uncertain so teardown cannot overwrite durable core/timers with an older plan. Replacement process uses the committed recovery receipt. Test double injects unknown outcome; actual PostgreSQL tests cover late-trigger rollback and committed recovery.",
+    "permissions": "Map may update TITEMTABLE.bCount and delete its items through fenced service operations; it cannot change item templates, learned ranks or delete consumption receipts. Historical charts remain read-only.",
+    "deployment": "Apply migrations through 022 and deploy/sql/map-runtime-grants.sql before these binaries. All previously applied migrations and both backups retain fingerprints. Next migration is 023."
+  },
+  "pinned_content": {
+    "item_only_reagent_templates": 83,
+    "wire_fixture": "Source skill1623 requires item31238, no resource cost or delay. Change existing synthetic neutral-character default-bag slot1 (starter8402) to a stack of two. Ordinary cast decrements; loop deletes last; subsequent casts reject. Other full item rows remain byte/value identical and reconnect/restart retains deletion.",
+    "backend_fixture": "Source skill36 requires item8412; synthetic-owned slot1 stack of two, explicit core/timer plan. Validate fences, full-row drift, rollback, immediate receipt, periodic revision, final save and owner replacement.",
+    "source_changes": "None; only synthetic-owned runtime rows are seeded."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-skill-reagents-debug.json",
+      "status": "passed",
+      "native_map_checks": 228,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 53,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 973
+    },
+    "asan": {
+      "report": "native-skill-reagents-asan.json",
+      "status": "passed",
+      "native_map_checks": 228,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 53,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 973
+    },
+    "ctest_debug": {
+      "report": "skill-reagents-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "skill-reagents-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_legacy_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "targeted": {
+      "report": "skill-reagents-targeted.xml",
+      "entries": 2,
+      "actual_passes": 2,
+      "internal_legacy_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "skill-reagents-before.json",
+      "image_id": "745e22cc4acafd7dd304a5fbc60bd1292c8869d690e13ae06412a45b386ad85d",
+      "expected_failure": "Unexpected close before complete Login reply",
+      "scope": "Previous installed skill-gates daemons; current mounted backend executable. Shared packet reader reports an unexpected close on the first reagent UPDATEITEM response (verify_map_skill_wire.py line150). Old runtime rejects the unsupported inventory transaction."
+    },
+    "release": {
+      "report": "native-skill-reagents-release.json",
+      "status": "passed",
+      "native_map_checks": 228,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 53,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 973,
+      "scope": "Installed Release Login/World/Map daemons; backend/pool integration executables mounted from the verified Debug build."
+    },
+    "container_smoke": {
+      "report": "skill-reagents-container-verification.json",
+      "image": "localhost/fourstory:postgresql-skill-reagents",
+      "image_id": "7f5ee1cf485cac4546259d0cedbf4bda353c033fce4ef37be5b3d975dbbb01ab",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    }
+  },
+  "limitations": [
+    "Original client executable has not been run; packet peers are source-derived encrypted test clients.",
+    "Full inventory movement, rewards, currency, ammo/durability, cash exceptions and equipment mutation remain unported.",
+    "Transferred/full-graph characters and equipped reagent selection fail before mutation; this increment supports fresh contract-3 primary characters only.",
+    "Authoritative effects, trade/store state, combat powers/damage, action/cancellation and full target/AOI rules remain unfinished. Private planning uses the existing freeze mechanism; full concurrent combat semantics are not established.",
+    "PostgreSQL/network unknown COMMIT acknowledgment is modeled in runtime tests; native tests separately prove transactional rollback and recovery of confirmed commits. No exactly-once client request identifier exists in the original protocol."
+  ]
+}

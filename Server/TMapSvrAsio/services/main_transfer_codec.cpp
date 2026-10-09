@@ -69,6 +69,12 @@ template<class A,class B> bool BuffFields(A& a,B& b) {
 template<class A,class R> bool RecordFields(A& a,R& r) {
     return a(r.name,r.klass,r.level,r.win,r.points,r.time);
 }
+template<class A,class R> bool ItemFields(A& a,R& r) {
+    return a(r.storage,r.storage_id,r.owner_type,r.owner_id,r.id,r.slot,r.item,
+        r.level,r.gem,r.appearance,r.companion,r.count,r.grade,r.durability_max,r.durability,r.refine,r.expires,
+        r.grade_effect,r.eld,r.wrap,r.color,r.guild,r.texture)&&
+        a.template List<std::uint8_t>(r.magic,[&](auto& m){return a(m.id,m.value);});
+}
 template<class A,class S> bool Layout(A& a,S& t) {
     auto& s=t.character;
     if(!a(t.db_load,s.dwCharID,t.key,t.result,s.szNAME,s.bStartAct,s.bRealSex,s.bClass,s.bLevel,s.bRace,
@@ -80,10 +86,7 @@ template<class A,class S> bool Layout(A& a,S& t) {
         t.aid_country,t.aid_date,t.pc_bang,t.pc_bang_time,t.pc_bang_items,t.lucky,t.post_total,t.post_read))return false;
     if(!a.List(t.bags,[&](auto& r){return a(r.bInvenID,r.wItemID,r.dEndTime,r.bELD);})||
        !a.List(t.cabinets,[&](auto& r){return a(r.id,r.use);})||
-       !a.List(t.items,[&](auto& r){return a(r.storage,r.storage_id,r.owner_type,r.owner_id,r.id,r.slot,r.item,
-           r.level,r.gem,r.appearance,r.companion,r.count,r.grade,r.durability_max,r.durability,r.refine,r.expires,
-           r.grade_effect,r.eld,r.wrap,r.color,r.guild,r.texture)&&
-           a.template List<std::uint8_t>(r.magic,[&](auto& m){return a(m.id,m.value);});})||
+       !a.List(t.items,[&](auto& r){return ItemFields(a,r);})||
        !a.List(t.skills,[&](auto& r){return a(r.bLevel,r.wSkillID,r.dwRemainTick);})||
        !a.List(t.buffs,[&](auto& r){return BuffFields(a,r);})||
        !a.List(t.quests,[&](auto& r){return a(r.id,r.remaining,r.completed,r.triggered,r.save);})||
@@ -134,5 +137,10 @@ std::optional<State> Decode(std::span<const std::byte> bytes) {
     Reader reader{bytes};State state;
     if(!Layout(reader,state)||reader.offset!=bytes.size()||!Valid(state))return {};
     return state;
+}
+std::vector<std::byte> EncodeItem(const Item& item) {
+    Writer writer;
+    if(!ItemFields(writer,item))throw std::invalid_argument("Invalid or oversized source item");
+    return std::move(writer.bytes);
 }
 }

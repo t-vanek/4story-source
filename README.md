@@ -138,7 +138,7 @@ sanitizer and installed Release run. The previous installed image fails the map
 restriction regression. That increment used `localhost/fourstory:postgresql-skill-gates`; all six services pass health/DNS/SIGTERM smoke. See
 [container evidence](_rewrite/docs/modernization/evidence/skill-gates-container-verification.json).
 
-The latest implementation adds **durable single-reagent consumption** for ordinary
+An earlier increment adds **durable single-reagent consumption** for ordinary
 and repeated casts on fresh primary characters. Migration **022** commits the item
 count or deletion, HP/MP, timers and a receipt in one PostgreSQL transaction before
 the original inventory and success packets. Checkpoint coordination prevents an
@@ -147,13 +147,36 @@ recovery. Depleted stacks reject further casts without another charge.
 
 Verification: **186 Debug passes** (200 entries, 14 fixture skips), **33 ASan/UBSan
 passes** and **973 native database/network checks per Debug, sanitizer and installed
-Release run**. Current local image: `localhost/fourstory:postgresql-skill-reagents`
-(also `:main`); six services pass health/DNS/SIGTERM checks. See the
+Release run**. That increment used `localhost/fourstory:postgresql-skill-reagents`;
+six services pass health/DNS/SIGTERM checks. See the
 [reagent contract](_rewrite/docs/modernization/evidence/skill-reagents-contract.json) and
 [container evidence](_rewrite/docs/modernization/evidence/skill-reagents-container-verification.json).
-Apply 022 and updated Map grants before deployment. Full transferred-graph,
-equipped-item, ammunition/cash branches and complete combat remain pending.
+Migration 022 and updated Map grants introduced that storage contract.
 The original client executable has not been run.
+
+The latest implementation extends **durable reagent consumption to transferred
+characters**. Migration **023** records hashes of the complete state before and
+after a cast.
+The current primary server validates the exact item and authority epoch, then
+commits the inventory change, character core, cooldowns and audit receipt together.
+The updated graph survives transfer back, relogin and process recovery, including
+last-item deletion. Full unsigned item IDs and original item fields are preserved.
+
+After transfer, the complete checkpoint is authoritative: this path leaves stale
+normalized item/skill rows untouched and never uses them to restore consumed items.
+Apply migrations through **023** before deploying these binaries; existing Map
+runtime grants suffice. See the
+[graph reagent contract](_rewrite/docs/modernization/evidence/graph-reagents-contract.json).
+Equipped reagents, ammunition/cash, inventory movement and full combat remain pending.
+Verification uses encrypted test peers derived from the original source; the
+original client executable has not been run.
+
+Verification passes **186 Debug tests** (200 entries, 14 fixture skips), all
+**33 ASan/UBSan suites** and **1,046 native database/network checks** in each Debug,
+sanitizer and installed Release run. All six container services pass health,
+DNS and SIGTERM checks. Current local image:
+`localhost/fourstory:postgresql-graph-reagents` (also `:main`). See
+[container evidence](_rewrite/docs/modernization/evidence/graph-reagents-container-verification.json).
 
 ## Database authority
 
@@ -164,7 +187,7 @@ need adaptation, change the derived PostgreSQL schema through a new migration.
 - `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
 - `content` and the compatibility views expose explicit, versioned projections.
 - `app_global` and `app_world` own mutable application and operational state.
-- Applied migrations **001–022 are immutable**; the next schema change starts at 023.
+- Applied migrations **001–023 are immutable**; the next schema change starts at 024.
 - Backups, credentials and private extraction output stay outside Git. Historical
   accounts, player records and missing combat values are never invented.
 

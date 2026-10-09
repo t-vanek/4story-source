@@ -29,6 +29,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "skill_checkpoint_fixture.h"
 #include "skill_timing_fixture.h"
 #include "skill_reagent_fixture.h"
+#include "graph_reagent_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -41,7 +42,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=720;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=722;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -195,6 +196,27 @@ int main(){
               "authorized low-level deletion cleans its completed checkpoint receipt");
         term.Terminate(709,relogin.session_key,login::TerminationReason::Disconnect,0);
         stage="replicas";VerifyReplicas(admin,mpool,map,mapconn,manifest,routing,actor,create(710,"ReplicaHero",10));
+        stage="graph reagents";
+        for(int user:{721,722}) {
+            auto original=create(user,user==721?"GraphReagent":"GraphRecovery",user);
+            VerifyGraphReagent(admin,mpool,map,mapconn,manifest,routing,actor,original,user==722);
+            const auto login=auth.Authenticate({"SyntheticMap"+std::to_string(user),credential,"192.0.2.50",0x2918});
+            Check(login.status==login::AuthStatus::Success,"graph reagent account can authenticate after save or recovery");
+            Check(routes.StartAuthorized({user,login.session_key,1,1,static_cast<int>(original.char_id)}).status==login::StartStatus::Success,
+                  "graph reagent character receives fresh Login handoff");
+            auto resumed=original;resumed.key=login.session_key;resumed.connection_id+=100;
+            Check(claim(resumed),"graph reagent relogin claims fresh epoch zero");
+            auto restored=*map.LoadAuthorized(resumed);const auto remaining=tmapsvr::FindSkillReagent(restored,8412);
+            Check(restored.payload->transfer_state&&(user==721?!remaining:(remaining&&remaining->bCount==2)),
+                  "relogin uses consumed graph inventory instead of stale normalized item rows");
+            map.MarkReady(resumed,restored);
+            if(remaining) {
+                auto after=restored;tmapsvr::ConsumeReagentProjection(after,*remaining);
+                const auto hash=map.ConsumeSkillItem(resumed,36,*remaining,after);PublishReagentHash(after,remaining->dlID,hash);restored=after;
+                Check(tmapsvr::FindSkillReagent(restored,8412)->bCount==1,"restored graph can consume at epoch zero without downgrading storage contract");
+            }
+            map.SaveAuthorized(resumed,restored);
+        }
         stage="primary transfer";VerifyMainTransfer(admin,mpool,map,mapconn,manifest,routing,actor,create(711,"TransferHero",11));
         stage="transfer recovery";auto transferred_crash=create(712,"TransferCrash",12);
         VerifyMainTransferRecovery(admin,mpool,map,mapconn,manifest,routing,actor,transferred_crash);

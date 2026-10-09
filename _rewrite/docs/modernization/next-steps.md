@@ -17,7 +17,7 @@ authoritative for historical values, original code/client for supported behavior
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–022 and the checkpoint, retirement and replica contract evidence. Actual
+   001–023 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -81,10 +81,10 @@ authoritative for historical values, original code/client for supported behavior
    see `skill-loop-contract.json`. Ordinary map/previous-active-effect and shared
    non-consuming weapon gates now preserve source rejection precedence, including
    timer arming before normal weapon rejection; see `skill-gates-contract.json`.
-   Fresh-primary single-reagent consumption now commits with core/timers via 022;
-   preserve `skill-reagents-contract.json`. Port graph-backed consumption, equipment,
-   ammunition/cash branches, full effects and cancellation; recompute timing/item eligibility when equipment or
-   learned skills mutate.
+   Fresh and transferred-primary reagent consumption commits with core/timers via
+   022–023; preserve `skill-reagents-contract.json` and `graph-reagents-contract.json`.
+   Port equipment, ammunition/cash branches, full effects and cancellation;
+   recompute timing/item eligibility when equipment or learned skills mutate.
    CHARINFO and initial readiness now sample live skill durations without
    restarting timers; preserve `admission-timers-contract.json`. Implement active
    effect/quest/recall/companion timer semantics and simulation
@@ -195,7 +195,7 @@ The helper creates labelled disposable containers; reuse no unrelated databases.
 Build in the Ubuntu image with `/src` bound to the checkout because the current
 `build/linux-debug` CMake cache contains container paths.
 
-Do not overwrite migrations `001`–`022` after application. Add migrations `023` onward.
+Do not overwrite migrations `001`–`023` after application. Add migrations `024` onward.
 Do not revert unrelated pre-existing client/binary/library working-tree changes.
 
 
@@ -405,19 +405,33 @@ Normal premium-medal/toggle/tournament/peace-zone rules, combat powers/damage,
 full target/AOI behavior and original-client execution remain unfinished.
 
 
-Latest verified reagent increment (2026-10-09): migration 022 implements fresh
+Earlier verified reagent increment (2026-10-09): migration 022 implements fresh
 ready-primary single-reagent transactions for ordinary and loop casts. Exact item
 row hashes and claim/catalog fences protect count/deletion. Core, timers and receipt
 commit before inventory/success ACKs. Checkpoint leases prevent stale overwrites;
 unknown outcomes retain reservations and block stale logout writes. Preserve
 `skill-reagents-contract.json`, 973 native checks in each Debug/sanitizer/installed
 run, 186 Debug passes (14 fixture skips), all 33 sanitizer suites and six-service
-container smoke. Current local image `localhost/fourstory:postgresql-skill-reagents`
-(also `:main`); see container/build/cleanup evidence for exact identities.
+container smoke. That increment used `localhost/fourstory:postgresql-skill-reagents`;
+see container/build/cleanup evidence for exact identities.
 
-Preserve backups and migrations 001–022; next schema change is 023. Next extend
-consumption to the complete transferred graph with exact updated graph receipts,
-then port ammunition/cash/durability and equipment invalidation. Preserve original
-inventory packet ordering and ordinary-versus-loop rejection side effects. Finish
-authoritative effects, cast lifecycle, combat/target/AOI rules and original-client
-acceptance; a successful resource/item transaction does not establish those paths.
+The graph extension in migration 023 now consumes reagents after primary transfer
+and graph-backed relogin. Preserve exact item/full-graph receipt validation, unsigned
+IDs and unrelated sections. This storage path keeps normalized item/skill rows
+stale by design; future inventory/skill work must keep the complete graph authoritative
+or introduce a separately verified normalization migration. Never fall back to the
+old rows when a graph is present. See `graph-reagents-contract.json`.
+
+Latest verification: 1,046 native checks in each Debug, ASan/UBSan and installed
+Release run, 186 actual Debug passes (14 fixture skips), all 33 sanitizer suites
+and six-service container smoke. Current local image
+`localhost/fourstory:postgresql-graph-reagents` (also `:main`), ID
+`7a25026d3c20798049579845d0ea653b313b2f45aa772222da49f54a5758adad`.
+See graph-reagents container/build/cleanup evidence for identities and scope.
+
+Preserve backups and migrations 001–023; next schema change is 024. Continue with
+ammunition/cash/durability, equipped-item consumption and derived-stat invalidation.
+Preserve original private inventory packet ordering and ordinary-versus-loop
+rejection side effects. Finish authoritative effects, cast lifecycle, combat/target/
+AOI rules and original-client acceptance. A successful resource/item transaction
+does not establish those paths.

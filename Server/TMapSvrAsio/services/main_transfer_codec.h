@@ -8,4 +8,7 @@ namespace tmapsvr::transfer {
 // exceeds the original 16-bit SS frame. Neither function changes wire fields.
 std::vector<std::byte> Encode(const State&);
 std::optional<State> Decode(std::span<const std::byte>);
+// Exact original server item layout, including raw magic and DWORD extensions.
+// Used to fingerprint graph-owned inventory without consulting stale item rows.
+std::vector<std::byte> EncodeItem(const Item&);
 }

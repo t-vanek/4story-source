@@ -106,14 +106,20 @@ or a full-client compatibility certificate.
 > Architecture deep-dive: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 > Porting recipe (one legacy handler at a time): [`CONSOLIDATION.md`](CONSOLIDATION.md)
 
-Migration 022 now implements a first inventory mutation: ordinary/loop casts can
-consume one bag reagent on a fresh primary PC. A fenced PostgreSQL transaction
-commits count/deletion, core, timers and a receipt before item and success ACKs.
+Migrations 022–023 implement ordinary/loop casts that consume one bag reagent on
+fresh or transferred primary PCs. Contract 3 locks the normalized item row;
+contract 2 verifies the exact encoded item and complete checkpoint graph under the
+current authority epoch. Both commit count/deletion, core, timers and an audit
+receipt before the original private item and success ACKs. Graph consumption
+preserves unrelated state and leaves stale normalized item/skill rows untouched.
+Transfer back, relogin and process recovery retain the committed change.
+
 Checkpoint leases prevent stale periodic overwrites; uncertain outcomes retain
-reservations and refuse stale logout writes. Full transferred graphs, equipped
-reagents, ammunition, cash exceptions and complete combat remain pending. Apply
-022 plus updated Map grants before deployment. See the
-[reagent contract](../../_rewrite/docs/modernization/evidence/skill-reagents-contract.json).
+reservations and refuse stale logout writes. Equipped reagents, ammunition, cash
+exceptions and complete combat remain pending. Apply migrations through 023 and
+existing Map runtime grants before deployment. See the
+[fresh reagent contract](../../_rewrite/docs/modernization/evidence/skill-reagents-contract.json)
+and [graph extension](../../_rewrite/docs/modernization/evidence/graph-reagents-contract.json).
 
 ## Historical subsystem overview (see current acceptance scope above)
 

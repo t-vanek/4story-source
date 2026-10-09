@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **022** are also immutable. Current
-native Map startup requires 022 and the updated
+All subsequently applied migrations through **023** are also immutable. Current
+native Map deployment requires migrations through 023 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,7 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 023+.
+for tests and remaining gameplay requirements. Add schema changes as 024+.
 
 Migration 021 adds fresh-primary skill checkpoints (contract 3). Initial readiness,
 periodic checkpoints and final logout atomically store remaining skill durations
@@ -56,9 +56,23 @@ core HP/MP, learned timers and a consumption receipt commit before client succes
 The runtime coordinates these writes with periodic checkpoints; an uncertain
 transaction closes the client and blocks stale final saves until process recovery.
 Map grants add only item-count updates, item deletion, fingerprint execution and
-receipt insertion. Transferred graphs, equipped reagents, ammunition and cash
-exceptions remain outside this scope. See the
+receipt insertion. Transferred graphs are added by 023 below; equipped reagents,
+ammunition and cash exceptions remain outside this scope. See the
 [reagent contract](../_rewrite/docs/modernization/evidence/skill-reagents-contract.json).
+
+Migration 023 extends the same ledger with `state_contract` and before/after full
+graph hashes. Contract-2 consumption validates the current ready primary, authority
+epoch, catalog receipt and exact original encoded item. It commits the updated
+complete graph, core, cooldowns and audit receipt together. Current core and sampled
+cooldowns may advance; learned IDs/ranks and unrelated graph sections must match.
+Original uint64 item identities use their signed bigint bit pattern in the ledger.
+
+The complete checkpoint remains authoritative after transfer and on graph-backed
+relogin. This branch does not read or rewrite stale `TITEMTABLE`/`TSKILLTABLE` rows;
+last-item deletion cannot be undone by reloading those rows. Migration 023 retains
+existing receipts as contract 3 and needs no additional Map grants. Apply it before
+deploying the new binaries, including for fresh-primary consumption. See the
+[graph reagent contract](../_rewrite/docs/modernization/evidence/graph-reagents-contract.json).
 
 `game_compat."TMONATTRCHART"` maps the current monster-ID lookup to the original
 `TMONSTERCHART.wMonAttr` attribute family at the template's `bLevel`. It exposes

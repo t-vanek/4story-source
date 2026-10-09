@@ -10,6 +10,7 @@
 #include "services/skill_cooldown.h"
 #include "services/skill_chart.h"
 #include "services/skill_reagent.h"
+#include "services/main_transfer_runtime.h"
 #include "services/client_senders.h"
 #include "services/session_validator.h"
 #include "services/player_service.h"
@@ -265,9 +266,17 @@ void ReagentSelection() {
     p->bags.clear();item.bInvenID=254;p->bags.push_back({{254,0,0,0},{item}});
     failed=false;try{FindSkillReagent(s,8412);}catch(...){failed=true;}
     Check(failed,"equipped reagent refuses unsupported equipment mutation");
-    p->bags.clear();p->transfer_state=std::make_shared<transfer::State>();
-    failed=false;try{FindSkillReagent(s,8412);}catch(...){failed=true;}
-    Check(failed,"transferred graph refuses unsupported inventory rewrite even with no matching item");
+    p->bags.clear();s.dwCharID=42;item.bInvenID=255;item.bCount=2;
+    auto raw=std::make_shared<transfer::Item>();raw->id=item.dlID;raw->count=2;raw->item=8412;raw->storage_id=255;raw->owner_id=42;
+    raw->texture=0xfedcba98;item.wCustomTex=0xba98;item.source=raw;
+    p->bags.push_back({{255,3,0,0},{item}});
+    auto graph=std::make_shared<transfer::State>();graph->quests.push_back({12,12345,1,1,1});p->transfer_state=graph;
+    const auto selected=*FindSkillReagent(s,8412);after=s;ConsumeReagentProjection(after,selected);
+    SkillCooldownTracker timers;after=transfer::PersistenceSnapshot(after,99,timers,0);
+    Check(raw->count==2&&after.payload->bags[0].items[0].source->count==1&&
+          after.payload->transfer_state->items[0].count==1&&after.payload->transfer_state->items[0].texture==0xfedcba98&&
+          after.payload->transfer_state->quests[0].remaining==12345,
+          "graph reagent plan retains raw extensions and unrelated state without mutating its source");
 }
 void TransferReservations() {
     asio::io_context io;tcp::socket socket(io);socket.open(tcp::v4());

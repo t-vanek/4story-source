@@ -541,8 +541,8 @@ insufficient without a maintained effect.
 
 Original normal `SkillUse` precedes `UseSkillItem`: supported unsuitable weapon
 rejection therefore retains own and same-kind timers without resource deduction.
-Loop weapon rejection leaves timers unchanged. Unsupported graph-backed reagents,
-ammunition/cash exceptions and buff-backed prerequisites close before any timer/resource
+Loop weapon rejection leaves timers unchanged. At that increment graph-backed reagents,
+ammunition/cash exceptions and buff-backed prerequisites closed before any timer/resource
 mutation; their unfinished side effects are not acknowledged as success.
 The 62-byte ordinary reject and 45-byte loop reject formats remain unchanged.
 See [source contract and verification](evidence/skill-gates-contract.json).
@@ -564,6 +564,26 @@ Unknown transaction outcomes close the session and retain the reservation for
 recovery; stale final saves are refused. Checkpoints and immediate writes share
 an operation fence. See [source contract](evidence/skill-reagents-contract.json).
 
-Full transferred graphs, equipped reagents, ammunition/cash branches and active
-trade/store/effect lifecycles remain outside this increment. This is source-derived
+Full transferred graphs were outside the initial migration-022 scope; migration
+023 below extends it. Equipped reagents, ammunition/cash branches and active
+trade/store/effect lifecycles remain pending. This is source-derived
 wire verification; original-client execution and complete combat are pending.
+
+
+## Reagents after primary transfer
+
+Migration 023 extends the same original inventory packet sequence to contract-2
+characters on the current primary epoch, including relogin at epoch zero. The
+server hashes the original encoded item record, validates the full persisted
+graph, and permits exactly one count decrement/deletion plus current character
+core and sampled learned cooldowns. Learned IDs/ranks and other graph collections
+must remain unchanged. Raw item magic, DWORD extensions and unsigned 64-bit IDs
+retain their original representation; no packet fields were added.
+
+The exact before/after graph hashes and item receipt commit with the new graph,
+core and timers. Stale normalized item/skill rows are neither consumed nor reloaded
+by this branch. Encrypted two-Map tests verify ordinary consumption on the promoted
+primary, loop consumption after returning, count/deletion across relogin, exhausted
+rejection and private ACK isolation from the former primary. A delayed database
+trigger proves that no item/success response is emitted before commit.
+See [source contract and acceptance boundaries](evidence/graph-reagents-contract.json).

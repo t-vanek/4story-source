@@ -6,7 +6,7 @@
 #include <string>
 
 namespace tmapsvr {
-namespace transfer {struct State;}
+namespace transfer {struct State;struct Item;}
 struct PostgreSQLMapConfig {
     std::uint8_t world{},server{};
     std::string owner_token,character_manifest,routing_manifest,actor_manifest;
@@ -36,6 +36,9 @@ public:
     bool OutgoingTransferCommitted(const MapSessionClaim&) override;
     std::string ConsumeSkillItem(const MapSessionClaim&,std::uint16_t,const ItemInstance&,const CharSnapshot&) override;
 private:
+    struct ReagentGraphPlan {std::string before_hash,after_hash,item_hash;};
+    static std::string GraphItemFingerprint(const transfer::Item&);
+    ReagentGraphPlan ValidateGraphReagent(soci::session&,const MapSessionClaim&,const ItemInstance&,const CharSnapshot&) const;
     friend int RecoverPreparedMapTransfers(soci::session&,int,int,const std::string&);
     static void StoreSkillCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static bool SkillCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);

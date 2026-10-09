@@ -371,6 +371,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
         auto bag=std::find_if(p.bags.begin(),p.bags.end(),[&](const auto& b){return b.bag.bInvenID==raw.storage_id;});
         if(bag==p.bags.end())throw std::runtime_error("Transferred item has no bag");
         bag->items.push_back(ProjectItem(sql,raw));
+        bag->items.back().durable_hash=GraphItemFingerprint(raw);
     }
     std::set<std::uint16_t> skills;
     for(const auto& skill:p.skills)if(!skills.insert(skill.wSkillID).second)throw std::runtime_error("Duplicate transferred skill");

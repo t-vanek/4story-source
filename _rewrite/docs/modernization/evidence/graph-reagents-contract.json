@@ -1,0 +1,139 @@
+{
+  "date": "2026-10-09",
+  "scope": "Extend existing owned-PC single-reagent ordinary/loop consumption to authoritative contract-2 graphs after primary transfer, transfer back and graph-backed relogin.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2798-2877, 4713-4749",
+      "contract": "UseSkillItem calls DeleteSkillItem for wItemID. With no weapon mask, scan ordered bag and slot maps, consume one first matching item, then send MOVEITEM success."
+    },
+    {
+      "path": "Server/TMapSvr/TMapSvr.cpp",
+      "lines": "9520-9569",
+      "contract": "UseItem decrements count; sends UPDATEITEM for a remaining stack, DELITEM for its last element."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1420-1465",
+      "contract": "MOVEITEM one result BYTE; UPDATEITEM bag BYTE then original item descriptor; DELITEM bag BYTE and slot BYTE."
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2727-2863, 3230-3368",
+      "contract": "Ordinary SkillUse arms own/shared timers before item failure; loop checks item before arming. Rejected missing reagent returns UNSUITWEAPON=9 without HP/MP costs."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "lines": "45-46",
+      "contract": "Equipment inventory 254 and default inventory 255, both unsigned BYTE."
+    },
+    {
+      "path": "Server/TMapSvr/SSSender.cpp",
+      "lines": "1999-2638",
+      "contract": "RELEASEMAIN carries complete character state, original full item records and remaining skill durations."
+    },
+    {
+      "path": "Server/TMapSvr/TItem.cpp",
+      "lines": "468 onward",
+      "contract": "Original server item record preserves unsigned item identity, raw magic and extension DWORDs."
+    },
+    {
+      "path": "Server/TMapSvr/SSHandler.cpp",
+      "lines": "4424 onward",
+      "contract": "Non-login primary promotion receives transferred state instead of reloading stale character children."
+    }
+  ],
+  "implementation": {
+    "eligibility": "Pinned wItemID != 0, dwWeaponID == 0 and a learned skill; primary role at exact active authority epoch, including graph-backed epoch zero after relogin. Select earliest unsigned bag/slot. Equipped inventory 254 remains unsupported.",
+    "authority": "Contract-2 checkpoint contains the authoritative full graph. This branch neither reloads nor rewrites stale normalized TITEMTABLE/TSKILLTABLE rows. Fresh contract-3 row transactions remain supported.",
+    "validation": "Lock process/account/current claim and ready recovery receipt. Verify catalog manifests, full graph SHA256, core receipt and canonical original item SHA256, owner/storage/slot/id/template/count. Permit one exact decrement/deletion, current character core and sampled remaining skill durations; learned IDs/ranks and all unrelated graph sections must match byte-for-byte.",
+    "transaction": "Migration 023 adds state_contract and before/after graph hashes to the existing audit ledger. Updated complete graph, core, timers and consumption receipt commit atomically at the current periodic revision. Full uint64 item IDs retain their signed bigint bit pattern in ledger storage.",
+    "publication": "Plan privately under character freeze with scratch timers. Publish only after confirmed COMMIT, preserving original timer clock origin. Private UPDATEITEM/DELITEM then MOVEITEM precede cast success and charged HPMP. No client packet fields added.",
+    "checkpoint_order": "A checkpoint operation lease starts only without active gameplay; gameplay waits for an active checkpoint rather than dropping requests. Consumption holds gameplay operation through commit/publication. Separate consumption ledger leaves periodic revision unchanged.",
+    "uncertain_commit": "No automatic retry. Close client, retain reservation and mark snapshot persistence_uncertain so teardown cannot overwrite durable core/timers with an older plan. Replacement process uses the committed recovery receipt. Test double injects unknown outcome; actual PostgreSQL tests cover late-trigger rollback and committed recovery.",
+    "deployment": "Apply all migrations through 023 before the new binaries, including for fresh-primary casts. Existing migration 022 Map grants suffice. Both backups and migrations 001-022 retain hashes; 023 is now immutable and next schema change is 024."
+  },
+  "fixtures": {
+    "backend": "Source skill 36/item 8412, synthetic transferred stack 3 with uint64 ID 0xfedcba9876543210, texture 0xfedcba98, eld 0x12345600, raw magic, unrelated quest/buff and same-template cabinet item. Explicit core/timer plans; synthetic Map cell partition. Stale epochs/process/hashes, graph/rank drift and downgrade rejected; late receipt failure rolls back. Confirmed commit recovers before periodic save; round trip and epoch-zero relogin retain deletion/count despite stale child rows.",
+    "wire": "Source skill 1623/item 31238, separately allocated synthetic bag 255/slot 2 stack 3. Actual encrypted Login/World/two-Map primary round trip: ordinary 3->2, loop 2->1, relogin ordinary 1->deleted, exhausted loop rejects, next relogin omits deleted item. Delayed ledger trigger checks no early response; former primary gets no private inventory ACK. Normalized row stays 3 until fixture cleanup.",
+    "source_changes": "None. Only synthetic-owned runtime rows and an explicitly restored synthetic routing view are changed."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-graph-reagents-debug.json",
+      "status": "passed",
+      "native_map_checks": 276,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 53,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 124,
+      "second_map_rejection_checks": 7,
+      "total_checks": 1046
+    },
+    "asan": {
+      "report": "native-graph-reagents-asan.json",
+      "status": "passed",
+      "native_map_checks": 276,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 53,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 124,
+      "second_map_rejection_checks": 7,
+      "total_checks": 1046
+    },
+    "release": {
+      "report": "native-graph-reagents-release.json",
+      "status": "passed",
+      "native_map_checks": 276,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 196,
+      "skill_cast_checks": 53,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 124,
+      "second_map_rejection_checks": 7,
+      "total_checks": 1046,
+      "scope": "Installed Release Login/World/Map daemons; backend/pool integration executables mounted from the verified Debug build."
+    },
+    "ctest_debug": {
+      "report": "graph-reagents-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "graph-reagents-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_legacy_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "graph-reagents-before.json",
+      "image_id": "7f5ee1cf485cac4546259d0cedbf4bda353c033fce4ef37be5b3d975dbbb01ab",
+      "expected_failure": "Map replica wire: graph cast emits no item or success response before delayed transaction completes",
+      "scope": "Previous installed skill-reagents daemons; current mounted backend executable. The encrypted graph cast on the promoted primary fails the assertion requiring silence during the delayed transaction (verify_graph_reagent_wire.py line35)."
+    },
+    "container_smoke": {
+      "report": "graph-reagents-container-verification.json",
+      "image": "localhost/fourstory:postgresql-graph-reagents",
+      "image_id": "7a25026d3c20798049579845d0ea653b313b2f45aa772222da49f54a5758adad",
+      "uid_gid": "10001:10001",
+      "daemons": 6,
+      "status": "passed"
+    }
+  },
+  "limitations": [
+    "Original client executable has not been run; packet peers are source-derived encrypted clients.",
+    "Full inventory movement/normalization, rewards, currency, ammo/durability, cash exceptions and equipment mutation remain unported.",
+    "Active buff timing/effects, trade/store, combat powers/damage, cancellation and full target/AOI rules remain unfinished. Service-level buff preservation does not establish live buff simulation or speed-dependent casting.",
+    "PostgreSQL/network unknown COMMIT acknowledgment is modeled in runtime tests; native tests separately prove transactional rollback and recovery of confirmed commits. No exactly-once client request identifier exists in the original protocol."
+  ]
+}

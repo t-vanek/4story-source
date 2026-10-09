@@ -143,6 +143,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_service.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_load.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_checkpoint.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_reagent.cpp
     services/postgresql_map_transfer.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_route.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_replica.cpp

@@ -1,5 +1,6 @@
 #pragma once
 #include "domain/character.h"
+#include "domain/main_transfer.h"
 #include <algorithm>
 #include <optional>
 #include <stdexcept>
@@ -7,10 +8,10 @@
 
 namespace tmapsvr {
 // DeleteSkillItem scans ordered inventory/slot maps and consumes exactly one.
-// Selection is independent of the DTO vector order. Equipped items and full
-// transfer graphs require their separately ported inventory mutation contract.
+// Selection is independent of the DTO vector order. Equipped items require
+// their separately ported inventory mutation and derived-stat contract.
 inline std::optional<ItemInstance> FindSkillReagent(const CharSnapshot& s,std::uint16_t item) {
-    if(!item||!s.payload||s.payload->transfer_state)throw std::runtime_error("Unsupported reagent character graph");
+    if(!item||!s.payload)throw std::runtime_error("Unsupported reagent character graph");
     std::optional<ItemInstance> out;
     for(const auto& bag:s.payload->bags)for(const auto& row:bag.items)if(row.wItemID==item) {
         if(row.bInvenID!=bag.bag.bInvenID)throw std::runtime_error("Reagent inventory placement disagrees");
@@ -27,6 +28,10 @@ inline void ConsumeReagentProjection(CharSnapshot& s,const ItemInstance& before)
         if(found||it->bCount!=before.bCount)throw std::runtime_error("Reagent projection changed");
         found=true;
         if(--it->bCount==0)bag.items.erase(it);
+        else {
+            auto raw=std::make_shared<transfer::Item>(*it->source);
+            raw->count=it->bCount;it->source=std::move(raw);
+        }
         break;
     }
     if(!found)throw std::runtime_error("Missing reagent projection");

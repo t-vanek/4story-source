@@ -18,7 +18,53 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: durable skill reagents
+## Current verified increment: reagents in complete transferred state
+
+Migration 023 extends durable single-reagent consumption to the current primary
+after transfer, transfer back and graph-backed relogin. Contract-2 transactions
+verify the complete persisted checkpoint and canonical original item bytes. They
+allow exactly one bag-item decrement/deletion alongside current core and sampled
+cooldowns; learned IDs/ranks and all other graph sections must match. Raw magic,
+DWORD extensions, unsigned 64-bit item IDs and same-template cabinet items survive.
+
+The complete graph is authoritative even when normalized `TITEMTABLE` and
+`TSKILLTABLE` rows are stale. This path neither rewrites nor reloads those rows.
+The new graph, core, timers and before/after audit hashes commit together before
+original private UPDATEITEM/DELITEM, MOVEITEM and success responses. Existing
+checkpoint coordination and uncertain-outcome recovery protections remain in force.
+
+The encrypted two-Map fixture consumes on the promoted primary, returns and
+consumes with LOOPSKILL, then verifies count/deletion and exhausted rejection
+across relogin. It checks that the former primary receives no private item ACK.
+A delayed ledger trigger verifies publication after commit. Native tests cover
+stale epochs/process owners/hashes, unrelated graph drift, rollback, full uint64
+identity and recovery of a confirmed transaction before the next checkpoint.
+
+[Debug](evidence/native-graph-reagents-debug.json),
+[ASan/UBSan](evidence/native-graph-reagents-asan.json) and
+[installed Release](evidence/native-graph-reagents-release.json) each pass **1,046
+checks**: 276 native Map, 29 pool/TLS, 196 outer TCP, 53 skill, 295 World handoff,
+66 World secondary, 124 two-Map and seven rejection checks. The installed run uses
+Release daemons with the verified Debug backend/pool integration executables.
+CTest has 186 actual Debug passes (200 entries, eight internal and six explicit
+fixture skips) and all 33 sanitizer suites pass. The previous installed image
+fails the new delayed-transaction graph cast assertion.
+
+Current local image: `localhost/fourstory:postgresql-graph-reagents` (also `:main`),
+ID `7a25026d3c20798049579845d0ea653b313b2f45aa772222da49f54a5758adad`,
+UID/GID 10001:10001. All six daemons pass health/DNS/SIGTERM smoke; see
+[container evidence](evidence/graph-reagents-container-verification.json),
+[build fingerprints](evidence/graph-reagents-build-fingerprints.json) and
+[owned-lab cleanup](evidence/graph-reagents-cleanup.json).
+
+See the [source contract and boundaries](evidence/graph-reagents-contract.json).
+Apply migrations through **023** before deployment; existing Map grants suffice.
+Both backups and migrations 001–022 retain their hashes; 023 is now immutable.
+The next schema migration is **024**. Equipped-item consumption, ammunition/cash,
+full inventory movement, effects and full combat remain unfinished. Original-client
+execution remains pending; wire tests use source-derived encrypted peers.
+
+## Earlier verified increment: durable skill reagents
 
 Fresh owned-PC ordinary and repeated casts now consume exactly one required bag
 item when the pinned skill has a reagent and no weapon mask. Selection follows
@@ -46,7 +92,7 @@ unchanged other item rows, logout/relogin and restart. Native tests cover full-r
 drift, late-trigger rollback and committed process recovery. Runtime tests cover
 checkpoint waiting, disconnect during commit and a modeled unknown outcome.
 
-Current local image: `localhost/fourstory:postgresql-skill-reagents` (also `:main`),
+That increment used `localhost/fourstory:postgresql-skill-reagents`,
 UID/GID 10001:10001. See [container evidence](evidence/skill-reagents-container-verification.json),
 [build fingerprints](evidence/skill-reagents-build-fingerprints.json) and
 [owned-lab cleanup](evidence/skill-reagents-cleanup.json). Migration **022** and updated
@@ -54,8 +100,9 @@ Map grants are required. Backups and migrations 001–021 retain hashes; 022 is 
 also immutable, and the next migration is 023.
 
 See the [source contract and boundaries](evidence/skill-reagents-contract.json).
-Full transferred graphs, equipped reagents, ammunition/cash and trade/store branches,
-active effects, full combat and original-client execution remain unfinished.
+The graph extension above supersedes the original fresh-only boundary. Equipped
+reagents, ammunition/cash and trade/store branches, active effects, full combat
+and original-client execution remain unfinished.
 
 ## Earlier verified increment: native ordinary cast requirements
 

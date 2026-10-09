@@ -9,11 +9,13 @@ import socket
 import struct
 import time
 from verify_login_wire import frame, read_packet
+from verify_graph_reagent_wire import seed_graph_reagent, graph_reagent_cast
 
 
 def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start, connect_request, parse_character):
     checks = []
     sockets = []
+    reagent_id=None;expected_reagent=None;reagent_descriptor=None
     def check(ok, label):
         if not ok:
             raise RuntimeError('Map replica wire: ' + label)
@@ -33,6 +35,7 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
     old_port = conn.execute('SELECT "wPort" FROM app_global."TSERVER" WHERE "bGroupID"=1 AND "bServerID"=2 AND "bType"=4').fetchone()[0]
     items = conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"', (cid,)).fetchall()
     def enter():
+        nonlocal reagent_descriptor
         _, key = start(login_port, cid)
         primary = socket.create_connection(('127.0.0.1', primary_port), timeout=8);sockets.append(primary)
         primary.sendall(frame(connect_request(706, cid, key), 0x5281, 1))
@@ -41,6 +44,11 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         op, body = read_packet(primary, 2)
         check(op == 0x5285, 'source primary CHARINFO precedes ADDCONNECT and CONNECT')
         character = parse_character(body)
+        if expected_reagent is not None:
+            rows=[item for bag,item,options in character['items'] if bag==255 and item[0]==2]
+            check((len(rows)==1 and rows[0][6]==expected_reagent) if expected_reagent else not rows,
+                  'graph relogin restores exact consumed count or deletion despite stale item rows')
+            if rows:reagent_descriptor=rows[0]
         op, body = read_packet(primary, 3)
         check(op == 0x5284 and body == b'\1\x7f\0\0\1'+struct.pack('<HB', replica_port, 2), 'exact ADDCONNECT carries the authorized second Map endpoint')
         grant = conn.execute('SELECT phase,connection_id FROM app_world.map_replicas WHERE char_id=%s AND target_server=2', (cid,)).fetchone()
@@ -83,7 +91,8 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         check(conn.execute('SELECT count(*) FROM app_world.map_replicas WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'secondary-triggered close leaves no stranded replica')
         # A third lifecycle crosses the synthetic unit boundary in both
         # directions using only original encrypted client MOVE/CONREADY packets.
-        conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=300000 WHERE "dwCharID"=%s', (cid,))
+        reagent_id=seed_graph_reagent(conn,cid);expected_reagent=3
+        conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=CASE WHEN "wSkillID"=1623 THEN 0 ELSE 300000 END WHERE "dwCharID"=%s', (cid,))
         primary, replica, key = enter()
         primary.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4100, 80, 3584, 0, 91, 0, 0, 0, 0, 1.0), 0x5289, 3))
         try:
@@ -98,14 +107,19 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (2,1,'ready'), 'promoted native target enters gameplay after client confirmation')
         no_packet(replica, 'promotion does not reload client CHARINFO or invent protocol fields')
         no_packet(primary, 'retained source accepts repeated CONREADY as a replica')
-        replica.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4080, 80, 3584, 0, 92, 0, 0, 0, 0, 1.0), 0x5289, 4))
+        graph_reagent_cast(conn,replica,cid,reagent_id,reagent_descriptor,4,2,3,False,check,delay=True)
+        expected_reagent=2
+        no_packet(primary,'former primary receives no private inventory response from its successor')
+        replica.sendall(frame(struct.pack('<HfffHHBBBBf', 0, 4080, 80, 3584, 0, 92, 0, 0, 0, 0, 1.0), 0x5289, 5))
         op, body = read_packet(primary, 5)
         check(op == 0x5282 and body == b'\0\2\1\2', 'return crossing promotes the same original socket with source CONNECT')
         until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (1,2,'loaded'), 'round trip increments authority despite reusing original process and connection')
-        primary.sendall(frame(b'', 0x5288, 5));replica.sendall(frame(b'', 0x5288, 5))
+        primary.sendall(frame(b'', 0x5288, 5));replica.sendall(frame(b'', 0x5288, 6))
         until(lambda: conn.execute('SELECT server_id,authority_epoch,phase FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone() == (1,2,'ready'), 'returned primary becomes ready without replacing either client connection')
         no_packet(primary, 'return handoff keeps existing client character state')
         no_packet(replica, 'returned secondary remains connected without duplicate admission')
+        graph_reagent_cast(conn,primary,cid,reagent_id,reagent_descriptor,6,6,2,True,check)
+        expected_reagent=1
         primary.close()
         until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'transferred primary performs final native save and releases account')
         check(replica.recv(1) == b'', 'final close after round trip retires the retained replica')
@@ -120,6 +134,13 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         request = struct.pack('<IBBHHBIIfffB',cid,1,1,0,skill & 65535,0,0,0,4080,80,3584,0)
         primary.sendall(frame(request,0x52b4,3));op,body = read_packet(primary,5)
         check(op == 0x52b5 and body[0] == 6, 'relogin restores transferred runtime cooldown despite stale durable skill rows')
+        graph_reagent_cast(conn,primary,cid,reagent_id,reagent_descriptor,4,6,1,False,check)
+        expected_reagent=0
+        missing=struct.pack('<IBBHHfffB',cid,1,1,0,1623,0,0,0,0)
+        primary.sendall(frame(missing,0x5372,5));op,body=read_packet(primary,9)
+        check(op==0x5373 and body[0]==9,'exhausted graph reagent rejects a repeated loop without reloading stale row')
+        check(conn.execute('SELECT count(*) FROM app_world.skill_item_consumptions WHERE char_id=%s AND item_id=%s',(cid,reagent_id)).fetchone()==(3,),
+              'depleted graph retries cannot append a fourth consumption')
         primary.close()
         until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'restored graph can complete a fresh Login lifecycle')
         check(replica.recv(1) == b'', 'restored lifecycle closes its secondary through actual World')
@@ -142,9 +163,12 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         # outer harness restores its synthetic position/core test fixture.
         conn.execute('UPDATE app_world.map_checkpoints SET recovery_contract=1,transfer_body=NULL,transfer_hash=NULL,character_manifest=NULL,routing_manifest=NULL,actor_manifest=NULL WHERE char_id=%s', (cid,))
 
+        conn.execute('DELETE FROM app_world."TITEMTABLE" WHERE "dwOwnerID"=%s AND "dlID"=%s',(cid,reagent_id))
         check(items == conn.execute('SELECT row_to_json(i)::text FROM app_world."TITEMTABLE" i WHERE "dwOwnerID"=%s ORDER BY "dlID"', (cid,)).fetchall(), 'two-Map lifecycle preserves all original item fields')
     finally:
         for s in sockets:s.close()
+        if reagent_id is not None:
+            conn.execute('DELETE FROM app_world."TITEMTABLE" WHERE "dwOwnerID"=%s AND "dlID"=%s',(cid,reagent_id))
         conn.execute('UPDATE app_global."TSERVER" SET "wPort"=%s WHERE "bGroupID"=1 AND "bServerID"=2 AND "bType"=4', (old_port,))
         conn.execute('CREATE OR REPLACE VIEW route_compat."TSVRCHART" AS '+definition)
         conn.execute('UPDATE app_world."TCHARTABLE" SET "wMapID"=%s,"fPosX"=%s,"fPosY"=%s,"fPosZ"=%s WHERE "dwCharID"=%s', (*before, cid))

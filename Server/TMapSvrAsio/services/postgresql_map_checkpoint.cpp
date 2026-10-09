@@ -185,9 +185,10 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
 }
 std::string PostgreSQLMapService::ConsumeSkillItem(const MapSessionClaim& c,std::uint16_t skill,
     const ItemInstance& before,const CharSnapshot& after) {
-    if(c.role!=MapSessionRole::Primary||c.authority_epoch||!after.payload||after.payload->transfer_state||
+    const bool graph=after.payload&&after.payload->transfer_state;
+    if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!after.payload||
        !before.bCount||before.bInvenID==254||before.durable_hash.size()!=64||!before.dlID||
-       before.dlID>static_cast<std::uint64_t>(std::numeric_limits<long long>::max()))
+       (!graph&&before.dlID>static_cast<std::uint64_t>(std::numeric_limits<long long>::max())))
         throw std::runtime_error("Unsupported native reagent transaction");
     if(std::none_of(after.payload->skills.begin(),after.payload->skills.end(),[&](const auto& row){return row.wSkillID==skill&&row.bLevel;}))
         throw std::runtime_error("Reagent skill is not learned");
@@ -204,17 +205,21 @@ std::string PostgreSQLMapService::ConsumeSkillItem(const MapSessionClaim& c,std:
     if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Reagent claim is not ready primary");
     CheckCatalogs(sql);
     const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
-    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||receipt.contract!=3)
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||receipt.contract!=(graph?2:3))
         throw std::runtime_error("Reagent recovery receipt changed");
     const long long session_key=c.key;int unlocked=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(session_key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Reagent session was revoked");
     const int world=c.group,character=c.char_id,slot=before.bItemID,bag=before.bInvenID;
     const int item=std::bit_cast<std::int16_t>(before.wItemID),skill_id=std::bit_cast<std::int16_t>(skill);
-    const long long id=before.dlID;const int count=before.bCount;int matched=0;
+    const long long id=std::bit_cast<std::int64_t>(before.dlID);const int count=before.bCount;int matched=0;
     sql<<"SELECT 1 FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:s AND \"wItemID\"=:i AND \"dwWeaponID\"=0",
         soci::use(skill_id,"s"),soci::use(item,"i"),soci::into(matched);
     if(!sql.got_data())throw std::runtime_error("Reagent requirement differs from pinned chart");
+    ReagentGraphPlan graph_plan;std::string after_hash;
+    if(graph) {
+        graph_plan=ValidateGraphReagent(sql,c,before,after);after_hash=graph_plan.item_hash;
+    }else {
     std::string hash;
     sql<<"SELECT app_world.item_fingerprint(i) FROM app_world.\"TITEMTABLE\" i WHERE \"bWorldID\"=:w AND \"dlID\"=:id "
          "AND \"dwOwnerID\"=:c AND \"bOwnerType\"=0 AND \"bStorageType\"=0 AND \"dwStorageID\"=:bag AND \"bItemID\"=:slot "
@@ -222,21 +227,23 @@ std::string PostgreSQLMapService::ConsumeSkillItem(const MapSessionClaim& c,std:
         soci::use(world,"w"),soci::use(id,"id"),soci::use(character,"c"),soci::use(bag,"bag"),soci::use(slot,"slot"),
         soci::use(item,"item"),soci::use(count,"count"),soci::into(hash);
     if(!sql.got_data()||hash!=before.durable_hash)throw std::runtime_error("Reagent item changed since hydration");
-    std::string after_hash;
     if(count==1)sql<<"DELETE FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dlID\"=:id",soci::use(world,"w"),soci::use(id,"id");
     else sql<<"UPDATE app_world.\"TITEMTABLE\" i SET \"bCount\"=\"bCount\"-1 WHERE \"bWorldID\"=:w AND \"dlID\"=:id RETURNING app_world.item_fingerprint(i)",
         soci::use(world,"w"),soci::use(id,"id"),soci::into(after_hash);
+    }
     WriteCore(sql,c,after,0);
     // This is an immediate gameplay receipt, not a periodic revision. The
     // runtime checkpoint lease prevents an older sweep overwriting this state.
-    RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreSkillCheckpoint(sql,c,after);
-    const int server=m_config.server,unsigned_skill=skill,remaining=count-1;
+    RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
+    const int server=m_config.server,unsigned_skill=skill,remaining=count-1,contract=graph?2:3;
     const long long generation=c.connection_id,epoch=c.authority_epoch;
     sql<<"INSERT INTO app_world.skill_item_consumptions(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,skill_id,item_id,"
-         "before_count,after_count,before_hash,after_hash,core_fingerprint) VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f)",
+         "before_count,after_count,before_hash,after_hash,core_fingerprint,state_contract,before_graph_hash,after_graph_hash) "
+         "VALUES(:w,:c,:s,:t,:g,:e,:skill,:id,:before,:after,:bh,NULLIF(:ah,''),:f,:contract,NULLIF(:gb,''),NULLIF(:ga,''))",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
         soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(unsigned_skill,"skill"),soci::use(id,"id"),
-        soci::use(count,"before"),soci::use(remaining,"after"),soci::use(before.durable_hash,"bh"),soci::use(after_hash,"ah"),soci::use(fingerprint,"f");
+        soci::use(count,"before"),soci::use(remaining,"after"),soci::use(before.durable_hash,"bh"),soci::use(after_hash,"ah"),soci::use(fingerprint,"f"),
+        soci::use(contract,"contract"),soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga");
     tx->commit();return after_hash;
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {

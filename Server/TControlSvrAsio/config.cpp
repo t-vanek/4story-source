@@ -169,6 +169,59 @@ AppConfig LoadConfig(const std::string& path)
         cfg.security = fourstory::security::LoadFromToml(*sec);
     if (auto err = cfg.security.Validate(); !err.empty())
         throw std::runtime_error(err);
+    if (auto rp = tbl["registry"]["persistence"].as_table())
+    {
+        if (auto v = (*rp)["enabled"].value<bool>())
+            cfg.registry_persistence.enabled = *v;
+        if (auto v = (*rp)["table_name"].value<std::string>())
+            cfg.registry_persistence.table_name = *v;
+    }
+
+    if (auto scm = tbl["cluster"]["scm"].as_table())
+    {
+        if (auto v = (*scm)["backend"].value<std::string>())
+            cfg.scm.backend = *v;
+        if (auto v = (*scm)["service_name_template"].value<std::string>())
+            cfg.scm.service_name_template = *v;
+        if (auto v = (*scm)["systemd_user_scope"].value<bool>())
+            cfg.scm.systemd_user_scope = *v;
+        if (auto v = (*scm)["systemctl_path"].value<std::string>())
+            cfg.scm.systemctl_path = *v;
+        if (auto v = (*scm)["status_reconcile_interval_secs"].value<std::int64_t>())
+        {
+            if (*v < 0 || *v > 3600)
+                throw std::runtime_error(
+                    "cluster.scm.status_reconcile_interval_secs out of range (0..3600)");
+            cfg.scm.status_reconcile_interval_secs =
+                static_cast<std::uint32_t>(*v);
+        }
+        if (auto ov = (*scm)["overrides"].as_table())
+        {
+            for (const auto& [k, v] : *ov)
+            {
+                if (auto s = v.value<std::string>())
+                {
+                    // Operators write sids as hex or decimal strings;
+                    // the TOML key arrives as a string either way.
+                    std::string key{k.str()};
+                    std::uint32_t sid = 0;
+                    try {
+                        sid = (key.size() > 2 && key[0] == '0' &&
+                               (key[1] == 'x' || key[1] == 'X'))
+                            ? static_cast<std::uint32_t>(
+                                std::stoul(key.substr(2), nullptr, 16))
+                            : static_cast<std::uint32_t>(
+                                std::stoul(key, nullptr, 10));
+                    }
+                    catch (...) {
+                        throw std::runtime_error(
+                            "cluster.scm.overrides: bad sid key '" + key + "'");
+                    }
+                    cfg.scm.overrides[sid] = *s;
+                }
+            }
+        }
+    }
 
     spdlog::info("loaded config from '{}' — port={} db={} fake_ops={} "
                  "fake_groups={} fake_machines={} fake_types={}",

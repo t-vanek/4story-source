@@ -258,14 +258,56 @@ Windows (MSVC 2022 + vcpkg).
 
 ---
 
+## 10b. TControlSvr → TControlSvrAsio + cluster control plane (2026-05-20 → 2026-05-21)
+
+`TControlSvr` (legacy ~7 285 LOC ATL/IOCP/PDH/Win32-SCM) přeportováno na
+single `boost::asio::io_context` ve fázích F1–F6 + nad to postaven
+modern cluster control plane (registr, komunikace, routing, gateway,
+stream, orchestrace). Detail v
+[`CONTROL_SERVER_PORT_PLAN.md`](CONTROL_SERVER_PORT_PLAN.md).
+
+Klíčové nové schopnosti vůči legacy:
+* **Peer self-registration** — peer servery (TLogin/TLog/TPatch/TMap)
+  se na startu samy ohlásí přes nový `CT_PEER_REGISTER_REQ`. Legacy
+  vyžadovala operator-driven dial přes `CT_NEWCONNECT_REQ`. Wire IDs
+  v rozsahu 0x9F00+ (mimo legacy 0x93xx). `fourstory::cluster::PeerClient`
+  knihovna zajišťuje connect/heartbeat/reconnect smyčku.
+* **Centralizovaný admin shell** — TLoginSvrAsio měla vlastní lokální
+  AdminShell (status/kick/ban-ip/log-level, log-only). Odstraněno;
+  veškerý operator vstup do clusteru jde teď přes TControl. Admin
+  shell se rozšířil o `peers`, `registry`, `peer <sid>`, `route`,
+  `subscribe registry`, `service status|start|stop`, `cluster
+  start|stop|restart|wait-healthy`.
+* **Universal IServiceController** — `WindowsScmServiceController`
+  (Win32 SCM) + `SystemdServiceController` (systemctl shell-out přes
+  popen, captured stdout, `CoOffloadIf` wrap). Factory `MakeServiceController`
+  s backendy `auto|windows|systemd|disabled`. Cluster start/stop konečně
+  reálně něco dělá na obou produkčních cílech.
+* **Persist registry** (`TPEER_REGISTRY`) — opt-in SOCI snapshot
+  registru. Restart TControlu nezpůsobí 90s okno "all peers missing"
+  (legacy ani neměla persistent registr; každý restart = manuálně
+  klikat connect).
+* **SCM status reconciliation loop** — 30s coroutine porovnává cached
+  `RuntimeStatus.status` s `controller.QueryStatus`; rozdíl publishne
+  `ScmStatusChanged` event na bus. `subscribe registry` stream operátor
+  vidí status transitions live.
+
+Známá díra: **peer authentication zatím neimplementováno** — žádný IP
+allowlist, žádný PSK, žádný HMAC. Regrese vůči legacy `control_server_ip`
+IP-pinningu. Deployment assumption: operator LAN, žádní hostile klienti
+na segmentu. Plán: IP allowlist z TIPADDR + PSK + HMAC-SHA256 trailer.
+
+---
+
 ## 11. Co zbývá
 
 Z `_rewrite/docs/MODERNIZATION_PLAN.md`:
 
 * **TWorldSvr** (~8–12 týdnů) — cluster coordinator; nutný před TMapSvr (protocol contract)
 * **TMapSvr** (~12–24 týdnů) — gameplay engine, nejrizikovější; pravděpodobně staged refactor
-* **TControlSvr** (~4 týdny) — GM/admin dashboard, paralelizovatelné s TLog
+* ~~**TControlSvr** (~4 týdny)~~ — **shipped** (viz §10b)
 * **Phase 6 cleanup** — smazat `TBRSvr` / `TBoWSvr` empty shells, převést `#ifdef BR_COMPILE_MODE` / `BOW_COMPILE_MODE` na runtime feature flag
+* **Peer authentication na CT_PEER_\*** — IP allowlist + PSK + HMAC. Není v 6-fázovém plánu, vznikl při post-F6 review.
 
 Architektonické dluhy (řešené mimo prostou language port):
 1. `TWorldSvr` single DB thread → bottleneck (potřeba async DB + per-shard write queue)

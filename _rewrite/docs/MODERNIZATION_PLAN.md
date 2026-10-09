@@ -1,8 +1,24 @@
 # C++ Modernization Plan — 4Story Server
 
-Date: 2026-05-18
-Status: Phase 0 — Foundation (in progress)
+Date: 2026-05-18 (initial) → 2026-05-21 (TControl complete + cluster control plane)
+Status: Phase 3 of 6 complete (TLogin / TPatch / TLog / TControl all shipped on the modern stack); Phase 4 (TWorldSvr) + Phase 5 (TMapSvr) open.
 Replaces: abandoned C# rewrite (commit `0511bd3`)
+
+## Progress at a glance (2026-05-21)
+
+| Server | Status | Notes |
+|---|---|---|
+| TPatchSvr → TPatchSvrAsio | ✅ shipped | 9/9 `CT_*` handlers, schema validator, stale-client sweep, SOCI MERGE/promote inline |
+| TLoginSvr → TLoginSvrAsio | ✅ shipped | 15/15 handlers, BCrypt-only auth, 2FA, rate limit, structured audit, RC4+XOR codec parity |
+| TLogSvr → TLogSvrAsio | ✅ shipped | UDP audit collector, `LT_*` schema, retry queue, drain coroutine |
+| TControlSvr → TControlSvrAsio | ✅ shipped | F1-F6 complete + modern cluster control plane (registry / routing / streaming / orchestration), universal SCM (Win32 + systemd), persistent peer registry, SCM status reconciliation. **Known gap: peer authentication not yet implemented** — see `CONTROL_SERVER_PORT_PLAN.md` §"Security gap" |
+| TWorldSvr → TWorldSvrAsio | ⏸ not started | Phase 4 |
+| TMapSvr → TMapSvrAsio | 🟡 scaffold | Phase 5, scaffold in tree at `Server/TMapSvrAsio/` — F1-F17 service interfaces + post-login dispatch + healthz exist; quest VM / mob AI / combat not ported |
+
+Every shipped server links one shared `fourstory_common` static lib
+(SOCI session pool, audit, SMTP, health endpoint, rate limiter,
+registry refresher) AND `fourstory::cluster::PeerClient` so they all
+self-register with TControl on startup.
 
 ## TL;DR
 

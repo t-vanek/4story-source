@@ -11,6 +11,8 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 [capability matrix](_rewrite/docs/modernization/capability-matrix.md) and
 [next implementation tasks](_rewrite/docs/modernization/next-steps.md).
 
+<a id="overall-progress"></a>
+
 ## Verified functionality
 
 Updated 2026-10-09. These scopes describe executed tests; historical handler counts

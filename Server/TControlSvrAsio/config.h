@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tcontrolsvr {
@@ -98,6 +99,41 @@ struct AppConfig
     // Server-to-server security gate. Applies to the operator listener
     // + the CT_PEER_REGISTER channel.
     fourstory::security::SecurityConfig security;
+    // [cluster.scm] — picks the IServiceController backend used by
+    // `cluster start/stop/restart` admin shell commands. See
+    // services/service_controller_factory.h for the selection
+    // rules. Default "auto" picks the platform-native backend
+    // (windows on _WIN32, systemd on __linux__, otherwise disabled).
+    struct ScmConfig
+    {
+        std::string  backend              = "auto";
+        std::string  service_name_template= "{type_name}-{group}-{server}";
+        bool         systemd_user_scope   = false;
+        std::string  systemctl_path       = "systemctl";
+        std::unordered_map<std::uint32_t, std::string> overrides;
+
+        // Periodic status reconciliation interval. 0 disables the
+        // loop. Default 30s matches the peer heartbeat cadence so
+        // operators see status transitions roughly within one
+        // heartbeat window even when the controller backend is
+        // "disabled" (which short-circuits the reconcile call to a
+        // Unknown read — harmless).
+        std::uint32_t status_reconcile_interval_secs = 30;
+    };
+    ScmConfig scm;
+
+    // [registry.persistence] — durable snapshot of the dynamic peer
+    // registry. When enabled, every Register/Heartbeat/Deregister/
+    // Expire transition writes through to TGLOBAL.TPEER_REGISTRY,
+    // and TControl boot reloads the snapshot before accepting peer
+    // connections. See schema/tcontrol-peer-registry.sql for the
+    // DDL and services/registry_persistence.h for the contract.
+    struct RegistryPersistenceConfig
+    {
+        bool         enabled    = false;
+        std::string  table_name = "TPEER_REGISTRY";
+    };
+    RegistryPersistenceConfig registry_persistence;
 
     spdlog::level::level_enum log_level = spdlog::level::info;
 };

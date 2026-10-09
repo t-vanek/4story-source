@@ -14,6 +14,8 @@
 // event onto a per-session queue and letting a writer coroutine
 // drain to the socket asynchronously.
 
+#include "service_controller.h"
+
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -24,10 +26,11 @@ namespace tcontrolsvr {
 
 enum class RegistryEventKind : std::uint8_t
 {
-    Registered,    // CT_PEER_REGISTER_REQ accepted
-    Heartbeat,     // CT_PEER_HEARTBEAT_REQ accepted
-    Deregistered,  // CT_PEER_DEREGISTER_REQ accepted
-    Expired,       // lease-expiry sweep dropped the entry
+    Registered,        // CT_PEER_REGISTER_REQ accepted
+    Heartbeat,         // CT_PEER_HEARTBEAT_REQ accepted
+    Deregistered,      // CT_PEER_DEREGISTER_REQ accepted
+    Expired,           // lease-expiry sweep dropped the entry
+    ScmStatusChanged,  // periodic reconciliation noticed status flip
 };
 
 struct RegistryEvent
@@ -41,6 +44,12 @@ struct RegistryEvent
     std::uint64_t     lease_epoch     = 0;
     std::uint32_t     cur_users       = 0;
     std::uint32_t     max_users       = 0;
+
+    // Populated only for ScmStatusChanged events. Other kinds leave
+    // both at Unknown — streaming consumers should branch on `kind`
+    // before reading these.
+    ServiceStatus     service_status_prev = ServiceStatus::Unknown;
+    ServiceStatus     service_status      = ServiceStatus::Unknown;
 };
 
 const char* RegistryEventKindName(RegistryEventKind k);

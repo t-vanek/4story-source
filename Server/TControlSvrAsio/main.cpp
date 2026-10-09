@@ -14,6 +14,9 @@
 #include "services/alerter.h"
 #include "services/chat_ban_repository.h"
 #include "services/disabled_service_controller.h"
+#include "services/registry_persistence.h"
+#include "services/service_controller_factory.h"
+#include "services/soci_registry_persistence.h"
 #include "services/event_registry.h"
 #include "services/event_repository.h"
 #include "services/fake_event_repository.h"
@@ -66,14 +69,6 @@ void Usage()
     std::printf(
         "tcontrolsvr_asio — modernized 4Story control / orchestration server\n"
         "Usage: tcontrolsvr_asio [--config FILE]\n");
-}
-
-// Pick the controller backend. F2 ships only the disabled default
-// on Linux; the Windows SCM impl is gated behind FOURSTORY_HAS_WIN32
-// (see services/windows_scm_service_controller.h once added).
-std::unique_ptr<tcontrolsvr::IServiceController> MakeServiceController()
-{
-    return std::make_unique<tcontrolsvr::DisabledServiceController>();
 }
 
 } // namespace
@@ -190,10 +185,15 @@ int main(int argc, char** argv)
             // / TPEER_METRICS. Purge old rows on startup (30d status log, 7d
             // metrics), then restore prior registrations so PeerRegistry is
             // warm without waiting for every peer to re-register.
-            auto soci_peer_repo =
-                std::make_unique<tcontrolsvr::SociPeerRepository>(*pool);
-            soci_peer_repo->PurgeOldRows(30, 7);
-            peer_repo = std::move(soci_peer_repo);
+            // The optional snapshot adapter uses a different registry schema.
+            // Select one persistence contract; never let both write TPEER_REGISTRY.
+            if (!cfg.registry_persistence.enabled)
+            {
+                auto soci_peer_repo =
+                    std::make_unique<tcontrolsvr::SociPeerRepository>(*pool);
+                soci_peer_repo->PurgeOldRows(30, 7);
+                peer_repo = std::move(soci_peer_repo);
+            }
 
             // Dual-sink audit logger: spdlog + TOP_AUDIT_LOG in DB.
             audit_owned =
@@ -271,7 +271,51 @@ int main(int argc, char** argv)
             }
         }
 
-        auto controller = MakeServiceController();
+        // Optional durable snapshot of the dynamic registry. When
+        // enabled, the SOCI impl writes through every mutator to
+        // TPEER_REGISTRY and we reload at boot below. When disabled
+        // (default), the Noop instance keeps PeerRegistry's mutator
+        // call sites null-guard-free without any DB traffic.
+        std::unique_ptr<tcontrolsvr::IRegistryPersistence> persistence;
+        if (cfg.registry_persistence.enabled && pool)
+        {
+            tcontrolsvr::SociRegistryPersistence::Options pop;
+            pop.table_name  = cfg.registry_persistence.table_name;
+            pop.worker_pool = db_pool.get();
+            persistence = std::make_unique<tcontrolsvr::SociRegistryPersistence>(
+                *pool, std::move(pop));
+            // Reload the snapshot BEFORE setting the persistence
+            // pointer — Hydrate() is a read-only operation that
+            // wouldn't write back anyway, but the no-callback path
+            // is the contract we documented.
+            const auto snapshot = persistence->LoadAll();
+            peers.Hydrate(snapshot);
+            // Drop entries the operator hasn't heard from in the
+            // sweep window so the cluster picture is immediately
+            // accurate (no false "running" rows for peers that were
+            // already stale when TControl crashed).
+            const auto reaped = peers.ExpireStale(std::chrono::seconds(90));
+            spdlog::info("registry.persistence: hydrated {} entries, "
+                         "reaped {} stale on boot",
+                snapshot.size(), reaped);
+        }
+        else
+        {
+            persistence = std::make_unique<tcontrolsvr::NoopRegistryPersistence>();
+            if (cfg.registry_persistence.enabled && !pool)
+                spdlog::warn("registry.persistence: enabled=true but no "
+                             "[database] configured — using Noop");
+        }
+        peers.SetPersistence(persistence.get());
+
+        tcontrolsvr::ServiceControllerFactoryConfig scm_cfg;
+        scm_cfg.backend               = cfg.scm.backend;
+        scm_cfg.service_name_template = cfg.scm.service_name_template;
+        scm_cfg.overrides             = cfg.scm.overrides;
+        scm_cfg.systemd_user_scope    = cfg.scm.systemd_user_scope;
+        scm_cfg.systemctl_path        = cfg.scm.systemctl_path;
+        scm_cfg.worker_pool           = db_pool.get();
+        auto controller = tcontrolsvr::MakeServiceController(scm_cfg);
         tcontrolsvr::PeerDialer dialer(io, peers, *inventory_ptr);
 
         // Per-IP login throttle. burst=0 disables.
@@ -380,6 +424,20 @@ int main(int argc, char** argv)
         boost::asio::co_spawn(io,
             server.RegistryLeaseExpiryLoop(),
             boost::asio::detached);
+
+        // Periodic SCM status reconciliation — publishes
+        // ScmStatusChanged events whenever the live controller
+        // reading diverges from the cached RuntimeStatus.status.
+        // Disabled when the operator sets the interval to 0.
+        if (cfg.scm.status_reconcile_interval_secs > 0)
+        {
+            boost::asio::co_spawn(io,
+                server.ScmStatusReconciliationLoop(std::chrono::seconds(
+                    cfg.scm.status_reconcile_interval_secs)),
+                boost::asio::detached);
+            spdlog::info("scm.reconcile: interval = {}s",
+                cfg.scm.status_reconcile_interval_secs);
+        }
 
         // 1Hz event scheduler — daily / term events, alarms,
         // auto-delete for one-shot lottery / gifttime kinds.

@@ -8,5 +8,10 @@ port = 18086
 [admin]
 port = 0
 
+# Container lifecycle is managed by Compose/Podman, not host systemd.
+[cluster.scm]
+backend = "disabled"
+status_reconcile_interval_secs = 0
+
 [log]
 level = "info"

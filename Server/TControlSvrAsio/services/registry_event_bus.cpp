@@ -6,10 +6,11 @@ const char* RegistryEventKindName(RegistryEventKind k)
 {
     switch (k)
     {
-        case RegistryEventKind::Registered:   return "registered";
-        case RegistryEventKind::Heartbeat:    return "heartbeat";
-        case RegistryEventKind::Deregistered: return "deregistered";
-        case RegistryEventKind::Expired:      return "expired";
+        case RegistryEventKind::Registered:       return "registered";
+        case RegistryEventKind::Heartbeat:        return "heartbeat";
+        case RegistryEventKind::Deregistered:     return "deregistered";
+        case RegistryEventKind::Expired:          return "expired";
+        case RegistryEventKind::ScmStatusChanged: return "scm-status";
     }
     return "unknown";
 }

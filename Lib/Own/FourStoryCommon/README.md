@@ -1,15 +1,18 @@
 # FourStoryCommon — shared infrastructure for the modernized servers
 
 Static library (`fourstory_common`) consolidating the SOCI pool, audit
-plumbing, SMTP plumbing, admin shell, health endpoint, rate limiter,
-and registry refresher used by `TLoginSvrAsio`, `TPatchSvrAsio`,
-`TLogSvrAsio`, and `TControlSvrAsio`. Pulled out so each server
-doesn't carry its own copy.
+plumbing, SMTP plumbing, health endpoint, rate limiter, registry
+refresher, and the cluster-side `PeerClient` used by every modernized
+Asio server (`TLoginSvrAsio`, `TPatchSvrAsio`, `TLogSvrAsio`,
+`TMapSvrAsio`). Pulled out so each server doesn't carry its own copy.
 
-> Cluster context: [main README](../../../README.md#overall-progress) ·
-> patch catalog vs legacy Araz sources:
-> [`_rewrite/docs/PATCH_README.md` §0](../../../_rewrite/docs/PATCH_README.md#0-cross-cutting)
-> (the `fourstory_common` static lib itself is X-14)
+The line-based admin shell that used to live here was moved into
+`Server/TControlSvrAsio/` — operator access to the cluster is now
+centralized on TControl (the per-server localhost shells were
+duplicate footguns; the modern one knows about peers, routing,
+streaming, and cluster lifecycle).
+
+Current native PostgreSQL scope and verification: [modernization status](../../../_rewrite/docs/modernization/README.md).
 
 ## Layout
 
@@ -31,16 +34,18 @@ Lib/Own/FourStoryCommon/
 │   ├── smtp/
 │   │   ├── smtp_client.h            # ISmtpClient interface
 │   │   └── spdlog_smtp_client.h     # log-only default impl
+│   ├── cluster/
+│   │   └── peer_client.h            # outbound CT_PEER_* registry client
 │   └── ops/
-│       ├── admin_shell.h            # line-based TCP admin shell
 │       ├── health_endpoint.h        # minimal HTTP /healthz
 │       ├── rate_limiter.h           # per-IP token bucket
 │       └── registry_refresher.h     # periodic cache reload hook
 └── src/
     ├── db/{session_pool,schema_validator}.cpp
     ├── audit/{spdlog_audit_logger,udp_audit_logger}.cpp
-    ├── smtp/spdlog_smtp_client.cpp
-    └── ops/{admin_shell,health_endpoint,rate_limiter,registry_refresher}.cpp
+    ├── smtp/{spdlog_smtp_client,asio_smtp_client}.cpp
+    ├── cluster/peer_client.cpp
+    └── ops/{health_endpoint,rate_limiter,registry_refresher}.cpp
 ```
 
 ## Modules
@@ -85,15 +90,23 @@ directory; this lib carries only the framework.
 * **`SpdlogSmtpClient`** — log-only default. Production deploys plug in
   a real SMTP transport behind the same interface.
 
+### `fourstory::cluster`
+
+* **`PeerClient`** — outbound counterpart of the modern cluster
+  control plane (TControlSvrAsio's `CT_PEER_*` handlers). Each peer
+  game server constructs one on startup and `co_spawn`s `Run()`. The
+  coroutine drives the full connect → register → heartbeat →
+  reconnect state machine: exponential backoff on TCP / REGISTER /
+  HEARTBEAT failures, graceful DEREGISTER on `Stop()`. Wire framing
+  inlined (8-byte CPacket header + XOR-fold checksum) so the library
+  stays standalone — peer servers link only `fourstory_common`, not
+  TProtocol / TNetLib. `MakePeerClientOptions(cluster_cfg, type_id,
+  name_prefix, listener_bind, listener_port, version)` is the
+  one-liner every server's main uses to turn its `[cluster]` TOML
+  block into a configured options bag.
+
 ### `fourstory::ops`
 
-* **`AdminShell`** — line-based TCP admin shell (operators telnet in;
-  commands: `status`, `kick`, `ban-ip`, `log-level`, `quit`). Decoupled
-  from the login server's connection registry: the consumer passes a
-  `SessionCountFn` callback for the `status` command, so non-login
-  consumers can wire it without dragging `IConnectionRegistry` along.
-  Binds 127.0.0.1 by default — no auth; firewall the port or tunnel
-  through SSH.
 * **`HealthEndpoint`** — minimal HTTP `/healthz` JSON
   (`{"status":"ok","uptime_seconds":N,"version":"5.0"}`) for k8s
   liveness/readiness probes. ~50 LOC of Asio + raw strings;
@@ -143,4 +156,8 @@ cmake --build build --target fourstory_common
   (`IAuthService`, `ICharService`, `IConnectionRegistry`,
   `IMapServerLocator`, `ISessionTerminator`) and the SOCI services
   implementing them remain in `Server/TLoginSvrAsio/services/`. They're
-  not shared across servers — only the plumbing is.
+  not shared across servers — only the plumbing is. Same rule for
+  the AdminShell — it lives in `Server/TControlSvrAsio/` because
+  TControl is its only consumer (centralized operator entry point
+  for the cluster). The opposite direction is OK: the `PeerClient`
+  IS shared because four peer servers link it.

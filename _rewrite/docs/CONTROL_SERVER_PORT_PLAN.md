@@ -1,25 +1,60 @@
 # TControlSvr — analýza legacy a plán portu
 
-Datum: 2026-05-19 (návrh) → 2026-05-20 (F1–F5 implementováno)
-Branch: `claude/migrate-tcontrolsvr-keEAs`
-Status: **F1–F5 hotové a otestované**, F6 (smoke proti živé DB + legacy GUI) zbývá.
+Datum: 2026-05-19 (návrh) → 2026-05-20 (F1–F5) → 2026-05-21 (F6 + cluster control plane)
+Branch: `claude/admin-centralize` (PR #29 + follow-ups)
+Status: **F1–F6 shipped + modern cluster control plane shipped**.
+Zbývá: end-to-end smoke vs legacy `TController.exe`, peer
+autentizace (známá díra — viz §"Security gap" níže).
 
-## Stav implementace (2026-05-20)
+## Stav implementace (2026-05-21)
 
-| Fáze | Status | Commit | Test |
-|---|---|---|---|
-| **F1** Scaffold + operator login | ✅ | `feat(tcontrolsvr_asio): F1 scaffold` | `test_operator_login` |
-| **F2** Peer dial + monitoring + Windows SCM | ✅ | `feat(tcontrolsvr_asio): F2` | `test_peer_monitor` |
-| **F3** Admin forwarders + authority gate + audit | ✅ | `feat(tcontrolsvr_asio): F3` | `test_admin_forwarders` |
-| **F4** Event manager + 1Hz scheduler | ✅ | `feat(tcontrolsvr_asio): F4` | `test_event_scheduler` |
-| **F5** Patch metadata + castle + alerter | ✅ | `feat(tcontrolsvr_asio): F5` | `test_patch_metadata` |
-| **F6** End-to-end smoke vs. legacy `TController.exe` + live DB | ⏸ | — | manual |
+### Původní 6-fázový plán
 
-Naimplementováno: ~52 z 65 CT_\* handlerů. Vědomě vynechané:
+| Fáze | Status | Test |
+|---|---|---|
+| **F1** Scaffold + operator login | ✅ | `test_operator_login` |
+| **F2** Peer dial + monitoring + Windows SCM stub | ✅ | `test_peer_monitor` |
+| **F3** Admin forwarders + authority gate + audit | ✅ | `test_admin_forwarders` |
+| **F4** Event manager + 1Hz scheduler | ✅ | `test_event_scheduler` |
+| **F5** Patch metadata + castle + alerter | ✅ | `test_patch_metadata` |
+| **F6** Universal SCM + persist registry + reconcile + cluster cmds | ✅ | `test_service_controller`, `test_registry_persistence`, `test_scm_status_reconcile`, `test_admin_shell_cluster` |
+| **End-to-end smoke** vs. legacy `TController.exe` + live DB | ⏸ | manual |
+
+Naimplementováno: ~63 z 65 CT_\* handlerů. Vědomě vynechané:
 `CT_SERVICEUPLOAD*` (UNC-share anti-pattern, mimo scope),
 `CT_INSTALLVERSION_*` (dead code v legacy), `CT_ACCOUNTINPUT_*`
 (dead code), `CT_PLATFORM_REQ/_ACK` (PDH counters Windows-only — wire
 zachován, body 0). Detail v `Server/TControlSvrAsio/README.md`.
+
+### Modern cluster control plane (nad rámec F1-F6)
+
+Postaveno nad legacy CT_\* protokolem jako sada additivních bloků
+(žádná wire kolize, message-id range 0x9F00+ je mimo legacy 0x93xx):
+
+| Blok | Status | Test | Wire |
+|---|---|---|---|
+| **Registr** — peer self-registration + 30 s heartbeat + 90 s expiry sweep | ✅ | `test_peer_registry` | `CT_PEER_REGISTER_REQ/_ACK`, `_HEARTBEAT_REQ/_ACK`, `_DEREGISTER_REQ` (0x9F00–0x9F04) |
+| **Komunikace** — `fourstory::cluster::PeerClient` lib, 4 peer servery napojené | ✅ | `test_peer_client` | klientská strana téhož wire |
+| **Routing** — `MessageRouter` (single / round-robin / broadcast) | ✅ | `test_message_router` | C++ API |
+| **Gateway** — admin-shell `route` + `peer <sid>` | ✅ | `test_admin_shell_route` | admin shell |
+| **Stream** — `subscribe registry` push events nad `RegistryEventBus` | ✅ | `test_admin_shell_stream` | admin shell, line-based |
+| **Orchestrace** — `cluster start/stop/restart/wait-healthy` | ✅ | `test_admin_shell_cluster` | admin shell |
+| **Universal SCM** — Win32 SCM + systemd, factory podle platformy | ✅ | `test_service_controller` | — |
+| **Persist registry** — opt-in `TPEER_REGISTRY` snapshot + Hydrate | ✅ | `test_registry_persistence` | DB |
+| **SCM reconcile** — 30 s loop, publishne `ScmStatusChanged` events | ✅ | `test_scm_status_reconcile` | — |
+
+### Security gap (známá díra)
+
+`CT_PEER_REGISTER_REQ` handler aktuálně nepřijímá žádný proof of
+identity — žádný IP allowlist, žádný PSK, žádný HMAC, žádné mTLS.
+Útočník na stejnou síť jako TControl si může nárokovat libovolný
+`service_id` z TSERVER inventory, získat lease, hijack-nout admin
+forwarder broadcasty (kick/announce mu chodí), spoof-ovat status.
+**Regrese vůči legacy** (legacy TLoginSvr má `control_server_ip`
+IP-pinning na CT_\* trafiku). Deployment assumption dnes: operator
+LAN, žádní hostile klienti na segmentu. Plánované řešení: IP
+allowlist (z TIPADDR) + per-service PSK + HMAC-SHA256 trailer na
+každém peer-side CT_PEER_\* framu. Není zatím implementováno.
 
 ---
 

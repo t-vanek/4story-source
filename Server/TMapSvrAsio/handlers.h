@@ -108,6 +108,10 @@ boost::asio::awaitable<void> Dispatch(
 boost::asio::awaitable<void> OnMoveItemReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx);
+boost::asio::awaitable<void> OnCharStatInfoReq(std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte> body,const HandlerContext& ctx);
+boost::asio::awaitable<void> OnWorldCharStatInfoAnsReq(std::span<const std::byte> body,const HandlerContext& ctx);
+boost::asio::awaitable<void> OnWorldCharStatInfoReq(std::span<const std::byte> body,const HandlerContext& ctx);
 boost::asio::awaitable<void> OnConnectReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,

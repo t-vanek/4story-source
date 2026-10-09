@@ -1,0 +1,194 @@
+{
+  "date": "2026-10-09",
+  "scope": "Normal native primary character stat inspection; existing six-daemon modernization remains incomplete",
+  "implementation": {
+    "map": "Existing TMapSvrAsio native hydration, ready-primary client request and World relay handlers",
+    "world": "Existing TWorldSvrAsio relay, exact-length and current-main-peer checks",
+    "postgresql": "Migration 030 adds actor views; original 001-029 and backups unchanged; no gameplay write or retry added",
+    "source_behavior": [
+      "TFORMULACHART/class/race primary and secondary formulas, FLOAT truncation and wire WORD/BYTE narrowing",
+      "GetBaseStatValue defense-level floors precede growth and aftermath",
+      "Powered equipped items only, original grade/gem attribute lookup and unsigned-WORD fallback key",
+      "Melee/ranged/magic weapon attributes distinct; shield DP/MDP do not enter ordinary defense",
+      "Minimum attack clamps to maximum; original attack delay and rate calculators retained",
+      "Skill points reset before repeated derivation; current points and aftermath serialized"
+    ],
+    "sheets_excluded": [
+      "active buffs (including disarm/disguise)",
+      "companions",
+      "recalls",
+      "guild stats",
+      "transferred local battle state",
+      "stale level/aftermath cache",
+      "replica/not-ready/uncertain persistence state"
+    ]
+  },
+  "wire": {
+    "request_opcode": "0x5323",
+    "request_bytes": 4,
+    "reply_opcode": "0x5324",
+    "reply_bytes": 87,
+    "world_request_bytes": 8,
+    "world_answer_bytes": 91,
+    "client_changes": false,
+    "layout": "DWORD char; 6 WORD primary; 5 DWORD physical/ranged; 3 DWORD delays; 3 DWORD rates; 2 WORD physical levels; BYTE critical; 3 DWORD magic; 2 WORD magic levels; 3 BYTE charge-speed/charge-probability/magic-critical; WORD skill points; BYTE aftermath"
+  },
+  "catalog": {
+    "migration": "030-character-statistics.sql",
+    "next_migration": "031",
+    "manifest_sha256": "bc17bc975c398ae2c05c2cc92e029df807be3c1fdc94b9cc43fe3659a280b878",
+    "tables": {
+      "TITEMATTRCHART": 9002,
+      "TITEMGRADECHART": 25,
+      "TITEMMAGICCHART": 27,
+      "TSKILLPOINTCHART": 719
+    },
+    "rows": 9773,
+    "upgrade": "Eleven real PostgreSQL checks: 029 -> 030, unchanged earlier receipts/import values, old release refused, complete release idempotent; prior two charts identical in extended release",
+    "persisted_player_graphs": "Existing old-manifest graphs/journals are unchanged and remain fenced. A populated-world catalog compatibility migration is still required; do not bypass hash checks."
+  },
+  "validation": {
+    "native": {
+      "debug": {
+        "file": "native-character-statistics-debug.json",
+        "checks": 1915,
+        "backend_checks": 590,
+        "pool_and_tls_checks": 29,
+        "stat_sheet_cases": 15,
+        "scope": "Native PostgreSQL primary/replica admission, core checkpoint/save/crash recovery; replica tests use an explicitly synthetic cell partition and restore the source view; original client PENDING",
+        "runtime_binaries": {
+          "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+          "directory": "/src/build/linux-debug/bin/",
+          "integration_test_directory": "/src/build/linux-debug/bin/"
+        }
+      },
+      "asan": {
+        "file": "native-character-statistics-asan.json",
+        "checks": 1915,
+        "backend_checks": 590,
+        "pool_and_tls_checks": 29,
+        "stat_sheet_cases": 15,
+        "scope": "Native PostgreSQL primary/replica admission, core checkpoint/save/crash recovery; replica tests use an explicitly synthetic cell partition and restore the source view; original client PENDING",
+        "runtime_binaries": {
+          "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+          "directory": "/src/build/linux-asan/bin/",
+          "integration_test_directory": "/src/build/linux-asan/bin/"
+        }
+      },
+      "release": {
+        "file": "native-character-statistics-release.json",
+        "checks": 1915,
+        "backend_checks": 590,
+        "pool_and_tls_checks": 29,
+        "stat_sheet_cases": 15,
+        "scope": "Native PostgreSQL primary/replica admission, core checkpoint/save/crash recovery; replica tests use an explicitly synthetic cell partition and restore the source view; original client PENDING",
+        "runtime_binaries": {
+          "image": "0d7ce7b167505e7e2eccca8866aabc039204dc67d70c0acb6910ec7015c631b6",
+          "directory": "/opt/fourstory/bin/",
+          "integration_test_directory": "/src/build/linux-debug/bin/"
+        }
+      }
+    },
+    "ctest": {
+      "entries": 203,
+      "actual_passes": 188,
+      "internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "explicit_skips": [
+        "fourstory_postgresql_integration",
+        "tloginsvr_postgresql_auth",
+        "tloginsvr_postgresql_char",
+        "tloginsvr_postgresql_handoff",
+        "tlogsvr_postgresql_sink",
+        "tmapsvr_postgresql_map",
+        "tmapsvr_postgresql_catalog"
+      ]
+    },
+    "asan_ubsan": {
+      "suites": 39,
+      "skipped": 0
+    },
+    "stat_arithmetic_and_bytes": 98,
+    "catalog_publication": {
+      "tests": 6,
+      "log": "character-statistics-publication.log"
+    },
+    "catalog_upgrade": "character-statistics-catalog-upgrade.json",
+    "container_smoke": "character-statistics-container-smoke.log",
+    "release_image": {
+      "reference": "localhost/fourstory:postgresql-character-statistics",
+      "id": "0d7ce7b167505e7e2eccca8866aabc039204dc67d70c0acb6910ec7015c631b6"
+    },
+    "release_backend_note": "Installed Release Login/World/Map daemons; native backend executable remains the verified Debug binary",
+    "prior_regressions_rerun": [
+      "core/skill checkpoints and reconnect",
+      "primary/replica ownership, both transfer directions and delayed commit/close",
+      "inventory whole moves/swaps/splits/merges and raw metadata preservation",
+      "skill costs/cooldowns, reagent/ammunition batches and multi-attack",
+      "TLS/pool concurrency, database failures, World-link drain, process SIGKILL/replacement and checkpoint recovery"
+    ],
+    "test_repair": "The first new arithmetic unit expectation was off by one (expected melee AP 24/30 instead of source truncation 25/31); test corrected, Debug and ASan suites rerun successfully. No production arithmetic was changed to satisfy it.",
+    "cleanup": "character-statistics-cleanup.json"
+  },
+  "source_evidence": {
+    "hashes": {
+      "Server/TMapSvr/TObjBase.cpp": "9c6b97b0616605b9ee50e169cd1a93a45cf34e2be178663fc58005ba17764181",
+      "Server/TMapSvr/TItem.cpp": "b5db67d34ee07a909f834a623e7b62b9a5a947389251044d10fc65d8dfbd99c2",
+      "Server/TMapSvr/TPlayer.cpp": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9",
+      "Server/TMapSvr/TMapSvr.cpp": "1b490618105e0f5ca338852d1cd7c007c01301641b381c3b391f857e4973dd7c",
+      "Server/TMapSvr/TMapType.h": "9ef04c832f770e13078b5b16cf276b6552da637e29bbc2b699ff611a1d359778",
+      "Server/TMapSvr/CSHandler.cpp": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50",
+      "Server/TMapSvr/CSSender.cpp": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029",
+      "Server/TMapSvr/SSHandler.cpp": "8663a80a045d8a2a681c294bc80d8feb8ecd525812af151a60d3340afe8cf074",
+      "Server/TMapSvr/SSSender.cpp": "e39cc92a004b352cafc337307cf631214cd3680744d52e96a403fa75f07b7a53",
+      "Client/TClient/CSHandler.cpp": "51e3b85b5cd2d5af27be15f564ff45c875a02c2b70bed326648ef80484cd8ce3",
+      "Lib/Own/TProtocol/include/NetCode.h": "fa6b11998606c72a81e9ae282590d5afdbf2950d832a743b54ae0dd35e648c9d",
+      "Lib/Own/TProtocol/include/CSProtocol.h": "3ca0d6991bb219acb00f9e7fda3f24105240a17051362355f106de16479a191f",
+      "Lib/Own/TProtocol/include/MWProtocol.h": "ffd2911d81630917c132b78c936bfccb839013c90c70f69e1103cca1827aa1f3"
+    },
+    "reviewed_functions": [
+      "TObjBase::GetBaseStatValue/Calc2ndAbility/CalcItemAbility/CalcAbilityValue and Get* stats",
+      "TItem::GetMinAP/GetMaxAP/GetMinLAP/GetMaxLAP/GetMinMagicAP/GetMaxMagicAP/GetDefendPower/GetMagicDefPower/GetMagicValue",
+      "TMapSvr::SetItemAttr and zero-initialized grade table",
+      "TPlayer::CalcPetATTR/CalcPetBonus/ChangeEquipItem",
+      "CSSender::SendCS_CHARSTATINFO_ACK; SSSender/SSHandler CHARSTATINFO; client OnCS_CHARSTATINFO_ACK"
+    ]
+  },
+  "remaining": [
+    "Equipment transactions, slot/class/level/skill eligibility and displaced items, timing/stat recalculation and original EQUIP/MOVEITEM/CHARSTATINFO/HPMP order",
+    "All advanced effect/companion/guild/local-battle stat variants",
+    "Native populated passive-ability test: pinned backup has no bType=1 SA_CONTINUE/SA_PASSIVE ability rows; synthetic arithmetic callbacks are tested",
+    "Complete remote-player round-trip through two actual Map daemons (handlers integrated, World routing and wrong-peer rejection loopback verified)",
+    "Explicit compatibility migration for previously persisted graph catalog bindings",
+    "Full gameplay, remaining native World/Patch/Control repositories, tools and modes"
+  ],
+  "client_acceptance": {
+    "status": "blocked",
+    "available": "Uncompiled original client sources only, per owner",
+    "missing": [
+      "client executable identity/hash",
+      "matching assets",
+      "executable client acceptance environment"
+    ],
+    "source_protocol": "0x2918",
+    "supported_binary_build": null
+  },
+  "modern_validation_differences": [
+    "Malformed lengths rejected",
+    "Only current primary peer may request/answer for its character",
+    "Only ready primary supported sheets served; missing/unsupported target yields no fake success",
+    "Undefined floating conversion and signed ability overflow rejected",
+    "Original protocol has no request/epoch correlation; delayed read-only same-character reply ambiguity remains"
+  ],
+  "external_actions": false,
+  "branch": "main",
+  "goal_complete": false
+}

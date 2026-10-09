@@ -18,7 +18,63 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: native audit schema and query path
+## Current increment: source-compatible character statistics
+
+The existing Map daemon now handles `CS_CHARSTATINFO_REQ` and emits the original
+87-byte `CS_CHARSTATINFO_ACK`. It derives primary attributes, melee/ranged/magic
+attack, defenses, attack timings/rates, attack/defense levels, critical chances
+and charge values from the pinned PostgreSQL charts. Skill points and aftermath
+come from the current character. The local target and Map → World → target Map →
+World → requester Map handlers share the same serialization. World now validates
+message lengths and the sending character's current primary Map.
+
+Migration **030** extends the independently pinned actor release with
+`TITEMATTRCHART` and `TITEMGRADECHART`: four tables, **9,773 original rows**, manifest
+`bc17bc975c398ae2c05c2cc92e029df807be3c1fdc94b9cc43fe3659a280b878`.
+The previous item-magic and skill-point tables retain identical values. The
+loader follows original grade/gem attribute lookup, including the original
+first-WORD-key fallback, excludes broken equipment, keeps shield defense separate,
+and preserves float truncation and wire narrowing. Rehydration clears accumulated
+skill-point totals before recalculation.
+
+Native verification passes **1,915 checks each in Debug, ASan/UBSan and installed
+Release**, including source-derived
+87-byte comparisons for starter equipment, grade/gem/aftermath and broken weapons;
+the same full sheet survives a two-Map round trip. PostgreSQL recovery, connection
+loss, SIGKILL, inventory and skill regression scenarios run again. **203 Debug
+CTest entries** mean **188 actual passes**, eight internal legacy fixture skips
+and seven explicit native fixture skips. All **39 ASan/UBSan suites** pass.
+The independent serializer/arithmetic suite has **98 checks**. Publication has
+six PostgreSQL tests, and the real 029 → 030 catalog upgrade has eleven checks.
+See [source/verification contract](evidence/character-statistics-contract.json),
+[native Debug evidence](evidence/native-character-statistics-debug.json),
+[native ASan evidence](evidence/native-character-statistics-asan.json),
+[installed Release evidence](evidence/native-character-statistics-release.json) and
+[catalog upgrade](evidence/character-statistics-catalog-upgrade.json).
+
+The Release run uses installed Login/World/Map daemons with the verified Debug
+backend integration binary; all six installed service health/DNS/shutdown checks
+also pass. Local Release image: `localhost/fourstory:postgresql-character-statistics`
+(`0d7ce7b167505e7e2eccca8866aabc039204dc67d70c0acb6910ec7015c631b6`).
+
+Scope: normal ready primary characters. Buff, companion, recall, guild and local
+battle variants remain incomplete; unsupported or stale derived sheets are not
+sent. Equipment changes, learned-skill mutations and effect expiry still need
+source rules, atomic persistence, rederivation and original message sequencing.
+No actual client EXE/assets are available. Local/transferred self-inspection is
+verified over real native daemon TCP; World relay routing and wrong-peer rejection
+have loopback tests, while complete remote-player inspection across two real Maps
+and original-client UI acceptance remain unverified.
+
+Apply 001–030 and reapply the Map runtime grants; extract/import/publish the new
+four-table actor profile and configure its manifest hash. An old two-table
+release is rejected before native admission. Existing transfer/checkpoint graphs
+remain bound to their original catalog hashes: switching a populated world to a
+new release needs a separate evidenced compatibility migration. This increment
+does not rewrite those receipts or silently resume them under different charts.
+Backups and applied migrations 001–030 are immutable; next migration is 031.
+
+## Previous verified increment: native audit schema and query path
 
 Migration **029** creates `app_audit` and a versioned LP_LOG contract. The supplied
 backup schemas contain neither `TLOG_AUDIT` nor the original external
@@ -58,7 +114,7 @@ See the [contract](evidence/native-audit-contract.json),
 [Release](evidence/native-audit-release.json) and
 [reproduction instructions](../../../deploy/README.md#native-postgresql-audit-ingest-and-queries).
 Apply 029 and `deploy/sql/log-runtime-grants.sql` before enabling native Log;
-migrations 001–029 are now immutable, next is 030. The local image is
+migrations 001–029 remained immutable; the later statistics increment adds 030. The local image is
 `localhost/fourstory:postgresql-native-audit`; no external publication occurred.
 
 This verifies committed records across process replacement, not recovery of the
@@ -142,7 +198,7 @@ both an unsigned source and its newly allocated child. Existing generic TCP
 SIGKILL/database/World-loss coverage remains; this increment does not claim a
 new split-specific SIGKILL wire scenario.
 
-Backups and migrations 001–027 retain hashes; 028 is now immutable and next is 029.
+Backups and migrations 001–027 retain hashes; 028 became immutable; subsequent increments add 029–030.
 Apply 028 and current Map grants before these binaries. See the
 [stack contract](evidence/inventory-stacks-contract.json),
 [container evidence](evidence/inventory-stacks-container-verification.json),

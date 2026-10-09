@@ -94,6 +94,7 @@ int main(){
         stage="load";auto snap=map.LoadAuthorized(a);
         Check(snap&&snap->payload&&!snap->payload->bags.empty()&&!snap->payload->skills.empty()&&!snap->payload->hotkeys.empty(),"actual backup-derived starter bags skills and hotkeys loaded");
         Check(snap->wMapID==0&&snap->dwMaxHP>0&&snap->dwMaxMP>0&&snap->payload->next_exp==30,"spawn fallback and source experience/stat charts hydrated");
+        Check(snap->payload->statistics.has_value(),"native character includes a source-derived inspection sheet");
         std::size_t items=0,magic=0;for(const auto& bag:snap->payload->bags)for(const auto& item:bag.items){++items;magic+=item.magic.size();}
         Check(items>0&&magic>0,"synthetic raw magic derives client values through backup chart");
         bool source_values=false,all_source=true;

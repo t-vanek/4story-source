@@ -19,6 +19,7 @@ from verify_ammunition_batch_wire import verify_ammunition_batches
 from verify_multi_attack_wire import verify_multi_attack
 from verify_inventory_move_wire import verify_inventory_moves
 from verify_inventory_stack_wire import verify_inventory_stacks
+from verify_character_statistics_wire import verify_character_statistics
 from verify_map_skill_wire import seed_skill_cast,verify_skill_cast
 
 
@@ -203,6 +204,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         check(op==0x52b5 and data[0]==6,'fresh reconnected native daemon still enforces the saved cooldown')
         s.close();until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()[0]==0,'fresh cooldown relogin disconnect completes save')
         conn.execute('UPDATE app_world."TSKILLTABLE" SET "dwRemainTick"=0 WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,cooldown_skill))
+        character_statistics=verify_character_statistics(conn,cid,start,enter,login_port,map_port,until)
         replica_wire=verify_map_replica(conn,map_port,second_map_port,login_port,cid,start,connect_request,parse_character)
         ammo_replica_wire=verify_map_replica(conn,map_port,second_map_port,login_port,cid,start,connect_request,parse_character,ammunition=True)
         ammo_wire=verify_ammunition(conn,cid,start,enter,login_port,map_port,until)
@@ -378,7 +380,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
             if name==names[1]:continue
             command(['kill','--signal','TERM',name]);check(execute(['podman','wait',name],timeout=15).strip()=='0','actual daemon exits zero on SIGTERM')
             log=execute(['podman','logs',name]);check(not any(e in log for e in ('ERROR: AddressSanitizer','ERROR: LeakSanitizer','runtime error:')),'daemon log has no sanitizer failure')
-        return {'status':'passed','checks':checks,'skill_cast_wire':skill_wire,'world_secondary_wire':secondary_wire,'world_handoff_wire':handoff_wire,'map_rejection_wire':rejected_secondary,'map_replica_wire':replica_wire,'map_ammunition_wire':ammo_replica_wire,'ammunition_wire':ammo_wire,'ammunition_batch_wire':ammo_batches,'multi_attack_wire':multi_attack,'inventory_move_wire':inventory_moves,'inventory_stack_wire':inventory_stacks,'scope':'Actual Login/World/two-Map TCP, ungranted second-Map rejection and granted replica admission with an explicitly synthetic cell partition, World-loss admission/drain/restart, failed final save retention, periodic core checkpoints and SIGKILL/SIGTERM recovery; synthetic account, original backup content; real client and persisted social systems pending'}
+        return {'status':'passed','checks':checks,'skill_cast_wire':skill_wire,'world_secondary_wire':secondary_wire,'world_handoff_wire':handoff_wire,'map_rejection_wire':rejected_secondary,'map_replica_wire':replica_wire,'map_ammunition_wire':ammo_replica_wire,'ammunition_wire':ammo_wire,'ammunition_batch_wire':ammo_batches,'multi_attack_wire':multi_attack,'inventory_move_wire':inventory_moves,'inventory_stack_wire':inventory_stacks,'character_statistics_wire':character_statistics,'scope':'Actual Login/World/two-Map TCP, ungranted second-Map rejection and granted replica admission with an explicitly synthetic cell partition, World-loss admission/drain/restart, failed final save retention, periodic core checkpoints and SIGKILL/SIGTERM recovery; synthetic account, original backup content; real client and persisted social systems pending'}
     except Exception:
         (private/'runtime-progress.json').write_text(json.dumps({'completed_checks':checks},indent=2))
         (private/'runtime-failure.json').write_text(json.dumps({n:execute(['podman','logs',n]) for n in started},indent=2))

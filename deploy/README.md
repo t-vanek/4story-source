@@ -6,13 +6,15 @@ one daemon as UID/GID 10001, logs to stdout, and receives SIGTERM directly.
 
 ## Current native PostgreSQL verification contract
 
-The current native Login/Map path requires migrations **001–028**, current
+The current native Login/Map path requires migrations **001–030**, current
 `sql/login-runtime-grants.sql` and `sql/map-runtime-grants.sql`, plus explicitly
-activated character/routing/actor catalogs. The Map role now has bounded gameplay
+activated character/routing/four-table actor catalogs. The Map role now has bounded gameplay
 writes for consumption and inventory moves/splits/merges, including item INSERT
 and the shared world ID counter. Earlier sections below describe their original
 increment and do not override this requirement. Applied migrations are immutable;
-the next schema change starts at 029.
+the next schema change starts at 031. Existing player graph catalog bindings need
+an explicit compatibility migration before switching a populated world; see
+[native character statistics](#native-map-character-statistics).
 
 Reproduce local native integration against the existing private, backup-derived
 manifests with an isolated lab (paths below are placeholders for those manifests):
@@ -300,7 +302,7 @@ read password hashes or access historical schemas. Supply its libpq connection
 through `[database].connection_string_env` with TLS verification as for Login.
 
 Extract the actor profile using `extract_reference.py --profile actor`, import its
-private two-table manifest, and publish explicitly with `activate_actor_catalog.py`.
+private four-table manifest, and publish explicitly with `activate_actor_catalog.py`.
 The Map `[native_map]` section requires `character_manifest_sha256`,
 `routing_manifest_sha256` and `actor_manifest_sha256`. Configure `[cluster]`
 `group_id`/`server_id` consistently with the provisioned world and endpoints, enable
@@ -493,3 +495,39 @@ For installed Release add `--image localhost/fourstory:postgresql-native-audit
 `--build-dir`; the UDP tests use the installed Release daemon as UID/GID 10001.
 The runner maps the private configuration owner to that UID without loosening its
 file permissions. This image stays local; no publishing or deployment is required.
+
+
+### Native Map character statistics
+
+Use the local image `localhost/fourstory:postgresql-character-statistics`, or build
+with `podman build --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-character-statistics .`.
+Follow the native Login/Map provisioning steps above, then:
+
+1. Apply numbered migrations **001–030** through `tools/database/migrate.py apply`.
+2. Extract a fresh actor profile from the owned restored backup container using
+   `extract_reference.py --container <owned-mssql> --profile actor --output /private/actor-v2`.
+   It now includes item magic, skill points, item attributes and item grades.
+3. Import its private manifest with `migrate.py import-reference --manifest
+   /private/actor-v2/manifest.json`, then publish with
+   `activate_actor_catalog.py --manifest /private/actor-v2/manifest.json`.
+4. Reapply `sql/map-runtime-grants.sql` as the schema owner so the dedicated Map
+   role can read the new actor views. Supply the resulting actor manifest hash in
+   `[native_map]` (the verified backup export is
+   `bc17bc975c398ae2c05c2cc92e029df807be3c1fdc94b9cc43fe3659a280b878`).
+5. Start the existing Login/World/Map daemons with the previously documented native
+   runtime roles/DSN environment variables and matching endpoints. An incomplete
+   old actor release fails native Map startup instead of producing guessed stats.
+
+Run `run_native_verification.py --map-runtime-only` as above using the new actor
+manifest. The suite now includes `verify_character_statistics_wire.py` and retains
+inventory, skill, ownership, DB failure and process-recovery scenarios. Use
+`verify_actor_upgrade.py --work <owned-lab> --previous-manifest <old-two-table-json>
+--manifest <new-four-table-json> --report <report.json>` for repeatable catalog
+upgrade/preservation checks.
+
+Do not switch a populated world's catalog without resolving existing persisted
+transfer/checkpoint manifest bindings. This stat increment preserves those receipts
+and rejects mismatched catalogs; it does not provide a production data-upgrade
+path for previously transferred characters. Local disposable worlds are used for
+current verification. An actual original client installation is still required
+for the blocked client acceptance tests.

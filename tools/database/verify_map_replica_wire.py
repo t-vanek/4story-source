@@ -11,6 +11,7 @@ import time
 from verify_login_wire import frame, read_packet
 from verify_graph_reagent_wire import seed_graph_reagent, graph_reagent_cast
 from verify_inventory_stack_wire import graph_stack_packet
+from verify_character_statistics_wire import source_statistics
 
 
 def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start, connect_request, parse_character, ammunition=False):
@@ -134,6 +135,11 @@ def verify_map_replica(conn, primary_port, replica_port, login_port, cid, start,
         no_packet(replica,'returned primary merges the transferred split without a private ACK on the replica')
         graph_reagent_cast(conn,primary,cid,reagent_id,reagent_descriptor,7,9,5 if ammunition else 2,True,check,ammunition=ammunition)
         expected_reagent=1
+        primary.sendall(frame(struct.pack('<I',cid),0x5323,8))
+        check(read_packet(primary,12)==(0x5324,source_statistics(conn,cid)),
+              'complete stat sheet survives both ownership transfers and graph inventory/cooldown commits')
+        replica.sendall(frame(struct.pack('<I',cid),0x5323,9))
+        no_packet(replica,'former primary cannot serve a stale stat sheet after demotion')
         primary.close()
         until(lambda: conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s', (cid,)).fetchone()[0] == 0, 'transferred primary performs final native save and releases account')
         check(replica.recv(1) == b'', 'final close after round trip retires the retained replica')

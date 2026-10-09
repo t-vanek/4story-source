@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **029** are also immutable. Current
-native Map deployment requires migrations through 028 and the existing
+All subsequently applied migrations through **030** are also immutable. Current
+native Map deployment requires migrations through 030 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -115,7 +115,8 @@ Splits use the same `worlds.item_high_water` transaction as Login starter creati
 rollback restores the allocator along with items and recovery state. Graph splits
 reserve a global ID without materializing stale normalized child rows. Apply the
 updated Map grants for item INSERT, stack receipt INSERT and narrow high-water
-UPDATE. Migrations 001–029 are now immutable; native audit uses 029 and next schema change is 030. See the
+UPDATE. Migrations 001–030 are now immutable; native audit uses 029, statistics uses 030
+and the next schema change is 031. See the
 [stack contract](../_rewrite/docs/modernization/evidence/inventory-stacks-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
@@ -250,3 +251,15 @@ qualify `app_audit` independently of search_path. Apply the dedicated append-onl
 [grants](../deploy/sql/log-runtime-grants.sql) and use the
 [native example](../deploy/tlogsvr-postgresql.example.toml). Deployment and the
 upgrade/fault runner are described in [deploy/README.md](../deploy/README.md#native-postgresql-audit-ingest-and-queries).
+
+
+Migration **030** extends `actor_compat` with item attributes and grade tables and
+a completeness view. Publish a newly verified four-table actor manifest (9,773
+pinned backup rows), reapply Map grants and use its manifest hash in native Map
+configuration. Old imported releases and migration receipts remain unchanged;
+old two-table releases cannot satisfy the new stat runtime contract. Existing
+player graph/catalog bindings are not rewritten and require a separate evidenced
+compatibility migration before switching a populated world. See
+[Map startup](../deploy/README.md#native-map-character-statistics) and
+[catalog upgrade evidence](../_rewrite/docs/modernization/evidence/character-statistics-catalog-upgrade.json).
+Backups and applied migrations 001–030 are immutable; next migration is 031.

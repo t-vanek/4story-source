@@ -755,3 +755,37 @@ and a dedicated append-only role; original clients and historical audit content
 remain unavailable. Committed records survive graceful restart and SIGKILL; the
 RAM-only queues and uncertain outcomes do not acquire a durability promise.
 See `evidence/native-audit-contract.json` for source hashes and reproducible tests.
+
+
+## Character-statistics inspection (migration 030)
+
+`CS_CHARSTATINFO_REQ` (0x5323) contains one DWORD target ID. The original
+`CSSender.cpp:3241` and `Client/TClient/CSHandler.cpp:6620` agree on an 87-byte
+`CS_CHARSTATINFO_ACK` (0x5324). The new encoder retains all widths/order/endian
+behavior, including three delays before three rates, WORD attack levels and BYTE
+critical/charge fields. World messages prepend only the original requester DWORD.
+No protocol field or client change was introduced.
+
+Equipment attribute selection uses `wAttrID + grade[bLevel] + bGem` narrowed to
+WORD; missing attributes select the first unsigned-WORD key, exactly as original
+`SetItemAttr`. This fallback is evidenced behavior, not an estimated substitute.
+Zero-initialized source grade entries are retained. Broken equipment contributes
+no statistics; shield attributes belong to the separate blocking calculation.
+The normal sheet follows original formula truncation, primary minimum floors and
+min-attack clamping. Source backup data contains no SA_CONTINUE/SA_PASSIVE ability
+rows (`bType=1`); supported passive arithmetic callbacks are unit-tested, but no
+native populated passive-ability fixture is claimed.
+
+Modern validation differences: exact body sizes are required; World requests and
+answers must come from the relevant current primary. Map serves ready primaries
+only, refuses sheets after level/aftermath drift, and withholds unsupported active
+buff/companion/recall/guild/local-battle sheets. Undefined floating conversions and
+signed overflow are rejected. These are explicit restrictions pending the full
+systems, not successful fallback answers. The source request carries no epoch or
+request token, so same-character delayed read-only replies across reconnect are
+not claimed to be uniquely correlated.
+
+Actual PostgreSQL/TCP verifies normal self-inspection and both transfer directions;
+World relay loopback tests verify routing and wrong-peer rejection. Complete
+remote-player inspection over two native Maps and actual unchanged client UI
+acceptance remain pending. See `evidence/character-statistics-contract.json`.

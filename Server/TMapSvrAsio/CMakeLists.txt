@@ -115,6 +115,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/npc.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/inventory.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/character_statistics.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/combat.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/loot.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/quest.cpp
@@ -416,3 +417,7 @@ add_test(NAME tmapsvr_asio_admission COMMAND test_tmapsvr_asio_admission)
 set_tests_properties(tmapsvr_asio_admission PROPERTIES TIMEOUT 20)
 add_test(NAME tmapsvr_asio_admission_encrypted COMMAND test_tmapsvr_asio_admission --encrypted)
 set_tests_properties(tmapsvr_asio_admission_encrypted PROPERTIES TIMEOUT 20)
+
+add_executable(test_tmapsvr_asio_character_statistics ${TMAPSVR_ASIO_SRC}/tests/test_character_statistics.cpp)
+target_link_libraries(test_tmapsvr_asio_character_statistics PRIVATE tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_character_statistics COMMAND test_tmapsvr_asio_character_statistics)

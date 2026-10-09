@@ -23,6 +23,8 @@ void PostgreSQLMapService::CheckCatalogs(soci::session& sql) const {
          "(SELECT count(*) FROM actor_compat.catalog_release WHERE manifest_sha256=:a AND status='verified')",
         soci::use(m_config.character_manifest,"c"),soci::use(m_config.routing_manifest,"r"),soci::use(m_config.actor_manifest,"a"),soci::into(n);
     if(n!=3)throw std::runtime_error("Native Map release changed or unavailable");
+    sql<<"SELECT count(*) FROM actor_compat.statistics_release",soci::into(n);
+    if(n!=1)throw std::runtime_error("Native Map requires the four-table actor release");
 }
 bool PostgreSQLMapService::LockAccount(soci::session& sql,const MapSessionClaim& c) const {
     if(c.group!=m_config.world||!c.user_id||!c.key||!c.char_id||!c.connection_id||

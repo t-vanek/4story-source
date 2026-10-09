@@ -744,7 +744,7 @@ OnCharStatInfoAck(std::shared_ptr<PeerSession>  peer,
                   const HandlerContext&         ctx)
 {
     const std::string& ip = peer->Wire()->RemoteIPv4();
-    if (!ctx.chars || !ctx.peers) co_return;
+    if (!ctx.chars || !ctx.peers || body.size()!=8) co_return;
 
     wire::Reader r(body.data(), body.size());
     std::uint32_t req_char_id = 0, char_id = 0;
@@ -754,6 +754,10 @@ OnCharStatInfoAck(std::shared_ptr<PeerSession>  peer,
         co_return;
     }
 
+    auto requester=ctx.chars->Find(req_char_id);if(!requester)co_return;
+    std::uint8_t requester_map{};
+    {std::lock_guard g(requester->lock);requester_map=requester->main_server_id;}
+    if(FindMapPeer(ctx,requester_map)!=peer)co_return;
     auto target = ctx.chars->Find(char_id);
     if (!target) co_return;
     std::uint8_t msi = 0;
@@ -769,7 +773,7 @@ OnCharStatInfoAnsAck(std::shared_ptr<PeerSession>  peer,
                      const HandlerContext&         ctx)
 {
     const std::string& ip = peer->Wire()->RemoteIPv4();
-    if (!ctx.chars || !ctx.peers) co_return;
+    if (!ctx.chars || !ctx.peers || body.size()!=91) co_return;
 
     wire::Reader r(body.data(), body.size());
     std::uint32_t req_char_id = 0;
@@ -779,6 +783,11 @@ OnCharStatInfoAnsAck(std::shared_ptr<PeerSession>  peer,
         co_return;
     }
 
+    std::uint32_t target_id{};if(!r.Read(target_id))co_return;
+    auto target=ctx.chars->Find(target_id);if(!target)co_return;
+    std::uint8_t target_map{};
+    {std::lock_guard g(target->lock);target_map=target->main_server_id;}
+    if(FindMapPeer(ctx,target_map)!=peer)co_return;
     auto requester = ctx.chars->Find(req_char_id);
     if (!requester) co_return;
     std::uint8_t msi = 0;

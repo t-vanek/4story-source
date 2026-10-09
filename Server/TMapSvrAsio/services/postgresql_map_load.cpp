@@ -3,6 +3,7 @@
 #include "domain/main_transfer.h"
 #include "services/skill_cooldown.h"
 #include "services/skill_timing.h"
+#include "services/character_statistics.h"
 #include "services/postgresql_skill_targets.h"
 #include <set>
 #include <soci/soci.h>
@@ -59,18 +60,33 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     sql<<"SELECT * FROM character_compat.\"TRACECHART\" WHERE \"bRaceID\"=:id",soci::use(race),soci::into(ra);
     if(!sql.got_data())throw std::runtime_error("Missing character race");
     std::map<int,std::uint32_t> equipment;
+    character_statistics::ItemAttributes attributes;
     std::int64_t short_weapon_delay=0,long_weapon_delay=0;
     struct EquippedSkillItem {std::uint8_t kind,consumable_kind,consumable_count;bool powered;};
     std::vector<EquippedSkillItem> skill_equipment;
     for(const auto& bag:p.bags)if(bag.bag.bInvenID==254)
         for(const auto& item:bag.items) {
             const int id=std::bit_cast<std::int16_t>(item.wItemID);soci::row chart;
-            sql<<"SELECT \"dwSpeedInc\",\"bKind\",\"bUseItemKind\",\"bUseItemCount\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(id),soci::into(chart);
+            sql<<"SELECT \"dwSpeedInc\",\"bKind\",\"bUseItemKind\",\"bUseItemCount\",\"bType\",\"wAttrID\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(id),soci::into(chart);
             if(!sql.got_data())throw std::runtime_error("Equipped item lacks source template");
             const bool powered=!item.dwDuraMax||item.dwDuraCur;
             skill_equipment.push_back({U8(chart,"bKind"),U8(chart,"bUseItemKind"),U8(chart,"bUseItemCount"),powered});
             if(!powered)continue;
             for(const auto& [magic,value]:item.magic)equipment[magic]+=value;
+            const int level=item.bLevel;int grade=0;
+            sql<<"SELECT \"bGrade\" FROM actor_compat.\"TITEMGRADECHART\" WHERE \"bLevel\"=:l",soci::use(level),soci::into(grade);
+            // Original grade array is zero-initialized for absent levels. The
+            // attribute key narrows to WORD via MAPTITEMATTR::find.
+            const int attr=std::bit_cast<std::int16_t>(static_cast<std::uint16_t>(U16(chart,"wAttrID")+grade+item.bGem));
+            soci::row a;
+            sql<<"SELECT * FROM actor_compat.\"TITEMATTRCHART\" WHERE \"wID\"=:a",soci::use(attr),soci::into(a);
+            if(!sql.got_data()) {
+                // SetItemAttr deliberately falls back to the first unsigned
+                // WORD map key. Keep that evidenced source rule, not an estimate.
+                sql<<"SELECT * FROM actor_compat.\"TITEMATTRCHART\" ORDER BY (\"wID\"::integer & 65535) LIMIT 1",soci::into(a);
+                if(!sql.got_data())throw std::runtime_error("Missing source item attribute fallback");
+            }
+            attributes.Add(U8(chart,"bType"),U16(a,"wMinAP"),U16(a,"wMaxAP"),U16(a,"wMinMAP"),U16(a,"wMaxMAP"),U16(a,"wDP"),U16(a,"wMDP"));
             // Original slots 0/1 supply physical AND magic, slot 2 ranged speed.
             if(item.bItemID<=2) {
                 const auto increment=std::bit_cast<std::int32_t>(U32(chart,"dwSpeedInc"));
@@ -79,6 +95,8 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         }
     std::vector<Passive> passives;
     p.skill_templates.clear();
+    p.skill_points.fill(0);
+    p.statistics.reset();
     for(const auto& skill:p.skills) {
         const int id=std::bit_cast<std::int16_t>(skill.wSkillID);soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
@@ -125,7 +143,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         }
         // Original IsRemainType only adds skills having a SA_CONTINUE row.
         soci::rowset<soci::row> data=(sql.prepare<<"SELECT d.* FROM character_compat.\"TSKILLDATA\" d WHERE d.\"wSkillID\"=:id "
-            "AND d.\"bAction\" IN (1,4) AND d.\"bType\"=1 AND d.\"bExec\" IN (3,6,50,51,54,55,56) "
+            "AND d.\"bAction\" IN (1,4) AND d.\"bType\"=1 AND d.\"bExec\" IN (1,2,3,4,5,6,7,8,9,11,12,13,16,17,19,20,21,50,51,54,55,56,86,87) "
             "AND EXISTS (SELECT 1 FROM character_compat.\"TSKILLDATA\" a WHERE a.\"wSkillID\"=:id AND a.\"bAction\"=1)",soci::use(id,"id"));
         for(const auto& d:data) {
             int value=U16(d,"wValue"),inc=U16(d,"wValueInc"),rank=skill.bLevel;
@@ -161,9 +179,9 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             throw std::runtime_error("Passive total outside original INT range");
         return static_cast<int>(total);
     };
-    const auto stat=[&](const char* column,int type){
+    const auto stat=[&](const char* column,int type,std::uint16_t minimum=0){
         const auto base=static_cast<std::uint16_t>(1+U16(cl,column)+U16(ra,column));
-        float value=static_cast<float>(base*std::pow(static_cast<double>(growth.rate),int(s.bLevel)-1));
+        float value=static_cast<float>(std::max(base,minimum)*std::pow(static_cast<double>(growth.rate),int(s.bLevel)-1));
         if(s.bLevel>=10){const float reduction=static_cast<float>(std::min<int>(s.bAftermath,100)*0.3);
             value-=value*reduction/100;}
         value+=equipment[type];value+=delta(Truncate(value),type);return value;
@@ -190,6 +208,15 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             skill_timing::AttackTiming(normal,short_weapon_delay,delta(100,54),equipment[54]),
             skill_timing::AttackTiming(normal,long_weapon_delay,delta(100,55),equipment[55]),
             skill_timing::AttackTiming(magical,short_weapon_delay,delta(100,56),equipment[56])};
+        if(!s.cluster.guild&&(!p.transfer_state||(p.transfer_state->companions.empty()&&p.transfer_state->recalls.empty()&&!p.transfer_state->local_id))) {
+            static constexpr std::array columns{"wSTR","wDEX","wCON","wINT","wWIS","wMEN"};
+            std::array<std::uint32_t,6> unscaled{};
+            for(unsigned i=0;i<6;++i)unscaled[i]=1U+U16(cl,columns[i])+U16(ra,columns[i]);
+            p.statistics=character_statistics::Build(s.bLevel,s.bAftermath,unscaled,attributes,*p.skill_attack_timing,
+                [&](unsigned id){const auto f=ReadFormula(sql,id);return FormulaRow{f.initial,f.rate,f.rate_y};},
+                [&](unsigned i,std::uint16_t minimum){return stat(columns[i],i+1,minimum);},delta,
+                [&](unsigned type){return equipment[type];});
+        }
     }
 }
 ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw) {

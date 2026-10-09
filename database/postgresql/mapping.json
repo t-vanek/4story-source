@@ -11923,7 +11923,7 @@
       "original_pk": [
         "wID"
       ],
-      "reference_import_allowed": false
+      "reference_import_allowed": true
     },
     {
       "database": "TGAME_RAGEZONE",
@@ -13075,7 +13075,7 @@
         }
       ],
       "original_pk": [],
-      "reference_import_allowed": false
+      "reference_import_allowed": true
     },
     {
       "database": "TGAME_RAGEZONE",

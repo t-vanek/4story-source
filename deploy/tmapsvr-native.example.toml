@@ -1,6 +1,6 @@
 # Verified fresh normal-character runtime. Full gameplay, social persistence,
-# primary Map transfers and active recall admission are still being implemented.
-# Apply 001-019 and deploy/sql/map-runtime-grants.sql to a dedicated Map role.
+# advanced effects and active recall admission are still being implemented.
+# Apply 001-030 and deploy/sql/map-runtime-grants.sql to a dedicated Map role.
 [server]
 port = 5815
 
@@ -13,7 +13,7 @@ worker_threads = 4
 [native_map]
 character_manifest_sha256 = "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8"
 routing_manifest_sha256 = "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74"
-actor_manifest_sha256 = "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381"
+actor_manifest_sha256 = "bc17bc975c398ae2c05c2cc92e029df807be3c1fdc94b9cc43fe3659a280b878"
 # Original CHAR_SAVE_TICK is 30 minutes. Allowed range: 100..1800000 ms.
 # After a crash, transient changes since the latest committed checkpoint are lost.
 # Shorten this interval for the deployment's recovery target; final logout always saves.

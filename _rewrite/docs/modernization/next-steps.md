@@ -8,6 +8,18 @@ Owner instruction (2026-10-09): keep implementation and versioning local on `mai
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
+Current continuation (character statistics): preserve migration **030**, the
+four-table actor manifest and `character-statistics-contract.json`. Continue with
+native equipment moves: original eligibility and slot conflicts, atomic displaced
+items, recalculated stats/timing, EQUIP → MOVEITEM → CHARSTATINFO → HPMP and final
+MOVEITEM ordering. The normal stat sheet is integrated, not proof of equipment
+mutations or advanced effects. Add actual remote-player inspection across two
+native Maps and active buff/companion/guild/local-battle derivation. Catalog changes
+for already transferred characters need an explicit verified old/new manifest
+compatibility migration; old checkpoint/transfer hashes remain fenced. Keep all
+existing verified native transactions. Backups and migrations **001–030** are now
+immutable; next schema migration is **031**.
+
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
    cleanup, process ownership/fencing, sequential dispatch and graceful drain.
@@ -21,7 +33,7 @@ Local builds, disposable verification containers and local commits remain author
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–028 and the checkpoint, retirement and replica contract evidence. Actual
+   001–030 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -202,7 +214,7 @@ The helper creates labelled disposable containers; reuse no unrelated databases.
 Build in the Ubuntu image with `/src` bound to the checkout because the current
 `build/linux-debug` CMake cache contains container paths.
 
-Do not overwrite migrations `001`–`028` after application. Add migrations `029` onward.
+Do not overwrite migrations `001`–`030` after application. Add migrations `031` onward.
 Do not revert unrelated pre-existing client/binary/library working-tree changes.
 
 
@@ -456,7 +468,7 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–028; next schema change is 029. Native
+Preserve backups and migrations 001–030; next schema change is 031. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
@@ -477,7 +489,7 @@ reservation retention. Migration 028 now integrates source CTItem equality, spli
 allocator, including actual two-Map split/move/return/merge packets. Next implement equipment
 slot/class/level/two-hand rules and derived-stat/timing invalidation. Preserve actual two-Map inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
-only until complete gameplay; native Log subsequently uses 029, next new migration 030.
+only until complete gameplay; native Log uses 029, character statistics uses 030, next new migration 031.
 
 
 The owner confirmed that only uncompiled client sources are available, without

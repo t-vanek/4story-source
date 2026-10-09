@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish original Map actor item-magic/skill-point metadata without switching other releases."""
+"""Publish original Map actor item-magic/skill-point/equipment metadata without switching other releases."""
 import argparse
 import json
 from pathlib import Path
@@ -38,6 +38,13 @@ def activate_actor_catalog(conn, manifest_path, mapping_path=MAPPING, pinned_pat
             if cp != (len(rows), t['value_sha256'], table_hash(actual, model['column_mapping']),
                       t['text_bytes_value_sha256'], target_bytes_hash(conn, key)) or len(actual) != len(rows):
                 raise RuntimeError('CHECKPOINT_TARGET_DRIFT')
+        # The original loader indexes grades by BYTE level. Duplicate rows have
+        # unspecified source query order, so do not guess which grade wins.
+        if conn.execute('SELECT 1 FROM legacy_game."TITEMGRADECHART" WHERE "_import_run_id"=%s '
+                        'GROUP BY "bLevel" HAVING count(*)>1 LIMIT 1',(run_id,)).fetchone():
+            raise RuntimeError('AMBIGUOUS_ITEM_GRADE_LEVEL')
+        if not conn.execute('SELECT 1 FROM legacy_game."TITEMATTRCHART" WHERE "_import_run_id"=%s LIMIT 1',(run_id,)).fetchone():
+            raise RuntimeError('EMPTY_ITEM_ATTRIBUTE_CHART')
         previous = conn.execute('SELECT run_id FROM runtime_control.actor_catalog WHERE singleton').fetchone()
         changed = not previous or previous[0] != run_id
         if changed:

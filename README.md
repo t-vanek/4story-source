@@ -27,26 +27,27 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Linux containers | Six installed daemons, health endpoints, Map → World DNS connection and graceful SIGTERM shutdown | Full persistent deployment acceptance and pinned build dependencies |
 | Login | Native PostgreSQL authentication/session transactions, process ownership, duplicate protection, encrypted synthetic TCP and bounded email confirmation | Historical credential import, additional client profiles and original executable acceptance |
 | Characters | Native creation/list/deletion, starter inventory, atomic item IDs, fresh world admission, client hydration, core checkpoints, logout and reconnect | Complete item/economy mutations and ancillary character state |
+| Character statistics | Native 87-byte self-inspection and two-Map round-trip preservation using backup formulas and equipment | Advanced effects, equipment mutation, complete remote-player and original-client acceptance |
 | Map content | Pinned source catalogs, real monster attributes, routing and actor catalogs loaded by the actual daemon | Complete spawn, movement validation, entity visibility and gameplay parity |
 | Primary Map handoff | Movement-triggered transfer between two Maps, one database writer, exact state transfer, skill timers, return trips and recovery after process replacement | Full effect/quest/companion simulation, multiple-neighbor changes and special transfer branches |
 | Inventory | Native whole-stack moves, raw-attribute swaps, splitting and capacity-clamped merging; atomic IDs/receipts, two-Map round trips and recovery | Equipment, drops, timed bags, secured state and full economy |
 | Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
 | World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The latest increment adds **native Log persistence through migration 029**:
-original audit fields retain their integer widths and raw bytes, including text
-that is not UTF-8. The existing Log daemon writes and reads through a dedicated
-append-only database role, and startup checks its schema and write permissions.
-Real PostgreSQL/UDP tests cover lost commit replies, migration upgrade, grants,
-raw bytes, queries, graceful restart and SIGKILL recovery of committed rows.
+The latest increment adds **source-derived character statistics** to the existing
+Map server: the original 87-byte inspection response, equipment attributes and
+World relay handlers. Migration **030** extends the pinned actor catalog to four
+tables and 9,773 backup rows. Native TCP checks cover grade/gem/aftermath, broken
+weapons, reconnects and preservation across two Map transfers.
 
-Verification passes **187 Debug tests** (202 entries, 15 fixture skips), all **37
-sanitizer suites**, and **50 backend plus 25 runner/UDP checks per Debug, sanitizer
-and installed Release configuration**. The Release run uses the installed Log
-binary with the verified Debug backend test. See the
-[native audit contract](_rewrite/docs/modernization/evidence/native-audit-contract.json)
-and [startup instructions](deploy/README.md#native-postgresql-audit-ingest-and-queries).
-The original client and complete gameplay remain unfinished.
+**1,915 native checks pass in each of Debug, ASan/UBSan and installed Release.**
+Debug CTest has **188 actual passes** (203 entries, 15 fixture skips); all **39
+sanitizer suites** pass. The Release run uses installed daemons and a Debug backend test. See the
+[statistics contract](_rewrite/docs/modernization/evidence/character-statistics-contract.json)
+and [native Map startup instructions](deploy/README.md#native-map-character-statistics).
+Complete gameplay, advanced stat effects and original-client acceptance remain
+unfinished. Only client sources are currently available; no executable build or
+asset identity has been verified.
 
 Migration **020** adds the primary transfer journal, authority epochs and complete
 transfer-state checkpoints. A stale source cannot overwrite its successor's state.

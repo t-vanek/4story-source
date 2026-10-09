@@ -25,6 +25,9 @@
 
 namespace tmapsvr {
 
+// Exactly 87 source bytes, shared by local inspect and the World stat relay.
+std::vector<std::byte> EncodeCharacterStatistics(const CharSnapshot& s,const CharacterStatistics& values);
+
 std::string FormatServerClock();
 
 // One entry of the cross-server connect/route list: where a peer map

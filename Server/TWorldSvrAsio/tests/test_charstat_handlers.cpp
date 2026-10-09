@@ -138,6 +138,18 @@ int main()
       std::this_thread::sleep_for(10ms); }
     EXPECT(chars.Find(42) && chars.Find(200));
 
+    // Registered peers may only originate requests for their own primary.
+    {
+        std::vector<std::byte> forged;
+        tworldsvr::wire::WritePOD<std::uint32_t>(forged,42);
+        tworldsvr::wire::WritePOD<std::uint32_t>(forged,200);
+        SendFramed(p2,ToUint16(MessageId::MW_CHARSTATINFO_ACK),forged);
+        forged.push_back(std::byte{0});
+        SendFramed(p1,ToUint16(MessageId::MW_CHARSTATINFO_ACK),forged);
+        std::this_thread::sleep_for(50ms);
+        EXPECT(p2.available()==0);
+    }
+
     // --- Step 1: Alice requests Bob's stats → ANS_REQ to Bob's map --
     {
         std::vector<std::byte> b;
@@ -159,8 +171,14 @@ int main()
         std::vector<std::byte> b;
         tworldsvr::wire::WritePOD<std::uint32_t>(b, 42);   // req
         // opaque stat block (world forwards verbatim)
-        tworldsvr::wire::WritePOD<std::uint32_t>(b, 0xDEADBEEF);
+        tworldsvr::wire::WritePOD<std::uint32_t>(b, 200);
         tworldsvr::wire::WritePOD<std::uint16_t>(b, 0x1234);
+        b.resize(91,std::byte{0x5a});
+        SendFramed(p1, ToUint16(MessageId::MW_CHARSTATINFOANS_ACK), b);
+        auto short_body=b;short_body.pop_back();
+        SendFramed(p2, ToUint16(MessageId::MW_CHARSTATINFOANS_ACK), short_body);
+        std::this_thread::sleep_for(50ms);
+        EXPECT(p1.available()==0);
         SendFramed(p2, ToUint16(MessageId::MW_CHARSTATINFOANS_ACK), b);
     }
     {
@@ -170,7 +188,7 @@ int main()
         std::uint32_t req = 0, blob = 0; std::uint16_t tail = 0;
         r.Read(req); r.Read(blob); r.Read(tail);
         EXPECT(req == 42);
-        EXPECT(blob == 0xDEADBEEF);     // stat block forwarded verbatim
+        EXPECT(blob == 200);     // stat block forwarded verbatim
         EXPECT(tail == 0x1234);
     }
 

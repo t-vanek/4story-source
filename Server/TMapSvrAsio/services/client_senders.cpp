@@ -55,6 +55,21 @@ std::vector<std::byte> EncodeConnectAck(
     return b;
 }
 
+std::vector<std::byte> EncodeCharacterStatistics(const CharSnapshot& s,const CharacterStatistics& v) {
+    std::vector<std::byte> b;b.reserve(87);
+    wire::WritePOD(b,s.dwCharID);
+    for(auto stat:v.primary)wire::WritePOD(b,stat);
+    for(auto value:{v.min_physical,v.max_physical,v.physical_defense,v.min_ranged,v.max_ranged})wire::WritePOD(b,value);
+    for(auto timing:v.timing)wire::WritePOD(b,timing.delay);
+    for(auto timing:v.timing)wire::WritePOD(b,timing.rate);
+    wire::WritePOD(b,v.attack_level);wire::WritePOD(b,v.defense_level);wire::WritePOD(b,v.physical_critical);
+    wire::WritePOD(b,v.min_magic);wire::WritePOD(b,v.max_magic);wire::WritePOD(b,v.magic_defense);
+    wire::WritePOD(b,v.magic_attack_level);wire::WritePOD(b,v.magic_defense_level);
+    wire::WritePOD(b,v.charge_speed);wire::WritePOD(b,v.charge_probability);wire::WritePOD(b,v.magic_critical);
+    wire::WritePOD(b,s.wSkillPoint);wire::WritePOD(b,s.bAftermath);
+    return b;
+}
+
 std::vector<std::byte> EncodeCharInfoAck(
     const CharSnapshot& s, const std::string& time_str)
 {

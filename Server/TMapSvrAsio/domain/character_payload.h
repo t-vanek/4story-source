@@ -1,6 +1,7 @@
 #pragma once
 #include "domain/inventory.h"
 #include "domain/skill.h"
+#include "domain/character_statistics.h"
 #include <array>
 #include <memory>
 #include <optional>
@@ -46,6 +47,9 @@ struct CharacterPayload {
     // Source-derived physical/long/magic timing (TAD 1..3). Buff-bearing
     // transfers leave this absent until active-effect timing is implemented.
     std::optional<std::array<SkillAttackTiming,3>> skill_attack_timing;
+    // Absent for active-effect/companion/guild states whose stat semantics are
+    // not yet implemented. Never synthesize a successful zero-filled sheet.
+    std::optional<CharacterStatistics> statistics;
     std::vector<CharacterHotkeys> hotkeys;
     std::vector<CharacterTitle> titles;
     std::vector<CharacterCabinet> cabinets;

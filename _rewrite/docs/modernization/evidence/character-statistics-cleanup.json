@@ -1,0 +1,44 @@
+{
+  "labs": [
+    {
+      "work_directory": "/tmp/fourstory-character-stats-20261009",
+      "owned_containers_removed": true,
+      "owned_network_removed": true,
+      "private_secret_files_removed": [
+        "mssql.env",
+        "native-1c65b13352b2/client-files/runtime-0.toml",
+        "native-1c65b13352b2/client-files/runtime-1.toml",
+        "native-1c65b13352b2/client-files/runtime-2.toml",
+        "native-1c65b13352b2/client-files/runtime-3.toml",
+        "native-1c65b13352b2/tls/ca.key",
+        "native-1c65b13352b2/tls/server.key",
+        "native-1c65b13352b2/tls/wrong-ca.key",
+        "native-4208a85772b8/client-files/runtime-0.toml",
+        "native-4208a85772b8/client-files/runtime-1.toml",
+        "native-4208a85772b8/client-files/runtime-2.toml",
+        "native-4208a85772b8/client-files/runtime-3.toml",
+        "native-4208a85772b8/tls/ca.key",
+        "native-4208a85772b8/tls/server.key",
+        "native-4208a85772b8/tls/wrong-ca.key",
+        "postgres.env"
+      ]
+    },
+    {
+      "work_directory": "/tmp/fourstory-character-stats-asan-20261009",
+      "owned_containers_removed": true,
+      "owned_network_removed": true,
+      "private_secret_files_removed": [
+        "native-af3f13147940/client-files/runtime-0.toml",
+        "native-af3f13147940/client-files/runtime-1.toml",
+        "native-af3f13147940/client-files/runtime-2.toml",
+        "native-af3f13147940/client-files/runtime-3.toml",
+        "native-af3f13147940/tls/ca.key",
+        "native-af3f13147940/tls/server.key",
+        "native-af3f13147940/tls/wrong-ca.key",
+        "postgres.env"
+      ]
+    }
+  ],
+  "retained": "Private backup-derived actor export, source metadata, test logs, certificates and ownership metadata; original backups unchanged",
+  "external_actions": false
+}

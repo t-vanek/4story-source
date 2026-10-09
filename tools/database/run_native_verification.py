@@ -31,7 +31,7 @@ def main():
     p.add_argument('--characters-only', action='store_true', help='Native character lifecycle with backup-derived charts')
     p.add_argument('--map-backend-only', action='store_true', help='With --map-runtime-only, stop after native backend integration tests')
     p.add_argument('--map-runtime-only', action='store_true', help='Native Map claim/load/save with source catalogs')
-    p.add_argument('--actor-snapshot', type=Path, help='Private two-table actor manifest')
+    p.add_argument('--actor-snapshot', type=Path, help='Private four-table actor manifest')
     p.add_argument('--routing-only', action='store_true', help='Native authenticated Login-to-Map routing and handoff')
     p.add_argument('--routing-snapshot', type=Path, help='Private four-table routing manifest')
     p.add_argument('--pool-only', action='store_true', help='Synthetic pool/TLS tests for CI; no historical data or map startup')

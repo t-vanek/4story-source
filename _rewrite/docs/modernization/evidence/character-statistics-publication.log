@@ -1,0 +1,11 @@
+test_ambiguous_grades_cannot_be_published (test_actor_catalog.ActorCatalogVerification.test_ambiguous_grades_cannot_be_published) ... ok
+test_empty_attribute_fallback_cannot_be_published (test_actor_catalog.ActorCatalogVerification.test_empty_attribute_fallback_cannot_be_published) ... ok
+test_independent_idempotent_publication (test_actor_catalog.ActorCatalogVerification.test_independent_idempotent_publication) ... ok
+test_old_actor_release_retained_but_not_stat_capable (test_actor_catalog.ActorCatalogVerification.test_old_actor_release_retained_but_not_stat_capable) ... ok
+test_partial_and_wrong_backup_are_rejected (test_actor_catalog.ActorCatalogVerification.test_partial_and_wrong_backup_are_rejected) ... ok
+test_target_drift_cannot_switch_selector_or_append_history (test_actor_catalog.ActorCatalogVerification.test_target_drift_cannot_switch_selector_or_append_history) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.550s
+
+OK

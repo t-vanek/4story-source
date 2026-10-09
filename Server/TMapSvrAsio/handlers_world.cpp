@@ -816,6 +816,10 @@ DispatchWorld(std::uint16_t          wId,
     const auto id = ToMessageId(wId);
     switch (id)
     {
+    case MessageId::MW_CHARSTATINFOANS_REQ:
+        co_await OnWorldCharStatInfoAnsReq(body,ctx);break;
+    case MessageId::MW_CHARSTATINFO_REQ:
+        co_await OnWorldCharStatInfoReq(body,ctx);break;
     case MessageId::DM_LOADCHAR_REQ:
         // The original DM_* load request belongs to the local DB queue, not
         // the World socket. Do not expose the incomplete legacy load encoder.

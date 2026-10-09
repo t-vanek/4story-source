@@ -68,6 +68,18 @@ secondary gameplay remain IMPLEMENTING.
 
 ## Gameplay and durable state
 
+Current stat inspection increment: **IMPLEMENTED/INTEGRATED** native derived
+statistics and local/World relay handlers. **VERIFIED** native self-inspection,
+all response bytes, original grade/gem/broken-weapon/aftermath rules, two-Map
+round-trip preservation and regression recovery; **VERIFIED** World relay
+loopback/wrong-peer rejection. Full remote-player real-Map and original-client UI
+acceptance remain **UNVERIFIED**. Buff/companion/guild/local-battle stat variants
+and equipment mutations remain **IMPLEMENTING**. See
+[evidence/character-statistics-contract.json](evidence/character-statistics-contract.json).
+Migration 030 requires a complete four-table actor release; existing graph catalog
+hash migration is a separate gate, never an implicit receipt rewrite.
+
+
 | Legacy behavior / references | Modern production path and replacement work | PG dependency | Protocol and test evidence | Status / next acceptance |
 |---|---|---|---|---|
 | Account validation and reconnect (`TLoginSvr/DBAccess.cpp`, CS handlers) | Existing `services/soci_auth_service.cpp` and auth repository boundary; preserve result codes, credential representation, concurrent session behavior | Migrations 008/009 app_global; account-row lock, unique current session, atomic audit, key-specific logout, process token fencing | login-lifecycle.json / login-lifecycle-asan.json: actual PG, encrypted TCP, duplicate/reconnect, rollback, failover and shutdown during auth | VERIFIED synthetic native scope including single-active-owner failover/fencing and graceful drain; historical import, direct-login 2FA/Map ownership and real client pending |

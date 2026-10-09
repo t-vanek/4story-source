@@ -44,7 +44,7 @@ void VerifyMainTransfer(soci::session& admin,SessionPool& pool,tmapsvr::PostgreS
         "target atomically promotes replica and restores unsaved live core");
     Check(received->snapshot.payload->skills.front().dwRemainTick==299970&&received->snapshot.payload->transfer_state&&
         transfer::Encode(*received->snapshot.payload->transfer_state)==body,"target retains exact full transfer and live remaining cooldown");
-    Check(!received->snapshot.payload->skill_attack_timing&&received->snapshot.payload->transfer_state->buffs.size()==1,
+    Check(!received->snapshot.payload->statistics&&!received->snapshot.payload->skill_attack_timing&&received->snapshot.payload->transfer_state->buffs.size()==1,
           "buff-bearing transfer preserves effects but refuses guessed attack timing");
     Check(target.AcceptTransfer(secondary,body).has_value(),"exact target retry confirms previously committed load");
     Check(source.OutgoingTransferCommitted(primary),"source confirms exact outgoing authority receipt");

@@ -847,11 +847,44 @@ existing refusal of positions outside pinned bag capacity. No changes to framing
 crypto, checksums, opcodes, widths, endianity or client code. Native equal-item
 receipts may contain zero changes, without inventing item updates.
 
-Supported scope excludes active effects, warrior auto-postures (including the
-original source-pointer lifetime condition), their cancellation, active recalls/
+The original 032 scope excluded active effects and warrior auto-postures; 033
+adds the bounded permanent-posture contract below. It still excludes active recalls/
 companions, party/guild/local battle rules, race-costume changes and special-item
 combat consequences. Those implementations remain required. Local 3×3-cell EQUIP
 broadcast is integrated; complete cross-Map visibility/replica updates and original
 client appearance/UI acceptance remain open. Timed bags, trade/store and secure
 code integration are also unfinished. No successful fallback represents these
 missing contracts. See [equipment evidence](evidence/equipment-contract.json).
+
+## Permanent warrior postures (migration 033)
+
+The unchanged five-byte `CS_MOVEITEM_REQ` now drives source `ForceMaintain` for
+131 (shield) or 132 (two-hand/axe), retaining the original pointer-lifetime branch.
+No learned posture or client change is required. Both templates and all ability
+values come from the pinned backup. `SA_BUFF` contributions use the original base,
+clamp before `SA_CONTINUE`/`SA_PASSIVE`, and preserve separate shield-defense rules.
+
+All replies follow the item/effect/core/checkpoint transaction. Item displacement
+and main-move packets come first. Posture replacement sends old `CS_SKILLEND_ACK`
+(7 bytes), the post-erase `CS_CHARSTATINFO_ACK` (87 bytes), then new
+`CS_DEFEND_ACK` (84 bytes). Ordinary EQUIP → MOVEITEM → intermediate CHARSTATINFO →
+HPMP follows. `CheckEquipSkill` then ends unsupported self-cast postures and sends
+the final stat sheet before the last MOVEITEM. A broken but equipped matching
+weapon still meets original `IsEquipSkillItem`; this differs from powered attack
+equipment eligibility. Local neighboring sessions receive DEFEND/SKILLEND;
+complete remote and cross-Map actor visibility is still unverified.
+
+CHARINFO now emits each source 51-byte maintained entry rather than dropping the
+collection. The original eight persisted fields remain unchanged in transfer and
+storage: skill ID, rank, remaining, attacker type/ID, host type/ID, country. A new
+ForceMaintain instance has hit/attack-level/attacker-level zero and current position.
+After original LOADCHAR reconstruction these values become CTSkill constructor
+defaults (1/1/1, position zero). DEFEND itself uses host 0/type 0, attack level 1
+and character level, as the source sender does. These differences are intentional.
+
+Zero remaining is permanent for these zero-duration templates, not expired.
+This increment does not implement `CS_SKILLEND_REQ`, `CheckEternalBuff` at zero MP,
+timed expiry, generic status effects, dependent posture skills or death/remote
+simulation. Such branches remain acceptance gaps. Only synthetic encrypted TCP
+and original source/backup oracles are available; actual client build/assets and
+client UI acceptance remain blocked. See [posture evidence](evidence/postures-contract.json).

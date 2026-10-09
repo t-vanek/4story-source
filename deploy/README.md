@@ -6,7 +6,7 @@ one daemon as UID/GID 10001, logs to stdout, and receives SIGTERM directly.
 
 ## Current native PostgreSQL verification contract
 
-The current native Login/Map path requires migrations **001–032**, current
+The current native Login/Map path requires migrations **001–033**, current
 `sql/login-runtime-grants.sql` and `sql/map-runtime-grants.sql`, plus explicitly
 activated character/routing/four-table actor catalogs. The Map role now has bounded gameplay
 writes for consumption and inventory moves/splits/merges, including item INSERT
@@ -625,3 +625,56 @@ original-client acceptance. No supported executable build/hash or assets can be
 listed yet because only uncompiled client sources are available. Finish warrior
 postures, active effects and the remaining equipment/gameplay dependencies before
 claiming a complete server. See [equipment contract](../_rewrite/docs/modernization/evidence/equipment-contract.json).
+
+
+## Native maintained postures
+
+Current application schema: **001–033**, next migration **034**. Stop Map owners
+before upgrading, apply migrations with the schema owner, and reapply
+`sql/map-runtime-grants.sql`. Start the services using the existing native catalog,
+TLS and Compose procedure above. All running Maps must use the current image.
+
+```sh
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-postures .
+python3 tools/database/disposable_environment.py start --work /tmp/fourstory-postures-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-postures-test --map-runtime-only --build-dir build/linux-debug \
+  --snapshot /private/character/manifest.json \
+  --routing-snapshot /private/routing/manifest.json \
+  --actor-snapshot /private/four-table-actor/manifest.json \
+  --report /tmp/native-postures-debug.json
+```
+
+Use the reconstruction Python environment with psycopg and the verified private
+manifest exports. Run the sanitizer preset with `--build-dir build/linux-asan`.
+For installed Release add `--image localhost/fourstory:postgresql-postures` and
+`--runtime-bin-dir /opt/fourstory/bin`; its backend integration binary remains the
+mounted Debug test. Run Debug and ASan CTest separately. The wire suite respects
+production Login rate limits, so its authentication pacing is intentional.
+
+The posture suite creates synthetic characters/items from backup templates, tests
+native/graph persistence, competing equips, late rollback, drift and reconnect,
+then exercises original packet order through actual encrypted TCP. It kills the
+Map process with an active posture and disconnects during a delayed cancellation
+commit. General effect expiry/cancellation, combat and original-client acceptance
+remain unfinished; only client source is available, not a verified EXE or assets.
+See [posture contract and evidence](../_rewrite/docs/modernization/evidence/postures-contract.json).
+
+Stop the owned lab:
+
+```sh
+python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-postures-test
+```
+
+Then remove its private credentials and keys.
+All work, images and commits remain local; no push or external deployment.
+
+The bounded schema upgrade can be checked independently while that lab is running:
+
+```sh
+python3 tools/database/verify_posture_upgrade.py --work /tmp/fourstory-postures-test --report /tmp/postures-upgrade.json
+```
+
+It creates/removes its own synthetic database, upgrades untouched 001–032 receipts
+through 033, and verifies all eight maintained-field drift guards. This structural
+check does not substitute for the native process and original-client tests.

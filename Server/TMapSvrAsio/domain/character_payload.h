@@ -2,6 +2,7 @@
 #include "domain/inventory.h"
 #include "domain/skill.h"
 #include "domain/character_statistics.h"
+#include "domain/maintained_effect.h"
 #include <array>
 #include <memory>
 #include <optional>
@@ -41,6 +42,10 @@ struct CharacterPayload {
     std::uint64_t transfer_received_ms{};
     std::vector<CharacterBag> bags;
     std::vector<SkillRow> skills;
+    // Optional only for legacy/test projections which have not hydrated effects.
+    // Native fresh and transferred primaries always load the complete collection.
+    std::optional<std::vector<MaintainedEffect>> effects;
+    std::array<PostureTemplate,2> posture_templates{};
     // Static definitions for learned skills, hydrated from the pinned character
     // catalog on both fresh load and transfer. Never serialized as player data.
     std::vector<SkillTemplate> skill_templates;

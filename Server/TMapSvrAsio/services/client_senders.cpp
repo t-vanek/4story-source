@@ -1,4 +1,5 @@
 #include "services/client_senders.h"
+#include "services/maintained_effects.h"
 
 #include "wire_codec.h"
 #include <stdexcept>
@@ -6,6 +7,28 @@
 #include <cstdio>
 
 namespace tmapsvr {
+std::vector<std::byte> EncodeSkillEnd(std::uint32_t character,std::uint16_t skill) {
+    std::vector<std::byte> b;wire::WritePOD<std::uint32_t>(b,character);
+    wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint16_t>(b,skill);return b;
+}
+std::vector<std::byte> EncodePostureDefend(const CharSnapshot& s,std::uint16_t skill) {
+    if(!s.payload||(skill!=131&&skill!=132))throw std::runtime_error("Invalid automatic posture reply");
+    std::vector<std::byte> b;
+    wire::WritePOD<std::uint32_t>(b,s.dwCharID);wire::WritePOD<std::uint32_t>(b,s.dwCharID);
+    wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint8_t>(b,1);
+    wire::WritePOD<std::uint32_t>(b,0);wire::WritePOD<std::uint8_t>(b,0); // source wire host, not buff host
+    wire::WritePOD<std::uint32_t>(b,0);wire::WritePOD<std::uint32_t>(b,0); // act, animation
+    wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint32_t>(b,0); // permanent maintained
+    wire::WritePOD<std::uint8_t>(b,0);wire::WritePOD<std::uint8_t>(b,1); // hit, HT_NORMAL
+    wire::WritePOD<std::uint16_t>(b,1);wire::WritePOD<std::uint8_t>(b,s.bLevel);
+    for(int i=0;i<4;++i)wire::WritePOD<std::uint32_t>(b,0);
+    wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint8_t>(b,0);
+    wire::WritePOD<std::uint8_t>(b,s.bCountry);wire::WritePOD<std::uint8_t>(b,s.payload->aid_country);
+    wire::WritePOD<std::uint16_t>(b,skill);wire::WritePOD<std::uint8_t>(b,1);
+    wire::WritePOD<std::uint16_t>(b,0);wire::WritePOD<std::uint8_t>(b,1);
+    for(int i=0;i<2;++i){wire::WritePOD<float>(b,s.fPosX);wire::WritePOD<float>(b,s.fPosY);wire::WritePOD<float>(b,s.fPosZ);}
+    wire::WritePOD<std::uint8_t>(b,0);return b;
+}
 
 // "AM/PM HH:MM" server clock string CS_CHARINFO_ACK carries (legacy
 // CSSender.cpp:344 formats the wall-clock the same way). Cosmetic — the
@@ -159,7 +182,17 @@ std::vector<std::byte> EncodeCharInfoAck(
         wire::WritePOD<std::uint8_t>(b,skill.bLevel);
         wire::WritePOD<std::uint32_t>(b,skill.dwRemainTick);
     }
-    wire::WritePOD<std::uint8_t>(b,0); // no maintained effects in fresh native state
+    const auto& effects=MaintainedEffects(p);
+    wire::WritePOD<std::uint8_t>(b,count(effects.size()));
+    for(const auto& e:effects) {
+        wire::WritePOD<std::uint16_t>(b,e.skill);wire::WritePOD<std::uint8_t>(b,e.level);wire::WritePOD<std::uint32_t>(b,e.remaining);
+        wire::WritePOD<std::uint32_t>(b,e.attack_id);wire::WritePOD<std::uint8_t>(b,e.attack_type);
+        wire::WritePOD<std::uint32_t>(b,e.host_id);wire::WritePOD<std::uint8_t>(b,e.host_type);
+        wire::WritePOD<std::uint8_t>(b,e.hit);wire::WritePOD<std::uint16_t>(b,e.attack_level);wire::WritePOD<std::uint8_t>(b,e.attacker_level);
+        for(auto value:e.powers)wire::WritePOD<std::uint32_t>(b,value);
+        wire::WritePOD<std::uint8_t>(b,e.can_select);wire::WritePOD<std::uint8_t>(b,e.attack_country);
+        for(auto value:e.position)wire::WritePOD<float>(b,value);
+    }
     wire::WritePOD<std::uint8_t>(b,count(p.hotkeys.size()));
     for(const auto& keys:p.hotkeys){
         wire::WritePOD<std::uint8_t>(b,keys.inventory);

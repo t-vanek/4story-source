@@ -22,6 +22,8 @@ GRANT INSERT,UPDATE ON app_world.map_checkpoints TO :"map_role";
 GRANT EXECUTE ON FUNCTION app_world.map_core_state(smallint,integer) TO :"map_role";
 GRANT EXECUTE ON FUNCTION app_world.map_skill_state(smallint,integer),app_world.map_checkpoint_matches(app_world.map_checkpoints) TO :"map_role";
 GRANT UPDATE("dwRemainTick") ON app_world."TSKILLTABLE" TO :"map_role";
+GRANT INSERT,DELETE ON app_world.map_maintained_effects TO :"map_role";
+GRANT EXECUTE ON FUNCTION app_world.map_maintain_state(smallint,integer) TO :"map_role";
 GRANT EXECUTE ON FUNCTION app_world.item_fingerprint(app_world."TITEMTABLE") TO :"map_role";
 GRANT UPDATE("bCount"),DELETE ON app_world."TITEMTABLE" TO :"map_role";
 GRANT UPDATE("dwStorageID","bItemID") ON app_world."TITEMTABLE" TO :"map_role";

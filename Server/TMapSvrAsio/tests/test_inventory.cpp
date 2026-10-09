@@ -203,9 +203,9 @@ int main()
         EXPECT(PlanInventoryMove(s,{255,0,254,0,1}).result==InventoryMoveResult::Success);
         auto first=item(4,254,0,202);first.equipment=EquipmentRules{1,1,0,255,1,0};
         s=state({warrior_two},{first});s.bClass=0;
-        EXPECT(throws([&]{PlanInventoryMove(s,{255,0,254,0,1});}));
+        EXPECT(PlanInventoryMove(s,{255,0,254,0,1}).auto_posture==132);
         auto shield=item(5,255,0,203);shield.bKind=12;shield.equipment=EquipmentRules{2,1,1,255,1,0};
-        s=state({shield},{});s.bClass=0;EXPECT(throws([&]{PlanInventoryMove(s,{255,0,254,1,1});}));
+        s=state({shield},{});s.bClass=0;EXPECT(PlanInventoryMove(s,{255,0,254,1,1}).auto_posture==131);
         auto stack=item(1,255,0,100,3);s=state({stack},{item(2,254,3,101)});
         plan=PlanInventoryMove(s,{255,0,254,3,255});EXPECT(plan.items.size()==3&&plan.items.back().created&&plan.wire.size()==4);
         ApplyInventoryMove(s,plan,99);EXPECT(s.payload->bags[0].items[0].dlID==99&&s.payload->bags[0].items[0].bCount==1);

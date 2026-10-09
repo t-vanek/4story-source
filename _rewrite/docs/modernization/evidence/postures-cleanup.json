@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "labs": [
+    {
+      "work": "/tmp/fourstory-postures-20261009",
+      "database_removed": true,
+      "owned_network_removed": true,
+      "secret_and_runtime_files_removed": 27,
+      "private_fixture_exports_retained": true
+    },
+    {
+      "work": "/tmp/fourstory-postures-asan-20261009",
+      "database_removed": true,
+      "owned_network_removed": true,
+      "secret_and_runtime_files_removed": 16,
+      "private_fixture_exports_retained": true
+    },
+    {
+      "work": "/tmp/fourstory-postures-release-20261009",
+      "database_removed": true,
+      "owned_network_removed": true,
+      "secret_and_runtime_files_removed": 16,
+      "private_fixture_exports_retained": true
+    }
+  ],
+  "remaining_running_containers": []
+}

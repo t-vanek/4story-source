@@ -18,7 +18,45 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: native equipment transactions
+## Current increment: durable warrior postures
+
+Migration **033** integrates permanent automatic postures 131/132 with the existing
+native equipment transaction. Their creation, replacement and equipment-driven
+cancellation recalculate source statistics and retain every intermediate packet
+state. Fresh primaries use ordered eight-field PostgreSQL effect rows and recovery
+contract 4; transferred primaries retain authoritative graph contract 2. Ordinary
+core saves compare effects rather than overwriting them. Equipment receipts bind
+both collections in the same commit as item changes and resource/timer state.
+
+CHARINFO now carries the original maintained entries. Reconnect/transfer preserves
+the eight durable fields and restores the original CTSkill constructor defaults
+for presentation fields. Source ForceMaintain DEFEND and cancellation SKILLEND/stat
+ordering is retained, including the source-pointer quirk when moving a whole
+two-handed item into an empty slot. No opcode or client field changes.
+
+Verification: **2,221 native checks in each of Debug, ASan/UBSan and installed
+Release** (719 backend + 29 pool/TLS + 475 outer TCP + 998 nested protocol checks,
+including 50 posture wire checks). Release uses installed Login/World/Map daemons
+and the Debug backend test. Debug CTest: 203 entries, 188 actual passes, eight
+internal legacy fixture skips and seven explicit native skips; no failures.
+All 39 sanitizer suites pass. The additive 032→033 schema test passes 19 checks;
+the bounded historical actor upgrade passes 13. Six installed services pass
+health, container DNS and SIGTERM. Local image `localhost/fourstory:postgresql-postures`,
+ID `1d692efe5d3664f56a6697bd1d8ce8844a2a7cbf98d0358593230797882e82d1`.
+Owned labs and generated credentials/keys have been removed.
+
+See [posture verification and limits](evidence/postures-contract.json) and the
+[local startup procedure](../../../deploy/README.md#native-maintained-postures).
+This is a bounded slice. Client-requested cancellation, zero-MP eternal-buff
+removal, timed expiry, dependent posture skills, full combat, special equipment,
+party/guild/companions and remote visibility remain required. The new graph tests
+exercise native service transfer state and replacement-owner recovery; actual
+posture-bearing two-process TCP handoff and original-client UI are not claimed.
+Only uncompiled client sources are available, so no supported binary build/hash
+or asset identity can be listed. Backups and applied migrations **001–033** are
+immutable; next schema migration **034**. Version locally on `main`, with no push.
+
+## Previous increment: native equipment transactions
 
 The existing `CS_MOVEITEM_REQ` path now handles ordinary equipment with native
 PostgreSQL: equip/unequip, unequal swaps, reverse swap normalization, two-hand

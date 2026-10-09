@@ -116,7 +116,7 @@ rollback restores the allocator along with items and recovery state. Graph split
 reserve a global ID without materializing stale normalized child rows. Apply the
 updated Map grants for item INSERT, stack receipt INSERT and narrow high-water
 UPDATE. Native audit uses 029, statistics 030, actor compatibility 031 and
-equipment 032. All are immutable; the next schema change is 033. See the
+equipment 032 and maintained postures 033. All are immutable; the next schema change is 034. See the
 [stack contract](../_rewrite/docs/modernization/evidence/inventory-stacks-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,
@@ -294,4 +294,26 @@ commit. Equipment eligibility uses the original `bLevel` chart column and raw
 full-width item extensions. Inactive account pets are preserved separately from
 active-effect dependencies. Apply the current Map grants after migration.
 See [contract and limits](../_rewrite/docs/modernization/evidence/equipment-contract.json).
-Backups and migrations **001–032** are immutable; next migration **033**.
+Backups and migrations **001–033** are immutable; next migration **034**.
+
+### Native maintained postures
+
+Migration **033** adds ordered `map_maintained_effects` and fresh recovery contract
+4 (`core_state` + `skill_state` + `maintain_state`). Empty maintained collections
+keep contract 3. Contract 2 continues to hold the complete authoritative transfer
+graph; its normalized children can remain stale and are never overwritten by a
+graph-backed effect change. The original eight maintained fields are preserved;
+the first integrated runtime scope is permanent warrior postures 131/132.
+
+Equipment locks and validates the previous state, derives posture creation and
+equipment cancellation on the server, then commits items, posture, core, timers
+and receipt together. New equipment receipts record both effect collections;
+their existing `state_contract` remains **storage** 2 (graph) / 3 (normalized),
+distinct from checkpoint recovery version 4. Historical receipts remain unchanged.
+Core-only saves compare the native collection and cannot silently replace it.
+
+Reapply `deploy/sql/map-runtime-grants.sql`: the dedicated Map role gets only
+SELECT/INSERT/DELETE on native maintained rows and execution of their comparison
+function. No historical table grants or automatic unknown-commit retries are added.
+Stop existing Maps before schema/application upgrade; use all six binaries from
+the same tested image. See [posture evidence](../_rewrite/docs/modernization/evidence/postures-contract.json).

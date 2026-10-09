@@ -37,9 +37,10 @@ boost::asio::awaitable<void> OnMoveItemReq(std::shared_ptr<tnetlib::AsioSession>
             std::vector<std::byte>{static_cast<std::byte>(plan.result)});
         co_return;
     }
+    InventoryMoveCommit committed;
     try {
         auto* service=ctx.player_service;
-        const auto committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&request,&before,&after]{
+        committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&request,&before,&after]{
             return service->MoveInventoryItems(claim,request,before,after);
         });
         if(plan.kind==InventoryMoveKind::Equipment) {
@@ -71,11 +72,25 @@ boost::asio::awaitable<void> OnMoveItemReq(std::shared_ptr<tnetlib::AsioSession>
             if(entry.map_id==after.wMapID&&std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&
                std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1)neighbors.push_back(std::move(client));
         });
+        const auto send_effects=[&](const auto& events)->boost::asio::awaitable<void> {
+            for(const auto& event:events) {
+                if(!event.state||!event.state->payload||!event.state->payload->statistics)throw std::runtime_error("Posture commit lacks statistics");
+                const auto bytes=event.added?EncodePostureDefend(*event.state,event.skill):EncodeSkillEnd(cid,event.skill);
+                const auto id=event.added?MessageId::CS_DEFEND_ACK:MessageId::CS_SKILLEND_ACK;
+                for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(id),bytes);
+                if(!event.added)co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),
+                    EncodeCharacterStatistics(*event.state,*event.state->payload->statistics));
+            }
+        };
+        co_await send_effects(committed.effects_before);
         for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_EQUIP_ACK),equipment);
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),std::vector<std::byte>{std::byte{0}});
-        if(!after.payload||!after.payload->statistics)throw std::runtime_error("Equipment statistics were not committed");
-        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(after,*after.payload->statistics));
-        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),EncodeHpMpAck(cid,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP));
+        if(!committed.equipment_display)throw std::runtime_error("Equipment display state was not committed");
+        const auto& display=*committed.equipment_display;
+        if(!display.payload||!display.payload->statistics)throw std::runtime_error("Equipment statistics were not committed");
+        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(display,*display.payload->statistics));
+        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),EncodeHpMpAck(cid,1,display.dwMaxHP,display.dwHP,display.dwMaxMP,display.dwMP));
+        co_await send_effects(committed.effects_after);
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),std::vector<std::byte>{std::byte{0}});
         co_return;
     }

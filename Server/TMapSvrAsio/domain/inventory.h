@@ -98,11 +98,19 @@ struct InventoryMovePlan {
     std::vector<ItemRelocation> items; // source first, optional swapped destination second
     InventoryMoveKind kind=InventoryMoveKind::Move;
     std::vector<InventoryWireChange> wire{}; // source-ordered equipment side effects
+    std::uint16_t auto_posture{}; // source pointer-lifetime branch, before CheckEquipSkill
+};
+struct EquipmentEffectEvent {
+    bool added{};
+    std::uint16_t skill{};
+    std::shared_ptr<const CharSnapshot> state;
 };
 struct InventoryMoveCommit {
     std::vector<std::string> hashes; // empty for a deleted item, in plan order
     std::uint64_t created_id=0;
     std::shared_ptr<const CharSnapshot> equipment_snapshot{}; // DB-derived stats/core after equipment commit
+    std::shared_ptr<const CharSnapshot> equipment_display{}; // ChangeEquipItem, before CheckEquipSkill
+    std::vector<EquipmentEffectEvent> effects_before,effects_after;
 };
 
 } // namespace tmapsvr

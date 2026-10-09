@@ -30,31 +30,35 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Character statistics | Native 87-byte self-inspection and two-Map round-trip preservation using backup formulas and equipment | Advanced effects, special equipment branches, complete remote-player and original-client acceptance |
 | Map content | Pinned source catalogs, real monster attributes, routing and actor catalogs loaded by the actual daemon | Complete spawn, movement validation, entity visibility and gameplay parity |
 | Primary Map handoff | Movement-triggered transfer between two Maps, one database writer, exact state transfer, skill timers, return trips and recovery after process replacement | Full effect/quest/companion simulation, multiple-neighbor changes and special transfer branches |
-| Inventory/equipment | Native carried moves/splits/merges and ordinary equip/unequip/swap; atomic displacement, IDs, HP/MP clamp and graph recovery | Warrior postures/active effects, advanced equipment, drops, timed/security/trade/store cases and full economy |
+| Inventory/equipment | Native carried moves/splits/merges and ordinary equip/unequip/swap; atomic displacement, IDs, HP/MP clamp and graph recovery | General effect lifecycle, advanced equipment, drops, timed/security/trade/store cases and full economy |
 | Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
 | World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The latest increment adds **native equipment transactions** (migration **032**)
-to the existing Map server. Ordinary equip/unequip/swap, eligibility, displaced
-items and one-unit splits commit atomically with recalculated stats, HP/MP limits,
-item IDs and recovery state. Responses retain the original item → EQUIP → MOVEITEM
-→ CHARSTATINFO → HPMP → final MOVEITEM order. Actual two-Map tests preserve the
-authoritative graph; disconnect during commit and subsequent reconnect retain the
-new equipment.
+The latest increment adds **durable warrior postures** (migration **033**) to the
+existing Map equipment transaction. Automatic postures 131/132 affect statistics,
+replace/cancel in original packet order, and survive PostgreSQL checkpoints,
+reconnect and graph recovery. Equipment and effect changes commit atomically.
+Original CHARINFO maintained fields and constructor defaults are preserved.
+See the [posture contract and evidence](_rewrite/docs/modernization/evidence/postures-contract.json)
+and [local build/startup procedure](deploy/README.md#native-maintained-postures).
+Current local image: `localhost/fourstory:postgresql-postures`.
 
-**2,111 native database/network checks pass per configuration** in Debug,
-ASan/UBSan and installed Release. Debug CTest has **188 actual passes**, eight
-internal legacy fixture skips and seven explicit native skips (203 entries);
-all **39 sanitizer suites** pass. Release uses installed daemons with the Debug
-backend test. Six service health/DNS/SIGTERM checks also pass. See the
-[equipment contract and evidence](_rewrite/docs/modernization/evidence/equipment-contract.json)
-and [local build/startup procedure](deploy/README.md#native-equipment-transactions).
-Current local image: `localhost/fourstory:postgresql-equipment`.
+**2,221 native database/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release (Release daemons with the Debug backend test).
+Debug CTest has 188 actual passes and 15 fixture skips; all 39 sanitizer suites
+pass. Schema upgrade, preserved historical actor upgrade and six-service
+health/DNS/SIGTERM checks also pass. The posture wire subset has 50 checks.
 
-Warrior postures, active effects/cancellation, advanced equipment and complete
-gameplay remain unfinished. Only uncompiled client sources are available; no
-supported executable build/hash, assets or original-client acceptance is claimed.
-Backups and applied migrations **001–032** are immutable; next migration **033**.
+Complete active-effect lifecycle, combat and gameplay remain unfinished. Timed
+expiry, client-requested cancellation, zero-MP removal and remote visibility still
+need implementation and acceptance. Only uncompiled client sources are available;
+no supported executable build/hash, assets or original-client acceptance is claimed.
+Backups and applied migrations **001–033** are immutable; next migration **034**.
+
+The preceding **native equipment** increment (032) verified ordinary equip,
+unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per
+configuration. See the [equipment evidence](_rewrite/docs/modernization/evidence/equipment-contract.json)
+for its original Debug, sanitizer and installed Release results.
 
 The preceding increment adds **safe offline actor-catalog upgrades** (migration 031).
 A verified certificate lets the existing Map server restore old graph checkpoints

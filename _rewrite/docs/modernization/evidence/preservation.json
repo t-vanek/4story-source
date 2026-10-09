@@ -36,7 +36,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "TGLOBAL_RAGEZONE.bak",
@@ -74,7 +75,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/001-import-control.sql",
@@ -112,7 +114,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/002-legacy-snapshots.sql",
@@ -150,7 +153,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/003-canonical-content.sql",
@@ -188,7 +192,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/004-source-text-bytes.sql",
@@ -226,7 +231,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/005-runtime-catalog-control.sql",
@@ -265,7 +271,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/006-current-chart-contracts.sql",
@@ -304,7 +311,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/007-catalog-runtime-metadata.sql",
@@ -343,7 +351,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/008-native-login.sql",
@@ -380,7 +389,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/009-login-runtime-owner.sql",
@@ -416,7 +426,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/010-login-security-challenges.sql",
@@ -451,7 +462,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/011-character-reference-catalog.sql",
@@ -485,7 +497,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/012-native-characters.sql",
@@ -519,7 +532,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/013-character-item-allocation-floor.sql",
@@ -553,7 +567,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/014-routing-reference-catalog.sql",
@@ -585,7 +600,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/015-native-map-handoff.sql",
@@ -617,7 +633,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/016-native-map-ownership.sql",
@@ -648,7 +665,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/017-map-actor-reference-catalog.sql",
@@ -679,7 +697,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/018-native-map-checkpoints.sql",
@@ -710,7 +729,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/019-native-map-replicas.sql",
@@ -737,7 +757,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/020-native-main-transfer.sql",
@@ -761,7 +782,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/021-native-skill-checkpoints.sql",
@@ -784,7 +806,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/022-native-skill-consumption.sql",
@@ -801,7 +824,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/023-graph-skill-consumption.sql",
@@ -817,7 +841,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/024-native-skill-ammunition.sql",
@@ -831,7 +856,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/025-native-ammunition-batches.sql",
@@ -844,7 +870,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/026-native-multi-attack.sql",
@@ -856,7 +883,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/027-native-inventory-moves.sql",
@@ -867,7 +895,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/028-native-inventory-stacks.sql",
@@ -877,7 +906,8 @@
       "native_audit_increment_matches": true,
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/029-native-audit.sql",
@@ -886,7 +916,8 @@
       "status": "new migration applied and verified, now immutable",
       "character_statistics_increment_matches": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/030-character-statistics.sql",
@@ -894,19 +925,28 @@
       "character_statistics_increment_matches": true,
       "applied_immutable": true,
       "actor_transition_increment_matches": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/031-actor-graph-compatibility.sql",
       "sha256": "42d8660d6052a82a614b105ee9530a6708a2551891094f54d6d2ed51cc98257e",
       "actor_transition_increment_matches": true,
       "applied_immutable": true,
-      "equipment_increment_matches": true
+      "equipment_increment_matches": true,
+      "postures_increment_matches": true
     },
     {
       "path": "database/postgresql/032-native-equipment.sql",
       "sha256": "a554dbfdf1238c689c9ef9f4163b0b8e853417ccc90227520207d5402410b6c2",
       "equipment_increment_matches": true,
+      "immutable_after_application": true,
+      "postures_increment_matches": true
+    },
+    {
+      "path": "database/postgresql/033-native-maintained-postures.sql",
+      "sha256": "8c0bb5268c44c30aa356536942e18cdff84ea56a865568ce497d59eaa08f2c04",
+      "postures_increment_matches": true,
       "immutable_after_application": true
     }
   ]

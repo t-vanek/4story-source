@@ -21,11 +21,7 @@ struct Item {
     std::int64_t expires{};
     std::vector<Magic> magic; // raw server values, not derived client values
 };
-struct Buff {
-    std::uint8_t level{},attack_type{},host_type{},attack_country{};
-    std::uint16_t skill{};
-    std::uint32_t remaining{},attack_id{},host_id{};
-};
+using Buff=MaintainedEffect;
 struct Quest {
     std::uint32_t id{},remaining{};
     std::uint8_t completed{},triggered{},save{};

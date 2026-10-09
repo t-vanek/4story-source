@@ -62,7 +62,7 @@ PostgreSQLMapOwner::PostgreSQLMapOwner(const std::string& connection,std::uint8_
               JOIN app_global."TALLCHARTABLE" d ON d."bWorldID"=m.world_id AND d."dwCharID"=m.char_id
                 AND d."dwUserID"=m.user_id AND d."bDelete"=0
               WHERE m.world_id=:w AND m.server_id=:s AND m.user_id=:u AND m.owner_token<>:t AND m.phase IN ('ready','loaded')
-                AND ((m.authority_epoch=0 AND m.phase='ready') OR p.transfer_body IS NOT NULL) AND p.recovery_contract IN (1,2,3) AND p.outcome='active'
+                AND ((m.authority_epoch=0 AND m.phase='ready') OR p.transfer_body IS NOT NULL) AND p.recovery_contract IN (1,2,3,4) AND p.outcome='active'
                 AND app_world.map_checkpoint_matches(p)
             ), receipts AS (
               UPDATE app_world.map_checkpoints SET outcome='recovered',recovered_at=clock_timestamp()

@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "image": "1d692efe5d3664f56a6697bd1d8ce8844a2a7cbf98d0358593230797882e82d1",
+  "user": "10001:10001",
+  "checks": [
+    "world: /healthz OK",
+    "log: /healthz OK",
+    "control: /healthz OK",
+    "login: /healthz OK",
+    "patch: /healthz OK",
+    "map: /healthz OK",
+    "map -> world: connected over container DNS",
+    "map: SIGTERM exit 0",
+    "patch: SIGTERM exit 0",
+    "login: SIGTERM exit 0",
+    "control: SIGTERM exit 0",
+    "log: SIGTERM exit 0",
+    "world: SIGTERM exit 0"
+  ]
+}

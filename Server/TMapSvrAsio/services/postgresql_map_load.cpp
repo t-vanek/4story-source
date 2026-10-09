@@ -5,6 +5,7 @@
 #include "services/skill_timing.h"
 #include "services/character_statistics.h"
 #include "services/postgresql_skill_targets.h"
+#include "services/posture_effects.h"
 #include <set>
 #include <soci/soci.h>
 #include <algorithm>
@@ -45,7 +46,29 @@ Formula ReadFormula(soci::session& sql,int id){
     if(!sql.got_data())throw std::runtime_error("Required character formula is missing");
     return {U32(r,"dwinit"),static_cast<float>(r.get<double>("fRateX")),static_cast<float>(r.get<double>("fRateY"))};
 }
-struct Passive {int target{},increase{},value{};};
+using Passive=AbilityEffect;
+void ReadPostures(soci::session& sql,CharacterPayload& p) {
+    for(int id=131;id<=132;++id) {
+        soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
+        if(!sql.got_data()||U32(chart,"dwDuration")||U32(chart,"dwDurationInc")||
+           !U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture"))
+            throw std::runtime_error("Pinned automatic posture requires additional effect semantics");
+        auto& def=p.posture_templates[id-131];def={static_cast<std::uint16_t>(id),U32(chart,"dwWeaponID"),{}};
+        bool posture=false;
+        soci::rowset<soci::row> data=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
+        for(const auto& d:data) {
+            const auto type=U8(d,"bType"),exec=U8(d,"bExec");
+            if(U8(d,"bAction")!=3)throw std::runtime_error("Automatic posture has an unsupported action");
+            if(type==6&&(exec==7||exec==26||exec==27)){posture=true;continue;}
+            if(type!=1||(exec!=7&&exec!=8&&exec!=9&&exec!=16)||U8(d,"bCalc")>1||U8(d,"bInc")>5)
+                throw std::runtime_error("Automatic posture has unsupported stat effects");
+            // Automatic/recovered postures are rank 1: original Calc 0/1 both
+            // evaluate to wValue. Values always come from the pinned backup.
+            def.abilities.push_back({exec,U8(d,"bInc"),U16(d,"wValue")});
+        }
+        if(!posture)throw std::runtime_error("Automatic skill is not a source posture");
+    }
+}
 void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     for(auto& bag:p.bags) {
         const int item=std::bit_cast<std::int16_t>(bag.bag.wItemID);int slots=0;
@@ -98,6 +121,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     p.equipment_kinds.fill(false);
     p.skill_points.fill(0);
     p.statistics.reset();
+    ReadPostures(sql,p);
     for(const auto& skill:p.skills) {
         const int id=std::bit_cast<std::int16_t>(skill.wSkillID);soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
@@ -164,9 +188,15 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             passives.push_back({U8(d,"bExec"),U8(d,"bInc"),value});
         }
     }
-    const auto delta=[&](std::uint32_t base,int target){
+    std::vector<AbilityEffect> active;
+    const bool supported_effects=SupportedPostures(p);
+    if(supported_effects)for(const auto& effect:*p.effects) {
+        const auto& modifiers=p.posture_templates.at(effect.skill-131).abilities;
+        active.insert(active.end(),modifiers.begin(),modifiers.end());
+    }
+    const auto changes=[&](const auto& effects,std::uint32_t base,int target){
         long long total=0;
-        for(const auto& effect:passives)if(effect.target==target){
+        for(const auto& effect:effects)if(effect.target==target){
             const long long value=effect.value;
             switch(effect.increase){
             case 0:break;
@@ -181,6 +211,15 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         if(total<std::numeric_limits<int>::min()||total>std::numeric_limits<int>::max())
             throw std::runtime_error("Passive total outside original INT range");
         return static_cast<int>(total);
+    };
+    const auto delta=[&](std::uint32_t base,int target) {
+        // CalcAbilityValue clamps the active subtotal before adding passives;
+        // both groups calculate against the original base, not each other.
+        const auto active_delta=changes(active,base,target),passive_delta=changes(passives,base,target);
+        const long long value=std::max(0LL,static_cast<long long>(base)+active_delta)+passive_delta;
+        const long long result=std::max(0LL,value)-base;
+        if(result<std::numeric_limits<int>::min()||result>std::numeric_limits<int>::max())throw std::runtime_error("Effect total overflow");
+        return static_cast<int>(result);
     };
     const auto stat=[&](const char* column,int type,std::uint16_t minimum=0){
         const auto base=static_cast<std::uint16_t>(1+U16(cl,column)+U16(ra,column));
@@ -201,7 +240,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     // Active buffs can change rates, suppress equipment or disguise the caster.
     // Keep those graphs intact, but refuse speed-dependent casts until their
     // authoritative effect/expiry simulation is implemented.
-    if(!p.transfer_state||p.transfer_state->buffs.empty()) {
+    if(supported_effects) {
         const auto physical=ReadFormula(sql,4),magic=ReadFormula(sql,16);
         const auto base=[&](const Formula& f,const char* stat){
             return skill_timing::BaseAttackDelay(f.initial,f.rate,f.rate_y,U16(ra,stat),U16(cl,stat));
@@ -338,6 +377,16 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     s.szNAME=row.get<std::string>("szNAME");
     if(!std::isfinite(s.fPosX)||!std::isfinite(s.fPosY)||!std::isfinite(s.fPosZ))throw std::runtime_error("Invalid character position");
     auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
+    p.effects.emplace();
+    {soci::rowset<soci::row> effects=(sql.prepare<<"SELECT * FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c ORDER BY ordinal",
+        soci::use(world,"w"),soci::use(character,"c"));
+     for(const auto& r:effects) {
+        if(U16(r,"ordinal")!=p.effects->size())throw std::runtime_error("Maintained effect order has a gap");
+        MaintainedEffect e;e.skill=U16(r,"skill_id");e.level=U8(r,"skill_level");e.remaining=U32(r,"remaining");
+        e.attack_type=U8(r,"attack_type");e.attack_id=U32(r,"attack_id");e.host_type=U8(r,"host_type");
+        e.host_id=U32(r,"host_id");e.attack_country=U8(r,"attack_country");p.effects->push_back(e);
+     }}
+    if(!SupportedPostures(p))throw std::runtime_error("Fresh maintained effect needs unimplemented native simulation");
     p.rank_point=U32(row,"dwRankPoint");
     int lucky=0;sql<<"SELECT \"bLuckyNumber\" FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k",soci::use(key),soci::into(lucky);
     p.lucky_number=static_cast<std::uint8_t>(lucky);
@@ -420,6 +469,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
     p.skills=t.skills;p.cabinets=t.cabinets;p.titles=t.titles;p.recalls=t.recalls;p.pets=t.pets;
+    p.effects=t.buffs;
     p.aid_country=t.aid_country;p.lucky_number=t.lucky;p.rank_point=t.rank_points;
     for(const auto& h:t.hotkeys)p.hotkeys.push_back(h.row);
     std::set<std::uint8_t> bags;std::set<std::uint64_t> items;std::set<std::pair<std::uint32_t,std::uint8_t>> slots;

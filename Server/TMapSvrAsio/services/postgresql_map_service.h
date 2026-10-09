@@ -48,6 +48,8 @@ private:
     friend int RecoverPreparedMapTransfers(soci::session&,int,int,const std::string&);
     static void StoreSkillCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static bool SkillCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static bool MaintainCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static void WriteMaintainedEffects(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     void StoreTransferCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&) const;
     std::string TransferFingerprint(const MapSessionClaim&,const CharSnapshot&) const;
     std::optional<CharSnapshot> RestoreTransferCheckpoint(soci::session&,const MapSessionClaim&) const;

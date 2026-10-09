@@ -138,11 +138,9 @@ InventoryMovePlan PlanEquipmentMove(const CharSnapshot& s,InventoryMoveRequest r
         else emit(InventoryWireKind::Update,bags[sb][ss]);
         emit(InventoryWireKind::Update,destination);
     }else destination_kind=bags[db][ds].bKind;
-    // Automatic warrior posture creation and active-effect cancellation must be
-    // persisted together with the equipment; do not silently omit these effects.
     if(s.bClass==0&&db==254) {
-        if((source_pointer_alive&&(source.bKind==3||source.bKind==5))||destination_kind==12)
-            throw std::runtime_error("Equipment-triggered warrior postures require durable active effects");
+        if(source_pointer_alive&&(source.bKind==3||source.bKind==5))plan.auto_posture=132;
+        else if(destination_kind==12)plan.auto_posture=131;
     }
     std::map<std::uint64_t,ItemInstance> final;
     for(const auto& [bag,items]:bags)for(const auto& [slot,item]:items)final.emplace(item.dlID,item);

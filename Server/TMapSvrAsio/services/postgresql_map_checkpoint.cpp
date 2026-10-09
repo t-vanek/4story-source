@@ -1,5 +1,6 @@
 #include "postgresql_map_service.h"
 #include "postgresql_map_owner.h"
+#include "maintained_effects.h"
 #include <openssl/sha.h>
 #include <soci/soci.h>
 #include <algorithm>
@@ -54,20 +55,35 @@ Receipt ReadReceipt(soci::session& sql,const MapSessionClaim& claim,int server,c
     Receipt r;int matches=0;
     sql<<"SELECT revision,fingerprint,outcome,CASE WHEN app_world.map_checkpoint_matches(map_checkpoints) THEN 1 ELSE 0 END,COALESCE(transfer_hash,''),recovery_contract "
          "FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c AND user_id=:u AND session_key=:k "
-         "AND server_id=:s AND owner_token=:t AND connection_id=:g AND authority_epoch=:epoch AND recovery_contract IN (1,2,3) FOR UPDATE",
+         "AND server_id=:s AND owner_token=:t AND connection_id=:g AND authority_epoch=:epoch AND recovery_contract IN (1,2,3,4) FOR UPDATE",
         soci::use(world,"w"),soci::use(cid,"c"),soci::use(uid,"u"),soci::use(key,"k"),soci::use(server,"s"),
         soci::use(token,"t"),soci::use(generation,"g"),soci::use(epoch,"epoch"),soci::into(r.revision),soci::into(r.fingerprint),soci::into(r.outcome),soci::into(matches),soci::into(r.transfer_hash),soci::into(r.contract);
     r.found=sql.got_data();r.core_matches=matches==1;return r;
 }
 }
+bool PostgreSQLMapService::MaintainCheckpointMatches(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    const int world=c.group,character=c.char_id;const auto json=MaintainJson(s);int matches=0;
+    sql<<"SELECT CASE WHEN app_world.map_maintain_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:effects AS jsonb) THEN 1 ELSE 0 END",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"effects"),soci::into(matches);
+    return matches==1;
+}
+void PostgreSQLMapService::WriteMaintainedEffects(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    const int world=c.group,character=c.char_id;const auto json=MaintainJson(s);
+    sql<<"DELETE FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c");
+    sql<<"INSERT INTO app_world.map_maintained_effects(world_id,char_id,ordinal,skill_id,skill_level,remaining,attack_type,attack_id,host_type,host_id,attack_country) "
+         "SELECT :w,:c,n-1,(e->>0)::integer,(e->>1)::smallint,(e->>2)::bigint,(e->>3)::smallint,(e->>4)::bigint,(e->>5)::smallint,(e->>6)::bigint,(e->>7)::smallint "
+         "FROM jsonb_array_elements(CAST(:effects AS jsonb)) WITH ORDINALITY AS a(e,n)",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"effects");
+}
 bool PostgreSQLMapService::SkillCheckpointMatches(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     const int world=c.group,character=c.char_id;const auto json=SkillJson(s);int matches=0;
     sql<<"SELECT CASE WHEN app_world.map_skill_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:skills AS jsonb) THEN 1 ELSE 0 END",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"skills"),soci::into(matches);
-    return matches==1;
+    return matches==1&&MaintainCheckpointMatches(sql,c,s);
 }
 void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     const int world=c.group,character=c.char_id;const auto skills=OrderedSkills(s);
+    if(!MaintainCheckpointMatches(sql,c,s))throw std::runtime_error("Core checkpoint cannot mutate maintained effects");
     // This operation only persists timers. Learning, forgetting or changing a
     // rank must not be smuggled through a core save. Lock and validate every row
     // before writing, preserving the source signed SMALLINT/INT bit patterns.
@@ -87,7 +103,8 @@ void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSess
         sql<<"UPDATE app_world.\"TSKILLTABLE\" SET \"dwRemainTick\"=:r WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c AND \"wSkillID\"=:id",
             soci::use(remaining,"r"),soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"id");
     }
-    sql<<"UPDATE app_world.map_checkpoints SET recovery_contract=3,skill_state=app_world.map_skill_state(world_id,char_id) WHERE world_id=:w AND char_id=:c",
+    sql<<"UPDATE app_world.map_checkpoints SET recovery_contract=CASE WHEN app_world.map_maintain_state(world_id,char_id)='[]'::jsonb THEN 3 ELSE 4 END,"
+         "maintain_state=NULLIF(app_world.map_maintain_state(world_id,char_id),'[]'::jsonb),skill_state=app_world.map_skill_state(world_id,char_id) WHERE world_id=:w AND char_id=:c",
         soci::use(world,"w"),soci::use(character,"c");
 }
 std::string PostgreSQLMapService::CoreFingerprint(const MapSessionClaim& c,const CharSnapshot& s) const {return Fingerprint(c,s);}
@@ -99,7 +116,7 @@ void PostgreSQLMapService::RecordCheckpoint(soci::session& sql,const MapSessionC
          "fingerprint,recovery_contract,core_state,outcome) VALUES(:w,:c,:u,:s,:k,:t,:g,:epoch,:r,:f,1,app_world.map_core_state(CAST(:w AS smallint),CAST(:c AS integer)),:o) "
          "ON CONFLICT(world_id,char_id) DO UPDATE SET user_id=EXCLUDED.user_id,server_id=EXCLUDED.server_id,"
          "session_key=EXCLUDED.session_key,owner_token=EXCLUDED.owner_token,connection_id=EXCLUDED.connection_id,authority_epoch=EXCLUDED.authority_epoch,"
-         "revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,recovery_contract=1,skill_state=NULL,core_state=EXCLUDED.core_state,"
+         "revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,recovery_contract=1,skill_state=NULL,maintain_state=NULL,core_state=EXCLUDED.core_state,"
          "saved_at=clock_timestamp(),outcome=EXCLUDED.outcome,recovered_at=NULL,transfer_body=NULL,transfer_hash=NULL,character_manifest=NULL,routing_manifest=NULL,actor_manifest=NULL "
          "WHERE app_world.map_checkpoints.outcome IN ('logout','recovered') OR "
          "(app_world.map_checkpoints.owner_token=EXCLUDED.owner_token AND app_world.map_checkpoints.connection_id=EXCLUDED.connection_id AND app_world.map_checkpoints.authority_epoch=EXCLUDED.authority_epoch) RETURNING 1",
@@ -129,7 +146,7 @@ void PostgreSQLMapService::CheckpointAuthorized(const MapSessionClaim& claim,con
     if(!LockAccount(sql,claim)||!LockClaim(sql,claim,phase)||phase!="ready")throw std::runtime_error("Checkpoint claim is not ready");
     const auto r=ReadReceipt(sql,claim,m_config.server,m_config.owner_token);
     if(!r.found||!r.core_matches||r.outcome!="active")throw std::runtime_error("Native checkpoint receipt missing or durable state drifted");
-    if(revision==static_cast<std::uint64_t>(r.revision)&&fingerprint==r.fingerprint&&TransferFingerprint(claim,s)==r.transfer_hash&&(r.contract!=3||SkillCheckpointMatches(sql,claim,s))){tx->commit();return;}
+    if(revision==static_cast<std::uint64_t>(r.revision)&&fingerprint==r.fingerprint&&TransferFingerprint(claim,s)==r.transfer_hash&&((r.contract!=3&&r.contract!=4)||SkillCheckpointMatches(sql,claim,s))){tx->commit();return;}
     if(revision!=static_cast<std::uint64_t>(r.revision)+1)throw std::runtime_error("Native checkpoint revision conflict");
     WriteCore(sql,claim,s,0);RecordCheckpoint(sql,claim,static_cast<long long>(revision),fingerprint,"active");StoreTransferCheckpoint(sql,claim,s);tx->commit();
 }
@@ -142,7 +159,7 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
     const auto r=ReadReceipt(sql,claim,m_config.server,m_config.owner_token);
     // Read-only confirmation of the exact previous final commit. A different
     // payload or later connection cannot masquerade as an acknowledged save.
-    if(r.found&&r.outcome=="logout"&&r.fingerprint==fingerprint&&r.core_matches&&TransferFingerprint(claim,s)==r.transfer_hash&&(r.contract!=3||SkillCheckpointMatches(sql,claim,s))){tx->commit();return;}
+    if(r.found&&r.outcome=="logout"&&r.fingerprint==fingerprint&&r.core_matches&&TransferFingerprint(claim,s)==r.transfer_hash&&((r.contract!=3&&r.contract!=4)||SkillCheckpointMatches(sql,claim,s))){tx->commit();return;}
     std::string phase;
     if(!LockClaim(sql,claim,phase)) {
         // An outgoing frozen source may close after the target committed. Only
@@ -174,7 +191,7 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
         // Cancellation saves the prepared graph itself, including fields absent
         // from the core/client projection. Its exact core was checked above.
         const int world=claim.group,character=claim.char_id;const long long generation=claim.connection_id,epoch=claim.authority_epoch;
-        sql<<"UPDATE app_world.map_checkpoints p SET recovery_contract=2,skill_state=NULL,transfer_body=t.body,transfer_hash=t.body_sha256,"
+        sql<<"UPDATE app_world.map_checkpoints p SET recovery_contract=2,skill_state=NULL,maintain_state=NULL,transfer_body=t.body,transfer_hash=t.body_sha256,"
              "character_manifest=t.character_manifest,routing_manifest=t.routing_manifest,actor_manifest=t.actor_manifest "
              "FROM app_world.map_transfers t WHERE t.world_id=:w AND t.char_id=:c AND t.source_token=:token "
              "AND t.source_connection=:g AND t.source_epoch=:e AND t.phase='cancelled' "
@@ -210,7 +227,7 @@ std::vector<std::string> PostgreSQLMapService::ConsumeSkillItems(const MapSessio
     if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Reagent claim is not ready primary");
     CheckCatalogs(sql);
     const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
-    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||receipt.contract!=(graph?2:3))
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Reagent recovery receipt changed");
     const long long session_key=c.key;int unlocked=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(session_key),soci::into(unlocked);
@@ -275,7 +292,7 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
     if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Inventory claim is not ready primary");
     CheckCatalogs(sql);
     const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
-    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||receipt.contract!=(graph?2:3))
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Inventory recovery receipt changed");
     const long long key=c.key;int unlocked=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
@@ -291,11 +308,12 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
         constexpr char digits[]="0123456789abcdef";std::string wire;
         for(auto value:{request.source_bag,request.source_slot,request.destination_bag,request.destination_slot,request.count}){wire+=digits[value>>4];wire+=digits[value&15];}
         const int changed=static_cast<int>(plan.move.items.size());
-        sql<<"INSERT INTO app_world.equipment_operations(operation_id,world_id,char_id,server_id,owner_token,connection_id,authority_epoch,state_contract,request,changed_items,before_graph_hash,after_graph_hash,core_fingerprint) "
-             "VALUES(:op,:w,:c,:s,:t,:g,:e,:contract,decode(:request,'hex'),:n,NULLIF(:gb,''),NULLIF(:ga,''),:f)",
+        const auto before_effects=MaintainJson(before),after_effects=MaintainJson(plan.after);
+        sql<<"INSERT INTO app_world.equipment_operations(operation_id,world_id,char_id,server_id,owner_token,connection_id,authority_epoch,state_contract,request,changed_items,before_graph_hash,after_graph_hash,core_fingerprint,before_effects,after_effects) "
+             "VALUES(:op,:w,:c,:s,:t,:g,:e,:contract,decode(:request,'hex'),:n,NULLIF(:gb,''),NULLIF(:ga,''),:f,CAST(:be AS jsonb),CAST(:ae AS jsonb))",
             soci::use(operation,"op"),soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
             soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(contract,"contract"),soci::use(wire,"request"),soci::use(changed,"n"),
-            soci::use(plan.before_graph,"gb"),soci::use(plan.after_graph,"ga"),soci::use(fingerprint,"f");
+            soci::use(plan.before_graph,"gb"),soci::use(plan.after_graph,"ga"),soci::use(fingerprint,"f"),soci::use(before_effects,"be"),soci::use(after_effects,"ae");
     }
     for(std::size_t i=0;i<plan.move.items.size();++i) {
         const auto& move=plan.move.items[i];const long long id=std::bit_cast<std::int64_t>(move.before.dlID);

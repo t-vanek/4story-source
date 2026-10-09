@@ -30,7 +30,7 @@ void PostgreSQLMapService::StoreTransferCheckpoint(soci::session& sql,const MapS
     }
     SkillCooldownTracker timers;timers.Restore(c.char_id,s.payload->skills,0);
     const auto body=transfer::Encode(transfer::Capture(s,c.key,timers,0));const auto hex=Hex(body),hash=Hash(body);
-    sql<<"UPDATE app_world.map_checkpoints SET recovery_contract=2,skill_state=NULL,transfer_body=decode(:body,'hex'),transfer_hash=:hash,character_manifest=:cm,routing_manifest=:rm,actor_manifest=:am "
+    sql<<"UPDATE app_world.map_checkpoints SET recovery_contract=2,skill_state=NULL,maintain_state=NULL,transfer_body=decode(:body,'hex'),transfer_hash=:hash,character_manifest=:cm,routing_manifest=:rm,actor_manifest=:am "
          "WHERE world_id=:w AND char_id=:c",
         soci::use(hex,"body"),soci::use(hash,"hash"),soci::use(m_config.character_manifest,"cm"),soci::use(m_config.routing_manifest,"rm"),
         soci::use(m_config.actor_manifest,"am"),soci::use(world,"w"),soci::use(character,"c");
@@ -88,7 +88,7 @@ bool PostgreSQLMapService::PrepareTransfer(const MapSessionClaim& c,const CharSn
         if(!sql.got_data())return false;tx->commit();return true;
     }
     sql<<"SELECT 1 FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c AND user_id=:u AND session_key=:k "
-         "AND server_id=:s AND owner_token=:t AND connection_id=:g AND authority_epoch=:e AND outcome='active' AND recovery_contract IN (1,2,3) "
+         "AND server_id=:s AND owner_token=:t AND connection_id=:g AND authority_epoch=:e AND outcome='active' AND recovery_contract IN (1,2,3,4) "
          "AND app_world.map_checkpoint_matches(map_checkpoints) FOR UPDATE",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(user,"u"),soci::use(key,"k"),soci::use(source,"s"),
         soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),soci::into(found);
@@ -234,7 +234,7 @@ int RecoverPreparedMapTransfers(soci::session& sql,int world,int server,const st
           JOIN app_global."TCURRENTUSER" u ON u."dwKEY"=m.session_key AND u."dwUserID"=m.user_id AND u."dwCharID"=m.char_id
             AND u."bGroupID"=m.world_id AND u."bChannel"=m.channel
           WHERE m.world_id=:w AND m.server_id=:s AND m.user_id=:u AND m.owner_token<>:t AND m.phase='transferring'
-            AND t.phase='prepared' AND p.outcome='active' AND p.recovery_contract IN (1,2,3) AND p.revision<9223372036854775807
+            AND t.phase='prepared' AND p.outcome='active' AND p.recovery_contract IN (1,2,3,4) AND p.revision<9223372036854775807
             AND app_world.map_checkpoint_matches(p) FOR UPDATE OF m,t,p,u)SQL",
             soci::use(world,"w"),soci::use(server,"s"),soci::use(user,"u"),soci::use(token,"t"),soci::into(transfer_id),soci::into(character),
             soci::into(key),soci::into(channel),soci::into(generation),soci::into(epoch),soci::into(hex);
@@ -247,7 +247,7 @@ int RecoverPreparedMapTransfers(soci::session& sql,int world,int server,const st
             static_cast<std::uint8_t>(world),static_cast<std::uint8_t>(channel),static_cast<std::uint64_t>(generation)};
         claim.authority_epoch=epoch;
         PostgreSQLMapService::WriteCore(sql,claim,graph->character,1);
-        sql<<R"SQL(UPDATE app_world.map_checkpoints p SET recovery_contract=2,skill_state=NULL,revision=p.revision+1,fingerprint=t.core_fingerprint,
+        sql<<R"SQL(UPDATE app_world.map_checkpoints p SET recovery_contract=2,skill_state=NULL,maintain_state=NULL,revision=p.revision+1,fingerprint=t.core_fingerprint,
           core_state=app_world.map_core_state(p.world_id,p.char_id),transfer_body=t.body,transfer_hash=t.body_sha256,
           character_manifest=t.character_manifest,routing_manifest=t.routing_manifest,actor_manifest=t.actor_manifest,
           outcome='recovered',recovered_at=clock_timestamp(),saved_at=clock_timestamp()

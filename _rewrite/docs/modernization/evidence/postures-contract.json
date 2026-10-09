@@ -1,0 +1,268 @@
+{
+  "date": "2026-10-09",
+  "status": "verified_bounded_increment",
+  "scope": "Existing native Map equipment path: permanent warrior postures131/132, source-derived sheets and packet sequences, normalized/graph recovery. Full effects, equipment, gameplay and original-client acceptance remain unfinished.",
+  "source_authority": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2126-2140",
+      "contract": "Warrior posture 132/131 pointer-lifetime branch inside the original MOVEITEM."
+    },
+    {
+      "path": "Server/TMapSvr/TPlayer.cpp",
+      "lines": "3964-4000,4901-4945",
+      "contract": "CheckEquipSkill self-cast weapon mask, dependent posture pass, equipment replies before cancellation."
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "1409-1485,2621-2780,2953-3110,3964-4060,4397-4494,4962-4970",
+      "contract": "Stat contributions, EraseMaintainSkill, positive-posture replacement, ForceMaintain and GetWarCountry."
+    },
+    {
+      "path": "Server/TMapSvr/TSkill.cpp",
+      "lines": "4-66",
+      "contract": "Constructor defaults differ from ForceMaintain presentation fields; maintained duration zero is permanent."
+    },
+    {
+      "path": "Server/TMapSvr/SSHandler.cpp",
+      "lines": "4931-4966",
+      "contract": "Original LOADCHAR restores eight durable fields and constructor presentation defaults."
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "292-315,1226-1313,1683-1697",
+      "contract": "51-byte CHARINFO maintained record, 84-byte no-damage DEFEND and 7-byte SKILLEND."
+    },
+    {
+      "path": "Server/TMapSvr/DBAccess.h",
+      "lines": "1992-2032",
+      "contract": "Maintained SELECT retains eight fields, excluding historical position columns."
+    },
+    {
+      "path": "Server/TMapSvr/SSSender.cpp",
+      "lines": "1110-1150,2216-2244",
+      "contract": "Persist/transfer permanent and unexpired maintained records; unchanged original field order."
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "lines": "1055-1062,1685-1715",
+      "contract": "HT_NORMAL=1, posture status constants, no protocol alteration."
+    }
+  ],
+  "implementation": {
+    "production": "OnMoveItemReq -> PlanEquipmentMove -> fenced MoveInventoryItems -> ApplyEquipmentPostures/DeriveStats -> native maintained rows or authoritative transfer graph -> committed immutable display/event snapshots -> original replies.",
+    "schema": "033 adds map_maintained_effects and map_checkpoints.maintain_state. Nonempty fresh state uses recovery contract4; empty fresh state keeps3. Graph2 remains authoritative and ignores stale normalized children. Item receipt state_contract remains storage2/3; new before_effects/after_effects bind exact collections. Prior receipts and migrations remain immutable.",
+    "atomicity": "Process/account/session/authority/checkpoint fencing and independent equipment validation cover item identity/quantity, allocator, core clamp, learned timers, maintained effects and receipts in one commit. Fresh periodic/logout saves compare maintained fields and cannot rewrite them. Late failures roll back all effects. No automatic write retry after uncertain commit.",
+    "source_rules": "Pinned skills131/132 are static positive rank1 permanent postures. Creation removes older postures in vector order, emits DEFEND, then equipment handling removes self-cast postures without matching equipped weapon (including broken equipment). Whole two-hand move into empty slot retains the original deleted-source-pointer no-132 quirk. Active ability changes use backup values; no invented rates.",
+    "response": "Item packets; optional old SKILLEND and post-erase STAT; new DEFEND; EQUIP, MOVE0, intermediate STAT, HPMP; CheckEquipSkill SKILLEND/STAT; final MOVE0. All are published after commit. Distinct shared snapshot copies prevent later cancellation from changing earlier stat packets.",
+    "hydration": "Original eight durable fields preserve ordering and unsigned widths. CHARINFO now writes 51-byte maintained records. New ForceMaintain hit/attack-level/attacker-level are0 and position is current; LOADCHAR/transfer defaults become1/1/1 and zero position, matching CTSkill. DEFEND separately uses zero host, attack level1 and actual character level.",
+    "corrections": [
+      "Atomic native persistence and replies only after commit replace deferred original saves.",
+      "Malformed/unimplemented effect templates fail closed for equipment/stat derivation; no replacement success or invented data."
+    ],
+    "recovery": "Fresh actual Map SIGKILL and reconnect retain immediately committed permanent posture; disconnect during delayed cancellation commit retains item/effect consistency. Native service graph tests preserve stale normalized rows, replace a Map owner, hydrate graph through fresh Login and cancel restored effect. General two-Map TCP regression is rerun; a live-posture two-process TCP handoff itself is not yet tested."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-postures-debug.json",
+      "status": "passed",
+      "backend_checks": 719,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 475,
+      "nested_checks": {
+        "skill_cast_wire": 53,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 162,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "equipment_wire": 50,
+        "posture_wire": 50
+      },
+      "total_checks": 2221,
+      "runtime": {
+        "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+        "directory": "/src/build/linux-debug/bin/",
+        "integration_test_directory": "/src/build/linux-debug/bin/"
+      },
+      "routing_publication_checks": 7
+    },
+    "asan": {
+      "report": "native-postures-asan.json",
+      "status": "passed",
+      "backend_checks": 719,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 475,
+      "nested_checks": {
+        "skill_cast_wire": 53,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 162,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "equipment_wire": 50,
+        "posture_wire": 50
+      },
+      "total_checks": 2221,
+      "runtime": {
+        "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+        "directory": "/src/build/linux-asan/bin/",
+        "integration_test_directory": "/src/build/linux-asan/bin/"
+      },
+      "routing_publication_checks": 7
+    },
+    "release": {
+      "report": "native-postures-release.json",
+      "status": "passed",
+      "backend_checks": 719,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 475,
+      "nested_checks": {
+        "skill_cast_wire": 53,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 162,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "equipment_wire": 50,
+        "posture_wire": 50
+      },
+      "total_checks": 2221,
+      "runtime": {
+        "image": "1d692efe5d3664f56a6697bd1d8ce8844a2a7cbf98d0358593230797882e82d1",
+        "directory": "/opt/fourstory/bin/",
+        "integration_test_directory": "/src/build/linux-debug/bin/"
+      },
+      "routing_publication_checks": 7
+    }
+  },
+  "ctest": {
+    "debug": {
+      "report": "postures-debug-ctest.xml",
+      "entries": 203,
+      "actual_passes": 188,
+      "explicit_skips": [
+        "fourstory_postgresql_integration",
+        "tloginsvr_postgresql_auth",
+        "tloginsvr_postgresql_char",
+        "tloginsvr_postgresql_handoff",
+        "tlogsvr_postgresql_sink",
+        "tmapsvr_postgresql_map",
+        "tmapsvr_postgresql_catalog"
+      ],
+      "internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ],
+      "failures": 0
+    },
+    "asan": {
+      "report": "postures-asan-ctest.xml",
+      "entries": 39,
+      "actual_passes": 39,
+      "explicit_skips": [],
+      "internal_skips": [],
+      "failures": 0
+    }
+  },
+  "schema_upgrade": {
+    "report": "postures-schema-upgrade.json",
+    "checks": 19,
+    "scope": "Synthetic structural 032->033 migration, unchanged v1/2/3 and equipment receipts, all eight v4 drift fields, stale graph children and PUBLIC grants."
+  },
+  "actor_upgrade_regression": {
+    "report": "postures-actor-upgrade.json",
+    "checks": 13,
+    "scope": "Historical migration030->031 and actual catalog proof only; not a rerun of full old-image transition."
+  },
+  "container": "postures-container.json",
+  "image": "localhost/fourstory:postgresql-postures",
+  "image_id": "1d692efe5d3664f56a6697bd1d8ce8844a2a7cbf98d0358593230797882e82d1",
+  "acceptance": {
+    "original_client": "BLOCKED: user has only uncompiled source; no EXE/assets or supported binary build/hash. Source0x2918 is not binary compatibility proof.",
+    "supported_client_binary": null,
+    "complete_gameplay": false,
+    "remaining": [
+      "CS_SKILLEND_REQ, CheckEternalBuff at zero MP, timed expiry, full generic collision/status/death simulation and posture-dependent wPosture skills.",
+      "Actual posture-bearing two-process TCP handoff, multi-character neighbor broadcasts, late actor visibility and complete AOI.",
+      "Special equipment, recall/companion/party/guild/local-battle integration, race costumes, timed bags, secured/trade/store and remaining economy.",
+      "All unfinished original gameplay, native service persistence and administration/integrations in the capability matrix remain required."
+    ]
+  },
+  "development_failures_resolved": [
+    "Removed stale warrior-branch refusal after atomic effects integration.",
+    "Initial test fixture had a starter shield in its supposed empty slot; moved it explicitly before testing source empty-slot behavior.",
+    "Corrected temporary C++ receipt binding scope and Python nonlocal declarations before passing verification."
+  ],
+  "preservation": {
+    "report": "preservation.json",
+    "entries": 35,
+    "immutable_migrations": "001-033",
+    "next_migration": "034",
+    "historical_backup_changes": false,
+    "prior_applied_migration_changes": false
+  },
+  "source_fingerprints": {
+    "Lib/Own/TProtocol/include/NetCode.h": "fa6b11998606c72a81e9ae282590d5afdbf2950d832a743b54ae0dd35e648c9d",
+    "Server/TMapSvr/CSHandler.cpp": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50",
+    "Server/TMapSvr/CSSender.cpp": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029",
+    "Server/TMapSvr/DBAccess.h": "364fcadbbb78e49f9e7e3e6cddb0f8623eb9315ed2a9195bb3e8103c24277d9d",
+    "Server/TMapSvr/SSHandler.cpp": "8663a80a045d8a2a681c294bc80d8feb8ecd525812af151a60d3340afe8cf074",
+    "Server/TMapSvr/SSSender.cpp": "e39cc92a004b352cafc337307cf631214cd3680744d52e96a403fa75f07b7a53",
+    "Server/TMapSvr/TObjBase.cpp": "9c6b97b0616605b9ee50e169cd1a93a45cf34e2be178663fc58005ba17764181",
+    "Server/TMapSvr/TPlayer.cpp": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9",
+    "Server/TMapSvr/TSkill.cpp": "d42ec4e967d4180d749b64cae79ab9d11c9d4eb80ad2ebc097a30380cce8dbd3",
+    "Server/TMapSvrAsio/domain/character_payload.h": "8feb409238ad8276e01e7356f2bc16849ac15481841bfadc11de18ee76c1b959",
+    "Server/TMapSvrAsio/domain/inventory.h": "631cc17b494f59f72dbd389089f1982b461a32a940529c71d0a0897eb3b8d2e7",
+    "Server/TMapSvrAsio/domain/main_transfer.h": "24abe8264be69e47eec7bed1780a62559c6442fa299b61268e79ea48c10198af",
+    "Server/TMapSvrAsio/domain/maintained_effect.h": "4bd2363b729ae767249858e991fea15f07ab032e2c63fb568a61ddbecf37e038",
+    "Server/TMapSvrAsio/handlers/inventory.cpp": "e44f70cfada5a02d7c3088ad3b22ef2c6503b8001fe8049de9a9d19c5273d8ff",
+    "Server/TMapSvrAsio/services/client_senders.cpp": "b688d0ce1d687eb1572ffcd1ea902722a789220f04528aa37d3bdd9452bbd783",
+    "Server/TMapSvrAsio/services/client_senders.h": "0fd767de3071c15c1c3ae3b6aa8c94b99d77e0d9ba0aff6c76ed9ae30deceb68",
+    "Server/TMapSvrAsio/services/equipment_move.h": "1926a154ec0431006479958620f291c102b5a9f8af0779db8fe16d31cb5b84e9",
+    "Server/TMapSvrAsio/services/main_transfer_runtime.cpp": "f7aeba505673ff36c5b12542f1a1f514ff0f022b2c1a3345ff22e0013c452093",
+    "Server/TMapSvrAsio/services/maintained_effects.h": "5a44cb293f675701fc0cc0bb75b8a4b5efba36af7675d2d7bdf33a636c7e0e2a",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "009a41f3564ec1773ec1e9aaeb4091e2fa2b8c257eae6c77e4ba091e9105d552",
+    "Server/TMapSvrAsio/services/postgresql_map_inventory.cpp": "f08ea10b0b921e033dadf2c4dce9303925cb6e3ff8d18eed2080c68027e965a1",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "4c59a1fc88a17c248b4fc374236747d574ef9da0d11327c766041916b489f7f0",
+    "Server/TMapSvrAsio/services/postgresql_map_owner.cpp": "8bb5574a88e52ce7f3c54bf24adc3e4fcdfa637181bc9ea0ba7549fcefc8e8ae",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "74994c66b713dd445f1d87dedaa1c22e55fcdb4e97b65a0091e6b325a0411bb7",
+    "Server/TMapSvrAsio/services/postgresql_map_transfer.cpp": "e68a4e379e1a250a4d7898ec15f92c30b687c83733d3b5b2afcef4ba7dd630ef",
+    "Server/TMapSvrAsio/services/posture_effects.h": "610444c0661cb8f4deac48e6a065726c0640cc1f4068e5c1031315ec3928fb7c",
+    "Server/TMapSvrAsio/tests/posture_fixture.h": "12e557cfa87519e0ab49c1bfda1e06c4eb73a52bca8d2d5b5d5e3918f3120a7e",
+    "Server/TMapSvrAsio/tests/test_inventory.cpp": "ba12dc35ddd4d674d09f92e4ce2d6e34c709604e475aaa0e2da42ed0e632f8d0",
+    "Server/TMapSvrAsio/tests/test_postgresql_map.cpp": "6fd54464c887ca3dcd154c7ffaab79368f8e28add922d507190b316246b4acc1",
+    "database/postgresql/033-native-maintained-postures.sql": "8c0bb5268c44c30aa356536942e18cdff84ea56a865568ce497d59eaa08f2c04",
+    "deploy/sql/map-runtime-grants.sql": "df5ae403256f8d42cb7453192d54572a05801f32e3f9da765c25d048b490fc25",
+    "tools/database/verify_character_statistics_wire.py": "b769eff9310a3a1009a61573ad0aeeafc5da8ecc68c4384a372feb1128d35b10",
+    "tools/database/verify_map_runtime_wire.py": "e86b5a0f606f154455e45bd4d6754d0eac6d878ef496daef732c600670072ac4",
+    "tools/database/verify_posture_upgrade.py": "b6c7a853258268fd02abc2905207e1738f39d8573c2b559b6af6c7335f03336d",
+    "tools/database/verify_posture_wire.py": "18915a1cf49a026a86880d25df203a98b51472cdfea019ab6c6b469371d4a073"
+  },
+  "local_only": true,
+  "cleanup": "postures-cleanup.json"
+}

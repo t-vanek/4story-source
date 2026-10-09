@@ -32,6 +32,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "graph_reagent_fixture.h"
 #include "ammunition_batch_fixture.h"
 #include "inventory_move_fixture.h"
+#include "posture_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -44,7 +45,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=734;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=736;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -268,6 +269,23 @@ int main(){
         auto move_after=move_restored;tmapsvr::ApplyInventoryMove(move_after,move_plan);
         const auto move_hashes=map.MoveInventoryItems(move_recovery,{4,3,255,1,8},move_restored,move_after);
         PublishReagentHash(move_after,move_plan.items[0].before.dlID,move_hashes.hashes.at(0));map.SaveAuthorized(move_recovery,move_after);
+        stage="maintained postures";
+        for(int user:{735,736}) {
+            auto posture=create(user,user==735?"PostureFresh":"PostureGraph",user);
+            VerifyPostures(admin,mpool,map,mapconn,manifest,routing,actor,posture,user==736);
+            const auto login=auth.Authenticate({"SyntheticMap"+std::to_string(user),credential,"192.0.2.50",0x2918});
+            Check(login.status==login::AuthStatus::Success&&routes.StartAuthorized({user,login.session_key,1,1,static_cast<int>(posture.char_id)}).status==login::StartStatus::Success,"posture logout/recovery releases exact Login reservation");
+            posture.key=login.session_key;posture.connection_id+=2000;
+            Check(claim(posture),"posture reconnect claims new primary generation");
+            auto restored=*map.LoadAuthorized(posture);map.MarkReady(posture,restored);
+            const auto& e=restored.payload->effects->front();
+            Check(restored.payload->effects->size()==1&&e.skill==132&&e.remaining==0&&e.hit==1&&e.attack_level==1&&e.attacker_level==1&&e.position==std::array<float,3>{},"fresh and graph relogin preserve permanent effect with original constructor defaults");
+            Check(restored.payload->statistics&&restored.payload->skill_attack_timing,"recovered posture retains source statistics and timing");
+            auto next=restored;const tmapsvr::InventoryMoveRequest remove{254,0,255,12,1};tmapsvr::ApplyInventoryMove(next,tmapsvr::PlanInventoryMove(restored,remove));
+            const auto cancelled=map.MoveInventoryItems(posture,remove,restored,next);
+            Check(cancelled.equipment_snapshot->payload->effects->empty(),"recovered primary can durably cancel its posture by unequipping");
+            map.SaveAuthorized(posture,*cancelled.equipment_snapshot);
+        }
         stage="primary transfer";VerifyMainTransfer(admin,mpool,map,mapconn,manifest,routing,actor,create(711,"TransferHero",11));
         stage="transfer recovery";auto transferred_crash=create(712,"TransferCrash",12);
         VerifyMainTransferRecovery(admin,mpool,map,mapconn,manifest,routing,actor,transferred_crash);

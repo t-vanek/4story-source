@@ -8,13 +8,18 @@ Owner instruction (2026-10-09): keep implementation and versioning local on `mai
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current continuation (native equipment): preserve migration **032** and
-`equipment-contract.json`. Ordinary equipment transactions now integrate original
-eligibility/displacement rules, complete source-ordered item/EQUIP/stat/HPMP replies,
-native item/core/timer receipts and authoritative transfer graphs. Continue with
-**durable active effects**, starting with warrior automatic postures 131/132 and
-`CheckEquipSkill` cancellation, source stat/timing effects and expiry. These are
-required to finish equipment; unsupported posture branches must remain visible.
+Current continuation (maintained postures): preserve migrations **032–033** and
+`equipment-contract.json` / `postures-contract.json`. Automatic warrior postures
+131/132 now commit with equipment, affect source-derived statistics, survive fresh
+and graph recovery, and cancel through `CheckEquipSkill` in source packet order.
+Continue **durable active effects** with the actual `CS_SKILLEND_REQ` path,
+`CheckEternalBuff` at zero MP, timed expiry, death/static rules, dependent `wPosture`
+skills, and complete collisions/attack effects. Add actual two-process TCP handoff
+with a live posture (current new posture graph coverage is through the native
+service API and replacement owner). Keep the source pointer-lifetime quirk: a whole
+two-hand move to an empty slot deletes the source pointer and does not create 132.
+These remain required to finish equipment; a permanent posture with remaining=0
+must not be expired as if it were a timed effect.
 Then complete special-equipment combat state, party/companion/guild/local-battle
 updates, race costumes and remote visibility. Keep drops, timed bags, secured
 inventory/trade/store integration and all economy systems in scope.
@@ -22,7 +27,7 @@ inventory/trade/store integration and all economy systems in scope.
 Preserve the explicitly certified old-two-table → current-four-table actor upgrade
 and its immutable graph receipts. It does not authorize arbitrary content changes,
 character/routing releases or transitive upgrades. All backups and migrations
-**001–032** are immutable; the next schema migration is **033**.
+**001–033** are immutable; the next schema migration is **034**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -37,7 +42,7 @@ character/routing releases or transitive upgrades. All backups and migrations
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–032 and the checkpoint, retirement and replica contract evidence. Actual
+   001–033 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;

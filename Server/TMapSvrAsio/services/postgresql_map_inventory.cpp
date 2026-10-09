@@ -2,6 +2,7 @@
 #include "inventory_move.h"
 #include "main_transfer_codec.h"
 #include "main_transfer_runtime.h"
+#include "posture_effects.h"
 #include <soci/soci.h>
 #include <openssl/sha.h>
 #include <bit>
@@ -34,6 +35,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
     const bool graph=bool(before.payload->transfer_state);
     if(graph!=bool(after.payload->transfer_state))throw std::runtime_error("Inventory storage contract changed");
     const int world=c.group,character=c.char_id;
+    if(!graph&&!MaintainCheckpointMatches(sql,c,before))throw std::runtime_error("Inventory maintained state changed since hydration");
     if(equipment&&!graph) {
         // Stats and displacement inspect more than the two requested slots.
         // Fence every fresh item and learned rank, including unchanged equipment.
@@ -120,7 +122,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
         out.committed.created_id=static_cast<std::uint64_t>(allocated);
         out.after=before;ApplyInventoryMove(out.after,out.move,out.committed.created_id);
     }
-    if(equipment)RefreshEquipment(sql,out.after,true);
+    if(equipment)ApplyEquipmentPostures(out.after,out.move.auto_posture,out.committed,[&](auto& state){RefreshEquipment(sql,state,true);});
     const auto committed_graph=CaptureInventory(out.after,c.key);
     if(graph)out.after_graph=TransferFingerprint(c,out.after);
     for(const auto& move:out.move.items) {
@@ -186,6 +188,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
             for(auto& bag:p->bags)for(auto& item:bag.items)if(item.dlID==id)item.durable_hash=out.committed.hashes.at(n);
         }
         out.after.payload=std::move(p);out.committed.equipment_snapshot=std::make_shared<const CharSnapshot>(out.after);
+        if(!graph)WriteMaintainedEffects(sql,c,out.after);
     }
     return out;
 }

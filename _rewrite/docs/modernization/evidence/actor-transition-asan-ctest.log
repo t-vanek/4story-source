@@ -1,0 +1,83 @@
+Test project /src/build/linux-asan
+      Start   1: cluster_world_handshake
+ 1/39 Test   #1: cluster_world_handshake ........................   Passed    0.17 sec
+      Start   2: cluster_world_reconnect
+ 2/39 Test   #2: cluster_world_reconnect ........................   Passed    0.64 sec
+      Start   3: tnetlib_crypto_kat
+ 3/39 Test   #3: tnetlib_crypto_kat .............................   Passed    0.01 sec
+      Start   4: tnetlib_asio_echo
+ 4/39 Test   #4: tnetlib_asio_echo ..............................   Passed    0.65 sec
+      Start   6: tnetlib_packet_codec
+ 5/39 Test   #6: tnetlib_packet_codec ...........................   Passed    0.01 sec
+      Start  14: tloginsvr_asio_auth_flow
+ 6/39 Test  #14: tloginsvr_asio_auth_flow .......................   Passed    0.12 sec
+      Start  16: tloginsvr_asio_start_flow
+ 7/39 Test  #16: tloginsvr_asio_start_flow ......................   Passed    0.10 sec
+      Start  17: tloginsvr_asio_session_terminator
+ 8/39 Test  #17: tloginsvr_asio_session_terminator ..............   Passed    0.37 sec
+      Start  22: tloginsvr_asio_shutdown_sweep
+ 9/39 Test  #22: tloginsvr_asio_shutdown_sweep ..................   Passed    0.06 sec
+      Start  36: tlogsvr_asio_log_decoder
+10/39 Test  #36: tlogsvr_asio_log_decoder .......................   Passed    0.01 sec
+      Start  37: tlogsvr_asio_retry_queue
+11/39 Test  #37: tlogsvr_asio_retry_queue .......................   Passed    0.01 sec
+      Start  39: tlogsvr_audit_transaction
+12/39 Test  #39: tlogsvr_audit_transaction ......................   Passed    0.01 sec
+      Start  69: tmapsvr_asio_world_enter
+13/39 Test  #69: tmapsvr_asio_world_enter .......................   Passed    0.03 sec
+      Start  70: tmapsvr_asio_world_enterchar
+14/39 Test  #70: tmapsvr_asio_world_enterchar ...................   Passed    0.03 sec
+      Start  71: tmapsvr_asio_client_senders
+15/39 Test  #71: tmapsvr_asio_client_senders ....................   Passed    0.01 sec
+      Start  72: tmapsvr_asio_world_checkmain
+16/39 Test  #72: tmapsvr_asio_world_checkmain ...................   Passed    0.03 sec
+      Start  73: tmapsvr_asio_world_routelist
+17/39 Test  #73: tmapsvr_asio_world_routelist ...................   Passed    0.03 sec
+      Start  78: tmapsvr_asio_skill_cooldown
+18/39 Test  #78: tmapsvr_asio_skill_cooldown ....................   Passed    0.01 sec
+      Start  80: tmapsvr_asio_loot_senders
+19/39 Test  #80: tmapsvr_asio_loot_senders ......................   Passed    0.01 sec
+      Start  81: tmapsvr_asio_inventory
+20/39 Test  #81: tmapsvr_asio_inventory .........................   Passed    0.01 sec
+      Start  87: tmapsvr_asio_skill_engine
+21/39 Test  #87: tmapsvr_asio_skill_engine ......................   Passed    0.01 sec
+      Start  89: tmapsvr_asio_main_transfer_codec
+22/39 Test  #89: tmapsvr_asio_main_transfer_codec ...............   Passed    0.04 sec
+      Start  90: tmapsvr_asio_admission
+23/39 Test  #90: tmapsvr_asio_admission .........................   Passed    5.22 sec
+      Start  91: tmapsvr_asio_admission_encrypted
+24/39 Test  #91: tmapsvr_asio_admission_encrypted ...............   Passed    5.23 sec
+      Start  92: tmapsvr_asio_character_statistics
+25/39 Test  #92: tmapsvr_asio_character_statistics ..............   Passed    0.01 sec
+      Start  94: tworldsvr_asio_session_writes
+26/39 Test  #94: tworldsvr_asio_session_writes ..................   Passed    0.36 sec
+      Start  95: tworldsvr_asio_secondary_admission
+27/39 Test  #95: tworldsvr_asio_secondary_admission .............   Passed    0.21 sec
+      Start  96: tworldsvr_asio_main_handoff
+28/39 Test  #96: tworldsvr_asio_main_handoff ....................   Passed    3.96 sec
+      Start 138: tworldsvr_asio_charstat_handlers
+29/39 Test #138: tworldsvr_asio_charstat_handlers ...............   Passed    0.24 sec
+      Start 172: tworldsvr_asio_service_plane_handlers
+30/39 Test #172: tworldsvr_asio_service_plane_handlers ..........   Passed    0.33 sec
+      Start 187: tworldsvr_asio_checkmain_handlers
+31/39 Test #187: tworldsvr_asio_checkmain_handlers ..............   Passed    0.26 sec
+      Start 188: tworldsvr_asio_releasemain_handlers
+32/39 Test #188: tworldsvr_asio_releasemain_handlers ............   Passed    0.39 sec
+      Start 189: tworldsvr_asio_entersvr_handoff_handlers
+33/39 Test #189: tworldsvr_asio_entersvr_handoff_handlers .......   Passed    0.27 sec
+      Start 190: tworldsvr_asio_teleport_handlers
+34/39 Test #190: tworldsvr_asio_teleport_handlers ...............   Passed    0.31 sec
+      Start 191: tworldsvr_asio_checkconnect_handlers
+35/39 Test #191: tworldsvr_asio_checkconnect_handlers ...........   Passed    0.38 sec
+      Start 192: tworldsvr_asio_closechar_handlers
+36/39 Test #192: tworldsvr_asio_closechar_handlers ..............   Passed    0.22 sec
+      Start 193: tworldsvr_asio_route_completion_handlers
+37/39 Test #193: tworldsvr_asio_route_completion_handlers .......   Passed    0.23 sec
+      Start 196: tworldsvr_asio_entersvr_fresh_login_handlers
+38/39 Test #196: tworldsvr_asio_entersvr_fresh_login_handlers ...   Passed    0.35 sec
+      Start 197: tworldsvr_asio_chardata_drift_handlers
+39/39 Test #197: tworldsvr_asio_chardata_drift_handlers .........   Passed    0.18 sec
+
+100% tests passed, 0 tests failed out of 39
+
+Total Test time (real) =  20.55 sec

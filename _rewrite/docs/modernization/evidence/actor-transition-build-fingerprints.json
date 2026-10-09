@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-09",
+  "base_commit": "a7842a588ad5d7e995d3f275d083d8a80ce8d275",
+  "release_image": {
+    "reference": "localhost/fourstory:postgresql-actor-transition",
+    "id": "d0f19575951c2b8d48478372046b7048266454d0b43cc5dbf59e702eed311cc6",
+    "user": "10001:10001"
+  },
+  "installed_sha256": {
+    "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+    "/opt/fourstory/bin/tlogsvr_asio": "23793d010d1517c915ea23460d164c7eebfe4524783a4959b57ba008ac88558d",
+    "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+    "/opt/fourstory/bin/tmapsvr_asio": "040085eb90dab1de0292d32579e607aa788bd3b7f717d72b53298c9ec5628555",
+    "/opt/fourstory/bin/tworldsvr_asio": "1715be4b54345f1f4c4291e532d0c56e34ba40b45cd3cf3a285841a1f454980d"
+  },
+  "sha256": {
+    "README.md": "66b4073252bada8986d61a6a51cee53d7457f6d2da7796c378efbd1063c94a71",
+    "Server/TMapSvrAsio/services/postgresql_map_transfer.cpp": "79be5c16b1902990ffa05d001147d1026cd420831be942e4946a6aad0d06d663",
+    "_rewrite/docs/modernization/README.md": "9a2f8bfa8e96b0ff9750059f09a89e28fa70cfb93aaf274c63f7ec7e9a6e4fab",
+    "_rewrite/docs/modernization/capability-matrix.md": "e9930ec282c36c787fb10636abc448e839bec70b865906446dc37b25d339c2ca",
+    "_rewrite/docs/modernization/next-steps.md": "6161f5c4eb5f1be66c39d69057912558a44ab91a2907f579f4a1a1b8485a7496",
+    "_rewrite/docs/modernization/protocol-compatibility.md": "cf409b1f95fc0b29a3247253d025fd1b5c2ea87ed869d6d228836f16b4706a9b",
+    "database/README.md": "d512c80672071eb3b7b849e9f4d7e7e863fb373cd0ba436c0f17c54d089aecb6",
+    "database/postgresql/031-actor-graph-compatibility.sql": "42d8660d6052a82a614b105ee9530a6708a2551891094f54d6d2ed51cc98257e",
+    "deploy/README.md": "d89d214ce7b9f3e11c2ff2d0c3d21fa5322dbced33ac4e7ef4c8fefb67aee8f3",
+    "deploy/tmapsvr-native.example.toml": "f79268ecb9fafda945ac2f77769db080db4cdc87670352931cd4cd974b91c4d3",
+    "tools/database/activate_actor_catalog.py": "99cfbfc60a581bcd12b0dfb6c8e4c9d1bdecb304a960a5b4fd99c208d9bd25f5",
+    "tools/database/run_native_verification.py": "390f01499d8c0e7df9f1466b7bd41102025ef22189cf624151c2be567ae75e0b",
+    "tools/database/tests/test_actor_compatibility.py": "1ff1acd118233ba91cf99087c1148e4b0185c97d3183a3730a9ec4c40d716431",
+    "tools/database/verify_actor_transition_wire.py": "45d160d9b162d2453cdd769a937ea5fb9f0b8690cb1a84750ad7361fd168c7df",
+    "tools/database/verify_actor_upgrade.py": "57553dd089ab16b39112bbf23d93b05cb956b0e9ab7421bc69b5e9ea7210f888",
+    "tools/database/verify_map_runtime_wire.py": "06c76fe8e4301e76062c8fddaf8c55e9becbc1ef6e6061e403c2df1946e9140d",
+    "Dockerfile": "3417a1fb094a810d52fb56de53e3ea3cc8be5f8188363517598e3f9c0e662c5b"
+  },
+  "build_deps_image_id": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190"
+}

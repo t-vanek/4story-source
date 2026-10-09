@@ -1,0 +1,424 @@
+Test project /src/build/linux-debug
+        Start   1: cluster_world_handshake
+  1/203 Test   #1: cluster_world_handshake ........................   Passed    0.08 sec
+        Start   2: cluster_world_reconnect
+  2/203 Test   #2: cluster_world_reconnect ........................   Passed    0.61 sec
+        Start   3: tnetlib_crypto_kat
+  3/203 Test   #3: tnetlib_crypto_kat .............................   Passed    0.00 sec
+        Start   4: tnetlib_asio_echo
+  4/203 Test   #4: tnetlib_asio_echo ..............................   Passed    0.44 sec
+        Start   5: tnetlib_tls
+  5/203 Test   #5: tnetlib_tls ....................................   Passed    0.37 sec
+        Start   6: tnetlib_packet_codec
+  6/203 Test   #6: tnetlib_packet_codec ...........................   Passed    0.00 sec
+        Start   7: tnetlib_messageid
+  7/203 Test   #7: tnetlib_messageid ..............................   Passed    0.01 sec
+        Start   8: fourstory_mapper
+  8/203 Test   #8: fourstory_mapper ...............................   Passed    0.00 sec
+        Start   9: fourstory_security
+  9/203 Test   #9: fourstory_security .............................   Passed    0.01 sec
+        Start  10: fourstory_peer_client_tls
+ 10/203 Test  #10: fourstory_peer_client_tls ......................   Passed    0.08 sec
+        Start  11: fourstory_postgresql_options
+ 11/203 Test  #11: fourstory_postgresql_options ...................   Passed    0.01 sec
+        Start  12: fourstory_postgresql_integration
+ 12/203 Test  #12: fourstory_postgresql_integration ...............***Skipped   0.00 sec
+        Start  13: tloginsvr_asio_handshake
+ 13/203 Test  #13: tloginsvr_asio_handshake .......................   Passed    0.27 sec
+        Start  14: tloginsvr_asio_auth_flow
+ 14/203 Test  #14: tloginsvr_asio_auth_flow .......................   Passed    0.10 sec
+        Start  15: tloginsvr_asio_duplicate_kick
+ 15/203 Test  #15: tloginsvr_asio_duplicate_kick ..................   Passed    0.32 sec
+        Start  16: tloginsvr_asio_start_flow
+ 16/203 Test  #16: tloginsvr_asio_start_flow ......................   Passed    0.08 sec
+        Start  17: tloginsvr_asio_session_terminator
+ 17/203 Test  #17: tloginsvr_asio_session_terminator ..............   Passed    0.34 sec
+        Start  18: tloginsvr_asio_char_flow
+ 18/203 Test  #18: tloginsvr_asio_char_flow .......................   Passed    0.19 sec
+        Start  19: tloginsvr_asio_charname_validator
+ 19/203 Test  #19: tloginsvr_asio_charname_validator ..............   Passed    0.00 sec
+        Start  20: tloginsvr_asio_event_registry
+ 20/203 Test  #20: tloginsvr_asio_event_registry ..................   Passed    0.00 sec
+        Start  21: tloginsvr_asio_control_gate
+ 21/203 Test  #21: tloginsvr_asio_control_gate ....................   Passed    0.51 sec
+        Start  22: tloginsvr_asio_shutdown_sweep
+ 22/203 Test  #22: tloginsvr_asio_shutdown_sweep ..................   Passed    0.03 sec
+        Start  23: tloginsvr_asio_site_code
+ 23/203 Test  #23: tloginsvr_asio_site_code .......................   Passed    0.22 sec
+        Start  24: tloginsvr_asio_rc4_secret_length
+ 24/203 Test  #24: tloginsvr_asio_rc4_secret_length ...............   Passed    0.00 sec
+        Start  25: tloginsvr_asio_soci_auth
+ 25/203 Test  #25: tloginsvr_asio_soci_auth .......................   Passed    0.01 sec
+        Start  26: tloginsvr_asio_soci_char
+ 26/203 Test  #26: tloginsvr_asio_soci_char .......................   Passed    0.01 sec
+        Start  27: tloginsvr_asio_soci_map
+ 27/203 Test  #27: tloginsvr_asio_soci_map ........................   Passed    0.01 sec
+        Start  28: tloginsvr_asio_soci_session_terminator
+ 28/203 Test  #28: tloginsvr_asio_soci_session_terminator .........   Passed    0.01 sec
+        Start  29: tloginsvr_asio_wire_e2e_soci
+ 29/203 Test  #29: tloginsvr_asio_wire_e2e_soci ...................   Passed    0.01 sec
+        Start  30: tloginsvr_postgresql_auth
+ 30/203 Test  #30: tloginsvr_postgresql_auth ......................***Skipped   0.01 sec
+        Start  31: tloginsvr_postgresql_char
+ 31/203 Test  #31: tloginsvr_postgresql_char ......................***Skipped   0.01 sec
+        Start  32: tloginsvr_postgresql_handoff
+ 32/203 Test  #32: tloginsvr_postgresql_handoff ...................***Skipped   0.01 sec
+        Start  33: tpatchsvr_asio_stale_sweep
+ 33/203 Test  #33: tpatchsvr_asio_stale_sweep .....................   Passed    0.25 sec
+        Start  34: tpatchsvr_asio_handlers_wire
+ 34/203 Test  #34: tpatchsvr_asio_handlers_wire ...................   Passed    0.00 sec
+        Start  35: tpatchsvr_asio_soci_repository
+ 35/203 Test  #35: tpatchsvr_asio_soci_repository .................   Passed    0.01 sec
+        Start  36: tlogsvr_asio_log_decoder
+ 36/203 Test  #36: tlogsvr_asio_log_decoder .......................   Passed    0.00 sec
+        Start  37: tlogsvr_asio_retry_queue
+ 37/203 Test  #37: tlogsvr_asio_retry_queue .......................   Passed    0.00 sec
+        Start  38: tlogsvr_asio_soci_log_sink
+ 38/203 Test  #38: tlogsvr_asio_soci_log_sink .....................   Passed    0.00 sec
+        Start  39: tlogsvr_audit_transaction
+ 39/203 Test  #39: tlogsvr_audit_transaction ......................   Passed    0.00 sec
+        Start  40: tlogsvr_postgresql_sink
+ 40/203 Test  #40: tlogsvr_postgresql_sink ........................***Skipped   0.01 sec
+        Start  41: tcontrolsvr_asio_operator_login
+ 41/203 Test  #41: tcontrolsvr_asio_operator_login ................   Passed    0.17 sec
+        Start  42: tcontrolsvr_asio_peer_monitor
+ 42/203 Test  #42: tcontrolsvr_asio_peer_monitor ..................   Passed    0.05 sec
+        Start  43: tcontrolsvr_asio_admin_forwarders
+ 43/203 Test  #43: tcontrolsvr_asio_admin_forwarders ..............   Passed    0.17 sec
+        Start  44: tcontrolsvr_asio_event_scheduler
+ 44/203 Test  #44: tcontrolsvr_asio_event_scheduler ...............   Passed    0.00 sec
+        Start  45: tcontrolsvr_asio_patch_metadata
+ 45/203 Test  #45: tcontrolsvr_asio_patch_metadata ................   Passed    0.14 sec
+        Start  46: tcontrolsvr_asio_wire_parity
+ 46/203 Test  #46: tcontrolsvr_asio_wire_parity ...................   Passed    0.22 sec
+        Start  47: tcontrolsvr_asio_soci_repositories
+ 47/203 Test  #47: tcontrolsvr_asio_soci_repositories .............   Passed    0.01 sec
+        Start  48: tcontrolsvr_asio_admin_shell
+ 48/203 Test  #48: tcontrolsvr_asio_admin_shell ...................   Passed    0.01 sec
+        Start  49: tcontrolsvr_asio_peer_registry
+ 49/203 Test  #49: tcontrolsvr_asio_peer_registry .................   Passed    0.09 sec
+        Start  50: tcontrolsvr_asio_scm_status_reconcile
+ 50/203 Test  #50: tcontrolsvr_asio_scm_status_reconcile ..........   Passed    0.01 sec
+        Start  51: tcontrolsvr_asio_registry_persistence
+ 51/203 Test  #51: tcontrolsvr_asio_registry_persistence ..........   Passed    0.00 sec
+        Start  52: tcontrolsvr_asio_service_controller
+ 52/203 Test  #52: tcontrolsvr_asio_service_controller ............   Passed    0.00 sec
+        Start  53: tcontrolsvr_asio_admin_shell_cluster
+ 53/203 Test  #53: tcontrolsvr_asio_admin_shell_cluster ...........   Passed    2.51 sec
+        Start  54: tcontrolsvr_asio_admin_shell_stream
+ 54/203 Test  #54: tcontrolsvr_asio_admin_shell_stream ............   Passed    0.26 sec
+        Start  55: tcontrolsvr_asio_admin_shell_route
+ 55/203 Test  #55: tcontrolsvr_asio_admin_shell_route .............   Passed    0.01 sec
+        Start  56: tcontrolsvr_asio_message_router
+ 56/203 Test  #56: tcontrolsvr_asio_message_router ................   Passed    0.01 sec
+        Start  57: tcontrolsvr_asio_peer_client
+ 57/203 Test  #57: tcontrolsvr_asio_peer_client ...................   Passed    4.71 sec
+        Start  58: tcontrolsvr_asio_control_session_tls
+ 58/203 Test  #58: tcontrolsvr_asio_control_session_tls ...........   Passed    0.12 sec
+        Start  59: tcontrolsvr_asio_hybrid
+ 59/203 Test  #59: tcontrolsvr_asio_hybrid ........................   Passed    0.12 sec
+        Start  60: tcontrolsvr_asio_register_cn
+ 60/203 Test  #60: tcontrolsvr_asio_register_cn ...................   Passed    0.17 sec
+        Start  61: tcontrolsvr_asio_register_san
+ 61/203 Test  #61: tcontrolsvr_asio_register_san ..................   Passed    0.34 sec
+        Start  62: tcontrolsvr_asio_peer_dialer_cn
+ 62/203 Test  #62: tcontrolsvr_asio_peer_dialer_cn ................   Passed    0.02 sec
+        Start  63: tcontrolsvr_asio_co_offload
+ 63/203 Test  #63: tcontrolsvr_asio_co_offload ....................   Passed    0.02 sec
+        Start  64: tcontrolsvr_asio_registry_refresher
+ 64/203 Test  #64: tcontrolsvr_asio_registry_refresher ............   Passed    0.20 sec
+        Start  65: tmapsvr_postgresql_map
+ 65/203 Test  #65: tmapsvr_postgresql_map .........................***Skipped   0.00 sec
+        Start  66: tmapsvr_postgresql_catalog
+ 66/203 Test  #66: tmapsvr_postgresql_catalog .....................***Skipped   0.00 sec
+        Start  67: tmapsvr_asio_mapper_profiles
+ 67/203 Test  #67: tmapsvr_asio_mapper_profiles ...................   Passed    0.00 sec
+        Start  68: tmapsvr_asio_world_senders
+ 68/203 Test  #68: tmapsvr_asio_world_senders .....................   Passed    0.00 sec
+        Start  69: tmapsvr_asio_world_enter
+ 69/203 Test  #69: tmapsvr_asio_world_enter .......................   Passed    0.00 sec
+        Start  70: tmapsvr_asio_world_enterchar
+ 70/203 Test  #70: tmapsvr_asio_world_enterchar ...................   Passed    0.00 sec
+        Start  71: tmapsvr_asio_client_senders
+ 71/203 Test  #71: tmapsvr_asio_client_senders ....................   Passed    0.00 sec
+        Start  72: tmapsvr_asio_world_checkmain
+ 72/203 Test  #72: tmapsvr_asio_world_checkmain ...................   Passed    0.00 sec
+        Start  73: tmapsvr_asio_world_routelist
+ 73/203 Test  #73: tmapsvr_asio_world_routelist ...................   Passed    0.00 sec
+        Start  74: tmapsvr_asio_spawn_manager
+ 74/203 Test  #74: tmapsvr_asio_spawn_manager .....................   Passed    0.00 sec
+        Start  75: tmapsvr_asio_combat
+ 75/203 Test  #75: tmapsvr_asio_combat ............................   Passed    0.00 sec
+        Start  76: tmapsvr_asio_damage_formula
+ 76/203 Test  #76: tmapsvr_asio_damage_formula ....................   Passed    0.00 sec
+        Start  77: tmapsvr_asio_money
+ 77/203 Test  #77: tmapsvr_asio_money .............................   Passed    0.00 sec
+        Start  78: tmapsvr_asio_skill_cooldown
+ 78/203 Test  #78: tmapsvr_asio_skill_cooldown ....................   Passed    0.00 sec
+        Start  79: tmapsvr_asio_loot
+ 79/203 Test  #79: tmapsvr_asio_loot ..............................   Passed    0.00 sec
+        Start  80: tmapsvr_asio_loot_senders
+ 80/203 Test  #80: tmapsvr_asio_loot_senders ......................   Passed    0.00 sec
+        Start  81: tmapsvr_asio_inventory
+ 81/203 Test  #81: tmapsvr_asio_inventory .........................   Passed    0.00 sec
+        Start  82: tmapsvr_asio_corpse
+ 82/203 Test  #82: tmapsvr_asio_corpse ............................   Passed    0.00 sec
+        Start  83: tmapsvr_asio_loot_take
+ 83/203 Test  #83: tmapsvr_asio_loot_take .........................   Passed    0.00 sec
+        Start  84: tmapsvr_asio_quest_engine
+ 84/203 Test  #84: tmapsvr_asio_quest_engine ......................   Passed    0.00 sec
+        Start  85: tmapsvr_asio_quest_senders
+ 85/203 Test  #85: tmapsvr_asio_quest_senders .....................   Passed    0.00 sec
+        Start  86: tmapsvr_asio_stat_engine
+ 86/203 Test  #86: tmapsvr_asio_stat_engine .......................   Passed    0.00 sec
+        Start  87: tmapsvr_asio_skill_engine
+ 87/203 Test  #87: tmapsvr_asio_skill_engine ......................   Passed    0.00 sec
+        Start  88: tmapsvr_asio_skill_effect
+ 88/203 Test  #88: tmapsvr_asio_skill_effect ......................   Passed    0.00 sec
+        Start  89: tmapsvr_asio_main_transfer_codec
+ 89/203 Test  #89: tmapsvr_asio_main_transfer_codec ...............   Passed    0.01 sec
+        Start  90: tmapsvr_asio_admission
+ 90/203 Test  #90: tmapsvr_asio_admission .........................   Passed    5.12 sec
+        Start  91: tmapsvr_asio_admission_encrypted
+ 91/203 Test  #91: tmapsvr_asio_admission_encrypted ...............   Passed    5.12 sec
+        Start  92: tmapsvr_asio_character_statistics
+ 92/203 Test  #92: tmapsvr_asio_character_statistics ..............   Passed    0.00 sec
+        Start  93: tworldsvr_asio_dispatch
+ 93/203 Test  #93: tworldsvr_asio_dispatch ........................   Passed    0.20 sec
+        Start  94: tworldsvr_asio_session_writes
+ 94/203 Test  #94: tworldsvr_asio_session_writes ..................   Passed    0.29 sec
+        Start  95: tworldsvr_asio_secondary_admission
+ 95/203 Test  #95: tworldsvr_asio_secondary_admission .............   Passed    0.11 sec
+        Start  96: tworldsvr_asio_main_handoff
+ 96/203 Test  #96: tworldsvr_asio_main_handoff ....................   Passed    3.86 sec
+        Start  97: tworldsvr_asio_char_registry
+ 97/203 Test  #97: tworldsvr_asio_char_registry ...................   Passed    0.02 sec
+        Start  98: tworldsvr_asio_char_handlers
+ 98/203 Test  #98: tworldsvr_asio_char_handlers ...................   Passed    0.28 sec
+        Start  99: tworldsvr_asio_guild_registry
+ 99/203 Test  #99: tworldsvr_asio_guild_registry ..................   Passed    0.02 sec
+        Start 100: tworldsvr_asio_guild_handlers
+100/203 Test #100: tworldsvr_asio_guild_handlers ..................   Passed    0.32 sec
+        Start 101: tworldsvr_asio_fake_guild_repo
+101/203 Test #101: tworldsvr_asio_fake_guild_repo .................   Passed    0.01 sec
+        Start 102: tworldsvr_asio_peer_registry
+102/203 Test #102: tworldsvr_asio_peer_registry ...................   Passed    0.00 sec
+        Start 103: tworldsvr_asio_relay_handlers
+103/203 Test #103: tworldsvr_asio_relay_handlers ..................   Passed    0.24 sec
+        Start 104: tworldsvr_asio_char_name_index
+104/203 Test #104: tworldsvr_asio_char_name_index .................   Passed    0.02 sec
+        Start 105: tworldsvr_asio_char_base_handlers
+105/203 Test #105: tworldsvr_asio_char_base_handlers ..............   Passed    0.40 sec
+        Start 106: tworldsvr_asio_rw_lookup_handlers
+106/203 Test #106: tworldsvr_asio_rw_lookup_handlers ..............   Passed    0.21 sec
+        Start 107: tworldsvr_asio_guild_mut_handlers
+107/203 Test #107: tworldsvr_asio_guild_mut_handlers ..............   Passed    1.90 sec
+        Start 108: tworldsvr_asio_guild_level_cache
+108/203 Test #108: tworldsvr_asio_guild_level_cache ...............   Passed    0.01 sec
+        Start 109: tworldsvr_asio_mapper_profiles
+109/203 Test #109: tworldsvr_asio_mapper_profiles .................   Passed    0.00 sec
+        Start 110: tworldsvr_asio_guild_peerage
+110/203 Test #110: tworldsvr_asio_guild_peerage ...................   Passed    0.00 sec
+        Start 111: tworldsvr_asio_guild_wanted_sweep
+111/203 Test #111: tworldsvr_asio_guild_wanted_sweep ..............   Passed    0.00 sec
+        Start 112: tworldsvr_asio_pvp_aggregate
+112/203 Test #112: tworldsvr_asio_pvp_aggregate ...................   Passed    0.00 sec
+        Start 113: tworldsvr_asio_tactics_sweep
+113/203 Test #113: tworldsvr_asio_tactics_sweep ...................   Passed    0.00 sec
+        Start 114: tworldsvr_asio_party_registry
+114/203 Test #114: tworldsvr_asio_party_registry ..................   Passed    0.00 sec
+        Start 115: tworldsvr_asio_party_handlers
+115/203 Test #115: tworldsvr_asio_party_handlers ..................   Passed    0.13 sec
+        Start 116: tworldsvr_asio_party_join_handlers
+116/203 Test #116: tworldsvr_asio_party_join_handlers .............   Passed    0.17 sec
+        Start 117: tworldsvr_asio_party_del_handlers
+117/203 Test #117: tworldsvr_asio_party_del_handlers ..............   Passed    0.14 sec
+        Start 118: tworldsvr_asio_party_attr_handlers
+118/203 Test #118: tworldsvr_asio_party_attr_handlers .............   Passed    0.13 sec
+        Start 119: tworldsvr_asio_party_recall_handlers
+119/203 Test #119: tworldsvr_asio_party_recall_handlers ...........   Passed    0.13 sec
+        Start 120: tworldsvr_asio_party_order_handlers
+120/203 Test #120: tworldsvr_asio_party_order_handlers ............   Passed    0.05 sec
+        Start 121: tworldsvr_asio_corps_registry
+121/203 Test #121: tworldsvr_asio_corps_registry ..................   Passed    0.00 sec
+        Start 122: tworldsvr_asio_corps_handlers
+122/203 Test #122: tworldsvr_asio_corps_handlers ..................   Passed    0.08 sec
+        Start 123: tworldsvr_asio_corps_reply_handlers
+123/203 Test #123: tworldsvr_asio_corps_reply_handlers ............   Passed    0.13 sec
+        Start 124: tworldsvr_asio_corps_leave_handlers
+124/203 Test #124: tworldsvr_asio_corps_leave_handlers ............   Passed    0.15 sec
+        Start 125: tworldsvr_asio_corps_commander_handlers
+125/203 Test #125: tworldsvr_asio_corps_commander_handlers ........   Passed    0.09 sec
+        Start 126: tworldsvr_asio_party_move_handlers
+126/203 Test #126: tworldsvr_asio_party_move_handlers .............   Passed    0.05 sec
+        Start 127: tworldsvr_asio_corps_cmd_handlers
+127/203 Test #127: tworldsvr_asio_corps_cmd_handlers ..............   Passed    0.09 sec
+        Start 128: tworldsvr_asio_corps_enemy_handlers
+128/203 Test #128: tworldsvr_asio_corps_enemy_handlers ............   Passed    0.09 sec
+        Start 129: tworldsvr_asio_friend_handlers
+129/203 Test #129: tworldsvr_asio_friend_handlers .................   Passed    0.09 sec
+        Start 130: tworldsvr_asio_friend_reply_handlers
+130/203 Test #130: tworldsvr_asio_friend_reply_handlers ...........   Passed    0.13 sec
+        Start 131: tworldsvr_asio_friend_group_handlers
+131/203 Test #131: tworldsvr_asio_friend_group_handlers ...........   Passed    0.05 sec
+        Start 132: tworldsvr_asio_friend_list_handlers
+132/203 Test #132: tworldsvr_asio_friend_list_handlers ............   Passed    0.05 sec
+        Start 133: tworldsvr_asio_chat_handlers
+133/203 Test #133: tworldsvr_asio_chat_handlers ...................   Passed    0.13 sec
+        Start 134: tworldsvr_asio_soulmate_handlers
+134/203 Test #134: tworldsvr_asio_soulmate_handlers ...............   Passed    0.05 sec
+        Start 135: tworldsvr_asio_friend_presence_handlers
+135/203 Test #135: tworldsvr_asio_friend_presence_handlers ........   Passed    0.09 sec
+        Start 136: tworldsvr_asio_region_handlers
+136/203 Test #136: tworldsvr_asio_region_handlers .................   Passed    0.05 sec
+        Start 137: tworldsvr_asio_levelup_handlers
+137/203 Test #137: tworldsvr_asio_levelup_handlers ................   Passed    0.09 sec
+        Start 138: tworldsvr_asio_charstat_handlers
+138/203 Test #138: tworldsvr_asio_charstat_handlers ...............   Passed    0.14 sec
+        Start 139: tworldsvr_asio_tms_handlers
+139/203 Test #139: tworldsvr_asio_tms_handlers ....................   Passed    0.17 sec
+        Start 140: tworldsvr_asio_tms_logout_handlers
+140/203 Test #140: tworldsvr_asio_tms_logout_handlers .............   Passed    0.09 sec
+        Start 141: tworldsvr_asio_post_handlers
+141/203 Test #141: tworldsvr_asio_post_handlers ...................   Passed    0.09 sec
+        Start 142: tworldsvr_asio_appearance_handlers
+142/203 Test #142: tworldsvr_asio_appearance_handlers .............   Passed    0.13 sec
+        Start 143: tworldsvr_asio_friend_load_handlers
+143/203 Test #143: tworldsvr_asio_friend_load_handlers ............   Passed    0.05 sec
+        Start 144: tworldsvr_asio_friend_persist_handlers
+144/203 Test #144: tworldsvr_asio_friend_persist_handlers .........   Passed    0.07 sec
+        Start 145: tworldsvr_asio_friend_edge_handlers
+145/203 Test #145: tworldsvr_asio_friend_edge_handlers ............   Passed    0.15 sec
+        Start 146: tworldsvr_asio_soulmate_persist_handlers
+146/203 Test #146: tworldsvr_asio_soulmate_persist_handlers .......   Passed    0.11 sec
+        Start 147: tworldsvr_asio_chatban_handlers
+147/203 Test #147: tworldsvr_asio_chatban_handlers ................   Passed    0.09 sec
+        Start 148: tworldsvr_asio_entersvr_handlers
+148/203 Test #148: tworldsvr_asio_entersvr_handlers ...............   Passed    0.09 sec
+        Start 149: tworldsvr_asio_occupy_handlers
+149/203 Test #149: tworldsvr_asio_occupy_handlers .................   Passed    0.04 sec
+        Start 150: tworldsvr_asio_castle_apply_handlers
+150/203 Test #150: tworldsvr_asio_castle_apply_handlers ...........   Passed    0.09 sec
+        Start 151: tworldsvr_asio_castle_occupy_reset_handlers
+151/203 Test #151: tworldsvr_asio_castle_occupy_reset_handlers ....   Passed    0.09 sec
+        Start 152: tworldsvr_asio_battlestatus_handlers
+152/203 Test #152: tworldsvr_asio_battlestatus_handlers ...........   Passed    0.04 sec
+        Start 153: tworldsvr_asio_event_handlers
+153/203 Test #153: tworldsvr_asio_event_handlers ..................   Passed    0.09 sec
+        Start 154: tworldsvr_asio_event_replay_handlers
+154/203 Test #154: tworldsvr_asio_event_replay_handlers ...........   Passed    0.07 sec
+        Start 155: tworldsvr_asio_cashshop_handlers
+155/203 Test #155: tworldsvr_asio_cashshop_handlers ...............   Passed    0.24 sec
+        Start 156: tworldsvr_asio_bow_scheduler_handlers
+156/203 Test #156: tworldsvr_asio_bow_scheduler_handlers ..........   Passed    0.24 sec
+        Start 157: tworldsvr_asio_tournament_match_handlers
+157/203 Test #157: tworldsvr_asio_tournament_match_handlers .......   Passed    0.34 sec
+        Start 158: tworldsvr_asio_tournament_player_handlers
+158/203 Test #158: tworldsvr_asio_tournament_player_handlers ......   Passed    0.46 sec
+        Start 159: tworldsvr_asio_tournament_tick_handlers
+159/203 Test #159: tworldsvr_asio_tournament_tick_handlers ........   Passed    0.25 sec
+        Start 160: tworldsvr_asio_tournament_handlers
+160/203 Test #160: tworldsvr_asio_tournament_handlers .............   Passed    0.13 sec
+        Start 161: tworldsvr_asio_rps_persist_handlers
+161/203 Test #161: tworldsvr_asio_rps_persist_handlers ............   Passed    0.09 sec
+        Start 162: tworldsvr_asio_evqt_expired_handlers
+162/203 Test #162: tworldsvr_asio_evqt_expired_handlers ...........   Passed    0.14 sec
+        Start 163: tworldsvr_asio_lottery_handlers
+163/203 Test #163: tworldsvr_asio_lottery_handlers ................   Passed    0.17 sec
+        Start 164: tworldsvr_asio_eventquarter_handlers
+164/203 Test #164: tworldsvr_asio_eventquarter_handlers ...........   Passed    0.10 sec
+        Start 165: tworldsvr_asio_cmgift_handlers
+165/203 Test #165: tworldsvr_asio_cmgift_handlers .................   Passed    0.15 sec
+        Start 166: tworldsvr_asio_castlewarinfo_handlers
+166/203 Test #166: tworldsvr_asio_castlewarinfo_handlers ..........   Passed    0.13 sec
+        Start 167: tworldsvr_asio_war_extras_handlers
+167/203 Test #167: tworldsvr_asio_war_extras_handlers .............   Passed    0.16 sec
+        Start 168: tworldsvr_asio_monthrank_rollover_handlers
+168/203 Test #168: tworldsvr_asio_monthrank_rollover_handlers .....   Passed    0.14 sec
+        Start 169: tworldsvr_asio_monthrank_handlers
+169/203 Test #169: tworldsvr_asio_monthrank_handlers ..............   Passed    0.21 sec
+        Start 170: tworldsvr_asio_itemtools_handlers
+170/203 Test #170: tworldsvr_asio_itemtools_handlers ..............   Passed    0.14 sec
+        Start 171: tworldsvr_asio_apex_stub_handlers
+171/203 Test #171: tworldsvr_asio_apex_stub_handlers ..............   Passed    0.10 sec
+        Start 172: tworldsvr_asio_service_plane_handlers
+172/203 Test #172: tworldsvr_asio_service_plane_handlers ..........   Passed    0.22 sec
+        Start 173: tworldsvr_asio_cashsale_confirm_handlers
+173/203 Test #173: tworldsvr_asio_cashsale_confirm_handlers .......   Passed    0.25 sec
+        Start 174: tworldsvr_asio_itemstate_handlers
+174/203 Test #174: tworldsvr_asio_itemstate_handlers ..............   Passed    0.11 sec
+        Start 175: tworldsvr_asio_combat_handlers
+175/203 Test #175: tworldsvr_asio_combat_handlers .................   Passed    0.09 sec
+        Start 176: tworldsvr_asio_monresult_handlers
+176/203 Test #176: tworldsvr_asio_monresult_handlers ..............   Passed    0.09 sec
+        Start 177: tworldsvr_asio_solomap_handlers
+177/203 Test #177: tworldsvr_asio_solomap_handlers ................   Passed    0.10 sec
+        Start 178: tworldsvr_asio_charmsg_handlers
+178/203 Test #178: tworldsvr_asio_charmsg_handlers ................   Passed    0.09 sec
+        Start 179: tworldsvr_asio_friend_protected_handlers
+179/203 Test #179: tworldsvr_asio_friend_protected_handlers .......   Passed    0.09 sec
+        Start 180: tworldsvr_asio_item_handlers
+180/203 Test #180: tworldsvr_asio_item_handlers ...................   Passed    0.13 sec
+        Start 181: tworldsvr_asio_guildrank_handlers
+181/203 Test #181: tworldsvr_asio_guildrank_handlers ..............   Passed    0.06 sec
+        Start 182: tworldsvr_asio_admin_handlers
+182/203 Test #182: tworldsvr_asio_admin_handlers ..................   Passed    0.09 sec
+        Start 183: tworldsvr_asio_rank_handlers
+183/203 Test #183: tworldsvr_asio_rank_handlers ...................   Passed    0.04 sec
+        Start 184: tworldsvr_asio_recallmon_handlers
+184/203 Test #184: tworldsvr_asio_recallmon_handlers ..............   Passed    0.13 sec
+        Start 185: tworldsvr_asio_spolecnikmon_handlers
+185/203 Test #185: tworldsvr_asio_spolecnikmon_handlers ...........   Passed    0.13 sec
+        Start 186: tworldsvr_asio_conn_handlers
+186/203 Test #186: tworldsvr_asio_conn_handlers ...................   Passed    0.13 sec
+        Start 187: tworldsvr_asio_checkmain_handlers
+187/203 Test #187: tworldsvr_asio_checkmain_handlers ..............   Passed    0.17 sec
+        Start 188: tworldsvr_asio_releasemain_handlers
+188/203 Test #188: tworldsvr_asio_releasemain_handlers ............   Passed    0.30 sec
+        Start 189: tworldsvr_asio_entersvr_handoff_handlers
+189/203 Test #189: tworldsvr_asio_entersvr_handoff_handlers .......   Passed    0.17 sec
+        Start 190: tworldsvr_asio_teleport_handlers
+190/203 Test #190: tworldsvr_asio_teleport_handlers ...............   Passed    0.22 sec
+        Start 191: tworldsvr_asio_checkconnect_handlers
+191/203 Test #191: tworldsvr_asio_checkconnect_handlers ...........   Passed    0.29 sec
+        Start 192: tworldsvr_asio_closechar_handlers
+192/203 Test #192: tworldsvr_asio_closechar_handlers ..............   Passed    0.13 sec
+        Start 193: tworldsvr_asio_route_completion_handlers
+193/203 Test #193: tworldsvr_asio_route_completion_handlers .......   Passed    0.14 sec
+        Start 194: tworldsvr_asio_teleport_confirm_handlers
+194/203 Test #194: tworldsvr_asio_teleport_confirm_handlers .......   Passed    0.13 sec
+        Start 195: tworldsvr_asio_protected_check_handlers
+195/203 Test #195: tworldsvr_asio_protected_check_handlers ........   Passed    0.09 sec
+        Start 196: tworldsvr_asio_entersvr_fresh_login_handlers
+196/203 Test #196: tworldsvr_asio_entersvr_fresh_login_handlers ...   Passed    0.25 sec
+        Start 197: tworldsvr_asio_chardata_drift_handlers
+197/203 Test #197: tworldsvr_asio_chardata_drift_handlers .........   Passed    0.09 sec
+        Start 198: tworldsvr_asio_bow_handlers
+198/203 Test #198: tworldsvr_asio_bow_handlers ....................   Passed    0.09 sec
+        Start 199: tworldsvr_asio_br_handlers
+199/203 Test #199: tworldsvr_asio_br_handlers .....................   Passed    0.18 sec
+        Start 200: tworldsvr_asio_leavebattlefield_handlers
+200/203 Test #200: tworldsvr_asio_leavebattlefield_handlers .......   Passed    0.11 sec
+        Start 201: tworldsvr_asio_battlemode_handlers
+201/203 Test #201: tworldsvr_asio_battlemode_handlers .............   Passed    0.13 sec
+        Start 202: tworldsvr_asio_arenajoin_handlers
+202/203 Test #202: tworldsvr_asio_arenajoin_handlers ..............   Passed    0.10 sec
+        Start 203: tworldsvr_asio_rps_handlers
+203/203 Test #203: tworldsvr_asio_rps_handlers ....................   Passed    0.09 sec
+
+100% tests passed, 0 tests failed out of 203
+
+Label Time Summary:
+integration    =   0.01 sec*proc (3 tests)
+postgresql     =   0.01 sec*proc (3 tests)
+
+Total Test time (real) =  42.91 sec
+
+The following tests did not run:
+	 12 - fourstory_postgresql_integration (Skipped)
+	 30 - tloginsvr_postgresql_auth (Skipped)
+	 31 - tloginsvr_postgresql_char (Skipped)
+	 32 - tloginsvr_postgresql_handoff (Skipped)
+	 40 - tlogsvr_postgresql_sink (Skipped)
+	 65 - tmapsvr_postgresql_map (Skipped)
+	 66 - tmapsvr_postgresql_catalog (Skipped)

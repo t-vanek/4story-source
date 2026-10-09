@@ -32,6 +32,8 @@ def main():
     p.add_argument('--map-backend-only', action='store_true', help='With --map-runtime-only, stop after native backend integration tests')
     p.add_argument('--map-runtime-only', action='store_true', help='Native Map claim/load/save with source catalogs')
     p.add_argument('--actor-snapshot', type=Path, help='Private four-table actor manifest')
+    p.add_argument('--actor-upgrade-from', type=Path, help='Run old-installed-Map to current-Map graph recovery instead of the general wire matrix')
+    p.add_argument('--previous-image', help='Local immutable pre-statistics runtime image, required with --actor-upgrade-from')
     p.add_argument('--routing-only', action='store_true', help='Native authenticated Login-to-Map routing and handoff')
     p.add_argument('--routing-snapshot', type=Path, help='Private four-table routing manifest')
     p.add_argument('--pool-only', action='store_true', help='Synthetic pool/TLS tests for CI; no historical data or map startup')
@@ -51,6 +53,8 @@ def main():
         p.error('--snapshot is required unless a synthetic mode is selected')
     if args.map_runtime_only and args.actor_snapshot is None:
         p.error("--actor-snapshot is required for --map-runtime-only")
+    if bool(args.actor_upgrade_from)!=bool(args.previous_image) or (args.actor_upgrade_from and not args.map_runtime_only):
+        p.error('--actor-upgrade-from and --previous-image require each other and --map-runtime-only')
     if args.runtime_bin_dir and (not args.map_runtime_only or not args.runtime_bin_dir.startswith('/')):
         p.error('--runtime-bin-dir requires --map-runtime-only and an absolute container path')
     import psycopg
@@ -95,6 +99,10 @@ def main():
     image_reference = args.image
     args.image = json.loads(command(['image', 'inspect', image_reference]))[0]['Id']
     result['image'] = {'reference': image_reference, 'id': args.image}
+    if args.previous_image:
+        previous_reference=args.previous_image
+        args.previous_image=json.loads(command(['image','inspect',previous_reference]))[0]['Id']
+        result['previous_image']={'reference':previous_reference,'id':args.previous_image}
     server_name = ('fourstory-native-login-' if login_mode else 'fourstory-native-map-') + run
 
     smtp_name = 'fourstory-native-smtp-' + run
@@ -164,6 +172,8 @@ def main():
                     from activate_actor_catalog import activate_actor_catalog
                     result['actor_import'] = import_snapshot(conn, args.actor_snapshot, repo / 'database/postgresql/mapping.json')
                     result['actor_activation'] = activate_actor_catalog(conn, args.actor_snapshot)
+                    if args.actor_upgrade_from:
+                        result['previous_actor_import']=import_snapshot(conn,args.actor_upgrade_from,repo/'database/postgresql/mapping.json')
             else:
                 # Permission test target exists, but contains no invented source rows.
                 conn.execute('CREATE SCHEMA legacy_game')
@@ -259,8 +269,11 @@ def main():
                                        'integration_test_directory':bin_dir}
             with psycopg.connect(dbname=dbname, **admin) as conn:
                 result['map_wire']=verify_map_runtime_daemons(conn,state,repo,private,public,app_conn,reader_conn,args.image,runtime_bin_dir,server_name,
-                    manifest,result['routing_activation']['manifest_sha256'],result['actor_activation']['manifest_sha256'],execute)
-            result['scope']='Native PostgreSQL primary/replica admission, core checkpoint/save/crash recovery; replica tests use an explicitly synthetic cell partition and restore the source view; original client PENDING'
+                    manifest,result['routing_activation']['manifest_sha256'],result['actor_activation']['manifest_sha256'],execute,
+                    actor_upgrade=dict(previous_manifest=args.actor_upgrade_from,manifest=args.actor_snapshot,
+                                       previous_image=args.previous_image) if args.actor_upgrade_from else None)
+            result['scope']=('Actual installed old Map -> current Map catalog upgrade, logout/ready-crash/prepared-crash recovery; original client PENDING' if args.actor_upgrade_from else
+                             'Native PostgreSQL primary/replica admission, core checkpoint/save/crash recovery; replica tests use an explicitly synthetic cell partition and restore the source view; original client PENDING')
             result['status']='passed'
             return
 

@@ -8,17 +8,18 @@ Owner instruction (2026-10-09): keep implementation and versioning local on `mai
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current continuation (character statistics): preserve migration **030**, the
-four-table actor manifest and `character-statistics-contract.json`. Continue with
-native equipment moves: original eligibility and slot conflicts, atomic displaced
-items, recalculated stats/timing, EQUIP → MOVEITEM → CHARSTATINFO → HPMP and final
-MOVEITEM ordering. The normal stat sheet is integrated, not proof of equipment
-mutations or advanced effects. Add actual remote-player inspection across two
-native Maps and active buff/companion/guild/local-battle derivation. Catalog changes
-for already transferred characters need an explicit verified old/new manifest
-compatibility migration; old checkpoint/transfer hashes remain fenced. Keep all
-existing verified native transactions. Backups and migrations **001–030** are now
-immutable; next schema migration is **031**.
+Current continuation (actor-catalog transition): preserve migration **031** and
+`actor-transition-contract.json`. Offline publication now proves unchanged old
+actor charts and permits recovery of old logged-out/crashed/prepared graphs; it
+never rewrites historical player receipts. Resume native equipment moves next:
+original eligibility and slot conflicts, atomic displaced items, recalculated
+stats/timing, EQUIP → MOVEITEM → CHARSTATINFO → HPMP and final MOVEITEM ordering.
+Add actual remote-player inspection across two native Maps and active
+buff/companion/guild/local-battle derivation. The compatibility certificate supports
+only the evidenced two-table → four-table actor extension, not arbitrary content
+changes, character/routing releases or transitive upgrades. Preserve all existing
+native transactions. Backups and migrations **001–031** are now immutable; next
+schema migration is **032**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -33,7 +34,7 @@ immutable; next schema migration is **031**.
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–030 and the checkpoint, retirement and replica contract evidence. Actual
+   001–031 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;

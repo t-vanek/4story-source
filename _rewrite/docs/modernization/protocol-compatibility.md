@@ -789,3 +789,28 @@ Actual PostgreSQL/TCP verifies normal self-inspection and both transfer directio
 World relay loopback tests verify routing and wrong-peer rejection. Complete
 remote-player inspection over two native Maps and actual unchanged client UI
 acceptance remain pending. See `evidence/character-statistics-contract.json`.
+
+
+## Offline actor-catalog transition (migration 031)
+
+This is a documented modern operational extension. No client opcode, framing,
+checksum, field, reply code or message order changes. Existing checkpoint and
+primary-transfer packet bodies remain byte-for-byte unchanged during publication.
+Only an explicit directional certificate for identical old item-magic/skill-point
+charts plus the new source-derived statistics tables permits an old actor hash
+when restoring a logged-out or recovered graph. Current character/routing hashes,
+core fingerprints, typed graph decode and owner fencing remain mandatory.
+
+The publisher checks pinned backups, metadata, both verified imports and original
+text-byte/value hashes. It refuses live Map owners and blocks catalog changes that
+would strand existing graph checkpoints or prepared transfers. Offline token
+retirement prevents detached workers from writing after publication; ordinary
+process replacement handles their original session/receipt identities. There is
+no implicit retry after an uncertain commit and no transitive compatibility rule.
+
+Actual old installed Map TCP creates logout, ready-target-crash and prepared-source
+states. Current Map TCP verifies recovery, graph-only inventory and cooldowns,
+source-frozen movement, current stat inspection and repeat login. The cell split
+and accounts are explicit isolated fixtures. This proves the recorded runtime
+upgrade scenarios, not all legacy graph variants or an original client session.
+See [contract and reproducible evidence](evidence/actor-transition-contract.json).

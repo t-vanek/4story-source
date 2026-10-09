@@ -34,7 +34,19 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
 | World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The latest increment adds **source-derived character statistics** to the existing
+The latest increment adds **safe offline actor-catalog upgrades** (migration 031).
+A verified certificate lets the existing Map server restore old graph checkpoints
+under the extended statistics catalog. Publication preserves original saved packets,
+fences old writers and refuses live Maps or incompatible data. Tests use an actual
+previous installed Map to create logout, crash and interrupted-transfer states.
+See the [upgrade contract](_rewrite/docs/modernization/evidence/actor-transition-contract.json)
+and [local upgrade procedure](deploy/README.md#offline-actor-catalog-transition).
+The current local image is `localhost/fourstory:postgresql-actor-transition`.
+The upgrade suite passes **852 checks per configuration** in Debug, ASan/UBSan and
+installed Release; the existing **1,915-check** native regression suite also passes
+in each configuration. Complete gameplay and actual-client acceptance remain open.
+
+The preceding increment adds **source-derived character statistics** to the existing
 Map server: the original 87-byte inspection response, equipment attributes and
 World relay handlers. Migration **030** extends the pinned actor catalog to four
 tables and 9,773 backup rows. Native TCP checks cover grade/gem/aftermath, broken

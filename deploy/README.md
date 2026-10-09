@@ -6,7 +6,7 @@ one daemon as UID/GID 10001, logs to stdout, and receives SIGTERM directly.
 
 ## Current native PostgreSQL verification contract
 
-The current native Login/Map path requires migrations **001–030**, current
+The current native Login/Map path requires migrations **001–031**, current
 `sql/login-runtime-grants.sql` and `sql/map-runtime-grants.sql`, plus explicitly
 activated character/routing/four-table actor catalogs. The Map role now has bounded gameplay
 writes for consumption and inventory moves/splits/merges, including item INSERT
@@ -525,9 +525,52 @@ inventory, skill, ownership, DB failure and process-recovery scenarios. Use
 --manifest <new-four-table-json> --report <report.json>` for repeatable catalog
 upgrade/preservation checks.
 
-Do not switch a populated world's catalog without resolving existing persisted
-transfer/checkpoint manifest bindings. This stat increment preserves those receipts
-and rejects mismatched catalogs; it does not provide a production data-upgrade
-path for previously transferred characters. Local disposable worlds are used for
-current verification. An actual original client installation is still required
-for the blocked client acceptance tests.
+For existing two-table player graph/checkpoint bindings, use the offline procedure
+below. Other catalog changes remain blocked until separately proven. Actual client
+acceptance remains blocked because no original executable/assets are available.
+
+
+### Offline actor-catalog transition
+
+Current local image: `localhost/fourstory:postgresql-actor-transition` (build with
+`podman build --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-actor-transition .`).
+The supported transition is exactly the old two-table actor release to the
+four-table statistics release, with identical original item-magic/skill-point rows.
+This procedure adds no external deployment or publication.
+
+1. Stop the local Map processes and complete their shutdown. For a previously
+   crashed process, retain all claims, checkpoints and prepared transfer receipts;
+   normal new-process recovery will inspect them. Keep client admission stopped
+   until both catalog publication and Map recovery have completed.
+2. With the schema-owner connection, apply migrations through **031**. Preserve all
+   original `.bak` files, imports and existing migration receipts. Import the complete
+   four-table manifest using `migrate.py import-reference`; keep the original
+   two-table manifest and its verified import available.
+3. Run `activate_actor_catalog.py --manifest /private/actor-v2/manifest.json
+   --previous-manifest /private/actor-v1/manifest.json --report /private/actor-upgrade.json`.
+   The tool verifies both imports and original bytes, certifies identical shared
+   charts, switches the selector and retires inactive owner tokens atomically.
+   Live owners, active worker transactions, changed shared data or uncertified graph
+   receipts prevent publication. Resolve the reported cause before another attempt.
+4. Reapply `deploy/sql/map-runtime-grants.sql` as the schema owner for the dedicated
+   Map role. It needs SELECT on the new `actor_compat` view, no access to certificate
+   or owner-retirement audit writes. Set every Map's `actor_manifest_sha256` to the
+   published four-table hash. Character and routing hashes stay independently pinned.
+5. Start the current local Map/World/Login processes. Replacement owners verify and
+   recover old claims; fresh ready checkpoints use the new actor hash. Publication
+   itself never edits player receipt bodies, hashes, keys or original owner tokens.
+
+If the COMMIT response is lost, inspect `actor_catalog`, `actor_catalog_activations`,
+`actor_graph_compatibility` and `actor_owner_retirements` on a new operator connection
+before deciding the outcome. The publisher never automatically retries. An exact
+verified replay is a no-op; this does not make unknown writes safe to retry blindly.
+
+Reproduce migration/proof checks with `verify_actor_upgrade.py` as above. For real
+old-binary graph recovery, add `--actor-upgrade-from /private/actor-v1/manifest.json
+--previous-image <local-pre-statistics-image-id>` to the native Map verification
+command. This runs three separate lifecycles: logout, target SIGKILL and interrupted
+source prepare. Use `--build-dir build/linux-asan` for the sanitizers, or
+`--image localhost/fourstory:postgresql-actor-transition --runtime-bin-dir
+/opt/fourstory/bin` for installed Release daemons (backend integration binary remains
+Debug). Run the general native matrix separately without the upgrade flags.
+See [transition evidence](../_rewrite/docs/modernization/evidence/actor-transition-contract.json).

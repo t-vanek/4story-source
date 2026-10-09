@@ -23,7 +23,7 @@ from verify_character_statistics_wire import verify_character_statistics
 from verify_map_skill_wire import seed_skill_cast,verify_skill_cast
 
 
-def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_conn,image,bin_dir,base_name,manifest,routing,actor,execute):
+def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_conn,image,bin_dir,base_name,manifest,routing,actor,execute,actor_upgrade=None):
     checks=[];names=[base_name+'-world',base_name+'-map',base_name+'-login',base_name+'-map-second'];started=[]
     def check(ok,label):
         if not ok:raise RuntimeError('Map runtime wire: '+label)
@@ -41,6 +41,21 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
                   f'[characters]\nmanifest_sha256="{manifest}"\n[routing]\nmanifest_sha256="{routing}"\n'
                   '[security]\ndb_trust_store=false\n'+common)}
     configs[names[3]]=configs[names[1]].replace('server_id=1', 'server_id=2')
+    def stop(index,signal='TERM'):
+        name=names[index]
+        verify_container(state,name)
+        if json.loads(command(['inspect',name]))[0]['State']['Running']:
+            command(['kill','--signal',signal,name])
+        code=execute(['podman','wait',name],timeout=15).strip()
+        check(code==('137' if signal=='KILL' else '0'),'runtime stops with expected '+signal+' result')
+        log=execute(['podman','logs',name])
+        check(not any(e in log for e in ('ERROR: AddressSanitizer','ERROR: LeakSanitizer','runtime error:')),'stopped runtime has no sanitizer failure')
+        command(['rm',name]);started.remove(name)
+        (private/f'runtime-{index}.env').unlink(missing_ok=True)
+    def select_runtime(next_actor,next_image,next_bin):
+        nonlocal actor,image,bin_dir
+        for name in (names[1],names[3]):configs[name]=configs[name].replace(actor,next_actor)
+        actor,image,bin_dir=next_actor,next_image,next_bin
     def launch(index):
         name=names[index];config_file=public/(f'runtime-{index}.toml');config_file.write_text(configs[name])
         env=private/f'runtime-{index}.env'
@@ -71,7 +86,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         for _ in range(initial%8):value=((value^(initial//8))+0x336c3aebf71a8b08)&((1<<64)-1)
         return struct.pack('<HBIII4sHQ',0x2918,1,user,cid,key,b'\x7f\x00\x00\x01',5815,value)
     login_attempts=0;first_login_at=None
-    def start(login_port,cid=None):
+    def start(login_port,cid=None,name=b'WireMapHero',slot=0):
         nonlocal login_attempts,first_login_at
         # Respect the production per-IP burst of five and one-token/10s refill.
         # The longer fault matrix must not disable security or retry failures as
@@ -86,7 +101,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
             # verifies selection rather than supplying the client its key.
             key=result[3];seq=2
             if cid is None:
-                name=b'WireMapHero';body=b'\x01'+struct.pack('<i',len(name))+name+bytes([0,0,0,4,0,0,0,0,0,0,0,0])
+                body=b'\x01'+struct.pack('<i',len(name))+name+bytes([slot,0,0,4,0,0,0,0,0,0,0,0])
                 s.sendall(frame(body,0x1990,seq));op,data=read_packet(s,seq);seq+=1
                 status,cid=struct.unpack_from('<Bi',data);check(op==0x1991 and status==0,'real Login creates character from backup charts')
             s.sendall(frame(struct.pack('<BBi',1,1,cid),0x1994,seq));op,data=read_packet(s,seq)
@@ -135,6 +150,14 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         read('III');string();read('I');check(offset==len(data),'CHARINFO parsed to exact end with original field widths')
         return out
     try:
+        if actor_upgrade:
+            from verify_actor_transition_wire import verify_actor_transition
+            transition=verify_actor_transition(conn,actor_upgrade,image,bin_dir,launch,stop,select_runtime,
+                start,enter,connect_request,parse_character,until,
+                lambda index:'registration acknowledged' in execute(['podman','logs',names[index]]),
+                lambda:command(['kill','--signal','STOP',names[1],names[3]]))
+            return dict(status='passed',checks=checks,actor_transition_wire=transition,
+                        scope='Actual old installed Map creates graphs; current native Map restores them through explicit additive catalog certification. Synthetic account and routing partition; original client unavailable.')
         map_port=launch(1)
         def gate_closed(label):
             with socket.create_connection(('127.0.0.1',map_port),timeout=3) as rejected:

@@ -1,0 +1,92 @@
+{
+  "debug": {
+    "entries": 203,
+    "passed": 188,
+    "skipped": [
+      {
+        "name": "fourstory_postgresql_integration",
+        "status": "skipped",
+        "skip_kind": "explicit"
+      },
+      {
+        "name": "tloginsvr_asio_soci_auth",
+        "status": "skipped",
+        "skip_kind": "internal fixture"
+      },
+      {
+        "name": "tloginsvr_asio_soci_char",
+        "status": "skipped",
+        "skip_kind": "internal fixture"
+      },
+      {
+        "name": "tloginsvr_asio_soci_map",
+        "status": "skipped",
+        "skip_kind": "internal fixture"
+      },
+      {
+        "name": "tloginsvr_asio_soci_session_terminator",
+        "status": "skipped",
+        "skip_kind": "internal fixture"
+      },
+      {
+        "name": "tloginsvr_asio_wire_e2e_soci",
+        "status": "skipped",
+        "skip_kind": "internal fixture"
+      },
+      {
+        "name": "tloginsvr_postgresql_auth",
+        "status": "skipped",
+        "skip_kind": "explicit"
+      },
+      {
+        "name": "tloginsvr_postgresql_char",
+        "status": "skipped",
+        "skip_kind": "explicit"
+      },
+      {
+        "name": "tloginsvr_postgresql_handoff",
+        "status": "skipped",
+        "skip_kind": "explicit"
+      },
+      {
+        "name": "tpatchsvr_asio_soci_repository",
+        "status": "skipped",
+        "skip_kind": "internal fixture"
+      },
+      {
+        "name": "tlogsvr_asio_soci_log_sink",
+        "status": "skipped",
+        "skip_kind": "internal fixture"
+      },
+      {
+        "name": "tlogsvr_postgresql_sink",
+        "status": "skipped",
+        "skip_kind": "explicit"
+      },
+      {
+        "name": "tcontrolsvr_asio_soci_repositories",
+        "status": "skipped",
+        "skip_kind": "internal fixture"
+      },
+      {
+        "name": "tmapsvr_postgresql_map",
+        "status": "skipped",
+        "skip_kind": "explicit"
+      },
+      {
+        "name": "tmapsvr_postgresql_catalog",
+        "status": "skipped",
+        "skip_kind": "explicit"
+      }
+    ],
+    "source_log_sha256": "b1f1fecea25e9fd571162eacbb50fefbbe7fbcc4003c2d622d18adb4a57d3e50",
+    "ctest_log": "actor-transition-debug-ctest.log"
+  },
+  "asan": {
+    "entries": 39,
+    "passed": 39,
+    "skipped": [],
+    "source_log_sha256": "edd54748888c4e7463abc945407400a4eeb6c12f8109bbe395999547dd9c5f84",
+    "ctest_log": "actor-transition-asan-ctest.log"
+  }
+}

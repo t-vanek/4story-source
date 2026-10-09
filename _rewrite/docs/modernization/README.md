@@ -18,7 +18,54 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: source-compatible character statistics
+## Current increment: verified actor-catalog transition
+
+Migration **031** and the existing Map recovery path now support the specific
+additive transition from the old two-table actor catalog to the four-table
+statistics catalog. The publisher verifies both complete imports, pinned backups,
+metadata, original bytes and equality of the two shared charts. It records an
+explicit directional certificate. It does not rewrite checkpoint or transfer
+bodies, hashes, session keys or original owner tokens.
+
+Publication requires all Map owners to be offline. An exclusive owner-table lock
+blocks concurrent workers/startup; the publisher rotates inactive owner tokens to
+fence detached old workers. Certificate, selector, activation history and token
+retirement commit together. Existing graphs without a direct certificate prevent
+publication. The runtime may read only the current-target compatibility view;
+character/routing hashes and normal ownership/core/graph validation remain strict.
+Only a fresh fenced readiness/checkpoint writes the new actor hash.
+
+The actual previous installed Map creates all three tested states: clean graph
+logout, ready-target SIGKILL, and prepared-source interruption before target commit.
+The current Map recovers frozen movement, graph-only inventory splits/moves and
+skill timers, returns the source-derived stat response, and survives another
+complete login/logout cycle. See the [transition contract](evidence/actor-transition-contract.json)
+and [operator procedure](../../../deploy/README.md#offline-actor-catalog-transition).
+This is an explicit modern operational upgrade, with unchanged client packets;
+it does not establish original-client compatibility or support other catalog edits.
+
+Verification: **852 upgrade checks and 1,915 regression checks each** in Debug,
+ASan/UBSan and installed Release. The upgrade total includes 233 daemon/wire checks,
+590 backend checks and 29 pool/TLS checks. **18 real PostgreSQL publication tests**
+and **13 migration/provenance checks** pass. Debug CTest has **188 actual passes**
+out of 203 entries (eight internal legacy skips and seven explicit native fixture
+skips); all **39 sanitizer suites** pass. Six installed services pass health,
+Map → World DNS and SIGTERM checks. Installed Release uses a Debug backend test;
+the old producing Map is installed Release in all three configurations.
+
+The previous statistics image fails the first old-graph admission in the same
+scenario; this is recorded as an intentional negative control. Current local image:
+`localhost/fourstory:postgresql-actor-transition`, ID
+`d0f19575951c2b8d48478372046b7048266454d0b43cc5dbf59e702eed311cc6`.
+No publisher lost-COMMIT proxy fault was injected; the no-retry path is code-inspected
+and uncertain-outcome operator handling is documented separately.
+
+Backups and migrations **001–031** are immutable. Next migration: **032**.
+Equipment transactions, advanced effects, remote-player inspection over two actual
+Maps and the remaining gameplay/services are still open. Client acceptance remains
+blocked by the missing executable/assets; only uncompiled client sources exist.
+
+## Previous verified increment: source-compatible character statistics
 
 The existing Map daemon now handles `CS_CHARSTATINFO_REQ` and emits the original
 87-byte `CS_CHARSTATINFO_ACK`. It derives primary attributes, melee/ranged/magic
@@ -66,13 +113,13 @@ verified over real native daemon TCP; World relay routing and wrong-peer rejecti
 have loopback tests, while complete remote-player inspection across two real Maps
 and original-client UI acceptance remain unverified.
 
-Apply 001–030 and reapply the Map runtime grants; extract/import/publish the new
+At this increment, apply 001–030 and reapply the Map runtime grants; extract/import/publish the new
 four-table actor profile and configure its manifest hash. An old two-table
 release is rejected before native admission. Existing transfer/checkpoint graphs
 remain bound to their original catalog hashes: switching a populated world to a
-new release needs a separate evidenced compatibility migration. This increment
-does not rewrite those receipts or silently resume them under different charts.
-Backups and applied migrations 001–030 are immutable; next migration is 031.
+new release required a separate evidenced compatibility migration. Migration 031
+above now provides the specific unchanged two-table → four-table transition.
+Other catalog changes remain unsupported; old receipts are never bulk-rewritten.
 
 ## Previous verified increment: native audit schema and query path
 

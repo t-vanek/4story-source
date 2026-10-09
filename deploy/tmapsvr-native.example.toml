@@ -1,6 +1,6 @@
 # Verified fresh normal-character runtime. Full gameplay, social persistence,
 # advanced effects and active recall admission are still being implemented.
-# Apply 001-030 and deploy/sql/map-runtime-grants.sql to a dedicated Map role.
+# Apply 001-031 and deploy/sql/map-runtime-grants.sql to a dedicated Map role.
 [server]
 port = 5815
 

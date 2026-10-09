@@ -1,0 +1,172 @@
+{
+  "date": "2026-10-09",
+  "scope": "Explicit offline additive actor-catalog upgrade in the existing native Map; full modernization remains in progress",
+  "implementation": {
+    "migration": "031-actor-graph-compatibility.sql",
+    "next_migration": "032",
+    "map": "PostgreSQLMapService::RestoreTransferCheckpoint; normal owner replacement and readiness paths retained",
+    "publisher": "tools/database/activate_actor_catalog.py --previous-manifest",
+    "previous_actor_manifest": "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381",
+    "actor_manifest": "bc17bc975c398ae2c05c2cc92e029df807be3c1fdc94b9cc43fe3659a280b878",
+    "previous_tables": [
+      "TITEMMAGICCHART",
+      "TSKILLPOINTCHART"
+    ],
+    "added_tables": [
+      "TITEMATTRCHART",
+      "TITEMGRADECHART"
+    ],
+    "verified_rows": 9773,
+    "guarantees": [
+      "Both imports verified against exact manifest/metadata, pinned backups, original byte sidecars and current target rows under SHARE locks",
+      "Original two shared tables must have identical values, byte hashes and row counts; only a direct exact source/active-target certificate is visible to runtime",
+      "Actor publication serialized; active Map advisory owners refused; exclusive owner-table barrier serializes existing old worker/startup operations",
+      "Inactive owner tokens retired with certificate, selector and activation audit in the same transaction; old session/checkpoint/journal identities retained for normal recovery",
+      "Uncertified existing graph checkpoints or prepared journals prevent selector switch",
+      "Publication does not rewrite any player receipt/body/hash/key; fresh fenced readiness stores a new current-manifest graph",
+      "Character/routing catalog hashes, core/graph validation and unsupported-state gates remain strict",
+      "No automatic write retry; uncertain COMMIT requires inspection before operator action"
+    ],
+    "modern_difference": "An explicit administrative compatibility certificate and offline owner retirement are modern operational controls, not original game rules. Client packets and historical data unchanged."
+  },
+  "validation": {
+    "native": {
+      "debug": {
+        "upgrade": {
+          "file": "actor-transition-debug.json",
+          "checks": 852,
+          "backend_checks": 590,
+          "pool_tls_checks": 29,
+          "wire_checks": 233,
+          "daemon_binaries": {
+            "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+            "directory": "/src/build/linux-debug/bin/",
+            "integration_test_directory": "/src/build/linux-debug/bin/"
+          }
+        },
+        "regression": {
+          "file": "native-actor-transition-debug.json",
+          "checks": 1915,
+          "backend_checks": 590,
+          "pool_tls_checks": 29,
+          "wire_checks": 1296,
+          "daemon_binaries": {
+            "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+            "directory": "/src/build/linux-debug/bin/",
+            "integration_test_directory": "/src/build/linux-debug/bin/"
+          }
+        }
+      },
+      "asan": {
+        "upgrade": {
+          "file": "actor-transition-asan.json",
+          "checks": 852,
+          "backend_checks": 590,
+          "pool_tls_checks": 29,
+          "wire_checks": 233,
+          "daemon_binaries": {
+            "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+            "directory": "/src/build/linux-asan/bin/",
+            "integration_test_directory": "/src/build/linux-asan/bin/"
+          }
+        },
+        "regression": {
+          "file": "native-actor-transition-asan.json",
+          "checks": 1915,
+          "backend_checks": 590,
+          "pool_tls_checks": 29,
+          "wire_checks": 1296,
+          "daemon_binaries": {
+            "image": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+            "directory": "/src/build/linux-asan/bin/",
+            "integration_test_directory": "/src/build/linux-asan/bin/"
+          }
+        }
+      },
+      "release": {
+        "upgrade": {
+          "file": "actor-transition-release.json",
+          "checks": 852,
+          "backend_checks": 590,
+          "pool_tls_checks": 29,
+          "wire_checks": 233,
+          "daemon_binaries": {
+            "image": "d0f19575951c2b8d48478372046b7048266454d0b43cc5dbf59e702eed311cc6",
+            "directory": "/opt/fourstory/bin/",
+            "integration_test_directory": "/src/build/linux-debug/bin/"
+          }
+        },
+        "regression": {
+          "file": "native-actor-transition-release.json",
+          "checks": 1915,
+          "backend_checks": 590,
+          "pool_tls_checks": 29,
+          "wire_checks": 1296,
+          "daemon_binaries": {
+            "image": "d0f19575951c2b8d48478372046b7048266454d0b43cc5dbf59e702eed311cc6",
+            "directory": "/opt/fourstory/bin/",
+            "integration_test_directory": "/src/build/linux-debug/bin/"
+          }
+        }
+      }
+    },
+    "ctest": "actor-transition-ctest-summary.json",
+    "publication_tests": 18,
+    "publication_log": "actor-transition-pytest.log",
+    "migration_upgrade": "actor-transition-upgrade.json",
+    "migration_checks": 13,
+    "scenarios": [
+      "Actual old installed Maps generate a complete transfer graph, graph-only split/move inventory and skill timers; clean logout -> new Map restore -> stat bytes -> repeated login",
+      "Actual old installed ready target and source SIGSTOP/SIGKILL -> verified publication -> current owner recovery -> retained graph inventory/timers -> repeated login",
+      "Old target transaction paused before commit; both old Maps killed -> original prepared journal retained -> current source recovery cancels receipt only after frozen graph recovery -> repeated login"
+    ],
+    "producer_image": {
+      "reference": "localhost/fourstory:postgresql-native-audit",
+      "id": "a46c4c47f691a9098b24f76ca3711c63b861612deef388847545ab1fe599a115"
+    },
+    "predecessor_control": {
+      "status": "expected failure confirmed",
+      "file": "actor-transition-predecessor.json",
+      "image": "0d7ce7b167505e7e2eccca8866aabc039204dc67d70c0acb6910ec7015c631b6",
+      "failure": "Map runtime wire: World CHARINFO produces original channel notification",
+      "meaning": "Before the restore compatibility lookup, the statistics runtime rejects the first old logged-out graph despite the verified certificate. The current image passes the same scenario."
+    },
+    "release_backend_note": "Current installed Release Login/World/Map; backend integration executable remains Debug. The old producer image is installed Release in every scenario, including the ASan current-runtime run.",
+    "container_smoke": "actor-transition-container-smoke.log",
+    "release_image": {
+      "reference": "localhost/fourstory:postgresql-actor-transition",
+      "id": "d0f19575951c2b8d48478372046b7048266454d0b43cc5dbf59e702eed311cc6",
+      "user": "10001:10001"
+    },
+    "fixture_repairs": [
+      "Second case initially reused occupied character slot 0; fixture now uses slots 0/1/2.",
+      "Initial prepared-crash test zeroed normalized skills before recovery, correctly invalidating contract-3 receipt. Mutation moved after normal prepared recovery creates contract 2, before fresh login.",
+      "Tampered checkpoint test now changes both hash columns because existing SQL equality constraint already rejects a one-sided change; view write test checks actual privileges, not a specific error precedence."
+    ],
+    "limitations": [
+      "Synthetic accounts and explicitly overridden single-cell routing view in owned PostgreSQL; no historical player import",
+      "No publisher lost-COMMIT proxy fault was injected; no-retry behavior is code-inspected, rollback/concurrent publication are actual PG tests",
+      "The predecessor failure is an intentional negative control, not a passing general regression run"
+    ]
+  },
+  "client_acceptance": {
+    "status": "blocked",
+    "available": "Uncompiled original client sources only, per owner",
+    "source_protocol": "0x2918",
+    "supported_binary_build": null,
+    "missing": [
+      "Unmodified client executable identity/hash",
+      "Matching assets",
+      "Executable client acceptance environment"
+    ]
+  },
+  "remaining": [
+    "Native equipment eligibility/conflicts/displacement, atomic persistence, recomputed timing/stats and original EQUIP/MOVEITEM/CHARSTATINFO/HPMP order",
+    "Actual remote-player inspection across two native Maps and active buff/companion/guild/local-battle derivation",
+    "Other content/catalog upgrades, character/routing compatibility and transitive rules are unsupported; orphaned or drifted receipt recovery remains blocked",
+    "Full gameplay, remaining native persistence/services/admin integrations and all original modes"
+  ],
+  "branch": "main",
+  "external_actions": false,
+  "goal_complete": false
+}

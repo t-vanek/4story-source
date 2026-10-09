@@ -76,8 +76,13 @@ loopback/wrong-peer rejection. Full remote-player real-Map and original-client U
 acceptance remain **UNVERIFIED**. Buff/companion/guild/local-battle stat variants
 and equipment mutations remain **IMPLEMENTING**. See
 [evidence/character-statistics-contract.json](evidence/character-statistics-contract.json).
-Migration 030 requires a complete four-table actor release; existing graph catalog
-hash migration is a separate gate, never an implicit receipt rewrite.
+Migration 030 requires a complete four-table actor release. Migration 031 adds
+**IMPLEMENTED/INTEGRATED/VERIFIED** offline two-table → four-table transition:
+real old installed Map graphs, new Map logout/ready-crash/prepared-crash recovery,
+unchanged receipt bytes, graph-only inventory/timers, fenced inactive owners and
+atomic publication. Arbitrary content changes, transitive compatibility and actual
+client acceptance remain **UNVERIFIED/UNSUPPORTED**. See
+[evidence/actor-transition-contract.json](evidence/actor-transition-contract.json).
 
 
 | Legacy behavior / references | Modern production path and replacement work | PG dependency | Protocol and test evidence | Status / next acceptance |

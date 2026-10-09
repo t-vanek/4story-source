@@ -1,0 +1,23 @@
+test_ambiguous_grades_cannot_be_published (test_actor_catalog.ActorCatalogVerification.test_ambiguous_grades_cannot_be_published) ... ok
+test_empty_attribute_fallback_cannot_be_published (test_actor_catalog.ActorCatalogVerification.test_empty_attribute_fallback_cannot_be_published) ... ok
+test_independent_idempotent_publication (test_actor_catalog.ActorCatalogVerification.test_independent_idempotent_publication) ... ok
+test_old_actor_release_retained_but_not_stat_capable (test_actor_catalog.ActorCatalogVerification.test_old_actor_release_retained_but_not_stat_capable) ... ok
+test_partial_and_wrong_backup_are_rejected (test_actor_catalog.ActorCatalogVerification.test_partial_and_wrong_backup_are_rejected) ... ok
+test_target_drift_cannot_switch_selector_or_append_history (test_actor_catalog.ActorCatalogVerification.test_target_drift_cannot_switch_selector_or_append_history) ... ok
+test_changed_shared_values_cannot_certify (test_actor_compatibility.ActorCompatibilityVerification.test_changed_shared_values_cannot_certify) ... ok
+test_concurrent_publishers_create_one_certificate_and_activation (test_actor_compatibility.ActorCompatibilityVerification.test_concurrent_publishers_create_one_certificate_and_activation) ... ok
+test_detached_old_worker_cannot_reuse_retired_token (test_actor_compatibility.ActorCompatibilityVerification.test_detached_old_worker_cannot_reuse_retired_token) ... ok
+test_explicit_directional_idempotent_certificate (test_actor_compatibility.ActorCompatibilityVerification.test_explicit_directional_idempotent_certificate) ... ok
+test_inflight_old_worker_blocks_atomically (test_actor_compatibility.ActorCompatibilityVerification.test_inflight_old_worker_blocks_atomically) ... ok
+test_late_failure_rolls_back_proof_selector_history_and_fence (test_actor_compatibility.ActorCompatibilityVerification.test_late_failure_rolls_back_proof_selector_history_and_fence) ... ok
+test_live_old_advisory_owner_blocks_atomically (test_actor_compatibility.ActorCompatibilityVerification.test_live_old_advisory_owner_blocks_atomically) ... ok
+test_matching_tampered_target_receipt_is_not_source_truth (test_actor_compatibility.ActorCompatibilityVerification.test_matching_tampered_target_receipt_is_not_source_truth) ... ok
+test_old_target_drift_cannot_certify (test_actor_compatibility.ActorCompatibilityVerification.test_old_target_drift_cannot_certify) ... ok
+test_runtime_can_only_read_current_target_projection (test_actor_compatibility.ActorCompatibilityVerification.test_runtime_can_only_read_current_target_projection) ... ok
+test_unselected_old_import_cannot_certify (test_actor_compatibility.ActorCompatibilityVerification.test_unselected_old_import_cannot_certify) ... ok
+test_unverified_old_import_cannot_certify (test_actor_compatibility.ActorCompatibilityVerification.test_unverified_old_import_cannot_certify) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 1.156s
+
+OK

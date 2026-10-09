@@ -34,7 +34,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "TGLOBAL_RAGEZONE.bak",
@@ -70,7 +71,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/001-import-control.sql",
@@ -106,7 +108,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/002-legacy-snapshots.sql",
@@ -142,7 +145,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/003-canonical-content.sql",
@@ -178,7 +182,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/004-source-text-bytes.sql",
@@ -214,7 +219,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/005-runtime-catalog-control.sql",
@@ -251,7 +257,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/006-current-chart-contracts.sql",
@@ -288,7 +295,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/007-catalog-runtime-metadata.sql",
@@ -325,7 +333,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/008-native-login.sql",
@@ -360,7 +369,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/009-login-runtime-owner.sql",
@@ -394,7 +404,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/010-login-security-challenges.sql",
@@ -427,7 +438,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/011-character-reference-catalog.sql",
@@ -459,7 +471,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/012-native-characters.sql",
@@ -491,7 +504,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/013-character-item-allocation-floor.sql",
@@ -523,7 +537,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/014-routing-reference-catalog.sql",
@@ -553,7 +568,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/015-native-map-handoff.sql",
@@ -583,7 +599,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/016-native-map-ownership.sql",
@@ -612,7 +629,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/017-map-actor-reference-catalog.sql",
@@ -641,7 +659,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/018-native-map-checkpoints.sql",
@@ -670,7 +689,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/019-native-map-replicas.sql",
@@ -695,7 +715,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/020-native-main-transfer.sql",
@@ -717,7 +738,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/021-native-skill-checkpoints.sql",
@@ -738,7 +760,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/022-native-skill-consumption.sql",
@@ -753,7 +776,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/023-graph-skill-consumption.sql",
@@ -767,7 +791,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/024-native-skill-ammunition.sql",
@@ -779,7 +804,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/025-native-ammunition-batches.sql",
@@ -790,7 +816,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/026-native-multi-attack.sql",
@@ -800,7 +827,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/027-native-inventory-moves.sql",
@@ -809,7 +837,8 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/028-native-inventory-stacks.sql",
@@ -817,19 +846,28 @@
       "inventory_stack_increment_matches": true,
       "log_outcomes_increment_matches": true,
       "native_audit_increment_matches": true,
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/029-native-audit.sql",
       "sha256": "cbeb6d1930e5f7447e42c50f0ec0d57d150ac1a4ea93c661832e2bd6e4ab87aa",
       "native_audit_increment_matches": true,
       "status": "new migration applied and verified, now immutable",
-      "character_statistics_increment_matches": true
+      "character_statistics_increment_matches": true,
+      "actor_transition_increment_matches": true
     },
     {
       "path": "database/postgresql/030-character-statistics.sql",
       "sha256": "7deb6bda4acc1e0daaf50d14a8d655df99ad5cc3f9ec348bed09aa318210ca29",
       "character_statistics_increment_matches": true,
+      "applied_immutable": true,
+      "actor_transition_increment_matches": true
+    },
+    {
+      "path": "database/postgresql/031-actor-graph-compatibility.sql",
+      "sha256": "42d8660d6052a82a614b105ee9530a6708a2551891094f54d6d2ed51cc98257e",
+      "actor_transition_increment_matches": true,
       "applied_immutable": true
     }
   ]

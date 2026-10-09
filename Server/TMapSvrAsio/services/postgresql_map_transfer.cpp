@@ -43,7 +43,18 @@ std::optional<CharSnapshot> PostgreSQLMapService::RestoreTransferCheckpoint(soci
          "FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c AND user_id=:u AND transfer_body IS NOT NULL AND outcome IN ('logout','recovered') FOR UPDATE",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(user,"u"),soci::into(hex),soci::into(cm),soci::into(rm),soci::into(am),soci::into(fingerprint),soci::into(matches);
     if(!sql.got_data())return {};
-    if(!matches||cm!=m_config.character_manifest||rm!=m_config.routing_manifest||am!=m_config.actor_manifest)
+    bool actor_matches=am==m_config.actor_manifest;
+    if(!actor_matches) {
+        // Only an explicit owner-published, directional proof can bridge the
+        // additive actor catalog extension. Never relax character/routing hashes,
+        // mutate the old receipt here, or traverse compatibility chains.
+        int certified=0;
+        sql<<"SELECT count(*) FROM actor_compat.transfer_catalog_compatibility "
+             "WHERE source_manifest_sha256=:old AND target_manifest_sha256=:current",
+            soci::use(am,"old"),soci::use(m_config.actor_manifest,"current"),soci::into(certified);
+        actor_matches=certified==1;
+    }
+    if(!matches||cm!=m_config.character_manifest||rm!=m_config.routing_manifest||!actor_matches)
         throw std::runtime_error("Recovered transfer graph core or catalogs changed");
     std::vector<std::byte> body;body.reserve(hex.size()/2);
     for(std::size_t i=0;i<hex.size();i+=2)body.push_back(static_cast<std::byte>(std::stoul(hex.substr(i,2),nullptr,16)));

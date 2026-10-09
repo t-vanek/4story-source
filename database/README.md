@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **030** are also immutable. Current
-native Map deployment requires migrations through 030 and the existing
+All subsequently applied migrations through **031** are also immutable. Current
+native Map deployment requires migrations through 031 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,7 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 025+.
+for tests and remaining gameplay requirements. Add schema changes as 032+.
 
 Migration 021 adds fresh-primary skill checkpoints (contract 3). Initial readiness,
 periodic checkpoints and final logout atomically store remaining skill durations
@@ -258,8 +258,18 @@ a completeness view. Publish a newly verified four-table actor manifest (9,773
 pinned backup rows), reapply Map grants and use its manifest hash in native Map
 configuration. Old imported releases and migration receipts remain unchanged;
 old two-table releases cannot satisfy the new stat runtime contract. Existing
-player graph/catalog bindings are not rewritten and require a separate evidenced
-compatibility migration before switching a populated world. See
+player graph/catalog bindings are not rewritten. Migration 031 below supports the
+specific verified additive actor upgrade before switching a populated world. See
 [Map startup](../deploy/README.md#native-map-character-statistics) and
 [catalog upgrade evidence](../_rewrite/docs/modernization/evidence/character-statistics-catalog-upgrade.json).
-Backups and applied migrations 001–030 are immutable; next migration is 031.
+Migration **031** adds a schema-owner-only directional compatibility certificate
+and activation-linked owner retirement audit. `activate_actor_catalog.py
+--manifest <four-table> --previous-manifest <two-table>` certifies both unchanged
+shared charts only after verifying complete imports, original bytes, metadata and
+pinned backup identities. All Map owners must be offline; detached workers lose
+write authority through atomic token rotation. Player checkpoints and transfer
+journals keep their original bytes/hashes/identities. Map receives SELECT only on
+the current-target view, never certificate-write permission. Recovery checks remain
+strict for character/routing catalogs and unsupported graph sections. See the
+[offline procedure](../deploy/README.md#offline-actor-catalog-transition).
+Backups and applied migrations 001–031 are immutable; next migration is 032.

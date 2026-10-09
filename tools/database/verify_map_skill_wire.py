@@ -1,10 +1,11 @@
 """Native learned-skill resource gates using pinned content and synthetic ownership.
 
 This seed belongs only to the disposable account. Historical charts are read-only;
-skill learning, effects and attack-speed/kind cooldown generation are not exercised.
+skill learning and active effects are not exercised. Timing uses original charts.
 """
 import math
 import struct
+import time
 from verify_login_wire import frame, read_packet
 
 
@@ -18,8 +19,15 @@ def seed_skill_cast(conn,cid):
     cost=int(f32(f32(row[1]&0xffffffff)*f32(math.pow(f32(rate),row[3]+row[4])/100)))
     if cost!=88:raise RuntimeError('Backup skill134 rank2 golden cost changed')
     conn.execute('INSERT INTO app_world."TSKILLTABLE"("bWorldID","dwCharID","wSkillID","bLevel","dwRemainTick") VALUES(1,%s,134,2,0) ON CONFLICT ("bWorldID","dwCharID","wSkillID") DO UPDATE SET "bLevel"=2,"dwRemainTick"=0',(cid,))
-    conn.execute('UPDATE app_world."TCHARTABLE" SET "dwMP"=%s WHERE "dwCharID"=%s',(cost+5,cid))
-    return {'skill':134,'rank':2,'cost':cost,'initial_mp':cost+5}
+    # Source 102 rank2 has a +500ms rank increment and physical speed; 31 is
+    # a free 600ms cast, used to prove actual expiration without timer injection.
+    for skill,rank in ((102,2),(31,1)):
+        conn.execute('INSERT INTO app_world."TSKILLTABLE"("bWorldID","dwCharID","wSkillID","bLevel","dwRemainTick") VALUES(1,%s,%s,%s,0) ON CONFLICT ("bWorldID","dwCharID","wSkillID") DO UPDATE SET "bLevel"=EXCLUDED."bLevel","dwRemainTick"=0',(cid,skill,rank))
+    # Maximum MP is independently parsed from CHARINFO. This source fixture has
+    # 351 MP (MEN 1+5+11, formula19 rate 20.66), so 8% costs 28; assert it again on the actual wire before charging.
+    physical_cost=28
+    conn.execute('UPDATE app_world."TCHARTABLE" SET "dwMP"=%s WHERE "dwCharID"=%s',(cost+physical_cost+5,cid))
+    return {'skill':134,'rank':2,'cost':cost,'initial_mp':cost+physical_cost+5,'physical_cost':physical_cost}
 
 
 def verify_skill_cast(conn,s,cid,character,fixture,until):
@@ -47,11 +55,21 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
                  request(x=float('nan')),malformed,request()+b'\x00'):
         send(body)
     send(request(65535));verdict(1,'spoofed identity route and malformed targets have no cast response or side effects')
+    maximum_hp,hp,maximum_mp,initial_mp=character['hpmp']
+    chart=conn.execute('SELECT "dwReuseDelay","nReuseDelayInc","bSpeedApply","bUseMPType","dwUseMP" FROM character_compat."TSKILLCHART" WHERE "wID"=102').fetchone()
+    check(chart==(28000,500,1,2,8) and ((maximum_mp*8)&0xffffffff)//100==fixture['physical_cost'],
+          'source physical rank2 timing and resource fixture match pinned chart and actual maxMP')
+    physical_started=time.monotonic()
+    send(request(102));data=verdict(0,'physical rank2 native cast succeeds with original weapon timing')
+    check(data[19]==2,'physical success ACK retains rank2')
+    op,bars=reply();check(op==0x52a2 and struct.unpack('<IBIIII',bars)==(cid,1,maximum_hp,hp,maximum_mp,initial_mp-fixture['physical_cost']),
+          'physical cast charges original percentage MP once')
+    send(request(102));verdict(6,'newly used native skill rejects immediate repeat without imported timer or optional chart')
     send(request());data=verdict(0,'learned rank2 native cast succeeds')
     check(data[19]==fixture['rank'] and struct.unpack_from('<I',data,1)[0]==cid and struct.unpack_from('<H',data,6)[0]==fixture['skill'],
           'original success packet carries authoritative caster skill and learned rank')
     op,bars=reply();maximum_hp,hp,maximum_mp,initial_mp=character['hpmp']
-    check(op==0x52a2 and struct.unpack('<IBIIII',bars)==(cid,1,maximum_hp,hp,maximum_mp,initial_mp-fixture['cost']),
+    check(op==0x52a2 and struct.unpack('<IBIIII',bars)==(cid,1,maximum_hp,hp,maximum_mp,initial_mp-fixture['physical_cost']-fixture['cost']),
           'native flat MP cost follows backup formula and exact HPMP layout')
     for _ in range(2):
         send(request());verdict(7,'unaffordable native cast returns original SKILL_NEEDMP without changed bars')
@@ -59,4 +77,14 @@ def verify_skill_cast(conn,s,cid,character,fixture,until):
           'periodic checkpoint persists actual native cast cost')
     check(conn.execute('SELECT "bLevel" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID"=%s',(cid,fixture['skill'])).fetchone()==(fixture['rank'],),
           'native cast cannot mutate its learned rank')
+    delay=conn.execute('SELECT COALESCE(sum(t."dwSpeedInc"),0) FROM app_world."TITEMTABLE" i JOIN character_compat."TITEMCHART" t ON t."wItemID"=i."wItemID" WHERE i."dwOwnerID"=%s AND i."dwStorageID"=254 AND i."bItemID" IN (0,1) AND (i."dwDuraMax"=0 OR i."dwDuraCur"<>0)',(cid,)).fetchone()[0]
+    expected_delay=28500+max(delay,0) # source NAS formula=0, no speed magic/passives in this fixture
+    elapsed=int((time.monotonic()-physical_started)*1000)+20
+    remaining=conn.execute('SELECT "wSkillID","dwRemainTick" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s AND "wSkillID" IN (102,134) ORDER BY "wSkillID"',(cid,)).fetchall()
+    check(len(remaining)==2 and expected_delay-elapsed<=remaining[0][1]<=expected_delay and 700000<remaining[1][1]<=720000,
+          'periodic checkpoint persists native rank and weapon cooldown plus long no-speed cooldown')
+    send(request(31));verdict(0,'free 600ms source skill can start its own cooldown')
+    send(request(31));verdict(6,'free native cast cannot bypass its new cooldown')
+    time.sleep(.7)
+    send(request(31));verdict(0,'source cooldown expires and a new cast rearms it')
     return client_sequence,{'status':'passed','checks':checks,'source_skill':fixture['skill'],'rank':fixture['rank'],'source_mp_cost':fixture['cost']}

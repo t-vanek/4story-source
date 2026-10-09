@@ -71,9 +71,13 @@ authoritative for historical values, original code/client for supported behavior
    calculate source type-1/2 HP/MP costs, and check/deduct under one state lock.
    Unknown skills, forged caster/route and malformed bodies cannot mutate resources;
    success ACKs retain the learned rank. See `skill-costs-contract.json`.
-   Next port native new-use cooldown generation from `TObjBase::SkillUse` and
-   `CTSkill::Use`: rank increments, attack-speed/rate and shared-kind delays must
-   be derived from original equipment/passive semantics, without guessed defaults.
+   Normal native new-use cooldown generation now follows `TObjBase::SkillUse`
+   and `CTSkill::Use`: rank increments, source physical/ranged/magic formulae,
+   powered weapon slots, passive/item speed rates and same-kind extension are
+   integrated. See `skill-timing-contract.json`. Next add active buff/disarm/disguise
+   timing and authoritative effect expiry; speed-dependent casts currently close
+   without mutation when a transferred graph has buffs. Port loop/cancellation
+   branches and recompute cached timing when equipment or learned skills mutate.
    Refresh CHARINFO remaining timers at send time, then implement active
    effect/quest/recall/companion timer semantics and simulation
    using the existing typed graph. Merely retaining these sections is not native
@@ -318,14 +322,27 @@ cleanup. Private snapshots remain available. Continue with the transfer/state
 requirements above; the full server and real-client acceptance remain unfinished.
 
 
-Latest verified skill resource increment (2026-10-09): read
+Earlier verified skill resource increment (2026-10-09): read
 `evidence/skill-costs-contract.json` and the Debug/ASan/installed Release reports.
 All three configurations pass 880 native database/network checks; default Debug
 has 200 entries (186 actual passes, 14 skips), and all 33 sanitizer entries pass.
-Current local image `localhost/fourstory:postgresql-skill-costs` (also `:main`) is
+That increment used local image `localhost/fourstory:postgresql-skill-costs`,
 `42ba521c5b853387551f80892d7977fcc3391813e42d2c45c779a555a2f0f6dc`, UID/GID
 10001:10001; six-daemon smoke passed. Test labs were disposable PostgreSQL only;
 consult `skill-costs-cleanup.json` before reusing any private work path. Source
 snapshots remain at the documented paths. Preserve migrations 001–021. Continue
-with full native new-use cooldown semantics and active gameplay as described above;
+with the later timing increment and active gameplay as described above;
 this increment does not establish a complete combat loop or original-client run.
+
+
+Latest verified timing increment (2026-10-09): `skill-timing-contract.json` and its
+Debug/ASan/installed Release reports each record 906 native database/network
+checks. All 33 sanitizer entries pass; Debug has 200 entries (186 actual passes,
+14 skips). Current local image `localhost/fourstory:postgresql-skill-timing`
+(also `:main`) is `81b6c61dca05fae4150e2079de58ba7e6adc685aaaa79e087430974bee3f32ec`,
+UID/GID 10001:10001; six-daemon smoke passed. See `skill-timing-cleanup.json` for
+owned lab cleanup; original reference manifests are retained. Continue active
+buff/disarm/disguise simulation, loop/cancel branches and CHARINFO timer refresh;
+normal rank/weapon/passive/item/same-kind cooldown generation is now integrated.
+Equipment/learned-skill changes must rebuild the cache. Migrations 001–021 remain
+immutable; no historical source values were changed by this increment.

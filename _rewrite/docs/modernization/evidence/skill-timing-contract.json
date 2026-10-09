@@ -1,0 +1,165 @@
+{
+  "date": "2026-10-09",
+  "scope": "Normal native PostgreSQL PC skill use: generate and persist source rank/attack-speed/shared-kind cooldowns without an optional gameplay chart.",
+  "historical_authority": {
+    "backup": "TGAME_RAGEZONE.bak",
+    "backup_sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259",
+    "character_manifest_sha256": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "actor_manifest_sha256": "e47806df593b8646d6e52c90e7638131f1baac7f90eac3fb1c3c957940739381",
+    "source_behavior": [
+      {
+        "path": "Server/TMapSvr/TSkill.cpp",
+        "lines": "73-117",
+        "contract": "Own base delay + (rank-1)*signed increment + attack delay, DWORD multiply by rate, integer divide by 100. SDELAY_KIND returns kind delay directly. Use extends only when new duration exceeds remaining."
+      },
+      {
+        "path": "Server/TMapSvr/TObjBase.cpp",
+        "lines": "1409-1448,1558-1622,1748-1790,1868-1922,4568-4585",
+        "contract": "Base class/race DEX/WIS formulae; powered equipment slots 0/1 for physical and magic, slot 2 for ranged; passive rate changes before capped item magic reductions; same-kind learned set includes kind zero."
+      },
+      {
+        "path": "Server/TMapSvr/TItem.cpp",
+        "lines": "555-558",
+        "contract": "HavePower is true when durability maximum is zero or current durability is nonzero."
+      }
+    ],
+    "pinned_content": {
+      "skill_templates": 765,
+      "speed_selectors": {
+        "none": 622,
+        "physical": 37,
+        "ranged": 13,
+        "magic": 93
+      },
+      "attack_formula_ids": [
+        4,
+        16
+      ],
+      "attack_formula_values": "Both original formulae have init/rateX/rateY zero. Weapon delays are still applied; tests do not fabricate missing base speed.",
+      "magic_speed_types": [
+        54,
+        55,
+        56
+      ],
+      "speed_magic_max_value": 12,
+      "nonzero_passive_speed_rows": 0
+    },
+    "wire_fixture": {
+      "skill_102": {
+        "rank": 2,
+        "base_delay_ms": 28000,
+        "rank_increment_ms": 500,
+        "speed_type": 1,
+        "kind_delay_ms": 1,
+        "mp_cost": 28
+      },
+      "skill_134": {
+        "rank": 2,
+        "cooldown_ms": 720000,
+        "mp_cost": 88
+      },
+      "skill_31": {
+        "rank": 1,
+        "cooldown_ms": 600,
+        "mp_cost": 0
+      },
+      "max_mp": 351,
+      "note": "Synthetic learned ranks, owned equipment and resource values only; all template/formula/magic definitions remain original and read-only."
+    }
+  },
+  "implementation": {
+    "cache": "Static skill timing fields and physical/ranged/magic character timing are rebuilt during fresh and transfer hydration. No new wire fields, persistent columns or SQL grants.",
+    "arithmetic": "Preserves source DWORD additions/multiplication wrap before division, FLOAT base-formula evaluation, rank-zero branch and signed reuse increments. Rejects unsupported out-of-range INT/FLOAT conversions before mutation.",
+    "atomicity": "Character lock encloses affordability, cooldown gate, own/shared timer mutation and resource deduction. The timer lock covers the entire same-kind update; rejected use leaves all timers/resources unchanged. Existing longer peer timers retain their origins.",
+    "equipment": "Powered equipped slots contribute dwSpeedInc and source-projected magic values; broken items contribute neither. Rate reductions cap at 100 percent.",
+    "passives": "Remaining-skill SA_CONTINUE/SA_PASSIVE ability deltas for MTYPE_PAS/LAS/MPAS are applied to rate 100 before equipment. The pinned release has no such rows; nonzero arithmetic is tested with explicit deterministic synthetic values.",
+    "active_effect_boundary": "Buff-bearing transfer graphs retain their complete effects but omit cached attack timing. Speed-dependent casts throw before mutation and follow existing close/save handling. TAD_NONE continues with delay zero/rate 100 as in source.",
+    "durability": "Existing skill/core receipts, snapshots, relogin and transfer recovery carry newly generated timers without a schema change. Cached definitions/timing are never serialized as player data.",
+    "migration": "None. Both backups and migrations 001-021 remain unchanged; next schema migration remains 022."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-skill-timing-debug.json",
+      "status": "passed",
+      "native_map_checks": 198,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 192,
+      "skill_cast_checks": 20,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 906
+    },
+    "asan_ubsan": {
+      "report": "native-skill-timing-asan.json",
+      "status": "passed",
+      "native_map_checks": 198,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 192,
+      "skill_cast_checks": 20,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 906
+    },
+    "ctest_debug": {
+      "report": "skill-timing-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "skill-timing-asan-ctest.xml",
+      "entries": 33,
+      "actual_passes": 33,
+      "internal_legacy_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "targeted": {
+      "report": "skill-timing-targeted.xml",
+      "entries": 4,
+      "timing_checks": 56,
+      "scope": "Deterministic formula/rank/wrap/boundary tests, shared-kind non-shortening and cross-skill concurrency, real plain/encrypted admission with rank/weapon/rate timing and unsupported-state refusal."
+    },
+    "regression_before": {
+      "report": "skill-timing-before.json",
+      "image_id": "42ba521c5b853387551f80892d7977fcc3391813e42d2c45c779a555a2f0f6dc",
+      "expected_failure": "Native skill wire: newly used native skill rejects immediate repeat without imported timer or optional chart",
+      "scope": "Previous installed daemon with current mounted backend integration executable and the same new encrypted TCP checks."
+    },
+    "container_smoke": {
+      "report": "skill-timing-container-verification.json",
+      "image": "localhost/fourstory:postgresql-skill-timing",
+      "image_id": "81b6c61dca05fae4150e2079de58ba7e6adc685aaaa79e087430974bee3f32ec",
+      "status": "passed",
+      "daemons": 6,
+      "uid_gid": "10001:10001"
+    },
+    "installed_release": {
+      "report": "native-skill-timing-release.json",
+      "status": "passed",
+      "native_map_checks": 198,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 192,
+      "skill_cast_checks": 20,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7,
+      "total_checks": 906
+    }
+  },
+  "limitations": [
+    "Active buff/disarm/disguise timing and effect expiration remain unported; speed-dependent buff-bearing casts fail closed.",
+    "Loop, cancellation, full target/action conditions, learning/rank changes, combat damage/healing and other gameplay remain separate ports.",
+    "Future supported equipment/learned-skill changes must refresh derived timing; current native payload is immutable between hydrations.",
+    "Original client executable not run; packet acceptance uses source-derived encrypted synthetic peers.",
+    "CHARINFO send-instant timer refresh remains pending. Periodic durability can lose state after the last committed checkpoint on a crash.",
+    "The optional no-payload legacy path retains its existing base-delay behavior; this increment verifies native character payloads."
+  ]
+}

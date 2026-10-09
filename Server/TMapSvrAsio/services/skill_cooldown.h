@@ -1,8 +1,7 @@
 #pragma once
 
 // Skill reuse gate and transferable remaining durations. References:
-// TSkill.cpp:73–117 and SSHandler.cpp:4880–4915. Attack-speed/rank modifiers
-// to newly armed reuse delays remain part of the skill gameplay contract.
+// TSkill.cpp:73–117, TObjBase.cpp:4568 and SSHandler.cpp:4880–4915.
 
 #include "domain/skill.h"
 #include <algorithm>
@@ -49,7 +48,8 @@ class SkillCooldownTracker
 {
 public:
     bool TryUse(std::uint32_t char_id, std::uint16_t skill_id,
-                std::uint64_t now_ms, std::uint32_t reuse_delay_ms)
+                std::uint64_t now_ms, std::uint32_t reuse_delay_ms,
+                std::span<const std::uint16_t> same_kind={},std::uint32_t kind_delay_ms=0)
     {
         std::lock_guard lock(m_mtx);
         const auto key=Key(char_id,skill_id);
@@ -57,6 +57,13 @@ public:
         if(it!=m_timers.end() && Remaining(it->second,now_ms))return false;
         if(reuse_delay_ms)m_timers[key]={now_ms,reuse_delay_ms};
         else m_timers.erase(key);
+        // CTSkill::Use only extends a running duration. SDELAY_KIND returns
+        // the supplied kind delay directly, without attack-speed scaling.
+        if(kind_delay_ms)for(const auto id:same_kind) {
+            const auto other=Key(char_id,id);const auto found=m_timers.find(other);
+            if(found==m_timers.end()||Remaining(found->second,now_ms)<kind_delay_ms)
+                m_timers[other]={now_ms,kind_delay_ms};
+        }
         return true;
     }
     std::uint32_t RemainMs(std::uint32_t char_id,std::uint16_t skill_id,std::uint64_t now_ms) const {

@@ -109,7 +109,11 @@ struct Players final : tmapsvr::IPlayerService {
             auto p=std::make_shared<tmapsvr::CharacterPayload>();p->skills.push_back({7,3,0});
             tmapsvr::SkillTemplate t;t.wID=7;t.bUseMPType=1;t.dwUseMP=1000;
             t.bUseHPType=2;t.dwUseHP=10;t.f1stRateX=2.0f;t.bStartLevel=1;t.bNextLevel=1;
-            p->skill_templates.push_back(t);s.payload=p;s.dwMaxHP=169;s.dwMaxMP=163;
+            t.dwReuseDelay=60000;t.nReuseDelayInc=250;t.bSpeedApply=1;t.bKind=1;t.dwKindDelay=4000;
+            p->skill_templates.push_back(t);
+            for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;p->skill_templates.push_back(other);}
+            p->skill_attack_timing=std::array<tmapsvr::SkillAttackTiming,3>{tmapsvr::SkillAttackTiming{500,80},{},{}};
+            s.payload=p;s.dwMaxHP=169;s.dwMaxMP=163;
         }
         return s;
     }
@@ -500,7 +504,10 @@ int main(int argc, char**) {
                   "native rank3 MP cost and percentage HP cost are charged exactly once");
             for(const auto& packet:native->packets)if(packet.first==static_cast<std::uint16_t>(MessageId::CS_SKILLUSE_ACK)&&packet.second[0]==std::byte{0})
                 Check(packet.second[19]==std::byte{3},"native success ACK carries actual learned rank");
-            timers.TryUse(kChar,7,tmapsvr::SkillClockMs(),60000);
+            Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>47000&&timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=48800,
+                  "native use arms rank and attack-speed scaled cooldown without optional chart");
+            Check(timers.RemainMs(kChar,8,tmapsvr::SkillClockMs())>3000&&timers.RemainMs(kChar,8,tmapsvr::SkillClockMs())<=4000&&timers.RemainMs(kChar,9,tmapsvr::SkillClockMs())==0,
+                  "native use arms only learned peers of the same kind without scaling kind delay");
             state.Update(kChar,[](auto& v){v.dwMP=79;});
             co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
             co_await Until([&]{return native->Count(MessageId::CS_SKILLUSE_ACK)==4;},"MP rejection answered");
@@ -516,9 +523,12 @@ int main(int argc, char**) {
             co_await Until([&]{return native->Count(MessageId::CS_SKILLUSE_ACK)==6;},"cooldown rejection answered");
             Check(verdict(tmapsvr::SKILL_SPEEDYUSE)&&state.Get(kChar)->dwMP==100&&native->Count(MessageId::CS_HPMP_ACK)==1,
                   "cooldown rejection does not deduct resources or emit changed bars");
-            Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=60000&&timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>50000,
+            Check(timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())<=48800&&timers.RemainMs(kChar,7,tmapsvr::SkillClockMs())>47000,
                   "resource rejections preserve existing live cooldown");
-            native->wire->Close();co_await Until([&]{return server.LiveSessions()==0;},"native order fixture saves and drains");
+            state.Update(kChar,[](auto& v){auto p=std::make_shared<tmapsvr::CharacterPayload>(*v.payload);p->skill_attack_timing.reset();v.payload=p;});
+            co_await Send(native,MessageId::CS_SKILLUSE_REQ,skill_request(7));
+            co_await Until([&]{return native->ended&&server.LiveSessions()==0;},"unsupported native timing closes and durably drains");
+            Check(players.saved.dwMP==100&&players.saved.dwHP==169,"unsupported native timing never guesses or charges a cast");
             players.native_payload=false;
             // A failed write keeps dirty state and blocks a new login in this process.
             players.save_started=false; players.fail_save=true;

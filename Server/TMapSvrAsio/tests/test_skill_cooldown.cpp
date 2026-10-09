@@ -3,6 +3,7 @@
 // per-(char, skill) tracker, all clock-free / deterministic.
 
 #include "services/skill_cooldown.h"
+#include "services/skill_timing.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -12,8 +13,8 @@
 #include <atomic>
 
 namespace {
-int g_fails = 0;
-#define EXPECT(cond) do { \
+int g_fails = 0, g_checks = 0;
+#define EXPECT(cond) do { ++g_checks; \
     if (!(cond)) { \
         std::fprintf(stderr, "FAIL %s:%d %s\n", __FILE__, __LINE__, #cond); \
         ++g_fails; \
@@ -24,6 +25,50 @@ int g_fails = 0;
 int main()
 {
     using namespace tmapsvr;
+
+    // Literal source timing arithmetic, including rank zero and DWORD wrap.
+    {
+        using namespace skill_timing;
+        EXPECT(BaseAttackDelay(1500,2,1000,20,30)==898);
+        EXPECT(BaseAttackDelay(500,2,1000,20,30)==500);
+        EXPECT(BaseAttackDelay(1500,20,1000,20,30)==0);
+        auto speed=AttackTiming(898,102,-20,25);
+        EXPECT(speed.delay==1000&&speed.rate==60);
+        EXPECT(AttackTiming(100,-200,0,0).delay==0);
+        EXPECT(AttackTiming(0,0,-200,0).rate==0);
+        EXPECT(AttackTiming(0,0,0,150).rate==0);
+        SkillTemplate t;t.dwReuseDelay=1000;t.nReuseDelayInc=-100;
+        EXPECT(ReuseDelay(t,3,{200,75})==750);
+        EXPECT(ReuseDelay(t,0,{200,75})==975);
+        t.dwReuseDelay=0xffffffffU;t.nReuseDelayInc=0;
+        EXPECT(ReuseDelay(t,1,{0,100})==42949671);
+        EXPECT(ReuseDelay(t,1,{1,100})==0);
+        t.nReuseDelayInc=std::numeric_limits<std::int32_t>::max();
+        bool rejected=false;try{(void)ReuseDelay(t,3,{});}catch(const std::domain_error&){rejected=true;}
+        EXPECT(rejected);
+        rejected=false;try{(void)BaseAttackDelay(1,std::numeric_limits<float>::quiet_NaN(),0,0,0);}catch(const std::domain_error&){rejected=true;}
+        EXPECT(rejected);
+    }
+    // One cast arms its own and same-kind timers together. Peer durations
+    // extend but never shorten; rejection cannot arm any other skill.
+    {
+        SkillCooldownTracker t;const std::vector<std::uint16_t> group{7,8,9};
+        t.Restore(42,std::vector<SkillRow>{{8,1,100},{9,1,5000}},100);
+        EXPECT(t.TryUse(42,7,150,1000,group,200));
+        EXPECT(t.RemainMs(42,7,150)==1000&&t.RemainMs(42,8,150)==200&&t.RemainMs(42,9,150)==4950);
+        const auto before=t.Snapshot(42,160);
+        EXPECT(!t.TryUse(42,7,160,5000,group,6000)&&t.Snapshot(42,160)==before);
+        EXPECT(t.TryUse(42,8,350,0,group,2000));
+        EXPECT(t.RemainMs(42,7,350)==2000&&t.RemainMs(42,8,350)==2000&&t.RemainMs(42,9,350)==4750);
+        EXPECT(t.RemainMs(42,10,350)==0&&t.RemainMs(99,7,350)==0);
+    }
+    {
+        SkillCooldownTracker t;const std::vector<std::uint16_t> group{7,8};
+        std::barrier gate(3);std::atomic<int> winners=0;
+        auto cast=[&](std::uint16_t id){gate.arrive_and_wait();if(t.TryUse(1,id,0,1000,group,500))++winners;};
+        std::thread a(cast,7),b(cast,8);gate.arrive_and_wait();a.join();b.join();
+        EXPECT(winners==1&&t.Snapshot(1,0).size()==2);
+    }
 
     // --- ReuseRemainMs --------------------------------------------------
     EXPECT(ReuseRemainMs(0,    1000, 5000) == 0);     // never used → ready
@@ -98,6 +143,6 @@ int main()
     }
 
     if (g_fails == 0)
-        std::printf("test_skill_cooldown: remain/can-use + tracker gate OK\n");
+        std::printf("test_skill_cooldown: %d checks passed\n",g_checks);
     return g_fails == 0 ? 0 : 1;
 }

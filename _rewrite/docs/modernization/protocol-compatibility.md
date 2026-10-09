@@ -474,3 +474,30 @@ cooldowns, previous-action conditions, full target validation, effects, damage,
 learning and the original client executable remain pending. Imported live timers
 and optional gameplay-chart base delays continue to be enforced. Source trace and
 executed evidence: [skill resource contract](evidence/skill-costs-contract.json).
+
+
+## Native normal-cast cooldown generation (2026-10-09)
+
+The later timing increment replaces the preceding native zero-delay placeholder
+for normal casts. `CTSkill::GetReuseDelay(SDELAY_SKILL)` contributes base delay plus
+`(learned rank - 1) * signed rank increment`, adds the character's attack delay,
+and multiplies by its rate before `/100`. DWORD wrapping is retained; arithmetic
+outside supported source INT/FLOAT conversions is refused. Source formulae 4/16
+use base class/race DEX/WIS, without current-level scaling. Equipped primary and
+secondary slots supply physical **and magic** delay, the ranged slot supplies
+ranged delay, and broken items supply neither delay nor magic. Passive rate deltas
+apply before item speed reductions, which cap at 100 percent.
+
+A successful cast arms its own timer and extends all learned same-kind timers
+under one cooldown lock while still holding the character-state lock. Kind delay
+is used directly, including kind zero, and cannot shorten a longer running timer.
+Rejected use changes neither peer timers nor HP/MP. Existing snapshots, database
+receipts and transfer restoration now carry these generated timers as well.
+
+Pinned definitions and timing are rebuilt at native fresh/transfer hydration;
+they add no wire fields or persistent columns. An unported buff-bearing transfer
+retains its full graph but leaves speed-dependent timing unavailable. Such casts
+fail before mutation, rather than calculate guessed buff/disarm/disguise effects.
+No-speed casts retain the original zero attack delay and 100 percent rate. Active
+effect expiry, loop/cancel rules, full target validation and original-client
+execution remain pending. See [timing contract](evidence/skill-timing-contract.json).

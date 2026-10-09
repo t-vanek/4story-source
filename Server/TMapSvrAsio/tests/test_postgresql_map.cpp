@@ -27,6 +27,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "replica_fixture.h"
 #include "main_transfer_fixture.h"
 #include "skill_checkpoint_fixture.h"
+#include "skill_timing_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -39,7 +40,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=716;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=718;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -157,6 +158,9 @@ int main(){
         Check(skill_restored&&!skill_restored->payload->transfer_state&&skill_restored->payload->skills.front().dwRemainTick==4900,
               "fresh relogin hydrates exact saved skill timer and rank through ordinary database load");
         map.ReleaseSession(skill_character);
+        stage="native timing";
+        VerifyNativeSkillTiming(admin,map,create(717,"TimingHero",17),false);
+        VerifyNativeSkillTiming(admin,map,create(718,"BrokenTimingHero",18),true);
         stage="zero HP";auto dead=create(702,"DeadHero",2);
         admin<<"UPDATE app_world.\"TCHARTABLE\" SET \"dwHP\"=0,\"dwMP\"=0 WHERE \"dwUserID\"=702";
         Check(claim(dead),"second character handoff accepted");auto ds=map.LoadAuthorized(dead);

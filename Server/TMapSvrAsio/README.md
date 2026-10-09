@@ -66,9 +66,15 @@ caster/route or malformed requests cannot charge a cast. Both fresh and transfer
 characters rebuild the static definitions through native hydration; no schema or
 packet change is required. See the
 [skill resource contract](../../_rewrite/docs/modernization/evidence/skill-costs-contract.json).
-New native cooldown generation still needs the source attack-speed, rank and
-shared-kind modifiers; active effects, learning and combat damage remain separate
-ports. Existing imported timers and optional gameplay-chart delays are retained.
+Native normal casts now arm source cooldowns using learned rank, physical/ranged/
+magic attack delay, powered weapon slots and passive/item speed rates. Same-kind
+learned timers extend atomically and never shorten a longer timer. Imported timers
+and periodic/final/transfer persistence remain in force. See the
+[skill timing contract](../../_rewrite/docs/modernization/evidence/skill-timing-contract.json).
+Active buff/disarm/disguise timing, loop/cancel branches, learning and combat damage
+remain separate ports. Buff-bearing transferred graphs retain their data but
+speed-dependent casts close before mutation until effect simulation is available.
+Any future equipment/learned-skill mutation must rebuild the derived timing cache.
 
 Existing combat/loot/AI
 fixtures below describe older implemented subsets, not completed native gameplay

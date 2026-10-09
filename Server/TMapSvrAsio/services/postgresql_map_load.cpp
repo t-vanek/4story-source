@@ -2,6 +2,7 @@
 #include "postgresql_map_owner.h"
 #include "domain/main_transfer.h"
 #include "services/skill_cooldown.h"
+#include "services/skill_timing.h"
 #include <set>
 #include <soci/soci.h>
 #include <algorithm>
@@ -36,11 +37,11 @@ std::uint32_t Truncate(float f) {
         throw std::runtime_error("Character stat outside original DWORD range");
     return static_cast<std::uint32_t>(f);
 }
-struct Formula {std::uint32_t initial{};float rate{};};
+struct Formula {std::uint32_t initial{};float rate{},rate_y{};};
 Formula ReadFormula(soci::session& sql,int id){
     soci::row r;sql<<"SELECT * FROM character_compat.\"TFORMULACHART\" WHERE \"bID\"=:id",soci::use(id),soci::into(r);
     if(!sql.got_data())throw std::runtime_error("Required character formula is missing");
-    return {U32(r,"dwinit"),static_cast<float>(r.get<double>("fRateX"))};
+    return {U32(r,"dwinit"),static_cast<float>(r.get<double>("fRateX")),static_cast<float>(r.get<double>("fRateY"))};
 }
 struct Passive {int target{},increase{},value{};};
 void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
@@ -51,9 +52,20 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     sql<<"SELECT * FROM character_compat.\"TRACECHART\" WHERE \"bRaceID\"=:id",soci::use(race),soci::into(ra);
     if(!sql.got_data())throw std::runtime_error("Missing character race");
     std::map<int,std::uint32_t> equipment;
+    std::int64_t short_weapon_delay=0,long_weapon_delay=0;
     for(const auto& bag:p.bags)if(bag.bag.bInvenID==254)
-        for(const auto& item:bag.items)if(!item.dwDuraMax||item.dwDuraCur)
+        for(const auto& item:bag.items)if(!item.dwDuraMax||item.dwDuraCur) {
             for(const auto& [id,value]:item.magic)equipment[id]+=value;
+            // Original equipment slots 0/1 contribute to physical AND magic
+            // speed, slot 2 to ranged speed. Broken weapons have no power.
+            if(item.bItemID<=2) {
+                const int id=std::bit_cast<std::int16_t>(item.wItemID);soci::row chart;
+                sql<<"SELECT \"dwSpeedInc\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(id),soci::into(chart);
+                if(!sql.got_data())throw std::runtime_error("Equipped weapon lacks source timing");
+                const auto increment=std::bit_cast<std::int32_t>(U32(chart,"dwSpeedInc"));
+                (item.bItemID==2?long_weapon_delay:short_weapon_delay)+=increment;
+            }
+        }
     std::vector<Passive> passives;
     p.skill_templates.clear();
     for(const auto& skill:p.skills) {
@@ -62,6 +74,9 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         if(!sql.got_data())throw std::runtime_error("Learned skill has no source template");
         SkillTemplate definition;
         definition.wID=skill.wSkillID;definition.dwReuseDelay=U32(chart,"dwReuseDelay");
+        definition.nReuseDelayInc=std::bit_cast<std::int32_t>(U32(chart,"nReuseDelayInc"));
+        definition.dwKindDelay=U32(chart,"dwKindDelay");definition.bKind=U8(chart,"bKind");
+        definition.bSpeedApply=U8(chart,"bSpeedApply");
         definition.bUseMPType=U8(chart,"bUseMPType");definition.dwUseMP=U32(chart,"dwUseMP");
         definition.bUseHPType=U8(chart,"bUseHPType");definition.dwUseHP=U32(chart,"dwUseHP");
         definition.bStartLevel=U8(chart,"bLevel");definition.bNextLevel=U8(chart,"bNextLevel");
@@ -76,7 +91,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         }
         // Original IsRemainType only adds skills having a SA_CONTINUE row.
         soci::rowset<soci::row> data=(sql.prepare<<"SELECT d.* FROM character_compat.\"TSKILLDATA\" d WHERE d.\"wSkillID\"=:id "
-            "AND d.\"bAction\" IN (1,4) AND d.\"bType\"=1 AND d.\"bExec\" IN (3,6,50,51) "
+            "AND d.\"bAction\" IN (1,4) AND d.\"bType\"=1 AND d.\"bExec\" IN (3,6,50,51,54,55,56) "
             "AND EXISTS (SELECT 1 FROM character_compat.\"TSKILLDATA\" a WHERE a.\"wSkillID\"=:id AND a.\"bAction\"=1)",soci::use(id,"id"));
         for(const auto& d:data) {
             int value=U16(d,"wValue"),inc=U16(d,"wValueInc"),rank=skill.bLevel;
@@ -127,6 +142,21 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     };
     s.dwMaxHP=maximum(hp,stat("wCON",3),50);s.dwMaxMP=maximum(mp,stat("wMEN",6),51);
     s.dwHP=std::min(s.dwHP,s.dwMaxHP);s.dwMP=std::min(s.dwMP,s.dwMaxMP);s.bDead=s.dwHP==0;
+    p.skill_attack_timing.reset();
+    // Active buffs can change rates, suppress equipment or disguise the caster.
+    // Keep those graphs intact, but refuse speed-dependent casts until their
+    // authoritative effect/expiry simulation is implemented.
+    if(!p.transfer_state||p.transfer_state->buffs.empty()) {
+        const auto physical=ReadFormula(sql,4),magic=ReadFormula(sql,16);
+        const auto base=[&](const Formula& f,const char* stat){
+            return skill_timing::BaseAttackDelay(f.initial,f.rate,f.rate_y,U16(ra,stat),U16(cl,stat));
+        };
+        const auto normal=base(physical,"wDEX"),magical=base(magic,"wWIS");
+        p.skill_attack_timing=std::array<SkillAttackTiming,3>{
+            skill_timing::AttackTiming(normal,short_weapon_delay,delta(100,54),equipment[54]),
+            skill_timing::AttackTiming(normal,long_weapon_delay,delta(100,55),equipment[55]),
+            skill_timing::AttackTiming(magical,short_weapon_delay,delta(100,56),equipment[56])};
+    }
 }
 ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw) {
     if(!raw.id)throw std::runtime_error("Character item has invalid identity");

@@ -18,7 +18,44 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: native learned-skill resource costs
+## Current verified increment: native normal-cast cooldown generation
+
+Normal native skill use now generates cooldowns from learned rank, original
+physical/ranged/magic attack formulae, powered weapon slots and passive/item speed
+rates. Same-kind learned timers extend together and cannot shorten a longer timer.
+The character and cooldown locks cover affordability, all timer changes and HP/MP
+deduction. Fresh and transferred characters rebuild timing from pinned catalogs;
+existing receipts and snapshots persist the generated durations. No migration,
+SQL grant or wire field change is required.
+
+[Debug](evidence/native-skill-timing-debug.json),
+[ASan/UBSan](evidence/native-skill-timing-asan.json) and
+[installed Release](evidence/native-skill-timing-release.json) each pass **906 checks**:
+198 native Map, 29 pool/TLS, 192 outer TCP, 20 skill-cast, 295 World handoff,
+66 World secondary, 99 two-Map and seven rejection checks. Tests cover powered and
+broken weapons, projected speed bonuses, transfer hydration, source skill 102 at
+rank 2, immediate-repeat rejection, the 600ms skill expiration and durable timers.
+The [previous image](evidence/skill-timing-before.json) fails the new repeated-use
+assertion. Standard suites pass **200 Debug entries** (186 actual passes, eight
+internal legacy skips, six explicit native skips) and **33 sanitizer entries**.
+The deterministic timing suite has 56 checks, including same-kind concurrency.
+
+Current local image: `localhost/fourstory:postgresql-skill-timing` (also `:main`),
+ID `81b6c61dca05fae4150e2079de58ba7e6adc685aaaa79e087430974bee3f32ec`,
+UID/GID 10001:10001. Six daemons pass health/DNS/SIGTERM checks. See the
+[source contract](evidence/skill-timing-contract.json),
+[container evidence](evidence/skill-timing-container-verification.json),
+[build fingerprints](evidence/skill-timing-build-fingerprints.json) and
+[owned-lab cleanup](evidence/skill-timing-cleanup.json).
+
+Active buff/disarm/disguise timing and expiry are unported. Such transferred
+characters retain their graph, but speed-dependent casts fail before mutation.
+The pinned release has no passive speed rows; nonzero passive arithmetic uses
+explicit deterministic fixtures. Loop/cancellation, equipment/skill mutation with
+cache refresh, full target validation and original-client execution remain pending.
+Both backups and migrations 001–021 retain their hashes.
+
+## Earlier verified increment: native learned-skill resource costs
 
 Native Map casts resolve learned ownership and rank from the character and static
 resource definitions from pinned backup catalogs. Source type-1 HP/MP costs now
@@ -45,7 +82,7 @@ and a periodic checkpoint saves the charged value. The
 rejection. Standard suites pass **200 Debug entries** (186 actual passes, eight
 internal legacy skips, six explicit native skips) and **33 sanitizer entries**.
 
-Current installed image: `localhost/fourstory:postgresql-skill-costs` (also `:main`),
+That increment used installed image `localhost/fourstory:postgresql-skill-costs`,
 ID `42ba521c5b853387551f80892d7977fcc3391813e42d2c45c779a555a2f0f6dc`,
 UID/GID 10001:10001. Six services pass health/DNS/SIGTERM smoke. See
 [container evidence](evidence/skill-costs-container-verification.json),

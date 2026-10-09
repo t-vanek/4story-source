@@ -22,6 +22,9 @@ void VerifyMainTransfer(soci::session& admin,SessionPool& pool,tmapsvr::PostgreS
     Check(timers.TryUse(primary.char_id,skill,1000,300000),"transfer fixture arms live skill timer");
     snap->fPosX=4100;snap->dwEXP=81;snap->dwHP-=1;
     auto state=transfer::Capture(*snap,primary.key,timers,1030);
+    // Typed buff retention is supported, effect/expiry simulation is not.
+    // Hydration must not offer guessed speed-dependent casts for this graph.
+    transfer::Buff buff;buff.skill=134;buff.level=1;buff.remaining=10000;state.buffs.push_back(buff);
     auto body=transfer::Encode(state);
     Check(source.PrepareTransfer(primary,*snap,body),"source freezes complete live graph into transfer journal");
     Check(source.PrepareTransfer(primary,*snap,body),"exact prepare retry confirms same transfer");
@@ -41,6 +44,8 @@ void VerifyMainTransfer(soci::session& admin,SessionPool& pool,tmapsvr::PostgreS
         "target atomically promotes replica and restores unsaved live core");
     Check(received->snapshot.payload->skills.front().dwRemainTick==299970&&received->snapshot.payload->transfer_state&&
         transfer::Encode(*received->snapshot.payload->transfer_state)==body,"target retains exact full transfer and live remaining cooldown");
+    Check(!received->snapshot.payload->skill_attack_timing&&received->snapshot.payload->transfer_state->buffs.size()==1,
+          "buff-bearing transfer preserves effects but refuses guessed attack timing");
     Check(target.AcceptTransfer(secondary,body).has_value(),"exact target retry confirms previously committed load");
     Check(source.OutgoingTransferCommitted(primary),"source confirms exact outgoing authority receipt");
     auto promoted=secondary;promoted.role=MapSessionRole::Primary;promoted.authority_epoch=1;
@@ -102,6 +107,8 @@ void VerifyMainTransferRecovery(soci::session& admin,SessionPool& pool,tmapsvr::
     Check(source.PrepareTransfer(primary,*snap,body),"transfer crash source prepares graph");
     if(stop_phase==1)return; // leave durable prepared source for its owner-replacement test
     auto received=target.AcceptTransfer(secondary,body);
+    Check(received&&received->snapshot.payload->skill_attack_timing&&received->snapshot.payload->skill_templates.size()==received->snapshot.payload->skills.size(),
+          "ordinary transfer rebuilds pinned skill timing on its new authority");
     Check(received&&received->authority_epoch==1,"transfer crash target commits before client readiness");
     if(stop_phase==2) {
         auto promoted=secondary;promoted.role=MapSessionRole::Primary;promoted.authority_epoch=1;

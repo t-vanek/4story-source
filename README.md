@@ -64,7 +64,7 @@ remains at 200 entries (186 passes, 14 skips); all 32 sanitizer entries pass.
 That increment was verified in `localhost/fourstory:postgresql-skill-checkpoints`;
 its six services pass health/DNS/SIGTERM checks. See [container evidence](_rewrite/docs/modernization/evidence/skill-checkpoints-container-verification.json).
 
-The latest increment enforces **learned-skill ownership and rank-based HP/MP
+The preceding resource increment enforces **learned-skill ownership and rank-based HP/MP
 costs** in native Map casts. Definitions come from the pinned backup catalogs;
 checks and resource deduction are atomic. Success packets carry the learned rank,
 and forged or incomplete requests cannot charge a cast. Source skill 134 at rank 2
@@ -73,10 +73,26 @@ See the [skill resource contract](_rewrite/docs/modernization/evidence/skill-cos
 No schema migration or packet change is required. Verification passes 200 Debug
 CTest entries (186 actual passes, 14 skips), all 33 ASan/UBSan entries, and 880
 native database/network checks per Debug, sanitizer and installed Release run.
-The current local image is `localhost/fourstory:postgresql-skill-costs` (also `:main`);
+That increment used `localhost/fourstory:postgresql-skill-costs`;
 all six daemons pass health/DNS/SIGTERM checks. See
 [container evidence](_rewrite/docs/modernization/evidence/skill-costs-container-verification.json).
-Full native cooldown generation, active effects and combat damage remain unfinished.
+Active effects and combat damage remain unfinished.
+
+The latest increment generates **native cooldowns on normal skill use** from
+learned rank, source attack delay, powered weapon slots and passive/item speed
+rates. Same-kind timers extend atomically without shortening a longer timer.
+Actual encrypted tests cover immediate-repeat rejection, expiration and durable
+save. Debug, ASan/UBSan and installed Release each pass **906 database/network
+checks**; 200 Debug CTest entries have 186 passes and 14 skips, and all 33 sanitizer
+entries pass. The preceding image fails the new repeated-cast assertion.
+
+Current local image: `localhost/fourstory:postgresql-skill-timing` (also `:main`).
+Its six daemons pass health/DNS/SIGTERM smoke. See the
+[timing contract](_rewrite/docs/modernization/evidence/skill-timing-contract.json) and
+[container evidence](_rewrite/docs/modernization/evidence/skill-timing-container-verification.json).
+Buff-dependent timing and effect expiry, loop/cancel rules and the original client
+executable remain pending. Speed-dependent casts on buff-bearing transferred
+characters close before mutation; no buff speed is guessed.
 
 ## Database authority
 
@@ -201,7 +217,7 @@ The [older patch catalog](_rewrite/docs/PATCH_README.md) and
 [legacy-to-modern changelog](_rewrite/docs/CHANGELOG_LEGACY_TO_MODERN.md) retain
 historical context; current acceptance is tracked in the modernization documents.
 
-Next priorities are native cooldown generation and active effect/timer semantics,
+Next priorities are active buff/timer semantics and skill loop/cancellation rules,
 complete entity visibility, transactional item/economy
 operations, native social persistence and execution of the supported original
 client. Full feature parity is not yet established.

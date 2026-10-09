@@ -41,6 +41,15 @@ struct SkillTemplate
     std::uint8_t   bNextLevel   = 0;
     std::uint8_t   bMaxLevel    = 0;
     float          f1stRateX    = 1.0f;
+    std::int32_t   nReuseDelayInc = 0;
+    std::uint32_t  dwKindDelay = 0;
+    std::uint8_t   bKind = 0;
+    std::uint8_t   bSpeedApply = 0; // TAD_NONE / PHYSICAL / LONG / MAGIC
+};
+
+struct SkillAttackTiming {
+    std::uint32_t delay = 0;
+    std::uint32_t rate = 100;
 };
 
 } // namespace tmapsvr

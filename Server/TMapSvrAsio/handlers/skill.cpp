@@ -6,7 +6,7 @@
 // GetRequiredMP / GetRequiredHP):
 //   * learned ownership and rank — native CharacterPayload.skills
 //   * resource cost — pinned TSKILLCHART and FTYPE_1ST (skill_engine.h)
-//   * reuse cooldown — restored timers and optional gameplay chart delays
+//   * native reuse cooldown — learned rank, source attack speed and same-kind delays
 // A rejection answers the caster with the short CS_SKILLUSE_ACK form
 // (SKILL_NOTFOUND / SKILL_NEEDMP / SKILL_NEEDHP / SKILL_SPEEDYUSE). On success the cost is
 // deducted, the fat SKILL_SUCCESS ack (with the defender list) is
@@ -17,7 +17,7 @@
 // TSKILLDATA effects (heal) are applied.
 //
 // Known placeholders (documented until their waves land):
-//   * native new-use rank/attack-speed/shared-kind cooldown generation;
+//   * active-effect attack timing (speed-dependent buff-bearing casts fail closed);
 //   * attacker combat stats in the success ack (powers / crit / attack
 //     level) ship 0 — the player AP/WAP/DP wave models them;
 //   * native learned rank is loaded; the older no-payload path assumes rank 1;
@@ -37,6 +37,7 @@
 #include "services/skill_chart.h"
 #include "services/skill_cooldown.h"
 #include "services/skill_engine.h"
+#include "services/skill_timing.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -138,7 +139,8 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
     ctx.char_state->Update(cid,[&](CharSnapshot& cs) {
         visited=true;
         std::optional<SkillTemplate> definition;
-        std::uint32_t reuse_delay=0;
+        std::uint32_t reuse_delay=0,kind_delay=0;
+        std::vector<std::uint16_t> same_kind;
         if(ctx.skill_chart) {
             definition=ctx.skill_chart->Find(wSkillID);
             if(definition)reuse_delay=definition->dwReuseDelay;
@@ -157,9 +159,15 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
             const auto t=std::find_if(templates.begin(),templates.end(),[&](const auto& s){return s.wID==wSkillID;});
             if(t==templates.end())throw std::runtime_error("Native learned skill lacks pinned template");
             definition=*t;
-            // This increment ports learned-rank resource gates. New-use attack
-            // speed/rank/kind reuse modifiers remain a separate gameplay port;
-            // existing restored timers and optional chart delays stay in force.
+            if(!ctx.skill_cooldown)throw std::runtime_error("Native skill cooldown tracker is missing");
+            SkillAttackTiming timing; // TAD_NONE is source delay 0, rate 100
+            if(t->bSpeedApply) {
+                if(t->bSpeedApply>3||!cs.payload->skill_attack_timing)
+                    throw std::runtime_error("Native skill attack timing is unsupported for this state");
+                timing=(*cs.payload->skill_attack_timing)[t->bSpeedApply-1];
+            }
+            reuse_delay=skill_timing::ReuseDelay(*t,rank,timing);kind_delay=t->dwKindDelay;
+            if(kind_delay)for(const auto& other:templates)if(other.bKind==t->bKind)same_kind.push_back(other.wID);
         }
         if(definition) {
             req_mp=skill_engine::RequiredMP(*definition,cs.dwMaxMP,rank);
@@ -168,7 +176,7 @@ OnSkillUseReq(std::shared_ptr<tnetlib::AsioSession> sess,
         if(cs.dwMP<req_mp){ack.result=SKILL_NEEDMP;return;}
         // Source refuses HP <= cost even for cost zero (dead caster).
         if(cs.dwHP<=req_hp){ack.result=SKILL_NEEDHP;return;}
-        if(ctx.skill_cooldown&&!ctx.skill_cooldown->TryUse(cid,wSkillID,SkillClockMs(),reuse_delay)) {
+        if(ctx.skill_cooldown&&!ctx.skill_cooldown->TryUse(cid,wSkillID,SkillClockMs(),reuse_delay,same_kind,kind_delay)) {
             ack.result=SKILL_SPEEDYUSE;return;
         }
         cs.dwMP-=req_mp;cs.dwHP-=req_hp;

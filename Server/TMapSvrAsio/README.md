@@ -48,8 +48,14 @@ CONNECT/CONREADY activates the target without another CHARINFO. Source and targe
 recovery retain full v2 graph checkpoints, including close during target COMMIT;
 a same-socket round trip cannot reuse an old writer epoch. Drain waits are bounded.
 See the [native primary contract](../../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json).
-Typed extra sections still require their gameplay ports, and pure fresh characters
-that never transfer retain the earlier v1 core-only checkpoint behavior.
+Typed extra sections still require their gameplay ports. Migration 021 adds
+contract-3 core/skill checkpoints for fresh characters that never transfer.
+Periodic and final saves sample live remaining durations, preserve learned ranks,
+and commit timers with core/audit state. Exact retries include skill values;
+durable skill drift blocks writes and recovery. Fresh relogin continues through
+the ordinary database loader, including its mail and account data. Full transfer
+checkpoints remain contract 2. Apply 021 and the current Map grants before startup.
+See the [skill checkpoint contract](../../_rewrite/docs/modernization/evidence/skill-checkpoints-contract.json).
 
 Existing combat/loot/AI
 fixtures below describe older implemented subsets, not completed native gameplay

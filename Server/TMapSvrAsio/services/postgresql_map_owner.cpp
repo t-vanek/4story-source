@@ -40,8 +40,8 @@ PostgreSQLMapOwner::PostgreSQLMapOwner(const std::string& connection,std::uint8_
                  "DELETE FROM app_global.\"TCURRENTUSER\" WHERE \"dwUserID\"=:u AND \"dwKEY\" IN (SELECT session_key FROM safe)",
                 soci::use(m_world,"w"),soci::use(m_server,"s"),soci::use(user,"u"),soci::use(m_token,"t");
         }
-        // Only v1 ready sessions with an exact atomic receipt may roll back
-        // their transient tail to the last committed core. Pre-v1/orphaned or
+        // Only sessions with an exact versioned receipt may roll back
+        // their transient tail to committed state. Pre-v1/orphaned or
         // externally drifted state never acquires this recovery permission.
         users.clear();
         {soci::rowset<int> rows=(sql.prepare<<"SELECT user_id FROM app_world.map_sessions WHERE world_id=:w AND server_id=:s "
@@ -62,8 +62,8 @@ PostgreSQLMapOwner::PostgreSQLMapOwner(const std::string& connection,std::uint8_
               JOIN app_global."TALLCHARTABLE" d ON d."bWorldID"=m.world_id AND d."dwCharID"=m.char_id
                 AND d."dwUserID"=m.user_id AND d."bDelete"=0
               WHERE m.world_id=:w AND m.server_id=:s AND m.user_id=:u AND m.owner_token<>:t AND m.phase IN ('ready','loaded')
-                AND ((m.authority_epoch=0 AND m.phase='ready') OR p.transfer_body IS NOT NULL) AND p.recovery_contract IN (1,2) AND p.outcome='active'
-                AND p.core_state=app_world.map_core_state(m.world_id,m.char_id)
+                AND ((m.authority_epoch=0 AND m.phase='ready') OR p.transfer_body IS NOT NULL) AND p.recovery_contract IN (1,2,3) AND p.outcome='active'
+                AND app_world.map_checkpoint_matches(p)
             ), receipts AS (
               UPDATE app_world.map_checkpoints SET outcome='recovered',recovered_at=clock_timestamp()
               WHERE world_id=:w AND char_id IN (SELECT char_id FROM eligible) RETURNING char_id

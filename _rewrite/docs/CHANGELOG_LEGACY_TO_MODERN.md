@@ -9,8 +9,15 @@ paketů zůstává zachovaný; samotný původní klient zatím spuštěný neby
 
 Originální `.bak` soubory jsou neměnným historickým podkladem. Úpravy patří
 do odvozené PostgreSQL databáze prostřednictvím migrací; aplikované migrace
-001–020 se nepřepisují. Úplná hratelnost, ekonomika a nativní sociální
+001–021 se nepřepisují. Úplná hratelnost, ekonomika a nativní sociální
 persistence zůstávají rozpracované.
+
+Migrace 021 nově ukládá časovače schopností také u postav, které nepřecházejí
+mezi Map servery. Časovače a stav postavy se zapisují v jedné transakci;
+obnovení po pádu zachová poslední potvrzené hodnoty. Úrovně a seznam naučených
+schopností tato operace nemění. Scénáře přihlášení, opakovaného zápisu,
+rollbacku a pádu serveru jsou ověřené nad skutečným PostgreSQL v Debug i
+ASan/UBSan. Podrobnosti: [kontrakt a výsledky](modernization/evidence/skill-checkpoints-contract.json).
 
 Aktuální instalace a rozsah ověření: [hlavní README](../../README.md).
 Podrobné výsledky a zbývající práce: [modernizace](modernization/README.md).

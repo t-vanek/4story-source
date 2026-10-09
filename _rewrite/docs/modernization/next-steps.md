@@ -17,7 +17,7 @@ authoritative for historical values, original code/client for supported behavior
    actual client executable remain evidence gates; they do not block the next
    character/world implementation slice.
 2. **Extend the verified native character/world boundary.** Preserve migrations
-   001–020 and the checkpoint, retirement and replica contract evidence. Actual
+   001–021 and the checkpoint, retirement and replica contract evidence. Actual
    Login/World/Map TCP now covers single-owner fresh admission, complete inventory
    and learned-skill wire lists, source-based max stats, core save, logout and
    reconnect. The Map owner and connection generation fence all native operations;
@@ -62,8 +62,12 @@ authoritative for historical values, original code/client for supported behavior
    close during delayed target COMMIT. Gameplay drain is bounded and interrupted
    by client close. Preserve `native-primary-transfer-contract.json` and its
    Debug/sanitizer/installed evidence; no new client fields were introduced.
-   Next extend v2 runtime timer persistence to characters that have never transferred,
-   and implement active effect/quest/recall/companion timer semantics and simulation
+   Migration 021 now persists fresh-primary skill cooldowns using contract-3
+   core/skill receipts and narrowly granted updates to TSKILLTABLE.dwRemainTick.
+   Exact retries, rollback, relogin and crash recovery retain learned ranks and
+   remaining durations; a skill drift blocks recovery. Full transfer graphs keep
+   contract 2. Preserve `skill-checkpoints-contract.json` and its evidence.
+   Next implement active effect/quest/recall/companion timer semantics and simulation
    using the existing typed graph. Merely retaining these sections is not native
    gameplay. Trace original bStartAct=2/tutorial/Bow/dbload=1 branches and classify
    the source quest sender's shadowed dwTick before adopting its arithmetic.

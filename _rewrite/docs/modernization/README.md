@@ -15,10 +15,46 @@ ASan/UBSan suites pass 87 checks, including inventory replacement during an
 awaited status query. Container configuration leaves service lifecycle to
 Compose/Podman. The optional Control registry adapter remains distinct from
 native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consolidation.json)
-for the `localhost/fourstory:main` image and branch integration; the feature
+for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current verified increment: native primary Map handoff and graph recovery
+## Current verified increment: fresh-primary skill cooldown persistence
+
+Migration **021** adds contract-3 core/skill checkpoints for characters that have
+never transferred between Maps. Periodic and final snapshots sample live remaining
+durations; PostgreSQL updates only existing skill timers, preserving learned IDs
+and ranks. Core, timers, receipts and logout audit commit together. Exact retries
+include timer values, and durable skill drift blocks writes, transfer and recovery.
+Fresh relogin keeps the ordinary database load path. Full transfer graphs keep
+contract 2. Apply 021 and the updated Map grants before deploying the new binary.
+
+[Debug](evidence/native-skill-checkpoints.json),
+[ASan/UBSan](evidence/native-skill-checkpoints-asan.json) and
+[installed Release](evidence/native-skill-checkpoints-release.json) each pass **181 native Map,
+29 pool/TLS, 191 outer TCP, 295 World handoff, 66 World secondary, 99 two-Map and
+seven rejection checks**. Tests include new use, expiration, full DWORD durations,
+rollback after audit failure, changed-revision rejection, relogin and SIGKILL
+recovery. The [previous installed image](evidence/skill-checkpoints-before.json)
+fails the new online-countdown assertion. Standard suites pass **200 Debug entries**
+(186 actual passes, eight internal skips, six explicit skips) and **32 sanitizer
+entries**. The original client executable has not been run.
+
+Installed image `localhost/fourstory:postgresql-skill-checkpoints` (also `:main`),
+ID `6535b80498bf7dca024a7dce9f140a1fb3b8c40c4dc6d62f1114ad0b83777c9e`,
+UID/GID 10001:10001, passes all six daemon health/DNS/SIGTERM checks.
+See [container verification](evidence/skill-checkpoints-container-verification.json),
+[build fingerprints](evidence/skill-checkpoints-build-fingerprints.json) and
+[lab cleanup](evidence/skill-checkpoints-cleanup.json).
+
+The [contract](evidence/skill-checkpoints-contract.json) traces backup `TSaveSkill`,
+`TLogout` and the commented skill copy in `TSaveCharDataEnd`; periodic skill
+persistence is an explicit modern durability improvement. Both backups and
+migrations 001–020 retain their hashes; verified 021 is now pinned. No client packet
+changes or historical player imports. Learning/rank changes, full effect and
+quest/recall/companion timers, ancillary synchronization, full AOI and gameplay
+remain on the [acceptance backlog](next-steps.md).
+
+## Earlier verified increment: native primary Map handoff and graph recovery
 
 Movement across a cell boundary now drives the actual World/Map primary handoff.
 The source freezes its live state; a ready replica consumes the exact original
@@ -56,7 +92,7 @@ Both `.bak` and migrations 001–019 retain their hashes; verified 020 is now pi
 
 Active effects, quests, summons, companions, native item/economy/social mutations,
 full AOI and original-client acceptance remain unfinished. Fresh characters that
-never transfer still use the earlier v1 core-only checkpoint path. Continue the
+never transfer now use contract-3 skill checkpoints in the later increment above. Continue the
 [acceptance backlog](next-steps.md); the overall mission remains active.
 
 ## Earlier verified increment: Map transfer state and native skill timers

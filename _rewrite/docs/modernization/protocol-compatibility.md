@@ -421,4 +421,31 @@ historical rows. The prior installed daemon fails the new movement handoff.
 See `evidence/native-primary-transfer-contract.json`. Original-client execution,
 full AOI/effects/quests/summons/secondary gameplay and complete native social
 persistence remain pending. Typed preservation does not certify active gameplay;
-fresh non-transfer characters still use core-only v1 checkpoints.
+fresh non-transfer characters now use the separate contract-3 skill checkpoints below.
+
+
+## Fresh-primary skill durability (migration 021)
+
+The original sender captures `GetReuseRemainTick(m_dwSaveTick)` as a DWORD;
+`TSaveSkill` from the authoritative backup inserts that value with the learned
+rank into `TTEMPSKILLTABLE`. The backup `TLogout` replaces `TSKILLTABLE` from
+that staging table. The corresponding skill copy is commented out in the backup
+`TSaveCharDataEnd`; modern periodic durability is an explicit improvement, not
+a claim that the old periodic procedure persisted skills. Fresh source load
+starts remaining durations on the local clock, with no offline decay here.
+
+Fresh native periodic/final snapshots now sample the live cooldown tracker even
+without a transfer graph. The PostgreSQL transaction changes only existing skill
+remaining values, preserving the full learned set and ranks. Contract-3 receipts
+contain an unsigned, ID-sorted skill array alongside the core. Changed same-revision
+timers fail; exact repeats confirm the commit. Core/skill drift blocks save,
+transfer and owner recovery. A normal fresh relogin reads the updated database
+rows, so mail/account loading is not replaced with transfer-wire counters.
+
+No packet field or opcode changes. Native encrypted TCP checks cover countdown
+while online, logout/relogin, SPEEDYUSE enforcement and SIGKILL recovery. Backend
+fault tests cover rollback after receipt/audit failure, expiry to zero, new use,
+full DWORD durations, malformed skill sets and restricted SQL grants. Full graph
+contract 2 remains unchanged in meaning. Skill learning, full effect/quest timers,
+CHARINFO timer refresh at the send instant and original-client execution remain
+pending. See [contract and evidence](evidence/skill-checkpoints-contract.json).

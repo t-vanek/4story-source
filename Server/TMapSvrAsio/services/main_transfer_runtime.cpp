@@ -4,11 +4,27 @@
 #include <set>
 #include <stdexcept>
 namespace tmapsvr::transfer {
+namespace {
+auto SampleSkills(const CharSnapshot& s,const SkillCooldownTracker& timers,std::uint64_t now) {
+    auto skills=s.payload->skills;const auto character=s.dwCharID;
+    for(auto& skill:skills)skill.dwRemainTick=0;
+    for(const auto& [id,remaining]:timers.Snapshot(character,now)){
+        auto skill=std::find_if(skills.begin(),skills.end(),[id](const auto& row){return row.wSkillID==id;});
+        if(skill==skills.end())throw std::runtime_error("Active cooldown has no learned skill");
+        skill->dwRemainTick=remaining;
+    }
+    return skills;
+}
+}
+
 CharSnapshot PersistenceSnapshot(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker& timers,std::uint64_t now) {
-    if(!s.payload||!s.payload->transfer_state)return s;
+    if(!s.payload)return s;
     auto out=s;auto p=std::make_shared<CharacterPayload>(*s.payload);
-    auto graph=std::make_shared<State>(Capture(s,key,timers,now));
-    p->skills=graph->skills;p->transfer_state=std::move(graph);p->transfer_received_ms=now;out.payload=std::move(p);return out;
+    if(p->transfer_state) {
+        auto graph=std::make_shared<State>(Capture(s,key,timers,now));
+        p->skills=graph->skills;p->transfer_state=std::move(graph);p->transfer_received_ms=now;
+    }else p->skills=SampleSkills(s,timers,now);
+    out.payload=std::move(p);return out;
 }
 State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker& timers,std::uint64_t now) {
     if(!s.payload||!s.dwCharID||!key)throw std::invalid_argument("Transfer requires a hydrated native character");
@@ -50,12 +66,7 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
         auto old=std::find_if(old_hotkeys.begin(),old_hotkeys.end(),[&](const auto& row){return row.row.inventory==h.inventory;});
         out.hotkeys.push_back({h,old==old_hotkeys.end()?std::uint8_t(0):old->save});
     }
-    for(auto& skill:out.skills)skill.dwRemainTick=0;
-    for(const auto& [id,remaining]:timers.Snapshot(s.dwCharID,now)){
-        auto skill=std::find_if(out.skills.begin(),out.skills.end(),[id](const auto& row){return row.wSkillID==id;});
-        if(skill==out.skills.end())throw std::runtime_error("Active cooldown has no learned skill");
-        skill->dwRemainTick=remaining;
-    }
+    out.skills=SampleSkills(s,timers,now);
     // Typed extra state stays intact. Runtime integration of effect/quest/recall
     // timers must update it at their authoritative simulation tick; these fields
     // are not arbitrarily interpreted as absolute clock values here.

@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **020** are also immutable. Current
-native Map startup requires 020 and the updated
+All subsequently applied migrations through **021** are also immutable. Current
+native Map startup requires 021 and the updated
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,17 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 021+.
+for tests and remaining gameplay requirements. Add schema changes as 022+.
+
+Migration 021 adds fresh-primary skill checkpoints (contract 3). Initial readiness,
+periodic checkpoints and final logout atomically store remaining skill durations
+with the character core and a receipt. Recovery and transfer validate the receipt
+against both durable core and skills. Only `dwRemainTick` receives a new Map write
+grant; learning, deleting skills and changing ranks remain separate work. Contract
+2 continues to own complete state after a primary transfer. Apply 021 and the
+updated Map grants before deploying these binaries; old binaries cannot write
+contract-3 receipts. Historical data and migrations 001–020 are unchanged. See the
+[skill checkpoint contract](../_rewrite/docs/modernization/evidence/skill-checkpoints-contract.json).
 
 `game_compat."TMONATTRCHART"` maps the current monster-ID lookup to the original
 `TMONSTERCHART.wMonAttr` attribute family at the template's `bLevel`. It exposes

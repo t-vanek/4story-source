@@ -2,6 +2,7 @@
 #include "postgresql_map_owner.h"
 #include <openssl/sha.h>
 #include <soci/soci.h>
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <limits>
@@ -11,6 +12,22 @@
 
 namespace tmapsvr {
 namespace {
+auto OrderedSkills(const CharSnapshot& s) {
+    if(!s.payload||s.payload->skills.size()>255)throw std::runtime_error("Invalid learned skill checkpoint");
+    auto rows=s.payload->skills;
+    std::sort(rows.begin(),rows.end(),[](const auto& a,const auto& b){return a.wSkillID<b.wSkillID;});
+    for(std::size_t i=1;i<rows.size();++i)if(rows[i-1].wSkillID==rows[i].wSkillID)
+        throw std::runtime_error("Duplicate learned skill checkpoint");
+    return rows;
+}
+std::string SkillJson(const CharSnapshot& s) {
+    std::string json="[";
+    for(const auto& row:OrderedSkills(s)) {
+        if(json.size()>1)json+=',';
+        json+='['+std::to_string(row.wSkillID)+','+std::to_string(row.bLevel)+','+std::to_string(row.dwRemainTick)+']';
+    }
+    return json+']';
+}
 std::string Fingerprint(const MapSessionClaim& claim,const CharSnapshot& s) {
     if(s.dwCharID!=claim.char_id||!s.payload||!std::isfinite(s.fPosX)||!std::isfinite(s.fPosY)||!std::isfinite(s.fPosZ))
         throw std::runtime_error("Invalid native character checkpoint");
@@ -31,17 +48,47 @@ std::string Fingerprint(const MapSessionClaim& claim,const CharSnapshot& s) {
     constexpr char hex[]="0123456789abcdef";std::string result;
     for(auto b:digest){result+=hex[b>>4];result+=hex[b&15];}return result;
 }
-struct Receipt {bool found=false,core_matches=false;long long revision=0;std::string fingerprint,outcome,transfer_hash;};
+struct Receipt {bool found=false,core_matches=false;long long revision=0;int contract=0;std::string fingerprint,outcome,transfer_hash;};
 Receipt ReadReceipt(soci::session& sql,const MapSessionClaim& claim,int server,const std::string& token){
     const int world=claim.group;const long long cid=claim.char_id,uid=claim.user_id,key=claim.key,generation=claim.connection_id,epoch=claim.authority_epoch;
     Receipt r;int matches=0;
-    sql<<"SELECT revision,fingerprint,outcome,CASE WHEN core_state=app_world.map_core_state(world_id,char_id) THEN 1 ELSE 0 END,COALESCE(transfer_hash,'') "
+    sql<<"SELECT revision,fingerprint,outcome,CASE WHEN app_world.map_checkpoint_matches(map_checkpoints) THEN 1 ELSE 0 END,COALESCE(transfer_hash,''),recovery_contract "
          "FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c AND user_id=:u AND session_key=:k "
-         "AND server_id=:s AND owner_token=:t AND connection_id=:g AND authority_epoch=:epoch AND recovery_contract IN (1,2) FOR UPDATE",
+         "AND server_id=:s AND owner_token=:t AND connection_id=:g AND authority_epoch=:epoch AND recovery_contract IN (1,2,3) FOR UPDATE",
         soci::use(world,"w"),soci::use(cid,"c"),soci::use(uid,"u"),soci::use(key,"k"),soci::use(server,"s"),
-        soci::use(token,"t"),soci::use(generation,"g"),soci::use(epoch,"epoch"),soci::into(r.revision),soci::into(r.fingerprint),soci::into(r.outcome),soci::into(matches),soci::into(r.transfer_hash);
+        soci::use(token,"t"),soci::use(generation,"g"),soci::use(epoch,"epoch"),soci::into(r.revision),soci::into(r.fingerprint),soci::into(r.outcome),soci::into(matches),soci::into(r.transfer_hash),soci::into(r.contract);
     r.found=sql.got_data();r.core_matches=matches==1;return r;
 }
+}
+bool PostgreSQLMapService::SkillCheckpointMatches(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    const int world=c.group,character=c.char_id;const auto json=SkillJson(s);int matches=0;
+    sql<<"SELECT CASE WHEN app_world.map_skill_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:skills AS jsonb) THEN 1 ELSE 0 END",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"skills"),soci::into(matches);
+    return matches==1;
+}
+void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    const int world=c.group,character=c.char_id;const auto skills=OrderedSkills(s);
+    // This operation only persists timers. Learning, forgetting or changing a
+    // rank must not be smuggled through a core save. Lock and validate every row
+    // before writing, preserving the source signed SMALLINT/INT bit patterns.
+    std::size_t n=0;
+    {soci::rowset<soci::row> rows=(sql.prepare<<
+        "SELECT \"wSkillID\",\"bLevel\" FROM app_world.\"TSKILLTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c ORDER BY (\"wSkillID\"::integer & 65535) FOR UPDATE",
+        soci::use(world,"w"),soci::use(character,"c"));
+        for(const auto& row:rows) {
+            if(n>=skills.size()||static_cast<std::uint16_t>(row.get<int>(0))!=skills[n].wSkillID||row.get<int>(1)!=skills[n].bLevel)
+                throw std::runtime_error("Learned skills changed outside cooldown checkpoint");
+            ++n;
+        }
+    }
+    if(n!=skills.size())throw std::runtime_error("Learned skills missing from cooldown checkpoint");
+    for(const auto& row:skills) {
+        const int id=std::bit_cast<std::int16_t>(row.wSkillID),remaining=std::bit_cast<std::int32_t>(row.dwRemainTick);
+        sql<<"UPDATE app_world.\"TSKILLTABLE\" SET \"dwRemainTick\"=:r WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c AND \"wSkillID\"=:id",
+            soci::use(remaining,"r"),soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"id");
+    }
+    sql<<"UPDATE app_world.map_checkpoints SET recovery_contract=3,skill_state=app_world.map_skill_state(world_id,char_id) WHERE world_id=:w AND char_id=:c",
+        soci::use(world,"w"),soci::use(character,"c");
 }
 std::string PostgreSQLMapService::CoreFingerprint(const MapSessionClaim& c,const CharSnapshot& s) const {return Fingerprint(c,s);}
 void PostgreSQLMapService::RecordCheckpoint(soci::session& sql,const MapSessionClaim& claim,long long revision,
@@ -52,7 +99,7 @@ void PostgreSQLMapService::RecordCheckpoint(soci::session& sql,const MapSessionC
          "fingerprint,recovery_contract,core_state,outcome) VALUES(:w,:c,:u,:s,:k,:t,:g,:epoch,:r,:f,1,app_world.map_core_state(CAST(:w AS smallint),CAST(:c AS integer)),:o) "
          "ON CONFLICT(world_id,char_id) DO UPDATE SET user_id=EXCLUDED.user_id,server_id=EXCLUDED.server_id,"
          "session_key=EXCLUDED.session_key,owner_token=EXCLUDED.owner_token,connection_id=EXCLUDED.connection_id,authority_epoch=EXCLUDED.authority_epoch,"
-         "revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,recovery_contract=1,core_state=EXCLUDED.core_state,"
+         "revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,recovery_contract=1,skill_state=NULL,core_state=EXCLUDED.core_state,"
          "saved_at=clock_timestamp(),outcome=EXCLUDED.outcome,recovered_at=NULL,transfer_body=NULL,transfer_hash=NULL,character_manifest=NULL,routing_manifest=NULL,actor_manifest=NULL "
          "WHERE app_world.map_checkpoints.outcome IN ('logout','recovered') OR "
          "(app_world.map_checkpoints.owner_token=EXCLUDED.owner_token AND app_world.map_checkpoints.connection_id=EXCLUDED.connection_id AND app_world.map_checkpoints.authority_epoch=EXCLUDED.authority_epoch) RETURNING 1",
@@ -81,8 +128,8 @@ void PostgreSQLMapService::CheckpointAuthorized(const MapSessionClaim& claim,con
     std::string phase;
     if(!LockAccount(sql,claim)||!LockClaim(sql,claim,phase)||phase!="ready")throw std::runtime_error("Checkpoint claim is not ready");
     const auto r=ReadReceipt(sql,claim,m_config.server,m_config.owner_token);
-    if(!r.found||!r.core_matches||r.outcome!="active")throw std::runtime_error("Native checkpoint receipt missing or core drifted");
-    if(revision==static_cast<std::uint64_t>(r.revision)&&fingerprint==r.fingerprint&&TransferFingerprint(claim,s)==r.transfer_hash){tx->commit();return;}
+    if(!r.found||!r.core_matches||r.outcome!="active")throw std::runtime_error("Native checkpoint receipt missing or durable state drifted");
+    if(revision==static_cast<std::uint64_t>(r.revision)&&fingerprint==r.fingerprint&&TransferFingerprint(claim,s)==r.transfer_hash&&(r.contract!=3||SkillCheckpointMatches(sql,claim,s))){tx->commit();return;}
     if(revision!=static_cast<std::uint64_t>(r.revision)+1)throw std::runtime_error("Native checkpoint revision conflict");
     WriteCore(sql,claim,s,0);RecordCheckpoint(sql,claim,static_cast<long long>(revision),fingerprint,"active");StoreTransferCheckpoint(sql,claim,s);tx->commit();
 }
@@ -94,7 +141,7 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
     const auto r=ReadReceipt(sql,claim,m_config.server,m_config.owner_token);
     // Read-only confirmation of the exact previous final commit. A different
     // payload or later connection cannot masquerade as an acknowledged save.
-    if(r.found&&r.outcome=="logout"&&r.fingerprint==fingerprint&&r.core_matches&&TransferFingerprint(claim,s)==r.transfer_hash){tx->commit();return;}
+    if(r.found&&r.outcome=="logout"&&r.fingerprint==fingerprint&&r.core_matches&&TransferFingerprint(claim,s)==r.transfer_hash&&(r.contract!=3||SkillCheckpointMatches(sql,claim,s))){tx->commit();return;}
     std::string phase;
     if(!LockClaim(sql,claim,phase)) {
         // An outgoing frozen source may close after the target committed. Only
@@ -126,7 +173,7 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
         // Cancellation saves the prepared graph itself, including fields absent
         // from the core/client projection. Its exact core was checked above.
         const int world=claim.group,character=claim.char_id;const long long generation=claim.connection_id,epoch=claim.authority_epoch;
-        sql<<"UPDATE app_world.map_checkpoints p SET recovery_contract=2,transfer_body=t.body,transfer_hash=t.body_sha256,"
+        sql<<"UPDATE app_world.map_checkpoints p SET recovery_contract=2,skill_state=NULL,transfer_body=t.body,transfer_hash=t.body_sha256,"
              "character_manifest=t.character_manifest,routing_manifest=t.routing_manifest,actor_manifest=t.actor_manifest "
              "FROM app_world.map_transfers t WHERE t.world_id=:w AND t.char_id=:c AND t.source_token=:token "
              "AND t.source_connection=:g AND t.source_epoch=:e AND t.phase='cancelled' "

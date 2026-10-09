@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-09",
+  "verified_at_utc": "2026-10-09T06:11:38.780373+00:00",
+  "labs": [
+    {
+      "work_directory": "/tmp/fourstory-skills-20261009",
+      "owned_database_container_removed": true,
+      "owned_network_removed": true,
+      "remaining_owned_labelled_test_containers": 0,
+      "temporary_env_and_private_key_files_removed": 16
+    },
+    {
+      "work_directory": "/tmp/fourstory-skills-asan-20261009",
+      "owned_database_container_removed": true,
+      "owned_network_removed": true,
+      "remaining_owned_labelled_test_containers": 0,
+      "temporary_env_and_private_key_files_removed": 4
+    }
+  ],
+  "private_diagnostics_retained": true,
+  "original_reference_snapshots_retained": true,
+  "sql_server_used": false,
+  "runtime_image_retained": "localhost/fourstory:postgresql-skill-checkpoints",
+  "continuation": "Create a new PostgreSQL-only lab. Preserve migrations 001-021 and authoritative backups. Continue source-derived active effect, quest, recall and companion semantics, then full distributed AOI and original-client acceptance; see next-steps.md."
+}

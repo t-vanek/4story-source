@@ -16,6 +16,12 @@ not proof of replacement. Regenerate with `python3 tools/modernization_inventory
 
 Paths below are repository-relative. All six modern daemons are CMake targets.
 
+Current fresh-primary timer refinement: migration 021 verifies atomic core/skill
+checkpoints, exact retry confirmation, rollback, ordinary relogin and crash
+recovery without requiring a Map transfer. Learned sets/ranks are preserved;
+full skill/effect gameplay and original-client acceptance remain pending. See
+`evidence/skill-checkpoints-contract.json`.
+
 Current primary-transfer refinement: migration 020 and the actual Map handlers
 implement movement-triggered release/consume/promotion with a new authority epoch,
 full graph journal/checkpoints and source/target failure recovery. Native two-Map
@@ -71,7 +77,7 @@ secondary gameplay remain IMPLEMENTING.
 | Spawn templates and combat attributes | `soci_*_chart`, `SpawnAllStatic` into actual monster registry | 3,495 mapped attrs; 39 explicit gaps | Native catalog test and spawn refusal unit test | VERIFIED values/refusal; weighted/essential/leader/ID semantics pending |
 | AI, movement, visibility, respawn (`TMap`, `TMonster`, `TAICmd*`) | Map presence/visibility, `monster_ai.cpp`, move/session handlers | Transient state in runtime; durable checkpoints TBD | Move/sender/AI tests | IMPLEMENTING; fixed AI timing/radii and original pathfinding not fully compared |
 | Damage, death, rewards | Existing combat/damage-formula, corpse/loot services | Durable reward/item/currency transactions pending | Combat, damage, corpse and loot tests | IMPLEMENTING; no complete original-client combat loop |
-| Skills/effects/buffs | Skill/data caches and Map skill handlers | Templates native; character skills/buffs pending | Skill cooldown/formula/effect tests | IMPLEMENTING; all effect and timing semantics require traceability |
+| Skills/effects/buffs | Skill/data caches and Map skill handlers | Templates native; learned-skill cooldown persistence verified by migration 021; learning and buffs pending | Skill cooldown/formula/effect tests | IMPLEMENTING; all effect and timing semantics require traceability |
 | Quest types and branches (`Quest*.cpp`) | Map quest engine/chart/service; original per-type sources all indexed | Native definitions, 62 orphan rewards visible; mutable progress/rewards pending | Quest engine/sender tests | IMPLEMENTING; retain unported original quest actions in file index |
 | Inventory, bags, equipment, storage | Native starter creation and Map readonly hydration; legacy gameplay inventory and World storage repositories | Starter ownership/slot constraints; actual bags/items on wire; gameplay moves and expiry pending | Native character/Map evidence plus existing inventory/loot tests | VERIFIED starter load; transactional mutations IMPLEMENTING; historical expiry/timezone import remains gated |
 | Item IDs (`TGenerateDBItemID`) | Native character starter allocator in the create transaction; extend to gameplay creation | Proven `2^56` world ranges and world-zero floor 735812; independent item-world mapping | Native character concurrent allocation/rollback tests | VERIFIED native starter allocation; other creators and signed-negative worlds pending |

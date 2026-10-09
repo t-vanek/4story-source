@@ -109,7 +109,7 @@ void PostgreSQLMapService::ReleaseSession(const MapSessionClaim& c){
         const int world=c.group,character=c.char_id;const long long generation=c.connection_id,epoch=c.authority_epoch;
         sql<<"UPDATE app_world.map_checkpoints SET outcome='logout',saved_at=clock_timestamp() WHERE world_id=:w AND char_id=:c "
              "AND owner_token=:t AND connection_id=:g AND authority_epoch=:e AND outcome='active' "
-             "AND core_state=app_world.map_core_state(world_id,char_id) RETURNING 1",
+             "AND app_world.map_checkpoint_matches(map_checkpoints) RETURNING 1",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),soci::into(retired);
         if(!sql.got_data())throw std::runtime_error("Transferred load receipt changed before release");
     }

@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-09",
+  "scope": "Fresh-primary skill cooldown checkpoint increment. Source/build hashes accompany the separate Debug, ASan/UBSan and installed Release verification reports.",
+  "build_deps_image_id": "a51442741c64419f82f77d972939a438d84abc0c70a44801c2f1cbed7fc35190",
+  "sha256": {
+    "Server/TMapSvrAsio/README.md": "41b1773c5e88f1e3a75a48e003f4863b7b3e401b2e347191d64047a7e9c77704",
+    "Server/TMapSvrAsio/services/main_transfer_runtime.cpp": "ec139a94711364825d852b4b023dd7f40b8bec0bdfc7e03bbac1a2e31ca951df",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "b66d4da0911e9e4f9e828556e86a83ea5b360b8707ecc5b4be3058da4eb11534",
+    "Server/TMapSvrAsio/services/postgresql_map_owner.cpp": "054a3bfda5c9f2cce76b55ca8cae38936033f736d187fb7b6e543adf8a44da66",
+    "Server/TMapSvrAsio/services/postgresql_map_service.cpp": "bdad697265fca5dfc132695c77d6242f632c86fca05c1b4360c6f6e99628acd1",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "e55257b500d18c6ebc6236a6b93b6734d22a2a61ce25842198e5596d758d4805",
+    "Server/TMapSvrAsio/services/postgresql_map_transfer.cpp": "5e5de7aa6db703b2e2e9aeaee2eb8a50a0a540a0645d66147ebca91ca314191f",
+    "Server/TMapSvrAsio/tests/test_postgresql_map.cpp": "4556bd65e440bae770cdc3dfdfa649aa296e4f1454981b6962b1eaf41c92b50b",
+    "deploy/sql/map-runtime-grants.sql": "bea2bce90753462ac5f1469afd457fe1ae42822c3e880f7bfb2dbd0c3bceee12",
+    "tools/database/verify_map_runtime_wire.py": "13885582a6bf0f95d7b82528fee3a5e691560fd1e66f6686e84744217bc1b901",
+    "database/postgresql/021-native-skill-checkpoints.sql": "552f5ff0bbdb9a41f3ccb58c77e4f16efd30665b5cc1ea085f6babe37ea678a8",
+    "Server/TMapSvrAsio/tests/skill_checkpoint_fixture.h": "85f7a9ddbfd2341941115d111bbb3a80b517f278c98b32805d6c92533ac37be4",
+    "Dockerfile": "3417a1fb094a810d52fb56de53e3ea3cc8be5f8188363517598e3f9c0e662c5b",
+    "CMakeLists.txt": "40d5e3fa9f2fc3eb72d322fad1bc0d2baad9a6d7a5034d566fd22c6c39b6a95c",
+    "CMakePresets.json": "c7534bd4818001cdbb50ec104782665b067af00717b0d127a4787adeb4cba4ec",
+    "build/linux-debug/bin/tmapsvr_asio": "878611e881d473ea5118747ab2beeda6afc925ae03b7ee5f6b633036c85bef89",
+    "build/linux-debug/bin/tworldsvr_asio": "53841bec59822825f755e6cdbeeebf415e0e872ff500c9b466fd79f690aacb8e",
+    "build/linux-debug/bin/tloginsvr_asio": "a3be55ec76bcaf1df7550ddc02a44ed3fd89cd203f46842456ccf977d5f6e56d",
+    "build/linux-debug/bin/test_tmapsvr_postgresql_map": "bb7875cbf84703222355c877a63ce5f8dbb3b374be26dbff16fffc0be16a9f2b",
+    "build/linux-asan/bin/tmapsvr_asio": "43b2bf4b7a2473bdd7d5e6511f5e1e4f3aa66018e8c2af16cded4ae2fc5c9073",
+    "build/linux-asan/bin/tworldsvr_asio": "e28b75a6958117bca34506e63a753eee1508f6f0251dea30ebd3ea91f3e1954f",
+    "build/linux-asan/bin/tloginsvr_asio": "135d27e78f4ef8217dedcef360d90bb52bd5c0d598c314299bc7ee7946d52d12",
+    "build/linux-asan/bin/test_tmapsvr_postgresql_map": "86f4e6e9060fe691e0ea29953d27e7024f94f97354e0977d398f6d81fd77f07c"
+  },
+  "runtime_image": "localhost/fourstory:postgresql-skill-checkpoints",
+  "runtime_image_id": "6535b80498bf7dca024a7dce9f140a1fb3b8c40c4dc6d62f1114ad0b83777c9e",
+  "installed_daemon_sha256": {
+    "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+    "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+    "/opt/fourstory/bin/tlogsvr_asio": "a615f6b300104d39ce953933b1c6216b33357fbe5f9475342ef6389a59350c47",
+    "/opt/fourstory/bin/tmapsvr_asio": "b1849c46fa448b85229016f636ddccd380df0864bc38f76eca86f705b29561ee",
+    "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+    "/opt/fourstory/bin/tworldsvr_asio": "da5696c7efcb13cd2a6f91248224a288de036c058e9b7ab8e4b7b538fbc5a8ff"
+  }
+}

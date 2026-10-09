@@ -26,6 +26,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 }
 #include "replica_fixture.h"
 #include "main_transfer_fixture.h"
+#include "skill_checkpoint_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -38,7 +39,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=714;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=716;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -145,6 +146,17 @@ int main(){
         snap->dwEXP++;
         Check(Throws([&]{map.SaveAuthorized(a,*snap);}),"different stale final payload cannot overwrite saved character");
         Check(Throws([&]{map.CheckpointAuthorized(a,*snap,2);}),"late checkpoint cannot recreate a logged-out claim");
+        stage="fresh skills";auto skill_character=create(715,"SkillHero",15);
+        VerifyFreshSkillCheckpoint(admin,map,skill_character);
+        const auto skill_login=auth.Authenticate({"SyntheticMap715",credential,"192.0.2.50",0x2918});
+        Check(skill_login.status==login::AuthStatus::Success&&routes.StartAuthorized({715,skill_login.session_key,1,1,static_cast<int>(skill_character.char_id)}).status==login::StartStatus::Success,
+              "fresh timer logout allows authenticated relogin");
+        skill_character.key=skill_login.session_key;skill_character.connection_id=115;
+        Check(claim(skill_character),"fresh timer relogin claims new generation");
+        const auto skill_restored=map.LoadAuthorized(skill_character);
+        Check(skill_restored&&!skill_restored->payload->transfer_state&&skill_restored->payload->skills.front().dwRemainTick==4900,
+              "fresh relogin hydrates exact saved skill timer and rank through ordinary database load");
+        map.ReleaseSession(skill_character);
         stage="zero HP";auto dead=create(702,"DeadHero",2);
         admin<<"UPDATE app_world.\"TCHARTABLE\" SET \"dwHP\"=0,\"dwMP\"=0 WHERE \"dwUserID\"=702";
         Check(claim(dead),"second character handoff accepted");auto ds=map.LoadAuthorized(dead);
@@ -153,6 +165,8 @@ int main(){
         std::thread t1([&]{gate.arrive_and_wait();accepted[0]=claim(race);});std::thread t2([&]{gate.arrive_and_wait();accepted[1]=claim(other);});gate.arrive_and_wait();t1.join();t2.join();
         Check(accepted[0]!=accepted[1],"concurrent claims have exactly one winner");map.ReleaseSession(accepted[0]?race:other);
         stage="permissions";{auto l=mpool.Acquire();Check(Throws([&]{*l<<"UPDATE app_world.\"TITEMTABLE\" SET \"bCount\"=0";}),"Map core role cannot rewrite inventory");
+            Check(Throws([&]{*l<<"UPDATE app_world.\"TSKILLTABLE\" SET \"bLevel\"=2";}),"Map cooldown role cannot change learned ranks");
+            Check(Throws([&]{*l<<"DELETE FROM app_world.\"TSKILLTABLE\"";}),"Map cooldown role cannot forget skills");
             Check(Throws([&]{*l<<"DELETE FROM app_world.map_checkpoints";}),"Map runtime role cannot discard recovery receipts");
             Check(Throws([&]{*l<<"SELECT 1 FROM legacy_game.\"TITEMCHART\"";}),"Map core role cannot access historical tables");}
         stage="checkpoint/final race";auto save_race=create(709,"SaveRaceHero",9);Check(claim(save_race),"checkpoint/final race fixture claimed");
@@ -200,11 +214,18 @@ int main(){
         admin<<"DELETE FROM app_world.map_checkpoints WHERE user_id=705";
         auto recover=create(707,"RecoverHero",7);Check(claim(recover),"recoverable fixture claimed");
         auto recovered_snap=map.LoadAuthorized(recover);map.MarkReady(recover,*recovered_snap);
+        auto recover_skills=std::make_shared<tmapsvr::CharacterPayload>(*recovered_snap->payload);
+        recover_skills->skills.front().dwRemainTick=4999;recovered_snap->payload=recover_skills;
         recovered_snap->dwEXP=12;recovered_snap->fPosX+=9;map.CheckpointAuthorized(recover,*recovered_snap,1);
         recovered_snap->dwEXP=99; // uncommitted runtime tail, never persisted
         auto drift=create(708,"DriftHero",8);Check(claim(drift),"drift fixture claimed");
         auto drift_snap=map.LoadAuthorized(drift);map.MarkReady(drift,*drift_snap);
         admin<<"UPDATE app_world.\"TCHARTABLE\" SET \"dwEXP\"=42 WHERE \"dwUserID\"=708";
+        auto skill_drift=create(716,"SkillDrift",16);Check(claim(skill_drift),"skill drift recovery fixture claimed");
+        auto skill_drift_snap=map.LoadAuthorized(skill_drift);map.MarkReady(skill_drift,*skill_drift_snap);
+        admin<<"UPDATE app_world.\"TSKILLTABLE\" SET \"dwRemainTick\"=123 WHERE \"dwCharID\"=:c",soci::use(skill_drift.char_id,"c");
+        Check(Throws([&]{map.CheckpointAuthorized(skill_drift,*skill_drift_snap,1);})&&Throws([&]{map.SaveAuthorized(skill_drift,*skill_drift_snap);}),
+              "durable skill drift refuses checkpoint and logout without overwriting external change");
         const int pid=owner->BackendPid();int terminated=0;admin<<"SELECT CASE WHEN pg_terminate_backend(:p) THEN 1 ELSE 0 END",soci::use(pid),soci::into(terminated);
         Check(terminated==1&&!owner->Healthy(),"owner connection loss detected");owner.reset();
         admin<<"CREATE TRIGGER synthetic_recovery_fault BEFORE UPDATE ON app_global.\"TLOG\" FOR EACH ROW EXECUTE FUNCTION public.reject_map_save()";
@@ -215,7 +236,7 @@ int main(){
         admin<<"DROP TRIGGER synthetic_recovery_fault ON app_global.\"TLOG\"";
         owner=std::make_unique<tmapsvr::PostgreSQLMapOwner>(mapconn,1,1);
         Check(Number(admin,"SELECT count(*) FROM app_global.\"TCURRENTUSER\" WHERE \"dwUserID\"=704")==0,"replacement owner safely closes pre-ready claim");
-        Check(owner->OrphanedSessions()==2&&Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=705 AND phase='orphaned'")==1,"replacement preserves pre-checkpoint ready state as orphaned");
+        Check(owner->OrphanedSessions()==3&&Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=705 AND phase='orphaned'")==1,"replacement preserves pre-checkpoint ready state as orphaned");
         Check(Throws([&]{map.SaveAuthorized(dirty,*dirty_snap);}),"old process token cannot save after ownership replacement");
         Check(owner->RecoveredSessions()==2&&Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=707")==0&&
               Number(admin,"SELECT count(*) FROM app_global.\"TCURRENTUSER\" WHERE \"dwUserID\"=707")==0,
@@ -225,6 +246,11 @@ int main(){
               "recovery retains last committed core and an explicit recovery receipt");
         Check(Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=708 AND phase='orphaned'")==1,
               "core drift refuses automatic recovery");
+        Check(Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=716 AND phase='orphaned'")==1,
+              "skill drift refuses automatic crash recovery");
+        Check(Number(admin,"SELECT skill_state->0->>2 FROM app_world.map_checkpoints WHERE user_id=707")==4999&&
+              Number(admin,"SELECT CASE WHEN app_world.map_checkpoint_matches(map_checkpoints) THEN 1 ELSE 0 END FROM app_world.map_checkpoints WHERE user_id=707")==1,
+              "crash recovery retains exact committed skill cooldown alongside core");
         Check(Throws([&]{map.CheckpointAuthorized(recover,*recovered_snap,2);}),"old process cannot checkpoint after recovery");
         Check(Number(admin,"SELECT count(*) FROM app_world.map_sessions WHERE user_id=713")==0&&
               Number(admin,"SELECT count(*) FROM app_world.map_transfers WHERE user_id=713 AND phase='cancelled'")==1&&

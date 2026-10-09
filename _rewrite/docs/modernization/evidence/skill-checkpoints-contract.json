@@ -1,0 +1,138 @@
+{
+  "date": "2026-10-09",
+  "scope": "Native PostgreSQL fresh-primary skill cooldown durability without a primary Map transfer.",
+  "historical_authority": {
+    "database": "TGAME_RAGEZONE",
+    "backup_modules": [
+      {
+        "schema_name": "dbo",
+        "object_name": "TLogout",
+        "type_desc": "SQL_STORED_PROCEDURE",
+        "type": "P ",
+        "create_date": "2015-05-18T16:27:26.923",
+        "modify_date": "2015-05-18T16:27:26.923",
+        "parent_object": null,
+        "uses_ansi_nulls": 1,
+        "uses_quoted_identifier": 1,
+        "definition_available": true,
+        "normalized_sha256": "9de92f7faec409ae77be43e5a3ea3c1d8810a392ee4ee643d3d354fe329871d2"
+      },
+      {
+        "schema_name": "dbo",
+        "object_name": "TSaveCharDataEnd",
+        "type_desc": "SQL_STORED_PROCEDURE",
+        "type": "P ",
+        "create_date": "2015-05-18T16:27:27.147",
+        "modify_date": "2015-05-18T16:27:27.147",
+        "parent_object": null,
+        "uses_ansi_nulls": 1,
+        "uses_quoted_identifier": 1,
+        "definition_available": true,
+        "normalized_sha256": "fea2e2f9933628da67804852e41c5f35f10bfb1799bd3bd63cb400fd828f024a"
+      },
+      {
+        "schema_name": "dbo",
+        "object_name": "TSaveSkill",
+        "type_desc": "SQL_STORED_PROCEDURE",
+        "type": "P ",
+        "create_date": "2015-05-18T16:27:27.373",
+        "modify_date": "2018-08-17T16:47:08.247",
+        "parent_object": null,
+        "uses_ansi_nulls": 1,
+        "uses_quoted_identifier": 1,
+        "definition_available": true,
+        "normalized_sha256": "181d95918801e28ffd0f5a4a8975157cd2f93dc421abe54d551075120cddde9c"
+      }
+    ],
+    "evidence": "_rewrite/docs/database-reconstruction/evidence/backup-schema.json",
+    "behavior": [
+      "TSaveSkill stages (character, skill ID, rank, remaining tick) in TTEMPSKILLTABLE.",
+      "TLogout replaces learned skills from staging. TSaveCharDataEnd has the skill replacement commented out; modern periodic skill persistence is an explicit durability improvement.",
+      "Server/TMapSvr/SSSender.cpp samples GetReuseRemainTick(m_dwSaveTick); SSHandler.cpp restores nonzero remaining duration on the local process clock. No offline wall-clock decay is introduced."
+    ]
+  },
+  "implementation": {
+    "migration": "database/postgresql/021-native-skill-checkpoints.sql",
+    "recovery_contract": 3,
+    "snapshot": "Fresh periodic/final persistence samples live timers into a copied payload without creating a transfer graph. Expired timers become zero; unknown active skill IDs fail closed.",
+    "write": "The existing owned/account-locked transaction validates all learned IDs and ranks, updates only dwRemainTick, and commits core, skill receipt, audit and session release atomically.",
+    "receipt": "Core plus sorted unsigned [skill ID, rank, remaining milliseconds]. Same-revision and lost-final-response confirmations require exact skill values; skill ordering does not change identity.",
+    "fencing": "Process, connection and authority epoch checks retained. Current core and skill rows must agree with their receipt before save, primary transfer and owner recovery.",
+    "permissions": "Map gains UPDATE(dwRemainTick) only, plus EXECUTE on invoker-only state comparison functions. No skill INSERT/DELETE/rank update or historical access.",
+    "compatibility": "Contracts 1 and 2 remain readable; complete transfer graphs retain contract 2. Fresh relogin reads ordinary database state instead of transferring mail/account semantics into the wire graph.",
+    "deployment": "Apply 021 and deploy/sql/map-runtime-grants.sql before the new binary. Do not run old Map binaries against new contract-3 ready receipts."
+  },
+  "verification": {
+    "debug": {
+      "report": "native-skill-checkpoints.json",
+      "status": "passed",
+      "native_map_checks": 181,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 191,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7
+    },
+    "asan_ubsan": {
+      "report": "native-skill-checkpoints-asan.json",
+      "status": "passed",
+      "native_map_checks": 181,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 191,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7
+    },
+    "ctest_debug": {
+      "report": "skill-checkpoints-ctest.xml",
+      "entries": 200,
+      "actual_passes": 186,
+      "internal_legacy_skips": 8,
+      "explicit_skips": 6,
+      "failures": 0
+    },
+    "ctest_asan_ubsan": {
+      "report": "skill-checkpoints-asan.xml",
+      "entries": 32,
+      "actual_passes": 32,
+      "internal_legacy_skips": 0,
+      "explicit_skips": 0,
+      "failures": 0
+    },
+    "regression_before": {
+      "report": "skill-checkpoints-before.json",
+      "image_id": "a3e6e11a04aac78888b207c2069484c0928d3b06d3ba3bac6e823d798b7add79",
+      "expected_failure": "Map runtime wait: periodic fresh-primary checkpoint advances live cooldown without transfer",
+      "scope": "Previous installed daemon plus the current integration executable, against the same new encrypted TCP assertion and migrated disposable PostgreSQL."
+    },
+    "container_smoke": {
+      "report": "skill-checkpoints-container-verification.json",
+      "image": "localhost/fourstory:postgresql-skill-checkpoints",
+      "image_id": "6535b80498bf7dca024a7dce9f140a1fb3b8c40c4dc6d62f1114ad0b83777c9e",
+      "status": "passed",
+      "daemons": 6,
+      "uid_gid": "10001:10001"
+    },
+    "installed_release": {
+      "report": "native-skill-checkpoints-release.json",
+      "status": "passed",
+      "native_map_checks": 181,
+      "pool_tls_checks": 29,
+      "outer_tcp_checks": 191,
+      "world_handoff_checks": 295,
+      "world_secondary_checks": 66,
+      "two_map_checks": 99,
+      "second_map_rejection_checks": 7
+    }
+  },
+  "limitations": [
+    "Original client executable not run; protocol evidence uses source-derived encrypted peers.",
+    "Learning, forgetting, rank changes, active effects, quest/recall/companion timers and other native gameplay remain unfinished.",
+    "Initial CHARINFO carries the loaded remaining duration; exact send-instant refresh is a separate follow-up.",
+    "Crashes retain the last committed checkpoint; transient state after it can be lost.",
+    "Migration and tests do not rewrite or import historical player records. Backups and migrations 001-020 retain their pinned hashes.",
+    "High-load database/tick profiling and full ancillary state synchronization remain pending."
+  ]
+}

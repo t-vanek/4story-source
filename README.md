@@ -49,10 +49,21 @@ not a published registry image. The original client executable has not been run.
 
 The subsequent branch consolidation also passes **200 Debug CTest entries**
 (186 passes, eight internal skips and six explicit skips), plus **87 Control
-checks across three ASan/UBSan suites**. Its six-daemon image is
-`localhost/fourstory:main`. See the [merge verification report](_rewrite/docs/modernization/evidence/main-consolidation.json)
+checks across three ASan/UBSan suites**. See the [merge verification report](_rewrite/docs/modernization/evidence/main-consolidation.json)
 for the integrated branch tips, container smoke results and remaining Control
 persistence limits.
+
+The latest increment persists **skill cooldowns for fresh characters that never
+transfer between Maps**. Migration 021 adds atomic core/skill receipts, exact retry
+checks and crash recovery. Debug, ASan/UBSan and installed Release runs each pass 181 Map,
+29 pool/TLS and 191 outer TCP checks, plus the existing World/two-Map matrix.
+The previous installed image fails the new online-countdown assertion. See the
+[skill checkpoint contract](_rewrite/docs/modernization/evidence/skill-checkpoints-contract.json)
+for source evidence, deployment requirements and limitations. The full Debug suite
+remains at 200 entries (186 passes, 14 skips); all 32 sanitizer entries pass.
+The current installed image is `localhost/fourstory:postgresql-skill-checkpoints`
+(also tagged `localhost/fourstory:main`); its six services pass health/DNS/SIGTERM
+checks. See [container evidence](_rewrite/docs/modernization/evidence/skill-checkpoints-container-verification.json).
 
 ## Database authority
 
@@ -63,7 +74,7 @@ need adaptation, change the derived PostgreSQL schema through a new migration.
 - `legacy_game`, `legacy_global` and `legacy_game_tgame` preserve recovered data.
 - `content` and the compatibility views expose explicit, versioned projections.
 - `app_global` and `app_world` own mutable application and operational state.
-- Applied migrations **001–020 are immutable**; the next schema change starts at 021.
+- Applied migrations **001–021 are immutable**; the next schema change starts at 022.
 - Backups, credentials and private extraction output stay outside Git. Historical
   accounts, player records and missing combat values are never invented.
 

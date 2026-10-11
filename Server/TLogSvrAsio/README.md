@@ -11,7 +11,17 @@ designed to consume.
 > patch catalog vs legacy Araz sources:
 > [`_rewrite/docs/PATCH_README.md` §3](../../_rewrite/docs/PATCH_README.md#3-tlogsvr--tlogsvrasio)
 
-## Status — feature-complete vs legacy
+## Current native runtime requirement
+
+Production now requires an explicit database connection; StdoutLogSink remains
+an existing test/development type, not a production fallback. The existing native
+LP_LOG sink, migration029 and unknown-COMMIT no-retry behavior are preserved.
+[The example](../../deploy/config.example/tlogsvr.toml) selects PostgreSQL through
+FOURSTORY_LOG_PG. This configuration change is Phase A / UNVERIFIED; only
+compilation was performed. LP_CHAT, durable spool/reconciliation and complete tool
+acceptance remain open in the [active status](../../_rewrite/docs/modernization/full-rewrite-status.md).
+
+## Historical implementation notes (not a full-functionality claim)
 
 | Area | State |
 |---|---|

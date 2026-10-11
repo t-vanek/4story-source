@@ -229,8 +229,7 @@ int main(int argc, char** argv)
         }
         else
         {
-            sink = std::make_unique<tlogsvr::StdoutLogSink>();
-            spdlog::warn("log_sink: stdout (no [database] configured)");
+            throw std::runtime_error("Log server requires an explicit database connection; stdout sink is test-only");
         }
 
         // Server-to-server security gate (UDP source-IP allowlist).

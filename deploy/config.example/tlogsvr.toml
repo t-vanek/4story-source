@@ -1,7 +1,14 @@
-# Container smoke configuration: decoded audit events go to stdout.
+# Native PostgreSQL audit sink, migration029 and log-runtime-grants.sql.
+# Missing connection configuration must fail startup instead of losing audit.
 [server]
 bind = "0.0.0.0"
 port = 2000
+
+[database]
+backend = "postgresql"
+connection_string_env = "FOURSTORY_LOG_PG"
+pool_size = 4
+worker_threads = 1
 
 [health]
 port = 8800

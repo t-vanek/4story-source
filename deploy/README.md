@@ -13,12 +13,20 @@ Migration055 preserves old operation receipts as NULL and adds no historic data.
 The grant update covers durability/refinement and raw magic columns; do not
 assume the old repair role already has these permissions. None was applied here.
 
+Code `0fe24d2` additionally needs unapplied056–057, the current Map role grants
+and complete source publication using the existing `activate_quest_catalog.py`
+options `--item-gambling --item-upgrades` (retain `--special-boxes` when already
+published). Existing extended profiles cannot be implicitly downgraded. The
+[source contract](../_rewrite/docs/modernization/evidence/phase-a-item-upgrades-20261011/README.md)
+records the later Phase B command and prerequisites; it was not executed.
+Changed Map Debug/Release compilation succeeded. No runtime/cluster was started.
+
 World also needs `[security].control_ip_allowlist` with the actual Control peer
 IPv4 address/CIDR. Empty denies the original CT_CTRLSVR role; use the private peer
 network. The field is documented in `config.example/tworldsvr.toml`, whose
 in-memory smoke configuration is not a complete native gameplay deployment.
 No supported executable/assets are available and no complete current cluster was
-started. [Current compile-only evidence](../_rewrite/docs/modernization/evidence/phase-a-refine-events-20261011/README.md).
+started. [Current compile-only evidence](../_rewrite/docs/modernization/evidence/phase-a-item-upgrades-20261011/README.md).
 
 ## Native skill finishes with postures
 

@@ -26,7 +26,7 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–055** and native code extend quest state/actions, skill audit,
+New migrations **044–057** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -56,11 +56,20 @@ event CRUD/tick/replay and exact-connection retirement. Conditional territory
 bonuses, general effects and complete event recovery remain open. These paths
 are **INTEGRATED_UNVERIFIED**; see [source contracts and limits](_rewrite/docs/modernization/evidence/phase-a-refine-events-20261011/README.md).
 
-All six modern Debug and Release targets compile with tests disabled; this is
-build evidence only. Historical import tools and migrations044–055 are written, not
-executed. No tests, database migration, server startup or container run belongs
-to these changes. Previous migrations001–054 remain unchanged in this increment; the next unused
-migration number is056. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-refine-events-20261011/README.md).
+Code `0fe24d2` connects native GAMBLECHECK/GAMBLEOPEN and the ordinary ITEMUPGRADE
+branches: identification, sealing removal, upgrade/downgrade, gems, magic, appearance,
+wrapping, level reduction, refinement reset and color/effects. Probability consumables
+905/911/919/921/922/939 join the existing item/effect lifecycle. New migrations056–057
+and explicit import profiles preserve the complete historical gamble, gem and
+accessory charts. Conditional territory/PCBang and BOW integration remain open.
+These paths are **INTEGRATED_UNVERIFIED**; see [source contracts, repairs and deferred
+acceptance](_rewrite/docs/modernization/evidence/phase-a-item-upgrades-20261011/README.md).
+
+The changed Map target compiles and links in Debug and Release with tests disabled.
+Earlier evidence covers all six modern targets at its stated commits. Historical
+import tools and migrations044–057 are written, not executed. No tests, database
+migration, server startup or container run belongs to this increment. Previous
+migrations001–055 remain unchanged; the next unused migration number is058.
 
 ## Historical verification through `2fa2396`
 

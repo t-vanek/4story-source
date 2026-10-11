@@ -25,6 +25,14 @@ The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
 
+Current code `0fe24d2` adds native item identification and the ordinary upgrade
+switch branches, including numeric/gem/magic/appearance/color operations and
+pinned probability consumables. Additive056–057 extend complete source catalog
+publication; neither was applied. Map Debug/Release compile/link passed; no tests
+or runtime were executed. Source quirks, safety changes, missing territory/PCBang/
+BOW dependencies and later acceptance are recorded in the
+[item upgrade evidence](evidence/phase-a-item-upgrades-20261011/README.md).
+
 Code `fa4c282` extends the preceding quest reward/crafting implementation with
 EXP-item lifecycle, level-created903/923/918 effects, native ITEMUSE consumption
 and quest triggers, plus full player ENTER effects. Migration052 and the historical

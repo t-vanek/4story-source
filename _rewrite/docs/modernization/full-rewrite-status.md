@@ -8,10 +8,35 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–055 are **written, not applied**.
-Latest code increments: `0457d3d` (native refine/probability/World events) and
-`750c797` (Control transport/event lifecycle), based on `ae121d2`; earlier Phase A evidence
-is retained at its original revision.
+evidence remain unchanged. New migrations044–057 are **written, not applied**.
+Latest code increment: `0fe24d2` (native item gambling/upgrades and probability
+consumables), based on `2d9d369`. Earlier code `0457d3d` and `750c797` and all
+historical evidence retain their original scope.
+
+## Item identification, upgrades and probability consumables — `0fe24d2`
+
+- GAMBLECHECK/GAMBLEOPEN now enter the existing native primary transaction:
+  source quote precedence, unwrap/appearance reset, random template/magic/count,
+  whole-stack failure, new item identity, pre-debit capacity, currency/titles,
+  caller consumption and ordered GETITEM hooks. Uncertain commits are not retried.
+- ITEMUPGRADE connects its ordinary source switch branches: numeric upgrade/
+  downgrade, gems, appearance, magic/rare, clear magic, wrapping, equip-level
+  reduction, refine reset, grade/cloak effects, color, undye and accessory scrolls.
+  Source validation/results and random quirks are documented. Material/caller
+  aliases and undefined arithmetic are rejected; consumed material fields remain
+  owned values. This does not complete all economy, BOW or conditional territories.
+- Pure skills905/911/919/921/922/939 use actual ITEMUSE self-Defend, maintained
+  storage/transfer and the upgrade/magic/guard consumer. Lucky potion overlap and
+  tutorial guard preservation follow the source. General effects remain required.
+- Migrations056–057 and the existing offline publisher add complete gambling/
+  upgrade content gates. Historical empty accessory content and all gem rows are
+  preserved. Missing publication cannot silently become an empty gameplay chart.
+- Status: **INTEGRATED_UNVERIFIED**. Map Debug/Release compile/link passed;
+  test/migration/server/container execution remains deferred. Conditional guild/
+  hero discounts and bonuses, premium/PCBang, BOW and shop/deal/tournament producers
+  remain required. No full PostgreSQL-only or original-client compatibility claim.
+
+[Exact contracts, changes, compile evidence and acceptance backlog](evidence/phase-a-item-upgrades-20261011/README.md).
 
 ## Refine, probability items and event delivery — `0457d3d` / `750c797`
 
@@ -276,12 +301,13 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    Premium item templates7401/7402/7403 use skills900/901/902,7626/7627/7628 use
    914/915/916 in the available catalog; inspect their full data before admission.
    Complete remaining CS_ITEMUSE kinds beyond HP/MP/AP/full-resource/direct-EXP/
-   EXPBONUS/MONEY/SPECIALBOX/pure912/913, tournament/deal/store producers and exact effect
+   EXPBONUS/MONEY/SPECIALBOX/pinned probability skills, tournament/deal/store producers and exact effect
    sampling at save/transfer/logout. Do not confuse packet-time samples with
    durable sub-tick persistence. Soul Lottery820 is integrated, not verified.
    Ordinary REFINE/WASTEREFINE and received event probabilities are now connected.
    Complete conditional guild/hero NPC bonuses/discounts, BOW-specific branches,
-   remaining upgrades/gambling and general item effects. Preserve the new
+   complete economy integration and general item effects. Ordinary gambling and
+   upgrade branches are now integrated at0fe24d2, not verified. Preserve the new
    full-stack/magic/caller behavior and exact per-operation World observation;
    it is not a complete event replay/recovery barrier.
    Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN
@@ -308,6 +334,11 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    and finally Phase C local cluster. **No full PostgreSQL-only runtime claim.**
 
 ## Activities actually performed
+
+The changed Map target at `0fe24d2` compiles/links in Debug and Release with
+BUILD_TESTING=OFF and native PostgreSQL enabled. Static syntax/call-path inspection
+only; migrations056–057 and the extended import profiles were not executed.
+[Current commands, hashes and logs](evidence/phase-a-item-upgrades-20261011/README.md).
 
 All six modern C++20 Debug and Release targets compile/link with BUILD_TESTING=OFF
 for code commits `0457d3d` and `750c797`. This increment read existing historical

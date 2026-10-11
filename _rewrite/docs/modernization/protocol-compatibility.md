@@ -13,6 +13,16 @@ prototype; missing action/world integrations still reject rather than issue a
 fabricated success. See [working status](full-rewrite-status.md) for explicit
 changes to tie ordering, randomness, UTC expiration and transaction boundaries.
 
+Current `0fe24d2` additionally connects **unverified** original GAMBLECHECK5424
+(four bytes), GAMBLEOPEN5426 (six bytes) and ITEMUPGRADE5329 (ten bytes). Quote
+errors retain zero default fields; OPEN has its original currency header and
+optional descriptor without a repeated slot. Upgrade/magic/change-attribute
+responses retain their separate source layouts and order. The existing secure
+prompt precedes ITEMUPGRADE decoding; the source does not gate GAMBLE with it.
+No new client fields or protocol opcodes were added. Owning-copy/UAF repairs,
+archive-order policy, raw magic0 graph retention and other explicit differences
+are recorded in the [source contract](evidence/phase-a-item-upgrades-20261011/README.md).
+
 Code `ea7c811` additionally connects original completion/crafting result ordering,
 item/magic reward packets, GOLD/QUEST title updates, skill rewards and ordinary
 EXP/SOULUP/LEVEL/HPMP packets. Original MW_LEVELUP_ACK/REQ remains nine bytes;

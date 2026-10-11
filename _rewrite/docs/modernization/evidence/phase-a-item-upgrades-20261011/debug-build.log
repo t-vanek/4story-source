@@ -1,0 +1,23 @@
+[1/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_load.cpp.o
+[2/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_checkpoint.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp: In lambda function:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:1089:9: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+ 1089 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |         ^~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:1089:129: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+ 1089 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |                                                                                                                                 ^~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp: In member function ‘virtual tmapsvr::FinishSkillCommit tmapsvr::PostgreSQLMapService::FinishSkill(const tmapsvr::MapSessionClaim&, std::span<const std::byte>, const tmapsvr::CharSnapshot&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:1155:11: warning: suggest explicit braces to avoid ambiguous ‘else’ [-Wdangling-else]
+ 1155 |         if(!after.dwMP)for(std::size_t i=0;i<after.payload->effects->size();)
+      |           ^
+[3/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_progression.cpp.o
+[4/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_during.cpp.o
+[5/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_use.cpp.o
+[6/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_economy.cpp.o
+[7/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_refine.cpp.o
+[8/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_gamble.cpp.o
+[9/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_upgrade.cpp.o
+[10/12] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_inventory.cpp.o
+[11/12] Linking CXX static library lib/libtmapsvr_asio_core.a
+[12/12] Linking CXX executable bin/tmapsvr_asio

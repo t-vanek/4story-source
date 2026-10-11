@@ -17,7 +17,7 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–055; the next free number is056.
+immutable. Phase A has added unapplied migrations044–057; the next free number is058.
 
 The active continuation is now [full-rewrite-status.md](full-rewrite-status.md):
 remaining premium/PCBang, complete monster EXP benefits, remaining item kinds and
@@ -32,8 +32,11 @@ World numeric events and source CalcProb effect consumption to native persistenc
 and prevents old peer cleanup from removing a successor. These are unverified;
 see [source contracts and acceptance backlog](evidence/phase-a-refine-events-20261011/README.md).
 Continue conditional economy discounts/probability bonuses and the territory
-registry, remaining upgrades/gambling, shop/deal/tournament producers and general
-item skills. Complete monster event12/13 effects and Control crash/deactivation/
+registry, shop/deal/tournament producers and general item skills. Native ordinary
+gambling/upgrade branches and905/911/919/921/922/939 are now connected at0fe24d2;
+see [contracts and exact remaining dependencies](evidence/phase-a-item-upgrades-20261011/README.md).
+Complete their conditional territory/PCBang/BOW integration and broader economy
+producers without re-running Phase B tests during Phase A. Complete monster event12/13 effects and Control crash/deactivation/
 one-shot delivery; ordered socket writes do not provide application receipts.
 Also continue
 remaining quest action types, switch/territory state,

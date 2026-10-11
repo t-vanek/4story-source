@@ -20,10 +20,20 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–055 and archival/import tools are written, not executed. Debug and
+Migrations044–057 and archival/import tools are written, not executed. Debug and
 Release compilation of all six modern binaries succeeded; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
 [Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
+
+Current code `0fe24d2` adds these **INTEGRATED_UNVERIFIED** paths. Only Map
+Debug/Release compilation was executed; see [source and build evidence](evidence/phase-a-item-upgrades-20261011/README.md).
+
+| Capability | Implemented runtime path | Remaining scope / acceptance |
+|---|---|---|
+| Item identification/unsealing | GAMBLECHECK/OPEN → native owner transaction → original price/random/capacity/item/purse/title/quest responses | Territory discounts/probability; BOW; full native-role/PG/failure/client acceptance |
+| Item upgrades | Original ITEMUPGRADE → all ordinary source switch branches → same atomic item/effect/purse/checkpoint path | Territory/PCBang and shop/deal producers; general effects; unexecuted random/protocol/recovery acceptance |
+| Upgrade probability items | Pure905/911/919/921/922/939 → ITEMUSE self-Defend → maintained state and one-use CalcProb | General skills and exact durable timer sampling; zero-magic recovery difference acceptance |
+| Gamble/gem/accessory source content | Additive056/057; complete offline archive profiles and matching catalog gates | Migrations/publication not run; no original query order or client binary evidence |
 
 Current code `0457d3d` / `750c797` adds these **INTEGRATED_UNVERIFIED** paths:
 

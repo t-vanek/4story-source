@@ -1,0 +1,241 @@
+{
+  "recorded_at": "2026-10-11T17:35:28.996694+00:00",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "scope": "Ordinary Soul Lottery draw/settlement and effect820; money/AP items; special-box catalog/grants; native ITEMSELL and DURATIONREP; shared currency/title and exact item debit; original security prompt before request decoding",
+  "code_commit": "72d6504c0ab7f783090b69e70aaf5e8b82c8e302",
+  "base_commit": "7a7d3aba83f9a9d86e1b5306b84d8c6645854139",
+  "branch": "main",
+  "published": false,
+  "cpp_standard": "C++20",
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "cmake version 4.3.0",
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "exit_code": 0,
+      "log": "debug-security-build.log",
+      "log_sha256": "33963223b9e28e4f2f209e9e03d16b70c07709c466d875ab3cbabf52c1dc14bf",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON",
+        "FOURSTORY_SOCI_POSTGRESQL_LIBRARY": "/tmp/fourstory-phase-a-deps/usr/lib64/libsoci_postgresql.so"
+      },
+      "binaries": {
+        "tloginsvr_asio": {
+          "path": "build/phase-a-compile/bin/tloginsvr_asio",
+          "sha256": "68fa1e5cb26d7a911eb4b8ccd92dc420110cf2762ba4044e2100156946f67bf0"
+        },
+        "tworldsvr_asio": {
+          "path": "build/phase-a-compile/bin/tworldsvr_asio",
+          "sha256": "430512f23693a042ed95d1c88ff05ffcccbd7c1c78e34c685b904be5067081db"
+        },
+        "tmapsvr_asio": {
+          "path": "build/phase-a-compile/bin/tmapsvr_asio",
+          "sha256": "cd8d79fe4408b74c13b88c5306b021b610addc632f361a01df52da7101d94590"
+        },
+        "tcontrolsvr_asio": {
+          "path": "build/phase-a-compile/bin/tcontrolsvr_asio",
+          "sha256": "345c1b83a99d01e1993fc59e18db3e0612cbfc134221abc7f71a1beee7a3c481"
+        },
+        "tpatchsvr_asio": {
+          "path": "build/phase-a-compile/bin/tpatchsvr_asio",
+          "sha256": "b235c4dd9d7028a80aab4c5f2e94d4109accb9189a72f1dda270af814462c104"
+        },
+        "tlogsvr_asio": {
+          "path": "build/phase-a-compile/bin/tlogsvr_asio",
+          "sha256": "d651ce5bfd582025928aa063b8f4e7d37272b554c8b9bbcee592a94d5fb1dab1"
+        }
+      }
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "exit_code": 0,
+      "log": "release-security-build.log",
+      "log_sha256": "33963223b9e28e4f2f209e9e03d16b70c07709c466d875ab3cbabf52c1dc14bf",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON",
+        "FOURSTORY_SOCI_POSTGRESQL_LIBRARY": "/tmp/fourstory-phase-a-deps/usr/lib64/libsoci_postgresql.so"
+      },
+      "binaries": {
+        "tloginsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tloginsvr_asio",
+          "sha256": "7bd272eaa215f6d276c73e27c56a5ecce096cbf88f98eed24fc34695756276c9"
+        },
+        "tworldsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tworldsvr_asio",
+          "sha256": "452acc61bd324d38f3b727748698b06c627a22116b2df0e120ab0b00e1c20e81"
+        },
+        "tmapsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tmapsvr_asio",
+          "sha256": "0af31ea926644cbb2e19d4288297c86afc7fe5e26f67fdce8586ff8449e70507"
+        },
+        "tcontrolsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tcontrolsvr_asio",
+          "sha256": "e3adcc5370ca2ba4f5752872435724f12d65875ba0fcca02f6df0766a4a001e5"
+        },
+        "tpatchsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tpatchsvr_asio",
+          "sha256": "a855c67587fc8607824b540c7f151f6873b1c8ee559eb6606a0cd15df702f17f"
+        },
+        "tlogsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tlogsvr_asio",
+          "sha256": "5c70537a9fa802a1a1a7c09e1eadfcfcb6928c76ed5a96f2217b626e67abd4a8"
+        }
+      }
+    }
+  ],
+  "intermediate_compile_logs": {
+    "debug-build.log": "ece666dba1e7ab943aeb36d86eaeb89408e2048a8798e66d0d807c982f5e960f",
+    "debug-final-build.log": "8361c83715b992434428b531019323cd6f871aec415b553eda4b09726c498612",
+    "release-build.log": "ca5a571bd4b0dc85f0f5d31bc649ca10d84cb9f8345c5de1d3b4035b2aaa6ca9",
+    "debug-catalog-build.log": "9dced23a517b7b6d0baa57302747e0775112838b5392e48cd93892c73a6073bf",
+    "release-catalog-build.log": "9dced23a517b7b6d0baa57302747e0775112838b5392e48cd93892c73a6073bf",
+    "debug-economy-build.log": "cd32b883f63461489dbff1d4af0bd5c935d8d8b7bec18fe6a5ce20de9c56bc4d",
+    "release-economy-build.log": "d8c7fe2d052993cbfcc0dffae55bf10d7cd68dba7b57362cad056b508dcb4c86"
+  },
+  "source_sha256": {
+    "Server/TMapSvrAsio/CMakeLists.txt": "0764b379ead780091d37ab3c4f4ecd10ac1b47ede75c8efa1b0b78214a0913c0",
+    "Server/TMapSvrAsio/domain/character_payload.h": "d98818623f47322f97198d64ed44f6dd140648b09729029bb85c3864486bb8aa",
+    "Server/TMapSvrAsio/domain/maintained_effect.h": "f6c354b542df2f4486d29eff4611b1614e1ccc38bc28f3fb628311a2fc27f482",
+    "Server/TMapSvrAsio/handlers/dispatch.cpp": "66bed7f2fe6b656618d3b233c1777a31e3bd2cd4cf599d7509c80c4a9b67a930",
+    "Server/TMapSvrAsio/handlers/quest.cpp": "6bc8be86578fc619ff8d8463d80fdc9f5bbb7ca1f8adf85142aa77525baca858",
+    "Server/TMapSvrAsio/main.cpp": "a64453530a642bfedc9f1c6e7a042e796c2fffb6045eb224dda548d7f698510b",
+    "Server/TMapSvrAsio/services/legacy_random.h": "5a87bb0aafbf5b9c3bf4eae04858b2d4a394da124d1bc45e005a7c2aaa6a08ea",
+    "Server/TMapSvrAsio/services/native_npc_discount.h": "1472ce40dea4b1cd5c7f9499ca8a1a3923d643a1eb32f81bba20cec815fabe47",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "23acfe37a369b4d74dcdcb238e576c64212a883f8347b4fc91448ca986ea3e07",
+    "Server/TMapSvrAsio/services/postgresql_map_item_economy.cpp": "eff01a84e7f8c506721186dae93b4a4ba1dc79af4134ed349a1ef334f60bbf8c",
+    "Server/TMapSvrAsio/services/postgresql_map_item_use.cpp": "838325eff913259d939bd257f55e1ae8fb4b71e1050a33dcdd64d6af9fc4e890",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "94e7d0b82d9be8ad8c3b9ef3d0fc0c2d7a1d1cb906dc6016c15ae7abe29f2404",
+    "Server/TMapSvrAsio/services/postgresql_map_quest_items.cpp": "6a8c5034d779d10567a8105e4a8bdf0b39d355e50b6f09c7bebb6503448e8616",
+    "Server/TMapSvrAsio/services/postgresql_map_quest_rewards.cpp": "8233300c5cbaf666b0b2fe70fe9b10aea1a342be832128377e1136aefe52b37a",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "a1889f5a1175c9d415231a11c755dba0a14dc120d4e5fa4b56b7143f29b540b5",
+    "Server/TMapSvrAsio/services/postgresql_map_soul_lottery.cpp": "a0949c679619da466fb4e10017d48f80ec20146f8136a10458e99da464ef1d3d",
+    "Server/TMapSvrAsio/services/posture_effects.h": "ad0df95e740e51116812b7ea063096dd9bf0b58df00096c6cf8fb7bdd234e2ad",
+    "database/postgresql/054-native-special-box-catalog.sql": "66b79b28f82d1a438b14f036db047968b9fa38fbb41fe862b5c908d213ce6d86",
+    "tools/database/activate_quest_catalog.py": "b1d1b825e91a19fc79cd6e6374557a6b68ec0c6fa23013c9a71abe30588c0e92",
+    "Server/TMapSvr/CSHandler.cpp": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50",
+    "Server/TMapSvr/CSSender.cpp": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029",
+    "Server/TMapSvr/SSHandler.cpp": "8663a80a045d8a2a681c294bc80d8feb8ecd525812af151a60d3340afe8cf074",
+    "Server/TMapSvr/SSSender.cpp": "e39cc92a004b352cafc337307cf631214cd3680744d52e96a403fa75f07b7a53",
+    "Server/TMapSvr/TPlayer.cpp": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9",
+    "Server/TMapSvr/TItem.cpp": "b5db67d34ee07a909f834a623e7b62b9a5a947389251044d10fc65d8dfbd99c2",
+    "Server/TMapSvr/TObjBase.cpp": "9c6b97b0616605b9ee50e169cd1a93a45cf34e2be178663fc58005ba17764181",
+    "Server/TMapSvr/TMapSvr.cpp": "1b490618105e0f5ca338852d1cd7c007c01301641b381c3b391f857e4973dd7c",
+    "Server/TMapSvr/DBAccess.h": "364fcadbbb78e49f9e7e3e6cddb0f8623eb9315ed2a9195bb3e8103c24277d9d",
+    "Lib/Own/TProtocol/include/NetCode.h": "fa6b11998606c72a81e9ae282590d5afdbf2950d832a743b54ae0dd35e648c9d",
+    "Lib/Own/TProtocol/include/MessageId.h": "2de84ea6ef0e2a77d3226fc0f1698cb9af9295c7265f9299ec1f168702761bc2",
+    "Client/TClient/CSSender.cpp": "8c69c82b30d44e236d58797cc4f102df4fdf95a80df5696df468d5fa9a02c3f7",
+    "Client/TClient/CSSenderAll.cpp": "9935f563e72c27543ed45f19f4e5ff0fcc4fe32068354fec9250dca9b95530d9",
+    "Client/TClient/CSHandler.cpp": "51e3b85b5cd2d5af27be15f564ff45c875a02c2b70bed326648ef80484cd8ce3"
+  },
+  "historical_definition_inputs": [
+    {
+      "path": "/tmp/fourstory-learning-source-20261011/inspection/TGAME_RAGEZONE.catalog.json",
+      "sha256": "f6129dac18ab227eb2b19ff917976f0be4983b0b9290aac003dfb3feb0edf7a8"
+    },
+    {
+      "path": "/tmp/fourstory-learning-source-20261011/inspection/TGLOBAL_RAGEZONE.catalog.json",
+      "sha256": "06f58641ec47f4cf4a8db1f6b853e92ca9224d021a442db0e3cd67e0c0eb26c2"
+    },
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TITEMCHART.json",
+      "sha256": "e9f243d1e952e418bc6eeb4061e3b5b7f7427c391c33f20610bcbdb2cea8d3e6"
+    },
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TSKILLCHART.json",
+      "sha256": "e3356ca5a3cfa7d4a4ad091b8c90b108a0fdde16b7f034f5f1f89055fb51b275"
+    },
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TSKILLDATA.json",
+      "sha256": "54edf1d4b6e86dd7c5f08e632d7dfd9bca1f0dd49c202fc6b0351c880855aab7"
+    }
+  ],
+  "backup_identity_provenance": "Unchanged artifact-inventory.json; no backup extraction or reconciliation performed in this increment",
+  "pinned_backup_identities": [
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "size_bytes": 34009088,
+      "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259"
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "size_bytes": 36560896,
+      "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+    }
+  ],
+  "migrations": {
+    "new": [
+      "054-native-special-box-catalog.sql"
+    ],
+    "changed_existing": [],
+    "applied": [],
+    "next_free": "055"
+  },
+  "tests_executed": 0,
+  "phase_b_started": false,
+  "phase_c_started": false,
+  "postgresql_runtime_exercised": false,
+  "full_postgresql_only_runtime": false,
+  "import_executed": false,
+  "server_processes_started": 0,
+  "client_sessions": 0,
+  "containers_built_or_started": 0,
+  "client_binary": null,
+  "client_binary_sha256": null,
+  "client_assets": null,
+  "static_checks": [
+    "AST parse of activate_quest_catalog.py without importing/executing",
+    "git diff --check and git diff --cached --check",
+    "Original server and independent client layout/order/narrowing inspection",
+    "Source module/catalog read-only inspection",
+    "Native dispatcher/current owner/quest-head/item fingerprint/checkpoint call-path review",
+    "CSV field and stable-ID checks; evidence JSON syntax"
+  ],
+  "deferred": [
+    "All unit/integration/regression/protocol/PostgreSQL tests",
+    "Sanitizers/fuzz/benchmarks",
+    "Migration application and upgrade; catalog/archive import and reconciliation",
+    "Unknown commit/DB/process failure/concurrency/reconnect/transfer acceptance",
+    "Original client binary and asset acceptance",
+    "Container build/startup/restart"
+  ],
+  "limitations": [
+    "Whole original implementation inventory remains incomplete",
+    "Conditional guild/hero/territory discounts; PCBang/premium/pets",
+    "Complete shop/trade/tournament live-state producers",
+    "Special-box original SQL delivery order unspecified; five source rows not present in inspected character exports",
+    "General effects and precise durable sub-tick effect sampling",
+    "Original skill820 status73 is not status69 GAINEXP; no invented monster EXP multiplier",
+    "Full monster/AI/combat/rewards; World social/economy/war/mode/admin and missing Patch contracts"
+  ],
+  "explicit_differences": [
+    "Independent secure 15-bit draws preserve modulo bias but not CRT sequence",
+    "Commit before response and no write retry on unknown result",
+    "Explicit archive order for unordered special-box SELECT",
+    "Defined no-expiry for unbound source zero-day box m_dEndTime; UTC positive duration",
+    "Reject undefined numeric conversions and zero modulo, malformed box counts and oversized packet counts",
+    "Reject last same NPC-call instance deletion before sale/repair dereference"
+  ],
+  "feature_commit": "c4385af4414e3296c44864b9fe5b39f38f75d660"
+}

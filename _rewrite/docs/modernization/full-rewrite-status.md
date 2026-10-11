@@ -8,9 +8,38 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–053 are **written, not applied**.
-Latest code increment: `ff50e58`, after transfer confirmation `6a91e4a`; earlier Phase A evidence
+evidence remain unchanged. New migrations044–054 are **written, not applied**.
+Latest code increment: `72d6504` (security ordering), following `c4385af` based on
+`7a7d3ab`; earlier Phase A evidence
 is retained at its original revision.
+
+## Soul Lottery, boxes, sale and repair — `c4385af`
+
+- Original Soul Lottery requests now draw distinct source numbers and settle
+  payouts/titles/effect820 through native owner/quest-head fencing. Draw fields
+  retain their source player-object lifetime; they are not invented durable
+  claims. Effect820 joins the timer and template-based zero-MP lifecycle. Backup
+  status73 differs from GAINEXP69; no unsupported EXP multiplier is inferred.
+- ITEMUSE handles MONEY51 and the original intentional AP28 no-stat-change branch.
+  Special-box115 preserves source group/class/count/magic/extensions, capacity
+  before debit and USEITEM ordering. Migration054 adds an explicit complete-chart
+  publication gate and the offline activation tool's `--special-boxes` profile.
+- Native ITEMSELL preserves source price/power formulas, optional NPC-call debit,
+  currency/title changes and GETITEM count0 progress. Newly explicit shop/deal/
+  tournament flags still lack their complete native producers; ordinary admitted
+  players are the implemented scope, not full trade/shop/tournament integration.
+- DURATIONREP quotes and repairs a single item, equipment or all inventory using
+  source repair cost/raw magic percentages and reverse ACK ordering. Money/title
+  checks, caller consumption, durability and derived equipment refresh share one
+  transaction. Source UseMoney(FALSE)'s title side effect is retained. Conditional
+  discounts and premium/PCBang remain gated by their missing authority.
+- Follow-up `72d6504` restores the original secure-code prompt before decoding
+  item use/sale/repair bodies, including malformed requests while locked.
+- Same-instance NPC-call use-after-free and undefined numeric conversions are
+  explicitly rejected. Special-box expiry and unordered SQL handling are recorded
+  as differences. Earlier migration checksums and original sources are intact.
+
+[Exact source references, differences and compile-only evidence](evidence/phase-a-lottery-boxes-20261011/README.md).
 
 ## Resource items, shared reuse and recovery — `ff50e58` / `6a91e4a`
 
@@ -91,9 +120,10 @@ sharing, all general effects and the branches below still need native work.
   source/catalog rows, rejects ambiguous keys and retires stale offline owners.
   No catalog activation or data migration has run.
 
-**Remaining reward/progression branches after `fa4c282`:** account premium/PCBang
+**Remaining reward/progression branches after `c4385af`:** account premium/PCBang
 authority, daily timers/pets, complete monster EXP benefits, party/recall/guild
-statistics, general effects and Soul Lottery remain open. Ordinary EXP-item
+statistics and general effects remain open. Soul Lottery is now integrated but
+unverified, including its820 status discrepancy and admission-lifetime reset. Ordinary EXP-item
 level benefit creation no longer takes the earlier rollback guard.
 No whole QT_COMPLETE, crafting, level progression or effect system is marked done.
 
@@ -218,10 +248,14 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    TDURINGITEMTABLE + TGetPcBangData/TSetPcBangData and premium/daily/pet behavior.
    Premium item templates7401/7402/7403 use skills900/901/902,7626/7627/7628 use
    914/915/916 in the available catalog; inspect their full data before admission.
-   Complete remaining CS_ITEMUSE kinds beyond HP/MP/full-resource/direct-EXP/
-   EXPBONUS, tournament/deal/store gates and exact effect sampling at save/transfer/logout.
-   Do not confuse the new packet-time sample with durable sub-tick persistence.
-   Implement Soul Lottery request/trigger with its effect820 dependency.
+   Complete remaining CS_ITEMUSE kinds beyond HP/MP/AP/full-resource/direct-EXP/
+   EXPBONUS/MONEY/SPECIALBOX, tournament/deal/store producers and exact effect
+   sampling at save/transfer/logout. Do not confuse packet-time samples with
+   durable sub-tick persistence. Soul Lottery820 is integrated, not verified.
+   Continue REFINE with original CalcProb event/territory/effect authority
+   (TMapSvr.cpp:9615; CSHandler.cpp:14124), full-stack material deletion, magic
+   collision/transfer rules and native item ownership. Do not substitute zero
+   event state; reject source zero-material division and dangling caller aliases.
    Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN
    and all non-request kill/use-item/position/spawn producers. Quest mail uses
    TRESERVEDPOST then TGetReservedPost and storage2; carried-only TITEMTABLE cannot
@@ -245,10 +279,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 ## Activities actually performed
 
 All six modern C++20 Debug and Release targets compile/link with BUILD_TESTING=OFF
-for code commit `ff50e58`. The entitlement and item-cooldown import tools were AST-parsed without
-importing/executing it. `git diff --check` passes. Compilation does not establish
+for code commit `72d6504`. The changed quest catalog activation tool was AST-parsed
+without importing/executing it. `git diff --check` passes. Compilation does not establish
 gameplay, persistence or protocol parity.
 Exact configuration, commands and logs are retained in
+[evidence/phase-a-lottery-boxes-20261011](evidence/phase-a-lottery-boxes-20261011/README.md).
+Previous resource/cooldown compile evidence remains in
 [evidence/phase-a-item-use-20261011](evidence/phase-a-item-use-20261011/README.md).
 Previous entitlement compile evidence remains in
 [evidence/phase-a-during-items-20261011](evidence/phase-a-during-items-20261011/README.md).

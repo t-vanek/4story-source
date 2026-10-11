@@ -16,10 +16,14 @@ effects. `ff50e58` adds ordinary resource/direct-EXP consumables and complete
 item cooldown load/save/transfer plumbing; `6a91e4a` removes the automatic retry
 of a promotion write after an uncertain commit. These are UNVERIFIED. Premium/PCBang, monster reward benefits, other consumable kinds, remaining
 quest actions, switch/territory state, World persistence and full parity stay open.
-Migrations044–053 and archival/import tools are written, not executed. Debug and
+Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
+source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
+tournament producers, conditional NPC discounts and premium branches are still
+missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
+Migrations044–054 and archival/import tools are written, not executed. Debug and
 Release compilation of all six modern binaries succeeded; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
-[Exact source scope and limitations](evidence/phase-a-item-use-20261011/README.md).
+[Exact source scope and limitations](evidence/phase-a-lottery-boxes-20261011/README.md).
 
 Status vocabulary: NOT_ANALYZED → ANALYZED → SPECIFIED → IMPLEMENTING → IMPLEMENTED
 → INTEGRATED → VERIFIED; BLOCKED identifies a specific missing contract. Status

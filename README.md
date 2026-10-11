@@ -26,7 +26,7 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–053** and native code extend quest state/actions, skill audit,
+New migrations **044–054** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -38,14 +38,21 @@ direct-EXP consumables, shared item cooldowns through CHARINFO/save/transfer,
 migration053 and an offline TITEMUSEDTABLE importer. `6a91e4a` separates read-only
 transfer confirmation from a promotion write after an unknown commit. These
 bounded paths are **INTEGRATED_UNVERIFIED**.
+Code `c4385af` adds Soul Lottery draw/settlement and effect820, money/AP items,
+historical special-box publication/grants (migration054), original item sale and
+single/equipment/all durability repair. Item/purse/title changes use the existing
+native transaction and ownership fences. Follow-up `72d6504` preserves the
+original security prompt before decoding protected item requests. Source differences and the bounded
+ordinary-player profile are recorded in the
+[implementation and compile evidence](_rewrite/docs/modernization/evidence/phase-a-lottery-boxes-20261011/README.md).
 Account premium/PCBang, complete monster rewards and other item-use kinds remain
 unfinished. See the [exact continuation](_rewrite/docs/modernization/full-rewrite-status.md#exact-continuation--implementation-gate).
 
 All six modern Debug and Release targets compile with tests disabled; this is
-build evidence only. Historical import tools and migrations052–053 are written, not
+build evidence only. Historical import tools and migrations052–054 are written, not
 executed. No tests, database migration, server startup or container run belongs
-to these changes. Previous migrations001–052 remain unchanged in this increment; the next unused
-migration number is054. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-item-use-20261011/README.md).
+to these changes. Previous migrations001–053 remain unchanged in this increment; the next unused
+migration number is055. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-lottery-boxes-20261011/README.md).
 
 ## Historical verification through `2fa2396`
 

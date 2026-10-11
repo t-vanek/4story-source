@@ -40,6 +40,15 @@ transfer completion a read-only receipt confirmation. Both increments remain
 **INTEGRATED_UNVERIFIED**; [source and build evidence](evidence/phase-a-item-use-20261011/README.md)
 records the precise limits and next implementation work.
 
+Code `c4385af` adds the original Soul Lottery draw/settlement, pinned820 lifecycle,
+MONEY51/AP28 and special-box115 item use, native sale and durability quote/repair.
+The existing quest operation transaction fences currency, titles, items, effects
+and checkpoint state; the original packet layouts/order are retained within the
+[documented ordinary-player scope](evidence/phase-a-lottery-boxes-20261011/README.md).
+Migration054 publishes historical special-box definitions only after explicit
+complete import proof. It is written, not applied; the next migration is055.
+All new paths remain **INTEGRATED_UNVERIFIED**, and the full Phase A gate is open.
+
 ## Native account secure-code lifecycle (2026-10-11)
 
 The existing Map dispatcher now handles original CREATE, CHANGE, DISABLE, ENABLE,

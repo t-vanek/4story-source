@@ -22,8 +22,8 @@ validator. Original SQL fragments, old dev fixtures and repository labels cannot
 override the backup evidence. Global and game catalogs remain distinct; the
 implemented gameplay views deliberately publish **TGAME**.
 
-**Active Phase A, `ff50e58`:** the current source requires the additive migration
-sequence through053. New migrations044–053 and their import tools are written,
+**Active Phase A, `c4385af`:** the current source requires the additive migration
+sequence through054. New migrations044–054 and their import tools are written,
 not applied or verified. Migration052 adds the character EXP entitlement slot,
 account entitlement projection and checkpoint comparison. The offline
 `tools/database/import_during_items.py` requires a complete verified historical
@@ -42,7 +42,23 @@ an offline world and no existing target state/checkpoint. It preserves all signe
 source values as unsigned WORD/DWORD values, including zero/long durations.
 The runtime separately applies the original LOADCHAR filters. This command has
 **not** been executed; it belongs to Phase B against an isolated copy. Reapply
-`deploy/sql/map-runtime-grants.sql` after upgrading. Next free migration:054.
+`deploy/sql/map-runtime-grants.sql` after upgrading. Next free migration:055.
+
+Migration054 publishes historical TSPECIALBOXCHART through the existing quest
+catalog only after complete proof. For Phase B, the extended offline command is:
+
+```sh
+python3 tools/database/activate_quest_catalog.py --manifest <complete-manifest.json> --global-database-alias TGLOBAL_GSP=TGLOBAL_RAGEZONE --special-boxes
+```
+
+This command was **not executed**. It requires the existing full archive import,
+matching Map/character/actor publications, pinned backup identities and an offline
+owner barrier. Existing quest-only receipts are retained with the new flag false;
+they cannot supply guessed box contents. An extended publication cannot silently
+be downgraded by an old-profile retry. Reapply Map grants for the new views after
+upgrading. Sale, repair and Soul Lottery reuse native item/title/core/effect rows
+and the quest operation/checkpoint fences; no SQL Server call was added.
+See [source/data limitations](../_rewrite/docs/modernization/evidence/phase-a-lottery-boxes-20261011/README.md).
 
 Migration files `001`–`006` are immutable. `005` creates explicit catalog
 selection/history and `006` exposes the 15 reference tables with both quoted

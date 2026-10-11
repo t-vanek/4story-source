@@ -45,6 +45,32 @@ calculation. No runtime or packet acceptance was executed.
 a prepared/absent receipt cannot trigger another promotion attempt.
 See [scoped implementation and deferred acceptance](evidence/phase-a-item-use-20261011/README.md).
 
+Code `c4385af` adds the following source-derived packets through existing native
+Map transactions. Follow-up `72d6504` restores the original security prompt before
+item use/sale/repair body decoding, including malformed locked requests.
+All are **INTEGRATED_UNVERIFIED**, with no original executable
+or protocol runtime acceptance:
+
+| Operation | Original request | Original response and ordering |
+|---|---|---|
+| Soul Lottery | 0x54FB / 0x54FD; empty bodies | 0x54FC: five DWORDs; settlement titles → MONEY → 0x54FE: DWORD roll/award + BYTE win → forced820 effect |
+| Money item51 | Existing ITEMUSE0x52CA | Titles → MONEY → OPENMONEY0x5453 DWORD amount → common item/reuse/result/quest path; AP28 preserves its original no-stat-change branch |
+| Special box115 | Existing ITEMUSE0x52CA | Original ADD/UPDATE item descriptors then box debit/result/USEITEM hook; IU_FULL leaves the box intact |
+| Item sale | 0x5306; five BYTEs (bag/slot/count/caller bag/slot) | Optional caller debit → gold titles → sold item debit → 0x5307 BYTE result + three DWORD purse fields → GETITEM count0 update; no separate MONEY |
+| Durability repair | 0x543C; BYTE quote/type/bag/slot + WORD NPC + BYTE caller bag/slot | Quote0x543D: DWORD cost + BYTE discount. Execution preserves preflight titles, caller debit, charge/title/MONEY then0x543E result/count BYTEs + reversed BYTE bag/slot and DWORD max/current entries |
+
+Sources are the original Map handlers/senders, TItem calculations and independent
+client send/readers, identified in the
+[source contract and differences](evidence/phase-a-lottery-boxes-20261011/README.md).
+Source lottery state resets with player-object admission; no client transfer
+field was added. Skill820's pinned status73 is not the source GAINEXP69 reader,
+so no EXP multiplier is inferred from its display name. The template zero-MP
+rule still applies to820 with a finite forced duration. Secure 15-bit draws,
+archive ordering for unordered box SQL, defined zero-day expiry and rejection
+of undefined numeric/caller-pointer cases are explicit modern differences.
+Shop/deal/tournament producers, conditional territory discounts and premium
+admission remain incomplete; these packets do not certify those game systems.
+
 Native Patch metadata sends the original varchar byte sequences, not a UTF-8
 re-encoding of decoded catalog text (`TPatchSvr.vcxproj` is MultiByte). Backup
 `dbo.TMinBetaVer` sets OUT parameter `@dwMinVer=2`; `CSPMinBetaVer` instead binds a

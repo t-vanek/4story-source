@@ -17,12 +17,18 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–053; the next free number is054.
+immutable. Phase A has added unapplied migrations044–054; the next free number is055.
 
 The active continuation is now [full-rewrite-status.md](full-rewrite-status.md):
 remaining premium/PCBang, complete monster EXP benefits, remaining item kinds and
 precise durable effect sampling after entitlement `fa4c282` and resource/item-cooldown
-commit `ff50e58` (shared cooldown persistence is now implemented, unverified),
+commit `ff50e58` (shared cooldown persistence is now implemented, unverified).
+Code `c4385af` additionally connects Soul Lottery/820, MONEY/AP/special boxes,
+ITEMSELL and DURATIONREP for the documented ordinary-player profile. All remain
+unverified; special-box publication requires migration054 and a complete source
+archive. Continue conditional economy discounts and shop/deal/tournament producers;
+REFINE requires CalcProb's live event values and effect consumption before a
+source-correct chance can be committed. Also continue
 remaining quest action types, switch/territory state,
 World persistence, Control event delivery/recovery and the unresolved Patch pre-version contracts.
 

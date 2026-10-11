@@ -176,6 +176,7 @@ StepScheduler(std::int64_t now_unix, EventRegistry& registry)
         }
     }
 
+    for(auto& action:out)if(const auto* ev=registry.Find(action.event_index))action.event=*ev;
     for (auto idx : to_delete)
         registry.Erase(idx);
 
@@ -193,6 +194,9 @@ EventSchedulerLoop::Run()
         co_await timer.async_wait(
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec) break;
+        if(m_guard)co_await m_guard();
+        if(!m_registry.TryBeginMutation())continue;
+        struct Mutation {EventRegistry& registry;~Mutation(){registry.EndMutation();}} mutation{m_registry};
 
         const std::int64_t now = std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -227,6 +231,7 @@ PeersForEvent(const EventInfo& ev, PeerRegistry& peers)
 boost::asio::awaitable<void>
 EventSchedulerLoop::Apply(const SchedulerAction& action)
 {
+    if(m_guard)co_await m_guard();
     if (action.kind == SchedulerAction::Kind::EventDelete)
     {
         if (m_repo)
@@ -236,14 +241,15 @@ EventSchedulerLoop::Apply(const SchedulerAction& action)
             // operator response. Errors are logged in the repo impl.
             EventInfo dummy{};
             dummy.index = action.event_index;
-            m_repo->Persist(dummy, event_op::kDel, "");
+            if(m_repo->Persist(dummy, event_op::kDel, "")!=event_result::kSuccess)
+                throw std::runtime_error("Event deletion was not persisted");
         }
         spdlog::info("event_scheduler: deleted event idx={}",
             action.event_index);
         co_return;
     }
 
-    const auto* ev = m_registry.Find(action.event_index);
+    const auto* ev = action.event ? &*action.event : m_registry.Find(action.event_index);
     if (!ev) co_return;
     const auto recipients = PeersForEvent(*ev, m_peers);
 

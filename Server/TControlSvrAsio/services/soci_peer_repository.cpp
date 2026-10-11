@@ -6,6 +6,7 @@
 #include <ctime>
 #include <stdexcept>
 #include <string>
+#include <limits>
 
 namespace tcontrolsvr {
 
@@ -44,13 +45,35 @@ std::tm UnixToTm(std::int64_t unix_sec)
 
 } // namespace
 
-SociPeerRepository::SociPeerRepository(fourstory::db::SessionPool& pool)
-    : m_pool(pool)
+SociPeerRepository::SociPeerRepository(fourstory::db::SessionPool& pool, std::shared_ptr<native_control::Owner> owner)
+    : m_owner(std::move(owner)), m_pool(pool)
 {
 }
 
 void SociPeerRepository::Upsert(const RegistryEntry& entry)
 {
+    if(native_control::Enabled(m_pool)) {
+        if(m_commit_uncertain)throw std::runtime_error("Peer registry commit outcome unknown; restart required");
+        if(!entry.lease_epoch||entry.lease_epoch>std::uint64_t(std::numeric_limits<long long>::max()))
+            throw std::runtime_error("Invalid durable peer epoch");
+        auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=native_control::Begin(sql,m_owner);
+        const int id=entry.service_id,port=entry.reported_port;
+        const long long pid=entry.pid,start=entry.start_unix,cur=entry.cur_users,max=entry.max_users,epoch=entry.lease_epoch;
+        const auto name=native_control::Hex(entry.reported_name),version=native_control::Hex(entry.version);long long stored=0;
+        sql << "INSERT INTO runtime_control.peer_registry(service_id,name_bytes,reported_addr,reported_port,version_bytes,pid,start_unix,"
+               "cur_users,max_users,lease_epoch,registered_at,heartbeat_at) "
+               "VALUES(:id,decode(:name,'hex'),:addr,:port,decode(:version,'hex'),:pid,:start,:cur,:max,:epoch,clock_timestamp(),clock_timestamp()) "
+               "ON CONFLICT(service_id) DO UPDATE SET name_bytes=EXCLUDED.name_bytes,reported_addr=EXCLUDED.reported_addr,"
+               "reported_port=EXCLUDED.reported_port,version_bytes=EXCLUDED.version_bytes,pid=EXCLUDED.pid,start_unix=EXCLUDED.start_unix,"
+               "cur_users=EXCLUDED.cur_users,max_users=EXCLUDED.max_users,lease_epoch=EXCLUDED.lease_epoch,"
+               "registered_at=EXCLUDED.registered_at,heartbeat_at=EXCLUDED.heartbeat_at "
+               "WHERE runtime_control.peer_registry.lease_epoch<EXCLUDED.lease_epoch RETURNING lease_epoch",
+            soci::use(id,"id"),soci::use(name,"name"),soci::use(entry.reported_addr,"addr"),soci::use(port,"port"),
+            soci::use(version,"version"),soci::use(pid,"pid"),soci::use(start,"start"),soci::use(cur,"cur"),
+            soci::use(max,"max"),soci::use(epoch,"epoch"),soci::into(stored);
+        if(!sql.got_data()||stored!=epoch)throw std::runtime_error("Newer peer registration exists");
+        native_control::Commit(*tx,m_commit_uncertain,m_owner);return;
+    }
     const auto [g, t, s] = Decompose(entry.service_id);
     const int ig = g, it = t, is = s;
 
@@ -125,6 +148,16 @@ void SociPeerRepository::UpdateHeartbeat(std::uint32_t service_id,
                                           std::uint32_t cur_users,
                                           std::uint32_t max_users)
 {
+    if(native_control::Enabled(m_pool)) {
+        if(m_commit_uncertain)throw std::runtime_error("Peer registry commit outcome unknown; restart required");
+        auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=native_control::Begin(sql,m_owner);
+        const int id=service_id;const long long epoch=lease_epoch,cur=cur_users,max=max_users;long long found=0;
+        sql << "UPDATE runtime_control.peer_registry SET cur_users=:cur,max_users=:max,heartbeat_at=clock_timestamp() "
+               "WHERE service_id=:id AND lease_epoch=:epoch RETURNING lease_epoch",
+            soci::use(cur,"cur"),soci::use(max,"max"),soci::use(id,"id"),soci::use(epoch,"epoch"),soci::into(found);
+        if(!sql.got_data()||found!=epoch)throw std::runtime_error("Peer heartbeat owner changed");
+        native_control::Commit(*tx,m_commit_uncertain,m_owner);return;
+    }
     const auto [g, t, s] = Decompose(service_id);
     const int ig = g, is = s;
     const int cu = static_cast<int>(cur_users);
@@ -153,6 +186,7 @@ void SociPeerRepository::UpdateHeartbeat(std::uint32_t service_id,
 
 void SociPeerRepository::Delete(std::uint32_t service_id)
 {
+    if(native_control::Enabled(m_pool))throw std::runtime_error("Native peer removal requires an epoch");
     const auto [g, t, s] = Decompose(service_id);
     const int ig = g, is = s;
 
@@ -170,6 +204,24 @@ void SociPeerRepository::Delete(std::uint32_t service_id)
     }
 }
 
+std::uint64_t SociPeerRepository::ReserveEpoch() {
+    if(!native_control::Enabled(m_pool))return 0; // Existing ODBC process-local contract.
+    if(m_commit_uncertain)throw std::runtime_error("Peer registry commit outcome unknown; restart required");
+    auto lease=m_pool.Acquire();auto tx=native_control::Begin(*lease,m_owner);long long epoch=0;
+    (*lease) << "SELECT nextval('runtime_control.peer_epoch')",soci::into(epoch);
+    if(epoch<=0)throw std::runtime_error("Peer epoch exhausted");
+    native_control::Commit(*tx,m_commit_uncertain,m_owner);return static_cast<std::uint64_t>(epoch);
+}
+void SociPeerRepository::DeleteIfEpoch(std::uint32_t service_id,std::uint64_t lease_epoch) {
+    if(!native_control::Enabled(m_pool)){Delete(service_id);return;}
+    if(m_commit_uncertain)throw std::runtime_error("Peer registry commit outcome unknown; restart required");
+    auto lease=m_pool.Acquire();auto tx=native_control::Begin(*lease,m_owner);
+    const int id=service_id;const long long epoch=lease_epoch;
+    (*lease) << "DELETE FROM runtime_control.peer_registry WHERE service_id=:id AND lease_epoch=:epoch",
+        soci::use(id,"id"),soci::use(epoch,"epoch");
+    native_control::Commit(*tx,m_commit_uncertain,m_owner);
+}
+
 void SociPeerRepository::InsertStatusLog(std::uint8_t  group_id,
                                           std::uint8_t  server_id,
                                           std::uint8_t  type_id,
@@ -182,6 +234,15 @@ void SociPeerRepository::InsertStatusLog(std::uint8_t  group_id,
     const int it  = type_id;
     const int old_s = static_cast<int>(old_status);
     const int new_s = static_cast<int>(new_status);
+
+    if(native_control::Enabled(m_pool)) {
+        if(m_commit_uncertain)throw std::runtime_error("Peer registry commit outcome unknown; restart required");
+        auto lease=m_pool.Acquire();auto tx=native_control::Begin(*lease,m_owner);const auto bytes=native_control::Hex(reason);
+        (*lease) << "INSERT INTO runtime_control.peer_status_log(group_id,server_id,type_id,old_status,new_status,reason_bytes) "
+                    "VALUES(:g,:s,:t,:old,:new,decode(:reason,'hex'))",
+            soci::use(ig,"g"),soci::use(is,"s"),soci::use(it,"t"),soci::use(old_s,"old"),soci::use(new_s,"new"),soci::use(bytes,"reason");
+        native_control::Commit(*tx,m_commit_uncertain,m_owner);return;
+    }
 
     try
     {
@@ -221,6 +282,7 @@ void SociPeerRepository::InsertStatusLog(std::uint8_t  group_id,
 
 void SociPeerRepository::InsertMetrics(const PeerMetricsSample& sample)
 {
+    std::lock_guard lock(m_metrics_mutex);
     // One INSERT per peer per minute — throttle checked here so
     // OnServiceMonitorReq can call unconditionally.
     const auto now = std::chrono::steady_clock::now();
@@ -241,6 +303,15 @@ void SociPeerRepository::InsertMetrics(const PeerMetricsSample& sample)
     const int ses = static_cast<int>(sample.sessions);
     const int usr = static_cast<int>(sample.users);
     const int act = static_cast<int>(sample.active);
+
+    if(native_control::Enabled(m_pool)) {
+        if(m_commit_uncertain)throw std::runtime_error("Peer registry commit outcome unknown; restart required");
+        auto lease=m_pool.Acquire();auto tx=native_control::Begin(*lease,m_owner);
+        const long long sessions=sample.sessions,users=sample.users,active=sample.active;
+        (*lease) << "INSERT INTO runtime_control.peer_metrics(group_id,server_id,type_id,sessions,users,active_users) VALUES(:g,:s,:t,:sessions,:users,:active)",
+            soci::use(ig,"g"),soci::use(is,"s"),soci::use(it,"t"),soci::use(sessions,"sessions"),soci::use(users,"users"),soci::use(active,"active");
+        native_control::Commit(*tx,m_commit_uncertain,m_owner);return;
+    }
 
     try
     {
@@ -265,6 +336,24 @@ void SociPeerRepository::InsertMetrics(const PeerMetricsSample& sample)
 std::vector<RegistryEntry> SociPeerRepository::LoadAll()
 {
     std::vector<RegistryEntry> result;
+    if(native_control::Enabled(m_pool)) {
+        auto lease=m_pool.Acquire();auto tx=native_control::Begin(*lease,m_owner);
+        soci::rowset<soci::row> rows=((*lease).prepare <<
+            "SELECT service_id,encode(name_bytes,'hex'),reported_addr,reported_port,encode(version_bytes,'hex'),pid,start_unix,cur_users,max_users,lease_epoch,"
+            "least(greatest(extract(epoch FROM clock_timestamp()-registered_at),0),86400)::bigint,"
+            "least(greatest(extract(epoch FROM clock_timestamp()-heartbeat_at),0),86400)::bigint FROM runtime_control.peer_registry ORDER BY service_id");
+        const auto now=std::chrono::steady_clock::now();
+        for(const auto& r:rows) {
+            RegistryEntry e;e.service_id=r.get<int>(0);e.reported_name=native_control::Bytes(r.get<std::string>(1));
+            e.reported_addr=r.get<std::string>(2);e.reported_port=static_cast<std::uint16_t>(r.get<int>(3));
+            e.version=native_control::Bytes(r.get<std::string>(4));e.pid=static_cast<std::uint32_t>(r.get<long long>(5));
+            e.start_unix=r.get<long long>(6);e.cur_users=static_cast<std::uint32_t>(r.get<long long>(7));
+            e.max_users=static_cast<std::uint32_t>(r.get<long long>(8));e.lease_epoch=r.get<long long>(9);
+            e.registered_at=now-std::chrono::seconds(r.get<long long>(10));e.last_heartbeat_at=now-std::chrono::seconds(r.get<long long>(11));
+            result.push_back(std::move(e));
+        }
+        tx->commit();return result;
+    }
     try
     {
         auto lease = m_pool.Acquire();
@@ -317,18 +406,27 @@ std::vector<RegistryEntry> SociPeerRepository::LoadAll()
 
 void SociPeerRepository::PurgeOldRows(int status_log_days, int metrics_days)
 {
+    if(status_log_days<0||metrics_days<0)throw std::runtime_error("Negative Control retention");
+    if(native_control::Enabled(m_pool)) {
+        if(m_commit_uncertain)throw std::runtime_error("Peer registry commit outcome unknown; restart required");
+        auto lease=m_pool.Acquire();auto tx=native_control::Begin(*lease,m_owner);
+        (*lease) << "DELETE FROM runtime_control.peer_status_log WHERE changed_at<clock_timestamp()-make_interval(days=>:days)",soci::use(status_log_days);
+        (*lease) << "DELETE FROM runtime_control.peer_metrics WHERE sampled_at<clock_timestamp()-make_interval(days=>:days)",soci::use(metrics_days);
+        native_control::Commit(*tx,m_commit_uncertain,m_owner);return;
+    }
     try
     {
         auto lease = m_pool.Acquire();
         auto& sql  = *lease;
 
+        const int status_offset=-status_log_days,metrics_offset=-metrics_days;
         sql << "DELETE FROM TPEER_STATUS_LOG "
                "WHERE dtChangedAt < DATEADD(day, :d, GETDATE())",
-            soci::use(-status_log_days, "d");
+            soci::use(status_offset, "d");
 
         sql << "DELETE FROM TPEER_METRICS "
                "WHERE dtSampledAt < DATEADD(day, :d, GETDATE())",
-            soci::use(-metrics_days, "d");
+            soci::use(metrics_offset, "d");
 
         spdlog::info("soci_peer_repository: purged status_log >{}d, "
                      "metrics >{}d", status_log_days, metrics_days);

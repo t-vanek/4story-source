@@ -62,6 +62,33 @@ bool TableHasColumns(soci::session& sql,
 void ValidateGlobalSchema(fourstory::db::SessionPool& pool)
 {
     auto lease = pool.Acquire();
+    if(pool.GetBackend()==fourstory::db::Backend::PostgreSQL) {
+        auto& sql=*lease;int contract=0;
+        sql << "SELECT contract FROM app_control.runtime_contract WHERE singleton",soci::into(contract);
+        if(!sql.got_data()||contract!=1)throw std::runtime_error("Native Control catalog is not initialized");
+        sql << "SELECT contract FROM app_patch.runtime_contract WHERE singleton",soci::into(contract);
+        if(!sql.got_data()||contract!=1)throw std::runtime_error("Native Patch catalog is not initialized");
+        // Qualified probes cannot accidentally accept a SQL Server compatibility
+        // view or a table with the same name on another search_path.
+        for(const char* query:{
+            "SELECT name,name_bytes,password_salt,password_hash,password_iterations,authority FROM app_control.operators WHERE false",
+            "SELECT generation,backend_pid,backend_start FROM app_control.writer WHERE false",
+            "SELECT \"bGroupID\",name_bytes FROM app_control.\"TGROUP\" WHERE false",
+            "SELECT \"bMachineID\",name_bytes,\"bRouteID\" FROM app_control.\"TMACHINE\" WHERE false",
+            "SELECT \"bMachineID\",network_bytes FROM app_control.\"TNETWORK\" WHERE false",
+            "SELECT \"bMachineID\",public_bytes,private_bytes,\"bActive\" FROM app_control.\"TIPADDR\" WHERE false",
+            "SELECT \"bType\",name_bytes,\"bControl\" FROM app_control.\"TSVRTYPE\" WHERE false",
+            "SELECT \"bGroupID\",\"bServerID\",\"bType\",\"bMachineID\",\"wPort\",name_bytes FROM app_control.\"TSERVER\" WHERE false",
+            "SELECT \"wID\",name_bytes,\"bCanSell\" FROM app_control.\"TCASHSHOPITEMCHART\" WHERE false",
+            "SELECT \"dwIndex\",\"bID\",title_bytes,\"bGroupID\",\"bSvrType\",\"bSvrID\",\"dStartDate\",\"dEndDate\",\"wValue\",\"wMapID\",\"dwStartAlarm\",\"dwEndAlarm\",\"bPartTime\",start_bytes,mid_bytes,end_bytes,value_bytes FROM app_control.\"TEVENTCHART\" WHERE false",
+            "SELECT \"dwSeq\",\"bWorld\",\"dwCharID\",\"szCharName\",\"regDate\" FROM app_global.\"TUSERPROTECTED\" WHERE false",
+            "SELECT service_id,lease_epoch,name_bytes,reported_addr,reported_port,version_bytes,pid,start_unix,cur_users,max_users,registered_at,heartbeat_at FROM runtime_control.peer_registry WHERE false",
+            "SELECT old_status,new_status,reason_bytes FROM runtime_control.peer_status_log WHERE false",
+            "SELECT sessions,users,active_users FROM runtime_control.peer_metrics WHERE false",
+            "SELECT operator_bytes,authority,action,target_bytes,detail_bytes FROM runtime_control.operator_audit WHERE false"
+        })sql << query;
+        return;
+    }
 
     // Required: the four inventory tables the SOCI service-inventory
     // loader reads. Column list matches SociServiceInventory::Reload.

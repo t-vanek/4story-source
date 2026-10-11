@@ -1,9 +1,11 @@
 #include "soci_service_inventory.h"
+#include "native_control.h"
 
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
 
 #include <unordered_map>
+#include <algorithm>
 
 namespace tcontrolsvr {
 
@@ -39,17 +41,27 @@ void SociServiceInventory::Reload()
 
     auto lease = m_pool.Acquire();
     soci::session& sql = *lease;
+    const bool native=native_control::Enabled(m_pool);
+    std::unique_ptr<soci::transaction> snapshot_tx;
+    if(native) {
+        snapshot_tx=std::make_unique<soci::transaction>(sql);
+        sql << "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY";
+    }
+    const auto text=[native](const soci::row& r,std::size_t col) {
+        auto value=r.get<std::string>(col);return native?native_control::Bytes(value):value;
+    };
 
     try
     {
         soci::rowset<soci::row> rs = (sql.prepare <<
+            (native ? "SELECT \"bGroupID\",encode(name_bytes,'hex') FROM app_control.\"TGROUP\" ORDER BY \"bGroupID\"" :
             "SELECT \"bGroupID\", \"szName\" "
-            "FROM \"TGROUP\" ORDER BY \"bGroupID\"");
+            "FROM \"TGROUP\" ORDER BY \"bGroupID\""));
         for (const auto& r : rs)
         {
             Group g{};
             g.id   = static_cast<std::uint8_t>(r.get<int>(0));
-            g.name = r.get<std::string>(1);
+            g.name = text(r,1);
             groups.push_back(std::move(g));
         }
     }
@@ -65,13 +77,14 @@ void SociServiceInventory::Reload()
     try
     {
         soci::rowset<soci::row> rs = (sql.prepare <<
+            (native ? "SELECT \"bMachineID\",encode(name_bytes,'hex'),\"bRouteID\" FROM app_control.\"TMACHINE\" ORDER BY \"bMachineID\"" :
             "SELECT \"bMachineID\", \"szName\", \"bRouteID\" "
-            "FROM \"TMACHINE\" ORDER BY \"bMachineID\"");
+            "FROM \"TMACHINE\" ORDER BY \"bMachineID\""));
         for (const auto& r : rs)
         {
             Machine m{};
             m.id       = static_cast<std::uint8_t>(r.get<int>(0));
-            m.name     = r.get<std::string>(1);
+            m.name     = text(r,1);
             m.route_id = static_cast<std::uint8_t>(r.get<int>(2));
             machine_idx[m.id] = machines.size();
             machines.push_back(std::move(m));
@@ -90,8 +103,9 @@ void SociServiceInventory::Reload()
     try
     {
         soci::rowset<soci::row> rs = (sql.prepare <<
+            (native ? "SELECT \"bMachineID\",encode(public_bytes,'hex'),encode(private_bytes,'hex') FROM app_control.\"TIPADDR\" WHERE \"bActive\"=1 ORDER BY \"bMachineID\",public_bytes" :
             "SELECT \"bMachineID\", \"szIPAddr\", \"szPriAddr\" "
-            "FROM \"TIPADDR\" WHERE \"bActive\" = 1");
+            "FROM \"TIPADDR\" WHERE \"bActive\" = 1"));
         for (const auto& r : rs)
         {
             const auto mid = static_cast<std::uint8_t>(r.get<int>(0));
@@ -99,11 +113,11 @@ void SociServiceInventory::Reload()
             if (it == machine_idx.end()) continue;
             auto& m = machines[it->second];
             soci::indicator pub_ind = r.get_indicator(1);
-            if (pub_ind != soci::i_null)
-                m.public_addrs.push_back(r.get<std::string>(1));
+            if (pub_ind != soci::i_null && !text(r,1).empty())
+                m.public_addrs.push_back(text(r,1));
             soci::indicator pri_ind = r.get_indicator(2);
-            if (pri_ind != soci::i_null)
-                m.private_addrs.push_back(r.get<std::string>(2));
+            if (pri_ind != soci::i_null && !text(r,2).empty())
+                m.private_addrs.push_back(text(r,2));
         }
     }
     catch (const std::exception& ex)
@@ -115,13 +129,14 @@ void SociServiceInventory::Reload()
     try
     {
         soci::rowset<soci::row> rs = (sql.prepare <<
+            (native ? "SELECT \"bType\",encode(name_bytes,'hex') FROM app_control.\"TSVRTYPE\" WHERE \"bControl\"=1 ORDER BY \"bType\"" :
             "SELECT \"bType\", \"szName\" "
-            "FROM \"TSVRTYPE\" WHERE \"bControl\" = 1 ORDER BY \"bType\"");
+            "FROM \"TSVRTYPE\" WHERE \"bControl\" = 1 ORDER BY \"bType\""));
         for (const auto& r : rs)
         {
             ServerType t{};
             t.id     = static_cast<std::uint8_t>(r.get<int>(0));
-            t.name   = r.get<std::string>(1);
+            t.name   = text(r,1);
             types.push_back(std::move(t));
         }
     }
@@ -137,10 +152,11 @@ void SociServiceInventory::Reload()
         // dummy rows). ORDER BY keeps the snapshot deterministic for
         // tests + diff-based audit logs.
         soci::rowset<soci::row> rs = (sql.prepare <<
+            (native ? "SELECT \"bGroupID\",\"bServerID\",\"bType\",\"bMachineID\",\"wPort\",encode(name_bytes,'hex') FROM app_control.\"TSERVER\" WHERE \"bType\"<>6 ORDER BY \"bGroupID\",\"bType\",\"bServerID\"" :
             "SELECT \"bGroupID\", \"bServerID\", \"bType\", "
             "       \"bMachineID\", \"wPort\", \"szName\" "
             "FROM \"TSERVER\" WHERE \"bType\" <> 6 "
-            "ORDER BY \"bGroupID\", \"bType\", \"bServerID\"");
+            "ORDER BY \"bGroupID\", \"bType\", \"bServerID\""));
         for (const auto& r : rs)
         {
             ServiceInstance s{};
@@ -149,8 +165,17 @@ void SociServiceInventory::Reload()
             s.type_id    = static_cast<std::uint8_t>(r.get<int>(2));
             s.machine_id = static_cast<std::uint8_t>(r.get<int>(3));
             s.port       = static_cast<std::uint16_t>(r.get<int>(4));
-            s.name       = r.get<std::string>(5);
+            s.name       = text(r,5);
             s.service_id = MakeServiceId(s.group_id, s.type_id, s.server_id);
+            // CTControlSvrModule::LoadData explicitly discards rows whose
+            // group/machine/controllable type was not loaded. Keep the original
+            // records in PostgreSQL and make this runtime exclusion observable.
+            if(std::none_of(groups.begin(),groups.end(),[&](const auto& g){return g.id==s.group_id;})||
+               std::none_of(machines.begin(),machines.end(),[&](const auto& m){return m.id==s.machine_id;})||
+               std::none_of(types.begin(),types.end(),[&](const auto& t){return t.id==s.type_id;})) {
+                spdlog::warn("Control topology excludes service {:#x}: missing source group/machine/controllable type",s.service_id);
+                continue;
+            }
             services.push_back(std::move(s));
         }
     }
@@ -160,15 +185,34 @@ void SociServiceInventory::Reload()
         throw;
     }
 
+    // Original CTBLNetwork is a separate topology responsibility.
+    {
+        const auto query=native ?
+            "SELECT \"bMachineID\",encode(network_bytes,'hex') FROM app_control.\"TNETWORK\"" :
+            "SELECT \"bMachineID\",\"szNetwork\" FROM \"TNETWORK\"";
+        soci::rowset<soci::row> rows=(sql.prepare << query);
+        for(const auto& r:rows) {
+            const auto it=machine_idx.find(static_cast<std::uint8_t>(r.get<int>(0)));
+            if(it!=machine_idx.end())machines[it->second].network=text(r,1);
+        }
+    }
+
     spdlog::info("soci_service_inventory: loaded {} groups, {} machines, "
                  "{} types, {} services",
         groups.size(), machines.size(), types.size(), services.size());
 
+    if(snapshot_tx)snapshot_tx->commit();
     std::lock_guard<std::mutex> lk(m_mtx);
     m_groups   = std::move(groups);
     m_machines = std::move(machines);
     m_types    = std::move(types);
     m_services = std::move(services);
+}
+
+InventorySnapshot SociServiceInventory::Snapshot() const
+{
+    std::lock_guard<std::mutex> lk(m_mtx);
+    return {m_groups, m_machines, m_types, m_services};
 }
 
 const std::vector<Group>& SociServiceInventory::Groups() const

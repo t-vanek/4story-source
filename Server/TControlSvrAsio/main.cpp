@@ -115,12 +115,15 @@ int main(int argc, char** argv)
             io.stop();
         });
 
+        if(cfg.database.connection_string.empty())
+            throw std::runtime_error("Control requires an explicit database connection; fixture services are test-only");
+
         // --- Auth + inventory --------------------------------------
         //
-        // Prefer the SOCI-backed services when a [database] section
-        // is present. Fall back to the in-memory fakes otherwise (F1
-        // bring-up path).
+        // Production uses explicitly configured persistence. Fake services
+        // remain available only to the existing test targets.
         std::unique_ptr<fourstory::db::SessionPool>           pool;
+        std::shared_ptr<tcontrolsvr::native_control::Owner> native_owner;
         std::unique_ptr<boost::asio::thread_pool>             db_pool;
         std::unique_ptr<tcontrolsvr::IOperatorAuthService>    auth;
         std::unique_ptr<tcontrolsvr::IServiceInventory>       inventory_ptr;
@@ -163,18 +166,23 @@ int main(int argc, char** argv)
             // operator traffic. Optional tables (TEVENTCHART etc.)
             // log warnings; required tables throw.
             tcontrolsvr::db::ValidateGlobalSchema(*pool);
+            if(backend==fourstory::db::Backend::PostgreSQL) {
+                if(cfg.registry_persistence.enabled&&cfg.registry_persistence.table_name!="TPEER_REGISTRY")
+                    throw std::runtime_error("Native Control uses the fixed runtime_control.peer_registry contract");
+                native_owner=std::make_shared<tcontrolsvr::native_control::Owner>(*pool);
+            }
 
             auto soci_inv =
                 std::make_unique<tcontrolsvr::SociServiceInventory>(*pool);
             soci_inv->Reload();
             inventory_ptr = std::move(soci_inv);
-            auth = std::make_unique<tcontrolsvr::SociOperatorAuthService>(*pool);
+            auth = std::make_unique<tcontrolsvr::SociOperatorAuthService>(*pool,native_owner);
             user_ban =
-                std::make_unique<tcontrolsvr::SociUserProtectedService>(*pool);
+                std::make_unique<tcontrolsvr::SociUserProtectedService>(*pool,native_owner);
             event_repo =
-                std::make_unique<tcontrolsvr::SociEventRepository>(*pool);
+                std::make_unique<tcontrolsvr::SociEventRepository>(*pool,native_owner);
             patch_meta =
-                std::make_unique<tcontrolsvr::SociPatchMetadataService>(*pool);
+                std::make_unique<tcontrolsvr::SociPatchMetadataService>(*pool,native_owner);
             // F5: SMS alerter via OPTool_SMSEmergency. Wired only
             // when the DB is configured — otherwise the spdlog
             // default catches the offline-peer event in logs.
@@ -187,42 +195,20 @@ int main(int argc, char** argv)
             // warm without waiting for every peer to re-register.
             // The optional snapshot adapter uses a different registry schema.
             // Select one persistence contract; never let both write TPEER_REGISTRY.
-            if (!cfg.registry_persistence.enabled)
+            if (native_owner || !cfg.registry_persistence.enabled)
             {
                 auto soci_peer_repo =
-                    std::make_unique<tcontrolsvr::SociPeerRepository>(*pool);
+                    std::make_unique<tcontrolsvr::SociPeerRepository>(*pool,native_owner);
                 soci_peer_repo->PurgeOldRows(30, 7);
                 peer_repo = std::move(soci_peer_repo);
             }
 
             // Dual-sink audit logger: spdlog + TOP_AUDIT_LOG in DB.
             audit_owned =
-                std::make_unique<tcontrolsvr::SociAdminAuditLogger>(*pool);
+                std::make_unique<tcontrolsvr::SociAdminAuditLogger>(*pool,native_owner);
 
             spdlog::info("auth + inventory: SOCI ({}) ready",
                 fourstory::db::BackendName(backend));
-        }
-        else
-        {
-            spdlog::info("no [database] — running with FakeAuth + FakeInventory");
-            auto fake_auth =
-                std::make_unique<tcontrolsvr::FakeOperatorAuthService>();
-            for (const auto& op : cfg.fake_operators)
-                fake_auth->AddOperator(op.id, op.password, op.authority);
-            auth = std::move(fake_auth);
-
-            auto fake_inv =
-                std::make_unique<tcontrolsvr::FakeServiceInventory>();
-            for (const auto& g : cfg.fake_inventory.groups)
-                fake_inv->AddGroup({g.id, g.name});
-            for (const auto& m : cfg.fake_inventory.machines)
-                fake_inv->AddMachine({m.id, m.name, 0, {}, {}, ""});
-            for (const auto& t : cfg.fake_inventory.types)
-                fake_inv->AddType({t.id, 0, t.name});
-            inventory_ptr = std::move(fake_inv);
-            user_ban = std::make_unique<tcontrolsvr::FakeUserProtectedService>();
-            event_repo = std::make_unique<tcontrolsvr::FakeEventRepository>();
-            patch_meta = std::make_unique<tcontrolsvr::FakePatchMetadataService>();
         }
         if (!alerter)
             alerter = std::make_unique<tcontrolsvr::SpdlogAlerter>();
@@ -248,8 +234,10 @@ int main(int argc, char** argv)
         if (peer_repo)
         {
             const auto loaded = peer_repo->LoadAll();
-            for (const auto& entry : loaded)
-                peers.Register(entry);
+            peers.Hydrate(loaded);
+            peers.ExpireStale(std::chrono::seconds(90));
+            for(const auto& entry:loaded)if(!peers.FindRegistration(entry.service_id))
+                peer_repo->DeleteIfEpoch(entry.service_id,entry.lease_epoch);
 
             // Project recovered registrations through the Mapper into
             // the compact admin DTO so boot logs use the same shape
@@ -271,13 +259,11 @@ int main(int argc, char** argv)
             }
         }
 
-        // Optional durable snapshot of the dynamic registry. When
-        // enabled, the SOCI impl writes through every mutator to
-        // TPEER_REGISTRY and we reload at boot below. When disabled
-        // (default), the Noop instance keeps PeerRegistry's mutator
-        // call sites null-guard-free without any DB traffic.
+        // The legacy optional adapter writes TPEER_REGISTRY. Native PostgreSQL
+        // always persists through peer_repo with owner/epoch fencing; it uses
+        // Noop here to avoid a second, unfenced write-through path.
         std::unique_ptr<tcontrolsvr::IRegistryPersistence> persistence;
-        if (cfg.registry_persistence.enabled && pool)
+        if (cfg.registry_persistence.enabled && pool && !native_owner)
         {
             tcontrolsvr::SociRegistryPersistence::Options pop;
             pop.table_name  = cfg.registry_persistence.table_name;
@@ -302,9 +288,6 @@ int main(int argc, char** argv)
         else
         {
             persistence = std::make_unique<tcontrolsvr::NoopRegistryPersistence>();
-            if (cfg.registry_persistence.enabled && !pool)
-                spdlog::warn("registry.persistence: enabled=true but no "
-                             "[database] configured — using Noop");
         }
         peers.SetPersistence(persistence.get());
 
@@ -338,6 +321,13 @@ int main(int argc, char** argv)
 
         // --- Server ------------------------------------------------
         tcontrolsvr::ControlServerConfig svr_cfg{};
+        if(native_owner)svr_cfg.check_owner=[&]() -> boost::asio::awaitable<void> {
+            try {
+                co_await fourstory::db::CoOffloadVoidIf(db_pool.get(),[&] {
+                    auto lease=pool->Acquire();native_owner->Check(*lease);
+                });
+            } catch(...) {io.stop();throw;}
+        };
         svr_cfg.port       = cfg.port;
         svr_cfg.auth       = auth.get();
         svr_cfg.inventory  = inventory_ptr.get();
@@ -443,8 +433,10 @@ int main(int argc, char** argv)
         // auto-delete for one-shot lottery / gifttime kinds.
         tcontrolsvr::EventSchedulerLoop event_loop(io, events, peers,
             event_repo.get());
-        boost::asio::co_spawn(io, event_loop.Run(),
-            boost::asio::detached);
+        if(native_owner)event_loop.SetGuard(svr_cfg.check_owner);
+        boost::asio::co_spawn(io, event_loop.Run(),[&io](std::exception_ptr failure) {
+            if(failure){spdlog::critical("Control event loop failed; stopping to preserve recovery state");io.stop();}
+        });
 
         // Optional inventory refresher: re-reads TMACHINE / TGROUP /
         // TSVRTYPE / TSERVER / TIPADDR every N seconds so the

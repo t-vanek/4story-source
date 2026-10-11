@@ -5,13 +5,16 @@
 
 #include "patch_metadata_service.h"
 #include "fourstory/db/session_pool.h"
+#include "native_control.h"
+#include <atomic>
 
 namespace tcontrolsvr {
 
 class SociPatchMetadataService final : public IPatchMetadataService
 {
 public:
-    explicit SociPatchMetadataService(fourstory::db::SessionPool& pool);
+    explicit SociPatchMetadataService(fourstory::db::SessionPool& pool,
+        std::shared_ptr<native_control::Owner> owner = {});
 
     void UpdatePatch(const PatchUpdateRow& row,
                      std::uint32_t beta_ver) override;
@@ -21,6 +24,8 @@ public:
     std::vector<PreVersionRow> ListPreVersions() override;
 
 private:
+    std::shared_ptr<native_control::Owner> m_owner;
+    std::atomic_bool m_commit_uncertain{false};
     fourstory::db::SessionPool& m_pool;
 };
 

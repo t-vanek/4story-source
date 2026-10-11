@@ -1,6 +1,13 @@
-# Container smoke configuration: in-memory inventory, no database.
+# Native PostgreSQL configuration. Requires initialized Control/Patch catalogs,
+# explicit role grants, and TZ matching the imported source timezone.
 [server]
 port = 12000
+
+[database]
+backend = "postgresql"
+connection_string_env = "FOURSTORY_CONTROL_PG"
+pool_size = 4
+worker_threads = 2
 
 [health]
 port = 18086

@@ -46,6 +46,11 @@ public:
     // Delete a registration row on deregister or lease expiry.
     virtual void Delete(std::uint32_t service_id) = 0;
 
+    // Native registry uses a noncycling durable allocator and epoch-qualified
+    // removal. Legacy adapters retain their original process-local allocator.
+    virtual std::uint64_t ReserveEpoch() { return 0; }
+    virtual void DeleteIfEpoch(std::uint32_t service_id,std::uint64_t) { Delete(service_id); }
+
     // Append a status-change record to TPEER_STATUS_LOG.
     virtual void InsertStatusLog(std::uint8_t  group_id,
                                  std::uint8_t  server_id,

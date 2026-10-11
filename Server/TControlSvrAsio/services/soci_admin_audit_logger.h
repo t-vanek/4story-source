@@ -7,6 +7,8 @@
 
 #include "admin_audit_logger.h"
 #include "fourstory/db/session_pool.h"
+#include "native_control.h"
+#include <atomic>
 
 #include <memory>
 
@@ -17,7 +19,8 @@ namespace tcontrolsvr {
 class SociAdminAuditLogger final : public IAdminAuditLogger
 {
 public:
-    explicit SociAdminAuditLogger(fourstory::db::SessionPool& pool);
+    explicit SociAdminAuditLogger(fourstory::db::SessionPool& pool,
+        std::shared_ptr<native_control::Owner> owner = {});
 
     void LogKick(const std::string& operator_id,
                  const std::string& target_user,
@@ -62,6 +65,8 @@ public:
                 const std::string& detail = {}) override;
 
 private:
+    std::shared_ptr<native_control::Owner> m_owner;
+    std::atomic_bool m_commit_uncertain{false};
     fourstory::db::SessionPool&       m_pool;
     std::shared_ptr<spdlog::logger>   m_log;
 

@@ -112,9 +112,10 @@ OnOpLoginReq(std::shared_ptr<OperatorSession> op,
 
     if (ctx.inventory)
     {
-        co_await senders::SendGroupListAck(op->Wire(),     ctx.inventory->Groups());
-        co_await senders::SendMachineListAck(op->Wire(),   ctx.inventory->Machines());
-        co_await senders::SendSvrTypeListAck(op->Wire(),   ctx.inventory->Types());
+        const auto snapshot=ctx.inventory->Snapshot();
+        co_await senders::SendGroupListAck(op->Wire(),     snapshot.groups);
+        co_await senders::SendMachineListAck(op->Wire(),   snapshot.machines);
+        co_await senders::SendSvrTypeListAck(op->Wire(),   snapshot.types);
     }
     const std::uint8_t auto_start = ctx.auto_start ? *ctx.auto_start : 0;
     co_await senders::SendServiceAutoStartAck(op->Wire(), auto_start);
@@ -203,6 +204,7 @@ Dispatch(std::shared_ptr<OperatorSession> op,
          std::vector<std::byte> body,
          const HandlerContext& ctx)
 {
+    if(ctx.check_owner)co_await ctx.check_owner();
     const auto id = ToMessageId(wId);
     switch (id)
     {

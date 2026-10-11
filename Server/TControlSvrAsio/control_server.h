@@ -32,6 +32,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <functional>
 
 namespace tcontrolsvr {
 
@@ -39,6 +40,7 @@ class PeerDialer;
 
 struct ControlServerConfig
 {
+    std::function<boost::asio::awaitable<void>()> check_owner;
     std::uint16_t          port = 0;
     IOperatorAuthService*  auth        = nullptr;
     IServiceInventory*     inventory   = nullptr;

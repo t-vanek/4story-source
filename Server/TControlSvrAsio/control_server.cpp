@@ -1,4 +1,5 @@
 #include "control_server.h"
+#include "fourstory/db/co_offload.h"
 
 #include "senders.h"
 
@@ -197,6 +198,7 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.patch_meta = m_cfg.patch_meta;
     ctx.alerter    = m_cfg.alerter;
     ctx.peer_repo  = m_cfg.peer_repo;
+    ctx.check_owner=m_cfg.check_owner;
     ctx.security   = m_cfg.security;
     ctx.login_rate = m_cfg.login_rate;
     ctx.db_pool    = m_cfg.db_pool;
@@ -204,13 +206,22 @@ ControlServer::HandleConnection(std::shared_ptr<ControlSession> sess)
     ctx.auto_start = &m_auto_start;
     ctx.discovery_enabled = &m_discovery_enabled;
 
-    co_await sess->Run(
+    try { co_await sess->Run(
         [this, op, ctx](std::shared_ptr<ControlSession> /*s*/,
                         DecodedPacket pkt) -> boost::asio::awaitable<void>
         {
             co_await handlers::Dispatch(op, pkt.wId,
                                         std::move(pkt.body), ctx);
         });
+    } catch(const std::exception&) {
+        // Database errors can contain bound credentials or private event data.
+        spdlog::warn("control_svr: session handler failed; closing without retry");
+    }
+    sess->Close();
+    if(m_cfg.peers)for(const auto& svc:m_cfg.peers->Services()) {
+        auto conn=m_cfg.peers->Connection(svc.service_id);
+        if(conn&&conn->Wire().get()==sess.get())m_cfg.peers->ClearConnection(svc.service_id);
+    }
 
     if (op->LoggedIn())
     {
@@ -303,7 +314,16 @@ ControlServer::RegistryLeaseExpiryLoop(std::chrono::seconds max_age,
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec || !m_acceptor.is_open()) break;
 
+        const auto snapshot=m_cfg.peers->Registry();
         const auto expired = m_cfg.peers->ExpireStale(max_age);
+        if(expired&&m_cfg.peer_repo) {
+            // Epoch-qualified deletes cannot remove a replacement registration
+            // that races an offloaded cleanup. The in-memory sweep runs first.
+            for(const auto& entry:snapshot)if(!m_cfg.peers->FindRegistration(entry.service_id))
+                co_await fourstory::db::CoOffloadVoidIf(m_cfg.db_pool,[repo=m_cfg.peer_repo,entry] {
+                    repo->DeleteIfEpoch(entry.service_id,entry.lease_epoch);
+                });
+        }
         if (expired > 0)
             spdlog::warn("registry: expired {} stale lease(s) "
                          "(no heartbeat within {}s)",

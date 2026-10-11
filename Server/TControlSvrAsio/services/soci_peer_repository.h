@@ -3,17 +3,21 @@
 #include "peer_repository.h"
 
 #include "fourstory/db/session_pool.h"
+#include "native_control.h"
+#include <atomic>
 
 #include <chrono>
 #include <cstdint>
 #include <unordered_map>
+#include <mutex>
 
 namespace tcontrolsvr {
 
 class SociPeerRepository final : public IPeerRepository
 {
 public:
-    explicit SociPeerRepository(fourstory::db::SessionPool& pool);
+    explicit SociPeerRepository(fourstory::db::SessionPool& pool,
+        std::shared_ptr<native_control::Owner> owner = {});
 
     void Upsert(const RegistryEntry& entry) override;
     void UpdateHeartbeat(std::uint32_t service_id,
@@ -21,6 +25,8 @@ public:
                          std::uint32_t cur_users,
                          std::uint32_t max_users) override;
     void Delete(std::uint32_t service_id) override;
+    std::uint64_t ReserveEpoch() override;
+    void DeleteIfEpoch(std::uint32_t service_id,std::uint64_t lease_epoch) override;
     void InsertStatusLog(std::uint8_t  group_id,
                          std::uint8_t  server_id,
                          std::uint8_t  type_id,
@@ -32,6 +38,9 @@ public:
     void PurgeOldRows(int status_log_days, int metrics_days) override;
 
 private:
+    std::shared_ptr<native_control::Owner> m_owner;
+    std::atomic_bool m_commit_uncertain{false};
+    std::mutex m_metrics_mutex;
     fourstory::db::SessionPool& m_pool;
 
     // Per-peer last metrics insert time — throttle to 1/min.

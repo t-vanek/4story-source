@@ -55,6 +55,14 @@ struct ServiceInstance
     std::string    bin_name;
 };
 
+struct InventorySnapshot
+{
+    std::vector<Group> groups;
+    std::vector<Machine> machines;
+    std::vector<ServerType> types;
+    std::vector<ServiceInstance> services;
+};
+
 class IServiceInventory
 {
 public:
@@ -64,6 +72,14 @@ public:
     virtual const std::vector<Machine>&          Machines() const = 0;
     virtual const std::vector<ServerType>&       Types() const = 0;
     virtual const std::vector<ServiceInstance>&  Services() const = 0;
+
+    // Runtime callers retain this owning snapshot across coroutine suspension.
+    // The default supports immutable fixtures; a concurrently reloadable
+    // implementation must copy all four collections under its own lock.
+    virtual InventorySnapshot Snapshot() const
+    {
+        return {Groups(), Machines(), Types(), Services()};
+    }
 };
 
 } // namespace tcontrolsvr

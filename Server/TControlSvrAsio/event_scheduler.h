@@ -31,6 +31,8 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <functional>
+#include <optional>
 
 namespace tcontrolsvr {
 
@@ -52,6 +54,7 @@ struct SchedulerAction
     std::uint32_t event_index = 0;
     std::uint16_t value       = 0;   // wValue carried into the wire packet
     std::uint8_t  msg_type    = 0;   // 0 = start, 1 = end (for EventMsg/CashShopStop)
+    std::optional<EventInfo> event; // Snapshot survives one-shot registry removal.
 };
 
 // Pure state machine — no I/O. Walks every event in the registry,
@@ -81,6 +84,7 @@ public:
     {}
 
     boost::asio::awaitable<void> Run();
+    void SetGuard(std::function<boost::asio::awaitable<void>()> guard) { m_guard=std::move(guard); }
 
 private:
     boost::asio::awaitable<void> Apply(const SchedulerAction& action);
@@ -90,6 +94,7 @@ private:
     PeerRegistry&               m_peers;
     IEventRepository*           m_repo = nullptr;
     std::chrono::milliseconds   m_tick;
+    std::function<boost::asio::awaitable<void>()> m_guard;
 };
 
 } // namespace tcontrolsvr

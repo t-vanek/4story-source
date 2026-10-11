@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <stdexcept>
+#include <cstdlib>
 
 namespace tcontrolsvr {
 
@@ -96,6 +97,13 @@ AppConfig LoadConfig(const std::string& path)
             cfg.database.backend = *b;
         if (auto c = (*db)["connection_string"].value<std::string>())
             cfg.database.connection_string = *c;
+        if(auto env=(*db)["connection_string_env"].value<std::string>()) {
+            if(!cfg.database.connection_string.empty()||env->empty())
+                throw std::runtime_error("Configure exactly one Control database connection source");
+            const auto* value=std::getenv(env->c_str());
+            if(!value||!*value)throw std::runtime_error("Control database environment variable is missing");
+            cfg.database.connection_string=value;
+        }
         if (auto s = (*db)["pool_size"].value<std::int64_t>())
         {
             if (*s < 1 || *s > 256)

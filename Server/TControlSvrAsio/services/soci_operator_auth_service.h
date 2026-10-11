@@ -15,18 +15,23 @@
 
 #include "operator_auth_service.h"
 #include "fourstory/db/session_pool.h"
+#include "native_control.h"
+#include <atomic>
 
 namespace tcontrolsvr {
 
 class SociOperatorAuthService final : public IOperatorAuthService
 {
 public:
-    explicit SociOperatorAuthService(fourstory::db::SessionPool& pool);
+    explicit SociOperatorAuthService(fourstory::db::SessionPool& pool,
+        std::shared_ptr<native_control::Owner> owner = {});
 
     OperatorAuthResult Authenticate(const std::string& user_id,
                                     const std::string& password) override;
 
 private:
+    std::shared_ptr<native_control::Owner> m_owner;
+    std::atomic_bool m_commit_uncertain{false};
     fourstory::db::SessionPool& m_pool;
 };
 

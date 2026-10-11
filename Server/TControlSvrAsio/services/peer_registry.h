@@ -115,7 +115,7 @@ public:
     // Heartbeat refuses stale epochs and returns 0 so the peer knows
     // it must re-register.
 
-    std::uint64_t Register(const RegistryEntry& proposed);
+    std::uint64_t Register(const RegistryEntry& proposed,std::uint64_t reserved_epoch=0);
     std::uint64_t Heartbeat(std::uint32_t service_id,
                             std::uint64_t lease_epoch,
                             std::uint32_t cur_users,

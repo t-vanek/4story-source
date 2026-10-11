@@ -40,14 +40,14 @@ public:
     const std::vector<Machine>&          Machines() const override;
     const std::vector<ServerType>&       Types()    const override;
     const std::vector<ServiceInstance>&  Services() const override;
+    InventorySnapshot Snapshot() const override;
 
 private:
     fourstory::db::SessionPool& m_pool;
 
-    // Snapshots are copied wholesale by Reload; readers iterate the
-    // current vectors. The lock guards the pointer swap; iteration
-    // itself is lock-free against the snapshot it captured. F1/F2
-    // run single-threaded so the lock is largely belt-and-suspenders.
+    // Runtime readers use Snapshot(), copying under this lock before reading
+    // or awaiting. Reference getters remain for startup/legacy fixture callers
+    // only and require Reload() to be quiescent for their entire use.
     mutable std::mutex            m_mtx;
     std::vector<Group>            m_groups;
     std::vector<Machine>          m_machines;

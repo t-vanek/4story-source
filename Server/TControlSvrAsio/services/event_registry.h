@@ -15,7 +15,7 @@
 
 #include <cstdint>
 #include <optional>
-#include <unordered_map>
+#include <map>
 #include <vector>
 
 namespace tcontrolsvr {
@@ -44,6 +44,9 @@ public:
     // Snapshot iteration for CT_EVENTLIST_REQ + scheduler tick.
     std::vector<EventInfo> Snapshot() const;
     std::size_t Size() const { return m_events.size(); }
+    bool Mutating() const { return m_mutating; }
+    bool TryBeginMutation() { if(m_mutating)return false;m_mutating=true;return true; }
+    void EndMutation() { m_mutating=false; }
 
     // Overlap check used by CT_EVENTCHANGE_REQ. Compares against
     // every existing event of the same kind. `update_index` is the
@@ -54,12 +57,13 @@ public:
 
     // Direct map access for the scheduler — it needs to mutate
     // state / alarm flags in place.
-    std::unordered_map<std::uint32_t, EventInfo>&       Map()       { return m_events; }
-    const std::unordered_map<std::uint32_t, EventInfo>& Map() const { return m_events; }
+    std::map<std::uint32_t, EventInfo>&       Map()       { return m_events; }
+    const std::map<std::uint32_t, EventInfo>& Map() const { return m_events; }
 
 private:
-    std::unordered_map<std::uint32_t, EventInfo>  m_events;
+    std::map<std::uint32_t, EventInfo>  m_events;
     std::uint32_t                                 m_next_index = 0;
+    bool m_mutating=false; // io_context-owned guard across offloaded persistence.
 };
 
 } // namespace tcontrolsvr

@@ -49,6 +49,7 @@ add_library(tcontrolsvr_asio_core STATIC
     ${TCONTROL_ASIO_SRC}/db/schema_validator.cpp
     ${TCONTROL_ASIO_SRC}/services/chat_ban_repository.cpp
     ${TCONTROL_ASIO_SRC}/services/event_registry.cpp
+    ${TCONTROL_ASIO_SRC}/services/native_control.cpp
     ${TCONTROL_ASIO_SRC}/services/fake_operator_auth_service.cpp
     ${TCONTROL_ASIO_SRC}/services/operator_registry.cpp
     ${TCONTROL_ASIO_SRC}/services/peer_registry.cpp

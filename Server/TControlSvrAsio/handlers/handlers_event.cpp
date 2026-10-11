@@ -19,6 +19,7 @@
 #include "../senders.h"
 #include "../wire_codec.h"
 #include "../services/authority_gate.h"
+#include "../services/event_value.h"
 
 #include "fourstory/db/co_offload.h"
 #include "MessageId.h"
@@ -30,27 +31,6 @@
 namespace tcontrolsvr::handlers {
 
 namespace {
-
-// Build the "value blob" (legacy szValue) for the SP call. F4
-// preserves the legacy three-field shape just enough to satisfy
-// the SP — full string encoding for cash items / mon-regens /
-// lotteries is intentionally lossy (the GM editor re-supplies
-// the structured data on every update).
-std::string BuildValueBlob(const EventInfo& ev)
-{
-    std::string out;
-    if (ev.kind == event_kind::kCashSale)
-    {
-        for (const auto& s : ev.cash_items)
-        {
-            out += std::to_string(s.item_id);
-            out += "-";
-            out += std::to_string(static_cast<int>(s.sale_value));
-            out += ";";
-        }
-    }
-    return out;
-}
 
 // Peers targeted by an event's (group, type, server_id) selectors.
 std::vector<std::shared_ptr<PeerSession>>
@@ -114,13 +94,18 @@ OnEventChangeReq(std::shared_ptr<OperatorSession> op,
         co_return;
     }
     EventInfo ev{};
-    if (!event_codec::Read(r, ev))
+    if (!event_codec::Read(r, ev) || !r.Eof() || op_byte > event_op::kUpdate)
     {
         spdlog::warn("CT_EVENTCHANGE_REQ malformed (EventInfo body)");
         co_return;
     }
 
     if (!ctx.events) co_return;
+
+    if(!ctx.events->TryBeginMutation()) {
+        co_await senders::SendEventChangeAck(op->Wire(),event_result::kFail,op_byte,ev);co_return;
+    }
+    struct Mutation { EventRegistry& events;~Mutation(){events.EndMutation();} } mutation{*ctx.events};
 
     // EK_DEL on a missing index is success-as-noop (legacy).
     if (op_byte == event_op::kDel && !ctx.events->Find(ev.index))
@@ -161,23 +146,28 @@ OnEventChangeReq(std::shared_ptr<OperatorSession> op,
         // slow event-table update doesn't freeze the control session
         // mid-handler. Falls back to inline execution when db_pool
         // is null (legacy semantics for dev / smoke tests).
-        const auto blob = BuildValueBlob(ev);
+        const auto blob = event_value::Encode(ev);
         rc = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
             [repo = ctx.event_repo, &ev, op_byte, &blob] {
                 return repo->Persist(ev, op_byte, blob);
             });
     }
-    else
-        rc = event_result::kSuccess;  // no-repo deploys still mutate memory
 
-    co_await senders::SendEventChangeAck(op->Wire(), rc, op_byte, ev);
-    if (rc != event_result::kSuccess) co_return;
+    if (rc != event_result::kSuccess) {
+        co_await senders::SendEventChangeAck(op->Wire(),rc,op_byte,ev);co_return;
+    }
 
     // Legacy: if the event is currently running and the SP succeeded,
     // re-push the new state to peers immediately (skipping lottery /
     // gifttime which fire-and-delete).
     const auto* existing = ctx.events->Find(ev.index);
     const bool was_running = existing && existing->state == 1;
+    // Publish the committed state even if sending the operator's ACK fails.
+    // The mutation guard prevents another edit/tick from seeing a stale cache
+    // while this coroutine is suspended on the database or socket.
+    if (op_byte == event_op::kDel) ctx.events->Erase(ev.index);
+    else                           ctx.events->Upsert(ev);
+    co_await senders::SendEventChangeAck(op->Wire(),rc,op_byte,ev);
     if (was_running &&
         ev.kind != event_kind::kLottery &&
         ev.kind != event_kind::kGiftTime &&
@@ -194,8 +184,6 @@ OnEventChangeReq(std::shared_ptr<OperatorSession> op,
         }
     }
 
-    if (op_byte == event_op::kDel) ctx.events->Erase(ev.index);
-    else                           ctx.events->Upsert(ev);
 }
 
 boost::asio::awaitable<void>

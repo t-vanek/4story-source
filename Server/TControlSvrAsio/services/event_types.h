@@ -9,13 +9,8 @@
 // The bID values match the legacy EVENT_* enum — these are the
 // in-game event categories the GM editor produces:
 //
-//   1 = CashSale     — temporary cash-shop discount
-//   2 = Lottery      — broadcast item raffle; auto-deletes on emit
-//   3 = GiftTime     — broadcast giveaway; auto-deletes on emit
-//   4 = MonSpawn     — spawn a one-off monster wave
-//   5 = MonRegen     — re-tune monster respawn rate
-//   6 = ExpRate      — server-wide XP multiplier window
-//   7 = DropRate     — drop-rate multiplier window
+// Values come from Lib/Own/TProtocol/include/NetCode.h::EVENT_TYPE.
+// They are not an enumeration local to the Control implementation.
 //
 // Other values exist in the legacy DB but only the five referenced
 // in the CheckEvent scheduler (CashSale / Lottery / GiftTime / value-
@@ -28,13 +23,21 @@
 namespace tcontrolsvr {
 
 namespace event_kind {
-constexpr std::uint8_t kCashSale  = 1;
-constexpr std::uint8_t kLottery   = 2;
-constexpr std::uint8_t kGiftTime  = 3;
-constexpr std::uint8_t kMonSpawn  = 4;
-constexpr std::uint8_t kMonRegen  = 5;
-constexpr std::uint8_t kExpRate   = 6;
-constexpr std::uint8_t kDropRate  = 7;
+constexpr std::uint8_t kExpRate          = 1;
+constexpr std::uint8_t kCashSale         = 2;
+constexpr std::uint8_t kDropRate         = 3;
+constexpr std::uint8_t kMagicDropRate    = 4;
+constexpr std::uint8_t kRefine           = 5;
+constexpr std::uint8_t kTransform        = 6;
+constexpr std::uint8_t kItemUpgrade      = 7;
+constexpr std::uint8_t kMagicUpgrade     = 8;
+constexpr std::uint8_t kRareMagicUpgrade = 9;
+constexpr std::uint8_t kGambleOption     = 10;
+constexpr std::uint8_t kMoneyDrop       = 11;
+constexpr std::uint8_t kMonSpawn        = 12;
+constexpr std::uint8_t kMonRegen        = 13;
+constexpr std::uint8_t kLottery         = 14;
+constexpr std::uint8_t kGiftTime        = 15;
 } // namespace event_kind
 
 namespace event_op {

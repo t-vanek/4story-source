@@ -55,19 +55,22 @@ OnUpdatePatchReq(std::shared_ptr<OperatorSession> op,
         co_return;
     }
     spdlog::info("CT_UPDATEPATCH_REQ count={} op='{}'", count, op->UserId());
+    std::vector<PatchUpdateRow> updates;updates.reserve(count);
     for (std::uint16_t i = 0; i < count; ++i)
     {
         PatchUpdateRow row{};
         std::uint32_t size = 0;
         if (!r.ReadString(row.path) || !r.ReadString(row.name) ||
             !r.Read(size))
-            break;
+            {op->Wire()->Close();co_return;}
         row.size = size;
-        if (ctx.patch_meta)
-        {
-            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-                [pm = ctx.patch_meta, &row] { pm->UpdatePatch(row, 0); });
-        }
+        if(row.path.size()>260||row.name.size()>260){op->Wire()->Close();co_return;}
+        updates.push_back(std::move(row));
+    }
+    if(!r.Eof()||!ctx.patch_meta){op->Wire()->Close();co_return;}
+    for(const auto& row:updates) {
+        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+            [pm=ctx.patch_meta,&row]{pm->UpdatePatch(row,0);});
         if (ctx.audit)
             ctx.audit->LogAdminAction(op->UserId(), "update_patch",
                 row.path + "/" + row.name);
@@ -87,8 +90,8 @@ OnPreVersionTableReq(std::shared_ptr<OperatorSession> op,
         co_await senders::SendAuthorityAck(op->Wire());
         co_return;
     }
+    if(!ctx.patch_meta)throw std::runtime_error("Patch metadata service is not configured");
     std::vector<senders::PreVersionAckRow> rows;
-    if (ctx.patch_meta)
     {
         auto pre = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
             [pm = ctx.patch_meta] { return pm->ListPreVersions(); });
@@ -115,15 +118,16 @@ OnPreVersionUpdateReq(std::shared_ptr<OperatorSession> op,
 
     wire::Reader r(body);
     std::uint16_t count = 0;
+    std::vector<std::uint32_t> promotions,deletions;
+    std::vector<PatchUpdateRow> insertions;
 
     // Phase 1 — promote betas.
     if (!r.Read(count)) co_return;
     for (std::uint16_t i = 0; i < count; ++i)
     {
         std::uint32_t beta = 0;
-        if (!r.Read(beta)) break;
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [pm = ctx.patch_meta, beta] { pm->BetaToVersion(beta); });
+        if (!r.Read(beta)){op->Wire()->Close();co_return;}
+        promotions.push_back(beta);
     }
 
     // Phase 2 — delete betas.
@@ -131,9 +135,8 @@ OnPreVersionUpdateReq(std::shared_ptr<OperatorSession> op,
     for (std::uint16_t i = 0; i < count; ++i)
     {
         std::uint32_t beta = 0;
-        if (!r.Read(beta)) break;
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [pm = ctx.patch_meta, beta] { pm->DeletePreVersion(beta); });
+        if (!r.Read(beta)){op->Wire()->Close();co_return;}
+        deletions.push_back(beta);
     }
 
     // Phase 3 — insert new pre.
@@ -144,11 +147,18 @@ OnPreVersionUpdateReq(std::shared_ptr<OperatorSession> op,
         std::uint32_t size = 0;
         if (!r.ReadString(row.path) || !r.ReadString(row.name) ||
             !r.Read(size))
-            break;
+            {op->Wire()->Close();co_return;}
         row.size = size;
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [pm = ctx.patch_meta, &row] { pm->UpdatePrePatch(row); });
+        if(row.path.size()>260||row.name.size()>260){op->Wire()->Close();co_return;}
+        insertions.push_back(std::move(row));
     }
+    if(!r.Eof()){op->Wire()->Close();co_return;}
+    for(const auto beta:promotions)co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+        [pm=ctx.patch_meta,beta]{pm->BetaToVersion(beta);});
+    for(const auto beta:deletions)co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+        [pm=ctx.patch_meta,beta]{pm->DeletePreVersion(beta);});
+    for(const auto& row:insertions)co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
+        [pm=ctx.patch_meta,&row]{pm->UpdatePrePatch(row);});
 
     // Reply with the refreshed PreVersion table.
     auto pre = co_await fourstory::db::CoOffloadIf(ctx.db_pool,

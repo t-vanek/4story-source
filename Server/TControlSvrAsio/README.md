@@ -1,6 +1,6 @@
 # TControlSvrAsio — modernized control / orchestration server
 
-Wire-compatible replacement for `Server/TControlSvr/` running on the
+Modern implementation of `Server/TControlSvr/` targeting its original protocol, on the
 `FourStoryCommon` infrastructure (SOCI pool, spdlog audit, health
 endpoint, admin shell). The legacy daemon ships ~7 285 LOC of
 ATL/IOCP/PDH/Win32-SCM code; the rewrite distils the protocol surface
@@ -14,7 +14,28 @@ The plan, handler-by-handler, lives in
 [`_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md`](../../_rewrite/docs/CONTROL_SERVER_PORT_PLAN.md).
 This README only covers what F1 ships and how to bring it up.
 
-## Status — F1 → F6 + cluster control plane shipped
+## Current Phase A — native PostgreSQL, unverified
+
+The production binary requires a database. New migrations049/050, following
+Patch migration048, add native topology, operator credentials, event metadata,
+ban metadata and peer state. The offline tool
+[import_control_metadata.py](../../tools/database/import_control_metadata.py)
+requires a complete verified archive and an explicit source timezone; runtime TZ
+must match it. It transforms imported passwords to salted PBKDF2 without changing
+the preserved archive. No import/migration has been run for this increment.
+
+Use [the native configuration](../../deploy/tcontrolsvr-postgresql.example.toml)
+and [separate runtime grants](../../deploy/sql/control-runtime-grants.sql) when
+Phase B/C begins. A PostgreSQL session owns Control; writes fence its generation,
+and unknown commits invalidate the process. Native peer epochs survive restart.
+Topology snapshots survive concurrent reload and asynchronous sends/dials.
+
+The six-target Debug build succeeds; no tests or server starts were performed.
+Pre-version SQL contracts, World event delivery/recovery, remaining tools and full
+original-client acceptance are unfinished. See the
+[active status](../../_rewrite/docs/modernization/full-rewrite-status.md).
+
+## Historical F1–F6 notes (not current parity evidence)
 
 F1-F5 ported every legacy CT_\* handler (round-2 audit closed all
 wire-parity gaps). F6 added the universal `IServiceController`

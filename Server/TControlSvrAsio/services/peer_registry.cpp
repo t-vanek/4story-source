@@ -24,10 +24,10 @@ void PeerRegistry::Rebind(const IServiceInventory& inventory)
 {
     std::vector<ServiceInstance>                  services;
     std::unordered_map<std::uint32_t, std::size_t> idx;
-    services.reserve(inventory.Services().size());
-    for (std::size_t i = 0; i < inventory.Services().size(); ++i)
+    const auto snapshot=inventory.Snapshot();
+    services.reserve(snapshot.services.size());
+    for (const auto& s:snapshot.services)
     {
-        const auto& s = inventory.Services()[i];
         idx[s.service_id] = services.size();
         services.push_back(s);
     }
@@ -126,11 +126,12 @@ PeerRegistry::FindLiveByType(std::uint8_t group_id,
 
 // --- Dynamic registry -------------------------------------------------
 
-std::uint64_t PeerRegistry::Register(const RegistryEntry& proposed)
+std::uint64_t PeerRegistry::Register(const RegistryEntry& proposed,std::uint64_t reserved_epoch)
 {
     const auto now = std::chrono::steady_clock::now();
     RegistryEntry entry = proposed;
-    entry.lease_epoch     = m_next_epoch++;
+    entry.lease_epoch     = reserved_epoch ? reserved_epoch : m_next_epoch++;
+    if(reserved_epoch>=m_next_epoch)m_next_epoch=reserved_epoch+1;
     entry.registered_at   = now;
     entry.last_heartbeat_at = now;
     m_registry[proposed.service_id] = std::move(entry);

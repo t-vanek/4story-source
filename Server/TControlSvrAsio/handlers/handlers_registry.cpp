@@ -178,7 +178,10 @@ OnPeerRegisterReq(std::shared_ptr<OperatorSession> op,
     entry.version       = std::move(version);
     entry.pid           = pid;
     entry.start_unix    = static_cast<std::int64_t>(start_unix);
-    const auto epoch = ctx.peers->Register(entry);
+    std::uint64_t reserved=0;
+    if(ctx.peer_repo)reserved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[&]{return ctx.peer_repo->ReserveEpoch();});
+    const auto epoch = ctx.peers->Register(entry,reserved);
+    entry.lease_epoch=epoch;
 
     // Persist registration to TPEER_REGISTRY + log status transition
     // so TControlSvr can recover after a restart.
@@ -190,14 +193,22 @@ OnPeerRegisterReq(std::shared_ptr<OperatorSession> op,
             ? static_cast<std::uint8_t>((service_id >> 8) & 0xFF) : 0;
         const std::uint8_t group_id  = static_cast<std::uint8_t>((service_id >> 16) & 0xFF);
         const std::uint8_t server_id = static_cast<std::uint8_t>(service_id & 0xFF);
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool, [&] {
+        try { co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool, [&] {
             ctx.peer_repo->Upsert(entry_snap);
             ctx.peer_repo->InsertStatusLog(
                 group_id, server_id, type_id,
                 ServiceStatus::Unknown, ServiceStatus::Running,
                 "peer_register");
-        });
+        }); } catch(...) {
+            ctx.peers->Deregister(service_id,epoch);
+            throw;
+        }
     }
+
+    // Another connection may have registered the same service while this
+    // database write was offloaded. Never attach/ack the superseded socket.
+    const auto* live=ctx.peers->FindRegistration(service_id);
+    if(!live||live->lease_epoch!=epoch){op->Wire()->Close();co_return;}
 
 
     // Attach the inbound socket to the connection table so admin
@@ -237,11 +248,15 @@ OnPeerHeartbeatReq(std::shared_ptr<OperatorSession> op,
     if (!r.Read(service_id)   ||
         !r.Read(lease_epoch)  ||
         !r.Read(cur_users)    ||
-        !r.Read(max_users))
+        !r.Read(max_users)||!r.Eof())
     {
         spdlog::warn("CT_PEER_HEARTBEAT_REQ: malformed body");
         co_await senders::SendPeerHeartbeatAck(op->Wire(), 0, 0);
         co_return;
+    }
+    const auto connection=ctx.peers->Connection(service_id);
+    if(!connection||connection->Wire().get()!=op->Wire().get()) {
+        co_await senders::SendPeerHeartbeatAck(op->Wire(),0,0);co_return;
     }
     const auto current = ctx.peers->Heartbeat(service_id, lease_epoch,
         cur_users, max_users);
@@ -280,7 +295,7 @@ OnPeerHeartbeatReq(std::shared_ptr<OperatorSession> op,
 }
 
 boost::asio::awaitable<void>
-OnPeerDeregisterReq(std::shared_ptr<OperatorSession> /*op*/,
+OnPeerDeregisterReq(std::shared_ptr<OperatorSession> op,
                     std::vector<std::byte> body,
                     const HandlerContext& ctx)
 {
@@ -288,11 +303,13 @@ OnPeerDeregisterReq(std::shared_ptr<OperatorSession> /*op*/,
     wire::Reader r(body);
     std::uint32_t service_id = 0;
     std::uint64_t lease_epoch = 0;
-    if (!r.Read(service_id) || !r.Read(lease_epoch))
+    if (!r.Read(service_id) || !r.Read(lease_epoch)||!r.Eof())
     {
         spdlog::warn("CT_PEER_DEREGISTER_REQ: malformed body");
         co_return;
     }
+    const auto connection=ctx.peers->Connection(service_id);
+    if(!connection||connection->Wire().get()!=op->Wire().get())co_return;
     const bool ok = ctx.peers->Deregister(service_id, lease_epoch);
     if (ok)
     {
@@ -306,7 +323,7 @@ OnPeerDeregisterReq(std::shared_ptr<OperatorSession> /*op*/,
             const std::uint8_t type_id   = static_cast<std::uint8_t>((sid >>  8) & 0xFF);
             const std::uint8_t server_id = static_cast<std::uint8_t>( sid        & 0xFF);
             co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool, [&] {
-                ctx.peer_repo->Delete(sid);
+                ctx.peer_repo->DeleteIfEpoch(sid,lease_epoch);
                 ctx.peer_repo->InsertStatusLog(
                     group_id, server_id, type_id,
                     ServiceStatus::Running, ServiceStatus::Stopped,

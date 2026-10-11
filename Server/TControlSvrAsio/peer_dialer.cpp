@@ -20,9 +20,9 @@ namespace tcontrolsvr {
 
 namespace {
 
-const Machine* FindMachine(const IServiceInventory& inv, std::uint8_t mid)
+const Machine* FindMachine(const InventorySnapshot& snapshot, std::uint8_t mid)
 {
-    for (const auto& m : inv.Machines())
+    for (const auto& m : snapshot.machines)
         if (m.id == mid) return &m;
     return nullptr;
 }
@@ -30,10 +30,12 @@ const Machine* FindMachine(const IServiceInventory& inv, std::uint8_t mid)
 } // namespace
 
 boost::asio::awaitable<PeerDialResult>
-PeerDialer::Dial(const ServiceInstance& svc)
+PeerDialer::Dial(const ServiceInstance& requested)
 {
+    const auto svc=requested;
+    const auto snapshot=m_inventory.Snapshot();
     PeerDialResult res{};
-    const Machine* m = FindMachine(m_inventory, svc.machine_id);
+    const Machine* m = FindMachine(snapshot, svc.machine_id);
     if (!m || m->private_addrs.empty())
     {
         res.failure_reason = "no private address for machine "
@@ -55,7 +57,13 @@ PeerDialer::Dial(const ServiceInstance& svc)
         co_return res;
     }
 
-    tcp::socket sock(m_io);
+    struct ConnectAttempt {
+        explicit ConnectAttempt(boost::asio::io_context& io):socket(io){}
+        tcp::socket socket;
+        bool completed=false;
+        bool timed_out=false;
+    };
+    auto attempt=std::make_shared<ConnectAttempt>(m_io);
 
     // Race async_connect against a steady_timer fired with the
     // configured timeout. Whichever wins cancels the other —
@@ -64,21 +72,21 @@ PeerDialer::Dial(const ServiceInstance& svc)
     // reason string instead of asio's internal code).
     boost::asio::steady_timer deadline(m_io);
     deadline.expires_after(m_timeout);
-    bool timed_out = false;
-    deadline.async_wait([&sock, &timed_out](auto err) {
-        if (err) return;  // canceled by success path
-        timed_out = true;
+    deadline.async_wait([attempt](auto err) {
+        if (err||attempt->completed) return;
+        attempt->timed_out = true;
         boost::system::error_code ig;
-        sock.close(ig);
+        attempt->socket.close(ig);
     });
 
-    co_await boost::asio::async_connect(sock, endpoints,
+    co_await boost::asio::async_connect(attempt->socket, endpoints,
         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    attempt->completed=true;
     deadline.cancel();
 
-    if (ec || timed_out)
+    if (ec || attempt->timed_out)
     {
-        res.failure_reason = timed_out
+        res.failure_reason = attempt->timed_out
             ? std::string("timeout after ")
                 + std::to_string(m_timeout.count()) + "ms"
             : ec.message();
@@ -86,6 +94,7 @@ PeerDialer::Dial(const ServiceInstance& svc)
             svc.service_id, host, svc.port, res.failure_reason);
         co_return res;
     }
+    tcp::socket sock(std::move(attempt->socket));
 
     // Drive the client-side TLS handshake before publishing the
     // session. The remote ControlServer is configured for hybrid

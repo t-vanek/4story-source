@@ -8,8 +8,8 @@
 
 namespace tcontrolsvr {
 
-SociAdminAuditLogger::SociAdminAuditLogger(fourstory::db::SessionPool& pool)
-    : m_pool(pool)
+SociAdminAuditLogger::SociAdminAuditLogger(fourstory::db::SessionPool& pool, std::shared_ptr<native_control::Owner> owner)
+    : m_owner(std::move(owner)), m_pool(pool)
     , m_log(spdlog::get("audit"))
 {
     if (!m_log)
@@ -28,6 +28,15 @@ void SociAdminAuditLogger::InsertDb(const std::string& operator_id,
     {
         auto lease = m_pool.Acquire();
         auto& sql  = *lease;
+        if(native_control::Enabled(m_pool)) {
+            auto tx=native_control::Begin(sql,m_owner);
+            const auto op=native_control::Hex(operator_id),tgt=native_control::Hex(target),det=native_control::Hex(detail);
+            sql << "INSERT INTO runtime_control.operator_audit(operator_bytes,authority,remote_ip,action,target_bytes,detail_bytes) "
+                   "VALUES(decode(:op,'hex'),:auth,:ip,:act,decode(:target,'hex'),decode(:detail,'hex'))",
+                soci::use(op,"op"),soci::use(auth,"auth"),soci::use(remote_ip,"ip"),soci::use(action,"act"),
+                soci::use(tgt,"target"),soci::use(det,"detail");
+            native_control::Commit(*tx,m_commit_uncertain,m_owner);return;
+        }
         if (detail.empty() && target.empty())
         {
             sql << "INSERT INTO TOP_AUDIT_LOG "

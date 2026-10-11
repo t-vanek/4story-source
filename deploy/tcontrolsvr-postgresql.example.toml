@@ -1,0 +1,31 @@
+# Phase A native Control configuration: implemented, not runtime-verified.
+# Requires the explicitly imported Control + Patch catalogs and role grants.
+# Set TZ to the identical IANA name passed to import_control_metadata.py.
+[server]
+port = 12000
+
+[database]
+backend = "postgresql"
+connection_string_env = "FOURSTORY_CONTROL_PG"
+pool_size = 4
+worker_threads = 2
+
+[security]
+ip_allowlist = ["127.0.0.1/32"]
+ip_allowlist_enforce = true
+db_trust_store = false
+
+[health]
+port = 18086
+
+[admin]
+port = 0
+
+# Local container lifecycle is managed by the existing Compose/Podman stack.
+# A host deployment can select the existing systemd controller explicitly.
+[cluster.scm]
+backend = "disabled"
+status_reconcile_interval_secs = 0
+
+[log]
+level = "info"

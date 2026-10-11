@@ -17,10 +17,11 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–051; the next free number is052.
+immutable. Phase A has added unapplied migrations044–052; the next free number is053.
 
 The active continuation is now [full-rewrite-status.md](full-rewrite-status.md):
-remaining level-benefit/EXP-item/effect903 integration after quest reward commit `ea7c811`,
+remaining premium/PCBang, complete monster EXP benefits, general item use and
+precise durable effect sampling after EXP entitlement commit `fa4c282`,
 remaining quest action types, switch/territory state,
 World persistence, Control event delivery/recovery and the unresolved Patch pre-version contracts.
 

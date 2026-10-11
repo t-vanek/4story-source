@@ -19,9 +19,17 @@ EXP/SOULUP/LEVEL/HPMP packets. Original MW_LEVELUP_ACK/REQ remains nine bytes;
 new ownership checks add no client fields. Pure918/923 timer expiration emits
 SKILLEND then private CHARSTATINFO; source AUTOEXP charge order is preserved.
 All are **INTEGRATED_UNVERIFIED**, not executable compatibility evidence.
-Level-benefit EXP-item/effect903 creation still rolls back, and exact effect
-remaining-time sampling at handoff/logout is unfinished. See the
-[compile-only source contract](evidence/phase-a-quest-rewards-20261011/README.md).
+Code `fa4c282` adds level benefit creation, EXP-item903 restoration/expiry and the
+original ITEMUSE layout (WORD template, BYTE bag/slot, WORD delay group, BYTE count,
+then DWORD/BYTE target pairs). Source/client implementations override the stale
+CSProtocol.h comment. Response order is forced status, item deletion/update,
+ITEMUSE result, then quest events, all after the native transaction commits.
+The owned item must match the requested template: this explicitly fixes original
+cross-item quest-credit spoofing. Both player CHARINFO and ENTER serialize source
+maintained fields and sample remaining time. LOADCHAR's discarded903 visual is
+recreated at entry, without spurious removal packets. Exact durable sampling at
+handoff/logout remains unfinished. These changes are **INTEGRATED_UNVERIFIED**.
+See the [compile-only source contract](evidence/phase-a-during-items-20261011/README.md).
 
 Native Patch metadata sends the original varchar byte sequences, not a UTF-8
 re-encoding of decoded catalog text (`TPatchSvr.vcxproj` is MultiByte). Backup

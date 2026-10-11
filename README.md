@@ -26,21 +26,22 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–051** and native code extend quest state/actions, skill audit,
+New migrations **044–052** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
-level synchronization. The one-second native timer now processes the source
-918/923 progression effects. These paths are **INTEGRATED_UNVERIFIED** within their
-stated limits; the level benefit requiring EXP item18182–18184 and effect903 still
-rejects and rolls back the entire operation. Whole quest/gameplay completion is
-not claimed. See the [exact continuation](_rewrite/docs/modernization/full-rewrite-status.md#exact-continuation--implementation-gate).
+level synchronization. Code `fa4c282` adds level benefits18182–18184, native EXP
+entitlement persistence/import, effect903 lifecycle and atomic consumption through
+the original ITEMUSE request. Player ENTER now carries maintained effects; CHARINFO
+and ENTER sample their remaining time. These bounded paths are **INTEGRATED_UNVERIFIED**.
+Account premium/PCBang, complete monster rewards and other item-use kinds remain
+unfinished. See the [exact continuation](_rewrite/docs/modernization/full-rewrite-status.md#exact-continuation--implementation-gate).
 
 All six modern Debug and Release targets compile with tests disabled; this is
-build evidence only. Historical import tools and migration051 are written, not
+build evidence only. Historical import tools and migration052 are written, not
 executed. No tests, database migration, server startup or container run belongs
-to these changes. Previous migrations001–050 remain unchanged; the next unused
-migration number is052. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-quest-rewards-20261011/README.md).
+to these changes. Previous migrations001–051 remain unchanged; the next unused
+migration number is053. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-during-items-20261011/README.md).
 
 ## Historical verification through `2fa2396`
 

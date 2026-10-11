@@ -25,12 +25,13 @@ The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
 
-Latest local code `ea7c811` connects native quest reward/crafting transactions,
-magic items, ordinary level progression, World/replica level relay and pure
-918/923 effect timers. The level-benefit EXP item/effect903 path remains an
-explicit transaction rollback; no complete quest or effect parity is claimed.
-Migration051 is written only. Debug/Release builds are compilation evidence;
-no new tests or runtime processes were run. See [source scope and logs](evidence/phase-a-quest-rewards-20261011/README.md).
+Code `fa4c282` extends the preceding quest reward/crafting implementation with
+EXP-item lifecycle, level-created903/923/918 effects, native ITEMUSE consumption
+and quest triggers, plus full player ENTER effects. Migration052 and the historical
+entitlement importer are written only. Premium accounts/PCBang, full monster
+reward benefits, other consumables and precise durable effect sampling remain
+open. Debug/Release builds are compilation evidence; no new tests or runtime
+processes were run. See [source scope and logs](evidence/phase-a-during-items-20261011/README.md).
 
 ## Native account secure-code lifecycle (2026-10-11)
 

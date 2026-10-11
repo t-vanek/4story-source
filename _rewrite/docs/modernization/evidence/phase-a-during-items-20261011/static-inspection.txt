@@ -1,0 +1,8 @@
+Code commit: fa4c2825690e12a7174ff58e2db2734d1181253a
+Branch: main
+AST parsed: tools/database/import_during_items.py (not imported/executed)
+git diff --check: exit 0
+git diff --cached --check before code commit: exit 0
+Both final CMake build commands: exit 0, BUILD_TESTING=OFF
+Inspected post-build hook: OpenSSL module copy only; git post-commit hook: Git LFS metadata only.
+No tests, DB connection, migrations, reconciliation, server/client startup or containers run.

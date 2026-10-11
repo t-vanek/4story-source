@@ -22,13 +22,24 @@ validator. Original SQL fragments, old dev fixtures and repository labels cannot
 override the backup evidence. Global and game catalogs remain distinct; the
 implemented gameplay views deliberately publish **TGAME**.
 
+**Active Phase A, `fa4c282`:** the current source requires the additive migration
+sequence through052. New migrations044–052 and their import tools are written,
+not applied or verified. Migration052 adds the character EXP entitlement slot,
+account entitlement projection and checkpoint comparison. The offline
+`tools/database/import_during_items.py` requires a complete verified historical
+manifest, exact character/account mappings and `--source-timezone`; it refuses
+existing state/recovery and online worlds. EXP-item gameplay is integrated within
+the [documented scope](../_rewrite/docs/modernization/evidence/phase-a-during-items-20261011/README.md);
+account premium/PCBang runtime is still pending. Earlier results below retain
+their original revision and scope. No production migration is authorized here.
+
 Migration files `001`–`006` are immutable. `005` creates explicit catalog
 selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
 All subsequently applied migrations through **037** are also immutable. Current
-native Map deployment requires migrations through 037 and the existing
+native Map deployment at that historical revision required migrations through037 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and

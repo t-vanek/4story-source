@@ -1,0 +1,197 @@
+{
+  "recorded_at": "2026-10-11T16:26:50.634308+00:00",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "scope": "Ordinary EXP entitlement lifecycle and level benefits; zero-delay EXP item consumption with quest events; player maintained-effect presentation",
+  "base_commit": "39743c8",
+  "code_commit": "fa4c2825690e12a7174ff58e2db2734d1181253a",
+  "branch": "main",
+  "published": false,
+  "cpp_standard": "C++20",
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "cmake version 4.3.0",
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "exit_code": 0,
+      "log": "debug-build.log",
+      "log_sha256": "d9bcfc330f86964d9e3d361c48847a7be87f50812dc8518cb292f19289061132",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON"
+      },
+      "binaries": {
+        "tloginsvr_asio": {
+          "path": "build/phase-a-compile/bin/tloginsvr_asio",
+          "sha256": "68fa1e5cb26d7a911eb4b8ccd92dc420110cf2762ba4044e2100156946f67bf0"
+        },
+        "tworldsvr_asio": {
+          "path": "build/phase-a-compile/bin/tworldsvr_asio",
+          "sha256": "430512f23693a042ed95d1c88ff05ffcccbd7c1c78e34c685b904be5067081db"
+        },
+        "tmapsvr_asio": {
+          "path": "build/phase-a-compile/bin/tmapsvr_asio",
+          "sha256": "d0de858b5a5016f389ae5f4afd72c1c822ccf0446c00144928a31a90e6b4b853"
+        },
+        "tcontrolsvr_asio": {
+          "path": "build/phase-a-compile/bin/tcontrolsvr_asio",
+          "sha256": "345c1b83a99d01e1993fc59e18db3e0612cbfc134221abc7f71a1beee7a3c481"
+        },
+        "tpatchsvr_asio": {
+          "path": "build/phase-a-compile/bin/tpatchsvr_asio",
+          "sha256": "b235c4dd9d7028a80aab4c5f2e94d4109accb9189a72f1dda270af814462c104"
+        },
+        "tlogsvr_asio": {
+          "path": "build/phase-a-compile/bin/tlogsvr_asio",
+          "sha256": "d651ce5bfd582025928aa063b8f4e7d37272b554c8b9bbcee592a94d5fb1dab1"
+        }
+      }
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "exit_code": 0,
+      "log": "release-build.log",
+      "log_sha256": "9909db6d8191a260563c0cbbb16d8b0595adb9a5cb5dcdebab903dce45ecaf16",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON"
+      },
+      "binaries": {
+        "tloginsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tloginsvr_asio",
+          "sha256": "7bd272eaa215f6d276c73e27c56a5ecce096cbf88f98eed24fc34695756276c9"
+        },
+        "tworldsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tworldsvr_asio",
+          "sha256": "452acc61bd324d38f3b727748698b06c627a22116b2df0e120ab0b00e1c20e81"
+        },
+        "tmapsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tmapsvr_asio",
+          "sha256": "674cde910c1bf0f22c4bab12e7fa5c0ebe81a6743e9f4b84a0a949d31c4726bb"
+        },
+        "tcontrolsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tcontrolsvr_asio",
+          "sha256": "e3adcc5370ca2ba4f5752872435724f12d65875ba0fcca02f6df0766a4a001e5"
+        },
+        "tpatchsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tpatchsvr_asio",
+          "sha256": "a855c67587fc8607824b540c7f151f6873b1c8ee559eb6606a0cd15df702f17f"
+        },
+        "tlogsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tlogsvr_asio",
+          "sha256": "5c70537a9fa802a1a1a7c09e1eadfcfcb6928c76ed5a96f2217b626e67abd4a8"
+        }
+      }
+    }
+  ],
+  "changed_code_files": {
+    "Server/TMapSvrAsio/CMakeLists.txt": "09b3d737efd26e6bd80418d7ad00e14a738cd2670d9b3c7fa5c0fd3d5ccc21f2",
+    "Server/TMapSvrAsio/domain/character_payload.h": "65ba241f9f9b2a8ef54f3d019b162d8dec168835fcf3b73e52c20e3af909bfa4",
+    "Server/TMapSvrAsio/domain/during_item.h": "b2e0af0051fe471ecb0deca364fcb554c5b9ffcd175469290cfac1a3256275cd",
+    "Server/TMapSvrAsio/domain/main_transfer.h": "3175fede331e67c6399fd321ca2cc195f4cd879d5be6008fe2c54073c2d7e4da",
+    "Server/TMapSvrAsio/domain/maintained_effect.h": "0c5c48ff581e916984f2a710da162666bd1d7ee5a1b50ac866f4c699cdabf46c",
+    "Server/TMapSvrAsio/handlers/dispatch.cpp": "9cf5e3d6383f932d06a0fb700e1f2a2133b2ebb857ee968fa97bb7a9b56c94b7",
+    "Server/TMapSvrAsio/handlers/quest.cpp": "884cb5d0375b5a6a7aa9fad4ab596cc9147521ae3fbe9ece62a12030450b80f9",
+    "Server/TMapSvrAsio/handlers/session.cpp": "b0f7022d5557be1ee2140bd2a815104c507a947c1d1b220e79def1dbbeba2f4a",
+    "Server/TMapSvrAsio/main.cpp": "58df73d8104e5217c49b3e8d880ee5a3953c42e0670b68e65eac7a4251894b96",
+    "Server/TMapSvrAsio/services/client_senders.cpp": "be5e7a31d4c425a61f6adfec07bfb356ae6ef40b42a18551fde873eb9f82ca5c",
+    "Server/TMapSvrAsio/services/client_senders.h": "a73d88d7a801fd41473bbfadd92d28bb9456c865a8a7fd0992411679656846e9",
+    "Server/TMapSvrAsio/services/main_transfer_runtime.cpp": "9aa264f8833be2c97aabc6f00826152ae3a232e8fe8af847fdc62d963eb59c4c",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "a4307f32f0a54cd72aa6eaf2b03d323450a2ed932e93a8a1ec653723fa2ab156",
+    "Server/TMapSvrAsio/services/postgresql_map_during.cpp": "777e2445626ba307219136f6d49d524410dcab5026d1482c4ca93f911fc80bb9",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "bc7f05b3871eb1531a92049462b8d0dff25fa45a4070a153c4dc17af7074f250",
+    "Server/TMapSvrAsio/services/postgresql_map_progression.cpp": "3f590a916a9f43ef577587ea26d9e3e718e7059abb27bc20eb485a99dde65b58",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "a7724368031b700ee9f131348b930d02d670bc152cc4034c57605c4429a61979",
+    "Server/TMapSvrAsio/services/posture_effects.h": "3b4ca0b4b5b6ad4b517cfc00bd58b88fbe5fee5b774108bcbd3063dc38f7dff5",
+    "database/postgresql/052-native-exp-entitlements.sql": "b00969555bdcd26fc9cbf69e5742e76785c13531987abd5034a171f2de2d4a1e",
+    "deploy/sql/map-runtime-grants.sql": "7e8f1a774c0a9029493bbfe1fea620ca0afa6bd04f89e8a15ac2c55fdfe0165d",
+    "tools/database/import_during_items.py": "1644131a7b32c9ad7bea34a09aa83306c57a8894981abdae1b3a06bd1308daf0"
+  },
+  "source_files": {
+    "TPlayer": "Server/TMapSvr/TPlayer.cpp: SetDuringItem; HangExpBuff; HangPremiumItem; CheckDuringItem; GainExp; IsExpBenefit",
+    "TObjBase": "Server/TMapSvr/TObjBase.cpp: ForceMaintain; UpdateBuffSkill; CheckMaintainSkill; EraseMaintainSkill",
+    "load_save": "Server/TMapSvr/SSHandler.cpp; SSSender.cpp; DBAccess.h: LOADCHAR; TSaveExpItem; TSaveCharDataStart/End",
+    "item_request": "Server/TMapSvr/CSHandler.cpp: OnCS_ITEMUSE_REQ; TMapSvr.cpp: UseItem",
+    "packets": "Server/TMapSvr/CSSender.cpp: SendCS_CHARINFO_ACK; SendCS_ENTER_ACK; SendCS_DEFEND_ACK; SendCS_ITEMUSE_ACK",
+    "independent_client": "Client/TClient/CSSenderAll.cpp: SendCS_ITEMUSE_REQ; CSHandler.cpp: OnCS_ITEMUSE_ACK"
+  },
+  "source_metadata_sha256": {
+    "/tmp/fourstory-learning-source-20261011/inspection/TGAME_RAGEZONE.catalog.json": "f6129dac18ab227eb2b19ff917976f0be4983b0b9290aac003dfb3feb0edf7a8",
+    "/tmp/fourstory-learning-source-20261011/inspection/TGLOBAL_RAGEZONE.catalog.json": "06f58641ec47f4cf4a8db1f6b853e92ca9224d021a442db0e3cd67e0c0eb26c2",
+    "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TITEMCHART.json": "e9f243d1e952e418bc6eeb4061e3b5b7f7427c391c33f20610bcbdb2cea8d3e6",
+    "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TSKILLCHART.json": "e3356ca5a3cfa7d4a4ad091b8c90b108a0fdde16b7f034f5f1f89055fb51b275",
+    "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TSKILLDATA.json": "54edf1d4b6e86dd7c5f08e632d7dfd9bca1f0dd49c202fc6b0351c880855aab7"
+  },
+  "database": {
+    "driver": "Existing native PostgreSQL/SOCI backend; linked but no runtime connection",
+    "new_migration": "052-native-exp-entitlements.sql",
+    "applied": false,
+    "historical_import_executed": false,
+    "prior_migrations_001_051_modified": false,
+    "backups_modified": false,
+    "import_requires": [
+      "complete verified archive",
+      "exact character and account ID maps",
+      "explicit source IANA timezone",
+      "all worlds offline and sessions settled",
+      "no existing target state or recovery"
+    ]
+  },
+  "modern_differences": [
+    "All item/entitlement/effect/quest changes commit atomically before output; no automatic replay after unknown commit",
+    "ITEMUSE claimed template must match the actually owned item to prevent cross-item quest credit",
+    "New expiry retains exact seconds; historical naive SMALLDATETIME requires explicit source-zone transformation",
+    "Ambiguous EXP slots or unsupported account premium/PCBang admission are rejected without rewriting archive values"
+  ],
+  "remaining_contracts": [
+    "TMonster::OnDie/GetExp and IsExpBenefit percentage integration; full party/owner rewards",
+    "Native account premium/PCBang daily time, grants, effects900/901/902/914/915/916 and pet behavior",
+    "Other ITEMUSE kinds, item cooldowns/TITEMUSEDTABLE, tournament/deal/store dependencies",
+    "Exact durable sub-tick effect sample at checkpoint/logout/handoff; interrupted handoff elapsed time",
+    "General effects, tutorial-wide state restore, companions/party/guild stats, Soul Lottery and remaining quest actions",
+    "Full native World/social/economy/modes/tools and original responsibility inventory"
+  ],
+  "static_checks": [
+    "Python AST parse only; no import or execution of new tool",
+    "git diff --check and cached whitespace check",
+    "source/code call-path and fixed-width serializer inspection"
+  ],
+  "tests_executed": 0,
+  "not_executed": [
+    "unit/integration/regression/protocol/PostgreSQL tests",
+    "CTest/pytest",
+    "sanitizers/fuzz/benchmarks",
+    "migration/import/reconciliation",
+    "server/client processes",
+    "Docker/Podman build/run",
+    "cluster restart"
+  ],
+  "client": {
+    "executable": null,
+    "sha256": null,
+    "assets": null,
+    "supported_build": null,
+    "reason": "Owner has only uncompiled original client source"
+  },
+  "phase_b_started": false,
+  "phase_c_started": false
+}

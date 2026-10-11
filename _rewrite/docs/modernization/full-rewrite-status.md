@@ -8,9 +8,37 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–051 are **written, not applied**.
-Latest code increment: `ea7c811`, starting from `b56b255`; earlier Phase A evidence
+evidence remain unchanged. New migrations044–052 are **written, not applied**.
+Latest code increment: `fa4c282`, starting from `39743c8`; earlier Phase A evidence
 is retained at its original revision.
+
+## EXP entitlement / ITEMUSE increment — `fa4c282`
+
+- Native fresh loading, graph-backed transfer/recovery and timer transactions
+  carry the original EXP slot (item/type/seconds/expiry). Migration052 replaces
+  TSaveExpItem + TSaveCharDataStart/End staging for this slot with an atomic write.
+  Core checkpoints compare the durable slot; quest operation heads fence older
+  snapshots. After transfer, the complete graph remains authoritative.
+- GainExp's18182/18183/18184 branch now sets the source half-hour entitlement and
+  forces903/923, plus918 at the source threshold. Pure status collisions, expiry,
+  refresh and END/CHARSTAT/DEFEND ordering are connected. LOADCHAR discards the
+  old903 visual and EnterMAP recreates it after the visibility flood.
+- CS_ITEMUSE_REQ handles source zero-delay IT_USE/IK_EXPBONUS templates with
+  security, ownership, wrap, riding, dead/level and overlap checks. Force status,
+  consume one item, success and USEITEM quest events share one PostgreSQL
+  transaction. The requested template must match the owned item, closing a
+  source quest-credit spoof. Other item kinds/tournament authority remain open.
+- CHARINFO and player ENTER carry the source maintained-effect fields and sample
+  remaining milliseconds when serialized. Previously ENTER always sent zero.
+- import_during_items.py preserves both historical EXP and account entitlement
+  rows through explicit identity maps and source IANA timezone. It rejects
+  ambiguous EXP slots, DST instants, existing state/recovery and active owners;
+  no import was executed. Account premium rows are preserved, but their gameplay
+  admission remains explicitly blocked until premium/PCBang/pet semantics exist.
+
+This is entitlement/visual/consumption integration, **not complete monster EXP
+bonus or premium gameplay**. TMonster::OnDie/GetExp benefit multiplication, party
+sharing, all general effects and the branches below still need native work.
 
 ## Quest reward/progression increment — `ea7c811`
 
@@ -39,13 +67,10 @@ is retained at its original revision.
   source/catalog rows, rejects ambiguous keys and retires stale offline owners.
   No catalog activation or data migration has run.
 
-**Remaining reward/progression branches:** source level benefits at loop indices
-8/18/28/... use SetDuringItem, HangPremiumItem, effect903, automatic effect923 and
-later918. Their full EXP-item/PCBang persistence and effect creation are not yet
-integrated, so this branch rolls back, including preceding item/money changes.
-918/923 can currently arrive through native hydration or a primary transfer;
-source level-triggered creation remains part of that missing benefit branch.
-Party/recall/guild-derived statistics, general effects and Soul Lottery remain open.
+**Remaining reward/progression branches after `fa4c282`:** account premium/PCBang
+authority, daily timers/pets, complete monster EXP benefits, party/recall/guild
+statistics, general effects and Soul Lottery remain open. Ordinary EXP-item
+level benefit creation no longer takes the earlier rollback guard.
 No whole QT_COMPLETE, crafting, level progression or effect system is marked done.
 
 ## Implemented and connected in this increment
@@ -124,6 +149,15 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
   and handoff. Exact sub-tick transfer/logout sampling and time spent in an
   interrupted handoff remain required. Charge clocks restart on hydration,
   matching the source constructor/load boundary; elapsed offline time earns no XP.
+  Client CHARINFO/ENTER now sample current remaining time independently.
+- New EXP expiry uses exact epoch seconds. Historical SMALLDATETIME values are
+  untouched in the archive; import requires an explicit source timezone and
+  rejects ambiguous/nonexistent local times. The runtime no longer rounds a new
+  entitlement expiry to a SQL Server minute; Phase B must assess this precision
+  difference. Ambiguous multiple EXP rows/unsupported templates are not guessed.
+- ITEMUSE validates the claimed template against the actual owned slot. The
+  original handler could use a different valid template as its quest trigger.
+  Unsupported item kinds or gameplay dependencies fail without consuming items.
 - World level sends follow the database commit. A failed/unknown send closes the
   source client without replaying its reward; durable cross-process delivery and
   reconciliation are still a World integration requirement.
@@ -149,14 +183,14 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Exact continuation / implementation gate
 
-1. Finish level benefits before claiming complete quest progression:
-   TPlayer::SetDuringItem/HangPremiumItem/HangExpBuff/CheckDuringItem; effect903
-   ForceMaintain/collisions/rehang; native TEXPITEMTABLE + original TSaveExpItem
-   staging/finalization replacement; account TDURINGITEMTABLE/PCBang authority.
-   Source EXP items are18182/18183/18184, skill903 has STATUS41, skill923 STATUS67,
-   skill918 STATUS63. Read values from the pinned catalog. Preserve original
-   one-second timer order, zero-remain behavior, admission/transfer/restart and
-   exact remaining-time sampling. Then remove the documented level-benefit guard.
+1. Continue the source-dependent progression/item contracts:
+   TMonster::OnDie party and owner IsExpBenefit multiplication; account
+   TDURINGITEMTABLE + TGetPcBangData/TSetPcBangData and premium/daily/pet behavior.
+   Premium item templates7401/7402/7403 use skills900/901/902,7626/7627/7628 use
+   914/915/916 in the available catalog; inspect their full data before admission.
+   Complete other CS_ITEMUSE kinds, original item cooldowns/TITEMUSEDTABLE,
+   tournament/deal/store gates and exact effect sampling at save/transfer/logout.
+   Do not confuse the new packet-time sample with durable sub-tick persistence.
    Implement Soul Lottery request/trigger with its effect820 dependency.
    Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN
    and all non-request kill/use-item/position/spawn producers. Quest mail uses
@@ -181,9 +215,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 ## Activities actually performed
 
 All six modern C++20 Debug and Release targets compile/link with BUILD_TESTING=OFF
-for code commit `ea7c811`. Static Python AST parsing includes the changed quest
-activation tool (without importing/executing it). `git diff --check` passes. Compilation does not establish gameplay, persistence or protocol parity.
+for code commit `fa4c282`. The new entitlement import tool was AST-parsed without
+importing/executing it. `git diff --check` passes. Compilation does not establish
+gameplay, persistence or protocol parity.
 Exact configuration, commands and logs are retained in
+[evidence/phase-a-during-items-20261011](evidence/phase-a-during-items-20261011/README.md).
+Previous quest reward compilation remains in
 [evidence/phase-a-quest-rewards-20261011](evidence/phase-a-quest-rewards-20261011/README.md).
 Earlier Phase A compile evidence remains in
 [evidence/phase-a-20261011](evidence/phase-a-20261011/README.md).

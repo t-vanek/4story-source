@@ -165,6 +165,67 @@ std::vector<ItemInstance> PostgreSQLMapService::CreateQuestRewardItems(soci::ses
     }
     return items;
 }
+bool PostgreSQLMapService::OpenSpecialBox(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
+    std::uint16_t group,QuestPackets& packets) {
+    int compatible=0;
+    sql << "SELECT count(*) FROM game_compat.special_box_release r JOIN game_compat.catalog_release m "
+        "ON m.manifest_sha256=r.map_manifest AND m.status='verified' "
+        "JOIN character_compat.catalog_release c ON c.manifest_sha256=r.character_manifest AND c.status='verified' "
+        "JOIN actor_compat.catalog_release a ON a.manifest_sha256=r.actor_manifest AND a.status='verified' WHERE r.status='verified'",
+        soci::into(compatible);
+    if(compatible!=1)throw std::runtime_error("Special box requires the published original content catalog");
+    const int id=std::bit_cast<std::int16_t>(group);
+    std::vector<ItemInstance> items;unsigned group_size=0;
+    // Source CTBLSpecialBoxChart has no ORDER BY. Preserve the archived extract
+    // order explicitly, not an invented wID order. CreateItem skips rows whose
+    // item template is absent before the runtime group/class selection.
+    soci::rowset<soci::row> rows=(sql.prepare <<
+        "SELECT b.* FROM game_compat.\"TSPECIALBOXCHART\" b JOIN character_compat.\"TITEMCHART\" i "
+        "ON i.\"wItemID\"=b.\"wItemID\" WHERE b.\"wGroup\"=:id ORDER BY b.\"_source_row_number\"",soci::use(id));
+    for(const auto& row:rows) {
+        if(++group_size>255)throw std::runtime_error("Special box exceeds source BYTE loop");
+        const auto klass=row.get<std::string>("bClass");
+        if(klass.size()!=1||klass[0]<'0'||klass[0]>'9')throw std::runtime_error("Special box class cannot convert to original BYTE");
+        if(klass[0]-'0'!=s.bClass&&klass[0]!='6')continue; // TCLASS_COUNT, not template class mask
+        transfer::Item raw;
+        raw.id=AllocateQuestItem(sql,c);raw.owner_id=c.char_id;
+        raw.item=static_cast<std::uint16_t>(row.get<int>("wItemID"));
+        raw.count=static_cast<std::uint8_t>(row.get<int>("bCount"));
+        raw.level=static_cast<std::uint8_t>(row.get<int>("bLevel"));raw.grade=static_cast<std::uint8_t>(row.get<int>("bGLevel"));
+        raw.durability_max=static_cast<std::uint32_t>(row.get<int>("dwDuraMax"));raw.durability=static_cast<std::uint32_t>(row.get<int>("dwDuraCur"));
+        raw.refine=static_cast<std::uint8_t>(row.get<int>("bRefineCur"));raw.grade_effect=static_cast<std::uint8_t>(row.get<int>("bGradeEffect"));
+        raw.gem=static_cast<std::uint8_t>(row.get<int>("bGem"));raw.appearance=static_cast<std::uint16_t>(row.get<int>("wMoggItemID"));
+        raw.eld=static_cast<std::uint32_t>(row.get<int>("dwTime1"));raw.wrap=static_cast<std::uint32_t>(row.get<int>("dwTime2"));
+        raw.color=static_cast<std::uint32_t>(row.get<int>("dwTime3"));raw.guild=static_cast<std::uint32_t>(row.get<int>("dwTime4"));
+        raw.companion=static_cast<std::uint32_t>(row.get<int>("dwTime5"));raw.texture=static_cast<std::uint32_t>(row.get<int>("dwTime6"));
+        const auto days=static_cast<std::uint16_t>(row.get<int>("wUseTime"));
+        // Unlike quest reward SetEndTime, this is current time plus whole days,
+        // without midnight rounding. Native calendar policy is explicit UTC.
+        // The source query never binds m_dEndTime; zero-day contents use a
+        // defined no-expiry value instead of reading uninitialized memory.
+        raw.expires=days?s.payload->event_time+std::int64_t{days}*86400:0;
+        std::map<std::uint8_t,std::uint16_t> magic;
+        for(unsigned i=1;i<=6;++i) {
+            const int code=row.get<int>("bMagic"+std::to_string(i));
+            const auto value=static_cast<std::uint16_t>(row.get<int>("wValue"+std::to_string(i)));
+            if(!code||!value)continue;
+            int found=0;sql << "SELECT 1 FROM actor_compat.\"TITEMMAGICCHART\" WHERE \"bMagic\"=:id",soci::use(code),soci::into(found);
+            if(sql.got_data())magic[static_cast<std::uint8_t>(code)]=value;
+        }
+        for(const auto& [code,value]:magic)raw.magic.push_back({code,value});
+        if(!raw.count)throw std::runtime_error("Special box contains a zero-count source item");
+        items.push_back(ProjectNativeItem(sql,raw));
+    }
+    if(!group_size)return false;
+    bool blank=false;
+    for(const auto& bag:s.payload->bags)if(bag.bag.bInvenID!=254)
+        for(unsigned slot=0;slot<bag.slot_count;++slot)
+            if(std::none_of(bag.items.begin(),bag.items.end(),[&](const auto& i){return i.bItemID==slot;})){blank=true;break;}
+    // HaveInvenBlank is an independent source gate, even when all rewards would
+    // merge into stacks or class filtering selected zero items. Capacity is
+    // checked before the original box is consumed.
+    return blank&&GrantQuestItems(sql,c,s,items,packets);
+}
 bool PostgreSQLMapService::GrantQuestItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     const std::vector<ItemInstance>& input,QuestPackets& packets) {
     const auto plan=Place(*s.payload,input);if(!plan)return false;

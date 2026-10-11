@@ -51,6 +51,49 @@ void SaveRewardTitles(soci::session& sql,const MapSessionClaim& c,const Characte
             soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"id"),soci::use(selected,"selected");
     }
 }
+void RequireMoneyTitles(soci::session& sql) {
+    int compatible=0;
+    sql << "SELECT count(*) FROM game_compat.quest_reward_release r JOIN game_compat.catalog_release m "
+        "ON m.manifest_sha256=r.map_manifest AND m.status='verified' "
+        "JOIN character_compat.catalog_release c ON c.manifest_sha256=r.character_manifest AND c.status='verified' "
+        "JOIN actor_compat.catalog_release a ON a.manifest_sha256=r.actor_manifest AND a.status='verified' WHERE r.status='verified'",
+        soci::into(compatible);
+    if(compatible!=1)throw std::runtime_error("Money operation requires the published original title catalog");
+}
+std::uint64_t SourceMoney(const CharSnapshot& s) {
+    // NetCode::CalcMoney adds copper/silver as DWORD before widening.
+    return static_cast<std::uint32_t>(s.dwCooper+s.dwSilver*1000U)+std::uint64_t{s.dwGold}*1000000U;
+}
+void SetSourceMoney(CharSnapshot& s,std::uint64_t total) {
+    s.dwGold=static_cast<std::uint32_t>(total/1000000U);
+    s.dwSilver=static_cast<std::uint32_t>(total/1000U%1000U);
+    s.dwCooper=static_cast<std::uint32_t>(total%1000U);
+}
+}
+void PostgreSQLMapService::EarnNativeMoney(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
+    std::uint32_t amount,QuestPackets& packets) {
+    if(!amount)return; // CTPlayer::EarnMoney does not award titles for zero.
+    RequireMoneyTitles(sql);
+    CheckRewardTitles(sql,c,*s.payload);
+    SetSourceMoney(s,SourceMoney(s)+amount);
+    AwardTitles(sql,s,8,s.dwGold,packets);
+    // A later quest hook may award again in this same transaction. Keep the
+    // locked normalized projection current; graph owners retain graph authority.
+    SaveRewardTitles(sql,c,*s.payload);
+}
+bool PostgreSQLMapService::UseNativeMoney(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
+    std::uint32_t amount,bool spend,QuestPackets& packets) {
+    if(!amount)return true;
+    const auto total=SourceMoney(s);
+    if(total<amount)return false;
+    RequireMoneyTitles(sql);
+    CheckRewardTitles(sql,c,*s.payload);
+    if(spend)SetSourceMoney(s,total-amount);
+    // CTPlayer::UseMoney(FALSE) still calls GetTitle on sufficient funds.
+    // Preserve this side effect even if a later NPC-call validation fails.
+    AwardTitles(sql,s,8,s.dwGold,packets);
+    SaveRewardTitles(sql,c,*s.payload);
+    return true;
 }
 std::uint8_t PostgreSQLMapService::CompleteQuestRewards(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     const QuestDef& def,std::uint8_t chosen_type,std::uint32_t chosen_id,
@@ -89,17 +132,7 @@ std::uint8_t PostgreSQLMapService::CompleteQuestRewards(soci::session& sql,const
         if(!take)continue;
         switch(reward.bRewardType) {
         case RT_GOLD: {
-            if(reward.dwRewardID) {
-                // NetCode::CalcMoney adds copper/silver as DWORD before widening.
-                const auto total=static_cast<std::uint32_t>(s.dwCooper+s.dwSilver*1000U)+
-                    std::uint64_t{s.dwGold}*1000000U+reward.dwRewardID;
-                s.dwGold=static_cast<std::uint32_t>(total/1000000U);s.dwSilver=static_cast<std::uint32_t>(total/1000U%1000U);
-                s.dwCooper=static_cast<std::uint32_t>(total%1000U);
-                AwardTitles(sql,s,8,s.dwGold,packets);
-                // Child completion can run before this method returns. Keep the
-                // locked normalized projection current within this transaction.
-                SaveRewardTitles(sql,c,*s.payload);
-            }
+            EarnNativeMoney(sql,c,s,reward.dwRewardID,packets);
             packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_MONEY_ACK),EncodeMoneyAck(s.dwGold,s.dwSilver,s.dwCooper));
             break;
         }

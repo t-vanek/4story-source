@@ -60,7 +60,12 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     std::uint16_t opcode,std::vector<std::byte> body,const HandlerContext& ctx) {
     const auto identity=ctx.session_reg?ctx.session_reg->Identity(client.get()):std::nullopt;
     if(!identity||identity->phase!=SessionPhase::Ready||identity->role!=MapSessionRole::Primary)co_return;
-    const auto required=opcode<=1?0U:opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_NPCTALK_REQ)?2U:
+    const bool lottery=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_REQ)||
+        opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_TRIGGER_REQ);
+    const auto required=opcode<=1||lottery?0U:
+        opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_DURATIONREP_REQ)?8U:
+        opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMSELL_REQ)?5U:
+        opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_NPCTALK_REQ)?2U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_QUESTEXEC_REQ)?9U:4U;
     if(opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMUSE_REQ)) {
         if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))throw std::runtime_error("Invalid ITEMUSE request length");

@@ -94,6 +94,12 @@ struct CharacterPayload {
     std::uint8_t previous_level{};
     std::uint32_t soul_exp{};
     bool soul_ready{};
+    std::array<std::uint32_t,4> lottery_numbers{};
+    std::uint32_t lottery_money{}; // also player-object state, not a saved claim
+    // CTPlayer live interaction gates. Their shop/trade/tournament producers
+    // still need native integration; they start closed/inactive on admission.
+    bool personal_store{},tournament_player{};
+    std::uint8_t deal_status{}; // DEAL_READY=0, WAIT=1, START=2
     std::uint8_t lucky_number{},aid_country{3}; // original absent TAIDTABLE -> TCONTRY_N
     std::uint16_t selected_title{};
 };

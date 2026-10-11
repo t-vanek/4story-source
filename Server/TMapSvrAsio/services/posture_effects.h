@@ -5,12 +5,17 @@
 
 namespace tmapsvr {
 inline bool IsNativePosture(std::uint16_t skill) {return skill==131||skill==132;}
+inline bool ErasesAtZeroMp(const CharacterPayload& p,std::uint16_t skill) {
+    if(IsNativePosture(skill))return true; // hydrated bIsuse=1, dwDuration=0
+    return std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
+        [&](const auto& def){return def.skill==skill&&def.erase_at_zero_mp;});
+}
 inline bool SupportedPostures(const CharacterPayload& p) {
     return p.effects&&std::all_of(p.effects->begin(),p.effects->end(),[&](const auto& e){
         if(IsNativePosture(e.skill))return e.level==1&&!e.remaining;
-        // Pure QUESTEXP/AUTOEXP status effects have no stat, equipment,
-        // attack-erase or zero-MP side effects. The source templates are pinned
-        // during hydration; accepting an arbitrary ID here would hide effects.
+        // Pinned statuses have no stat/equipment/attack-erase side effects.
+        // Soul Lottery820 does have CheckEternalBuff's zero-MP removal even
+        // with a forced duration. Accepting arbitrary IDs would hide effects.
         return e.level==1&&std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
             [&](const auto& def){return def.skill==e.skill&&(e.remaining||(e.skill==903&&!def.duration));});
     });

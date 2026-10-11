@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_npc_discount.h"
 #include "postgresql_map_owner.h"
 #include "maintained_effects.h"
 #include "posture_effects.h"
@@ -59,14 +60,6 @@ std::string Fingerprint(const MapSessionClaim& claim,const CharSnapshot& s) {
     for(auto b:digest){result+=hex[b>>4];result+=hex[b&15];}return result;
 }
 struct Receipt {bool found=false,core_matches=false;long long revision=0;int contract=0;std::string fingerprint,outcome,transfer_hash;};
-std::uint8_t NpcDiscount(int condition,int rate,int local) {
-    // CTMapSvrModule::GetDiscountRate: an absent local can never grant the
-    // guild discount; unrecognised conditions explicitly leave the rate zero.
-    // Hero lookup requires the live local/castle ownership registry. Do not
-    // turn missing ownership integration into a successful full-price reply.
-    if(!rate||condition<1||condition>3||(condition==1&&!local))return 0;
-    throw std::runtime_error("NPC guild/hero discount authority is not integrated");
-}
 Receipt ReadReceipt(soci::session& sql,const MapSessionClaim& claim,int server,const std::string& token){
     const int world=claim.group;const long long cid=claim.char_id,uid=claim.user_id,key=claim.key,generation=claim.connection_id,epoch=claim.authority_epoch;
     Receipt r;int matches=0;
@@ -303,7 +296,7 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
         if(!cast->loop&&!after.dwMP) {
             if(!SupportedPostures(*p))throw std::runtime_error("Zero-MP cast requires supported eternal effect semantics");
             for(std::size_t i=0;i<after.payload->effects->size();) {
-                if(!IsNativePosture(after.payload->effects->at(i).skill)){++i;continue;}
+                if(!ErasesAtZeroMp(*after.payload,after.payload->effects->at(i).skill)){++i;continue;}
                 p=std::make_shared<CharacterPayload>(*after.payload);
                 const auto ended=p->effects->at(i).skill;p->effects->erase(p->effects->begin()+i);after.payload=p;
                 RefreshEquipment(sql,after,true);
@@ -496,9 +489,18 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool progress_tick=opcode==0; // internal timer only; no dispatcher registration
     const bool during_entry=opcode==1; // internal EnterMAP only; no wire change
     const bool use_item=message==MessageId::CS_ITEMUSE_REQ;
+    const bool sell_item=message==MessageId::CS_ITEMSELL_REQ;
+    const bool repair_items=message==MessageId::CS_DURATIONREP_REQ;
+    const bool lottery=message==MessageId::CS_SOULLOTTERY_REQ||message==MessageId::CS_SOULLOTTERY_TRIGGER_REQ;
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(repair_items) {
+        if(body.size()!=8)throw std::runtime_error("Invalid DURATIONREP request length");
+    } else if(sell_item) {
+        if(body.size()!=5)throw std::runtime_error("Invalid ITEMSELL request length");
+    } else if(lottery) {
+        if(!body.empty())throw std::runtime_error("Invalid soul lottery request length");
     } else if(use_item) {
         if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))
             throw std::runtime_error("Invalid ITEMUSE request length");
@@ -530,7 +532,20 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     quest_runtime::HydrateLevels(*payload,chart);
     bool other_state_changed=false;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(message==MessageId::CS_NPCTALK_REQ) {
+    if(repair_items) {
+        other_state_changed=RepairNativeItems(sql,c,after,body,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(sell_item) {
+        std::uint16_t sold=0;
+        other_state_changed=SellNativeItem(sql,c,after,body,sold,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+        // Source calls CTPlayer::CheckQuest(count0), not module CheckQuest:
+        // update running GETITEM terms without triggering new grant actions.
+        if(other_state_changed)quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,sold,QTT_GETITEM,0,committed.packets);
+    }else if(lottery) {
+        other_state_changed=ChangeSoulLottery(sql,c,after,message==MessageId::CS_SOULLOTTERY_TRIGGER_REQ,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(message==MessageId::CS_NPCTALK_REQ) {
         const int id=std::bit_cast<std::int16_t>(npc);int country=0,local=0;
         sql << "SELECT \"bCountryID\",\"wLocalID\" FROM character_compat.\"TNPCCHART\" WHERE \"wID\"=:id",
             soci::use(id),soci::into(country),soci::into(local);
@@ -1112,9 +1127,10 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
         }
         after.dwHP=std::min(after.dwHP,after.dwMaxHP);after.dwMP=std::min(after.dwMP,after.dwMaxMP);
         // Defend calls CheckEternalBuff after applying the effect, before its
-        // DEFEND/HPMP reply. ReadPostures pins bIsuse=1 and zero duration.
+        // DEFEND/HPMP reply. Use catalog bIsuse/dwDuration, including a timed
+        // ForceMaintain override such as Soul Lottery820.
         if(!after.dwMP)for(std::size_t i=0;i<after.payload->effects->size();)
-            if(IsNativePosture(after.payload->effects->at(i).skill))erase(i);else ++i;
+            if(ErasesAtZeroMp(*after.payload,after.payload->effects->at(i).skill))erase(i);else ++i;
         emit(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power),FinishAudience::Nearby);
         if(after.dwHP!=hp||after.dwMP!=mp)emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
             EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP),FinishAudience::Nearby);

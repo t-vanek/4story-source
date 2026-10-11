@@ -81,6 +81,10 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
     case MessageId::CS_MOVEITEM_REQ:
         co_await OnMoveItemReq(sess, std::move(body), ctx); break;
     case MessageId::CS_ITEMUSE_REQ:
+    case MessageId::CS_ITEMSELL_REQ:
+    case MessageId::CS_DURATIONREP_REQ:
+    case MessageId::CS_SOULLOTTERY_REQ:
+    case MessageId::CS_SOULLOTTERY_TRIGGER_REQ:
         co_await OnNativeQuestReq(sess,wId,std::move(body),ctx); break;
     case MessageId::CS_SKILLEND_REQ:
         co_await OnSkillEndReq(sess, std::move(body), ctx); break;

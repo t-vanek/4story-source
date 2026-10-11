@@ -15,13 +15,15 @@ from activate_catalog import MAPPING, PINNED
 from migrate import connect, digest, load_snapshot
 
 
-def activate_quest_catalog(conn, manifest_path, *, global_database_alias):
+def activate_quest_catalog(conn, manifest_path, *, global_database_alias, special_boxes=False):
     if global_database_alias != 'TGLOBAL_GSP=TGLOBAL_RAGEZONE':
         raise RuntimeError('EXPLICIT_GLOBAL_DATABASE_ALIAS_REQUIRED')
     manifest, loaded = load_snapshot(manifest_path, MAPPING, include_historical=True)
     names = {'TQCONDITIONCHART', 'TQUESTCHART', 'TQUESTTERMCHART', 'TQREWARDCHART',
              'TQUESTITEMCHART', 'TTITLECHART', 'TITEMCHART', 'TSKILLCHART', 'TSKILLDATA',
              'TLEVELCHART', 'TITEMMAGICCHART', 'TPORTALCHART', 'TDESTINATIONCHART'}
+    if special_boxes:
+        names.add('TSPECIALBOXCHART')
     keys = {('TGAME_RAGEZONE', 'dbo', name) for name in names}
     keys.add(('TGLOBAL_RAGEZONE', 'dbo', 'TLIMITEDLEVELCHART'))
     selected = [(t, m, r) for t, m, r in loaded
@@ -43,7 +45,7 @@ def activate_quest_catalog(conn, manifest_path, *, global_database_alias):
                      'legacy_game."TQREWARDCHART",legacy_game."TQUESTITEMCHART",legacy_game."TTITLECHART",'
                      'legacy_game."TITEMCHART",legacy_game."TSKILLCHART",legacy_game."TSKILLDATA",'
                      'legacy_game."TLEVELCHART",legacy_game."TITEMMAGICCHART",legacy_game."TPORTALCHART",'
-                     'legacy_game."TDESTINATIONCHART",legacy_global."TLIMITEDLEVELCHART",'
+                     'legacy_game."TDESTINATIONCHART",legacy_game."TSPECIALBOXCHART",legacy_global."TLIMITEDLEVELCHART",'
                      'runtime_control.active_catalog,runtime_control.character_catalog,runtime_control.actor_catalog IN SHARE MODE')
         run = verified_actor_import(conn, (manifest, selected, fingerprint))
         release = conn.execute("SELECT run_id,manifest_sha256 FROM game_compat.catalog_release WHERE status='verified'").fetchall()
@@ -76,19 +78,40 @@ def activate_quest_catalog(conn, manifest_path, *, global_database_alias):
             if conn.execute(f'SELECT 1 FROM legacy_game."{table}" WHERE "_import_run_id"=%s '
                             f'GROUP BY {key_columns} HAVING count(*)>1 LIMIT 1', (run,)).fetchone():
                 raise RuntimeError('AMBIGUOUS_SOURCE_REWARD_ID')
-        previous = conn.execute('SELECT run_id,map_manifest,character_manifest,actor_manifest '
+        # The original un-ordered SELECT binds varchar(1) bClass to BYTE. Keep
+        # archival text unchanged and admit only unambiguous decimal conversion.
+        # NULL bindings and groups >=256 enter undefined/stale-value or BYTE-loop
+        # behavior in the source; reject those records instead of inventing data.
+        boxes = next((rows for t, _, rows in selected if t['table'] == 'TSPECIALBOXCHART'), [])
+        groups = {}
+        for row_number, row in enumerate(boxes, 1):
+            if any(value is None for value in row.values()):
+                raise RuntimeError(f'SPECIAL_BOX_NULL_BINDING_ROW_{row_number}')
+            if not isinstance(row['bClass'], str) or row['bClass'] not in tuple('0123456789'):
+                raise RuntimeError(f'SPECIAL_BOX_CLASS_ENCODING_ROW_{row_number}')
+            # Do not reject a source class >TCLASS_COUNT: its branch simply
+            # never matches an ordinary player. Likewise missing item templates
+            # are skipped by source CreateItem, not replaced or deleted here.
+            groups[row['wGroup']] = groups.get(row['wGroup'], 0) + 1
+        if any(count > 255 for count in groups.values()):
+            raise RuntimeError('SPECIAL_BOX_GROUP_EXCEEDS_SOURCE_BYTE_LOOP')
+        previous = conn.execute('SELECT run_id,map_manifest,character_manifest,actor_manifest,special_boxes '
                                 'FROM runtime_control.quest_condition_catalog WHERE singleton FOR UPDATE').fetchone()
-        changed = previous != (run, map_manifest, character_manifest, actor_manifest)
+        # A retry of the older content profile must not silently remove the
+        # extended publication. Require explicit full proof again for updates.
+        if previous and previous[4] and not special_boxes:
+            raise RuntimeError('SPECIAL_BOX_PUBLICATION_REQUIRES_EXTENDED_PROFILE')
+        changed = previous != (run, map_manifest, character_manifest, actor_manifest, special_boxes)
         retired = 0
         if changed:
             offline_owner_barrier(conn)
-            conn.execute('INSERT INTO runtime_control.quest_condition_catalog(singleton,run_id,map_manifest,character_manifest,actor_manifest) VALUES(true,%s,%s,%s,%s) '
+            conn.execute('INSERT INTO runtime_control.quest_condition_catalog(singleton,run_id,map_manifest,character_manifest,actor_manifest,special_boxes) VALUES(true,%s,%s,%s,%s,%s) '
                          'ON CONFLICT(singleton) DO UPDATE SET run_id=EXCLUDED.run_id,map_manifest=EXCLUDED.map_manifest,'
-                         'character_manifest=EXCLUDED.character_manifest,actor_manifest=EXCLUDED.actor_manifest,activated_at=clock_timestamp()',
-                         (run, map_manifest, character_manifest, actor_manifest))
-            activation = conn.execute('INSERT INTO runtime_control.quest_condition_activations(previous_run_id,run_id,map_manifest,character_manifest,actor_manifest) '
-                                      'VALUES(%s,%s,%s,%s,%s) RETURNING activation_id',
-                                      (previous[0] if previous else None, run, map_manifest, character_manifest, actor_manifest)).fetchone()[0]
+                         'character_manifest=EXCLUDED.character_manifest,actor_manifest=EXCLUDED.actor_manifest,special_boxes=EXCLUDED.special_boxes,activated_at=clock_timestamp()',
+                         (run, map_manifest, character_manifest, actor_manifest, special_boxes))
+            activation = conn.execute('INSERT INTO runtime_control.quest_condition_activations(previous_run_id,run_id,map_manifest,character_manifest,actor_manifest,special_boxes) '
+                                      'VALUES(%s,%s,%s,%s,%s,%s) RETURNING activation_id',
+                                      (previous[0] if previous else None, run, map_manifest, character_manifest, actor_manifest, special_boxes)).fetchone()[0]
             for world, server, token in conn.execute('SELECT world_id,server_id,owner_token FROM app_world.map_runtime_owner ORDER BY world_id,server_id').fetchall():
                 replacement = secrets.token_hex(32)
                 conn.execute('INSERT INTO runtime_control.quest_condition_owner_retirements VALUES(%s,%s,%s,%s,%s)',
@@ -97,6 +120,7 @@ def activate_quest_catalog(conn, manifest_path, *, global_database_alias):
                              'WHERE world_id=%s AND server_id=%s', (replacement, world, server))
                 retired += 1
     return dict(run_id=run, map_manifest=map_manifest, changed=changed, retired_map_owners=retired,
+                special_box_rows=len(boxes), special_boxes=special_boxes,
                 condition_rows=next(len(rows) for t, _, rows in selected if t['table'] == 'TQCONDITIONCHART'))
 
 
@@ -105,10 +129,13 @@ def main():
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--global-database-alias', required=True, choices=['TGLOBAL_GSP=TGLOBAL_RAGEZONE'],
                         help='Explicit source database mapping for TGetLimitedLevel')
+    parser.add_argument('--special-boxes', action='store_true',
+                        help='Also publish the complete original TSPECIALBOXCHART through migration054')
     args = parser.parse_args()
     try:
         with connect() as conn:
-            result = activate_quest_catalog(conn, args.manifest, global_database_alias=args.global_database_alias)
+            result = activate_quest_catalog(conn, args.manifest, global_database_alias=args.global_database_alias,
+                                            special_boxes=args.special_boxes)
         print(json.dumps(result))
     except Exception as ex:
         code = getattr(ex, 'sqlstate', None)

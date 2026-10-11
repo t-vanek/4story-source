@@ -87,22 +87,23 @@ void ReadPostures(soci::session& sql,CharacterPayload& p) {
 }
 void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
     p.progress_effect_templates.clear();
-    // Pure progression statuses, including the EXP entitlement visual903.
+    // Pinned progression statuses, including the EXP entitlement visual903.
     // Account premium/PCBang admission is checked independently by its loader.
-    for(const int id:{903,918,923}) {
+    for(const int id:{820,903,918,923}) {
         soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
         if(!sql.got_data())continue; // source FindTSkill's missing-template branch
         if(!U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||
-           U8(chart,"bIsuse")||U8(chart,"bEraseAct")||U8(chart,"bEraseHide")||U8(chart,"bIsHideSkill")||U32(chart,"dwWeaponID")||
+           (U8(chart,"bIsuse")!=(id==820?1:0))||U8(chart,"bEraseAct")||U8(chart,"bEraseHide")||U8(chart,"bIsHideSkill")||U32(chart,"dwWeaponID")||
            U32(chart,"dwDurationInc")||U8(chart,"bCanCancel"))
             throw std::runtime_error("Progression effect requires additional source side effects");
         ProgressEffectTemplate def;def.skill=static_cast<std::uint16_t>(id);def.priority=U8(chart,"bPriority");
         def.duration=U32(chart,"dwDuration");
+        def.erase_at_zero_mp=U8(chart,"bIsuse")&&!def.duration;
         unsigned count=0;
         soci::rowset<soci::row> rows=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
         for(const auto& row:rows) {
-            if(++count!=1||U8(row,"bAction")!=3||U8(row,"bType")!=6||U8(row,"bAttr")||
-               U8(row,"bExec")!=(id==903?41:id==918?63:67)||U8(row,"bCalc")||U16(row,"wValueInc"))
+            if(++count!=1||U8(row,"bAction")!=3||U8(row,"bType")!=6||U8(row,"bAttr")!=(id==820?1:0)||
+               U8(row,"bExec")!=(id==820?73:id==903?41:id==918?63:67)||U8(row,"bCalc")||U16(row,"wValueInc"))
                 throw std::runtime_error("Progression effect has unsupported skill data");
             def.status=U8(row,"bExec");def.value=U16(row,"wValue");
         }

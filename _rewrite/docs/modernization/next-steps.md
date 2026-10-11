@@ -17,7 +17,17 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–057; the next free number is058.
+immutable. Phase A has added unapplied migrations044–058; the next free number is059.
+
+Code `3bc3bd1` connects NPC item/trainer lists and ordinary, quest, magic and PvP
+purchases to the native transaction. Migration058 adds fenced PvP balances and
+an explicit offline archival importer; CHARINFO and transfer retain the original
+three point fields. Unknown-quest free purchases are explicitly rejected. BOW,
+portal/monster shops, territory rules, expiration and full PvP remain open.
+[Source scope and compile-only evidence](evidence/phase-a-npc-shops-20261011/README.md).
+Continue carried-item expiry/alarm and expired-bag mail, remaining NPC variants,
+full PvP records/rewards/rollover and broader World/social persistence. The balance
+importer and all new migration/purchase/concurrency acceptance remain Phase B work.
 
 The active continuation is now [full-rewrite-status.md](full-rewrite-status.md):
 remaining premium/PCBang, complete monster EXP benefits, remaining item kinds and

@@ -20,12 +20,21 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–057 and archival/import tools are written, not executed. Debug and
+Migrations044–058 and archival/import tools are written, not executed. Debug and
 Release compilation of all six modern binaries succeeded; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
 [Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
 
-Current code `0fe24d2` adds these **INTEGRATED_UNVERIFIED** paths. Only Map
+Current code `3bc3bd1` adds **INTEGRATED_UNVERIFIED** NPC/PvP paths; Map compiled
+in Debug and Release, with no tests or runtime. See [source scope](evidence/phase-a-npc-shops-20261011/README.md).
+
+| Capability | Implemented runtime path | Remaining scope / acceptance |
+|---|---|---|
+| Item/trainer/magic lists | Original NPCITEMLIST → published catalogs → source filters, prices and descriptors | Portal/monster shops; territory/BOW; actual client/PG acceptance |
+| NPC purchases | ITEMBUY/MAGICITEMBUY → primary transaction → caller/item/purse/title/PvP/quest/checkpoint → ACK | Native deal/tournament producers, expiry/mail; BOW; failure/concurrency acceptance |
+| PvP monetary state | Migration058, explicit historical import, CHARINFO/handoff/recovery and fenced available-point spending | Full records/ranks/rewards/rollover; importer not executed |
+
+Code `0fe24d2` adds these **INTEGRATED_UNVERIFIED** paths. Only Map
 Debug/Release compilation was executed; see [source and build evidence](evidence/phase-a-item-upgrades-20261011/README.md).
 
 | Capability | Implemented runtime path | Remaining scope / acceptance |

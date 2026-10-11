@@ -25,7 +25,14 @@ The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
 
-Current code `0fe24d2` adds native item identification and the ordinary upgrade
+Code `3bc3bd1` connects NPC item/trainer lists and ordinary, quest, magic and PvP
+purchases to the native transaction. Migration058 adds fenced PvP balances and
+an explicit offline archival importer; CHARINFO and transfer retain the original
+three point fields. Unknown-quest free purchases are explicitly rejected. BOW,
+portal/monster shops, territory rules, expiration and full PvP remain open.
+[Source scope and compile-only evidence](evidence/phase-a-npc-shops-20261011/README.md).
+
+Code `0fe24d2` adds native item identification and the ordinary upgrade
 switch branches, including numeric/gem/magic/appearance/color operations and
 pinned probability consumables. Additive056–057 extend complete source catalog
 publication; neither was applied. Map Debug/Release compile/link passed; no tests

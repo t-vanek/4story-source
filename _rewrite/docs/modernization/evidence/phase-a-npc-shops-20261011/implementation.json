@@ -1,0 +1,220 @@
+{
+  "recorded_at": "2026-10-11T19:26:53.167230+00:00",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "scope": "Original NPC item/trainer listings and ordinary/quest/magic/PvP purchases, native monetary PvP state and offline importer; not all NPC variants or full PvP",
+  "code_commit": "3bc3bd169b31631409abc8c4583bbfa656dadb50",
+  "base_commit": "f2a706021c78bca2dd3b3268b490f278b0bf6c21",
+  "branch": "main",
+  "published": false,
+  "cpp_standard": "C++20",
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "cmake version 4.3.0",
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tmapsvr_asio -j1",
+      "exit_code": 0,
+      "incremental": true,
+      "log": "debug-build.log",
+      "log_sha256": "fec627836b5c93b86aa3a0692912f84efa6c10f3d22e6babb99abe927d8517af",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON",
+        "FOURSTORY_SOCI_POSTGRESQL_LIBRARY": "/tmp/fourstory-phase-a-deps/usr/lib64/libsoci_postgresql.so"
+      },
+      "binary": {
+        "path": "build/phase-a-compile/bin/tmapsvr_asio",
+        "sha256": "7aa2ce283e9aaa4e031fbf0f81f58158eb43f5468acd5b518882541bf5e15ecb"
+      }
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tmapsvr_asio -j1",
+      "exit_code": 0,
+      "incremental": true,
+      "log": "release-build.log",
+      "log_sha256": "fec627836b5c93b86aa3a0692912f84efa6c10f3d22e6babb99abe927d8517af",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON",
+        "FOURSTORY_SOCI_POSTGRESQL_LIBRARY": "/tmp/fourstory-phase-a-deps/usr/lib64/libsoci_postgresql.so"
+      },
+      "binary": {
+        "path": "build/phase-a-quest-release/bin/tmapsvr_asio",
+        "sha256": "5067f121854e9ac946c3d288a412dd5095265f1f397272b920df14c2c0e62230"
+      }
+    }
+  ],
+  "source_sha256": {
+    "Server/TMapSvrAsio/CMakeLists.txt": "40794e27a9e8ab749ad074054e7c266b8bc5c6191350655bd97f8da44bb1315d",
+    "Server/TMapSvrAsio/domain/character_payload.h": "3a06f9744a36133d17b7b6475ac5c40ff8c7e2d976f07316a44e342637be39ba",
+    "Server/TMapSvrAsio/domain/pvp_balance.h": "2e5a4ea591e2f326b7d197a4bf96c35e3fe612fd5fbc0eb88b53ba63e4a24cbc",
+    "Server/TMapSvrAsio/handlers/dispatch.cpp": "f5b7c626d1751d626a3c0c85e6caf418e66cbe26baa168824997a680f440cb52",
+    "Server/TMapSvrAsio/handlers/quest.cpp": "f8431bb404f44ffd2a39f5c82b68cc5ed5e3e19b95ee0d50d51e59e4cf8e58e1",
+    "Server/TMapSvrAsio/services/client_senders.cpp": "d1fef3e160b24cc8126c8c07bc858ead3a6231d29a81abde0f558fadbae136d6",
+    "Server/TMapSvrAsio/services/main_transfer_runtime.cpp": "1dab431ad2d42b72b6727027bf886c330ee78dda7db5dafa498d0b58bff17b48",
+    "Server/TMapSvrAsio/services/native_quest_magic_item.h": "37156870565cf3396b62856a0cfa0a2e4a944dd9bf94464647eb748b1b08099d",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "f69080e9ef4421a3deca7623baab5fb1e4857fc4e81ad62bb49181f81f3e1bdf",
+    "Server/TMapSvrAsio/services/postgresql_map_item_shop.cpp": "dbf22668a8859c81437249b35c0d759d627701121bc4ca22b6733c9d9a12595f",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "9bbb4af2e1afcb6a31356aae5d834b4c87a0d02c562a4446bbcfccf1501db398",
+    "Server/TMapSvrAsio/services/postgresql_map_pvp_balance.cpp": "a700945a2990bb8d911ac422ee763bb530591b95150a6a97875d138b326b867d",
+    "Server/TMapSvrAsio/services/postgresql_map_quest_items.cpp": "df9687d22aafe27156fb101f08d0ca1b9847ba205d94c94edea10734ae12e597",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "89828e61de4d4b71807201ec75e6d5e3057d28182f19453ece2f0495f90467b8",
+    "Server/TMapSvrAsio/services/postgresql_map_transfer.cpp": "b6cba08212c2db7c7d359acc4d41c26bf508bd2049e38e335f9561d88164e08b",
+    "database/postgresql/058-native-pvp-balances.sql": "ba9ac4264d5dffd623fd69fed587a206aad8a3f5f1aa2ac9e1643d8fc01db2cf",
+    "deploy/sql/map-runtime-grants.sql": "af2faa42e6c429818c208fb1bf250efdfcd7bda2ac0023ec46e9b266f7d85276",
+    "tools/database/import_pvp_balances.py": "5a446c708a5c8961675a611d950cfff5a028f2c2faf76f80a717a5b0ebfe08a6"
+  },
+  "reference_sha256": {
+    "Server/TMapSvr/CSHandler.cpp": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50",
+    "Server/TMapSvr/CSSender.cpp": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029",
+    "Server/TMapSvr/TNpc.cpp": "5a2a26df578fdd33fc0aa9568f59267bd8a89c5bb73d0c4ef58d6be7c5d3f686",
+    "Server/TMapSvr/TMapSvr.cpp": "1b490618105e0f5ca338852d1cd7c007c01301641b381c3b391f857e4973dd7c",
+    "Server/TMapSvr/TPlayer.cpp": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9",
+    "Server/TMapSvr/TItem.cpp": "b5db67d34ee07a909f834a623e7b62b9a5a947389251044d10fc65d8dfbd99c2",
+    "Server/TMapSvr/TSkill.cpp": "d42ec4e967d4180d749b64cae79ab9d11c9d4eb80ad2ebc097a30380cce8dbd3",
+    "Server/TMapSvr/TSkillTemp.cpp": "9410b395c30f6700ffff6831b3aa1e47e284eb4c65b7ff137e57e1306c7b3be8",
+    "Server/TMapSvr/DBAccess.h": "364fcadbbb78e49f9e7e3e6cddb0f8623eb9315ed2a9195bb3e8103c24277d9d",
+    "Client/TClient/CSHandler.cpp": "51e3b85b5cd2d5af27be15f564ff45c875a02c2b70bed326648ef80484cd8ce3",
+    "Client/TClient/CSSender.cpp": "8c69c82b30d44e236d58797cc4f102df4fdf95a80df5696df468d5fa9a02c3f7",
+    "Lib/Own/TProtocol/include/MessageId.h": "2de84ea6ef0e2a77d3226fc0f1698cb9af9295c7265f9299ec1f168702761bc2",
+    "Lib/Own/TProtocol/include/NetCode.h": "fa6b11998606c72a81e9ae282590d5afdbf2950d832a743b54ae0dd35e648c9d",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TGetPvPRecord.sql": "6346861426770606f971fe438581c1ac194787772c674b4636d4443c7942c9ab",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TSavePvPRecord.sql": "6067dbf5a39c4889efe1e1cfcdbfebbbe78bcda0e9812018f7654296015ea3a0",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TGetMonthPvPoint.sql": "13951b5bf9536ff6da74d7834a66f88ccdfb94fa31081d1191351e18f1311e8b"
+  },
+  "immutable_migrations_001_through_057": {
+    "database/postgresql/001-import-control.sql": "d4e1fdbdfb4135356200287fd366c3b9d3a74a874d0bb2f03c03be5cbc54c695",
+    "database/postgresql/002-legacy-snapshots.sql": "87d5cae08851a080f96ca7059ec2e5989559f912e1b4607edef4a6716bfdd41b",
+    "database/postgresql/003-canonical-content.sql": "6dd09695ccce3a13c25727e1620f47ca5142fcab422da89798cb80be9a6d394e",
+    "database/postgresql/004-source-text-bytes.sql": "f413df6c04fb8421c3142c031a94167bd6281da6350a5ff49977087994c4bdba",
+    "database/postgresql/005-runtime-catalog-control.sql": "ad33846f8907f9b935d1d2a32a24d77022a263aecabf95d44ac5047f9705629d",
+    "database/postgresql/006-current-chart-contracts.sql": "ab5e2d56cc314d377853771afe7706aee0e9664cd41de863cc980b5fe604e082",
+    "database/postgresql/007-catalog-runtime-metadata.sql": "76ba7601d1c834809d862532934ab89a44f74570e18efc09629f2fecdd84bb7c",
+    "database/postgresql/008-native-login.sql": "e82c30ebb73eddc82df906f88889bcb2c314ca1a2e82ab48256bda4257db547f",
+    "database/postgresql/009-login-runtime-owner.sql": "e047b4146a058ff3e0af5065ba62804121eb21d1b0bc7af2ad7fa141adb90b0f",
+    "database/postgresql/010-login-security-challenges.sql": "96d691deb917bdbf90523c9f20a84b8c85076ba670beabc97de51430d9e3126f",
+    "database/postgresql/011-character-reference-catalog.sql": "2a8bacdade31512871983e0d165c50bc72179afc2ae8d2b4059a744292c8eec9",
+    "database/postgresql/012-native-characters.sql": "53b084d5840f73193a204a0a2c95b7edc4a8e26d155349289de27e5586005700",
+    "database/postgresql/013-character-item-allocation-floor.sql": "3f1042ffab6451f62debeee582efdfc82df580d0ceda0153c4f61cc5e8f86f8e",
+    "database/postgresql/014-routing-reference-catalog.sql": "fd52051223376feea3993fc3db25e6c0d085e208bb3ae3434af0822652023dca",
+    "database/postgresql/015-native-map-handoff.sql": "d209d882b64367ea6f23c9703ecd5ae07e3ee558b6ad9204a3a1774f864c3258",
+    "database/postgresql/016-native-map-ownership.sql": "34f9f0d4f08a6134ee78f5477b6fcc3836f5c5f6300853ec8c8137e48356b847",
+    "database/postgresql/017-map-actor-reference-catalog.sql": "fe603d01ef375c82ea6407b2d5fc7a04e9c74f2b2d41b5afb13f44d85af10987",
+    "database/postgresql/018-native-map-checkpoints.sql": "44486f71748ba2dabfdbfebd18245afd03a29a0be19cd2d5e7e45ec13dfa26f2",
+    "database/postgresql/019-native-map-replicas.sql": "2ccd4c5cdb2a11415713d65bb993a4db96d9f688d2ef4bd025bc9a96201e835e",
+    "database/postgresql/020-native-main-transfer.sql": "4e4063ff246cf39a96dd0105ff1f4147f78db7551942a357b96ef20c166e4ff6",
+    "database/postgresql/021-native-skill-checkpoints.sql": "552f5ff0bbdb9a41f3ccb58c77e4f16efd30665b5cc1ea085f6babe37ea678a8",
+    "database/postgresql/022-native-skill-consumption.sql": "1dab4a261d535408910656698325273919a860061fa1db3d3f7f1f37764e0267",
+    "database/postgresql/023-graph-skill-consumption.sql": "c351303ca4d96f1430de79a8c8d58d17f6918c2ea54decbc8e10fda25c7fcf11",
+    "database/postgresql/024-native-skill-ammunition.sql": "088059e091e2c632f20d9901dcc1623a6ffcea34245841583e053e5e06c8a635",
+    "database/postgresql/025-native-ammunition-batches.sql": "c7934f1fc30722268cdeb00bbdc9069223916f35df7cc953ff2595d8dcaa3372",
+    "database/postgresql/026-native-multi-attack.sql": "1b05100142e0400f3d1a04c76426a4834d3786a1dab9c515f80b1ec27b35c41a",
+    "database/postgresql/027-native-inventory-moves.sql": "46a1edb1c57e39c4a59a030e4cc0b9a312071655d4eed9df4e29c29e1896a596",
+    "database/postgresql/028-native-inventory-stacks.sql": "36567359900ab451167486d20f73b46a5b466605924e62b92b65213caaa3447e",
+    "database/postgresql/029-native-audit.sql": "cbeb6d1930e5f7447e42c50f0ec0d57d150ac1a4ea93c661832e2bd6e4ab87aa",
+    "database/postgresql/030-character-statistics.sql": "7deb6bda4acc1e0daaf50d14a8d655df99ad5cc3f9ec348bed09aa318210ca29",
+    "database/postgresql/031-actor-graph-compatibility.sql": "42d8660d6052a82a614b105ee9530a6708a2551891094f54d6d2ed51cc98257e",
+    "database/postgresql/032-native-equipment.sql": "a554dbfdf1238c689c9ef9f4163b0b8e853417ccc90227520207d5402410b6c2",
+    "database/postgresql/033-native-maintained-postures.sql": "8c0bb5268c44c30aa356536942e18cdff84ea56a865568ce497d59eaa08f2c04",
+    "database/postgresql/034-native-effect-cancellation.sql": "5d2b73f638fd3c3bc721a238c883d05e70689e50ad5386bdfaf2ad73aad5fdf8",
+    "database/postgresql/035-native-skill-casts.sql": "f397cca9582c10c162d4d74af72adcac7e8f193e083704b7aec804567a7d01e4",
+    "database/postgresql/036-native-skill-finishes.sql": "12d60ff0a3a6202d50dfa16fc622be60c01afd11a9e20d8d16f0f7eae6785244",
+    "database/postgresql/037-native-skill-actions.sql": "c895026dc31e21cc3e24915318865a76a57a447e43cc56463815f991f686789f",
+    "database/postgresql/038-native-finish-effects.sql": "cb26fc4da6c1267fe2f486f08d6cdbf218fcd8dde34355e7e62a583c5eef9219",
+    "database/postgresql/039-native-trainer-catalog.sql": "63d7486108a9c276215a60403038fb0193f1b011d3a401d5adf5972125ee2f63",
+    "database/postgresql/040-native-skill-purchases.sql": "1e701edfead2ee7a19de72a03d21b2caea7d44e2a0fbcffbf6e9d3eedd5f8c95",
+    "database/postgresql/041-native-title-selection.sql": "a6101e5d38f4c206e51a05ea20d80558906fe7a6c26ce17af3bf06f1d16be8dc",
+    "database/postgresql/042-native-secure-codes.sql": "5b49ff3b5ab0067c806c07f0ae342ab335709c74834770dc26aea98708c5e8ec",
+    "database/postgresql/043-secure-code-character-deletion.sql": "37d771638b6460a5c4fe0d134c6fe1132846d63b49d20afed9868d51c0743914",
+    "database/postgresql/044-native-skill-audit.sql": "034a96fdb51a939edf7b6d2e5470d4322e95999741d644603fecd8019dace1f2",
+    "database/postgresql/045-native-quest-progress.sql": "dc1a215266a86d324e427b7e47b0a78245386ddece20e2ff0f5ed51cc4d55df3",
+    "database/postgresql/046-native-quest-conditions.sql": "8580cf1c0a3ba37e23bc9351cc142349ddb60eb3e349c70db911de1e96a0b9b6",
+    "database/postgresql/047-native-peer-security.sql": "42f48dc91f35410c41b08647ebe9367ebda3f6db6d8804c6ae2fb7c591956f56",
+    "database/postgresql/048-native-patch-metadata.sql": "21fa6130993effd6c664a04b2aa563c5300d0a994134caff0b57005d709cab9e",
+    "database/postgresql/049-native-control.sql": "6e7656e6e48c684899fe565504efcc838afbdb52d0433dcb1d7ca39245e631e1",
+    "database/postgresql/050-native-control-peer-state.sql": "f6f7ef645906f0ca87f4e26873d3528be7d7af9e5be8c0ef749cfc67a36fa6b5",
+    "database/postgresql/051-native-quest-reward-catalog.sql": "6cfb34e26aa41fd06bcc82a1cae82e9f1daa12dddd57f63fdc71471a0d7d9253",
+    "database/postgresql/052-native-exp-entitlements.sql": "b00969555bdcd26fc9cbf69e5742e76785c13531987abd5034a171f2de2d4a1e",
+    "database/postgresql/053-native-item-cooldowns.sql": "7cd64695ad9fddac2f9a785765f7e36b819881c90fa4bafc0b0c05069c90c432",
+    "database/postgresql/054-native-special-box-catalog.sql": "66b79b28f82d1a438b14f036db047968b9fa38fbb41fe862b5c908d213ce6d86",
+    "database/postgresql/055-native-item-event-context.sql": "ea6b631d580a8a1a95cbfb1eb468827a55a04282bfb26c73a51f7179926a9d44",
+    "database/postgresql/056-native-item-gambling-catalog.sql": "ab8b462eb446019fdcfd974678b783e2e39d38bea1c0a9e60d3419541d8e8857",
+    "database/postgresql/057-native-item-upgrade-catalog.sql": "0a37626cedbaba1462272bcf0822e228bde6f1ee638ab8ab2159feb41bbb1d22"
+  },
+  "unapplied_migrations": [
+    "058-native-pvp-balances.sql"
+  ],
+  "read_only_exports": [
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TNPCCHART.json",
+      "sha256": "8bfe764ba935b96a32fde52d9be73b806ef2a0ff127095355a1e2653edfdce6c"
+    },
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TQUESTITEMCHART.json",
+      "sha256": "6725da52fbac0c90230c576bfba4afbbce5feff37cc212b33376c3f04631711a"
+    }
+  ],
+  "backup_identities": {
+    "source": "_rewrite/docs/database-reconstruction/evidence/artifact-inventory.json",
+    "source_sha256": "ffb2680f7d40584002afb791ed0b5b2a476a2455f13096aceb5fca60cc1479f0",
+    "rehash_performed_this_increment": false,
+    "artifacts": [
+      {
+        "path": "TGAME_RAGEZONE.bak",
+        "size_bytes": 34009088,
+        "format": "Microsoft Tape Format; SQL Server backup candidate",
+        "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259",
+        "suspected_purpose": "database backup candidate"
+      },
+      {
+        "path": "TGLOBAL_RAGEZONE.bak",
+        "size_bytes": 36560896,
+        "format": "Microsoft Tape Format; SQL Server backup candidate",
+        "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb",
+        "suspected_purpose": "database backup candidate"
+      }
+    ]
+  },
+  "static_checks": [
+    "git diff --check",
+    "Python ast.parse of import_pvp_balances.py without import/execution",
+    "source/call-path review"
+  ],
+  "tests_executed": 0,
+  "migrations_applied": false,
+  "imports_executed": false,
+  "reconciliation_executed": false,
+  "servers_executed": false,
+  "clients_executed": false,
+  "containers_built_or_started": false,
+  "phase_b_started": false,
+  "phase_c_started": false,
+  "supported_client_executable": null,
+  "client_assets_available": false,
+  "remaining": [
+    "Territory discounts/CanTalk and BOW bonus-point authority",
+    "Portal and monster-shop variants; native deal/store/tournament producers",
+    "Carried item expiration, expired bag mail and general equipment/effect lifecycle",
+    "Complete PvP records/ranking/rewards/monthly rollover and World/social persistence",
+    "Phase B native PostgreSQL/concurrency/failure/protocol acceptance; Phase C full cluster; original executable/assets"
+  ]
+}

@@ -21,6 +21,14 @@ published). Existing extended profiles cannot be implicitly downgraded. The
 records the later Phase B command and prerequisites; it was not executed.
 Changed Map Debug/Release compilation succeeded. No runtime/cluster was started.
 
+Code `3bc3bd1` additionally requires unapplied058 and refreshed Map grants for
+available-PvP-point updates. Its offline `import_pvp_balances.py` requires a
+complete pinned archival manifest and explicit character map, with all owners
+stopped; it refuses ambiguity and existing recovery/balances. Existing039/051
+catalog publications feed ordinary/trainer/magic merchandise. Follow the
+[later Phase B prerequisites](../_rewrite/docs/modernization/evidence/phase-a-npc-shops-20261011/README.md);
+no migration, import or container command was executed for this increment.
+
 World also needs `[security].control_ip_allowlist` with the actual Control peer
 IPv4 address/CIDR. Empty denies the original CT_CTRLSVR role; use the private peer
 network. The field is documented in `config.example/tworldsvr.toml`, whose

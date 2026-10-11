@@ -8,10 +8,28 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–057 are **written, not applied**.
-Latest code increment: `0fe24d2` (native item gambling/upgrades and probability
-consumables), based on `2d9d369`. Earlier code `0457d3d` and `750c797` and all
+evidence remain unchanged. New migrations044–058 are **written, not applied**.
+Latest code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
+`f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## NPC purchases and PvP balances — `3bc3bd1`
+
+- Source item/trainer listings and ordinary/quest/magic/PvP purchases now use the
+  existing native dispatcher, primary lease, PostgreSQL transaction and ordered
+  responses. Capacity precedes caller consumption; price/title/item/PvP/quest
+  changes share ownership/head fences and durable checkpoint recovery.
+- Additive058 and the offline importer carry historical total/useable/monthly
+  points, including signed source bit patterns. Fresh rows and authoritative
+  transfer graphs stay separate; CHARINFO and handoff use actual balances.
+  Ambiguous monthly-country rows abort runtime projection, not archival import.
+- Original magic quantity/expiry and trainer-list quirks remain explicit. Unknown
+  nonzero quests and remote BOW NPCs cannot select a free-purchase exploit.
+- **INTEGRATED_UNVERIFIED**. Map Debug/Release compiled; no tests/imports/migrations
+  or runtime executed. BOW, portal/monster shops, territory rules, native trade/
+  tournament producers, item expiration/mail and complete PvP remain required.
+
+[Source contracts, migration prerequisites and later acceptance](evidence/phase-a-npc-shops-20261011/README.md).
 
 ## Item identification, upgrades and probability consumables — `0fe24d2`
 

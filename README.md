@@ -26,7 +26,7 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–057** and native code extend quest state/actions, skill audit,
+New migrations **044–058** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -65,11 +65,18 @@ accessory charts. Conditional territory/PCBang and BOW integration remain open.
 These paths are **INTEGRATED_UNVERIFIED**; see [source contracts, repairs and deferred
 acceptance](_rewrite/docs/modernization/evidence/phase-a-item-upgrades-20261011/README.md).
 
+Code `3bc3bd1` connects NPC item/trainer lists and ordinary, quest, magic and PvP
+purchases to the native transaction. Migration058 adds fenced PvP balances and
+an explicit offline archival importer; CHARINFO and transfer retain the original
+three point fields. Unknown-quest free purchases are explicitly rejected. BOW,
+portal/monster shops, territory rules, expiration and full PvP remain open.
+[Source scope and compile-only evidence](_rewrite/docs/modernization/evidence/phase-a-npc-shops-20261011/README.md).
+
 The changed Map target compiles and links in Debug and Release with tests disabled.
 Earlier evidence covers all six modern targets at its stated commits. Historical
-import tools and migrations044–057 are written, not executed. No tests, database
+import tools and migrations044–058 are written, not executed. No tests, database
 migration, server startup or container run belongs to this increment. Previous
-migrations001–055 remain unchanged; the next unused migration number is058.
+migrations001–057 remain unchanged; the next unused migration number is059.
 
 ## Historical verification through `2fa2396`
 

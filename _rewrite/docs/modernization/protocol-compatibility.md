@@ -13,7 +13,15 @@ prototype; missing action/world integrations still reject rather than issue a
 fabricated success. See [working status](full-rewrite-status.md) for explicit
 changes to tie ordering, randomness, UTC expiration and transaction boundaries.
 
-Current `0fe24d2` additionally connects **unverified** original GAMBLECHECK5424
+Code `3bc3bd1` connects **unverified** NPCITEMLIST0x5302 (2 bytes),
+ITEMBUY0x5304 (11 bytes) and MAGICITEMBUY0x54D6 (9 bytes). The buy replies remain
+15/13 bytes; PvP spending emits the original13-byte total/useable/event/month
+body. CHARINFO and handoff carry the existing three DWORD point fields. Trainer
+and magic listing layouts follow the original sender/client. No new client
+fields were introduced; exact scope, source quirks and explicit security changes
+are in [NPC shop evidence](evidence/phase-a-npc-shops-20261011/README.md).
+
+Code `0fe24d2` additionally connects **unverified** original GAMBLECHECK5424
 (four bytes), GAMBLEOPEN5426 (six bytes) and ITEMUPGRADE5329 (ten bytes). Quote
 errors retain zero default fields; OPEN has its original currency header and
 optional descriptor without a repeated slot. Upgrade/magic/change-attribute

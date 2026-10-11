@@ -1,6 +1,7 @@
 #pragma once
 #include "domain/character.h"
 #include "wire_codec.h"
+#include "character_titles.h"
 #include <algorithm>
 #include <cmath>
 #include <map>
@@ -53,15 +54,14 @@ inline void LearningGoldTitles(LearningPlan& plan,const LearningCatalog& catalog
     auto p=std::make_shared<CharacterPayload>(*plan.after.payload);plan.after.payload=p;
     std::vector<std::uint16_t> eligible;
     for(const auto& [id,threshold]:catalog.gold_titles)if(threshold<plan.after.dwGold)eligible.push_back(id);
-    // Source can mark several titles selected at once. Native fresh admission
-    // deliberately rejects that unresolved legacy state; do not manufacture a
-    // different selected title or commit a character which cannot reconnect.
-    if(catalog.gold_titles.contains(p->selected_title))
-        throw std::runtime_error("Selected gold-title learning semantics require title lifecycle integration");
+    // GetTitle promotes the live ID before the owned-title early return. The
+    // per-title flags remain separate; original reload/transfer re-derives it.
+    if(eligible.size()>1&&eligible[eligible.size()-2]==p->selected_title)p->selected_title=eligible.back();
     for(auto id:eligible)if(std::any_of(p->titles.begin(),p->titles.end(),[&](const auto& t){return t.id==id;}))return;
+    const bool selected=catalog.gold_titles.contains(p->selected_title);
     std::erase_if(p->titles,[&](const auto& t){return catalog.gold_titles.contains(t.id);});
     for(auto id:eligible) {
-        p->titles.push_back({id,false});
+        p->titles.push_back({id,selected});
         std::sort(p->titles.begin(),p->titles.end(),[](const auto& a,const auto& b){return a.id<b.id;});
         if(p->titles.size()>255)throw std::runtime_error("Title count exceeds original wire width");
         std::vector<std::byte> packet;wire::WritePOD(packet,static_cast<std::uint8_t>(p->titles.size()));

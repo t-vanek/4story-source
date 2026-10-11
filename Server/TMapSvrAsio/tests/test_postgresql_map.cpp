@@ -288,6 +288,7 @@ int main(){
             auto restored=*map.LoadAuthorized(learning);map.MarkReady(learning,restored);
             Check(restored.payload->last_purchase_id>0&&std::any_of(restored.payload->skills.begin(),restored.payload->skills.end(),[](const auto& s){return s.wSkillID==101&&s.bLevel==2;}),"fresh and graph reconnect retain purchased rank and receipt head");
             Check(std::any_of(restored.payload->titles.begin(),restored.payload->titles.end(),[](const auto& t){return t.id==87;}),"fresh and graph reconnect retain source gold-title side effects");
+            Check(restored.payload->selected_title==87&&restored.payload->last_title_selection_id>0,"fresh/full graph reconnect restores selected title and fence");
             map.SaveAuthorized(learning,restored);
         }else std::cout<<"SKIP native learning: trainer catalog not supplied\n";
         stage="finish effects";

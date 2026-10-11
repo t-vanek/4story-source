@@ -18,7 +18,60 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Native skill learning and rank upgrades (2026-10-11)
+## Native title list, selection and gold-title transitions (2026-10-11)
+
+The existing Map dispatch handles `CS_TITLELIST_REQ` (0x54f4) and
+`CS_CHANGETITLE_REQ` (0x54f6). Selection commits owned-title flags and a new
+migration **041** receipt with the fresh/full-graph checkpoint, then follows the
+original `MW_CHANGECHARBASE_ACK` → World → all Maps → primary neighborhood
+`CS_CHANGECHARBASE_ACK` (0x544a) path. The list uses BYTE count and WORD/BYTE
+entries; the change ACK retains the source name string, title WORD and final
+DWORD. Bow/list tutorial gates and silent same/unowned selection remain intact.
+
+A separate selection head rejects stale snapshots, including later skill
+purchases. Concurrent selections have one winner; late SQL failures roll back
+flags and receipts. Replicas only refresh their projection. Exact-connection
+FIFO echo correlation, bound to the ownership epoch, publishes ordered notifications without applying an old
+World reply over a newer committed primary snapshot. No write or notification
+is automatically replayed after a lost connection or uncertain commit.
+
+The former selected-gold-title learning gate is removed. Original `GetTitle`
+can promote the live ID **before** returning on an already owned eligible title,
+leaving the row flags unchanged; it can also mark several gained titles selected.
+Both behaviors are retained. Original reload/transfer derives the active title
+from the flags; native loads now accept that state and use ascending unsigned
+IDs, with the last selected ID winning. The earlier single-selected-row rejection
+was incompatible with this source behavior.
+
+**Explicit modern changes:** persistence commits before World/client publication
+(the legacy code used separate asynchronous saves); World accepts selection only
+from the registered ready primary; malformed bodies are rejected; SQL row order
+is made deterministic. This provides a durable selection linearization point,
+including pipelined client requests, while preserving existing wire layouts.
+Actual-client timing/visual acceptance remains blocked. A lost World connection
+uses existing drain/reconnect recovery rather than replaying a selection.
+
+**Verification:** final Debug, ASan/UBSan and installed Release focused runs each
+pass **1,243** checks: 1,065 Map, 29 pool/TLS, 76 outer TCP and 73 learning/title
+wire checks. A broader Debug native regression passed **3,496** checks before the
+final notification-epoch refinement; the final focused/CTest runs cover that
+refinement. These overlapping suites must not be added as unique coverage.
+Debug CTest has 189 actual passes, eight internal legacy skips and seven explicit
+fixture skips; all 42 sanitizer suites pass with no skips. The 97 additive upgrade
+checks, three runtime role permission checks, 13 trainer publication checks per
+run and six-service health/DNS/SIGTERM smoke pass. Both backups and migrations
+001–040 (42 files) are unchanged. The final local runtime image is
+`localhost/fourstory:postgresql-titles`, running as `10001:10001`.
+
+The scope is existing native character title ownership, list/selection, learning
+side effects and their recovery. Other title awards/resets, complete achievement
+conditions and all related gameplay systems remain unfinished. The original
+client executable/assets are absent, so **no exact supported binary build or
+real-client acceptance is established**. See [bounded evidence](evidence/titles-contract.json)
+and [local reproduction](../../../deploy/README.md#native-title-lifecycle).
+Applied migrations **001–041** and both backups are immutable; next migration **042**.
+
+## Previous increment: native skill learning and rank upgrades (2026-10-11)
 
 The existing Map dispatcher now handles `CS_SKILLBUY_REQ` (0x52b2). Its four-byte
 NPC/skill request reaches a fenced PostgreSQL transaction and returns the original
@@ -44,7 +97,7 @@ These changes do not certify the complete title or trainer UI lifecycle.
 
 **Explicit remaining gates:** territory-owned neutral NPCs, nonzero guild/hero
 trainer discounts, disguise/general effects, active party/recall dependencies,
-secure-code learning, selected gold-title transitions, active trading, NPC quest
+secure-code learning, active trading, NPC quest
 trigger selection and complete skill effects. These branches require further
 integration; no replacement success or guessed discount is supplied. Persistent
 purchase receipts provide the local audit; original TLog skill events still need
@@ -67,7 +120,7 @@ See [evidence and limits](evidence/skill-learning-contract.json) and
 No actual client
 binary or assets exist here: source protocol 0x2918 is identified, but **no exact
 supported executable build or complete client acceptance is established**.
-Applied migrations 001–040 and both backups are immutable; next migration 041.
+That increment applied migrations 039/040; current schema requirements are above.
 
 ## Previous increment: native finishes with permanent postures
 

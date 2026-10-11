@@ -491,9 +491,9 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     }
     for(const auto& r:children("TTITLETABLE")){
         CharacterTitle t{U16(r,"wTitleID"),U8(r,"bSelected")!=0};
-        if(t.selected){if(p.selected_title)throw std::runtime_error("Multiple selected character titles");p.selected_title=t.id;}
         p.titles.push_back(t);
     }
+    p.selected_title=LoadedTitle(p.titles);
     for(const auto& r:children("TCABINETTABLE"))p.cabinets.push_back({U8(r,"bCabinetID"),U8(r,"bUse")});
     for(const auto& r:children("TPOSTTABLE","dwCharID",","+Epoch("timeRecv"))) {
         CharacterPost post;post.id=U32(r,"dwPostID");post.sender_id=U32(r,"dwSendID");
@@ -531,6 +531,9 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
      sql<<"SELECT COALESCE(max(purchase_id),0) FROM app_world.skill_purchase_operations WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
      p.last_purchase_id=static_cast<std::uint64_t>(head);
+     sql<<"SELECT COALESCE(max(selection_id),0) FROM app_world.title_selection_operations WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_title_selection_id=static_cast<std::uint64_t>(head);
 }
     DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
@@ -561,7 +564,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     }
     std::set<std::uint16_t> skills;
     for(const auto& skill:p.skills)if(!skills.insert(skill.wSkillID).second)throw std::runtime_error("Duplicate transferred skill");
-    for(const auto& title:p.titles)if(title.selected){if(p.selected_title)throw std::runtime_error("Multiple transferred titles");p.selected_title=title.id;}
+    p.selected_title=LoadedTitle(p.titles);
     for(int i=0;i<2;++i){const int level=static_cast<int>(s.bLevel)-1+i;int experience=0;
         sql<<"SELECT \"dwEXP\" FROM character_compat.\"TLEVELCHART\" WHERE \"bLevel\"=:level",soci::use(level),soci::into(experience);
         if(!sql.got_data())throw std::runtime_error("Transferred level has no source threshold");
@@ -580,6 +583,9 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
      sql<<"SELECT COALESCE(max(purchase_id),0) FROM app_world.skill_purchase_operations WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
      p.last_purchase_id=static_cast<std::uint64_t>(head);
+     sql<<"SELECT COALESCE(max(selection_id),0) FROM app_world.title_selection_operations WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_title_selection_id=static_cast<std::uint64_t>(head);
 }
     DeriveStats(sql,s,p);
     // Never silently clamp unsaved transferred core to an incomplete derived

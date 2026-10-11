@@ -31,7 +31,7 @@ def main():
     p.add_argument('--characters-only', action='store_true', help='Native character lifecycle with backup-derived charts')
     p.add_argument('--map-backend-only', action='store_true', help='With --map-runtime-only, stop after native backend integration tests')
     p.add_argument('--map-runtime-only', action='store_true', help='Native Map claim/load/save with source catalogs')
-    p.add_argument('--skill-learning-wire-only',action='store_true',help='Keep all backend checks but focus actual-daemon verification on SKILLBUY')
+    p.add_argument('--skill-learning-wire-only',action='store_true',help='Keep all backend checks but focus actual-daemon verification on SKILLBUY and title lifecycle')
     p.add_argument('--trainer-snapshot', type=Path, help='Private verified NPC merchandise and title manifest')
     p.add_argument('--actor-snapshot', type=Path, help='Private four-table actor manifest')
     p.add_argument('--actor-upgrade-from', type=Path, help='Run old-installed-Map to current-Map graph recovery instead of the general wire matrix')
@@ -219,6 +219,8 @@ def main():
             if args.map_runtime_only:
                 grants=(repo / 'deploy/sql/map-runtime-grants.sql').read_text()
                 conn.execute(grants.replace(':"map_role"', sql.Identifier(reader_role).as_string(conn)))
+                from verify_title_permissions import verify_title_permissions
+                result['title_runtime_permissions']=verify_title_permissions(conn,reader_role)
 
         deadline = time.monotonic() + 10
         while True:
@@ -284,7 +286,7 @@ def main():
                                        previous_image=args.previous_image) if args.actor_upgrade_from else None,learning_only=args.skill_learning_wire_only)
             result['scope']=('Actual installed old Map -> current Map catalog upgrade, logout/ready-crash/prepared-crash recovery; original client PENDING' if args.actor_upgrade_from else
                              'Native PostgreSQL primary/replica admission, core checkpoint/save/crash recovery; replica tests use an explicitly synthetic cell partition and restore the source view; original client PENDING')
-            if args.skill_learning_wire_only:result['scope']='All native backend checks with focused skill-learning daemon verification; complete wire matrix excluded; original client PENDING'
+            if args.skill_learning_wire_only:result['scope']='All native backend checks with focused skill-learning/title daemon verification; complete wire matrix excluded; original client PENDING'
             result['status']='passed'
             return
 

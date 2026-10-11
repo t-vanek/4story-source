@@ -26,6 +26,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/asio/read.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -87,6 +88,22 @@ void SendFramed(boost::asio::ip::tcp::socket& sock,
     if (!body.empty())
         std::memcpy(buf.data() + sizeof(hdr), body.data(), body.size());
     boost::asio::write(sock, boost::asio::buffer(buf.data(), buf.size()));
+}
+
+std::pair<std::uint16_t,std::vector<std::byte>> ReadTitleFrame(boost::asio::ip::tcp::socket& sock) {
+    const auto read=[&](void* target,std::size_t size){
+        auto* bytes=static_cast<std::byte*>(target);std::size_t done=0;
+        const auto until=std::chrono::steady_clock::now()+std::chrono::seconds(3);
+        sock.non_blocking(true);
+        while(done<size){boost::system::error_code ec;auto n=sock.read_some(boost::asio::buffer(bytes+done,size-done),ec);
+            if(ec&&ec!=boost::asio::error::would_block&&ec!=boost::asio::error::try_again)throw boost::system::system_error(ec);
+            done+=n;if(done<size){if(std::chrono::steady_clock::now()>until)throw std::runtime_error("title relay timeout");std::this_thread::sleep_for(std::chrono::milliseconds(1));}}
+        sock.non_blocking(false);
+    };
+    tworldsvr::PacketHeader h{};read(&h,sizeof(h));
+    if(h.wSize<sizeof(h))throw std::runtime_error("bad title relay frame");
+    std::vector<std::byte> b(h.wSize-sizeof(h));read(b.data(),b.size());
+    EXPECT(h.dwChkSum==tworldsvr::ComputeChecksum(b.data(),b.size()));return {h.wID,b};
 }
 
 } // namespace
@@ -210,6 +227,32 @@ int main()
         }
     }
 
+    // Title source is the registered, ready main Map; original all-Map fan-out.
+    tcp::socket main_map(client_io),replica_map(client_io),anonymous(client_io);
+    const auto endpoint=tcp::endpoint(boost::asio::ip::make_address_v4("127.0.0.1"),port);
+    main_map.connect(endpoint);replica_map.connect(endpoint);anonymous.connect(endpoint);
+    for(auto [socket,id]:std::vector<std::pair<tcp::socket*,std::uint16_t>>{{&main_map,0x0401},{&replica_map,0x0402}}){
+        std::vector<std::byte> register_body;tworldsvr::wire::WritePOD(register_body,id);
+        SendFramed(*socket,ToUint16(MessageId::RW_RELAYSVR_REQ),register_body);
+        EXPECT(ReadTitleFrame(*socket).first==ToUint16(MessageId::RW_RELAYSVR_ACK));
+    }
+    EXPECT(ReadTitleFrame(main_map).first==ToUint16(MessageId::MW_RELAYCONNECT_REQ));
+    {auto c=chars.Find(42);std::lock_guard g(c->lock);c->main_server_id=1;c->cons={{1,0,0,true,true},{2,0,0,true,true}};}
+    auto title=BuildBaseBody(42,0xCAFEBABE,103,0,"A");title[10]=std::byte{87};
+    auto wrong=title;wrong[4]^=std::byte{1};SendFramed(main_map,ToUint16(MessageId::MW_CHANGECHARBASE_ACK),wrong);
+    wrong=title;wrong.push_back(std::byte{});SendFramed(main_map,ToUint16(MessageId::MW_CHANGECHARBASE_ACK),wrong);
+    SendFramed(replica_map,ToUint16(MessageId::MW_CHANGECHARBASE_ACK),title);
+    SendFramed(anonymous,ToUint16(MessageId::MW_CHANGECHARBASE_ACK),title);
+    std::this_thread::sleep_for(40ms);
+    {auto c=chars.Find(42);std::lock_guard g(c->lock);EXPECT(c->title==0);}
+    EXPECT(main_map.available()==0&&replica_map.available()==0);
+    SendFramed(main_map,ToUint16(MessageId::MW_CHANGECHARBASE_ACK),title);
+    const auto one=ReadTitleFrame(main_map),two=ReadTitleFrame(replica_map);
+    EXPECT(one.first==ToUint16(MessageId::MW_CHANGECHARBASE_REQ)&&one.second==title);
+    EXPECT(two==one);
+    {auto c=chars.Find(42);std::lock_guard g(c->lock);EXPECT(c->title==87);}
+    main_map.close();replica_map.close();anonymous.close();
+
     boost::system::error_code ec;
     sock.shutdown(tcp::socket::shutdown_both, ec);
     sock.close(ec);
@@ -219,7 +262,7 @@ int main()
     io_thread.join();
 
     if (g_fails == 0)
-        std::printf("PASS test_tworldsvr_asio_char_base_handlers (5 scenarios)\n");
+        std::printf("PASS test_tworldsvr_asio_char_base_handlers (6 scenarios)\n");
     else
         std::printf("FAIL test_tworldsvr_asio_char_base_handlers (%d failure%s)\n",
             g_fails, g_fails == 1 ? "" : "s");

@@ -9,7 +9,7 @@ from verify_login_wire import frame,read_packet
 
 
 def verify_skill_learning(conn,cid,start,enter,login_port,map_port,until,restart):
-    checks=[];client=None;cs,ss=3,4
+    checks=[];client=None;cs,ss=3,4;selected=0;name=b''
     def check(ok,label):
         if not ok:raise RuntimeError('Skill learning wire: '+label)
         checks.append(label)
@@ -25,21 +25,40 @@ def verify_skill_learning(conn,cid,start,enter,login_port,map_port,until,restart
     gold_titles=dict(conn.execute('SELECT "wTitleID","dwRequirement" FROM character_compat."TTITLECHART" WHERE "bKind"=8 ORDER BY ("wTitleID"::integer&65535)').fetchall())
     state=[11,0,0,200];learned={s:r for s,r,_ in skills_saved if s not in (101,102,104,131)};titles={};character_class=0
     def connect():
-        nonlocal client,cs,ss
-        _,key=start(login_port,cid);client,char=enter(map_port,cid,key);cs,ss=3,4;return char
+        nonlocal client,cs,ss,selected,name
+        _,key=start(login_port,cid);client,char=enter(map_port,cid,key);cs,ss=3,4;selected=char['title'];name=char['name'];return char
     def disconnect():
         nonlocal client
         client.close();client=None
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'learning disconnect saves checkpoint')
     def gold_packets():
-        nonlocal titles
+        nonlocal titles,selected
         eligible=[i for i,v in gold_titles.items() if v<state[0]]
+        if len(eligible)>1 and eligible[-2]==selected:selected=eligible[-1]
         if any(i in titles for i in eligible):return []
         titles={i:s for i,s in titles.items() if i not in gold_titles};packets=[]
         for i in eligible:
-            titles[i]=0
+            titles[i]=int(selected in gold_titles)
             packets.append(struct.pack('<B',len(titles))+b''.join(struct.pack('<HB',i,s) for i,s in sorted(titles.items()))+struct.pack('<HB',i,1))
         return packets
+    def title_list():
+        nonlocal cs,ss
+        client.sendall(frame(b'',0x54f4,cs));cs+=1
+        op,body=read_packet(client,ss);ss+=1
+        expected=bytes([len(titles)])+b''.join(struct.pack('<HB',i,v) for i,v in sorted(titles.items()))
+        check(op==0x54f5 and body==expected,'original TITLELIST returns exact ordered owned IDs and selected flags')
+    def select_title(title,changed=True):
+        nonlocal cs,ss,selected,titles
+        client.sendall(frame(struct.pack('<H',title),0x54f6,cs));cs+=1
+        if changed:
+            op,body=read_packet(client,ss);ss+=1
+            expected=struct.pack('<BIBBi',0,cid,103,0,len(name))+name+struct.pack('<HI',title,0)
+            check(op==0x544a and body==expected,'original World round trip returns exact CHANGECHARBASE bytes and source string width')
+            selected=title;titles={i:int(i==title) for i in titles}
+        # A list is an ordered protocol barrier, proving no fabricated ACK for
+        # repeated/unowned selection without relying on a short socket timeout.
+        title_list()
+        check(dict(conn.execute('SELECT "wTitleID","bSelected" FROM app_world."TTITLETABLE" WHERE "dwCharID"=%s',(cid,)).fetchall())==titles,'selection flags are committed before client notification')
     def purchase(npc,skill,code,rank):
         nonlocal cs,ss
         raw=struct.pack('<HH',npc,skill);expected_titles=[]
@@ -78,12 +97,17 @@ def verify_skill_learning(conn,cid,start,enter,login_port,map_port,until,restart
         purchase(22047,104,0,1);purchase(22047,102,0,1)
         # Source upgrades require a talkable NPC, not its trainer merchandise.
         npc=conn.execute('SELECT ("wID"::integer&65535) FROM character_compat."TNPCCHART" WHERE "bCountryID"=3 AND "wLocalID"=0 AND "bDiscountRate"=0 AND "bType" NOT IN (1,19) ORDER BY "wID" LIMIT 1').fetchone()[0]
+        title_list();select_title(85);select_title(85,False);select_title(65535,False)
         purchase(npc,101,0,2)
+        check(selected==86 and titles[85]==1 and titles[86]==0,'source gold promotion keeps live ID separate from persisted selected flag')
+        title_list()
         row=conn.execute('SELECT request,acknowledgement,spent FROM app_world.skill_purchase_operations WHERE char_id=%s ORDER BY purchase_id DESC LIMIT 1',(cid,)).fetchone()
         check(bytes(row[0])==struct.pack('<HH',npc,101) and len(row[1])==30 and row[2]>0,'atomic purchase receipt retains source request and positive charge')
         before=conn.execute('SELECT count(*) FROM app_world.skill_purchase_operations WHERE char_id=%s',(cid,)).fetchone()
         # Crash after committed ACK and reconnect must not buy a second rank.
         map_port=restart();client.close();client=None;char=connect()
+        check(char['title']==85,'SIGKILL reload reconstructs title from source flags, not transient gold promotion')
+        title_list();select_title(87)
         check(conn.execute('SELECT count(*) FROM app_world.skill_purchase_operations WHERE char_id=%s',(cid,)).fetchone()==before,'SIGKILL and reconnect never replay accepted purchase')
         check(dict(conn.execute('SELECT "wSkillID","bLevel" FROM app_world."TSKILLTABLE" WHERE "dwCharID"=%s',(cid,)).fetchall())==learned,'purchased ranks survive process replacement')
         disconnect();char=connect()
@@ -99,6 +123,17 @@ def verify_skill_learning(conn,cid,start,enter,login_port,map_port,until,restart
         # The identical request succeeds after removing the injected fault,
         # proving the rollback exercised a payable rank change, not a rejection.
         purchase(22047,104,0,2)
+        title_before=conn.execute('SELECT count(*) FROM app_world.title_selection_operations WHERE char_id=%s',(cid,)).fetchone()
+        conn.execute("CREATE FUNCTION public.synthetic_title_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic title checkpoint fault'; END $$")
+        conn.execute('CREATE TRIGGER synthetic_title_fault BEFORE INSERT ON app_world.map_checkpoints FOR EACH ROW EXECUTE FUNCTION public.synthetic_title_fault()')
+        client.sendall(frame(struct.pack('<H',84),0x54f6,cs));cs+=1
+        check(client.recv(1)==b'','late title SQL failure closes TCP without World/client success')
+        conn.execute('DROP TRIGGER synthetic_title_fault ON app_world.map_checkpoints');conn.execute('DROP FUNCTION public.synthetic_title_fault()')
+        check(conn.execute('SELECT count(*) FROM app_world.title_selection_operations WHERE char_id=%s',(cid,)).fetchone()==title_before,'failed title change rolls its append receipt back')
+        check(dict(conn.execute('SELECT "wTitleID","bSelected" FROM app_world."TTITLETABLE" WHERE "dwCharID"=%s',(cid,)).fetchall())==titles,'failed title change preserves every old selected flag')
+        map_port=restart();client.close();client=None;char=connect()
+        check(char['title']==87,'restart after failed title selection recovers the last committed title')
+        select_title(84)
         # Strict decoding leaves durable ownership unchanged.
         client.sendall(frame(struct.pack('<HHB',22047,101,0),0x52b2,cs));cs+=1
         check(client.recv(1)==b'','malformed purchase with trailing byte closes TCP')
@@ -106,6 +141,7 @@ def verify_skill_learning(conn,cid,start,enter,login_port,map_port,until,restart
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'malformed learning teardown completes')
     finally:
         if client:client.close()
+        conn.execute('DROP TRIGGER IF EXISTS synthetic_title_fault ON app_world.map_checkpoints');conn.execute('DROP FUNCTION IF EXISTS public.synthetic_title_fault()')
         conn.execute('DROP TRIGGER IF EXISTS synthetic_learning_fault ON app_world.map_checkpoints');conn.execute('DROP FUNCTION IF EXISTS public.synthetic_learning_fault()')
         until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'learning fixture release')
         names=fields.split(',');conn.execute('UPDATE app_world."TCHARTABLE" SET '+','.join(n+'=%s' for n in names)+' WHERE "dwCharID"=%s',(*original,cid))

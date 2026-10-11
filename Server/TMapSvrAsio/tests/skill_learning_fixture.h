@@ -53,6 +53,31 @@ void VerifySkillLearning(soci::session& admin,SessionPool& pool,tmapsvr::Postgre
     r=result(*service,active,22047,101,0,2);
     Check(std::any_of(live.payload->skills.begin(),live.payload->skills.end(),[](const auto& s){return s.wSkillID==101&&s.bLevel==2;}),"rank upgrade replaces learned rank in authoritative payload");
     if(graph)Check(Number(admin,"SELECT COALESCE(max(\"bLevel\"),-1) FROM app_world.\"TSKILLTABLE\" WHERE \"dwCharID\"="+cid+" AND \"wSkillID\"=101")==normalized_rank,"transferred learning leaves stale normalized skill rows untouched");
+    const auto select_request=[](std::uint16_t id){std::vector<std::byte> b;wire::WritePOD(b,id);return b;};
+    const auto select=[&](std::uint16_t id){auto r=service->SelectTitle(active,select_request(id),live);live=*r.snapshot;return r.changed;};
+    const auto before_title=live;
+    Check(select(85)&&live.payload->selected_title==85&&LoadedTitle(live.payload->titles)==85,"title selection updates current ID and exactly one owned flag");
+    Check(Throws([&]{service->SaveAuthorized(active,before_title);}),"pre-title snapshot cannot checkpoint stale flags");
+    Check(Throws([&]{service->PurchaseSkill(active,request(22047,104),before_title);}),"pre-title purchase cannot restore stale title ownership");
+    const auto title_count=Number(admin,"SELECT count(*) FROM app_world.title_selection_operations WHERE char_id="+cid);
+    Check(!select(85)&&!select(65535),"same and unowned title requests remain silent");
+    Check(Number(admin,"SELECT count(*) FROM app_world.title_selection_operations WHERE char_id="+cid)==title_count,"silent title requests publish no change receipt");
+    // Money is now below eleven gold: eligible 84/85/86. Source promotes 85
+    // to 86 even though the first owned eligible ID returns before flag edits.
+    result(*service,active,22047,104,0,2);
+    Check(live.payload->selected_title==86&&LoadedTitle(live.payload->titles)==85,"learning preserves source live gold-title promotion separately from saved flags");
+    for(int field:{0,1,2}){auto wrong=active;if(field==0)++wrong.connection_id;else if(field==1)++wrong.authority_epoch;else wrong.role=MapSessionRole::Replica;
+        Check(Throws([&]{service->SelectTitle(wrong,select_request(87),live);}),"title selection fences old connection epoch and replica");}
+    admin<<"CREATE TRIGGER synthetic_title_fault BEFORE INSERT ON app_world.map_checkpoints FOR EACH ROW EXECUTE FUNCTION public.reject_checkpoint()";
+    Check(Throws([&]{select(87);}),"late title checkpoint failure rolls flags and selection receipt back");
+    admin<<"DROP TRIGGER synthetic_title_fault ON app_world.map_checkpoints";
+    Check(Number(admin,"SELECT count(*) FROM app_world.title_selection_operations WHERE char_id="+cid)==title_count,"rolled-back title selection has no receipt");
+    const auto title_race=[&](std::uint16_t id)->std::optional<TitleChangeCommit>{try{return service->SelectTitle(active,select_request(id),live);}catch(...){return {};}};
+    auto title_one=std::async(std::launch::async,title_race,84),title_two=std::async(std::launch::async,title_race,87);
+    auto first=title_one.get(),second=title_two.get();Check(bool(first)!=bool(second),"concurrent title selections accept exactly one snapshot");
+    live=*(first?first->snapshot:second->snapshot);
+    select(0);Check(live.payload->selected_title==0&&LoadedTitle(live.payload->titles)==0,"owned no-title entry clears selection");
+    select(87);Check(live.payload->selected_title==87&&LoadedTitle(live.payload->titles)==87,"final selected title is recoverable");
     service->SaveAuthorized(active,live);
     Check(Number(admin,"SELECT count(*) FROM app_world.map_checkpoints WHERE char_id="+cid+" AND outcome='logout'")==1,"learning saves recoverable logout checkpoint");
 }

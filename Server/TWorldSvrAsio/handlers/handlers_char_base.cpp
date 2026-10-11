@@ -2,6 +2,7 @@
 #include "../wire_codec.h"
 
 #include "MessageId.h"
+#include <algorithm>
 
 #include <spdlog/spdlog.h>
 
@@ -72,6 +73,21 @@ OnChangeCharBaseAck(std::shared_ptr<PeerSession>  peer,
                 ip, char_id, tchar->key, key);
             co_return;
         }
+    }
+
+    if(b_type==103) { // original IK_TITLE
+        if(!r.Eof()||b_value||!ctx.peers||ctx.peers->Find(peer->Wid())!=peer||(peer->Wid()>>8)!=4)co_return;
+        {
+            std::lock_guard g(tchar->lock);
+            const auto con=std::find_if(tchar->cons.begin(),tchar->cons.end(),[&](const auto& c){return c.server_id==static_cast<std::uint8_t>(peer->Wid());});
+            if(tchar->key!=key||tchar->closing||tchar->logout||tchar->main_server_id!=static_cast<std::uint8_t>(peer->Wid())||
+               con==tchar->cons.end()||!con->valid||!con->ready)co_return;
+            tchar->title=title;
+        }
+        // Original title/name branch fans out to all Maps, including source.
+        for(auto& target:ctx.peers->Snapshot())if((target->Wid()>>8)==4)
+            co_await target->Wire()->SendPacket(tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::MW_CHANGECHARBASE_REQ),body);
+        co_return;
     }
 
     // Per-bType mutation. NAME is special: it has cluster-wide

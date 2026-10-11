@@ -47,6 +47,8 @@ GRANT UPDATE("bLevel","dwEXP","dwHP","dwMP","dwGold","dwSilver","dwCooper","wSki
 GRANT INSERT ON app_world.skill_action_operations TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.skill_action_operations_action_id_seq TO :"map_role";
 
+GRANT INSERT ON app_world.title_selection_operations TO :"map_role";
+GRANT USAGE ON SEQUENCE app_world.title_selection_operations_selection_id_seq TO :"map_role";
 GRANT INSERT ON app_world.skill_purchase_operations TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.skill_purchase_operations_purchase_id_seq TO :"map_role";
 GRANT INSERT,DELETE,UPDATE("bSelected") ON app_world."TTITLETABLE" TO :"map_role";

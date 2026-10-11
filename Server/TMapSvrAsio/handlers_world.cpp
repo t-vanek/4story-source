@@ -816,6 +816,8 @@ DispatchWorld(std::uint16_t          wId,
     const auto id = ToMessageId(wId);
     switch (id)
     {
+    case MessageId::MW_CHANGECHARBASE_REQ:
+        co_await OnWorldTitleChanged(std::move(body),ctx); break;
     case MessageId::MW_CHARSTATINFOANS_REQ:
         co_await OnWorldCharStatInfoAnsReq(body,ctx);break;
     case MessageId::MW_CHARSTATINFO_REQ:

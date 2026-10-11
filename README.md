@@ -20,7 +20,17 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Verified functionality
 
-Current work (2026-10-11) adds **native skill learning and rank upgrades** through
+Current work adds **native title lists and selection** through Map → PostgreSQL →
+World → Map → original client response, including source gold-title transitions.
+Migration **041** fences stale selections and skill purchases; reload and transfers
+preserve original title flags. See the [title contract](_rewrite/docs/modernization/evidence/titles-contract.json)
+and [local reproduction](deploy/README.md#native-title-lifecycle).
+Final Debug, ASan/UBSan and installed Release each pass 1,243 focused native
+checks; 97 migration checks and all six service smoke checks pass.
+Complete title awards and actual-client acceptance remain unfinished.
+Applied migrations **001–041** are immutable; the next migration is **042**.
+
+Previous increment (2026-10-11) adds **native skill learning and rank upgrades** through
 `CS_SKILLBUY_REQ`, the original trainer offers, prices and skill-point rules.
 New migrations **039/040** publish backup trainer/title data and atomically persist
 currency, ranks, titles and recovery. Debug, ASan/UBSan and installed Release each
@@ -28,8 +38,7 @@ pass 3,418 full native regression checks and a separate 1,177-check focused suit
 (the suites overlap). All 41 sanitizer suites and 85 migration checks pass.
 The local image is `localhost/fourstory:postgresql-skill-learning`. The bounded
 scope and remaining trainer/title dependencies are tracked in the
-[implementation status](_rewrite/docs/modernization/README.md#native-skill-learning-and-rank-upgrades-2026-10-11).
-Applied migrations **001–040** are immutable; the next migration is **041**.
+[implementation status](_rewrite/docs/modernization/README.md#previous-increment-native-skill-learning-and-rank-upgrades-2026-10-11).
 
 Previous increment (2026-10-11) integrates the existing **permanent postures
 131/132 with ACTION and self-cure finishes**. Their backup erase flags preserve
@@ -179,7 +188,7 @@ self-cure `Defend` path (including item use), dependent posture skills and remot
 visibility still require implementation and acceptance.
 Only uncompiled client sources are available; no supported executable build/hash,
 assets or original-client acceptance is claimed. Backups and applied migrations
-**001–040** are immutable; next migration **041**.
+**001–041** are immutable; next migration **042**.
 
 The preceding **native equipment** increment (032) verified ordinary equip,
 unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per

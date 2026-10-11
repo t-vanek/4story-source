@@ -1,0 +1,45 @@
+{
+  "status": "passed",
+  "labs": [
+    {
+      "work": "/tmp/fourstory-titles-debug-20261011",
+      "remaining_owned_containers": [],
+      "removed_secret_files": [
+        "postgres.env",
+        "native-0c708d572235/tls/server.key",
+        "native-0c708d572235/tls/wrong-ca.key",
+        "native-0c708d572235/tls/ca.key",
+        "native-ebdddd800099/tls/server.key",
+        "native-ebdddd800099/tls/wrong-ca.key",
+        "native-ebdddd800099/tls/ca.key"
+      ],
+      "owned_network_removed": true
+    },
+    {
+      "work": "/tmp/fourstory-titles-asan-20261011",
+      "remaining_owned_containers": [],
+      "removed_secret_files": [
+        "postgres.env",
+        "native-fbf74f8103bd/tls/server.key",
+        "native-fbf74f8103bd/tls/wrong-ca.key",
+        "native-fbf74f8103bd/tls/ca.key",
+        "native-b2205374fd15/tls/server.key",
+        "native-b2205374fd15/tls/wrong-ca.key",
+        "native-b2205374fd15/tls/ca.key"
+      ],
+      "owned_network_removed": true
+    },
+    {
+      "work": "/tmp/fourstory-titles-release-20261011",
+      "remaining_owned_containers": [],
+      "removed_secret_files": [
+        "postgres.env",
+        "native-618567cec848/tls/server.key",
+        "native-618567cec848/tls/wrong-ca.key",
+        "native-618567cec848/tls/ca.key"
+      ],
+      "owned_network_removed": true
+    }
+  ],
+  "removed_secret_file_count": 18
+}

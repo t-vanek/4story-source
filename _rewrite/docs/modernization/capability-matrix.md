@@ -12,14 +12,23 @@ Its per-file NOT_ANALYZED entries require a detailed behavioral review beyond th
 role-level assessment below. Shared packet names identify candidate counterparts,
 not proof of replacement. Regenerate with `python3 tools/modernization_inventory.py`.
 
-## Current native learning slice
+## Current native title slice
+
+| Capability | Implementation and evidence | Remaining acceptance |
+|---|---|---|
+| Owned title list / selection | VERIFIED bounded slice: existing Map dispatcher, migration041 transaction, original World all-Map relay, exact source list/change packets | Final Debug/ASan/installed Release each 1,243 focused native checks; `titles-contract.json`; original executable unavailable |
+| Selection persistence | VERIFIED bounded slice: fresh title flags or authoritative full graph, append receipt, separate stale-snapshot fence | Scope includes concurrency, rollback, transfer and restart; complete failure acceptance remains scoped |
+| Gold-title learning | VERIFIED bounded slice: source live-ID promotion and multi-selected flags; original reload/transfer derivation | Other title awards, resets and achievement conditions remain pending |
+| Notification order / audience | VERIFIED bounded slice: exact-connection FIFO World echoes; source three-by-three cells, replicas receive state only | Controlled socket and native TCP evidence remain separate from actual-client visual acceptance |
+
+## Previous native learning slice
 
 | Capability | Implementation and evidence | Remaining acceptance |
 |---|---|---|
 | Skill purchase / rank | VERIFIED bounded slice: existing dispatcher → backup NPC/skill/point/title rules → fenced PostgreSQL → exact 30-byte ACK; 039/040; `skill-learning-contract.json` | Debug/ASan/installed Release full and focused native suites pass; original binary unavailable |
 | Learning persistence | VERIFIED bounded slice: atomic money/points/rank/title receipt; purchase head; original cooldown retained; fresh rows or complete transfer graph | Concurrent writes, stale snapshots, late SQL rollback, primary handoff, fresh/full-graph relogin and fresh SIGKILL tested; complete fault acceptance remains scoped |
 | Trainer content | VERIFIED catalog: 3,364 merchandise rows + 111 title definitions with original text bytes; 13 adversarial publication checks | Dynamic territory/guild/hero rules and NPC quest UI still incomplete |
-| Gold title side effects | VERIFIED unselected-title source `UseMoney` behavior and ordered TITLEGAIN packets | Selected gold-title transitions and the complete title lifecycle explicitly blocked |
+| Gold title side effects | VERIFIED unselected-title source `UseMoney` behavior and ordered TITLEGAIN packets; current increment adds selected titles | Complete title awards and actual-client lifecycle remain incomplete |
 
 ## Processes, shared infrastructure and persistence
 

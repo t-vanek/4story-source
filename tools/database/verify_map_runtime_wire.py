@@ -187,7 +187,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
             learning,map_port=verify_skill_learning(conn,cid,start,enter,login_port,map_port,until,restart_learning_map)
             for index in (2,1,0):stop(index)
             return {'status':'passed','checks':checks,'skill_learning_wire':learning,
-                    'scope':'Focused original SKILLBUY learning, currency, titles, restart and late SQL rollback; real client unavailable'}
+                    'scope':'Focused original SKILLBUY learning, currency, title list/selection and World relay, restart and late SQL rollback; real client unavailable'}
         secondary_wire=verify_world_secondary(world_port)
         handoff_wire=verify_world_handoff(world_port)
         cid,key=start(login_port)

@@ -281,6 +281,7 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
         self->face        = face;
         self->hair        = hair;
         self->helmet_hide = helmet_hide;
+        self->title       = title_id;
         self->country     = country;
         self->aid_country = aid_country;
         self->region      = region;

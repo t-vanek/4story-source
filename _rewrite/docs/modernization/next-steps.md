@@ -8,15 +8,19 @@ Owner instruction renewed (2026-10-11): keep implementation and versioning local
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current implementation (2026-10-11): native skill learning now runs through the
-original SKILLBUY request, the backup trainer/title catalog (039), atomic purchase
-receipts (040), exact ACK and fresh/full-graph persistence. Debug/ASan/installed
-Release full and focused native suites pass; preserve `skill-learning-contract.json`. Next resolve selected gold-title and
-secure-code lifecycle, conditional trainer discounts/territory ownership, NPC talk
-quest selection and original skill-log forwarding; then continue general timed
-effects and multi-target combat in the existing finish transaction. Ordinary
-learning must not depend on administrator-seeded skills. Original `.bak` files and
-applied migrations 001–040 are immutable; the next migration is 041.
+Current implementation (2026-10-11): native title list/selection now follows the
+original World relay with atomically persisted fresh/full-graph flags and a
+separate selection head (041). Gold-title learning preserves live-ID promotion
+before the owned-title early return and multiple selected flags. Reload/transfer
+uses the original last-selected behavior in deterministic unsigned-ID order.
+Final Debug/ASan/installed Release each pass 1,243 focused native checks;
+97 upgrade checks and all six service smoke checks pass. Preserve
+`titles-contract.json`, including its modern persistence/authorization
+changes and bounded acceptance. Continue secure-code lifecycle, conditional
+trainer discounts/territory ownership, NPC talk quest selection, original skill-log
+forwarding, general timed effects and multi-target combat. Other title awards,
+resets and achievement conditions still need integration. Original `.bak` files
+and migrations 001–041 are immutable; next migration 042.
 
 Current source correction (2026-10-11): ordinary PC skills use
 `CS_FINISHSKILL_ACK`, not the DEFEND path assumed by the preceding continuation.
@@ -57,7 +61,7 @@ Retain the unresolved no-cast-ID ambiguity: an identical packet can represent a
 later legitimate outstanding finish. Current same-login FIFO/subsequence budgets
 bound effects to accepted casts, but do not prove universal replay discrimination.
 No guessed expiry or new client field is a substitute for documenting this limit.
-All backups and applied migrations **001–040** are immutable; next migration **041**.
+All backups and applied migrations **001–041** are immutable; next migration **042**.
 
 Previous foundation (combat): migration **035** and the actual cast transaction
 are integrated and pass 2,761 native checks per Debug, ASan/UBSan and installed
@@ -115,7 +119,7 @@ inventory/trade/store integration and all economy systems in scope.
 Preserve the explicitly certified old-two-table → current-four-table actor upgrade
 and its immutable graph receipts. It does not authorize arbitrary content changes,
 character/routing releases or transitive upgrades. All backups and migrations
-**001–040** are immutable; the next schema migration is **041**.
+**001–041** are immutable; the next schema migration is **041**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific

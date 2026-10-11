@@ -1,0 +1,216 @@
+{
+  "status": "verified_bounded_increment",
+  "date": "2026-10-11",
+  "base_commit": "6101087a3886ce51c6cfc4bae04b6e10591af2a9",
+  "scope": "Existing native Map title list/selection, World relay, original gold-title learning transitions, fresh/full-graph persistence and recovery. Not complete title awards or gameplay.",
+  "schema": {
+    "new_migration": "database/postgresql/041-native-title-selection.sql",
+    "sha256": "a6101e5d38f4c206e51a05ea20d80558906fe7a6c26ce17af3bf06f1d16be8dc",
+    "immutable_previous": "001-040",
+    "historical_backfill": false
+  },
+  "source": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "12942-12959;14701-14733",
+      "finding": "List Bow/main/tutorial gates; owned/different selection only; no tutorial gate on selection",
+      "sha256": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50"
+    },
+    {
+      "path": "Server/TMapSvr/TPlayer.cpp",
+      "lines": "5054-5111;5858-5866;6903-7084",
+      "finding": "Title selection calls World and asynchronous base save; gold promotion precedes owned-title early return, and gained rows share selected flag",
+      "sha256": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9"
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "3194-3217;4536-4551;4968-4990",
+      "finding": "Original title list, gain and change response field order",
+      "sha256": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029"
+    },
+    {
+      "path": "Server/TMapSvr/SSSender.cpp",
+      "lines": "1623-1641;2569-2577;4633-4649;4668-4687",
+      "finding": "Title row persistence and transfer keep flags; exact World relay layout; base-save ignores title argument",
+      "sha256": "e39cc92a004b352cafc337307cf631214cd3680744d52e96a403fa75f07b7a53"
+    },
+    {
+      "path": "Server/TMapSvr/SSHandler.cpp",
+      "lines": "5539-5587;7753-7777;15129-15282",
+      "finding": "Load/transfer accepts multiple selected rows, last assignment wins; World applies selection to replicas and primary notifies neighboring cells",
+      "sha256": "8663a80a045d8a2a681c294bc80d8feb8ecd525812af151a60d3340afe8cf074"
+    },
+    {
+      "path": "Server/TMapSvr/DBAccess.h",
+      "lines": "1615-1638;5151-5165",
+      "finding": "TTITLETABLE load has no ORDER BY; TSaveCharTitle persists id/flag",
+      "sha256": "364fcadbbb78e49f9e7e3e6cddb0f8623eb9315ed2a9195bb3e8103c24277d9d"
+    },
+    {
+      "path": "Server/TWorldSvr/SSHandler.cpp",
+      "lines": "9705-9842",
+      "finding": "Title updates World character and fans out to every Map, including origin",
+      "sha256": "21e89457f70203072bd659ce419031b65d04f26287e7e9c56fd9d2c3290345c2"
+    },
+    {
+      "path": "Client/TClient/CSHandler.cpp",
+      "lines": "12504-12533;12632-12683;14430-14442",
+      "finding": "Client title list/gain semantics and selected-title nameplate/UI update",
+      "sha256": "51e3b85b5cd2d5af27be15f564ff45c875a02c2b70bed326648ef80484cd8ce3"
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/CSProtocol.h",
+      "lines": "3123;4015-4021",
+      "finding": "Original client opcodes",
+      "sha256": "3ca0d6991bb219acb00f9e7fda3f24105240a17051362355f106de16479a191f"
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "lines": "755;1287",
+      "finding": "CCB_SUCCESS=0 and IK_TITLE=103",
+      "sha256": "fa6b11998606c72a81e9ae282590d5afdbf2950d832a743b54ae0dd35e648c9d"
+    }
+  ],
+  "backup_modules": [
+    {
+      "name": "TClearCharTitle",
+      "sha256_utf8_definition": "3849ffc620f44650b4153423e35c496347e3d32412325547e033016333bb2c8b"
+    },
+    {
+      "name": "TSaveCharBase",
+      "sha256_utf8_definition": "460149e4ed343b207a9ef75fdbfae9a46e30269eefc74d400b6eae08f22f6589"
+    },
+    {
+      "name": "TSaveCharTitle",
+      "sha256_utf8_definition": "4d4c11c6ad8a7c521b242d17832274d4bdba786a03ffccb2e087f1a7e0b66abb"
+    }
+  ],
+  "wire": {
+    "TITLELIST_REQ": "0x54f4, empty body",
+    "TITLELIST_ACK": "0x54f5, BYTE count then WORD id/BYTE selected, ascending unsigned IDs",
+    "CHANGETITLE_REQ": "0x54f6, WORD title",
+    "CHANGECHARBASE_ACK": "0x544a, BYTE result=0, DWORD char, BYTE kind=103, BYTE value=0, int32 byte-count/name bytes, WORD title, DWORD seconds=0",
+    "World": "Original MW_CHANGECHARBASE_ACK/REQ body: DWORD char/key, BYTE kind/value, WORD title, int32/name bytes; no added nonce or fields"
+  },
+  "preserved_quirks": [
+    "Same current ID or unowned ID is silent; Bow is silent; tutorial gate only on list",
+    "GetTitle promotes live selected ID before early return on any eligible owned title, without necessarily changing persisted flags",
+    "All gained gold titles can share selected=true; runtime may temporarily name an absent title until client selects a gained title",
+    "Original reload/transfer re-derives live selected ID from saved/transferred flags; a transient gold promotion can therefore disappear on relogin"
+  ],
+  "modern_differences": [
+    "Selection flags, append receipt and checkpoint commit before World publication; replaces separate asynchronous legacy persistence and gives pipelined requests a durable linearization point",
+    "Registered ready primary and exact session key/connection authorize relay; replicas do not persist or broadcast",
+    "Malformed request bodies are rejected instead of permissive reads; duplicate IDs/over-width lists fail closed",
+    "Native SQL hydration uses unsigned ascending ID order and last selected wins; legacy SELECT lacked ORDER BY",
+    "Delayed primary World echoes only publish notifications: they do not reapply old state over a newer commit; exact-connection FIFO suppresses unsolicited/duplicate echoes",
+    "Pending World notifications are bound to the local authority epoch; same-socket promotion clears predecessor queue entries, and non-primary/transfer phases discard abandoned echoes."
+  ],
+  "verified_scenarios": [
+    "PostgreSQL fresh and complete-graph title selection, one concurrent winner, stale selection/purchase/save fences, replica/epoch/generation rejection",
+    "Same/unowned silent requests, selecting owned no-title0, gold live-ID vs flag divergence, fresh/full-graph relogin",
+    "Late SQL failure rolls flags and append receipt back; actual TCP closes without success; successful selection after removing known rollback",
+    "Actual original-format encrypted Login/Map and plain World relay, independent Python oracle for all response bytes and flag state",
+    "Map SIGKILL/restart re-derives selected ID and does not replay accepted purchases",
+    "Controlled seven-socket audience test: three-by-three cells, map/channel boundaries, FIFO delayed echoes, invalid/duplicate echo suppression, replica projection without primary broadcast",
+    "World transport test: exact all-Map body, primary/replica distinction, key/shape/unregistered rejection",
+    "32 pure source arithmetic/gate/title/wire checks in existing skill-learning suite",
+    "Controlled same-socket successor epoch and non-primary notification discard regression; production transfer/failure acceptance remains separately scoped."
+  ],
+  "remaining": [
+    "Complete title awards/resets and achievement dependencies; complete trainer, skill and gameplay scope in capability matrix",
+    "Original EXE, matching data and runnable client unavailable; source TVERSION 0x2918 alone is not a supported binary build",
+    "No original-client visual/timing acceptance, including pipelined title selection versus skill learning",
+    "Title-specific fault at every point between successful DB commit and World echo, and complete multi-neighbor churn, are not claimed tested; existing broader World-loss/primary-transfer tests remain bounded",
+    "Full arbitrary malformed/multi-selected historical title corpus not available; synthetic states and source contracts are distinguished from production acceptance"
+  ],
+  "verification": {
+    "debug": "native-titles-debug.json (full backend/wire matrix)",
+    "asan": "native-titles-asan.json (all backend, focused learning/title wire)",
+    "release": "native-titles-release.json (installed daemons, Debug backend, focused learning/title wire)",
+    "ctest": [
+      "titles-debug-ctest.xml",
+      "titles-asan-ctest.xml"
+    ],
+    "schema_upgrade": "titles-upgrade.json",
+    "runtime_permissions": "titles-runtime-permissions.json",
+    "original_preservation": "titles-preservation.json",
+    "source_inventory": "source-inventory.json",
+    "full_debug_regression_note": "Full Debug native matrix passed before the notification-epoch refinement; final Debug focused native run and CTest cover the refined production code. Full/focused suites overlap and must not be summed.",
+    "debug_focused": "native-titles-focused-debug.json",
+    "measured_counts": {
+      "debug_full": {
+        "map": 1065,
+        "pool_tls": 29,
+        "wire_outer": 942,
+        "wire_nested": 1460,
+        "total": 3496
+      },
+      "asan_focused": {
+        "map": 1065,
+        "pool_tls": 29,
+        "wire_outer": 76,
+        "wire_learning_titles": 73,
+        "total": 1243
+      },
+      "schema_upgrade": 97,
+      "runtime_role_permissions": 3,
+      "preserved_files": 42,
+      "source_learning_unit_assertions": 32,
+      "debug_ctest": {
+        "entries": 204,
+        "actual_passes": 189,
+        "internal_skips": 8,
+        "explicit_skips": 7
+      },
+      "asan_ctest": {
+        "entries": 42,
+        "passes": 42,
+        "skips": 0
+      },
+      "trainer_publication_per_run": 13,
+      "debug_focused": {
+        "map": 1065,
+        "pool_tls": 29,
+        "wire_outer": 76,
+        "wire_learning_titles": 73,
+        "total": 1243
+      },
+      "release_focused": {
+        "map": 1065,
+        "pool_tls": 29,
+        "wire_outer": 76,
+        "wire_learning_titles": 73,
+        "total": 1243
+      },
+      "six_services_health_dns_sigterm": 6
+    },
+    "role_permission_reproducer": "tools/database/verify_title_permissions.py, called by run_native_verification after deployed Map grants",
+    "runtime_image": {
+      "tag": "localhost/fourstory:postgresql-titles",
+      "id": "3d82ac3b4d19fc883e639a3292c0d8d42d7e7c55050619d41c6faa12c4b2feaa",
+      "user": "10001:10001"
+    },
+    "container_smoke": "titles-container-smoke.log",
+    "cleanup": "titles-cleanup.json",
+    "final_configs": {
+      "Debug": "full regression plus final focused native/CTest",
+      "ASan/UBSan": "final all-backend/focused native and 42 CTest suites",
+      "Release": "final installed daemons, mounted Debug backend, focused native and six-service smoke"
+    },
+    "build_exit_codes": {
+      "linux-debug": 0,
+      "linux-asan": 0,
+      "installed-release-image": 0
+    }
+  },
+  "client_acceptance": {
+    "status": "BLOCKED",
+    "available": "uncompiled source only, confirmed by owner",
+    "source_protocol": "0x2918",
+    "supported_executable_build": null,
+    "executable_sha256": null,
+    "assets_identity": null
+  },
+  "publication": "Local main only; no push/publication/external deployment"
+}

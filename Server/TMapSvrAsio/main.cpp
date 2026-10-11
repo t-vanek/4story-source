@@ -25,6 +25,7 @@
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
+#include "services/title_relay_queue.h"
 #include "services/companion_service.h"
 #include "services/corpse_registry.h"
 #include "services/inventory_service.h"
@@ -359,6 +360,7 @@ int main(int argc, char** argv)
         // Live char snapshot store — populated on DM_LOADCHAR_REQ,
         // read by the MapServer teardown hook to call SaveChar.
         tmapsvr::InMemoryCharStateStore char_state;
+        tmapsvr::TitleRelayQueue title_relays;
 
         // Per-(char, skill) cooldown gate — records last-use stamps so the
         // skill handler rejects re-uses faster than TSKILLCHART's reuse
@@ -397,6 +399,7 @@ int main(int argc, char** argv)
         ctx.monster_seq       = &monster_seq;
         ctx.companion_service = companion_service.get();
         ctx.char_state        = &char_state;
+        ctx.title_relays       = &title_relays;
         ctx.db_pool           = db_thread_pool.get();
         ctx.log_peer          = &log_peer;
         ctx.audit             = &audit_log;

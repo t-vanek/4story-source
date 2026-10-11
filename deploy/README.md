@@ -922,7 +922,7 @@ This is still an incomplete gameplay server. See the
 ## Native skill learning
 
 Stop all local Map writers and use matching new binaries together. Apply migrations
-through **040** and reapply `deploy/sql/map-runtime-grants.sql`. Previously applied
+through **041** and reapply `deploy/sql/map-runtime-grants.sql`. Previously applied
 migrations and backup files stay unchanged. The character, routing and four-table
 actor releases remain in place. Trainer publication is separate and requires the
 verified character and actor releases; a live Map owner prevents changing it.
@@ -982,3 +982,45 @@ For the additional focused failure/reconnect scenario, add
 `--skill-learning-wire-only` to the same native verification invocation and use a
 separate report. It retains all backend checks while running only the learning
 wire scenario; it does not substitute for the full matrix.
+
+## Native title lifecycle
+
+Current native binaries require schema **041** and refreshed Map runtime grants.
+Stop local Map writers for the additive upgrade, retain existing catalogs and
+all migration receipts, run `migrate.py schema` using the private libpq connection,
+and reapply `deploy/sql/map-runtime-grants.sql`. Existing title rows and recovery
+receipts are preserved. The trainer/title publication procedure above still applies.
+Start the existing Login, World and Map services with their documented native
+configurations; title selection requires a registered World connection.
+
+Build and verify locally using the same four private manifests as learning:
+
+```sh
+podman run --rm --network none --userns keep-id -v "$PWD:/src:z" -w /src \
+  localhost/fourstory:build-deps cmake --build --preset linux-debug
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 \
+  -t localhost/fourstory:postgresql-titles .
+python3 tools/database/disposable_environment.py start \
+  --work /tmp/fourstory-titles-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-titles-test --map-runtime-only --skill-learning-wire-only \
+  --image localhost/fourstory:postgresql-titles --runtime-bin-dir /opt/fourstory/bin \
+  --snapshot /private/character/reference/manifest.json \
+  --routing-snapshot /private/routing/reference/manifest.json \
+  --actor-snapshot /private/statistics/actor-reference/manifest.json \
+  --trainer-snapshot /private/trainer-reference/manifest.json \
+  --report /tmp/native-titles-release.json
+python3 tools/database/verify_posture_upgrade.py \
+  --work /tmp/fourstory-titles-test --through-titles --report /tmp/titles-upgrade.json
+python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-titles
+python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-titles-test
+```
+
+Use the documented psycopg environment. Omit `--skill-learning-wire-only` for the
+complete native wire matrix. The focused mode still runs all native backend checks,
+then learning and title list/selection, World relay, crash/reconnect and late SQL
+rollback. For Debug omit image/runtime-bin options; for sanitizers build and select
+`linux-asan`. Release uses installed daemons and the mounted Debug backend test.
+Use separate labs for concurrent configurations and remove owned credentials/keys
+when stopped. This is local testing, with no external deployment or GitHub push.
+See [implemented scope, source quirks and verification](../_rewrite/docs/modernization/evidence/titles-contract.json).

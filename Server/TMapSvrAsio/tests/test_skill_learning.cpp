@@ -38,6 +38,20 @@ int main(){
         payload->titles.clear();c.points[{101,2}]={2,1,1};s.wSkillPoint=0;
         p=PlanSkillPurchase(req,s,c);check(p.result==12&&p.spent==0&&p.titles.size()==4&&p.after.dwGold==11);
         c.skill->price=0;p=PlanSkillPurchase(req,s,c);check(p.titles.empty());
+        c.skill->price=1;c.money[20]=110;s.wSkillPoint=4;
+        payload->titles={{86,true}};payload->selected_title=86;
+        p=PlanSkillPurchase(req,s,c);
+        check(p.after.payload->selected_title==87&&p.after.payload->titles[0].id==86&&p.after.payload->titles[0].selected&&p.titles.empty());
+        check(LoadedTitle(p.after.payload->titles)==86); // original reload differs from live promotion
+        c.gold_titles[90]=50;payload->titles={{90,true}};payload->selected_title=90;
+        p=PlanSkillPurchase(req,s,c);
+        check(p.titles.size()==4&&p.after.payload->selected_title==90);
+        check(std::all_of(p.after.payload->titles.begin(),p.after.payload->titles.end(),[](auto t){return t.selected;}));
+        check(LoadedTitle(p.after.payload->titles)==87);
+        check(EncodeTitleList({{87,true},{0,false}})==std::vector<std::byte>({std::byte{2},std::byte{0},std::byte{0},std::byte{0},std::byte{87},std::byte{0},std::byte{1}}));
+        const auto title_ack=EncodeTitleChanged(0x12345678,87,"A");
+        check(title_ack==std::vector<std::byte>({std::byte{0},std::byte{0x78},std::byte{0x56},std::byte{0x34},std::byte{0x12},std::byte{103},std::byte{0},std::byte{1},std::byte{0},std::byte{0},std::byte{0},std::byte{'A'},std::byte{87},std::byte{0},std::byte{0},std::byte{0},std::byte{0},std::byte{0}}));
+        bool duplicate=false;try{EncodeTitleList({{1,true},{1,false}});}catch(...){duplicate=true;}check(duplicate);
         std::vector<std::byte> bytes{std::byte{0x1f},std::byte{0x56},std::byte{101},std::byte{0}};
         const auto decoded=DecodeSkillPurchase(bytes);check(decoded.npc==22047&&decoded.skill==101);
         bytes.push_back(std::byte{});bool rejected=false;try{DecodeSkillPurchase(bytes);}catch(...){rejected=true;}check(rejected);

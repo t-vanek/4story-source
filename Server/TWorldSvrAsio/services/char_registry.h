@@ -168,6 +168,7 @@ struct TChar
     std::uint8_t  race        = 0; // m_bRace (TRACE_*)
     std::uint8_t  sex         = 0; // m_bSex
     std::uint8_t  face        = 0; // m_bFace
+    std::uint16_t title       = 0; // selected title from original CHANGECHARBASE
     std::uint8_t  hair        = 0; // m_bHair
     std::uint8_t  channel     = 0; // m_bChannel — last seen channel
     std::uint16_t map_id      = 0; // m_wMapID — last seen map

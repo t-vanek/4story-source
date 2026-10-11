@@ -45,6 +45,7 @@ class IMonsterRegistry;
 class ICorpseRegistry;
 class ICompanionService;
 class ICharStateStore;
+class TitleRelayQueue;
 class IServerRouteResolver;
 class ILogPeer;
 class IRateLimiter;
@@ -77,6 +78,7 @@ struct HandlerContext
     IMonsterRegistry*      monster_registry  = nullptr;
     ICorpseRegistry*       corpse_registry   = nullptr;   // monster loot (money + items)
     ICompanionService*     companion_service = nullptr;
+    TitleRelayQueue*       title_relays      = nullptr;
     ICharStateStore*       char_state        = nullptr;   // live char snapshots
     IServerRouteResolver*  route_resolver    = nullptr;   // server_id → ip/port (MW_ROUTELIST)
     std::atomic<std::uint32_t>* monster_seq   = nullptr;   // runtime monster instance-id allocator (respawn)
@@ -105,6 +107,9 @@ boost::asio::awaitable<void> Dispatch(
 // Per-handler entry points. One per message id. All take a span over
 // the decoded body — they own the copy if they need to outlive the
 // dispatch call.
+boost::asio::awaitable<void> OnTitleListReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
+boost::asio::awaitable<void> OnChangeTitleReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
+boost::asio::awaitable<void> OnWorldTitleChanged(std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnSkillEndReq(std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx);
 boost::asio::awaitable<void> OnMoveItemReq(

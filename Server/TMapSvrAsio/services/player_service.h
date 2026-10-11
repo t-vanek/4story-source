@@ -58,6 +58,7 @@ public:
     virtual std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,
         const std::vector<SkillItemDebit>&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}
     virtual SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) {throw std::runtime_error("Native cast transaction unavailable");}
+    virtual TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Native title selection unavailable");}
     virtual SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Native skill learning unavailable");}
     virtual SkillActionCommit CommitSkillAction(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Native skill action unavailable");}
     virtual FinishSkillCommit FinishSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Native skill finish unavailable");}

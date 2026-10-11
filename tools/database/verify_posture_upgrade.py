@@ -27,7 +27,9 @@ def main():
     parser.add_argument('--through-actions',action='store_true',help='Also verify additive ACTION/charge migration037')
     parser.add_argument('--through-finish-effects',action='store_true',help='Also verify additive finish effect/audience migration038')
     parser.add_argument('--through-learning',action='store_true',help='Also verify additive trainer publication039 and skill purchases040')
+    parser.add_argument('--through-titles',action='store_true',help='Also verify additive owned-title selection041')
     args=parser.parse_args();repo=Path(__file__).resolve().parents[2]
+    if args.through_titles:args.through_learning=True
     if args.through_learning:args.through_finish_effects=True
     if args.through_finish_effects:args.through_actions=True
     state=json.loads((args.work/'state.json').read_text());verify_container(state,state['pg_container'])
@@ -202,7 +204,34 @@ def main():
                     check(rejected,'same previous purchase head cannot append twice')
                     c.execute('DELETE FROM app_world."TCHARTABLE" WHERE "dwCharID"=1')
                     check(c.execute('SELECT count(*) FROM app_world.skill_purchase_operations').fetchone()==(0,),'character deletion cascades purchase receipts without FK conflict')
-            report.update(status='passed',scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
+            if args.through_titles:
+                old=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
+                old_titles=c.execute('SELECT to_jsonb(t) FROM app_world."TTITLETABLE" t ORDER BY "dwCharID","wTitleID"').fetchall()
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                shutil.copyfile(repo/'database/postgresql/041-native-title-selection.sql',path/'041-native-title-selection.sql')
+                check(apply_migrations(c,path)==['041-native-title-selection.sql'],'title upgrade applies only migration041')
+                check(c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()[:40]==receipts,'title upgrade preserves all forty old migration receipts')
+                check(c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()==old,'title upgrade preserves every recovery contract')
+                check(c.execute('SELECT to_jsonb(t) FROM app_world."TTITLETABLE" t ORDER BY "dwCharID","wTitleID"').fetchall()==old_titles,'title upgrade preserves original title flags')
+                check(c.execute('SELECT count(*) FROM app_world.title_selection_operations').fetchone()==(0,),'title selection has no fabricated historical backfill')
+                check(c.execute("SELECT has_table_privilege('public','app_world.title_selection_operations','INSERT') OR has_sequence_privilege('public','app_world.title_selection_operations_selection_id_seq','USAGE')").fetchone()==(False,),'title receipt and allocator have no PUBLIC mutation grant')
+                statement="INSERT INTO app_world.title_selection_operations(world_id,char_id,previous_selection_id,session_key,server_id,owner_token,connection_id,authority_epoch,previous_title,selected_title,before_titles,after_titles,request) VALUES(1,1,0,1,1,%s,1,0,0,%s,'[]','[]',%s)"
+                for title,request in [(0,b'00'),(65536,b'00'),(87,b'0'),(87,b'000')]:
+                    rejected=False
+                    try:
+                        with c.transaction(force_rollback=True):c.execute(statement,('a'*64,title,request))
+                    except psycopg.errors.CheckViolation:rejected=True
+                    check(rejected,'title receipt rejects invalid width or unchanged selection')
+                with c.transaction(force_rollback=True):
+                    c.execute(statement,('a'*64,87,b'00'))
+                    rejected=False
+                    try:
+                        with c.transaction():c.execute(statement,('a'*64,86,b'00'))
+                    except psycopg.errors.UniqueViolation:rejected=True
+                    check(rejected,'same previous title head cannot append twice')
+                    c.execute('DELETE FROM app_world."TCHARTABLE" WHERE "dwCharID"=1')
+                    check(c.execute('SELECT count(*) FROM app_world.title_selection_operations').fetchone()==(0,),'character deletion cascades title receipts')
+            report.update(status='passed' ,scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
     finally:
         with psycopg.connect(dbname='postgres',**admin) as conn:conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db)))
         report['owned_database_removed']=True;args.report.write_text(json.dumps(report,indent=2)+'\n')

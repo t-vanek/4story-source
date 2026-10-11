@@ -358,6 +358,57 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
     if(cast_result)cast_result->snapshot=std::make_shared<const CharSnapshot>(after);
     tx->commit();return hashes;
 }
+TitleChangeCommit PostgreSQLMapService::SelectTitle(const MapSessionClaim& c,std::span<const std::byte> body,
+    const CharSnapshot& before) {
+    const auto selected=DecodeTitleChange(body);
+    if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain)
+        throw std::runtime_error("CHANGETITLE requires authoritative primary");
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Title claim is not ready primary");
+    CheckCatalogs(sql);
+    const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+    const bool graph=bool(before.payload->transfer_state);
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
+        throw std::runtime_error("Title recovery receipt changed");
+    const long long key=c.key;int unlocked=0;
+    sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
+    if(!sql.got_data())throw std::runtime_error("Title session was revoked");
+    ValidateInventoryState(sql,c,before,true);
+    const int world=c.group,character=c.char_id;
+    const auto old_titles=TitleJson(before.payload->titles);
+    if(!graph) {
+        std::vector<CharacterTitle> stored;
+        soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wTitleID\",\"bSelected\" FROM app_world.\"TTITLETABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c FOR UPDATE",soci::use(world,"w"),soci::use(character,"c"));
+        for(const auto& r:rows)stored.push_back({static_cast<std::uint16_t>(r.get<int>(0)),r.get<int>(1)!=0});
+        if(TitleJson(stored)!=old_titles)throw std::runtime_error("Title ownership changed outside native transaction");
+    }
+    if(selected==before.payload->selected_title||std::none_of(before.payload->titles.begin(),before.payload->titles.end(),[&](auto t){return t.id==selected;})) {
+        tx->commit();return {std::make_shared<const CharSnapshot>(before),false};
+    }
+    auto after=before;auto payload=std::make_shared<CharacterPayload>(*before.payload);after.payload=payload;
+    payload->selected_title=selected;
+    for(auto& title:payload->titles)title.selected=title.id==selected;
+    const int title=selected,previous_title=before.payload->selected_title,server=m_config.server;
+    if(!graph) {
+        const int signed_title=std::bit_cast<std::int16_t>(selected);
+        sql<<"UPDATE app_world.\"TTITLETABLE\" SET \"bSelected\"=CASE WHEN \"wTitleID\"=:title THEN 1 ELSE 0 END WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c",
+            soci::use(signed_title,"title"),soci::use(world,"w"),soci::use(character,"c");
+    }
+    const auto new_titles=TitleJson(payload->titles);
+    const long long previous=payload->last_title_selection_id,generation=c.connection_id,epoch=c.authority_epoch;long long id=0;
+    constexpr char digits[]="0123456789abcdef";std::string request;
+    for(auto v:body){auto b=std::to_integer<unsigned>(v);request+=digits[b>>4];request+=digits[b&15];}
+    sql<<"INSERT INTO app_world.title_selection_operations(world_id,char_id,previous_selection_id,session_key,server_id,owner_token,connection_id,authority_epoch,previous_title,selected_title,before_titles,after_titles,request) "
+         "VALUES(:w,:c,:prev,:key,:s,:token,:g,:epoch,:old,:title,CAST(:before AS jsonb),CAST(:after AS jsonb),decode(:request,'hex')) RETURNING selection_id",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"prev"),soci::use(key,"key"),soci::use(server,"s"),
+        soci::use(m_config.owner_token,"token"),soci::use(generation,"g"),soci::use(epoch,"epoch"),soci::use(previous_title,"old"),
+        soci::use(title,"title"),soci::use(old_titles,"before"),soci::use(new_titles,"after"),soci::use(request,"request"),soci::into(id);
+    payload->last_title_selection_id=static_cast<std::uint64_t>(id);
+    WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,Fingerprint(c,after),"active");StoreTransferCheckpoint(sql,c,after);
+    TitleChangeCommit committed{std::make_shared<const CharSnapshot>(std::move(after)),true};tx->commit();return committed;
+}
+
 SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c,std::span<const std::byte> body,const CharSnapshot& before) {
     const auto req=DecodeSkillPurchase(body);
     if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain)
@@ -775,6 +826,8 @@ void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClai
     if(static_cast<std::uint64_t>(head)!=s.payload->last_action_id)throw std::runtime_error("Snapshot predates skill action");
     sql<<"SELECT COALESCE(max(purchase_id),0) FROM app_world.skill_purchase_operations WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
     if(static_cast<std::uint64_t>(head)!=s.payload->last_purchase_id)throw std::runtime_error("Snapshot predates skill purchase");
+    sql<<"SELECT COALESCE(max(selection_id),0) FROM app_world.title_selection_operations WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
+    if(static_cast<std::uint64_t>(head)!=s.payload->last_title_selection_id)throw std::runtime_error("Snapshot predates title selection");
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
     CheckCastHead(sql,claim,s);

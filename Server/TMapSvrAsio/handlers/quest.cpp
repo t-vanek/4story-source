@@ -42,6 +42,7 @@
 #include "services/world_client.h"
 #include <cmath>
 #include "services/main_transfer_runtime.h"
+#include "services/secure_code.h"
 #include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 
@@ -60,6 +61,21 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     std::uint16_t opcode,std::vector<std::byte> body,const HandlerContext& ctx) {
     const auto identity=ctx.session_reg?ctx.session_reg->Identity(client.get()):std::nullopt;
     if(!identity||identity->phase!=SessionPhase::Ready||identity->role!=MapSessionRole::Primary)co_return;
+    const auto message=static_cast<tnetlib::protocol::MessageId>(opcode);
+    if(message==tnetlib::protocol::MessageId::CS_ITEMUSE_REQ||
+       message==tnetlib::protocol::MessageId::CS_ITEMSELL_REQ||
+       message==tnetlib::protocol::MessageId::CS_DURATIONREP_REQ) {
+        if(!ctx.char_state)throw std::runtime_error("Native item state unavailable");
+        const auto state=ctx.char_state->Get(identity->char_id);if(!state)co_return;
+        // Original protected handlers prompt before reading the request body.
+        // The dispatcher already holds this session's gameplay lease; no write
+        // or timer freeze is needed for this early rejection. Repositories also
+        // check security after locking and validating authoritative ownership.
+        if(state->payload&&state->payload->security.Blocks()) {
+            const auto prompt=SecureUnlockPrompt(state->payload->security);
+            co_await client->SendPacket(prompt.first,prompt.second);co_return;
+        }
+    }
     const bool lottery=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_REQ)||
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_TRIGGER_REQ);
     const auto required=opcode<=1||lottery?0U:

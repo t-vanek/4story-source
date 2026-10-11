@@ -39,5 +39,6 @@ struct PostureTemplate {
 struct ProgressEffectTemplate {
     std::uint16_t skill{},value{};
     std::uint8_t status{},priority{};
+    std::uint32_t duration{};
 };
 }

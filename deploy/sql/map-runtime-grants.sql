@@ -59,6 +59,9 @@ GRANT USAGE ON SEQUENCE app_world.quest_operations_operation_id_seq TO :"map_rol
 GRANT EXECUTE ON FUNCTION app_world.map_quest_state(smallint,integer) TO :"map_role";
 GRANT INSERT,DELETE,UPDATE("bSelected") ON app_world."TTITLETABLE" TO :"map_role";
 GRANT SELECT,INSERT,UPDATE ON app_global.secure_codes TO :"map_role";
+GRANT SELECT ON app_global.during_items TO :"map_role";
+GRANT INSERT,DELETE ON app_world.exp_entitlements TO :"map_role";
+GRANT EXECUTE ON FUNCTION app_world.map_exp_state(smallint,integer) TO :"map_role";
 GRANT INSERT ON app_world.secure_code_operations TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.secure_code_operations_operation_id_seq TO :"map_role";
 COMMIT;

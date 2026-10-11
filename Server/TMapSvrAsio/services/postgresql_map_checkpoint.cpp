@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <ctime>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
@@ -131,10 +132,10 @@ void PostgreSQLMapService::RecordCheckpoint(soci::session& sql,const MapSessionC
     const int world=claim.group,server=m_config.server;const long long cid=claim.char_id,uid=claim.user_id,key=claim.key,generation=claim.connection_id,epoch=claim.authority_epoch;
     int stored=0;
     sql<<"INSERT INTO app_world.map_checkpoints(world_id,char_id,user_id,server_id,session_key,owner_token,connection_id,authority_epoch,revision,"
-         "fingerprint,recovery_contract,core_state,outcome) VALUES(:w,:c,:u,:s,:k,:t,:g,:epoch,:r,:f,1,app_world.map_core_state(CAST(:w AS smallint),CAST(:c AS integer)),:o) "
+         "fingerprint,recovery_contract,core_state,during_state,outcome) VALUES(:w,:c,:u,:s,:k,:t,:g,:epoch,:r,:f,1,app_world.map_core_state(CAST(:w AS smallint),CAST(:c AS integer)),app_world.map_exp_state(CAST(:w AS smallint),CAST(:c AS integer)),:o) "
          "ON CONFLICT(world_id,char_id) DO UPDATE SET user_id=EXCLUDED.user_id,server_id=EXCLUDED.server_id,"
          "session_key=EXCLUDED.session_key,owner_token=EXCLUDED.owner_token,connection_id=EXCLUDED.connection_id,authority_epoch=EXCLUDED.authority_epoch,"
-         "revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,recovery_contract=1,skill_state=NULL,maintain_state=NULL,core_state=EXCLUDED.core_state,"
+         "revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,recovery_contract=1,skill_state=NULL,maintain_state=NULL,core_state=EXCLUDED.core_state,during_state=EXCLUDED.during_state,"
          "saved_at=clock_timestamp(),outcome=EXCLUDED.outcome,recovered_at=NULL,transfer_body=NULL,transfer_hash=NULL,character_manifest=NULL,routing_manifest=NULL,actor_manifest=NULL "
          "WHERE app_world.map_checkpoints.outcome IN ('logout','recovered') OR "
          "(app_world.map_checkpoints.owner_token=EXCLUDED.owner_token AND app_world.map_checkpoints.connection_id=EXCLUDED.connection_id AND app_world.map_checkpoints.authority_epoch=EXCLUDED.authority_epoch) RETURNING 1",
@@ -491,9 +492,14 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     using tnetlib::protocol::MessageId;
     const auto message=static_cast<MessageId>(opcode);
     const bool progress_tick=opcode==0; // internal timer only; no dispatcher registration
+    const bool during_entry=opcode==1; // internal EnterMAP only; no wire change
+    const bool exp_item=message==MessageId::CS_ITEMUSE_REQ;
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
-    if(progress_tick) {
+    if(progress_tick||during_entry) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(exp_item) {
+        if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))
+            throw std::runtime_error("Invalid ITEMUSE request length");
     } else if(message==MessageId::CS_NPCTALK_REQ) {
         if(!reader.Read(npc)||!reader.Eof())throw std::runtime_error("Invalid NPCTALK request");
     } else if(message==MessageId::CS_QUESTDROP_REQ||message==MessageId::CS_QUESTENDTIMER_REQ) {
@@ -518,6 +524,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     ValidateInventoryState(sql,c,before,true);
     QuestCommit committed;
     auto after=before;auto payload=std::make_shared<CharacterPayload>(*before.payload);after.payload=payload;
+    payload->event_ms=facts.sample_ms;payload->event_time=std::time(nullptr);
     quest_runtime::HydrateLevels(*payload,chart);
     bool other_state_changed=false;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
@@ -545,6 +552,11 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_NPCTALK_ACK),std::move(ack));
     } else if(message==MessageId::CS_QUESTDROP_REQ)quest_runtime::Drop(*payload,chart,quest,committed.packets);
     else if(message==MessageId::CS_QUESTENDTIMER_REQ)quest_runtime::EndTimer(*payload,chart,quest,committed.packets);
+    else if(during_entry) {
+        EnterDuringItems(sql,c,after,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+        other_state_changed=true;
+    }
     else {
         const auto* requested=chart.Find(quest);
         if(requested&&requested->bTriggerType==TT_TALKNPC) {
@@ -784,7 +796,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 children(def,depth);return; // CQuest default implementation.
             }
         };
-        if(progress_tick) {
+        if(progress_tick||exp_item) {
             const QuestEvent event=[&](std::uint32_t id,std::uint8_t type,std::uint8_t trigger_type,int count) {
                 payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
                 quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,id,type,count,committed.packets);
@@ -793,11 +805,15 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                     if(!quest_runtime::CanRun(after,*payload,*trigger,chart,inputs,gate_level))execute(*trigger,1);
                 }
             };
-            AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets);
+            if(exp_item)other_state_changed=UseExpItem(sql,c,after,body,event,committed.packets);
+            else {
+                AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets);
+                AdvanceDuringItems(sql,c,after,committed.packets);
+                other_state_changed=true;
+            }
             payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
             // Timer changes share the quest ledger so an older checkpoint,
             // cast or reward cannot restore the previous effect/XP snapshot.
-            other_state_changed=true;
         } else if(requested)execute(*requested,0);
     }
     if(!facts.world_registered&&std::any_of(committed.packets.begin(),committed.packets.end(),
@@ -825,6 +841,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     payload->last_quest_id=static_cast<std::uint64_t>(operation);
     WriteQuestProgress(sql,c,after);
     if(!after.payload->transfer_state)WriteMaintainedEffects(sql,c,after);
+    WriteDuringItems(sql,c,after);
     WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,Fingerprint(c,after),"active");StoreTransferCheckpoint(sql,c,after);
     committed.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return committed;
 }
@@ -1252,6 +1269,7 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
 }
 void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     CheckQuestProgress(sql,c,s);
+    CheckDuringItems(sql,c,s);
     if(!s.payload)throw std::runtime_error("Cast ledger requires native snapshot");
     const auto security=ReadSecurity(sql,c);
     auto expected=s.payload->security;expected.hydrated=true;

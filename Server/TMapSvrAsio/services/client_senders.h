@@ -25,6 +25,7 @@
 
 namespace tmapsvr {
 std::vector<std::byte> EncodePostureDefend(const CharSnapshot&,std::uint16_t);
+std::vector<std::byte> EncodeForcedStatusDefend(const CharSnapshot&,std::uint16_t,std::uint32_t);
 std::vector<std::byte> EncodeSkillEnd(std::uint32_t,std::uint16_t);
 
 // Exactly 87 source bytes, shared by local inspect and the World stat relay.

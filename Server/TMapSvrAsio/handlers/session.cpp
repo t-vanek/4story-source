@@ -179,6 +179,11 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
     if(!ctx.session_reg->Transition(cid,identity->key,SessionPhase::Admitted,SessionPhase::Ready)){
         sess->Close();co_return;
     }
+    std::optional<SessionOperation> admission_operation;
+    if(identity->role==MapSessionRole::Primary&&snap->payload) {
+        if(!ctx.session_reg->BeginCheckpoint(sess.get())){sess->Close();co_return;}
+        admission_operation.emplace(*ctx.session_reg,sess.get());
+    }
     if(!sess->IsOpen())co_return;
     if (ctx.presence) ctx.presence->Bind(cid, identity->channel, sess);
 
@@ -290,6 +295,10 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
             }
         }
     }
+    // Source EnterMAP hangs the EXP entitlement after the visibility flood.
+    // Keep the request lease through commit and all resulting broadcasts.
+    if(primary&&snap->payload&&sess->IsOpen())
+        co_await OnNativeQuestReq(sess,1,{},ctx);
 }
 
 } // namespace tmapsvr

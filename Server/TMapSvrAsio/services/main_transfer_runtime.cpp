@@ -76,6 +76,7 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
         }
     }
     if(p.effects)out.buffs=*p.effects;
+    if(p.during)out.during_items=p.during->items;
     // Preserve dirty-save flags absent from the client hotkey projection.
     auto old_hotkeys=std::move(out.hotkeys);out.hotkeys.clear();
     for(const auto& h:p.hotkeys){

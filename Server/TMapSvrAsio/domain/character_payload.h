@@ -5,6 +5,7 @@
 #include "domain/skill.h"
 #include "domain/character_statistics.h"
 #include "domain/maintained_effect.h"
+#include "domain/during_item.h"
 #include <array>
 #include <memory>
 #include <optional>
@@ -62,6 +63,11 @@ struct CharacterPayload {
     std::optional<std::vector<MaintainedEffect>> effects;
     std::array<PostureTemplate,2> posture_templates{};
     std::vector<ProgressEffectTemplate> progress_effect_templates;
+    std::optional<DuringItemState> during;
+    // One observation for all nested actions in a native transaction. It is
+    // never serialized; a newly forced effect must not start after its own tick.
+    std::uint64_t event_ms{};
+    std::int64_t event_time{};
     // Static definitions for learned skills, hydrated from the pinned character
     // catalog on both fresh load and transfer. Never serialized as player data.
     std::vector<SkillTemplate> skill_templates;

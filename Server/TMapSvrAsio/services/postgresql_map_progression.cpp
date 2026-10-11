@@ -13,6 +13,7 @@ void PostgreSQLMapService::AdvanceProgressEffects(soci::session& sql,const MapSe
     if(!s.payload||!SupportedPostures(*s.payload))throw std::runtime_error("Effect timer requires supported hydrated source effects");
     // CTObjBase::CheckMaintainSkill: expiry precedes automatic EXP. Delayed
     // ticks grant one charge, not a catch-up loop. Offline time is not charged.
+    bool exp_expired=false;
     for(std::size_t i=0;i<s.payload->effects->size();) {
         if(IsNativePosture(s.payload->effects->at(i).skill)){++i;continue;}
         auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
@@ -22,17 +23,13 @@ void PostgreSQLMapService::AdvanceProgressEffects(soci::session& sql,const MapSe
         if(definition==p->progress_effect_templates.end()||!effect.sampled_ms||now<effect.sampled_ms||now<effect.charge_ms)
             throw std::runtime_error("Progression effect has no valid local clock/template");
         const auto elapsed=now-effect.sampled_ms;
-        if(elapsed>=effect.remaining) {
-            const auto id=effect.skill;p->effects->erase(p->effects->begin()+i);
-            packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),EncodeSkillEnd(c.char_id,id),QuestAudience::Neighbors);
-            // Both admitted status kinds leave HP/MP maxima unchanged. Original
-            // EraseMaintainSkill still sends the owner's full statistics.
-            RefreshEquipment(sql,s,true);
-            if(!s.payload->statistics)throw std::runtime_error("Expired progression effect requires source statistics");
-            packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(s,*s.payload->statistics));
+        if(effect.remaining&&elapsed>=effect.remaining) {
+            exp_expired=exp_expired||effect.skill==903;
+            EraseProgressEffect(sql,c,s,i,packets);
             continue;
         }
-        effect.remaining-=static_cast<std::uint32_t>(elapsed);effect.sampled_ms=now;
+        if(effect.remaining)effect.remaining-=static_cast<std::uint32_t>(elapsed);
+        effect.sampled_ms=now;
         const auto charge=now-effect.charge_ms;
         if(definition->status==67&&definition->value&&charge>=10000) {
             effect.charge_ms+=charge>=20000?charge:10000;
@@ -54,6 +51,7 @@ void PostgreSQLMapService::AdvanceProgressEffects(soci::session& sql,const MapSe
         }
         ++i;
     }
+    if(exp_expired)HangExpBenefit(sql,c,s,packets);
 }
 void PostgreSQLMapService::GainQuestExperience(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::uint32_t gain,const QuestEvent& event,QuestPackets& packets) {
@@ -103,10 +101,16 @@ void PostgreSQLMapService::GainQuestExperience(soci::session& sql,const MapSessi
         for(unsigned i=previous->first;i<s.bLevel;++i) {
             const auto row=levels.find(static_cast<std::uint8_t>(i));if(row==levels.end())continue;
             if(i!=s.payload->previous_level&&i%10==8) {
-                const unsigned index=i/10;const int item=index>6?18184:index>3?18183:18182;int present=0;
-                sql << "SELECT 1 FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(item),soci::into(present);
+                const unsigned index=i/10;const int item=index>6?18184:index>3?18183:18182;int kind=0;
+                sql << "SELECT \"bKind\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(item),soci::into(kind);
                 if(!sql.got_data())continue; // original also skips this level's quest/points
-                throw std::runtime_error("Level benefit requires SetDuringItem/HangPremiumItem/ForceMaintain for level "+std::to_string(i));
+                if(kind!=56||!s.payload->during||s.payload->during->pending_entry||!s.payload->event_ms)
+                    throw std::runtime_error("Level benefit requires the admitted original EXP item contract");
+                p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
+                p->during->items={{static_cast<std::uint16_t>(item),1,1800,p->event_time+1800}};
+                HangExpBenefit(sql,c,s,packets);
+                ForceProgressEffect(sql,c,s,923,1800000,packets);
+                if(index>=7)ForceProgressEffect(sql,c,s,918,10800000,packets);
             }
             event(i,0,TT_LEVELUP,1);
             p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;

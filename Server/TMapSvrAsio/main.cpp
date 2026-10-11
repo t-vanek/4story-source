@@ -1,5 +1,6 @@
 #include "services/main_transfer_runtime.h"
 #include <algorithm>
+#include <ctime>
 #include <map>
 #include <set>
 // Entry point for the modernized TMapSvrAsio binary.
@@ -498,10 +499,23 @@ int main(int argc, char** argv)
                         if(!client->IsOpen()||identity.role!=tmapsvr::MapSessionRole::Primary)continue;
                         const auto state=char_state.Get(identity.char_id);
                         if(!state||!state->payload||!state->payload->effects)continue;
-                        if(std::none_of(state->payload->effects->begin(),state->payload->effects->end(),
-                            [](const auto& effect){return effect.skill==918||effect.skill==923;}))continue;
+                        if(state->payload->during&&state->payload->during->pending_entry)continue;
+                        const bool inactive=(!state->payload->during||state->payload->during->items.empty())&&
+                           std::none_of(state->payload->effects->begin(),state->payload->effects->end(),
+                            [](const auto& effect){return effect.skill==903||effect.skill==918||effect.skill==923;});
                         if(!session_reg.BeginCheckpoint(client.get()))continue;
                         tmapsvr::SessionOperation operation(session_reg,client.get());
+                        if(inactive) {
+                            // OnTimer updates m_timeEnter even without an active
+                            // entitlement. Otherwise a later level reward would
+                            // immediately lose ten seconds on its first tick.
+                            char_state.Update(identity.char_id,[](auto& s){
+                                if(!s.payload||!s.payload->during)return;
+                                auto p=std::make_shared<tmapsvr::CharacterPayload>(*s.payload);
+                                p->during->entered_at=std::time(nullptr);s.payload=std::move(p);
+                            });
+                            continue;
+                        }
                         ++background_operations;
                         try {
                             // Opcode0 is internal only and has no network dispatch

@@ -1,5 +1,6 @@
 #include "services/client_senders.h"
 #include "services/maintained_effects.h"
+#include "services/skill_cooldown.h"
 
 #include "wire_codec.h"
 #include <stdexcept>
@@ -7,18 +8,46 @@
 #include <cstdio>
 
 namespace tmapsvr {
+namespace {
+void WritePlayerEffects(std::vector<std::byte>& b,const CharacterPayload* p) {
+    auto effects=p?MaintainedEffects(*p):std::vector<MaintainedEffect>{};
+    // Source LOADCHAR discards STATUS_PCBANG visuals before CHARINFO/ENTER;
+    // EnterMAP recreates903 from the independently loaded entitlement. Keep
+    // the old durable row only until the entry transaction can replace it.
+    if(p&&p->during&&p->during->pending_entry)std::erase_if(effects,[](const auto& e){return e.skill==903;});
+    if(effects.size()>255)throw std::length_error("Player effect count exceeds BYTE");
+    wire::WritePOD<std::uint8_t>(b,static_cast<std::uint8_t>(effects.size()));
+    const auto now=SkillClockMs();
+    for(auto& e:effects) {
+        // CSSender samples GetRemainTick at serialization, independently of
+        // the last simulation/DB tick. This never changes durable membership.
+        if(e.remaining&&e.sampled_ms&&now>=e.sampled_ms)
+            e.remaining=now-e.sampled_ms>=e.remaining?0:e.remaining-static_cast<std::uint32_t>(now-e.sampled_ms);
+        wire::WritePOD(b,e.skill);wire::WritePOD(b,e.level);wire::WritePOD(b,e.remaining);
+        wire::WritePOD(b,e.attack_id);wire::WritePOD(b,e.attack_type);wire::WritePOD(b,e.host_id);wire::WritePOD(b,e.host_type);
+        wire::WritePOD(b,e.hit);wire::WritePOD(b,e.attack_level);wire::WritePOD(b,e.attacker_level);
+        for(auto value:e.powers)wire::WritePOD(b,value);
+        wire::WritePOD(b,e.can_select);wire::WritePOD(b,e.attack_country);
+        for(auto value:e.position)wire::WritePOD(b,value);
+    }
+}
+}
 std::vector<std::byte> EncodeSkillEnd(std::uint32_t character,std::uint16_t skill) {
     std::vector<std::byte> b;wire::WritePOD<std::uint32_t>(b,character);
     wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint16_t>(b,skill);return b;
 }
 std::vector<std::byte> EncodePostureDefend(const CharSnapshot& s,std::uint16_t skill) {
     if(!s.payload||(skill!=131&&skill!=132))throw std::runtime_error("Invalid automatic posture reply");
+    return EncodeForcedStatusDefend(s,skill,0);
+}
+std::vector<std::byte> EncodeForcedStatusDefend(const CharSnapshot& s,std::uint16_t skill,std::uint32_t remaining) {
+    if(!s.payload||!skill)throw std::runtime_error("Forced maintained reply requires hydrated character");
     std::vector<std::byte> b;
     wire::WritePOD<std::uint32_t>(b,s.dwCharID);wire::WritePOD<std::uint32_t>(b,s.dwCharID);
     wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint8_t>(b,1);
     wire::WritePOD<std::uint32_t>(b,0);wire::WritePOD<std::uint8_t>(b,0); // source wire host, not buff host
     wire::WritePOD<std::uint32_t>(b,0);wire::WritePOD<std::uint32_t>(b,0); // act, animation
-    wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint32_t>(b,0); // permanent maintained
+    wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint32_t>(b,remaining);
     wire::WritePOD<std::uint8_t>(b,0);wire::WritePOD<std::uint8_t>(b,1); // hit, HT_NORMAL
     wire::WritePOD<std::uint16_t>(b,1);wire::WritePOD<std::uint8_t>(b,s.bLevel);
     for(int i=0;i<4;++i)wire::WritePOD<std::uint32_t>(b,0);
@@ -182,17 +211,7 @@ std::vector<std::byte> EncodeCharInfoAck(
         wire::WritePOD<std::uint8_t>(b,skill.bLevel);
         wire::WritePOD<std::uint32_t>(b,skill.dwRemainTick);
     }
-    const auto& effects=MaintainedEffects(p);
-    wire::WritePOD<std::uint8_t>(b,count(effects.size()));
-    for(const auto& e:effects) {
-        wire::WritePOD<std::uint16_t>(b,e.skill);wire::WritePOD<std::uint8_t>(b,e.level);wire::WritePOD<std::uint32_t>(b,e.remaining);
-        wire::WritePOD<std::uint32_t>(b,e.attack_id);wire::WritePOD<std::uint8_t>(b,e.attack_type);
-        wire::WritePOD<std::uint32_t>(b,e.host_id);wire::WritePOD<std::uint8_t>(b,e.host_type);
-        wire::WritePOD<std::uint8_t>(b,e.hit);wire::WritePOD<std::uint16_t>(b,e.attack_level);wire::WritePOD<std::uint8_t>(b,e.attacker_level);
-        for(auto value:e.powers)wire::WritePOD<std::uint32_t>(b,value);
-        wire::WritePOD<std::uint8_t>(b,e.can_select);wire::WritePOD<std::uint8_t>(b,e.attack_country);
-        for(auto value:e.position)wire::WritePOD<float>(b,value);
-    }
+    WritePlayerEffects(b,&p);
     wire::WritePOD<std::uint8_t>(b,count(p.hotkeys.size()));
     for(const auto& keys:p.hotkeys){
         wire::WritePOD<std::uint8_t>(b,keys.inventory);
@@ -277,8 +296,8 @@ std::vector<std::byte> EncodeEnterAck(
     wire::WritePOD<std::uint8_t> (b, 0);            // camp
     wire::WritePOD<std::uint16_t>(b, 0);            // god ball
 
-    // --- maintain-skill list + equip-item list (both empty) ----------
-    wire::WritePOD<std::uint8_t> (b, 0);            // maintain skills
+    // Source ENTER carries the same full maintained-skill layout as CHARINFO.
+    WritePlayerEffects(b,s.payload.get());
     const CharacterBag* equip=nullptr;
     if(s.payload)for(const auto& bag:s.payload->bags)if(bag.bag.bInvenID==254)equip=&bag;
     if(equip&&equip->items.size()>255)throw std::length_error("Equipment exceeds BYTE count");

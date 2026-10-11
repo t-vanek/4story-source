@@ -87,20 +87,22 @@ void ReadPostures(soci::session& sql,CharacterPayload& p) {
 }
 void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
     p.progress_effect_templates.clear();
-    // TPlayer::GainExp's forced pure status effects. PCBang skill903 also
-    // requires DuringItem/account entitlement semantics and is not admitted here.
-    for(const int id:{918,923}) {
+    // Pure progression statuses, including the EXP entitlement visual903.
+    // Account premium/PCBang admission is checked independently by its loader.
+    for(const int id:{903,918,923}) {
         soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
         if(!sql.got_data())continue; // source FindTSkill's missing-template branch
         if(!U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||
-           U8(chart,"bIsuse")||U8(chart,"bEraseAct")||U8(chart,"bEraseHide")||U8(chart,"bIsHideSkill")||U32(chart,"dwWeaponID"))
+           U8(chart,"bIsuse")||U8(chart,"bEraseAct")||U8(chart,"bEraseHide")||U8(chart,"bIsHideSkill")||U32(chart,"dwWeaponID")||
+           U32(chart,"dwDurationInc")||U8(chart,"bCanCancel"))
             throw std::runtime_error("Progression effect requires additional source side effects");
         ProgressEffectTemplate def;def.skill=static_cast<std::uint16_t>(id);def.priority=U8(chart,"bPriority");
+        def.duration=U32(chart,"dwDuration");
         unsigned count=0;
         soci::rowset<soci::row> rows=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
         for(const auto& row:rows) {
             if(++count!=1||U8(row,"bAction")!=3||U8(row,"bType")!=6||U8(row,"bAttr")||
-               U8(row,"bExec")!=(id==918?63:67)||U8(row,"bCalc")||U16(row,"wValueInc"))
+               U8(row,"bExec")!=(id==903?41:id==918?63:67)||U8(row,"bCalc")||U16(row,"wValueInc"))
                 throw std::runtime_error("Progression effect has unsupported skill data");
             def.status=U8(row,"bExec");def.value=U16(row,"wValue");
         }
@@ -567,6 +569,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
      p.last_title_selection_id=static_cast<std::uint64_t>(head);
 }
     HydrateQuestProgress(sql,claim,p);
+    HydrateDuringItems(sql,claim,p);
     p.security=ReadSecurity(sql,claim);
     DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
@@ -578,6 +581,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
     HydrateQuestProgress(sql,claim,p);
+    HydrateDuringItems(sql,claim,p);
     p.security=ReadSecurity(sql,claim);
     if(!t.new_security&&!p.security.created)throw std::runtime_error("Transferred secure code has no native account authority");
     p.skills=t.skills;p.cabinets=t.cabinets;p.titles=t.titles;p.recalls=t.recalls;p.pets=t.pets;

@@ -11,8 +11,8 @@ inline bool SupportedPostures(const CharacterPayload& p) {
         // Pure QUESTEXP/AUTOEXP status effects have no stat, equipment,
         // attack-erase or zero-MP side effects. The source templates are pinned
         // during hydration; accepting an arbitrary ID here would hide effects.
-        return e.level==1&&e.remaining&&std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
-            [&](const auto& def){return def.skill==e.skill;});
+        return e.level==1&&std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
+            [&](const auto& def){return def.skill==e.skill&&(e.remaining||(e.skill==903&&!def.duration));});
     });
 }
 // ForceMaintain -> UpdateBuffSkill -> ChangeEquipItem -> CheckEquipSkill.

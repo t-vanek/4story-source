@@ -65,6 +65,15 @@ private:
     static void ConsumeQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const QuestDef&,QuestPackets&);
     using QuestEvent = std::function<void(std::uint32_t,std::uint8_t,std::uint8_t,int)>;
     static void AdvanceProgressEffects(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,const QuestEvent&,QuestPackets&);
+    static void HydrateDuringItems(soci::session&,const MapSessionClaim&,CharacterPayload&);
+    static void CheckDuringItems(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static void WriteDuringItems(soci::session&,const MapSessionClaim&,CharSnapshot&);
+    static void EnterDuringItems(soci::session&,const MapSessionClaim&,CharSnapshot&,QuestPackets&);
+    static void AdvanceDuringItems(soci::session&,const MapSessionClaim&,CharSnapshot&,QuestPackets&);
+    static void HangExpBenefit(soci::session&,const MapSessionClaim&,CharSnapshot&,QuestPackets&);
+    static void ForceProgressEffect(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,std::uint32_t,QuestPackets&);
+    static void EraseProgressEffect(soci::session&,const MapSessionClaim&,CharSnapshot&,std::size_t,QuestPackets&);
+    static bool UseExpItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
     static std::uint8_t CompleteQuestRewards(soci::session&,const MapSessionClaim&,CharSnapshot&,const QuestDef&,
         std::uint8_t,std::uint32_t,const std::function<std::uint8_t()>&,const QuestEvent&,QuestPackets&);
     static void GainQuestExperience(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,const QuestEvent&,QuestPackets&);

@@ -29,6 +29,8 @@ GRANT EXECUTE ON FUNCTION app_world.map_maintain_state(smallint,integer) TO :"ma
 GRANT EXECUTE ON FUNCTION app_world.item_fingerprint(app_world."TITEMTABLE") TO :"map_role";
 GRANT UPDATE("bCount"),DELETE ON app_world."TITEMTABLE" TO :"map_role";
 GRANT UPDATE("dwStorageID","bItemID") ON app_world."TITEMTABLE" TO :"map_role";
+GRANT UPDATE("dwTime2","wMoggItemID") ON app_world."TITEMTABLE" TO :"map_role";
+GRANT UPDATE("bLevel","bGem","bGradeEffect","dwTime1","dwTime3") ON app_world."TITEMTABLE" TO :"map_role";
 GRANT UPDATE("dwDuraMax","dwDuraCur","bRefineCur",
     "bMagic1","wValue1","bMagic2","wValue2","bMagic3","wValue3",
     "bMagic4","wValue4","bMagic5","wValue5","bMagic6","wValue6")

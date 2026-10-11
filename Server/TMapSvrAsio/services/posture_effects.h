@@ -5,6 +5,9 @@
 
 namespace tmapsvr {
 inline bool IsNativePosture(std::uint16_t skill) {return skill==131||skill==132;}
+inline bool IsNativeItemProbabilitySkill(std::uint16_t skill) {
+    return skill==905||skill==911||skill==912||skill==913||skill==919||skill==921||skill==922||skill==939;
+}
 inline bool ErasesAtZeroMp(const CharacterPayload& p,std::uint16_t skill) {
     if(IsNativePosture(skill))return true; // hydrated bIsuse=1, dwDuration=0
     return std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
@@ -18,7 +21,7 @@ inline bool SupportedPostures(const CharacterPayload& p) {
         // with a forced duration. Accepting arbitrary IDs would hide effects.
         return e.level==1&&std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
             [&](const auto& def){return def.skill==e.skill&&(e.remaining||
-                ((e.skill==903||e.skill==912||e.skill==913)&&!def.duration));});
+                ((e.skill==903||IsNativeItemProbabilitySkill(e.skill))&&!def.duration));});
     });
 }
 // ForceMaintain -> UpdateBuffSkill -> ChangeEquipItem -> CheckEquipSkill.

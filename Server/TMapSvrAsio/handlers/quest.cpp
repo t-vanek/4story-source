@@ -65,7 +65,8 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     if(message==tnetlib::protocol::MessageId::CS_ITEMUSE_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMSELL_REQ||
        message==tnetlib::protocol::MessageId::CS_DURATIONREP_REQ||
-       message==tnetlib::protocol::MessageId::CS_REFINE_REQ) {
+       message==tnetlib::protocol::MessageId::CS_REFINE_REQ||
+       message==tnetlib::protocol::MessageId::CS_ITEMUPGRADE_REQ) {
         if(!ctx.char_state)throw std::runtime_error("Native item state unavailable");
         const auto state=ctx.char_state->Get(identity->char_id);if(!state)co_return;
         // Original protected handlers prompt before reading the request body.
@@ -76,10 +77,14 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
             const auto prompt=SecureUnlockPrompt(state->payload->security);
             co_await client->SendPacket(prompt.first,prompt.second);co_return;
         }
+        if(message==tnetlib::protocol::MessageId::CS_ITEMUPGRADE_REQ&&state->payload&&
+           (state->payload->personal_store||state->payload->deal_status))co_return;
     }
     const bool lottery=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_REQ)||
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_TRIGGER_REQ);
     const auto required=opcode<=1||lottery?0U:
+        message==tnetlib::protocol::MessageId::CS_ITEMUPGRADE_REQ?10U:
+        message==tnetlib::protocol::MessageId::CS_GAMBLEOPEN_REQ?6U:
         message==tnetlib::protocol::MessageId::CS_WASTEREFINE_REQ?2U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_DURATIONREP_REQ)?8U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMSELL_REQ)?5U:

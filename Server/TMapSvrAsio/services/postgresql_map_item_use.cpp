@@ -87,7 +87,7 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
     if(!sql.got_data())throw std::runtime_error("ITEMUSE has no pinned template");
     kind=static_cast<std::uint8_t>(chart.get<int>(0));
     // NetCode.h TITEM_KIND: HP26, MP27, AP28, MAXHP42, MAXMP43, MONEY51,
-    // SKILL33 (pure 912/913 only), EXPBONUS56, GAINEXP81, SPECIALBOX115.
+    // SKILL33 (pinned pure item-probability skills), EXPBONUS56, GAINEXP81, SPECIALBOX115.
     if((kind!=26&&kind!=27&&kind!=28&&kind!=33&&kind!=42&&kind!=43&&kind!=51&&kind!=56&&kind!=81&&kind!=115)||chart.get<int>(1)!=7)
         throw std::runtime_error("ITEMUSE kind requires its remaining native gameplay contract");
     if(s.cluster.riding){reply(6);return false;} // none of these is IK_WHIP
@@ -112,15 +112,19 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
     if(kind!=56&&(use&0x40))throw std::runtime_error("Item kind requires additional during-item semantics");
     if(kind==33) {
         const auto skill=static_cast<std::uint16_t>(chart.get<int>(8));
-        if(skill!=912&&skill!=913)throw std::runtime_error("ITEMUSE skill requires its remaining native Defend contract");
+        if(!IsNativeItemProbabilitySkill(skill))throw std::runtime_error("ITEMUSE skill requires its remaining native Defend contract");
         if(!SupportedPostures(*p)||!p->statistics)throw std::runtime_error("Item status requires supported source effects/statistics");
         const auto definition=std::find_if(p->progress_effect_templates.begin(),p->progress_effect_templates.end(),
             [&](const auto& def){return def.skill==skill;});
         if(definition==p->progress_effect_templates.end()){reply(3,delay);return false;} // missing FindTSkill -> !bUsed -> IU_FULL
         // CheckCountry/disguise/random/aftermath have no matching rows in these
-        // validated pure status templates. CheckItemBuff rejects the same ID;
-        // neither status is an EXP nor an item-upgrade lucky potion.
-        if(std::any_of(p->effects->begin(),p->effects->end(),[&](const auto& e){return e.skill==skill;})) {
+        // validated pure status templates. CheckItemBuff rejects the same ID
+        // and any two lucky potions (IsLuckyPotion = status ITEMUPGRADE42),
+        // even if their skill IDs or probability values differ.
+        if(std::any_of(p->effects->begin(),p->effects->end(),[&](const auto& e){
+            return e.skill==skill||(definition->status==42&&std::any_of(p->progress_effect_templates.begin(),p->progress_effect_templates.end(),
+                [&](const auto& old){return old.skill==e.skill&&old.status==42;}));
+        })) {
             reply(1);return false;
         }
         const auto units=static_cast<std::uint16_t>(chart.get<int>(6));

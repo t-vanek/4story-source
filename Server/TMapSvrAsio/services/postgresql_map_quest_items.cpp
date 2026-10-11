@@ -7,8 +7,7 @@
 #include <map>
 
 namespace tmapsvr {
-namespace {
-std::uint64_t AllocateQuestItem(soci::session& sql,const MapSessionClaim& c) {
+std::uint64_t PostgreSQLMapService::AllocateNativeItem(soci::session& sql,const MapSessionClaim& c) {
     const int world=c.group;long long id=0;
     sql << "UPDATE app_world.worlds SET item_high_water=item_high_water+1 WHERE group_id=:w "
         "AND item_high_water::numeric+1 < (item_world::numeric+1)*72057594037927936 RETURNING item_high_water",
@@ -16,6 +15,7 @@ std::uint64_t AllocateQuestItem(soci::session& sql,const MapSessionClaim& c) {
     if(!sql.got_data()||id<=0)throw std::runtime_error("Quest item identity range exhausted");
     return static_cast<std::uint64_t>(id);
 }
+namespace {
 struct Placement {std::size_t item{};std::uint8_t bag{},slot{},count{};bool create{};};
 std::optional<std::vector<Placement>> Place(const CharacterPayload& p,const std::vector<ItemInstance>& input,bool merge_stacks=true) {
     auto bags=p.bags;
@@ -61,8 +61,7 @@ std::optional<std::vector<Placement>> Place(const CharacterPayload& p,const std:
     return plan;
 }
 }
-namespace {
-std::int64_t QuestItemExpiry(soci::session& sql,std::uint32_t duration,int use_type,int use_time) {
+std::int64_t PostgreSQLMapService::NativeItemExpiry(soci::session& sql,std::uint32_t duration,int use_type,int use_time) {
     if(!duration&&(use_type&0x80)) {
         if(use_type&1)duration=static_cast<std::uint16_t>(use_time)*std::uint32_t{3600};
         else if(use_type&2)duration=static_cast<std::uint16_t>(use_time)*std::uint32_t{86400};
@@ -79,6 +78,7 @@ std::int64_t QuestItemExpiry(soci::session& sql,std::uint32_t duration,int use_t
     duration+=static_cast<std::uint32_t>(24-hour)*3600;
     return now+duration; // CTItem::SetEndTime, including DWORD arithmetic.
 }
+namespace {
 std::string InsertQuestItem(soci::session& sql,const MapSessionClaim& c,const transfer::Item& raw) {
     // All values are typed integers, never interpolated SQL. Preserve raw magic
     // percentages and all six DWORD extensions rather than their wire projection.
@@ -111,6 +111,92 @@ std::string InsertQuestItem(soci::session& sql,const MapSessionClaim& c,const tr
     return hash;
 }
 }
+bool PostgreSQLMapService::CanGrantQuestItems(const CharacterPayload& p,const std::vector<ItemInstance>& items) {
+    return Place(p,items).has_value();
+}
+void PostgreSQLMapService::UpgradeNativeItemAttributes(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
+    const ItemInstance& before,const transfer::Item& raw) {
+    if(!before.source)throw std::runtime_error("Item upgrade lost its raw source");
+    auto expected=*before.source;
+    expected.level=raw.level;expected.gem=raw.gem;expected.appearance=raw.appearance;
+    expected.durability=raw.durability;expected.durability_max=raw.durability_max;
+    expected.refine=raw.refine;expected.grade_effect=raw.grade_effect;
+    expected.eld=raw.eld;expected.wrap=raw.wrap;expected.color=raw.color;expected.magic=raw.magic;
+    if(raw.owner_id!=c.char_id||raw.owner_type||raw.storage||GraphItemFingerprint(expected)!=GraphItemFingerprint(raw))
+        throw std::runtime_error("Item upgrade changed identity, ownership, count or unrelated attributes");
+    auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
+    ItemInstance* target=nullptr;
+    for(auto& bag:p->bags)if(bag.bag.bInvenID==before.bInvenID)
+        for(auto& item:bag.items)if(item.bItemID==before.bItemID&&item.dlID==before.dlID&&item.durable_hash==before.durable_hash)target=&item;
+    if(!target||raw.magic.size()>6)throw std::runtime_error("Item upgrade target or magic shape changed");
+    std::string hash;
+    if(p->transfer_state)hash=GraphItemFingerprint(raw);
+    else {
+        std::string json="{",fields,values;
+        const auto field=[&](const std::string& name,auto value) {
+            if(json.size()>1){json+=',';fields+=',';values+=',';}
+            json+='"'+name+"\":"+std::to_string(value);fields+='"'+name+'"';values+="v.\""+name+'"';
+        };
+        field("bLevel",raw.level);field("bGem",raw.gem);field("wMoggItemID",std::bit_cast<std::int16_t>(raw.appearance));
+        field("dwDuraMax",std::bit_cast<std::int32_t>(raw.durability_max));field("dwDuraCur",std::bit_cast<std::int32_t>(raw.durability));
+        field("bRefineCur",raw.refine);field("bGradeEffect",raw.grade_effect);
+        field("dwTime1",std::bit_cast<std::int32_t>(raw.eld));field("dwTime2",std::bit_cast<std::int32_t>(raw.wrap));
+        field("dwTime3",std::bit_cast<std::int32_t>(raw.color));
+        for(unsigned i=0;i<6;++i) {
+            field("bMagic"+std::to_string(i+1),i<raw.magic.size()?raw.magic[i].id:0);
+            field("wValue"+std::to_string(i+1),i<raw.magic.size()?std::bit_cast<std::int16_t>(raw.magic[i].value):0);
+        }
+        json+='}';const int world=c.group,owner=std::bit_cast<std::int32_t>(c.char_id);
+        const long long id=std::bit_cast<long long>(raw.id);
+        sql << "WITH v AS (SELECT * FROM jsonb_populate_record(NULL::app_world.\"TITEMTABLE\",CAST(:item AS jsonb))) "
+            "UPDATE app_world.\"TITEMTABLE\" i SET ("+fields+")=("+values+") FROM v "
+            "WHERE i.\"bWorldID\"=:w AND i.\"dwOwnerID\"=:c AND i.\"dlID\"=:id AND i.\"bOwnerType\"=0 AND i.\"bStorageType\"=0 "
+            "AND app_world.item_fingerprint(i)=:hash RETURNING app_world.item_fingerprint(i)",
+            soci::use(json,"item"),soci::use(world,"w"),soci::use(owner,"c"),soci::use(id,"id"),
+            soci::use(before.durable_hash,"hash"),soci::into(hash);
+        if(!sql.got_data())throw std::runtime_error("Upgraded item ownership changed");
+    }
+    *target=ProjectNativeItem(sql,raw);target->durable_hash=hash;
+}
+void PostgreSQLMapService::ReplaceNativeItem(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
+    const ItemInstance& before,const transfer::Item& raw) {
+    if(!before.source||raw.owner_id!=c.char_id||raw.owner_type||raw.storage||
+       raw.storage_id!=before.bInvenID||raw.slot!=before.bItemID||!raw.id||!raw.count)
+        throw std::runtime_error("Native item replacement changed ownership or position");
+    auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
+    ItemInstance* target=nullptr;
+    for(auto& bag:p->bags)if(bag.bag.bInvenID==before.bInvenID)
+        for(auto& item:bag.items)if(item.bItemID==before.bItemID&&item.dlID==before.dlID&&item.durable_hash==before.durable_hash)target=&item;
+    if(!target)throw std::runtime_error("Native item replacement lost its source");
+    std::string hash;
+    if(p->transfer_state)hash=GraphItemFingerprint(raw);
+    else if(raw.id!=before.dlID) {
+        // CTItem::Copy(TRUE) retires the old identity. Delete/insert and the
+        // checkpoint are in the caller's fenced transaction, with no interim ACK.
+        const int world=c.group,owner=std::bit_cast<std::int32_t>(c.char_id);
+        const long long identity=std::bit_cast<long long>(before.dlID);long long removed=0;
+        sql << "DELETE FROM app_world.\"TITEMTABLE\" i WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c "
+            "AND \"dlID\"=:id AND \"bOwnerType\"=0 AND \"bStorageType\"=0 AND app_world.item_fingerprint(i)=:hash RETURNING \"dlID\"",
+            soci::use(world,"w"),soci::use(owner,"c"),soci::use(identity,"id"),soci::use(before.durable_hash,"hash"),soci::into(removed);
+        if(!sql.got_data())throw std::runtime_error("Native replacement item changed before deletion");
+        hash=InsertQuestItem(sql,c,raw);
+    } else {
+        // The identity-preserving branches only remove wrapping or appearance.
+        auto expected=*before.source;expected.wrap=raw.wrap;expected.appearance=raw.appearance;
+        if(GraphItemFingerprint(expected)!=GraphItemFingerprint(raw))
+            throw std::runtime_error("Identity-preserving replacement changed unexpected fields");
+        const int world=c.group,owner=std::bit_cast<std::int32_t>(c.char_id);
+        const long long identity=std::bit_cast<long long>(before.dlID);
+        const int wrap=std::bit_cast<std::int32_t>(raw.wrap),appearance=std::bit_cast<std::int16_t>(raw.appearance);
+        sql << "UPDATE app_world.\"TITEMTABLE\" i SET \"dwTime2\"=:wrap,\"wMoggItemID\"=:appearance "
+            "WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"dlID\"=:id AND \"bOwnerType\"=0 AND \"bStorageType\"=0 "
+            "AND app_world.item_fingerprint(i)=:hash RETURNING app_world.item_fingerprint(i)",
+            soci::use(wrap,"wrap"),soci::use(appearance,"appearance"),soci::use(world,"w"),soci::use(owner,"c"),
+            soci::use(identity,"id"),soci::use(before.durable_hash,"hash"),soci::into(hash);
+        if(!sql.got_data())throw std::runtime_error("Native replacement item changed before update");
+    }
+    *target=ProjectNativeItem(sql,raw);target->durable_hash=hash;
+}
 std::optional<ItemInstance> PostgreSQLMapService::CreateQuestItem(soci::session& sql,const MapSessionClaim& c,
     std::uint16_t item,std::uint8_t count) {
     if(!count)return std::nullopt;
@@ -118,9 +204,9 @@ std::optional<ItemInstance> PostgreSQLMapService::CreateQuestItem(soci::session&
     sql << "SELECT \"dwDuraMax\",\"bUseType\",\"wUseTime\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",
         soci::use(id),soci::into(durability),soci::into(use_type),soci::into(use_time);
     if(!sql.got_data())return std::nullopt;
-    transfer::Item raw;raw.id=AllocateQuestItem(sql,c);raw.owner_id=c.char_id;raw.item=item;raw.count=count;
+    transfer::Item raw;raw.id=AllocateNativeItem(sql,c);raw.owner_id=c.char_id;raw.item=item;raw.count=count;
     raw.durability=raw.durability_max=static_cast<std::uint32_t>(durability);
-    raw.expires=QuestItemExpiry(sql,0,use_type,use_time);
+    raw.expires=NativeItemExpiry(sql,0,use_type,use_time);
     return ProjectNativeItem(sql,raw);
 }
 std::vector<ItemInstance> PostgreSQLMapService::CreateQuestRewardItems(soci::session& sql,const MapSessionClaim& c,
@@ -157,11 +243,11 @@ std::vector<ItemInstance> PostgreSQLMapService::CreateQuestRewardItems(soci::ses
     if(!(static_cast<std::uint32_t>(classes)&(std::uint32_t{1}<<s.bClass)))return {};
     if(reward.bCount&&!stack)throw std::runtime_error("Quest reward has zero source stack capacity");
     if(reward.bRewardType!=RT_MAGICITEM)raw.durability=raw.durability_max=static_cast<std::uint32_t>(durability);
-    raw.expires=QuestItemExpiry(sql,duration,use_type,use_time);raw.owner_id=c.char_id;
+    raw.expires=NativeItemExpiry(sql,duration,use_type,use_time);raw.owner_id=c.char_id;
     std::vector<ItemInstance> items;
     for(unsigned remaining=reward.bCount;remaining;) {
         raw.count=static_cast<std::uint8_t>(std::min(remaining,unsigned(stack)));remaining-=raw.count;
-        raw.id=AllocateQuestItem(sql,c);items.push_back(ProjectNativeItem(sql,raw));
+        raw.id=AllocateNativeItem(sql,c);items.push_back(ProjectNativeItem(sql,raw));
     }
     return items;
 }
@@ -188,7 +274,7 @@ bool PostgreSQLMapService::OpenSpecialBox(soci::session& sql,const MapSessionCla
         if(klass.size()!=1||klass[0]<'0'||klass[0]>'9')throw std::runtime_error("Special box class cannot convert to original BYTE");
         if(klass[0]-'0'!=s.bClass&&klass[0]!='6')continue; // TCLASS_COUNT, not template class mask
         transfer::Item raw;
-        raw.id=AllocateQuestItem(sql,c);raw.owner_id=c.char_id;
+        raw.id=AllocateNativeItem(sql,c);raw.owner_id=c.char_id;
         raw.item=static_cast<std::uint16_t>(row.get<int>("wItemID"));
         raw.count=static_cast<std::uint8_t>(row.get<int>("bCount"));
         raw.level=static_cast<std::uint8_t>(row.get<int>("bLevel"));raw.grade=static_cast<std::uint8_t>(row.get<int>("bGLevel"));
@@ -241,7 +327,7 @@ bool PostgreSQLMapService::GrantQuestItems(soci::session& sql,const MapSessionCl
             raw=*input.at(step.item).source;
             // Original Copy generates IDs for the earlier split stacks and
             // keeps the preallocated item identity for the final stack.
-            if(remaining.at(step.item)>step.count)raw.id=AllocateQuestItem(sql,c);
+            if(remaining.at(step.item)>step.count)raw.id=AllocateNativeItem(sql,c);
             raw.owner_id=c.char_id;raw.storage_id=step.bag;raw.slot=step.slot;raw.count=step.count;
         } else {
             if(found==bag->items.end()||!found->source)throw std::runtime_error("Quest grant stack disappeared");
@@ -297,7 +383,7 @@ bool PostgreSQLMapService::ReclaimNativeRefine(soci::session& sql,const MapSessi
             if(std::none_of(bag.items.begin(),bag.items.end(),[&](const auto& item){return item.bItemID==at;}))blank=true;
     if(!blank){reply(3);return false;}
     DebitNativeItem(sql,c,s,inventory,slot,source->dlID,1,packets);
-    transfer::Item raw;raw.id=AllocateQuestItem(sql,c);raw.owner_id=c.char_id;
+    transfer::Item raw;raw.id=AllocateNativeItem(sql,c);raw.owner_id=c.char_id;
     raw.item=static_cast<std::uint16_t>(use);raw.count=1;
     // CTItem constructor values: no template durability, expiry, magic or
     // extensions are generated by this handler. Copy only assigns attributes.

@@ -61,6 +61,11 @@ private:
     InventoryStoragePlan ValidateInventoryMove(soci::session&,const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) const;
     static void RefreshEquipment(soci::session&,CharSnapshot&,bool derive);
     static ItemInstance ProjectNativeItem(soci::session&,const transfer::Item&);
+    static std::uint64_t AllocateNativeItem(soci::session&,const MapSessionClaim&);
+    static std::int64_t NativeItemExpiry(soci::session&,std::uint32_t,int,int);
+    static bool CanGrantQuestItems(const CharacterPayload&,const std::vector<ItemInstance>&);
+    static void ReplaceNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,const ItemInstance&,const transfer::Item&);
+    static void UpgradeNativeItemAttributes(soci::session&,const MapSessionClaim&,CharSnapshot&,const ItemInstance&,const transfer::Item&);
     static std::optional<ItemInstance> CreateQuestItem(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t);
     static std::vector<ItemInstance> CreateQuestRewardItems(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestRewardDef&);
     static bool GrantQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const std::vector<ItemInstance>&,QuestPackets&,bool merge_stacks=true);
@@ -85,6 +90,10 @@ private:
     static bool SellNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,std::uint16_t&,QuestPackets&);
     static bool RepairNativeItems(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&);
     static bool RefineNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&);
+    static bool GambleNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,std::span<const std::byte>,const QuestMapFacts&,const QuestEvent&,QuestPackets&);
+    static bool UpgradeNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&);
+    static bool MakeNativeScrollMagic(soci::session&,const CharSnapshot&,transfer::Item&,bool,bool);
+    static std::uint16_t UpgradeItemProbability(soci::session&,const MapSessionClaim&,CharSnapshot&,int,std::uint8_t,std::uint8_t,const QuestMapFacts&,QuestPackets&);
     static std::uint8_t ItemMutationProbability(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,std::uint8_t,std::uint8_t,const QuestMapFacts&,QuestPackets&);
     static std::vector<ItemCooldown> ReadItemCooldowns(soci::session&,const MapSessionClaim&);
     static void HydrateItemCooldowns(soci::session&,const MapSessionClaim&,const CharSnapshot&,CharacterPayload&);

@@ -493,10 +493,16 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool repair_items=message==MessageId::CS_DURATIONREP_REQ;
     const bool refine_item=message==MessageId::CS_REFINE_REQ;
     const bool reclaim_refine=message==MessageId::CS_WASTEREFINE_REQ;
+    const bool gamble=message==MessageId::CS_GAMBLECHECK_REQ||message==MessageId::CS_GAMBLEOPEN_REQ;
+    const bool upgrade_item=message==MessageId::CS_ITEMUPGRADE_REQ;
     const bool lottery=message==MessageId::CS_SOULLOTTERY_REQ||message==MessageId::CS_SOULLOTTERY_TRIGGER_REQ;
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(upgrade_item) {
+        if(body.size()!=10)throw std::runtime_error("Invalid ITEMUPGRADE request length");
+    } else if(gamble) {
+        if(body.size()!=(message==MessageId::CS_GAMBLECHECK_REQ?4U:6U))throw std::runtime_error("Invalid GAMBLE request length");
     } else if(reclaim_refine) {
         if(body.size()!=2)throw std::runtime_error("Invalid WASTEREFINE request length");
     } else if(refine_item) {
@@ -538,7 +544,10 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     quest_runtime::HydrateLevels(*payload,chart);
     bool other_state_changed=false;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(reclaim_refine) {
+    if(upgrade_item) {
+        other_state_changed=UpgradeNativeItem(sql,c,after,body,facts,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(reclaim_refine) {
         other_state_changed=ReclaimNativeRefine(sql,c,after,body,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
     }else if(refine_item) {
@@ -825,7 +834,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 children(def,depth);return; // CQuest default implementation.
             }
         };
-        if(progress_tick||use_item) {
+        if(progress_tick||use_item||gamble) {
             const QuestEvent event=[&](std::uint32_t id,std::uint8_t type,std::uint8_t trigger_type,int count) {
                 payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
                 quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,id,type,count,committed.packets);
@@ -834,7 +843,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                     if(!quest_runtime::CanRun(after,*payload,*trigger,chart,inputs,gate_level))execute(*trigger,1);
                 }
             };
-            if(use_item)other_state_changed=UseNativeItem(sql,c,after,body,event,committed.packets);
+            if(gamble)other_state_changed=GambleNativeItem(sql,c,after,message==MessageId::CS_GAMBLECHECK_REQ,body,facts,event,committed.packets);
+            else if(use_item)other_state_changed=UseNativeItem(sql,c,after,body,event,committed.packets);
             else {
                 AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets);
                 AdvanceDuringItems(sql,c,after,committed.packets);

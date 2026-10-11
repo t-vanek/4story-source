@@ -15,7 +15,7 @@ from activate_catalog import MAPPING, PINNED
 from migrate import connect, digest, load_snapshot
 
 
-def activate_quest_catalog(conn, manifest_path, *, global_database_alias, special_boxes=False):
+def activate_quest_catalog(conn, manifest_path, *, global_database_alias, special_boxes=False, item_gambling=False, item_upgrades=False):
     if global_database_alias != 'TGLOBAL_GSP=TGLOBAL_RAGEZONE':
         raise RuntimeError('EXPLICIT_GLOBAL_DATABASE_ALIAS_REQUIRED')
     manifest, loaded = load_snapshot(manifest_path, MAPPING, include_historical=True)
@@ -24,6 +24,10 @@ def activate_quest_catalog(conn, manifest_path, *, global_database_alias, specia
              'TLEVELCHART', 'TITEMMAGICCHART', 'TPORTALCHART', 'TDESTINATIONCHART'}
     if special_boxes:
         names.add('TSPECIALBOXCHART')
+    if item_gambling:
+        names.add('TGAMBLECHART')
+    if item_upgrades:
+        names.update(('TITEMGRADECHART', 'TGEMGRADECHART', 'ACCESSORYMAGICTABLE'))
     keys = {('TGAME_RAGEZONE', 'dbo', name) for name in names}
     keys.add(('TGLOBAL_RAGEZONE', 'dbo', 'TLIMITEDLEVELCHART'))
     selected = [(t, m, r) for t, m, r in loaded
@@ -45,7 +49,8 @@ def activate_quest_catalog(conn, manifest_path, *, global_database_alias, specia
                      'legacy_game."TQREWARDCHART",legacy_game."TQUESTITEMCHART",legacy_game."TTITLECHART",'
                      'legacy_game."TITEMCHART",legacy_game."TSKILLCHART",legacy_game."TSKILLDATA",'
                      'legacy_game."TLEVELCHART",legacy_game."TITEMMAGICCHART",legacy_game."TPORTALCHART",'
-                     'legacy_game."TDESTINATIONCHART",legacy_game."TSPECIALBOXCHART",legacy_global."TLIMITEDLEVELCHART",'
+                     'legacy_game."TDESTINATIONCHART",legacy_game."TSPECIALBOXCHART",legacy_game."TGAMBLECHART",'
+                     'legacy_game."TITEMGRADECHART",legacy_game."TGEMGRADECHART",legacy_game."ACCESSORYMAGICTABLE",legacy_global."TLIMITEDLEVELCHART",'
                      'runtime_control.active_catalog,runtime_control.character_catalog,runtime_control.actor_catalog IN SHARE MODE')
         run = verified_actor_import(conn, (manifest, selected, fingerprint))
         release = conn.execute("SELECT run_id,manifest_sha256 FROM game_compat.catalog_release WHERE status='verified'").fetchall()
@@ -61,6 +66,8 @@ def activate_quest_catalog(conn, manifest_path, *, global_database_alias, specia
         shared = {name: map_run for name in ('TQUESTCHART', 'TQUESTTERMCHART', 'TQREWARDCHART')}
         shared.update({name: character_run for name in ('TITEMCHART', 'TSKILLCHART', 'TSKILLDATA', 'TLEVELCHART')})
         shared['TITEMMAGICCHART'] = actor_run
+        if item_upgrades:
+            shared['TITEMGRADECHART'] = actor_run
         for t, _, rows in selected:
             if t['table'] not in shared:
                 continue
@@ -95,23 +102,62 @@ def activate_quest_catalog(conn, manifest_path, *, global_database_alias, specia
             groups[row['wGroup']] = groups.get(row['wGroup'], 0) + 1
         if any(count > 255 for count in groups.values()):
             raise RuntimeError('SPECIAL_BOX_GROUP_EXCEEDS_SOURCE_BYTE_LOOP')
-        previous = conn.execute('SELECT run_id,map_manifest,character_manifest,actor_manifest,special_boxes '
+        gambles = next((rows for t, _, rows in selected if t['table'] == 'TGAMBLECHART'), [])
+        gamble_groups = {}
+        for row_number, row in enumerate(gambles, 1):
+            if any(value is None for value in row.values()):
+                raise RuntimeError(f'GAMBLE_NULL_BINDING_ROW_{row_number}')
+            if not row['bCountMax']:
+                raise RuntimeError(f'GAMBLE_ZERO_COUNT_DIVISOR_ROW_{row_number}')
+            key = (row['bType'], row['bKind'])
+            gamble_groups[key] = (gamble_groups.get(key, 0) + (row['wProb'] & 65535)) & 65535
+        if any(total == 0 for total in gamble_groups.values()):
+            raise RuntimeError('GAMBLE_ZERO_PROBABILITY_DIVISOR')
+        # Do not filter bMinLevel/bMaxLevel or remove duplicate TGAMBLE rows:
+        # the source uses every row in query order, including those duplicates.
+        # TITEMMAGICCHART identity/shape is already covered by the active actor
+        # receipt and verified_actor_import. Keep original bMinLevel archived;
+        # Map LoadData leaves its runtime member value-initialized at zero.
+        if item_upgrades:
+            gems = next(rows for t, _, rows in selected if t['table'] == 'TGEMGRADECHART')
+            # Unlike m_itemgrade, the module does not explicitly initialize the
+            # gem array. Require the five addressable entries; never invent a
+            # missing probability or choose between duplicates. Keep extra
+            # historical rows archived (the backup has six). The native reader
+            # does not reproduce the source loader's out-of-bounds array write.
+            if any(sum(row['bGem'] == grade for row in gems) != 1 for grade in range(5)):
+                raise RuntimeError('COMPLETE_UNAMBIGUOUS_GEM_GRADE_ARRAY_REQUIRED')
+            accessory = next(rows for t, _, rows in selected if t['table'] == 'ACCESSORYMAGICTABLE')
+            for number, row in enumerate(accessory, 1):
+                if any(value is None for value in row.values()):
+                    raise RuntimeError(f'ACCESSORY_NULL_BINDING_ROW_{number}')
+                if not (0 <= row['ID'] <= 255 and 0 < row['MagicID'] <= 255
+                        and 0 <= row['MinValue'] <= 65535 and 0 < row['MaxValue'] <= 65535):
+                    raise RuntimeError(f'ACCESSORY_BINDING_OR_DIVISOR_RANGE_ROW_{number}')
+            magic_ids = {row['bMagic'] for t, _, rows in selected if t['table'] == 'TITEMMAGICCHART' for row in rows}
+            if any(row['MagicID'] not in magic_ids for row in accessory):
+                raise RuntimeError('ACCESSORY_MISSING_MAGIC_REFERENCE')
+        previous = conn.execute('SELECT run_id,map_manifest,character_manifest,actor_manifest,special_boxes,item_gambling,item_upgrades '
                                 'FROM runtime_control.quest_condition_catalog WHERE singleton FOR UPDATE').fetchone()
         # A retry of the older content profile must not silently remove the
         # extended publication. Require explicit full proof again for updates.
         if previous and previous[4] and not special_boxes:
             raise RuntimeError('SPECIAL_BOX_PUBLICATION_REQUIRES_EXTENDED_PROFILE')
-        changed = previous != (run, map_manifest, character_manifest, actor_manifest, special_boxes)
+        if previous and previous[5] and not item_gambling:
+            raise RuntimeError('ITEM_GAMBLING_PUBLICATION_REQUIRES_EXTENDED_PROFILE')
+        if previous and previous[6] and not item_upgrades:
+            raise RuntimeError('ITEM_UPGRADE_PUBLICATION_REQUIRES_EXTENDED_PROFILE')
+        changed = previous != (run, map_manifest, character_manifest, actor_manifest, special_boxes, item_gambling, item_upgrades)
         retired = 0
         if changed:
             offline_owner_barrier(conn)
-            conn.execute('INSERT INTO runtime_control.quest_condition_catalog(singleton,run_id,map_manifest,character_manifest,actor_manifest,special_boxes) VALUES(true,%s,%s,%s,%s,%s) '
+            conn.execute('INSERT INTO runtime_control.quest_condition_catalog(singleton,run_id,map_manifest,character_manifest,actor_manifest,special_boxes,item_gambling,item_upgrades) VALUES(true,%s,%s,%s,%s,%s,%s,%s) '
                          'ON CONFLICT(singleton) DO UPDATE SET run_id=EXCLUDED.run_id,map_manifest=EXCLUDED.map_manifest,'
-                         'character_manifest=EXCLUDED.character_manifest,actor_manifest=EXCLUDED.actor_manifest,special_boxes=EXCLUDED.special_boxes,activated_at=clock_timestamp()',
-                         (run, map_manifest, character_manifest, actor_manifest, special_boxes))
-            activation = conn.execute('INSERT INTO runtime_control.quest_condition_activations(previous_run_id,run_id,map_manifest,character_manifest,actor_manifest,special_boxes) '
-                                      'VALUES(%s,%s,%s,%s,%s,%s) RETURNING activation_id',
-                                      (previous[0] if previous else None, run, map_manifest, character_manifest, actor_manifest, special_boxes)).fetchone()[0]
+                         'character_manifest=EXCLUDED.character_manifest,actor_manifest=EXCLUDED.actor_manifest,special_boxes=EXCLUDED.special_boxes,item_gambling=EXCLUDED.item_gambling,item_upgrades=EXCLUDED.item_upgrades,activated_at=clock_timestamp()',
+                         (run, map_manifest, character_manifest, actor_manifest, special_boxes, item_gambling, item_upgrades))
+            activation = conn.execute('INSERT INTO runtime_control.quest_condition_activations(previous_run_id,run_id,map_manifest,character_manifest,actor_manifest,special_boxes,item_gambling,item_upgrades) '
+                                      'VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING activation_id',
+                                      (previous[0] if previous else None, run, map_manifest, character_manifest, actor_manifest, special_boxes, item_gambling, item_upgrades)).fetchone()[0]
             for world, server, token in conn.execute('SELECT world_id,server_id,owner_token FROM app_world.map_runtime_owner ORDER BY world_id,server_id').fetchall():
                 replacement = secrets.token_hex(32)
                 conn.execute('INSERT INTO runtime_control.quest_condition_owner_retirements VALUES(%s,%s,%s,%s,%s)',
@@ -121,6 +167,7 @@ def activate_quest_catalog(conn, manifest_path, *, global_database_alias, specia
                 retired += 1
     return dict(run_id=run, map_manifest=map_manifest, changed=changed, retired_map_owners=retired,
                 special_box_rows=len(boxes), special_boxes=special_boxes,
+                gamble_rows=len(gambles), item_gambling=item_gambling, item_upgrades=item_upgrades,
                 condition_rows=next(len(rows) for t, _, rows in selected if t['table'] == 'TQCONDITIONCHART'))
 
 
@@ -131,11 +178,15 @@ def main():
                         help='Explicit source database mapping for TGetLimitedLevel')
     parser.add_argument('--special-boxes', action='store_true',
                         help='Also publish the complete original TSPECIALBOXCHART through migration054')
+    parser.add_argument('--item-gambling', action='store_true',
+                        help='Also publish complete TGAMBLECHART and ordered item magic through migration056')
+    parser.add_argument('--item-upgrades', action='store_true',
+                        help='Also publish complete gem/accessory and matching grade/magic charts through migration057')
     args = parser.parse_args()
     try:
         with connect() as conn:
             result = activate_quest_catalog(conn, args.manifest, global_database_alias=args.global_database_alias,
-                                            special_boxes=args.special_boxes)
+                                            special_boxes=args.special_boxes, item_gambling=args.item_gambling, item_upgrades=args.item_upgrades)
         print(json.dumps(result))
     except Exception as ex:
         code = getattr(ex, 'sqlstate', None)

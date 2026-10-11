@@ -217,7 +217,13 @@ std::vector<std::byte> EncodeCharInfoAck(
         wire::WritePOD<std::uint8_t>(b,keys.inventory);
         for(const auto& [type,id]:keys.keys){wire::WritePOD<std::uint8_t>(b,type);wire::WritePOD<std::uint16_t>(b,id);}
     }
-    wire::WritePOD<std::uint8_t>(b,0); // no active item cooldowns in fresh native state
+    auto cooldowns=p.item_cooldowns.value_or(ItemCooldownState{});
+    SampleItemCooldowns(cooldowns,SkillClockMs());
+    OrderItemCooldowns(cooldowns.timers);
+    // CHARINFO retains expired live map entries with zero remaining; SAVE and
+    // RELEASEMAIN include only positive durations (CSSender/SSSender).
+    wire::WritePOD<std::uint8_t>(b,count(cooldowns.timers.size()));
+    for(const auto& row:cooldowns.timers){wire::WritePOD(b,row.group);wire::WritePOD(b,row.remaining);}
 
     // --- PvP points + server clock + medals --------------------------
     wire::WritePOD<std::uint32_t>(b, 0);            // pvp total

@@ -70,6 +70,9 @@ std::string PostgreSQLMapService::ValidateInventoryState(soci::session& sql,cons
             stored.skills[i].dwRemainTick=live.skills[i].dwRemainTick;
         }
         quest_runtime::AlignGraphTimers(stored,live);
+        if(!before.payload->item_cooldowns)throw std::runtime_error("Item cooldowns were not hydrated");
+        CheckItemCooldownProjection(stored.item_cooldowns,*before.payload->item_cooldowns);
+        stored.item_cooldowns=live.item_cooldowns;
         stored.character=live.character;
         if(transfer::Encode(stored)!=transfer::Encode(live))throw std::runtime_error("Inventory graph changed since hydration");
 

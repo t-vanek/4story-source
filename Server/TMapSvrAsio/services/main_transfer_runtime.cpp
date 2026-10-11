@@ -22,6 +22,7 @@ CharSnapshot PersistenceSnapshot(const CharSnapshot& s,std::uint32_t key,const S
     if(!s.payload)return s;
     auto out=s;auto p=std::make_shared<CharacterPayload>(*s.payload);
     quest_runtime::Sample(*p,now);
+    if(p->item_cooldowns)SampleItemCooldowns(*p->item_cooldowns,now);
     if(p->transfer_state) {
         auto sampled=s;sampled.payload=p;
         auto graph=std::make_shared<State>(Capture(sampled,key,timers,now));
@@ -77,6 +78,10 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
     }
     if(p.effects)out.buffs=*p.effects;
     if(p.during)out.during_items=p.during->items;
+    if(p.item_cooldowns) {
+        auto state=*p.item_cooldowns;SampleItemCooldowns(state,now);
+        out.item_cooldowns=ActiveItemCooldowns(state);
+    }
     // Preserve dirty-save flags absent from the client hotkey projection.
     auto old_hotkeys=std::move(out.hotkeys);out.hotkeys.clear();
     for(const auto& h:p.hotkeys){

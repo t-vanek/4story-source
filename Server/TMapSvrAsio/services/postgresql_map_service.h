@@ -75,7 +75,12 @@ private:
     static void HangExpBenefit(soci::session&,const MapSessionClaim&,CharSnapshot&,QuestPackets&);
     static void ForceProgressEffect(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,std::uint32_t,QuestPackets&);
     static void EraseProgressEffect(soci::session&,const MapSessionClaim&,CharSnapshot&,std::size_t,QuestPackets&);
-    static bool UseExpItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
+    static bool UseNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
+    static std::vector<ItemCooldown> ReadItemCooldowns(soci::session&,const MapSessionClaim&);
+    static void HydrateItemCooldowns(soci::session&,const MapSessionClaim&,const CharSnapshot&,CharacterPayload&);
+    static void CheckItemCooldowns(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static void WriteItemCooldowns(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static bool ItemCooldownCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static std::uint8_t CompleteQuestRewards(soci::session&,const MapSessionClaim&,CharSnapshot&,const QuestDef&,
         std::uint8_t,std::uint32_t,const std::function<std::uint8_t()>&,const QuestEvent&,QuestPackets&);
     static void GainQuestExperience(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,const QuestEvent&,QuestPackets&);

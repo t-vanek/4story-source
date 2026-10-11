@@ -28,7 +28,7 @@ struct Quest {
 };
 struct QuestTerm { std::uint32_t quest{},id{}; std::uint8_t type{},count{}; };
 struct Hotkeys { CharacterHotkeys row; std::uint8_t save{}; };
-struct ItemCooldown { std::uint16_t group{}; std::uint32_t remaining{}; };
+using ItemCooldown = tmapsvr::ItemCooldown;
 struct Saddle { std::uint32_t item{}; std::int64_t expires{}; std::uint8_t type{}; };
 using DuringItem = tmapsvr::DuringItem;
 struct RecallBuff { std::uint32_t recall{}; Buff buff; };

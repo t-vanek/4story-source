@@ -96,11 +96,13 @@ bool PostgreSQLMapService::SkillCheckpointMatches(soci::session& sql,const MapSe
     const int world=c.group,character=c.char_id;const auto json=SkillJson(s);int matches=0;
     sql<<"SELECT CASE WHEN app_world.map_skill_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:skills AS jsonb) THEN 1 ELSE 0 END",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"skills"),soci::into(matches);
-    if(matches!=1||!MaintainCheckpointMatches(sql,c,s))return false;
+    if(matches!=1||!MaintainCheckpointMatches(sql,c,s)||!ItemCooldownCheckpointMatches(sql,c,s))return false;
     return s.payload&&s.payload->quests&&quest_runtime::Json(*s.payload->quests)==quest_runtime::Json(ReadQuestProgress(sql,c));
 }
 void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     WriteQuestTimers(sql,c,s);
+    CheckItemCooldowns(sql,c,s);
+    WriteItemCooldowns(sql,c,s);
     const int world=c.group,character=c.char_id;const auto skills=OrderedSkills(s);
     if(!MaintainCheckpointMatches(sql,c,s))throw std::runtime_error("Core checkpoint cannot mutate maintained effects");
     // This operation only persists timers. Learning, forgetting or changing a
@@ -123,7 +125,7 @@ void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSess
             soci::use(remaining,"r"),soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"id");
     }
     sql<<"UPDATE app_world.map_checkpoints SET recovery_contract=CASE WHEN app_world.map_maintain_state(world_id,char_id)='[]'::jsonb THEN 3 ELSE 4 END,"
-         "maintain_state=NULLIF(app_world.map_maintain_state(world_id,char_id),'[]'::jsonb),skill_state=app_world.map_skill_state(world_id,char_id),quest_state=app_world.map_quest_state(world_id,char_id) WHERE world_id=:w AND char_id=:c",
+         "maintain_state=NULLIF(app_world.map_maintain_state(world_id,char_id),'[]'::jsonb),skill_state=app_world.map_skill_state(world_id,char_id),quest_state=app_world.map_quest_state(world_id,char_id),item_cooldown_state=app_world.map_item_cooldown_state(world_id,char_id) WHERE world_id=:w AND char_id=:c",
         soci::use(world,"w"),soci::use(character,"c");
 }
 std::string PostgreSQLMapService::CoreFingerprint(const MapSessionClaim& c,const CharSnapshot& s) const {return Fingerprint(c,s);}
@@ -132,10 +134,10 @@ void PostgreSQLMapService::RecordCheckpoint(soci::session& sql,const MapSessionC
     const int world=claim.group,server=m_config.server;const long long cid=claim.char_id,uid=claim.user_id,key=claim.key,generation=claim.connection_id,epoch=claim.authority_epoch;
     int stored=0;
     sql<<"INSERT INTO app_world.map_checkpoints(world_id,char_id,user_id,server_id,session_key,owner_token,connection_id,authority_epoch,revision,"
-         "fingerprint,recovery_contract,core_state,during_state,outcome) VALUES(:w,:c,:u,:s,:k,:t,:g,:epoch,:r,:f,1,app_world.map_core_state(CAST(:w AS smallint),CAST(:c AS integer)),app_world.map_exp_state(CAST(:w AS smallint),CAST(:c AS integer)),:o) "
+         "fingerprint,recovery_contract,core_state,during_state,item_cooldown_state,outcome) VALUES(:w,:c,:u,:s,:k,:t,:g,:epoch,:r,:f,1,app_world.map_core_state(CAST(:w AS smallint),CAST(:c AS integer)),app_world.map_exp_state(CAST(:w AS smallint),CAST(:c AS integer)),app_world.map_item_cooldown_state(CAST(:w AS smallint),CAST(:c AS integer)),:o) "
          "ON CONFLICT(world_id,char_id) DO UPDATE SET user_id=EXCLUDED.user_id,server_id=EXCLUDED.server_id,"
          "session_key=EXCLUDED.session_key,owner_token=EXCLUDED.owner_token,connection_id=EXCLUDED.connection_id,authority_epoch=EXCLUDED.authority_epoch,"
-         "revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,recovery_contract=1,skill_state=NULL,maintain_state=NULL,core_state=EXCLUDED.core_state,during_state=EXCLUDED.during_state,"
+         "revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,recovery_contract=1,skill_state=NULL,maintain_state=NULL,core_state=EXCLUDED.core_state,during_state=EXCLUDED.during_state,item_cooldown_state=EXCLUDED.item_cooldown_state,"
          "saved_at=clock_timestamp(),outcome=EXCLUDED.outcome,recovered_at=NULL,transfer_body=NULL,transfer_hash=NULL,character_manifest=NULL,routing_manifest=NULL,actor_manifest=NULL "
          "WHERE app_world.map_checkpoints.outcome IN ('logout','recovered') OR "
          "(app_world.map_checkpoints.owner_token=EXCLUDED.owner_token AND app_world.map_checkpoints.connection_id=EXCLUDED.connection_id AND app_world.map_checkpoints.authority_epoch=EXCLUDED.authority_epoch) RETURNING 1",
@@ -493,11 +495,11 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const auto message=static_cast<MessageId>(opcode);
     const bool progress_tick=opcode==0; // internal timer only; no dispatcher registration
     const bool during_entry=opcode==1; // internal EnterMAP only; no wire change
-    const bool exp_item=message==MessageId::CS_ITEMUSE_REQ;
+    const bool use_item=message==MessageId::CS_ITEMUSE_REQ;
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
-    } else if(exp_item) {
+    } else if(use_item) {
         if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))
             throw std::runtime_error("Invalid ITEMUSE request length");
     } else if(message==MessageId::CS_NPCTALK_REQ) {
@@ -796,7 +798,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 children(def,depth);return; // CQuest default implementation.
             }
         };
-        if(progress_tick||exp_item) {
+        if(progress_tick||use_item) {
             const QuestEvent event=[&](std::uint32_t id,std::uint8_t type,std::uint8_t trigger_type,int count) {
                 payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
                 quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,id,type,count,committed.packets);
@@ -805,7 +807,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                     if(!quest_runtime::CanRun(after,*payload,*trigger,chart,inputs,gate_level))execute(*trigger,1);
                 }
             };
-            if(exp_item)other_state_changed=UseExpItem(sql,c,after,body,event,committed.packets);
+            if(use_item)other_state_changed=UseNativeItem(sql,c,after,body,event,committed.packets);
             else {
                 AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets);
                 AdvanceDuringItems(sql,c,after,committed.packets);
@@ -842,6 +844,9 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     WriteQuestProgress(sql,c,after);
     if(!after.payload->transfer_state)WriteMaintainedEffects(sql,c,after);
     WriteDuringItems(sql,c,after);
+    // The request was checked against its old head before any mutation. New
+    // delay groups are armed only here, in the same item/quest transaction.
+    WriteItemCooldowns(sql,c,after);
     WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,Fingerprint(c,after),"active");StoreTransferCheckpoint(sql,c,after);
     committed.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return committed;
 }
@@ -1270,6 +1275,7 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
 void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     CheckQuestProgress(sql,c,s);
     CheckDuringItems(sql,c,s);
+    CheckItemCooldowns(sql,c,s);
     if(!s.payload)throw std::runtime_error("Cast ledger requires native snapshot");
     const auto security=ReadSecurity(sql,c);
     auto expected=s.payload->security;expected.hydrated=true;

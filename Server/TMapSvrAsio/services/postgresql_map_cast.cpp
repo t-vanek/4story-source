@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 
 namespace tmapsvr {
 namespace {
@@ -118,7 +119,27 @@ CharSnapshot PostgreSQLMapService::ValidateSkillCast(soci::session& sql,const Ma
         throw std::runtime_error("Cast ACK disagrees with authoritative projection");
     if(!selected.empty())ConsumeSkillItemProjection(expected,selected);
     expected.dwHP-=hp;expected.dwMP-=mp;
+    // This validator rebuilds skill timers on a relative clock starting at
+    // zero. Rebase the other sampled timers for the same measured interval,
+    // then restore their real local observations in the committed snapshot.
+    // Keeping the relative quest sample would expire it on the next request.
+    auto timed=std::make_shared<CharacterPayload>(*expected.payload);
+    const auto quest_origin=timed->quest_sample_ms;
+    const auto item_origin=timed->item_cooldowns?timed->item_cooldowns->sampled_ms:0;
+    const auto advance=[&](std::uint64_t origin) {
+        if(request.elapsed_ms>std::numeric_limits<std::uint64_t>::max()-origin)
+            throw std::runtime_error("Cast timer sample overflow");
+        return origin+request.elapsed_ms;
+    };
+    timed->quest_sample_ms=0;
+    if(timed->item_cooldowns)timed->item_cooldowns->sampled_ms=0;
+    expected.payload=std::move(timed);
     expected=transfer::PersistenceSnapshot(expected,c.key,timers,request.elapsed_ms);
+    timed=std::make_shared<CharacterPayload>(*expected.payload);
+    timed->quest_sample_ms=advance(quest_origin);
+    if(timed->item_cooldowns)timed->item_cooldowns->sampled_ms=advance(item_origin);
+    if(timed->transfer_state)timed->transfer_received_ms=timed->quest_sample_ms;
+    expected.payload=std::move(timed);
     if(CoreFingerprint(c,expected)!=CoreFingerprint(c,after)||SnapshotBytes(expected,c.key)!=SnapshotBytes(after,c.key))
         throw std::runtime_error("Cast changes unrelated state or has incorrect costs/timers");
     return expected;

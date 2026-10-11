@@ -280,6 +280,11 @@ int RecoverPreparedMapTransfers(soci::session& sql,int world,int server,const st
         payload->last_title_selection_id=static_cast<std::uint64_t>(head);
         payload->transfer_state=std::make_shared<const transfer::State>(*graph);
         PostgreSQLMapService::HydrateQuestProgress(sql,claim,*payload);
+        // Recovery writes the exact prepared graph, not a new LOADCHAR view.
+        // Reconstruct only metadata needed by the shared save fence; leave its
+        // source entitlement and cooldown durations untouched.
+        payload->during.emplace();payload->during->items=graph->during_items;
+        payload->item_cooldowns.emplace();payload->item_cooldowns->timers=graph->item_cooldowns;
         payload->security=PostgreSQLMapService::ReadSecurity(sql,claim);
         graph->character.payload=std::move(payload);
         PostgreSQLMapService::WriteCore(sql,claim,graph->character,1);

@@ -8,7 +8,45 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–050 are **written, not applied**.
+evidence remain unchanged. New migrations044–051 are **written, not applied**.
+Latest code increment: `ea7c811`, starting from `b56b255`; earlier Phase A evidence
+is retained at its original revision.
+
+## Quest reward/progression increment — `ea7c811`
+
+- `QT_COMPLETE` resolves the first COMPQUEST term (absent means0), checks its
+  running mission/terms and preserves force-run error suppression. `QT_CRAFT`
+  checks a fresh recipe object and does not invent persistent completion counts.
+  The existing request, native repository, ownership fences, ledger, checkpoint
+  and ordered responses form one transaction; repeat valid crafting stays valid.
+- Item/non-item reward selection preserves their different source switches,
+  BYTE random accumulation, class filtering and early break. Magic rewards retain
+  the six raw extensions, source magic percentages, expiry and stack splitting.
+  Capacity is checked before consumption. Gold/quest title rules, learned skills,
+  rank increases and source item/quest triggers share the same transaction.
+- `GainExp(FALSE)` implements ordinary EXP/soul accounting, thresholds/skill
+  points, LEVELUP quest hooks, full resources, map kick condition and original
+  ordered World/owner/neighbor packets. World authenticates the main Map sender;
+  secondary Maps validate the committed level before updating their projection.
+- The existing Map scheduler advances pinned pure status effects918/923 once per
+  second. Expiry precedes AUTOEXP; delayed ticks grant one charge as the source
+  does. Effect/XP/quest changes share the quest ledger and current owner fences.
+  Equipment/posture replacement and zero-MP checks preserve these non-posture
+  effects. This is not general maintained-skill, premium or combat parity.
+- Migration051 publishes backed quest item/title/level-limit/portal definitions
+  against matching Map/character/actor manifests. Activation requires explicit
+  `TGLOBAL_GSP=TGLOBAL_RAGEZONE` mapping for TGetLimitedLevel/TGetNation. It locks
+  source/catalog rows, rejects ambiguous keys and retires stale offline owners.
+  No catalog activation or data migration has run.
+
+**Remaining reward/progression branches:** source level benefits at loop indices
+8/18/28/... use SetDuringItem, HangPremiumItem, effect903, automatic effect923 and
+later918. Their full EXP-item/PCBang persistence and effect creation are not yet
+integrated, so this branch rolls back, including preceding item/money changes.
+918/923 can currently arrive through native hydration or a primary transfer;
+source level-triggered creation remains part of that missing benefit branch.
+Party/recall/guild-derived statistics, general effects and Soul Lottery remain open.
+No whole QT_COMPLETE, crafting, level progression or effect system is marked done.
 
 ## Implemented and connected in this increment
 
@@ -81,6 +119,14 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
   independent draws; source RNG sequence is not reproduced. SQL tie ordering uses
   explicit quest/term IDs where the original only ordered main/type. Acceptance
   must assess these decisions, recursion256 and oversized count/input rejection.
+- Progression effects currently checkpoint the remaining value observed at the
+  last committed one-second timer tick; source GetRemainTick also samples at save
+  and handoff. Exact sub-tick transfer/logout sampling and time spent in an
+  interrupted handoff remain required. Charge clocks restart on hydration,
+  matching the source constructor/load boundary; elapsed offline time earns no XP.
+- World level sends follow the database commit. A failed/unknown send closes the
+  source client without replaying its reward; durable cross-process delivery and
+  reconciliation are still a World integration requirement.
 - Operator plaintext is transformed offline to salted PBKDF2-SHA256 (210000
   iterations). Password case is exact rather than SQL Server CI comparison;
   trailing-space comparison is retained. ID/path comparison uses the existing
@@ -103,11 +149,19 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Exact continuation / implementation gate
 
-1. Complete QT_COMPLETE from QuestComplete.cpp and TPlayer::OnQuestComplete:
-   reward selection, magic reward item definitions, inventory capacity before
-   consumption, gold/title effects, skills/ranks, GainExp/soul/level side effects,
-   quest counters and child/event triggers in one native transaction. Continue
-   remaining Quest*.cpp actions; connect kill/use-item/completion and timer events.
+1. Finish level benefits before claiming complete quest progression:
+   TPlayer::SetDuringItem/HangPremiumItem/HangExpBuff/CheckDuringItem; effect903
+   ForceMaintain/collisions/rehang; native TEXPITEMTABLE + original TSaveExpItem
+   staging/finalization replacement; account TDURINGITEMTABLE/PCBang authority.
+   Source EXP items are18182/18183/18184, skill903 has STATUS41, skill923 STATUS67,
+   skill918 STATUS63. Read values from the pinned catalog. Preserve original
+   one-second timer order, zero-remain behavior, admission/transfer/restart and
+   exact remaining-time sampling. Then remove the documented level-benefit guard.
+   Implement Soul Lottery request/trigger with its effect820 dependency.
+   Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN
+   and all non-request kill/use-item/position/spawn producers. Quest mail uses
+   TRESERVEDPOST then TGetReservedPost and storage2; carried-only TITEMTABLE cannot
+   receive attachments without an explicit storage/ownership extension.
 2. Implement source Map switches (QCT20), neutral NPC territory authority and
    conditional guild/hero trainer discounts. No substitute country/switch values.
 3. Finish Control one-shot event delivery/recovery with native World recipients;
@@ -126,17 +180,19 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-All six modern C++20 Debug targets compile/link with BUILD_TESTING=OFF. Static
-Python AST parsing covers the six changed/new database tools. `git diff --check`
-passes. Compilation does not establish gameplay, persistence or protocol parity.
+All six modern C++20 Debug and Release targets compile/link with BUILD_TESTING=OFF
+for code commit `ea7c811`. Static Python AST parsing includes the changed quest
+activation tool (without importing/executing it). `git diff --check` passes. Compilation does not establish gameplay, persistence or protocol parity.
 Exact configuration, commands and logs are retained in
+[evidence/phase-a-quest-rewards-20261011](evidence/phase-a-quest-rewards-20261011/README.md).
+Earlier Phase A compile evidence remains in
 [evidence/phase-a-20261011](evidence/phase-a-20261011/README.md).
 
 **Not executed:** unit/integration/regression/protocol/PG tests, CTest/pytest,
 sanitisers/fuzz/benchmarks, migrations/import/reconciliation, server/client
 processes, Docker/Podman builds/startups or cluster restart tests. Phase B/C are
-not started. No historical evidence was rewritten. Release for these changes
-has not been compiled; previous Release evidence applies only to its own revision.
+not started. No historical evidence was rewritten. Compilation is the only
+executed code validation for this increment; new gameplay remains unverified.
 
 Only client source exists. No supported executable build/hash or matching asset
 set can be named; real-client/launcher acceptance remains blocked. This is an

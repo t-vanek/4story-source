@@ -1,0 +1,746 @@
+[1/289] Building C object Lib/3rdParty/bcrypt/CMakeFiles/fourstory_bcrypt.dir/src/bcrypt.c.o
+[2/289] Building C object Lib/3rdParty/bcrypt/CMakeFiles/fourstory_bcrypt.dir/src/crypt_gensalt.c.o
+[3/289] Building C object Lib/3rdParty/bcrypt/CMakeFiles/fourstory_bcrypt.dir/src/wrapper.c.o
+[4/289] Building C object Lib/3rdParty/bcrypt/CMakeFiles/fourstory_bcrypt.dir/src/crypt_blowfish.c.o
+[5/289] Building CXX object Lib/Own/TNetLib/CMakeFiles/tnetlib_portable.dir/TNetLib/tls_asio_session.cpp.o
+[6/289] Building CXX object Lib/Own/TNetLib/CMakeFiles/tnetlib_portable.dir/TNetLib/asio_session.cpp.o
+[7/289] Building CXX object Lib/Own/TNetLib/CMakeFiles/tnetlib_portable.dir/TNetLib/packet_codec.cpp.o
+[8/289] Building CXX object Lib/Own/TNetLib/CMakeFiles/tnetlib_portable.dir/TNetLib/tnetlib_crypto.cpp.o
+[9/289] Building CXX object Lib/Own/TNetLib/CMakeFiles/tnetlib_portable.dir/TNetLib/platform.cpp.o
+[10/289] Building CXX object Lib/Own/TNetLib/CMakeFiles/tnetlib_portable.dir/TNetLib/MessageId.cpp.o
+[11/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/db/session_pool.cpp.o
+[12/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/db/schema_validator.cpp.o
+[13/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/security/hmac.cpp.o
+[14/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/db/orm/sp_call.cpp.o
+[15/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/security/security_config.cpp.o
+[16/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/audit/spdlog_audit_logger.cpp.o
+[17/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/smtp/spdlog_smtp_client.cpp.o
+[18/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/audit/udp_audit_logger.cpp.o
+[19/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/smtp/asio_smtp_client.cpp.o
+[20/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/ops/health_endpoint.cpp.o
+[21/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/cluster/peer_client.cpp.o
+[22/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/ops/rate_limiter.cpp.o
+[23/289] Linking C static library lib/libfourstory_bcrypt.a
+[24/289] Linking CXX static library lib/libtnetlib_portable.a
+[25/289] Building CXX object Lib/Own/FourStoryCommon/CMakeFiles/fourstory_common.dir/src/ops/registry_refresher.cpp.o
+[26/289] Linking CXX static library lib/libfourstory_common.a
+[27/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/login_server.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/login_server.cpp: In constructor ‘tloginsvr::LoginServer::LoginServer(boost::asio::io_context&, uint16_t)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/login_server.cpp:75:55: warning: missing initializer for member ‘tloginsvr::LoginServerConfig::rc4_secret_key’ [-Wmissing-field-initializers]
+   75 |     : LoginServer(io, LoginServerConfig{ .port = port })
+      |                                                       ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/login_server.cpp:75:55: warning: missing initializer for member ‘tloginsvr::LoginServerConfig::on_quit_request’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/login_server.cpp:75:55: warning: missing initializer for member ‘tloginsvr::LoginServerConfig::control_server_ip’ [-Wmissing-field-initializers]
+[28/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/config.cpp.o
+[29/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/db/schema_validator.cpp.o
+[30/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/fake_auth_service.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp: In member function ‘virtual tloginsvr::services::AuthResult tloginsvr::services::FakeAuthService::Authenticate(const tloginsvr::services::AuthRequest&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:55:59: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+   55 |         return AuthResult{ .status = AuthStatus::IpBanned };
+      |                                                           ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:55:59: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:61:57: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+   61 |         return AuthResult{ .status = AuthStatus::NoUser };
+      |                                                         ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:61:57: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:67:64: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+   67 |         return AuthResult{ .status = AuthStatus::WrongPassword };
+      |                                                                ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:67:64: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:77:9: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+   77 |         };
+      |         ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:92:5: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+   92 |     };
+      |     ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:92:5: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp: In member function ‘virtual tloginsvr::services::AuthResult tloginsvr::services::FakeAuthService::AuthenticateTest(const std::string&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:133:64: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  133 |         return AuthResult{ .status = AuthStatus::InternalError };
+      |                                                                ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:133:64: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:142:5: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  142 |     };
+      |     ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_auth_service.cpp:142:5: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+[31/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/local_connection_registry.cpp.o
+[32/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/local_event_registry.cpp.o
+[33/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/handlers.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/handlers.cpp: In function ‘boost::asio::awaitable<void> tloginsvr::handlers::OnLoginReq(std::shared_ptr<tnetlib::AsioSession>, std::span<const std::byte>, tloginsvr::services::IAuthService*, tloginsvr::services::IConnectionRegistry*, fourstory::audit::IAuditLogger*, fourstory::ops::LoginRateLimiter*, std::span<const short unsigned int>, fourstory::smtp::ISmtpClient*, tloginsvr::Nation, boost::asio::thread_pool*, tloginsvr::services::ISessionTerminator*)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/handlers.cpp:613:17: warning: missing initializer for member ‘tloginsvr::services::ConnectionEntry::pending_client_ip’ [-Wmissing-field-initializers]
+  613 |                 };
+      |                 ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/handlers.cpp:613:17: warning: missing initializer for member ‘tloginsvr::services::ConnectionEntry::security_token’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/handlers.cpp: In function ‘boost::asio::awaitable<void> tloginsvr::handlers::OnTestLoginReq(std::shared_ptr<tnetlib::AsioSession>, std::span<const std::byte>, tloginsvr::services::IAuthService*, tloginsvr::services::IConnectionRegistry*, fourstory::audit::IAuditLogger*, boost::asio::thread_pool*)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/handlers.cpp:1778:13: warning: missing initializer for member ‘tloginsvr::services::ConnectionEntry::pending_client_ip’ [-Wmissing-field-initializers]
+ 1778 |             };
+      |             ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/handlers.cpp:1778:13: warning: missing initializer for member ‘tloginsvr::services::ConnectionEntry::security_token’ [-Wmissing-field-initializers]
+[34/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/fake_session_terminator.cpp.o
+[35/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/fake_map_server_locator.cpp.o
+[36/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/charname_validator.cpp.o
+[37/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/fake_char_service.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_char_service.cpp: In member function ‘virtual tloginsvr::services::CharacterCreateResponse tloginsvr::services::FakeCharService::Create(const tloginsvr::services::CharacterCreateRequest&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/fake_char_service.cpp:130:5: warning: missing initializer for member ‘tloginsvr::services::CharacterInfo::items’ [-Wmissing-field-initializers]
+  130 |     };
+      |     ^
+[38/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/postgresql_login_owner.cpp.o
+[39/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/soci_auth_service.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp: In member function ‘virtual tloginsvr::services::AuthResult tloginsvr::services::SociAuthService::Authenticate(const tloginsvr::services::AuthRequest&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:153:67: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  153 |                 return AuthResult{ .status = AuthStatus::IpBanned };
+      |                                                                   ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:153:67: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:182:61: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  182 |             return AuthResult{ .status = AuthStatus::NoUser };
+      |                                                             ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:182:61: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:193:70: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  193 |                 return AuthResult{.status = AuthStatus::InternalError};
+      |                                                                      ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:193:70: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:201:101: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  201 |             if (!sql.got_data() || found != 1) return AuthResult{.status = AuthStatus::InternalError};
+      |                                                                                                     ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:201:101: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:203:70: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  203 |                 return AuthResult{.status = AuthStatus::WrongPassword};
+      |                                                                      ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:203:70: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:212:68: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  212 |             return AuthResult{ .status = AuthStatus::WrongPassword };
+      |                                                                    ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:212:68: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:218:68: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  218 |             return AuthResult{ .status = AuthStatus::WrongPassword };
+      |                                                                    ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:218:68: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:241:75: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  241 |                     return AuthResult{ .status = AuthStatus::IpRestricted };
+      |                                                                           ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:241:75: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:279:13: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+  279 |             };
+      |             ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:292:13: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+  292 |             };
+      |             ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:318:74: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  318 |                     return AuthResult{.status = AuthStatus::InternalError};
+      |                                                                          ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:318:74: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:325:87: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  325 |                 if (active >= 3) return AuthResult{.status = AuthStatus::InternalError};
+      |                                                                                       ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:325:87: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:333:91: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  333 |                 if (!sql.got_data()) return AuthResult{.status = AuthStatus::InternalError};
+      |                                                                                           ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:333:91: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:342:77: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  342 |                                   .security_challenge = std::move(challenge)};
+      |                                                                             ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:372:13: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  372 |             };
+      |             ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:372:13: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:429:17: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  429 |                 };
+      |                 ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:429:17: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:643:9: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  643 |         };
+      |         ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:643:9: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:648:64: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  648 |         return AuthResult{ .status = AuthStatus::InternalError };
+      |                                                                ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:648:64: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp: In member function ‘virtual tloginsvr::services::AuthResult tloginsvr::services::SociAuthService::AuthenticateTest(const std::string&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:789:68: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  789 |             return AuthResult{ .status = AuthStatus::InternalError };
+      |                                                                    ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:789:68: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:827:9: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  827 |         };
+      |         ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:827:9: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:832:64: warning: missing initializer for member ‘tloginsvr::services::AuthResult::ban_reason’ [-Wmissing-field-initializers]
+  832 |         return AuthResult{ .status = AuthStatus::InternalError };
+      |                                                                ^
+/home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_auth_service.cpp:832:64: warning: missing initializer for member ‘tloginsvr::services::AuthResult::security_challenge’ [-Wmissing-field-initializers]
+[40/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/soci_char_service.cpp.o
+[41/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/postgresql_map_handoff.cpp.o
+[42/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/postgresql_char_service.cpp.o
+[43/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/soci_map_server_locator.cpp.o
+[44/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/bcrypt_util.cpp.o
+[45/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio_core.dir/services/soci_session_terminator.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/services/soci_session_terminator.cpp:27:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/examples.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::db::orm::examples::CurrentUser>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/examples.h:87:40: warning: left operand of comma operator has no effect [-Wunused-value]
+   87 |         st , soci::use(uid,       "uid")
+      |                                        ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/examples.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::db::orm::examples::CurrentUser>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/examples.h:99:40: warning: left operand of comma operator has no effect [-Wunused-value]
+   99 |         st , soci::use(key,       "key")
+      |                                        ^
+[46/289] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/patch_server.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[47/289] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/handlers.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/handlers.cpp:2:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[48/289] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/config.cpp.o
+[49/289] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/patch_session.cpp.o
+[50/289] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/services/patch_repository.cpp.o
+[51/289] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/db/schema_validator.cpp.o
+[52/289] Building CXX object Server/TLogSvrAsio/CMakeFiles/tlogsvr_asio_core.dir/config.cpp.o
+[53/289] Building CXX object Server/TLogSvrAsio/CMakeFiles/tlogsvr_asio_core.dir/log_server.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLogSvrAsio/log_server.h:9,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLogSvrAsio/log_server.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[54/289] Building CXX object Server/TLogSvrAsio/CMakeFiles/tlogsvr_asio_core.dir/db/schema_validator.cpp.o
+[55/289] Building CXX object Server/TLogSvrAsio/CMakeFiles/tlogsvr_asio_core.dir/services/retry_queue.cpp.o
+[56/289] Building CXX object Server/TLogSvrAsio/CMakeFiles/tlogsvr_asio_core.dir/services/log_sink.cpp.o
+[57/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/config.cpp.o
+[58/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/admin_shell.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/admin_shell.cpp: In member function ‘boost::asio::awaitable<std::__cxx11::basic_string<char> > tcontrolsvr::AdminShell::CmdRoute(const std::string&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/admin_shell.cpp:725:10: warning: variable ‘need_router_or_usage’ set but not used [-Wunused-but-set-variable=]
+  725 |     auto need_router_or_usage =
+      |          ^~~~~~~~~~~~~~~~~~~~
+[59/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/control_session.cpp.o
+[60/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/event_codec.cpp.o
+[61/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/control_server.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/control_server.h:11,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/control_server.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[62/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/event_scheduler.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp: In function ‘std::vector<tcontrolsvr::SchedulerAction> tcontrolsvr::StepScheduler(int64_t, EventRegistry&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp:49:26: warning: missing initializer for member ‘tcontrolsvr::SchedulerAction::event’ [-Wmissing-field-initializers]
+   49 |             out.push_back({SchedulerAction::Kind::EventDelete, ev.index, 0, 0});
+      |             ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp:143:26: warning: missing initializer for member ‘tcontrolsvr::SchedulerAction::event’ [-Wmissing-field-initializers]
+  143 |             out.push_back({SchedulerAction::Kind::EventMsgStart,
+      |             ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  144 |                            ev.index, 0, 0});
+      |                            ~~~~~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp:146:30: warning: missing initializer for member ‘tcontrolsvr::SchedulerAction::event’ [-Wmissing-field-initializers]
+  146 |                 out.push_back({SchedulerAction::Kind::CashShopStop,
+      |                 ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  147 |                                ev.index, 0, 0});
+      |                                ~~~~~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp:150:26: warning: missing initializer for member ‘tcontrolsvr::SchedulerAction::event’ [-Wmissing-field-initializers]
+  150 |             out.push_back({SchedulerAction::Kind::EventMsgEnd,
+      |             ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  151 |                            ev.index, 0, 1});
+      |                            ~~~~~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp:153:30: warning: missing initializer for member ‘tcontrolsvr::SchedulerAction::event’ [-Wmissing-field-initializers]
+  153 |                 out.push_back({SchedulerAction::Kind::CashShopStop,
+      |                 ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  154 |                                ev.index, 0, 1});
+      |                                ~~~~~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp:157:26: warning: missing initializer for member ‘tcontrolsvr::SchedulerAction::event’ [-Wmissing-field-initializers]
+  157 |             out.push_back({IsCashSale(ev)
+      |             ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~
+  158 |                                ? SchedulerAction::Kind::CashSaleStart
+      |                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  159 |                                : SchedulerAction::Kind::EventUpdateStart,
+      |                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  160 |                            ev.index, value, 0});
+      |                            ~~~~~~~~~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp:164:30: warning: missing initializer for member ‘tcontrolsvr::SchedulerAction::event’ [-Wmissing-field-initializers]
+  164 |                 out.push_back({SchedulerAction::Kind::EventDelete,
+      |                 ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  165 |                                ev.index, 0, 0});
+      |                                ~~~~~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/event_scheduler.cpp:170:26: warning: missing initializer for member ‘tcontrolsvr::SchedulerAction::event’ [-Wmissing-field-initializers]
+  170 |             out.push_back({IsCashSale(ev)
+      |             ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~
+  171 |                                ? SchedulerAction::Kind::CashSaleEnd
+      |                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  172 |                                : SchedulerAction::Kind::EventUpdateEnd,
+      |                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  173 |                            ev.index, 0, 0});
+      |                            ~~~~~~~~~~~~~~~~
+[63/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/message_router.cpp.o
+[64/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/peer_dialer.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/peer_dialer.h:19,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/peer_dialer.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[65/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/senders.cpp.o
+[66/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_auth.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_auth.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[67/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_service.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_service.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[68/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_admin.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_admin.cpp:22:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[69/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_event.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_event.cpp:16:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[70/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_extra.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_extra.cpp:30:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[71/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_patch.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_patch.cpp:16:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[72/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/db/schema_validator.cpp.o
+[73/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/chat_ban_repository.cpp.o
+[74/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/event_registry.cpp.o
+[75/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_registry.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_registry.cpp:34:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[76/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/fake_operator_auth_service.cpp.o
+[77/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/native_control.cpp.o
+[78/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/operator_registry.cpp.o
+[79/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/registry_event_bus.cpp.o
+[80/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/scm_name_resolver.cpp.o
+[81/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/peer_registry.cpp.o
+[82/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/service_controller.cpp.o
+[83/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/service_controller_factory.cpp.o
+[84/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_alerter.cpp.o
+[85/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/systemd_service_controller.cpp.o
+[86/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_operator_auth_service.cpp.o
+[87/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_event_repository.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/services/soci_event_repository.cpp:3:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h: In member function ‘virtual uint8_t tcontrolsvr::SociEventRepository::Persist(const tcontrolsvr::EventInfo&, uint8_t, const std::string&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h:142:52: warning: ‘-’ directive output may be truncated writing 1 byte into a region of size between 0 and 16 [-Wformat-truncation=]
+  142 |         std::snprintf(buf, sizeof(buf), "'%04d-%02d-%02d %02d:%02d:%02d'",
+      |                                                    ^
+In member function ‘fourstory::db::orm::SpCall& fourstory::db::orm::SpCall::In(std::string, const tm&)’,
+    inlined from ‘virtual uint8_t tcontrolsvr::SociEventRepository::Persist(const tcontrolsvr::EventInfo&, uint8_t, const std::string&)’ at /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/services/soci_event_repository.cpp:197:16:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h:142:22: note: ‘snprintf’ output between 22 and 74 bytes into a destination of size 24
+  142 |         std::snprintf(buf, sizeof(buf), "'%04d-%02d-%02d %02d:%02d:%02d'",
+      |         ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  143 |             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  144 |             tm.tm_hour, tm.tm_min, tm.tm_sec);
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h: In member function ‘virtual uint8_t tcontrolsvr::SociEventRepository::Persist(const tcontrolsvr::EventInfo&, uint8_t, const std::string&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h:142:52: warning: ‘-’ directive output may be truncated writing 1 byte into a region of size between 0 and 16 [-Wformat-truncation=]
+  142 |         std::snprintf(buf, sizeof(buf), "'%04d-%02d-%02d %02d:%02d:%02d'",
+      |                                                    ^
+In member function ‘fourstory::db::orm::SpCall& fourstory::db::orm::SpCall::In(std::string, const tm&)’,
+    inlined from ‘virtual uint8_t tcontrolsvr::SociEventRepository::Persist(const tcontrolsvr::EventInfo&, uint8_t, const std::string&)’ at /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/services/soci_event_repository.cpp:198:16:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/db/orm/sp_call.h:142:22: note: ‘snprintf’ output between 22 and 74 bytes into a destination of size 24
+  142 |         std::snprintf(buf, sizeof(buf), "'%04d-%02d-%02d %02d:%02d:%02d'",
+      |         ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  143 |             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  144 |             tm.tm_hour, tm.tm_min, tm.tm_sec);
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[88/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_patch_metadata_service.cpp.o
+[89/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_admin_audit_logger.cpp.o
+[90/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_peer_repository.cpp.o
+[91/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_registry_persistence.cpp.o
+[92/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_service_inventory.cpp.o
+[93/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_user_protected_service.cpp.o
+[94/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/spdlog_admin_audit_logger.cpp.o
+[95/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/windows_scm_service_controller.cpp.o
+[96/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/audit/audit_log.cpp.o
+[97/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/config.cpp.o
+[98/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/ops/admin_shell.cpp.o
+[99/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/map_server.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp: In member function ‘boost::asio::awaitable<void> tmapsvr::MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp:203:17: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  203 |                 if(ctx.skill_cooldown&&identity->phase!=SessionPhase::TransferOut)
+      |                 ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp:205:21: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  205 |                     auto* player = ctx.player_service;
+      |                     ^~~~
+[100/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/ops/metrics.cpp.o
+[101/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/ops/metrics_endpoint.cpp.o
+[102/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_world.cpp.o
+[103/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_native_entry.cpp.o
+[104/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/dispatch.cpp.o
+[105/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_main_transfer.cpp.o
+[106/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/movement.cpp.o
+[107/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/session.cpp.o
+[108/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/npc.cpp.o
+[109/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/inventory.cpp.o
+[110/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/skill.cpp.o
+[111/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/secure_code.cpp.o
+[112/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/title.cpp.o
+[113/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/character_statistics.cpp.o
+[114/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/maintained_effect.cpp.o
+[115/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/loot.cpp.o
+[116/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/combat.cpp.o
+[117/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/social.cpp.o
+[118/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/quest.cpp.o
+[119/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/bow.cpp.o
+[120/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_session_validator.cpp.o
+[121/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/control.cpp.o
+[122/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/rate_limiter.cpp.o
+[123/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_companion_service.cpp.o
+[124/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/log_peer.cpp.o
+[125/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_inventory_service.cpp.o
+[126/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_monster_chart.cpp.o
+[127/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_npc_service.cpp.o
+[128/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_quest_service.cpp.o
+[129/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_player_service.cpp.o
+[130/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_skill_service.cpp.o
+[131/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_skill_data_chart.cpp.o
+[132/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_skill_chart.cpp.o
+[133/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_spawn_chart.cpp.o
+[134/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_map_mon_chart.cpp.o
+[135/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_mon_attr_chart.cpp.o
+[136/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_mon_item_chart.cpp.o
+[137/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_stat_chart.cpp.o
+[138/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_quest_chart.cpp.o
+[139/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_owner.cpp.o
+[140/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_catalog.cpp.o
+[141/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_service.cpp.o
+[142/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_load.cpp.o
+[143/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_quest.cpp.o
+[144/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_checkpoint.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp: In lambda function:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:1010:9: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+ 1010 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |         ^~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:1010:129: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+ 1010 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |                                                                                                                                 ^~~~~~
+[145/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_quest_items.cpp.o
+[146/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_quest_rewards.cpp.o
+[147/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_progression.cpp.o
+[148/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_reagent.cpp.o
+[149/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_cast.cpp.o
+[150/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_transfer.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp: In member function ‘virtual bool tmapsvr::PostgreSQLMapService::PrepareTransfer(const tmapsvr::MapSessionClaim&, const tmapsvr::CharSnapshot&, std::span<const std::byte>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:89:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   89 |         if(!sql.got_data())return false;tx->commit();return true;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:89:41: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   89 |         if(!sql.got_data())return false;tx->commit();return true;
+      |                                         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp: In member function ‘virtual std::optional<tmapsvr::TransferredCharacter> tmapsvr::PostgreSQLMapService::AcceptTransfer(const tmapsvr::MapSessionClaim&, std::span<const std::byte>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:126:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  126 |     if(!LockAccount(sql,c))return {};CheckCatalogs(sql);
+      |     ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:126:38: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  126 |     if(!LockAccount(sql,c))return {};CheckCatalogs(sql);
+      |                                      ^~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:155:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  155 |         if(!sql.got_data())return {};tx->commit();return TransferredCharacter{std::move(s),static_cast<std::uint64_t>(target_epoch)};
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:155:38: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  155 |         if(!sql.got_data())return {};tx->commit();return TransferredCharacter{std::move(s),static_cast<std::uint64_t>(target_epoch)};
+      |                                      ^~
+[151/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_inventory.cpp.o
+[152/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_route.cpp.o
+[153/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_replica.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp: In member function ‘virtual bool tmapsvr::PostgreSQLMapService::LoadReplica(const tmapsvr::MapSessionClaim&, uint16_t, float, float)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp:105:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  105 |     if(!sql.got_data())return false;tx->commit();return true;
+      |     ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp:105:37: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  105 |     if(!sql.got_data())return false;tx->commit();return true;
+      |                                     ^~
+[154/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/main_transfer_codec.cpp.o
+[155/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/spawn_manager.cpp.o
+[156/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/main_transfer_runtime.cpp.o
+[157/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/monster_ai.cpp.o
+[158/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/world_senders.cpp.o
+[159/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/world_client.cpp.o
+[160/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/client_senders.cpp.o
+[161/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/db/schema_validator.cpp.o
+[162/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/config.cpp.o
+[163/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/world_session.cpp.o
+[164/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/world_server.cpp.o
+[165/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/db/schema_validator.cpp.o
+[166/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o
+[167/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char_base.cpp.o
+[168/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/dispatch.cpp.o
+[169/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_party.cpp.o
+[170/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_corps.cpp.o
+[171/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_friend.cpp.o
+[172/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_chat.cpp.o
+[173/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_soulmate.cpp.o
+[174/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_guild.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_guild.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::OnGuildPointRewardAck(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_guild.cpp:2930:19: warning: variable ‘target_key’ set but not used [-Wunused-but-set-variable=]
+ 2930 |     std::uint32_t target_key = 0;
+      |                   ^~~~~~~~~~
+[175/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_post.cpp.o
+[176/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_tms.cpp.o
+[177/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_occupy.cpp.o
+[178/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_event.cpp.o
+[179/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_combat.cpp.o
+[180/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_item.cpp.o
+[181/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_admin.cpp.o
+[182/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_rank.cpp.o
+[183/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_recallmon.cpp.o
+[184/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_bow.cpp.o
+[185/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_conn.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::{anonymous}::ReconcileConList(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&, const char*)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:155:32: warning: variable ‘channel’ set but not used [-Wunused-but-set-variable=]
+  155 |     std::uint8_t  main_id = 0, channel = 0;
+      |                                ^~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:156:19: warning: variable ‘map_id’ set but not used [-Wunused-but-set-variable=]
+  156 |     std::uint16_t map_id = 0;
+      |                   ^~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:19: warning: variable ‘px’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                   ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:27: warning: variable ‘py’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                           ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:35: warning: variable ‘pz’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                                   ^~
+[186/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_br.cpp.o
+[187/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_rps.cpp.o
+[188/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_cashshop.cpp.o
+[189/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_cmgift.cpp.o
+[190/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_ctrlsvr.cpp.o
+[191/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_service.cpp.o
+[192/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_apex.cpp.o
+[193/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_relay.cpp.o
+[194/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_relay.cpp.o
+[195/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_tournament.cpp.o
+[196/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_guild.cpp.o
+[197/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_party.cpp.o
+[198/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_corps.cpp.o
+[199/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_friend.cpp.o
+[200/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_chat.cpp.o
+[201/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_soulmate.cpp.o
+[202/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_tms.cpp.o
+[203/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_post.cpp.o
+[204/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_occupy.cpp.o
+[205/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_event.cpp.o
+[206/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_combat.cpp.o
+[207/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_item.cpp.o
+[208/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_admin.cpp.o
+[209/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_rank.cpp.o
+[210/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_recallmon.cpp.o
+[211/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_conn.cpp.o
+[212/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_bow.cpp.o
+[213/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_br.cpp.o
+[214/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_rps.cpp.o
+[215/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_cashshop.cpp.o
+[216/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/char_registry.cpp.o
+[217/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_tournament.cpp.o
+[218/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_level_cache.cpp.o
+[219/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_peerage.cpp.o
+[220/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_broadcast.cpp.o
+[221/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_registry.cpp.o
+[222/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/party_registry.cpp.o
+[223/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/corps_registry.cpp.o
+[224/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/tms_registry.cpp.o
+[225/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/bow_registry.cpp.o
+[226/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/br_registry.cpp.o
+[227/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/rps_registry.cpp.o
+[228/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/event_registry.cpp.o
+[229/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/cash_item_sale_registry.cpp.o
+[230/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_friend_repository.cpp.o
+[231/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/ctrl_svr_slot.cpp.o
+[232/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_wanted_registry.cpp.o
+[233/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_friend_repository.cpp.o
+[234/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_tactics_wanted_registry.cpp.o
+[235/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_wanted_sweep.cpp.o
+[236/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_cabinet_codec.cpp.o
+[237/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/pvp_aggregate.cpp.o
+[238/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_tactics_sweep.cpp.o
+[239/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_guild_level_repository.cpp.o
+[240/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_guild_level_repository.cpp.o
+[241/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_guild_repository.cpp.o
+[242/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_item_state_repository.cpp.o
+[243/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_item_state_repository.cpp.o
+[244/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_cash_sale_repository.cpp.o
+[245/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_guild_repository.cpp.o
+[246/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_cash_sale_repository.cpp.o
+[247/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_service_ops_repository.cpp.o
+[248/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/month_rank_registry.cpp.o
+[249/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/war_country_index.cpp.o
+[250/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_service_ops_repository.cpp.o
+[251/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/cmgift_registry.cpp.o
+[252/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/event_quarter_scheduler.cpp.o
+[253/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/castle_war_registry.cpp.o
+[254/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_rps_repository.cpp.o
+[255/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/expired_buffer.cpp.o
+[256/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_lucky_event_repository.cpp.o
+[257/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_rps_repository.cpp.o
+[258/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_cmgift_repository.cpp.o
+[259/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_lucky_event_repository.cpp.o
+[260/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_cmgift_repository.cpp.o
+[261/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_war_ops_repository.cpp.o
+[262/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_month_rank_repository.cpp.o
+[263/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_war_ops_repository.cpp.o
+[264/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_month_rank_repository.cpp.o
+[265/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/tournament_boot.cpp.o
+[266/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/tournament_registry.cpp.o
+[267/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_tournament_repository.cpp.o
+[268/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_bow_repository.cpp.o
+[269/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_bow_repository.cpp.o
+[270/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_tournament_repository.cpp.o
+[271/289] Linking CXX static library lib/libtloginsvr_asio_core.a
+[272/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/peer_registry.cpp.o
+[273/289] Linking CXX static library lib/libtpatchsvr_asio_core.a
+[274/289] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/main.cpp:4:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[275/289] Linking CXX static library lib/libtlogsvr_asio_core.a
+[276/289] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/main.cpp:39:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[277/289] Linking CXX static library lib/libtcontrolsvr_asio_core.a
+[278/289] Building CXX object Server/TLogSvrAsio/CMakeFiles/tlogsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLogSvrAsio/log_server.h:9,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLogSvrAsio/main.cpp:3:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[279/289] Linking CXX static library lib/libtmapsvr_asio_core.a
+[280/289] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/control_server.h:11,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/main.cpp:8:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[281/289] Linking CXX static library lib/libtworldsvr_asio_core.a
+[282/289] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio.dir/main.cpp.o
+[283/289] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio.dir/main.cpp.o
+[284/289] Linking CXX executable bin/tpatchsvr_asio
+[285/289] Linking CXX executable bin/tloginsvr_asio
+[286/289] Linking CXX executable bin/tlogsvr_asio
+[287/289] Linking CXX executable bin/tcontrolsvr_asio
+[288/289] Linking CXX executable bin/tmapsvr_asio
+[289/289] Linking CXX executable bin/tworldsvr_asio

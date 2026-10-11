@@ -8,11 +8,14 @@ and [source-to-runtime rows](legacy-modern-coverage.csv). Added native quest
 progress/conditions, NPC conversation, mission/item/skill/routing actions, peer
 trust/audit, Patch metadata and Control topology/auth/ban/event/peer persistence
 are integrated in existing services. Control now uses owning topology snapshots
-across offload/await boundaries. Quest completion/rewards, other action types,
-switch/territory state, World persistence and full subsystem parity remain open.
-Migrations044–050 and archival/import tools are written, not executed. Debug
-compilation of all six modern binaries succeeded; tests and runtime startup are
-deferred by the Phase A gate. No named client binary is available.
+across offload/await boundaries. Code `ea7c811` adds bounded completion/crafting
+rewards, magic item/turn-in transactions, ordinary level progression, World level
+relay and pure918/923 timers. The level-benefit EXP item/effect903 branch, remaining
+quest actions, switch/territory state, World persistence and full parity stay open.
+Migrations044–051 and archival/import tools are written, not executed. Debug and
+Release compilation of all six modern binaries succeeded; tests and runtime
+startup are deferred by the Phase A gate. No named client binary is available.
+[Exact source scope and limitations](evidence/phase-a-quest-rewards-20261011/README.md).
 
 Status vocabulary: NOT_ANALYZED → ANALYZED → SPECIFIED → IMPLEMENTING → IMPLEMENTED
 → INTEGRATED → VERIFIED; BLOCKED identifies a specific missing contract. Status

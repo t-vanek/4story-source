@@ -26,15 +26,21 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–050** and native code extend quest state/actions, skill audit,
-peer authentication, Patch metadata and Control persistence. The Control path now
-includes operator authentication, bans, events, patch updates and durable peer
-epochs. Historical archive/import tools are written; they have not been executed.
-All six modern Debug targets compile with tests disabled. This is not gameplay or
-PostgreSQL acceptance. Quest rewards, World persistence, economy, combat and other
-original responsibilities remain incomplete; see the [exact continuation](_rewrite/docs/modernization/full-rewrite-status.md#exact-continuation--implementation-gate).
-No new test or container run belongs to these changes. Applied migrations001–043
-remain unchanged; the next unused migration number is051.
+New migrations **044–051** and native code extend quest state/actions, skill audit,
+peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
+transactional completion/crafting rewards, magic item creation, turn-in consumption,
+currency/title/skill rewards, ordinary experience/level progression and World/Map
+level synchronization. The one-second native timer now processes the source
+918/923 progression effects. These paths are **INTEGRATED_UNVERIFIED** within their
+stated limits; the level benefit requiring EXP item18182–18184 and effect903 still
+rejects and rolls back the entire operation. Whole quest/gameplay completion is
+not claimed. See the [exact continuation](_rewrite/docs/modernization/full-rewrite-status.md#exact-continuation--implementation-gate).
+
+All six modern Debug and Release targets compile with tests disabled; this is
+build evidence only. Historical import tools and migration051 are written, not
+executed. No tests, database migration, server startup or container run belongs
+to these changes. Previous migrations001–050 remain unchanged; the next unused
+migration number is052. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-quest-rewards-20261011/README.md).
 
 ## Historical verification through `2fa2396`
 

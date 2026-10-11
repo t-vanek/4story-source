@@ -13,6 +13,16 @@ prototype; missing action/world integrations still reject rather than issue a
 fabricated success. See [working status](full-rewrite-status.md) for explicit
 changes to tie ordering, randomness, UTC expiration and transaction boundaries.
 
+Code `ea7c811` additionally connects original completion/crafting result ordering,
+item/magic reward packets, GOLD/QUEST title updates, skill rewards and ordinary
+EXP/SOULUP/LEVEL/HPMP packets. Original MW_LEVELUP_ACK/REQ remains nine bytes;
+new ownership checks add no client fields. Pure918/923 timer expiration emits
+SKILLEND then private CHARSTATINFO; source AUTOEXP charge order is preserved.
+All are **INTEGRATED_UNVERIFIED**, not executable compatibility evidence.
+Level-benefit EXP-item/effect903 creation still rolls back, and exact effect
+remaining-time sampling at handoff/logout is unfinished. See the
+[compile-only source contract](evidence/phase-a-quest-rewards-20261011/README.md).
+
 Native Patch metadata sends the original varchar byte sequences, not a UTF-8
 re-encoding of decoded catalog text (`TPatchSvr.vcxproj` is MultiByte). Backup
 `dbo.TMinBetaVer` sets OUT parameter `@dwMinVer=2`; `CSPMinBetaVer` instead binds a

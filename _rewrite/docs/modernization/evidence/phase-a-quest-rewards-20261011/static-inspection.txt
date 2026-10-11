@@ -1,0 +1,4 @@
+git diff --check: exit 0
+Python ast.parse(tools/database/activate_quest_catalog.py): completed without importing or executing the module
+Both CMake caches: BUILD_TESTING=OFF
+CMake targets: compile/link only; no test, server or container command run

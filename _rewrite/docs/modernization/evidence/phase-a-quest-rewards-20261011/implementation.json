@@ -1,0 +1,201 @@
+{
+  "recorded_at": "2026-10-11T15:46:11.865000+00:00",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "scope": "Bounded native quest completion/crafting rewards, ordinary EXP progression, World/replica level relay, pure status918/923 timers; see remaining_contracts",
+  "base_commit": "b56b255",
+  "code_commit": "ea7c811a0a092c65cd9883303e78b5b7d24db4ba",
+  "branch": "main",
+  "published": false,
+  "cpp_standard": "C++20",
+  "compiler": "GCC 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "4.3.0",
+  "ninja": "1.13.2",
+  "dependency_prefix": "/tmp/fourstory-phase-a-deps/usr",
+  "compile": [
+    {
+      "configuration": "Debug",
+      "build_testing": false,
+      "command": "cmake --build build/phase-a-compile --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "exit_code": 0,
+      "log": "debug-build-ea7c811.log"
+    },
+    {
+      "configuration": "Release",
+      "build_testing": false,
+      "command": "cmake --build build/phase-a-quest-release --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "exit_code": 0,
+      "log": "release-build-ea7c811.log"
+    }
+  ],
+  "artifact_sha256": {
+    "Debug": {
+      "tloginsvr_asio": "68fa1e5cb26d7a911eb4b8ccd92dc420110cf2762ba4044e2100156946f67bf0",
+      "tworldsvr_asio": "430512f23693a042ed95d1c88ff05ffcccbd7c1c78e34c685b904be5067081db",
+      "tmapsvr_asio": "a3da36ad5f79b41aabb91d828c150076f8aec93c07b00597fff889261c2125ba",
+      "tcontrolsvr_asio": "345c1b83a99d01e1993fc59e18db3e0612cbfc134221abc7f71a1beee7a3c481",
+      "tpatchsvr_asio": "b235c4dd9d7028a80aab4c5f2e94d4109accb9189a72f1dda270af814462c104",
+      "tlogsvr_asio": "d651ce5bfd582025928aa063b8f4e7d37272b554c8b9bbcee592a94d5fb1dab1"
+    },
+    "Release": {
+      "tloginsvr_asio": "7bd272eaa215f6d276c73e27c56a5ecce096cbf88f98eed24fc34695756276c9",
+      "tworldsvr_asio": "452acc61bd324d38f3b727748698b06c627a22116b2df0e120ab0b00e1c20e81",
+      "tmapsvr_asio": "fd015c2a0487a7c83b4b8a0dd0ce26aec7a700aa3f41a0d30d76bd38ba2ff010",
+      "tcontrolsvr_asio": "e3adcc5370ca2ba4f5752872435724f12d65875ba0fcca02f6df0766a4a001e5",
+      "tpatchsvr_asio": "a855c67587fc8607824b540c7f151f6873b1c8ee559eb6606a0cd15df702f17f",
+      "tlogsvr_asio": "5c70537a9fa802a1a1a7c09e1eadfcfcb6928c76ed5a96f2217b626e67abd4a8"
+    }
+  },
+  "changed_code_files": [
+    "Server/TMapSvrAsio/CMakeLists.txt",
+    "Server/TMapSvrAsio/domain/character_payload.h",
+    "Server/TMapSvrAsio/domain/maintained_effect.h",
+    "Server/TMapSvrAsio/domain/quest_def.h",
+    "Server/TMapSvrAsio/handlers/quest.cpp",
+    "Server/TMapSvrAsio/handlers_native_entry.cpp",
+    "Server/TMapSvrAsio/handlers_world.cpp",
+    "Server/TMapSvrAsio/main.cpp",
+    "Server/TMapSvrAsio/services/player_service.h",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_progression.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_quest_items.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_quest_rewards.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_replica.cpp",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h",
+    "Server/TMapSvrAsio/services/posture_effects.h",
+    "Server/TMapSvrAsio/services/quest_runtime.h",
+    "Server/TWorldSvrAsio/handlers/handlers_char.cpp",
+    "database/postgresql/051-native-quest-reward-catalog.sql",
+    "deploy/sql/map-runtime-grants.sql",
+    "tools/database/activate_quest_catalog.py"
+  ],
+  "source_references": [
+    {
+      "path": "Server/TMapSvr/QuestComplete.cpp",
+      "symbol": "CQuestComplete::ExecQuest"
+    },
+    {
+      "path": "Server/TMapSvr/QuestCraft.cpp",
+      "symbol": "CQuestCraft::ExecQuest"
+    },
+    {
+      "path": "Server/TMapSvr/TPlayer.cpp",
+      "symbols": [
+        "OnQuestComplete",
+        "GainExp",
+        "GetTitle",
+        "SetDuringItem",
+        "HangPremiumItem",
+        "HangExpBuff",
+        "CheckDuringItem",
+        "IsExpBenefit"
+      ]
+    },
+    {
+      "path": "Server/TMapSvr/TItem.cpp",
+      "symbols": [
+        "CreateItem",
+        "SetEndTime"
+      ]
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "symbols": [
+        "CanPush",
+        "UpdateBuffSkill",
+        "CheckMaintainSkill",
+        "CheckEternalBuff",
+        "EraseMaintainSkill",
+        "GetMonExpRate"
+      ]
+    },
+    {
+      "path": "Server/TMapSvr/TSkill.cpp",
+      "symbols": [
+        "IsEnd",
+        "SetLoopEndTick",
+        "GetRemainTick"
+      ]
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "symbols": [
+        "SendCS_EXP_ACK",
+        "SendCS_LEVEL_ACK",
+        "SendCS_HPMP_ACK",
+        "SendCS_SOULUP_ACK"
+      ]
+    },
+    {
+      "path": "Server/TWorldSvr/SSHandler.cpp",
+      "symbol": "OnMW_LEVELUP_ACK"
+    },
+    {
+      "path": "Server/TMapSvr/SSHandler.cpp",
+      "symbol": "OnMW_LEVELUP_REQ"
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "symbols": [
+        "QUEST_TYPE",
+        "REWARD_METHOD",
+        "REWARD_TYPE",
+        "NATION_TYPE"
+      ]
+    }
+  ],
+  "database": {
+    "driver": "native PostgreSQL via existing SOCI infrastructure",
+    "new_migration": "051-native-quest-reward-catalog.sql",
+    "applied": false,
+    "catalog_activation_executed": false,
+    "historical_import_executed": false,
+    "prior_migrations_001_050_modified": false,
+    "backups_modified": false,
+    "required_explicit_alias": "TGLOBAL_GSP=TGLOBAL_RAGEZONE"
+  },
+  "remaining_contracts": [
+    "Level benefit: EXP items18182/18183/18184, skill903, SetDuringItem/HangPremiumItem/HangExpBuff, source TEXPITEMTABLE and account TDURINGITEMTABLE persistence; guarded branch rolls back the whole reward",
+    "918/923 source level-triggered creation remains behind the same benefit guard; timer supports hydrated/transferred positive-remaining effects only",
+    "Exact sub-tick effect sampling at checkpoint/logout/transfer; interrupted handoff elapsed time; stored remaining currently comes from last committed timer observation",
+    "General maintained skills/collisions/death/recalls/party/guild stats; monster EXP vitality and Soul Lottery",
+    "Remaining QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN and other quest producers",
+    "World durable level delivery/reconciliation and native social, guild, economy, war and event repositories",
+    "Full original responsibility inventory, all PostgreSQL runtime paths, original client acceptance and Phase B/C"
+  ],
+  "modern_differences": [
+    "Reward, item, effect, skill, title and quest writes commit before client/World outputs; failed/unknown output does not replay the transaction",
+    "Source Windows rand()%100 distribution retained with independent secure 15-bit draws",
+    "Explicit UTC policy for newly created item expiry; archive timestamps remain unchanged",
+    "Reject source undefined iterator endpoints, zero stack capacity, ambiguous source keys and unrepresentable numeric conversions",
+    "Timer ledger fences stale snapshots; local monotonic charge observations reset at source-style object hydration; last committed tick currently determines saved remaining time"
+  ],
+  "tests_executed": 0,
+  "not_executed": [
+    "unit",
+    "integration",
+    "regression",
+    "protocol",
+    "PostgreSQL",
+    "CTest",
+    "pytest",
+    "sanitizers",
+    "fuzz",
+    "benchmarks",
+    "migration/import/reconciliation",
+    "server/client processes",
+    "Docker/Podman build/run",
+    "cluster restart"
+  ],
+  "client": {
+    "executable": null,
+    "sha256": null,
+    "assets": null,
+    "supported_build": null,
+    "reason": "Owner has only uncompiled original client source"
+  },
+  "phase_b_started": false,
+  "phase_c_started": false
+}

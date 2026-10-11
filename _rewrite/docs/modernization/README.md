@@ -18,6 +18,13 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
+## Active full rewrite phase (2026-10-11)
+
+Phase A implementation precedes all new test, migration and container runs.
+The [working status](full-rewrite-status.md) records changed production paths as
+unverified and tracks the remaining implementation gate. Historical results below
+belong to their stated revisions and scopes.
+
 ## Native account secure-code lifecycle (2026-10-11)
 
 The existing Map dispatcher now handles original CREATE, CHANGE, DISABLE, ENABLE,

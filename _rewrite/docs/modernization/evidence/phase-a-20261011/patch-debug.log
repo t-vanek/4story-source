@@ -1,0 +1,41 @@
+[1/8] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/handlers.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/handlers.cpp:2:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[2/8] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/patch_server.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[3/8] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/config.cpp.o
+[4/8] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/services/patch_repository.cpp.o
+[5/8] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/db/schema_validator.cpp.o
+[6/8] Linking CXX static library lib/libtpatchsvr_asio_core.a
+[7/8] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/main.cpp:4:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[8/8] Linking CXX executable bin/tpatchsvr_asio

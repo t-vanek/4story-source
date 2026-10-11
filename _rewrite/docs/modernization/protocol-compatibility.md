@@ -4,6 +4,33 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
+Phase A additions after `2fa2396` are **INTEGRATED_UNVERIFIED**: native quest list
+and timers after CHARINFO; original NPCTALK/QUESTDROP/QUESTENDTIMER results;
+QUESTEXEC branches for default talk, NPC talk, chapter, drop, mission/guild action,
+give/delete item, give skill and routing item-list responses. These do not complete the quest system. Source
+action prerequisites and counter/timer semantics replace the old generic accept
+prototype; missing action/world integrations still reject rather than issue a
+fabricated success. See [working status](full-rewrite-status.md) for explicit
+changes to tie ordering, randomness, UTC expiration and transaction boundaries.
+
+Native Patch metadata sends the original varchar byte sequences, not a UTF-8
+re-encoding of decoded catalog text (`TPatchSvr.vcxproj` is MultiByte). Backup
+`dbo.TMinBetaVer` sets OUT parameter `@dwMinVer=2`; `CSPMinBetaVer` instead binds a
+return value without supplying that argument. The native path implements the
+backup OUT contract; its effect on a real launcher is unverified. Missing
+`TPreCompleteAdd` blocks native promotion. No executable/assets were supplied,
+and no client session, synthetic peer or protocol test was run for these changes.
+
+Control Phase A restores the source event IDs (cash2, spawn12, regen13,
+lottery14, gift15), byte strings and source event-value parsing quirks. Native
+operator passwords use salted PBKDF2 and exact case instead of plaintext SQL CI
+comparison; this is an explicit security change. Event calendar interpretation
+requires a source timezone chosen at import and matching process TZ. Unknown
+commits stop the Control writer. TUpdatePreVersion, TBetaToVersion and
+TDeletePreVersion also lack authoritative SQL definitions. These paths remain
+blocked, including original operator-tool acceptance; native schema existence is
+not compatibility evidence.
+
 | Contract | Evidence and current scope | Status / remaining proof |
 |---|---|---|
 | Exact client executable | Client source exists; shared `ProtocolBase.h` reports `TVERSION=0x2918`; source headers and backups can be fingerprinted independently | BLOCKED for a named binary build: owner confirms source only, no additional client files; executable identity, matching data and runnable environment are absent ([gate](client-acceptance.md)) |

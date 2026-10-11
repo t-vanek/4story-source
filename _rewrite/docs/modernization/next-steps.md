@@ -6,20 +6,28 @@ authoritative for historical values, original code/client for supported behavior
 
 Owner instruction renewed (2026-10-11): keep implementation and versioning local on `main`
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
-Local builds, disposable verification containers and local commits remain authorized.
+The latest owner instruction requires the complete Phase A implementation before
+tests, migration application and containers. Only static inspection and compilation
+are used during Phase A. See [active rewrite status](full-rewrite-status.md).
 
-Current implementation (2026-10-11): account secure-code lifecycle is integrated
+Historical baseline at `2fa2396` (2026-10-11): account secure-code lifecycle is integrated
 through all seven original requests, migration042, protected native learning and
 inventory/equipment, CHARINFO, fresh/full-graph persistence and current-owner
 fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable; next migration044.
+immutable. Phase A has added unapplied migrations044–050; the next free number is051.
 
+The active continuation is now [full-rewrite-status.md](full-rewrite-status.md):
+quest completion/rewards and remaining action types, switch/territory state,
+World persistence, Control event delivery/recovery and the unresolved Patch pre-version contracts.
+
+Earlier backlog (still required where not superseded above):
 Continue conditional trainer discounts/territory ownership, NPC talk quest
-selection, original skill-log persistence, general timed effects and multi-target
-combat. Preserve the completed title list/selection and original gold-title quirks
+selection beyond the new bounded NPC talk path, general timed effects and
+multi-target combat. Original default skill-log persistence is now implemented
+in migration044 and the native purchase transaction, still UNVERIFIED. Preserve the completed title list/selection and original gold-title quirks
 in `titles-contract.json`. Other title awards, resets and achievement conditions
 remain required. Security must also be integrated into the remaining protected
 economy handlers as they acquire native persistence. BOW entry/reset and secure-code
@@ -28,13 +36,13 @@ a Login key must explicitly define the original player-object unlock boundary;
 current native reconnect obtains a new non-recycled key. Clock-step behavior and
 all original executable acceptance remain unresolved.
 
-Next audit dependency is the default `DM_LOGSKILL_REQ` → `CSPLogSkill` →
+Resolved source dependency, implemented but unverified: default `DM_LOGSKILL_REQ` → `CSPLogSkill` →
 `TLogSkill` → `TSKILLLOG` database path. `TMapSvr/stdafx.h:16` leaves
 `DEF_UDPLOG` disabled; `UdpSocket.cpp:1042-1094` has the alternate skill UDP
 implementation entirely commented. The backup `TLogSkill` inserts character,
-three remaining currency fields, skill/rank and insertion time. Reconstruct that
-native durable path and its original consumers before treating generic Map UDP
-telemetry as skill-log parity. Do not infer an active UDP skill sender from a call
+three remaining currency fields, skill/rank and insertion time. The
+native durable path is now in app_world.TSKILLLOG; the source has no gameplay
+reader, only destructive admin cleanup. Generic Map UDP telemetry is not skill-log parity. Do not infer an active UDP skill sender from a call
 inside the disabled preprocessor branch.
 
 ## Earlier scoped continuation notes

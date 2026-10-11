@@ -5,6 +5,12 @@ local commits on `main` until complete gameplay is finished. GitHub pushes,
 publication and deployment are paused. The owner authorized the one-time push of
 `3d49e56` on 2026-10-09 and renewed local-only implementation on 2026-10-11.
 
+**Current workflow:** complete implementation (Phase A), then verification and
+migration (Phase B), then local container startup (Phase C). New changes are
+unverified until their later acceptance runs. See the
+[active rewrite status](_rewrite/docs/modernization/full-rewrite-status.md).
+Historical test results below retain their original bounded scope.
+
 An incremental **C++20** reimplementation of the 4Story server cluster, targeting
 **Linux containers and native PostgreSQL**. The compatibility goal is the original
 client with unchanged packet layouts. The project is **in development**: selected
@@ -18,9 +24,22 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 <a id="overall-progress"></a>
 
-## Verified functionality
+## Active implementation — Phase A, unverified
 
-Current work adds **native account secure codes**: all seven original requests,
+New migrations **044–050** and native code extend quest state/actions, skill audit,
+peer authentication, Patch metadata and Control persistence. The Control path now
+includes operator authentication, bans, events, patch updates and durable peer
+epochs. Historical archive/import tools are written; they have not been executed.
+All six modern Debug targets compile with tests disabled. This is not gameplay or
+PostgreSQL acceptance. Quest rewards, World persistence, economy, combat and other
+original responsibilities remain incomplete; see the [exact continuation](_rewrite/docs/modernization/full-rewrite-status.md#exact-continuation--implementation-gate).
+No new test or container run belongs to these changes. Applied migrations001–043
+remain unchanged; the next unused migration number is051.
+
+## Historical verification through `2fa2396`
+
+The following results describe their original commits, not the changed Phase A
+code. The last tested increment added **native account secure codes**: all seven original requests,
 PostgreSQL persistence, ten-attempt lockout, original CHARINFO fields, protected
 inventory/skill purchases, same-login Map transfer and new-login relocking.
 See the [bounded security contract](_rewrite/docs/modernization/evidence/security-contract.json)
@@ -29,7 +48,7 @@ Final Debug, ASan/UBSan and installed Release each pass **1,455** focused native
 checks; all **120** upgrade checks and six service smoke checks pass. These include
 real PostgreSQL, original-byte TCP, races, rollback, restart and transfer recovery. Complete gameplay
 and original-client acceptance remain unfinished; the client EXE/assets are absent.
-Applied migrations **001–043** are immutable; the next migration is **044**.
+That tested increment applied migrations **001–043**; they remain immutable.
 
 Previous increment adds **native title lists and selection** through Map → PostgreSQL →
 World → Map → original client response, including source gold-title transitions.

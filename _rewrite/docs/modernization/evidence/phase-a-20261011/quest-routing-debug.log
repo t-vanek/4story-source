@@ -1,0 +1,10 @@
+[1/3] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_checkpoint.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp: In lambda function:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:956:9: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+  956 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |         ^~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:956:129: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+  956 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |                                                                                                                                 ^~~~~~
+[2/3] Linking CXX static library lib/libtmapsvr_asio_core.a
+[3/3] Linking CXX executable bin/tmapsvr_asio

@@ -1,0 +1,417 @@
+{
+  "date": "2026-10-11",
+  "phase": "A",
+  "implementation_gate": "INCOMPLETE",
+  "new_code_status": "INTEGRATED_UNVERIFIED; partial branches IMPLEMENTING",
+  "baseline": "2fa23961c4da575fe0aece591f4810e7a6d1f119",
+  "code_revision": "16cc7f7fa32f79b1562ba00e4275e9c2515ba0f3",
+  "branch": "main",
+  "local_commits": [
+    {
+      "id": "3b436420f3d5df7ff74c9cfaa7f6bed336df6439",
+      "subject": "Stabilize SOCI parameter bindings for the modern toolchain"
+    },
+    {
+      "id": "5e9e30243cb59ee9ba608c5ce0ee3bd7190a3b89",
+      "subject": "Integrate native quest progress, source actions and skill audit"
+    },
+    {
+      "id": "518980f587a286c9230080b167bc5f8c44f8c879",
+      "subject": "Add native PostgreSQL peer trust and authentication audit"
+    },
+    {
+      "id": "2cd4fe8068f69fcb7a21dd0b81fd51d4ca1a297f",
+      "subject": "Connect Patch metadata to native PostgreSQL and archival import"
+    },
+    {
+      "id": "a7bc32ca535884448412fafe71c54f7ad107a9ce",
+      "subject": "Integrate native Control persistence and fenced peer lifecycle"
+    },
+    {
+      "id": "16cc7f7fa32f79b1562ba00e4275e9c2515ba0f3",
+      "subject": "Require explicit production persistence for Log"
+    }
+  ],
+  "pushed": false,
+  "scope": "See full-rewrite-status.md and legacy-modern-coverage.csv. These are scoped changes, not all original responsibilities.",
+  "build": {
+    "configuration": "Debug",
+    "standard": "C++20",
+    "compiler": "GCC 16.2.1 20260819 (Red Hat 16.2.1-2)",
+    "cmake": "4.3.0",
+    "ninja": "1.13.2",
+    "build_testing": false,
+    "native_postgresql": true,
+    "targets": [
+      "tloginsvr_asio",
+      "tworldsvr_asio",
+      "tmapsvr_asio",
+      "tcontrolsvr_asio",
+      "tpatchsvr_asio",
+      "tlogsvr_asio"
+    ],
+    "outcome": "COMPILED_AND_LINKED_ONLY",
+    "release": "NOT_BUILT_FOR_THIS_INCREMENT",
+    "dependency_prefix": "/tmp/fourstory-phase-a-deps/usr",
+    "dependency_rpms_x86_64": [
+      {
+        "file": "boost-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "9dfc4e4bc181c60aa8d8748d41c98fc271220e6ec225ee6666c692367b223826"
+      },
+      {
+        "file": "boost-cobalt-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "b8b2dfee03d8879fe40153371b93f3856329dbcd255abf9314ad0a8d3bd083ed"
+      },
+      {
+        "file": "boost-context-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "e098a6f2a32604bbb4c8977bd7657db17e4af6e4ba5924873e91350a37ac26f3"
+      },
+      {
+        "file": "boost-contract-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "07f6d225831dd7a20690beb0118f5bf1b078be8c834a43aa60c13eaf7409da9e"
+      },
+      {
+        "file": "boost-coroutine-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "dbfbcfb5b6ffe257f2dd695512bf8500f8b2ee767cd7763e7acdd85c5cf9fcca"
+      },
+      {
+        "file": "boost-devel-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "f7f2a049845fc39a0492b534a12cca11776c11a91f5ab4dd367fe71b5ec43308"
+      },
+      {
+        "file": "boost-fiber-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "7ecdbdb8bdb8b7625f4e219a4387f7e8d3d50e2824417c0fc1138b5cecc1889b"
+      },
+      {
+        "file": "boost-graph-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "aa8aafa5e8e384d2cb1771824ed4ac19f7485a9f6202e3fe7db93dc8db110590"
+      },
+      {
+        "file": "boost-json-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "d0df11d3c9934ff797838847c0852241765858b763bfd46fc9e07a2008468fcc"
+      },
+      {
+        "file": "boost-log-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "64fe5da07bc1121569fea02d9d6eb2c1d3e5b8522efb64fa595a246d4723a392"
+      },
+      {
+        "file": "boost-math-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "fbbd1be589164eb7ded654932bda239d2472fa647a1d0bc52ed36f64bb6a2d8f"
+      },
+      {
+        "file": "boost-nowide-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "e84aa7b2fee81b2a371662da12b302ad932387040f969dd808561207a4dbf860"
+      },
+      {
+        "file": "boost-numpy3-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "2fb8b4160d5cf7e19345a195d483f302b45810d131a1fae8b02ef8c8517f113c"
+      },
+      {
+        "file": "boost-process-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "7da2080f801c27ca71e3c77cd3b09e1bf008185c2eb02d29430df2b2d3f64b39"
+      },
+      {
+        "file": "boost-python3-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "99c526b9c16ed1092119164ad7dbd862e176e2c5a8d3067aa49034bf7adca274"
+      },
+      {
+        "file": "boost-serialization-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "6d249d2b50e78e788648091dc40ecef05b7f3150c4d33c5a98cbc54eacbb2666"
+      },
+      {
+        "file": "boost-stacktrace-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "7d1d968863bdc25c27f4420d2e1004e5f57eced89bd6dbc05668ab78e0307ed7"
+      },
+      {
+        "file": "boost-test-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "2425234da923ec9a3cbf70863402298ef48f5b25f7d3101ccc7556d5c66e0395"
+      },
+      {
+        "file": "boost-timer-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "097d3f057b466740b600b33d95807b4575da94572651c4e7b2c7451e0723228a"
+      },
+      {
+        "file": "boost-type_erasure-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "dd27e1d20284b9c4d9ffb124019547d751388a4c2009cdd3faf30829b5793683"
+      },
+      {
+        "file": "boost-url-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "9ecba2660e6920526823bcf5c8ca6c262caeebf47f47cdbc18d5213356fb6e0b"
+      },
+      {
+        "file": "boost-wave-1.90.0-7.fc44.x86_64.rpm",
+        "sha256": "766f1916896b3a83f233af4a413e1cd2eb0dff2752a95fd3deb0bfb2e68c9970"
+      },
+      {
+        "file": "fmt-11.2.0-4.fc44.x86_64.rpm",
+        "sha256": "1ba4d955ff7ee1ce4c95bf8a76349b5aa7481ed0370d2503eb7b23130460d13c"
+      },
+      {
+        "file": "fmt-devel-11.2.0-4.fc44.x86_64.rpm",
+        "sha256": "16468d250a1483719dae0cc8766e7fd267f083476d2e7abe0aac153bb76371cd"
+      },
+      {
+        "file": "libpq-18.0-4.fc44.x86_64.rpm",
+        "sha256": "8c034bd2d2139cfe0cb674c43aaf59cc94035e667dc99f463814d2ef123886d2"
+      },
+      {
+        "file": "libpq-devel-18.0-4.fc44.x86_64.rpm",
+        "sha256": "39dca92b5c49cd0a9775278d2da6394cba214a533bd0118bfdbc3ae967d898e5"
+      },
+      {
+        "file": "libquadmath-devel-16.2.1-2.fc44.x86_64.rpm",
+        "sha256": "0af879aab1721f25435d7d0cc8e83e829079ffaa626ec463a03283f5391918a9"
+      },
+      {
+        "file": "python3-numpy-2.4.6-1.fc44.x86_64.rpm",
+        "sha256": "a0558338a664bc33ea7b0815000ddd21a18d4c598d763d74c28381e2baecc065"
+      },
+      {
+        "file": "python3-numpy-f2py-2.4.6-1.fc44.x86_64.rpm",
+        "sha256": "2d8ae00276f0d2e0a9bfab7974cb7463e614f6e02653d9e5bc9ade5331464fd2"
+      },
+      {
+        "file": "soci-4.1.2-5.fc44.x86_64.rpm",
+        "sha256": "b416eaa72464a38c741fd40abd82a4bbe70be5cfe38da1df451eae9beb3f63a5"
+      },
+      {
+        "file": "soci-devel-4.1.2-5.fc44.x86_64.rpm",
+        "sha256": "c9375cc0dba37c78c26ab039a8852d1220c7717edf22062f224e440c945c0130"
+      },
+      {
+        "file": "soci-odbc-4.1.2-5.fc44.x86_64.rpm",
+        "sha256": "6f96f20b4ec1cd798d232b01446d8acaf38c3c58c6076628f255c7227ef5ec2f"
+      },
+      {
+        "file": "soci-odbc-devel-4.1.2-5.fc44.x86_64.rpm",
+        "sha256": "df854375c0223c87c2ac500c71fd2489215e775544812ad34636baca38131deb"
+      },
+      {
+        "file": "soci-postgresql-4.1.2-5.fc44.x86_64.rpm",
+        "sha256": "a0f6af9f6494850da4c0498a45a6990a03c8ed53ffe92410c48e4a456137735d"
+      },
+      {
+        "file": "soci-postgresql-devel-4.1.2-5.fc44.x86_64.rpm",
+        "sha256": "1a155fd3d4c6ec11411344552a0746ab0112e9466e3db2568bc9f9245a158adc"
+      },
+      {
+        "file": "soci-sqlite3-4.1.2-5.fc44.x86_64.rpm",
+        "sha256": "a9580def9b1c8660efeb3bb88cf0b0b7a1b632aa6df1fda4547233f9a2a45e78"
+      },
+      {
+        "file": "soci-sqlite3-devel-4.1.2-5.fc44.x86_64.rpm",
+        "sha256": "16d554125936131dc735731b23d8c9f5e81e3aa7ef98710d4407f167cc0939c0"
+      },
+      {
+        "file": "spdlog-1.15.3-4.fc44.x86_64.rpm",
+        "sha256": "8751c6ecf455efb597e301dc66d57310ece9a79ab52b90a08d43b969df81db50"
+      },
+      {
+        "file": "spdlog-devel-1.15.3-4.fc44.x86_64.rpm",
+        "sha256": "9f06e437b01d6e9b336facbd5c962ae3a0a647c993dfb3b21e871af5cbbe786b"
+      },
+      {
+        "file": "tomlplusplus-3.4.0-7.fc44.x86_64.rpm",
+        "sha256": "61fc59376ba96d82ead7a8231c67562024f815221249035a0addd753e3468cb2"
+      },
+      {
+        "file": "tomlplusplus-devel-3.4.0-7.fc44.x86_64.rpm",
+        "sha256": "fe7683a94d66529dbe6a6eba970b77bc54e7d599d4164b541d1855783331e13d"
+      },
+      {
+        "file": "unixODBC-2.3.14-3.fc44.x86_64.rpm",
+        "sha256": "3274eb101ec148230f6dac57a1f847eba6de6558a95794534fcbee0e78485a24"
+      },
+      {
+        "file": "unixODBC-devel-2.3.14-3.fc44.x86_64.rpm",
+        "sha256": "d67417138cb9e2d7b21cee437380d2d02e3b5d7b43b26f49cc9e5ef1dd383d74"
+      }
+    ],
+    "cmake_cache": {
+      "BUILD_TESTING:BOOL": "OFF",
+      "CMAKE_BUILD_TYPE:STRING": "Debug",
+      "CMAKE_CXX_COMPILER:FILEPATH": "/usr/bin/c++",
+      "CMAKE_CXX_FLAGS:STRING": "-I/tmp/fourstory-phase-a-deps/usr/include",
+      "CMAKE_DISABLE_FIND_PACKAGE_SOCI:UNINITIALIZED": "ON",
+      "CMAKE_EXE_LINKER_FLAGS:STRING": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+      "CMAKE_LIBRARY_PATH:UNINITIALIZED": "/tmp/fourstory-phase-a-deps/usr/lib64",
+      "CMAKE_PREFIX_PATH:UNINITIALIZED": "/tmp/fourstory-phase-a-deps/usr",
+      "FOURSTORY_BUILD_LEGACY_TNETLIB:BOOL": "OFF",
+      "FOURSTORY_ENABLE_POSTGRESQL:BOOL": "ON",
+      "FOURSTORY_OSSL_LEGACY_MODULE:FILEPATH": "/usr/lib/ossl-modules/legacy.so",
+      "FOURSTORY_SOCI_POSTGRESQL_LIBRARY:FILEPATH": "/tmp/fourstory-phase-a-deps/usr/lib64/libsoci_postgresql.so",
+      "FOURSTORY_TPROTOCOL_INCLUDE_DIR:PATH": "/home/tomasvanek/RiderProjects/4story-source/Lib/Own/TProtocol/include"
+    },
+    "binaries": [
+      {
+        "path": "build/phase-a-compile/bin/tloginsvr_asio",
+        "sha256": "68fa1e5cb26d7a911eb4b8ccd92dc420110cf2762ba4044e2100156946f67bf0",
+        "bytes": 26178408,
+        "executed": false
+      },
+      {
+        "path": "build/phase-a-compile/bin/tworldsvr_asio",
+        "sha256": "327bc33fdf5df40928e89194093f538e7537c63b12d45ae4c617992999c26007",
+        "bytes": 73700528,
+        "executed": false
+      },
+      {
+        "path": "build/phase-a-compile/bin/tmapsvr_asio",
+        "sha256": "567047e25a1af1b382f12114ded62d9a4c46a809427a2a336f278bd87bba5e1c",
+        "bytes": 57901872,
+        "executed": false
+      },
+      {
+        "path": "build/phase-a-compile/bin/tcontrolsvr_asio",
+        "sha256": "345c1b83a99d01e1993fc59e18db3e0612cbfc134221abc7f71a1beee7a3c481",
+        "bytes": 33576584,
+        "executed": false
+      },
+      {
+        "path": "build/phase-a-compile/bin/tpatchsvr_asio",
+        "sha256": "b235c4dd9d7028a80aab4c5f2e94d4109accb9189a72f1dda270af814462c104",
+        "bytes": 13010760,
+        "executed": false
+      },
+      {
+        "path": "build/phase-a-compile/bin/tlogsvr_asio",
+        "sha256": "d651ce5bfd582025928aa063b8f4e7d37272b554c8b9bbcee592a94d5fb1dab1",
+        "bytes": 8662656,
+        "executed": false
+      }
+    ],
+    "logs": [
+      {
+        "path": "cluster-debug.log",
+        "sha256": "f85455164f4a7f095ab5325000573a14771770d03cdb6e26f42a611fee81db06"
+      },
+      {
+        "path": "patch-debug.log",
+        "sha256": "e096bd09fd8fe5358968266274dba5d36f351ba261f9b33e51ba660ad90088df"
+      },
+      {
+        "path": "control-debug-initial-failure.log.gz",
+        "sha256": "ca4e7b9b671b7da5a7bf8136f1ccfd266a1e2d0102b09e5d59cb6c5d57b20151",
+        "uncompressed_sha256": "4031a3dc4e8a908c1d91ec4c862d63cc3f9b55a7efd551c98f5bddac758af498"
+      },
+      {
+        "path": "control-debug-repaired.log",
+        "sha256": "24403337b6052aca592f06bf216bb6f2e1995e67c899513fcd5d39c05d790a77"
+      },
+      {
+        "path": "cluster-debug-intermediate.log",
+        "sha256": "d8466915d43e3e2e32f4c3b9342844c6fddbd5ab74ad8c25bb240d628e25f74d"
+      },
+      {
+        "path": "log-debug.log",
+        "sha256": "5095e9cd7832f4e52863b24db7331f98ab04437c44d4cc49b7db2cac55cf38c3"
+      },
+      {
+        "path": "quest-routing-debug.log",
+        "sha256": "48c185eb836ff0f7992b4c1c25f9749c6e80c97d59cdd133b416f2e752e38fad"
+      },
+      {
+        "path": "control-snapshot-debug.log",
+        "sha256": "b184463e466665b38575d6d59d6a472d6df90310f4e08dd0679ff03fb57f1c99"
+      }
+    ],
+    "known_warnings": [
+      "Existing legacy PeerAuthRow BindInsert/BindUpdate use ineffective comma operator and expired local bindings; native PostgreSQL trust loading/audit bypass these methods. This remaining generic ORM issue is not declared complete.",
+      "Existing SpCall timestamp formatting, SOCI deprecated data_type and unused-variable warnings; see logs."
+    ]
+  },
+  "static_checks": {
+    "python_ast": "Parsed six changed/new database tool files without importing or executing them.",
+    "git_diff_check": "Passed; whitespace check only."
+  },
+  "tests": {
+    "executed": 0,
+    "status": "NOT_RUN_PHASE_A",
+    "historical_results": "Preserved unchanged; do not apply their VERIFIED status to this code."
+  },
+  "not_executed": [
+    "unit tests",
+    "integration tests",
+    "regression tests",
+    "protocol tests",
+    "PostgreSQL tests",
+    "CTest",
+    "pytest",
+    "sanitizers",
+    "fuzzing",
+    "benchmarks",
+    "migration application",
+    "archive extraction/import",
+    "data reconciliation",
+    "server processes",
+    "client processes",
+    "Docker/Podman build",
+    "container startup",
+    "cluster restart"
+  ],
+  "migrations": [
+    {
+      "path": "database/postgresql/044-native-skill-audit.sql",
+      "sha256": "034a96fdb51a939edf7b6d2e5470d4322e95999741d644603fecd8019dace1f2",
+      "status": "WRITTEN_NOT_APPLIED"
+    },
+    {
+      "path": "database/postgresql/045-native-quest-progress.sql",
+      "sha256": "dc1a215266a86d324e427b7e47b0a78245386ddece20e2ff0f5ed51cc4d55df3",
+      "status": "WRITTEN_NOT_APPLIED"
+    },
+    {
+      "path": "database/postgresql/046-native-quest-conditions.sql",
+      "sha256": "8580cf1c0a3ba37e23bc9351cc142349ddb60eb3e349c70db911de1e96a0b9b6",
+      "status": "WRITTEN_NOT_APPLIED"
+    },
+    {
+      "path": "database/postgresql/047-native-peer-security.sql",
+      "sha256": "42f48dc91f35410c41b08647ebe9367ebda3f6db6d8804c6ae2fb7c591956f56",
+      "status": "WRITTEN_NOT_APPLIED"
+    },
+    {
+      "path": "database/postgresql/048-native-patch-metadata.sql",
+      "sha256": "21fa6130993effd6c664a04b2aa563c5300d0a994134caff0b57005d709cab9e",
+      "status": "WRITTEN_NOT_APPLIED"
+    },
+    {
+      "path": "database/postgresql/049-native-control.sql",
+      "sha256": "6e7656e6e48c684899fe565504efcc838afbdb52d0433dcb1d7ca39245e631e1",
+      "status": "WRITTEN_NOT_APPLIED"
+    },
+    {
+      "path": "database/postgresql/050-native-control-peer-state.sql",
+      "sha256": "f6f7ef645906f0ca87f4e26873d3528be7d7af9e5be8c0ef749cfc67a36fa6b5",
+      "status": "WRITTEN_NOT_APPLIED"
+    }
+  ],
+  "existing_migrations": "001-043 unchanged against the baseline; no database history queried in Phase A.",
+  "backup_identity_from_preserved_inventory": [
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "size_bytes": 34009088,
+      "format": "Microsoft Tape Format; SQL Server backup candidate",
+      "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259",
+      "suspected_purpose": "database backup candidate"
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "size_bytes": 36560896,
+      "format": "Microsoft Tape Format; SQL Server backup candidate",
+      "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb",
+      "suspected_purpose": "database backup candidate"
+    }
+  ],
+  "client": {
+    "source_only": true,
+    "executable": null,
+    "assets": null,
+    "supported_binary_build": null,
+    "acceptance": "BLOCKED_MISSING_EXECUTABLE_AND_ASSETS"
+  },
+  "whole_runtime_postgresql_only": false,
+  "phase_b": "NOT_STARTED",
+  "phase_c": "NOT_STARTED",
+  "untouched_preexisting_work": "Untracked _rewrite/docs/audits/ was neither edited nor staged."
+}

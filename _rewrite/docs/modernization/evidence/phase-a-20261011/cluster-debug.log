@@ -1,0 +1,407 @@
+[1/169] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/handlers.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/handlers.cpp:2:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[2/169] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio_core.dir/patch_server.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[3/169] Building CXX object Server/TLogSvrAsio/CMakeFiles/tlogsvr_asio_core.dir/log_server.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLogSvrAsio/log_server.h:9,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLogSvrAsio/log_server.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[4/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/control_server.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/control_server.h:11,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/control_server.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[5/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/peer_dialer.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/peer_dialer.h:19,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/peer_dialer.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[6/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_auth.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_auth.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[7/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_service.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_service.cpp:1:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[8/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_admin.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_admin.cpp:22:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[9/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_event.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_event.cpp:16:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[10/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_extra.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_extra.cpp:30:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[11/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_patch.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_patch.cpp:16:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[12/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/handlers/handlers_registry.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers_registry.cpp:34:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[13/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_peer_repository.cpp.o
+[14/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_service_inventory.cpp.o
+[15/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/soci_user_protected_service.cpp.o
+[16/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/spdlog_admin_audit_logger.cpp.o
+[17/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio_core.dir/services/windows_scm_service_controller.cpp.o
+[18/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/map_server.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp: In member function ‘boost::asio::awaitable<void> tmapsvr::MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp:203:17: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  203 |                 if(ctx.skill_cooldown&&identity->phase!=SessionPhase::TransferOut)
+      |                 ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp:205:21: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  205 |                     auto* player = ctx.player_service;
+      |                     ^~~~
+[19/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_world.cpp.o
+[20/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_native_entry.cpp.o
+[21/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_main_transfer.cpp.o
+[22/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/session.cpp.o
+[23/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/skill.cpp.o
+[24/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/inventory.cpp.o
+[25/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/title.cpp.o
+[26/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/secure_code.cpp.o
+[27/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/maintained_effect.cpp.o
+[28/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/quest.cpp.o
+[29/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_service.cpp.o
+[30/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_player_service.cpp.o
+[31/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_load.cpp.o
+[32/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_checkpoint.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp: In lambda function:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:928:9: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+  928 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |         ^~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:928:129: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+  928 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |                                                                                                                                 ^~~~~~
+[33/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_quest.cpp.o
+[34/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_quest_items.cpp.o
+[35/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_reagent.cpp.o
+[36/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_cast.cpp.o
+[37/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_inventory.cpp.o
+[38/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_transfer.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp: In member function ‘virtual bool tmapsvr::PostgreSQLMapService::PrepareTransfer(const tmapsvr::MapSessionClaim&, const tmapsvr::CharSnapshot&, std::span<const std::byte>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:89:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   89 |         if(!sql.got_data())return false;tx->commit();return true;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:89:41: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   89 |         if(!sql.got_data())return false;tx->commit();return true;
+      |                                         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp: In member function ‘virtual std::optional<tmapsvr::TransferredCharacter> tmapsvr::PostgreSQLMapService::AcceptTransfer(const tmapsvr::MapSessionClaim&, std::span<const std::byte>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:126:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  126 |     if(!LockAccount(sql,c))return {};CheckCatalogs(sql);
+      |     ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:126:38: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  126 |     if(!LockAccount(sql,c))return {};CheckCatalogs(sql);
+      |                                      ^~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:155:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  155 |         if(!sql.got_data())return {};tx->commit();return TransferredCharacter{std::move(s),static_cast<std::uint64_t>(target_epoch)};
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:155:38: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  155 |         if(!sql.got_data())return {};tx->commit();return TransferredCharacter{std::move(s),static_cast<std::uint64_t>(target_epoch)};
+      |                                      ^~
+[39/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_route.cpp.o
+[40/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_replica.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp: In member function ‘virtual bool tmapsvr::PostgreSQLMapService::LoadReplica(const tmapsvr::MapSessionClaim&, uint16_t, float, float)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp:105:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  105 |     if(!sql.got_data())return false;tx->commit();return true;
+      |     ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp:105:37: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  105 |     if(!sql.got_data())return false;tx->commit();return true;
+      |                                     ^~
+[41/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/config.cpp.o
+[42/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/main_transfer_runtime.cpp.o
+[43/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/world_session.cpp.o
+[44/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/db/schema_validator.cpp.o
+[45/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/world_server.cpp.o
+[46/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/dispatch.cpp.o
+[47/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o
+[48/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char_base.cpp.o
+[49/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_party.cpp.o
+[50/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_corps.cpp.o
+[51/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_guild.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_guild.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::OnGuildPointRewardAck(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_guild.cpp:2930:19: warning: variable ‘target_key’ set but not used [-Wunused-but-set-variable=]
+ 2930 |     std::uint32_t target_key = 0;
+      |                   ^~~~~~~~~~
+[52/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_friend.cpp.o
+[53/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_chat.cpp.o
+[54/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_soulmate.cpp.o
+[55/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_tms.cpp.o
+[56/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_post.cpp.o
+[57/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_occupy.cpp.o
+[58/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_combat.cpp.o
+[59/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_event.cpp.o
+[60/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_item.cpp.o
+[61/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_admin.cpp.o
+[62/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_recallmon.cpp.o
+[63/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_rank.cpp.o
+[64/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_bow.cpp.o
+[65/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_conn.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::{anonymous}::ReconcileConList(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&, const char*)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:155:32: warning: variable ‘channel’ set but not used [-Wunused-but-set-variable=]
+  155 |     std::uint8_t  main_id = 0, channel = 0;
+      |                                ^~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:156:19: warning: variable ‘map_id’ set but not used [-Wunused-but-set-variable=]
+  156 |     std::uint16_t map_id = 0;
+      |                   ^~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:19: warning: variable ‘px’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                   ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:27: warning: variable ‘py’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                           ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:35: warning: variable ‘pz’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                                   ^~
+[66/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_br.cpp.o
+[67/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_rps.cpp.o
+[68/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_cashshop.cpp.o
+[69/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_cmgift.cpp.o
+[70/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_ctrlsvr.cpp.o
+[71/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_service.cpp.o
+[72/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_apex.cpp.o
+[73/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_tournament.cpp.o
+[74/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_relay.cpp.o
+[75/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_relay.cpp.o
+[76/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_guild.cpp.o
+[77/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_party.cpp.o
+[78/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_corps.cpp.o
+[79/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_friend.cpp.o
+[80/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_chat.cpp.o
+[81/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_soulmate.cpp.o
+[82/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_tms.cpp.o
+[83/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_post.cpp.o
+[84/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_occupy.cpp.o
+[85/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_event.cpp.o
+[86/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_combat.cpp.o
+[87/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_item.cpp.o
+[88/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_admin.cpp.o
+[89/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_rank.cpp.o
+[90/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_recallmon.cpp.o
+[91/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_conn.cpp.o
+[92/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_bow.cpp.o
+[93/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_br.cpp.o
+[94/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_rps.cpp.o
+[95/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_cashshop.cpp.o
+[96/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_tournament.cpp.o
+[97/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/char_registry.cpp.o
+[98/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_broadcast.cpp.o
+[99/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_peerage.cpp.o
+[100/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_level_cache.cpp.o
+[101/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_registry.cpp.o
+[102/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/party_registry.cpp.o
+[103/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/corps_registry.cpp.o
+[104/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/tms_registry.cpp.o
+[105/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/bow_registry.cpp.o
+[106/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/br_registry.cpp.o
+[107/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/rps_registry.cpp.o
+[108/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/event_registry.cpp.o
+[109/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/cash_item_sale_registry.cpp.o
+[110/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_friend_repository.cpp.o
+[111/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/ctrl_svr_slot.cpp.o
+[112/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_wanted_registry.cpp.o
+[113/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_friend_repository.cpp.o
+[114/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_tactics_wanted_registry.cpp.o
+[115/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_wanted_sweep.cpp.o
+[116/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_cabinet_codec.cpp.o
+[117/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/pvp_aggregate.cpp.o
+[118/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_guild_level_repository.cpp.o
+[119/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_tactics_sweep.cpp.o
+[120/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_guild_repository.cpp.o
+[121/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_guild_level_repository.cpp.o
+[122/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_item_state_repository.cpp.o
+[123/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_guild_repository.cpp.o
+[124/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_item_state_repository.cpp.o
+[125/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_cash_sale_repository.cpp.o
+[126/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_service_ops_repository.cpp.o
+[127/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_cash_sale_repository.cpp.o
+[128/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/month_rank_registry.cpp.o
+[129/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/war_country_index.cpp.o
+[130/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_service_ops_repository.cpp.o
+[131/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/cmgift_registry.cpp.o
+[132/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/castle_war_registry.cpp.o
+[133/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/event_quarter_scheduler.cpp.o
+[134/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_rps_repository.cpp.o
+[135/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/expired_buffer.cpp.o
+[136/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_lucky_event_repository.cpp.o
+[137/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_rps_repository.cpp.o
+[138/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_cmgift_repository.cpp.o
+[139/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_lucky_event_repository.cpp.o
+[140/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_war_ops_repository.cpp.o
+[141/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_cmgift_repository.cpp.o
+[142/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_month_rank_repository.cpp.o
+[143/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_war_ops_repository.cpp.o
+[144/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_month_rank_repository.cpp.o
+[145/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/tournament_registry.cpp.o
+[146/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/tournament_boot.cpp.o
+[147/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_tournament_repository.cpp.o
+[148/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_bow_repository.cpp.o
+[149/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_bow_repository.cpp.o
+[150/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_tournament_repository.cpp.o
+[151/169] Linking CXX static library lib/libtloginsvr_asio_core.a
+[152/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/peer_registry.cpp.o
+[153/169] Linking CXX static library lib/libtpatchsvr_asio_core.a
+[154/169] Building CXX object Server/TPatchSvrAsio/CMakeFiles/tpatchsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/patch_server.h:6,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TPatchSvrAsio/main.cpp:4:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[155/169] Building CXX object Server/TLoginSvrAsio/CMakeFiles/tloginsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLoginSvrAsio/main.cpp:39:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[156/169] Linking CXX static library lib/libtlogsvr_asio_core.a
+[157/169] Linking CXX static library lib/libtcontrolsvr_asio_core.a
+[158/169] Building CXX object Server/TLogSvrAsio/CMakeFiles/tlogsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLogSvrAsio/log_server.h:9,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TLogSvrAsio/main.cpp:3:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[159/169] Linking CXX static library lib/libtmapsvr_asio_core.a
+[160/169] Building CXX object Server/TControlSvrAsio/CMakeFiles/tcontrolsvr_asio.dir/main.cpp.o
+In file included from /home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_security_gate.h:27,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/handlers/handlers.h:36,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/control_server.h:11,
+                 from /home/tomasvanek/RiderProjects/4story-source/Server/TControlSvrAsio/main.cpp:8:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindInsert(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:104:30: warning: left operand of comma operator has no effect [-Wunused-value]
+  104 |         st , soci::use(g, "g")
+      |                              ^
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h: In static member function ‘static void fourstory::db::orm::EntityMapping<fourstory::security::PeerAuthRow>::BindUpdate(soci::statement&, const T&)’:
+/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon/fourstory/security/peer_auth_repository.h:115:45: warning: left operand of comma operator has no effect [-Wunused-value]
+  115 |         st , soci::use(e.secret_hex,   "sec")
+      |                                             ^
+[161/169] Linking CXX static library lib/libtworldsvr_asio_core.a
+[162/169] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio.dir/main.cpp.o
+[163/169] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio.dir/main.cpp.o
+[164/169] Linking CXX executable bin/tloginsvr_asio
+[165/169] Linking CXX executable bin/tpatchsvr_asio
+[166/169] Linking CXX executable bin/tlogsvr_asio
+[167/169] Linking CXX executable bin/tcontrolsvr_asio
+[168/169] Linking CXX executable bin/tmapsvr_asio
+[169/169] Linking CXX executable bin/tworldsvr_asio

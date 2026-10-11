@@ -1,5 +1,19 @@
 # Capability traceability and acceptance backlog
 
+## Active Phase A changes, starting at `2fa2396`
+
+All current changes are **UNVERIFIED**. Historical VERIFIED entries below apply
+only to their recorded commits. See [working coverage](full-rewrite-status.md)
+and [source-to-runtime rows](legacy-modern-coverage.csv). Added native quest
+progress/conditions, NPC conversation, mission/item/skill/routing actions, peer
+trust/audit, Patch metadata and Control topology/auth/ban/event/peer persistence
+are integrated in existing services. Control now uses owning topology snapshots
+across offload/await boundaries. Quest completion/rewards, other action types,
+switch/territory state, World persistence and full subsystem parity remain open.
+Migrations044–050 and archival/import tools are written, not executed. Debug
+compilation of all six modern binaries succeeded; tests and runtime startup are
+deferred by the Phase A gate. No named client binary is available.
+
 Status vocabulary: NOT_ANALYZED → ANALYZED → SPECIFIED → IMPLEMENTING → IMPLEMENTED
 → INTEGRATED → VERIFIED; BLOCKED identifies a specific missing contract. Status
 always applies to the stated scope, not the whole server. Tests of fake services
@@ -12,7 +26,7 @@ Its per-file NOT_ANALYZED entries require a detailed behavioral review beyond th
 role-level assessment below. Shared packet names identify candidate counterparts,
 not proof of replacement. Regenerate with `python3 tools/modernization_inventory.py`.
 
-## Current native account security slice
+## Historical native account security slice (`2fa2396`)
 
 | Capability | Implementation/integration | Verification and limit |
 |---|---|---|

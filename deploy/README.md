@@ -1,5 +1,25 @@
 # Linux containers
 
+## Active Phase A: compile only
+
+The current owner instruction requires the full implementation before new tests,
+migration/import runs and container startup. The commands in the historical
+sections below reproduce their original revisions; they do not certify current
+Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
+
+Current `0457d3d` / `750c797` needs the additive chain through055 and the updated
+`deploy/sql/map-runtime-grants.sql` when Phase B later opens an isolated database.
+Migration055 preserves old operation receipts as NULL and adds no historic data.
+The grant update covers durability/refinement and raw magic columns; do not
+assume the old repair role already has these permissions. None was applied here.
+
+World also needs `[security].control_ip_allowlist` with the actual Control peer
+IPv4 address/CIDR. Empty denies the original CT_CTRLSVR role; use the private peer
+network. The field is documented in `config.example/tworldsvr.toml`, whose
+in-memory smoke configuration is not a complete native gameplay deployment.
+No supported executable/assets are available and no complete current cluster was
+started. [Current compile-only evidence](../_rewrite/docs/modernization/evidence/phase-a-refine-events-20261011/README.md).
+
 ## Native skill finishes with postures
 
 Current bounded increment: stop Map writers and apply migrations through **038**

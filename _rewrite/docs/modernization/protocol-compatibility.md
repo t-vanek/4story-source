@@ -71,6 +71,24 @@ of undefined numeric/caller-pointer cases are explicit modern differences.
 Shop/deal/tournament producers, conditional territory discounts and premium
 admission remain incomplete; these packets do not certify those game systems.
 
+Code `0457d3d` / `750c797` adds these **INTEGRATED_UNVERIFIED** source paths:
+
+| Operation | Preserved source wire / order | Explicit bounds |
+|---|---|---|
+| REFINE0x543F | BYTE quote/bag/slot/count + WORD NPC + BYTE caller bag/slot + material BYTE pairs;0x5440 DWORD cost/BYTE discount;0x5441 result/bag and successful item descriptor | Secure prompt precedes decoding; full material stacks are spent before chance; conditional territory authority remains missing |
+| WASTEREFINE0x5479 | BYTE bag/slot; debit → ADDITEM →0x547A BYTE result | Requires a blank before debit; constructor values and no merge; no invented secure/dead/use-item hooks |
+| ITEMUSE912/913 | Source self-Defend host/self IDs and attack level; zero-MP END/stat first, then DEFEND/stat, common debit/result/quest hooks | Only the pinned pure statuses; general effects/combat remain incomplete |
+| EVENTINFO | Full original fixed-width body/opaque text bytes; World overrides inner value, live uses outer event ID and replay inner ID in unsigned index order | No client metadata;055 stores server-only admission context; original ACK precedes replay with no end marker |
+| Control transport | Original8-byte framing/checksum; role frame then complete running-event replay; ordered whole plain/TLS writes | New256-frame/4MiB limit, exact-connection cleanup and authorization repairs require Phase B acceptance |
+
+World requires an explicit Control IPv4/CIDR allowlist and refuses role
+reassignment. Direct Control event/cash pushes now require GMLevel3 or All.
+These are documented security changes; IP trust does not establish cryptographic
+identity. Zero-material division, dangling caller references and one-past event
+indices are rejected. Conflicting raw values in unordered source skill rows
+remain an explicit contract blocker. No source-client or packet test was run.
+[Exact source references and differences](evidence/phase-a-refine-events-20261011/README.md).
+
 Native Patch metadata sends the original varchar byte sequences, not a UTF-8
 re-encoding of decoded catalog text (`TPatchSvr.vcxproj` is MultiByte). Backup
 `dbo.TMinBetaVer` sets OUT parameter `@dwMinVer=2`; `CSPMinBetaVer` instead binds a

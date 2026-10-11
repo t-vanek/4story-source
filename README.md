@@ -26,7 +26,7 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–054** and native code extend quest state/actions, skill audit,
+New migrations **044–055** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -48,11 +48,19 @@ ordinary-player profile are recorded in the
 Account premium/PCBang, complete monster rewards and other item-use kinds remain
 unfinished. See the [exact continuation](_rewrite/docs/modernization/full-rewrite-status.md#exact-continuation--implementation-gate).
 
+Code `0457d3d` connects ordinary REFINE, WASTEREFINE and probability consumables
+912/913 to the existing native item/effect/purse transaction. Control/World event
+values reach Map and are sampled in operation receipts (migration055). World
+requires an explicit Control IP allowlist. `750c797` serializes Control output,
+event CRUD/tick/replay and exact-connection retirement. Conditional territory
+bonuses, general effects and complete event recovery remain open. These paths
+are **INTEGRATED_UNVERIFIED**; see [source contracts and limits](_rewrite/docs/modernization/evidence/phase-a-refine-events-20261011/README.md).
+
 All six modern Debug and Release targets compile with tests disabled; this is
-build evidence only. Historical import tools and migrations052–054 are written, not
+build evidence only. Historical import tools and migrations044–055 are written, not
 executed. No tests, database migration, server startup or container run belongs
-to these changes. Previous migrations001–053 remain unchanged in this increment; the next unused
-migration number is055. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-lottery-boxes-20261011/README.md).
+to these changes. Previous migrations001–054 remain unchanged in this increment; the next unused
+migration number is056. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-refine-events-20261011/README.md).
 
 ## Historical verification through `2fa2396`
 

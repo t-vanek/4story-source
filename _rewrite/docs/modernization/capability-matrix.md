@@ -20,10 +20,20 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–054 and archival/import tools are written, not executed. Debug and
+Migrations044–055 and archival/import tools are written, not executed. Debug and
 Release compilation of all six modern binaries succeeded; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
-[Exact source scope and limitations](evidence/phase-a-lottery-boxes-20261011/README.md).
+[Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
+
+Current code `0457d3d` / `750c797` adds these **INTEGRATED_UNVERIFIED** paths:
+
+| Capability | Implemented runtime path | Remaining scope / acceptance |
+|---|---|---|
+| REFINE and WASTEREFINE | Original requests → primary owner fence → native item/purse/title/effect transaction → original ACK; full-stack materials and source magic order | Conditional territory bonus/discount authority; BOW variant; PG/concurrency/client acceptance |
+| Probability consumables912/913 | ITEMUSE pure self-Defend → retained status/save/transfer/expiry → one-use CalcProb consumption | General item skills/effects, regeneration and exact durable sub-tick sampling |
+| World numeric events | Full EVENTINFO validation → ordered registry/live delivery/replay → Map values → receipt context055 | Spawn/regen12/13; complete crash/deactivation and one-shot reward recovery; no replay-complete marker |
+| Control event delivery | Native CRUD with shared scheduler/replay lease; bounded plain/TLS frame serialization; publish after role/replay; exact-connection retirement | Slow-reader/DB/process/reconnect scenarios unexecuted; whole admin/peer security and Relay replacement incomplete |
+
 
 Status vocabulary: NOT_ANALYZED → ANALYZED → SPECIFIED → IMPLEMENTING → IMPLEMENTED
 → INTEGRATED → VERIFIED; BLOCKED identifies a specific missing contract. Status

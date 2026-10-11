@@ -8,10 +8,37 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–054 are **written, not applied**.
-Latest code increment: `72d6504` (security ordering), following `c4385af` based on
-`7a7d3ab`; earlier Phase A evidence
+evidence remain unchanged. New migrations044–055 are **written, not applied**.
+Latest code increments: `0457d3d` (native refine/probability/World events) and
+`750c797` (Control transport/event lifecycle), based on `ae121d2`; earlier Phase A evidence
 is retained at its original revision.
+
+## Refine, probability items and event delivery — `0457d3d` / `750c797`
+
+- Original REFINE quote/execution and WASTEREFINE now reach the existing primary
+  PostgreSQL transaction. Preserve source level/cost/narrowing/random order,
+  full material-stack loss, raw magic collisions/reverse selection, preflight
+  titles and caller consumption. Fresh item fingerprints or the authoritative
+  full graph, owner/epoch/checkpoint/operation heads fence each mutation.
+- Pure skill912/913 consumables have their original self-Defend entry, zero-MP
+  lifecycle, maintained storage/transfer and one-use REFINE/TRANS probability
+  consumption. General item skills and the full combat/regeneration consumers
+  remain incomplete; these two skills do not certify the whole effect engine.
+- Complete World EVENTINFO validation, original inner-value correction and
+  ordered live/replay delivery feed16 source WORD values into Map. Native
+  mutations sample their connection/revision/value context into migration055.
+  The original ACK-before-replay sequence has no completion marker; full event
+  recovery remains open. Monster events12/13 reject missing spawn/AI effects.
+- World requires the explicit Control address/CIDR and same-connection CT role.
+  Control has bounded owned frame buffers for plain/TLS, a shared event mutation/
+  delivery lease, unpublished dialing through role/replay, and exact-connection
+  monitor/cleanup. Old callbacks cannot remove a successor. Direct event/cash
+  pushes require GMLevel3/All; source Relay announcement routing is restored.
+- Migration055 and specific Map item-column grants are written only. Earlier
+  migrations and historical sources remain intact. These changes are
+  **INTEGRATED_UNVERIFIED**, not a complete Control/World/gameplay replacement.
+
+[Source contracts, explicit changes, remaining scenarios and compilation](evidence/phase-a-refine-events-20261011/README.md).
 
 ## Soul Lottery, boxes, sale and repair — `c4385af`
 
@@ -249,20 +276,24 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    Premium item templates7401/7402/7403 use skills900/901/902,7626/7627/7628 use
    914/915/916 in the available catalog; inspect their full data before admission.
    Complete remaining CS_ITEMUSE kinds beyond HP/MP/AP/full-resource/direct-EXP/
-   EXPBONUS/MONEY/SPECIALBOX, tournament/deal/store producers and exact effect
+   EXPBONUS/MONEY/SPECIALBOX/pure912/913, tournament/deal/store producers and exact effect
    sampling at save/transfer/logout. Do not confuse packet-time samples with
    durable sub-tick persistence. Soul Lottery820 is integrated, not verified.
-   Continue REFINE with original CalcProb event/territory/effect authority
-   (TMapSvr.cpp:9615; CSHandler.cpp:14124), full-stack material deletion, magic
-   collision/transfer rules and native item ownership. Do not substitute zero
-   event state; reject source zero-material division and dangling caller aliases.
+   Ordinary REFINE/WASTEREFINE and received event probabilities are now connected.
+   Complete conditional guild/hero NPC bonuses/discounts, BOW-specific branches,
+   remaining upgrades/gambling and general item effects. Preserve the new
+   full-stack/magic/caller behavior and exact per-operation World observation;
+   it is not a complete event replay/recovery barrier.
    Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN
    and all non-request kill/use-item/position/spawn producers. Quest mail uses
    TRESERVEDPOST then TGetReservedPost and storage2; carried-only TITEMTABLE cannot
    receive attachments without an explicit storage/ownership extension.
 2. Implement source Map switches (QCT20), neutral NPC territory authority and
    conditional guild/hero trainer discounts. No substitute country/switch values.
-3. Finish Control one-shot event delivery/recovery with native World recipients;
+3. Finish Control one-shot event delivery/recovery with native World recipients,
+   missing monster event12/13 side effects and deactivation after Control/World
+   crashes. Frame/replay serialization is implemented; durable application
+   receipts, full admin reply correlation and slow-peer deadlines remain open;
    complete missing pre-version contracts if further authoritative SQL is found.
    Operator/offline tools, service variants and remaining admin behavior still
    need per-responsibility review; native DB paths alone do not complete Control.
@@ -279,10 +310,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 ## Activities actually performed
 
 All six modern C++20 Debug and Release targets compile/link with BUILD_TESTING=OFF
-for code commit `72d6504`. The changed quest catalog activation tool was AST-parsed
-without importing/executing it. `git diff --check` passes. Compilation does not establish
+for code commits `0457d3d` and `750c797`. This increment read existing historical
+exports without running import/extraction. `git diff --check` passes. Compilation does not establish
 gameplay, persistence or protocol parity.
 Exact configuration, commands and logs are retained in
+[evidence/phase-a-refine-events-20261011](evidence/phase-a-refine-events-20261011/README.md).
+Earlier lottery/item economy compilation remains in
 [evidence/phase-a-lottery-boxes-20261011](evidence/phase-a-lottery-boxes-20261011/README.md).
 Previous resource/cooldown compile evidence remains in
 [evidence/phase-a-item-use-20261011](evidence/phase-a-item-use-20261011/README.md).

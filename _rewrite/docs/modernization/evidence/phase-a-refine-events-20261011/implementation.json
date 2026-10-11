@@ -1,0 +1,337 @@
+{
+  "recorded_at": "2026-10-11T18:34:14.813872+00:00",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "scope": "Ordinary native REFINE/WASTEREFINE, pure item buffs912/913, received World probability context and Control frame/event/connection lifecycle",
+  "code_commit": "750c797c60a816281e3dea97f28e10a6356d4201",
+  "feature_commit": "0457d3d51816072808e0dc2f804b2850827823f7",
+  "base_commit": "ae121d2349f422aa12fd751d15853db73aa4d888",
+  "branch": "main",
+  "published": false,
+  "cpp_standard": "C++20",
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "cmake version 4.3.0",
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j1",
+      "exit_code": 0,
+      "incremental": true,
+      "log": "debug-control-chain-build.log",
+      "log_sha256": "8c5a5ceff588c2a428b7501d2951e8d178a5f86fa657e93e869df50ef658de3f",
+      "preceding_item_event_build_log": "debug-buffs-build.log",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON",
+        "FOURSTORY_SOCI_POSTGRESQL_LIBRARY": "/tmp/fourstory-phase-a-deps/usr/lib64/libsoci_postgresql.so"
+      },
+      "binaries": {
+        "tloginsvr_asio": {
+          "path": "build/phase-a-compile/bin/tloginsvr_asio",
+          "sha256": "68fa1e5cb26d7a911eb4b8ccd92dc420110cf2762ba4044e2100156946f67bf0"
+        },
+        "tworldsvr_asio": {
+          "path": "build/phase-a-compile/bin/tworldsvr_asio",
+          "sha256": "c12c59593b1dfba09beba16ee875a68a4952ea0a54b69411bf17f85d2cb67311"
+        },
+        "tmapsvr_asio": {
+          "path": "build/phase-a-compile/bin/tmapsvr_asio",
+          "sha256": "ff9a5757eb3b690f2b0e06b1e839666cc6ad4141251b62a9e00ca0471313f5bf"
+        },
+        "tcontrolsvr_asio": {
+          "path": "build/phase-a-compile/bin/tcontrolsvr_asio",
+          "sha256": "0e665be51b62f2a1f61a51c0883a075e7660deb60efaf800263cbb3536b9c788"
+        },
+        "tpatchsvr_asio": {
+          "path": "build/phase-a-compile/bin/tpatchsvr_asio",
+          "sha256": "b235c4dd9d7028a80aab4c5f2e94d4109accb9189a72f1dda270af814462c104"
+        },
+        "tlogsvr_asio": {
+          "path": "build/phase-a-compile/bin/tlogsvr_asio",
+          "sha256": "d651ce5bfd582025928aa063b8f4e7d37272b554c8b9bbcee592a94d5fb1dab1"
+        }
+      }
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j1",
+      "exit_code": 0,
+      "incremental": true,
+      "log": "release-control-chain-build.log",
+      "log_sha256": "8c5a5ceff588c2a428b7501d2951e8d178a5f86fa657e93e869df50ef658de3f",
+      "preceding_item_event_build_log": "release-build.log",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON",
+        "FOURSTORY_SOCI_POSTGRESQL_LIBRARY": "/tmp/fourstory-phase-a-deps/usr/lib64/libsoci_postgresql.so"
+      },
+      "binaries": {
+        "tloginsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tloginsvr_asio",
+          "sha256": "7bd272eaa215f6d276c73e27c56a5ecce096cbf88f98eed24fc34695756276c9"
+        },
+        "tworldsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tworldsvr_asio",
+          "sha256": "94281cabff7b354e439d792ffcf9a0fac074d1ad43c43233a61d60009c1301a3"
+        },
+        "tmapsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tmapsvr_asio",
+          "sha256": "96a68530abd9cb24cfbfc16cef485e6bb0f18c222f404c4f5203b14062f1f7e7"
+        },
+        "tcontrolsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tcontrolsvr_asio",
+          "sha256": "d1008e8cea3a2b4b3a3af9a67a341bd1213ab79aaadbbb035be8f8d7adac5358"
+        },
+        "tpatchsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tpatchsvr_asio",
+          "sha256": "a855c67587fc8607824b540c7f151f6873b1c8ee559eb6606a0cd15df702f17f"
+        },
+        "tlogsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tlogsvr_asio",
+          "sha256": "5c70537a9fa802a1a1a7c09e1eadfcfcb6928c76ed5a96f2217b626e67abd4a8"
+        }
+      }
+    }
+  ],
+  "compilation_logs": {
+    "debug-buffs-build.log": "86feaf43f473d40e4c340ee6f0b9341819c061efae79972c2f25437b5c99ce02",
+    "debug-build.log": "8538c38e16ddeecf43c5419579fa8bd7fab1b65173447851b62bc900d38bab71",
+    "debug-control-chain-build.log": "8c5a5ceff588c2a428b7501d2951e8d178a5f86fa657e93e869df50ef658de3f",
+    "debug-final-build.log": "6a90c114784f31899631dbf027589d25cb2c5a59bc0864186831e2e7b8c9a83b",
+    "debug-status-value-build.log": "5e45adfde1edb1125c32bdd2a51ad26a960b8c917b700c08bc40daf40b7e0580",
+    "release-build.log": "f3575b5d5e06628c76888aa2ef4fbb1343c913de70af93871a2db6808bcab5e6",
+    "release-control-chain-build.log": "8c5a5ceff588c2a428b7501d2951e8d178a5f86fa657e93e869df50ef658de3f"
+  },
+  "files_sha256": {
+    "Client/TClient/CSHandler.cpp": "51e3b85b5cd2d5af27be15f564ff45c875a02c2b70bed326648ef80484cd8ce3",
+    "Client/TClient/CSSender.cpp": "8c69c82b30d44e236d58797cc4f102df4fdf95a80df5696df468d5fa9a02c3f7",
+    "Client/TClient/CSSenderAll.cpp": "9935f563e72c27543ed45f19f4e5ff0fcc4fe32068354fec9250dca9b95530d9",
+    "Lib/Own/TNetLib/TNetLib/Session.cpp": "a0fe72df1e74b0cb4c4e05a2801b713b4d106259d3ddd5023ecdc502489535c5",
+    "Lib/Own/TProtocol/include/LegacyEventInfo.h": "ff1820c9c558ccbfe8ff4e840a43a067cd0b075f60d602d478bf1db10c8a2860",
+    "Lib/Own/TProtocol/include/MessageId.h": "2de84ea6ef0e2a77d3226fc0f1698cb9af9295c7265f9299ec1f168702761bc2",
+    "Lib/Own/TProtocol/include/NetCode.h": "fa6b11998606c72a81e9ae282590d5afdbf2950d832a743b54ae0dd35e648c9d",
+    "Server/TControlSvr/Handler.cpp": "69163e2deacbf5f89273cc51fe14bdc12cb2b2c0943206d244facfe48a7498a8",
+    "Server/TControlSvr/TControlSvr.cpp": "01d636658ef72fe40d33c0b249a773a43e4a4ef69187c2eb7f2cca9abbc5acb7",
+    "Server/TControlSvr/TServer.cpp": "8756bef064fa0ae6ea38eb9684224c7a10d3fa481de66c4d640f091a35afa842",
+    "Server/TControlSvrAsio/control_server.cpp": "f836ca0d361825abf0c33e99ce81f9773765d6f60f71e8060ef76b0170b78360",
+    "Server/TControlSvrAsio/control_session.cpp": "47d834f77e15a4373fa3debf89047c2180638f4b907c3c51eff350591f3cb412",
+    "Server/TControlSvrAsio/control_session.h": "3fcce68b611731bfcc3f57095dd8210e8f3d85b7443a0c9f7dad2db52609be45",
+    "Server/TControlSvrAsio/handlers/handlers_event.cpp": "ad72aa3b4f5f3fcb48ac64d2203589da2eedcca219e4e746994e64dddf3dd2f2",
+    "Server/TControlSvrAsio/handlers/handlers_service.cpp": "188daa575ed88185441d2a74eef64bbb8c99c9b473fe55ae92733b900e40a954",
+    "Server/TControlSvrAsio/peer_dialer.cpp": "8c0789e6b2c6494b765712b905fd09cdfdb5cbf5064b652d77947a7b17625d45",
+    "Server/TControlSvrAsio/peer_dialer.h": "6f8afa537d17f0149ee91184d18aad8fccd80b885b50360764021e22d4ad662f",
+    "Server/TControlSvrAsio/services/event_registry.cpp": "5c59bb4af8f12cf3e6d79cd53e92d6bbb4a6a52be52cd82b49715bd6c97992f3",
+    "Server/TControlSvrAsio/services/event_registry.h": "62295d932e593211a153d9e74994af30e29bf92f56ca66718153fa0ab857ff86",
+    "Server/TControlSvrAsio/services/peer_registry.cpp": "3115f52c41eef79cd4a963cfd166e56e615e55478407c671f78c0b59fa733173",
+    "Server/TControlSvrAsio/services/peer_registry.h": "0f57f33455f55f4717f40b3c0d0f98a5793d98b943c94a3c94e3b1501c0a5f2a",
+    "Server/TMapSvr/CSHandler.cpp": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50",
+    "Server/TMapSvr/CSSender.cpp": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029",
+    "Server/TMapSvr/DBAccess.h": "364fcadbbb78e49f9e7e3e6cddb0f8623eb9315ed2a9195bb3e8103c24277d9d",
+    "Server/TMapSvr/SSHandler.cpp": "8663a80a045d8a2a681c294bc80d8feb8ecd525812af151a60d3340afe8cf074",
+    "Server/TMapSvr/SSSender.cpp": "e39cc92a004b352cafc337307cf631214cd3680744d52e96a403fa75f07b7a53",
+    "Server/TMapSvr/TItem.cpp": "b5db67d34ee07a909f834a623e7b62b9a5a947389251044d10fc65d8dfbd99c2",
+    "Server/TMapSvr/TMapSvr.cpp": "1b490618105e0f5ca338852d1cd7c007c01301641b381c3b391f857e4973dd7c",
+    "Server/TMapSvr/TObjBase.cpp": "9c6b97b0616605b9ee50e169cd1a93a45cf34e2be178663fc58005ba17764181",
+    "Server/TMapSvr/TPlayer.cpp": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9",
+    "Server/TMapSvr/TSkillTemp.cpp": "9410b395c30f6700ffff6831b3aa1e47e284eb4c65b7ff137e57e1306c7b3be8",
+    "Server/TMapSvrAsio/CMakeLists.txt": "567d38c5970ae1d55808df4c876333ef48f03ce62619487a466b7022b9785ee9",
+    "Server/TMapSvrAsio/domain/character_payload.h": "9841724e9a328c38c0a1cc7abd676b44453c50d4c4e5928ee31931d805bc68f5",
+    "Server/TMapSvrAsio/handlers/dispatch.cpp": "94ebe4115bcf99379413c92f58145ccb1acd71a87b6e2eea3e1224ede369f069",
+    "Server/TMapSvrAsio/handlers/quest.cpp": "0a95287917442aa04177502fcfe50821d3a65b506f656eef8e14cf8a59ce2062",
+    "Server/TMapSvrAsio/main.cpp": "245ae310c3f74a799749cce7bc6d61bc9fb3af816a2aba809ceb8187e317c60c",
+    "Server/TMapSvrAsio/services/client_senders.cpp": "99dc14e4d9bc1ff5224e4092a5dbd43983ac04f18b6a4e83ea082a2c59061f75",
+    "Server/TMapSvrAsio/services/client_senders.h": "c94aa5e68ce89a5e9aedaae2c8d3ed1e7573c41c1d54a940dc8ed2fc6f2d3c30",
+    "Server/TMapSvrAsio/services/native_item_effects.h": "0c87c4901d692aeb945ebf733f96bf047f429d7d66230355295e0ae4fde00465",
+    "Server/TMapSvrAsio/services/native_item_power.h": "6b70321f465b36b06cc3010ae2f9f91b0f3904495f89153afde38405b8d99d79",
+    "Server/TMapSvrAsio/services/native_npc_discount.h": "dd5ac838c080419e561dae0dc45d438e5d55c9addab05c137bfdf45d96c9da3a",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "ea5e2fa7d0180f71cf286ece92ce4195a6fb7e40e2d914d7d97bc6b05f24262b",
+    "Server/TMapSvrAsio/services/postgresql_map_item_economy.cpp": "124088f8b58be0b35fb3acb4819277dbb93e509814eb624f6e4dd0242c16696f",
+    "Server/TMapSvrAsio/services/postgresql_map_item_refine.cpp": "a1dc9f773aca4e2cb5b4610f51996651cd54ba29580a001c7118d2cc6e427adc",
+    "Server/TMapSvrAsio/services/postgresql_map_item_use.cpp": "d96768a1d592763143af6c06263703d7bcd148849986b3f42bc74505fde2c957",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "07fd2b88b57cfa236bf687eb6ce2c01a66f3040efd9b4d9538907c2932b0e478",
+    "Server/TMapSvrAsio/services/postgresql_map_quest_items.cpp": "aace2320ed833b570f3d76c52eb97017cee6054f1883bcb2c8c649e6bc4246c2",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "a987dbb928ed2a600dcc42c80bad89c710af105f3abcafcbda0a651eda6e7b98",
+    "Server/TMapSvrAsio/services/posture_effects.h": "174e10b5f4108c630ff0a02a9ad3e0165b20d27b573e91922e920f20a224acf9",
+    "Server/TMapSvrAsio/services/quest_runtime.h": "3a9e4c6de5c858f83ceff2e4aa80b8843356da17da5e3bb0fdec8164283c1dd2",
+    "Server/TMapSvrAsio/services/world_client.cpp": "b57b2483f4b0aa741609db24abc3d51858d665bb4a28666eb4a7b0017dc4bbc9",
+    "Server/TMapSvrAsio/services/world_client.h": "9ab08f11bdc158cdc5703cadda4cd2cbe72253f8ae3050041e1b5df7ef86f41a",
+    "Server/TMapSvrAsio/services/world_event_state.h": "0014fed2c1374ff28c57370b4f2245697e5729759fb1fdf23e8aa595225d70f6",
+    "Server/TWorldSvr/SSHandler.cpp": "21e89457f70203072bd659ce419031b65d04f26287e7e9c56fd9d2c3290345c2",
+    "Server/TWorldSvr/TWorldType.h": "cfa3b7e79ff99c3199a5c95c5d28cc02eaad85c0ff2e9ebacfa6e8c4cbc4be22",
+    "Server/TWorldSvrAsio/config.cpp": "a64ad8b7a155c1d1a4486865185fc57ba9576e2e51d2b0db713121e7fe4d7aad",
+    "Server/TWorldSvrAsio/config.h": "5d18b18297745aeb4266d8da79c6023dae7a2e4166ed8d45b9fcdd2b8196bff6",
+    "Server/TWorldSvrAsio/handlers/dispatch.cpp": "af496bd5ac9c1c8d3e678f81af38840c993df7f2d253f1912c7bddebcd98e6f2",
+    "Server/TWorldSvrAsio/handlers/handlers.h": "2f3013ad7c8158cd9ed9d0c74c0c3fe52652fa6704d8e226110fda7ad5dd06f5",
+    "Server/TWorldSvrAsio/handlers/handlers_ctrlsvr.cpp": "4a86348afe73f26b3d64abbdbc593547e1e2d3f4204a9d657d80a76a4679a46c",
+    "Server/TWorldSvrAsio/handlers/handlers_event.cpp": "8be4792adf2a6c986fd675a0087194635e51109d3d989f5d38d1f1d737c8137a",
+    "Server/TWorldSvrAsio/handlers/handlers_relay.cpp": "205b53edff1da08344fb6f042b2625039aa8434704c9feab6a555a22f043ea48",
+    "Server/TWorldSvrAsio/main.cpp": "d6e5cd9489db741789bee023a959c2a0b809380ac0e307c536cc2008b49d6804",
+    "Server/TWorldSvrAsio/services/event_constants.h": "16040348799427e91caa06e11de949c5350407f7e39aac42e1aa6e2da72767cf",
+    "Server/TWorldSvrAsio/services/event_info_codec.h": "db6713d6b6fc6eff30113b94d93c7a1acf4b20d84aa4acbe1de4bc9e693fd100",
+    "Server/TWorldSvrAsio/services/event_registry.cpp": "f97401d218591e90fbde3840d8f00072a9c44ccba7edcb8d749d18aa947ceff6",
+    "Server/TWorldSvrAsio/services/event_registry.h": "6accaa2f2112410be7f473aecea01dbe0a4ffc72333f5c30c3992f6d3f041df5",
+    "database/postgresql/055-native-item-event-context.sql": "ea6b631d580a8a1a95cbfb1eb468827a55a04282bfb26c73a51f7179926a9d44",
+    "deploy/config.example/tworldsvr.toml": "98dc7c7d1815dfda3a18c144dc757bba228b31adad56dce4bf1d89df3c27c87f",
+    "deploy/sql/map-runtime-grants.sql": "4d529cdeb38e6130bcd73c856452811ba6d57f2224af3fdd0f4341b54c316a34"
+  },
+  "historical_definition_inputs": [
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TITEMCHART.json",
+      "sha256": "e9f243d1e952e418bc6eeb4061e3b5b7f7427c391c33f20610bcbdb2cea8d3e6"
+    },
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TSKILLCHART.json",
+      "sha256": "e3356ca5a3cfa7d4a4ad091b8c90b108a0fdde16b7f034f5f1f89055fb51b275"
+    },
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TSKILLDATA.json",
+      "sha256": "54edf1d4b6e86dd7c5f08e632d7dfd9bca1f0dd49c202fc6b0351c880855aab7"
+    }
+  ],
+  "backup_identity_provenance": "Pinned identities retained from artifact-inventory.json via earlier evidence; no new backup extraction/import/reconciliation or backup-hash run in this increment",
+  "pinned_backup_identities": [
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "size_bytes": 34009088,
+      "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259"
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "size_bytes": 36560896,
+      "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+    }
+  ],
+  "migrations": {
+    "new": [
+      "055-native-item-event-context.sql"
+    ],
+    "changed_existing": [],
+    "applied": [],
+    "next_free": "056",
+    "immutable_001_through_054_sha256": {
+      "001-import-control.sql": "d4e1fdbdfb4135356200287fd366c3b9d3a74a874d0bb2f03c03be5cbc54c695",
+      "002-legacy-snapshots.sql": "87d5cae08851a080f96ca7059ec2e5989559f912e1b4607edef4a6716bfdd41b",
+      "003-canonical-content.sql": "6dd09695ccce3a13c25727e1620f47ca5142fcab422da89798cb80be9a6d394e",
+      "004-source-text-bytes.sql": "f413df6c04fb8421c3142c031a94167bd6281da6350a5ff49977087994c4bdba",
+      "005-runtime-catalog-control.sql": "ad33846f8907f9b935d1d2a32a24d77022a263aecabf95d44ac5047f9705629d",
+      "006-current-chart-contracts.sql": "ab5e2d56cc314d377853771afe7706aee0e9664cd41de863cc980b5fe604e082",
+      "007-catalog-runtime-metadata.sql": "76ba7601d1c834809d862532934ab89a44f74570e18efc09629f2fecdd84bb7c",
+      "008-native-login.sql": "e82c30ebb73eddc82df906f88889bcb2c314ca1a2e82ab48256bda4257db547f",
+      "009-login-runtime-owner.sql": "e047b4146a058ff3e0af5065ba62804121eb21d1b0bc7af2ad7fa141adb90b0f",
+      "010-login-security-challenges.sql": "96d691deb917bdbf90523c9f20a84b8c85076ba670beabc97de51430d9e3126f",
+      "011-character-reference-catalog.sql": "2a8bacdade31512871983e0d165c50bc72179afc2ae8d2b4059a744292c8eec9",
+      "012-native-characters.sql": "53b084d5840f73193a204a0a2c95b7edc4a8e26d155349289de27e5586005700",
+      "013-character-item-allocation-floor.sql": "3f1042ffab6451f62debeee582efdfc82df580d0ceda0153c4f61cc5e8f86f8e",
+      "014-routing-reference-catalog.sql": "fd52051223376feea3993fc3db25e6c0d085e208bb3ae3434af0822652023dca",
+      "015-native-map-handoff.sql": "d209d882b64367ea6f23c9703ecd5ae07e3ee558b6ad9204a3a1774f864c3258",
+      "016-native-map-ownership.sql": "34f9f0d4f08a6134ee78f5477b6fcc3836f5c5f6300853ec8c8137e48356b847",
+      "017-map-actor-reference-catalog.sql": "fe603d01ef375c82ea6407b2d5fc7a04e9c74f2b2d41b5afb13f44d85af10987",
+      "018-native-map-checkpoints.sql": "44486f71748ba2dabfdbfebd18245afd03a29a0be19cd2d5e7e45ec13dfa26f2",
+      "019-native-map-replicas.sql": "2ccd4c5cdb2a11415713d65bb993a4db96d9f688d2ef4bd025bc9a96201e835e",
+      "020-native-main-transfer.sql": "4e4063ff246cf39a96dd0105ff1f4147f78db7551942a357b96ef20c166e4ff6",
+      "021-native-skill-checkpoints.sql": "552f5ff0bbdb9a41f3ccb58c77e4f16efd30665b5cc1ea085f6babe37ea678a8",
+      "022-native-skill-consumption.sql": "1dab4a261d535408910656698325273919a860061fa1db3d3f7f1f37764e0267",
+      "023-graph-skill-consumption.sql": "c351303ca4d96f1430de79a8c8d58d17f6918c2ea54decbc8e10fda25c7fcf11",
+      "024-native-skill-ammunition.sql": "088059e091e2c632f20d9901dcc1623a6ffcea34245841583e053e5e06c8a635",
+      "025-native-ammunition-batches.sql": "c7934f1fc30722268cdeb00bbdc9069223916f35df7cc953ff2595d8dcaa3372",
+      "026-native-multi-attack.sql": "1b05100142e0400f3d1a04c76426a4834d3786a1dab9c515f80b1ec27b35c41a",
+      "027-native-inventory-moves.sql": "46a1edb1c57e39c4a59a030e4cc0b9a312071655d4eed9df4e29c29e1896a596",
+      "028-native-inventory-stacks.sql": "36567359900ab451167486d20f73b46a5b466605924e62b92b65213caaa3447e",
+      "029-native-audit.sql": "cbeb6d1930e5f7447e42c50f0ec0d57d150ac1a4ea93c661832e2bd6e4ab87aa",
+      "030-character-statistics.sql": "7deb6bda4acc1e0daaf50d14a8d655df99ad5cc3f9ec348bed09aa318210ca29",
+      "031-actor-graph-compatibility.sql": "42d8660d6052a82a614b105ee9530a6708a2551891094f54d6d2ed51cc98257e",
+      "032-native-equipment.sql": "a554dbfdf1238c689c9ef9f4163b0b8e853417ccc90227520207d5402410b6c2",
+      "033-native-maintained-postures.sql": "8c0bb5268c44c30aa356536942e18cdff84ea56a865568ce497d59eaa08f2c04",
+      "034-native-effect-cancellation.sql": "5d2b73f638fd3c3bc721a238c883d05e70689e50ad5386bdfaf2ad73aad5fdf8",
+      "035-native-skill-casts.sql": "f397cca9582c10c162d4d74af72adcac7e8f193e083704b7aec804567a7d01e4",
+      "036-native-skill-finishes.sql": "12d60ff0a3a6202d50dfa16fc622be60c01afd11a9e20d8d16f0f7eae6785244",
+      "037-native-skill-actions.sql": "c895026dc31e21cc3e24915318865a76a57a447e43cc56463815f991f686789f",
+      "038-native-finish-effects.sql": "cb26fc4da6c1267fe2f486f08d6cdbf218fcd8dde34355e7e62a583c5eef9219",
+      "039-native-trainer-catalog.sql": "63d7486108a9c276215a60403038fb0193f1b011d3a401d5adf5972125ee2f63",
+      "040-native-skill-purchases.sql": "1e701edfead2ee7a19de72a03d21b2caea7d44e2a0fbcffbf6e9d3eedd5f8c95",
+      "041-native-title-selection.sql": "a6101e5d38f4c206e51a05ea20d80558906fe7a6c26ce17af3bf06f1d16be8dc",
+      "042-native-secure-codes.sql": "5b49ff3b5ab0067c806c07f0ae342ab335709c74834770dc26aea98708c5e8ec",
+      "043-secure-code-character-deletion.sql": "37d771638b6460a5c4fe0d134c6fe1132846d63b49d20afed9868d51c0743914",
+      "044-native-skill-audit.sql": "034a96fdb51a939edf7b6d2e5470d4322e95999741d644603fecd8019dace1f2",
+      "045-native-quest-progress.sql": "dc1a215266a86d324e427b7e47b0a78245386ddece20e2ff0f5ed51cc4d55df3",
+      "046-native-quest-conditions.sql": "8580cf1c0a3ba37e23bc9351cc142349ddb60eb3e349c70db911de1e96a0b9b6",
+      "047-native-peer-security.sql": "42f48dc91f35410c41b08647ebe9367ebda3f6db6d8804c6ae2fb7c591956f56",
+      "048-native-patch-metadata.sql": "21fa6130993effd6c664a04b2aa563c5300d0a994134caff0b57005d709cab9e",
+      "049-native-control.sql": "6e7656e6e48c684899fe565504efcc838afbdb52d0433dcb1d7ca39245e631e1",
+      "050-native-control-peer-state.sql": "f6f7ef645906f0ca87f4e26873d3528be7d7af9e5be8c0ef749cfc67a36fa6b5",
+      "051-native-quest-reward-catalog.sql": "6cfb34e26aa41fd06bcc82a1cae82e9f1daa12dddd57f63fdc71471a0d7d9253",
+      "052-native-exp-entitlements.sql": "b00969555bdcd26fc9cbf69e5742e76785c13531987abd5034a171f2de2d4a1e",
+      "053-native-item-cooldowns.sql": "7cd64695ad9fddac2f9a785765f7e36b819881c90fa4bafc0b0c05069c90c432",
+      "054-native-special-box-catalog.sql": "66b79b28f82d1a438b14f036db047968b9fa38fbb41fe862b5c908d213ce6d86"
+    }
+  },
+  "additional_grants": "deploy/sql/map-runtime-grants.sql (durability/refine and six raw magic-slot columns); written only",
+  "world_configuration": "security.control_ip_allowlist is explicit IPv4/CIDRs; empty denies Control role; private source SS framing is not cryptographic identity",
+  "full_postgresql_only_runtime": false,
+  "postgresql_runtime_exercised": false,
+  "tests_executed": 0,
+  "phase_b_started": false,
+  "phase_c_started": false,
+  "import_executed": false,
+  "server_processes_started": 0,
+  "client_sessions": 0,
+  "containers_built_or_started": 0,
+  "client_binary": null,
+  "client_binary_sha256": null,
+  "client_assets": null,
+  "static_checks": [
+    "Source server and independent client packet/narrowing/order inspection",
+    "Read-only existing source export inspection",
+    "Native request/owner/item-fingerprint/quest-head/checkpoint integration review",
+    "Control/World frame and coroutine ownership/call-path inspection",
+    "git diff --check",
+    "CSV field/ID and evidence JSON syntax inspection"
+  ],
+  "deferred": [
+    "All unit/integration/regression/protocol/PostgreSQL tests",
+    "Sanitizers/fuzz/benchmarks",
+    "Migration application/upgrade/grants; historical extraction/import/reconciliation",
+    "Unknown COMMIT/DB/process failures and ownership/concurrency/reconnect/handoff acceptance",
+    "Plain/TLS overlapping writes/slow readers/backlog/close; event CRUD/tick/replay and replacement peers",
+    "Original client executable and matching assets acceptance",
+    "Container build/startup/restart"
+  ],
+  "limitations": [
+    "Whole implementation inventory still incomplete",
+    "Conditional guild/hero territory discounts/probability bonuses; BOW variant and other upgrade/gamble paths",
+    "General item skills/effects and combat/regeneration consumers; exact durable sub-tick sampling",
+    "World ACK precedes event replay; no replay-complete marker",
+    "Monster events12/13 require native spawn/AI side effects and currently retire World link",
+    "Control crash/deactivation and one-shot reward recovery; full native World social/war/economy repositories",
+    "Application delivery receipts, slow-peer deadlines, complete admin reply correlation and cryptographic peer identity remain required",
+    "Premium/PCBang/pets; remaining inventories/economy/mail/quests/modes and missing Patch contracts"
+  ],
+  "explicit_differences": [
+    "Reject source zero-material division/uninitialized error byte; dangling last-item NPC caller alias; undefined numeric/kind conversions",
+    "Reject one-past event sentinel and malformed/trailing payloads",
+    "Conflicting raw values in unordered CTBLSkillData reject instead of guessing SQL row order; applies to PRICEUP too",
+    "Existing secure15-bit randomness preserves range/modulo bias but not CRT sequence",
+    "Atomic commit before responses; no retry of unknown write results",
+    "Reset received Map event values after World reconnect and durable player drain",
+    "Control IP role allowlist and exact-connection CT authorization",
+    "Control256-frame/4MiB output bound; EOF/errors retire queued output; old peer cleanup cannot remove successor",
+    "Direct event/cash/announcement pushes require GMLevel3/All; honor selected announcement server; reject event-ID exhaustion"
+  ]
+}

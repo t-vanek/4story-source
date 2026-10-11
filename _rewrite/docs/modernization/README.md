@@ -46,8 +46,18 @@ The existing quest operation transaction fences currency, titles, items, effects
 and checkpoint state; the original packet layouts/order are retained within the
 [documented ordinary-player scope](evidence/phase-a-lottery-boxes-20261011/README.md).
 Migration054 publishes historical special-box definitions only after explicit
-complete import proof. It is written, not applied; the next migration is055.
+complete import proof. It is written, not applied.
 All new paths remain **INTEGRATED_UNVERIFIED**, and the full Phase A gate is open.
+
+Code `0457d3d` adds source REFINE/WASTEREFINE and the pure912/913 ITEMUSE buff
+paths, including native item/money/title/effect persistence and recovery fences.
+World now validates and orders complete EVENTINFO updates/replay; Map samples
+received values in native operation receipts. Migration055 is written only;
+the next migration is056. `750c797` adds Control frame serialization, a shared
+CRUD/tick/replay gate, GM authorization for direct pushes and exact-connection
+cleanup. Full territory bonuses, monster events and crash/one-shot event recovery
+remain required. [Source contracts, differences and compile-only evidence](evidence/phase-a-refine-events-20261011/README.md)
+apply to this **INTEGRATED_UNVERIFIED** scope; no Phase B/C execution occurred.
 
 ## Native account secure-code lifecycle (2026-10-11)
 

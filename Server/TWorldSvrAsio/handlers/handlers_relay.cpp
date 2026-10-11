@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <mutex>
+#include <optional>
 
 namespace tworldsvr::handlers {
 
@@ -21,6 +22,10 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
               const HandlerContext&         ctx)
 {
     const std::string& ip = peer->Wire()->RemoteIPv4();
+    if(peer->Wid()!=0||(ctx.ctrl_svr&&ctx.ctrl_svr->Get()==peer)) {
+        spdlog::warn("OnRelaysvrReq[{}]: rejected role reassignment",ip);
+        peer->Wire()->Close();co_return;
+    }
 
     wire::Reader r(body.data(), body.size());
     std::uint16_t wid = 0;
@@ -44,6 +49,9 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
         co_return;
     }
 
+    std::optional<EventRegistry::DeliveryLease> event_delivery;
+    if(ctx.events)event_delivery.emplace(co_await ctx.events->AcquireDelivery());
+    if(!peer->Wire()->IsOpen())co_return;
     peer->SetNation(ctx.nation);
     peer->SetWid(wid);
     if (!ctx.peers->Register(peer))
@@ -93,19 +101,21 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
     // currently-active entry so the joining map sees the same
     // event state as everyone else. The W6-31 EventRegistry stores
     // each entry's outer (event_id, value) plus the opaque EVENTINFO
-    // tail — re-emit is a verbatim relay.
+    // tail. Source replay uses the INNER event ID; live fan-out uses the outer ID.
     if (ctx.events)
     {
         const auto active = ctx.events->Snapshot();
         for (const auto& info : active)
         {
             co_await senders::SendMwEventUpdateReq(
-                peer, info.event_id, info.value, info.body);
+                peer, info.b_id, info.value, info.body);
         }
         if (!active.empty())
             spdlog::info("OnRelaysvrReq[{}]: replayed {} active "
                          "event(s) to wID={}", ip, active.size(), wid);
     }
+
+    event_delivery.reset();
 
     // W6-33: replay active cash-shop sale campaigns to the joining
     // map. Same pattern as W6-32 — legacy SSHandler.cpp:666-668 walks

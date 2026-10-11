@@ -17,7 +17,8 @@ inline bool SupportedPostures(const CharacterPayload& p) {
         // Soul Lottery820 does have CheckEternalBuff's zero-MP removal even
         // with a forced duration. Accepting arbitrary IDs would hide effects.
         return e.level==1&&std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
-            [&](const auto& def){return def.skill==e.skill&&(e.remaining||(e.skill==903&&!def.duration));});
+            [&](const auto& def){return def.skill==e.skill&&(e.remaining||
+                ((e.skill==903||e.skill==912||e.skill==913)&&!def.duration));});
     });
 }
 // ForceMaintain -> UpdateBuffSkill -> ChangeEquipItem -> CheckEquipSkill.

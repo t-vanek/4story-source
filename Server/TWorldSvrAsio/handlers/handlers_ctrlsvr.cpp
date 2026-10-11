@@ -25,10 +25,12 @@ OnCtCtrlsvrReq(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    if (!body.empty())
-        spdlog::debug("OnCtCtrlsvrReq[{}]: ignored unexpected body "
-                      "({} bytes)", ip, body.size());
-
+    const auto existing=ctx.ctrl_svr->Get();
+    if(!body.empty()||peer->Wid()!=0||!ctx.control_ip_allowlist||!ctx.control_ip_allowlist->Allows(ip)||
+       (existing&&existing!=peer&&existing->Wire()->IsOpen())) {
+        spdlog::warn("OnCtCtrlsvrReq[{}]: rejected Control role claim",ip);
+        peer->Wire()->Close();co_return;
+    }
     ctx.ctrl_svr->Set(peer);
     spdlog::info("OnCtCtrlsvrReq[{}]: registered as cluster ctrl-svr "
                  "(wID={})", ip, peer->Wid());

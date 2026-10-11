@@ -18,6 +18,8 @@
 #include <cstring>
 #include <span>
 #include <utility>
+#include <limits>
+#include <stdexcept>
 
 namespace tmapsvr {
 
@@ -228,9 +230,35 @@ AsioWorldClient::ReadConnection(std::shared_ptr<boost::asio::ip::tcp::socket> so
                 spdlog::warn("world_client: invalid registration acknowledgment; closing");
                 break;
             }
+            if(m_events.connection==std::numeric_limits<std::uint64_t>::max())
+                throw std::runtime_error("World event connection generation exhausted");
+            // Source CTMapSvrModule starts every WORD at zero. A replacement
+            // World link starts a fresh projection after the durable player
+            // drain, so a disappeared event cannot survive a World restart.
+            // The original ACK precedes active-event replay; preserve that
+            // message order and apply each subsequent update in receive order.
+            m_events=WorldEventSnapshot{m_events.connection+1,0,{}};
             m_registered = true;
             deadline->cancel();
             spdlog::info("world_client: registration acknowledged wid=0x{:04X}", m_relay_wid);
+            continue;
+        }
+        if(hdr.wID==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::MW_EVENTUPDATE_REQ)) {
+            wire::Reader reader(body.data(),body.size());
+            std::uint8_t event=0,inner=0;std::uint16_t value=0;std::uint32_t index=0;
+            fourstory::protocol::EventInfoTail info;
+            if(!m_registered||!reader.Read(event)||!reader.Read(value)||!reader.Read(index)||!reader.Read(inner)||
+               !fourstory::protocol::ReadEventInfoTail(reader,info)||!reader.Eof()||
+               event>=fourstory::protocol::kEventCount||inner>=fourstory::protocol::kEventCount)
+                throw std::runtime_error("Invalid World EVENTINFO update");
+            // These source branches also mutate spawn/AI state. Reject the
+            // unported branch and retire this link instead of accepting only
+            // its numeric field and concealing the missing monsters.
+            if(inner==12||inner==13)
+                throw std::runtime_error("World monster event requires native spawn/AI integration");
+            if(m_events.revision==std::numeric_limits<std::uint64_t>::max())
+                throw std::runtime_error("World event revision exhausted");
+            m_events.values[event]=value;++m_events.revision;
             continue;
         }
         if (m_on_packet)

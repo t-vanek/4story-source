@@ -309,29 +309,24 @@ OnCtEventUpdateReq(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Legacy SSHandler.cpp:276 — drop event_ids past the table.
-    if (event_id > event_type::kCount)
+    // Reject the source one-past-array bug as well as IDs past the table.
+    if (event_id >= event_type::kCount || b_id >= event_type::kCount)
     {
-        spdlog::debug("OnCtEventUpdateReq[{}]: event_id={} > kCount={} "
+        spdlog::debug("OnCtEventUpdateReq[{}]: event_id={} outside kCount={} "
                       "— dropped", ip, event_id, event_type::kCount);
         co_return;
     }
 
-    // Legacy LOTTERY / GIFTTIME short-circuit (SSHandler.cpp:279-292):
-    // both run the reward subsystem and return WITHOUT storing or
-    // broadcasting the event. W6-47 ports the full EVENTINFO tail
-    // parse + the reward runs (LotteryItem / GiftTime,
-    // TWorldSvr.cpp:7115 / 7273).
+    // Parse every branch, not only lottery. A truncated opaque tail must not
+    // enter the replay registry. EVENT_COUNT is a sentinel, never an array index.
+    EventInfoTail tail{};
+    if(!ReadEventInfoTail(r,tail)||!r.Eof()) {
+        spdlog::warn("OnCtEventUpdateReq[{}]: malformed EVENTINFO",ip);
+        co_return;
+    }
+    tail.value=value; // original stEVENT.m_wValue = outer wValue
     if (b_id == event_type::kLottery || b_id == event_type::kGiftTime)
     {
-        EventInfoTail tail{};
-        if (!ReadEventInfoTail(r, tail))
-        {
-            spdlog::warn("OnCtEventUpdateReq[{}]: malformed "
-                         "LOTTERY/GIFTTIME EVENTINFO ({} bytes)", ip,
-                body.size());
-            co_return;
-        }
         if (!tail.state)
             co_return;                    // legacy `if(m_bState)` gate
         if (b_id == event_type::kLottery)
@@ -350,6 +345,11 @@ OnCtEventUpdateReq(std::shared_ptr<PeerSession> peer,
     std::vector<std::byte> event_body(
         body.begin() + kOuterHeader, body.end());
 
+    event_body[fourstory::protocol::kEventValueOffset]=static_cast<std::byte>(value&255U);
+    event_body[fourstory::protocol::kEventValueOffset+1]=static_cast<std::byte>(value>>8);
+    auto delivery=co_await ctx.events->AcquireDelivery();
+    if(!peer->Wire()->IsOpen()||!ctx.ctrl_svr||ctx.ctrl_svr->Get()!=peer)co_return;
+
     // Mirror legacy SSHandler.cpp:294-298 — erase any existing entry
     // for this index, insert the new entry only if value != 0
     // (legacy "wValue==0 deactivates"). Always re-broadcast so peers
@@ -366,9 +366,15 @@ OnCtEventUpdateReq(std::shared_ptr<PeerSession> peer,
         ctx.events->Set(std::move(info));
     }
 
-    for (auto& p : ctx.peers->Snapshot())
-        co_await senders::SendMwEventUpdateReq(p, event_id, value,
-            event_body);
+    for (auto& p : ctx.peers->Snapshot()) {
+        try { co_await senders::SendMwEventUpdateReq(p,event_id,value,event_body); }
+        catch(...) {
+            // Retire the failed recipient but still deliver to the remaining
+            // Maps. Retrying an uncertain write on this socket is not allowed.
+            p->Wire()->Close();
+            spdlog::warn("World event delivery failed for Map wID={}",p->Wid());
+        }
+    }
     co_return;
 }
 

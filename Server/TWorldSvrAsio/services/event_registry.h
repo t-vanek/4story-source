@@ -7,11 +7,14 @@
 // WrapPacketIn parse — only the few fields a routing handler peeks
 // at (dwIndex, bID) are surfaced explicitly. Re-broadcast on a new
 // map peer connect (legacy SSHandler.cpp:664) is the natural reader;
-// that wiring lands in a follow-up slice.
+// that wiring is in OnRelaysvrReq. Full EVENTINFO is validated before storage.
 
 #include <cstdint>
 #include <shared_mutex>
-#include <unordered_map>
+#include <map>
+#include <memory>
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/experimental/channel.hpp>
 #include <vector>
 
 namespace tworldsvr {
@@ -40,6 +43,21 @@ struct TEventInfo
 class EventRegistry
 {
 public:
+    using DeliveryPermit=boost::asio::experimental::channel<void(boost::system::error_code,int)>;
+    class DeliveryLease {
+    public:
+        explicit DeliveryLease(std::shared_ptr<DeliveryPermit> permit):m_permit(std::move(permit)){}
+        DeliveryLease(DeliveryLease&&)=default;
+        DeliveryLease(const DeliveryLease&)=delete;
+        DeliveryLease& operator=(const DeliveryLease&)=delete;
+        ~DeliveryLease(){if(m_permit)m_permit->try_send(boost::system::error_code{},0);}
+    private:
+        std::shared_ptr<DeliveryPermit> m_permit;
+    };
+    // Reactor-scoped gate spans registry mutation and complete peer fan-out.
+    // Registration holds it before exposing the new peer through its replay.
+    // This prevents a suspended old replay overwriting a newer live update.
+    boost::asio::awaitable<DeliveryLease> AcquireDelivery();
     EventRegistry() = default;
     EventRegistry(const EventRegistry&) = delete;
     EventRegistry& operator=(const EventRegistry&) = delete;
@@ -53,16 +71,16 @@ public:
     // Drop the entry under `dw_index`. Idempotent (no-op on miss).
     bool Erase(std::uint32_t dw_index);
 
-    // Snapshot every active entry — used by the deferred replay-on-
-    // connect path (a new map peer's RW_RELAYSVR_REQ handler will
-    // walk the snapshot and emit one MW_EVENTUPDATE_REQ per entry).
+    // Snapshot in unsigned DWORD index order, matching source MAPEVENTINFO.
+    // Duplicate event types deliberately replay in this order (last wins).
     std::vector<TEventInfo> Snapshot() const;
 
     std::size_t Size() const;
 
 private:
+    std::shared_ptr<DeliveryPermit> m_delivery;
     mutable std::shared_mutex                       m_lock;
-    std::unordered_map<std::uint32_t, TEventInfo>   m_events;
+    std::map<std::uint32_t, TEventInfo>   m_events;
 };
 
 } // namespace tworldsvr

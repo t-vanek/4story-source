@@ -2,6 +2,12 @@
 [server]
 port = 3815
 
+[security]
+# Set the actual Control peer IPv4 address(es)/CIDRs. Empty denies Control
+# registration. Original SS framing has no authentication field; restrict this
+# listener to the private peer network. This is not cryptographic peer identity.
+control_ip_allowlist = []
+
 [health]
 port = 18087
 

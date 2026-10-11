@@ -156,6 +156,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_use.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_soul_lottery.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_economy.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_refine.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_cooldown.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_reagent.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_cast.cpp

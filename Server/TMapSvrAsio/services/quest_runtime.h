@@ -8,6 +8,7 @@
 #include "domain/main_transfer.h"
 #include "services/quest_chart.h"
 #include "services/client_senders.h"
+#include "services/world_event_state.h"
 #include "wire_codec.h"
 #include "MessageId.h"
 #include <algorithm>
@@ -32,6 +33,7 @@ struct QuestMapFacts {
     bool world_registered{};
     std::uint64_t sample_ms{}; // local scheduler observation, never a client field
     std::vector<std::pair<std::uint32_t,std::uint16_t>> monsters;
+    std::optional<WorldEventSnapshot> world_events;
 };
 struct QuestCommit {
     std::shared_ptr<const CharSnapshot> snapshot;

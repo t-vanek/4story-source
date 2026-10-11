@@ -491,10 +491,16 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool use_item=message==MessageId::CS_ITEMUSE_REQ;
     const bool sell_item=message==MessageId::CS_ITEMSELL_REQ;
     const bool repair_items=message==MessageId::CS_DURATIONREP_REQ;
+    const bool refine_item=message==MessageId::CS_REFINE_REQ;
+    const bool reclaim_refine=message==MessageId::CS_WASTEREFINE_REQ;
     const bool lottery=message==MessageId::CS_SOULLOTTERY_REQ||message==MessageId::CS_SOULLOTTERY_TRIGGER_REQ;
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(reclaim_refine) {
+        if(body.size()!=2)throw std::runtime_error("Invalid WASTEREFINE request length");
+    } else if(refine_item) {
+        if(body.size()<8||body.size()!=8U+2U*std::to_integer<unsigned>(body[3]))throw std::runtime_error("Invalid REFINE request length");
     } else if(repair_items) {
         if(body.size()!=8)throw std::runtime_error("Invalid DURATIONREP request length");
     } else if(sell_item) {
@@ -532,7 +538,13 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     quest_runtime::HydrateLevels(*payload,chart);
     bool other_state_changed=false;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(repair_items) {
+    if(reclaim_refine) {
+        other_state_changed=ReclaimNativeRefine(sql,c,after,body,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(refine_item) {
+        other_state_changed=RefineNativeItem(sql,c,after,body,facts,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(repair_items) {
         other_state_changed=RepairNativeItems(sql,c,after,body,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
     }else if(sell_item) {
@@ -848,13 +860,14 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     for(const auto& packet:committed.packets){if(packets.size()>1)packets+=',';
         packets+='['+std::to_string(packet.opcode)+",\""+hex(packet.body)+"\","+std::to_string(static_cast<unsigned>(packet.audience))+']';}
     packets+=']';const auto request=hex(body);
+    const auto events=facts.world_events?facts.world_events->Json():std::string{"null"};
     const int world=c.group,character=std::bit_cast<std::int32_t>(c.char_id),server=m_config.server,op=opcode;
     const long long previous=payload->last_quest_id,generation=c.connection_id,epoch=c.authority_epoch;long long operation=0;
-    sql << "INSERT INTO app_world.quest_operations(world_id,char_id,previous_operation_id,session_key,server_id,owner_token,connection_id,authority_epoch,opcode,request,before_state,after_state,responses) "
-        "VALUES(:w,:c,:previous,:key,:server,:token,:generation,:epoch,:op,decode(:request,'hex'),CAST(:before AS jsonb),CAST(:after AS jsonb),CAST(:packets AS jsonb)) RETURNING operation_id",
+    sql << "INSERT INTO app_world.quest_operations(world_id,char_id,previous_operation_id,session_key,server_id,owner_token,connection_id,authority_epoch,opcode,request,before_state,after_state,responses,world_event_context) "
+        "VALUES(:w,:c,:previous,:key,:server,:token,:generation,:epoch,:op,decode(:request,'hex'),CAST(:before AS jsonb),CAST(:after AS jsonb),CAST(:packets AS jsonb),NULLIF(CAST(:events AS jsonb),'null'::jsonb)) RETURNING operation_id",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(key,"key"),soci::use(server,"server"),
         soci::use(m_config.owner_token,"token"),soci::use(generation,"generation"),soci::use(epoch,"epoch"),soci::use(op,"op"),
-        soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::into(operation);
+        soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::use(events,"events"),soci::into(operation);
     payload->last_quest_id=static_cast<std::uint64_t>(operation);
     WriteQuestProgress(sql,c,after);
     if(!after.payload->transfer_state)WriteMaintainedEffects(sql,c,after);

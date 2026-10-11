@@ -17,6 +17,14 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     using tnetlib::protocol::NameOf;
 
     const auto id = ToMessageId(wId);
+    // Original CT frames carry administrative authority. Never let an
+    // anonymous socket or a registered Map inject event probabilities, grants
+    // or other Control commands by choosing their opcode.
+    if(NameOf(id).starts_with("CT_")&&id!=MessageId::CT_CTRLSVR_REQ&&
+       (!ctx.ctrl_svr||ctx.ctrl_svr->Get()!=peer)) {
+        spdlog::warn("World rejected CT command from a non-Control connection");
+        peer->Wire()->Close();co_return;
+    }
     switch (id)
     {
     // ---- W3a-2/W3a-3: RW handshake + relay (handlers_relay.cpp) ---

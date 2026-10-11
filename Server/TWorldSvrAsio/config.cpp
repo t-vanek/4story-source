@@ -1,4 +1,5 @@
 #include "config.h"
+#include "fourstory/security/ip_allowlist.h"
 
 #include <toml++/toml.hpp>
 #include <spdlog/spdlog.h>
@@ -113,6 +114,19 @@ AppConfig LoadConfig(const std::string& path)
                 throw std::runtime_error(
                     "server.castle_war_day out of range (1..7)");
             cfg.castle_war_day = static_cast<std::uint8_t>(*cw);
+        }
+    }
+    if(auto security=tbl["security"].as_table()) {
+        if(auto field=(*security)["control_ip_allowlist"];field) {
+            const auto* entries=field.as_array();
+            if(!entries)throw std::runtime_error("security.control_ip_allowlist must be an IPv4/CIDR array");
+            for(const auto& entry:*entries) {
+                const auto value=entry.value<std::string>();
+                if(!value)throw std::runtime_error("security.control_ip_allowlist requires strings");
+                cfg.control_ip_allowlist.push_back(*value);
+            }
+            if(fourstory::security::IpAllowlist::FirstInvalid(cfg.control_ip_allowlist))
+                throw std::runtime_error("Invalid security.control_ip_allowlist entry");
         }
     }
     if (auto db = tbl["database"].as_table())

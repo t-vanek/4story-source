@@ -21,6 +21,7 @@
 #include "../services/cash_item_sale_registry.h"
 #include "../services/char_registry.h"
 #include "../services/ctrl_svr_slot.h"
+#include "fourstory/security/ip_allowlist.h"
 #include "../services/event_registry.h"
 #include "../services/rps_registry.h"
 #include "../services/guild_level_cache.h"
@@ -144,6 +145,7 @@ struct HandlerContext
     // (W6-34's CMGift admin path is the first user). Owned by
     // main; non-null in W6-35+ deploys.
     CtrlSvrSlot*              ctrl_svr   = nullptr;
+    const fourstory::security::IpAllowlist* control_ip_allowlist = nullptr;
 
     // W6-36: TITEMCHART.bInitState write path for the operator
     // item-state tool (CT_ITEMSTATE_REQ). nullptr → the handler

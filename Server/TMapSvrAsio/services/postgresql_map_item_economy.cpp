@@ -2,6 +2,8 @@
 #include "secure_code.h"
 #include "posture_effects.h"
 #include "native_npc_discount.h"
+#include "native_item_power.h"
+#include "native_item_effects.h"
 #include "domain/main_transfer.h"
 #include "MessageId.h"
 #include <soci/soci.h>
@@ -121,6 +123,9 @@ std::uint32_t RepairCost(soci::session& sql,const ItemInstance& item,const soci:
     return result;
 }
 }
+std::uint8_t NativeItemPowerLevel(soci::session& sql,const ItemInstance& item,const soci::row& chart) {
+    return PowerLevel(sql,item,chart,ItemAttribute(sql,item,chart));
+}
 bool PostgreSQLMapService::SellNativeItem(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::span<const std::byte> body,std::uint16_t& sold,QuestPackets& packets) {
     using tnetlib::protocol::MessageId;
@@ -165,11 +170,9 @@ bool PostgreSQLMapService::SellNativeItem(soci::session& sql,const MapSessionCla
     // HaveItemProbBuff(PRICEUP65) returns the first nonzero raw wValue, not a
     // recalculated skill magnitude. Other status types never alter sale price.
     for(const auto& effect:*s.payload->effects) {
-        const int skill=std::bit_cast<std::int16_t>(effect.skill);int value=0;
-        sql << "SELECT \"wValue\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=6 AND \"bExec\"=65 "
-            "ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\" LIMIT 1",soci::use(skill),soci::into(value);
-        if(sql.got_data()&&static_cast<std::uint16_t>(value)) {
-            money+=static_cast<std::uint32_t>(money*static_cast<std::uint16_t>(value))/100U;break;
+        const auto value=NativeItemBuffValue(sql,effect.skill,65);
+        if(value&&*value) {
+            money+=static_cast<std::uint32_t>(money*(*value))/100U;break;
         }
     }
     EarnNativeMoney(sql,c,s,money,packets);

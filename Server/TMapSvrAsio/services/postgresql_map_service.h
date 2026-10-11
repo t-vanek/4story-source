@@ -63,7 +63,8 @@ private:
     static ItemInstance ProjectNativeItem(soci::session&,const transfer::Item&);
     static std::optional<ItemInstance> CreateQuestItem(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t);
     static std::vector<ItemInstance> CreateQuestRewardItems(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestRewardDef&);
-    static bool GrantQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const std::vector<ItemInstance>&,QuestPackets&);
+    static bool GrantQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const std::vector<ItemInstance>&,QuestPackets&,bool merge_stacks=true);
+    static bool ReclaimNativeRefine(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&);
     static bool OpenSpecialBox(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,QuestPackets&);
     static void ConsumeQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const QuestDef&,QuestPackets&);
     using QuestEvent = std::function<void(std::uint32_t,std::uint8_t,std::uint8_t,int)>;
@@ -83,6 +84,8 @@ private:
     static void DebitNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,std::uint8_t,std::uint64_t,std::uint8_t,QuestPackets&);
     static bool SellNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,std::uint16_t&,QuestPackets&);
     static bool RepairNativeItems(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&);
+    static bool RefineNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&);
+    static std::uint8_t ItemMutationProbability(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,std::uint8_t,std::uint8_t,const QuestMapFacts&,QuestPackets&);
     static std::vector<ItemCooldown> ReadItemCooldowns(soci::session&,const MapSessionClaim&);
     static void HydrateItemCooldowns(soci::session&,const MapSessionClaim&,const CharSnapshot&,CharacterPayload&);
     static void CheckItemCooldowns(soci::session&,const MapSessionClaim&,const CharSnapshot&);

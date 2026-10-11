@@ -28,6 +28,8 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <optional>
+#include "world_event_state.h"
 
 namespace tmapsvr {
 
@@ -46,6 +48,8 @@ public:
     // IsRegistered: a complete acknowledgment from the current World peer.
     virtual bool IsConnected() const = 0;
     virtual bool IsRegistered() const { return IsConnected(); }
+    // An absent projection is not permission to assume zero event bonuses.
+    virtual std::optional<WorldEventSnapshot> EventSnapshot() const { return std::nullopt; }
 };
 
 class AsioWorldClient final : public IWorldClient
@@ -80,6 +84,9 @@ public:
 
     bool IsConnected() const override;
     bool IsRegistered() const override { return m_registered && IsConnected(); }
+    std::optional<WorldEventSnapshot> EventSnapshot() const override {
+        return IsRegistered()?std::optional{m_events}:std::nullopt;
+    }
 
     // Map-server identity advertised to TWorld. When non-zero, the
     // client sends RW_RELAYSVR_REQ(wid) immediately on every (re)connect
@@ -112,6 +119,7 @@ private:
     std::shared_ptr<WritePermit> m_write_permit;
     DisconnectHandler m_on_disconnect;
     bool m_registered = false;
+    WorldEventSnapshot m_events;
     std::chrono::milliseconds m_registration_timeout;
     std::string                 m_host;
     std::uint16_t               m_port;

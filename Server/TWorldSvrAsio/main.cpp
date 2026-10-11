@@ -379,7 +379,11 @@ int main(int argc, char** argv)
                 guilds.Size());
         }
 
+        fourstory::security::IpAllowlist control_ip_allowlist;
+        if(control_ip_allowlist.AddAll(cfg.control_ip_allowlist)!=cfg.control_ip_allowlist.size())
+            throw std::runtime_error("Invalid Control transport allowlist");
         tworldsvr::HandlerContext ctx{};
+        ctx.control_ip_allowlist=&control_ip_allowlist;
         ctx.io           = &io;
         ctx.db_pool      = worker_pool.get();
         ctx.chars        = &chars;

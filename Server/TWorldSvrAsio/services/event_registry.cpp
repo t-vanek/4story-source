@@ -1,8 +1,22 @@
 #include "event_registry.h"
 
 #include <mutex>
+#include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
 
 namespace tworldsvr {
+
+boost::asio::awaitable<EventRegistry::DeliveryLease> EventRegistry::AcquireDelivery() {
+    const auto executor=co_await boost::asio::this_coro::executor;
+    // World handlers run on one reactor. Lazy creation also keeps the plain
+    // registry usable by offline callers that never perform network delivery.
+    if(!m_delivery) {
+        m_delivery=std::make_shared<DeliveryPermit>(executor,1);
+        m_delivery->try_send(boost::system::error_code{},0);
+    }
+    co_await m_delivery->async_receive(boost::asio::use_awaitable);
+    co_return DeliveryLease(m_delivery);
+}
 
 void EventRegistry::Set(TEventInfo info)
 {

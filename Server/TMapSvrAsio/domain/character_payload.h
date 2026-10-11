@@ -69,6 +69,9 @@ struct CharacterPayload {
     // One observation for all nested actions in a native transaction. It is
     // never serialized; a newly forced effect must not start after its own tick.
     std::uint64_t event_ms{};
+    // CTPlayer::Defend updates m_dwLastAtkTick even for an item self-buff.
+    // Process-local; the full regeneration/combat timer integration is pending.
+    std::uint64_t last_attack_ms{};
     std::int64_t event_time{};
     // Static definitions for learned skills, hydrated from the pinned character
     // catalog on both fresh load and transfer. Never serialized as player data.

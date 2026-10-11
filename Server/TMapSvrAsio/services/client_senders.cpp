@@ -40,16 +40,17 @@ std::vector<std::byte> EncodePostureDefend(const CharSnapshot& s,std::uint16_t s
     if(!s.payload||(skill!=131&&skill!=132))throw std::runtime_error("Invalid automatic posture reply");
     return EncodeForcedStatusDefend(s,skill,0);
 }
-std::vector<std::byte> EncodeForcedStatusDefend(const CharSnapshot& s,std::uint16_t skill,std::uint32_t remaining) {
+static std::vector<std::byte> EncodeStatusDefend(const CharSnapshot& s,std::uint16_t skill,std::uint32_t remaining,
+    std::uint32_t host,std::uint8_t host_type,std::uint16_t attack_level) {
     if(!s.payload||!skill)throw std::runtime_error("Forced maintained reply requires hydrated character");
     std::vector<std::byte> b;
     wire::WritePOD<std::uint32_t>(b,s.dwCharID);wire::WritePOD<std::uint32_t>(b,s.dwCharID);
     wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint8_t>(b,1);
-    wire::WritePOD<std::uint32_t>(b,0);wire::WritePOD<std::uint8_t>(b,0); // source wire host, not buff host
+    wire::WritePOD<std::uint32_t>(b,host);wire::WritePOD<std::uint8_t>(b,host_type);
     wire::WritePOD<std::uint32_t>(b,0);wire::WritePOD<std::uint32_t>(b,0); // act, animation
     wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint32_t>(b,remaining);
     wire::WritePOD<std::uint8_t>(b,0);wire::WritePOD<std::uint8_t>(b,1); // hit, HT_NORMAL
-    wire::WritePOD<std::uint16_t>(b,1);wire::WritePOD<std::uint8_t>(b,s.bLevel);
+    wire::WritePOD<std::uint16_t>(b,attack_level);wire::WritePOD<std::uint8_t>(b,s.bLevel);
     for(int i=0;i<4;++i)wire::WritePOD<std::uint32_t>(b,0);
     wire::WritePOD<std::uint8_t>(b,1);wire::WritePOD<std::uint8_t>(b,0);
     wire::WritePOD<std::uint8_t>(b,s.bCountry);wire::WritePOD<std::uint8_t>(b,s.payload->aid_country);
@@ -57,6 +58,12 @@ std::vector<std::byte> EncodeForcedStatusDefend(const CharSnapshot& s,std::uint1
     wire::WritePOD<std::uint16_t>(b,0);wire::WritePOD<std::uint8_t>(b,1);
     for(int i=0;i<2;++i){wire::WritePOD<float>(b,s.fPosX);wire::WritePOD<float>(b,s.fPosY);wire::WritePOD<float>(b,s.fPosZ);}
     wire::WritePOD<std::uint8_t>(b,0);return b;
+}
+std::vector<std::byte> EncodeForcedStatusDefend(const CharSnapshot& s,std::uint16_t skill,std::uint32_t remaining) {
+    return EncodeStatusDefend(s,skill,remaining,0,0,1); // ForceMaintain wire host differs from buff host
+}
+std::vector<std::byte> EncodeItemStatusDefend(const CharSnapshot& s,std::uint16_t skill,std::uint32_t remaining,std::uint16_t attack_level) {
+    return EncodeStatusDefend(s,skill,remaining,s.dwCharID,1,attack_level); // OnCS_ITEMUSE_REQ -> self Defend
 }
 
 // "AM/PM HH:MM" server clock string CS_CHARINFO_ACK carries (legacy

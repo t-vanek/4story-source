@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace tworldsvr {
 
@@ -77,6 +78,10 @@ struct AppConfig
     std::uint32_t war_index_refresh_period_sec = 3600;
 
     DbConfig      database;
+    // Explicit transport trust for the original empty CT_CTRLSVR_REQ. This
+    // protocol carries no identity proof; default deny and isolate the peer
+    // network. A Map role cannot promote itself into this Control role.
+    std::vector<std::string> control_ip_allowlist;
 
     // Health endpoint shape mirrors the four shipped Asio daemons.
     std::uint16_t health_port = 18087;

@@ -502,7 +502,8 @@ int main(int argc, char** argv)
                         if(state->payload->during&&state->payload->during->pending_entry)continue;
                         const bool inactive=(!state->payload->during||state->payload->during->items.empty())&&
                            std::none_of(state->payload->effects->begin(),state->payload->effects->end(),
-                            [](const auto& effect){return effect.skill==820||effect.skill==903||effect.skill==918||effect.skill==923;});
+                            [](const auto& effect){return effect.skill==820||effect.skill==903||effect.skill==918||effect.skill==923||
+                                ((effect.skill==912||effect.skill==913)&&effect.remaining);});
                         if(!session_reg.BeginCheckpoint(client.get()))continue;
                         tmapsvr::SessionOperation operation(session_reg,client.get());
                         if(inactive) {

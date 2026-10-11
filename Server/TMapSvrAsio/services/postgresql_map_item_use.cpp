@@ -3,6 +3,7 @@
 #include "services/skill_cooldown.h"
 #include "secure_code.h"
 #include "legacy_random.h"
+#include "posture_effects.h"
 #include "MessageId.h"
 #include <soci/soci.h>
 #include <bit>
@@ -86,8 +87,8 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
     if(!sql.got_data())throw std::runtime_error("ITEMUSE has no pinned template");
     kind=static_cast<std::uint8_t>(chart.get<int>(0));
     // NetCode.h TITEM_KIND: HP26, MP27, AP28, MAXHP42, MAXMP43, MONEY51,
-    // EXPBONUS56, GAINEXP81, SPECIALBOX115. Other types retain their contract gate.
-    if((kind!=26&&kind!=27&&kind!=28&&kind!=42&&kind!=43&&kind!=51&&kind!=56&&kind!=81&&kind!=115)||chart.get<int>(1)!=7)
+    // SKILL33 (pure 912/913 only), EXPBONUS56, GAINEXP81, SPECIALBOX115.
+    if((kind!=26&&kind!=27&&kind!=28&&kind!=33&&kind!=42&&kind!=43&&kind!=51&&kind!=56&&kind!=81&&kind!=115)||chart.get<int>(1)!=7)
         throw std::runtime_error("ITEMUSE kind requires its remaining native gameplay contract");
     if(s.cluster.riding){reply(6);return false;} // none of these is IK_WHIP
     if(static_cast<std::uint16_t>(chart.get<int>(2))!=delay_group){reply(1);return false;}
@@ -109,7 +110,43 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
     if(!s.payload->during||s.payload->during->pending_entry)throw std::runtime_error("ITEMUSE precedes native EnterMAP");
     const auto use=static_cast<std::uint8_t>(chart.get<int>(5));
     if(kind!=56&&(use&0x40))throw std::runtime_error("Item kind requires additional during-item semantics");
-    if(kind==56) {
+    if(kind==33) {
+        const auto skill=static_cast<std::uint16_t>(chart.get<int>(8));
+        if(skill!=912&&skill!=913)throw std::runtime_error("ITEMUSE skill requires its remaining native Defend contract");
+        if(!SupportedPostures(*p)||!p->statistics)throw std::runtime_error("Item status requires supported source effects/statistics");
+        const auto definition=std::find_if(p->progress_effect_templates.begin(),p->progress_effect_templates.end(),
+            [&](const auto& def){return def.skill==skill;});
+        if(definition==p->progress_effect_templates.end()){reply(3,delay);return false;} // missing FindTSkill -> !bUsed -> IU_FULL
+        // CheckCountry/disguise/random/aftermath have no matching rows in these
+        // validated pure status templates. CheckItemBuff rejects the same ID;
+        // neither status is an EXP nor an item-upgrade lucky potion.
+        if(std::any_of(p->effects->begin(),p->effects->end(),[&](const auto& e){return e.skill==skill;})) {
+            reply(1);return false;
+        }
+        const auto units=static_cast<std::uint16_t>(chart.get<int>(6));
+        const auto forced=static_cast<std::uint32_t>(units*((use&1)?3600U:(use&2)?86400U:0U)*1000U);
+        const auto duration=forced?forced:definition->duration;
+        const auto attack_level=p->statistics->attack_level; // argument sampled before CheckEternalBuff
+        p->last_attack_ms=p->event_ms;
+        // Source Defend removes zero-MP eternal buffs before pushing the new
+        // maintained effect. Unlike ForceMaintain this side effect is required.
+        if(!s.dwMP)for(std::size_t i=0;i<s.payload->effects->size();) {
+            if(ErasesAtZeroMp(*s.payload,s.payload->effects->at(i).skill))EraseProgressEffect(sql,c,s,i,packets);
+            else ++i;
+        }
+        p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
+        MaintainedEffect effect;effect.skill=skill;effect.level=1;effect.remaining=duration;
+        effect.attack_id=effect.host_id=c.char_id;effect.attack_type=effect.host_type=1;
+        effect.attack_country=p->aid_country!=3?p->aid_country:s.bCountry;
+        effect.hit=0;effect.attack_level=attack_level;effect.attacker_level=s.bLevel;
+        effect.position={s.fPosX,s.fPosY,s.fPosZ};effect.sampled_ms=effect.charge_ms=p->event_ms;
+        p->effects->push_back(effect);
+        if(p->effects->size()>255)throw std::runtime_error("Item status exceeds original effect count");
+        RefreshEquipment(sql,s,true);
+        packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),
+            EncodeItemStatusDefend(s,skill,duration,attack_level),QuestAudience::Neighbors);
+        packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(s,*s.payload->statistics));
+    }else if(kind==56) {
         if(!p->during->items.empty()&&p->during->items.front().type){reply(13);return false;} // IU_OVERLAPEXPBONUS
     } else if(kind==81) {
         GainQuestExperience(sql,c,s,static_cast<std::uint32_t>(chart.get<int>(9)),event,packets);

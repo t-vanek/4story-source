@@ -64,7 +64,8 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const auto message=static_cast<tnetlib::protocol::MessageId>(opcode);
     if(message==tnetlib::protocol::MessageId::CS_ITEMUSE_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMSELL_REQ||
-       message==tnetlib::protocol::MessageId::CS_DURATIONREP_REQ) {
+       message==tnetlib::protocol::MessageId::CS_DURATIONREP_REQ||
+       message==tnetlib::protocol::MessageId::CS_REFINE_REQ) {
         if(!ctx.char_state)throw std::runtime_error("Native item state unavailable");
         const auto state=ctx.char_state->Get(identity->char_id);if(!state)co_return;
         // Original protected handlers prompt before reading the request body.
@@ -79,12 +80,15 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const bool lottery=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_REQ)||
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_TRIGGER_REQ);
     const auto required=opcode<=1||lottery?0U:
+        message==tnetlib::protocol::MessageId::CS_WASTEREFINE_REQ?2U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_DURATIONREP_REQ)?8U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMSELL_REQ)?5U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_NPCTALK_REQ)?2U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_QUESTEXEC_REQ)?9U:4U;
     if(opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMUSE_REQ)) {
         if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))throw std::runtime_error("Invalid ITEMUSE request length");
+    }else if(message==tnetlib::protocol::MessageId::CS_REFINE_REQ) {
+        if(body.size()<8||body.size()!=8U+2U*std::to_integer<unsigned>(body[3]))throw std::runtime_error("Invalid REFINE request length");
     }else if(body.size()!=required)throw std::runtime_error("Invalid quest request length");
     if(!ctx.char_state||!ctx.player_service||!ctx.quest_chart||!ctx.skill_cooldown||!ctx.monster_registry)
         throw std::runtime_error("Native quest dependencies unavailable");
@@ -96,6 +100,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         QuestMapFacts facts;facts.map=before.wMapID;facts.channel=identity->channel;
         facts.sample_ms=SkillClockMs();
         facts.world_registered=ctx.world_client&&ctx.world_client->IsRegistered();
+        if(ctx.world_client)facts.world_events=ctx.world_client->EventSnapshot();
         for(const auto& mon:ctx.monster_registry->ListInMap(facts.channel,facts.map)) {
             if(!mon.dwInstanceID)throw std::runtime_error("Quest actor snapshot contains reserved target zero");
             facts.monsters.emplace_back(mon.dwInstanceID,mon.wTemplateID);

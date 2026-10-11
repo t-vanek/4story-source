@@ -17,7 +17,7 @@ std::uint64_t AllocateQuestItem(soci::session& sql,const MapSessionClaim& c) {
     return static_cast<std::uint64_t>(id);
 }
 struct Placement {std::size_t item{};std::uint8_t bag{},slot{},count{};bool create{};};
-std::optional<std::vector<Placement>> Place(const CharacterPayload& p,const std::vector<ItemInstance>& input) {
+std::optional<std::vector<Placement>> Place(const CharacterPayload& p,const std::vector<ItemInstance>& input,bool merge_stacks=true) {
     auto bags=p.bags;
     // CTObjBase::CanPush and CTPlayer::PushTItem first try matching stacks in
     // the default bag, then other bags, then empty slots in that same order.
@@ -32,7 +32,7 @@ std::optional<std::vector<Placement>> Place(const CharacterPayload& p,const std:
         if(!input[n].source||!input[n].stack_limit)throw std::runtime_error("Quest item has invalid source stack capacity");
         while(remaining) {
             CharacterBag* chosen=nullptr;ItemInstance* stack=nullptr;std::uint8_t slot=255;
-            for(auto& bag:bags) {
+            if(merge_stacks)for(auto& bag:bags) {
                 for(auto& candidate:bag.items)if(StackEquivalent(candidate,input[n])&&candidate.bCount<candidate.stack_limit) {
                     chosen=&bag;stack=&candidate;slot=candidate.bItemID;break;
                 }
@@ -227,8 +227,8 @@ bool PostgreSQLMapService::OpenSpecialBox(soci::session& sql,const MapSessionCla
     return blank&&GrantQuestItems(sql,c,s,items,packets);
 }
 bool PostgreSQLMapService::GrantQuestItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
-    const std::vector<ItemInstance>& input,QuestPackets& packets) {
-    const auto plan=Place(*s.payload,input);if(!plan)return false;
+    const std::vector<ItemInstance>& input,QuestPackets& packets,bool merge_stacks) {
+    const auto plan=Place(*s.payload,input,merge_stacks);if(!plan)return false;
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
     const int world=c.group,owner=std::bit_cast<std::int32_t>(c.char_id);
     std::vector<unsigned> remaining;for(const auto& i:input)remaining.push_back(i.bCount);
@@ -265,6 +265,47 @@ bool PostgreSQLMapService::GrantQuestItems(soci::session& sql,const MapSessionCl
         packets.emplace_back(static_cast<std::uint16_t>(step.create?tnetlib::protocol::MessageId::CS_ADDITEM_ACK:tnetlib::protocol::MessageId::CS_UPDATEITEM_ACK),std::move(bytes));
         if(step.create)bag->items.push_back(std::move(item));else *found=std::move(item);
     }
+    return true;
+}
+bool PostgreSQLMapService::ReclaimNativeRefine(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
+    std::span<const std::byte> body,QuestPackets& packets) {
+    using tnetlib::protocol::MessageId;
+    if(body.size()!=2)throw std::runtime_error("Invalid WASTEREFINE request length");
+    const auto inventory=std::to_integer<std::uint8_t>(body[0]),slot=std::to_integer<std::uint8_t>(body[1]);
+    const auto reply=[&](std::uint8_t result){packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_WASTEREFINE_ACK),
+        std::vector<std::byte>{static_cast<std::byte>(result)});};
+    std::optional<ItemInstance> source;
+    for(const auto& bag:s.payload->bags)if(bag.bag.bInvenID==inventory)
+        for(const auto& item:bag.items)if(item.bItemID==slot)source=item;
+    if(!source||!source->bCount){reply(1);return false;}
+    const int id=std::bit_cast<std::int16_t>(source->wItemID);int type=0,use=0;
+    sql << "SELECT \"bType\",\"wUseValue\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",
+        soci::use(id),soci::into(type),soci::into(use);
+    if(!sql.got_data())throw std::runtime_error("Reclaimed refine item template disappeared");
+    if(type!=14){reply(2);return false;} // IT_REFINE
+    int stack=0;
+    sql << "SELECT \"bStack\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(use),soci::into(stack);
+    if(!sql.got_data()){reply(1);return false;}
+    if(!stack)throw std::runtime_error("Reclaimed item has a zero source stack size");
+    // The original temporary CTItem has a NULL attribute pointer until Copy.
+    // CanPush/GetEasePos therefore cannot merge it with hydrated carried items.
+    // It needs a blank BEFORE consuming the material, even if that material
+    // would free one. Do not substitute the more permissive generic placement.
+    bool blank=false;
+    for(const auto& bag:s.payload->bags)if(bag.bag.bInvenID!=254)
+        for(unsigned at=0;at<bag.slot_count;++at)
+            if(std::none_of(bag.items.begin(),bag.items.end(),[&](const auto& item){return item.bItemID==at;}))blank=true;
+    if(!blank){reply(3);return false;}
+    DebitNativeItem(sql,c,s,inventory,slot,source->dlID,1,packets);
+    transfer::Item raw;raw.id=AllocateQuestItem(sql,c);raw.owner_id=c.char_id;
+    raw.item=static_cast<std::uint16_t>(use);raw.count=1;
+    // CTItem constructor values: no template durability, expiry, magic or
+    // extensions are generated by this handler. Copy only assigns attributes.
+    const std::vector<ItemInstance> items{ProjectNativeItem(sql,raw)};
+    if(!GrantQuestItems(sql,c,s,items,packets,false))throw std::runtime_error("Reclaimed item placement changed after debit");
+    if(inventory==254)RefreshEquipment(sql,s,true); // source getters see removal immediately
+    reply(0);
+    // Source has no secure-code, dead/riding, reuse or quest-use gate/hook.
     return true;
 }
 void PostgreSQLMapService::ConsumeQuestItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,

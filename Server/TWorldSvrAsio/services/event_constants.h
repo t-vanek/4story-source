@@ -20,8 +20,8 @@ constexpr std::uint8_t kLottery   = 14;
 constexpr std::uint8_t kGiftTime  = 15;
 
 // EVENT_COUNT (NetCode.h:2444) — one past the highest event id.
-// Inbound CT_EVENTUPDATE_REQ with event_id > kCount is dropped
-// (legacy SSHandler.cpp:276 `if(bEventID > EVENT_COUNT) return`).
+// Modern readers also reject equality: the source > check allowed an
+// out-of-bounds write to Map m_wEventValue[EVENT_COUNT].
 constexpr std::uint8_t kCount     = 16;
 
 // WORLDPOST_TYPE (CTProtocol.h:45) — the in-game mail kind the

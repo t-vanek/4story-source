@@ -37,6 +37,7 @@ public:
     std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&) override;
     SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) override;
     SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) override;
+    QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) override;
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillActionCommit CommitSkillAction(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
@@ -44,6 +45,11 @@ public:
     InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) override;
     EffectEndCommit EndMaintainedEffect(const MapSessionClaim&,const EffectEndRequest&,const CharSnapshot&) override;
 private:
+    static std::vector<QuestProgressRow> ReadQuestProgress(soci::session&,const MapSessionClaim&);
+    static void HydrateQuestProgress(soci::session&,const MapSessionClaim&,CharacterPayload&);
+    static void CheckQuestProgress(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static void WriteQuestProgress(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static void WriteQuestTimers(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static SecureCodeState ReadSecurity(soci::session&,const MapSessionClaim&);
     static void CheckCastHead(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     std::vector<std::string> CommitSkillMutation(const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&,const SkillCastRequest*,const CharSnapshot*,SkillCastCommit*);
@@ -51,6 +57,9 @@ private:
     struct InventoryStoragePlan {InventoryMovePlan move;CharSnapshot after;InventoryMoveCommit committed;std::string before_graph,after_graph;};
     InventoryStoragePlan ValidateInventoryMove(soci::session&,const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) const;
     static void RefreshEquipment(soci::session&,CharSnapshot&,bool derive);
+    static ItemInstance ProjectNativeItem(soci::session&,const transfer::Item&);
+    static std::optional<ItemInstance> CreateQuestItem(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t);
+    static bool GrantQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const std::vector<ItemInstance>&,QuestPackets&);
     std::string ValidateInventoryState(soci::session&,const MapSessionClaim&,const CharSnapshot&,bool all_fresh_items) const;
     enum class ConsumptionKind { Reagent, Ammunition, MultiAttackAmmunition };
     struct ReagentGraphPlan {std::string before_hash,after_hash;std::vector<std::string> item_hashes;ConsumptionKind kind=ConsumptionKind::Reagent;};

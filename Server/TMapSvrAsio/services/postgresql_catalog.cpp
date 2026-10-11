@@ -48,6 +48,11 @@ PostgreSQLCatalog LoadPostgreSQLCatalog(fourstory::db::SessionPool& pool,
     if (!sql.got_data() || status != "verified" || result.manifest_sha256 != expected_manifest)
         throw std::runtime_error("Active catalog does not match the configured verified manifest");
     result.run_id = run;
+    std::string quest_parent,quest_status;
+    sql << "SELECT map_manifest,status FROM game_compat.quest_condition_release",
+        soci::into(quest_parent),soci::into(quest_status);
+    if(!sql.got_data()||quest_status!="verified"||quest_parent!=expected_manifest)
+        throw std::runtime_error("Quest conditions require publication for this exact Map catalog");
 
     constexpr std::array<const char*, 15> names = {
         "TCLASSCHART", "TFORMULACHART", "TITEMCHART", "TMAPMONCHART",

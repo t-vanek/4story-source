@@ -7,6 +7,7 @@
 #include "services/main_transfer_runtime.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
+#include "services/quest_runtime.h"
 #include "fourstory/db/co_offload.h"
 #include "MessageId.h"
 #include <cmath>
@@ -42,11 +43,15 @@ boost::asio::awaitable<void> OnMWCharInfoReq(std::vector<std::byte> body,const H
     // reuse the live snapshot path without changing or rearming loaded timers.
     if(!client->IsOpen())co_return;
     std::vector<std::byte> info;
+    QuestPackets quests;
     try {
         const auto current=transfer::PersistenceSnapshot(*hydrated,key,*ctx.skill_cooldown,SkillClockMs());
         info=EncodeCharInfoAck(current,FormatServerClock());
+        if(!ctx.quest_chart)throw std::runtime_error("Native quest chart missing");
+        quests=quest_runtime::InitialPackets(current,*ctx.quest_chart);
     }catch(...){client->Close();co_return;}
     co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK),std::move(info));
+    for(const auto& [id,bytes]:quests)co_await client->SendPacket(id,bytes);
 }
 boost::asio::awaitable<void> OnMWNativeRouteReq(std::vector<std::byte> body,const HandlerContext& ctx,bool server_list){
     wire::Reader r(body.data(),body.size());std::uint32_t cid{},key{};std::uint8_t channel{};std::uint16_t map{};float x{},y{},z{};

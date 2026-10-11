@@ -1,12 +1,14 @@
 #pragma once
 #include "domain/inventory.h"
 #include "domain/secure_code.h"
+#include "domain/quest.h"
 #include "domain/skill.h"
 #include "domain/character_statistics.h"
 #include "domain/maintained_effect.h"
 #include <array>
 #include <memory>
 #include <optional>
+#include <set>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -47,6 +49,12 @@ struct CharacterPayload {
     std::uint64_t last_cast_id{}; // native ledger head; rehydrated, never sent to the client
     std::uint64_t last_action_id{}; // action/charge ledger fence, never a wire field
     std::uint64_t last_finish_id{}; // fences stale snapshots after target resolution
+    std::uint64_t last_quest_id{}; // durable quest mutation fence, never on wire
+    std::optional<std::vector<QuestProgressRow>> quests;
+    std::uint64_t quest_sample_ms{}; // server-only timer observation
+    // CTPlayer::m_mapLevelQuest is a live-session cache, rebuilt from loaded
+    // quest definitions on entry and explicitly erased on DropQuest.
+    std::optional<std::set<std::uint32_t>> quest_levels;
     std::vector<CharacterBag> bags;
     std::vector<SkillRow> skills;
     // Optional only for legacy/test projections which have not hydrated effects.

@@ -142,6 +142,7 @@ PostgreSQLMapService::ReagentGraphPlan PostgreSQLMapService::ValidateGraphReagen
 
     SkillCooldownTracker timers;timers.Restore(c.char_id,after.payload->skills,0);
     auto candidate=transfer::Capture(after,c.key,timers,0);
+    quest_runtime::AlignGraphTimers(*stored,candidate);
     // Allow the live core and sampled cooldown durations to advance. The cast
     // cannot learn/forget/change ranks, reorder or discard unrelated graph data.
     if(stored->skills.size()!=candidate.skills.size())throw std::runtime_error("Reagent graph learned skills changed");

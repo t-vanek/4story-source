@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Export an explicit gameplay-reference allowlist from disposable restored DBs.
+"""Export reference profiles or the complete archive from disposable restored DBs.
 
-No accounts, session, IP, mail or credential tables. Writes mode-0600 JSON outside
-the repository. Float style 3 preserves SQL Server numeric round-trip precision.
+Reference profiles exclude accounts, sessions, mail and credentials. The explicit
+archive profile includes every inventoried table. Writes mode-0600 JSON outside
+the repository. Float style 3 and decimal strings preserve numeric precision.
 """
 import argparse
 import json
@@ -20,7 +21,7 @@ def si(name):return '['+name.replace(']',']]')+']'
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--container',required=True)
-    p.add_argument('--profile',choices=('map','characters','routing','actor','trainers'),default='map')
+    p.add_argument('--profile',choices=('map','characters','routing','actor','trainers','archive'),default='map')
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--mapping',type=Path,default=Path('database/postgresql/mapping.json'))
     p.add_argument('--backup-metadata',type=Path,default=Path('_rewrite/docs/database-reconstruction/evidence/artifact-inventory.json'))
@@ -37,7 +38,7 @@ def main():
         if result!=backup['sha256']:raise RuntimeError('CONTAINER_BACKUP_FINGERPRINT_MISMATCH')
     manifest={'metadata_sha256':mapping['metadata_sha256'],'backups':backups,'tables':[]}
     for table in mapping['tables']:
-        if not table['reference_import_allowed']:continue
+        if args.profile!='archive' and not table['reference_import_allowed']:continue
         if args.profile == 'map' and (table['database'] != 'TGAME_RAGEZONE' or table['table'] not in REFERENCE_TABLES):continue
         key=(table['database'],table['schema'],table['table'])
         if args.profile == 'characters' and key not in CHARACTER_REFERENCE_KEYS:continue
@@ -48,7 +49,11 @@ def main():
         text_columns=[]
         for col in table['column_mapping']:
             name=si(col['source'])
-            projections.append(f'CONVERT(varchar(64),{name},3) AS {name}' if col['mssql_type'].startswith(('float','real')) else name)
+            if col['mssql_type'].startswith(('float','real')):
+                projections.append(f'CONVERT(varchar(64),{name},3) AS {name}')
+            elif col['postgresql_type'].startswith('numeric'):
+                projections.append(f'CONVERT(varchar(128),{name}) AS {name}')
+            else:projections.append(name)
             if col['postgresql_type']=='text':
                 alias='__reconstruction_bytes_'+str(len(text_columns))
                 # SQL Server forbids direct legacy text/ntext -> varbinary conversion.
@@ -57,8 +62,15 @@ def main():
                 projections.append(f'CONVERT(varbinary(max),{source}) AS {si(alias)}')
                 text_columns.append((col['source'],alias))
         ordering=table['original_pk'] or [c['source'] for c in table['column_mapping']]
+        source_types={c['source']:c['mssql_type'] for c in table['column_mapping']}
+        def order_expression(column):
+            name=si(column);kind=source_types[column]
+            if kind in ('text','ntext'):
+                return f'CONVERT({"nvarchar" if kind=="ntext" else "varchar"}(max),{name})'
+            if kind=='image':return f'CONVERT(varbinary(max),{name})'
+            return name
         statement='SELECT\n'+',\n'.join(projections)+'\nFROM '+si(table['schema'])+'.'+si(table['table'])+\
-            '\nORDER BY '+','.join(si(c) for c in ordering)+' FOR JSON PATH, INCLUDE_NULL_VALUES'
+            '\nORDER BY '+','.join(order_expression(c) for c in ordering)+' FOR JSON PATH, INCLUDE_NULL_VALUES'
         rows=query(args.container,statement,'forensic_'+table['database'])
         byte_records=[]
         for i,row in enumerate(rows,1):

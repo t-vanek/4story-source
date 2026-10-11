@@ -14,6 +14,7 @@
 // by quest_engine.h.
 
 #include <cstdint>
+#include <cstddef>
 #include <vector>
 
 namespace tmapsvr {
@@ -161,10 +162,7 @@ struct QuestRewardDef
     std::uint8_t  bCount      = 0;   // item count
 };
 
-// A whole quest definition — TQUESTCHART header plus its joined terms
-// and rewards. Faithful to tagQUESTTEMP (TMapType.h:2016) minus the
-// condition vector (conditions are an accept-time gate; this slice
-// keeps only the level gate, on bLevel).
+// TQUESTCHART header and joined source condition, term and reward rows.
 struct QuestDef
 {
     std::uint32_t dwQuestID    = 0;
@@ -176,6 +174,10 @@ struct QuestDef
     std::uint8_t  bLevel       = 0;   // min level to accept
     std::vector<QuestTermDef>   terms;
     std::vector<QuestRewardDef> rewards;
+    struct Condition {std::uint32_t id{};std::uint8_t type{},count{};};
+    std::vector<Condition> conditions;
+    std::uint8_t force_run{},main{},condition_check{};
+    std::size_t source_order{}; // source header query order within bMain
 };
 
 } // namespace tmapsvr

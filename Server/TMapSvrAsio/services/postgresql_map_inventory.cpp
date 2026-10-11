@@ -69,6 +69,7 @@ std::string PostgreSQLMapService::ValidateInventoryState(soci::session& sql,cons
                 throw std::runtime_error("Inventory learned ranks changed");
             stored.skills[i].dwRemainTick=live.skills[i].dwRemainTick;
         }
+        quest_runtime::AlignGraphTimers(stored,live);
         stored.character=live.character;
         if(transfer::Encode(stored)!=transfer::Encode(live))throw std::runtime_error("Inventory graph changed since hydration");
 

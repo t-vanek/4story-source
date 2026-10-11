@@ -266,6 +266,8 @@ int RecoverPreparedMapTransfers(soci::session& sql,int world,int server,const st
         sql<<"SELECT COALESCE(max(selection_id),0) FROM app_world.title_selection_operations WHERE world_id=:w AND char_id=:c",
             soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
         payload->last_title_selection_id=static_cast<std::uint64_t>(head);
+        payload->transfer_state=std::make_shared<const transfer::State>(*graph);
+        PostgreSQLMapService::HydrateQuestProgress(sql,claim,*payload);
         payload->security=PostgreSQLMapService::ReadSecurity(sql,claim);
         graph->character.payload=std::move(payload);
         PostgreSQLMapService::WriteCore(sql,claim,graph->character,1);

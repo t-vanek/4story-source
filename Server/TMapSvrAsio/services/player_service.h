@@ -18,6 +18,7 @@
 #include "services/skill_action.h"
 #include "services/skill_learning.h"
 #include "services/secure_code.h"
+#include "services/quest_runtime.h"
 
 #include <cstdint>
 #include <optional>
@@ -33,6 +34,7 @@ class IPlayerService
 {
 public:
     virtual ~IPlayerService() = default;
+    virtual QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) {throw std::runtime_error("Native quest persistence unavailable");}
     virtual SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Secure code persistence unavailable");}
 
     // Load the snapshot for `char_id`, or nullopt when the row is

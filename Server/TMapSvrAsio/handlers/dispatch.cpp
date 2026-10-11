@@ -120,6 +120,8 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnQuestExecReq(sess, std::move(body), ctx); break;
     case MessageId::CS_QUESTDROP_REQ:
         co_await OnQuestDropReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_QUESTENDTIMER_REQ:
+        co_await OnNativeQuestReq(sess,wId,std::move(body),ctx); break;
     case MessageId::CS_CHAT_REQ:
         co_await OnChatReq(sess, std::move(body), ctx); break;
     case MessageId::CS_PARTYADD_REQ:

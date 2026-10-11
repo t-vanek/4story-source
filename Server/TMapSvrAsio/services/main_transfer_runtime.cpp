@@ -1,4 +1,5 @@
 #include "main_transfer_runtime.h"
+#include "quest_runtime.h"
 #include <algorithm>
 #include <limits>
 #include <set>
@@ -20,8 +21,10 @@ auto SampleSkills(const CharSnapshot& s,const SkillCooldownTracker& timers,std::
 CharSnapshot PersistenceSnapshot(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker& timers,std::uint64_t now) {
     if(!s.payload)return s;
     auto out=s;auto p=std::make_shared<CharacterPayload>(*s.payload);
+    quest_runtime::Sample(*p,now);
     if(p->transfer_state) {
-        auto graph=std::make_shared<State>(Capture(s,key,timers,now));
+        auto sampled=s;sampled.payload=p;
+        auto graph=std::make_shared<State>(Capture(sampled,key,timers,now));
         p->skills=graph->skills;p->transfer_state=std::move(graph);p->transfer_received_ms=now;
     }else p->skills=SampleSkills(s,timers,now);
     out.payload=std::move(p);return out;
@@ -64,6 +67,14 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
         }
     }
     out.cabinets=p.cabinets;out.skills=p.skills;out.titles=p.titles;out.recalls=p.recalls;out.pets=p.pets;
+    if(p.quests) {
+        out.quests.clear();out.quest_terms.clear();
+        auto rows=*p.quests;quest_runtime::Sort(rows);
+        for(const auto& q:rows) {
+            out.quests.push_back({q.dwQuestID,q.dwTick,q.bCompleteCount,q.bTriggerCount,q.save});
+            for(const auto& t:q.terms)out.quest_terms.push_back({q.dwQuestID,t.dwTermID,t.bTermType,t.bCount});
+        }
+    }
     if(p.effects)out.buffs=*p.effects;
     // Preserve dirty-save flags absent from the client hotkey projection.
     auto old_hotkeys=std::move(out.hotkeys);out.hotkeys.clear();

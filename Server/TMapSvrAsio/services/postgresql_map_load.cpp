@@ -354,6 +354,9 @@ ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw) {
 }
 
 }
+ItemInstance PostgreSQLMapService::ProjectNativeItem(soci::session& sql,const transfer::Item& raw) {
+    return ProjectItem(sql,raw);
+}
 void PostgreSQLMapService::RefreshEquipment(soci::session& sql,CharSnapshot& s,bool derive) {
     auto p=std::make_shared<CharacterPayload>(*s.payload);
     if(!p->statistics)throw std::runtime_error("Equipment requires supported source-derived statistics");
@@ -535,6 +538,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
      p.last_title_selection_id=static_cast<std::uint64_t>(head);
 }
+    HydrateQuestProgress(sql,claim,p);
     p.security=ReadSecurity(sql,claim);
     DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
@@ -545,6 +549,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     CharSnapshot s=t.character;s.payload.reset();auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
     auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
+    HydrateQuestProgress(sql,claim,p);
     p.security=ReadSecurity(sql,claim);
     if(!t.new_security&&!p.security.created)throw std::runtime_error("Transferred secure code has no native account authority");
     p.skills=t.skills;p.cabinets=t.cabinets;p.titles=t.titles;p.recalls=t.recalls;p.pets=t.pets;

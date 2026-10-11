@@ -28,6 +28,7 @@ public:
 
     // Total quest definitions loaded (boot log).
     virtual std::size_t Size() const = 0;
+    virtual std::vector<const QuestDef*> All() const = 0;
 };
 
 // Header-only in-memory impl — also the test fake. Add() inserts a def
@@ -44,6 +45,11 @@ public:
     }
 
     std::size_t Size() const override { return m_defs.size(); }
+    std::vector<const QuestDef*> All() const override {
+        std::vector<const QuestDef*> out;out.reserve(m_defs.size());
+        for(const auto& [id,def]:m_defs)out.push_back(&def);
+        return out;
+    }
 
 private:
     std::unordered_map<std::uint32_t, QuestDef> m_defs;

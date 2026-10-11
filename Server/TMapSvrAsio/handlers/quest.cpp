@@ -1,3 +1,6 @@
+// Native immutable payloads dispatch through PostgreSQLMapService::ChangeQuest
+// below. The older quest_log backend remains separate; its summary in the
+// following historical comment does not describe native implementation parity.
 // Quest handlers — CS_QUESTEXEC_REQ (accept / turn-in) and
 // CS_QUESTDROP_REQ (abandon), wired to the data-driven quest engine.
 //
@@ -31,6 +34,10 @@
 #include "services/quest_log.h"
 #include "services/quest_service.h"
 #include "services/session_registry.h"
+#include "services/player_service.h"
+#include "services/monster_registry.h"
+#include "services/main_transfer_runtime.h"
+#include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 
 #include "MessageId.h"
@@ -43,6 +50,39 @@
 #include <vector>
 
 namespace tmapsvr {
+
+boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSession> client,
+    std::uint16_t opcode,std::vector<std::byte> body,const HandlerContext& ctx) {
+    const auto identity=ctx.session_reg?ctx.session_reg->Identity(client.get()):std::nullopt;
+    if(!identity||identity->phase!=SessionPhase::Ready||identity->role!=MapSessionRole::Primary)co_return;
+    const auto required=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_NPCTALK_REQ)?2U:
+        opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_QUESTEXEC_REQ)?9U:4U;
+    if(body.size()!=required)throw std::runtime_error("Invalid quest request length");
+    if(!ctx.char_state||!ctx.player_service||!ctx.quest_chart||!ctx.skill_cooldown||!ctx.monster_registry)
+        throw std::runtime_error("Native quest dependencies unavailable");
+    const auto cid=identity->char_id;
+    const auto original=ctx.char_state->Freeze(cid,[](auto&){});if(!original)co_return;
+    QuestCommit committed;
+    try {
+        const auto before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,SkillClockMs());
+        QuestMapFacts facts;facts.map=before.wMapID;facts.channel=identity->channel;
+        for(const auto& mon:ctx.monster_registry->ListInMap(facts.channel,facts.map)) {
+            if(!mon.dwInstanceID)throw std::runtime_error("Quest actor snapshot contains reserved target zero");
+            facts.monsters.emplace_back(mon.dwInstanceID,mon.wTemplateID);
+        }
+        auto* service=ctx.player_service;const auto* chart=ctx.quest_chart;
+        committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [service,chart,claim=identity->Claim(ctx.expected_group),opcode,&body,&before,&facts]{
+                return service->ChangeQuest(claim,opcode,body,before,*chart,facts);
+            });
+        if(!committed.snapshot)throw std::runtime_error("Missing quest commit state");
+        ctx.char_state->Store(cid,*committed.snapshot);
+    }catch(...) {
+        auto uncertain=*original;uncertain.persistence_uncertain=true;
+        ctx.char_state->Store(cid,uncertain);client->Close();throw;
+    }
+    for(const auto& [id,bytes]:committed.packets)co_await client->SendPacket(id,bytes);
+}
 
 namespace {
 
@@ -111,6 +151,13 @@ OnQuestExecReq(std::shared_ptr<tnetlib::AsioSession> sess,
                const HandlerContext&                 ctx)
 {
     using tnetlib::protocol::MessageId;
+
+    const auto native=ctx.session_reg?ctx.session_reg->Identity(sess.get()):std::nullopt;
+    const auto state=native&&ctx.char_state?ctx.char_state->Get(native->char_id):std::nullopt;
+    if(state&&state->payload) {
+        co_await OnNativeQuestReq(sess,static_cast<std::uint16_t>(MessageId::CS_QUESTEXEC_REQ),std::move(body),ctx);
+        co_return;
+    }
 
     // CS_QUESTEXEC_REQ body (legacy CSHandler.cpp:3536):
     //   DWORD dwQuestID, BYTE bRewardType, DWORD dwRewardID
@@ -204,6 +251,12 @@ OnQuestDropReq(std::shared_ptr<tnetlib::AsioSession> sess,
                const HandlerContext&                 ctx)
 {
     using tnetlib::protocol::MessageId;
+    const auto identity=ctx.session_reg?ctx.session_reg->Identity(sess.get()):std::nullopt;
+    const auto snapshot=identity&&ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt;
+    if(snapshot&&snapshot->payload) {
+        co_await OnNativeQuestReq(sess,static_cast<std::uint16_t>(MessageId::CS_QUESTDROP_REQ),std::move(body),ctx);
+        co_return;
+    }
 
     // CS_QUESTDROP_REQ body (legacy CSHandler.cpp:3590): DWORD dwQuestID
     wire::Reader r(body.data(), body.size());

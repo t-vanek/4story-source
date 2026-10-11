@@ -69,16 +69,19 @@ inline constexpr const char* QuestTermsByCharId =
 
 // TQUESTCHART — quest definition headers, loaded once at boot. dwParentID
 // links chained quests; bType is the QT_ action, bTriggerType the TT_
-// trigger. (Legacy CTBLQuestChart, DBAccess.h:2033.) bForceRun / bMain /
-// bConditionCheck are not read by the kill-count slice.
+// trigger. (Legacy CTBLQuestChart, DBAccess.h:2033.) Keep force, ordering and
+// condition-combination fields for the original quest action dispatcher.
 inline constexpr const char* AllQuestChart =
     "SELECT dwQuestID, dwParentID, bType, bTriggerType, dwTriggerID, "
-    "  bCountMax, bLevel FROM TQUESTCHART";
+    "  bCountMax, bLevel, bForceRun, bMain, bConditionCheck FROM TQUESTCHART ORDER BY bMain DESC,dwQuestID";
+
+inline constexpr const char* AllQuestConditions =
+    "SELECT dwQuestID,dwConditionID,bConditionType,bCount FROM TQCONDITIONCHART ORDER BY bConditionType DESC,dwID";
 
 // TQUESTTERMCHART — quest objective rows, grouped by quest id. For a
 // QTT_HUNT term, dwTermID is the monster kind and bCount the goal.
 inline constexpr const char* AllQuestTermChart =
-    "SELECT dwQuestID, bTermType, dwTermID, bCount FROM TQUESTTERMCHART";
+    "SELECT dwQuestID, bTermType, dwTermID, bCount FROM TQUESTTERMCHART ORDER BY dwID";
 
 // TQREWARDCHART — quest reward rows, grouped by quest id. bRewardType
 // selects gold / item / skill; dwRewardID is the gold amount or item id.

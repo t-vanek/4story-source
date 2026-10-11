@@ -93,10 +93,11 @@ def adapt(value, column):
     return value
 
 
-def load_snapshot(manifest_path, mapping_path):
+def load_snapshot(manifest_path, mapping_path, *, include_historical=False):
     manifest=json.loads(manifest_path.read_text());mapping=json.loads(mapping_path.read_text())
     if manifest['metadata_sha256']!=mapping['metadata_sha256']:raise RuntimeError('METADATA_FINGERPRINT_MISMATCH')
-    allowed={(t['database'],t['schema'],t['table']):t for t in mapping['tables'] if t['reference_import_allowed']}
+    allowed={(t['database'],t['schema'],t['table']):t for t in mapping['tables']
+             if include_historical or t['reference_import_allowed']}
     loaded=[];seen=set()
     for table in manifest['tables']:
         # Keep the validated public manifest immutable. Private byte records
@@ -153,9 +154,19 @@ def read_target(conn, model, run_id):
     return [{c['source']:v for c,v in zip(cols,row,strict=True)} for row in rows]
 
 
-def import_snapshot(conn, manifest_path, mapping_path):
+def import_snapshot(conn, manifest_path, mapping_path, *, include_historical=False):
     from psycopg.types.json import Jsonb
-    manifest,loaded=load_snapshot(manifest_path,mapping_path)
+    manifest,loaded=load_snapshot(manifest_path,mapping_path,include_historical=include_historical)
+    if include_historical:
+        mapping=json.loads(mapping_path.read_text())
+        expected={(t['database'],t['schema'],t['table']) for t in mapping['tables']}
+        if {(t['database'],t['schema'],t['table']) for t,_,_ in loaded}!=expected:
+            raise RuntimeError('COMPLETE_HISTORICAL_MANIFEST_REQUIRED')
+        inventory=Path(__file__).resolve().parents[2]/'_rewrite/docs/database-reconstruction/evidence/artifact-inventory.json'
+        pinned=[{k:a[k] for k in ('path','size_bytes','sha256')} for a in json.loads(inventory.read_text())['artifacts']
+                if a['path'] in ('TGAME_RAGEZONE.bak','TGLOBAL_RAGEZONE.bak')]
+        if len(pinned)!=2 or sorted(manifest['backups'],key=lambda x:x['path'])!=sorted(pinned,key=lambda x:x['path']):
+            raise RuntimeError('PINNED_BACKUP_FINGERPRINT_MISMATCH')
     # Loaded byte records are private payloads, never part of the journal manifest.
     public_manifest=json.loads(manifest_path.read_text())
     fingerprint=digest(json.dumps(public_manifest,sort_keys=True,separators=(',',':')).encode())
@@ -215,7 +226,10 @@ def import_snapshot(conn, manifest_path, mapping_path):
     try:
         with conn.transaction():
             conn.execute('SELECT id FROM reconstruction.import_runs WHERE id=%s FOR UPDATE',(run,))
-            projection=project_items(conn,run,loaded)
+            # Historical preservation is independent of the stricter runtime
+            # projection. An archive must not discard rows because a currently
+            # supported gameplay model cannot consume them.
+            projection=None if include_historical else project_items(conn,run,loaded)
             conn.execute("UPDATE reconstruction.import_runs SET status='verified',verified_at=CURRENT_TIMESTAMP WHERE id=%s",(run,))
     except Exception:
         with conn.transaction():
@@ -255,11 +269,15 @@ def main():
     migrations=sub.add_parser('schema');migrations.add_argument('--directory',type=Path,default=Path('database/postgresql'))
     imp=sub.add_parser('import-reference');imp.add_argument('--manifest',type=Path,required=True)
     imp.add_argument('--mapping',type=Path,default=Path('database/postgresql/mapping.json'))
+    archive=sub.add_parser('import-archive',help='Preserve every inventoried historical table, without runtime publication')
+    archive.add_argument('--manifest',type=Path,required=True)
+    archive.add_argument('--mapping',type=Path,default=Path('database/postgresql/mapping.json'))
     p.add_argument('--report',type=Path)
     args=p.parse_args()
     try:
         with connect() as conn:
-            result={'applied_migrations':apply_migrations(conn,args.directory)} if args.command=='schema' else import_snapshot(conn,args.manifest,args.mapping)
+            result={'applied_migrations':apply_migrations(conn,args.directory)} if args.command=='schema' else import_snapshot(
+                conn,args.manifest,args.mapping,include_historical=args.command=='import-archive')
         if args.report:args.report.write_text(json.dumps(result,indent=2)+'\n')
         print(json.dumps(result))
     except Exception as ex:

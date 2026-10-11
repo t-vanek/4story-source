@@ -5,6 +5,7 @@
 #include "skill_effect.h"
 #include "skill_engine.h"
 #include "skill_cooldown.h"
+#include "quest_conditions.h"
 #include "MessageId.h"
 #include "domain/main_transfer.h"
 #include <openssl/rand.h>
@@ -57,6 +58,14 @@ std::string Fingerprint(const MapSessionClaim& claim,const CharSnapshot& s) {
     for(auto b:digest){result+=hex[b>>4];result+=hex[b&15];}return result;
 }
 struct Receipt {bool found=false,core_matches=false;long long revision=0;int contract=0;std::string fingerprint,outcome,transfer_hash;};
+std::uint8_t NpcDiscount(int condition,int rate,int local) {
+    // CTMapSvrModule::GetDiscountRate: an absent local can never grant the
+    // guild discount; unrecognised conditions explicitly leave the rate zero.
+    // Hero lookup requires the live local/castle ownership registry. Do not
+    // turn missing ownership integration into a successful full-price reply.
+    if(!rate||condition<1||condition>3||(condition==1&&!local))return 0;
+    throw std::runtime_error("NPC guild/hero discount authority is not integrated");
+}
 Receipt ReadReceipt(soci::session& sql,const MapSessionClaim& claim,int server,const std::string& token){
     const int world=claim.group;const long long cid=claim.char_id,uid=claim.user_id,key=claim.key,generation=claim.connection_id,epoch=claim.authority_epoch;
     Receipt r;int matches=0;
@@ -86,9 +95,11 @@ bool PostgreSQLMapService::SkillCheckpointMatches(soci::session& sql,const MapSe
     const int world=c.group,character=c.char_id;const auto json=SkillJson(s);int matches=0;
     sql<<"SELECT CASE WHEN app_world.map_skill_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:skills AS jsonb) THEN 1 ELSE 0 END",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"skills"),soci::into(matches);
-    return matches==1&&MaintainCheckpointMatches(sql,c,s);
+    if(matches!=1||!MaintainCheckpointMatches(sql,c,s))return false;
+    return s.payload&&s.payload->quests&&quest_runtime::Json(*s.payload->quests)==quest_runtime::Json(ReadQuestProgress(sql,c));
 }
 void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    WriteQuestTimers(sql,c,s);
     const int world=c.group,character=c.char_id;const auto skills=OrderedSkills(s);
     if(!MaintainCheckpointMatches(sql,c,s))throw std::runtime_error("Core checkpoint cannot mutate maintained effects");
     // This operation only persists timers. Learning, forgetting or changing a
@@ -111,7 +122,7 @@ void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSess
             soci::use(remaining,"r"),soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"id");
     }
     sql<<"UPDATE app_world.map_checkpoints SET recovery_contract=CASE WHEN app_world.map_maintain_state(world_id,char_id)='[]'::jsonb THEN 3 ELSE 4 END,"
-         "maintain_state=NULLIF(app_world.map_maintain_state(world_id,char_id),'[]'::jsonb),skill_state=app_world.map_skill_state(world_id,char_id) WHERE world_id=:w AND char_id=:c",
+         "maintain_state=NULLIF(app_world.map_maintain_state(world_id,char_id),'[]'::jsonb),skill_state=app_world.map_skill_state(world_id,char_id),quest_state=app_world.map_quest_state(world_id,char_id) WHERE world_id=:w AND char_id=:c",
         soci::use(world,"w"),soci::use(character,"c");
 }
 std::string PostgreSQLMapService::CoreFingerprint(const MapSessionClaim& c,const CharSnapshot& s) const {return Fingerprint(c,s);}
@@ -474,6 +485,277 @@ TitleChangeCommit PostgreSQLMapService::SelectTitle(const MapSessionClaim& c,std
     TitleChangeCommit committed{std::make_shared<const CharSnapshot>(std::move(after)),true};tx->commit();return committed;
 }
 
+QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint16_t opcode,
+    std::span<const std::byte> body,const CharSnapshot& before,const IQuestChart& chart,const QuestMapFacts& facts) {
+    using tnetlib::protocol::MessageId;
+    const auto message=static_cast<MessageId>(opcode);
+    wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
+    if(message==MessageId::CS_NPCTALK_REQ) {
+        if(!reader.Read(npc)||!reader.Eof())throw std::runtime_error("Invalid NPCTALK request");
+    } else if(message==MessageId::CS_QUESTDROP_REQ||message==MessageId::CS_QUESTENDTIMER_REQ) {
+        if(!reader.Read(quest)||!reader.Eof())throw std::runtime_error("Invalid quest progress request");
+    } else if(message==MessageId::CS_QUESTEXEC_REQ) {
+        if(!reader.Read(quest)||!reader.Read(reward_type)||!reader.Read(reward_id)||!reader.Eof())
+            throw std::runtime_error("Invalid QUESTEXEC request");
+    } else throw std::runtime_error("Quest operation contract unavailable");
+    if(c.role!=MapSessionRole::Primary||before.dwCharID!=c.char_id||!before.payload||before.persistence_uncertain)
+        throw std::runtime_error("Quest mutation requires authoritative primary");
+    if(facts.map!=before.wMapID||facts.channel!=c.channel)throw std::runtime_error("Quest event Map context changed");
+    auto lease=m_pool.Acquire();auto& sql=*lease;
+    auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Quest claim is not ready");
+    CheckCatalogs(sql);
+    const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active")throw std::runtime_error("Quest checkpoint changed");
+    const long long key=c.key;int current=0;
+    sql << "SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(current);
+    if(!sql.got_data())throw std::runtime_error("Quest session revoked");
+    ValidateInventoryState(sql,c,before,true);
+    QuestCommit committed;
+    auto after=before;auto payload=std::make_shared<CharacterPayload>(*before.payload);after.payload=payload;
+    quest_runtime::HydrateLevels(*payload,chart);
+    bool other_state_changed=false;
+    const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
+    if(message==MessageId::CS_NPCTALK_REQ) {
+        const int id=std::bit_cast<std::int16_t>(npc);int country=0,local=0;
+        sql << "SELECT \"bCountryID\",\"wLocalID\" FROM character_compat.\"TNPCCHART\" WHERE \"wID\"=:id",
+            soci::use(id),soci::into(country),soci::into(local);
+        if(!sql.got_data()){committed.snapshot=std::make_shared<const CharSnapshot>(before);tx->commit();return committed;}
+        if(country==3&&local)throw std::runtime_error("NPC territory authority is not integrated");
+        int disguise=0;
+        if(!payload->effects)throw std::runtime_error("NPC interaction requires hydrated effects");
+        for(const auto& effect:*payload->effects) {
+            const int skill=std::bit_cast<std::int16_t>(effect.skill);
+            sql << "SELECT \"bExec\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:s AND \"bType\"=3 "
+                "AND \"bExec\" BETWEEN 4 AND 6 ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\" LIMIT 1",soci::use(skill),soci::into(disguise);
+            if(sql.got_data())break;
+            disguise=0;
+        }
+        const bool friendly=country==before.bCountry||country==payload->aid_country;
+        if(country!=3&&(!friendly||(disguise&&disguise!=country+4))) {
+            committed.snapshot=std::make_shared<const CharSnapshot>(before);tx->commit();return committed;
+        }
+        const auto selected=quest_runtime::Talk(*payload,chart,npc,committed.packets);
+        std::vector<std::byte> ack;wire::WritePOD(ack,selected);wire::WritePOD(ack,npc);
+        committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_NPCTALK_ACK),std::move(ack));
+    } else if(message==MessageId::CS_QUESTDROP_REQ)quest_runtime::Drop(*payload,chart,quest,committed.packets);
+    else if(message==MessageId::CS_QUESTENDTIMER_REQ)quest_runtime::EndTimer(*payload,chart,quest,committed.packets);
+    else {
+        const auto* requested=chart.Find(quest);
+        if(requested&&requested->bTriggerType==TT_TALKNPC) {
+            const int id=std::bit_cast<std::int16_t>(static_cast<std::uint16_t>(requested->dwTriggerID));int map=0;
+            sql << "SELECT \"wMapID\" FROM character_compat.\"TNPCCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(map);
+            if(!sql.got_data()||static_cast<std::uint16_t>(map)!=after.wMapID)requested=nullptr;
+        }
+        quest_runtime::ConditionInputs inputs;
+        inputs.probability=[] {
+            // Retain Windows rand()%100's 15-bit distribution, with independent
+            // secure draws instead of the source process-global PRNG state.
+            unsigned char bytes[2];if(RAND_bytes(bytes,2)!=1)throw std::runtime_error("Quest probability unavailable");
+            return static_cast<std::uint8_t>((((unsigned(bytes[0])<<8)|bytes[1])&32767U)%100U);
+        };
+        const auto ordered=chart.All();
+        std::function<void(const QuestDef&,unsigned)> execute;
+        const auto children=[&](const QuestDef& def,unsigned depth) {
+            for(const auto* child:ordered)if(child->bTriggerType==TT_EXECQUEST&&child->dwTriggerID==def.dwQuestID) {
+                std::uint8_t level=0;
+                if(!quest_runtime::CanRun(after,*payload,*child,chart,inputs,level))execute(*child,depth+1);
+            }
+        };
+        const auto refresh=[&]{
+            RefreshEquipment(sql,after,true);
+            payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+        };
+        const auto give=[&](const QuestDef& def,const std::vector<ItemInstance>& items,unsigned depth) {
+            if(items.empty())return false;
+            if(!GrantQuestItems(sql,c,after,items,committed.packets)) {
+                quest_runtime::Drop(*payload,chart,def.dwParentID,committed.packets,QR_INVENTORYFULL);
+                return false;
+            }
+            payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+            other_state_changed=true;
+            for(const auto& item:items) {
+                quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,item.wItemID,QTT_GETITEM,item.bCount,committed.packets);
+                // TMapSvr::CheckQuest advances existing terms before dispatching
+                // trigger actions, each of which performs its own source gate.
+                for(const auto* trigger:ordered)if(trigger->bTriggerType==TT_GETITEM&&trigger->dwTriggerID==item.wItemID) {
+                    std::uint8_t level=0;
+                    if(!quest_runtime::CanRun(after,*payload,*trigger,chart,inputs,level))execute(*trigger,depth+1);
+                }
+            }
+            committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_MONITEMTAKE_ACK),EncodeMonItemTakeAck(0));
+            return true;
+        };
+        execute=[&](const QuestDef& def,unsigned depth) {
+            if(depth>256)throw std::runtime_error("Quest trigger chain exceeds safe recursion depth");
+            std::uint8_t level=0;
+            switch(def.bType) {
+            case QT_DEFTALK:return; // CQuestDefaultTalk::ExecQuest is intentionally empty.
+            case QT_NPCTALK: {
+                const auto selected=quest_runtime::CanRun(after,*payload,def,chart,inputs,level)?0U:def.dwQuestID;
+                std::vector<std::byte> ack;wire::WritePOD(ack,selected);wire::WritePOD(ack,std::uint16_t{0});
+                // CS_QUESTEXEC_REQ creates CQuest with m_dwMonID=0; the trigger
+                // NPC is not substituted for this original response field.
+                committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_NPCTALK_ACK),std::move(ack));return;
+            }
+            case QT_DROPQUEST:
+                for(const auto& t:def.terms)quest_runtime::Drop(*payload,chart,t.dwTermID,committed.packets);
+                return;
+            case QT_CHAPTERMSG: {
+                std::vector<std::byte> ack;wire::WritePOD(ack,def.dwQuestID);
+                committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_CHAPTERMSG_ACK),std::move(ack));return;
+            }
+            case QT_ROUTING: {
+                if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
+                std::vector<std::uint16_t> items;
+                for(const auto& term:def.terms)if(term.bTermType==QTT_ITEMID)
+                    items.push_back(static_cast<std::uint16_t>(term.dwTermID));
+                if(items.size()>255)throw std::runtime_error("Quest NPC item list exceeds source count width");
+                const auto npc_id=static_cast<std::uint16_t>(def.dwTriggerID);
+                const int id=std::bit_cast<std::int16_t>(npc_id);
+                int condition=0,rate=0,local=0;
+                sql << "SELECT \"bCondition\",\"bDiscountRate\",\"wLocalID\" FROM character_compat.\"TNPCCHART\" WHERE \"wID\"=:id",
+                    soci::use(id),soci::into(condition),soci::into(rate),soci::into(local);
+                // CSSender's overload accepts a missing NPC: GetDiscountRate
+                // returns zero, while the quest-specified NPC ID stays on wire.
+                const auto discount=sql.got_data()?NpcDiscount(condition,rate,local):std::uint8_t{0};
+                std::vector<std::byte> ack;wire::WritePOD(ack,npc_id);
+                wire::WritePOD(ack,std::uint8_t{7}); // NetCode.h TNPC_BOX
+                wire::WritePOD(ack,discount);wire::WritePOD(ack,static_cast<std::uint8_t>(items.size()));
+                for(const auto item:items)wire::WritePOD(ack,item);
+                committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_NPCITEMLIST_ACK),std::move(ack));
+                return; // CQuestRouting does not execute child quests.
+            }
+            case QT_GIVESKILL: {
+                if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
+                std::uint16_t skill=0;std::uint8_t rank=0;
+                for(const auto& t:def.terms)if(t.bTermType==QTT_SKILLID){skill=static_cast<std::uint16_t>(t.dwTermID);rank=t.bGoalCount;}
+                const int id=std::bit_cast<std::int16_t>(skill);int classes=0;
+                sql << "SELECT \"dwClassID\" FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(classes);
+                if(!sql.got_data())return;
+                if(after.bClass>=32)throw std::runtime_error("Quest skill class shift out of range");
+                if(!(static_cast<std::uint32_t>(classes)&(std::uint32_t{1}<<after.bClass)))return;
+                if(std::any_of(payload->skills.begin(),payload->skills.end(),[&](const auto& s){return s.wSkillID==skill;}))return;
+                rank=std::max<std::uint8_t>(rank,1);payload->skills.push_back({skill,rank,0});
+                std::sort(payload->skills.begin(),payload->skills.end(),[](const auto& a,const auto& b){return a.wSkillID<b.wSkillID;});
+                refresh();other_state_changed=true;
+                if(!payload->transfer_state) {
+                    const int world=c.group,character=std::bit_cast<std::int32_t>(c.char_id),learned=rank;
+                    sql << "INSERT INTO app_world.\"TSKILLTABLE\"(\"bWorldID\",\"dwCharID\",\"wSkillID\",\"bLevel\",\"dwRemainTick\") VALUES(:w,:c,:s,:r,0)",
+                        soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"s"),soci::use(learned,"r");
+                }
+                LearningPlan learned;learned.after=after;learned.result=0;learned.rank=rank;
+                committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_SKILLBUY_ACK),EncodeSkillPurchaseAck({0,skill},learned));
+                children(def,depth);return;
+            }
+            case QT_GIVEITEM: {
+                if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
+                std::uint32_t completed=0;std::vector<ItemInstance> items;
+                for(const auto& t:def.terms) {
+                    if(t.bTermType==QTT_ITEMID) {
+                        if(auto item=CreateQuestItem(sql,c,static_cast<std::uint16_t>(t.dwTermID),t.bGoalCount))items.push_back(std::move(*item));
+                    } else if(t.bTermType==QTT_COMPQUEST) {
+                        completed=t.dwTermID;
+                        if(quest_runtime::Find(quest_runtime::Rows(*payload),completed))
+                            if(const auto* current=chart.Find(completed))execute(*current,depth+1);
+                    }
+                }
+                const bool granted=give(def,items,depth);
+                if(completed||granted)children(def,depth);
+                return;
+            }
+            case QT_MISSION:case QT_GUILD: {
+                if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
+                auto* q=quest_runtime::Find(quest_runtime::Rows(*payload),def.dwQuestID);
+                if(!q) {quest_runtime::Rows(*payload).push_back({def.dwQuestID,0,0,0,{}});q=&quest_runtime::Rows(*payload).back();}
+                if(const auto key=quest_runtime::LevelKey(def))payload->quest_levels->insert(key);
+                std::vector<std::byte> ack;wire::WritePOD(ack,def.dwQuestID);wire::WritePOD(ack,def.bType);
+                committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_QUESTADD_ACK),std::move(ack));
+                if(q->bTriggerCount==255){q->bTriggerCount=1;q->bCompleteCount=1;}
+                ++q->bTriggerCount;if(def.bType!=QT_GUILD)q->save=1;
+                for(const auto& t:def.terms)
+                    quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,t.dwTermID,t.bTermType,0,committed.packets);
+                // The Araz mission variant intentionally retains this flag
+                // across GETITEM terms; owning an earlier mission item suppresses
+                // later paired grants. Preserve that observable source rule.
+                bool eligible=true;
+                for(const auto& t:def.terms)if(t.bTermType==QTT_GETITEM)
+                    for(const auto& paired:def.terms)if(paired.bTermType==QTT_ITEMID&&paired.dwTermID==t.dwTermID) {
+                        if(quest_runtime::HasItem(*payload,t.dwTermID))eligible=false;
+                        if(!eligible)continue;
+                        std::vector<ItemInstance> items;
+                        if(auto item=CreateQuestItem(sql,c,static_cast<std::uint16_t>(t.dwTermID),t.bGoalCount))items.push_back(std::move(*item));
+                        give(def,items,depth);break;
+                    }
+                for(const auto& t:def.terms)if(t.bTermType==QTT_TIMER) {
+                    q=quest_runtime::Find(quest_runtime::Rows(*payload),def.dwQuestID);
+                    if(!q)throw std::runtime_error("Mission state disappeared during trigger execution");
+                    q->dwTick=t.dwTermID;q->timer_active=true;q->timer_expired=false;
+                    std::vector<std::byte> timer;wire::WritePOD(timer,def.dwQuestID);wire::WritePOD(timer,t.dwTermID);
+                    committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_QUESTSTARTTIMER_ACK),std::move(timer));
+                }
+                children(def,depth);return;
+            }
+            case QT_DELETEITEM: {
+                if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
+                for(const auto& t:def.terms)if(t.bTermType==QTT_ITEMID) {
+                    const auto item=static_cast<std::uint16_t>(t.dwTermID);const int id=std::bit_cast<std::int16_t>(item);int exists=0;
+                    sql << "SELECT 1 FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(id),soci::into(exists);
+                    if(!sql.got_data())continue;
+                    std::sort(payload->bags.begin(),payload->bags.end(),[](const auto& a,const auto& b){return a.bag.bInvenID<b.bag.bInvenID;});
+                    for(auto& bag:payload->bags) {
+                        std::sort(bag.items.begin(),bag.items.end(),[](const auto& a,const auto& b){return a.bItemID<b.bItemID;});
+                        for(auto it=bag.items.begin();it!=bag.items.end();) {
+                            if(it->wItemID!=item){++it;continue;}
+                            if(!payload->transfer_state) {
+                                const int world=c.group,owner=std::bit_cast<std::int32_t>(c.char_id);
+                                const long long identity=std::bit_cast<long long>(it->dlID);long long erased=0;
+                                sql << "DELETE FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"dlID\"=:id AND \"bOwnerType\"=0 AND \"bStorageType\"=0 AND app_world.item_fingerprint(\"TITEMTABLE\")=:hash RETURNING \"dlID\"",
+                                    soci::use(world,"w"),soci::use(owner,"c"),soci::use(identity,"id"),soci::use(it->durable_hash,"hash"),soci::into(erased);
+                                if(!sql.got_data()||erased!=identity)throw std::runtime_error("Quest item ownership changed");
+                            }
+                            std::vector<std::byte> ack;wire::WritePOD(ack,bag.bag.bInvenID);wire::WritePOD(ack,it->bItemID);
+                            committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK),std::move(ack));
+                            it=bag.items.erase(it);other_state_changed=true;
+                        }
+                    }
+                }
+                if(other_state_changed)refresh();
+                return; // CQuestDeleteItem deliberately does not execute children.
+            }
+            default:
+                if(def.bType>QT_DEFTALK&&def.bType<QT_COUNT)
+                    throw std::runtime_error("Quest action requires remaining native integration: quest="+std::to_string(def.dwQuestID)+" type="+std::to_string(def.bType));
+                children(def,depth);return; // CQuest default implementation.
+            }
+        };
+        if(requested)execute(*requested,0);
+    }
+    const auto after_json=quest_runtime::Json(quest_runtime::Rows(*payload));
+    if(before_json==after_json&&!other_state_changed) {
+        // Repeated capped talk and absent/nonrunning drop still have their
+        // original responses. Equal request bytes are never a deduplication key.
+        committed.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return committed;
+    }
+    const auto hex=[](std::span<const std::byte> bytes){constexpr char d[]="0123456789abcdef";std::string out;
+        for(auto v:bytes){const auto b=std::to_integer<unsigned>(v);out+=d[b>>4];out+=d[b&15];}return out;};
+    std::string packets="[";
+    for(const auto& [id,bytes]:committed.packets){if(packets.size()>1)packets+=',';packets+='['+std::to_string(id)+",\""+hex(bytes)+"\"]";}
+    packets+=']';const auto request=hex(body);
+    const int world=c.group,character=std::bit_cast<std::int32_t>(c.char_id),server=m_config.server,op=opcode;
+    const long long previous=payload->last_quest_id,generation=c.connection_id,epoch=c.authority_epoch;long long operation=0;
+    sql << "INSERT INTO app_world.quest_operations(world_id,char_id,previous_operation_id,session_key,server_id,owner_token,connection_id,authority_epoch,opcode,request,before_state,after_state,responses) "
+        "VALUES(:w,:c,:previous,:key,:server,:token,:generation,:epoch,:op,decode(:request,'hex'),CAST(:before AS jsonb),CAST(:after AS jsonb),CAST(:packets AS jsonb)) RETURNING operation_id",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(key,"key"),soci::use(server,"server"),
+        soci::use(m_config.owner_token,"token"),soci::use(generation,"generation"),soci::use(epoch,"epoch"),soci::use(op,"op"),
+        soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::into(operation);
+    payload->last_quest_id=static_cast<std::uint64_t>(operation);
+    WriteQuestProgress(sql,c,after);
+    WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,Fingerprint(c,after),"active");StoreTransferCheckpoint(sql,c,after);
+    committed.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return committed;
+}
+
 SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c,std::span<const std::byte> body,const CharSnapshot& before) {
     const auto req=DecodeSkillPurchase(body);
     if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain)
@@ -509,8 +791,7 @@ SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c
         if(country==3&&local)throw std::runtime_error("Trainer territory ownership is not integrated");
         catalog.can_talk=country==3||country==before.bCountry||country==before.payload->aid_country;
         if(!catalog.can_talk)continue;
-        if(discount&&condition>=1&&condition<=3&&!(condition==1&&!local))
-            throw std::runtime_error("Trainer guild/hero discount is not integrated");
+        catalog.discount=NpcDiscount(condition,discount,local);
         if(r.get<int>(0)==1||r.get<int>(0)==19){int found=0;
             sql<<"SELECT 1 FROM character_compat.\"TNPCITEMCHART\" WHERE (\"wNpcID\"::integer & 65535)=:npc AND (\"dwItemID\" & 65535)=:skill LIMIT 1",
                 soci::use(npc,"npc"),soci::use(skill,"skill"),soci::into(found);catalog.offered=sql.got_data();}
@@ -569,6 +850,20 @@ SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c
         soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"prev"),soci::use(key,"key"),soci::use(server,"s"),soci::use(m_config.owner_token,"token"),
         soci::use(generation,"g"),soci::use(epoch,"epoch"),soci::use(manifest,"manifest"),soci::use(npc,"npc"),soci::use(skill,"skill"),soci::use(code,"result"),
         soci::use(rank,"rank"),soci::use(spent,"spent"),soci::use(request_hex,"request"),soci::use(ack_hex,"ack"),soci::use(title_packets,"packets"),soci::use(before_titles,"before"),soci::use(after_titles,"after"),soci::into(id);
+    if (!plan.result) {
+        // Default legacy Map builds send DM_LOGSKILL_REQ only after learning
+        // succeeds. TLogSkill records the remaining purse, not the price.
+        // Keep the source signed SQL representation of DWORD/WORD arguments.
+        const int gold=std::bit_cast<std::int32_t>(after.dwGold);
+        const int silver=std::bit_cast<std::int32_t>(after.dwSilver);
+        const int copper=std::bit_cast<std::int32_t>(after.dwCooper);
+        const int source_skill=std::bit_cast<std::int16_t>(req.skill);
+        sql << "INSERT INTO app_world.\"TSKILLLOG\"(world_id,purchase_id,\"dwCharID\",\"dwGold\",\"dwSilver\",\"dwCooper\",\"wSkill\",\"bLevel\") "
+               "VALUES(:w,:purchase,:c,:gold,:silver,:copper,:skill,:rank)",
+            soci::use(world,"w"),soci::use(id,"purchase"),soci::use(character,"c"),
+            soci::use(gold,"gold"),soci::use(silver,"silver"),soci::use(copper,"copper"),
+            soci::use(source_skill,"skill"),soci::use(rank,"rank");
+    }
     auto payload=std::make_shared<CharacterPayload>(*after.payload);payload->last_purchase_id=static_cast<std::uint64_t>(id);after.payload=std::move(payload);
     WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,Fingerprint(c,after),"active");StoreTransferCheckpoint(sql,c,after);
     committed.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return committed;
@@ -881,6 +1176,7 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
     tx->commit();return plan.committed;
 }
 void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    CheckQuestProgress(sql,c,s);
     if(!s.payload)throw std::runtime_error("Cast ledger requires native snapshot");
     const auto security=ReadSecurity(sql,c);
     auto expected=s.payload->security;expected.hydrated=true;

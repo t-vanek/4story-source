@@ -210,6 +210,10 @@ boost::asio::awaitable<void> OnQuestDropReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+boost::asio::awaitable<void> OnNativeQuestReq(
+    std::shared_ptr<tnetlib::AsioSession> client, std::uint16_t opcode,
+    std::vector<std::byte> body, const HandlerContext& ctx);
+
 boost::asio::awaitable<void> OnChatReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,

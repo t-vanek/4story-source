@@ -26,22 +26,26 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–052** and native code extend quest state/actions, skill audit,
+New migrations **044–053** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
 level synchronization. Code `fa4c282` adds level benefits18182–18184, native EXP
 entitlement persistence/import, effect903 lifecycle and atomic consumption through
 the original ITEMUSE request. Player ENTER now carries maintained effects; CHARINFO
-and ENTER sample their remaining time. These bounded paths are **INTEGRATED_UNVERIFIED**.
+and ENTER sample their remaining time. Code `ff50e58` adds HP/MP/full-resource and
+direct-EXP consumables, shared item cooldowns through CHARINFO/save/transfer,
+migration053 and an offline TITEMUSEDTABLE importer. `6a91e4a` separates read-only
+transfer confirmation from a promotion write after an unknown commit. These
+bounded paths are **INTEGRATED_UNVERIFIED**.
 Account premium/PCBang, complete monster rewards and other item-use kinds remain
 unfinished. See the [exact continuation](_rewrite/docs/modernization/full-rewrite-status.md#exact-continuation--implementation-gate).
 
 All six modern Debug and Release targets compile with tests disabled; this is
-build evidence only. Historical import tools and migration052 are written, not
+build evidence only. Historical import tools and migrations052–053 are written, not
 executed. No tests, database migration, server startup or container run belongs
-to these changes. Previous migrations001–051 remain unchanged; the next unused
-migration number is053. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-during-items-20261011/README.md).
+to these changes. Previous migrations001–052 remain unchanged in this increment; the next unused
+migration number is054. [Source scope and compile logs](_rewrite/docs/modernization/evidence/phase-a-item-use-20261011/README.md).
 
 ## Historical verification through `2fa2396`
 

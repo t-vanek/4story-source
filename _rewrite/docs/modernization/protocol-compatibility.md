@@ -31,6 +31,20 @@ recreated at entry, without spurious removal packets. Exact durable sampling at
 handoff/logout remains unfinished. These changes are **INTEGRATED_UNVERIFIED**.
 See the [compile-only source contract](evidence/phase-a-during-items-20261011/README.md).
 
+Code `ff50e58` extends the same ITEMUSE request to original HP26/MP27/MAXHP42/
+MAXMP43/GAINEXP81. Result3 is IU_FULL; a full resource consumes/rearms nothing.
+Source HPMP/EXP packets precede item mutation ACK, ITEMUSE success and USEITEM
+quest hooks. CHARINFO now emits BYTE count plus ordered WORD/DWORD item-reuse
+entries, including expired live entries as zero; SAVE/RELEASEMAIN emit active
+entries only. LOADCHAR preserves the tutorial and >=3600000ms filters. Shared
+cooldowns use a monotonic 64-bit local observation; avoiding early reuse at the
+original DWORD tick wrap is an explicit modern repair. No client fields changed.
+Cast reconstruction now restores quest/item clock origins after its relative
+calculation. No runtime or packet acceptance was executed.
+`6a91e4a` confirms an uncertain transfer using only the exact consumed receipt;
+a prepared/absent receipt cannot trigger another promotion attempt.
+See [scoped implementation and deferred acceptance](evidence/phase-a-item-use-20261011/README.md).
+
 Native Patch metadata sends the original varchar byte sequences, not a UTF-8
 re-encoding of decoded catalog text (`TPatchSvr.vcxproj` is MultiByte). Backup
 `dbo.TMinBetaVer` sets OUT parameter `@dwMinVer=2`; `CSPMinBetaVer` instead binds a

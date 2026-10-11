@@ -33,6 +33,13 @@ reward benefits, other consumables and precise durable effect sampling remain
 open. Debug/Release builds are compilation evidence; no new tests or runtime
 processes were run. See [source scope and logs](evidence/phase-a-during-items-20261011/README.md).
 
+Code `ff50e58` adds native HP/MP/full-resource/direct-EXP item use and durable
+shared item cooldowns, including CHARINFO, checkpoint, relogin and transfer.
+Migration053 and import_item_cooldowns.py are written only. `6a91e4a` makes uncertain
+transfer completion a read-only receipt confirmation. Both increments remain
+**INTEGRATED_UNVERIFIED**; [source and build evidence](evidence/phase-a-item-use-20261011/README.md)
+records the precise limits and next implementation work.
+
 ## Native account secure-code lifecycle (2026-10-11)
 
 The existing Map dispatcher now handles original CREATE, CHANGE, DISABLE, ENABLE,

@@ -1,0 +1,6 @@
+Static inspection only; no source/runtime function executed.
+Code commit: ff50e5814be8614960669b7621626417256eed77
+Importer AST syntax parsed without importing the module.
+No tracked modifications to original Server/TMapSvr, Client, Lib or prior SQL migrations.
+legacy-modern-coverage.csv: column counts [12]; expected 12; data rows 37.
+postgresql-object-map.csv: column counts [6]; expected 6; data rows 27.

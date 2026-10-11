@@ -8,9 +8,33 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–052 are **written, not applied**.
-Latest code increment: `fa4c282`, starting from `39743c8`; earlier Phase A evidence
+evidence remain unchanged. New migrations044–053 are **written, not applied**.
+Latest code increment: `ff50e58`, after transfer confirmation `6a91e4a`; earlier Phase A evidence
 is retained at its original revision.
+
+## Resource items, shared reuse and recovery — `ff50e58` / `6a91e4a`
+
+- Original ITEMUSE now handles HP26, MP27, MAXHP42, MAXMP43 and GAINEXP81 in
+  addition to EXPBONUS56. Pinned template values, original validation/results,
+  resource/EXP responses, shared reuse, single-instance consumption and ordered
+  USEITEM/level quest hooks use one native transaction. Source IU_FULL leaves the
+  item and reuse untouched. Other kinds and tournament/deal/store remain open.
+- Migration053 replaces TITEMUSEDTABLE/TSaveItemUsed staged persistence. Live
+  remaining durations are sampled for CHARINFO, checkpoints, logout and transfer.
+  Fresh rows are fenced by the checkpoint and quest head; a graph-backed owner
+  keeps the full graph authoritative. Core writes can only decrease timers, not
+  arm or extend them. Original LOADCHAR tutorial/one-hour filters are explicit.
+- An offline importer preserves every historical cooldown row and unsigned bit
+  pattern through an exact character map; it refuses active owners, existing
+  recovery/state or changed archive. It was syntax-parsed only, never executed.
+- The skill validator now distinguishes its relative calculation clock from the
+  live quest/item timer origins. Prepared-transfer recovery reconstructs the
+  server-only entitlement/cooldown metadata while preserving the durable body.
+- After uncertain AcceptTransfer, the handler calls a read-only exact consumed
+  receipt confirmation. A missing/prepared receipt never authorizes replaying
+  the promotion. This does not prove fault recovery; Phase B remains pending.
+
+[Exact source references, limitations and compile evidence](evidence/phase-a-item-use-20261011/README.md).
 
 ## EXP entitlement / ITEMUSE increment — `fa4c282`
 
@@ -158,6 +182,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 - ITEMUSE validates the claimed template against the actual owned slot. The
   original handler could use a different valid template as its quest trigger.
   Unsupported item kinds or gameplay dependencies fail without consuming items.
+- Item reuse now uses 64-bit monotonic observation rather than DWORD deadlines;
+  it does not grant early reuse when the original tick counter wraps. Offline
+  time remains paused; only remaining milliseconds are persisted or transferred.
+  GAINEXP rechecks the same item identity after level-triggered quest changes;
+  a removed instance rolls back instead of dereferencing the original dangling
+  pointer. These repairs require Phase B failure/compatibility scenarios.
 - World level sends follow the database commit. A failed/unknown send closes the
   source client without replaying its reward; durable cross-process delivery and
   reconciliation are still a World integration requirement.
@@ -188,8 +218,8 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    TDURINGITEMTABLE + TGetPcBangData/TSetPcBangData and premium/daily/pet behavior.
    Premium item templates7401/7402/7403 use skills900/901/902,7626/7627/7628 use
    914/915/916 in the available catalog; inspect their full data before admission.
-   Complete other CS_ITEMUSE kinds, original item cooldowns/TITEMUSEDTABLE,
-   tournament/deal/store gates and exact effect sampling at save/transfer/logout.
+   Complete remaining CS_ITEMUSE kinds beyond HP/MP/full-resource/direct-EXP/
+   EXPBONUS, tournament/deal/store gates and exact effect sampling at save/transfer/logout.
    Do not confuse the new packet-time sample with durable sub-tick persistence.
    Implement Soul Lottery request/trigger with its effect820 dependency.
    Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN
@@ -215,10 +245,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 ## Activities actually performed
 
 All six modern C++20 Debug and Release targets compile/link with BUILD_TESTING=OFF
-for code commit `fa4c282`. The new entitlement import tool was AST-parsed without
+for code commit `ff50e58`. The entitlement and item-cooldown import tools were AST-parsed without
 importing/executing it. `git diff --check` passes. Compilation does not establish
 gameplay, persistence or protocol parity.
 Exact configuration, commands and logs are retained in
+[evidence/phase-a-item-use-20261011](evidence/phase-a-item-use-20261011/README.md).
+Previous entitlement compile evidence remains in
 [evidence/phase-a-during-items-20261011](evidence/phase-a-during-items-20261011/README.md).
 Previous quest reward compilation remains in
 [evidence/phase-a-quest-rewards-20261011](evidence/phase-a-quest-rewards-20261011/README.md).

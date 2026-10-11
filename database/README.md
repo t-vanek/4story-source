@@ -22,8 +22,8 @@ validator. Original SQL fragments, old dev fixtures and repository labels cannot
 override the backup evidence. Global and game catalogs remain distinct; the
 implemented gameplay views deliberately publish **TGAME**.
 
-**Active Phase A, `fa4c282`:** the current source requires the additive migration
-sequence through052. New migrations044–052 and their import tools are written,
+**Active Phase A, `ff50e58`:** the current source requires the additive migration
+sequence through053. New migrations044–053 and their import tools are written,
 not applied or verified. Migration052 adds the character EXP entitlement slot,
 account entitlement projection and checkpoint comparison. The offline
 `tools/database/import_during_items.py` requires a complete verified historical
@@ -32,6 +32,17 @@ existing state/recovery and online worlds. EXP-item gameplay is integrated withi
 the [documented scope](../_rewrite/docs/modernization/evidence/phase-a-during-items-20261011/README.md);
 account premium/PCBang runtime is still pending. Earlier results below retain
 their original revision and scope. No production migration is authorized here.
+
+Migration053 adds native shared item cooldowns and recovery comparison. The
+offline `tools/database/import_item_cooldowns.py --manifest <manifest.json>
+--world <id> --character-map <map.json>` uses the existing PGHOST/PGPORT/
+PGDATABASE/PGUSER/PGPASSWORD or PGPASSFILE connection settings. Its implementation
+requires a complete verified archive, pinned backup identities, an exact ID map,
+an offline world and no existing target state/checkpoint. It preserves all signed
+source values as unsigned WORD/DWORD values, including zero/long durations.
+The runtime separately applies the original LOADCHAR filters. This command has
+**not** been executed; it belongs to Phase B against an isolated copy. Reapply
+`deploy/sql/map-runtime-grants.sql` after upgrading. Next free migration:054.
 
 Migration files `001`–`006` are immutable. `005` creates explicit catalog
 selection/history and `006` exposes the 15 reference tables with both quoted

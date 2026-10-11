@@ -1,0 +1,201 @@
+{
+  "recorded_at": "2026-10-11T16:53:09.300673+00:00",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "scope": "Ordinary native HP/MP/MAXHP/MAXMP/GAINEXP/EXPBONUS items; shared item cooldown persistence/transfer/CHARINFO; exact read-only promotion confirmation",
+  "code_commit": "ff50e5814be8614960669b7621626417256eed77",
+  "transfer_confirmation_commit": "6a91e4a30c565708b21613644d7199d3c9ece98e",
+  "previous_code_commit": "fa4c2825690e12a7174ff58e2db2734d1181253a",
+  "branch": "main",
+  "published": false,
+  "cpp_standard": "C++20",
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "cmake version 4.3.0",
+  "builds": [
+    {
+      "configuration": "Debug",
+      "initial_command": "cmake --build build/phase-a-compile --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "initial_exit_code": 0,
+      "log": "debug-build.log",
+      "log_sha256": "5b3432206379c2b6f90f588d642ca5aa9ebff762b997858cbb0abe0d71b8bc9f",
+      "final_command": "cmake --build build/phase-a-compile --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "final_exit_code": 0,
+      "final_log": "debug-final-build.log",
+      "final_log_sha256": "0c49eda5bb1543a10ad0f90b2935501afcb43cbb6f2b8cb039b995dd8e71334f",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON"
+      },
+      "binaries": {
+        "tloginsvr_asio": {
+          "path": "build/phase-a-compile/bin/tloginsvr_asio",
+          "sha256": "68fa1e5cb26d7a911eb4b8ccd92dc420110cf2762ba4044e2100156946f67bf0"
+        },
+        "tworldsvr_asio": {
+          "path": "build/phase-a-compile/bin/tworldsvr_asio",
+          "sha256": "430512f23693a042ed95d1c88ff05ffcccbd7c1c78e34c685b904be5067081db"
+        },
+        "tmapsvr_asio": {
+          "path": "build/phase-a-compile/bin/tmapsvr_asio",
+          "sha256": "403ffa12b41e97f14999701b768b08a7a56c687abeac60b0ac8f4677233799dc"
+        },
+        "tcontrolsvr_asio": {
+          "path": "build/phase-a-compile/bin/tcontrolsvr_asio",
+          "sha256": "345c1b83a99d01e1993fc59e18db3e0612cbfc134221abc7f71a1beee7a3c481"
+        },
+        "tpatchsvr_asio": {
+          "path": "build/phase-a-compile/bin/tpatchsvr_asio",
+          "sha256": "b235c4dd9d7028a80aab4c5f2e94d4109accb9189a72f1dda270af814462c104"
+        },
+        "tlogsvr_asio": {
+          "path": "build/phase-a-compile/bin/tlogsvr_asio",
+          "sha256": "d651ce5bfd582025928aa063b8f4e7d37272b554c8b9bbcee592a94d5fb1dab1"
+        }
+      }
+    },
+    {
+      "configuration": "Release",
+      "initial_command": "cmake --build build/phase-a-quest-release --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio -j2",
+      "initial_exit_code": 0,
+      "log": "release-build.log",
+      "log_sha256": "741d6772050271ec180a274cc873d95db402948602ebc956cffa84dc757821b1",
+      "final_command": "cmake --build build/phase-a-quest-release --target tloginsvr_asio tworldsvr_asio tmapsvr_asio tcontrolsvr_asio tpatchsvr_asio tlogsvr_asio tlogsvr_asio -j2",
+      "final_exit_code": 0,
+      "final_log": "release-final-build.log",
+      "final_log_sha256": "0c49eda5bb1543a10ad0f90b2935501afcb43cbb6f2b8cb039b995dd8e71334f",
+      "cache": {
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "-I/tmp/fourstory-phase-a-deps/usr/include",
+        "CMAKE_DISABLE_FIND_PACKAGE_SOCI": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-L/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_LIBRARY_PATH": "/tmp/fourstory-phase-a-deps/usr/lib64",
+        "CMAKE_PREFIX_PATH": "/tmp/fourstory-phase-a-deps/usr",
+        "FOURSTORY_BUILD_LEGACY_TNETLIB": "OFF",
+        "FOURSTORY_ENABLE_POSTGRESQL": "ON"
+      },
+      "binaries": {
+        "tloginsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tloginsvr_asio",
+          "sha256": "7bd272eaa215f6d276c73e27c56a5ecce096cbf88f98eed24fc34695756276c9"
+        },
+        "tworldsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tworldsvr_asio",
+          "sha256": "452acc61bd324d38f3b727748698b06c627a22116b2df0e120ab0b00e1c20e81"
+        },
+        "tmapsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tmapsvr_asio",
+          "sha256": "cd145942f12b7a248d8ad91814abfd69dc5744b073e7896e2594f2f4918b131f"
+        },
+        "tcontrolsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tcontrolsvr_asio",
+          "sha256": "e3adcc5370ca2ba4f5752872435724f12d65875ba0fcca02f6df0766a4a001e5"
+        },
+        "tpatchsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tpatchsvr_asio",
+          "sha256": "a855c67587fc8607824b540c7f151f6873b1c8ee559eb6606a0cd15df702f17f"
+        },
+        "tlogsvr_asio": {
+          "path": "build/phase-a-quest-release/bin/tlogsvr_asio",
+          "sha256": "5c70537a9fa802a1a1a7c09e1eadfcfcb6928c76ed5a96f2217b626e67abd4a8"
+        }
+      }
+    }
+  ],
+  "source_sha256": {
+    "Server/TMapSvrAsio/CMakeLists.txt": "a7359dc2b9e6fac9f36e83bde198c8365da2af3d2db8d9b2a3b6a8f53050d1ca",
+    "Server/TMapSvrAsio/domain/character_payload.h": "bef0f930b18ffa184cb0797d2940d78791c7d7b2a13b3c8f45abfec460b50b60",
+    "Server/TMapSvrAsio/domain/item_cooldown.h": "579f1fe28891089b278698ecd15ffa8c385338329cb62e5fab87065d4a563cde",
+    "Server/TMapSvrAsio/domain/main_transfer.h": "2d4e033d17f1ac9f7f5cbc220e877c40f049725153052990145ba55d7b300129",
+    "Server/TMapSvrAsio/services/client_senders.cpp": "cbfdac603f7adfc5ffc1fb1b89021bae1f3a8a412d0d649057b0d63841b2031a",
+    "Server/TMapSvrAsio/services/main_transfer_runtime.cpp": "08820ce8bedf82f3e46612acc7875905d2254f9fc880cfc6955e264cbda88ab2",
+    "Server/TMapSvrAsio/services/postgresql_map_cast.cpp": "232b78838e2858d4231c851d5154319bdc4f98f6fb350de79cff29da9009f103",
+    "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp": "15adeacd52cedcac8ad9ac50c880952ee75752a351e149be47a491a731556202",
+    "Server/TMapSvrAsio/services/postgresql_map_during.cpp": "8a5c6ac2d558d15c51ca9e1c607b1bf344a61cf4b7e01c0640d4991b1589ca03",
+    "Server/TMapSvrAsio/services/postgresql_map_inventory.cpp": "2a4ca8b01fa8180e97749d535a063e2da80535543ad9868444e2538b79e9a3ce",
+    "Server/TMapSvrAsio/services/postgresql_map_item_cooldown.cpp": "56e3acdf9947dcd1a81cdec4f7f694c1a6ea19f2414c74c19f9bf1e68cae3a39",
+    "Server/TMapSvrAsio/services/postgresql_map_item_use.cpp": "10161a7dbaebc9241e474c61f3804b7c3bb7519c1088a4f4aa213e50883868c0",
+    "Server/TMapSvrAsio/services/postgresql_map_load.cpp": "1ec14c9ffea45cd4a6ddd74fd9101b93ee17aee576902b0c911f214e778f16d0",
+    "Server/TMapSvrAsio/services/postgresql_map_reagent.cpp": "2bcb61f8f3081788fbcfec0f0ad982cb03ed6e220820d5b43e292284d41ceb58",
+    "Server/TMapSvrAsio/services/postgresql_map_service.h": "ee1b811c56b6efadd10c9a31d18c76831e7f3baa1dae07ad5a2326802f4bf763",
+    "Server/TMapSvrAsio/services/postgresql_map_transfer.cpp": "1787c90d1d1ca805a62b121c98f4b2ca0ddf1be4637f547b34a9ce36f7458646",
+    "database/postgresql/053-native-item-cooldowns.sql": "7cd64695ad9fddac2f9a785765f7e36b819881c90fa4bafc0b0c05069c90c432",
+    "deploy/sql/map-runtime-grants.sql": "03b31dffb28f529e8a44819580aea1b55337b7276bee46e1879989fc153a0e9d",
+    "tools/database/import_item_cooldowns.py": "084768378603c40395e188dfe604f13263130a11711cba12d16a3e7f1bafa855",
+    "Server/TMapSvr/CSHandler.cpp": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50",
+    "Server/TMapSvr/SSHandler.cpp": "8663a80a045d8a2a681c294bc80d8feb8ecd525812af151a60d3340afe8cf074",
+    "Server/TMapSvr/SSSender.cpp": "e39cc92a004b352cafc337307cf631214cd3680744d52e96a403fa75f07b7a53",
+    "Server/TMapSvr/CSSender.cpp": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029",
+    "Server/TMapSvr/TPlayer.cpp": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9",
+    "Server/TMapSvr/TMapSvr.cpp": "1b490618105e0f5ca338852d1cd7c007c01301641b381c3b391f857e4973dd7c",
+    "Server/TMapSvr/DBAccess.h": "364fcadbbb78e49f9e7e3e6cddb0f8623eb9315ed2a9195bb3e8103c24277d9d",
+    "Lib/Own/TProtocol/include/NetCode.h": "fa6b11998606c72a81e9ae282590d5afdbf2950d832a743b54ae0dd35e648c9d",
+    "Client/TClient/CSSenderAll.cpp": "9935f563e72c27543ed45f19f4e5ff0fcc4fe32068354fec9250dca9b95530d9",
+    "Client/TClient/CSHandler.cpp": "51e3b85b5cd2d5af27be15f564ff45c875a02c2b70bed326648ef80484cd8ce3",
+    "Server/TMapSvrAsio/handlers_main_transfer.cpp": "14ae9a48fe7cfc055f248ceb5a48ec40d4910902c9f74fe5b4d3c8aff8a35f2a",
+    "Server/TMapSvrAsio/services/player_service.h": "258bc6201d3290ecb88015696683a74a62f3d5e1e2a5580dffb2c689d6f6d1b2"
+  },
+  "historical_definition_inputs": [
+    {
+      "path": "/tmp/fourstory-learning-source-20261011/inspection/TGAME_RAGEZONE.catalog.json",
+      "sha256": "f6129dac18ab227eb2b19ff917976f0be4983b0b9290aac003dfb3feb0edf7a8"
+    },
+    {
+      "path": "/tmp/fourstory-finish-20261011/characters/TGAME_RAGEZONE.dbo.TITEMCHART.json",
+      "sha256": "e9f243d1e952e418bc6eeb4061e3b5b7f7427c391c33f20610bcbdb2cea8d3e6"
+    }
+  ],
+  "migrations": {
+    "new": [
+      "053-native-item-cooldowns.sql"
+    ],
+    "changed_existing": [],
+    "applied": [],
+    "next_free": "054"
+  },
+  "tests_executed": 0,
+  "phase_b_started": false,
+  "phase_c_started": false,
+  "postgresql_runtime_exercised": false,
+  "full_postgresql_only_runtime": false,
+  "import_executed": false,
+  "server_processes_started": 0,
+  "client_sessions": 0,
+  "containers_built_or_started": 0,
+  "client_binary": null,
+  "client_binary_sha256": null,
+  "client_assets": null,
+  "static_checks": [
+    "git diff --check",
+    "AST parse of import_item_cooldowns.py without executing or importing it",
+    "Source/client layout and result enum inspection",
+    "Legacy SQL module and catalog inspection",
+    "Timer/core/graph/quest-head call-path review"
+  ],
+  "deferred": [
+    "All unit/integration/regression/protocol/PG tests",
+    "Sanitizers/fuzz/benchmarks",
+    "Migration application/import/reconciliation",
+    "Original client acceptance",
+    "DB/process outage and transfer failure injection",
+    "Container builds/startup/restarts"
+  ],
+  "limitations": [
+    "Remaining item kinds and deal/store/tournament/BOW authority",
+    "Premium/PCBang and pets",
+    "Complete monster rewards/combat and general effects",
+    "World native social/economy/war persistence",
+    "Precise maintained-effect durable sampling",
+    "Whole original responsibility inventory incomplete"
+  ]
+}

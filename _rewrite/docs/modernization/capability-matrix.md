@@ -12,12 +12,14 @@ across offload/await boundaries. Code `ea7c811` adds bounded completion/crafting
 rewards, magic item/turn-in transactions, ordinary level progression, World level
 relay and pure918/923 timers. Code `fa4c282` adds the ordinary EXP-item lifecycle,
 level benefits and903 refresh, ITEMUSE consumption/quest triggers and player ENTER
-effects. Premium/PCBang, monster reward benefits, other consumable kinds, remaining
+effects. `ff50e58` adds ordinary resource/direct-EXP consumables and complete
+item cooldown load/save/transfer plumbing; `6a91e4a` removes the automatic retry
+of a promotion write after an uncertain commit. These are UNVERIFIED. Premium/PCBang, monster reward benefits, other consumable kinds, remaining
 quest actions, switch/territory state, World persistence and full parity stay open.
-Migrations044–052 and archival/import tools are written, not executed. Debug and
+Migrations044–053 and archival/import tools are written, not executed. Debug and
 Release compilation of all six modern binaries succeeded; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
-[Exact source scope and limitations](evidence/phase-a-during-items-20261011/README.md).
+[Exact source scope and limitations](evidence/phase-a-item-use-20261011/README.md).
 
 Status vocabulary: NOT_ANALYZED → ANALYZED → SPECIFIED → IMPLEMENTING → IMPLEMENTED
 → INTEGRATED → VERIFIED; BLOCKED identifies a specific missing contract. Status

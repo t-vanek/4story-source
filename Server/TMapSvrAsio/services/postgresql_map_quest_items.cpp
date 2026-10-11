@@ -4,6 +4,7 @@
 #include <soci/soci.h>
 #include <bit>
 #include <limits>
+#include <map>
 
 namespace tmapsvr {
 namespace {
@@ -60,34 +61,109 @@ std::optional<std::vector<Placement>> Place(const CharacterPayload& p,const std:
     return plan;
 }
 }
+namespace {
+std::int64_t QuestItemExpiry(soci::session& sql,std::uint32_t duration,int use_type,int use_time) {
+    if(!duration&&(use_type&0x80)) {
+        if(use_type&1)duration=static_cast<std::uint16_t>(use_time)*std::uint32_t{3600};
+        else if(use_type&2)duration=static_cast<std::uint16_t>(use_time)*std::uint32_t{86400};
+    }
+    if(!duration)return 0;
+    long long now=0;int hour=0,minute=0,second=0;
+    // Explicit native UTC policy. Historical wall-clock values stay archival.
+    sql << "SELECT floor(extract(epoch FROM transaction_timestamp()))::bigint,"
+        "extract(hour FROM transaction_timestamp() AT TIME ZONE 'UTC')::integer,"
+        "extract(minute FROM transaction_timestamp() AT TIME ZONE 'UTC')::integer,"
+        "floor(extract(second FROM transaction_timestamp()))::integer",
+        soci::into(now),soci::into(hour),soci::into(minute),soci::into(second);
+    duration-=static_cast<std::uint32_t>(second);duration-=static_cast<std::uint32_t>(minute)*60;
+    duration+=static_cast<std::uint32_t>(24-hour)*3600;
+    return now+duration; // CTItem::SetEndTime, including DWORD arithmetic.
+}
+std::string InsertQuestItem(soci::session& sql,const MapSessionClaim& c,const transfer::Item& raw) {
+    // All values are typed integers, never interpolated SQL. Preserve raw magic
+    // percentages and all six DWORD extensions rather than their wire projection.
+    std::string json="{";
+    const auto field=[&](const std::string& name,auto value){
+        if(json.size()>1)json+=',';
+        json+='"'+name+"\":"+std::to_string(value);
+    };
+    field("bWorldID",c.group);field("dlID",std::bit_cast<std::int64_t>(raw.id));
+    field("bStorageType",raw.storage);field("dwStorageID",std::bit_cast<std::int32_t>(raw.storage_id));
+    field("bOwnerType",raw.owner_type);field("dwOwnerID",std::bit_cast<std::int32_t>(raw.owner_id));
+    field("bItemID",raw.slot);field("wItemID",std::bit_cast<std::int16_t>(raw.item));
+    field("bLevel",raw.level);field("bCount",raw.count);field("bGLevel",raw.grade);
+    field("dwDuraMax",std::bit_cast<std::int32_t>(raw.durability_max));field("dwDuraCur",std::bit_cast<std::int32_t>(raw.durability));
+    field("bRefineCur",raw.refine);field("bGradeEffect",raw.grade_effect);
+    if(raw.magic.size()>6)throw std::runtime_error("Quest reward exceeds source magic capacity");
+    for(unsigned i=0;i<6;++i) {
+        field("bMagic"+std::to_string(i+1),i<raw.magic.size()?raw.magic[i].id:0);
+        field("wValue"+std::to_string(i+1),i<raw.magic.size()?std::bit_cast<std::int16_t>(raw.magic[i].value):0);
+    }
+    const std::uint32_t extensions[]={raw.eld,raw.wrap,raw.color,raw.guild,raw.companion,raw.texture};
+    for(unsigned i=0;i<6;++i)field("dwTime"+std::to_string(i+1),std::bit_cast<std::int32_t>(extensions[i]));
+    field("bGem",raw.gem);field("wMoggItemID",std::bit_cast<std::int16_t>(raw.appearance));
+    field("wCustomTex",static_cast<std::uint16_t>(raw.texture));json+='}';
+    const long long expires=raw.expires;std::string hash;
+    sql << "INSERT INTO app_world.\"TITEMTABLE\" AS i SELECT (jsonb_populate_record(NULL::app_world.\"TITEMTABLE\","
+        "CAST(:item AS jsonb)||jsonb_build_object('dEndTime',to_timestamp(:expires) AT TIME ZONE 'UTC'))).* "
+        "RETURNING app_world.item_fingerprint(i)",soci::use(json,"item"),soci::use(expires,"expires"),soci::into(hash);
+    if(!sql.got_data())throw std::runtime_error("Quest reward insertion did not return its identity");
+    return hash;
+}
+}
 std::optional<ItemInstance> PostgreSQLMapService::CreateQuestItem(soci::session& sql,const MapSessionClaim& c,
     std::uint16_t item,std::uint8_t count) {
     if(!count)return std::nullopt;
     const int id=std::bit_cast<std::int16_t>(item);int durability=0,use_type=0,use_time=0;
     sql << "SELECT \"dwDuraMax\",\"bUseType\",\"wUseTime\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",
         soci::use(id),soci::into(durability),soci::into(use_type),soci::into(use_time);
-    if(!sql.got_data())return std::nullopt; // Original missing template gives no item.
+    if(!sql.got_data())return std::nullopt;
     transfer::Item raw;raw.id=AllocateQuestItem(sql,c);raw.owner_id=c.char_id;raw.item=item;raw.count=count;
     raw.durability=raw.durability_max=static_cast<std::uint32_t>(durability);
-    std::uint32_t duration=0;
-    if(use_type&0x80) {
-        if(use_type&1)duration=static_cast<std::uint16_t>(use_time)*std::uint32_t{3600};
-        else if(use_type&2)duration=static_cast<std::uint16_t>(use_time)*std::uint32_t{86400};
-    }
-    if(duration) {
-        long long now=0;int hour=0,minute=0,second=0;
-        // Native calendar is explicitly UTC, shared with existing item epoch
-        // storage. Historical timestamps are not rewritten by this operation.
-        sql << "SELECT floor(extract(epoch FROM transaction_timestamp()))::bigint,"
-            "extract(hour FROM transaction_timestamp() AT TIME ZONE 'UTC')::integer,"
-            "extract(minute FROM transaction_timestamp() AT TIME ZONE 'UTC')::integer,"
-            "floor(extract(second FROM transaction_timestamp()))::integer",
-            soci::into(now),soci::into(hour),soci::into(minute),soci::into(second);
-        duration-=static_cast<std::uint32_t>(second);duration-=static_cast<std::uint32_t>(minute)*60;
-        duration+=static_cast<std::uint32_t>(24-hour)*3600;
-        raw.expires=now+duration; // CTItem::SetEndTime, including DWORD arithmetic.
-    }
+    raw.expires=QuestItemExpiry(sql,0,use_type,use_time);
     return ProjectNativeItem(sql,raw);
+}
+std::vector<ItemInstance> PostgreSQLMapService::CreateQuestRewardItems(soci::session& sql,const MapSessionClaim& c,
+    const CharSnapshot& s,const QuestRewardDef& reward) {
+    transfer::Item raw;std::uint32_t duration=0;
+    if(reward.bRewardType==RT_MAGICITEM) {
+        const int id=std::bit_cast<std::int32_t>(reward.dwRewardID);soci::row row;
+        sql << "SELECT * FROM game_compat.\"TQUESTITEMCHART\" WHERE \"dwID\"=:id",soci::use(id),soci::into(row);
+        if(!sql.got_data())return {}; // missing m_pMagicItem never invents a template
+        raw.item=static_cast<std::uint16_t>(row.get<int>("wItemID"));
+        raw.level=static_cast<std::uint8_t>(row.get<int>("bLevel"));raw.grade=static_cast<std::uint8_t>(row.get<int>("bGLevel"));
+        raw.durability_max=static_cast<std::uint32_t>(row.get<int>("dwDuraMax"));raw.durability=static_cast<std::uint32_t>(row.get<int>("dwDuraCur"));
+        raw.refine=static_cast<std::uint8_t>(row.get<int>("bRefineCur"));raw.grade_effect=static_cast<std::uint8_t>(row.get<int>("bGradeEffect"));
+        raw.gem=static_cast<std::uint8_t>(row.get<int>("bGem"));
+        raw.eld=static_cast<std::uint32_t>(row.get<int>("dwTime1"));raw.wrap=static_cast<std::uint32_t>(row.get<int>("dwTime2"));
+        raw.color=static_cast<std::uint32_t>(row.get<int>("dwTime3"));raw.guild=static_cast<std::uint32_t>(row.get<int>("dwTime4"));
+        raw.companion=static_cast<std::uint32_t>(row.get<int>("dwTime5"));raw.texture=static_cast<std::uint32_t>(row.get<int>("dwTime6"));
+        duration=static_cast<std::uint16_t>(row.get<int>("wUseTime"))*std::uint32_t{86400};
+        std::map<std::uint8_t,std::uint16_t> magic;
+        for(unsigned i=1;i<=6;++i) {
+            const int code=row.get<int>("bMagic"+std::to_string(i));
+            const auto value=static_cast<std::uint16_t>(row.get<int>("wValue"+std::to_string(i)));
+            if(!code||!value)continue;
+            int found=0;sql << "SELECT 1 FROM actor_compat.\"TITEMMAGICCHART\" WHERE \"bMagic\"=:id",soci::use(code),soci::into(found);
+            if(sql.got_data())magic[static_cast<std::uint8_t>(code)]=value; // CreateItem: last valid duplicate wins
+        }
+        for(const auto& [id,value]:magic)raw.magic.push_back({id,value});
+    } else raw.item=static_cast<std::uint16_t>(reward.dwRewardID);
+    const int id=std::bit_cast<std::int16_t>(raw.item);int classes=0,stack=0,durability=0,use_type=0,use_time=0;
+    sql << "SELECT \"dwClassID\",\"bStack\",\"dwDuraMax\",\"bUseType\",\"wUseTime\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",
+        soci::use(id),soci::into(classes),soci::into(stack),soci::into(durability),soci::into(use_type),soci::into(use_time);
+    if(!sql.got_data())return {};
+    if(s.bClass>=32)throw std::runtime_error("Quest reward class shift out of range");
+    if(!(static_cast<std::uint32_t>(classes)&(std::uint32_t{1}<<s.bClass)))return {};
+    if(reward.bCount&&!stack)throw std::runtime_error("Quest reward has zero source stack capacity");
+    if(reward.bRewardType!=RT_MAGICITEM)raw.durability=raw.durability_max=static_cast<std::uint32_t>(durability);
+    raw.expires=QuestItemExpiry(sql,duration,use_type,use_time);raw.owner_id=c.char_id;
+    std::vector<ItemInstance> items;
+    for(unsigned remaining=reward.bCount;remaining;) {
+        raw.count=static_cast<std::uint8_t>(std::min(remaining,unsigned(stack)));remaining-=raw.count;
+        raw.id=AllocateQuestItem(sql,c);items.push_back(ProjectNativeItem(sql,raw));
+    }
+    return items;
 }
 bool PostgreSQLMapService::GrantQuestItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     const std::vector<ItemInstance>& input,QuestPackets& packets) {
@@ -114,16 +190,10 @@ bool PostgreSQLMapService::GrantQuestItems(soci::session& sql,const MapSessionCl
         std::string hash;
         if(p->transfer_state)hash=GraphItemFingerprint(raw);
         else {
-            const long long identity=std::bit_cast<long long>(raw.id),expires=raw.expires;
-            const int inventory=step.bag,slot=step.slot,count=raw.count,item=std::bit_cast<std::int16_t>(raw.item),
-                dura=std::bit_cast<std::int32_t>(raw.durability_max);
-            if(step.create) {
-                sql << "INSERT INTO app_world.\"TITEMTABLE\" AS i (\"bWorldID\",\"dlID\",\"bStorageType\",\"dwStorageID\",\"bOwnerType\",\"dwOwnerID\",\"bItemID\",\"wItemID\",\"bLevel\",\"bCount\",\"dwDuraMax\",\"dwDuraCur\",\"bRefineCur\",\"dEndTime\","
-                    "\"bMagic1\",\"bMagic2\",\"bMagic3\",\"bMagic4\",\"bMagic5\",\"bMagic6\",\"wValue1\",\"wValue2\",\"wValue3\",\"wValue4\",\"wValue5\",\"wValue6\",\"dwTime1\",\"dwTime2\",\"dwTime3\",\"dwTime4\",\"dwTime5\",\"dwTime6\",\"bGem\",\"wMoggItemID\") "
-                    "VALUES(:w,:id,0,:bag,0,:owner,:slot,:item,0,:count,:dura,:dura,0,to_timestamp(:expires) AT TIME ZONE 'UTC',0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0) RETURNING app_world.item_fingerprint(i)",
-                    soci::use(world,"w"),soci::use(identity,"id"),soci::use(inventory,"bag"),soci::use(owner,"owner"),soci::use(slot,"slot"),
-                    soci::use(item,"item"),soci::use(count,"count"),soci::use(dura,"dura"),soci::use(expires,"expires"),soci::into(hash);
-            } else {
+            const long long identity=std::bit_cast<long long>(raw.id);
+            const int count=raw.count;
+            if(step.create)hash=InsertQuestItem(sql,c,raw);
+            else {
                 sql << "UPDATE app_world.\"TITEMTABLE\" i SET \"bCount\"=:count WHERE \"bWorldID\"=:w AND \"dlID\"=:id AND \"dwOwnerID\"=:owner AND app_world.item_fingerprint(i)=:hash RETURNING app_world.item_fingerprint(i)",
                     soci::use(count,"count"),soci::use(world,"w"),soci::use(identity,"id"),soci::use(owner,"owner"),soci::use(found->durable_hash,"hash"),soci::into(hash);
             }
@@ -136,4 +206,58 @@ bool PostgreSQLMapService::GrantQuestItems(soci::session& sql,const MapSessionCl
     }
     return true;
 }
+void PostgreSQLMapService::ConsumeQuestItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
+    const QuestDef& def,QuestPackets& packets) {
+    using tnetlib::protocol::MessageId;
+    auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
+    std::sort(p->bags.begin(),p->bags.end(),[](const auto& a,const auto& b){return a.bag.bInvenID<b.bag.bInvenID;});
+    bool equipment_changed=false;
+    const int world=c.group,owner=std::bit_cast<std::int32_t>(c.char_id);
+    for(const auto& term:def.terms)if(term.bTermType==QTT_GETITEM) {
+        auto remaining=term.bGoalCount;
+        for(auto& bag:p->bags) {
+            std::sort(bag.items.begin(),bag.items.end(),[](const auto& a,const auto& b){return a.bItemID<b.bItemID;});
+            for(auto it=bag.items.begin();it!=bag.items.end();) {
+                if(it->wItemID==term.dwTermID) {
+                    if(!it->source)throw std::runtime_error("Quest consumption has no authoritative item");
+                    auto raw=*it->source;
+                    const auto spent=std::min(raw.count,remaining);
+                    raw.count=static_cast<std::uint8_t>(raw.count-spent);remaining=static_cast<std::uint8_t>(remaining-spent);
+                    std::string hash;
+                    if(!p->transfer_state) {
+                        const long long id=std::bit_cast<long long>(raw.id);long long erased=0;const int count=raw.count;
+                        if(!count) {
+                            sql << "DELETE FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"dlID\"=:id AND app_world.item_fingerprint(\"TITEMTABLE\")=:hash RETURNING \"dlID\"",
+                                soci::use(world,"w"),soci::use(owner,"c"),soci::use(id,"id"),soci::use(it->durable_hash,"hash"),soci::into(erased);
+                        } else {
+                            sql << "UPDATE app_world.\"TITEMTABLE\" i SET \"bCount\"=:count WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"dlID\"=:id AND app_world.item_fingerprint(i)=:hash RETURNING app_world.item_fingerprint(i)",
+                                soci::use(count,"count"),soci::use(world,"w"),soci::use(owner,"c"),soci::use(id,"id"),soci::use(it->durable_hash,"hash"),soci::into(hash);
+                        }
+                        if(!sql.got_data()||(!count&&erased!=id))throw std::runtime_error("Quest consumption ownership changed");
+                    } else if(raw.count)hash=GraphItemFingerprint(raw);
+                    if(!raw.count) {
+                        packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_DELITEM_ACK),
+                            std::vector<std::byte>{static_cast<std::byte>(bag.bag.bInvenID),static_cast<std::byte>(raw.slot)});
+                        it=bag.items.erase(it);
+                        if(bag.bag.bInvenID==254) {
+                            equipment_changed=true;
+                            packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_EQUIP_ACK),EncodeEquipment(s),QuestAudience::Neighbors);
+                        }
+                    } else {
+                        auto item=ProjectNativeItem(sql,raw);item.durable_hash=hash;
+                        auto bytes=EncodeItemDescriptor(item,c.char_id,true);bytes.insert(bytes.begin(),static_cast<std::byte>(bag.bag.bInvenID));
+                        packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_UPDATEITEM_ACK),std::move(bytes));
+                        *it=std::move(item);++it;
+                    }
+                } else ++it;
+                // Source tests remaining even after a nonmatching first item.
+                // Each subsequent bag is visited with remaining=0, possibly
+                // sending an unchanged UPDATE when its first item matches.
+                if(!remaining)break;
+            }
+        }
+    }
+    if(equipment_changed)RefreshEquipment(sql,s,true);
+}
+
 }

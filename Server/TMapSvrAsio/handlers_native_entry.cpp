@@ -51,7 +51,7 @@ boost::asio::awaitable<void> OnMWCharInfoReq(std::vector<std::byte> body,const H
         quests=quest_runtime::InitialPackets(current,*ctx.quest_chart);
     }catch(...){client->Close();co_return;}
     co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARINFO_ACK),std::move(info));
-    for(const auto& [id,bytes]:quests)co_await client->SendPacket(id,bytes);
+    for(const auto& packet:quests)co_await client->SendPacket(packet.opcode,packet.body);
 }
 boost::asio::awaitable<void> OnMWNativeRouteReq(std::vector<std::byte> body,const HandlerContext& ctx,bool server_list){
     wire::Reader r(body.data(),body.size());std::uint32_t cid{},key{};std::uint8_t channel{};std::uint16_t map{};float x{},y{},z{};

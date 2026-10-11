@@ -15,11 +15,13 @@
 //     CS_QUESTUPDATE_ACK per term). The kill hook in combat.cpp advances
 //     QTT_HUNT terms as monsters die.
 //
-// Bounded, documented at each site: rewards deliver RT_GOLD + RT_EXP (gold
+// The legacy backend below delivers RT_GOLD + RT_EXP (gold
 // straight to the purse via EarnMoney's raw-cooper semantics,
 // TPlayer.cpp:2665; EXP accrues like a kill). RT_ITEM / RT_SKILL / RT_TITLE,
 // the RM_SELECT / RM_PROB take-methods, the QCT_ accept-condition gate, and
-// DB persistence of quest state are follow-ups (see services/quest_log.h).
+// DB persistence remain limitations of that backend (services/quest_log.h).
+// Native hydrated characters take OnNativeQuestReq and the transactional
+// PostgreSQL implementation, including its explicit remaining branch guards.
 
 #include "handlers.h"
 
@@ -36,6 +38,9 @@
 #include "services/session_registry.h"
 #include "services/player_service.h"
 #include "services/monster_registry.h"
+#include "services/channel_presence.h"
+#include "services/world_client.h"
+#include <cmath>
 #include "services/main_transfer_runtime.h"
 #include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
@@ -55,7 +60,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     std::uint16_t opcode,std::vector<std::byte> body,const HandlerContext& ctx) {
     const auto identity=ctx.session_reg?ctx.session_reg->Identity(client.get()):std::nullopt;
     if(!identity||identity->phase!=SessionPhase::Ready||identity->role!=MapSessionRole::Primary)co_return;
-    const auto required=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_NPCTALK_REQ)?2U:
+    const auto required=opcode==0?0U:opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_NPCTALK_REQ)?2U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_QUESTEXEC_REQ)?9U:4U;
     if(body.size()!=required)throw std::runtime_error("Invalid quest request length");
     if(!ctx.char_state||!ctx.player_service||!ctx.quest_chart||!ctx.skill_cooldown||!ctx.monster_registry)
@@ -66,6 +71,8 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     try {
         const auto before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,SkillClockMs());
         QuestMapFacts facts;facts.map=before.wMapID;facts.channel=identity->channel;
+        facts.sample_ms=SkillClockMs();
+        facts.world_registered=ctx.world_client&&ctx.world_client->IsRegistered();
         for(const auto& mon:ctx.monster_registry->ListInMap(facts.channel,facts.map)) {
             if(!mon.dwInstanceID)throw std::runtime_error("Quest actor snapshot contains reserved target zero");
             facts.monsters.emplace_back(mon.dwInstanceID,mon.wTemplateID);
@@ -81,7 +88,25 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         auto uncertain=*original;uncertain.persistence_uncertain=true;
         ctx.char_state->Store(cid,uncertain);client->Close();throw;
     }
-    for(const auto& [id,bytes]:committed.packets)co_await client->SendPacket(id,bytes);
+    const auto& after=*committed.snapshot;
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{client};
+    const auto cell=[](float value)->int{return std::isfinite(value)&&value>=0&&value<65536?static_cast<std::uint16_t>(value)/64:-10000;};
+    if(ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto session){
+        if(entry.map_id==after.wMapID&&std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&
+           std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1)neighbors.push_back(std::move(session));
+    });
+    for(const auto& packet:committed.packets) {
+        if(packet.audience==QuestAudience::World) {
+            if(!ctx.world_client||!ctx.world_client->IsRegistered()||
+               !(co_await ctx.world_client->SendPacket(packet.opcode,packet.body))) {
+                // The quest transaction is already durable. Do not replay it or
+                // continue with a stale cluster projection after an unknown send.
+                client->Close();co_return;
+            }
+        } else if(packet.audience==QuestAudience::Neighbors) {
+            for(auto& session:neighbors)co_await session->SendPacket(packet.opcode,packet.body);
+        } else co_await client->SendPacket(packet.opcode,packet.body);
+    }
 }
 
 namespace {

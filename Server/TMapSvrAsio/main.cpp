@@ -1,4 +1,5 @@
 #include "services/main_transfer_runtime.h"
+#include <algorithm>
 #include <map>
 #include <set>
 // Entry point for the modernized TMapSvrAsio binary.
@@ -483,6 +484,38 @@ int main(int argc, char** argv)
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
 
         if(native_owner) {
+            // Original SM_TIMER_REQ cadence. Run one durable character tick at
+            // a time, sharing the session lease with requests/checkpoints and
+            // keeping shutdown alive until each database outcome is known.
+            boost::asio::co_spawn(io,[&]() -> boost::asio::awaitable<void> {
+                boost::asio::steady_timer timer(io);
+                while(!stopping) {
+                    timer.expires_after(std::chrono::seconds(1));
+                    co_await timer.async_wait(boost::asio::use_awaitable);
+                    if(stopping)co_return;
+                    for(const auto& [identity,client]:session_reg.ReadySessions()) {
+                        if(stopping)co_return;
+                        if(!client->IsOpen()||identity.role!=tmapsvr::MapSessionRole::Primary)continue;
+                        const auto state=char_state.Get(identity.char_id);
+                        if(!state||!state->payload||!state->payload->effects)continue;
+                        if(std::none_of(state->payload->effects->begin(),state->payload->effects->end(),
+                            [](const auto& effect){return effect.skill==918||effect.skill==923;}))continue;
+                        if(!session_reg.BeginCheckpoint(client.get()))continue;
+                        tmapsvr::SessionOperation operation(session_reg,client.get());
+                        ++background_operations;
+                        try {
+                            // Opcode0 is internal only and has no network dispatch
+                            // registration. All changes use the existing quest,
+                            // inventory, ownership and checkpoint transaction.
+                            co_await tmapsvr::OnNativeQuestReq(client,0,{},ctx);
+                        } catch(const std::exception&) {
+                            spdlog::error("native progression timer failed; closing char={}",identity.char_id);
+                            client->Close();
+                        }
+                        --background_operations;
+                    }
+                }
+            },boost::asio::detached);
             // One sequential sweep bounds queued DB work. Each captured snapshot
             // carries its exact connection generation; a concurrent final save
             // either follows it or makes its stale claim fail without a write.

@@ -816,6 +816,21 @@ DispatchWorld(std::uint16_t          wId,
     const auto id = ToMessageId(wId);
     switch (id)
     {
+    case MessageId::MW_LEVELUP_REQ: {
+        wire::Reader r(body.data(),body.size());std::uint32_t cid=0,key=0;std::uint8_t level=0;
+        if(!r.Read(cid)||!r.Read(key)||!r.Read(level)||!r.Eof())break;
+        auto client=ctx.session_reg?ctx.session_reg->Find(cid,key):nullptr;
+        const auto identity=client?ctx.session_reg->Identity(client.get()):std::nullopt;
+        if(!identity||identity->role!=MapSessionRole::Replica||identity->phase!=SessionPhase::Ready||!ctx.char_state||!ctx.player_service)break;
+        auto* service=ctx.player_service;
+        const auto confirmed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [service,claim=identity->Claim(ctx.expected_group),level]{return service->ConfirmReplicaLevel(claim,level);});
+        const auto current=ctx.session_reg->Identity(client.get());
+        if(confirmed&&current&&current->phase==SessionPhase::Ready&&client->IsOpen()&&
+           current->connection_id==identity->connection_id&&current->key==key&&current->role==MapSessionRole::Replica)
+            ctx.char_state->Update(cid,[&](CharSnapshot& s){s.bLevel=level;});
+        break;
+    }
     case MessageId::MW_CHANGECHARBASE_REQ:
         co_await OnWorldTitleChanged(std::move(body),ctx); break;
     case MessageId::MW_CHARSTATINFOANS_REQ:

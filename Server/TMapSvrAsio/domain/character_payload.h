@@ -61,6 +61,7 @@ struct CharacterPayload {
     // Native fresh and transferred primaries always load the complete collection.
     std::optional<std::vector<MaintainedEffect>> effects;
     std::array<PostureTemplate,2> posture_templates{};
+    std::vector<ProgressEffectTemplate> progress_effect_templates;
     // Static definitions for learned skills, hydrated from the pinned character
     // catalog on both fresh load and transfer. Never serialized as player data.
     std::vector<SkillTemplate> skill_templates;
@@ -80,6 +81,11 @@ struct CharacterPayload {
     std::vector<CharacterPet> pets;
     std::array<std::uint16_t,4> skill_points{};
     std::uint32_t prev_exp{},next_exp{},rank_point{};
+    // CTPlayer constructor state: not serialized by LOADCHAR/RELEASEMAIN.
+    // Keep it for this player object's lifetime; new admission restores zero.
+    std::uint8_t previous_level{};
+    std::uint32_t soul_exp{};
+    bool soul_ready{};
     std::uint8_t lucky_number{},aid_country{3}; // original absent TAIDTABLE -> TCONTRY_N
     std::uint16_t selected_title{};
 };

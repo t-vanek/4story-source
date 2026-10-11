@@ -299,9 +299,10 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
         after.payload=p;
         if(!cast->loop&&!after.dwMP) {
             if(!SupportedPostures(*p))throw std::runtime_error("Zero-MP cast requires supported eternal effect semantics");
-            while(!after.payload->effects->empty()) {
+            for(std::size_t i=0;i<after.payload->effects->size();) {
+                if(!IsNativePosture(after.payload->effects->at(i).skill)){++i;continue;}
                 p=std::make_shared<CharacterPayload>(*after.payload);
-                const auto ended=p->effects->front().skill;p->effects->erase(p->effects->begin());after.payload=p;
+                const auto ended=p->effects->at(i).skill;p->effects->erase(p->effects->begin()+i);after.payload=p;
                 RefreshEquipment(sql,after,true);
                 cast_result->ended.push_back({false,ended,std::make_shared<const CharSnapshot>(after)});
             }
@@ -489,8 +490,11 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     std::span<const std::byte> body,const CharSnapshot& before,const IQuestChart& chart,const QuestMapFacts& facts) {
     using tnetlib::protocol::MessageId;
     const auto message=static_cast<MessageId>(opcode);
+    const bool progress_tick=opcode==0; // internal timer only; no dispatcher registration
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
-    if(message==MessageId::CS_NPCTALK_REQ) {
+    if(progress_tick) {
+        if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(message==MessageId::CS_NPCTALK_REQ) {
         if(!reader.Read(npc)||!reader.Eof())throw std::runtime_error("Invalid NPCTALK request");
     } else if(message==MessageId::CS_QUESTDROP_REQ||message==MessageId::CS_QUESTENDTIMER_REQ) {
         if(!reader.Read(quest)||!reader.Eof())throw std::runtime_error("Invalid quest progress request");
@@ -665,6 +669,56 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 if(completed||granted)children(def,depth);
                 return;
             }
+            case QT_COMPLETE:case QT_CRAFT: {
+                if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
+                const bool craft=def.bType==QT_CRAFT;
+                std::uint32_t target=craft?def.dwQuestID:0;
+                if(!craft)for(const auto& term:def.terms)if(term.bTermType==QTT_COMPQUEST){target=term.dwTermID;break;}
+                // A recipe checks a newly created CQuestCraft's private terms;
+                // it neither requires a running mission nor increments its
+                // persistent completion history. Repeated valid crafts remain valid.
+                QuestProgressRow recipe{target,0,0,0,{}};
+                auto* progress=craft?&recipe:quest_runtime::Find(quest_runtime::Rows(*payload),target);
+                const auto* completed=craft?&def:chart.Find(target);
+                if(!progress||!completed||(!craft&&!quest_runtime::Running(*progress)))return;
+                for(const auto& term:completed->terms)if(quest_runtime::TermStatus(after,*progress,term)!=QTS_SUCCESS) {
+                    if(!def.force_run)committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_QUESTCOMPLETE_ACK),
+                        EncodeQuestCompleteAck(QR_TERM,target,term.dwTermID,term.bTermType,0));
+                    return;
+                }
+                int available=0;
+                sql << "SELECT count(*) FROM game_compat.quest_reward_release r JOIN game_compat.catalog_release m "
+                    "ON m.manifest_sha256=r.map_manifest AND m.status='verified' WHERE r.status='verified' "
+                    "AND r.character_manifest=:c AND r.actor_manifest=:a",
+                    soci::use(m_config.character_manifest,"c"),soci::use(m_config.actor_manifest,"a"),soci::into(available);
+                if(available!=1)throw std::runtime_error("Quest rewards require compatible published historical content");
+                const QuestEvent event=[&](std::uint32_t id,std::uint8_t type,std::uint8_t trigger_type,int count) {
+                    payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+                    quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,id,type,count,committed.packets);
+                    for(const auto* trigger:ordered)if(trigger->bTriggerType==trigger_type&&trigger->dwTriggerID==id) {
+                        std::uint8_t gate_level=0;
+                        if(!quest_runtime::CanRun(after,*payload,*trigger,chart,inputs,gate_level))execute(*trigger,depth+1);
+                    }
+                };
+                // CreateQuest initializes child/CheckQuest reward selection to
+                // zero. Only the actual network-requested action carries it.
+                const auto result=CompleteQuestRewards(sql,c,after,*completed,depth?0:reward_type,depth?0:reward_id,
+                    inputs.probability,event,committed.packets);
+                payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+                committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_QUESTCOMPLETE_ACK),
+                    EncodeQuestCompleteAck(result,target,0,0,0));
+                if(result!=QR_SUCCESS)return;
+                other_state_changed=true;
+                if(!craft) {
+                    progress=quest_runtime::Find(quest_runtime::Rows(*payload),target);
+                    if(!progress)throw std::runtime_error("Completed quest disappeared during reward triggers");
+                    ++progress->bCompleteCount;progress->dwTick=0;progress->timer_active=false;progress->timer_expired=false;
+                    if(completed->bType!=QT_GUILD)progress->save=1;
+                    for(auto& term:progress->terms)term.bCount=0;
+                }
+                event(target,QTT_QUESTCOMPLETED,TT_COMPLETE,1);
+                children(def,depth);return;
+            }
             case QT_MISSION:case QT_GUILD: {
                 if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
                 auto* q=quest_runtime::Find(quest_runtime::Rows(*payload),def.dwQuestID);
@@ -730,8 +784,25 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 children(def,depth);return; // CQuest default implementation.
             }
         };
-        if(requested)execute(*requested,0);
+        if(progress_tick) {
+            const QuestEvent event=[&](std::uint32_t id,std::uint8_t type,std::uint8_t trigger_type,int count) {
+                payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+                quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,id,type,count,committed.packets);
+                for(const auto* trigger:ordered)if(trigger->bTriggerType==trigger_type&&trigger->dwTriggerID==id) {
+                    std::uint8_t gate_level=0;
+                    if(!quest_runtime::CanRun(after,*payload,*trigger,chart,inputs,gate_level))execute(*trigger,1);
+                }
+            };
+            AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets);
+            payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+            // Timer changes share the quest ledger so an older checkpoint,
+            // cast or reward cannot restore the previous effect/XP snapshot.
+            other_state_changed=true;
+        } else if(requested)execute(*requested,0);
     }
+    if(!facts.world_registered&&std::any_of(committed.packets.begin(),committed.packets.end(),
+        [](const auto& packet){return packet.audience==QuestAudience::World;}))
+        throw std::runtime_error("Quest progression requires a registered World connection");
     const auto after_json=quest_runtime::Json(quest_runtime::Rows(*payload));
     if(before_json==after_json&&!other_state_changed) {
         // Repeated capped talk and absent/nonrunning drop still have their
@@ -741,7 +812,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const auto hex=[](std::span<const std::byte> bytes){constexpr char d[]="0123456789abcdef";std::string out;
         for(auto v:bytes){const auto b=std::to_integer<unsigned>(v);out+=d[b>>4];out+=d[b&15];}return out;};
     std::string packets="[";
-    for(const auto& [id,bytes]:committed.packets){if(packets.size()>1)packets+=',';packets+='['+std::to_string(id)+",\""+hex(bytes)+"\"]";}
+    for(const auto& packet:committed.packets){if(packets.size()>1)packets+=',';
+        packets+='['+std::to_string(packet.opcode)+",\""+hex(packet.body)+"\","+std::to_string(static_cast<unsigned>(packet.audience))+']';}
     packets+=']';const auto request=hex(body);
     const int world=c.group,character=std::bit_cast<std::int32_t>(c.char_id),server=m_config.server,op=opcode;
     const long long previous=payload->last_quest_id,generation=c.connection_id,epoch=c.authority_epoch;long long operation=0;
@@ -752,6 +824,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::into(operation);
     payload->last_quest_id=static_cast<std::uint64_t>(operation);
     WriteQuestProgress(sql,c,after);
+    if(!after.payload->transfer_state)WriteMaintainedEffects(sql,c,after);
     WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,Fingerprint(c,after),"active");StoreTransferCheckpoint(sql,c,after);
     committed.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return committed;
 }
@@ -1018,7 +1091,8 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
         after.dwHP=std::min(after.dwHP,after.dwMaxHP);after.dwMP=std::min(after.dwMP,after.dwMaxMP);
         // Defend calls CheckEternalBuff after applying the effect, before its
         // DEFEND/HPMP reply. ReadPostures pins bIsuse=1 and zero duration.
-        if(!after.dwMP)while(!after.payload->effects->empty())erase(0);
+        if(!after.dwMP)for(std::size_t i=0;i<after.payload->effects->size();)
+            if(IsNativePosture(after.payload->effects->at(i).skill))erase(i);else ++i;
         emit(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power),FinishAudience::Nearby);
         if(after.dwHP!=hp||after.dwMP!=mp)emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
             EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP),FinishAudience::Nearby);
@@ -1027,6 +1101,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     // list. IsEquipSkillItem deliberately includes broken weapons.
     for(std::size_t i=0;i<after.payload->effects->size();) {
         const auto& effect=after.payload->effects->at(i);
+        if(!IsNativePosture(effect.skill)){++i;continue;}
         const auto& definition=after.payload->posture_templates.at(effect.skill-131);
         bool suitable=!definition.weapons;
         for(const auto& bag:after.payload->bags)if(bag.bag.bInvenID==254)for(const auto& item:bag.items)

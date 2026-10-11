@@ -1,8 +1,8 @@
 -- psql -v map_role=dedicated_map_login; never grant historical writes.
 BEGIN;
 ALTER ROLE :"map_role" SET search_path=pg_catalog;
-GRANT USAGE ON SCHEMA app_global,app_world,character_compat,route_compat,actor_compat TO :"map_role";
-GRANT SELECT ON ALL TABLES IN SCHEMA character_compat,route_compat,actor_compat TO :"map_role";
+GRANT USAGE ON SCHEMA app_global,app_world,character_compat,route_compat,actor_compat,game_compat TO :"map_role";
+GRANT SELECT ON ALL TABLES IN SCHEMA character_compat,route_compat,actor_compat,game_compat TO :"map_role";
 GRANT SELECT("dwUserID") ON app_global."TACCOUNT_PW" TO :"map_role";
 GRANT SELECT ON app_global."TCURRENTUSER",app_global."TUSERINFOTABLE",
     app_global."TALLCHARTABLE",app_global."TLOG",app_global.map_handoff,

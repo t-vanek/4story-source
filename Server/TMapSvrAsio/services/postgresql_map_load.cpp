@@ -85,6 +85,29 @@ void ReadPostures(soci::session& sql,CharacterPayload& p) {
         if(!posture)throw std::runtime_error("Automatic skill is not a source posture");
     }
 }
+void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
+    p.progress_effect_templates.clear();
+    // TPlayer::GainExp's forced pure status effects. PCBang skill903 also
+    // requires DuringItem/account entitlement semantics and is not admitted here.
+    for(const int id:{918,923}) {
+        soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
+        if(!sql.got_data())continue; // source FindTSkill's missing-template branch
+        if(!U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||
+           U8(chart,"bIsuse")||U8(chart,"bEraseAct")||U8(chart,"bEraseHide")||U8(chart,"bIsHideSkill")||U32(chart,"dwWeaponID"))
+            throw std::runtime_error("Progression effect requires additional source side effects");
+        ProgressEffectTemplate def;def.skill=static_cast<std::uint16_t>(id);def.priority=U8(chart,"bPriority");
+        unsigned count=0;
+        soci::rowset<soci::row> rows=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
+        for(const auto& row:rows) {
+            if(++count!=1||U8(row,"bAction")!=3||U8(row,"bType")!=6||U8(row,"bAttr")||
+               U8(row,"bExec")!=(id==918?63:67)||U8(row,"bCalc")||U16(row,"wValueInc"))
+                throw std::runtime_error("Progression effect has unsupported skill data");
+            def.status=U8(row,"bExec");def.value=U16(row,"wValue");
+        }
+        if(count!=1)throw std::runtime_error("Progression effect has no source maintained row");
+        p.progress_effect_templates.push_back(def);
+    }
+}
 void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     for(auto& bag:p.bags) {
         const int item=std::bit_cast<std::int16_t>(bag.bag.wItemID);int slots=0;
@@ -140,6 +163,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     p.skill_points.fill(0);
     p.statistics.reset();
     ReadPostures(sql,p);
+    ReadProgressEffects(sql,p);
     for(const auto& skill:p.skills) {
         const int id=std::bit_cast<std::int16_t>(skill.wSkillID);soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
@@ -230,6 +254,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     std::vector<AbilityEffect> active;
     const bool supported_effects=SupportedPostures(p);
     if(supported_effects)for(const auto& effect:*p.effects) {
+        if(!IsNativePosture(effect.skill))continue;
         const auto& modifiers=p.posture_templates.at(effect.skill-131).abilities;
         active.insert(active.end(),modifiers.begin(),modifiers.end());
     }
@@ -446,8 +471,10 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
         if(U16(r,"ordinal")!=p.effects->size())throw std::runtime_error("Maintained effect order has a gap");
         MaintainedEffect e;e.skill=U16(r,"skill_id");e.level=U8(r,"skill_level");e.remaining=U32(r,"remaining");
         e.attack_type=U8(r,"attack_type");e.attack_id=U32(r,"attack_id");e.host_type=U8(r,"host_type");
-        e.host_id=U32(r,"host_id");e.attack_country=U8(r,"attack_country");p.effects->push_back(e);
+        e.host_id=U32(r,"host_id");e.attack_country=U8(r,"attack_country");
+        e.sampled_ms=e.charge_ms=SkillClockMs();p.effects->push_back(e);
      }}
+    ReadProgressEffects(sql,p);
     if(!SupportedPostures(p))throw std::runtime_error("Fresh maintained effect needs unimplemented native simulation");
     p.rank_point=U32(row,"dwRankPoint");
     int lucky=0;sql<<"SELECT \"bLuckyNumber\" FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k",soci::use(key),soci::into(lucky);
@@ -515,6 +542,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     // Active recalls need their own admission/spawn contract before use. Rows
     // remain intact when admission is refused; never quietly lose companions.
     if(!p.recalls.empty())throw std::runtime_error("Native recall admission is not implemented");
+    p.previous_level=static_cast<std::uint8_t>(s.bLevel-1);
     for(int i=0;i<2;++i){const int level=static_cast<int>(s.bLevel)-1+i;int experience=0;
         sql<<"SELECT \"dwEXP\" FROM character_compat.\"TLEVELCHART\" WHERE \"bLevel\"=:level",soci::use(level),soci::into(experience);
         if(!sql.got_data())throw std::runtime_error("Character level has no source experience threshold");
@@ -554,6 +582,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     if(!t.new_security&&!p.security.created)throw std::runtime_error("Transferred secure code has no native account authority");
     p.skills=t.skills;p.cabinets=t.cabinets;p.titles=t.titles;p.recalls=t.recalls;p.pets=t.pets;
     p.effects=t.buffs;
+    for(auto& effect:*p.effects)effect.sampled_ms=effect.charge_ms=SkillClockMs();
     p.aid_country=t.aid_country;p.lucky_number=t.lucky;p.rank_point=t.rank_points;
     for(const auto& h:t.hotkeys)p.hotkeys.push_back(h.row);
     std::set<std::uint8_t> bags;std::set<std::uint64_t> items;std::set<std::pair<std::uint32_t,std::uint8_t>> slots;
@@ -573,6 +602,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     std::set<std::uint16_t> skills;
     for(const auto& skill:p.skills)if(!skills.insert(skill.wSkillID).second)throw std::runtime_error("Duplicate transferred skill");
     p.selected_title=LoadedTitle(p.titles);
+    p.previous_level=static_cast<std::uint8_t>(s.bLevel-1);
     for(int i=0;i<2;++i){const int level=static_cast<int>(s.bLevel)-1+i;int experience=0;
         sql<<"SELECT \"dwEXP\" FROM character_compat.\"TLEVELCHART\" WHERE \"bLevel\"=:level",soci::use(level),soci::into(experience);
         if(!sql.got_data())throw std::runtime_error("Transferred level has no source threshold");

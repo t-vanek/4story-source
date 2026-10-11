@@ -17,10 +17,20 @@
 #include <stdexcept>
 
 namespace tmapsvr {
-using QuestPackets = std::vector<std::pair<std::uint16_t,std::vector<std::byte>>>;
+enum class QuestAudience : std::uint8_t { Owner, Neighbors, World };
+struct QuestPacket {
+    std::uint16_t opcode;
+    std::vector<std::byte> body;
+    QuestAudience audience;
+    QuestPacket(std::uint16_t op,std::vector<std::byte> bytes,QuestAudience target=QuestAudience::Owner)
+        :opcode(op),body(std::move(bytes)),audience(target){}
+};
+using QuestPackets = std::vector<QuestPacket>;
 struct QuestMapFacts {
     std::uint16_t map{};
     std::uint8_t channel{};
+    bool world_registered{};
+    std::uint64_t sample_ms{}; // local scheduler observation, never a client field
     std::vector<std::pair<std::uint32_t,std::uint16_t>> monsters;
 };
 struct QuestCommit {

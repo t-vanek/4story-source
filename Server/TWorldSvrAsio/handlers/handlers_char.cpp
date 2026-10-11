@@ -680,6 +680,8 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
         co_return;
     }
 
+    if(!r.Eof()||!ctx.peers||ctx.peers->Find(peer->Wid())!=peer||(peer->Wid()>>8)!=4)co_return;
+
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return;
     std::uint8_t  main_msi = 0;
@@ -689,7 +691,9 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
     bool ok = false;
     {
         std::lock_guard g(c->lock);
-        if (c->key == key)
+        const auto source=std::find_if(c->cons.begin(),c->cons.end(),[&](const auto& con){return con.server_id==static_cast<std::uint8_t>(peer->Wid());});
+        if (c->key == key&&!c->closing&&!c->logout&&c->main_server_id==static_cast<std::uint8_t>(peer->Wid())&&
+            source!=c->cons.end()&&source->valid&&source->ready)
         {
             c->level = level;
             main_msi = c->main_server_id;

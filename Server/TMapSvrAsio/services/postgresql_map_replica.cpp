@@ -120,4 +120,18 @@ void PostgreSQLMapService::ReleaseReplica(soci::session& sql,const MapSessionCla
          "AND m.world_id=r.world_id AND m.char_id=r.char_id AND m.user_id=:u AND m.session_key=:k",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(user,"u"),soci::use(key,"k");
 }
+bool PostgreSQLMapService::ConfirmReplicaLevel(const MapSessionClaim& c,std::uint8_t level) {
+    auto lease=m_pool.Acquire();auto& sql=*lease;
+    auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockReplica(sql,c,phase)||phase!="ready")return false;
+    const int world=c.group,character=static_cast<std::int32_t>(c.char_id),expected=level;int current=0;
+    sql << "SELECT 1 FROM app_world.\"TCHARTABLE\" t JOIN app_world.map_checkpoints p "
+        "ON p.world_id=t.\"bWorldID\" AND p.char_id=t.\"dwCharID\" "
+        "WHERE t.\"bWorldID\"=:w AND t.\"dwCharID\"=:c AND t.\"bLevel\"=:level "
+        "AND p.outcome='active' AND app_world.map_checkpoint_matches(p)",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(expected,"level"),soci::into(current);
+    const bool valid=sql.got_data();tx->commit();return valid;
+}
+
 }

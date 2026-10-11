@@ -4,14 +4,21 @@
 #include <stdexcept>
 
 namespace tmapsvr {
+inline bool IsNativePosture(std::uint16_t skill) {return skill==131||skill==132;}
 inline bool SupportedPostures(const CharacterPayload& p) {
-    return p.effects&&std::all_of(p.effects->begin(),p.effects->end(),[](const auto& e){
-        return (e.skill==131||e.skill==132)&&e.level==1&&!e.remaining;
+    return p.effects&&std::all_of(p.effects->begin(),p.effects->end(),[&](const auto& e){
+        if(IsNativePosture(e.skill))return e.level==1&&!e.remaining;
+        // Pure QUESTEXP/AUTOEXP status effects have no stat, equipment,
+        // attack-erase or zero-MP side effects. The source templates are pinned
+        // during hydration; accepting an arbitrary ID here would hide effects.
+        return e.level==1&&e.remaining&&std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
+            [&](const auto& def){return def.skill==e.skill;});
     });
 }
 // ForceMaintain -> UpdateBuffSkill -> ChangeEquipItem -> CheckEquipSkill.
-// This slice implements the permanent 131/132 templates, not general buff
-// collisions, timed expiration or posture-dependent third-party effects.
+// Permanent 131/132 templates coexist with pinned pure progression statuses.
+// General buff collisions and posture-dependent third-party effects remain a
+// separate contract.
 template<class Refresh>
 void ApplyEquipmentPostures(CharSnapshot& s,std::uint16_t automatic,InventoryMoveCommit& result,Refresh refresh) {
     if(!SupportedPostures(*s.payload))throw std::runtime_error("Equipment active effects require supported posture semantics");
@@ -25,7 +32,8 @@ void ApplyEquipmentPostures(CharSnapshot& s,std::uint16_t automatic,InventoryMov
     if(automatic&&std::none_of(p->effects->begin(),p->effects->end(),[&](const auto& e){return e.skill==automatic;})) {
         // Both supported templates are positive postures. Source UpdateBuffSkill
         // erases every old posture in vector order before pushing the new one.
-        while(!p->effects->empty())erase(0,result.effects_before);
+        for(std::size_t i=0;i<p->effects->size();)
+            if(IsNativePosture(p->effects->at(i).skill))erase(i,result.effects_before);else ++i;
         p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
         MaintainedEffect e;e.skill=automatic;e.level=1;e.attack_type=e.host_type=1;
         e.attack_id=e.host_id=s.dwCharID;
@@ -37,6 +45,7 @@ void ApplyEquipmentPostures(CharSnapshot& s,std::uint16_t automatic,InventoryMov
     result.equipment_display=std::make_shared<const CharSnapshot>(s);
     for(std::size_t i=0;i<p->effects->size();) {
         const auto& e=p->effects->at(i);
+        if(!IsNativePosture(e.skill)){++i;continue;}
         const auto& def=p->posture_templates.at(e.skill-131);
         if(def.skill!=e.skill)throw std::runtime_error("Posture has no pinned template");
         bool suitable=!def.weapons;

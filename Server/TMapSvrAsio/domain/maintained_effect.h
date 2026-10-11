@@ -26,11 +26,18 @@ struct MaintainedEffect {
     std::uint16_t attack_level=1;
     std::array<std::uint32_t,4> powers{};
     std::array<float,3> position{};
+    // Process-local observations. The original eight-field database/wire
+    // representation stores remaining time, never another process's tick.
+    std::uint64_t sampled_ms{},charge_ms{};
 };
 struct AbilityEffect {int target{},increase{},value{};};
 struct PostureTemplate {
     std::uint16_t skill{};
     std::uint32_t weapons{};
     std::vector<AbilityEffect> abilities;
+};
+struct ProgressEffectTemplate {
+    std::uint16_t skill{},value{};
+    std::uint8_t status{},priority{};
 };
 }

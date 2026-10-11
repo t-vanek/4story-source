@@ -37,6 +37,7 @@ public:
     std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&) override;
     SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) override;
     SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) override;
+    bool ConfirmReplicaLevel(const MapSessionClaim&,std::uint8_t) override;
     QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) override;
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
@@ -59,7 +60,14 @@ private:
     static void RefreshEquipment(soci::session&,CharSnapshot&,bool derive);
     static ItemInstance ProjectNativeItem(soci::session&,const transfer::Item&);
     static std::optional<ItemInstance> CreateQuestItem(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t);
+    static std::vector<ItemInstance> CreateQuestRewardItems(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestRewardDef&);
     static bool GrantQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const std::vector<ItemInstance>&,QuestPackets&);
+    static void ConsumeQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const QuestDef&,QuestPackets&);
+    using QuestEvent = std::function<void(std::uint32_t,std::uint8_t,std::uint8_t,int)>;
+    static void AdvanceProgressEffects(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,const QuestEvent&,QuestPackets&);
+    static std::uint8_t CompleteQuestRewards(soci::session&,const MapSessionClaim&,CharSnapshot&,const QuestDef&,
+        std::uint8_t,std::uint32_t,const std::function<std::uint8_t()>&,const QuestEvent&,QuestPackets&);
+    static void GainQuestExperience(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,const QuestEvent&,QuestPackets&);
     std::string ValidateInventoryState(soci::session&,const MapSessionClaim&,const CharSnapshot&,bool all_fresh_items) const;
     enum class ConsumptionKind { Reagent, Ammunition, MultiAttackAmmunition };
     struct ReagentGraphPlan {std::string before_hash,after_hash;std::vector<std::string> item_hashes;ConsumptionKind kind=ConsumptionKind::Reagent;};

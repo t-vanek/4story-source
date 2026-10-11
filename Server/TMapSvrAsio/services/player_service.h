@@ -34,6 +34,7 @@ class IPlayerService
 {
 public:
     virtual ~IPlayerService() = default;
+    virtual bool ConfirmReplicaLevel(const MapSessionClaim&,std::uint8_t) {throw std::runtime_error("Replica level authority unavailable");}
     virtual QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) {throw std::runtime_error("Native quest persistence unavailable");}
     virtual SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Secure code persistence unavailable");}
 

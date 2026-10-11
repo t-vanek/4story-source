@@ -7,11 +7,9 @@
 //
 // Faithful to the legacy data model (TMapType.h tagQUESTTEMP /
 // tagQUESTTERM / tagQUESTREWARD) and the enums in
-// Lib/Own/TProtocol/include/NetCode.h. This slice models the
-// kill-count quest path (QT_DIEMON + QTT_HUNT + QT_COMPLETE); the
-// other action / term / trigger types are enumerated for completeness
-// and for the loader, but only the hunt + complete subset is evaluated
-// by quest_engine.h.
+// Lib/Own/TProtocol/include/NetCode.h. Native execution is implemented by
+// PostgreSQLMapService::ChangeQuest. quest_engine.h belongs to the older
+// backend and does not define the native implementation's coverage.
 
 #include <cstdint>
 #include <cstddef>
@@ -112,8 +110,8 @@ enum QuestResult : std::uint8_t
 };
 
 // Reward type — tagQUESTREWARD::m_bRewardType (TQREWARDCHART.bRewardType).
-// NetCode.h REWARD_TYPE. This slice grants RT_GOLD + RT_EXP; the rest are
-// enumerated for the loader and future waves.
+// NetCode.h REWARD_TYPE. Native reward semantics follow OnQuestComplete,
+// including its deliberately absent switch cases.
 enum RewardType : std::uint8_t
 {
     RT_GOLD      = 1,
@@ -129,8 +127,8 @@ enum RewardType : std::uint8_t
 };
 
 // Reward take-method — tagQUESTREWARD::m_bTakeMethod. NetCode.h
-// REWARD_METHOD. This slice treats every reward as always-granted;
-// RM_SELECT / RM_PROB / RM_RANDOM are follow-ups.
+// REWARD_METHOD. Item and non-item selection have different source switches;
+// the latter deliberately has no RM_RANDOM case.
 enum RewardMethod : std::uint8_t
 {
     RM_DEFAULT = 1,

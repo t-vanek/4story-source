@@ -9,7 +9,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from generate_migrations import qi, REFERENCE_TABLES, CHARACTER_REFERENCE_KEYS, ROUTING_REFERENCE_KEYS, ACTOR_REFERENCE_KEYS
+from generate_migrations import qi, REFERENCE_TABLES, CHARACTER_REFERENCE_KEYS, ROUTING_REFERENCE_KEYS, ACTOR_REFERENCE_KEYS, TRAINER_REFERENCE_KEYS
 from inspect_backup import query
 from migrate import digest,table_hash,bytes_hash
 
@@ -20,7 +20,7 @@ def si(name):return '['+name.replace(']',']]')+']'
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--container',required=True)
-    p.add_argument('--profile',choices=('map','characters','routing','actor'),default='map')
+    p.add_argument('--profile',choices=('map','characters','routing','actor','trainers'),default='map')
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--mapping',type=Path,default=Path('database/postgresql/mapping.json'))
     p.add_argument('--backup-metadata',type=Path,default=Path('_rewrite/docs/database-reconstruction/evidence/artifact-inventory.json'))
@@ -43,6 +43,7 @@ def main():
         if args.profile == 'characters' and key not in CHARACTER_REFERENCE_KEYS:continue
         if args.profile == 'routing' and key not in ROUTING_REFERENCE_KEYS:continue
         if args.profile == 'actor' and key not in ACTOR_REFERENCE_KEYS:continue
+        if args.profile == 'trainers' and key not in TRAINER_REFERENCE_KEYS:continue
         projections=[]
         text_columns=[]
         for col in table['column_mapping']:
@@ -50,7 +51,10 @@ def main():
             projections.append(f'CONVERT(varchar(64),{name},3) AS {name}' if col['mssql_type'].startswith(('float','real')) else name)
             if col['postgresql_type']=='text':
                 alias='__reconstruction_bytes_'+str(len(text_columns))
-                projections.append(f'CONVERT(varbinary(max),{name}) AS {si(alias)}')
+                # SQL Server forbids direct legacy text/ntext -> varbinary conversion.
+                # First widen without changing the source encoding (ntext is UTF-16).
+                source = f'CONVERT({"nvarchar" if col["mssql_type"]=="ntext" else "varchar"}(max),{name})' if col['mssql_type'] in ('text','ntext') else name
+                projections.append(f'CONVERT(varbinary(max),{source}) AS {si(alias)}')
                 text_columns.append((col['source'],alias))
         ordering=table['original_pk'] or [c['source'] for c in table['column_mapping']]
         statement='SELECT\n'+',\n'.join(projections)+'\nFROM '+si(table['schema'])+'.'+si(table['table'])+\

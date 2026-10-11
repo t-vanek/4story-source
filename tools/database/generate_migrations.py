@@ -31,6 +31,8 @@ ROUTING_REFERENCE_KEYS = frozenset(
 ACTOR_REFERENCE_KEYS = frozenset(
     ('TGAME_RAGEZONE','dbo',t) for t in ('TITEMMAGICCHART','TSKILLPOINTCHART','TITEMATTRCHART','TITEMGRADECHART'))
 
+TRAINER_REFERENCE_KEYS = frozenset(('TGAME_RAGEZONE','dbo',t) for t in ('TNPCITEMCHART','TTITLECHART'))
+
 
 def qi(name):
     return '"'+name.replace('"','""')+'"'
@@ -139,7 +141,7 @@ CREATE TABLE reconstruction.failures (
                     'postgresql_type':pg_type(c),'nullable':bool(c['is_nullable']),
                     'source_is_identity':bool(c['is_identity'])} for c in cols],
                 'original_pk': [c['column_name'] for c in pk['column_details']] if pk else [],
-                'reference_import_allowed': (db, schema, table) in (CHARACTER_REFERENCE_KEYS | ROUTING_REFERENCE_KEYS | ACTOR_REFERENCE_KEYS)})
+                'reference_import_allowed': (db, schema, table) in (CHARACTER_REFERENCE_KEYS | ROUTING_REFERENCE_KEYS | ACTOR_REFERENCE_KEYS | TRAINER_REFERENCE_KEYS)})
         legacy_dir=args.output.parent/'legacy-reconstructed';legacy_dir.mkdir(exist_ok=True)
         (legacy_dir/(db+'.tables.sql')).write_text('\n\n'.join(mssql)+'\n')
     (args.output/'002-legacy-snapshots.sql').write_text('\n\n'.join(ddl)+'\n')

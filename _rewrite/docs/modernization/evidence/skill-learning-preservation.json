@@ -1,0 +1,167 @@
+{
+  "base_commit": "2a77f08c85f1aadca3e3825176d90e3fc86eb20a",
+  "unchanged": [
+    {
+      "path": "database/postgresql/001-import-control.sql",
+      "sha256": "d4e1fdbdfb4135356200287fd366c3b9d3a74a874d0bb2f03c03be5cbc54c695"
+    },
+    {
+      "path": "database/postgresql/002-legacy-snapshots.sql",
+      "sha256": "87d5cae08851a080f96ca7059ec2e5989559f912e1b4607edef4a6716bfdd41b"
+    },
+    {
+      "path": "database/postgresql/003-canonical-content.sql",
+      "sha256": "6dd09695ccce3a13c25727e1620f47ca5142fcab422da89798cb80be9a6d394e"
+    },
+    {
+      "path": "database/postgresql/004-source-text-bytes.sql",
+      "sha256": "f413df6c04fb8421c3142c031a94167bd6281da6350a5ff49977087994c4bdba"
+    },
+    {
+      "path": "database/postgresql/005-runtime-catalog-control.sql",
+      "sha256": "ad33846f8907f9b935d1d2a32a24d77022a263aecabf95d44ac5047f9705629d"
+    },
+    {
+      "path": "database/postgresql/006-current-chart-contracts.sql",
+      "sha256": "ab5e2d56cc314d377853771afe7706aee0e9664cd41de863cc980b5fe604e082"
+    },
+    {
+      "path": "database/postgresql/007-catalog-runtime-metadata.sql",
+      "sha256": "76ba7601d1c834809d862532934ab89a44f74570e18efc09629f2fecdd84bb7c"
+    },
+    {
+      "path": "database/postgresql/008-native-login.sql",
+      "sha256": "e82c30ebb73eddc82df906f88889bcb2c314ca1a2e82ab48256bda4257db547f"
+    },
+    {
+      "path": "database/postgresql/009-login-runtime-owner.sql",
+      "sha256": "e047b4146a058ff3e0af5065ba62804121eb21d1b0bc7af2ad7fa141adb90b0f"
+    },
+    {
+      "path": "database/postgresql/010-login-security-challenges.sql",
+      "sha256": "96d691deb917bdbf90523c9f20a84b8c85076ba670beabc97de51430d9e3126f"
+    },
+    {
+      "path": "database/postgresql/011-character-reference-catalog.sql",
+      "sha256": "2a8bacdade31512871983e0d165c50bc72179afc2ae8d2b4059a744292c8eec9"
+    },
+    {
+      "path": "database/postgresql/012-native-characters.sql",
+      "sha256": "53b084d5840f73193a204a0a2c95b7edc4a8e26d155349289de27e5586005700"
+    },
+    {
+      "path": "database/postgresql/013-character-item-allocation-floor.sql",
+      "sha256": "3f1042ffab6451f62debeee582efdfc82df580d0ceda0153c4f61cc5e8f86f8e"
+    },
+    {
+      "path": "database/postgresql/014-routing-reference-catalog.sql",
+      "sha256": "fd52051223376feea3993fc3db25e6c0d085e208bb3ae3434af0822652023dca"
+    },
+    {
+      "path": "database/postgresql/015-native-map-handoff.sql",
+      "sha256": "d209d882b64367ea6f23c9703ecd5ae07e3ee558b6ad9204a3a1774f864c3258"
+    },
+    {
+      "path": "database/postgresql/016-native-map-ownership.sql",
+      "sha256": "34f9f0d4f08a6134ee78f5477b6fcc3836f5c5f6300853ec8c8137e48356b847"
+    },
+    {
+      "path": "database/postgresql/017-map-actor-reference-catalog.sql",
+      "sha256": "fe603d01ef375c82ea6407b2d5fc7a04e9c74f2b2d41b5afb13f44d85af10987"
+    },
+    {
+      "path": "database/postgresql/018-native-map-checkpoints.sql",
+      "sha256": "44486f71748ba2dabfdbfebd18245afd03a29a0be19cd2d5e7e45ec13dfa26f2"
+    },
+    {
+      "path": "database/postgresql/019-native-map-replicas.sql",
+      "sha256": "2ccd4c5cdb2a11415713d65bb993a4db96d9f688d2ef4bd025bc9a96201e835e"
+    },
+    {
+      "path": "database/postgresql/020-native-main-transfer.sql",
+      "sha256": "4e4063ff246cf39a96dd0105ff1f4147f78db7551942a357b96ef20c166e4ff6"
+    },
+    {
+      "path": "database/postgresql/021-native-skill-checkpoints.sql",
+      "sha256": "552f5ff0bbdb9a41f3ccb58c77e4f16efd30665b5cc1ea085f6babe37ea678a8"
+    },
+    {
+      "path": "database/postgresql/022-native-skill-consumption.sql",
+      "sha256": "1dab4a261d535408910656698325273919a860061fa1db3d3f7f1f37764e0267"
+    },
+    {
+      "path": "database/postgresql/023-graph-skill-consumption.sql",
+      "sha256": "c351303ca4d96f1430de79a8c8d58d17f6918c2ea54decbc8e10fda25c7fcf11"
+    },
+    {
+      "path": "database/postgresql/024-native-skill-ammunition.sql",
+      "sha256": "088059e091e2c632f20d9901dcc1623a6ffcea34245841583e053e5e06c8a635"
+    },
+    {
+      "path": "database/postgresql/025-native-ammunition-batches.sql",
+      "sha256": "c7934f1fc30722268cdeb00bbdc9069223916f35df7cc953ff2595d8dcaa3372"
+    },
+    {
+      "path": "database/postgresql/026-native-multi-attack.sql",
+      "sha256": "1b05100142e0400f3d1a04c76426a4834d3786a1dab9c515f80b1ec27b35c41a"
+    },
+    {
+      "path": "database/postgresql/027-native-inventory-moves.sql",
+      "sha256": "46a1edb1c57e39c4a59a030e4cc0b9a312071655d4eed9df4e29c29e1896a596"
+    },
+    {
+      "path": "database/postgresql/028-native-inventory-stacks.sql",
+      "sha256": "36567359900ab451167486d20f73b46a5b466605924e62b92b65213caaa3447e"
+    },
+    {
+      "path": "database/postgresql/029-native-audit.sql",
+      "sha256": "cbeb6d1930e5f7447e42c50f0ec0d57d150ac1a4ea93c661832e2bd6e4ab87aa"
+    },
+    {
+      "path": "database/postgresql/030-character-statistics.sql",
+      "sha256": "7deb6bda4acc1e0daaf50d14a8d655df99ad5cc3f9ec348bed09aa318210ca29"
+    },
+    {
+      "path": "database/postgresql/031-actor-graph-compatibility.sql",
+      "sha256": "42d8660d6052a82a614b105ee9530a6708a2551891094f54d6d2ed51cc98257e"
+    },
+    {
+      "path": "database/postgresql/032-native-equipment.sql",
+      "sha256": "a554dbfdf1238c689c9ef9f4163b0b8e853417ccc90227520207d5402410b6c2"
+    },
+    {
+      "path": "database/postgresql/033-native-maintained-postures.sql",
+      "sha256": "8c0bb5268c44c30aa356536942e18cdff84ea56a865568ce497d59eaa08f2c04"
+    },
+    {
+      "path": "database/postgresql/034-native-effect-cancellation.sql",
+      "sha256": "5d2b73f638fd3c3bc721a238c883d05e70689e50ad5386bdfaf2ad73aad5fdf8"
+    },
+    {
+      "path": "database/postgresql/035-native-skill-casts.sql",
+      "sha256": "f397cca9582c10c162d4d74af72adcac7e8f193e083704b7aec804567a7d01e4"
+    },
+    {
+      "path": "database/postgresql/036-native-skill-finishes.sql",
+      "sha256": "12d60ff0a3a6202d50dfa16fc622be60c01afd11a9e20d8d16f0f7eae6785244"
+    },
+    {
+      "path": "database/postgresql/037-native-skill-actions.sql",
+      "sha256": "c895026dc31e21cc3e24915318865a76a57a447e43cc56463815f991f686789f"
+    },
+    {
+      "path": "database/postgresql/038-native-finish-effects.sql",
+      "sha256": "cb26fc4da6c1267fe2f486f08d6cdbf218fcd8dde34355e7e62a583c5eef9219"
+    },
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259"
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+    }
+  ],
+  "verified_count": 40,
+  "status": "passed"
+}

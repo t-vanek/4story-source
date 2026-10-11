@@ -918,3 +918,67 @@ owned credentials/TLS keys after stopping the lab. Preserve operator handling of
 unknown commits: no automatic retry, no stale final save, fenced process recovery.
 This is still an incomplete gameplay server. See the
 [accepted-cast contract and verification status](../_rewrite/docs/modernization/evidence/accepted-casts-contract.json).
+
+## Native skill learning
+
+Stop all local Map writers and use matching new binaries together. Apply migrations
+through **040** and reapply `deploy/sql/map-runtime-grants.sql`. Previously applied
+migrations and backup files stay unchanged. The character, routing and four-table
+actor releases remain in place. Trainer publication is separate and requires the
+verified character and actor releases; a live Map owner prevents changing it.
+
+Extract the two additional reference charts from the existing disposable restored
+copies (use a fresh private directory; no player/account data is exported):
+
+```sh
+python3 tools/database/extract_reference.py --container OWNED_RESTORED_SQL_CONTAINER \
+  --profile trainers --output /private/trainer-reference
+python3 tools/database/migrate.py schema
+python3 tools/database/migrate.py import-reference \
+  --manifest /private/trainer-reference/manifest.json
+python3 tools/database/activate_trainer_catalog.py \
+  --manifest /private/trainer-reference/manifest.json
+```
+
+The last three commands use the existing private libpq `PG*` configuration for
+local PostgreSQL. For a new installation, first import/publish the character,
+routing and actor catalogs using the preceding instructions. Source SQL Server
+is needed only for extraction from backups. Runtime learning uses PostgreSQL.
+
+Reproduce the bounded verification in a separate owned lab:
+
+```sh
+podman run --rm --network none --userns keep-id -v "$PWD:/src:z" -w /src \
+  localhost/fourstory:build-deps cmake --build --preset linux-debug
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 \
+  -t localhost/fourstory:postgresql-skill-learning .
+python3 tools/database/disposable_environment.py start \
+  --work /tmp/fourstory-learning-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-learning-test --map-runtime-only \
+  --image localhost/fourstory:postgresql-skill-learning --runtime-bin-dir /opt/fourstory/bin \
+  --snapshot /private/character/reference/manifest.json \
+  --routing-snapshot /private/routing/reference/manifest.json \
+  --actor-snapshot /private/statistics/actor-reference/manifest.json \
+  --trainer-snapshot /private/trainer-reference/manifest.json \
+  --report /tmp/native-skill-learning-release.json
+python3 tools/database/verify_posture_upgrade.py \
+  --work /tmp/fourstory-learning-test --through-learning \
+  --report /tmp/skill-learning-schema-upgrade.json
+python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-skill-learning
+python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-learning-test
+```
+
+Use the documented psycopg Python environment. For Debug omit image/runtime-bin
+arguments; for sanitizers build and select `linux-asan`. The harness imports and
+verifies all four private manifests, launches the existing Login/World/Map daemons,
+and removes its runtime processes. Keep concurrent configurations in separate labs;
+remove their credentials and TLS private keys after stopping them. Installed Release
+uses its installed daemons with the mounted Debug backend test. No deployment or
+publication outside this computer is authorized. See the
+[learning contract and remaining gates](../_rewrite/docs/modernization/evidence/skill-learning-contract.json).
+
+For the additional focused failure/reconnect scenario, add
+`--skill-learning-wire-only` to the same native verification invocation and use a
+separate report. It retains all backend checks while running only the learning
+wire scenario; it does not substitute for the full matrix.

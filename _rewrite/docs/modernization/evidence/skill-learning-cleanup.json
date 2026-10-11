@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "owned_labs_removed": [
+    "source",
+    "debug",
+    "asan",
+    "focused",
+    "release"
+  ],
+  "private_credentials_and_keys_removed": 39,
+  "release_lab": "removed",
+  "private_catalogs": "retained outside Git"
+}

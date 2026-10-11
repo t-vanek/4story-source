@@ -5,6 +5,7 @@
 #include "skill_effect.h"
 #include "skill_engine.h"
 #include "MessageId.h"
+#include "domain/main_transfer.h"
 #include <openssl/rand.h>
 #include <openssl/sha.h>
 #include <soci/soci.h>
@@ -357,6 +358,106 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
     if(cast_result)cast_result->snapshot=std::make_shared<const CharSnapshot>(after);
     tx->commit();return hashes;
 }
+SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c,std::span<const std::byte> body,const CharSnapshot& before) {
+    const auto req=DecodeSkillPurchase(body);
+    if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain)
+        throw std::runtime_error("SKILLBUY requires authoritative primary");
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Learning claim is not ready primary");
+    CheckCatalogs(sql);
+    const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+    const bool graph=bool(before.payload->transfer_state);
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
+        throw std::runtime_error("Learning recovery receipt changed");
+    const long long key=c.key;int unlocked=0;
+    sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
+    if(!sql.got_data())throw std::runtime_error("Learning session was revoked");
+    std::string manifest;
+    sql<<"SELECT manifest_sha256 FROM character_compat.trainer_release WHERE status='verified' AND character_manifest=:c AND actor_manifest=:a",
+        soci::use(m_config.character_manifest,"c"),soci::use(m_config.actor_manifest,"a"),soci::into(manifest);
+    if(!sql.got_data())throw std::runtime_error("Learning requires verified compatible trainer catalog");
+    ValidateInventoryState(sql,c,before,true);
+    if(!SupportedPostures(*before.payload))throw std::runtime_error("Learning disguise/effect semantics unavailable");
+    if(graph&&!before.payload->transfer_state->security_code.empty())throw std::runtime_error("Learning secure-code lifecycle unavailable");
+    if(before.bStartAct==2||(before.bStartAct==1&&before.wMapID==2010))
+        throw std::runtime_error("Tutorial does not permit learning");
+    auto original=before;RefreshEquipment(sql,original,true);
+    LearningCatalog catalog;
+    const int npc=req.npc,skill=req.skill,world=c.group,character=c.char_id;
+    {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"bType\",\"bCountryID\",\"wLocalID\",\"bCondition\",\"bDiscountRate\" FROM character_compat.\"TNPCCHART\" WHERE (\"wID\"::integer & 65535)=:id",soci::use(npc));
+     for(const auto& r:rows) {
+        if(catalog.npc_exists)throw std::runtime_error("Duplicate source NPC");
+        catalog.npc_exists=true;
+        const auto country=r.get<int>(1),local=r.get<int>(2),condition=r.get<int>(3),discount=r.get<int>(4);
+        if(country==3&&local)throw std::runtime_error("Trainer territory ownership is not integrated");
+        catalog.can_talk=country==3||country==before.bCountry||country==before.payload->aid_country;
+        if(!catalog.can_talk)continue;
+        if(discount&&condition>=1&&condition<=3&&!(condition==1&&!local))
+            throw std::runtime_error("Trainer guild/hero discount is not integrated");
+        if(r.get<int>(0)==1||r.get<int>(0)==19){int found=0;
+            sql<<"SELECT 1 FROM character_compat.\"TNPCITEMCHART\" WHERE (\"wNpcID\"::integer & 65535)=:npc AND (\"dwItemID\" & 65535)=:skill LIMIT 1",
+                soci::use(npc,"npc"),soci::use(skill,"skill"),soci::into(found);catalog.offered=sql.got_data();}
+     }}
+    {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wParentSkillID\",\"bLevel\",\"bNextLevel\",\"bMaxLevel\",\"bKind\",\"dwClassID\",\"fPrice\"::double precision FROM character_compat.\"TSKILLCHART\" WHERE (\"wID\"::integer & 65535)=:id",soci::use(skill));
+     for(const auto& r:rows){if(catalog.skill)throw std::runtime_error("Duplicate source skill");
+        catalog.skill=LearningSkill{req.skill,static_cast<std::uint16_t>(r.get<int>(0)),static_cast<std::uint8_t>(r.get<int>(1)),
+            static_cast<std::uint8_t>(r.get<int>(2)),static_cast<std::uint8_t>(r.get<int>(3)),static_cast<std::uint8_t>(r.get<int>(4)),
+            static_cast<std::uint32_t>(r.get<int>(5)),static_cast<float>(r.get<double>(6))};}}
+    {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wID\",\"bLevel\",\"bSkillPoint\",\"bGroupPoint\",\"bPrevSkillLevel\" FROM actor_compat.\"TSKILLPOINTCHART\"");
+     for(const auto& r:rows)catalog.points.emplace(std::make_pair(static_cast<std::uint16_t>(r.get<int>(0)),static_cast<std::uint8_t>(r.get<int>(1))),
+         LearningPoint{static_cast<std::uint8_t>(r.get<int>(2)),static_cast<std::uint8_t>(r.get<int>(3)),static_cast<std::uint8_t>(r.get<int>(4))});}
+    {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"bLevel\",\"dwMoney\" FROM character_compat.\"TLEVELCHART\"");
+     for(const auto& r:rows)catalog.money.emplace(static_cast<std::uint8_t>(r.get<int>(0)),static_cast<std::uint32_t>(r.get<int>(1)));}
+    {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wTitleID\",\"dwRequirement\" FROM character_compat.\"TTITLECHART\" WHERE \"bKind\"=8");
+     for(const auto& r:rows)catalog.gold_titles.emplace(static_cast<std::uint16_t>(r.get<int>(0)),static_cast<std::uint32_t>(r.get<int>(1)));}
+    const auto title_json=[](const auto& input){auto titles=input;std::sort(titles.begin(),titles.end(),[](const auto& a,const auto& b){return a.id<b.id;});
+        std::string out="[";for(const auto& t:titles){if(out.size()>1)out+=',';out+='['+std::to_string(t.id)+','+(t.selected?"1":"0")+']';}return out+']';};
+    const auto before_titles=title_json(before.payload->titles);
+    if(!graph) {
+        std::vector<CharacterTitle> stored;
+        {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wTitleID\",\"bSelected\" FROM app_world.\"TTITLETABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c FOR UPDATE",soci::use(world,"w"),soci::use(character,"c"));
+         for(const auto& r:rows)stored.push_back({static_cast<std::uint16_t>(r.get<int>(0)),r.get<int>(1)!=0});}
+        if(title_json(stored)!=before_titles)throw std::runtime_error("Title ownership changed outside learning");
+    }
+    auto plan=PlanSkillPurchase(req,original,catalog);auto& after=plan.after;
+    // Rebuild passive/equipment permissions and the source per-kind point sums
+    // from the new rank, before accepting any database mutation.
+    if(!plan.result)RefreshEquipment(sql,after,true);
+    const auto after_titles=title_json(after.payload->titles);
+    if(!graph) {
+        if(!plan.result) {
+            const int signed_skill=std::bit_cast<std::int16_t>(req.skill),rank=plan.rank;
+            sql<<"INSERT INTO app_world.\"TSKILLTABLE\"(\"bWorldID\",\"dwCharID\",\"wSkillID\",\"bLevel\",\"dwRemainTick\") VALUES(:w,:c,:id,:rank,0) "
+                 "ON CONFLICT(\"bWorldID\",\"dwCharID\",\"wSkillID\") DO UPDATE SET \"bLevel\"=EXCLUDED.\"bLevel\"",
+                soci::use(world,"w"),soci::use(character,"c"),soci::use(signed_skill,"id"),soci::use(rank,"rank");
+        }
+        if(before_titles!=after_titles) {
+            sql<<"DELETE FROM app_world.\"TTITLETABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c",soci::use(world,"w"),soci::use(character,"c");
+            for(const auto& t:after.payload->titles){const int id=std::bit_cast<std::int16_t>(t.id),selected=t.selected;
+                sql<<"INSERT INTO app_world.\"TTITLETABLE\"(\"bWorldID\",\"dwCharID\",\"wTitleID\",\"bSelected\") VALUES(:w,:c,:id,:selected)",
+                    soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"id"),soci::use(selected,"selected");}
+        }
+    }
+    SkillPurchaseCommit committed;using tnetlib::protocol::MessageId;
+    const auto hex=[](auto bytes){constexpr char digits[]="0123456789abcdef";std::string out;for(auto v:bytes){const auto b=std::to_integer<unsigned>(v);out+=digits[b>>4];out+=digits[b&15];}return out;};
+    std::string title_packets="[";
+    for(auto& packet:plan.titles){if(title_packets.size()>1)title_packets+=',';title_packets+='"'+hex(packet)+'"';committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_TITLEGAIN_ACK),std::move(packet));}
+    title_packets+=']';
+    auto ack=EncodeSkillPurchaseAck(req,plan);const auto ack_hex=hex(ack),request_hex=hex(body);
+    committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_SKILLBUY_ACK),std::move(ack));
+    const int server=m_config.server,code=plan.result,rank=plan.rank;
+    const long long generation=c.connection_id,epoch=c.authority_epoch,previous=before.payload->last_purchase_id,spent=plan.spent;long long id=0;
+    sql<<"INSERT INTO app_world.skill_purchase_operations(world_id,char_id,previous_purchase_id,session_key,server_id,owner_token,connection_id,authority_epoch,trainer_manifest,npc_id,skill_id,result,learned_rank,spent,request,acknowledgement,title_packets,before_titles,after_titles) "
+         "VALUES(:w,:c,:prev,:key,:s,:token,:g,:epoch,:manifest,:npc,:skill,:result,:rank,:spent,decode(:request,'hex'),decode(:ack,'hex'),CAST(:packets AS jsonb),CAST(:before AS jsonb),CAST(:after AS jsonb)) RETURNING purchase_id",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"prev"),soci::use(key,"key"),soci::use(server,"s"),soci::use(m_config.owner_token,"token"),
+        soci::use(generation,"g"),soci::use(epoch,"epoch"),soci::use(manifest,"manifest"),soci::use(npc,"npc"),soci::use(skill,"skill"),soci::use(code,"result"),
+        soci::use(rank,"rank"),soci::use(spent,"spent"),soci::use(request_hex,"request"),soci::use(ack_hex,"ack"),soci::use(title_packets,"packets"),soci::use(before_titles,"before"),soci::use(after_titles,"after"),soci::into(id);
+    auto payload=std::make_shared<CharacterPayload>(*after.payload);payload->last_purchase_id=static_cast<std::uint64_t>(id);after.payload=std::move(payload);
+    WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,Fingerprint(c,after),"active");StoreTransferCheckpoint(sql,c,after);
+    committed.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return committed;
+}
+
 SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim& c,std::span<const std::byte> body,
     const CharSnapshot& before) {
     const auto request=DecodeSkillAction(body);
@@ -672,6 +773,8 @@ void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClai
     if(static_cast<std::uint64_t>(head)!=s.payload->last_finish_id)throw std::runtime_error("Snapshot predates finished skill");
     sql<<"SELECT COALESCE(max(action_id),0) FROM app_world.skill_action_operations WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
     if(static_cast<std::uint64_t>(head)!=s.payload->last_action_id)throw std::runtime_error("Snapshot predates skill action");
+    sql<<"SELECT COALESCE(max(purchase_id),0) FROM app_world.skill_purchase_operations WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
+    if(static_cast<std::uint64_t>(head)!=s.payload->last_purchase_id)throw std::runtime_error("Snapshot predates skill purchase");
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
     CheckCastHead(sql,claim,s);

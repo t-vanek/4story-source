@@ -1,4 +1,5 @@
 #include "handlers.h"
+#include "config.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
 #include "services/main_transfer_runtime.h"
@@ -11,6 +12,33 @@
 #include <cmath>
 
 namespace tmapsvr {
+boost::asio::awaitable<void> OnSkillBuyReq(std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte> body,const HandlerContext& ctx) {
+    if(ctx.mode==Mode::Bow)co_return;
+    DecodeSkillPurchase(body);
+    const auto identity=ctx.session_reg?ctx.session_reg->Identity(sess.get()):std::nullopt;
+    if(!identity||identity->role!=MapSessionRole::Primary||!ctx.char_state||!ctx.player_service||!ctx.skill_cooldown)
+        throw std::runtime_error("SKILLBUY requires an authoritative primary");
+    const auto cid=identity->char_id;const auto original=ctx.char_state->Freeze(cid,[](auto&){});
+    if(!original)co_return;
+    if(original->bStartAct==2||(original->bStartAct==1&&original->wMapID==2010)){
+        ctx.char_state->Store(cid,*original);co_return;
+    }
+    SkillPurchaseCommit committed;
+    try {
+        const auto before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,SkillClockMs());
+        auto* service=ctx.player_service;
+        committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&body,&before]{
+            return service->PurchaseSkill(claim,body,before);
+        });
+        if(!committed.snapshot)throw std::runtime_error("Missing learning commit state");
+        ctx.char_state->Store(cid,*committed.snapshot);
+    }catch(...) {
+        auto uncertain=*original;uncertain.persistence_uncertain=true;
+        ctx.char_state->Store(cid,uncertain);sess->Close();throw;
+    }
+    for(const auto& [id,packet]:committed.packets)co_await sess->SendPacket(id,packet);
+}
 boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx) {
     const auto request=DecodeSkillAction(body);

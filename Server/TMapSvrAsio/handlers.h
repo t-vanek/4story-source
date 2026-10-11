@@ -134,6 +134,7 @@ boost::asio::awaitable<void> OnNpcTalkReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+boost::asio::awaitable<void> OnSkillBuyReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnSkillUseReq(

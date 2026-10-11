@@ -24,12 +24,13 @@ from verify_cast_powers_wire import verify_cast_powers
 from verify_finish_skill_wire import verify_skill_finishes
 from verify_skill_actions_wire import verify_skill_actions
 from verify_finish_effects_wire import verify_finish_effects
+from verify_skill_learning_wire import verify_skill_learning
 from verify_equipment_wire import verify_equipment
 from verify_posture_wire import verify_postures
 from verify_map_skill_wire import seed_skill_cast,verify_skill_cast
 
 
-def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_conn,image,bin_dir,base_name,manifest,routing,actor,execute,actor_upgrade=None):
+def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_conn,image,bin_dir,base_name,manifest,routing,actor,execute,actor_upgrade=None,learning_only=False):
     checks=[];names=[base_name+'-world',base_name+'-map',base_name+'-login',base_name+'-map-second'];started=[]
     def check(ok,label):
         if not ok:raise RuntimeError('Map runtime wire: '+label)
@@ -176,6 +177,17 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         gate_closed('native admission is closed before initial World registration')
         world_port=launch(0);login_port=launch(2)
         until(lambda:registrations()>0,'Map receives actual World registration acknowledgment')
+        if learning_only:
+            cid,key=start(login_port);client,_=enter(map_port,cid,key);client.close()
+            until(lambda:conn.execute('SELECT count(*) FROM app_world.map_sessions WHERE char_id=%s',(cid,)).fetchone()==(0,),'initial learning fixture admission closes')
+            def restart_learning_map():
+                stop(1,'KILL');port=launch(1)
+                until(lambda:registrations()>0,'replacement learning Map registers with World')
+                return port
+            learning,map_port=verify_skill_learning(conn,cid,start,enter,login_port,map_port,until,restart_learning_map)
+            for index in (2,1,0):stop(index)
+            return {'status':'passed','checks':checks,'skill_learning_wire':learning,
+                    'scope':'Focused original SKILLBUY learning, currency, titles, restart and late SQL rollback; real client unavailable'}
         secondary_wire=verify_world_secondary(world_port)
         handoff_wire=verify_world_handoff(world_port)
         cid,key=start(login_port)
@@ -251,6 +263,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
         finish_wire,map_port=verify_skill_finishes(conn,cid,start,enter,login_port,map_port,until,restart_posture_map)
         action_wire,map_port=verify_skill_actions(conn,cid,start,enter,login_port,map_port,until,restart_posture_map)
         finish_effect_wire,map_port=verify_finish_effects(conn,cid,start,enter,login_port,map_port,until,restart_posture_map)
+        learning_wire,map_port=verify_skill_learning(conn,cid,start,enter,login_port,map_port,until,restart_posture_map)
         # World dies while Map and its dirty player stay alive. Delay the final
         # save, restart World immediately, and prove replacement registration
         # waits for teardown rather than admitting a mixed World generation.
@@ -419,7 +432,7 @@ def verify_map_runtime_daemons(conn,state,repo,private,public,login_conn,map_con
             if name==names[1]:continue
             command(['kill','--signal','TERM',name]);check(execute(['podman','wait',name],timeout=15).strip()=='0','actual daemon exits zero on SIGTERM')
             log=execute(['podman','logs',name]);check(not any(e in log for e in ('ERROR: AddressSanitizer','ERROR: LeakSanitizer','runtime error:')),'daemon log has no sanitizer failure')
-        return {'status':'passed','checks':checks,'skill_cast_wire':skill_wire,'world_secondary_wire':secondary_wire,'world_handoff_wire':handoff_wire,'map_rejection_wire':rejected_secondary,'map_replica_wire':replica_wire,'map_ammunition_wire':ammo_replica_wire,'ammunition_wire':ammo_wire,'ammunition_batch_wire':ammo_batches,'multi_attack_wire':multi_attack,'inventory_move_wire':inventory_moves,'inventory_stack_wire':inventory_stacks,'character_statistics_wire':character_statistics,'cast_powers_wire':cast_powers,'equipment_wire':equipment_wire,'posture_wire':posture_wire,'finish_skill_wire':finish_wire,'skill_action_wire':action_wire,'finish_effect_wire':finish_effect_wire,'scope':'Actual Login/World/two-Map TCP, ungranted second-Map rejection and granted replica admission with an explicitly synthetic cell partition, World-loss admission/drain/restart, failed final save retention, periodic core checkpoints and SIGKILL/SIGTERM recovery; synthetic account, original backup content; real client and persisted social systems pending'}
+        return {'status':'passed','checks':checks,'skill_cast_wire':skill_wire,'world_secondary_wire':secondary_wire,'world_handoff_wire':handoff_wire,'map_rejection_wire':rejected_secondary,'map_replica_wire':replica_wire,'map_ammunition_wire':ammo_replica_wire,'ammunition_wire':ammo_wire,'ammunition_batch_wire':ammo_batches,'multi_attack_wire':multi_attack,'inventory_move_wire':inventory_moves,'inventory_stack_wire':inventory_stacks,'character_statistics_wire':character_statistics,'cast_powers_wire':cast_powers,'equipment_wire':equipment_wire,'posture_wire':posture_wire,'finish_skill_wire':finish_wire,'skill_action_wire':action_wire,'finish_effect_wire':finish_effect_wire,'skill_learning_wire':learning_wire,'scope':'Actual Login/World/two-Map TCP, ungranted second-Map rejection and granted replica admission with an explicitly synthetic cell partition, World-loss admission/drain/restart, failed final save retention, periodic core checkpoints and SIGKILL/SIGTERM recovery; synthetic account, original backup content; real client and persisted social systems pending'}
     except Exception:
         (private/'runtime-progress.json').write_text(json.dumps({'completed_checks':checks},indent=2))
         (private/'runtime-failure.json').write_text(json.dumps({n:execute(['podman','logs',n]) for n in started},indent=2))

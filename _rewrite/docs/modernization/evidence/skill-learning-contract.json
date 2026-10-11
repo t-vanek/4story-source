@@ -1,0 +1,238 @@
+{
+  "status": "verified_bounded_increment",
+  "date": "2026-10-11",
+  "base_commit": "2a77f08c85f1aadca3e3825176d90e3fc86eb20a",
+  "scope": "Native CS_SKILLBUY learning and rank upgrade through the existing Map server, verified backup trainers, PostgreSQL and original ACK; complete trainer/title/skill gameplay remains incomplete",
+  "schema": {
+    "migrations": [
+      {
+        "path": "database/postgresql/039-native-trainer-catalog.sql",
+        "sha256": "63d7486108a9c276215a60403038fb0193f1b011d3a401d5adf5972125ee2f63"
+      },
+      {
+        "path": "database/postgresql/040-native-skill-purchases.sql",
+        "sha256": "1e701edfead2ee7a19de72a03d21b2caea7d44e2a0fbcffbf6e9d3eedd5f8c95"
+      }
+    ],
+    "prior_migrations_immutable": "001-038",
+    "no_historical_purchase_backfill": true
+  },
+  "source": [
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "2170-2425",
+      "finding": "New vs existing-skill gates and ordering; rank-zero existing starters use upgrade branch; original result/rank values; no trainer offer/class check for upgrades"
+    },
+    {
+      "path": "Server/TMapSvr/TNpc.cpp",
+      "lines": "58-108",
+      "finding": "GetSkill and country/local/disguise CanTalk; conditional territory rules remain gated"
+    },
+    {
+      "path": "Server/TMapSvr/TMapSvr.cpp",
+      "lines": "3620-3762;9565-9613",
+      "finding": "Trainer merchandise from TNPCITEMCHART for NPC types1/19; conditional discounts require original dynamic ownership"
+    },
+    {
+      "path": "Server/TMapSvr/TSkillTemp.cpp",
+      "lines": "416-450",
+      "finding": "FLOAT price; absent point row gives zero costs but cannot authorize a required parent"
+    },
+    {
+      "path": "Server/TMapSvr/TPlayer.cpp",
+      "lines": "920-939;3059-3110;6421-7084",
+      "finding": "UseMoney(0) bypasses titles; positive affordability checks invoke GetTitle; raw-kind spent point sum and source gold-title early return/packet order"
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "lines": "157-166",
+      "finding": "Currency radix1000; low two denominations use DWORD arithmetic before 64-bit gold addition"
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "1494-1516;3194-3217",
+      "finding": "30-byte SKILLBUY ACK includes Tick DWORD; TITLEGAIN sends complete ordered list before gained ID/start"
+    },
+    {
+      "path": "Client/TClient/CSSender.cpp",
+      "lines": "454-466",
+      "finding": "Four-byte NPC/skill request on primary connection"
+    },
+    {
+      "path": "Client/TClient/CSHandler.cpp",
+      "lines": "5781-5845",
+      "finding": "Actual client decoder reads result, skill, rank, Tick then success money and five point WORDs"
+    },
+    {
+      "path": "Server/TMapSvr/TSkill.cpp",
+      "lines": "3-12;70-113;229-231;264-280",
+      "finding": "New skills start at rank1; cooldown stores use tick and delay independently of subsequent rank changes; next level narrows to BYTE and parent/point checks use rank+1"
+    }
+  ],
+  "backup_catalog": {
+    "manifest_sha256": "89dbb5b8d6a5d38ccbb0aea0b01a2155896c52eb83746c6cfeb645b4a2e87bbe",
+    "tables": [
+      {
+        "table": "TNPCITEMCHART",
+        "row_count": 3364,
+        "value_sha256": "4cf2e5b2860a48b4889d8cbd3ea98405ed0a966d6c8bf87ea644e6b7e09610ca",
+        "text_bytes_value_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      {
+        "table": "TTITLECHART",
+        "row_count": 111,
+        "value_sha256": "a322edb1d8aa1e055fbeaf4078b9148785c9960af7a5244907ae32a2ee846b86",
+        "text_bytes_value_sha256": "3ccaf629b9e626065ef352261ffe747f41f33552de11bed964f5654e949ca18d"
+      }
+    ],
+    "runtime_npc_exercised": 22047,
+    "original_backups_unchanged": true,
+    "legacy_text_extraction": "SQL Server text/ntext first widens to varchar(max)/nvarchar(max), then varbinary; source encoding retained"
+  },
+  "implemented": [
+    "Original new/upgrade gates, class/level/parent/spent-kind point rules and float price/coin normalization",
+    "New skills and rank changes preserve existing cooldowns and refresh passive/statistics/kind-point projections",
+    "Gold-title side effects, including affordability-check effects and original early return; exact ordered TITLEGAIN before SKILLBUY",
+    "Owner/account/session/epoch/catalog fences, unique previous-purchase head, atomic money/points/rank/title/receipt/checkpoint",
+    "Fresh normalized persistence; transferred authoritative graph leaves old normalized rows unchanged; purchase head rehydrated across owners and recovery",
+    "Native errors produce original error ACKs; unsupported state and ambiguous writes close without synthetic success or automatic retry"
+  ],
+  "modern_repairs": [
+    "Strict four-byte request: trailing data rejected",
+    "Missing next-level row returns source intended SKILL_ALREADY rather than dereferencing null; missing initial row and nonrepresentable FLOAT price fail closed",
+    "Atomic durable operation and purchase head replace unsynchronized deferred legacy saving",
+    "Publication requires exact backed-up values and original bytes, matching character/actor releases and no active Map owner"
+  ],
+  "remaining": [
+    "Selected gold-title transitions and complete title lifecycle",
+    "Secure-code purchase/unlock lifecycle",
+    "Territory-owned neutral NPCs and nonzero guild/hero discounts",
+    "Disguise/general maintained effects, party/recall dependencies",
+    "Active trading/deal-state integration",
+    "NPC quest-talk trigger selection and actual trainer UI acceptance",
+    "Original TLog skill audit forwarding (purchase ledger is currently local durable audit)",
+    "Full skill execution for all purchasable skills, targets, modes and gameplay",
+    "Original executable and matching assets unavailable; supported binary build/hash unknown"
+  ],
+  "validation": {
+    "debug_ctest": {
+      "report": "skill-learning-debug-ctest.xml",
+      "total": 204,
+      "actual_passed": 189,
+      "internal_skips": 8,
+      "explicit_skips": 7
+    },
+    "asan_ctest": {
+      "report": "skill-learning-asan-ctest.xml",
+      "passed": 41,
+      "skips": 0
+    },
+    "upgrade": {
+      "report": "skill-learning-upgrade.json",
+      "checks": 85
+    },
+    "preservation": {
+      "report": "skill-learning-preservation.json",
+      "unchanged_files": 40
+    },
+    "full_native": {
+      "debug": "native-skill-learning-debug.json",
+      "asan": "native-skill-learning-asan.json",
+      "release": "native-skill-learning-release.json"
+    },
+    "focused_native": {
+      "debug": "native-skill-learning-focused-debug.json",
+      "asan": "native-skill-learning-focused-asan.json",
+      "release": "native-skill-learning-focused-release.json"
+    },
+    "native_results": {
+      "debug": {
+        "full": {
+          "report": "native-skill-learning-debug.json",
+          "map_backend": 1025,
+          "pool_and_tls": 29,
+          "outer_wire": 930,
+          "nested_wire": 1434,
+          "total": 3418,
+          "learning_wire": 47,
+          "catalog_publication": 13
+        },
+        "focused": {
+          "report": "native-skill-learning-focused-debug.json",
+          "map_backend": 1033,
+          "pool_and_tls": 29,
+          "outer_wire": 64,
+          "nested_wire": 51,
+          "total": 1177,
+          "learning_wire": 51,
+          "catalog_publication": 13
+        }
+      },
+      "asan": {
+        "full": {
+          "report": "native-skill-learning-asan.json",
+          "map_backend": 1025,
+          "pool_and_tls": 29,
+          "outer_wire": 930,
+          "nested_wire": 1434,
+          "total": 3418,
+          "learning_wire": 47,
+          "catalog_publication": 13
+        },
+        "focused": {
+          "report": "native-skill-learning-focused-asan.json",
+          "map_backend": 1033,
+          "pool_and_tls": 29,
+          "outer_wire": 64,
+          "nested_wire": 51,
+          "total": 1177,
+          "learning_wire": 51,
+          "catalog_publication": 13
+        }
+      },
+      "release": {
+        "full": {
+          "report": "native-skill-learning-release.json",
+          "map_backend": 1025,
+          "pool_and_tls": 29,
+          "outer_wire": 930,
+          "nested_wire": 1434,
+          "total": 3418,
+          "learning_wire": 47,
+          "catalog_publication": 13
+        },
+        "focused": {
+          "report": "native-skill-learning-focused-release.json",
+          "map_backend": 1033,
+          "pool_and_tls": 29,
+          "outer_wire": 64,
+          "nested_wire": 51,
+          "total": 1177,
+          "learning_wire": 51,
+          "catalog_publication": 13
+        }
+      }
+    },
+    "scope_note": "Full and focused runs overlap; do not sum as unique checks. Focused runs add eight fresh/full-graph reconnect checks and exercise rollback of an eligible paid rank upgrade followed by successful retry only after a known rollback. Full runs retain the previous complete fault/network matrix.",
+    "unit_learning_source_checks": 24,
+    "container_smoke": {
+      "report": "skill-learning-container-smoke.log",
+      "services": 6,
+      "health_dns_sigterm": "passed"
+    },
+    "cleanup": "skill-learning-cleanup.json"
+  },
+  "client": {
+    "source_protocol": "0x2918",
+    "binary_build": null,
+    "sha256": null,
+    "acceptance": "BLOCKED: owner has source only; no original executable or matching data"
+  },
+  "local_policy": "main only; no push, publication or external deployment; goal remains active",
+  "image": {
+    "reference": "localhost/fourstory:postgresql-skill-learning",
+    "id": "a16a6b82a0b47a06e89a8c7034a5c91736234c8803476f81ec69ec26e5ab4cdf",
+    "user": "10001:10001",
+    "runtime": "installed Release daemons with Debug backend executable for release verification"
+  }
+}

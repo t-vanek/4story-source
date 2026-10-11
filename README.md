@@ -20,7 +20,18 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Verified functionality
 
-Current increment (2026-10-11) integrates the existing **permanent postures
+Current work (2026-10-11) adds **native skill learning and rank upgrades** through
+`CS_SKILLBUY_REQ`, the original trainer offers, prices and skill-point rules.
+New migrations **039/040** publish backup trainer/title data and atomically persist
+currency, ranks, titles and recovery. Debug, ASan/UBSan and installed Release each
+pass 3,418 full native regression checks and a separate 1,177-check focused suite
+(the suites overlap). All 41 sanitizer suites and 85 migration checks pass.
+The local image is `localhost/fourstory:postgresql-skill-learning`. The bounded
+scope and remaining trainer/title dependencies are tracked in the
+[implementation status](_rewrite/docs/modernization/README.md#native-skill-learning-and-rank-upgrades-2026-10-11).
+Applied migrations **001–040** are immutable; the next migration is **041**.
+
+Previous increment (2026-10-11) integrates the existing **permanent postures
 131/132 with ACTION and self-cure finishes**. Their backup erase flags preserve
 them during ACTION. Cure and charged First Aid now run with either posture;
 Defend removes eternal postures at zero MP before its response. Migration **038**
@@ -28,7 +39,7 @@ records the ordered effect change and each response audience atomically with
 healing and recovery. END reaches neighboring cells, DEFEND/HPMP nearby players,
 and character statistics only their owner. See [the finish/effect contract](_rewrite/docs/modernization/evidence/finish-effects-contract.json)
 and [local reproduction](deploy/README.md#native-skill-finishes-with-postures).
-General effects and complete combat remain unfinished. Current local build tag:
+General effects and complete combat remain unfinished. That increment used:
 `localhost/fourstory:postgresql-finish-effects`.
 
 **3,276 native PostgreSQL/network checks pass per configuration** in Debug,
@@ -168,7 +179,7 @@ self-cure `Defend` path (including item use), dependent posture skills and remot
 visibility still require implementation and acceptance.
 Only uncompiled client sources are available; no supported executable build/hash,
 assets or original-client acceptance is claimed. Backups and applied migrations
-**001–038** are immutable; next migration **039**.
+**001–040** are immutable; next migration **041**.
 
 The preceding **native equipment** increment (032) verified ordinary equip,
 unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per

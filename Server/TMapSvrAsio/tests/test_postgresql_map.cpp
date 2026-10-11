@@ -37,6 +37,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "finish_skill_fixture.h"
 #include "skill_action_fixture.h"
 #include "finish_effect_fixture.h"
+#include "skill_learning_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -49,7 +50,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=744;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=746;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -187,7 +188,7 @@ int main(){
         Check(accepted[0]!=accepted[1],"concurrent claims have exactly one winner");map.ReleaseSession(accepted[0]?race:other);
         stage="permissions";{auto l=mpool.Acquire();Check(Throws([&]{*l<<"UPDATE app_world.\"TITEMTABLE\" SET \"wItemID\"=0";}),"Map consumption role cannot change item templates");
             Check(Throws([&]{*l<<"DELETE FROM app_world.skill_item_consumptions";}),"Map consumption role cannot discard its audit receipts");
-            Check(Throws([&]{*l<<"UPDATE app_world.\"TSKILLTABLE\" SET \"bLevel\"=2";}),"Map cooldown role cannot change learned ranks");
+            Check(Number(*l,"SELECT CASE WHEN has_column_privilege(current_user,'app_world.\"TSKILLTABLE\"','bLevel','UPDATE') AND has_table_privilege(current_user,'app_world.\"TSKILLTABLE\"','INSERT') THEN 1 ELSE 0 END")==1,"Map learning role may insert skills and update ranks");
             Check(Throws([&]{*l<<"DELETE FROM app_world.\"TSKILLTABLE\"";}),"Map cooldown role cannot forget skills");
             Check(Throws([&]{*l<<"DELETE FROM app_world.map_checkpoints";}),"Map runtime role cannot discard recovery receipts");
             Check(Throws([&]{*l<<"SELECT 1 FROM legacy_game.\"TITEMCHART\"";}),"Map core role cannot access historical tables");}
@@ -277,6 +278,18 @@ int main(){
         auto move_after=move_restored;tmapsvr::ApplyInventoryMove(move_after,move_plan);
         const auto move_hashes=map.MoveInventoryItems(move_recovery,{4,3,255,1,8},move_restored,move_after);
         PublishReagentHash(move_after,move_plan.items[0].before.dlID,move_hashes.hashes.at(0));map.SaveAuthorized(move_recovery,move_after);
+        stage="skill learning";
+        if(Number(admin,"SELECT count(*) FROM character_compat.trainer_release")==1)for(int user:{745,746}) {
+            auto learning=create(user,user==745?"LearningFresh":"LearningGraph",user);
+            VerifySkillLearning(admin,mpool,map,mapconn,manifest,routing,actor,learning,user==746);
+            auto login=auth.Authenticate({"SyntheticMap"+std::to_string(user),credential,"192.0.2.50",0x2918});
+            Check(login.status==login::AuthStatus::Success&&routes.StartAuthorized({user,login.session_key,1,1,static_cast<int>(learning.char_id)}).status==login::StartStatus::Success,"purchased ranks allow new Login handoff");
+            learning.key=login.session_key;learning.connection_id+=2000;Check(claim(learning),"learning reconnect claims new primary tenure");
+            auto restored=*map.LoadAuthorized(learning);map.MarkReady(learning,restored);
+            Check(restored.payload->last_purchase_id>0&&std::any_of(restored.payload->skills.begin(),restored.payload->skills.end(),[](const auto& s){return s.wSkillID==101&&s.bLevel==2;}),"fresh and graph reconnect retain purchased rank and receipt head");
+            Check(std::any_of(restored.payload->titles.begin(),restored.payload->titles.end(),[](const auto& t){return t.id==87;}),"fresh and graph reconnect retain source gold-title side effects");
+            map.SaveAuthorized(learning,restored);
+        }else std::cout<<"SKIP native learning: trainer catalog not supplied\n";
         stage="finish effects";
         for(int user:{743,744}) {
             auto effect=create(user,user==743?"EffectFresh":"EffectGraph",user);

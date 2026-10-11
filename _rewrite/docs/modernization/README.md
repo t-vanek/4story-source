@@ -18,7 +18,58 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: native finishes with permanent postures
+## Native skill learning and rank upgrades (2026-10-11)
+
+The existing Map dispatcher now handles `CS_SKILLBUY_REQ` (0x52b2). Its four-byte
+NPC/skill request reaches a fenced PostgreSQL transaction and returns the original
+30-byte `CS_SKILLBUY_ACK` (0x52b3), including the otherwise undocumented Tick DWORD.
+The original NPC offer, country, level, class, parent rank, same-kind spent points,
+FLOAT price and currency normalization determine the result. An existing rank-zero
+starter entry uses the source upgrade branch. Upgrades deliberately do not repeat
+the new-skill trainer-offer or class gates. Existing cooldowns are retained.
+
+Migration 039 publishes all 3,364 `TNPCITEMCHART` rows and 111 `TTITLECHART` rows
+from the unchanged backups, independently of the existing character/actor releases.
+The publisher verifies values and original text bytes, pins both releases and
+blocks changed publication while a Map owner is alive. Migration 040 atomically
+journals learning, coins, points, titles, the raw request/response and checkpoint.
+A separate purchase head fences stale saves and simultaneous purchases. Transferred
+characters update their complete graph; their old normalized skill rows are retained.
+Unknown commit outcomes close the session and are never automatically retried.
+
+`UseMoney` also calls `GetTitle(GOLD_TITLE, ..., TRUE)` even during its affordability
+check. The implementation preserves its strict threshold, unusual early return
+when any eligible title is owned, and ordered TITLEGAIN responses before SKILLBUY.
+These changes do not certify the complete title or trainer UI lifecycle.
+
+**Explicit remaining gates:** territory-owned neutral NPCs, nonzero guild/hero
+trainer discounts, disguise/general effects, active party/recall dependencies,
+secure-code learning, selected gold-title transitions, active trading, NPC quest
+trigger selection and complete skill effects. These branches require further
+integration; no replacement success or guessed discount is supplied. Persistent
+purchase receipts provide the local audit; original TLog skill events still need
+integration. The original missing-level dereference and nonrepresentable FLOAT
+price are rejected safely, rather than invoking undefined behavior.
+
+**Verification:** all three configurations (Debug, ASan/UBSan and installed
+Release) pass **3,418** checks in the full PostgreSQL/network matrix. Separate
+focused runs pass **1,177** checks each, including 1,033 Map checks and the 51-check
+SKILLBUY wire oracle. The focused and full suites overlap and are not additive.
+The focused suite adds fresh/full-graph relogin and a payable rank-change rollback
+followed by success after the known rollback. Thirteen publication checks verify
+catalog identity, drift, original text bytes and active-owner exclusion. Debug
+CTest has 189 actual passes, eight internal skips and seven explicit skips; all
+41 sanitizer suites, 85 schema-upgrade checks and six service health/DNS/SIGTERM
+checks pass. The original backups and all 38 prior migrations are unchanged.
+See [evidence and limits](evidence/skill-learning-contract.json) and
+[local reproduction](../../../deploy/README.md#native-skill-learning).
+
+No actual client
+binary or assets exist here: source protocol 0x2918 is identified, but **no exact
+supported executable build or complete client acceptance is established**.
+Applied migrations 001–040 and both backups are immutable; next migration 041.
+
+## Previous increment: native finishes with permanent postures
 
 The existing 131/132 posture implementation now participates in ACTION and the
 bounded native Cure509/charged First Aid240 self-finish. Original backup flags

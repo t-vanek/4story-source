@@ -36,6 +36,7 @@ public:
     bool OutgoingTransferCommitted(const MapSessionClaim&) override;
     std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&) override;
     SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) override;
+    SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillActionCommit CommitSkillAction(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     FinishSkillCommit FinishSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) override;

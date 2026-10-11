@@ -26,7 +26,9 @@ def main():
     parser.add_argument('--through-finishes',action='store_true',help='Also verify additive finished-cast migration036 preserves acceptance and recovery receipts')
     parser.add_argument('--through-actions',action='store_true',help='Also verify additive ACTION/charge migration037')
     parser.add_argument('--through-finish-effects',action='store_true',help='Also verify additive finish effect/audience migration038')
+    parser.add_argument('--through-learning',action='store_true',help='Also verify additive trainer publication039 and skill purchases040')
     args=parser.parse_args();repo=Path(__file__).resolve().parents[2]
+    if args.through_learning:args.through_finish_effects=True
     if args.through_finish_effects:args.through_actions=True
     state=json.loads((args.work/'state.json').read_text());verify_container(state,state['pg_container'])
     values=dict(line.split('=',1) for line in (args.work/'postgres.env').read_text().splitlines())
@@ -171,6 +173,35 @@ def main():
                 with c.transaction(force_rollback=True):
                     c.execute("UPDATE app_world.skill_finish_operations SET before_effects='[]',after_effects='[]',response_audiences='[]'")
                     check(c.execute('SELECT response_audiences FROM app_world.skill_finish_operations').fetchone()==([],),'empty finish keeps an exact empty audience list')
+            if args.through_learning:
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                preserved={t:c.execute('SELECT to_jsonb(p) FROM '+t+' p ORDER BY to_jsonb(p)::text').fetchall() for t in
+                    ('app_world.map_checkpoints','app_world.accepted_skill_casts','app_world.skill_finish_operations','app_world.skill_action_operations','app_world."TSKILLTABLE"','app_world."TTITLETABLE"')}
+                names=['039-native-trainer-catalog.sql','040-native-skill-purchases.sql']
+                for name in names:shutil.copyfile(repo/'database/postgresql'/name,path/name)
+                check(apply_migrations(c,path)==names,'learning upgrade applies only migrations039 and040')
+                check(apply_migrations(c,path)==[],'learning upgrade is idempotent')
+                check(c.execute("SELECT * FROM migration_control.applied WHERE name<'039' ORDER BY name").fetchall()==receipts,'all 38 prior hashes and timestamps remain exact')
+                for t,rows in preserved.items():check(c.execute('SELECT to_jsonb(p) FROM '+t+' p ORDER BY to_jsonb(p)::text').fetchall()==rows,'learning upgrade preserves exact '+t+' records')
+                for t in ('runtime_control.trainer_catalog','runtime_control.trainer_catalog_activations','app_world.skill_purchase_operations'):
+                    check(c.execute('SELECT count(*) FROM '+t).fetchone()==(0,),'upgrade fabricates no '+t+' history')
+                    check(c.execute("SELECT has_table_privilege('public',%s,'INSERT')",(t,)).fetchone()==(False,),'PUBLIC has no write permission on '+t)
+                statement="INSERT INTO app_world.skill_purchase_operations(world_id,char_id,previous_purchase_id,session_key,server_id,owner_token,connection_id,authority_epoch,trainer_manifest,npc_id,skill_id,result,learned_rank,spent,request,acknowledgement,title_packets,before_titles,after_titles) VALUES(1,1,0,1,1,%s,1,0,%s,22047,101,%s,1,%s,%s,%s,'[]','[]','[]')"
+                for result,spent,request,ack in [(0,1,b'0'*3,b'0'*30),(0,1,b'0'*4,b'0'*29),(12,1,b'0'*4,b'0'*30)]:
+                    rejected=False
+                    try:
+                        with c.transaction(force_rollback=True):c.execute(statement,('a'*64,'b'*64,result,spent,request,ack))
+                    except psycopg.errors.CheckViolation:rejected=True
+                    check(rejected,'purchase receipt rejects invalid byte widths or debit on failure')
+                with c.transaction(force_rollback=True):
+                    c.execute(statement,('a'*64,'b'*64,0,1,b'0'*4,b'0'*30))
+                    rejected=False
+                    try:
+                        with c.transaction():c.execute(statement,('a'*64,'b'*64,0,1,b'0'*4,b'0'*30))
+                    except psycopg.errors.UniqueViolation:rejected=True
+                    check(rejected,'same previous purchase head cannot append twice')
+                    c.execute('DELETE FROM app_world."TCHARTABLE" WHERE "dwCharID"=1')
+                    check(c.execute('SELECT count(*) FROM app_world.skill_purchase_operations').fetchone()==(0,),'character deletion cascades purchase receipts without FK conflict')
             report.update(status='passed',scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
     finally:
         with psycopg.connect(dbname='postgres',**admin) as conn:conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db)))

@@ -8,6 +8,16 @@ Owner instruction renewed (2026-10-11): keep implementation and versioning local
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
+Current implementation (2026-10-11): native skill learning now runs through the
+original SKILLBUY request, the backup trainer/title catalog (039), atomic purchase
+receipts (040), exact ACK and fresh/full-graph persistence. Debug/ASan/installed
+Release full and focused native suites pass; preserve `skill-learning-contract.json`. Next resolve selected gold-title and
+secure-code lifecycle, conditional trainer discounts/territory ownership, NPC talk
+quest selection and original skill-log forwarding; then continue general timed
+effects and multi-target combat in the existing finish transaction. Ordinary
+learning must not depend on administrator-seeded skills. Original `.bak` files and
+applied migrations 001–040 are immutable; the next migration is 041.
+
 Current source correction (2026-10-11): ordinary PC skills use
 `CS_FINISHSKILL_ACK`, not the DEFEND path assumed by the preceding continuation.
 `TClientGame.cpp:14050,28759`, `CSSender.cpp:2980` and
@@ -47,7 +57,7 @@ Retain the unresolved no-cast-ID ambiguity: an identical packet can represent a
 later legitimate outstanding finish. Current same-login FIFO/subsequence budgets
 bound effects to accepted casts, but do not prove universal replay discrimination.
 No guessed expiry or new client field is a substitute for documenting this limit.
-All backups and applied migrations **001–038** are immutable; next migration **039**.
+All backups and applied migrations **001–040** are immutable; next migration **041**.
 
 Previous foundation (combat): migration **035** and the actual cast transaction
 are integrated and pass 2,761 native checks per Debug, ASan/UBSan and installed
@@ -105,7 +115,7 @@ inventory/trade/store integration and all economy systems in scope.
 Preserve the explicitly certified old-two-table → current-four-table actor upgrade
 and its immutable graph receipts. It does not authorize arbitrary content changes,
 character/routing releases or transitive upgrades. All backups and migrations
-**001–038** are immutable; the next schema migration is **039**.
+**001–040** are immutable; the next schema migration is **041**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -555,7 +565,7 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–038; next schema change is 039. Native
+Preserve backups and migrations 001–040; next schema change is 041. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
@@ -580,7 +590,7 @@ inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
 only until complete gameplay; Log uses 029, statistics 030, actor transition 031
 equipment 032, postures 033, explicit cancellation 034, accepted casts 035, skill
-finishes 036, actions 037 and finish effects 038. Next new migration: 039.
+finishes 036, actions 037 and finish effects 038. Next new migration: 041.
 
 
 The owner confirmed that only uncompiled client sources are available, without

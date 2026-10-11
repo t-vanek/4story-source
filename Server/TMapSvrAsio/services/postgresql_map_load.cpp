@@ -527,7 +527,11 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
      p.last_finish_id=static_cast<std::uint64_t>(head);
      sql<<"SELECT COALESCE(max(action_id),0) FROM app_world.skill_action_operations WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
-     p.last_action_id=static_cast<std::uint64_t>(head);}
+     p.last_action_id=static_cast<std::uint64_t>(head);
+     sql<<"SELECT COALESCE(max(purchase_id),0) FROM app_world.skill_purchase_operations WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_purchase_id=static_cast<std::uint64_t>(head);
+}
     DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
     tx->commit();return s;
@@ -572,7 +576,11 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
      p.last_finish_id=static_cast<std::uint64_t>(head);
      sql<<"SELECT COALESCE(max(action_id),0) FROM app_world.skill_action_operations WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
-     p.last_action_id=static_cast<std::uint64_t>(head);}
+     p.last_action_id=static_cast<std::uint64_t>(head);
+     sql<<"SELECT COALESCE(max(purchase_id),0) FROM app_world.skill_purchase_operations WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_purchase_id=static_cast<std::uint64_t>(head);
+}
     DeriveStats(sql,s,p);
     // Never silently clamp unsaved transferred core to an incomplete derived
     // stat model. Active-effect stat derivation remains a gameplay dependency.

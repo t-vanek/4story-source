@@ -16286,7 +16286,7 @@
         "wNpcID",
         "dwItemID"
       ],
-      "reference_import_allowed": false
+      "reference_import_allowed": true
     },
     {
       "database": "TGAME_RAGEZONE",
@@ -21628,7 +21628,7 @@
       "original_pk": [
         "wTitleID"
       ],
-      "reference_import_allowed": false
+      "reference_import_allowed": true
     },
     {
       "database": "TGAME_RAGEZONE",

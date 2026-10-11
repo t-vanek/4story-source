@@ -31,6 +31,8 @@ def main():
     p.add_argument('--characters-only', action='store_true', help='Native character lifecycle with backup-derived charts')
     p.add_argument('--map-backend-only', action='store_true', help='With --map-runtime-only, stop after native backend integration tests')
     p.add_argument('--map-runtime-only', action='store_true', help='Native Map claim/load/save with source catalogs')
+    p.add_argument('--skill-learning-wire-only',action='store_true',help='Keep all backend checks but focus actual-daemon verification on SKILLBUY')
+    p.add_argument('--trainer-snapshot', type=Path, help='Private verified NPC merchandise and title manifest')
     p.add_argument('--actor-snapshot', type=Path, help='Private four-table actor manifest')
     p.add_argument('--actor-upgrade-from', type=Path, help='Run old-installed-Map to current-Map graph recovery instead of the general wire matrix')
     p.add_argument('--previous-image', help='Local immutable pre-statistics runtime image, required with --actor-upgrade-from')
@@ -57,6 +59,8 @@ def main():
         p.error('--actor-upgrade-from and --previous-image require each other and --map-runtime-only')
     if args.runtime_bin_dir and (not args.map_runtime_only or not args.runtime_bin_dir.startswith('/')):
         p.error('--runtime-bin-dir requires --map-runtime-only and an absolute container path')
+    if args.skill_learning_wire_only and (not args.map_runtime_only or not args.trainer_snapshot or args.map_backend_only or args.actor_upgrade_from):
+        p.error('--skill-learning-wire-only requires --map-runtime-only and --trainer-snapshot')
     import psycopg
     from psycopg import sql
     repo = Path(__file__).resolve().parents[2]
@@ -172,6 +176,12 @@ def main():
                     from activate_actor_catalog import activate_actor_catalog
                     result['actor_import'] = import_snapshot(conn, args.actor_snapshot, repo / 'database/postgresql/mapping.json')
                     result['actor_activation'] = activate_actor_catalog(conn, args.actor_snapshot)
+                    if args.trainer_snapshot:
+                        from activate_trainer_catalog import activate_trainer_catalog
+                        result['trainer_import']=import_snapshot(conn,args.trainer_snapshot,repo/'database/postgresql/mapping.json')
+                        result['trainer_activation']=activate_trainer_catalog(conn,args.trainer_snapshot)
+                        from verify_trainer_publication import verify_trainer_publication
+                        result['trainer_publication']=verify_trainer_publication(conn,args.trainer_snapshot,private)
                     if args.actor_upgrade_from:
                         result['previous_actor_import']=import_snapshot(conn,args.actor_upgrade_from,repo/'database/postgresql/mapping.json')
             else:
@@ -271,9 +281,10 @@ def main():
                 result['map_wire']=verify_map_runtime_daemons(conn,state,repo,private,public,app_conn,reader_conn,args.image,runtime_bin_dir,server_name,
                     manifest,result['routing_activation']['manifest_sha256'],result['actor_activation']['manifest_sha256'],execute,
                     actor_upgrade=dict(previous_manifest=args.actor_upgrade_from,manifest=args.actor_snapshot,
-                                       previous_image=args.previous_image) if args.actor_upgrade_from else None)
+                                       previous_image=args.previous_image) if args.actor_upgrade_from else None,learning_only=args.skill_learning_wire_only)
             result['scope']=('Actual installed old Map -> current Map catalog upgrade, logout/ready-crash/prepared-crash recovery; original client PENDING' if args.actor_upgrade_from else
                              'Native PostgreSQL primary/replica admission, core checkpoint/save/crash recovery; replica tests use an explicitly synthetic cell partition and restore the source view; original client PENDING')
+            if args.skill_learning_wire_only:result['scope']='All native backend checks with focused skill-learning daemon verification; complete wire matrix excluded; original client PENDING'
             result['status']='passed'
             return
 

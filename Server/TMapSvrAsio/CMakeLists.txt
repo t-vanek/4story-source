@@ -423,3 +423,7 @@ set_tests_properties(tmapsvr_asio_admission_encrypted PROPERTIES TIMEOUT 20)
 add_executable(test_tmapsvr_asio_character_statistics ${TMAPSVR_ASIO_SRC}/tests/test_character_statistics.cpp)
 target_link_libraries(test_tmapsvr_asio_character_statistics PRIVATE tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_character_statistics COMMAND test_tmapsvr_asio_character_statistics)
+
+add_executable(test_tmapsvr_asio_skill_learning ${TMAPSVR_ASIO_SRC}/tests/test_skill_learning.cpp)
+target_link_libraries(test_tmapsvr_asio_skill_learning PRIVATE tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_skill_learning COMMAND test_tmapsvr_asio_skill_learning)

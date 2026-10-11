@@ -16,6 +16,7 @@
 #include "domain/skill_cast.h"
 #include "services/finish_skill.h"
 #include "services/skill_action.h"
+#include "services/skill_learning.h"
 
 #include <cstdint>
 #include <optional>
@@ -57,6 +58,7 @@ public:
     virtual std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,
         const std::vector<SkillItemDebit>&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}
     virtual SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) {throw std::runtime_error("Native cast transaction unavailable");}
+    virtual SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Native skill learning unavailable");}
     virtual SkillActionCommit CommitSkillAction(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Native skill action unavailable");}
     virtual FinishSkillCommit FinishSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Native skill finish unavailable");}
     virtual InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,

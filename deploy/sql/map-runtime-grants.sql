@@ -21,7 +21,7 @@ GRANT USAGE ON SEQUENCE app_world.map_transfers_transfer_id_seq TO :"map_role";
 GRANT INSERT,UPDATE ON app_world.map_checkpoints TO :"map_role";
 GRANT EXECUTE ON FUNCTION app_world.map_core_state(smallint,integer) TO :"map_role";
 GRANT EXECUTE ON FUNCTION app_world.map_skill_state(smallint,integer),app_world.map_checkpoint_matches(app_world.map_checkpoints) TO :"map_role";
-GRANT UPDATE("dwRemainTick") ON app_world."TSKILLTABLE" TO :"map_role";
+GRANT INSERT,UPDATE("dwRemainTick","bLevel") ON app_world."TSKILLTABLE" TO :"map_role";
 GRANT INSERT,DELETE ON app_world.map_maintained_effects TO :"map_role";
 GRANT INSERT ON app_world.maintained_effect_operations TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.maintained_effect_operations_operation_id_seq TO :"map_role";
@@ -46,4 +46,8 @@ GRANT UPDATE("bLevel","dwEXP","dwHP","dwMP","dwGold","dwSilver","dwCooper","wSki
     ON app_world."TCHARTABLE" TO :"map_role";
 GRANT INSERT ON app_world.skill_action_operations TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.skill_action_operations_action_id_seq TO :"map_role";
+
+GRANT INSERT ON app_world.skill_purchase_operations TO :"map_role";
+GRANT USAGE ON SEQUENCE app_world.skill_purchase_operations_purchase_id_seq TO :"map_role";
+GRANT INSERT,DELETE,UPDATE("bSelected") ON app_world."TTITLETABLE" TO :"map_role";
 COMMIT;

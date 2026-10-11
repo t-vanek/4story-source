@@ -12,6 +12,15 @@ Its per-file NOT_ANALYZED entries require a detailed behavioral review beyond th
 role-level assessment below. Shared packet names identify candidate counterparts,
 not proof of replacement. Regenerate with `python3 tools/modernization_inventory.py`.
 
+## Current native learning slice
+
+| Capability | Implementation and evidence | Remaining acceptance |
+|---|---|---|
+| Skill purchase / rank | VERIFIED bounded slice: existing dispatcher → backup NPC/skill/point/title rules → fenced PostgreSQL → exact 30-byte ACK; 039/040; `skill-learning-contract.json` | Debug/ASan/installed Release full and focused native suites pass; original binary unavailable |
+| Learning persistence | VERIFIED bounded slice: atomic money/points/rank/title receipt; purchase head; original cooldown retained; fresh rows or complete transfer graph | Concurrent writes, stale snapshots, late SQL rollback, primary handoff, fresh/full-graph relogin and fresh SIGKILL tested; complete fault acceptance remains scoped |
+| Trainer content | VERIFIED catalog: 3,364 merchandise rows + 111 title definitions with original text bytes; 13 adversarial publication checks | Dynamic territory/guild/hero rules and NPC quest UI still incomplete |
+| Gold title side effects | VERIFIED unselected-title source `UseMoney` behavior and ordered TITLEGAIN packets | Selected gold-title transitions and the complete title lifecycle explicitly blocked |
+
 ## Processes, shared infrastructure and persistence
 
 Paths below are repository-relative. All six modern daemons are CMake targets.

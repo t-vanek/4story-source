@@ -37,9 +37,11 @@ SociMapSessionValidator::LookupSession(std::uint32_t user_id, std::uint32_t key)
         std::int32_t row_character = 0;
         soci::indicator ind        = soci::i_null;
 
+        const auto signed_user=static_cast<std::int32_t>(user_id);
+        const auto signed_key=static_cast<std::int32_t>(key);
         sql << queries::SessionByUserKey,
-            soci::use(static_cast<std::int32_t>(user_id), "uid"),
-            soci::use(static_cast<std::int32_t>(key),     "key"),
+            soci::use(signed_user, "uid"),
+            soci::use(signed_key, "key"),
             soci::into(row_user_id),
             soci::into(row_key),
             soci::into(row_group),

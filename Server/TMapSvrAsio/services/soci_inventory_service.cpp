@@ -31,9 +31,10 @@ SociInventoryService::LoadInventory(std::uint32_t char_id)
         // implicit conversion.
         std::int32_t row_inven_id = 0, row_item_id = 0, row_eld = 0;
         std::int64_t row_end_time = 0;
+        const auto cid=static_cast<std::int32_t>(char_id);
 
         soci::statement st = (sql.prepare << queries::InventoryByCharId,
-            soci::use(static_cast<std::int32_t>(char_id), "cid"),
+            soci::use(cid, "cid"),
             soci::into(row_inven_id),
             soci::into(row_item_id),
             soci::into(row_end_time),
@@ -75,11 +76,11 @@ SociInventoryService::AddItem(std::uint32_t char_id, const ItemInstance& it)
     {
         auto lease = m_pool.Acquire();
         auto& sql  = *lease;
+        const auto cid=static_cast<std::int32_t>(char_id);
+        const int slot_id=*slot,item_id=it.wItemID,eld=it.bELD;
         sql << queries::InsertInventoryItem,
-            soci::use(static_cast<std::int32_t>(char_id), "cid"),
-            soci::use(static_cast<std::int32_t>(*slot),   "slot"),
-            soci::use(static_cast<std::int32_t>(it.wItemID), "item"),
-            soci::use(static_cast<std::int32_t>(it.bELD),    "eld");
+            soci::use(cid, "cid"),soci::use(slot_id,"slot"),
+            soci::use(item_id,"item"),soci::use(eld,"eld");
     }
     catch (const std::exception& ex)
     {

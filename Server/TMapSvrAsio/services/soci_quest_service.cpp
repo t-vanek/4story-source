@@ -24,13 +24,14 @@ SociQuestService::LoadProgress(std::uint32_t char_id)
     {
         auto lease = m_pool.Acquire();
         auto& sql  = *lease;
+        const auto cid=static_cast<std::int32_t>(char_id);
 
         // Pass 1 — TQUESTTABLE: one row per accepted quest.
         std::unordered_map<std::uint32_t, std::size_t> by_quest;
         {
             std::int32_t row_qid = 0, row_tick = 0, row_cc = 0, row_tc = 0;
             soci::statement st = (sql.prepare << queries::QuestsByCharId,
-                soci::use(static_cast<std::int32_t>(char_id), "cid"),
+                soci::use(cid, "cid"),
                 soci::into(row_qid), soci::into(row_tick),
                 soci::into(row_cc),  soci::into(row_tc));
             st.execute(false);
@@ -55,7 +56,7 @@ SociQuestService::LoadProgress(std::uint32_t char_id)
         {
             std::int32_t row_qid = 0, row_tid = 0, row_type = 0, row_count = 0;
             soci::statement st = (sql.prepare << queries::QuestTermsByCharId,
-                soci::use(static_cast<std::int32_t>(char_id), "cid"),
+                soci::use(cid, "cid"),
                 soci::into(row_qid),
                 soci::into(row_tid),
                 soci::into(row_type),

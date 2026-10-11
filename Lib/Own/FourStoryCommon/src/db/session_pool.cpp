@@ -3,6 +3,7 @@
 #include <soci/odbc/soci-odbc.h>
 #ifdef FOURSTORY_HAS_POSTGRESQL
 #include <soci/postgresql/soci-postgresql.h>
+#include <libpq-fe.h>
 #endif
 
 #include <spdlog/spdlog.h>

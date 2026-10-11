@@ -94,11 +94,13 @@ bool SociFriendRepository::MakeGroup(std::uint32_t char_id, std::uint8_t group,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_char_id_1 = static_cast<int>(char_id);
+        const int bound_group_2 = static_cast<int>(group);
         ctx.Session() << "INSERT INTO \"TFRIENDGROUPTABLE\" "
                   "(\"dwCharID\", \"bGroup\", \"szName\") "
                   "VALUES (:c, :g, :n)",
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(group)), soci::use(name);
+            soci::use(bound_char_id_1),
+            soci::use(bound_group_2), soci::use(name);
         return true;
     }
     catch (const std::exception& ex)
@@ -115,10 +117,12 @@ bool SociFriendRepository::DeleteGroup(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_char_id_3 = static_cast<int>(char_id);
+        const int bound_group_4 = static_cast<int>(group);
         ctx.Session() << "DELETE FROM \"TFRIENDGROUPTABLE\" "
                   "WHERE \"dwCharID\" = :c AND \"bGroup\" = :g",
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(group));
+            soci::use(bound_char_id_3),
+            soci::use(bound_group_4);
         return true;
     }
     catch (const std::exception& ex)
@@ -136,10 +140,12 @@ bool SociFriendRepository::RenameGroup(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_char_id_5 = static_cast<int>(char_id);
+        const int bound_group_6 = static_cast<int>(group);
         ctx.Session() << "UPDATE \"TFRIENDGROUPTABLE\" SET \"szName\" = :n "
                   "WHERE \"dwCharID\" = :c AND \"bGroup\" = :g",
-            soci::use(name), soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(group));
+            soci::use(name), soci::use(bound_char_id_5),
+            soci::use(bound_group_6);
         return true;
     }
     catch (const std::exception& ex)
@@ -157,11 +163,14 @@ bool SociFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_group_7 = static_cast<int>(group);
+        const int bound_char_id_8 = static_cast<int>(char_id);
+        const int bound_friend_id_9 = static_cast<int>(friend_id);
         ctx.Session() << "UPDATE \"TFRIENDTABLE\" SET \"bGroup\" = :g "
                   "WHERE \"dwCharID\" = :c AND \"dwFriendID\" = :f",
-            soci::use(static_cast<int>(group)),
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(friend_id));
+            soci::use(bound_group_7),
+            soci::use(bound_char_id_8),
+            soci::use(bound_friend_id_9);
         return true;
     }
     catch (const std::exception& ex)
@@ -178,11 +187,13 @@ bool SociFriendRepository::InsertFriend(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_char_id_10 = static_cast<int>(char_id);
+        const int bound_friend_id_11 = static_cast<int>(friend_id);
         ctx.Session() << "INSERT INTO \"TFRIENDTABLE\" "
                   "(\"dwCharID\", \"dwFriendID\", \"bGroup\") "
                   "VALUES (:c, :f, 0)",
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(friend_id));
+            soci::use(bound_char_id_10),
+            soci::use(bound_friend_id_11);
         return true;
     }
     catch (const std::exception& ex)
@@ -199,10 +210,12 @@ bool SociFriendRepository::EraseFriend(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_char_id_12 = static_cast<int>(char_id);
+        const int bound_friend_id_13 = static_cast<int>(friend_id);
         ctx.Session() << "DELETE FROM \"TFRIENDTABLE\" "
                   "WHERE \"dwCharID\" = :c AND \"dwFriendID\" = :f",
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(friend_id));
+            soci::use(bound_char_id_12),
+            soci::use(bound_friend_id_13);
         return true;
     }
     catch (const std::exception& ex)
@@ -222,12 +235,15 @@ bool SociFriendRepository::RegSoulmate(std::uint32_t char_id,
         soci::session& sql = ctx.Session();
         // dwCharID is the PK — delete-then-insert is a portable upsert
         // with the same net effect as TSoulmateReg (one row, dwTime 0).
+        const int bound_char_id_14 = static_cast<int>(char_id);
         sql << "DELETE FROM \"TSOULMATETABLE\" WHERE \"dwCharID\" = :c",
-            soci::use(static_cast<int>(char_id));
+            soci::use(bound_char_id_14);
+        const int bound_char_id_15 = static_cast<int>(char_id);
+        const int bound_target_16 = static_cast<int>(target);
         sql << "INSERT INTO \"TSOULMATETABLE\" "
                "(\"dwCharID\", \"dwTarget\", \"dwTime\") VALUES (:c, :t, 0)",
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(target));
+            soci::use(bound_char_id_15),
+            soci::use(bound_target_16);
         return true;
     }
     catch (const std::exception& ex)
@@ -244,10 +260,12 @@ bool SociFriendRepository::DelSoulmate(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_char_id_17 = static_cast<int>(char_id);
+        const int bound_target_18 = static_cast<int>(target);
         ctx.Session() << "DELETE FROM \"TSOULMATETABLE\" "
                   "WHERE \"dwCharID\" = :c AND \"dwTarget\" = :t",
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(target));
+            soci::use(bound_char_id_17),
+            soci::use(bound_target_18);
         return true;
     }
     catch (const std::exception& ex)

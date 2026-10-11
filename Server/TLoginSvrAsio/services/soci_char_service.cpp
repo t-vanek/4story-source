@@ -431,10 +431,11 @@ SociCharService::Create(const CharacterCreateRequest& req)
         }
 
         int slot_hit = 0;
+        const int bound_req_slot_1 = static_cast<int>(req.slot);
         sql << "SELECT COUNT(*) FROM \"TCHARTABLE\" "
                "WHERE \"dwUserID\" = :uid AND \"bSlot\" = :s AND \"bDelete\" = 0",
             soci::use(req.user_id),
-            soci::use(static_cast<int>(req.slot)),
+            soci::use(bound_req_slot_1),
             soci::into(slot_hit);
         if (slot_hit > 0)
         {
@@ -535,12 +536,13 @@ SociCharService::Create(const CharacterCreateRequest& req)
         int wSkillPoint = 0;
         if (req.level_option != 0 && ulevel > 1)
         {
+            const int previous_level = ulevel - 1;
             try
             {
                 soci::statement st = (sql.prepare <<
                     "SELECT \"dwExp\" FROM \"TLEVELCHART\" "
                     "WHERE \"bLevel\" = :l",
-                    soci::use(ulevel - 1),
+                    soci::use(previous_level),
                     soci::into(dwEXP));
                 st.execute(true);
                 if (!st.got_data()) dwEXP = 1;

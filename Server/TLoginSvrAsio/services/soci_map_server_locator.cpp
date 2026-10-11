@@ -513,16 +513,17 @@ SociMapServerLocator::Lookup(std::int32_t user_id,
             // function returns / any other query runs on the connection —
             // ODBC/MSSQL semantics require it; PG is unaffected.
             const int shard_sid = resolved_server_id.value_or(0);
+            const int bound_group_id_1 = static_cast<int>(group_id);
             soci::statement st = resolved_server_id.has_value()
                 ? (sql.prepare << query,
-                    soci::use(static_cast<int>(group_id)),
+                    soci::use(bound_group_id_1),
                     soci::use(kServerTypeMap),
                     soci::use(shard_sid),
                     soci::into(port),
                     soci::into(server_id),
                     soci::into(machine_id))
                 : (sql.prepare << query,
-                    soci::use(static_cast<int>(group_id)),
+                    soci::use(bound_group_id_1),
                     soci::use(kServerTypeMap),
                     soci::into(port),
                     soci::into(server_id),
@@ -757,6 +758,7 @@ SociMapServerLocator::ListChannels(std::uint8_t group_id)
     try
     {
         std::vector<ChannelInfo> out;
+        const int bound_group_id_2 = static_cast<int>(group_id);
         soci::rowset<soci::row> rs = (sql.prepare <<
             "SELECT c.\"bChannel\", c.\"szNAME\", c.\"bStatus\", "
             "       c.\"wBusy\", c.\"wFull\", "
@@ -768,7 +770,7 @@ SociMapServerLocator::ListChannels(std::uint8_t group_id)
             "FROM \"TCHANNEL\" c "
             "WHERE c.\"bGroupID\" = :g "
             "ORDER BY c.\"bChannel\"",
-            soci::use(static_cast<int>(group_id)));
+            soci::use(bound_group_id_2));
         for (const auto& r : rs)
         {
             ChannelInfo info{};

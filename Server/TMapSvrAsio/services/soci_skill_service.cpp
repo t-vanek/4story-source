@@ -24,8 +24,9 @@ SociSkillService::LoadSkills(std::uint32_t char_id)
         auto& sql  = *lease;
 
         std::int32_t row_skill_id = 0, row_level = 0, row_remain = 0;
+        const auto cid=static_cast<std::int32_t>(char_id);
         soci::statement st = (sql.prepare << queries::SkillsByCharId,
-            soci::use(static_cast<std::int32_t>(char_id), "cid"),
+            soci::use(cid, "cid"),
             soci::into(row_skill_id),
             soci::into(row_level),
             soci::into(row_remain));

@@ -89,6 +89,7 @@ void SociRegistryPersistence::Upsert(const RegistryEntry& entry)
             const int   cur_i  = static_cast<int>(entry.cur_users);
             const int   max_i  = static_cast<int>(entry.max_users);
             const long long lease_ll = static_cast<long long>(entry.lease_epoch);
+            const long long bound_now_unix_1 = static_cast<long long>(now_unix);
             sql << "INSERT INTO \"" + m_opts.table_name + "\" ("
                 "\"dwServiceID\", \"szReportedName\", \"szReportedAddr\", "
                 "\"wReportedPort\", \"szVersion\", \"dwPid\", "
@@ -107,8 +108,8 @@ void SociRegistryPersistence::Upsert(const RegistryEntry& entry)
                 soci::use(cur_i, "cur"),
                 soci::use(max_i, "max"),
                 soci::use(lease_ll, "lease"),
-                soci::use(static_cast<long long>(now_unix), "reg"),
-                soci::use(static_cast<long long>(now_unix), "hb");
+                soci::use(bound_now_unix_1, "reg"),
+                soci::use(bound_now_unix_1, "hb");
             tx.commit();
         }
         catch (const std::exception& ex)

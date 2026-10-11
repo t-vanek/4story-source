@@ -130,11 +130,14 @@ bool SociGuildRepository::SetDisorg(std::uint32_t guild_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_disorg_1 = static_cast<int>(disorg);
+        const int bound_time_unix_2 = static_cast<int>(time_unix);
+        const int bound_guild_id_3 = static_cast<int>(guild_id);
         ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"bDisorg\" = :d, "
                "\"dwTime\" = :t WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(disorg)),
-            soci::use(static_cast<int>(time_unix)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_disorg_1),
+            soci::use(bound_time_unix_2),
+            soci::use(bound_guild_id_3);
         return true;
     }
     catch (const std::exception& ex)
@@ -152,11 +155,14 @@ bool SociGuildRepository::UpdateMemberDuty(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_new_duty_4 = static_cast<int>(new_duty);
+        const int bound_char_id_5 = static_cast<int>(char_id);
+        const int bound_guild_id_6 = static_cast<int>(guild_id);
         ctx.Session() << "UPDATE \"TGUILDMEMBERTABLE\" SET \"bDuty\" = :d "
                "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
-            soci::use(static_cast<int>(new_duty)),
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_new_duty_4),
+            soci::use(bound_char_id_5),
+            soci::use(bound_guild_id_6);
         return true;
     }
     catch (const std::exception& ex)
@@ -174,11 +180,14 @@ bool SociGuildRepository::UpdateFame(std::uint32_t guild_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_fame_7 = static_cast<int>(fame);
+        const int bound_fame_color_8 = static_cast<int>(fame_color);
+        const int bound_guild_id_9 = static_cast<int>(guild_id);
         ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"dwFame\" = :f, "
                "\"dwFameColor\" = :c WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(fame)),
-            soci::use(static_cast<int>(fame_color)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_fame_7),
+            soci::use(bound_fame_color_8),
+            soci::use(bound_guild_id_9);
         return true;
     }
     catch (const std::exception& ex)
@@ -195,10 +204,12 @@ bool SociGuildRepository::RemoveMember(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_char_id_10 = static_cast<int>(char_id);
+        const int bound_guild_id_11 = static_cast<int>(guild_id);
         ctx.Session() << "DELETE FROM \"TGUILDMEMBERTABLE\" "
                "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_char_id_10),
+            soci::use(bound_guild_id_11);
         return true;
     }
     catch (const std::exception& ex)
@@ -225,22 +236,28 @@ bool SociGuildRepository::AddMember(std::uint32_t char_id,
         // dwService starts at 0 too.
         try
         {
+            const int bound_char_id_12 = static_cast<int>(char_id);
+            const int bound_guild_id_13 = static_cast<int>(guild_id);
+            const int bound_duty_14 = static_cast<int>(duty);
             sql << "INSERT INTO \"TGUILDMEMBERTABLE\" "
                    "(\"dwCharID\", \"dwGuildID\", \"bDuty\", \"bPeer\", "
                    " \"dwService\") "
                    "VALUES (:c, :g, :d, 0, 0)",
-                soci::use(static_cast<int>(char_id)),
-                soci::use(static_cast<int>(guild_id)),
-                soci::use(static_cast<int>(duty));
+                soci::use(bound_char_id_12),
+                soci::use(bound_guild_id_13),
+                soci::use(bound_duty_14);
         }
         catch (const std::exception&)
         {
+            const int bound_guild_id_15 = static_cast<int>(guild_id);
+            const int bound_duty_16 = static_cast<int>(duty);
+            const int bound_char_id_17 = static_cast<int>(char_id);
             sql << "UPDATE \"TGUILDMEMBERTABLE\" SET "
                    "\"dwGuildID\" = :g, \"bDuty\" = :d "
                    "WHERE \"dwCharID\" = :c",
-                soci::use(static_cast<int>(guild_id)),
-                soci::use(static_cast<int>(duty)),
-                soci::use(static_cast<int>(char_id));
+                soci::use(bound_guild_id_15),
+                soci::use(bound_duty_16),
+                soci::use(bound_char_id_17);
         }
         (void)level;  // bLevel lives on TCHARTABLE; legacy CSP
                       // updates a cached column we don't persist.
@@ -261,11 +278,14 @@ bool SociGuildRepository::UpdateMemberPeer(std::uint32_t char_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_new_peer_18 = static_cast<int>(new_peer);
+        const int bound_char_id_19 = static_cast<int>(char_id);
+        const int bound_guild_id_20 = static_cast<int>(guild_id);
         ctx.Session() << "UPDATE \"TGUILDMEMBERTABLE\" SET \"bPeer\" = :p "
                "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
-            soci::use(static_cast<int>(new_peer)),
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_new_peer_18),
+            soci::use(bound_char_id_19),
+            soci::use(bound_guild_id_20);
         return true;
     }
     catch (const std::exception& ex)
@@ -282,10 +302,12 @@ bool SociGuildRepository::UpdateMaxCabinet(std::uint32_t guild_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_max_cabinet_21 = static_cast<int>(max_cabinet);
+        const int bound_guild_id_22 = static_cast<int>(guild_id);
         ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"bMaxCabinet\" = :m "
                "WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(max_cabinet)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_max_cabinet_21),
+            soci::use(bound_guild_id_22);
         return true;
     }
     catch (const std::exception& ex)
@@ -307,17 +329,21 @@ bool SociGuildRepository::AddArticle(std::uint32_t      guild_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_guild_id_23 = static_cast<int>(guild_id);
+        const int bound_article_id_24 = static_cast<int>(article_id);
+        const int bound_duty_25 = static_cast<int>(duty);
+        const int bound_time_unix_26 = static_cast<int>(time_unix);
         ctx.Session() << "INSERT INTO \"TGUILDARTICLETABLE\" (\"dwGuildID\", "
                "\"dwID\", \"bDuty\", \"szWritter\", \"szTitle\", "
                "\"szArticle\", \"dwTime\") "
                "VALUES (:g, :a, :d, :w, :t, :b, :ts)",
-            soci::use(static_cast<int>(guild_id)),
-            soci::use(static_cast<int>(article_id)),
-            soci::use(static_cast<int>(duty)),
+            soci::use(bound_guild_id_23),
+            soci::use(bound_article_id_24),
+            soci::use(bound_duty_25),
             soci::use(writer),
             soci::use(title),
             soci::use(body),
-            soci::use(static_cast<int>(time_unix));
+            soci::use(bound_time_unix_26);
         return true;
     }
     catch (const std::exception& ex)
@@ -334,10 +360,12 @@ bool SociGuildRepository::DelArticle(std::uint32_t guild_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_guild_id_27 = static_cast<int>(guild_id);
+        const int bound_article_id_28 = static_cast<int>(article_id);
         ctx.Session() << "DELETE FROM \"TGUILDARTICLETABLE\" "
                "WHERE \"dwGuildID\" = :g AND \"dwID\" = :a",
-            soci::use(static_cast<int>(guild_id)),
-            soci::use(static_cast<int>(article_id));
+            soci::use(bound_guild_id_27),
+            soci::use(bound_article_id_28);
         return true;
     }
     catch (const std::exception& ex)
@@ -356,13 +384,15 @@ bool SociGuildRepository::UpdateArticle(std::uint32_t      guild_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_guild_id_29 = static_cast<int>(guild_id);
+        const int bound_article_id_30 = static_cast<int>(article_id);
         ctx.Session() << "UPDATE \"TGUILDARTICLETABLE\" SET \"szTitle\" = :t, "
                "\"szArticle\" = :b "
                "WHERE \"dwGuildID\" = :g AND \"dwID\" = :a",
             soci::use(title),
             soci::use(body),
-            soci::use(static_cast<int>(guild_id)),
-            soci::use(static_cast<int>(article_id));
+            soci::use(bound_guild_id_29),
+            soci::use(bound_article_id_30);
         return true;
     }
     catch (const std::exception& ex)
@@ -387,12 +417,15 @@ bool SociGuildRepository::DeleteGuild(std::uint32_t guild_id)
         // children swept. On the production schema this is two extra
         // round-trips on a cold path — negligible vs. the safety win on
         // misconfigured deploys.
+        const int bound_guild_id_31 = static_cast<int>(guild_id);
         sql << "DELETE FROM \"TGUILDARTICLETABLE\" WHERE \"dwGuildID\" = :g",
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_guild_id_31);
+        const int bound_guild_id_32 = static_cast<int>(guild_id);
         sql << "DELETE FROM \"TGUILDMEMBERTABLE\" WHERE \"dwGuildID\" = :g",
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_guild_id_32);
+        const int bound_guild_id_33 = static_cast<int>(guild_id);
         sql << "DELETE FROM \"TGUILDTABLE\" WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_guild_id_33);
         return true;
     }
     catch (const std::exception& ex)
@@ -418,17 +451,22 @@ bool SociGuildRepository::AddWanted(std::uint32_t      guild_id,
         // "row exists → UPDATE; missing → INSERT" on the DB side. We emit
         // the same shape via DELETE + INSERT to stay portable across
         // backends without MERGE syntax.
+        const int bound_guild_id_34 = static_cast<int>(guild_id);
         sql << "DELETE FROM \"TGUILDWANTEDTABLE\" WHERE \"dwGuildID\" = :g",
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_guild_id_34);
+        const int bound_guild_id_35 = static_cast<int>(guild_id);
+        const int bound_min_level_36 = static_cast<int>(min_level);
+        const int bound_max_level_37 = static_cast<int>(max_level);
+        const int bound_end_time_unix_38 = static_cast<int>(end_time_unix);
         sql << "INSERT INTO \"TGUILDWANTEDTABLE\" (\"dwGuildID\", "
                "\"bMinLevel\", \"bMaxLevel\", \"szTitle\", \"szText\", "
                "\"dEndTime\") VALUES (:g, :mn, :mx, :t, :x, :e)",
-            soci::use(static_cast<int>(guild_id)),
-            soci::use(static_cast<int>(min_level)),
-            soci::use(static_cast<int>(max_level)),
+            soci::use(bound_guild_id_35),
+            soci::use(bound_min_level_36),
+            soci::use(bound_max_level_37),
             soci::use(title),
             soci::use(text),
-            soci::use(static_cast<int>(end_time_unix));
+            soci::use(bound_end_time_unix_38);
         return true;
     }
     catch (const std::exception& ex)
@@ -444,9 +482,10 @@ bool SociGuildRepository::DeleteWanted(std::uint32_t guild_id)
     try
     {
         DbContext ctx(m_pool);
+        const int bound_guild_id_39 = static_cast<int>(guild_id);
         ctx.Session() << "DELETE FROM \"TGUILDWANTEDTABLE\" "
                "WHERE \"dwGuildID\" = :g",
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_guild_id_39);
         return true;
     }
     catch (const std::exception& ex)
@@ -469,13 +508,16 @@ bool SociGuildRepository::AddVolunteerApp(std::uint32_t char_id,
         // use a different bType in W3a-13+; we just hardcode the member
         // value here.
         constexpr int kAppTypeMember = 0;
+        const int bound_char_id_40 = static_cast<int>(char_id);
         sql << "DELETE FROM \"TGUILDVOLUNTEERTABLE\" WHERE \"dwCharID\" = :c",
-            soci::use(static_cast<int>(char_id));
+            soci::use(bound_char_id_40);
+        const int bound_char_id_41 = static_cast<int>(char_id);
+        const int bound_wanted_id_42 = static_cast<int>(wanted_id);
         sql << "INSERT INTO \"TGUILDVOLUNTEERTABLE\" (\"dwCharID\", "
                "\"bType\", \"dwID\") VALUES (:c, :t, :w)",
-            soci::use(static_cast<int>(char_id)),
+            soci::use(bound_char_id_41),
             soci::use(kAppTypeMember),
-            soci::use(static_cast<int>(wanted_id));
+            soci::use(bound_wanted_id_42);
         return true;
     }
     catch (const std::exception& ex)
@@ -491,9 +533,10 @@ bool SociGuildRepository::DelVolunteerApp(std::uint32_t char_id)
     try
     {
         DbContext ctx(m_pool);
+        const int bound_char_id_43 = static_cast<int>(char_id);
         ctx.Session() << "DELETE FROM \"TGUILDVOLUNTEERTABLE\" "
                "WHERE \"dwCharID\" = :c",
-            soci::use(static_cast<int>(char_id));
+            soci::use(bound_char_id_43);
         return true;
     }
     catch (const std::exception& ex)
@@ -512,13 +555,17 @@ bool SociGuildRepository::UpdatePvPoints(std::uint32_t guild_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_total_point_44 = static_cast<int>(total_point);
+        const int bound_useable_point_45 = static_cast<int>(useable_point);
+        const int bound_month_point_46 = static_cast<int>(month_point);
+        const int bound_guild_id_47 = static_cast<int>(guild_id);
         ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"dwPvPTotalPoint\" = :t, "
                "\"dwPvPUseablePoint\" = :u, \"dwPvPMonthPoint\" = :m "
                "WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(total_point)),
-            soci::use(static_cast<int>(useable_point)),
-            soci::use(static_cast<int>(month_point)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_total_point_44),
+            soci::use(bound_useable_point_45),
+            soci::use(bound_month_point_46),
+            soci::use(bound_guild_id_47);
         return true;
     }
     catch (const std::exception& ex)
@@ -535,10 +582,12 @@ bool SociGuildRepository::UpdateLevel(std::uint32_t guild_id,
     try
     {
         DbContext ctx(m_pool);
+        const int bound_level_48 = static_cast<int>(level);
+        const int bound_guild_id_49 = static_cast<int>(guild_id);
         ctx.Session() << "UPDATE \"TGUILDTABLE\" SET \"bLevel\" = :l "
                "WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(level)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_level_48),
+            soci::use(bound_guild_id_49);
         return true;
     }
     catch (const std::exception& ex)
@@ -560,17 +609,22 @@ bool SociGuildRepository::LogPointReward(std::uint32_t      guild_id,
         DbContext ctx(m_pool);
         soci::session& sql = ctx.Session();
         auto tr = ctx.BeginTransaction();
+        const int bound_guild_id_50 = static_cast<int>(guild_id);
+        const int bound_point_51 = static_cast<int>(point);
         sql << "INSERT INTO \"TGUILDPVPOINTREWARDTABLE\" "
                "(\"dwGuildID\", \"szName\", \"dwPoint\", \"dlDate\") "
                "VALUES (:g, :n, :p, CURRENT_TIMESTAMP)",
-            soci::use(static_cast<int>(guild_id)),
+            soci::use(bound_guild_id_50),
             soci::use(recipient_name),
-            soci::use(static_cast<int>(point));
+            soci::use(bound_point_51);
+        const int bound_total_point_52 = static_cast<int>(total_point);
+        const int bound_useable_point_53 = static_cast<int>(useable_point);
+        const int bound_guild_id_54 = static_cast<int>(guild_id);
         sql << "UPDATE \"TGUILDTABLE\" SET \"dwPvPTotalPoint\" = :t, "
                "\"dwPvPUseablePoint\" = :u WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(total_point)),
-            soci::use(static_cast<int>(useable_point)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_total_point_52),
+            soci::use(bound_useable_point_53),
+            soci::use(bound_guild_id_54);
         tr.Commit();
         return true;
     }
@@ -596,6 +650,12 @@ bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
         soci::session& sql = ctx.Session();
         // Guild totals delta (mirror CSPGuildContribution's arithmetic
         // side).
+        const int bound_gold_55 = static_cast<int>(gold);
+        const int bound_silver_56 = static_cast<int>(silver);
+        const int bound_cooper_57 = static_cast<int>(cooper);
+        const int bound_exp_58 = static_cast<int>(exp);
+        const int bound_pvp_point_59 = static_cast<int>(pvp_point);
+        const int bound_guild_id_60 = static_cast<int>(guild_id);
         sql << "UPDATE \"TGUILDTABLE\" SET "
                "\"dwGold\" = \"dwGold\" + :gold, "
                "\"dwSilver\" = \"dwSilver\" + :silver, "
@@ -604,20 +664,23 @@ bool SociGuildRepository::IncrementContribution(std::uint32_t char_id,
                "\"dwPvPTotalPoint\" = \"dwPvPTotalPoint\" + :pvp, "
                "\"dwPvPUseablePoint\" = \"dwPvPUseablePoint\" + :pvp "
                "WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(gold)),
-            soci::use(static_cast<int>(silver)),
-            soci::use(static_cast<int>(cooper)),
-            soci::use(static_cast<int>(exp)),
-            soci::use(static_cast<int>(pvp_point)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_gold_55),
+            soci::use(bound_silver_56),
+            soci::use(bound_cooper_57),
+            soci::use(bound_exp_58),
+            soci::use(bound_pvp_point_59),
+            soci::use(bound_guild_id_60);
         // Member service score delta (dwService accumulates EXP
         // contribution, mirroring legacy GainEXP path).
+        const int bound_exp_61 = static_cast<int>(exp);
+        const int bound_char_id_62 = static_cast<int>(char_id);
+        const int bound_guild_id_63 = static_cast<int>(guild_id);
         sql << "UPDATE \"TGUILDMEMBERTABLE\" SET "
                "\"dwService\" = \"dwService\" + :exp "
                "WHERE \"dwCharID\" = :c AND \"dwGuildID\" = :g",
-            soci::use(static_cast<int>(exp)),
-            soci::use(static_cast<int>(char_id)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_exp_61),
+            soci::use(bound_char_id_62),
+            soci::use(bound_guild_id_63);
         return true;
     }
     catch (const std::exception& ex)
@@ -659,15 +722,18 @@ SociGuildRepository::CreateGuild(const std::string& name,
                "FROM \"TGUILDTABLE\"",
             soci::into(next_id);
 
+        const int bound_chief_id_64 = static_cast<int>(chief_id);
+        const int bound_country_65 = static_cast<int>(country);
+        const long long bound_establish_time_unix_66 = static_cast<long long>(establish_time_unix);
         sql << "INSERT INTO \"TGUILDTABLE\" "
                "(\"dwID\", \"szName\", \"dwChief\", \"bCountry\", "
                " \"bLevel\", \"timeEstablish\") "
                "VALUES (:i, :n, :c, :y, 1, :t)",
             soci::use(next_id),
             soci::use(name),
-            soci::use(static_cast<int>(chief_id)),
-            soci::use(static_cast<int>(country)),
-            soci::use(static_cast<long long>(establish_time_unix));
+            soci::use(bound_chief_id_64),
+            soci::use(bound_country_65),
+            soci::use(bound_establish_time_unix_66);
         tr.Commit();
         return static_cast<std::uint32_t>(next_id);
     }
@@ -695,20 +761,29 @@ bool SociGuildRepository::UpdateGuildFull(
     try
     {
         DbContext ctx(m_pool);
+        const int bound_fame_67 = static_cast<int>(fame);
+        const int bound_guild_points_68 = static_cast<int>(guild_points);
+        const int bound_level_69 = static_cast<int>(level);
+        const int bound_status_70 = static_cast<int>(status);
+        const int bound_chief_id_71 = static_cast<int>(chief_id);
+        const int bound_gi_72 = static_cast<int>(gi);
+        const int bound_exp_73 = static_cast<int>(exp);
+        const int bound_time_unix_74 = static_cast<int>(time_unix);
+        const int bound_guild_id_75 = static_cast<int>(guild_id);
         ctx.Session() << "UPDATE \"TGUILDTABLE\" SET "
                "\"dwFame\" = :f, \"bGPoint\" = :gp, \"bLevel\" = :l, "
                "\"bStatus\" = :s, \"dwChief\" = :c, \"dwGI\" = :gi, "
                "\"dwExp\" = :e, \"dwTime\" = :t "
                "WHERE \"dwID\" = :g",
-            soci::use(static_cast<int>(fame)),
-            soci::use(static_cast<int>(guild_points)),
-            soci::use(static_cast<int>(level)),
-            soci::use(static_cast<int>(status)),
-            soci::use(static_cast<int>(chief_id)),
-            soci::use(static_cast<int>(gi)),
-            soci::use(static_cast<int>(exp)),
-            soci::use(static_cast<int>(time_unix)),
-            soci::use(static_cast<int>(guild_id));
+            soci::use(bound_fame_67),
+            soci::use(bound_guild_points_68),
+            soci::use(bound_level_69),
+            soci::use(bound_status_70),
+            soci::use(bound_chief_id_71),
+            soci::use(bound_gi_72),
+            soci::use(bound_exp_73),
+            soci::use(bound_time_unix_74),
+            soci::use(bound_guild_id_75);
         // Alliance + enemy IDs are kept in memory by the handler
         // (TGuild.alliance_ids / .enemy_ids) but not persisted — the
         // legacy szAllience / szEnemy CSV columns aren't in our portable
@@ -743,6 +818,19 @@ bool SociGuildRepository::LogPvPRecord(
     try
     {
         DbContext ctx(m_pool);
+        const int bound_guild_id_76 = static_cast<int>(guild_id);
+        const int bound_member_id_77 = static_cast<int>(member_id);
+        const int bound_date_78 = static_cast<int>(date);
+        const int bound_kill_count_79 = static_cast<int>(kill_count);
+        const int bound_die_count_80 = static_cast<int>(die_count);
+        const int bound_points_0_81 = static_cast<int>(points[0]);
+        const int bound_points_1_82 = static_cast<int>(points[1]);
+        const int bound_points_2_83 = static_cast<int>(points[2]);
+        const int bound_points_3_84 = static_cast<int>(points[3]);
+        const int bound_points_4_85 = static_cast<int>(points[4]);
+        const int bound_points_5_86 = static_cast<int>(points[5]);
+        const int bound_points_6_87 = static_cast<int>(points[6]);
+        const int bound_points_7_88 = static_cast<int>(points[7]);
         ctx.Session() << "INSERT INTO \"TGUILDPVPRECORDTABLE\" "
                "(\"dwGuildID\", \"dwCharID\", \"dwDate\", \"wKillCount\", "
                " \"wDieCount\", "
@@ -750,19 +838,19 @@ bool SociGuildRepository::LogPvPRecord(
                " \"dwPoint_5\", \"dwPoint_6\", \"dwPoint_7\", \"dwPoint_8\") "
                "VALUES (:g, :c, :d, :k, :y, :p1, :p2, :p3, :p4, "
                "        :p5, :p6, :p7, :p8)",
-            soci::use(static_cast<int>(guild_id)),
-            soci::use(static_cast<int>(member_id)),
-            soci::use(static_cast<int>(date)),
-            soci::use(static_cast<int>(kill_count)),
-            soci::use(static_cast<int>(die_count)),
-            soci::use(static_cast<int>(points[0])),
-            soci::use(static_cast<int>(points[1])),
-            soci::use(static_cast<int>(points[2])),
-            soci::use(static_cast<int>(points[3])),
-            soci::use(static_cast<int>(points[4])),
-            soci::use(static_cast<int>(points[5])),
-            soci::use(static_cast<int>(points[6])),
-            soci::use(static_cast<int>(points[7]));
+            soci::use(bound_guild_id_76),
+            soci::use(bound_member_id_77),
+            soci::use(bound_date_78),
+            soci::use(bound_kill_count_79),
+            soci::use(bound_die_count_80),
+            soci::use(bound_points_0_81),
+            soci::use(bound_points_1_82),
+            soci::use(bound_points_2_83),
+            soci::use(bound_points_3_84),
+            soci::use(bound_points_4_85),
+            soci::use(bound_points_5_86),
+            soci::use(bound_points_6_87),
+            soci::use(bound_points_7_88);
         return true;
     }
     catch (const std::exception& ex)

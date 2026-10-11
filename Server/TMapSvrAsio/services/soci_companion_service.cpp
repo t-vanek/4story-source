@@ -32,8 +32,9 @@ SociCompanionService::LoadCompanions(std::uint32_t char_id)
         std::string  row_name;
         soci::indicator name_ind = soci::i_null;
 
+        const auto cid=static_cast<std::int32_t>(char_id);
         soci::statement st = (sql.prepare << queries::CompanionsByCharId,
-            soci::use(static_cast<std::int32_t>(char_id), "cid"),
+            soci::use(cid, "cid"),
             soci::into(row_slot), soci::into(row_mon),
             soci::into(row_level), soci::into(row_name, name_ind),
             soci::into(row_exp), soci::into(row_life),

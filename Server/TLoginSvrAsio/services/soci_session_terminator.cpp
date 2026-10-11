@@ -140,6 +140,7 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
         {
             if (char_id != 0)
             {
+                const int bound_session_key_1 = static_cast<int>(session_key);
                 sql << "UPDATE \"TLOG\" SET "
                        "  \"timeLOGOUT\" = CURRENT_TIMESTAMP, "
                        "  \"dwCharID\"   = :c, "
@@ -149,10 +150,11 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
                     soci::use(char_id),
                     soci::use(session_group),
                     soci::use(session_channel),
-                    soci::use(static_cast<int>(session_key));
+                    soci::use(bound_session_key_1);
             }
             else
             {
+                const int bound_session_key_2 = static_cast<int>(session_key);
                 sql << "UPDATE \"TLOG\" SET "
                        "  \"timeLOGOUT\" = CURRENT_TIMESTAMP, "
                        "  \"bGroupID\"   = :g, "
@@ -160,7 +162,7 @@ void SociSessionTerminator::Terminate(std::int32_t  user_id,
                        "WHERE \"dwKEY\" = :k",
                     soci::use(session_group),
                     soci::use(session_channel),
-                    soci::use(static_cast<int>(session_key));
+                    soci::use(bound_session_key_2);
             }
         }
 

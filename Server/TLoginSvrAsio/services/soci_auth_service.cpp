@@ -443,9 +443,10 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
         {
             try
             {
+                const int bound_req_site_code_1 = static_cast<int>(req.site_code);
                 sql << "UPDATE \"TCURRENTUSER\" SET \"dwSiteCode\" = :s "
                        "WHERE \"dwKEY\" = :k",
-                    soci::use(static_cast<int>(req.site_code)),
+                    soci::use(bound_req_site_code_1),
                     soci::use(session_key);
             }
             catch (const std::exception& ex)
@@ -460,9 +461,10 @@ AuthResult SociAuthService::Authenticate(const AuthRequest& req)
             // either column can exist alone.
             try
             {
+                const int bound_req_channeling_2 = static_cast<int>(req.channeling());
                 sql << "UPDATE \"TCURRENTUSER\" SET \"bChanneling\" = :c "
                        "WHERE \"dwKEY\" = :k",
-                    soci::use(static_cast<int>(req.channeling())),
+                    soci::use(bound_req_channeling_2),
                     soci::use(session_key);
             }
             catch (const std::exception& ex)

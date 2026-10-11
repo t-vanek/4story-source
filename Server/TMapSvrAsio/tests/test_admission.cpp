@@ -144,6 +144,7 @@ struct Players final : tmapsvr::IPlayerService {
             for(std::uint16_t id:{8,9}) {p->skills.push_back({id,1,0});tmapsvr::SkillTemplate other;other.wID=id;other.bKind=id==8?1:2;other.attack_profile=tmapsvr::SkillAttackProfile{1,0,1,0,7,false,13,17,1,2,3,4};p->skill_templates.push_back(other);}
             if(admission_timers){p->skills[0].dwRemainTick=300000;p->skills[1].dwRemainTick=1;}
             p->skill_attack_timing=std::array<tmapsvr::SkillAttackTiming,3>{tmapsvr::SkillAttackTiming{500,80},{},{}};
+            p->pure_max_hp=169;p->pure_max_mp=163;
             s.payload=p;s.dwMaxHP=169;s.dwMaxMP=163;
         }
         return s;

@@ -16,9 +16,20 @@ filtering, two 32-bit BOOLs and server-side target iteration. Migration 036 now
 integrates the first instant own-PC Cure transaction and a separate finish head.
 See `skill-finish-contract.json`. Extend this existing implementation to remaining
 FINISHSKILL effects/targets, charging/repeats/links, then exception DEFEND paths.
-For charged self-heals, first port the original charge clock and cancellation
-semantics (`OnCS_FINISHSKILL_ACK` checks `dwActionTime` against the skill charge
-tick); do not admit First Aid 240 by merely broadening the instant-Cure selector.
+Migration 037 now integrates native ACTION gates, durable one-cast charge binding
+and First Aid 240 self-finish after its 300ms source minimum. All three configurations
+pass 3,101 native checks; 54 additive upgrade checks pass. This does not certify
+full combat, original-client acceptance or general charge interruptions. Preserve the current
+source corrections and explicit modern repairs in `skill-actions-contract.json`.
+Continue with original charge-speed/animation data, movement and damage
+interruptions, maintained-effect action side effects and multi-target ownership.
+Aid 629 has main-recall targeting; its cure data alone does not authorize self-heal.
+Preserve restored pure HP/MP percentage costs across ACTION/SKILLUSE/LOOPSKILL.
+For effect removal, trace `EraseBuffByAttack` (TObjBase.cpp:4663): posture/recall
+exceptions, BEA_ATTACK and hide-skill/erase-hide flags, ordered END/stat/HPMP
+notifications and atomic recovery. Do not simply drop all maintained effects.
+The shared database clock permits cross-owner timing but clock-jump behavior still
+requires a documented guarantee and fault injection.
 For other targets, establish mutable target ownership and atomic attacker/defender
 updates before publishing effects. Preserve each original ordered effect row and
 the DEFEND → conditional HPMP order. Cure's nearby-monster aggro and party relay
@@ -31,7 +42,7 @@ Retain the unresolved no-cast-ID ambiguity: an identical packet can represent a
 later legitimate outstanding finish. Current same-login FIFO/subsequence budgets
 bound effects to accepted casts, but do not prove universal replay discrimination.
 No guessed expiry or new client field is a substitute for documenting this limit.
-All backups and applied migrations **001–036** are immutable; next migration **037**.
+All backups and applied migrations **001–037** are immutable; next migration **038**.
 
 Previous foundation (combat): migration **035** and the actual cast transaction
 are integrated and pass 2,761 native checks per Debug, ASan/UBSan and installed
@@ -89,7 +100,7 @@ inventory/trade/store integration and all economy systems in scope.
 Preserve the explicitly certified old-two-table → current-four-table actor upgrade
 and its immutable graph receipts. It does not authorize arbitrary content changes,
 character/routing releases or transitive upgrades. All backups and migrations
-**001–036** are immutable; the next schema migration is **037**.
+**001–037** are immutable; the next schema migration is **038**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -539,7 +550,7 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–036; next schema change is 037. Native
+Preserve backups and migrations 001–037; next schema change is 038. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
@@ -563,7 +574,7 @@ generic effect and advanced equipment dependencies. Preserve actual two-Map
 inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
 only until complete gameplay; Log uses 029, statistics 030, actor transition 031
-equipment 032, postures 033, explicit cancellation 034, accepted casts 035 and skill finishes 036. Next new migration: 037.
+equipment 032, postures 033, explicit cancellation 034, accepted casts 035 and skill finishes 036 and actions 037. Next new migration: 038.
 
 
 The owner confirmed that only uncompiled client sources are available, without

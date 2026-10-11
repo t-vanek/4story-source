@@ -152,6 +152,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.dwKindDelay=U32(chart,"dwKindDelay");definition.bKind=U8(chart,"bKind");
         definition.bSpeedApply=U8(chart,"bSpeedApply");
         definition.dwLoopDelay=U32(chart,"dwLoopDelay");
+        definition.action_time=U32(chart,"dwActionTime");definition.action_supported=true;
         definition.wTargetActiveID=U16(chart,"wTargetActiveID");
         definition.wPrevActiveID=U16(chart,"wPrevActiveID");
         definition.wMapID=U16(chart,"wMapID");
@@ -181,8 +182,9 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         auto& instance=instances[skill.wSkillID];bool final_type=false;
         bool instant_cure=U8(chart,"bCanLearn")==1&&U8(chart,"bRunFromServer")==0&&
             U16(chart,"wTriggerID")==skill.wSkillID&&U8(chart,"bCheckAttacker")!=3&&
+            (U8(chart,"bTarget")==1||U8(chart,"bTarget")==3)&&
             (U8(chart,"bPositive")%2)==1&&U8(chart,"bHitTest")==1&&U8(chart,"bHitInit")==100&&
-            U8(chart,"bHitInc")==0&&U32(chart,"dwActionTime")==0&&U32(chart,"dwDuration")==0&&
+            U8(chart,"bHitInc")==0&&U32(chart,"dwDuration")==0&&
             U16(chart,"wTargetActiveID")==0&&U16(chart,"wPosture")==0&&U8(chart,"bTargetRange")==0&&
             U8(chart,"bIsDismount")==0&&
             (chart.get_indicator("bRepeatCount")==soci::i_null||U8(chart,"bRepeatCount")==0);
@@ -192,6 +194,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             "ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\"",soci::use(id));
         for(const auto& data:all_data) {
             const auto attr=U8(data,"bAttr"),type=U8(data,"bType"),exec=U8(data,"bExec");
+            if(type==SDT_TRAP||type==SDT_RECALL)definition.action_supported=false;
             if(U8(data,"bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP))instant_cure=false;
             definition.instant_cure.push_back({U8(data,"bAction"),type,attr,exec,U8(data,"bInc"),
                 U16(data,"wValue"),U16(data,"wValueInc"),U8(data,"bCalc")});
@@ -259,9 +262,15 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         if(result<std::numeric_limits<int>::min()||result>std::numeric_limits<int>::max())throw std::runtime_error("Effect total overflow");
         return static_cast<int>(result);
     };
-    const auto stat=[&](const char* column,int type,std::uint16_t minimum=0){
+    const auto pure_stat=[&](const char* column,std::uint16_t minimum=0){
         const auto base=static_cast<std::uint16_t>(1+U16(cl,column)+U16(ra,column));
-        float value=static_cast<float>(std::max(base,minimum)*std::pow(static_cast<double>(growth.rate),int(s.bLevel)-1));
+        return static_cast<float>(std::max(base,minimum)*std::pow(static_cast<double>(growth.rate),int(s.bLevel)-1));
+    };
+    // GetCON(TRUE)/GetMEN(TRUE) skip aftermath, items, active and passive effects.
+    p.pure_max_hp=hp.initial+Truncate(pure_stat("wCON")*hp.rate);
+    p.pure_max_mp=mp.initial+Truncate(pure_stat("wMEN")*mp.rate);
+    const auto stat=[&](const char* column,int type,std::uint16_t minimum=0){
+        float value=pure_stat(column,minimum);
         if(s.bLevel>=10){const float reduction=static_cast<float>(std::min<int>(s.bAftermath,100)*0.3);
             value-=value*reduction/100;}
         value+=equipment[type];value+=delta(Truncate(value),type);return value;
@@ -515,7 +524,10 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
      p.last_cast_id=static_cast<std::uint64_t>(head);
      sql<<"SELECT COALESCE(max(finish_id),0) FROM app_world.skill_finish_operations WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
-     p.last_finish_id=static_cast<std::uint64_t>(head);}
+     p.last_finish_id=static_cast<std::uint64_t>(head);
+     sql<<"SELECT COALESCE(max(action_id),0) FROM app_world.skill_action_operations WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_action_id=static_cast<std::uint64_t>(head);}
     DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
     tx->commit();return s;
@@ -557,7 +569,10 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
      p.last_cast_id=static_cast<std::uint64_t>(head);
      sql<<"SELECT COALESCE(max(finish_id),0) FROM app_world.skill_finish_operations WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
-     p.last_finish_id=static_cast<std::uint64_t>(head);}
+     p.last_finish_id=static_cast<std::uint64_t>(head);
+     sql<<"SELECT COALESCE(max(action_id),0) FROM app_world.skill_action_operations WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_action_id=static_cast<std::uint64_t>(head);}
     DeriveStats(sql,s,p);
     // Never silently clamp unsaved transferred core to an incomplete derived
     // stat model. Active-effect stat derivation remains a gameplay dependency.

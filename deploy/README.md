@@ -1,8 +1,35 @@
 # Linux containers
 
+## Native skill actions and charging
+
+Current bounded increment (2026-10-11): stop Map writers, apply additive
+migrations through **037**, then reapply `deploy/sql/map-runtime-grants.sql` for
+each Map role before starting the new binary. Keep the pinned character,
+routing and four-table actor releases. Historical accepted casts retain a NULL
+charge reference; the upgrade fabricates no past ACTIONs.
+
+```sh
+podman build --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-skill-actions .
+```
+
+The existing native path now validates ACTION, records charge provenance and
+finishes own-PC First Aid240 after the source 300ms minimum. ACTION/SKILLUSE/
+LOOPSKILL use pure HP/MP maxima for percentage costs. This is a bounded gameplay
+increment; full combat and original-client acceptance remain pending. See
+[contract and limitations](../_rewrite/docs/modernization/evidence/skill-actions-contract.json).
+
+Use the same owned-lab reproduction commands below with report name
+`actions-result.json`. Run separate labs for Debug (`--build-dir build/linux-debug`),
+ASan (`--build-dir build/linux-asan`) and installed Release
+(`--image localhost/fourstory:postgresql-skill-actions --runtime-bin-dir /opt/fourstory/bin`).
+The installed run uses the mounted Debug backend test and installed daemons.
+`verify_posture_upgrade.py --work /private/owned-lab --through-actions --report
+/private/actions-upgrade.json` verifies additive schema preservation. The lab
+lock prevents overlapping native verification against the same database.
+
 ## Native skill finishes
 
-Current bounded increment (2026-10-11): stop native Map writers, apply additive
+Previous bounded increment (2026-10-11): stop native Map writers, apply additive
 migrations through **036**, then reapply `deploy/sql/map-runtime-grants.sql` for
 each Map role before starting the new binary. Keep the same pinned character,
 routing and four-table actor catalogs. Historical cast/skill/item/checkpoint
@@ -46,13 +73,13 @@ one daemon as UID/GID 10001, logs to stdout, and receives SIGTERM directly.
 
 ## Current native PostgreSQL verification contract
 
-The current native Login/Map path requires migrations **001–036**, current
+The current native Login/Map path requires migrations **001–037**, current
 `sql/login-runtime-grants.sql` and `sql/map-runtime-grants.sql`, plus explicitly
 activated character/routing/four-table actor catalogs. The Map role now has bounded gameplay
 writes for consumption and inventory moves/splits/merges, including item INSERT
 and the shared world ID counter. Earlier sections below describe their original
 increment and do not override this requirement. Applied migrations are immutable;
-the next schema change starts at 037. Existing player graph catalog bindings need
+the next schema change starts at 038. Existing player graph catalog bindings need
 an explicit compatibility migration before switching a populated world; see
 [native character statistics](#native-map-character-statistics).
 
@@ -72,7 +99,7 @@ python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-nati
 
 Use the documented Python dependencies/virtual environment and build-deps runtime
 for this harness. Its default runtime image is the local build-deps image. For
-installed Release verification, add `--image localhost/fourstory:postgresql-inventory-stacks
+installed Release verification, add `--image localhost/fourstory:postgresql-skill-actions
 --runtime-bin-dir /opt/fourstory/bin`. Backend/pool test executables still come from
 the verified `--build-dir`. See [current results](../_rewrite/docs/modernization/README.md).
 This starts and tests native processes with synthetic owned accounts; it does not

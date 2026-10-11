@@ -18,7 +18,42 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: original FINISHSKILL and native self-cure
+## Current increment: native ACTION and charged First Aid
+
+The existing ACTION handler no longer returns unconditional success for native
+PCs. It validates the original 19-byte body, ownership/route and source ordered
+learned/cooldown/MP/HP/previous-action gates. A successful charge records the
+backup's `dwActionTime`; no resource or reuse-timer debit happens at ACTION.
+Migration 037 commits raw input, the original 17-byte result and recovery state,
+with a separate action ledger head. Each charge can bind to one later accepted
+ordinary cast in the same login and route. First Aid 240 consumes that provenance
+and requires 300ms before the existing atomic self-cure finish.
+
+A successful zero-skill ACTION cancels an unconsumed charge; a new successful
+action supersedes it. Rejected actions retain the previous charge. A cast already
+bound to its charge retains that origin. Primary handoff preserves pending
+charges; a new login key cannot inherit them. Cross-owner elapsed time uses the
+shared database clock. Clock adjustments, movement/damage interruption, general
+charge-speed/effect/companion behavior and actual client data remain evidence gates.
+The backup's Aid 629 is a main-recall target and is not certified as a self-heal.
+See [source, modern repairs, verification and limits](evidence/skill-actions-contract.json).
+Percentage costs now use the original pure HP/MP maxima, excluding aftermath,
+equipment and effects; the previous rewrite used modified visible maxima.
+
+**3,101 native database/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release (installed daemons with the Debug backend test).
+This includes 938 native Map, 29 pool/TLS and 2,134 TCP checks. The independent
+ACTION fixture verifies all 17 ACK bytes, source percentage costs with aftermath,
+charged First Aid, cancellation, old-login rejection, SIGKILL/reconnect and late
+SQL rollback. Backend tests cover concurrent actions, stale snapshots, early
+finish rejection and charge across primary handoff. Debug CTest has 188 actual
+passes and 15 fixture skips; all 40 sanitizer suites and 54 schema-upgrade checks
+pass. Six installed daemons pass health/DNS/SIGTERM. Original-client acceptance
+is still blocked by missing EXE/assets; these results certify only the stated scope.
+
+Backups and applied migrations **001–037** are immutable; next migration **038**.
+
+## Previous increment: original FINISHSKILL and native self-cure
 
 The earlier continuation focused on DEFEND without tracing every caller. Original
 `CTClientGame::ShotSkill` and `FinishSkill` route ordinary PC casts through

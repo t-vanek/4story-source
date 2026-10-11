@@ -41,6 +41,7 @@ struct CharacterPayload {
     std::shared_ptr<const transfer::State> transfer_state;
     std::uint64_t transfer_received_ms{};
     std::uint64_t last_cast_id{}; // native ledger head; rehydrated, never sent to the client
+    std::uint64_t last_action_id{}; // action/charge ledger fence, never a wire field
     std::uint64_t last_finish_id{}; // fences stale snapshots after target resolution
     std::vector<CharacterBag> bags;
     std::vector<SkillRow> skills;
@@ -58,6 +59,7 @@ struct CharacterPayload {
     // Absent for active-effect/companion/guild states whose stat semantics are
     // not yet implemented. Never synthesize a successful zero-filled sheet.
     std::optional<CharacterStatistics> statistics;
+    std::uint32_t pure_max_hp{},pure_max_mp{}; // original GetPureMaxHP/MP cost bases
     std::vector<CharacterHotkeys> hotkeys;
     std::vector<CharacterTitle> titles;
     std::vector<CharacterCabinet> cabinets;

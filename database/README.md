@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **036** are also immutable. Current
-native Map deployment requires migrations through 036 and the existing
+All subsequently applied migrations through **037** are also immutable. Current
+native Map deployment requires migrations through 037 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,16 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 037+.
+for tests and remaining gameplay requirements. Add schema changes as 038+.
+
+Migration 037 adds exact ACTION request/result receipts and a separate stale-state
+head. One successful charge can bind to one accepted cast; historical casts keep
+NULL references. First Aid240 requires its source 300ms charge before the existing
+atomic self-cure finish. No resources are charged at ACTION. Same-login primary
+handoff retains charge provenance; new login keys cannot inherit it. Stop Map
+writers and reapply the updated grants after this migration. Clock adjustment,
+general interruptions and full companion/effect behavior remain explicit limits.
+See the [ACTION contract](../_rewrite/docs/modernization/evidence/skill-actions-contract.json).
 
 Migration 035 records accepted native casts and links their item/effect costs to
 one atomic checkpoint. Migration 036 adds one finish receipt per accepted cast,

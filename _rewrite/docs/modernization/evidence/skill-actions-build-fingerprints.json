@@ -1,0 +1,33 @@
+{
+  "base_commit": "96e8d87ba218149c4fdb0565bc8ed98c57c9032e",
+  "configuration": "Final tested behavior; later source changes only corrected routing comments",
+  "sha256": {
+    "linux-debug": {
+      "tloginsvr_asio": "a3be55ec76bcaf1df7550ddc02a44ed3fd89cd203f46842456ccf977d5f6e56d",
+      "tworldsvr_asio": "6f83553a3d25bb6cd8340ef3fc58977a256b70b818f86c534babc25edad37937",
+      "tmapsvr_asio": "fd375f59f108066b35e4ee4fa8f148d9898b08eb37b6a8b0868e03321546eba0",
+      "test_tmapsvr_postgresql_map": "d89c3886087bde25c205a67c28e63d4901ce5a5e2140bae9b890da9361820434",
+      "test_tmapsvr_asio_admission": "d10fba01fff72117bf17291293b69878ec6f65ae8682b5a283ee07965cc0359a"
+    },
+    "linux-asan": {
+      "tloginsvr_asio": "135d27e78f4ef8217dedcef360d90bb52bd5c0d598c314299bc7ee7946d52d12",
+      "tworldsvr_asio": "2707a03b06299d06502be660b238fa7ba8d12a26c590eb7eaa2de6fb7fbc65a2",
+      "tmapsvr_asio": "cde27df381f89643213bbe8d3c459868ef8bed60b9c3fa2a67198edce3b270a5",
+      "test_tmapsvr_postgresql_map": "39b0d5ca5545812c8dad6553d104bab9777b9777be9cb5887a042ba67689323a",
+      "test_tmapsvr_asio_admission": "c2131446ad24587a7c7e99278f8a8a715ab5a2fbe612c33e628e976928778784"
+    },
+    "installed-release": {
+      "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+      "/opt/fourstory/bin/tworldsvr_asio": "1715be4b54345f1f4c4291e532d0c56e34ba40b45cd3cf3a285841a1f454980d",
+      "/opt/fourstory/bin/tmapsvr_asio": "5124a02c5da06d3728a7506806037c59a2e0e30e1901a5229b81038ce8a21b22",
+      "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+      "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+      "/opt/fourstory/bin/tlogsvr_asio": "23793d010d1517c915ea23460d164c7eebfe4524783a4959b57ba008ac88558d"
+    }
+  },
+  "image": {
+    "tag": "localhost/fourstory:postgresql-skill-actions",
+    "id": "a0db8cf193243e0cbe58167633b10fa2bd5492bf89b9a1b3ead172438df9eb2f",
+    "user": "10001:10001"
+  }
+}

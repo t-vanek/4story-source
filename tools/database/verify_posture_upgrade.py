@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--through-cancellation',action='store_true',help='Also verify additive migration034 preserves all four recovery contracts')
     parser.add_argument('--through-casts',action='store_true',help='Also verify additive accepted-cast migration035 after cancellation034')
     parser.add_argument('--through-finishes',action='store_true',help='Also verify additive finished-cast migration036 preserves acceptance and recovery receipts')
+    parser.add_argument('--through-actions',action='store_true',help='Also verify additive ACTION/charge migration037')
     args=parser.parse_args();repo=Path(__file__).resolve().parents[2]
     state=json.loads((args.work/'state.json').read_text());verify_container(state,state['pg_container'])
     values=dict(line.split('=',1) for line in (args.work/'postgres.env').read_text().splitlines())
@@ -74,7 +75,7 @@ def main():
             c.execute('INSERT INTO app_world.map_maintained_effects VALUES(1,2,0,132,1,0,1,2,1,2,4)')
             check(c.execute('SELECT app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=2').fetchone()==(True,),'graph recovery continues to ignore stale normalized effects')
             check(c.execute("SELECT has_table_privilege('public','app_world.map_maintained_effects','INSERT') OR has_function_privilege('public','app_world.map_maintain_state(smallint,integer)','EXECUTE')").fetchone()==(False,),'new maintained mutation/comparison have no PUBLIC grant')
-            if args.through_cancellation or args.through_casts or args.through_finishes:
+            if args.through_cancellation or args.through_casts or args.through_finishes or args.through_actions:
                 receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
                 checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
                 effects=c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()
@@ -87,7 +88,7 @@ def main():
                 check(c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()==effects,'effect upgrade preserves ordered native maintained fields')
                 check(c.execute('SELECT to_jsonb(o) FROM app_world.equipment_operations o').fetchall()==equipment,'effect upgrade preserves historical equipment operation bytes')
                 check(c.execute("SELECT has_table_privilege('public','app_world.maintained_effect_operations','INSERT') OR has_sequence_privilege('public','app_world.maintained_effect_operations_operation_id_seq','USAGE')").fetchone()==(False,),'effect ledger and its identity allocator have no PUBLIC mutation grant')
-            if args.through_casts or args.through_finishes:
+            if args.through_casts or args.through_finishes or args.through_actions:
                 receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
                 checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
                 effects=c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()
@@ -103,7 +104,7 @@ def main():
                 check(c.execute('SELECT accepted_cast_id FROM app_world.skill_item_consumptions').fetchall()==[(None,)],'historical item receipt is not attributed to an invented accepted cast')
                 check(c.execute('SELECT count(*) FROM app_world.accepted_skill_casts').fetchone()==(0,),'upgrade fabricates no historical accepted casts')
                 check(c.execute("SELECT has_table_privilege('public','app_world.accepted_skill_casts','INSERT') OR has_sequence_privilege('public','app_world.accepted_skill_casts_cast_id_seq','USAGE')").fetchone()==(False,),'accepted-cast ledger and allocator have no PUBLIC mutation grants')
-            if args.through_finishes:
+            if args.through_finishes or args.through_actions:
                 c.execute("INSERT INTO app_world.accepted_skill_casts(world_id,char_id,server_id,owner_token,connection_id,session_key,authority_epoch,previous_cast_id,state_contract,skill_id,skill_rank,is_loop,request,acknowledgement,before_hp,after_hp,before_mp,after_mp,before_skills,after_skills,before_effects,after_effects,core_fingerprint) VALUES(1,1,1,%s,1,1,0,0,3,509,1,false,%s,%s,1,1,1,1,'[]','[]','[]','[]',%s)",('a'*64,b'0'*32,b'0'*62,'b'*64))
                 receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
                 checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
@@ -118,6 +119,32 @@ def main():
                 check(c.execute('SELECT to_jsonb(i) FROM app_world.skill_item_consumptions i').fetchall()==items,'finish upgrade preserves linked item receipts')
                 check(c.execute('SELECT count(*) FROM app_world.skill_finish_operations').fetchone()==(0,),'upgrade does not fabricate historical finishes')
                 check(c.execute("SELECT has_table_privilege('public','app_world.skill_finish_operations','INSERT') OR has_sequence_privilege('public','app_world.skill_finish_operations_finish_id_seq','USAGE')").fetchone()==(False,),'finish ledger and allocator have no PUBLIC mutation grants')
+            if args.through_actions:
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
+                casts=c.execute('SELECT to_jsonb(a) FROM app_world.accepted_skill_casts a ORDER BY cast_id').fetchall()
+                finishes=c.execute('SELECT to_jsonb(f) FROM app_world.skill_finish_operations f ORDER BY finish_id').fetchall()
+                source=repo/'database/postgresql/037-native-skill-actions.sql';shutil.copyfile(source,path/source.name)
+                check(apply_migrations(c,path)==[source.name],'action upgrade applies only migration037')
+                check(apply_migrations(c,path)==[],'action upgrade is idempotent')
+                check(c.execute("SELECT * FROM migration_control.applied WHERE name<'037' ORDER BY name").fetchall()==receipts,'all 36 prior migration receipts remain exact')
+                check(c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()==checkpoints,'action upgrade preserves all recovery checkpoints')
+                check(c.execute("SELECT to_jsonb(a)-'charge_action_id' FROM app_world.accepted_skill_casts a ORDER BY cast_id").fetchall()==casts,'action upgrade preserves prior accepted cast fields')
+                check(c.execute('SELECT charge_action_id FROM app_world.accepted_skill_casts').fetchall()==[(None,)],'historical cast has no invented charge origin')
+                check(c.execute('SELECT to_jsonb(f) FROM app_world.skill_finish_operations f ORDER BY finish_id').fetchall()==finishes,'action upgrade preserves exact prior finishes')
+                check(c.execute('SELECT count(*) FROM app_world.skill_action_operations').fetchone()==(0,),'upgrade fabricates no historical skill actions')
+                check(c.execute("SELECT has_table_privilege('public','app_world.skill_action_operations','INSERT') OR has_sequence_privilege('public','app_world.skill_action_operations_action_id_seq','USAGE')").fetchone()==(False,),'action ledger and allocator have no PUBLIC mutation grants')
+                # The new cast -> ACTION FK must not prevent existing character
+                # deletion when both ledgers cascade from the character row.
+                with c.transaction(force_rollback=True):
+                    action=c.execute("INSERT INTO app_world.skill_action_operations(world_id,char_id,previous_action_id,session_key,server_id,owner_token,connection_id,authority_epoch,channel_id,map_id,skill_id,result,charge_ms,request,acknowledgement) VALUES(1,1,0,1,1,%s,1,0,1,0,240,0,300,%s,%s) RETURNING action_id",('a'*64,b'0'*19,b'0'*17)).fetchone()[0]
+                    c.execute('UPDATE app_world.accepted_skill_casts SET charge_action_id=%s WHERE char_id=1',(action,))
+                    c.execute('DELETE FROM app_world."TCHARTABLE" WHERE "dwCharID"=1')
+                    check(c.execute('SELECT (SELECT count(*) FROM app_world.accepted_skill_casts WHERE char_id=1)+(SELECT count(*) FROM app_world.skill_action_operations WHERE char_id=1)').fetchone()==(0,),
+                          'character deletion cascades through linked casts and charge origins without FK conflict')
+                check(c.execute('SELECT charge_action_id FROM app_world.accepted_skill_casts').fetchall()==[(None,)] and
+                      c.execute('SELECT count(*) FROM app_world.skill_action_operations').fetchone()==(0,),
+                      'rolled back character deletion restores original cast and charge state')
             report.update(status='passed',scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
     finally:
         with psycopg.connect(dbname='postgres',**admin) as conn:conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db)))

@@ -1,0 +1,244 @@
+{
+  "status": "verified_bounded_increment",
+  "date": "2026-10-11",
+  "base_commit": "96e8d87ba218149c4fdb0565bc8ed98c57c9032e",
+  "scope": "Native original ACTION validation/charge provenance and First Aid 240 self-finish, extending existing Cure 509; not complete combat or original-client acceptance",
+  "schema": {
+    "migration": "database/postgresql/037-native-skill-actions.sql",
+    "sha256": "c895026dc31e21cc3e24915318865a76a57a447e43cc56463815f991f686789f",
+    "prior_migrations_immutable": "001-036",
+    "historical_cast_charge_reference": "NULL; no fabricated charge"
+  },
+  "source": [
+    {
+      "path": "Client/TClient/CSSenderAll.cpp",
+      "lines": "319-343",
+      "finding": "Original 19-byte ACTION request, SayToAll"
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/CSProtocol.h",
+      "lines": "793-812",
+      "finding": "ACTION opcodes 0x52ae/0x52af; 17-byte ACK"
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "1248-1436;20331-20342",
+      "finding": "Learned/cooldown/MP/HP/previous-action gates; charge starts on ACTION; FINISHSKILL tests base action time"
+    },
+    {
+      "path": "Client/TClient/CSHandler.cpp",
+      "lines": "2033-2269",
+      "finding": "ACTION result handling and client charge start"
+    },
+    {
+      "path": "Client/TClient/TClientGame.cpp",
+      "lines": "3715-3941;10878-10924;15683-15743;24361-24405",
+      "finding": "Client charge/cancel; self/alliance vs main-recall targeting"
+    },
+    {
+      "path": "Client/TClient/TClientSkill.cpp",
+      "lines": "132-142",
+      "finding": "Client spell delay and charge speed use client data; these assets remain absent"
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "4663-4697",
+      "finding": "ACTION may erase effects; active-effect action side effects remain explicitly unsupported"
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "1450-1468;1816-1879;1991-2009",
+      "finding": "GetPureMaxHP/MP excludes aftermath, equipment and all effects; FLOAT growth and DWORD resource arithmetic"
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "1302;2726;3218",
+      "finding": "ACTION, SKILLUSE and LOOPSKILL costs all use pure maxima"
+    }
+  ],
+  "implemented": [
+    "Actual existing ACTION handler routes native own-PC requests into an authoritative PostgreSQL transaction",
+    "Original NOTFOUND=1, SPEEDYUSE=6, NEEDMP=7, NEEDHP=8, NEEDPREVACT=10 gates; ACTION uses HP < cost, not SKILLUSE <=",
+    "ACTION records exact request/ACK and sampled recovery state, without charging resources or setting reuse cooldown",
+    "Separate action head fences concurrent actions, stale core/item/cast/finish snapshots and Map transfers",
+    "Latest successful same-login same-route charge binds at most one accepted ordinary cast; rejected actions preserve it",
+    "First Aid 240 requires a bound charge and source minimum 300ms before the existing atomic FINISHSKILL cure",
+    "Zero-skill ACTION cancels unconsumed charge; later successful action replaces it",
+    "Pending charge persists across primary handoff; new login key cannot inherit it",
+    "Native same-map ACTION audience uses radius64 for skills and neighboring cells for ordinary animations",
+    "Unknown commit closes without automatic write retry or stale logout save",
+    "Derive pure HP/MP independently of equipment/effects/aftermath and use them for percentage ACTION gates and atomic ordinary/loop cast costs"
+  ],
+  "modern_differences": [
+    "Exact length, own-PC identity and current route checks replace trust in client identity/channel",
+    "Require actual charge provenance for charged cure instead of the original conditional last-skill check that could be bypassed by omitting ACTION",
+    "One successful action can authorize at most one accepted cast; zero-skill/superseding successful action invalidates unconsumed charge",
+    "A bound cast retains its charge after later action messages; cancelling an already accepted cast is not inferred",
+    "Elapsed charge uses shared PostgreSQL clock_timestamp across process owners, instead of process-local DWORD uptime. Backward clock movement delays completion; forward clock jumps are an unverified limit",
+    "Missing/invalid charge can still have an accepted SKILLUSE and its costs, as the original charges there; it cannot produce healing or a false finish ACK",
+    "Correction to prior rewrite: percentage costs previously used modified maxima; source pure maxima now restored. No intentional deviation from original resource rule"
+  ],
+  "limits": [
+    "Only own-PC/no-active-effect ACTION success without recall/trap side effects is implemented; non-PC actors and effect removal remain pending",
+    "Own-PC finish selector covers pinned self/alliance cure shapes: 240 First Aid and 509 Cure. Aid 629 uses main-recall targeting and is not self-healed",
+    "Client-side movement/damage/charge-speed interruptions, client animation/spell assets, repeated/linked/loop charges and full target/companion ownership remain unfinished",
+    "There is no invented charge expiry. Source protocol still lacks cast IDs; the previously documented identical-outstanding-finish ambiguity remains",
+    "Party relay, full cross-process visibility, aggro, damage/death/rewards and general gameplay remain unfinished",
+    "No injected database forward-clock jump or lost COMMIT acknowledgement proxy in this increment",
+    "Original client EXE/assets absent; binary build/hash and actual-client acceptance remain blocked",
+    "Replica dispatch drops ACTION without ACK or durable mutation, consistent with original ordinary own-PC replica branch; replica recall/trap side effects remain pending"
+  ],
+  "verification": {
+    "schema_upgrade": {
+      "report": "skill-actions-schema-upgrade.json",
+      "checks": 54
+    },
+    "debug_ctest": {
+      "report": "skill-actions-debug-ctest.xml",
+      "entries": 203,
+      "actual_passes": 188,
+      "internal_fixture_skips": 8,
+      "explicit_fixture_skips": 7,
+      "failures": 0
+    },
+    "asan_ctest": {
+      "report": "skill-actions-asan-ctest.xml",
+      "suites": 40,
+      "passed": 40,
+      "skipped": 0,
+      "failures": 0
+    },
+    "reports": {
+      "debug": "native-skill-actions-debug.json",
+      "asan": "native-skill-actions-asan.json",
+      "release": "native-skill-actions-release.json"
+    },
+    "preservation": {
+      "report": "preservation.json",
+      "files": 39,
+      "scope": "Both original backups and applied migrations001-037 match recorded SHA256"
+    },
+    "source_inventory": {
+      "legacy_translation_units": 206,
+      "modern_translation_units": 245,
+      "exact_opcodes": 1542,
+      "collisions": 9,
+      "mismatches": 0
+    },
+    "source_only_followup": "After binary verification started, corrected misleading ACTION/prototype comments in handlers.h and handlers/combat.cpp. Executable behavior unchanged. Admission fake payload now initializes pure HP/MP; its final Debug/sanitizer CTest runs passed.",
+    "container_report": "skill-actions-container.json",
+    "build_fingerprints": "skill-actions-build-fingerprints.json",
+    "counts": {
+      "debug": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 938
+        },
+        "outer_tcp": 808,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24,
+          "skill_action_wire": 39
+        },
+        "total": 3101
+      },
+      "asan": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 938
+        },
+        "outer_tcp": 808,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24,
+          "skill_action_wire": 39
+        },
+        "total": 3101
+      },
+      "release": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 938
+        },
+        "outer_tcp": 808,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24,
+          "skill_action_wire": 39
+        },
+        "total": 3101
+      }
+    },
+    "native_debug": "passed: 3101 native PostgreSQL/network checks",
+    "native_asan": "passed: 3101 native PostgreSQL/network checks; no sanitizer errors",
+    "cleanup_report": "skill-actions-cleanup.json",
+    "native_backend": "938 native Map plus 29 pool/TLS checks passed in all three harnesses",
+    "installed_release": "passed: 3101 checks; installed Release Login/World/Map with mounted Debug backend integration test",
+    "cleanup": "3 owned labs/networks removed; 89 credential/TLS/runtime files deleted"
+  },
+  "protocol": {
+    "source_version": "0x2918; not executable identity",
+    "supported_binary_build": null,
+    "supported_binary_sha256": null,
+    "new_wire_fields": false
+  },
+  "policy": "Local main only; no push, publication or external deployment",
+  "skipped": {
+    "original_client": "Only uncompiled source available; no EXE/assets",
+    "debug_internal_fixture_skips": 8,
+    "debug_explicit_native_fixture_skips": 7,
+    "unknown_commit_proxy": "No injected lost COMMIT acknowledgement proxy in this increment; no automatic retry, stale-save prevention, late SQL rollback and SIGKILL/reconnect are covered",
+    "clock_adjustments": "Forward PostgreSQL wall-clock jumps were not injected; backward maturity bound tested using a future action timestamp in the owned backend fixture"
+  },
+  "image": {
+    "tag": "localhost/fourstory:postgresql-skill-actions",
+    "id": "a0db8cf193243e0cbe58167633b10fa2bd5492bf89b9a1b3ead172438df9eb2f",
+    "user": "10001:10001"
+  },
+  "unrelated_worktree": "Pre-existing untracked _rewrite/docs/audits retained and excluded"
+}

@@ -28,7 +28,7 @@ std::pair<tmapsvr::SkillCastRequest,tmapsvr::CharSnapshot> PlannedCast(
     request.acknowledgement=loop?EncodeLoopSkillAck(ack,targets):EncodeSkillUseAck(ack,targets);
     auto after=before;
     if(t.items==SkillItemGate::Reagent){const auto item=FindSkillReagent(before,t.wUseItem);if(!item)throw std::runtime_error("fixture reagent missing");request.debits.push_back({*item,1});ConsumeSkillItemProjection(after,request.debits);}
-    after.dwMP-=skill_engine::RequiredMP(t,before.dwMaxMP,row.bLevel);after.dwHP-=skill_engine::RequiredHP(t,before.dwMaxHP,row.bLevel);
+    after.dwMP-=skill_engine::RequiredMP(t,p.pure_max_mp,row.bLevel);after.dwHP-=skill_engine::RequiredHP(t,p.pure_max_hp,row.bLevel);
     SkillAttackTiming timing;if(t.bSpeedApply)timing=(*p.skill_attack_timing)[t.bSpeedApply-1];
     std::vector<std::uint16_t> kind;if(!loop&&t.dwKindDelay)for(const auto& k:p.skill_templates)if(k.bKind==t.bKind)kind.push_back(k.wID);
     SkillCooldownTracker timers;timers.Restore(c.char_id,p.skills,0);

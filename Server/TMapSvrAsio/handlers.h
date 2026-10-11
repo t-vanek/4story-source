@@ -134,6 +134,7 @@ boost::asio::awaitable<void> OnNpcTalkReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnSkillUseReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
@@ -143,10 +144,9 @@ boost::asio::awaitable<void> OnLoopSkillReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body, const HandlerContext& ctx);
 
-// CS_ACTION_REQ — the *animation* half of an attack/skill. The legacy
-// OnCS_ACTION_REQ (CSHandler.cpp:1233) only broadcasts the action to
-// everyone in view (CS_ACTION_ACK); it computes no damage. Lives in
-// handlers/combat.cpp.
+// CS_ACTION_REQ — source eligibility, charge start and animation broadcast.
+// Native own-PC requests enter the PostgreSQL ACTION transaction; accepted
+// casts and FINISHSKILL own the subsequent cost/effect boundaries.
 boost::asio::awaitable<void> OnActionReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,

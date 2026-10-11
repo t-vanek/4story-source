@@ -68,6 +68,18 @@ secondary gameplay remain IMPLEMENTING.
 
 ## Gameplay and durable state
 
+Native `CS_ACTION_REQ`: **IMPLEMENTED/INTEGRATED** own-PC validation, exact result
+ACK and durable charge origin; migration 037 fences actions and binds one charge
+to a later accepted cast. First Aid 240 self-finish enforces its source 300ms
+minimum. Rejected actions preserve the pending charge; explicit zero-skill action
+cancels it. Source resource/reuse checks do not debit resources at charge start.
+**VERIFIED** in Debug, ASan/UBSan and installed Release with native PostgreSQL and
+independent synthetic TCP: original ACK bytes/order, First Aid, pure percentage
+costs, concurrent/stale writes, early finish, primary handoff, crash/reconnect and
+rollback. See [executed action evidence](evidence/skill-actions-contract.json).
+Non-PC/active-effect/recall/trap action side effects, general interruptions and
+actual-client acceptance remain **IMPLEMENTING/UNVERIFIED**.
+
 Original `CS_FINISHSKILL_ACK`: **IMPLEMENTED/INTEGRATED** for the bounded native
 509 self-Cure and empty filtered target list. Actual original packet parsing,
 accepted-cast consumption, current-stat calculation, atomic resources/recovery

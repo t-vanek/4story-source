@@ -1,28 +1,8 @@
-// Combat handlers — the faithful two-packet attack model.
-//
-// A 4Story attack is two messages, mirrored here from the legacy
-// CSHandler.cpp:
-//
-//   CS_ACTION_REQ  (OnCS_ACTION_REQ, CSHandler.cpp:1233) — the *animation*.
-//                  The server broadcasts the action to everyone in view
-//                  (CS_ACTION_ACK) and computes no damage.
-//   CS_DEFEND_REQ  (OnCS_DEFEND_REQ, CSHandler.cpp:1438) — the *damage*.
-//                  The client sends its attack powers (the weapon + stat
-//                  derived phys/magic min/max it rolled client-side); the
-//                  server rolls the final number against the target's
-//                  server-side defense (CTObjBase::Defend) and applies it.
-//
-// This wave ports the physical player→monster path end to end: roll the
-// real damage (services/damage_formula.h, faithful to CalcDamage's A/B/rand
-// core) against the monster's TMONATTRCHART defense, drop its HP, and on
-// death award EXP + respawn it.
-//
-// Deliberately bounded, each documented at its site: magic damage,
-// multi-entry skill-data effects (heals / %-max-HP / transHP-MP / curse),
-// crit / miss / block selection, PvP (OT_PC defender), and the real player
-// defense (needs the equipment/stat layer) are later waves. Until they
-// land the monster→player direction (services/monster_ai.cpp) rolls the
-// same formula against a zero player defense.
+// Native ACTION validates eligibility and starts a durable charge. Ordinary PC
+// effects arrive through FINISHSKILL after an accepted SKILLUSE/LOOPSKILL cast;
+// exception/non-PC DEFEND requires separate target-authority work. Native
+// requests cannot enter the older client-power prototype retained below.
+// That non-native prototype is not evidence of complete gameplay compatibility.
 
 #include "handlers.h"
 
@@ -272,16 +252,19 @@ HitMonster(std::shared_ptr<tnetlib::AsioSession> sess,
 
 } // namespace
 
-// CS_ACTION_REQ — broadcast the attack/skill animation to everyone in
-// view. No damage (that's CS_DEFEND_REQ). Faithful to the legacy
-// OnCS_ACTION_REQ, which decodes the action and Says CS_ACTION_ACK to the
-// neighbors of the target object.
+// Native PCs use source eligibility and durable charge provenance. The older
+// animation-only fallback remains for the non-native prototype.
 boost::asio::awaitable<void>
 OnActionReq(std::shared_ptr<tnetlib::AsioSession> sess,
             std::vector<std::byte>                body,
             const HandlerContext&                 ctx)
 {
     using tnetlib::protocol::MessageId;
+    if(ctx.session_reg&&ctx.char_state)
+        if(const auto cid=ctx.session_reg->FindCharIdBySession(sess.get()))
+            if(const auto s=ctx.char_state->Get(*cid);s&&s->payload) {
+                co_await OnNativeAction(sess,std::move(body),ctx);co_return;
+            }
 
     // Wire (legacy CSHandler.cpp:1248):
     //   DWORD obj_id, BYTE obj_type, BYTE action_id, DWORD act_id,

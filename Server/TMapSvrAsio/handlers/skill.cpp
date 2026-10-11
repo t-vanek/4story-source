@@ -193,8 +193,8 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             if(loop&&timers->RemainMs(cid,wSkillID,now)){ack.result=SKILL_SPEEDYUSE;return;}
         }
         if(definition) {
-            req_mp=skill_engine::RequiredMP(*definition,cs.dwMaxMP,rank);
-            req_hp=skill_engine::RequiredHP(*definition,cs.dwMaxHP,rank);
+            req_mp=skill_engine::RequiredMP(*definition,cs.payload?cs.payload->pure_max_mp:cs.dwMaxMP,rank);
+            req_hp=skill_engine::RequiredHP(*definition,cs.payload?cs.payload->pure_max_hp:cs.dwMaxHP,rank);
         }
         if(cs.dwMP<req_mp){ack.result=SKILL_NEEDMP;return;}
         // Source refuses HP <= cost even for cost zero (dead caster).

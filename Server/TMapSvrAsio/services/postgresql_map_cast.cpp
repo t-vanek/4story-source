@@ -82,7 +82,7 @@ CharSnapshot PostgreSQLMapService::ValidateSkillCast(soci::session& sql,const Ma
     if((!request.loop&&t.wMapID!=0xffff&&t.wMapID!=before.wMapID)||(request.loop?t.wTargetActiveID:t.wPrevActiveID)||
        learned->dwRemainTick||t.items==SkillItemGate::Unsupported||t.items==SkillItemGate::Unsuitable)
         throw std::runtime_error("Accepted cast failed source eligibility gates");
-    const auto hp=skill_engine::RequiredHP(t,expected.dwMaxHP,rank),mp=skill_engine::RequiredMP(t,expected.dwMaxMP,rank);
+    const auto hp=skill_engine::RequiredHP(t,p.pure_max_hp,rank),mp=skill_engine::RequiredMP(t,p.pure_max_mp,rank);
     if(expected.dwMP<mp||(request.loop?expected.dwHP<hp:expected.dwHP<=hp))throw std::runtime_error("Cast is not affordable");
     std::vector<SkillItemDebit> selected;
     if(t.items==SkillItemGate::Reagent) {

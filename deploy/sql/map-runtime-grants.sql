@@ -44,4 +44,6 @@ GRANT UPDATE("bLevel","dwEXP","dwHP","dwMP","dwGold","dwSilver","dwCooper","wSki
     "wMapID","wSpawnID","wLastSpawnID","dwLastDestination","wTemptedMon","bAftermath","bStartAct",
     "fPosX","fPosY","fPosZ","wDIR","bStatLevel","bStatPoint","dwStatExp","dLogoutDate")
     ON app_world."TCHARTABLE" TO :"map_role";
+GRANT INSERT ON app_world.skill_action_operations TO :"map_role";
+GRANT USAGE ON SEQUENCE app_world.skill_action_operations_action_id_seq TO :"map_role";
 COMMIT;

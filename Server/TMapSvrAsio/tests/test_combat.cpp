@@ -8,6 +8,7 @@
 #include "services/monster_ai.h"
 #include "services/client_senders.h"
 #include "services/finish_skill.h"
+#include "services/skill_action.h"
 #include "domain/monster.h"
 #include "domain/position.h"
 #include "wire_codec.h"
@@ -47,6 +48,17 @@ int main()
         EXPECT(!FinishTargetsMatch({{7,1},{8,1}},{{8,1},{7,1}}));
         EXPECT(!FinishTargetsMatch({{7,2}},{{7,1}}));
         EXPECT(FinishTargetsMatch({{7,1}},{}));
+    }
+
+    // CSSenderAll ACTION layout: exact 19-byte source packet, no framing.
+    {
+        const unsigned char raw[]={7,0,0,0,1,2,3,0,0,0,4,0,0,0,1,0,0,240,0};
+        std::vector<std::byte> packet;for(auto b:raw)packet.push_back(static_cast<std::byte>(b));
+        const auto r=DecodeSkillAction(packet);
+        EXPECT(r.object==7&&r.type==1&&r.action==2&&r.act==3&&r.animation==4&&r.channel==1&&r.map==0&&r.skill==240);
+        const auto rejected=[](auto bytes){try{DecodeSkillAction(bytes);return false;}catch(...){return true;}};
+        for(std::size_t n=0;n<packet.size();++n)EXPECT(rejected(std::span<const std::byte>(packet.data(),n)));
+        packet.push_back(std::byte{0});EXPECT(rejected(packet));
     }
 
     // --- registry ApplyDamage: subtract, clamp-to-zero, miss ----------

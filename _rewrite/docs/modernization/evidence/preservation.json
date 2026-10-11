@@ -41,7 +41,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "TGLOBAL_RAGEZONE.bak",
@@ -84,7 +85,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/001-import-control.sql",
@@ -127,7 +129,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/002-legacy-snapshots.sql",
@@ -170,7 +173,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/003-canonical-content.sql",
@@ -213,7 +217,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/004-source-text-bytes.sql",
@@ -256,7 +261,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/005-runtime-catalog-control.sql",
@@ -300,7 +306,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/006-current-chart-contracts.sql",
@@ -344,7 +351,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/007-catalog-runtime-metadata.sql",
@@ -388,7 +396,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/008-native-login.sql",
@@ -430,7 +439,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/009-login-runtime-owner.sql",
@@ -471,7 +481,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/010-login-security-challenges.sql",
@@ -511,7 +522,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/011-character-reference-catalog.sql",
@@ -550,7 +562,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/012-native-characters.sql",
@@ -589,7 +602,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/013-character-item-allocation-floor.sql",
@@ -628,7 +642,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/014-routing-reference-catalog.sql",
@@ -665,7 +680,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/015-native-map-handoff.sql",
@@ -702,7 +718,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/016-native-map-ownership.sql",
@@ -738,7 +755,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/017-map-actor-reference-catalog.sql",
@@ -774,7 +792,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/018-native-map-checkpoints.sql",
@@ -810,7 +829,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/019-native-map-replicas.sql",
@@ -842,7 +862,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/020-native-main-transfer.sql",
@@ -871,7 +892,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/021-native-skill-checkpoints.sql",
@@ -899,7 +921,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/022-native-skill-consumption.sql",
@@ -921,7 +944,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/023-graph-skill-consumption.sql",
@@ -942,7 +966,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/024-native-skill-ammunition.sql",
@@ -961,7 +986,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/025-native-ammunition-batches.sql",
@@ -979,7 +1005,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/026-native-multi-attack.sql",
@@ -996,7 +1023,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/027-native-inventory-moves.sql",
@@ -1012,7 +1040,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/028-native-inventory-stacks.sql",
@@ -1027,7 +1056,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/029-native-audit.sql",
@@ -1041,7 +1071,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/030-character-statistics.sql",
@@ -1054,7 +1085,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/031-actor-graph-compatibility.sql",
@@ -1066,7 +1098,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/032-native-equipment.sql",
@@ -1077,7 +1110,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/033-native-maintained-postures.sql",
@@ -1087,7 +1121,8 @@
       "effect_end_increment_matches": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/034-native-effect-cancellation.sql",
@@ -1097,18 +1132,27 @@
       "immutable_after_application": true,
       "cast_powers_increment_matches": true,
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/035-native-skill-casts.sql",
       "sha256": "f397cca9582c10c162d4d74af72adcac7e8f193e083704b7aec804567a7d01e4",
       "accepted_casts_increment_matches": true,
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
     },
     {
       "path": "database/postgresql/036-native-skill-finishes.sql",
       "sha256": "12d60ff0a3a6202d50dfa16fc622be60c01afd11a9e20d8d16f0f7eae6785244",
-      "skill_finish_increment_matches": true
+      "skill_finish_increment_matches": true,
+      "skill_actions_increment_matches": true
+    },
+    {
+      "path": "database/postgresql/037-native-skill-actions.sql",
+      "sha256": "c895026dc31e21cc3e24915318865a76a57a447e43cc56463815f991f686789f",
+      "skill_actions_increment_matches": true,
+      "immutable_after_application": true
     }
   ]
 }

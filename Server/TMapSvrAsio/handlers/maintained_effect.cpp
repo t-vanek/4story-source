@@ -11,6 +11,39 @@
 #include <cmath>
 
 namespace tmapsvr {
+boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte> body,const HandlerContext& ctx) {
+    const auto request=DecodeSkillAction(body);
+    const auto identity=ctx.session_reg?ctx.session_reg->Identity(sess.get()):std::nullopt;
+    if(!identity||identity->role!=MapSessionRole::Primary||request.object!=identity->char_id||request.type!=1||
+       !ctx.char_state||!ctx.player_service||!ctx.skill_cooldown)
+        throw std::runtime_error("ACTION requires an authoritative own PC");
+    const auto cid=identity->char_id;const auto original=ctx.char_state->Freeze(cid,[](auto&){});
+    if(!original)co_return;
+    SkillActionCommit committed;
+    try {
+        const auto before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,SkillClockMs());
+        auto* service=ctx.player_service;
+        committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&body,&before]{
+            return service->CommitSkillAction(claim,body,before);
+        });
+        if(!committed.snapshot)throw std::runtime_error("Missing action commit state");
+        ctx.char_state->Store(cid,*committed.snapshot);
+    }catch(...) {
+        auto uncertain=*original;uncertain.persistence_uncertain=true;
+        ctx.char_state->Store(cid,uncertain);sess->Close();throw;
+    }
+    const auto& after=*committed.snapshot;
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{sess};
+    const auto cell=[](float value)->int{return std::isfinite(value)&&value>=0&&value<65536?static_cast<std::uint16_t>(value)/64:-10000;};
+    if(ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto client){
+        if(entry.map_id!=after.wMapID)return;
+        const bool nearby=request.skill?std::hypot(entry.pos.x-after.fPosX,entry.pos.z-after.fPosZ)<=64.f:
+            std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1;
+        if(nearby)neighbors.push_back(std::move(client));
+    });
+    for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ACTION_ACK),committed.acknowledgement);
+}
 boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx) {
     const auto request=DecodeFinishSkill(body);

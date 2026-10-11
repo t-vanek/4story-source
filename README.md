@@ -20,7 +20,31 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Verified functionality
 
-Current increment (2026-10-11): the original **CS_FINISHSKILL_ACK** path is integrated.
+Current increment (2026-10-11) replaces native **ACTION** placeholder success with
+source learned-skill, cooldown and resource validation. Migration **037** records
+charge provenance and binds it once to an accepted cast. **First Aid 240** now
+finishes its own-PC cure after the backup's 300ms charge; ACTION itself deducts no
+resources. Cancellation, stale-owner fencing and recovery extend the existing
+native transaction path. Aid 629 requires a recall target and remains outside
+own-PC healing. See [action/charge evidence](_rewrite/docs/modernization/evidence/skill-actions-contract.json)
+and [local startup](deploy/README.md#native-skill-actions-and-charging).
+Percentage costs now use the original pure HP/MP maxima, excluding aftermath,
+equipment and effects; the previous rewrite used modified visible maxima.
+Full charge interruptions, targets, combat and original-client acceptance remain
+unfinished. Current local build tag: `localhost/fourstory:postgresql-skill-actions`.
+
+**3,101 native database/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release (installed daemons with the Debug backend test).
+This includes 938 native Map, 29 pool/TLS and 2,134 TCP checks. The independent
+ACTION fixture verifies all 17 ACK bytes, source percentage costs with aftermath,
+charged First Aid, cancellation, old-login rejection, SIGKILL/reconnect and late
+SQL rollback. Backend tests cover concurrent actions, stale snapshots, early
+finish rejection and charge across primary handoff. Debug CTest has 188 actual
+passes and 15 fixture skips; all 40 sanitizer suites and 54 schema-upgrade checks
+pass. Six installed daemons pass health/DNS/SIGTERM. Original-client acceptance
+is still blocked by missing EXE/assets; these results certify only the stated scope.
+
+Previous increment (2026-10-11): the original **CS_FINISHSKILL_ACK** path is integrated.
 Client `ShotSkill`/`FinishSkill` sends this message for ordinary PC skills; most
 player hits do not use `CS_DEFEND_REQ`. Migration **036** adds one-use finish
 receipts and stale-snapshot fencing. The first bounded effect is learned skill
@@ -28,7 +52,7 @@ receipts and stale-snapshot fencing. The first bounded effect is learned skill
 other finish branches remain incomplete. Verification is recorded in
 [the finish contract](_rewrite/docs/modernization/evidence/skill-finish-contract.json).
 Native `DEFEND` requests now refuse the unfinished client-authoritative prototype.
-No supported original executable build is claimed. The current local image is
+No supported original executable build is claimed. That increment used
 `localhost/fourstory:postgresql-skill-finish`; see the
 [local build/startup procedure](deploy/README.md#native-skill-finishes).
 
@@ -120,7 +144,7 @@ cancellation side effects, timed expiry, zero-MP removal during `Defend` and ite
 posture skills and remote visibility still require implementation and acceptance.
 Only uncompiled client sources are available; no supported executable build/hash,
 assets or original-client acceptance is claimed. Backups and applied migrations
-**001–036** are immutable; next migration **037**.
+**001–037** are immutable; next migration **038**.
 
 The preceding **native equipment** increment (032) verified ordinary equip,
 unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per

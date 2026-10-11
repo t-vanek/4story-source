@@ -73,9 +73,11 @@ struct SkillTemplate
     std::uint8_t bAmmoKind = 0; // pinned first compatible weapon
     std::optional<SkillMultiAttack> multi_attack; // native pinned rank projection
     std::optional<SkillAttackProfile> attack_profile;
-    // Narrow source-derived finish capability: learned, non-linked, instant,
+    // Narrow source-derived finish capability: learned, non-linked, instant or charge-bound,
     // guaranteed-hit positive cure rows. Empty means not yet supported.
     std::vector<SkillDataRow> instant_cure;
+    std::uint32_t action_time{}; // source dwActionTime, milliseconds
+    bool action_supported{}; // no unported recall/trap action side effects
 };
 
 struct SkillAttackTiming {

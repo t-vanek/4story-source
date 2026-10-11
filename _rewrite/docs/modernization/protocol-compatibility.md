@@ -21,7 +21,42 @@ there means a per-packet behavior review has not been completed; it does not mea
 the referenced modern handler is absent. Add reviewed evidence as each slice is
 completed rather than converting references into coverage percentages.
 
-## Primary FINISHSKILL and bounded self-cure (2026-10-11)
+## Native ACTION and charged First Aid (2026-10-11)
+
+`CSSenderAll.cpp:319–343` sends the original 19-byte ACTION request to every
+connection; `CSProtocol.h:793–812` defines opcodes 0x52ae/0x52af. The 17-byte ACK
+is result BYTE, object DWORD, type/action BYTE, act/animation DWORD and skill WORD.
+Native own-PC processing preserves the source gate order and return codes from
+`CSHandler.cpp:1248–1436`. ACTION does not debit resources or arm reuse. The
+accepted cast remains the cost boundary; FINISHSKILL remains the effect boundary.
+
+Migration 037 binds one successful same-login/same-route ACTION to at most one
+ordinary accepted cast. First Aid 240 then requires its source 300ms minimum.
+Rejected actions preserve a pending charge, and primary handoff retains it. A
+new login cannot inherit it. This provenance requirement and zero-skill ACTION
+cancellation are deliberate stricter repairs; the original conditional last-skill
+check allowed missing ACTION to bypass charge validation. A bound cast retains
+its origin after later actions. No new field or guessed expiry is introduced.
+Shared PostgreSQL time replaces process-local uptime for cross-owner timing;
+forward clock jumps, movement/damage interruption and complete charge-speed
+semantics still require verification. Successful ACTION with active effects or
+recall/trap side effects remains explicitly unsupported.
+
+Source audit also corrected the prior native percentage-cost base. ACTION,
+SKILLUSE and LOOPSKILL now use `GetPureMaxHP/MP` semantics: race/class/level and
+FLOAT growth, excluding aftermath, equipment and all effects
+(`TObjBase.cpp:1450–1468,1816–1879,1991–2009`). The original server uses those
+pure values at `CSHandler.cpp:1302,2726,3218`; using visible maxima was a rewrite
+bug. The TCP oracle derives skill34's five-percent MP cost independently from
+backup formulas and creates different pure/visible maxima with aftermath100.
+No imported source values are changed.
+
+The self-cure selector accepts source targets SELF/ALLIANCE, covering First Aid240
+and Cure509. Aid629 targets MAINRECALL, so its cure rows do not authorize own-PC
+healing. Companion ownership, general effects and actual client acceptance remain
+pending. See [source and executed evidence](evidence/skill-actions-contract.json).
+
+## Previous primary FINISHSKILL and bounded self-cure (2026-10-11)
 
 Original `TClientGame.cpp:14050–14108,28759–28830` routes ordinary PC skills through
 `FinishSkill`; `CSSender.cpp:2980–3019` sends 0x55f7 on the primary session with

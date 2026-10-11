@@ -3,6 +3,7 @@
 #include "maintained_effects.h"
 #include "posture_effects.h"
 #include "skill_effect.h"
+#include "skill_engine.h"
 #include "MessageId.h"
 #include <openssl/rand.h>
 #include <openssl/sha.h>
@@ -305,14 +306,26 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
         const long long generation=c.connection_id,epoch=c.authority_epoch,previous=cast_before->payload->last_cast_id;
         const long long bhp=cast_before->dwHP,ahp=after.dwHP,bmp=cast_before->dwMP,amp=after.dwMP;
         const int is_loop=cast->loop?1:0;
-        sql<<"INSERT INTO app_world.accepted_skill_casts(world_id,char_id,server_id,owner_token,connection_id,session_key,authority_epoch,previous_cast_id,state_contract,skill_id,skill_rank,is_loop,request,acknowledgement,before_hp,after_hp,before_mp,after_mp,before_skills,after_skills,before_effects,after_effects,before_graph_hash,after_graph_hash,core_fingerprint) "
-             "VALUES(:w,:c,:s,:t,:g,:k,:e,:prev,:contract,:skill,:rank,:loop=1,decode(:req,'hex'),decode(:ack,'hex'),:bhp,:ahp,:bmp,:amp,CAST(:bs AS jsonb),CAST(:as AS jsonb),CAST(:be AS jsonb),CAST(:ae AS jsonb),NULLIF(:gb,''),NULLIF(:ga,''),:f) RETURNING cast_id",
+        long long charge_action=0;
+        if(!cast->loop) {
+            const int channel=c.channel,map=after.wMapID;
+            // Only the latest successful ACTION in this login can begin a new
+            // charge. Rejected ACTIONs preserve it; skill=0 explicitly cancels.
+            sql<<"SELECT x.action_id FROM app_world.skill_action_operations x WHERE x.world_id=:w AND x.char_id=:c AND x.session_key=:k "
+                 "AND x.action_id=(SELECT max(action_id) FROM app_world.skill_action_operations WHERE world_id=:w AND char_id=:c AND session_key=:k AND result=0) "
+                 "AND x.skill_id=:skill AND x.charge_ms>0 AND x.channel_id=:channel AND x.map_id=:map "
+                 "AND NOT EXISTS(SELECT 1 FROM app_world.accepted_skill_casts a WHERE a.charge_action_id=x.action_id)",
+                soci::use(world,"w"),soci::use(character,"c"),soci::use(session_key,"k"),soci::use(id,"skill"),
+                soci::use(channel,"channel"),soci::use(map,"map"),soci::into(charge_action);
+        }
+        sql<<"INSERT INTO app_world.accepted_skill_casts(world_id,char_id,server_id,owner_token,connection_id,session_key,authority_epoch,previous_cast_id,state_contract,skill_id,skill_rank,is_loop,request,acknowledgement,before_hp,after_hp,before_mp,after_mp,before_skills,after_skills,before_effects,after_effects,before_graph_hash,after_graph_hash,core_fingerprint,charge_action_id) "
+             "VALUES(:w,:c,:s,:t,:g,:k,:e,:prev,:contract,:skill,:rank,:loop=1,decode(:req,'hex'),decode(:ack,'hex'),:bhp,:ahp,:bmp,:amp,CAST(:bs AS jsonb),CAST(:as AS jsonb),CAST(:be AS jsonb),CAST(:ae AS jsonb),NULLIF(:gb,''),NULLIF(:ga,''),:f,NULLIF(:charge,0)) RETURNING cast_id",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
             soci::use(generation,"g"),soci::use(session_key,"k"),soci::use(epoch,"e"),soci::use(previous,"prev"),
             soci::use(contract,"contract"),soci::use(id,"skill"),soci::use(rank,"rank"),soci::use(is_loop,"loop"),
             soci::use(request_hex,"req"),soci::use(ack_hex,"ack"),soci::use(bhp,"bhp"),soci::use(ahp,"ahp"),soci::use(bmp,"bmp"),soci::use(amp,"amp"),
             soci::use(bs,"bs"),soci::use(as,"as"),soci::use(be,"be"),soci::use(ae,"ae"),
-            soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga"),soci::use(cast_fingerprint,"f"),soci::into(accepted_cast);
+            soci::use(graph_plan.before_hash,"gb"),soci::use(graph_plan.after_hash,"ga"),soci::use(cast_fingerprint,"f"),soci::use(charge_action,"charge"),soci::into(accepted_cast);
         p=std::make_shared<CharacterPayload>(*after.payload);p->last_cast_id=static_cast<std::uint64_t>(accepted_cast);after.payload=std::move(p);
     }
     const auto fingerprint=Fingerprint(c,after);
@@ -343,6 +356,58 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
     }
     if(cast_result)cast_result->snapshot=std::make_shared<const CharSnapshot>(after);
     tx->commit();return hashes;
+}
+SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim& c,std::span<const std::byte> body,
+    const CharSnapshot& before) {
+    const auto request=DecodeSkillAction(body);
+    if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain||
+       request.object!=c.char_id||request.type!=1||request.channel!=c.channel||request.map!=before.wMapID)
+        throw std::runtime_error("ACTION requires an authoritative own PC and route");
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Action claim is not ready primary");
+    CheckCatalogs(sql);
+    const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+    const bool graph=bool(before.payload->transfer_state);
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
+        throw std::runtime_error("Action recovery receipt changed");
+    const long long key=c.key;int unlocked=0;
+    sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
+    if(!sql.got_data())throw std::runtime_error("Action session was revoked");
+    ValidateInventoryState(sql,c,before,true);
+    auto after=before;RefreshEquipment(sql,after,true);
+    if(after.dwHP!=before.dwHP||after.dwMP!=before.dwMP)throw std::runtime_error("Action resources exceed source maximum");
+    std::uint8_t result=SKILL_SUCCESS;std::uint32_t charge=0;
+    if(request.skill) {
+        const auto& p=*after.payload;
+        const auto learned=std::find_if(p.skills.begin(),p.skills.end(),[&](const auto& s){return s.wSkillID==request.skill&&s.bLevel;});
+        const auto definition=std::find_if(p.skill_templates.begin(),p.skill_templates.end(),[&](const auto& t){return t.wID==request.skill;});
+        if(learned==p.skills.end()||definition==p.skill_templates.end())result=SKILL_NOTFOUND;
+        else if(learned->dwRemainTick)result=SKILL_SPEEDYUSE;
+        else if(after.dwMP<skill_engine::RequiredMP(*definition,p.pure_max_mp,learned->bLevel))result=SKILL_NEEDMP;
+        // ACTION uses <, unlike ordinary SKILLUSE's <= HP gate.
+        else if(after.dwHP<skill_engine::RequiredHP(*definition,p.pure_max_hp,learned->bLevel))result=SKILL_NEEDHP;
+        else if(definition->wPrevActiveID)result=SKILL_NEEDPREVACT;
+        else {
+            if(!definition->action_supported||!MaintainedEffects(p).empty())
+                throw std::runtime_error("ACTION effect/recall side effects are not implemented");
+            charge=definition->action_time;
+        }
+    }
+    SkillActionCommit committed;committed.acknowledgement=EncodeActionAck(result,c.char_id,1,request.action,request.act,request.animation,request.skill);
+    const auto hex=[](auto bytes){constexpr char digits[]="0123456789abcdef";std::string out;
+        for(auto v:bytes){const auto b=std::to_integer<unsigned>(v);out+=digits[b>>4];out+=digits[b&15];}return out;};
+    const auto request_hex=hex(body),ack_hex=hex(committed.acknowledgement),fingerprint=Fingerprint(c,after);
+    const int world=c.group,character=c.char_id,server=m_config.server,channel=c.channel,map=before.wMapID,skill=request.skill,code=result;
+    const long long generation=c.connection_id,epoch=c.authority_epoch,previous=before.payload->last_action_id,duration=charge;long long action=0;
+    sql<<"INSERT INTO app_world.skill_action_operations(world_id,char_id,previous_action_id,session_key,server_id,owner_token,connection_id,authority_epoch,channel_id,map_id,skill_id,result,charge_ms,request,acknowledgement) "
+         "VALUES(:w,:c,:previous,:k,:s,:t,:g,:e,:channel,:map,:skill,:result,:duration,decode(:request,'hex'),decode(:ack,'hex')) RETURNING action_id",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(key,"k"),soci::use(server,"s"),
+        soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(channel,"channel"),soci::use(map,"map"),
+        soci::use(skill,"skill"),soci::use(code,"result"),soci::use(duration,"duration"),soci::use(request_hex,"request"),soci::use(ack_hex,"ack"),soci::into(action);
+    auto payload=std::make_shared<CharacterPayload>(*after.payload);payload->last_action_id=static_cast<std::uint64_t>(action);after.payload=std::move(payload);
+    WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
+    committed.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return committed;
 }
 FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std::span<const std::byte> body,
     const CharSnapshot& before) {
@@ -383,11 +448,14 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     // The account/claim lock serializes cast, finish and handoff transactions.
     {
         soci::rowset<soci::row> casts=(sql.prepare<<
-            "SELECT cast_id,CASE WHEN is_loop THEN 1 ELSE 0 END,encode(request,'hex'),encode(acknowledgement,'hex') "
+            "SELECT cast_id,CASE WHEN is_loop THEN 1 ELSE 0 END,encode(request,'hex'),encode(acknowledgement,'hex'),"
+            "CASE WHEN EXISTS(SELECT 1 FROM app_world.skill_action_operations x WHERE x.action_id=a.charge_action_id "
+            "AND x.charge_ms>0 AND x.charge_ms<=EXTRACT(EPOCH FROM (clock_timestamp()-x.started_at))*1000) THEN 1 ELSE 0 END "
             "FROM app_world.accepted_skill_casts a WHERE world_id=:w AND char_id=:c AND session_key=:k AND skill_id=:skill "
             "AND NOT EXISTS(SELECT 1 FROM app_world.skill_finish_operations f WHERE f.accepted_cast_id=a.cast_id) ORDER BY cast_id",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(key,"k"),soci::use(skill,"skill"));
         for(const auto& row:casts) {
+            if(definition.action_time&&row.get<int>(4)!=1)continue;
             const auto original=unhex(row.get<std::string>(2)),ack=unhex(row.get<std::string>(3));
             const bool loop=row.get<int>(1)!=0;const std::size_t fixed=loop?45:62;
             if(original.size()<10||ack.size()<fixed)throw std::runtime_error("Malformed accepted cast receipt");
@@ -568,6 +636,8 @@ void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClai
     if(static_cast<std::uint64_t>(head)!=s.payload->last_cast_id)throw std::runtime_error("Snapshot predates accepted cast");
     sql<<"SELECT COALESCE(max(finish_id),0) FROM app_world.skill_finish_operations WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
     if(static_cast<std::uint64_t>(head)!=s.payload->last_finish_id)throw std::runtime_error("Snapshot predates finished skill");
+    sql<<"SELECT COALESCE(max(action_id),0) FROM app_world.skill_action_operations WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
+    if(static_cast<std::uint64_t>(head)!=s.payload->last_action_id)throw std::runtime_error("Snapshot predates skill action");
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
     CheckCastHead(sql,claim,s);

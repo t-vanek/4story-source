@@ -73,8 +73,11 @@ public:
     // Read loop. Returns when peer closes or framing breaks.
     boost::asio::awaitable<void> Run(PacketHandler on_packet);
 
-    // Build + send one frame. Header (size + checksum) is computed
-    // here so callers only ship body bytes.
+    // One complete frame at a time, including across coroutine suspension.
+    // Both plain and TLS paths keep at most 256 pending frames / 4 MiB.
+    // Overflow, malformed output and write failure close the connection and
+    // wake queued senders; bytes are never retried on a replacement socket.
+    // Run/SendPacket/Close belong to the runtime's single I/O thread.
     boost::asio::awaitable<void> SendPacket(std::uint16_t wId,
                                             std::vector<std::byte> body);
 
@@ -134,7 +137,8 @@ private:
     std::string                           m_remote_ipv4;
     std::string                           m_peer_cn;
     std::vector<std::string>              m_peer_sans;
-    std::vector<std::byte>                m_send_scratch;
+    struct SendState;
+    std::shared_ptr<SendState>            m_send_state;
     std::chrono::steady_clock::time_point m_connected_at{
         std::chrono::steady_clock::now()};
     std::atomic<std::chrono::steady_clock::rep> m_last_recv_at{

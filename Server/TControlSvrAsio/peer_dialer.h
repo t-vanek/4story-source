@@ -70,7 +70,9 @@ public:
     // port. Returns a PeerSession on success (already registered
     // with PeerRegistry). On failure returns a result with an empty
     // session and a human-readable reason in `failure_reason`.
-    boost::asio::awaitable<PeerDialResult> Dial(const ServiceInstance& svc);
+    // Runtime passes publish=false and exposes the peer only after the
+    // Control-role frame and complete ordered event replay have been written.
+    boost::asio::awaitable<PeerDialResult> Dial(const ServiceInstance& svc,bool publish=true);
 
 private:
     boost::asio::io_context&    m_io;

@@ -47,7 +47,10 @@ void PeerRegistry::Rebind(const IServiceInventory& inventory)
     for (auto it = m_conn.begin(); it != m_conn.end(); )
     {
         if (m_idx.find(it->first) == m_idx.end())
+        {
+            if(it->second&&it->second->Wire())it->second->Wire()->Close();
             it = m_conn.erase(it);
+        }
         else
             ++it;
     }
@@ -91,6 +94,13 @@ void PeerRegistry::SetConnection(std::uint32_t service_id,
 void PeerRegistry::ClearConnection(std::uint32_t service_id)
 {
     m_conn.erase(service_id);
+}
+
+bool PeerRegistry::ClearConnection(std::uint32_t service_id,const std::shared_ptr<PeerSession>& expected)
+{
+    const auto it=m_conn.find(service_id);
+    if(it==m_conn.end()||it->second!=expected)return false;
+    m_conn.erase(it);return true;
 }
 
 std::vector<std::shared_ptr<PeerSession>>

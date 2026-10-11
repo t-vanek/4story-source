@@ -12,10 +12,14 @@
 // supply one.
 
 #include "event_types.h"
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/experimental/channel.hpp>
 
 #include <cstdint>
 #include <optional>
 #include <map>
+#include <memory>
+#include <utility>
 #include <vector>
 
 namespace tcontrolsvr {
@@ -46,7 +50,20 @@ public:
     std::size_t Size() const { return m_events.size(); }
     bool Mutating() const { return m_mutating; }
     bool TryBeginMutation() { if(m_mutating)return false;m_mutating=true;return true; }
-    void EndMutation() { m_mutating=false; }
+    void EndMutation();
+    class MutationLease {
+    public:
+        explicit MutationLease(EventRegistry& owner):m_owner(&owner){}
+        MutationLease(MutationLease&& other) noexcept:m_owner(std::exchange(other.m_owner,nullptr)){}
+        MutationLease(const MutationLease&)=delete;
+        MutationLease& operator=(const MutationLease&)=delete;
+        ~MutationLease(){if(m_owner)m_owner->EndMutation();}
+    private:
+        EventRegistry* m_owner;
+    };
+    // One reactor-owned gate for CRUD, scheduler delivery, manual pushes and
+    // peer replay. Never keep a pointer into the map across an unguarded await.
+    boost::asio::awaitable<MutationLease> AcquireMutation();
 
     // Overlap check used by CT_EVENTCHANGE_REQ. Compares against
     // every existing event of the same kind. `update_index` is the
@@ -64,6 +81,8 @@ private:
     std::map<std::uint32_t, EventInfo>  m_events;
     std::uint32_t                                 m_next_index = 0;
     bool m_mutating=false; // io_context-owned guard across offloaded persistence.
+    using MutationSignal=boost::asio::experimental::channel<void(boost::system::error_code,int)>;
+    std::shared_ptr<MutationSignal> m_mutation_signal;
 };
 
 } // namespace tcontrolsvr

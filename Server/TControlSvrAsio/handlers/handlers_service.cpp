@@ -220,7 +220,7 @@ OnNewConnectReq(std::shared_ptr<OperatorSession> op,
     if (!op->LoggedIn()) co_return;
     wire::Reader r(body);
     std::uint32_t service_id = 0;
-    if (!r.Read(service_id)) co_return;
+    if (!r.Read(service_id)||!r.Eof()) co_return;
 
     if (!ctx.peers || !ctx.dialer)
     {
@@ -229,11 +229,15 @@ OnNewConnectReq(std::shared_ptr<OperatorSession> op,
         co_return;
     }
 
-    if (ctx.peers->Connection(service_id))
+    std::optional<EventRegistry::MutationLease> event_delivery;
+    if(ctx.events)event_delivery.emplace(co_await ctx.events->AcquireMutation());
+    if(ctx.check_owner)co_await ctx.check_owner();
+    if (auto connected=ctx.peers->Connection(service_id))
     {
         // Legacy: silently ignore — already connected. The GUI sees
         // the existing status update via the 1Hz monitor sweep.
-        co_return;
+        if(connected->Wire()&&connected->Wire()->IsOpen())co_return;
+        ctx.peers->ClearConnection(service_id,connected);
     }
 
     const auto* svc = ctx.peers->FindService(service_id);
@@ -244,13 +248,26 @@ OnNewConnectReq(std::shared_ptr<OperatorSession> op,
         co_return;
     }
 
-    auto result = co_await ctx.dialer->Dial(*svc);
+    // Topology reload may replace its backing vector while Dial is suspended.
+    const auto service=*svc;
+    auto result = co_await ctx.dialer->Dial(service,false);
     if (!result.session)
     {
         spdlog::warn("CT_NEWCONNECT_REQ svc_id={:08x} dial failed: {}",
             service_id, result.failure_reason);
         co_return;
     }
+    struct UnpublishedPeer {
+        std::shared_ptr<PeerSession> peer;
+        bool published=false;
+        ~UnpublishedPeer(){if(!published)peer->Wire()->Close();}
+    } pending{result.session};
+    if(ctx.check_owner)co_await ctx.check_owner();
+    const auto* current=ctx.peers->FindService(service_id);
+    if(!current||current->group_id!=service.group_id||current->type_id!=service.type_id||
+       current->server_id!=service.server_id||current->machine_id!=service.machine_id||current->port!=service.port)
+        co_return;
+    if(auto connected=ctx.peers->Connection(service_id);connected&&connected->Wire()->IsOpen())co_return;
 
     // Handshake — say "hello, I am control" so the peer knows the
     // socket should be treated as a TControlSvr peer rather than a
@@ -264,16 +281,16 @@ OnNewConnectReq(std::shared_ptr<OperatorSession> op,
     // payload. LoginSvr / MapSvr / WorldSvr only — the other peer
     // types don't consume event broadcasts.
     if (ctx.events &&
-        (svc->type_id == svr_type::kLoginSvr ||
-         svc->type_id == svr_type::kMapSvr   ||
-         svc->type_id == svr_type::kWorldSvr))
+        (service.type_id == svr_type::kLoginSvr ||
+         service.type_id == svr_type::kMapSvr   ||
+         service.type_id == svr_type::kWorldSvr))
     {
         for (const auto& ev : ctx.events->Snapshot())
         {
             if (ev.state == 0)                       continue;
-            if (ev.server_type != svc->type_id)      continue;
-            if (ev.group_id  != 0 && ev.group_id  != svc->group_id)  continue;
-            if (ev.server_id != 0 && ev.server_id != svc->server_id) continue;
+            if (ev.server_type != service.type_id)      continue;
+            if (ev.group_id  != 0 && ev.group_id  != service.group_id)  continue;
+            if (ev.server_id != 0 && ev.server_id != service.server_id) continue;
             if (ev.kind == event_kind::kCashSale)
                 co_await senders::SendCashItemSaleReq(
                     result.session->Wire(),
@@ -284,6 +301,21 @@ OnNewConnectReq(std::shared_ptr<OperatorSession> op,
                     ev.kind, ev.value, ev);
         }
     }
+    if(!result.session->Wire()->IsOpen())co_return;
+    current=ctx.peers->FindService(service_id);
+    if(!current||current->group_id!=service.group_id||current->type_id!=service.type_id||
+       current->server_id!=service.server_id||current->machine_id!=service.machine_id||current->port!=service.port)
+        co_return;
+    // There is no source application ACK for CT_CTRLSVR/EVENTUPDATE. This is
+    // completed transport delivery, not proof the remote event was applied.
+    ctx.peers->SetConnection(service_id,result.session);
+    pending.published=true;
+    if(auto* st=ctx.peers->Status(service_id)) {
+        st->status=ServiceStatus::Running;
+        st->last_recv_tick=static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
+    }
+    event_delivery.reset();
 
     // Spawn the read loop so the peer's CT_SERVICEMONITOR_REQ +
     // admin-ack forwarders (F3) can land back here. The loop exits
@@ -301,18 +333,19 @@ OnReconnectReq(std::shared_ptr<OperatorSession> op,
                std::vector<std::byte> body,
                const HandlerContext& ctx)
 {
+    if(!op->LoggedIn())co_return;
     // Legacy CT_RECONNECT_REQ closes the existing CTServer connection
     // and re-enters the OnCT_NEWCONNECT_REQ dispatch path. We do the
     // same — close any current connection, then delegate.
     wire::Reader r(body);
     std::uint32_t service_id = 0;
-    if (!r.Read(service_id)) co_return;
+    if (!r.Read(service_id)||!r.Eof()) co_return;
     if (!ctx.peers) co_return;
 
     if (auto existing = ctx.peers->Connection(service_id))
     {
         if (existing->Wire()) existing->Wire()->Close();
-        ctx.peers->ClearConnection(service_id);
+        ctx.peers->ClearConnection(service_id,existing);
     }
     // Re-dispatch with the same id — repack the body so OnNewConnectReq
     // can parse it identically.
@@ -326,23 +359,23 @@ OnServiceMonitorReq(std::shared_ptr<PeerSession> peer,
                     std::vector<std::byte> body,
                     const HandlerContext& ctx)
 {
-    if (!peer || !ctx.peers) co_return;
+    if (!peer || !ctx.peers||ctx.peers->Connection(peer->ServiceId())!=peer) co_return;
     wire::Reader r(body);
     std::uint32_t tick = 0, sessions = 0, users = 0, active_users = 0;
     if (!r.Read(tick) || !r.Read(sessions) ||
-        !r.Read(users) || !r.Read(active_users))
+        !r.Read(users) || !r.Read(active_users)||!r.Eof())
     {
         spdlog::warn("CT_SERVICEMONITOR_REQ malformed body");
         co_return;
     }
 
     const auto svc_id = peer->ServiceId();
-    auto* st = ctx.peers->Status(svc_id);
-    if (!st) co_return;
-
     // Echo the tick back so the peer can RTT-measure (legacy
     // CTServer::SendCT_SERVICEMONITOR_ACK).
     co_await senders::SendServiceMonitorAck(peer->Wire(), tick);
+    if(!peer->Wire()->IsOpen()||ctx.peers->Connection(svc_id)!=peer)co_return;
+    auto* st=ctx.peers->Status(svc_id);
+    if(!st)co_return;
 
     const auto now_ms = static_cast<std::uint32_t>(
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -365,12 +398,13 @@ OnServiceMonitorReq(std::shared_ptr<PeerSession> peer,
     // admin-handler family in F3).
     if (ctx.operators)
     {
+        const auto status=*st;
         for (const auto& op : ctx.operators->SnapshotLoggedIn())
         {
             if (!op || !op->Wire() || !op->Wire()->IsOpen()) continue;
             co_await senders::SendServiceDataAck(op->Wire(),
-                svc_id, sessions, users, st->max_users, ping_ms,
-                st->peak_time_unix, st->stop_count, st->latest_stop_unix,
+                svc_id, sessions, users, status.max_users, ping_ms,
+                status.peak_time_unix, status.stop_count, status.latest_stop_unix,
                 active_users);
         }
     }
@@ -382,10 +416,14 @@ RunPeerLoop(std::shared_ptr<PeerSession> peer, HandlerContext ctx)
     using tnetlib::protocol::MessageId;
     using tnetlib::protocol::ToMessageId;
 
-    co_await peer->Wire()->Run(
+    try { co_await peer->Wire()->Run(
         [peer, ctx](std::shared_ptr<ControlSession> /*s*/,
                     DecodedPacket pkt) -> boost::asio::awaitable<void>
         {
+            if(ctx.check_owner)co_await ctx.check_owner();
+            if(!ctx.peers||ctx.peers->Connection(peer->ServiceId())!=peer) {
+                peer->Wire()->Close();co_return;
+            }
             const auto id = ToMessageId(pkt.wId);
             switch (id)
             {
@@ -459,12 +497,16 @@ RunPeerLoop(std::shared_ptr<PeerSession> peer, HandlerContext ctx)
                 break;
             }
         });
+    }catch(const std::exception&) {
+        spdlog::warn("Control peer handler failed; closing without retry");
+        peer->Wire()->Close();
+    }
 
     // Connection closed — clear from registry so the next
     // CT_NEWCONNECT_REQ can dial again.
     spdlog::info("peer_loop: svc_id={:08x} disconnected",
         peer->ServiceId());
-    if (ctx.peers)
+    if (ctx.peers&&ctx.peers->ClearConnection(peer->ServiceId(),peer))
     {
         if (auto* st = ctx.peers->Status(peer->ServiceId()))
         {
@@ -474,7 +516,6 @@ RunPeerLoop(std::shared_ptr<PeerSession> peer, HandlerContext ctx)
                 std::chrono::seconds>(
                     std::chrono::system_clock::now().time_since_epoch()).count();
         }
-        ctx.peers->ClearConnection(peer->ServiceId());
     }
 }
 

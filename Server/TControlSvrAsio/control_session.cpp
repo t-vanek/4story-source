@@ -1,6 +1,7 @@
 #include "control_session.h"
 
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/experimental/channel.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/redirect_error.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -106,8 +107,19 @@ PeerIdentity ExtractPeerIdentity(SSL* ssl)
 }
 } // namespace
 
+struct ControlSession::SendState {
+    using Permit=boost::asio::experimental::channel<void(boost::system::error_code,int)>;
+    explicit SendState(boost::asio::any_io_executor executor):permit(executor,1) {
+        permit.try_send(boost::system::error_code{},0);
+    }
+    Permit permit;
+    std::size_t pending_frames{},pending_bytes{};
+    static constexpr std::size_t max_frames=256,max_bytes=4*1024*1024;
+};
+
 ControlSession::ControlSession(PlainSocket sock)
     : m_socket(std::in_place_type<PlainSocket>, std::move(sock))
+    , m_send_state(std::make_shared<SendState>(UnderlyingTcp().get_executor()))
 {
     boost::system::error_code ec;
     auto ep = UnderlyingTcp().remote_endpoint(ec);
@@ -117,6 +129,7 @@ ControlSession::ControlSession(PlainSocket sock)
 
 ControlSession::ControlSession(TlsStream stream)
     : m_socket(std::in_place_type<TlsStream>, std::move(stream))
+    , m_send_state(std::make_shared<SendState>(UnderlyingTcp().get_executor()))
 {
     boost::system::error_code ec;
     auto ep = UnderlyingTcp().remote_endpoint(ec);
@@ -162,6 +175,10 @@ boost::asio::awaitable<void>
 ControlSession::Run(PacketHandler on_packet)
 {
     using namespace boost::asio;
+    struct CloseOnExit {
+        std::shared_ptr<ControlSession> owner;
+        ~CloseOnExit(){owner->Close();}
+    } close{shared_from_this()};
 
     // Dispatch a single async_read through whichever variant arm is
     // active. boost::asio::async_read accepts any AsyncReadStream;
@@ -217,45 +234,68 @@ ControlSession::Run(PacketHandler on_packet)
 boost::asio::awaitable<void>
 ControlSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 {
+    const auto self=shared_from_this();
     if (!IsOpen()) co_return;
-    const std::size_t total = kPacketHeaderSize + body.size();
-    if (total > kMaxPacketSize)
+    if (body.size() > kMaxPacketSize-kPacketHeaderSize)
     {
-        spdlog::error("control_session[{}]: outbound packet too big ({})",
-            m_remote_ipv4, total);
+        spdlog::error("control_session[{}]: outbound body too big ({}); closing",
+            m_remote_ipv4, body.size());
+        Close();
         co_return;
     }
-    m_send_scratch.resize(total);
+    const std::size_t total=kPacketHeaderSize+body.size();
+    const auto state=m_send_state;
+    if(state->pending_frames>=SendState::max_frames||total>SendState::max_bytes-state->pending_bytes) {
+        spdlog::warn("control_session[{}]: outbound backlog exceeded; closing",m_remote_ipv4);
+        Close();co_return;
+    }
+    ++state->pending_frames;state->pending_bytes+=total;
+    struct Reservation {
+        std::shared_ptr<SendState> state;std::size_t bytes;
+        ~Reservation(){--state->pending_frames;state->pending_bytes-=bytes;}
+    } reservation{state,total};
+    boost::system::error_code ec;
+    co_await state->permit.async_receive(boost::asio::redirect_error(boost::asio::use_awaitable,ec));
+    if(ec||!IsOpen())co_return;
+    struct Release {
+        std::shared_ptr<SendState> state;
+        ~Release(){state->permit.try_send(boost::system::error_code{},0);}
+    } release{state};
+    // The frame is owned by this suspended invocation. Serializing only the
+    // callbacks would not protect either a shared buffer or async_write itself.
+    std::vector<std::byte> frame(total);
     PacketHeader hdr{};
     hdr.wSize    = static_cast<std::uint16_t>(total);
     hdr.wID      = wId;
     hdr.dwChkSum = ComputeChecksum(body.data(), body.size());
-    std::memcpy(m_send_scratch.data(), &hdr, sizeof(hdr));
+    std::memcpy(frame.data(), &hdr, sizeof(hdr));
     if (!body.empty())
-        std::memcpy(m_send_scratch.data() + sizeof(hdr),
+        std::memcpy(frame.data() + sizeof(hdr),
                     body.data(), body.size());
-    boost::system::error_code ec;
     // Dispatch the write through the active variant arm.
     if (auto* tls = std::get_if<TlsStream>(&m_socket))
     {
         co_await boost::asio::async_write(*tls,
-            boost::asio::buffer(m_send_scratch.data(), total),
+            boost::asio::buffer(frame.data(), total),
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
     }
     else
     {
         co_await boost::asio::async_write(
             std::get<PlainSocket>(m_socket),
-            boost::asio::buffer(m_send_scratch.data(), total),
+            boost::asio::buffer(frame.data(), total),
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
     }
-    if (ec)
+    if (ec) {
         spdlog::debug("control_session[{}]: send wID=0x{:04X} failed: {}",
             m_remote_ipv4, wId, ec.message());
+        Close();
+    }
 }
 
 void ControlSession::Close()
 {
+    m_send_state->permit.close();
     boost::system::error_code ec;
     auto& sock = UnderlyingTcp();
     sock.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);

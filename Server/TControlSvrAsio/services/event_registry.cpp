@@ -2,6 +2,10 @@
 
 #include <ctime>
 #include <utility>
+#include <limits>
+#include <stdexcept>
+#include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
 
 namespace tcontrolsvr {
 
@@ -29,6 +33,22 @@ bool DateRangeOverlap(std::int64_t a_start, std::int64_t a_end,
 }
 
 } // namespace
+
+boost::asio::awaitable<EventRegistry::MutationLease> EventRegistry::AcquireMutation()
+{
+    const auto executor=co_await boost::asio::this_coro::executor;
+    if(!m_mutation_signal)m_mutation_signal=std::make_shared<MutationSignal>(executor,1);
+    // A buffered signal can predate this attempt. Re-check the state after
+    // every wake so neither a late signal nor a competing waiter owns it twice.
+    while(!TryBeginMutation())co_await m_mutation_signal->async_receive(boost::asio::use_awaitable);
+    co_return MutationLease(*this);
+}
+
+void EventRegistry::EndMutation()
+{
+    m_mutating=false;
+    if(m_mutation_signal)m_mutation_signal->try_send(boost::system::error_code{},0);
+}
 
 void EventRegistry::LoadFrom(std::vector<EventInfo> events)
 {
@@ -66,6 +86,8 @@ bool EventRegistry::Erase(std::uint32_t index)
 
 std::uint32_t EventRegistry::NextIndex()
 {
+    if(m_next_index==std::numeric_limits<std::uint32_t>::max())
+        throw std::runtime_error("Control event index exhausted");
     return ++m_next_index;
 }
 

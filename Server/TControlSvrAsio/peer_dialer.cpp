@@ -30,7 +30,7 @@ const Machine* FindMachine(const InventorySnapshot& snapshot, std::uint8_t mid)
 } // namespace
 
 boost::asio::awaitable<PeerDialResult>
-PeerDialer::Dial(const ServiceInstance& requested)
+PeerDialer::Dial(const ServiceInstance& requested,bool publish)
 {
     const auto svc=requested;
     const auto snapshot=m_inventory.Snapshot();
@@ -176,12 +176,12 @@ PeerDialer::Dial(const ServiceInstance& requested)
     }
 
     auto peer = std::make_shared<PeerSession>(wire, svc);
-    m_registry.SetConnection(svc.service_id, peer);
+    if(publish)m_registry.SetConnection(svc.service_id, peer);
 
     // Touch the runtime status so the timer code sees a fresh
     // last_recv_tick — otherwise the keep-alive loop would mark the
     // freshly-dialed peer offline immediately.
-    if (auto* st = m_registry.Status(svc.service_id))
+    if (auto* st = publish?m_registry.Status(svc.service_id):nullptr)
     {
         st->status         = ServiceStatus::Running;
         st->last_recv_tick = static_cast<std::uint32_t>(

@@ -91,6 +91,7 @@ public:
     void                          SetConnection(std::uint32_t service_id,
                                                 std::shared_ptr<PeerSession> conn);
     void                          ClearConnection(std::uint32_t service_id);
+    bool ClearConnection(std::uint32_t service_id,const std::shared_ptr<PeerSession>& expected);
 
     // Lookup peers by (group, type) — needed for the admin-handler
     // forwarders (KICK, ANNOUNCEMENT, …) that broadcast to all

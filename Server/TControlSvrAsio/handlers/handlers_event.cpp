@@ -20,6 +20,8 @@
 #include "../wire_codec.h"
 #include "../services/authority_gate.h"
 #include "../services/event_value.h"
+#include "../services/svr_type.h"
+#include "LegacyEventInfo.h"
 
 #include "fourstory/db/co_offload.h"
 #include "MessageId.h"
@@ -47,6 +49,39 @@ PeersForEvent(const EventInfo& ev, PeerRegistry& peers)
             out.push_back(std::move(conn));
     }
     return out;
+}
+
+std::vector<std::shared_ptr<PeerSession>> AnnouncementPeers(const EventInfo& ev,PeerRegistry& peers)
+{
+    // OnCT_EVENTMSG_REQ has a different route from numeric event updates:
+    // a global World announcement uses connected Relays and falls back to
+    // World connections for the groups whose Relay is absent.
+    std::vector<std::shared_ptr<PeerSession>> out;
+    std::vector<std::uint8_t> groups;
+    if(!ev.group_id&&ev.server_type==svr_type::kWorldSvr&&!ev.server_id) {
+        for(const auto& svc:peers.Services())if(svc.type_id==svr_type::kRlySvr) {
+            const auto peer=peers.Connection(svc.service_id);
+            if(peer&&peer->Wire()&&peer->Wire()->IsOpen())out.push_back(peer);
+            else groups.push_back(svc.group_id);
+        }
+    }else groups.push_back(ev.group_id);
+    for(const auto group:groups)for(const auto& svc:peers.Services())
+        if(svc.type_id==ev.server_type&&svc.group_id==group&&(!ev.server_id||svc.server_id==ev.server_id)) {
+            const auto peer=peers.Connection(svc.service_id);
+            if(peer&&peer->Wire()&&peer->Wire()->IsOpen())out.push_back(peer);
+        }
+    // Intentional repair of source bSvrID==bSvrID: honor the selected server.
+    return out;
+}
+
+boost::asio::awaitable<bool> MayPushEvent(const std::shared_ptr<OperatorSession>& op,
+    const HandlerContext& ctx,const char* action)
+{
+    // Direct push used to bypass the GMLevel3 gate on event CRUD. These frames
+    // change rewards/probabilities/announcements and need the same authority.
+    if(op->LoggedIn()&&HasAuthority(*op,OperatorRole::GMLevel3))co_return true;
+    if(ctx.audit)ctx.audit->LogAuthorityDenied(op->UserId(),op->AuthorityRaw(),action);
+    co_await senders::SendAuthorityAck(op->Wire());co_return false;
 }
 
 } // namespace
@@ -94,7 +129,8 @@ OnEventChangeReq(std::shared_ptr<OperatorSession> op,
         co_return;
     }
     EventInfo ev{};
-    if (!event_codec::Read(r, ev) || !r.Eof() || op_byte > event_op::kUpdate)
+    if (!event_codec::Read(r, ev) || !r.Eof() || op_byte > event_op::kUpdate||
+        ev.kind>=fourstory::protocol::kEventCount)
     {
         spdlog::warn("CT_EVENTCHANGE_REQ malformed (EventInfo body)");
         co_return;
@@ -102,10 +138,8 @@ OnEventChangeReq(std::shared_ptr<OperatorSession> op,
 
     if (!ctx.events) co_return;
 
-    if(!ctx.events->TryBeginMutation()) {
-        co_await senders::SendEventChangeAck(op->Wire(),event_result::kFail,op_byte,ev);co_return;
-    }
-    struct Mutation { EventRegistry& events;~Mutation(){events.EndMutation();} } mutation{*ctx.events};
+    auto mutation=co_await ctx.events->AcquireMutation();
+    if(ctx.check_owner)co_await ctx.check_owner();
 
     // EK_DEL on a missing index is success-as-noop (legacy).
     if (op_byte == event_op::kDel && !ctx.events->Find(ev.index))
@@ -202,8 +236,10 @@ OnEventDelReq(std::shared_ptr<OperatorSession> op,
 
     wire::Reader r(body);
     std::uint32_t index = 0;
-    if (!r.Read(index)) co_return;
+    if (!r.Read(index)||!r.Eof()) co_return;
     if (!ctx.events) co_return;
+    auto mutation=co_await ctx.events->AcquireMutation();
+    if(ctx.check_owner)co_await ctx.check_owner();
     auto* ev = ctx.events->Find(index);
     if (!ev) co_return;
 
@@ -216,8 +252,7 @@ OnEventDelReq(std::shared_ptr<OperatorSession> op,
                 return repo->Persist(del, event_op::kDel, "");
             });
     }
-    else
-        rc = event_result::kSuccess;
+    else throw std::runtime_error("Event deletion requires its persistence repository");
     if (rc == event_result::kSuccess) ctx.events->Erase(index);
 }
 
@@ -226,12 +261,14 @@ OnEventUpdateReq(std::shared_ptr<OperatorSession> op,
                  std::vector<std::byte> body,
                  const HandlerContext& ctx)
 {
-    if (!op->LoggedIn()) co_return;
+    if(!(co_await MayPushEvent(op,ctx,"event_push")))co_return;
     wire::Reader r(body);
     std::uint32_t index = 0;
     std::uint16_t value = 0;
-    if (!r.Read(index) || !r.Read(value)) co_return;
+    if (!r.Read(index) || !r.Read(value)||!r.Eof()) co_return;
     if (!ctx.events || !ctx.peers) co_return;
+    auto mutation=co_await ctx.events->AcquireMutation();
+    if(ctx.check_owner)co_await ctx.check_owner();
     const auto* ev = ctx.events->Find(index);
     if (!ev) co_return;
     for (const auto& peer : PeersForEvent(*ev, *ctx.peers))
@@ -244,17 +281,19 @@ OnEventMsgReq(std::shared_ptr<OperatorSession> op,
               std::vector<std::byte> body,
               const HandlerContext& ctx)
 {
-    if (!op->LoggedIn()) co_return;
+    if(!(co_await MayPushEvent(op,ctx,"event_announcement")))co_return;
     wire::Reader r(body);
     std::uint32_t index = 0;
     std::uint8_t  msg_type = 0;
-    if (!r.Read(index) || !r.Read(msg_type)) co_return;
+    if (!r.Read(index) || !r.Read(msg_type)||!r.Eof()) co_return;
     if (!ctx.events || !ctx.peers) co_return;
+    auto mutation=co_await ctx.events->AcquireMutation();
+    if(ctx.check_owner)co_await ctx.check_owner();
     const auto* ev = ctx.events->Find(index);
     if (!ev) co_return;
     const std::string& msg =
         (msg_type == 0) ? ev->start_msg : ev->end_msg;
-    for (const auto& peer : PeersForEvent(*ev, *ctx.peers))
+    for (const auto& peer : AnnouncementPeers(*ev, *ctx.peers))
         co_await senders::SendEventMsgReq(peer->Wire(),
             ev->kind, msg_type, msg);
 }
@@ -264,13 +303,15 @@ OnCashItemSaleReq(std::shared_ptr<OperatorSession> op,
                   std::vector<std::byte> body,
                   const HandlerContext& ctx)
 {
-    if (!op->LoggedIn()) co_return;
+    if(!(co_await MayPushEvent(op,ctx,"cash_sale_push")))co_return;
     wire::Reader r(body);
     std::uint32_t index = 0;
     std::uint16_t value = 0;
-    if (!r.Read(index) || !r.Read(value)) co_return;
+    if (!r.Read(index) || !r.Read(value)||!r.Eof()) co_return;
     if (value > 100) value = 100;
     if (!ctx.events || !ctx.peers) co_return;
+    auto mutation=co_await ctx.events->AcquireMutation();
+    if(ctx.check_owner)co_await ctx.check_owner();
     const auto* ev = ctx.events->Find(index);
     if (!ev) co_return;
     for (const auto& peer : PeersForEvent(*ev, *ctx.peers))
@@ -283,11 +324,13 @@ OnCashShopStopReq(std::shared_ptr<OperatorSession> op,
                   std::vector<std::byte> body,
                   const HandlerContext& ctx)
 {
-    if (!op->LoggedIn()) co_return;
+    if(!(co_await MayPushEvent(op,ctx,"cash_shop_stop")))co_return;
     wire::Reader r(body);
     std::uint32_t index = 0;
-    if (!r.Read(index)) co_return;
+    if (!r.Read(index)||!r.Eof()) co_return;
     if (!ctx.events || !ctx.peers) co_return;
+    auto mutation=co_await ctx.events->AcquireMutation();
+    if(ctx.check_owner)co_await ctx.check_owner();
     const auto* ev = ctx.events->Find(index);
     if (!ev) co_return;
     for (const auto& peer : PeersForEvent(*ev, *ctx.peers))

@@ -255,7 +255,8 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
                 std::chrono::steady_clock::now().time_since_epoch()).count());
         const auto threshold = static_cast<std::uint32_t>(offline_after.count());
 
-        for (const auto& svc : m_cfg.peers->Services())
+        const auto services=m_cfg.peers->Services();
+        for (const auto& svc : services)
         {
             auto* st   = m_cfg.peers->Status(svc.service_id);
             auto  conn = m_cfg.peers->Connection(svc.service_id);
@@ -263,6 +264,7 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
             const bool has_conn = conn && conn->Wire() && conn->Wire()->IsOpen();
             if (!has_conn)
             {
+                const auto status=*st;
                 // No connection — broadcast zero-filled SERVICEDATA so
                 // the operator GUI shows "stopped" tiles. Legacy
                 // emits this every tick when m_pConn is null.
@@ -270,9 +272,9 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
                 {
                     if (!op || !op->Wire() || !op->Wire()->IsOpen()) continue;
                     co_await senders::SendServiceDataAck(op->Wire(),
-                        svc.service_id, 0, 0, st->max_users, 0,
-                        st->peak_time_unix, st->stop_count,
-                        st->latest_stop_unix, 0);
+                        svc.service_id, 0, 0, status.max_users, 0,
+                        status.peak_time_unix, status.stop_count,
+                        status.latest_stop_unix, 0);
                 }
                 continue;
             }
@@ -283,14 +285,15 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
                 spdlog::warn("peer_keepalive: svc_id={:08x} stale "
                              "(>{}ms) — closing", svc.service_id, threshold);
                 st->last_recv_tick = 0;
+                const auto status=*st;
                 conn->Wire()->Close();  // peer_loop tears down registry entry
                 for (const auto& op : m_operators.SnapshotLoggedIn())
                 {
                     if (!op || !op->Wire() || !op->Wire()->IsOpen()) continue;
                     co_await senders::SendServiceDataAck(op->Wire(),
-                        svc.service_id, 0, 0, st->max_users, threshold,
-                        st->peak_time_unix, st->stop_count,
-                        st->latest_stop_unix, 0);
+                        svc.service_id, 0, 0, status.max_users, threshold,
+                        status.peak_time_unix, status.stop_count,
+                        status.latest_stop_unix, 0);
                 }
                 // Legacy: fire SMS alert on the 60s-timeout branch.
                 if (m_cfg.alerter)

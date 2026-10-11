@@ -1,5 +1,6 @@
 #include "postgresql_map_service.h"
 #include "inventory_move.h"
+#include "native_quest_magic_item.h"
 #include "MessageId.h"
 #include <soci/soci.h>
 #include <bit>
@@ -213,27 +214,9 @@ std::vector<ItemInstance> PostgreSQLMapService::CreateQuestRewardItems(soci::ses
     const CharSnapshot& s,const QuestRewardDef& reward) {
     transfer::Item raw;std::uint32_t duration=0;
     if(reward.bRewardType==RT_MAGICITEM) {
-        const int id=std::bit_cast<std::int32_t>(reward.dwRewardID);soci::row row;
-        sql << "SELECT * FROM game_compat.\"TQUESTITEMCHART\" WHERE \"dwID\"=:id",soci::use(id),soci::into(row);
-        if(!sql.got_data())return {}; // missing m_pMagicItem never invents a template
-        raw.item=static_cast<std::uint16_t>(row.get<int>("wItemID"));
-        raw.level=static_cast<std::uint8_t>(row.get<int>("bLevel"));raw.grade=static_cast<std::uint8_t>(row.get<int>("bGLevel"));
-        raw.durability_max=static_cast<std::uint32_t>(row.get<int>("dwDuraMax"));raw.durability=static_cast<std::uint32_t>(row.get<int>("dwDuraCur"));
-        raw.refine=static_cast<std::uint8_t>(row.get<int>("bRefineCur"));raw.grade_effect=static_cast<std::uint8_t>(row.get<int>("bGradeEffect"));
-        raw.gem=static_cast<std::uint8_t>(row.get<int>("bGem"));
-        raw.eld=static_cast<std::uint32_t>(row.get<int>("dwTime1"));raw.wrap=static_cast<std::uint32_t>(row.get<int>("dwTime2"));
-        raw.color=static_cast<std::uint32_t>(row.get<int>("dwTime3"));raw.guild=static_cast<std::uint32_t>(row.get<int>("dwTime4"));
-        raw.companion=static_cast<std::uint32_t>(row.get<int>("dwTime5"));raw.texture=static_cast<std::uint32_t>(row.get<int>("dwTime6"));
-        duration=static_cast<std::uint16_t>(row.get<int>("wUseTime"))*std::uint32_t{86400};
-        std::map<std::uint8_t,std::uint16_t> magic;
-        for(unsigned i=1;i<=6;++i) {
-            const int code=row.get<int>("bMagic"+std::to_string(i));
-            const auto value=static_cast<std::uint16_t>(row.get<int>("wValue"+std::to_string(i)));
-            if(!code||!value)continue;
-            int found=0;sql << "SELECT 1 FROM actor_compat.\"TITEMMAGICCHART\" WHERE \"bMagic\"=:id",soci::use(code),soci::into(found);
-            if(sql.got_data())magic[static_cast<std::uint8_t>(code)]=value; // CreateItem: last valid duplicate wins
-        }
-        for(const auto& [id,value]:magic)raw.magic.push_back({id,value});
+        const auto magic=ReadQuestMagicItem(sql,reward.dwRewardID);
+        if(!magic)return {};
+        raw=magic->item;duration=magic->days*std::uint32_t{86400};
     } else raw.item=static_cast<std::uint16_t>(reward.dwRewardID);
     const int id=std::bit_cast<std::int16_t>(raw.item);int classes=0,stack=0,durability=0,use_type=0,use_time=0;
     sql << "SELECT \"dwClassID\",\"bStack\",\"dwDuraMax\",\"bUseType\",\"wUseTime\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",

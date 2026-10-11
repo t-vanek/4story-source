@@ -490,6 +490,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool during_entry=opcode==1; // internal EnterMAP only; no wire change
     const bool use_item=message==MessageId::CS_ITEMUSE_REQ;
     const bool sell_item=message==MessageId::CS_ITEMSELL_REQ;
+    const bool buy_item=message==MessageId::CS_ITEMBUY_REQ||message==MessageId::CS_MAGICITEMBUY_REQ;
     const bool repair_items=message==MessageId::CS_DURATIONREP_REQ;
     const bool refine_item=message==MessageId::CS_REFINE_REQ;
     const bool reclaim_refine=message==MessageId::CS_WASTEREFINE_REQ;
@@ -499,6 +500,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(buy_item) {
+        if(body.size()!=(message==MessageId::CS_ITEMBUY_REQ?11U:9U))throw std::runtime_error("Invalid NPC purchase request length");
     } else if(upgrade_item) {
         if(body.size()!=10)throw std::runtime_error("Invalid ITEMUPGRADE request length");
     } else if(gamble) {
@@ -516,7 +519,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     } else if(use_item) {
         if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))
             throw std::runtime_error("Invalid ITEMUSE request length");
-    } else if(message==MessageId::CS_NPCTALK_REQ) {
+    } else if(message==MessageId::CS_NPCTALK_REQ||message==MessageId::CS_NPCITEMLIST_REQ) {
         if(!reader.Read(npc)||!reader.Eof())throw std::runtime_error("Invalid NPCTALK request");
     } else if(message==MessageId::CS_QUESTDROP_REQ||message==MessageId::CS_QUESTENDTIMER_REQ) {
         if(!reader.Read(quest)||!reader.Eof())throw std::runtime_error("Invalid quest progress request");
@@ -544,7 +547,9 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     quest_runtime::HydrateLevels(*payload,chart);
     bool other_state_changed=false;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(upgrade_item) {
+    if(message==MessageId::CS_NPCITEMLIST_REQ) {
+        ListNativeNpcItems(sql,after,npc,committed.packets);
+    }else if(upgrade_item) {
         other_state_changed=UpgradeNativeItem(sql,c,after,body,facts,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
     }else if(reclaim_refine) {
@@ -834,7 +839,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 children(def,depth);return; // CQuest default implementation.
             }
         };
-        if(progress_tick||use_item||gamble) {
+        if(progress_tick||use_item||gamble||buy_item) {
             const QuestEvent event=[&](std::uint32_t id,std::uint8_t type,std::uint8_t trigger_type,int count) {
                 payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
                 quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,id,type,count,committed.packets);
@@ -843,7 +848,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                     if(!quest_runtime::CanRun(after,*payload,*trigger,chart,inputs,gate_level))execute(*trigger,1);
                 }
             };
-            if(gamble)other_state_changed=GambleNativeItem(sql,c,after,message==MessageId::CS_GAMBLECHECK_REQ,body,facts,event,committed.packets);
+            if(buy_item)other_state_changed=BuyNativeItem(sql,c,after,message==MessageId::CS_MAGICITEMBUY_REQ,body,chart,event,committed.packets);
+            else if(gamble)other_state_changed=GambleNativeItem(sql,c,after,message==MessageId::CS_GAMBLECHECK_REQ,body,facts,event,committed.packets);
             else if(use_item)other_state_changed=UseNativeItem(sql,c,after,body,event,committed.packets);
             else {
                 AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets);
@@ -871,13 +877,15 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         packets+='['+std::to_string(packet.opcode)+",\""+hex(packet.body)+"\","+std::to_string(static_cast<unsigned>(packet.audience))+']';}
     packets+=']';const auto request=hex(body);
     const auto events=facts.world_events?facts.world_events->Json():std::string{"null"};
+    if(!before.payload->pvp||!payload->pvp)throw std::runtime_error("Quest operation lost PvP balance");
+    const auto before_pvp=before.payload->pvp->Json(),after_pvp=payload->pvp->Json();
     const int world=c.group,character=std::bit_cast<std::int32_t>(c.char_id),server=m_config.server,op=opcode;
     const long long previous=payload->last_quest_id,generation=c.connection_id,epoch=c.authority_epoch;long long operation=0;
-    sql << "INSERT INTO app_world.quest_operations(world_id,char_id,previous_operation_id,session_key,server_id,owner_token,connection_id,authority_epoch,opcode,request,before_state,after_state,responses,world_event_context) "
-        "VALUES(:w,:c,:previous,:key,:server,:token,:generation,:epoch,:op,decode(:request,'hex'),CAST(:before AS jsonb),CAST(:after AS jsonb),CAST(:packets AS jsonb),NULLIF(CAST(:events AS jsonb),'null'::jsonb)) RETURNING operation_id",
+    sql << "INSERT INTO app_world.quest_operations(world_id,char_id,previous_operation_id,session_key,server_id,owner_token,connection_id,authority_epoch,opcode,request,before_state,after_state,responses,world_event_context,before_pvp,after_pvp) "
+        "VALUES(:w,:c,:previous,:key,:server,:token,:generation,:epoch,:op,decode(:request,'hex'),CAST(:before AS jsonb),CAST(:after AS jsonb),CAST(:packets AS jsonb),NULLIF(CAST(:events AS jsonb),'null'::jsonb),CAST(:before_pvp AS jsonb),CAST(:after_pvp AS jsonb)) RETURNING operation_id",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(key,"key"),soci::use(server,"server"),
         soci::use(m_config.owner_token,"token"),soci::use(generation,"generation"),soci::use(epoch,"epoch"),soci::use(op,"op"),
-        soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::use(events,"events"),soci::into(operation);
+        soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::use(events,"events"),soci::use(before_pvp,"before_pvp"),soci::use(after_pvp,"after_pvp"),soci::into(operation);
     payload->last_quest_id=static_cast<std::uint64_t>(operation);
     WriteQuestProgress(sql,c,after);
     if(!after.payload->transfer_state)WriteMaintainedEffects(sql,c,after);
@@ -1312,6 +1320,7 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
     tx->commit();return plan.committed;
 }
 void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    CheckPvpBalance(sql,c,s);
     CheckQuestProgress(sql,c,s);
     CheckDuringItems(sql,c,s);
     CheckItemCooldowns(sql,c,s);

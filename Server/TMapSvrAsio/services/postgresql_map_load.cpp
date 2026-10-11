@@ -348,8 +348,8 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         }
     }
 }
-ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw) {
-    if(!raw.id)throw std::runtime_error("Character item has invalid identity");
+ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw,bool template_projection=false) {
+    if(!raw.id&&!template_projection)throw std::runtime_error("Character item has invalid identity");
     ItemInstance item;
     item.dlID=raw.id;item.bItemID=raw.slot;item.bInvenID=static_cast<std::uint8_t>(raw.storage_id);
     item.wItemID=raw.item;item.bLevel=raw.level;item.bGem=raw.gem;item.wMoggItemID=raw.appearance;
@@ -386,8 +386,8 @@ ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw) {
 }
 
 }
-ItemInstance PostgreSQLMapService::ProjectNativeItem(soci::session& sql,const transfer::Item& raw) {
-    return ProjectItem(sql,raw);
+ItemInstance PostgreSQLMapService::ProjectNativeItem(soci::session& sql,const transfer::Item& raw,bool template_projection) {
+    return ProjectItem(sql,raw,template_projection);
 }
 void PostgreSQLMapService::RefreshEquipment(soci::session& sql,CharSnapshot& s,bool derive) {
     auto p=std::make_shared<CharacterPayload>(*s.payload);
@@ -575,6 +575,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
 }
     HydrateQuestProgress(sql,claim,p);
     HydrateDuringItems(sql,claim,p);
+    HydratePvpBalance(sql,claim,p);
     HydrateItemCooldowns(sql,claim,s,p);
     p.security=ReadSecurity(sql,claim);
     DeriveStats(sql,s,p);s.payload=std::move(payload);
@@ -588,6 +589,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
     HydrateQuestProgress(sql,claim,p);
     HydrateDuringItems(sql,claim,p);
+    HydratePvpBalance(sql,claim,p);
     HydrateItemCooldowns(sql,claim,s,p);
     p.security=ReadSecurity(sql,claim);
     if(!t.new_security&&!p.security.created)throw std::runtime_error("Transferred secure code has no native account authority");

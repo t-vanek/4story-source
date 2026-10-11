@@ -233,9 +233,9 @@ std::vector<std::byte> EncodeCharInfoAck(
     for(const auto& row:cooldowns.timers){wire::WritePOD(b,row.group);wire::WritePOD(b,row.remaining);}
 
     // --- PvP points + server clock + medals --------------------------
-    wire::WritePOD<std::uint32_t>(b, 0);            // pvp total
-    wire::WritePOD<std::uint32_t>(b, 0);            // pvp useable
-    wire::WritePOD<std::uint32_t>(b, 0);            // month pvp
+    wire::WritePOD<std::uint32_t>(b, p.pvp?p.pvp->total:0);
+    wire::WritePOD<std::uint32_t>(b, p.pvp?p.pvp->available:0);
+    wire::WritePOD<std::uint32_t>(b, p.pvp?p.pvp->month:0);
     wire::WriteString            (b, time_str);
     wire::WritePOD<std::uint32_t>(b, 0);            // medals
 

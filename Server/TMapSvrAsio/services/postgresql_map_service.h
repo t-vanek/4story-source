@@ -60,7 +60,7 @@ private:
     struct InventoryStoragePlan {InventoryMovePlan move;CharSnapshot after;InventoryMoveCommit committed;std::string before_graph,after_graph;};
     InventoryStoragePlan ValidateInventoryMove(soci::session&,const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) const;
     static void RefreshEquipment(soci::session&,CharSnapshot&,bool derive);
-    static ItemInstance ProjectNativeItem(soci::session&,const transfer::Item&);
+    static ItemInstance ProjectNativeItem(soci::session&,const transfer::Item&,bool template_projection=false);
     static std::uint64_t AllocateNativeItem(soci::session&,const MapSessionClaim&);
     static std::int64_t NativeItemExpiry(soci::session&,std::uint32_t,int,int);
     static bool CanGrantQuestItems(const CharacterPayload&,const std::vector<ItemInstance>&);
@@ -87,6 +87,12 @@ private:
     static bool UseNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,bool,QuestPackets&);
     static bool ChangeSoulLottery(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,QuestPackets&);
     static void DebitNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,std::uint8_t,std::uint64_t,std::uint8_t,QuestPackets&);
+    static PvpBalance ReadPvpBalance(soci::session&,const MapSessionClaim&);
+    static void HydratePvpBalance(soci::session&,const MapSessionClaim&,CharacterPayload&);
+    static void CheckPvpBalance(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static void SpendNativePvp(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,QuestPackets&);
+    static void ListNativeNpcItems(soci::session&,const CharSnapshot&,std::uint16_t,QuestPackets&);
+    static bool BuyNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,std::span<const std::byte>,const IQuestChart&,const QuestEvent&,QuestPackets&);
     static bool SellNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,std::uint16_t&,QuestPackets&);
     static bool RepairNativeItems(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&);
     static bool RefineNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&);

@@ -64,6 +64,8 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const auto message=static_cast<tnetlib::protocol::MessageId>(opcode);
     if(message==tnetlib::protocol::MessageId::CS_ITEMUSE_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMSELL_REQ||
+       message==tnetlib::protocol::MessageId::CS_ITEMBUY_REQ||
+       message==tnetlib::protocol::MessageId::CS_MAGICITEMBUY_REQ||
        message==tnetlib::protocol::MessageId::CS_DURATIONREP_REQ||
        message==tnetlib::protocol::MessageId::CS_REFINE_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMUPGRADE_REQ) {
@@ -83,6 +85,9 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const bool lottery=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_REQ)||
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_TRIGGER_REQ);
     const auto required=opcode<=1||lottery?0U:
+        message==tnetlib::protocol::MessageId::CS_ITEMBUY_REQ?11U:
+        message==tnetlib::protocol::MessageId::CS_MAGICITEMBUY_REQ?9U:
+        message==tnetlib::protocol::MessageId::CS_NPCITEMLIST_REQ?2U:
         message==tnetlib::protocol::MessageId::CS_ITEMUPGRADE_REQ?10U:
         message==tnetlib::protocol::MessageId::CS_GAMBLEOPEN_REQ?6U:
         message==tnetlib::protocol::MessageId::CS_WASTEREFINE_REQ?2U:

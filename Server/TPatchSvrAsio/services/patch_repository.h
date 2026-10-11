@@ -41,15 +41,15 @@ class PatchRepository : public IPatchRepository
 public:
     explicit PatchRepository(fourstory::db::SessionPool& pool);
 
-    // CTBLVersion equivalent — patches >= `from_version`.
+    // CTBLVersion equivalent — patches strictly newer than `from_version`.
     std::vector<PatchFile> ListPatchesSince(std::uint32_t from_version) override;
 
-    // CTBLPreVersion equivalent — pre-release patches >= beta_version.
+    // CTBLPreVersion equivalent — pre-release patches strictly newer than beta_version.
     std::vector<PatchFile> ListPrePatchesSince(std::uint32_t beta_version) override;
 
     // CTBLInterface equivalent — UI/interface patch files for a
-    // particular option set. Optional table: returns empty if the
-    // schema doesn't have TINTERFACECHART deployed.
+    // particular option set. Native PostgreSQL requires TUSER_INTERFACE;
+    // failed reads propagate rather than masquerading as an empty manifest.
     std::vector<PatchFile> ListInterfaceFiles(std::uint8_t option) override;
 
     // CSPMinBetaVer (legacy SP) → TMinBetaVer in the deployed DB.
@@ -57,8 +57,8 @@ public:
     // constraint / SP missing.
     std::uint32_t MinBetaVersion() override;
 
-    // CSPPreComplete equivalent — mark a beta version as complete.
-    // No-op return; logs DB errors.
+    // Native promotion is blocked on the missing TPreCompleteAdd definition.
+    // The historical compatibility backend retains its previous implementation.
     void MarkPreVersionComplete(std::uint32_t beta_version) override;
 
 private:

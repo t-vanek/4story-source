@@ -56,6 +56,17 @@ bool HasUserInterfaceTable(soci::session& sql)
 void ValidateGlobalSchema(fourstory::db::SessionPool& pool)
 {
     auto lease = pool.Acquire();
+    if(pool.GetBackend()==fourstory::db::Backend::PostgreSQL) {
+        int contract=0;
+        (*lease) << "SELECT contract FROM app_patch.runtime_contract WHERE singleton",soci::into(contract);
+        if(!lease->got_data()||contract!=1)throw std::runtime_error("Native Patch metadata import is required");
+        // Resolve and authorize all production query columns on the dedicated
+        // schema. SELECT of an empty result still checks every column/grant.
+        (*lease) << "SELECT \"dwVersion\",path_bytes,name_bytes,\"dwSize\",\"dwBetaVer\" FROM app_patch.\"TVERSION\" WHERE false";
+        (*lease) << "SELECT \"dwBetaVer\",path_bytes,name_bytes,\"dwSize\" FROM app_patch.\"TPREVERSION\" WHERE false";
+        (*lease) << "SELECT \"bOption\",name_bytes,\"dwSize\" FROM app_patch.\"TUSER_INTERFACE\" WHERE false";
+        return;
+    }
 
     // Required: TVERSION + TPREVERSION. Column list matches exactly
     // what PatchRepository::List{Patches,PrePatches}Since reads.

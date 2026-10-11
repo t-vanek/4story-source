@@ -4,8 +4,23 @@
 
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
+#include <cmath>
+#include <stdexcept>
 
 namespace tpatchsvr {
+namespace {
+std::string OriginalBytes(const std::string& hex) {
+    const auto nibble=[](char c)->unsigned {
+        if(c>='0'&&c<='9')return c-'0';
+        if(c>='a'&&c<='f')return c-'a'+10;
+        throw std::runtime_error("Invalid Patch byte representation");
+    };
+    if(hex.size()%2)throw std::runtime_error("Invalid Patch byte length");
+    std::string out;out.reserve(hex.size()/2);
+    for(std::size_t n=0;n<hex.size();n+=2)out.push_back(static_cast<char>((nibble(hex[n])<<4)|nibble(hex[n+1])));
+    return out;
+}
+}
 
 PatchRepository::PatchRepository(fourstory::db::SessionPool& pool)
     : m_pool(pool)
@@ -25,18 +40,21 @@ PatchRepository::ListPatchesSince(std::uint32_t from_version)
         // mirror that ordering exactly. Off-by-one here means each
         // poll returns one stale row and wastes the file download
         // round-trip on the client.
+        const int bound_from_version_1 = static_cast<int>(from_version);
+        const bool native=m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL;
+        const std::string query=native?
+            "SELECT \"dwVersion\",encode(path_bytes,'hex'),encode(name_bytes,'hex'),\"dwSize\",\"dwBetaVer\" FROM app_patch.\"TVERSION\" WHERE \"dwVersion\">:v ORDER BY \"dwVersion\"":
+            "SELECT \"dwVersion\",\"szPath\",\"szName\",\"dwSize\",\"dwBetaVer\" FROM \"TVERSION\" WHERE \"dwVersion\">:v ORDER BY \"dwVersion\"";
         soci::rowset<soci::row> rs = (sql.prepare <<
-            "SELECT \"dwVersion\", \"szPath\", \"szName\", \"dwSize\", "
-            "       \"dwBetaVer\" "
-            "FROM \"TVERSION\" WHERE \"dwVersion\" > :v "
-            "ORDER BY \"dwVersion\"",
-            soci::use(static_cast<int>(from_version)));
+            query,
+            soci::use(bound_from_version_1));
         for (const auto& r : rs)
         {
             PatchFile p{};
             p.version  = static_cast<std::uint32_t>(r.get<int>(0));
             p.path     = r.get<std::string>(1);
             p.name     = r.get<std::string>(2);
+            if(native){p.path=OriginalBytes(p.path);p.name=OriginalBytes(p.name);}
             p.size     = static_cast<std::uint32_t>(r.get<int>(3));
             soci::indicator beta_ind = r.get_indicator(4);
             if (beta_ind != soci::i_null)
@@ -46,6 +64,7 @@ PatchRepository::ListPatchesSince(std::uint32_t from_version)
     }
     catch (const std::exception& ex)
     {
+        if(m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL)throw;
         spdlog::error("patch_repo.ListPatchesSince({}) DB error: {}",
             from_version, ex.what());
     }
@@ -61,23 +80,28 @@ PatchRepository::ListPrePatchesSince(std::uint32_t beta_version)
     try
     {
         // Legacy CTBLPreVersion uses strict greater-than — mirror it.
+        const int bound_beta_version_2 = static_cast<int>(beta_version);
+        const bool native=m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL;
+        const std::string query=native?
+            "SELECT \"dwBetaVer\",encode(path_bytes,'hex'),encode(name_bytes,'hex'),\"dwSize\" FROM app_patch.\"TPREVERSION\" WHERE \"dwBetaVer\">:v ORDER BY \"dwBetaVer\"":
+            "SELECT \"dwBetaVer\",\"szPath\",\"szName\",\"dwSize\" FROM \"TPREVERSION\" WHERE \"dwBetaVer\">:v ORDER BY \"dwBetaVer\"";
         soci::rowset<soci::row> rs = (sql.prepare <<
-            "SELECT \"dwBetaVer\", \"szPath\", \"szName\", \"dwSize\" "
-            "FROM \"TPREVERSION\" WHERE \"dwBetaVer\" > :v "
-            "ORDER BY \"dwBetaVer\"",
-            soci::use(static_cast<int>(beta_version)));
+            query,
+            soci::use(bound_beta_version_2));
         for (const auto& r : rs)
         {
             PatchFile p{};
             p.beta_ver = static_cast<std::uint32_t>(r.get<int>(0));
             p.path     = r.get<std::string>(1);
             p.name     = r.get<std::string>(2);
+            if(native){p.path=OriginalBytes(p.path);p.name=OriginalBytes(p.name);}
             p.size     = static_cast<std::uint32_t>(r.get<int>(3));
             out.push_back(std::move(p));
         }
     }
     catch (const std::exception& ex)
     {
+        if(m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL)throw;
         spdlog::error("patch_repo.ListPrePatchesSince({}) DB error: {}",
             beta_version, ex.what());
     }
@@ -100,11 +124,14 @@ PatchRepository::ListInterfaceFiles(std::uint8_t option)
         // it as `double` and narrow on the C++ side. Naming the
         // subquery column `wDV` keeps it stable across both SOCI's
         // positional and column-name binding paths.
+        const int bound_option_3 = static_cast<int>(option);
+        const bool native=m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL;
+        const std::string query=native?
+            "SELECT (SELECT MAX(\"dwVersion\") FROM app_patch.\"TVERSION\"),encode(name_bytes,'hex'),\"dwSize\" FROM app_patch.\"TUSER_INTERFACE\" WHERE \"bOption\"=:o":
+            "SELECT (SELECT MAX(\"dwVersion\") FROM \"TVERSION\"),\"szName\",\"dwSize\" FROM \"TUSER_INTERFACE\" WHERE \"bOption\"=:o";
         soci::rowset<soci::row> rs = (sql.prepare <<
-            "SELECT (SELECT MAX(\"dwVersion\") FROM \"TVERSION\") AS \"wDV\", "
-            "       \"szName\", \"dwSize\" "
-            "FROM \"TUSER_INTERFACE\" WHERE \"bOption\" = :o",
-            soci::use(static_cast<int>(option)));
+            query,
+            soci::use(bound_option_3));
         for (const auto& r : rs)
         {
             PatchFile p{};
@@ -112,12 +139,16 @@ PatchRepository::ListInterfaceFiles(std::uint8_t option)
             if (v_ind != soci::i_null)
                 p.version = static_cast<std::uint32_t>(r.get<int>(0));
             p.name = r.get<std::string>(1);
-            p.size = static_cast<std::uint32_t>(r.get<double>(2));
+            if(native)p.name=OriginalBytes(p.name);
+            const auto size=r.get<double>(2);
+            if(!std::isfinite(size)||size<0||size>=4294967296.0)throw std::runtime_error("Patch interface size cannot fit original DWORD");
+            p.size = static_cast<std::uint32_t>(size);
             out.push_back(std::move(p));
         }
     }
     catch (const std::exception& ex)
     {
+        if(m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL)throw;
         // Table is optional in some deploys — keep it quiet.
         spdlog::debug("patch_repo.ListInterfaceFiles({}) skipped: {}",
             static_cast<int>(option), ex.what());
@@ -129,6 +160,12 @@ std::uint32_t PatchRepository::MinBetaVersion()
 {
     using fourstory::db::orm::SpCall;
     auto lease = m_pool.Acquire();
+    if(m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL) {
+        int minimum=0;
+        (*lease) << "SELECT min_beta FROM app_patch.runtime_contract WHERE singleton AND contract=1",soci::into(minimum);
+        if(!lease->got_data())throw std::runtime_error("Native Patch metadata was not initialized");
+        return static_cast<std::uint32_t>(minimum);
+    }
     try
     {
         // Legacy CSPMinBetaVer wraps `TMinBetaVer` — operator-configured
@@ -150,6 +187,8 @@ std::uint32_t PatchRepository::MinBetaVersion()
 
 void PatchRepository::MarkPreVersionComplete(std::uint32_t beta_version)
 {
+    if(m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL)
+        throw std::runtime_error("TPreCompleteAdd definition absent from both pinned backups; native promotion contract unresolved");
     // Legacy SP `TPreCompleteAdd` is *not* deployed in the restored
     // RageZone DB (P-5 in TPATCH_AUDIT). The documented operator
     // procedure is to promote every TPREVERSION row at the given

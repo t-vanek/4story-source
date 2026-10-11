@@ -1,6 +1,13 @@
-# Container smoke configuration: in-memory metadata, no database.
+# Native metadata; initialize explicitly using tools/database/import_patch_metadata.py.
+# See deploy/tpatchsvr-postgresql.example.toml. Assets remain external input.
 [server]
 port = 3715
+
+[database]
+backend = "postgresql"
+connection_string_env = "FOURSTORY_PATCH_PG"
+pool_size = 4
+worker_threads = 2
 
 [login]
 # Address advertised to the game client running on the container host.

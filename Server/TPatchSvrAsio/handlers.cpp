@@ -134,10 +134,12 @@ OnPatch(std::shared_ptr<PatchSession> session,
         const ServerContext& ctx)
 {
     std::uint32_t from_version = 0;
+    if(body.size()!=4)throw std::runtime_error("Invalid PATCH request length");
     ReadDWORD(body, 0, from_version);
     const auto files = ctx.repo
-        ? ctx.repo->ListPatchesSince(from_version)
+        ? co_await fourstory::db::CoOffloadIf(ctx.db_pool,[repo=ctx.repo,from_version]{return repo->ListPatchesSince(from_version);})
         : std::vector<PatchFile>{};
+    if(files.size()>65535)throw std::runtime_error("Patch manifest exceeds original WORD count");
     spdlog::info("CT_PATCH_REQ from_version={} → {} files",
         from_version, files.size());
 
@@ -163,12 +165,14 @@ OnNewPatch(std::shared_ptr<PatchSession> session,
            const ServerContext& ctx)
 {
     std::uint32_t from_version = 0;
+    if(body.size()!=4)throw std::runtime_error("Invalid NEWPATCH request length");
     ReadDWORD(body, 0, from_version);
     const auto files = ctx.repo
-        ? ctx.repo->ListPatchesSince(from_version)
+        ? co_await fourstory::db::CoOffloadIf(ctx.db_pool,[repo=ctx.repo,from_version]{return repo->ListPatchesSince(from_version);})
         : std::vector<PatchFile>{};
     const std::uint32_t min_beta = ctx.repo
-        ? ctx.repo->MinBetaVersion() : 0;
+        ? co_await fourstory::db::CoOffloadIf(ctx.db_pool,[repo=ctx.repo]{return repo->MinBetaVersion();}) : 0;
+    if(files.size()>65535)throw std::runtime_error("New Patch manifest exceeds original WORD count");
     spdlog::info("CT_NEWPATCH_REQ from_version={} min_beta={} → {} files",
         from_version, min_beta, files.size());
 
@@ -196,12 +200,14 @@ OnChangeInterface(std::shared_ptr<PatchSession> session,
                   std::vector<std::byte> body,
                   const ServerContext& ctx)
 {
+    if(body.size()!=1)throw std::runtime_error("Invalid CHANGEIF request length");
     std::uint8_t option = body.empty()
         ? std::uint8_t{0}
         : static_cast<std::uint8_t>(body[0]);
     const auto files = ctx.repo
-        ? ctx.repo->ListInterfaceFiles(option)
+        ? co_await fourstory::db::CoOffloadIf(ctx.db_pool,[repo=ctx.repo,option]{return repo->ListInterfaceFiles(option);})
         : std::vector<PatchFile>{};
+    if(files.size()>65535)throw std::runtime_error("Interface manifest exceeds original WORD count");
     spdlog::info("CT_CHANGEIF_REQ option={} → {} files", option, files.size());
 
     std::vector<std::byte> reply;
@@ -230,10 +236,12 @@ OnPrePatch(std::shared_ptr<PatchSession> session,
            const ServerContext& ctx)
 {
     std::uint32_t from_beta = 0;
+    if(body.size()!=4)throw std::runtime_error("Invalid PREPATCH request length");
     ReadDWORD(body, 0, from_beta);
     const auto files = ctx.repo
-        ? ctx.repo->ListPrePatchesSince(from_beta)
+        ? co_await fourstory::db::CoOffloadIf(ctx.db_pool,[repo=ctx.repo,from_beta]{return repo->ListPrePatchesSince(from_beta);})
         : std::vector<PatchFile>{};
+    if(files.size()>65535)throw std::runtime_error("Pre-Patch manifest exceeds original WORD count");
     spdlog::info("CT_PREPATCH_REQ from_beta={} → {} files",
         from_beta, files.size());
 
@@ -276,6 +284,7 @@ OnPrePatchComplete(std::shared_ptr<PatchSession> session,
                    const ServerContext& ctx)
 {
     std::uint32_t beta_ver = 0;
+    if(body.size()!=4)throw std::runtime_error("Invalid PREPATCHCOMPLETE request length");
     ReadDWORD(body, 0, beta_ver);
     if (ctx.repo)
     {

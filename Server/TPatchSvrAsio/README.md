@@ -1,5 +1,26 @@
 # TPatchSvrAsio — modernized 4Story patch metadata server
 
+## Native PostgreSQL — Phase A, 2026-10-11
+
+Migration048 and `tools/database/import_patch_metadata.py` add an explicit
+archival import of TVERSION, TPREVERSION and TUSER_INTERFACE, including original
+varchar bytes used by the MultiByte protocol. Apply migrations and run this tool
+only in Phase B. The supplied backups contain zero version/pre-version rows and
+two interface rows; patch assets are not supplied. No runtime empty-backend
+fallback is accepted by main. Use `deploy/tpatchsvr-postgresql.example.toml` and
+`FOURSTORY_PATCH_PG`; the runtime role only reads app_patch.
+
+**INTEGRATED_UNVERIFIED:** three metadata read paths, explicit byte-preserving
+names/paths, asynchronous queries and backup `TMinBetaVer` OUT value. That procedure
+sets 2, while the original `CSPMinBetaVer` binds a return value instead of its
+required OUT argument. This is an explicit source/backup mismatch requiring
+Phase B wire acceptance. Native `CT_PREPATCHCOMPLETE_REQ` rejects mutation because
+`TPreCompleteAdd` is absent from both backups; it does not guess a promotion from
+`dwBetaVer` to `dwVersion`. The earlier runbook below describes the retained
+compatibility implementation, not a proven reconstruction of that procedure.
+
+## Earlier implementation notes
+
 Production port of `Server/TPatchSvr/`. Serves patch metadata
 (`TVERSION`, `TPREVERSION`, `TINTERFACECHART`) to the legacy client and
 to `TControlSvr`. Server-server protocol only — the client downloads

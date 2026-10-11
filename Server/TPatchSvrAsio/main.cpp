@@ -133,7 +133,7 @@ int main(int argc, char** argv)
         }
         else
         {
-            spdlog::warn("no [database] configured — all queries return empty");
+            throw std::runtime_error("Patch metadata requires an explicit database connection");
         }
 
         // Server-to-server security gate. Constructed regardless of

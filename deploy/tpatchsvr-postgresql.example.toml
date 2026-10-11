@@ -1,0 +1,19 @@
+# Native metadata must first be explicitly initialized with import_patch_metadata.py.
+# Client assets are separate input; this service does not invent/download them.
+[server]
+port = 3715
+[database]
+backend = "postgresql"
+connection_string_env = "FOURSTORY_PATCH_PG"
+pool_size = 4
+worker_threads = 2
+[login]
+host = "127.0.0.1"
+port = 4816
+[health]
+port = 8915
+[log]
+level = "info"
+[security]
+ip_allowlist_enforce = true
+ip_allowlist = ["127.0.0.1/32", "::1/128"]

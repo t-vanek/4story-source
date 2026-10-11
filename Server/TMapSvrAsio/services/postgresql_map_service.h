@@ -33,6 +33,7 @@ public:
     void SaveAuthorized(const MapSessionClaim&,const CharSnapshot&) override;
     bool PrepareTransfer(const MapSessionClaim&,const CharSnapshot&,std::span<const std::byte>) override;
     std::optional<TransferredCharacter> AcceptTransfer(const MapSessionClaim&,std::span<const std::byte>) override;
+    std::optional<TransferredCharacter> ConfirmAcceptedTransfer(const MapSessionClaim&,std::span<const std::byte>) override;
     bool OutgoingTransferCommitted(const MapSessionClaim&) override;
     std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&) override;
     SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) override;
@@ -46,6 +47,7 @@ public:
     InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) override;
     EffectEndCommit EndMaintainedEffect(const MapSessionClaim&,const EffectEndRequest&,const CharSnapshot&) override;
 private:
+    std::optional<TransferredCharacter> AcceptTransferOrConfirm(const MapSessionClaim&,std::span<const std::byte>,bool confirmation_only);
     static std::vector<QuestProgressRow> ReadQuestProgress(soci::session&,const MapSessionClaim&);
     static void HydrateQuestProgress(soci::session&,const MapSessionClaim&,CharacterPayload&);
     static void CheckQuestProgress(soci::session&,const MapSessionClaim&,const CharSnapshot&);

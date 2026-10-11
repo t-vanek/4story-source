@@ -120,6 +120,13 @@ bool PostgreSQLMapService::PrepareTransfer(const MapSessionClaim& c,const CharSn
     tx->commit();return true;
 }
 std::optional<TransferredCharacter> PostgreSQLMapService::AcceptTransfer(const MapSessionClaim& c,std::span<const std::byte> body) {
+    return AcceptTransferOrConfirm(c,body,false);
+}
+std::optional<TransferredCharacter> PostgreSQLMapService::ConfirmAcceptedTransfer(const MapSessionClaim& c,std::span<const std::byte> body) {
+    return AcceptTransferOrConfirm(c,body,true);
+}
+std::optional<TransferredCharacter> PostgreSQLMapService::AcceptTransferOrConfirm(const MapSessionClaim& c,
+    std::span<const std::byte> body,bool confirmation_only) {
     auto state=transfer::Decode(body);
     if(c.role!=MapSessionRole::Replica||!state||state->db_load||state->character.dwCharID!=c.char_id||state->key!=c.key)return {};
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
@@ -154,6 +161,11 @@ std::optional<TransferredCharacter> PostgreSQLMapService::AcceptTransfer(const M
             soci::use(target_epoch,"e"),soci::use(fingerprint,"f"),soci::into(found);
         if(!sql.got_data())return {};tx->commit();return TransferredCharacter{std::move(s),static_cast<std::uint64_t>(target_epoch)};
     }
+    // All operations above this point are reads/locks, including hydration.
+    // The account and exact receipt locks wait for any previous transaction to
+    // settle. An absent, expired or still-prepared receipt is not permission to
+    // repeat the original write after a lost COMMIT acknowledgement.
+    if(confirmation_only)return {};
     int found=0;
     sql<<R"SQL(SELECT 1 FROM app_world.map_sessions m
       JOIN app_global."TCURRENTUSER" u ON u."dwKEY"=m.session_key AND u."dwUserID"=m.user_id AND u."dwCharID"=m.char_id

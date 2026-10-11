@@ -76,11 +76,15 @@ boost::asio::awaitable<void> OnMWTransferEnterReq(std::vector<std::byte> body,co
     if(ctx.presence)ctx.presence->UnbindIfMatches(client.get());
     std::optional<TransferredCharacter> incoming;
     auto* players=ctx.player_service;const auto claim=id->Claim(ctx.expected_group);
-    // The backend's exact-body journal makes a lost COMMIT reply confirmable.
-    // Never publish the old replica again after an uncertain primary commit.
-    for(int attempt=0;attempt<2&&!incoming;++attempt) {
-        try {incoming=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[players,claim,&body]{return players->AcceptTransfer(claim,body);});}
-        catch(...){if(attempt==1){client->Close();co_return;}}
+    // A write is attempted once. After an unknown result, the only permitted
+    // follow-up is a read of the exact committed receipt. Never turn absence of
+    // confirmation into another promotion attempt or an old replica publish.
+    bool unknown=false;
+    try {incoming=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[players,claim,&body]{return players->AcceptTransfer(claim,body);});}
+    catch(...){unknown=true;}
+    if(unknown) {
+        try {incoming=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[players,claim,&body]{return players->ConfirmAcceptedTransfer(claim,body);});}
+        catch(...){client->Close();co_return;}
     }
     if(!incoming){client->Close();co_return;}
     incoming->snapshot.cluster=replica->cluster;

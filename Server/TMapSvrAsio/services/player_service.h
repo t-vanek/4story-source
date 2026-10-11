@@ -59,6 +59,11 @@ public:
     }
     virtual bool PrepareTransfer(const MapSessionClaim&,const CharSnapshot&,std::span<const std::byte>) {return false;}
     virtual std::optional<TransferredCharacter> AcceptTransfer(const MapSessionClaim&,std::span<const std::byte>) {return {};}
+    // After an unknown commit outcome, only confirm an existing exact receipt.
+    // This operation must never promote a still-prepared transfer.
+    virtual std::optional<TransferredCharacter> ConfirmAcceptedTransfer(const MapSessionClaim&,std::span<const std::byte>) {
+        throw std::runtime_error("Native transfer confirmation unavailable");
+    }
     virtual bool OutgoingTransferCommitted(const MapSessionClaim&) {return false;}
     virtual std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,
         const std::vector<SkillItemDebit>&,const CharSnapshot&) {throw std::runtime_error("Native skill item transaction unavailable");}

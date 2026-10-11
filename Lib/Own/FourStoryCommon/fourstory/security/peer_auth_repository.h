@@ -134,6 +134,14 @@ public:
     // (group, server) for handshake-time matching.
     std::vector<PeerAuthRow> LoadAll()
     {
+        if (NativePostgreSQL())
+        {
+            auto lease = m_pool.Acquire();
+            soci::rowset<soci::row> rows = (lease->prepare << NativeSelect());
+            std::vector<PeerAuthRow> result;
+            for (const auto& row : rows) result.push_back(NativeRow(row));
+            return result;
+        }
         fourstory::db::orm::DbContext ctx(m_pool);
         return ctx.Set<PeerAuthRow>().All();
     }
@@ -144,6 +152,17 @@ public:
                                              std::uint8_t server_id,
                                              std::uint8_t type_id)
     {
+        if (NativePostgreSQL())
+        {
+            auto lease = m_pool.Acquire();
+            const int group=group_id,server=server_id,type=type_id;
+            soci::rowset<soci::row> rows = (lease->prepare << NativeSelect()+
+                " WHERE group_id=:g AND server_id=:s AND type_id=:t",
+                soci::use(group,"g"),soci::use(server,"s"),soci::use(type,"t"));
+            std::vector<PeerAuthRow> result;
+            for (const auto& row : rows) result.push_back(NativeRow(row));
+            return result;
+        }
         fourstory::db::orm::DbContext ctx(m_pool);
         const auto where =
             "bGroupID = "  + std::to_string(group_id)  +
@@ -166,6 +185,25 @@ public:
             auto& sql = *lease;
             const int g = group_id, s = server_id, t = type_id,
                       o = static_cast<int>(outcome);
+            if (NativePostgreSQL())
+            {
+                soci::transaction tx(sql);
+                sql << "INSERT INTO runtime_control.peer_auth_log(group_id,server_id,type_id,remote_ip,outcome,reason) "
+                       "VALUES(:g,:s,:t,:ip,:o,:r)",
+                    soci::use(g,"g"),soci::use(s,"s"),soci::use(t,"t"),
+                    soci::use(remote_ip,"ip"),soci::use(o,"o"),soci::use(reason,"r");
+                if (group_id != 0 || server_id != 0)
+                {
+                    const std::string counter=outcome==PeerAuthOutcome::Allow?"ok_count":"fail_count";
+                    sql << "UPDATE runtime_control.peer_trust SET "+counter+"=("+counter+
+                        "+1) % 4294967296,last_seen=clock_timestamp() WHERE group_id=:g AND server_id=:s",
+                        soci::use(g,"g"),soci::use(s,"s");
+                }
+                // Audit and counters commit together. Unknown commit outcomes
+                // are reported below, never automatically retried.
+                tx.commit();
+                return;
+            }
             if (reason.empty())
             {
                 sql << "INSERT INTO TPEER_AUTH_LOG "
@@ -205,12 +243,20 @@ public:
     // Purge old TPEER_AUTH_LOG rows. Retention 30 days by default.
     void PurgeOldLogs(int days = 30)
     {
+        if(days<0)throw std::invalid_argument("Peer audit retention cannot be negative");
         try
         {
             auto lease = m_pool.Acquire();
+            if (NativePostgreSQL())
+            {
+                (*lease) << "DELETE FROM runtime_control.peer_auth_log WHERE recorded_at < "
+                    "clock_timestamp()-make_interval(days => :d)",soci::use(days,"d");
+                return;
+            }
+            const int offset_days = -days;
             (*lease) << "DELETE FROM TPEER_AUTH_LOG "
                         "WHERE dtAt < DATEADD(day, :d, GETDATE())",
-                soci::use(-days, "d");
+                soci::use(offset_days, "d");
         }
         catch (const std::exception& ex)
         {
@@ -219,6 +265,22 @@ public:
     }
 
 private:
+    bool NativePostgreSQL() const { return m_pool.GetBackend()==fourstory::db::Backend::PostgreSQL; }
+    static std::string NativeSelect() {
+        return "SELECT group_id,server_id,type_id,peer_name,secret_hex,ip_allowlist,"
+            "CASE WHEN enabled THEN 1 ELSE 0 END,fail_count,ok_count FROM runtime_control.peer_trust";
+    }
+    static PeerAuthRow NativeRow(const soci::row& r) {
+        PeerAuthRow row;
+        row.group_id=static_cast<std::uint8_t>(r.get<int>(0));
+        row.server_id=static_cast<std::uint8_t>(r.get<int>(1));
+        row.type_id=static_cast<std::uint8_t>(r.get<int>(2));
+        row.peer_name=r.get<std::string>(3);row.secret_hex=r.get<std::string>(4);
+        row.ip_allowlist=r.get<std::string>(5);row.enabled=static_cast<std::uint8_t>(r.get<int>(6));
+        row.fail_count=static_cast<std::uint32_t>(r.get<long long>(7));
+        row.ok_count=static_cast<std::uint32_t>(r.get<long long>(8));
+        return row;
+    }
     fourstory::db::SessionPool& m_pool;
 };
 

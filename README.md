@@ -20,7 +20,18 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Verified functionality
 
-Current work adds **native title lists and selection** through Map → PostgreSQL →
+Current work adds **native account secure codes**: all seven original requests,
+PostgreSQL persistence, ten-attempt lockout, original CHARINFO fields, protected
+inventory/skill purchases, same-login Map transfer and new-login relocking.
+See the [bounded security contract](_rewrite/docs/modernization/evidence/security-contract.json)
+and [local build/startup](deploy/README.md#native-account-security).
+Final Debug, ASan/UBSan and installed Release each pass **1,455** focused native
+checks; all **120** upgrade checks and six service smoke checks pass. These include
+real PostgreSQL, original-byte TCP, races, rollback, restart and transfer recovery. Complete gameplay
+and original-client acceptance remain unfinished; the client EXE/assets are absent.
+Applied migrations **001–043** are immutable; the next migration is **044**.
+
+Previous increment adds **native title lists and selection** through Map → PostgreSQL →
 World → Map → original client response, including source gold-title transitions.
 Migration **041** fences stale selections and skill purchases; reload and transfers
 preserve original title flags. See the [title contract](_rewrite/docs/modernization/evidence/titles-contract.json)
@@ -28,7 +39,7 @@ and [local reproduction](deploy/README.md#native-title-lifecycle).
 Final Debug, ASan/UBSan and installed Release each pass 1,243 focused native
 checks; 97 migration checks and all six service smoke checks pass.
 Complete title awards and actual-client acceptance remain unfinished.
-Applied migrations **001–041** are immutable; the next migration is **042**.
+That title increment used schema 041; current requirements are above.
 
 Previous increment (2026-10-11) adds **native skill learning and rank upgrades** through
 `CS_SKILLBUY_REQ`, the original trainer offers, prices and skill-point rules.
@@ -188,7 +199,7 @@ self-cure `Defend` path (including item use), dependent posture skills and remot
 visibility still require implementation and acceptance.
 Only uncompiled client sources are available; no supported executable build/hash,
 assets or original-client acceptance is claimed. Backups and applied migrations
-**001–041** are immutable; next migration **042**.
+**001–043** are immutable; next migration **044**.
 
 The preceding **native equipment** increment (032) verified ordinary equip,
 unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per

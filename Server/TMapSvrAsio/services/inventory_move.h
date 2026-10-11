@@ -27,8 +27,9 @@ inline bool StackEquivalent(const ItemInstance& a,const ItemInstance& b) {
 }
 inline InventoryMovePlan PlanInventoryMove(const CharSnapshot& s,const InventoryMoveRequest& r) {
     if(!s.payload)throw std::runtime_error("Inventory move requires native state");
-    if(s.payload->transfer_state&&!s.payload->transfer_state->new_security)
-        throw std::runtime_error("Native secured inventory mutation is unsupported");
+    if(s.payload->security.Blocks())throw std::runtime_error("Inventory requires secure unlock");
+    if(!s.payload->security.hydrated&&s.payload->transfer_state&&!s.payload->transfer_state->new_security)
+        throw std::runtime_error("Inventory secure state not hydrated");
     if(r.source_bag==254||r.destination_bag==254)return PlanEquipmentMove(s,r,StackEquivalent);
     const auto& bags=s.payload->bags;
     const auto src=std::find_if(bags.begin(),bags.end(),[&](const auto& b){return b.bag.bInvenID==r.source_bag;});

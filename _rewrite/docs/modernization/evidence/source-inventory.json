@@ -3,7 +3,7 @@
   "client_build": "UNKNOWN; source TVERSION=0x2918 is not a binary client version",
   "summary": {
     "legacy_translation_units": 206,
-    "modern_translation_units": 246,
+    "modern_translation_units": 247,
     "legacy_packet_definitions": 1542,
     "modern_enum_entries": 1542,
     "opcode_mismatches": [],
@@ -5120,6 +5120,7 @@
     "Server/TMapSvrAsio/handlers/movement.cpp",
     "Server/TMapSvrAsio/handlers/npc.cpp",
     "Server/TMapSvrAsio/handlers/quest.cpp",
+    "Server/TMapSvrAsio/handlers/secure_code.cpp",
     "Server/TMapSvrAsio/handlers/session.cpp",
     "Server/TMapSvrAsio/handlers/skill.cpp",
     "Server/TMapSvrAsio/handlers/social.cpp",
@@ -6055,9 +6056,9 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:123",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:101",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:105",
         "Server/TMapSvrAsio/handlers/skill.cpp:17",
-        "Server/TMapSvrAsio/handlers.h:161",
+        "Server/TMapSvrAsio/handlers.h:162",
         "Server/TMapSvrAsio/services/client_senders.h:163",
         "Server/TMapSvrAsio/services/damage_formula.h:14"
       ]
@@ -6072,8 +6073,8 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:361",
-        "Server/TMapSvrAsio/handlers/inventory.cpp:79",
-        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:662"
+        "Server/TMapSvrAsio/handlers/inventory.cpp:87",
+        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:727"
       ]
     },
     {
@@ -6086,12 +6087,12 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:146",
-        "Server/TMapSvrAsio/handlers/inventory.cpp:92",
-        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:167",
+        "Server/TMapSvrAsio/handlers/inventory.cpp:100",
+        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:171",
         "Server/TMapSvrAsio/handlers/skill.cpp:327",
         "Server/TMapSvrAsio/services/client_senders.h:123",
         "Server/TMapSvrAsio/services/monster_ai.cpp:187",
-        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:641"
+        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:706"
       ],
       "test_references": [
         "Server/TMapSvrAsio/tests/test_admission.cpp:654",
@@ -6150,8 +6151,8 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:450",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:105",
-        "Server/TMapSvrAsio/handlers.h:170"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:109",
+        "Server/TMapSvrAsio/handlers.h:171"
       ]
     },
     {
@@ -6164,7 +6165,7 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:508",
-        "Server/TMapSvrAsio/handlers.h:171",
+        "Server/TMapSvrAsio/handlers.h:172",
         "Server/TMapSvrAsio/services/client_senders.h:234"
       ],
       "test_references": [
@@ -6195,7 +6196,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/inventory.cpp:36",
+        "Server/TMapSvrAsio/handlers/inventory.cpp:28",
         "Server/TMapSvrAsio/handlers/skill.cpp:312"
       ],
       "test_references": [
@@ -6211,7 +6212,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/inventory.cpp:65",
+        "Server/TMapSvrAsio/handlers/inventory.cpp:73",
         "Server/TMapSvrAsio/handlers/skill.cpp:310"
       ],
       "test_references": [
@@ -6227,7 +6228,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/inventory.cpp:65",
+        "Server/TMapSvrAsio/handlers/inventory.cpp:73",
         "Server/TMapSvrAsio/handlers/loot.cpp:14",
         "Server/TMapSvrAsio/services/client_senders.h:249"
       ],
@@ -6244,7 +6245,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/inventory.cpp:61",
+        "Server/TMapSvrAsio/handlers/inventory.cpp:69",
         "Server/TMapSvrAsio/handlers/skill.cpp:310"
       ],
       "test_references": [
@@ -6260,7 +6261,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/inventory.cpp:86"
+        "Server/TMapSvrAsio/handlers/inventory.cpp:94"
       ]
     },
     {
@@ -6273,8 +6274,8 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:280",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:99",
-        "Server/TMapSvrAsio/handlers.h:153"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:103",
+        "Server/TMapSvrAsio/handlers.h:154"
       ]
     },
     {
@@ -6287,7 +6288,7 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:292",
-        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:73",
+        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:77",
         "Server/TMapSvrAsio/services/client_senders.h:157"
       ],
       "test_references": [
@@ -6321,7 +6322,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:93"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:97"
       ]
     },
     {
@@ -6333,7 +6334,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:499"
+        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:564"
       ]
     },
     {
@@ -6345,7 +6346,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:95",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:99",
         "Server/TMapSvrAsio/handlers/skill.cpp:1",
         "Server/TMapSvrAsio/main.cpp:297"
       ],
@@ -6392,10 +6393,10 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/inventory.cpp:79",
-        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:135",
+        "Server/TMapSvrAsio/handlers/inventory.cpp:87",
+        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:139",
         "Server/TMapSvrAsio/handlers/skill.cpp:325",
-        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:639"
+        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:704"
       ]
     },
     {
@@ -6416,7 +6417,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:121",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:125",
         "Server/TMapSvrAsio/handlers/social.cpp:65"
       ]
     },
@@ -6447,7 +6448,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:123",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:127",
         "Server/TMapSvrAsio/handlers/social.cpp:91"
       ]
     },
@@ -6469,7 +6470,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:125",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:129",
         "Server/TMapSvrAsio/handlers/social.cpp:116"
       ]
     },
@@ -6563,7 +6564,7 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:212",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:115",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:119",
         "Server/TMapSvrAsio/handlers/quest.cpp:1",
         "Server/TMapSvrAsio/services/quest_service.h:17"
       ]
@@ -6613,7 +6614,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:117",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:121",
         "Server/TMapSvrAsio/handlers/quest.cpp:2"
       ]
     },
@@ -6860,7 +6861,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:119",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:123",
         "Server/TMapSvrAsio/handlers/social.cpp:1"
       ]
     },
@@ -7009,7 +7010,7 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/combat.cpp:184",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:107",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:111",
         "Server/TMapSvrAsio/handlers/loot.cpp:6",
         "Server/TMapSvrAsio/services/corpse_registry.h:6"
       ]
@@ -7039,7 +7040,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:111",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:115",
         "Server/TMapSvrAsio/handlers/loot.cpp:8",
         "Server/TMapSvrAsio/services/corpse_registry.h:6"
       ]
@@ -7209,10 +7210,10 @@
       "production_references": [
         "Server/TMapSvrAsio/domain/character_statistics.h:7",
         "Server/TMapSvrAsio/handlers/character_statistics.cpp:37",
-        "Server/TMapSvrAsio/handlers/inventory.cpp:81",
-        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:169",
+        "Server/TMapSvrAsio/handlers/inventory.cpp:89",
+        "Server/TMapSvrAsio/handlers/maintained_effect.cpp:173",
         "Server/TMapSvrAsio/handlers/skill.cpp:329",
-        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:643"
+        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:708"
       ]
     },
     {
@@ -7910,7 +7911,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:97",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:101",
         "Server/TMapSvrAsio/handlers/skill.cpp:375"
       ],
       "test_references": [
@@ -8229,7 +8230,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:109",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:113",
         "Server/TMapSvrAsio/handlers/loot.cpp:7",
         "Server/TMapSvrAsio/services/corpse_registry.h:6"
       ]
@@ -8773,7 +8774,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:113",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:117",
         "Server/TMapSvrAsio/handlers/loot.cpp:9"
       ]
     },
@@ -11252,7 +11253,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:89"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:93"
       ]
     },
     {
@@ -11276,7 +11277,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:91"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:95"
       ]
     },
     {
@@ -11288,7 +11289,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:496"
+        "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:561"
       ]
     },
     {
@@ -11469,7 +11470,10 @@
       "modern_value": 21888,
       "opcode_status": "VERIFIED",
       "behavior_status": "NOT_ANALYZED",
-      "real_client_status": "PENDING"
+      "real_client_status": "PENDING",
+      "production_references": [
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:89"
+      ]
     },
     {
       "name": "CS_SC_CREATECODE_ACK",
@@ -11487,7 +11491,10 @@
       "modern_value": 21890,
       "opcode_status": "VERIFIED",
       "behavior_status": "NOT_ANALYZED",
-      "real_client_status": "PENDING"
+      "real_client_status": "PENDING",
+      "production_references": [
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:89"
+      ]
     },
     {
       "name": "CS_SC_CHANGECODE_ACK",
@@ -11505,7 +11512,10 @@
       "modern_value": 21892,
       "opcode_status": "VERIFIED",
       "behavior_status": "NOT_ANALYZED",
-      "real_client_status": "PENDING"
+      "real_client_status": "PENDING",
+      "production_references": [
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:90"
+      ]
     },
     {
       "name": "CS_SC_DISABLECODE_ACK",
@@ -11523,7 +11533,10 @@
       "modern_value": 21894,
       "opcode_status": "VERIFIED",
       "behavior_status": "NOT_ANALYZED",
-      "real_client_status": "PENDING"
+      "real_client_status": "PENDING",
+      "production_references": [
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:90"
+      ]
     },
     {
       "name": "CS_SC_ENABLECODE_ACK",
@@ -11541,7 +11554,10 @@
       "modern_value": 21896,
       "opcode_status": "VERIFIED",
       "behavior_status": "NOT_ANALYZED",
-      "real_client_status": "PENDING"
+      "real_client_status": "PENDING",
+      "production_references": [
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:91"
+      ]
     },
     {
       "name": "CS_SC_UNLOCK_ACK",
@@ -11559,7 +11575,10 @@
       "modern_value": 21904,
       "opcode_status": "VERIFIED",
       "behavior_status": "NOT_ANALYZED",
-      "real_client_status": "PENDING"
+      "real_client_status": "PENDING",
+      "production_references": [
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:91"
+      ]
     },
     {
       "name": "CS_SC_CHECKCODE_ACK",
@@ -11577,7 +11596,10 @@
       "modern_value": 21906,
       "opcode_status": "VERIFIED",
       "behavior_status": "NOT_ANALYZED",
-      "real_client_status": "PENDING"
+      "real_client_status": "PENDING",
+      "production_references": [
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:91"
+      ]
     },
     {
       "name": "CS_SC_GETLOCKTIME_ACK",
@@ -12087,7 +12109,7 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/bow.cpp:1",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:127"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:131"
       ]
     },
     {
@@ -12109,7 +12131,7 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/bow.cpp:2",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:129"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:133"
       ]
     },
     {
@@ -12167,7 +12189,7 @@
       "real_client_status": "PENDING",
       "production_references": [
         "Server/TMapSvrAsio/handlers/bow.cpp:2",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:131"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:135"
       ]
     },
     {
@@ -12250,7 +12272,7 @@
       "behavior_status": "NOT_ANALYZED",
       "real_client_status": "PENDING",
       "production_references": [
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:103",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:107",
         "Server/TMapSvrAsio/handlers/skill.cpp:16"
       ]
     },
@@ -21380,7 +21402,7 @@
         "Server/TLoginSvrAsio/handlers.h:225",
         "Server/TLoginSvrAsio/login_server.cpp:404",
         "Server/TMapSvrAsio/handlers/control.cpp:9",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:137",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:141",
         "Server/TPatchSvrAsio/handlers.cpp:67",
         "Server/TPatchSvrAsio/handlers.h:44",
         "Server/TPatchSvrAsio/patch_server.cpp:39",
@@ -21556,7 +21578,7 @@
         "Server/TControlSvrAsio/senders.cpp:229",
         "Server/TControlSvrAsio/senders.h:156",
         "Server/TMapSvrAsio/handlers/control.cpp:6",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:133"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:137"
       ],
       "test_references": [
         "Server/TControlSvrAsio/tests/test_admin_shell.cpp:9"
@@ -21591,7 +21613,7 @@
         "Server/TControlSvrAsio/senders.cpp:239",
         "Server/TControlSvrAsio/senders.h:161",
         "Server/TMapSvrAsio/handlers/control.cpp:8",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:135"
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:139"
       ],
       "test_references": [
         "Server/TControlSvrAsio/tests/test_admin_forwarders.cpp:256",
@@ -22055,7 +22077,7 @@
         "Server/TLoginSvrAsio/handlers.h:236",
         "Server/TLoginSvrAsio/login_server.cpp:405",
         "Server/TMapSvrAsio/handlers/control.cpp:10",
-        "Server/TMapSvrAsio/handlers/dispatch.cpp:139",
+        "Server/TMapSvrAsio/handlers/dispatch.cpp:143",
         "Server/TPatchSvrAsio/handlers.cpp:108",
         "Server/TPatchSvrAsio/handlers.h:51",
         "Server/TPatchSvrAsio/patch_server.cpp:177",
@@ -24336,9 +24358,9 @@
     {
       "path": "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
       "lines": [
-        547,
-        592,
-        722
+        612,
+        657,
+        787
       ],
       "classification": "UNREVIEWED_TEXT_MARKER_NOT_A_CONFIRMED_GAP"
     },

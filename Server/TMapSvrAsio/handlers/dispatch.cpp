@@ -86,6 +86,10 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnCharStatInfoReq(sess, std::move(body), ctx); break;
     case MessageId::CS_NPCTALK_REQ:
         co_await OnNpcTalkReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_SC_CREATECODE_REQ:case MessageId::CS_SC_CHANGECODE_REQ:
+    case MessageId::CS_SC_DISABLECODE_REQ:case MessageId::CS_SC_ENABLECODE_REQ:
+    case MessageId::CS_SC_UNLOCK_REQ:case MessageId::CS_SC_CHECKCODE_REQ:case MessageId::CS_SC_GETLOCKTIME_REQ:
+        co_await OnSecureCodeReq(sess,wId,std::move(body),ctx);break;
     case MessageId::CS_TITLELIST_REQ:
         co_await OnTitleListReq(sess,std::move(body),ctx); break;
     case MessageId::CS_CHANGETITLE_REQ:

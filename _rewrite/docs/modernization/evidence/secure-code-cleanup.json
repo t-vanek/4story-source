@@ -1,0 +1,41 @@
+{
+  "status": "passed",
+  "labs": [
+    {
+      "lab": "/tmp/fourstory-security-debug-20261011",
+      "postgresql_container": "fourstory-db-bd0384183294-postgres",
+      "owned_container_removed": true,
+      "credential_and_key_files_remaining": 0,
+      "files_removed_in_final_cleanup": 13
+    },
+    {
+      "lab": "/tmp/fourstory-security-asan-20261011",
+      "postgresql_container": "fourstory-db-6b60084492c6-postgres",
+      "owned_container_removed": true,
+      "credential_and_key_files_remaining": 0,
+      "files_removed_in_final_cleanup": 0
+    },
+    {
+      "lab": "/tmp/fourstory-security-release-20261011",
+      "postgresql_container": "fourstory-db-66853d0bb658-postgres",
+      "owned_container_removed": true,
+      "credential_and_key_files_remaining": 0,
+      "files_removed_in_final_cleanup": 0
+    },
+    {
+      "lab": "/tmp/fourstory-security-asan-final-20261011",
+      "postgresql_container": "fourstory-db-039520e66912-postgres",
+      "owned_container_removed": true,
+      "credential_and_key_files_remaining": 0,
+      "files_removed_in_final_cleanup": 0
+    },
+    {
+      "lab": "/tmp/fourstory-security-release-final-20261011",
+      "postgresql_container": "fourstory-db-c6236d79eed3-postgres",
+      "owned_container_removed": true,
+      "credential_and_key_files_remaining": 0,
+      "files_removed_in_final_cleanup": 4
+    }
+  ],
+  "note": "Earlier cleanup already removed18 credential/key files from prior ASan/Release runs; final counts are recorded per lab. All five owned lab containers/networks removed. Local build/runtime images retained."
+}

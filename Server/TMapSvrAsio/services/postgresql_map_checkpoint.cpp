@@ -4,6 +4,7 @@
 #include "posture_effects.h"
 #include "skill_effect.h"
 #include "skill_engine.h"
+#include "skill_cooldown.h"
 #include "MessageId.h"
 #include "domain/main_transfer.h"
 #include <openssl/rand.h>
@@ -358,6 +359,70 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
     if(cast_result)cast_result->snapshot=std::make_shared<const CharSnapshot>(after);
     tx->commit();return hashes;
 }
+SecureCodeState PostgreSQLMapService::ReadSecurity(soci::session& sql,const MapSessionClaim& c) {
+    try {
+        const long long user=c.user_id,key=c.key;SecureCodeState s;s.hydrated=true;
+        std::string hex;int disabled=0,tries=0,unlocked=0;long long deadline=0,tick=0,revision=0;
+        sql<<"SELECT encode(code,'hex'),disabled::integer,tries,deadline_ms,source_tick,revision,CASE WHEN unlocked_key=:k THEN 1 ELSE 0 END "
+             "FROM app_global.secure_codes WHERE user_id=:u",
+            soci::use(key,"k"),soci::use(user,"u"),soci::into(hex),soci::into(disabled),soci::into(tries),
+            soci::into(deadline),soci::into(tick),soci::into(revision),soci::into(unlocked);
+        if(!sql.got_data())return s;
+        s.created=true;s.disabled=disabled;s.tries=tries;s.deadline_ms=deadline;s.source_tick=tick;s.revision=revision;s.unlocked=unlocked;
+        for(std::size_t i=0;i<hex.size();i+=2)s.code.push_back(static_cast<char>(std::stoul(hex.substr(i,2),nullptr,16)));
+        return s;
+    }catch(...){throw std::runtime_error("Native secure state could not be read");}
+}
+SecureCommit PostgreSQLMapService::UpdateSecureCode(const MapSessionClaim& c,std::uint16_t opcode,
+    std::span<const std::byte> body,const CharSnapshot& before) {
+    const auto request=DecodeSecureRequest(opcode,body);
+    if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain)
+        throw std::runtime_error("Secure code requires authoritative primary");
+    try {
+        auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+        std::string phase;
+        if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Secure claim not ready");
+        const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+        if(!receipt.found||!receipt.core_matches||receipt.outcome!="active")throw std::runtime_error("Secure receipt changed");
+        const long long user=c.user_id,key=c.key;int unlocked=0;
+        sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
+        if(!sql.got_data())throw std::runtime_error("Secure session revoked");
+        ValidateInventoryState(sql,c,before,true);
+        const auto current=ReadSecurity(sql,c);long long now=0;
+        sql<<"SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint",soci::into(now);
+        const auto plan=PlanSecureCode(current,request,now,static_cast<std::uint32_t>(SkillClockMs()));
+        auto after=before;
+        if(plan.state==current){tx->commit();return {std::make_shared<const CharSnapshot>(after),plan.packet};}
+        if(!plan.packet)throw std::runtime_error("Secure mutation missing response");
+        const auto hex=[](auto bytes){constexpr char d[]="0123456789abcdef";std::string out;
+            for(auto byte:bytes){const auto b=static_cast<unsigned char>(byte);out+=d[b>>4];out+=d[b&15];}return out;};
+        const int world=c.group,character=c.char_id,server=m_config.server,request_id=opcode,response_id=plan.packet->first;
+        const long long previous=current.revision,generation=c.connection_id,epoch=c.authority_epoch;
+        const auto response=hex(plan.packet->second);long long id=0;
+        sql<<"INSERT INTO app_world.secure_code_operations(user_id,previous_revision,world_id,char_id,session_key,server_id,owner_token,connection_id,authority_epoch,request_opcode,response_opcode,response) "
+             "VALUES(:u,:prev,:w,:c,:k,:s,:t,:g,:e,:request,:response,decode(:bytes,'hex')) RETURNING operation_id",
+            soci::use(user,"u"),soci::use(previous,"prev"),soci::use(world,"w"),soci::use(character,"c"),soci::use(key,"k"),
+            soci::use(server,"s"),soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),
+            soci::use(request_id,"request"),soci::use(response_id,"response"),soci::use(response,"bytes"),soci::into(id);
+        auto payload=std::make_shared<CharacterPayload>(*before.payload);payload->security=plan.state;payload->security.revision=id;
+        const auto code=hex(payload->security.code);const int disabled=payload->security.disabled,tries=payload->security.tries;
+        const long long deadline=payload->security.deadline_ms,tick=payload->security.source_tick,unlock_key=payload->security.unlocked?key:0;
+        sql<<"INSERT INTO app_global.secure_codes(user_id,code,disabled,tries,deadline_ms,source_tick,unlocked_key,revision) "
+             "VALUES(:u,decode(:code,'hex'),CAST(:d AS integer)<>0,:tries,:deadline,:tick,:key,:revision) "
+             "ON CONFLICT(user_id) DO UPDATE SET code=EXCLUDED.code,disabled=EXCLUDED.disabled,tries=EXCLUDED.tries,"
+             "deadline_ms=EXCLUDED.deadline_ms,source_tick=EXCLUDED.source_tick,unlocked_key=EXCLUDED.unlocked_key,revision=EXCLUDED.revision",
+            soci::use(user,"u"),soci::use(code,"code"),soci::use(disabled,"d"),soci::use(tries,"tries"),soci::use(deadline,"deadline"),
+            soci::use(tick,"tick"),soci::use(unlock_key,"key"),soci::use(id,"revision");
+        after.payload=std::move(payload);
+        WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,Fingerprint(c,after),"active");StoreTransferCheckpoint(sql,c,after);
+        SecureCommit result{std::make_shared<const CharSnapshot>(std::move(after)),plan.packet};tx->commit();return result;
+    }catch(...) {
+        // SOCI diagnostics can include bound parameters. Do not let credential
+        // bytes enter handler logs; the caller closes without retrying the write.
+        throw std::runtime_error("Native secure transaction failed; outcome requires recovery");
+    }
+}
+
 TitleChangeCommit PostgreSQLMapService::SelectTitle(const MapSessionClaim& c,std::span<const std::byte> body,
     const CharSnapshot& before) {
     const auto selected=DecodeTitleChange(body);
@@ -430,7 +495,7 @@ SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c
     if(!sql.got_data())throw std::runtime_error("Learning requires verified compatible trainer catalog");
     ValidateInventoryState(sql,c,before,true);
     if(!SupportedPostures(*before.payload))throw std::runtime_error("Learning disguise/effect semantics unavailable");
-    if(graph&&!before.payload->transfer_state->security_code.empty())throw std::runtime_error("Learning secure-code lifecycle unavailable");
+    if(before.payload->security.Blocks())throw std::runtime_error("Learning requires secure unlock");
     if(before.bStartAct==2||(before.bStartAct==1&&before.wMapID==2010))
         throw std::runtime_error("Tutorial does not permit learning");
     auto original=before;RefreshEquipment(sql,original,true);
@@ -817,6 +882,9 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
 }
 void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     if(!s.payload)throw std::runtime_error("Cast ledger requires native snapshot");
+    const auto security=ReadSecurity(sql,c);
+    auto expected=s.payload->security;expected.hydrated=true;
+    if(expected!=security)throw std::runtime_error("Snapshot predates secure code state");
     const int world=c.group,character=c.char_id;long long head=0;
     sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
     if(static_cast<std::uint64_t>(head)!=s.payload->last_cast_id)throw std::runtime_error("Snapshot predates accepted cast");

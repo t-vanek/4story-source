@@ -985,7 +985,7 @@ wire scenario; it does not substitute for the full matrix.
 
 ## Native title lifecycle
 
-Current native binaries require schema **041** and refreshed Map runtime grants.
+The title increment required schema **041** and refreshed Map runtime grants.
 Stop local Map writers for the additive upgrade, retain existing catalogs and
 all migration receipts, run `migrate.py schema` using the private libpq connection,
 and reapply `deploy/sql/map-runtime-grants.sql`. Existing title rows and recovery
@@ -1024,3 +1024,44 @@ rollback. For Debug omit image/runtime-bin options; for sanitizers build and sel
 Use separate labs for concurrent configurations and remove owned credentials/keys
 when stopped. This is local testing, with no external deployment or GitHub push.
 See [implemented scope, source quirks and verification](../_rewrite/docs/modernization/evidence/titles-contract.json).
+
+## Native account security
+
+Current native Map binaries require schema **043** and refreshed Map grants.
+Stop local Map writers, apply the additive migrations with the existing private
+libpq configuration and reapply `deploy/sql/map-runtime-grants.sql`. Do not edit
+old migration files. Existing catalogs, characters, titles and recovery receipts
+are preserved. The pinned backup has no secure-code rows to import. Keep database,
+transfer receipts and raw code bytes private; do not publish them as evidence.
+
+Use the native Login/World/Map configurations documented above. Build and verify:
+
+```sh
+podman run --rm --network none --userns keep-id -v "$PWD:/src:z" -w /src \
+  localhost/fourstory:build-deps cmake --build --preset linux-debug
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 \
+  -t localhost/fourstory:postgresql-security .
+python3 tools/database/disposable_environment.py start \
+  --work /tmp/fourstory-security-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-security-test --map-runtime-only --skill-learning-wire-only \
+  --image localhost/fourstory:postgresql-security --runtime-bin-dir /opt/fourstory/bin \
+  --snapshot /private/character/reference/manifest.json \
+  --routing-snapshot /private/routing/reference/manifest.json \
+  --actor-snapshot /private/statistics/actor-reference/manifest.json \
+  --trainer-snapshot /private/trainer-reference/manifest.json \
+  --report /tmp/native-security-release.json
+python3 tools/database/verify_posture_upgrade.py \
+  --work /tmp/fourstory-security-test --through-security --report /tmp/security-upgrade.json
+python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-security
+python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-security-test
+```
+
+Use the documented psycopg environment. Omit image/runtime-bin options for Debug;
+build/select `linux-asan` for ASan/UBSan. The focused wire option now includes
+learning, titles and secure codes, with all native backend checks. Omit it for the
+full native wire matrix. Release verification runs installed daemons plus the
+mounted Debug backend test. Each concurrent run needs its own disposable lab.
+Delete owned private credentials/keys after stopping. This is local verification;
+no GitHub push or external deployment is involved. The original client EXE/assets
+remain unavailable; these synthetic peers do not establish a supported binary.

@@ -60,7 +60,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::RestoreTransferCheckpoint(soci
     for(std::size_t i=0;i<hex.size();i+=2)body.push_back(static_cast<std::byte>(std::stoul(hex.substr(i,2),nullptr,16)));
     auto state=transfer::Decode(body);
     if(!state||state->db_load||state->character.dwCharID!=c.char_id)throw std::runtime_error("Recovered transfer graph is invalid");
-    state->key=c.key;auto snap=HydrateTransfer(sql,*state);
+    state->key=c.key;auto snap=HydrateTransfer(sql,*state,c);
     if(CoreFingerprint(c,snap)!=fingerprint)throw std::runtime_error("Recovered transfer graph disagrees with core receipt");
     return snap;
 }
@@ -145,7 +145,7 @@ std::optional<TransferredCharacter> PostgreSQLMapService::AcceptTransfer(const M
         // Confirmation only while the committed load has not entered gameplay.
         std::string current;
         if(!LockClaim(sql,promoted,current)||current!="loaded")return {};
-        auto s=HydrateTransfer(sql,*state);
+        auto s=HydrateTransfer(sql,*state,c);
         int found=0;
         sql<<"SELECT 1 FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c AND owner_token=:t "
              "AND connection_id=:g AND authority_epoch=:e AND revision=0 AND fingerprint=:f AND outcome='active' "
@@ -173,7 +173,7 @@ std::optional<TransferredCharacter> PostgreSQLMapService::AcceptTransfer(const M
         soci::use(m_config.owner_token,"tt"),soci::use(generation,"tg"),soci::into(found);
     if(!sql.got_data())return {};
     if(CellOwner(sql,c,state->character.wMapID,state->character.fPosX,state->character.fPosZ)!=target)return {};
-    auto s=HydrateTransfer(sql,*state);
+    auto s=HydrateTransfer(sql,*state,c);
     if(CoreFingerprint(promoted,s)!=fingerprint)return {};
     sql<<"DELETE FROM app_world.map_replicas WHERE world_id=:w AND char_id=:c AND target_server=:s",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(target,"s");
@@ -266,6 +266,7 @@ int RecoverPreparedMapTransfers(soci::session& sql,int world,int server,const st
         sql<<"SELECT COALESCE(max(selection_id),0) FROM app_world.title_selection_operations WHERE world_id=:w AND char_id=:c",
             soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
         payload->last_title_selection_id=static_cast<std::uint64_t>(head);
+        payload->security=PostgreSQLMapService::ReadSecurity(sql,claim);
         graph->character.payload=std::move(payload);
         PostgreSQLMapService::WriteCore(sql,claim,graph->character,1);
         sql<<R"SQL(UPDATE app_world.map_checkpoints p SET recovery_contract=2,skill_state=NULL,maintain_state=NULL,revision=p.revision+1,fingerprint=t.core_fingerprint,

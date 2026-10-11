@@ -101,6 +101,9 @@ void VerifyMainTransferRecovery(soci::session& admin,SessionPool& pool,tmapsvr::
     secondary.role=MapSessionRole::Replica;
     Check(target.LoadReplica(secondary,0,4080,3584),"transfer crash target loads replica");
     target.MarkReady(secondary,*snap);source.MarkReady(primary,*snap);
+    std::vector<std::byte> secure_request;wire::WriteString(secure_request,"Transfer00");
+    auto secure=source.UpdateSecureCode(primary,0x5580,secure_request,*snap);snap=*secure.snapshot;
+    Check(snap->payload->security.created&&snap->payload->security.unlocked,"transfer crash fixture commits secure account before prepare");
     SkillCooldownTracker timers;timers.TryUse(primary.char_id,snap->payload->skills.front().wSkillID,1000,300000);
     snap->fPosX=4100;snap->dwEXP=95;
     const auto body=transfer::Encode(transfer::Capture(*snap,primary.key,timers,1030));
@@ -110,6 +113,8 @@ void VerifyMainTransferRecovery(soci::session& admin,SessionPool& pool,tmapsvr::
     Check(received&&received->snapshot.payload->skill_attack_timing&&received->snapshot.payload->skill_templates.size()==received->snapshot.payload->skills.size(),
           "ordinary transfer rebuilds pinned skill timing on its new authority");
     Check(received&&received->authority_epoch==1,"transfer crash target commits before client readiness");
+    Check(received->snapshot.payload->security.created&&received->snapshot.payload->security.unlocked,
+          "consumed transfer retains same-login secure unlock before crash");
     if(stop_phase==2) {
         auto promoted=secondary;promoted.role=MapSessionRole::Primary;promoted.authority_epoch=1;
         target.MarkReady(promoted,received->snapshot);

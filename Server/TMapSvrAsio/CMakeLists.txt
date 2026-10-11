@@ -116,6 +116,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/inventory.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/title.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/secure_code.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/maintained_effect.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/character_statistics.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/combat.cpp
@@ -425,6 +426,9 @@ add_executable(test_tmapsvr_asio_character_statistics ${TMAPSVR_ASIO_SRC}/tests/
 target_link_libraries(test_tmapsvr_asio_character_statistics PRIVATE tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_character_statistics COMMAND test_tmapsvr_asio_character_statistics)
 
+add_executable(test_tmapsvr_asio_secure_code ${TMAPSVR_ASIO_SRC}/tests/test_secure_code.cpp)
+target_link_libraries(test_tmapsvr_asio_secure_code PRIVATE tmapsvr_asio_core)
+add_test(NAME tmapsvr_asio_secure_code COMMAND test_tmapsvr_asio_secure_code)
 add_executable(test_tmapsvr_asio_skill_learning ${TMAPSVR_ASIO_SRC}/tests/test_skill_learning.cpp)
 target_link_libraries(test_tmapsvr_asio_skill_learning PRIVATE tmapsvr_asio_core)
 add_test(NAME tmapsvr_asio_skill_learning COMMAND test_tmapsvr_asio_skill_learning)

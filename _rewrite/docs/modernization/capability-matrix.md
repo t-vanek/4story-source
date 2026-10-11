@@ -12,7 +12,16 @@ Its per-file NOT_ANALYZED entries require a detailed behavioral review beyond th
 role-level assessment below. Shared packet names identify candidate counterparts,
 not proof of replacement. Regenerate with `python3 tools/modernization_inventory.py`.
 
-## Current native title slice
+## Current native account security slice
+
+| Capability | Implementation/integration | Verification and limit |
+|---|---|---|
+| Seven secure-code requests | Existing Map dispatcher → fenced PostgreSQL account state/checkpoint → original ACK | VERIFIED bounded slice: final Debug/ASan/installed Release each1,455 checks; `security-contract.json`; no original executable |
+| Attempts, disable and unlock | Durable ten-attempt lock, database-clock deadline, current Login key and revision fence | Concurrent writes, rollback, fresh/full-graph relogin, same-login handoff and process recovery |
+| Protected native operations | Inventory/equipment and skill learning retain original unlock prompts and existing mutation repositories | Exact prompt bytes, guard-before-decode behavior and unlocked native paths |
+| Remaining security behavior | Other economy operations, BOW entry/reset and administrative recovery remain required | IMPLEMENTING; no blanket security/gameplay acceptance claim |
+
+## Previous native title slice
 
 | Capability | Implementation and evidence | Remaining acceptance |
 |---|---|---|

@@ -1,5 +1,6 @@
 #pragma once
 #include "domain/inventory.h"
+#include "domain/secure_code.h"
 #include "domain/skill.h"
 #include "domain/character_statistics.h"
 #include "domain/maintained_effect.h"
@@ -36,6 +37,7 @@ struct CharacterPet { std::uint16_t id{}; std::string name; std::int64_t used_at
 // belong to their fenced repositories; core movement/save never replaces mail,
 // inventory or skills with empty/unloaded collections.
 struct CharacterPayload {
+    SecureCodeState security;
     // Full typed source graph retained across primary tenures. Its nested
     // character has no payload pointer, avoiding a shared ownership cycle.
     std::shared_ptr<const transfer::State> transfer_state;

@@ -38,6 +38,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "skill_action_fixture.h"
 #include "finish_effect_fixture.h"
 #include "skill_learning_fixture.h"
+#include "secure_code_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -50,7 +51,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=746;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=748;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -278,6 +279,20 @@ int main(){
         auto move_after=move_restored;tmapsvr::ApplyInventoryMove(move_after,move_plan);
         const auto move_hashes=map.MoveInventoryItems(move_recovery,{4,3,255,1,8},move_restored,move_after);
         PublishReagentHash(move_after,move_plan.items[0].before.dlID,move_hashes.hashes.at(0));map.SaveAuthorized(move_recovery,move_after);
+        stage="secure codes";
+        for(int user:{747,748}) {
+            auto secure=create(user,user==747?"SecureFresh":"SecureGraph",user);
+            VerifySecureCode(admin,mpool,map,mapconn,manifest,routing,actor,secure,user==748);
+            auto login=auth.Authenticate({"SyntheticMap"+std::to_string(user),credential,"192.0.2.50",0x2918});
+            Check(login.status==login::AuthStatus::Success&&routes.StartAuthorized({user,login.session_key,1,1,static_cast<int>(secure.char_id)}).status==login::StartStatus::Success,"secure new Login admitted");
+            secure.key=login.session_key;secure.connection_id+=2000;Check(claim(secure),"secure reconnect claims tenure");
+            auto restored=*map.LoadAuthorized(secure);map.MarkReady(secure,restored);
+            Check(restored.payload->security.created&&!restored.payload->security.unlocked&&restored.payload->security.Blocks(),"fresh and full graph relogin do not retain old unlock");
+            std::vector<std::byte> body;tmapsvr::wire::WriteString(body,"Changed00");
+            auto result=map.UpdateSecureCode(secure,0x5588,body,restored);
+            Check(result.packet->first==0x5589&&result.packet->second[0]==std::byte{8},"new login unlocks with committed credential");
+            map.SaveAuthorized(secure,*result.snapshot);
+        }
         stage="skill learning";
         if(Number(admin,"SELECT count(*) FROM character_compat.trainer_release")==1)for(int user:{745,746}) {
             auto learning=create(user,user==745?"LearningFresh":"LearningGraph",user);
@@ -411,6 +426,8 @@ int main(){
               Number(admin,"SELECT \"dwEXP\" FROM app_world.\"TCHARTABLE\" WHERE \"dwUserID\"=713")==95&&
               Number(admin,"SELECT count(*) FROM app_world.map_checkpoints WHERE user_id=713 AND outcome='recovered' AND transfer_body IS NOT NULL")==1,
               "source replacement recovers exact frozen prepared graph and cancels its unconsumed transfer");
+        Check(Number(admin,"SELECT count(*) FROM app_global.secure_codes WHERE user_id IN (712,713,714) AND tries=0 AND revision>0")==3,
+              "prepared and consumed transfer crashes retain committed account security without replay");
         Check(Number(admin,"SELECT count(*) FROM app_world.map_checkpoints WHERE user_id=720 AND outcome='recovered' AND app_world.map_checkpoint_matches(map_checkpoints)")==1&&
               Number(admin,"SELECT i.\"bCount\" FROM app_world.\"TITEMTABLE\" i JOIN app_world.\"TCHARTABLE\" c ON c.\"dwCharID\"=i.\"dwOwnerID\" WHERE c.\"dwUserID\"=720 AND i.\"wItemID\"=8412")==1,
               "process replacement preserves committed reagent decrement with recovered core and skill receipt");

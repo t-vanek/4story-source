@@ -535,15 +535,18 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
      p.last_title_selection_id=static_cast<std::uint64_t>(head);
 }
+    p.security=ReadSecurity(sql,claim);
     DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
     tx->commit();return s;
 }
 
-CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const transfer::State& t) const {
+CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const transfer::State& t,const MapSessionClaim& claim) const {
     CharSnapshot s=t.character;s.payload.reset();auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
     auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
+    p.security=ReadSecurity(sql,claim);
+    if(!t.new_security&&!p.security.created)throw std::runtime_error("Transferred secure code has no native account authority");
     p.skills=t.skills;p.cabinets=t.cabinets;p.titles=t.titles;p.recalls=t.recalls;p.pets=t.pets;
     p.effects=t.buffs;
     p.aid_country=t.aid_country;p.lucky_number=t.lucky;p.rank_point=t.rank_points;

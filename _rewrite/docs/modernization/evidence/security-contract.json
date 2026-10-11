@@ -1,0 +1,388 @@
+{
+  "date": "2026-10-11",
+  "status": "verified_bounded_slice",
+  "scope": "Existing native Map account secure-code lifecycle and its currently native inventory/learning gates; not complete gameplay",
+  "supported_client": {
+    "binary": null,
+    "sha256": null,
+    "assets": null,
+    "source_protocol": "0x2918",
+    "acceptance": "BLOCKED: owner has only uncompiled client sources"
+  },
+  "sources": [
+    {
+      "path": "Lib/Own/TProtocol/include/CSProtocol.h",
+      "lines": "4059-4080",
+      "finding": "Exact seven opcode pairs; CHECK uses hexadecimal offset0310",
+      "sha256": "3ca0d6991bb219acb00f9e7fda3f24105240a17051362355f106de16479a191f"
+    },
+    {
+      "path": "Lib/Own/TProtocol/include/NetCode.h",
+      "lines": "2694-2707",
+      "finding": "Original results0..10",
+      "sha256": "fa6b11998606c72a81e9ae282590d5afdbf2950d832a743b54ae0dd35e648c9d"
+    },
+    {
+      "path": "Server/TMapSvr/TMapType.h",
+      "lines": "138;2179-2195",
+      "finding": "MAX_SECURITY_TRIES=10; account code struct includes disabled flag",
+      "sha256": "9ef04c832f770e13078b5b16cf276b6552da637e29bbc2b699ff611a1d359778"
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "17827-18051;18310-18510;1782-1816;2170-2208",
+      "finding": "Original state transitions, per-handler BOW guards and unlock-before-mutation parsing",
+      "sha256": "1bcdc4eb18158f3b8d6a0f143a09726bbab792ccab6dd8ec5f1e54f2a6c52c50"
+    },
+    {
+      "path": "Server/TMapSvr/CSSender.cpp",
+      "lines": "131-189;6257-6389",
+      "finding": "CHARINFO flags and exact ACK fields; UNLOCK redirects to CHECK at threshold",
+      "sha256": "f674d893e81f2425e60fc9e42dab77cf0b29011f3fa04aa3c80d5deda3a55029"
+    },
+    {
+      "path": "Server/TMapSvr/SSHandler.cpp",
+      "lines": "3450-3470;4531-4625;7564-7585",
+      "finding": "Fresh load inverts bEnabled; transfer omits disabled; asynchronous save inverts it back",
+      "sha256": "8663a80a045d8a2a681c294bc80d8feb8ecd525812af151a60d3340afe8cf074"
+    },
+    {
+      "path": "Server/TMapSvr/SSSender.cpp",
+      "lines": "1501-1514;2024-2039;2100-2106",
+      "finding": "Original save and transfer security fields",
+      "sha256": "e39cc92a004b352cafc337307cf631214cd3680744d52e96a403fa75f07b7a53"
+    },
+    {
+      "path": "Server/TMapSvr/TPlayer.cpp",
+      "lines": "151;202;7440-7445;7622;7790-7806",
+      "finding": "Session-local unlocked initialization and remaining BOW entry behavior",
+      "sha256": "f1f8d987b75b5d5db1893393f0a9ddaa27721210448205189dbb6df143b75cd9"
+    },
+    {
+      "path": "Server/TMapSvr/DBAccess.h",
+      "lines": "7141-7198",
+      "finding": "Backup secure table query and save parameters",
+      "sha256": "364fcadbbb78e49f9e7e3e6cddb0f8623eb9315ed2a9195bb3e8103c24277d9d"
+    },
+    {
+      "path": "Client/TClient/CSSender.cpp",
+      "lines": "2683-2750",
+      "finding": "Original length-prefixed request bytes, no added fields",
+      "sha256": "8c69c82b30d44e236d58797cc4f102df4fdf95a80df5696df468d5fa9a02c3f7"
+    },
+    {
+      "path": "Client/TClient/CSHandler.cpp",
+      "lines": "19739-19976",
+      "finding": "Client ACK decoder and CHECK threshold initiating GETLOCKTIME",
+      "sha256": "51e3b85b5cd2d5af27be15f564ff45c875a02c2b70bed326648ef80484cd8ce3"
+    },
+    {
+      "path": "Client/TClient/TSecuritySystemDlg.cpp",
+      "lines": "244-290",
+      "finding": "Source UI code length8..12",
+      "sha256": "c7d3c3e3aad2734e3f3466f5eb2ea932adf79584c32951f9cfa7c6c90408b2f3"
+    }
+  ],
+  "backup": {
+    "table": "TGLOBAL_RAGEZONE.dbo.TSECURECODE",
+    "rows": 0,
+    "columns": [
+      {
+        "schema_name": "dbo",
+        "table_name": "TSECURECODE",
+        "ordinal": 1,
+        "column_name": "strSecurityCode",
+        "type_name": "varchar",
+        "max_length": 55,
+        "precision": 0,
+        "scale": 0,
+        "is_nullable": 1,
+        "is_identity": 0,
+        "is_computed": 0,
+        "computed_definition": null,
+        "collation_name": "Latin1_General_CI_AS_KS",
+        "is_pk": 0,
+        "pk_name": null,
+        "default_definition": null,
+        "identity_seed": null,
+        "identity_increment": null,
+        "identity_last_value": null
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSECURECODE",
+        "ordinal": 2,
+        "column_name": "bEnabled",
+        "type_name": "int",
+        "max_length": 4,
+        "precision": 10,
+        "scale": 0,
+        "is_nullable": 1,
+        "is_identity": 0,
+        "is_computed": 0,
+        "computed_definition": null,
+        "collation_name": null,
+        "is_pk": 0,
+        "pk_name": null,
+        "default_definition": null,
+        "identity_seed": null,
+        "identity_increment": null,
+        "identity_last_value": null
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSECURECODE",
+        "ordinal": 3,
+        "column_name": "bTries",
+        "type_name": "int",
+        "max_length": 4,
+        "precision": 10,
+        "scale": 0,
+        "is_nullable": 1,
+        "is_identity": 0,
+        "is_computed": 0,
+        "computed_definition": null,
+        "collation_name": null,
+        "is_pk": 0,
+        "pk_name": null,
+        "default_definition": null,
+        "identity_seed": null,
+        "identity_increment": null,
+        "identity_last_value": null
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSECURECODE",
+        "ordinal": 4,
+        "column_name": "iLockTick",
+        "type_name": "int",
+        "max_length": 4,
+        "precision": 10,
+        "scale": 0,
+        "is_nullable": 1,
+        "is_identity": 0,
+        "is_computed": 0,
+        "computed_definition": null,
+        "collation_name": null,
+        "is_pk": 0,
+        "pk_name": null,
+        "default_definition": null,
+        "identity_seed": null,
+        "identity_increment": null,
+        "identity_last_value": null
+      },
+      {
+        "schema_name": "dbo",
+        "table_name": "TSECURECODE",
+        "ordinal": 5,
+        "column_name": "dwUserID",
+        "type_name": "int",
+        "max_length": 4,
+        "precision": 10,
+        "scale": 0,
+        "is_nullable": 1,
+        "is_identity": 0,
+        "is_computed": 0,
+        "computed_definition": null,
+        "collation_name": null,
+        "is_pk": 0,
+        "pk_name": null,
+        "default_definition": null,
+        "identity_seed": null,
+        "identity_increment": null,
+        "identity_last_value": null
+      }
+    ],
+    "save_module": "TGAME_RAGEZONE.dbo.TSaveSecureCode",
+    "save_parameter_bytes": 50,
+    "sha256_utf8_definition": "e198b278afdeae13a21c5a97396129ebf4eb97c98ade3422188c8b8c989fd5c7",
+    "status_procedure": "TSecureCodeStatus is declared in source DBAccess but not present in the inspected backup; no invented implementation"
+  },
+  "wire": {
+    "CREATE": "0x5580 INT32 byte count + code; 0x5581 BYTE result",
+    "CHANGE": "0x5582 two strings; 0x5583 BYTE result/BYTE tries",
+    "DISABLE": "0x5584 one string; 0x5585 BYTE result/BYTE tries",
+    "ENABLE": "0x5586 empty; 0x5587 BYTE result",
+    "UNLOCK": "0x5588 one string; 0x5589 BYTE result/BYTE tries, redirected to0x5591 at tries>=10",
+    "CHECK": "0x5590 one string; 0x5591 BYTE result/BYTE tries, result10 at threshold",
+    "GETLOCKTIME": "0x5592 empty; 0x5593 BYTE hours/BYTE minutes (hours modulo24); expired returns0x5589 with0,0",
+    "CHARINFO": "Original BYTE created/unlocked/disabled at body offsets4,5,6",
+    "security_guard": "Inventory MOVEITEM0x52a8 and SKILLBUY0x52b2 prompt before decoding blocked request body; no item/money/rank mutation; MOVEITEM then sends0x52a9 withBYTE4 (MI_SAMEPOS), including after redirected CHECK at threshold"
+  },
+  "durability": [
+    "Account row lock plus primary generation, token, epoch and security revision fence",
+    "Immediate account change, append receipt and fresh/full-graph checkpoint in one transaction before ACK",
+    "Receipt has opcodes/response, ownership, account and old revision, without request code bytes",
+    "Same-login Map transfer hydrates disabled and unlocked from account authority; new non-recycled Login key starts locked",
+    "Read-only silent/no-change requests do not append a false mutation",
+    "Unknown commit results close and retain uncertainty; never automatically retry writes",
+    "Additive043 retains account state and audit after original low-level character deletion"
+  ],
+  "modern_changes": [
+    "Initialize create disabled=false instead of undefined legacy byte",
+    "Preserve disabled via PostgreSQL because original SS transfer omits it",
+    "Database wall-clock24h deadline survives restart and DWORD source-tick wrap; only GETLOCKTIME clears expiry",
+    "Reject trailing bytes, embedded NUL and more than backup55-byte capacity; do not truncate at old SP50-byte boundary",
+    "Commit before response and reject stale ownership instead of asynchronous unfenced legacy save",
+    "Reject a legacy secured transfer graph lacking native account authority; no implicit credential import",
+    "Restricted raw code bytes remain in native account storage and original full transfer graphs; security mutation exceptions suppress bound SQL diagnostics"
+  ],
+  "remaining": [
+    "Full BOW entry/exit forced unlock and UI notifications",
+    "Protected trading/mail/warehouse/crafting/other economy integration as those repositories become native",
+    "Original administrator code recovery/reset and missing TSecureCodeStatus contract",
+    "Future same-Login character switching must preserve original player-object unlock boundary",
+    "Database clock-step guarantees and dedicated secure unknown-commit network fault injection",
+    "Original EXE, hash, matching assets and real-client acceptance for all flows",
+    "Complete effects, combat, social systems, modes and other master-goal requirements"
+  ],
+  "migrations": [
+    "042-native-secure-codes.sql",
+    "043-secure-code-character-deletion.sql"
+  ],
+  "verification": {
+    "focused_asan": {
+      "report": "native-security-asan.json",
+      "status": "passed",
+      "migrations": 43,
+      "backend_checks": {
+        "test_fourstory_postgresql['--options-only']": 16,
+        "test_fourstory_postgresql[]": 13,
+        "test_tmapsvr_postgresql_map[]": 1148
+      },
+      "outer_tcp_checks": 151,
+      "nested_tcp_checks": {
+        "skill_learning_wire": 73,
+        "secure_code_wire": 54
+      },
+      "total": 1455
+    },
+    "focused_installed_release": {
+      "report": "native-security-release.json",
+      "status": "passed",
+      "migrations": 43,
+      "backend_checks": {
+        "test_fourstory_postgresql['--options-only']": 16,
+        "test_fourstory_postgresql[]": 13,
+        "test_tmapsvr_postgresql_map[]": 1148
+      },
+      "outer_tcp_checks": 151,
+      "nested_tcp_checks": {
+        "skill_learning_wire": 73,
+        "secure_code_wire": 54
+      },
+      "total": 1455
+    },
+    "broad_debug": {
+      "report": "native-security-debug-full.json",
+      "status": "passed",
+      "backend_checks": {
+        "test_fourstory_postgresql['--options-only']": 16,
+        "test_fourstory_postgresql[]": 13,
+        "test_tmapsvr_postgresql_map[]": 1144
+      },
+      "outer_tcp_checks": 1017,
+      "nested_tcp_checks": {
+        "skill_cast_wire": 56,
+        "world_secondary_wire": 66,
+        "world_handoff_wire": 295,
+        "map_rejection_wire": 7,
+        "map_replica_wire": 221,
+        "map_ammunition_wire": 162,
+        "ammunition_wire": 24,
+        "ammunition_batch_wire": 30,
+        "multi_attack_wire": 23,
+        "inventory_move_wire": 29,
+        "inventory_stack_wire": 32,
+        "character_statistics_wire": 15,
+        "cast_powers_wire": 90,
+        "equipment_wire": 50,
+        "posture_wire": 163,
+        "finish_skill_wire": 24,
+        "skill_action_wire": 39,
+        "finish_effect_wire": 61,
+        "skill_learning_wire": 73,
+        "secure_code_wire": 42
+      },
+      "total": 3692,
+      "scope_note": "Before final MOVEITEM MI_SAMEPOS packet-order correction and positive secured-mutation fixture expansion; final focused suites verify those deltas."
+    },
+    "ctest_debug": {
+      "entries": 205,
+      "actual_passes": 190,
+      "failures": 0,
+      "explicit_skips": [
+        "fourstory_postgresql_integration",
+        "tloginsvr_postgresql_auth",
+        "tloginsvr_postgresql_char",
+        "tloginsvr_postgresql_handoff",
+        "tlogsvr_postgresql_sink",
+        "tmapsvr_postgresql_map",
+        "tmapsvr_postgresql_catalog"
+      ],
+      "internal_skips": [
+        "tloginsvr_asio_soci_auth",
+        "tloginsvr_asio_soci_char",
+        "tloginsvr_asio_soci_map",
+        "tloginsvr_asio_soci_session_terminator",
+        "tloginsvr_asio_wire_e2e_soci",
+        "tpatchsvr_asio_soci_repository",
+        "tlogsvr_asio_soci_log_sink",
+        "tcontrolsvr_asio_soci_repositories"
+      ]
+    },
+    "ctest_asan": {
+      "entries": 43,
+      "actual_passes": 43,
+      "failures": 0,
+      "explicit_skips": [],
+      "internal_skips": []
+    },
+    "pure_secure_checks": 43,
+    "upgrade_checks": 120,
+    "upgrade_report": "security-upgrade.json",
+    "preservation_report": "security-preservation.json",
+    "preservation_scope": "41 previous migrations, two database backups and two client .cpp.bak files (45 files)",
+    "smoke": "Six installed services health, container DNS and SIGTERM exit0; security-container-smoke.log",
+    "overlap": "Backend, focused and full suites overlap; do not add them as unique coverage",
+    "skipped_acceptance": [
+      "Original client EXE and matching assets unavailable",
+      "Clock jumps and secure-specific unknown-commit network interruption not injected",
+      "Full BOW security lifecycle and remaining economy/admin systems not yet integrated"
+    ],
+    "final_source_correction": "Review of the complete MOVEITEM security guard found its second MI_SAMEPOS ACK. Final focused tests cover both UNLOCK and redirected CHECK followed by this ACK; earlier broad run predates this bounded correction.",
+    "positive_mutations": "Actual encrypted secured whole-stack move out and back verifies DEL/ADD/SUCCESS and durable identity/count; native backend positive secured learning verifies gold debit and unchanged secure state on the secured primary before optional handoff.",
+    "focused_debug": {
+      "report": "native-security-debug.json",
+      "status": "passed",
+      "migrations": 43,
+      "backend_checks": {
+        "test_fourstory_postgresql['--options-only']": 16,
+        "test_fourstory_postgresql[]": 13,
+        "test_tmapsvr_postgresql_map[]": 1148
+      },
+      "outer_tcp_checks": 151,
+      "nested_tcp_checks": {
+        "skill_learning_wire": 73,
+        "secure_code_wire": 54
+      },
+      "total": 1455
+    },
+    "cleanup_report": "secure-code-cleanup.json"
+  },
+  "versioning": "Local main only; no push, publication or external deployment",
+  "image": {
+    "reference": "localhost/fourstory:postgresql-security",
+    "id": "4d918c61bae93574704b0670aee5238b0ba5bd5d2a578e0f8054dc9ec596b8fd",
+    "user": "10001:10001"
+  },
+  "preserved_previous_migrations": {
+    "through": 41,
+    "backups_unchanged": true,
+    "new_migrations_immutable": [
+      42,
+      43
+    ],
+    "next_migration": 44
+  }
+}

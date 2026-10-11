@@ -17,6 +17,7 @@
 #include "services/finish_skill.h"
 #include "services/skill_action.h"
 #include "services/skill_learning.h"
+#include "services/secure_code.h"
 
 #include <cstdint>
 #include <optional>
@@ -32,6 +33,7 @@ class IPlayerService
 {
 public:
     virtual ~IPlayerService() = default;
+    virtual SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Secure code persistence unavailable");}
 
     // Load the snapshot for `char_id`, or nullopt when the row is
     // missing / the DB is in trouble. The handler distinguishes

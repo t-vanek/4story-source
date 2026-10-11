@@ -21,7 +21,65 @@ there means a per-packet behavior review has not been completed; it does not mea
 the referenced modern handler is absent. Add reviewed evidence as each slice is
 completed rather than converting references into coverage percentages.
 
-## Native title list, selection and gold-title transitions (2026-10-11)
+## Native account secure-code lifecycle (2026-10-11)
+
+The existing Map dispatcher now handles original CREATE, CHANGE, DISABLE, ENABLE,
+UNLOCK, CHECK and GETLOCKTIME requests. Migration **042** adds account-owned code,
+attempts, deadline and unlock state, plus an append-only receipt without request
+credentials. Additive migration **043** removes the character-lifetime FK so
+original low-level character deletion preserves the account code and audit.
+Each mutation commits with the current primary's fresh/full-graph
+checkpoint before replying. Account locks and revision/owner/epoch fences reject
+concurrent stale writes; uncertain outcomes close the connection without retry.
+
+CHARINFO now sends the original created/unlocked/disabled bytes. Native carried
+inventory/equipment and skill purchases return the source unlock prompt while
+locked, then use their existing repositories after unlocking. A blocked MOVEITEM
+also sends the original MI_SAMEPOS (4) ACK after the security prompt to reset drag state. Code comparison is
+case-sensitive on original bytes. The tenth UNLOCK failure redirects to CHECK
+with result 10; CHANGE/DISABLE retain their own result 7 until a subsequent locked
+request. Correct CHECK does not unlock, ENABLE does not clear attempts or unlock,
+and an already-unlocked UNLOCK counts as a wrong attempt, matching the source.
+
+**Documented modern changes:** create initializes enabled state instead of reading
+an uninitialized legacy byte; PostgreSQL preserves the disabled flag omitted from
+legacy Map transfer; a persistent database-clock deadline replaces reboot-sensitive
+DWORD expiry. Only GETLOCKTIME clears an expired lock, as in the original handler.
+The original transfer field widths remain unchanged. Input exceeding the backup's
+55-byte column or containing NUL is rejected instead of truncated. The source
+client enters 8–12 bytes. Commit-before-response and strict ownership replace
+asynchronous legacy saves. Codes remain restricted raw bytes, also present in the
+original private transfer graph; security transaction errors redact SQL diagnostics.
+
+The backup contains **zero TSECURECODE rows**. Its column is VARCHAR(55), while
+TSaveSecureCode accepts VARCHAR(50); no historical credentials or lock times are
+invented or silently imported. Native unlock is scoped to the current non-recycled
+Login key and survives same-login Map transfer; a new Login starts locked.
+
+**Verification:** final Debug, ASan/UBSan and installed Release each pass
+**1,455** focused native checks (1,148 Map, 29 pool/TLS, 151 outer TCP, 73
+learning/title and 54 secure-code wire checks). A broader Debug regression passed
+**3,692** checks before the final MOVEITEM second-ACK correction and positive
+secured-mutation fixture expansion; the final focused suites verify those deltas.
+These suites overlap and must not be added. Debug CTest has 190 actual passes,
+eight internal legacy skips and seven explicit fixture skips; all 43 sanitizer
+suites pass. All 120 additive upgrade checks and six-service health/DNS/SIGTERM
+checks pass. Forty-one prior migrations, both database backups and both client
+source backup files retain their hashes. All five owned test labs were removed.
+
+Exact test evidence is recorded in
+[evidence/security-contract.json](evidence/security-contract.json). Local reproduction
+is in [deploy/README](../../../deploy/README.md#native-account-security).
+Full BOW entry/reset behavior, other protected economy operations and administrator
+code recovery still need integration. Clock-step policy and real-client UI/timing
+acceptance remain unverified. No supported client EXE/hash is claimed: only source
+is available. Applied migrations **001–043** and original backups are immutable;
+next migration **044**.
+
+The older increments below retain their original test counts and then-open gaps;
+the current security scope and schema requirement above supersede those notes.
+
+## Previous increment: native title list, selection and gold-title transitions (2026-10-11)
 
 The existing Map dispatch handles `CS_TITLELIST_REQ` (0x54f4) and
 `CS_CHANGETITLE_REQ` (0x54f6). Selection commits owned-title flags and a new
@@ -72,7 +130,7 @@ conditions and all related gameplay systems remain unfinished. The original
 client executable/assets are absent, so **no exact supported binary build or
 real-client acceptance is established**. See [bounded evidence](evidence/titles-contract.json)
 and [local reproduction](../../../deploy/README.md#native-title-lifecycle).
-Applied migrations **001–041** and both backups are immutable; next migration **042**.
+At this earlier title increment, migrations 001–041 were applied; current requirements are above.
 
 ## Previous increment: native skill learning and rank upgrades (2026-10-11)
 
@@ -100,7 +158,7 @@ These changes do not certify the complete title or trainer UI lifecycle.
 
 **Explicit remaining gates:** territory-owned neutral NPCs, nonzero guild/hero
 trainer discounts, disguise/general effects, active party/recall dependencies,
-secure-code learning, active trading, NPC quest
+active trading, NPC quest
 trigger selection and complete skill effects. These branches require further
 integration; no replacement success or guessed discount is supplied. Persistent
 purchase receipts provide the local audit; original TLog skill events still need

@@ -52,4 +52,7 @@ GRANT USAGE ON SEQUENCE app_world.title_selection_operations_selection_id_seq TO
 GRANT INSERT ON app_world.skill_purchase_operations TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.skill_purchase_operations_purchase_id_seq TO :"map_role";
 GRANT INSERT,DELETE,UPDATE("bSelected") ON app_world."TTITLETABLE" TO :"map_role";
+GRANT SELECT,INSERT,UPDATE ON app_global.secure_codes TO :"map_role";
+GRANT INSERT ON app_world.secure_code_operations TO :"map_role";
+GRANT USAGE ON SEQUENCE app_world.secure_code_operations_operation_id_seq TO :"map_role";
 COMMIT;

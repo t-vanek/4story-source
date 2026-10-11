@@ -36,6 +36,7 @@ public:
     bool OutgoingTransferCommitted(const MapSessionClaim&) override;
     std::vector<std::string> ConsumeSkillItems(const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&) override;
     SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) override;
+    SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) override;
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillActionCommit CommitSkillAction(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
@@ -43,6 +44,7 @@ public:
     InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) override;
     EffectEndCommit EndMaintainedEffect(const MapSessionClaim&,const EffectEndRequest&,const CharSnapshot&) override;
 private:
+    static SecureCodeState ReadSecurity(soci::session&,const MapSessionClaim&);
     static void CheckCastHead(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     std::vector<std::string> CommitSkillMutation(const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&,const SkillCastRequest*,const CharSnapshot*,SkillCastCommit*);
     CharSnapshot ValidateSkillCast(soci::session&,const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) const;
@@ -63,7 +65,7 @@ private:
     void StoreTransferCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&) const;
     std::string TransferFingerprint(const MapSessionClaim&,const CharSnapshot&) const;
     std::optional<CharSnapshot> RestoreTransferCheckpoint(soci::session&,const MapSessionClaim&) const;
-    CharSnapshot HydrateTransfer(soci::session&,const transfer::State&) const;
+    CharSnapshot HydrateTransfer(soci::session&,const transfer::State&,const MapSessionClaim&) const;
     int CellOwner(soci::session&,const MapSessionClaim&,std::uint16_t,float,float) const;
     std::string CoreFingerprint(const MapSessionClaim&,const CharSnapshot&) const;
     void CheckCatalogs(soci::session&) const;

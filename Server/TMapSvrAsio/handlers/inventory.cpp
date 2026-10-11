@@ -14,9 +14,6 @@ namespace tmapsvr {
 boost::asio::awaitable<void> OnMoveItemReq(std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx) {
     using tnetlib::protocol::MessageId;
-    if(body.size()!=5)throw std::runtime_error("Invalid MOVEITEM request length");
-    InventoryMoveRequest request{std::to_integer<std::uint8_t>(body[0]),std::to_integer<std::uint8_t>(body[1]),
-        std::to_integer<std::uint8_t>(body[2]),std::to_integer<std::uint8_t>(body[3]),std::to_integer<std::uint8_t>(body[4])};
     if(!ctx.session_reg||!ctx.char_state||!ctx.player_service||!ctx.skill_cooldown)
         throw std::runtime_error("Inventory transaction context missing");
     const auto identity=ctx.session_reg->Identity(sess.get());
@@ -24,7 +21,18 @@ boost::asio::awaitable<void> OnMoveItemReq(std::shared_ptr<tnetlib::AsioSession>
     const auto cid=identity->char_id;
     const auto original=ctx.char_state->Freeze(cid,[](auto&){});
     if(!original)co_return;
+    if(original->payload&&original->payload->security.Blocks()) {
+        ctx.char_state->Store(cid,*original);const auto prompt=SecureUnlockPrompt(original->payload->security);
+        co_await sess->SendPacket(prompt.first,prompt.second);
+        // Original OnCS_MOVEITEM_REQ also restores the client's drag state.
+        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),
+            std::vector<std::byte>{static_cast<std::byte>(InventoryMoveResult::SamePosition)});
+        co_return;
+    }
     if(original->bDead||!original->dwHP){ctx.char_state->Store(cid,*original);co_return;}
+    if(body.size()!=5){ctx.char_state->Store(cid,*original);throw std::runtime_error("Invalid MOVEITEM request length");}
+    InventoryMoveRequest request{std::to_integer<std::uint8_t>(body[0]),std::to_integer<std::uint8_t>(body[1]),
+        std::to_integer<std::uint8_t>(body[2]),std::to_integer<std::uint8_t>(body[3]),std::to_integer<std::uint8_t>(body[4])};
     InventoryMovePlan plan;CharSnapshot before,after;
     try {
         before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,SkillClockMs());

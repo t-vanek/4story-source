@@ -28,7 +28,9 @@ def main():
     parser.add_argument('--through-finish-effects',action='store_true',help='Also verify additive finish effect/audience migration038')
     parser.add_argument('--through-learning',action='store_true',help='Also verify additive trainer publication039 and skill purchases040')
     parser.add_argument('--through-titles',action='store_true',help='Also verify additive owned-title selection041')
+    parser.add_argument('--through-security',action='store_true',help='Also verify additive account secure-code migration042')
     args=parser.parse_args();repo=Path(__file__).resolve().parents[2]
+    if args.through_security:args.through_titles=True
     if args.through_titles:args.through_learning=True
     if args.through_learning:args.through_finish_effects=True
     if args.through_finish_effects:args.through_actions=True
@@ -231,6 +233,45 @@ def main():
                     check(rejected,'same previous title head cannot append twice')
                     c.execute('DELETE FROM app_world."TCHARTABLE" WHERE "dwCharID"=1')
                     check(c.execute('SELECT count(*) FROM app_world.title_selection_operations').fetchone()==(0,),'character deletion cascades title receipts')
+            if args.through_security:
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                tables=['app_world.map_checkpoints','app_world.title_selection_operations','app_world.skill_purchase_operations','app_global."TCURRENTUSER"','legacy_global."TSECURECODE"']
+                preserved={t:c.execute('SELECT to_jsonb(p) FROM '+t+' p ORDER BY to_jsonb(p)::text').fetchall() for t in tables}
+                name='042-native-secure-codes.sql';shutil.copyfile(repo/'database/postgresql'/name,path/name)
+                check(apply_migrations(c,path)==[name],'secure upgrade applies only migration042')
+                check(apply_migrations(c,path)==[],'secure upgrade reapplication is a no-op')
+                check(c.execute("SELECT * FROM migration_control.applied WHERE name<'042' ORDER BY name").fetchall()==receipts,'secure upgrade preserves all forty-one prior receipts')
+                for t,rows in preserved.items():check(c.execute('SELECT to_jsonb(p) FROM '+t+' p ORDER BY to_jsonb(p)::text').fetchall()==rows,'secure upgrade preserves exact '+t)
+                for t in ['app_global.secure_codes','app_world.secure_code_operations']:
+                    check(c.execute('SELECT count(*) FROM '+t).fetchone()==(0,),'secure upgrade invents no records in '+t)
+                    check(c.execute("SELECT has_table_privilege('public',%s,'SELECT') OR has_table_privilege('public',%s,'INSERT')",(t,t)).fetchone()==(False,),'PUBLIC cannot read or write '+t)
+                for code,tries,deadline in [(b'x'*56,0,0),(b'a\x00b',0,0),(b'Code0000',11,1),(b'Code0000',10,0)]:
+                    rejected=False
+                    try:
+                        with c.transaction(force_rollback=True):c.execute('INSERT INTO app_global.secure_codes VALUES(1,%s,false,%s,%s,0,1,1)',(code,tries,deadline))
+                    except psycopg.errors.CheckViolation:rejected=True
+                    check(rejected,'secure storage rejects ambiguous bytes or invalid attempt/deadline state')
+                columns={r[0] for r in c.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='app_world' AND table_name='secure_code_operations'")}
+                check('code' not in columns and 'request' not in columns,'secure append receipt has no plaintext request or credential column')
+                c.execute("INSERT INTO app_world.secure_code_operations(user_id,previous_revision,world_id,char_id,session_key,server_id,owner_token,connection_id,authority_epoch,request_opcode,response_opcode,response) VALUES(1,0,1,1,1,1,%s,1,0,21888,21889,%s)",('a'*64,b'\x02'))
+                revision=c.execute('SELECT operation_id FROM app_world.secure_code_operations').fetchone()[0]
+                c.execute('INSERT INTO app_global.secure_codes VALUES(1,%s,false,0,0,0,1,%s)',(b'Synthetic0',revision))
+                old_codes=c.execute('SELECT to_jsonb(p) FROM app_global.secure_codes p').fetchall()
+                old_operations=c.execute('SELECT to_jsonb(p) FROM app_world.secure_code_operations p').fetchall()
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                rejected=False
+                try:
+                    with c.transaction(force_rollback=True):c.execute('DELETE FROM app_world."TCHARTABLE" WHERE "dwCharID"=1')
+                except psycopg.errors.ForeignKeyViolation:rejected=True
+                check(rejected,'migration042 reproduces the discovered low-level deletion FK conflict')
+                name='043-secure-code-character-deletion.sql';shutil.copyfile(repo/'database/postgresql'/name,path/name)
+                check(apply_migrations(c,path)==[name],'character deletion correction applies only additive migration043')
+                check(apply_migrations(c,path)==[],'migration043 reapplication is a no-op')
+                check(c.execute("SELECT * FROM migration_control.applied WHERE name<'043' ORDER BY name").fetchall()==receipts,'deletion correction preserves all forty-two prior receipts')
+                c.execute('DELETE FROM app_world."TCHARTABLE" WHERE "dwCharID"=1')
+                check(c.execute('SELECT to_jsonb(p) FROM app_global.secure_codes p').fetchall()==old_codes,'character deletion retains exact account code and unlock/deadline state')
+                check(c.execute('SELECT to_jsonb(p) FROM app_world.secure_code_operations p').fetchall()==old_operations,'character deletion preserves account audit byte-for-byte and its revision chain')
+
             report.update(status='passed' ,scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
     finally:
         with psycopg.connect(dbname='postgres',**admin) as conn:conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db)))

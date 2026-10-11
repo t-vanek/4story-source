@@ -102,11 +102,11 @@ std::vector<std::byte> EncodeCharInfoAck(
     const auto& p=s.payload?*s.payload:empty;
     const auto count=[](std::size_t n){if(n>255)throw std::length_error("Client list exceeds BYTE count");return static_cast<std::uint8_t>(n);};
 
-    // --- identity + secure code (secure not modeled → 0) -------------
+    // Original CHARINFO account-security BYTE fields.
     wire::WritePOD<std::uint32_t>(b, s.dwCharID);
-    wire::WritePOD<std::uint8_t> (b, 0);            // secure created
-    wire::WritePOD<std::uint8_t> (b, 0);            // secure cur-unlocked
-    wire::WritePOD<std::uint8_t> (b, 0);            // secure disabled
+    wire::WritePOD<std::uint8_t> (b, p.security.created);
+    wire::WritePOD<std::uint8_t> (b, p.security.unlocked);
+    wire::WritePOD<std::uint8_t> (b, p.security.disabled);
     wire::WritePOD<std::uint16_t>(b, p.selected_title); // selected persisted title
     wire::WriteString            (b, s.szNAME);
     wire::WritePOD<std::uint8_t> (b, s.bStartAct);

@@ -107,6 +107,7 @@ boost::asio::awaitable<void> Dispatch(
 // Per-handler entry points. One per message id. All take a span over
 // the decoded body — they own the copy if they need to outlive the
 // dispatch call.
+boost::asio::awaitable<void> OnSecureCodeReq(std::shared_ptr<tnetlib::AsioSession>,std::uint16_t,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnTitleListReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnChangeTitleReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnWorldTitleChanged(std::vector<std::byte>,const HandlerContext&);

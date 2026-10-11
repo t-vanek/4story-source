@@ -30,7 +30,11 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
     if(!s.payload||!s.dwCharID||!key)throw std::invalid_argument("Transfer requires a hydrated native character");
     const auto& p=*s.payload;
     State out=p.transfer_state?*p.transfer_state:State{};
-    if(!p.transfer_state)out.new_security=1; // source has no secure-code object
+    if(!p.transfer_state)out.new_security=1;
+    if(p.security.hydrated) {
+        out.new_security=!p.security.created;out.security_code=p.security.code;
+        out.security_tries=p.security.tries;out.security_tick=p.security.source_tick;out.security_unlocked=p.security.unlocked;
+    }
     out.character=s;out.character.payload.reset();out.key=key;out.db_load=0;out.result=0;out.login=0;
     out.aid_country=p.aid_country;out.lucky=p.lucky_number;out.rank_points=p.rank_point;
     if(!p.transfer_state) {

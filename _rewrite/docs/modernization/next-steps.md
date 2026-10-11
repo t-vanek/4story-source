@@ -8,19 +8,40 @@ Owner instruction renewed (2026-10-11): keep implementation and versioning local
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current implementation (2026-10-11): native title list/selection now follows the
-original World relay with atomically persisted fresh/full-graph flags and a
-separate selection head (041). Gold-title learning preserves live-ID promotion
-before the owned-title early return and multiple selected flags. Reload/transfer
-uses the original last-selected behavior in deterministic unsigned-ID order.
-Final Debug/ASan/installed Release each pass 1,243 focused native checks;
-97 upgrade checks and all six service smoke checks pass. Preserve
-`titles-contract.json`, including its modern persistence/authorization
-changes and bounded acceptance. Continue secure-code lifecycle, conditional
-trainer discounts/territory ownership, NPC talk quest selection, original skill-log
-forwarding, general timed effects and multi-target combat. Other title awards,
-resets and achievement conditions still need integration. Original `.bak` files
-and migrations 001–041 are immutable; next migration 042.
+Current implementation (2026-10-11): account secure-code lifecycle is integrated
+through all seven original requests, migration042, protected native learning and
+inventory/equipment, CHARINFO, fresh/full-graph persistence and current-owner
+fencing. Migration043 preserves account security and its audit across low-level
+character deletion. See `security-contract.json` for executed verification and explicit
+modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
+strict byte input and commit-before-response). Backups and migrations001–043 are
+immutable; next migration044.
+
+Continue conditional trainer discounts/territory ownership, NPC talk quest
+selection, original skill-log persistence, general timed effects and multi-target
+combat. Preserve the completed title list/selection and original gold-title quirks
+in `titles-contract.json`. Other title awards, resets and achievement conditions
+remain required. Security must also be integrated into the remaining protected
+economy handlers as they acquire native persistence. BOW entry/reset and secure-code
+administrative recovery remain in scope. Any future character change that retains
+a Login key must explicitly define the original player-object unlock boundary;
+current native reconnect obtains a new non-recycled key. Clock-step behavior and
+all original executable acceptance remain unresolved.
+
+Next audit dependency is the default `DM_LOGSKILL_REQ` → `CSPLogSkill` →
+`TLogSkill` → `TSKILLLOG` database path. `TMapSvr/stdafx.h:16` leaves
+`DEF_UDPLOG` disabled; `UdpSocket.cpp:1042-1094` has the alternate skill UDP
+implementation entirely commented. The backup `TLogSkill` inserts character,
+three remaining currency fields, skill/rank and insertion time. Reconstruct that
+native durable path and its original consumers before treating generic Map UDP
+telemetry as skill-log parity. Do not infer an active UDP skill sender from a call
+inside the disabled preprocessor branch.
+
+## Earlier scoped continuation notes
+
+These notes preserve source investigations and dependent gameplay work. Their
+old migration numbers and completed security gates are historical; use the
+current schema and priorities at the top of this document.
 
 Current source correction (2026-10-11): ordinary PC skills use
 `CS_FINISHSKILL_ACK`, not the DEFEND path assumed by the preceding continuation.

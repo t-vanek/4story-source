@@ -41,6 +41,7 @@ struct CharacterPayload {
     std::shared_ptr<const transfer::State> transfer_state;
     std::uint64_t transfer_received_ms{};
     std::uint64_t last_cast_id{}; // native ledger head; rehydrated, never sent to the client
+    std::uint64_t last_finish_id{}; // fences stale snapshots after target resolution
     std::vector<CharacterBag> bags;
     std::vector<SkillRow> skills;
     // Optional only for legacy/test projections which have not hydrated effects.

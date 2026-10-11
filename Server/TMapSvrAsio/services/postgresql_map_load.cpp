@@ -179,12 +179,22 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.bMaxLevel=U8(chart,"bMaxLevel");definition.f1stRateX=growth.rate;
         definition.multi_attack=ReadNativeMultiAttack(sql,definition,skill.bLevel,U8(chart,"bTargetHit"));
         auto& instance=instances[skill.wSkillID];bool final_type=false;
+        bool instant_cure=U8(chart,"bCanLearn")==1&&U8(chart,"bRunFromServer")==0&&
+            U16(chart,"wTriggerID")==skill.wSkillID&&U8(chart,"bCheckAttacker")!=3&&
+            (U8(chart,"bPositive")%2)==1&&U8(chart,"bHitTest")==1&&U8(chart,"bHitInit")==100&&
+            U8(chart,"bHitInc")==0&&U32(chart,"dwActionTime")==0&&U32(chart,"dwDuration")==0&&
+            U16(chart,"wTargetActiveID")==0&&U16(chart,"wPosture")==0&&U8(chart,"bTargetRange")==0&&
+            U8(chart,"bIsDismount")==0&&
+            (chart.get_indicator("bRepeatCount")==soci::i_null||U8(chart,"bRepeatCount")==0);
         // The original query has no ORDER BY. Use the recovered source key
         // explicitly instead of relying on PostgreSQL's selected access path.
         soci::rowset<soci::row> all_data=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id "
             "ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\"",soci::use(id));
         for(const auto& data:all_data) {
             const auto attr=U8(data,"bAttr"),type=U8(data,"bType"),exec=U8(data,"bExec");
+            if(U8(data,"bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP))instant_cure=false;
+            definition.instant_cure.push_back({U8(data,"bAction"),type,attr,exec,U8(data,"bInc"),
+                U16(data,"wValue"),U16(data,"wValueInc"),U8(data,"bCalc")});
             // CTSkillTemp::GetAttackType: physical/long and MAGICNO return
             // immediately; elemental magic only sets the fallback result.
             if(!final_type) {
@@ -197,6 +207,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
                 instance.abilities.push_back(ReadAbility(data,definition,skill.bLevel));
             }
         }
+        if(!instant_cure)definition.instant_cure.clear();
         p.skill_templates.push_back(definition);
         const int kind=U8(chart,"bKind");const int group=kind==0?0:kind-klass*3;
         if(group>=0&&group<4) {
@@ -501,7 +512,10 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     {const int cast_world=claim.group,cast_character=s.dwCharID;long long head=0;
      sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
-     p.last_cast_id=static_cast<std::uint64_t>(head);}
+     p.last_cast_id=static_cast<std::uint64_t>(head);
+     sql<<"SELECT COALESCE(max(finish_id),0) FROM app_world.skill_finish_operations WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_finish_id=static_cast<std::uint64_t>(head);}
     DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
     tx->commit();return s;
@@ -540,7 +554,10 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     {const int cast_world=m_config.world,cast_character=s.dwCharID;long long head=0;
      sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
-     p.last_cast_id=static_cast<std::uint64_t>(head);}
+     p.last_cast_id=static_cast<std::uint64_t>(head);
+     sql<<"SELECT COALESCE(max(finish_id),0) FROM app_world.skill_finish_operations WHERE world_id=:w AND char_id=:c",
+         soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
+     p.last_finish_id=static_cast<std::uint64_t>(head);}
     DeriveStats(sql,s,p);
     // Never silently clamp unsaved transferred core to an incomplete derived
     // stat model. Active-effect stat derivation remains a gameplay dependency.

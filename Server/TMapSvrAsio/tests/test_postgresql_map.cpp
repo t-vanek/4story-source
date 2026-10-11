@@ -34,6 +34,7 @@ constexpr auto credential="d7c9416b31ba5b02b27fe10c13ad3cbd8d9ad81d";
 #include "inventory_move_fixture.h"
 #include "posture_fixture.h"
 #include "accepted_cast_fixture.h"
+#include "finish_skill_fixture.h"
 int main(){
     const auto* conn=std::getenv("FOURSTORY_TEST_PG_CONNINFO");
     const auto* mapconn=std::getenv("FOURSTORY_MAP_PG_CONNINFO");
@@ -46,7 +47,7 @@ int main(){
         SessionPool pool(Backend::PostgreSQL,conn,4),mpool(Backend::PostgreSQL,mapconn,4),ap(Backend::PostgreSQL,fixture,1);
         auto al=ap.Acquire();auto& admin=*al;
         stage="fixture";const auto hash=login::bcrypt_util::MakeBcryptHash(credential);
-        for(int u=701;u<=738;++u){const auto name="SyntheticMap"+std::to_string(u);
+        for(int u=701;u<=740;++u){const auto name="SyntheticMap"+std::to_string(u);
             admin<<"INSERT INTO app_global.\"TACCOUNT_PW\"(\"dwUserID\",\"szUserID\",\"szPasswd\") VALUES(:u,:n,:h)",soci::use(u),soci::use(name),soci::use(hash);
             admin<<"INSERT INTO app_global.\"TUSERINFOTABLE\"(\"dwUserID\",\"bAgreement\") VALUES(:u,1)",soci::use(u);}
         admin<<"INSERT INTO app_global.\"TGROUP\"(\"bGroupID\",\"szNAME\",\"bType\") VALUES(1,'Synthetic native map',0)";
@@ -274,6 +275,17 @@ int main(){
         auto move_after=move_restored;tmapsvr::ApplyInventoryMove(move_after,move_plan);
         const auto move_hashes=map.MoveInventoryItems(move_recovery,{4,3,255,1,8},move_restored,move_after);
         PublishReagentHash(move_after,move_plan.items[0].before.dlID,move_hashes.hashes.at(0));map.SaveAuthorized(move_recovery,move_after);
+        stage="skill finishes";
+        for(int user:{739,740}) {
+            auto finish=create(user,user==739?"FinishFresh":"FinishGraph",user);
+            VerifySkillFinishes(admin,mpool,map,mapconn,manifest,routing,actor,finish,user==740);
+            auto login=auth.Authenticate({"SyntheticMap"+std::to_string(user),credential,"192.0.2.50",0x2918});
+            Check(login.status==login::AuthStatus::Success&&routes.StartAuthorized({user,login.session_key,1,1,static_cast<int>(finish.char_id)}).status==login::StartStatus::Success,"finished cure allows new Login handoff");
+            finish.key=login.session_key;finish.connection_id+=2000;Check(claim(finish),"finished cure reconnect claims primary");
+            auto restored=*map.LoadAuthorized(finish);map.MarkReady(finish,restored);
+            Check(restored.payload->last_finish_id>0&&restored.dwHP>100,"finished cure and ledger survive reconnect");
+            map.SaveAuthorized(finish,restored);
+        }
         stage="accepted casts";
         for(int user:{737,738}) {
             auto cast=create(user,user==737?"CastFresh":"CastGraph",user);

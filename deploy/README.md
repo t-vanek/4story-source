@@ -1,18 +1,58 @@
 # Linux containers
 
+## Native skill finishes
+
+Current bounded increment (2026-10-11): stop native Map writers, apply additive
+migrations through **036**, then reapply `deploy/sql/map-runtime-grants.sql` for
+each Map role before starting the new binary. Keep the same pinned character,
+routing and four-table actor catalogs. Historical cast/skill/item/checkpoint
+rows are preserved; the upgrade creates no invented historical finishes.
+
+Build locally and use the existing native Login/World/Map configuration and role
+setup below. The image remains local.
+
+```sh
+podman build --target runtime --build-arg BUILD_JOBS=2 -t localhost/fourstory:postgresql-skill-finish .
+```
+
+`CS_FINISHSKILL_ACK` now finishes learned 509 Cure on the caster without active
+effects and with a zero party field. It does not establish complete gameplay. Other finish
+branches and original-client acceptance are still pending; native DEFEND rejects
+the old prototype. See [finish evidence](../_rewrite/docs/modernization/evidence/skill-finish-contract.json).
+
+Reproduce native verification with the existing Python requirements installed:
+
+```sh
+python3 tools/database/disposable_environment.py start --work /private/owned-lab --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /private/owned-lab --map-runtime-only --build-dir build/linux-debug \
+  --snapshot /private/characters/manifest.json \
+  --routing-snapshot /private/routing/manifest.json \
+  --actor-snapshot /private/actor/manifest.json --report /private/finish-result.json
+python3 tools/database/disposable_environment.py stop --work /private/owned-lab
+```
+
+Run separate labelled labs for Debug,
+ASan and installed runtime (`--image localhost/fourstory:postgresql-skill-finish
+--runtime-bin-dir /opt/fourstory/bin`). The installed run uses a mounted Debug
+backend test. `verify_posture_upgrade.py --through-finishes` tests additive
+schema preservation. Do not repurpose a lab while a runtime verification holds
+its lock. Recover missing private catalogs from read-only copies of the original
+backups with the existing disposable restore and `extract_reference.py` profiles.
+
 The portable Asio cluster is the Linux deployment path. The original
 Win32 servers and client remain reference sources. Each container runs
 one daemon as UID/GID 10001, logs to stdout, and receives SIGTERM directly.
 
 ## Current native PostgreSQL verification contract
 
-The current native Login/Map path requires migrations **001–034**, current
+The current native Login/Map path requires migrations **001–036**, current
 `sql/login-runtime-grants.sql` and `sql/map-runtime-grants.sql`, plus explicitly
 activated character/routing/four-table actor catalogs. The Map role now has bounded gameplay
 writes for consumption and inventory moves/splits/merges, including item INSERT
 and the shared world ID counter. Earlier sections below describe their original
 increment and do not override this requirement. Applied migrations are immutable;
-the next schema change starts at 035. Existing player graph catalog bindings need
+the next schema change starts at 037. Existing player graph catalog bindings need
 an explicit compatibility migration before switching a populated world; see
 [native character statistics](#native-map-character-statistics).
 

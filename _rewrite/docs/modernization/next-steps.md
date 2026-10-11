@@ -4,11 +4,36 @@ The master mission remains active. This file records the next coherent slices;
 it does not defer ordinary implementation for permission. Source backups remain
 authoritative for historical values, original code/client for supported behavior.
 
-Owner instruction (2026-10-09): keep implementation and versioning local on `main`
+Owner instruction renewed (2026-10-11): keep implementation and versioning local on `main`
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
 Local builds, disposable verification containers and local commits remain authorized.
 
-Current continuation (combat): migration **035** and the actual cast transaction
+Current source correction (2026-10-11): ordinary PC skills use
+`CS_FINISHSKILL_ACK`, not the DEFEND path assumed by the preceding continuation.
+`TClientGame.cpp:14050,28759`, `CSSender.cpp:2980` and
+`TMapSvr/CSHandler.cpp:20197` establish this primary-connection request, target
+filtering, two 32-bit BOOLs and server-side target iteration. Migration 036 now
+integrates the first instant own-PC Cure transaction and a separate finish head.
+See `skill-finish-contract.json`. Extend this existing implementation to remaining
+FINISHSKILL effects/targets, charging/repeats/links, then exception DEFEND paths.
+For charged self-heals, first port the original charge clock and cancellation
+semantics (`OnCS_FINISHSKILL_ACK` checks `dwActionTime` against the skill charge
+tick); do not admit First Aid 240 by merely broadening the instant-Cure selector.
+For other targets, establish mutable target ownership and atomic attacker/defender
+updates before publishing effects. Preserve each original ordered effect row and
+the DEFEND → conditional HPMP order. Cure's nearby-monster aggro and party relay
+remain required even though this first self-resource transaction is integrated.
+The generic client-authoritative native DEFEND prototype is explicitly blocked.
+Do not treat the old attack diagnostic in the untracked audit directory as an
+accepted gameplay contract or include unrelated audit files in these commits.
+
+Retain the unresolved no-cast-ID ambiguity: an identical packet can represent a
+later legitimate outstanding finish. Current same-login FIFO/subsequence budgets
+bound effects to accepted casts, but do not prove universal replay discrimination.
+No guessed expiry or new client field is a substitute for documenting this limit.
+All backups and applied migrations **001–036** are immutable; next migration **037**.
+
+Previous foundation (combat): migration **035** and the actual cast transaction
 are integrated and pass 2,761 native checks per Debug, ASan/UBSan and installed
 Release configuration, plus schema preservation and failure/recovery tests. Preserve
 `accepted-casts-contract.json` and its bounded verification evidence. The per-character
@@ -17,7 +42,7 @@ stale snapshots. Preserve outgoing powers before ordinary zero-MP effect removal
 LOOPSKILL must retain the source distinction. Do not treat this ledger as hit
 replay protection until Defend actually consumes ordered target occurrences.
 
-Next make `CS_DEFEND_REQ` consume authoritative accepted-cast state and recompute
+After extending the primary FINISHSKILL path, make `CS_DEFEND_REQ` consume authoritative accepted-cast state and recompute
 source hit/effect rules instead of trusting client powers. Original packets have
 no new cast ID: reconstruct legitimate matching/order from the original client
 and server before choosing an expiry/matching contract. Include primary transfer,
@@ -64,7 +89,7 @@ inventory/trade/store integration and all economy systems in scope.
 Preserve the explicitly certified old-two-table → current-four-table actor upgrade
 and its immutable graph receipts. It does not authorize arbitrary content changes,
 character/routing releases or transitive upgrades. All backups and migrations
-**001–035** are immutable; the next schema migration is **036**.
+**001–036** are immutable; the next schema migration is **037**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -514,7 +539,7 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–035; next schema change is 036. Native
+Preserve backups and migrations 001–036; next schema change is 037. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
@@ -538,7 +563,7 @@ generic effect and advanced equipment dependencies. Preserve actual two-Map
 inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
 only until complete gameplay; Log uses 029, statistics 030, actor transition 031
-equipment 032, postures 033, explicit cancellation 034 and accepted casts 035. Next new migration: 036.
+equipment 032, postures 033, explicit cancellation 034, accepted casts 035 and skill finishes 036. Next new migration: 037.
 
 
 The owner confirmed that only uncompiled client sources are available, without

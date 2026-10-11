@@ -1,6 +1,6 @@
 # Modern server implementation status
 
-Updated 2026-10-09 (Europe/Prague). Target: original client → compatible C++20 server → native
+Updated 2026-10-11 (Europe/Prague). Target: original client → compatible C++20 server → native
 PostgreSQL, primarily Linux containers. The overall reimplementation is **in
 progress**. No claim of complete gameplay or real-client compatibility is made.
 Older C#/.NET plans and percentage estimates in `GAP_ANALYSIS.md`,
@@ -18,7 +18,53 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: accepted cast transactions
+## Current increment: original FINISHSKILL and native self-cure
+
+The earlier continuation focused on DEFEND without tracing every caller. Original
+`CTClientGame::ShotSkill` and `FinishSkill` route ordinary PC casts through
+`CS_FINISHSKILL_ACK` (0x55f7), using the primary connection. The existing modern
+Map now dispatches that message. It validates the 34-byte fixed header, including
+two four-byte Windows BOOL fields, and the original five-byte target occurrences.
+
+Migration 036 appends an atomic finish receipt linked to one accepted cast. It
+stores raw input, ordered output and before/after resources. Claim/catalog locks
+and a separate server-only finish head fence concurrency, stale checkpoints and
+handoffs. Current same-login pending casts survive primary transfer. Reconnect
+uses a new login key; old pending finishes cannot authorize that new session.
+No new client or server-transfer field is introduced.
+
+The first supported source catalog shape is learned positive instant self-cure,
+without active effects, linked/repeated/charged skill or companion state; the
+request must have a zero party field.
+In the pinned backup this selects **509 Cure**. Current source rank, powers and
+critical are recomputed at finish. Each cure row rolls separately, caps resources
+as Defend does, and sends the original 84-byte DEFEND then conditional HPMP, only
+after commit. An empty filtered target list consumes a cast without an invented
+response. Unsupported branches stay explicit; native DEFEND cannot enter the old
+client-authoritative prototype.
+
+Matching uses the oldest compatible unconsumed cast in the same login session,
+route, skill and ground position, with an order-preserving target subsequence.
+It introduces no guessed expiry. Without a client cast ID, a replay can be
+indistinguishable from a later identical outstanding finish. This is **not** a
+claim of universal replay-proof combat. Full finish/Defend, cross-character and
+monster ownership, damage, effects, rewards and original-client acceptance remain
+unfinished. See [current evidence and limits](evidence/skill-finish-contract.json).
+
+**2,890 native database/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release (installed daemons with the Debug backend test).
+Debug CTest has 188 actual passes and 15 fixture skips out of 203 entries;
+all 40 sanitizer suites and 43 additive schema-upgrade checks pass. Six installed
+services pass health, container DNS and SIGTERM checks. Native wire verification
+covers exact original Cure responses, crash/reconnect, old-login replay, empty
+filtered targets, late SQL rollback and rejection of forged prototype DEFEND.
+Backend tests also cover concurrent finishes and pending casts across primary
+transfer. These are synthetic-client/native-PostgreSQL results; original-client
+acceptance and full gameplay remain pending.
+
+Backups and applied migrations **001–036** are immutable; next migration **037**.
+
+## Previous increment: accepted cast transactions
 
 Native SKILLUSE/LOOPSKILL now stages every successful request, independently
 validates source costs/timers/item selection/expanded targets/ACK inside the PostgreSQL transaction,

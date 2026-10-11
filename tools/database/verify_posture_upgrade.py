@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--report',type=Path,required=True)
     parser.add_argument('--through-cancellation',action='store_true',help='Also verify additive migration034 preserves all four recovery contracts')
     parser.add_argument('--through-casts',action='store_true',help='Also verify additive accepted-cast migration035 after cancellation034')
+    parser.add_argument('--through-finishes',action='store_true',help='Also verify additive finished-cast migration036 preserves acceptance and recovery receipts')
     args=parser.parse_args();repo=Path(__file__).resolve().parents[2]
     state=json.loads((args.work/'state.json').read_text());verify_container(state,state['pg_container'])
     values=dict(line.split('=',1) for line in (args.work/'postgres.env').read_text().splitlines())
@@ -73,7 +74,7 @@ def main():
             c.execute('INSERT INTO app_world.map_maintained_effects VALUES(1,2,0,132,1,0,1,2,1,2,4)')
             check(c.execute('SELECT app_world.map_checkpoint_matches(p) FROM app_world.map_checkpoints p WHERE char_id=2').fetchone()==(True,),'graph recovery continues to ignore stale normalized effects')
             check(c.execute("SELECT has_table_privilege('public','app_world.map_maintained_effects','INSERT') OR has_function_privilege('public','app_world.map_maintain_state(smallint,integer)','EXECUTE')").fetchone()==(False,),'new maintained mutation/comparison have no PUBLIC grant')
-            if args.through_cancellation or args.through_casts:
+            if args.through_cancellation or args.through_casts or args.through_finishes:
                 receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
                 checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
                 effects=c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()
@@ -86,7 +87,7 @@ def main():
                 check(c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()==effects,'effect upgrade preserves ordered native maintained fields')
                 check(c.execute('SELECT to_jsonb(o) FROM app_world.equipment_operations o').fetchall()==equipment,'effect upgrade preserves historical equipment operation bytes')
                 check(c.execute("SELECT has_table_privilege('public','app_world.maintained_effect_operations','INSERT') OR has_sequence_privilege('public','app_world.maintained_effect_operations_operation_id_seq','USAGE')").fetchone()==(False,),'effect ledger and its identity allocator have no PUBLIC mutation grant')
-            if args.through_casts:
+            if args.through_casts or args.through_finishes:
                 receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
                 checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
                 effects=c.execute('SELECT * FROM app_world.map_maintained_effects ORDER BY char_id,ordinal').fetchall()
@@ -102,6 +103,21 @@ def main():
                 check(c.execute('SELECT accepted_cast_id FROM app_world.skill_item_consumptions').fetchall()==[(None,)],'historical item receipt is not attributed to an invented accepted cast')
                 check(c.execute('SELECT count(*) FROM app_world.accepted_skill_casts').fetchone()==(0,),'upgrade fabricates no historical accepted casts')
                 check(c.execute("SELECT has_table_privilege('public','app_world.accepted_skill_casts','INSERT') OR has_sequence_privilege('public','app_world.accepted_skill_casts_cast_id_seq','USAGE')").fetchone()==(False,),'accepted-cast ledger and allocator have no PUBLIC mutation grants')
+            if args.through_finishes:
+                c.execute("INSERT INTO app_world.accepted_skill_casts(world_id,char_id,server_id,owner_token,connection_id,session_key,authority_epoch,previous_cast_id,state_contract,skill_id,skill_rank,is_loop,request,acknowledgement,before_hp,after_hp,before_mp,after_mp,before_skills,after_skills,before_effects,after_effects,core_fingerprint) VALUES(1,1,1,%s,1,1,0,0,3,509,1,false,%s,%s,1,1,1,1,'[]','[]','[]','[]',%s)",('a'*64,b'0'*32,b'0'*62,'b'*64))
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
+                casts=c.execute('SELECT to_jsonb(a) FROM app_world.accepted_skill_casts a').fetchall()
+                items=c.execute('SELECT to_jsonb(i) FROM app_world.skill_item_consumptions i').fetchall()
+                source=repo/'database/postgresql/036-native-skill-finishes.sql';shutil.copyfile(source,path/source.name)
+                check(apply_migrations(c,path)==[source.name],'finish upgrade applies only migration036')
+                check(apply_migrations(c,path)==[],'finish upgrade is idempotent')
+                check(c.execute("SELECT * FROM migration_control.applied WHERE name<'036' ORDER BY name").fetchall()==receipts,'all 35 prior migration receipts remain exact')
+                check(c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()==checkpoints,'finish upgrade preserves all core and graph checkpoints')
+                check(c.execute('SELECT to_jsonb(a) FROM app_world.accepted_skill_casts a').fetchall()==casts,'finish upgrade preserves all prior cast bytes and ownership')
+                check(c.execute('SELECT to_jsonb(i) FROM app_world.skill_item_consumptions i').fetchall()==items,'finish upgrade preserves linked item receipts')
+                check(c.execute('SELECT count(*) FROM app_world.skill_finish_operations').fetchone()==(0,),'upgrade does not fabricate historical finishes')
+                check(c.execute("SELECT has_table_privilege('public','app_world.skill_finish_operations','INSERT') OR has_sequence_privilege('public','app_world.skill_finish_operations_finish_id_seq','USAGE')").fetchone()==(False,),'finish ledger and allocator have no PUBLIC mutation grants')
             report.update(status='passed',scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
     finally:
         with psycopg.connect(dbname='postgres',**admin) as conn:conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db)))

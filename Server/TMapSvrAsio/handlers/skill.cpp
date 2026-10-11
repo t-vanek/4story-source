@@ -12,9 +12,10 @@
 // deducted, the fat SKILL_SUCCESS ack (with the defender list) is
 // broadcast to everyone in view, and the caster's new bars are echoed via
 // CS_HPMP — the same packet pair the legacy success path Says
-// (CSHandler.cpp:2992-3030). The actual damage/heal then arrives from the
-// defenders' clients as CS_DEFEND_REQ (combat.cpp), which is where the
-// TSKILLDATA effects (heal) are applied.
+// (CSHandler.cpp:2992-3030). Ordinary PC effects finish through the primary
+// CS_FINISHSKILL_ACK path (maintained_effect.cpp). Exception skills and
+// non-PC actors also use CS_DEFEND_REQ; native resolution there remains blocked
+// until its authoritative accepted-cast and target-owner contracts are ported.
 //
 // Known placeholders (documented until their waves land):
 //   * active-effect attack timing (speed-dependent buff-bearing casts fail closed);

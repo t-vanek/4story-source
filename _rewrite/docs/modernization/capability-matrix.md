@@ -68,12 +68,25 @@ secondary gameplay remain IMPLEMENTING.
 
 ## Gameplay and durable state
 
+Original `CS_FINISHSKILL_ACK`: **IMPLEMENTED/INTEGRATED** for the bounded native
+509 self-Cure and empty filtered target list. Actual original packet parsing,
+accepted-cast consumption, current-stat calculation, atomic resources/recovery
+and exact ordered response receipts use PostgreSQL migration 036. Broader finish
+and exception DEFEND paths remain **IMPLEMENTING**; native requests refuse the
+old client-authoritative DEFEND prototype. **VERIFIED** for the bounded native
+PostgreSQL/synthetic TCP scenarios in Debug, ASan/UBSan and installed Release:
+exact source response bytes/order, concurrent consumption, transfer, crash/reconnect,
+old-login replay and late SQL rollback. Executed verification and unverified
+scope are recorded separately in [finish evidence](evidence/skill-finish-contract.json).
+No binary client acceptance or universal replay discrimination is claimed.
+
 Accepted native casts: **IMPLEMENTED/INTEGRATED** in the actual ordinary/loop
 request handler and PostgreSQL service. Immediate costs/timers/items/recovery,
 raw request and independently checked ACK, stale ledger-head fencing, and ordinary
 zero-MP removal of 131/132 postures are implemented. **VERIFIED** for the recorded Debug, ASan/UBSan and installed Release synthetic/native scenarios;
 see [accepted-cast evidence](evidence/accepted-casts-contract.json). The accepted
-ledger does not yet authorize or consume target hits. Complete Defend, rewards,
+ledger now authorizes the bounded self-Cure finish described above; other target
+hits still require their authoritative transaction. Complete Defend, rewards,
 full effects and original-client acceptance remain **IMPLEMENTING/UNVERIFIED**.
 
 Native outgoing SKILLUSE/LOOPSKILL powers: **IMPLEMENTED/INTEGRATED** selected-skill

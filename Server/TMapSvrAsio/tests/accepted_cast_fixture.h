@@ -6,7 +6,7 @@
 // This builder is a service-boundary fixture, not the independent wire oracle.
 // Arithmetic/packet compatibility is covered separately by native TCP fixtures.
 std::pair<tmapsvr::SkillCastRequest,tmapsvr::CharSnapshot> PlannedCast(
-    const tmapsvr::MapSessionClaim& c,const tmapsvr::CharSnapshot& before,std::uint16_t id,bool loop=false) {
+    const tmapsvr::MapSessionClaim& c,const tmapsvr::CharSnapshot& before,std::uint16_t id,bool loop=false,bool self=false) {
     using namespace tmapsvr;
     const auto& p=*before.payload;
     const auto& t=*std::find_if(p.skill_templates.begin(),p.skill_templates.end(),[&](const auto& t){return t.wID==id;});
@@ -15,7 +15,8 @@ std::pair<tmapsvr::SkillCastRequest,tmapsvr::CharSnapshot> PlannedCast(
     const auto add=[&](auto v){wire::WritePOD(request.request,v);};
     add(c.char_id);add(std::uint8_t{1});add(c.channel);add(before.wMapID);add(id);
     if(!loop){add(std::uint8_t{2});add(std::uint32_t{3});add(std::uint32_t{4});}
-    add(1.f);add(2.f);add(3.f);add(std::uint8_t{0});
+    add(1.f);add(2.f);add(3.f);add(static_cast<std::uint8_t>(self));
+    if(self){add(c.char_id);add(std::uint8_t{1});add(std::uint8_t{1});}
     SkillUseAckFields ack;ack.attack_id=c.char_id;ack.attack_type=1;ack.skill_id=id;
     ack.action_id=2;ack.act_id=3;ack.ani_id=4;ack.skill_level=row.bLevel;ack.attacker_level=before.bLevel;
     ack.country=before.bCountry;ack.aid_country=p.aid_country;ack.gnd_x=1;ack.gnd_y=2;ack.gnd_z=3;
@@ -23,7 +24,8 @@ std::pair<tmapsvr::SkillCastRequest,tmapsvr::CharSnapshot> PlannedCast(
     ack.attack_level=loop||power.attack_type==1?power.physical_level:power.magic_level;
     ack.pys_min_power=power.physical_min;ack.pys_max_power=power.physical_max;
     ack.mg_min_power=power.magic_min;ack.mg_max_power=power.magic_max;ack.cp=power.critical;
-    request.acknowledgement=loop?EncodeLoopSkillAck(ack,{}):EncodeSkillUseAck(ack,{});
+    const auto targets=self?std::vector<SkillTarget>{{c.char_id,1}}:std::vector<SkillTarget>{};
+    request.acknowledgement=loop?EncodeLoopSkillAck(ack,targets):EncodeSkillUseAck(ack,targets);
     auto after=before;
     if(t.items==SkillItemGate::Reagent){const auto item=FindSkillReagent(before,t.wUseItem);if(!item)throw std::runtime_error("fixture reagent missing");request.debits.push_back({*item,1});ConsumeSkillItemProjection(after,request.debits);}
     after.dwMP-=skill_engine::RequiredMP(t,before.dwMaxMP,row.bLevel);after.dwHP-=skill_engine::RequiredHP(t,before.dwMaxHP,row.bLevel);

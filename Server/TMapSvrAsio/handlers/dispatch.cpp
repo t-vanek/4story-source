@@ -94,6 +94,8 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnActionReq(sess, std::move(body), ctx); break;
     case MessageId::CS_DEFEND_REQ:
         co_await OnDefendReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_FINISHSKILL_ACK:
+        co_await OnFinishSkill(sess, std::move(body), ctx); break;
     case MessageId::CS_REVIVAL_REQ:
         co_await OnRevivalReq(sess, std::move(body), ctx); break;
     case MessageId::CS_MONITEMLIST_REQ:

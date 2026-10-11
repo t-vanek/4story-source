@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "date": "2026-10-11",
+  "labs": [
+    {
+      "work": "/tmp/fourstory-finish-20261011",
+      "containers_removed": [
+        "fourstory-db-d4548eb2b6ee-mssql",
+        "fourstory-db-d4548eb2b6ee-postgres"
+      ],
+      "network_removed": "fourstory-db-d4548eb2b6ee",
+      "credential_tls_runtime_files_deleted": 28
+    },
+    {
+      "work": "/tmp/fourstory-finish-asan-20261011",
+      "containers_removed": [
+        "fourstory-db-27a66a5f45e5-postgres"
+      ],
+      "network_removed": "fourstory-db-27a66a5f45e5",
+      "credential_tls_runtime_files_deleted": 16
+    },
+    {
+      "work": "/tmp/fourstory-finish-release-20261011",
+      "containers_removed": [
+        "fourstory-db-804de1372282-postgres"
+      ],
+      "network_removed": "fourstory-db-804de1372282",
+      "credential_tls_runtime_files_deleted": 16
+    }
+  ],
+  "retained": "Private backup-derived catalogs and scrubbed evidence retained outside Git; original backups untouched",
+  "unrelated_work": "Pre-existing untracked _rewrite/docs/audits excluded; no unrelated image/container/branch cleanup"
+}

@@ -1,0 +1,215 @@
+{
+  "status": "verified_bounded_increment",
+  "date": "2026-10-11",
+  "base_commit": "3d49e5651dcfafaa80ed0db1aceca1c7569abae7",
+  "scope": "Original primary FINISHSKILL, bounded native learned 509 self-Cure and empty filtered targets; complete gameplay remains unfinished",
+  "schema": "036-native-skill-finishes.sql",
+  "source": [
+    {
+      "path": "Client/TClient/TClientGame.cpp",
+      "lines": "14050-14108; 28759-28830",
+      "finding": "Ordinary PC casts use FinishSkill on the primary; missing/ineligible targets removed in place"
+    },
+    {
+      "path": "Client/TClient/CSSender.cpp",
+      "lines": "2980-3019",
+      "finding": "34-byte header with two 32-bit BOOLs; five-byte targets; opcode0x55f7"
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "20197-20690",
+      "finding": "Present attacker source powers; target iteration; zero animation/action; Defend invocation"
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2266-2310; 3555-3570; 1160-1210",
+      "finding": "Guaranteed-hit Cure; row-wise 0..15% roll; source DEFEND then changed HPMP"
+    },
+    {
+      "path": "Server/TMapSvr/TMap.cpp",
+      "lines": "840-873",
+      "finding": "Nearest-player audience radius CELL_SIZE=64"
+    },
+    {
+      "path": "Server/TMapSvr/TSkillTemp.cpp",
+      "lines": "49-102",
+      "finding": "Original rank scaling and Calculate combination semantics"
+    }
+  ],
+  "implemented": [
+    "Actual Map dispatch of CS_FINISHSKILL_ACK",
+    "Exact length, finite ground, fixed-width BOOL and own-primary checks",
+    "Recompute current learned source rank and powers at finish",
+    "One consumed accepted cast with ordered-subsequence target budget; empty list valid",
+    "Healing, exact raw request/ordered replies and checkpoint commit atomically",
+    "Separate finish head fences older core/checkpoint/item/cast/transfer snapshots",
+    "Same-session pending cast completion after primary transfer; new login key fences old pending casts",
+    "Unknown commit closes without automatic retry or stale logout save",
+    "Native DEFEND cannot reach client-power/rank-authoritative prototype"
+  ],
+  "modern_differences": [
+    "Fail closed on malformed/unsupported requests; no successful placeholder",
+    "One finish per accepted cast instead of disabled/impossible original used-skill checks",
+    "Original cast-ID-free protocol cannot disambiguate every replay from later identical outstanding finishes; deterministic FIFO is bounded authorization, not universal replay proof",
+    "Cryptographic uniform random byte low nibble replaces C rand()%16 while retaining the 16 possible cure outcomes"
+  ],
+  "verification": {
+    "native_backend": "879 Map checks plus 29 pool/TLS checks passed in Debug, ASan/UBSan and installed Release harness",
+    "schema_upgrade": {
+      "checks": 43,
+      "report": "skill-finish-schema-upgrade.json"
+    },
+    "debug_ctest": {
+      "report": "skill-finish-debug-ctest.xml",
+      "entries": 203,
+      "actual_passes": 188,
+      "internal_fixture_skips": 8,
+      "explicit_fixture_skips": 7,
+      "failures": 0
+    },
+    "asan_ctest": {
+      "report": "skill-finish-asan-ctest.xml",
+      "suites": 40,
+      "passed": 40,
+      "skipped": 0,
+      "failures": 0
+    },
+    "reports": {
+      "debug": "native-skill-finish-debug.json",
+      "asan": "native-skill-finish-asan.json",
+      "release": "native-skill-finish-release.json"
+    },
+    "native_debug": "passed: 2890 native database/network checks",
+    "native_asan": "passed: 2890 native database/network checks; no sanitizer errors",
+    "installed_release": "passed: 2890 checks; installed Release Login/World/Map with mounted Debug backend integration test",
+    "container_report": "skill-finish-container.json",
+    "container": "all six installed Release daemons passed health/DNS/SIGTERM checks",
+    "source_inventory": {
+      "legacy_translation_units": 206,
+      "modern_translation_units": 245,
+      "exact_opcodes": 1542,
+      "collisions": 9,
+      "mismatches": 0
+    },
+    "source_only_followup": "After binary verification started, corrected only misleading routing comments in handlers.h and handlers/skill.cpp; no executable behavior changed.",
+    "preservation": {
+      "report": "preservation.json",
+      "files": 38,
+      "scope": "both original backups and migrations 001-036 match recorded SHA256 fingerprints"
+    },
+    "counts": {
+      "debug": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 879
+        },
+        "outer_tcp": 695,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24
+        },
+        "total": 2890
+      },
+      "asan": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 879
+        },
+        "outer_tcp": 695,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24
+        },
+        "total": 2890
+      },
+      "release": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 879
+        },
+        "outer_tcp": 695,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24
+        },
+        "total": 2890
+      }
+    },
+    "cleanup_report": "skill-finish-cleanup.json",
+    "cleanup": "3 owned labs/networks removed; 60 credential/TLS/runtime files deleted"
+  },
+  "limits": [
+    "Only backup 509 matches current learned instant-cure selector; self only, no active effects and zero party request",
+    "Full FINISHSKILL targets, damage, charging, repeats, links, durability and effects remain unfinished",
+    "Native exception/monster/PvP DEFEND resolution is explicitly unavailable",
+    "Full cross-process visibility, nearby-monster aggro and party HPMP relay remain unimplemented/unverified",
+    "No proxy-induced lost COMMIT acknowledgement injection for this increment",
+    "No original client EXE/assets: supported binary build/hash and actual-client acceptance unavailable"
+  ],
+  "policy": "Owner renewed local main only on 2026-10-11; no push/publication/external deployment",
+  "unrelated_worktree": "Pre-existing untracked _rewrite/docs/audits retained and excluded from this increment",
+  "skipped": {
+    "debug_ctest_internal_fixture_skips": 8,
+    "debug_ctest_explicit_native_skips": 7,
+    "original_client": "EXE and assets unavailable; only uncompiled source supplied",
+    "unknown_commit_proxy": "Not injected for this increment; no retry/fail-close behavior, late SQL rollback, SIGKILL/reconnect and prior transaction regressions are covered"
+  },
+  "protocol": {
+    "source_version": "0x2918; source identification only",
+    "original_binary_build": null,
+    "original_binary_sha256": null,
+    "original_client_acceptance": "blocked: owner has uncompiled source only; EXE/assets absent",
+    "new_client_fields": false
+  },
+  "schema_sha256": "12d60ff0a3a6202d50dfa16fc622be60c01afd11a9e20d8d16f0f7eae6785244",
+  "image": {
+    "tag": "localhost/fourstory:postgresql-skill-finish",
+    "id": "d42c15b27211b74ee6b304ee9688a101aae6d24737b7000ceca6a1a40a0278fd",
+    "user": "10001:10001"
+  }
+}

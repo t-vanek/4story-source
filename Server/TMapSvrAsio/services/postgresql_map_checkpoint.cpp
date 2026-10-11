@@ -2,6 +2,9 @@
 #include "postgresql_map_owner.h"
 #include "maintained_effects.h"
 #include "posture_effects.h"
+#include "skill_effect.h"
+#include "MessageId.h"
+#include <openssl/rand.h>
 #include <openssl/sha.h>
 #include <soci/soci.h>
 #include <algorithm>
@@ -341,6 +344,100 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
     if(cast_result)cast_result->snapshot=std::make_shared<const CharSnapshot>(after);
     tx->commit();return hashes;
 }
+FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std::span<const std::byte> body,
+    const CharSnapshot& before) {
+    const auto request=DecodeFinishSkill(body);
+    if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain||
+       request.host!=c.char_id||request.attacker!=c.char_id||request.type!=1||request.linked||request.fake||request.party||
+       before.bDead||!before.dwHP||!MaintainedEffects(*before.payload).empty()||
+       std::any_of(request.targets.begin(),request.targets.end(),[&](const auto& t){return t.id!=c.char_id||t.type!=1;}))
+        throw std::runtime_error("Unsupported native FINISHSKILL scope");
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Finish claim is not ready primary");
+    CheckCatalogs(sql);
+    const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
+    const bool graph=bool(before.payload->transfer_state);
+    if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
+        throw std::runtime_error("Finish recovery receipt changed");
+    const long long key=c.key;int unlocked=0;
+    sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
+    if(!sql.got_data())throw std::runtime_error("Finish session was revoked");
+    ValidateInventoryState(sql,c,before,true);
+    auto after=before;RefreshEquipment(sql,after,true);
+    if(after.dwHP!=before.dwHP||after.dwMP!=before.dwMP)throw std::runtime_error("Finish resources exceed source maximum");
+    const auto def=std::find_if(after.payload->skill_templates.begin(),after.payload->skill_templates.end(),
+        [&](const auto& t){return t.wID==request.skill;});
+    if(def==after.payload->skill_templates.end()||def->instant_cure.empty()||!def->attack_profile||
+       def->attack_profile->critical==255||(def->wMapID!=0xffff&&def->wMapID!=after.wMapID))
+        throw std::runtime_error("FINISHSKILL effect contract is not implemented");
+    const auto definition=*def;const auto power=*definition.attack_profile;
+    const int world=c.group,character=c.char_id,skill=request.skill;
+    const auto unhex=[](const std::string& value){std::vector<std::byte> out;
+        for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+    const auto hex=[](auto bytes){constexpr char digits[]="0123456789abcdef";std::string out;
+        for(auto v:bytes){const auto b=std::to_integer<unsigned>(v);out+=digits[b>>4];out+=digits[b&15];}return out;};
+    long long accepted=0;
+    // Original protocol supplies no cast ID. Choose the oldest outstanding
+    // compatible cast from this login session. No wall-clock expiry is guessed.
+    // The account/claim lock serializes cast, finish and handoff transactions.
+    {
+        soci::rowset<soci::row> casts=(sql.prepare<<
+            "SELECT cast_id,CASE WHEN is_loop THEN 1 ELSE 0 END,encode(request,'hex'),encode(acknowledgement,'hex') "
+            "FROM app_world.accepted_skill_casts a WHERE world_id=:w AND char_id=:c AND session_key=:k AND skill_id=:skill "
+            "AND NOT EXISTS(SELECT 1 FROM app_world.skill_finish_operations f WHERE f.accepted_cast_id=a.cast_id) ORDER BY cast_id",
+            soci::use(world,"w"),soci::use(character,"c"),soci::use(key,"k"),soci::use(skill,"skill"));
+        for(const auto& row:casts) {
+            const auto original=unhex(row.get<std::string>(2)),ack=unhex(row.get<std::string>(3));
+            const bool loop=row.get<int>(1)!=0;const std::size_t fixed=loop?45:62;
+            if(original.size()<10||ack.size()<fixed)throw std::runtime_error("Malformed accepted cast receipt");
+            wire::Reader route(original.data()+5,3);std::uint8_t channel{};std::uint16_t map{};route.Read(channel);route.Read(map);
+            if(channel!=c.channel||map!=before.wMapID)continue;
+            wire::Reader ground(ack.data()+fixed-13,12);float x{},y{},z{};ground.Read(x);ground.Read(y);ground.Read(z);
+            if(x!=request.x||y!=request.y||z!=request.z)continue;
+            const auto count=std::to_integer<unsigned>(ack[fixed-1]);
+            if(count>16||ack.size()!=fixed+count*5)throw std::runtime_error("Invalid accepted target list");
+            std::vector<SkillTarget> targets;wire::Reader input(ack.data()+fixed,count*5);
+            for(unsigned i=0;i<count;++i){SkillTarget target;input.Read(target.id);input.Read(target.type);targets.push_back(target);}
+            if(!FinishTargetsMatch(targets,request.targets))continue;
+            accepted=row.get<long long>(0);break;
+        }
+    }
+    if(!accepted)throw std::runtime_error("FINISHSKILL has no unconsumed accepted cast");
+    FinishSkillCommit result;
+    for(const auto& target:request.targets) {
+        (void)target;const auto hp=after.dwHP,mp=after.dwMP;
+        // PerformSkill rolls each ordered row separately, not their sum.
+        for(const auto& row:definition.instant_cure) {
+            const auto value=skill_effect::Calculate(row,definition,power.rank,row.bExec==SCT_HP?after.dwMaxHP:after.dwMaxMP);
+            if(value<0)throw std::runtime_error("Cure magnitude outside supported positive source domain");
+            unsigned char random{};if(RAND_bytes(&random,1)!=1)throw std::runtime_error("Cure randomness unavailable");
+            const auto delta=static_cast<std::uint64_t>(value)+static_cast<std::uint64_t>(value)*(random&15)/100;
+            auto& resource=row.bExec==SCT_HP?after.dwHP:after.dwMP;
+            // DWORD source arithmetic, clamped after all rows by Defend.
+            if(delta+resource>0xffffffffULL)throw std::runtime_error("Cure would overflow original DWORD");
+            resource+=static_cast<std::uint32_t>(delta);
+        }
+        after.dwHP=std::min(after.dwHP,after.dwMaxHP);after.dwMP=std::min(after.dwMP,after.dwMaxMP);
+        result.packets.emplace_back(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power));
+        if(after.dwHP!=hp||after.dwMP!=mp)result.packets.emplace_back(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK),
+            EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP));
+    }
+    std::string responses="[";
+    for(const auto& [id,packet]:result.packets){if(responses.size()>1)responses+=',';responses+='['+std::to_string(id)+",\""+hex(packet)+"\"]";}
+    responses+=']';const auto request_hex=hex(body),fingerprint=Fingerprint(c,after);
+    const int server=m_config.server;const long long generation=c.connection_id,epoch=c.authority_epoch,previous=before.payload->last_finish_id;
+    const long long bhp=before.dwHP,ahp=after.dwHP,bmp=before.dwMP,amp=after.dwMP;long long finish=0;
+    sql<<"INSERT INTO app_world.skill_finish_operations(world_id,char_id,accepted_cast_id,previous_finish_id,server_id,owner_token,connection_id,session_key,authority_epoch,request,responses,before_hp,after_hp,before_mp,after_mp,core_fingerprint) "
+         "VALUES(:w,:c,:cast,:previous,:s,:t,:g,:k,:e,decode(:request,'hex'),CAST(:responses AS jsonb),:bhp,:ahp,:bmp,:amp,:f) RETURNING finish_id",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(accepted,"cast"),soci::use(previous,"previous"),soci::use(server,"s"),
+        soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(key,"k"),soci::use(epoch,"e"),
+        soci::use(request_hex,"request"),soci::use(responses,"responses"),soci::use(bhp,"bhp"),soci::use(ahp,"ahp"),
+        soci::use(bmp,"bmp"),soci::use(amp,"amp"),soci::use(fingerprint,"f"),soci::into(finish);
+    auto payload=std::make_shared<CharacterPayload>(*after.payload);payload->last_finish_id=static_cast<std::uint64_t>(finish);after.payload=std::move(payload);
+    WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
+    result.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return result;
+}
 EffectEndCommit PostgreSQLMapService::EndMaintainedEffect(const MapSessionClaim& c,const EffectEndRequest& request,
     const CharSnapshot& before) {
     const bool graph=before.payload&&before.payload->transfer_state;
@@ -469,6 +566,8 @@ void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClai
     const int world=c.group,character=c.char_id;long long head=0;
     sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
     if(static_cast<std::uint64_t>(head)!=s.payload->last_cast_id)throw std::runtime_error("Snapshot predates accepted cast");
+    sql<<"SELECT COALESCE(max(finish_id),0) FROM app_world.skill_finish_operations WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
+    if(static_cast<std::uint64_t>(head)!=s.payload->last_finish_id)throw std::runtime_error("Snapshot predates finished skill");
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
     CheckCastHead(sql,claim,s);

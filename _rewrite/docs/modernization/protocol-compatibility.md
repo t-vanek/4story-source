@@ -21,6 +21,42 @@ there means a per-packet behavior review has not been completed; it does not mea
 the referenced modern handler is absent. Add reviewed evidence as each slice is
 completed rather than converting references into coverage percentages.
 
+## Primary FINISHSKILL and bounded self-cure (2026-10-11)
+
+Original `TClientGame.cpp:14050–14108,28759–28830` routes ordinary PC skills through
+`FinishSkill`; `CSSender.cpp:2980–3019` sends 0x55f7 on the primary session with
+host DWORD, attacker DWORD, type BYTE, ground FLOAT×3, skill WORD, linked BOOL,
+fake BOOL, party WORD, target count BYTE and `(DWORD,BYTE)` targets. Windows BOOL
+is **four bytes**, giving a 34-byte fixed header. The client removes missing or
+ineligible targets without reordering survivors. Linked/exception skills and
+non-PC actors use additional branches; this does not replace their contracts.
+
+Original `CSHandler.cpp:20197–20690` recomputes present-attacker powers, iterates
+targets and invokes `Defend` with zero animation/action IDs. The bounded native
+509 own-PC instant Cure follows that path, including source rank, magic AL/CP,
+positive guaranteed-hit calculation, per-row `rand()%16` cure variance and
+clamping after effect application. Original `TObjBase.cpp:3555` and `1160` specify
+the arithmetic and DEFEND-before-HPMP ordering. The 84-byte DEFEND response and
+21-byte HPMP are unchanged. Empty target lists produce no new success opcode.
+Local audience uses the original `GetNeerPlayer` 64-unit radius; complete remote
+visibility and party HPMP relay are still unverified/unimplemented.
+
+Modern repairs: exact lengths/finite ground/own-PC authority are mandatory;
+unsupported effects and native DEFEND's old untrusted-power prototype fail closed.
+Migration 036 makes accepted-cast consumption, healing, exact response receipt
+and checkpoint atomic. No automatic retry occurs after uncertain commit. A
+server-only finish head fences old snapshots, including no-delta finishes. Its
+hydration is separate from the unchanged original SS graph.
+
+FIFO matching requires same login key, route, skill, ground and an ordered target
+subsequence. The entire accepted cast finishes once; filtered-out occurrences
+cannot be claimed later. No expiry is invented. Same-body later casts remain
+distinct. This bounds effects but cannot distinguish every replay from a later
+identical outstanding finish without additional source/client evidence. Multiple
+actors, damage, repeats, linked/charged skills, monsters, buffs and general Defend
+remain in scope and are not certified by this slice. Only backup 509 matches the
+current learned instant-cure selector. Original binary/assets remain unavailable.
+
 ## Behavior change review: missing monster attributes
 
 Original essential spawn setup in `Server/TMapSvr/TMap.cpp:629` looks up

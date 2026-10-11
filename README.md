@@ -1,8 +1,9 @@
 # 4Story Emulator Server
 
-**Development policy (owner instruction, 2026-10-09):** version changes only through
+**Development policy (owner instruction renewed 2026-10-11):** version changes only through
 local commits on `main` until complete gameplay is finished. GitHub pushes,
-publication and deployment are paused.
+publication and deployment are paused. The owner authorized the one-time push of
+`3d49e56` on 2026-10-09 and renewed local-only implementation on 2026-10-11.
 
 An incremental **C++20** reimplementation of the 4Story server cluster, targeting
 **Linux containers and native PostgreSQL**. The compatibility goal is the original
@@ -19,7 +20,30 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Verified functionality
 
-Updated 2026-10-09. These scopes describe executed tests; historical handler counts
+Current increment (2026-10-11): the original **CS_FINISHSKILL_ACK** path is integrated.
+Client `ShotSkill`/`FinishSkill` sends this message for ordinary PC skills; most
+player hits do not use `CS_DEFEND_REQ`. Migration **036** adds one-use finish
+receipts and stale-snapshot fencing. The first bounded effect is learned skill
+509 **Cure**, on oneself without active effects and with a zero party field. Full combat and
+other finish branches remain incomplete. Verification is recorded in
+[the finish contract](_rewrite/docs/modernization/evidence/skill-finish-contract.json).
+Native `DEFEND` requests now refuse the unfinished client-authoritative prototype.
+No supported original executable build is claimed. The current local image is
+`localhost/fourstory:postgresql-skill-finish`; see the
+[local build/startup procedure](deploy/README.md#native-skill-finishes).
+
+**2,890 native database/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release (installed daemons with the Debug backend test).
+Debug CTest has 188 actual passes and 15 fixture skips out of 203 entries;
+all 40 sanitizer suites and 43 additive schema-upgrade checks pass. Six installed
+services pass health, container DNS and SIGTERM checks. Native wire verification
+covers exact original Cure responses, crash/reconnect, old-login replay, empty
+filtered targets, late SQL rollback and rejection of forged prototype DEFEND.
+Backend tests also cover concurrent finishes and pending casts across primary
+transfer. These are synthetic-client/native-PostgreSQL results; original-client
+acceptance and full gameplay remain pending.
+
+Updated 2026-10-11. These scopes describe executed tests; historical handler counts
 and completeness percentages are not evidence of native PostgreSQL feature parity.
 
 | Area | Verified scope | Remaining work |
@@ -34,7 +58,7 @@ and completeness percentages are not evidence of native PostgreSQL feature parit
 | Log | Native LP_LOG PostgreSQL migration, append-only runtime grants, exact raw bytes, native audit queries and process restart | Durable spool/reconciliation, closed-pool recovery, LP_CHAT and original tool/data acceptance |
 | World, Control and Patch | Modern daemons and handler/transport tests; World handoff coordination | Remaining native repositories, social persistence and tool acceptance |
 
-The current increment integrates **accepted native cast transactions** (migration
+The preceding increment integrated **accepted native cast transactions** (migration
 **035**) into the existing SKILLUSE/LOOPSKILL handler. Cost-only and free casts now
 join item-consuming casts in an immediate PostgreSQL commit containing core
 resources, cooldowns, raw request/ACK, inventory receipts and recovery state.
@@ -47,7 +71,7 @@ Release (installed daemons with the Debug backend test). Debug CTest records 188
 actual passes and 15 fixture skips; all 39 sanitizer suites and 35 schema-upgrade
 checks pass. All six installed services pass health, DNS and SIGTERM checks. See the
 [accepted-cast contract](_rewrite/docs/modernization/evidence/accepted-casts-contract.json).
-Current local image: `localhost/fourstory:postgresql-accepted-casts`;
+That increment used `localhost/fourstory:postgresql-accepted-casts`;
 [local build/startup procedure](deploy/README.md#native-accepted-cast-transactions).
 This implements accepted-cast persistence; authoritative hit consumption and
 complete Defend remain unfinished. The original client EXE/assets are unavailable.
@@ -96,7 +120,7 @@ cancellation side effects, timed expiry, zero-MP removal during `Defend` and ite
 posture skills and remote visibility still require implementation and acceptance.
 Only uncompiled client sources are available; no supported executable build/hash,
 assets or original-client acceptance is claimed. Backups and applied migrations
-**001–035** are immutable; next migration **036**.
+**001–036** are immutable; next migration **037**.
 
 The preceding **native equipment** increment (032) verified ordinary equip,
 unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per

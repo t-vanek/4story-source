@@ -27,8 +27,8 @@ selection/history and `006` exposes the 15 reference tables with both quoted
 legacy identifiers and case-folded aliases for unquoted queries. The views exclude
 import bookkeeping columns. Their join to the selected release makes them read-only.
 
-All subsequently applied migrations through **034** are also immutable. Current
-native Map deployment requires migrations through 034 and the existing
+All subsequently applied migrations through **036** are also immutable. Current
+native Map deployment requires migrations through 036 and the existing
 [`map-runtime-grants.sql`](../deploy/sql/map-runtime-grants.sql). `map_sessions`
 retains one mutable primary; `map_replicas` adds operational grants and secondary
 connection phases, bound to the exact primary/target process identities and
@@ -38,7 +38,20 @@ data. Migration 020 adds an exact transfer journal, authority epochs and full
 transfer-state checkpoints. Movement-triggered primary handoff, source/target
 replacement and graph-backed relogin are verified against native PostgreSQL.
 See the [primary transfer contract](../_rewrite/docs/modernization/evidence/native-primary-transfer-contract.json)
-for tests and remaining gameplay requirements. Add schema changes as 035+.
+for tests and remaining gameplay requirements. Add schema changes as 037+.
+
+Migration 035 records accepted native casts and links their item/effect costs to
+one atomic checkpoint. Migration 036 adds one finish receipt per accepted cast,
+including exact request and ordered responses. The initial finish implementation
+handles learned instant self-Cure and empty filtered targets. Healing and recovery
+state commit together; separate cast/finish heads reject stale snapshots, including
+finishes that change no HP/MP. The original protocol has no cast ID: same-login
+FIFO matching bounds effects to accepted casts but cannot distinguish every replay
+from an identical later legitimate finish. There is no automatic write retry after
+an unknown commit. Stop Map writers, apply both migrations and reapply current
+Map grants before using these binaries. Existing historical rows and all applied
+migrations remain unchanged. See the
+[finish contract](../_rewrite/docs/modernization/evidence/skill-finish-contract.json).
 
 Migration 021 adds fresh-primary skill checkpoints (contract 3). Initial readiness,
 periodic checkpoints and final logout atomically store remaining skill durations
@@ -116,7 +129,7 @@ rollback restores the allocator along with items and recovery state. Graph split
 reserve a global ID without materializing stale normalized child rows. Apply the
 updated Map grants for item INSERT, stack receipt INSERT and narrow high-water
 UPDATE. Native audit uses 029, statistics 030, actor compatibility 031 and
-equipment 032, maintained postures 033 and client cancellation 034. All are immutable; the next schema change is 035. See the
+equipment 032, maintained postures 033 and client cancellation 034. All are immutable; the next schema change is 037. See the
 [stack contract](../_rewrite/docs/modernization/evidence/inventory-stacks-contract.json).
 
 The pinned item chart contains 65 arrow-using and 77 bolt-using weapon templates,

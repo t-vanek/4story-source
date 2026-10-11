@@ -11,6 +11,39 @@
 #include <cmath>
 
 namespace tmapsvr {
+boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession> sess,
+    std::vector<std::byte> body,const HandlerContext& ctx) {
+    const auto request=DecodeFinishSkill(body);
+    const auto identity=ctx.session_reg?ctx.session_reg->Identity(sess.get()):std::nullopt;
+    if(!identity||identity->role!=MapSessionRole::Primary||request.host!=identity->char_id||
+       request.attacker!=identity->char_id||request.type!=1||!ctx.char_state||!ctx.player_service||!ctx.skill_cooldown)
+        throw std::runtime_error("FINISHSKILL requires an authoritative own PC");
+    const auto cid=identity->char_id;
+    const auto original=ctx.char_state->Freeze(cid,[](auto&){});
+    if(!original)co_return;
+    FinishSkillCommit committed;
+    try {
+        const auto before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,SkillClockMs());
+        auto* service=ctx.player_service;
+        committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&body,&before]{
+            return service->FinishSkill(claim,body,before);
+        });
+        if(!committed.snapshot)throw std::runtime_error("Missing finished skill state");
+        ctx.char_state->Store(cid,*committed.snapshot);
+    }catch(...) {
+        auto uncertain=*original;uncertain.persistence_uncertain=true;
+        ctx.char_state->Store(cid,uncertain);sess->Close();throw;
+    }
+    // Self-cure uses the original nearest-player DEFEND audience. Full remote
+    // process visibility remains a separate acceptance gate.
+    const auto& after=*committed.snapshot;
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{sess};
+    if(ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto client){
+        if(entry.map_id==after.wMapID&&std::hypot(entry.pos.x-after.fPosX,entry.pos.z-after.fPosZ)<=64.f)
+            neighbors.push_back(std::move(client));
+    });
+    for(auto& client:neighbors)for(const auto& [id,packet]:committed.packets)co_await client->SendPacket(id,packet);
+}
 boost::asio::awaitable<void> OnSkillEndReq(std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx) {
     using tnetlib::protocol::MessageId;

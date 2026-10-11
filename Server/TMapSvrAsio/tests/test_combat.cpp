@@ -7,6 +7,7 @@
 #include "services/monster_registry.h"
 #include "services/monster_ai.h"
 #include "services/client_senders.h"
+#include "services/finish_skill.h"
 #include "domain/monster.h"
 #include "domain/position.h"
 #include "wire_codec.h"
@@ -28,6 +29,25 @@ int g_fails = 0;
 int main()
 {
     using namespace tmapsvr;
+    // Independent source sender fixture: two DWORD identities, BYTE type,
+    // three FLOATs, WORD skill, two 32-bit Windows BOOLs, WORD party, BYTE count.
+    {
+        const unsigned char raw[]={7,0,0,0,7,0,0,0,1,0,0,128,63,0,0,0,64,0,0,64,64,
+            253,1,0,0,0,0,0,0,0,0,0,0,1,7,0,0,0,1};
+        std::vector<std::byte> packet;for(auto b:raw)packet.push_back(static_cast<std::byte>(b));
+        const auto r=DecodeFinishSkill(packet);
+        EXPECT(r.host==7&&r.attacker==7&&r.type==1&&r.skill==509&&r.x==1&&r.y==2&&r.z==3);
+        EXPECT(!r.linked&&!r.fake&&!r.party&&r.targets.size()==1&&r.targets[0].id==7&&r.targets[0].type==1);
+        const auto rejected=[](auto bytes){try{DecodeFinishSkill(bytes);return false;}catch(...){return true;}};
+        for(std::size_t n=0;n<packet.size();++n)EXPECT(rejected(std::span<const std::byte>(packet.data(),n)));
+        packet.push_back(std::byte{0});EXPECT(rejected(packet));packet.pop_back();
+        packet[11]=std::byte{128};packet[12]=std::byte{127};EXPECT(rejected(packet)); // +infinity ground
+        EXPECT(FinishTargetsMatch({{7,1},{8,1},{7,1}},{{7,1},{7,1}}));
+        EXPECT(!FinishTargetsMatch({{7,1}},{{7,1},{7,1}}));
+        EXPECT(!FinishTargetsMatch({{7,1},{8,1}},{{8,1},{7,1}}));
+        EXPECT(!FinishTargetsMatch({{7,2}},{{7,1}}));
+        EXPECT(FinishTargetsMatch({{7,1}},{}));
+    }
 
     // --- registry ApplyDamage: subtract, clamp-to-zero, miss ----------
     {

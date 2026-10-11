@@ -317,6 +317,13 @@ OnDefendReq(std::shared_ptr<tnetlib::AsioSession> sess,
             std::vector<std::byte>                body,
             const HandlerContext&                 ctx)
 {
+    // Native combat must never reach the old client-authoritative prototype.
+    // Ordinary PC casts use FINISHSKILL; exception/monster/PvP DEFEND paths need
+    // their own accepted occurrence and target-owner transaction.
+    if(ctx.session_reg&&ctx.char_state)
+        if(const auto cid=ctx.session_reg->FindCharIdBySession(sess.get()))
+            if(const auto s=ctx.char_state->Get(*cid);s&&s->payload)
+                throw std::runtime_error("Native DEFEND resolution is not implemented");
     // Wire (legacy CSHandler.cpp:1485 read order). Decoded in full so the
     // packet is documented and the PvP / magic / skill-effect waves only
     // add behavior, not parsing.

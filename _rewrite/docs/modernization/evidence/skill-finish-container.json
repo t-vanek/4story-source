@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "date": "2026-10-11",
+  "command": "python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-skill-finish",
+  "image": {
+    "tag": "localhost/fourstory:postgresql-skill-finish",
+    "id": "d42c15b27211b74ee6b304ee9688a101aae6d24737b7000ceca6a1a40a0278fd",
+    "user": "10001:10001"
+  },
+  "checks": [
+    "world: /healthz OK",
+    "log: /healthz OK",
+    "control: /healthz OK",
+    "login: /healthz OK",
+    "patch: /healthz OK",
+    "map: /healthz OK",
+    "map -> world: connected over container DNS",
+    "map: SIGTERM exit 0",
+    "patch: SIGTERM exit 0",
+    "login: SIGTERM exit 0",
+    "control: SIGTERM exit 0",
+    "log: SIGTERM exit 0",
+    "world: SIGTERM exit 0"
+  ],
+  "scope": "Six installed Release daemons, health endpoints, container DNS and graceful SIGTERM; not full PostgreSQL service parity"
+}

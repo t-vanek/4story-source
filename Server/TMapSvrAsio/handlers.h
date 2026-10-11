@@ -134,6 +134,7 @@ boost::asio::awaitable<void> OnNpcTalkReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnSkillUseReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
@@ -151,12 +152,10 @@ boost::asio::awaitable<void> OnActionReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
-// CS_DEFEND_REQ — the *damage* half of an attack. The client sends its
-// attack powers (phys/magic min/max, attack level, crit flag, skill);
-// the server rolls the final damage against the target's defense, applies
-// it, and broadcasts the result (HP / death + EXP). Legacy
-// OnCS_DEFEND_REQ (CSHandler.cpp:1438 → CTObjBase::Defend). Lives in
-// handlers/combat.cpp.
+// CS_DEFEND_REQ — exception/non-PC hit reporting. Ordinary PC skills use
+// FINISHSKILL. Native resolution is explicitly unavailable until accepted-cast
+// and target-owner authorization is ported. The older non-native prototype in
+// handlers/combat.cpp still uses client powers and is not a gameplay contract.
 boost::asio::awaitable<void> OnDefendReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,

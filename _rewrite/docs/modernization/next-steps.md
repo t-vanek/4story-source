@@ -21,8 +21,13 @@ and First Aid 240 self-finish after its 300ms source minimum. All three configur
 pass 3,101 native checks; 54 additive upgrade checks pass. This does not certify
 full combat, original-client acceptance or general charge interruptions. Preserve the current
 source corrections and explicit modern repairs in `skill-actions-contract.json`.
+Migration 038 now integrates ACTION and self-cure finishes with existing 131/132
+postures, Defend zero-MP removal, original audience/order, and atomic effect/finish
+receipts. All three configurations pass 3,276 native checks; 65 upgrade checks
+pass. Preserve `finish-effects-contract.json` and its bounded verification.
+The permanent postures have zero attack/hide erase flags; ACTION preserves them.
 Continue with original charge-speed/animation data, movement and damage
-interruptions, maintained-effect action side effects and multi-target ownership.
+interruptions, general maintained-effect action side effects and multi-target ownership.
 Aid 629 has main-recall targeting; its cure data alone does not authorize self-heal.
 Preserve restored pure HP/MP percentage costs across ACTION/SKILLUSE/LOOPSKILL.
 For effect removal, trace `EraseBuffByAttack` (TObjBase.cpp:4663): posture/recall
@@ -42,7 +47,7 @@ Retain the unresolved no-cast-ID ambiguity: an identical packet can represent a
 later legitimate outstanding finish. Current same-login FIFO/subsequence budgets
 bound effects to accepted casts, but do not prove universal replay discrimination.
 No guessed expiry or new client field is a substitute for documenting this limit.
-All backups and applied migrations **001–037** are immutable; next migration **038**.
+All backups and applied migrations **001–038** are immutable; next migration **039**.
 
 Previous foundation (combat): migration **035** and the actual cast transaction
 are integrated and pass 2,761 native checks per Debug, ASan/UBSan and installed
@@ -100,7 +105,7 @@ inventory/trade/store integration and all economy systems in scope.
 Preserve the explicitly certified old-two-table → current-four-table actor upgrade
 and its immutable graph receipts. It does not authorize arbitrary content changes,
 character/routing releases or transitive upgrades. All backups and migrations
-**001–037** are immutable; the next schema migration is **038**.
+**001–038** are immutable; the next schema migration is **039**.
 
 1. **Preserve verified Login boundaries; finish remaining contracts.** Migrations
    008–010 and existing services implement atomic auth/session writes, key-specific
@@ -550,7 +555,7 @@ the exact canonical rank/budget in the same transaction; graph ranks take priori
 over stale normalized skill rows. Only budgets 0–16 are modeled for target expansion,
 with zero-target ammo still refused; valid recovered ranks need at most seven hits.
 
-Preserve backups and migrations 001–037; next schema change is 038. Native
+Preserve backups and migrations 001–038; next schema change is 039. Native
 whole-stack carried moves and different-template swaps now have source ACKs,
 exact per-bag capacities, atomic slot changes, graph authority and grouped
 receipts. Preserve `inventory-moves-contract.json` and the updated Map grants.
@@ -574,7 +579,8 @@ generic effect and advanced equipment dependencies. Preserve actual two-Map
 inventory packet coverage and native process-recovery tests.
 Do not fabricate premium content or mutate historical rows. Keep local main commits
 only until complete gameplay; Log uses 029, statistics 030, actor transition 031
-equipment 032, postures 033, explicit cancellation 034, accepted casts 035 and skill finishes 036 and actions 037. Next new migration: 038.
+equipment 032, postures 033, explicit cancellation 034, accepted casts 035, skill
+finishes 036, actions 037 and finish effects 038. Next new migration: 039.
 
 
 The owner confirmed that only uncompiled client sources are available, without

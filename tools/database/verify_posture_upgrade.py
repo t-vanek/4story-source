@@ -25,7 +25,9 @@ def main():
     parser.add_argument('--through-casts',action='store_true',help='Also verify additive accepted-cast migration035 after cancellation034')
     parser.add_argument('--through-finishes',action='store_true',help='Also verify additive finished-cast migration036 preserves acceptance and recovery receipts')
     parser.add_argument('--through-actions',action='store_true',help='Also verify additive ACTION/charge migration037')
+    parser.add_argument('--through-finish-effects',action='store_true',help='Also verify additive finish effect/audience migration038')
     args=parser.parse_args();repo=Path(__file__).resolve().parents[2]
+    if args.through_finish_effects:args.through_actions=True
     state=json.loads((args.work/'state.json').read_text());verify_container(state,state['pg_container'])
     values=dict(line.split('=',1) for line in (args.work/'postgres.env').read_text().splitlines())
     admin=dict(host='127.0.0.1',port=state['pg_port'],user='postgres',password=values['POSTGRES_PASSWORD'],autocommit=True)
@@ -145,6 +147,30 @@ def main():
                 check(c.execute('SELECT charge_action_id FROM app_world.accepted_skill_casts').fetchall()==[(None,)] and
                       c.execute('SELECT count(*) FROM app_world.skill_action_operations').fetchone()==(0,),
                       'rolled back character deletion restores original cast and charge state')
+            if args.through_finish_effects:
+                c.execute("INSERT INTO app_world.skill_finish_operations(world_id,char_id,accepted_cast_id,previous_finish_id,server_id,owner_token,connection_id,session_key,authority_epoch,request,responses,before_hp,after_hp,before_mp,after_mp,core_fingerprint) SELECT 1,1,cast_id,0,1,%s,1,1,0,%s,'[]',1,1,1,1,%s FROM app_world.accepted_skill_casts WHERE char_id=1",('a'*64,b'0'*34,'b'*64))
+                receipts=c.execute('SELECT * FROM migration_control.applied ORDER BY name').fetchall()
+                finishes=c.execute('SELECT to_jsonb(f) FROM app_world.skill_finish_operations f').fetchall()
+                casts=c.execute('SELECT to_jsonb(a) FROM app_world.accepted_skill_casts a').fetchall()
+                checkpoints=c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()
+                source=repo/'database/postgresql/038-native-finish-effects.sql';shutil.copyfile(source,path/source.name)
+                check(apply_migrations(c,path)==[source.name],'effect finish upgrade applies only migration038')
+                check(apply_migrations(c,path)==[],'effect finish upgrade is idempotent')
+                check(c.execute("SELECT * FROM migration_control.applied WHERE name<'038' ORDER BY name").fetchall()==receipts,'all 37 prior migration receipts remain exact')
+                check(c.execute("SELECT to_jsonb(f)-'before_effects'-'after_effects'-'response_audiences' FROM app_world.skill_finish_operations f").fetchall()==finishes,'finish effect upgrade preserves exact historical finishes')
+                check(c.execute('SELECT before_effects,after_effects,response_audiences FROM app_world.skill_finish_operations').fetchall()==[(None,None,None)],'historical finishes have no invented effects or audiences')
+                check(c.execute('SELECT to_jsonb(a) FROM app_world.accepted_skill_casts a').fetchall()==casts,'finish effect upgrade preserves accepted casts')
+                check(c.execute('SELECT to_jsonb(p) FROM app_world.map_checkpoints p ORDER BY char_id').fetchall()==checkpoints,'finish effect upgrade preserves every recovery checkpoint')
+                for audiences in ('[0]','[3]','["0"]'):
+                    rejected=False
+                    try:
+                        with c.transaction(force_rollback=True):
+                            c.execute("UPDATE app_world.skill_finish_operations SET before_effects='[]',after_effects='[]',responses=%s::jsonb,response_audiences=%s::jsonb",('[]' if audiences=='[0]' else '[[1,"00"]]',audiences))
+                    except psycopg.errors.CheckViolation:rejected=True
+                    check(rejected,'finish receipt rejects mismatched or invalid audience '+audiences)
+                with c.transaction(force_rollback=True):
+                    c.execute("UPDATE app_world.skill_finish_operations SET before_effects='[]',after_effects='[]',response_audiences='[]'")
+                    check(c.execute('SELECT response_audiences FROM app_world.skill_finish_operations').fetchone()==([],),'empty finish keeps an exact empty audience list')
             report.update(status='passed',scope='Synthetic structural migration/receipt invariants; native runtime and original-client acceptance are separate.')
     finally:
         with psycopg.connect(dbname='postgres',**admin) as conn:conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db)))

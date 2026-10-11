@@ -61,21 +61,32 @@ boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>
         committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[service,claim=identity->Claim(ctx.expected_group),&body,&before]{
             return service->FinishSkill(claim,body,before);
         });
-        if(!committed.snapshot)throw std::runtime_error("Missing finished skill state");
+        if(!committed.snapshot||committed.packets.size()!=committed.audiences.size())
+            throw std::runtime_error("Missing finished skill state or audiences");
         ctx.char_state->Store(cid,*committed.snapshot);
     }catch(...) {
         auto uncertain=*original;uncertain.persistence_uncertain=true;
         ctx.char_state->Store(cid,uncertain);sess->Close();throw;
     }
-    // Self-cure uses the original nearest-player DEFEND audience. Full remote
-    // process visibility remains a separate acceptance gate.
+    // EraseMaintainSkill uses neighboring cells and private statistics; Defend
+    // uses nearby players. Preserve both recipient scope and packet order.
     const auto& after=*committed.snapshot;
-    std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{sess};
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> owner{sess},neighbors{sess},nearby{sess};
+    const auto cell=[](float v)->int{return std::isfinite(v)&&v>=0&&v<65536?static_cast<std::uint16_t>(v)/64:-10000;};
     if(ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto client){
-        if(entry.map_id==after.wMapID&&std::hypot(entry.pos.x-after.fPosX,entry.pos.z-after.fPosZ)<=64.f)
-            neighbors.push_back(std::move(client));
+        if(entry.map_id!=after.wMapID)return;
+        if(std::hypot(entry.pos.x-after.fPosX,entry.pos.z-after.fPosZ)<=64.f)nearby.push_back(client);
+        if(std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1)
+            neighbors.push_back(client);
     });
-    for(auto& client:neighbors)for(const auto& [id,packet]:committed.packets)co_await client->SendPacket(id,packet);
+    for(std::size_t i=0;i<committed.packets.size();++i) {
+        const auto audience=committed.audiences[i];
+        if(audience!=FinishAudience::Owner&&audience!=FinishAudience::Neighbors&&audience!=FinishAudience::Nearby)
+            throw std::runtime_error("Invalid committed finish audience");
+        const auto& clients=audience==FinishAudience::Owner?owner:audience==FinishAudience::Neighbors?neighbors:nearby;
+        const auto& [id,packet]=committed.packets[i];
+        for(auto& client:clients)co_await client->SendPacket(id,packet);
+    }
 }
 boost::asio::awaitable<void> OnSkillEndReq(std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx) {

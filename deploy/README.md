@@ -1,8 +1,46 @@
 # Linux containers
 
+## Native skill finishes with postures
+
+Current bounded increment: stop Map writers and apply migrations through **038**
+with `tools/database/migrate.py`, then reapply `deploy/sql/map-runtime-grants.sql`
+for each runtime role. Keep the existing character/routing/four-table actor pins.
+Historical finish receipts retain NULL effect/audience metadata. Backups and
+applied migration files stay unchanged. Restart with the new binary only after
+migration; full gameplay and original-client acceptance remain unfinished.
+
+Reproduce from the repository root with Python/psycopg as described below:
+
+```sh
+podman run --rm --network none --userns keep-id -v "$PWD:/src:z" -w /src \
+  localhost/fourstory:build-deps cmake --build --preset linux-debug
+podman build --layers --target runtime --build-arg BUILD_JOBS=2 \
+  -t localhost/fourstory:postgresql-finish-effects .
+python3 tools/database/disposable_environment.py start \
+  --work /tmp/fourstory-finish-effects-test --postgresql-only
+python3 tools/database/run_native_verification.py \
+  --work /tmp/fourstory-finish-effects-test --map-runtime-only --build-dir build/linux-debug \
+  --image localhost/fourstory:postgresql-finish-effects --runtime-bin-dir /opt/fourstory/bin \
+  --snapshot /private/character/reference/manifest.json \
+  --routing-snapshot /private/routing/reference/manifest.json \
+  --actor-snapshot /private/statistics/actor-reference/manifest.json \
+  --report /tmp/native-finish-effects-release.json
+python3 tools/database/verify_posture_upgrade.py \
+  --work /tmp/fourstory-finish-effects-test --through-finish-effects \
+  --report /tmp/finish-effects-schema-upgrade.json
+python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-finish-effects
+python3 tools/database/disposable_environment.py stop --work /tmp/fourstory-finish-effects-test
+```
+
+Use separate labs for concurrent configurations. For Debug omit image/runtime-bin
+arguments; for ASan/UBSan build and select `linux-asan`. Installed Release uses
+installed daemons and the mounted Debug backend integration test. Stop only owned
+labs and remove their credentials/TLS keys. Never automatically retry a write with
+an unknown commit result. See [the source contract and executed evidence](../_rewrite/docs/modernization/evidence/finish-effects-contract.json).
+
 ## Native skill actions and charging
 
-Current bounded increment (2026-10-11): stop Map writers, apply additive
+Previous bounded increment (2026-10-11): stop Map writers, apply additive
 migrations through **037**, then reapply `deploy/sql/map-runtime-grants.sql` for
 each Map role before starting the new binary. Keep the pinned character,
 routing and four-table actor releases. Historical accepted casts retain a NULL

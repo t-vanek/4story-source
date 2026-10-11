@@ -67,7 +67,7 @@ void ReadPostures(soci::session& sql,CharacterPayload& p) {
         soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
         if(!sql.got_data()||U32(chart,"dwDuration")||U32(chart,"dwDurationInc")||
            !U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||
-           !U8(chart,"bIsuse")||U8(chart,"bEraseAct")||U8(chart,"bEraseHide"))
+           !U8(chart,"bIsuse")||U8(chart,"bEraseAct")||U8(chart,"bEraseHide")||U8(chart,"bIsHideSkill"))
             throw std::runtime_error("Pinned automatic posture requires additional effect semantics");
         auto& def=p.posture_templates[id-131];def={static_cast<std::uint16_t>(id),U32(chart,"dwWeaponID"),{}};
         bool posture=false;

@@ -1,0 +1,33 @@
+{
+  "base_commit": "3dac8837cf73b7a26db50b76a492417e8967b4e5",
+  "configuration": "Production behavior tested in Debug, ASan/UBSan and installed Release; seven-socket admission fixture added after Release source snapshot, tested separately in final Debug/ASan CTest",
+  "sha256": {
+    "linux-debug": {
+      "tloginsvr_asio": "a3be55ec76bcaf1df7550ddc02a44ed3fd89cd203f46842456ccf977d5f6e56d",
+      "tworldsvr_asio": "6f83553a3d25bb6cd8340ef3fc58977a256b70b818f86c534babc25edad37937",
+      "tmapsvr_asio": "f200c063c760e85341cafd465999d172b3047cba8f314faab45ee02918507bbc",
+      "test_tmapsvr_postgresql_map": "8adc04b371c20580ba0e4195431621683faca2162082c8f65a235a81ec8b8a8a",
+      "test_tmapsvr_asio_admission": "66d8cfbc737022329ae863db26782a1f2fc37ec64f1300c8709bf5469565a03a"
+    },
+    "linux-asan": {
+      "tloginsvr_asio": "135d27e78f4ef8217dedcef360d90bb52bd5c0d598c314299bc7ee7946d52d12",
+      "tworldsvr_asio": "2707a03b06299d06502be660b238fa7ba8d12a26c590eb7eaa2de6fb7fbc65a2",
+      "tmapsvr_asio": "e8cdec9e5fc68db2314e9b8186187a408b34750106cab65b19e2f7e4f173b5b5",
+      "test_tmapsvr_postgresql_map": "73286b99962b790f7594efb03f32ed71d2bcb626703cefce641f0002fc6cf675",
+      "test_tmapsvr_asio_admission": "81fe82519bf16efb8a0d49b591932b3af8bb6fe6bc12693c54f576eb08897ee5"
+    },
+    "installed-release": {
+      "/opt/fourstory/bin/tloginsvr_asio": "412acbe814eb4b7866d312714521401feae67e85bc32eda935aad869be88078c",
+      "/opt/fourstory/bin/tworldsvr_asio": "1715be4b54345f1f4c4291e532d0c56e34ba40b45cd3cf3a285841a1f454980d",
+      "/opt/fourstory/bin/tmapsvr_asio": "104de52820ff247b35781b46c511a854961cccf4c51913b7b77e866f84e4f84b",
+      "/opt/fourstory/bin/tcontrolsvr_asio": "850c683d07526131c0acbc9ac41a1b048de465b73caa8bd59f9dbcbfc0fb23b6",
+      "/opt/fourstory/bin/tpatchsvr_asio": "a275b6171672743b3f3d9d64273619d587c9eb2e475a756280361044e0534e34",
+      "/opt/fourstory/bin/tlogsvr_asio": "23793d010d1517c915ea23460d164c7eebfe4524783a4959b57ba008ac88558d"
+    }
+  },
+  "image": {
+    "tag": "localhost/fourstory:postgresql-finish-effects",
+    "id": "6b41044fe40dfc716a266c5c5552983b3306186c822745efaf8c8969b335ecd5",
+    "user": "10001:10001"
+  }
+}

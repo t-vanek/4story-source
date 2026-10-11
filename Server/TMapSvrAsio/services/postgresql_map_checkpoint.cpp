@@ -389,7 +389,9 @@ SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim&
         else if(after.dwHP<skill_engine::RequiredHP(*definition,p.pure_max_hp,learned->bLevel))result=SKILL_NEEDHP;
         else if(definition->wPrevActiveID)result=SKILL_NEEDPREVACT;
         else {
-            if(!definition->action_supported||!MaintainedEffects(p).empty())
+            // ReadPostures pins zero bEraseAct: EraseBuffByAttack retains these
+            // stances. ACTION does not invoke the zero-MP CheckEternalBuff.
+            if(!definition->action_supported||!SupportedPostures(p))
                 throw std::runtime_error("ACTION effect/recall side effects are not implemented");
             charge=definition->action_time;
         }
@@ -414,7 +416,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     const auto request=DecodeFinishSkill(body);
     if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain||
        request.host!=c.char_id||request.attacker!=c.char_id||request.type!=1||request.linked||request.fake||request.party||
-       before.bDead||!before.dwHP||!MaintainedEffects(*before.payload).empty()||
+       before.bDead||!before.dwHP||!SupportedPostures(*before.payload)||
        std::any_of(request.targets.begin(),request.targets.end(),[&](const auto& t){return t.id!=c.char_id||t.type!=1;}))
         throw std::runtime_error("Unsupported native FINISHSKILL scope");
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
@@ -473,6 +475,21 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     }
     if(!accepted)throw std::runtime_error("FINISHSKILL has no unconsumed accepted cast");
     FinishSkillCommit result;
+    const auto emit=[&](std::uint16_t id,std::vector<std::byte> bytes,FinishAudience audience){
+        result.packets.emplace_back(id,std::move(bytes));result.audiences.push_back(audience);
+    };
+    using tnetlib::protocol::MessageId;
+    const auto erase=[&](std::size_t index) {
+        const auto max_hp=after.dwMaxHP,max_mp=after.dwMaxMP;
+        auto p=std::make_shared<CharacterPayload>(*after.payload);
+        const auto skill=p->effects->at(index).skill;p->effects->erase(p->effects->begin()+index);after.payload=p;
+        RefreshEquipment(sql,after,true);
+        emit(static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),EncodeSkillEnd(c.char_id,skill),FinishAudience::Neighbors);
+        if(max_hp!=after.dwMaxHP||max_mp!=after.dwMaxMP)
+            emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP),FinishAudience::Neighbors);
+        if(!after.payload->statistics)throw std::runtime_error("Finished effect removal lacks source statistics");
+        emit(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(after,*after.payload->statistics),FinishAudience::Owner);
+    };
     for(const auto& target:request.targets) {
         (void)target;const auto hp=after.dwHP,mp=after.dwMP;
         // PerformSkill rolls each ordered row separately, not their sum.
@@ -487,21 +504,38 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
             resource+=static_cast<std::uint32_t>(delta);
         }
         after.dwHP=std::min(after.dwHP,after.dwMaxHP);after.dwMP=std::min(after.dwMP,after.dwMaxMP);
-        result.packets.emplace_back(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power));
-        if(after.dwHP!=hp||after.dwMP!=mp)result.packets.emplace_back(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK),
-            EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP));
+        // Defend calls CheckEternalBuff after applying the effect, before its
+        // DEFEND/HPMP reply. ReadPostures pins bIsuse=1 and zero duration.
+        if(!after.dwMP)while(!after.payload->effects->empty())erase(0);
+        emit(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power),FinishAudience::Nearby);
+        if(after.dwHP!=hp||after.dwMP!=mp)emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
+            EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP),FinishAudience::Nearby);
     }
+    // FINISHSKILL ends with CheckEquipSkill even for an empty filtered target
+    // list. IsEquipSkillItem deliberately includes broken weapons.
+    for(std::size_t i=0;i<after.payload->effects->size();) {
+        const auto& effect=after.payload->effects->at(i);
+        const auto& definition=after.payload->posture_templates.at(effect.skill-131);
+        bool suitable=!definition.weapons;
+        for(const auto& bag:after.payload->bags)if(bag.bag.bInvenID==254)for(const auto& item:bag.items)
+            if(item.bKind&&item.bKind<=32&&(definition.weapons&(std::uint32_t{1}<<(item.bKind-1))))suitable=true;
+        if(effect.attack_type==1&&effect.attack_id==c.char_id&&!suitable)erase(i);else ++i;
+    }
+    const auto before_effects=MaintainJson(before),after_effects=MaintainJson(after);
+    if(!graph&&before_effects!=after_effects)WriteMaintainedEffects(sql,c,after);
     std::string responses="[";
     for(const auto& [id,packet]:result.packets){if(responses.size()>1)responses+=',';responses+='['+std::to_string(id)+",\""+hex(packet)+"\"]";}
-    responses+=']';const auto request_hex=hex(body),fingerprint=Fingerprint(c,after);
+    responses+=']';std::string audiences="[";
+    for(auto audience:result.audiences){if(audiences.size()>1)audiences+=',';audiences+=std::to_string(static_cast<unsigned>(audience));}
+    audiences+=']';const auto request_hex=hex(body),fingerprint=Fingerprint(c,after);
     const int server=m_config.server;const long long generation=c.connection_id,epoch=c.authority_epoch,previous=before.payload->last_finish_id;
     const long long bhp=before.dwHP,ahp=after.dwHP,bmp=before.dwMP,amp=after.dwMP;long long finish=0;
-    sql<<"INSERT INTO app_world.skill_finish_operations(world_id,char_id,accepted_cast_id,previous_finish_id,server_id,owner_token,connection_id,session_key,authority_epoch,request,responses,before_hp,after_hp,before_mp,after_mp,core_fingerprint) "
-         "VALUES(:w,:c,:cast,:previous,:s,:t,:g,:k,:e,decode(:request,'hex'),CAST(:responses AS jsonb),:bhp,:ahp,:bmp,:amp,:f) RETURNING finish_id",
+    sql<<"INSERT INTO app_world.skill_finish_operations(world_id,char_id,accepted_cast_id,previous_finish_id,server_id,owner_token,connection_id,session_key,authority_epoch,request,responses,before_hp,after_hp,before_mp,after_mp,core_fingerprint,before_effects,after_effects,response_audiences) "
+         "VALUES(:w,:c,:cast,:previous,:s,:t,:g,:k,:e,decode(:request,'hex'),CAST(:responses AS jsonb),:bhp,:ahp,:bmp,:amp,:f,CAST(:be AS jsonb),CAST(:ae AS jsonb),CAST(:audiences AS jsonb)) RETURNING finish_id",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(accepted,"cast"),soci::use(previous,"previous"),soci::use(server,"s"),
         soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(key,"k"),soci::use(epoch,"e"),
         soci::use(request_hex,"request"),soci::use(responses,"responses"),soci::use(bhp,"bhp"),soci::use(ahp,"ahp"),
-        soci::use(bmp,"bmp"),soci::use(amp,"amp"),soci::use(fingerprint,"f"),soci::into(finish);
+        soci::use(bmp,"bmp"),soci::use(amp,"amp"),soci::use(fingerprint,"f"),soci::use(before_effects,"be"),soci::use(after_effects,"ae"),soci::use(audiences,"audiences"),soci::into(finish);
     auto payload=std::make_shared<CharacterPayload>(*after.payload);payload->last_finish_id=static_cast<std::uint64_t>(finish);after.payload=std::move(payload);
     WriteCore(sql,c,after,0);RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,after);
     result.snapshot=std::make_shared<const CharSnapshot>(std::move(after));tx->commit();return result;

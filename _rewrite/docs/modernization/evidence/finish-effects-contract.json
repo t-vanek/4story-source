@@ -1,0 +1,250 @@
+{
+  "status": "verified_bounded_increment",
+  "date": "2026-10-11",
+  "base_commit": "3dac8837cf73b7a26db50b76a492417e8967b4e5",
+  "scope": "Existing permanent postures 131/132 through native ACTION and own-PC Cure509/First Aid240 FINISHSKILL; bounded effect cleanup, not complete combat",
+  "schema": {
+    "migration": "database/postgresql/038-native-finish-effects.sql",
+    "sha256": "cb26fc4da6c1267fe2f486f08d6cdbf218fcd8dde34355e7e62a583c5eef9219",
+    "prior_migrations_immutable": "001-037",
+    "historical_finish_effects_and_audiences": "NULL; original requests and responses preserved"
+  },
+  "source": [
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "4663-4697",
+      "finding": "EraseBuffByAttack preserves postures with zero attack and hide erase flags"
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "1102;1135-1205;2562-2580",
+      "finding": "Defend runs CheckEternalBuff after effects, before DEFEND and changed HPMP; zero MP ends active zero-duration maintained skills"
+    },
+    {
+      "path": "Server/TMapSvr/TObjBase.cpp",
+      "lines": "2621-2770;2778-2800",
+      "finding": "EraseMaintainSkill emits END to neighboring cells, HPMP if maxima change, private STAT; IsEquipSkillItem includes broken equipped weapons"
+    },
+    {
+      "path": "Server/TMapSvr/TPlayer.cpp",
+      "lines": "3965-4000",
+      "finding": "CheckEquipSkill removes own unsuitable maintained skills and posture dependants"
+    },
+    {
+      "path": "Server/TMapSvr/CSHandler.cpp",
+      "lines": "20197-20661",
+      "finding": "FINISHSKILL iterates filtered targets then always checks equipped-skill compatibility"
+    },
+    {
+      "path": "Server/TMapSvr/TMap.cpp",
+      "lines": "770-807;840-879",
+      "finding": "GetNeighbor 3x3 cells; GetNeerPlayer uses those cells and radius CELL_SIZE=64"
+    }
+  ],
+  "backup_postures": [
+    {
+      "skill": 131,
+      "duration": 0,
+      "is_use": 1,
+      "erase_act": 0,
+      "erase_hide": 0,
+      "is_hide_skill": 0,
+      "weapon_mask": 2048
+    },
+    {
+      "skill": 132,
+      "duration": 0,
+      "is_use": 1,
+      "erase_act": 0,
+      "erase_hide": 0,
+      "is_hide_skill": 0,
+      "weapon_mask": 20
+    }
+  ],
+  "implemented": [
+    "Successful native ACTION accepts supported pinned postures and preserves them without resource debit",
+    "Cure509 and charged First Aid240 self-finish use current equipped/posture-derived instance powers",
+    "Defend zero-MP eternal removal refreshes statistics before DEFEND; instance powers retain the pre-removal calculation",
+    "FINISHSKILL equipment compatibility cleanup runs even for empty target lists; empty list does not run Defend eternal cleanup",
+    "Fenced native transaction commits resources, ordered effects, finish consumption, response bytes/audiences and fresh or full-graph recovery together",
+    "Actual handler sends END to neighbor cells, private STAT to owner and instantaneous DEFEND/HPMP to nearby players in original order",
+    "Historical finish receipts are not rewritten or assigned fabricated effects/audiences"
+  ],
+  "modern_differences": [
+    "Removes the previous rewrite blanket rejection of ACTION/self-cure with active permanent postures; source preservation rules restored",
+    "Durable one-use accepted-cast finish, ownership epochs and no automatic retry retain the documented native safeguards from migrations036-037",
+    "Server-only audience metadata accompanies persisted response bytes; unchanged client protocol receives no new field"
+  ],
+  "limits": [
+    "Only supported permanent postures131/132 and own-PC Cure509/First Aid240; no general timed/hide/status effect lifecycle",
+    "Dependent-posture skills, general EraseBuffByAttack/Defend side effects, charge interruptions and item-use eternal cleanup remain unfinished",
+    "Unsuitable-weapon CheckEquipSkill branch is implemented from source; normal modern equipment mutations already remove it, and a legacy inconsistent imported stance has not been separately accepted over TCP",
+    "Seven-socket recipient test controls the persistence result; separate actual PostgreSQL/TCP fixture verifies real bytes and mutations for one owning client",
+    "Full remote entity/replica synchronization, party relay and cure aggro remain unfinished",
+    "Unknown-COMMIT-acknowledgement proxy and clock jumps not injected in this increment; no automatic write retry",
+    "Original protocol has no cast identity; inherited identical outstanding finish ambiguity remains documented",
+    "Original client EXE/assets unavailable; no named supported binary, hash or actual-client acceptance"
+  ],
+  "verification": {
+    "schema_upgrade": {
+      "report": "finish-effects-schema-upgrade.json",
+      "checks": 65
+    },
+    "reports": {
+      "debug": "native-finish-effects-debug.json",
+      "asan": "native-finish-effects-asan.json",
+      "release": "native-finish-effects-release.json"
+    },
+    "debug_ctest": {
+      "report": "finish-effects-debug-ctest.xml",
+      "entries": 203,
+      "actual_passes": 188,
+      "internal_fixture_skips": 8,
+      "explicit_fixture_skips": 7,
+      "failures": 0
+    },
+    "asan_ctest": {
+      "report": "finish-effects-asan-ctest.xml",
+      "entries": 40,
+      "actual_passes": 40,
+      "internal_fixture_skips": 0,
+      "explicit_fixture_skips": 0,
+      "failures": 0
+    },
+    "preservation": {
+      "report": "preservation.json",
+      "files": 40,
+      "scope": "Both original backups and applied migrations001-038 match recorded SHA256"
+    },
+    "source_inventory": {
+      "legacy_translation_units": 206,
+      "modern_translation_units": 245,
+      "exact_opcodes": 1542,
+      "collisions": 9,
+      "mismatches": 0
+    },
+    "container_report": "finish-effects-container.json",
+    "build_fingerprints": "finish-effects-build-fingerprints.json",
+    "counts": {
+      "debug": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 975
+        },
+        "outer_tcp": 885,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24,
+          "skill_action_wire": 39,
+          "finish_effect_wire": 61
+        },
+        "total": 3276
+      },
+      "asan": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 975
+        },
+        "outer_tcp": 885,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24,
+          "skill_action_wire": 39,
+          "finish_effect_wire": 61
+        },
+        "total": 3276
+      },
+      "release": {
+        "backend_and_pool": {
+          "test_fourstory_postgresql --options-only": 16,
+          "test_fourstory_postgresql": 13,
+          "test_tmapsvr_postgresql_map": 975
+        },
+        "outer_tcp": 885,
+        "nested": {
+          "skill_cast_wire": 56,
+          "world_secondary_wire": 66,
+          "world_handoff_wire": 295,
+          "map_rejection_wire": 7,
+          "map_replica_wire": 221,
+          "map_ammunition_wire": 162,
+          "ammunition_wire": 24,
+          "ammunition_batch_wire": 30,
+          "multi_attack_wire": 23,
+          "inventory_move_wire": 29,
+          "inventory_stack_wire": 32,
+          "character_statistics_wire": 15,
+          "cast_powers_wire": 90,
+          "equipment_wire": 50,
+          "posture_wire": 163,
+          "finish_skill_wire": 24,
+          "skill_action_wire": 39,
+          "finish_effect_wire": 61
+        },
+        "total": 3276
+      }
+    },
+    "native_debug": "passed: 3276 native PostgreSQL/network checks",
+    "native_asan": "passed: 3276 native PostgreSQL/network checks; no sanitizer errors",
+    "installed_release": "passed: 3276 checks; installed Release Login/World/Map with mounted Debug backend integration test",
+    "native_backend": "975 native Map plus 29 pool/TLS checks passed in all three harnesses",
+    "cleanup_report": "finish-effects-cleanup.json",
+    "cleanup": "3 owned labs/networks removed; 101 private credential/TLS/runtime files deleted"
+  },
+  "protocol": {
+    "source_version": "0x2918; not binary identity",
+    "supported_binary_build": null,
+    "supported_binary_sha256": null,
+    "new_wire_fields": false
+  },
+  "policy": "Local main only; no push, publication or external deployment",
+  "unrelated_worktree": "Pre-existing untracked _rewrite/docs/audits retained and excluded",
+  "image": {
+    "tag": "localhost/fourstory:postgresql-finish-effects",
+    "id": "6b41044fe40dfc716a266c5c5552983b3306186c822745efaf8c8969b335ecd5",
+    "user": "10001:10001"
+  },
+  "skipped": {
+    "original_client": "Only uncompiled source; no executable or assets",
+    "debug_internal_fixture_skips": 8,
+    "debug_explicit_native_fixture_skips": 7,
+    "unknown_commit_proxy": "Not injected in this increment; late SQL rollback, no automatic write retry and SIGKILL/reconnect are tested",
+    "legacy_inconsistent_posture_equipment": "No separate imported-inconsistent-equipment wire acceptance; source implementation documented",
+    "clock_adjustments": "No wall-clock jump injection in this increment"
+  },
+  "catalogs": {
+    "character": "0a2a42d8f62eb8d80bffa2f44f54e5c4920793d9cea25c927e565fa6e063ebb8",
+    "routing": "dd06f9e8ef68ec0a1fa99af2f5f718f4b3659af32f83580bfbe9ad3a341c8a74",
+    "actor": "bc17bc975c398ae2c05c2cc92e029df807be3c1fdc94b9cc43fe3659a280b878"
+  }
+}

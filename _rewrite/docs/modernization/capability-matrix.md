@@ -68,6 +68,18 @@ secondary gameplay remain IMPLEMENTING.
 
 ## Gameplay and durable state
 
+Native posture/finish integration (038): **IMPLEMENTED/INTEGRATED** ACTION and
+own-PC Cure509/First Aid240 with permanent warrior postures 131/132. Original
+flags preserve them at ACTION; Defend removes them at zero MP before its reply.
+Empty filtered finishes skip Defend cleanup and still check equipped items.
+Effect diff, response audience, healing and recovery commit atomically. Tests
+separate native PostgreSQL/protocol evidence from the controlled seven-socket
+handler audience fixture. **VERIFIED** for these recorded scenarios in Debug,
+ASan/UBSan and installed Release: 3,276 native checks per configuration and 65
+upgrade checks. See [executed scope and limits](evidence/finish-effects-contract.json).
+General timed/hide/status effects, dependent-posture effects and original-client
+acceptance remain **IMPLEMENTING/UNVERIFIED**.
+
 Native `CS_ACTION_REQ`: **IMPLEMENTED/INTEGRATED** own-PC validation, exact result
 ACK and durable charge origin; migration 037 fences actions and binds one charge
 to a later accepted cast. First Aid 240 self-finish enforces its source 300ms
@@ -77,7 +89,7 @@ cancels it. Source resource/reuse checks do not debit resources at charge start.
 independent synthetic TCP: original ACK bytes/order, First Aid, pure percentage
 costs, concurrent/stale writes, early finish, primary handoff, crash/reconnect and
 rollback. See [executed action evidence](evidence/skill-actions-contract.json).
-Non-PC/active-effect/recall/trap action side effects, general interruptions and
+Non-PC/general-active-effect/recall/trap action side effects, general interruptions and
 actual-client acceptance remain **IMPLEMENTING/UNVERIFIED**.
 
 Original `CS_FINISHSKILL_ACK`: **IMPLEMENTED/INTEGRATED** for the bounded native

@@ -394,10 +394,11 @@ void TransferDrain() {
         registry.EndOperation(session.get());
     }
 }
+#include "finish_audience_fixture.h"
 int main(int argc, char**) {
     if (argc > 1) transport_secret.assign(64, std::byte{0x5a});
     try {
-        Vectors(); AuditRedaction(); ReagentSelection(); TransferReservations(); TransferDrain(); asio::io_context io; asio::thread_pool workers(2);
+        Vectors(); AuditRedaction(); ReagentSelection(); TransferReservations(); TransferDrain(); FinishAudienceRouting(); asio::io_context io; asio::thread_pool workers(2);
         Validator validator; Players players; World world;
         tmapsvr::InMemorySessionRegistry registry; tmapsvr::InMemoryCharStateStore state;
         tmapsvr::InMemoryChannelPresence presence;

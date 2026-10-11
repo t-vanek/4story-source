@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "date": "2026-10-11",
+  "command": "python3 tools/container_smoke.py --engine podman --image localhost/fourstory:postgresql-finish-effects",
+  "image": {
+    "tag": "localhost/fourstory:postgresql-finish-effects",
+    "id": "6b41044fe40dfc716a266c5c5552983b3306186c822745efaf8c8969b335ecd5",
+    "user": "10001:10001"
+  },
+  "checks": [
+    "world: /healthz OK",
+    "log: /healthz OK",
+    "control: /healthz OK",
+    "login: /healthz OK",
+    "patch: /healthz OK",
+    "map: /healthz OK",
+    "map -> world: connected over container DNS",
+    "map: SIGTERM exit 0",
+    "patch: SIGTERM exit 0",
+    "login: SIGTERM exit 0",
+    "control: SIGTERM exit 0",
+    "log: SIGTERM exit 0",
+    "world: SIGTERM exit 0"
+  ],
+  "scope": "Six installed Release daemons, health, container DNS and SIGTERM; not full PostgreSQL or original-client acceptance"
+}

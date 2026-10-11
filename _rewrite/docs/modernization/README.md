@@ -18,7 +18,40 @@ native PostgreSQL acceptance. See [consolidation evidence](evidence/main-consoli
 for its original image digest and branch integration; the feature
 reports below retain their original tested image identities and counts.
 
-## Current increment: native ACTION and charged First Aid
+## Current increment: native finishes with permanent postures
+
+The existing 131/132 posture implementation now participates in ACTION and the
+bounded native Cure509/charged First Aid240 self-finish. Original backup flags
+(`bEraseAct=0`, no hide flags) preserve these effects during ACTION. Defend calls
+`CheckEternalBuff` after healing: at zero MP the posture ends before DEFEND/HPMP.
+An empty filtered target list does not run that cleanup. FINISHSKILL always runs
+the source equipment-compatibility cleanup, including for empty target lists.
+
+Migration **038** adds nullable effect-diff and response-audience columns to the
+existing finish ledger, preserving historical receipts. Healing, effect changes,
+ordered responses and fresh/full-graph recovery share the fenced transaction.
+The actual handler routes END to neighboring cells, statistics privately and
+DEFEND/HPMP to the original nearby-player audience. Packet fields stay unchanged.
+See [source, evidence and limits](evidence/finish-effects-contract.json).
+
+**3,276 native PostgreSQL/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release (installed daemons with the Debug backend test):
+975 Map, 29 pool/TLS and 2,272 TCP checks. The new 61-check wire fixture verifies
+both equipment postures, charge, exact cure bytes, empty targets, zero-MP cleanup,
+late SQL rollback and SIGKILL/reconnect. Backend tests also verify a primary
+handoff, concurrent finishes and stale-save rejection. Debug CTest has 188 actual
+passes and 15 separately recorded fixture skips; all 40 sanitizer suites and 65
+additive upgrade checks pass. Seven-socket controlled tests verify recipient
+scope and private statistics. Six installed services pass health/DNS/SIGTERM.
+These results certify this bounded scope; original-client acceptance remains
+blocked by missing EXE/assets.
+
+Only source client version `0x2918` is identified; no executable build or assets
+are available. Full active effects, combat and original-client acceptance remain
+unfinished. Applied migrations **001–038** and both backups are immutable;
+next migration **039**. Continue on local `main` without pushes or publication.
+
+## Previous increment: native ACTION and charged First Aid
 
 The existing ACTION handler no longer returns unconditional success for native
 PCs. It validates the original 19-byte body, ownership/route and source ordered

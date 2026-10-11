@@ -35,10 +35,13 @@ inline bool FinishTargetsMatch(const std::vector<SkillTarget>& accepted,const st
     for(const auto& t:accepted)if(next<actual.size()&&t.id==actual[next].id&&t.type==actual[next].type)++next;
     return next==actual.size();
 }
+enum class FinishAudience : std::uint8_t { Owner=0, Neighbors=1, Nearby=2 };
 struct FinishSkillCommit {
     std::shared_ptr<const CharSnapshot> snapshot;
     // Original DEFEND then conditional HPMP for each occurrence; no new opcode.
     std::vector<std::pair<std::uint16_t,std::vector<std::byte>>> packets;
+    // Server-only recipient metadata, parallel to the ordered packets.
+    std::vector<FinishAudience> audiences;
 };
 inline std::vector<std::byte> EncodeCureDefend(const CharSnapshot& s,const FinishSkillRequest& r,
     const SkillAttackProfile& p) {

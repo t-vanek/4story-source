@@ -20,7 +20,30 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Verified functionality
 
-Current increment (2026-10-11) replaces native **ACTION** placeholder success with
+Current increment (2026-10-11) integrates the existing **permanent postures
+131/132 with ACTION and self-cure finishes**. Their backup erase flags preserve
+them during ACTION. Cure and charged First Aid now run with either posture;
+Defend removes eternal postures at zero MP before its response. Migration **038**
+records the ordered effect change and each response audience atomically with
+healing and recovery. END reaches neighboring cells, DEFEND/HPMP nearby players,
+and character statistics only their owner. See [the finish/effect contract](_rewrite/docs/modernization/evidence/finish-effects-contract.json)
+and [local reproduction](deploy/README.md#native-skill-finishes-with-postures).
+General effects and complete combat remain unfinished. Current local build tag:
+`localhost/fourstory:postgresql-finish-effects`.
+
+**3,276 native PostgreSQL/network checks pass per configuration** in Debug,
+ASan/UBSan and installed Release (installed daemons with the Debug backend test):
+975 Map, 29 pool/TLS and 2,272 TCP checks. The new 61-check wire fixture verifies
+both equipment postures, charge, exact cure bytes, empty targets, zero-MP cleanup,
+late SQL rollback and SIGKILL/reconnect. Backend tests also verify a primary
+handoff, concurrent finishes and stale-save rejection. Debug CTest has 188 actual
+passes and 15 separately recorded fixture skips; all 40 sanitizer suites and 65
+additive upgrade checks pass. Seven-socket controlled tests verify recipient
+scope and private statistics. Six installed services pass health/DNS/SIGTERM.
+These results certify this bounded scope; original-client acceptance remains
+blocked by missing EXE/assets.
+
+Previous increment (2026-10-11) replaces native **ACTION** placeholder success with
 source learned-skill, cooldown and resource validation. Migration **037** records
 charge provenance and binds it once to an accepted cast. **First Aid 240** now
 finishes its own-PC cure after the backup's 300ms charge; ACTION itself deducts no
@@ -31,7 +54,7 @@ and [local startup](deploy/README.md#native-skill-actions-and-charging).
 Percentage costs now use the original pure HP/MP maxima, excluding aftermath,
 equipment and effects; the previous rewrite used modified visible maxima.
 Full charge interruptions, targets, combat and original-client acceptance remain
-unfinished. Current local build tag: `localhost/fourstory:postgresql-skill-actions`.
+unfinished. That increment used `localhost/fourstory:postgresql-skill-actions`.
 
 **3,101 native database/network checks pass per configuration** in Debug,
 ASan/UBSan and installed Release (installed daemons with the Debug backend test).
@@ -140,11 +163,12 @@ recovery. Its recorded baseline is 2,221 native checks per configuration; see th
 [posture evidence](_rewrite/docs/modernization/evidence/postures-contract.json).
 
 Complete active-effect lifecycle, combat and gameplay remain unfinished. General
-cancellation side effects, timed expiry, zero-MP removal during `Defend` and item use, dependent
-posture skills and remote visibility still require implementation and acceptance.
+cancellation side effects, timed expiry, zero-MP removal outside the bounded
+self-cure `Defend` path (including item use), dependent posture skills and remote
+visibility still require implementation and acceptance.
 Only uncompiled client sources are available; no supported executable build/hash,
 assets or original-client acceptance is claimed. Backups and applied migrations
-**001–037** are immutable; next migration **038**.
+**001–038** are immutable; next migration **039**.
 
 The preceding **native equipment** increment (032) verified ordinary equip,
 unequip, swap, displacement, splits and HP/MP clamping with 2,111 native checks per

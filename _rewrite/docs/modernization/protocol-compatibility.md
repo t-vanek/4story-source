@@ -21,6 +21,26 @@ there means a per-packet behavior review has not been completed; it does not mea
 the referenced modern handler is absent. Add reviewed evidence as each slice is
 completed rather than converting references into coverage percentages.
 
+## Native self-cure with permanent postures (2026-10-11)
+
+Migration 038 extends the existing finish receipt; there are no new wire fields.
+Original `TObjBase.cpp:4663–4697` and backup 131/132 flags preserve those postures
+during ACTION. `TObjBase::Defend` calls `CheckEternalBuff` after effects and before
+its response. A zero-MP self-cure emits END, private STAT, DEFEND, then changed
+HPMP; the DEFEND instance powers were calculated before posture removal.
+`TPlayer::CheckEquipSkill` runs at the end of FINISHSKILL even with no targets;
+`IsEquipSkillItem` includes broken equipped weapons. Dependent-posture effects
+remain outside the supported two-posture domain.
+
+`EraseMaintainSkill` uses the 3×3 neighboring cells; instantaneous Defend uses
+`GetNeerPlayer` radius CELL_SIZE=64. The owner alone receives CHARSTATINFO.
+The controlled seven-socket test checks these recipients and exact radius/cell
+boundaries; the separate native TCP oracle checks original bytes, equipment,
+charge, healing, empty targets, late rollback and crash recovery. No original
+client binary was run. General AOI/replica synchronization, cure aggro/party relay,
+other effects/targets and full gameplay remain pending. See
+[verification and explicit limits](evidence/finish-effects-contract.json).
+
 ## Native ACTION and charged First Aid (2026-10-11)
 
 `CSSenderAll.cpp:319–343` sends the original 19-byte ACTION request to every
@@ -39,8 +59,8 @@ check allowed missing ACTION to bypass charge validation. A bound cast retains
 its origin after later actions. No new field or guessed expiry is introduced.
 Shared PostgreSQL time replaces process-local uptime for cross-owner timing;
 forward clock jumps, movement/damage interruption and complete charge-speed
-semantics still require verification. Successful ACTION with active effects or
-recall/trap side effects remains explicitly unsupported.
+semantics still require verification. Successful ACTION with general active
+effects beyond 131/132 or recall/trap side effects remains explicitly unsupported.
 
 Source audit also corrected the prior native percentage-cost base. ACTION,
 SKILLUSE and LOOPSKILL now use `GetPureMaxHP/MP` semantics: race/class/level and

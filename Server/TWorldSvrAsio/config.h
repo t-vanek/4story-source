@@ -77,6 +77,9 @@ struct AppConfig
     // (legacy re-derives on the day-change tick). 0 disables.
     std::uint32_t war_index_refresh_period_sec = 3600;
 
+    // Empty accepts ASCII only; operator supplies a lossless ANSI profile for
+    // original client social/name bytes (for example WIN1252 when evidenced).
+    std::string native_world_client_text_encoding;
     DbConfig      database;
     // Explicit transport trust for the original empty CT_CTRLSVR_REQ. This
     // protocol carries no identity proof; default deny and isolate the peer

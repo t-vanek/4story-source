@@ -54,6 +54,9 @@ def import_progress(conn, manifest_path, world, character_mapping):
         conn.execute('SELECT pg_advisory_xact_lock(418040001)')
         # Same namespace as PostgreSQLMapOwner. Lock every server number so a
         # new owner cannot start between the offline check and commit.
+        if not conn.execute('SELECT pg_try_advisory_xact_lock(%s,%s)',
+                            (0x34574C44, world)).fetchone()[0]:
+            raise RuntimeError('ACTIVE_WORLD_OWNER')
         for server in range(256):
             if not conn.execute('SELECT pg_try_advisory_xact_lock(%s,%s)',
                                 (0x344D4150, (world << 8) | server)).fetchone()[0]:

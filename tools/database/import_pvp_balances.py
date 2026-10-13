@@ -56,6 +56,9 @@ def import_balances(conn, manifest_path, world, characters):
         conn.execute('LOCK TABLE app_world.worlds,app_global."TCURRENTUSER" IN SHARE MODE')
         if not conn.execute('SELECT 1 FROM app_world.worlds WHERE group_id=%s', (world,)).fetchone():
             raise RuntimeError('NATIVE_WORLD_REQUIRED')
+        if not conn.execute('SELECT pg_try_advisory_xact_lock(%s,%s)',
+                            (0x34574C44, world)).fetchone()[0]:
+            raise RuntimeError('ACTIVE_WORLD_OWNER')
         for server in range(256):
             if not conn.execute('SELECT pg_try_advisory_xact_lock(%s,%s)',
                                 (0x344D4150, (world << 8) | server)).fetchone()[0]:

@@ -2,6 +2,8 @@
 #include "wire_codec.h"
 
 #include "MessageId.h"
+#include <algorithm>
+#include <stdexcept>
 
 namespace tworldsvr::senders {
 
@@ -99,22 +101,31 @@ SendMwFriendListReq(std::shared_ptr<PeerSession>                             pee
                     std::uint32_t                                            key,
                     std::uint32_t                                            soulmate_target,
                     const std::vector<std::pair<std::uint8_t, std::string>>& groups,
-                    const std::vector<FriendListRow>&                        friends)
+                    const std::vector<FriendListRow>&                        friends,const FriendListSoulmate* soulmate)
 {
     using namespace wire;
     std::vector<std::byte> body;
     WritePOD<std::uint32_t>(body, char_id);
     WritePOD<std::uint32_t>(body, key);
-    // W4-23: the legacy soulmate slot — 0 when unpaired (NO soulmate).
-    WritePOD<std::uint32_t>(body, soulmate_target);
-    WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(groups.size()));
-    for (const auto& [id, name] : groups)
+    if(groups.size()>255||friends.size()>255)throw std::runtime_error("Friend list exceeds source BYTE count");
+    WritePOD<std::uint32_t>(body,soulmate_target);
+    if(soulmate_target) {
+        if(!soulmate)throw std::runtime_error("Nonzero soulmate requires original descriptor");
+        WriteString(body,soulmate->name);WritePOD<std::uint8_t>(body,soulmate->level);
+        WritePOD<std::uint8_t>(body,soulmate->klass);WritePOD<std::uint8_t>(body,soulmate->connected);
+        WritePOD<std::uint32_t>(body,soulmate->connected?soulmate->region:0);
+    }
+    auto sorted_groups=groups;auto sorted_friends=friends;
+    std::sort(sorted_groups.begin(),sorted_groups.end(),[](const auto& a,const auto& b){return a.first<b.first;});
+    std::sort(sorted_friends.begin(),sorted_friends.end(),[](const auto& a,const auto& b){return a.id<b.id;});
+    WritePOD<std::uint8_t>(body,static_cast<std::uint8_t>(sorted_groups.size()));
+    for (const auto& [id, name] : sorted_groups)
     {
         WritePOD<std::uint8_t>(body, id);
         WriteString(body, name);
     }
     WritePOD<std::uint8_t>(body, static_cast<std::uint8_t>(friends.size()));
-    for (const auto& f : friends)
+    for (const auto& f : sorted_friends)
     {
         WritePOD<std::uint32_t>(body, f.id);
         WriteString(body, f.name);
@@ -122,7 +133,7 @@ SendMwFriendListReq(std::shared_ptr<PeerSession>                             pee
         WritePOD<std::uint8_t>(body, f.group);
         WritePOD<std::uint8_t>(body, f.klass);
         WritePOD<std::uint8_t>(body, f.connected);
-        WritePOD<std::uint32_t>(body, f.region);
+        WritePOD<std::uint32_t>(body,f.connected?f.region:0);
     }
     co_await peer->Wire()->SendPacket(
         tnetlib::protocol::ToUint16(

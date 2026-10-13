@@ -1,4 +1,5 @@
 #include "postgresql_reserved_mail.h"
+#include "postgresql_world_owner.h"
 #include "fourstory/db/native_mail_lock.h"
 #include <soci/soci.h>
 #include <algorithm>
@@ -29,11 +30,11 @@ std::string OriginalBytes(const soci::row& row,const char* encoded,const char* d
     return hex;
 }
 }
-PostgreSQLReservedMail::PostgreSQLReservedMail(fourstory::db::SessionPool& pool,std::uint8_t world)
-    :m_pool(pool),m_world(world) {
+PostgreSQLReservedMail::PostgreSQLReservedMail(fourstory::db::SessionPool& pool,std::uint8_t world,std::string token)
+    :m_pool(pool),m_world(world),m_owner_token(std::move(token)) {
     if(pool.GetBackend()!=fourstory::db::Backend::PostgreSQL)
         throw std::runtime_error("Reserved mail requires the native PostgreSQL backend");
-    auto lease=m_pool.Acquire();auto& sql=*lease;soci::transaction tx(sql);Timeouts(sql);
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginWorldTransaction(sql,m_world,m_owner_token);Timeouts(sql);
     const int w=m_world;int exists=0;
     sql << "SELECT 1 FROM app_world.worlds WHERE group_id=:w",soci::use(w),soci::into(exists);
     if(!sql.got_data())throw std::runtime_error("Reserved mail native world is missing");
@@ -44,13 +45,13 @@ PostgreSQLReservedMail::PostgreSQLReservedMail(fourstory::db::SessionPool& pool,
     sql << "SELECT count(enqueue_second) FROM app_world.mail_notifications WHERE false",soci::into(exists);
     sql << "SELECT count(last_minute) FROM app_world.offline_bill_clock WHERE false",soci::into(exists);
     sql << "SELECT count(post_id) FROM app_world.offline_bill_returns WHERE false",soci::into(exists);
-    tx.commit();
+    tx->commit();
 }
 ReservedMailBatch PostgreSQLReservedMail::Deliver(std::int64_t now) {
     std::lock_guard guard(m_mutex);
     if(m_commit_unknown)throw std::runtime_error("Reserved mail stopped after an unknown COMMIT result");
     if(now<0)throw std::runtime_error("Reserved mail source clock is invalid");
-    auto lease=m_pool.Acquire();auto& sql=*lease;soci::transaction tx(sql);Timeouts(sql);
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginWorldTransaction(sql,m_world,m_owner_token);Timeouts(sql);
     ReservedMailBatch result;const int world=m_world;
     if(!TryLock(sql,fourstory::db::ReservedMailBatchKey(m_world))){result.busy=true;return result;}
     const long long minute=now/60;int claimed=0;
@@ -131,14 +132,14 @@ ReservedMailBatch PostgreSQLReservedMail::Deliver(std::int64_t now) {
     }
     // No automatic write replay after an uncertain COMMIT. The scheduler
     // treats this as fatal; restart still reads durable queue status/lineage.
-    try {tx.commit();}catch(...){m_commit_unknown=true;throw;}
+    try {tx->commit();}catch(...){m_commit_unknown=true;throw;}
     return result;
 }
 OfflineBillBatch PostgreSQLReservedMail::ReturnOfflineBills(std::int64_t now) {
     std::lock_guard guard(m_mutex);
     if(m_commit_unknown)throw std::runtime_error("Mail stopped after an unknown COMMIT result");
     if(now<0)throw std::runtime_error("Offline bill source clock is invalid");
-    auto lease=m_pool.Acquire();auto& sql=*lease;soci::transaction tx(sql);Timeouts(sql);
+    auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginWorldTransaction(sql,m_world,m_owner_token);Timeouts(sql);
     OfflineBillBatch result;const int world=m_world;
     if(!TryLock(sql,fourstory::db::OfflineBillBatchKey(m_world))){result.busy=true;return result;}
     const long long minute=now/60,second=now,stored_second=((now+30)/60)*60;int claimed=0;
@@ -228,7 +229,7 @@ OfflineBillBatch PostgreSQLReservedMail::ReturnOfflineBills(std::int64_t now) {
             soci::use(b.recipient,"old"),soci::use(b.sender,"new"),soci::use(b.sender,"source"),soci::use(second,"time");
         ++result.returned;
     }
-    try {tx.commit();}catch(...){m_commit_unknown=true;throw;}
+    try {tx->commit();}catch(...){m_commit_unknown=true;throw;}
     return result;
 }
 }

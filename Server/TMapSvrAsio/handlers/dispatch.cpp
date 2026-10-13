@@ -145,6 +145,16 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnQuestDropReq(sess, std::move(body), ctx); break;
     case MessageId::CS_QUESTENDTIMER_REQ:
         co_await OnNativeQuestReq(sess,wId,std::move(body),ctx); break;
+    case MessageId::CS_FRIENDLIST_REQ:
+    case MessageId::CS_FRIENDASK_REQ:
+    case MessageId::CS_FRIENDREPLY_REQ:
+    case MessageId::CS_FRIENDERASE_REQ:
+    case MessageId::CS_FRIENDGROUPMAKE_REQ:
+    case MessageId::CS_FRIENDGROUPDELETE_REQ:
+    case MessageId::CS_FRIENDGROUPCHANGE_REQ:
+    case MessageId::CS_FRIENDGROUPNAME_REQ:
+    case MessageId::CS_SOULMATEEND_REQ:
+        co_await OnFriendReq(sess,wId,std::move(body),ctx);break;
     case MessageId::CS_CHAT_REQ:
         co_await OnChatReq(sess, std::move(body), ctx); break;
     case MessageId::CS_PARTYADD_REQ:

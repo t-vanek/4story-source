@@ -54,6 +54,8 @@ struct TFriend
     bool          connected = false; // m_bConnected (online)
     std::uint32_t region    = 0;     // m_dwRegion (last-seen zone)
     std::uint8_t  group     = 0;     // m_bGroup (friend-group bucket)
+    std::uint8_t level=0, klass=0;
+    bool protected_connection=false;
 };
 
 // W4-6 — a character's soulmate pairing (legacy m_mapTSOULMATE
@@ -221,6 +223,9 @@ struct TChar
     // name), capped at MAX_FRIENDGROUP. Each TFriend.group references
     // one of these (0 = ungrouped).
     std::vector<std::pair<std::uint8_t, std::string>> friend_groups;
+    // Modern authorization repair: a dialog is bound to this TChar generation
+    // and the inviter's non-recycled Login key, never to packet byte hashes.
+    std::unordered_map<std::uint32_t,std::uint32_t> friend_invites;
 
     // W4-6 soulmate state. `real_sex` (legacy m_bRealSex) is the
     // account's real-world gender, distinct from the avatar `sex`;
@@ -228,6 +233,9 @@ struct TChar
     // current pairing (target = 0 when unpaired).
     std::uint8_t real_sex = 0;
     TSoulmate    soulmate;
+    // Incoming directed pairings keyed by source owner; they do not replace
+    // this character's independent outgoing pairing.
+    std::unordered_map<std::uint32_t,TSoulmate> inbound_soulmates;
 
     // W6-54 drive-by: legacy m_dwSoulSilence — the timestamp of a
     // dissolved soulmate pairing (a re-pair cooldown the client

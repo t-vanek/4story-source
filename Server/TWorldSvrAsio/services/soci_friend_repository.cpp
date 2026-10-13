@@ -19,7 +19,7 @@ void SociFriendRepository::CheckWritable() const {
     if(m_pair_failed.load())throw std::runtime_error("Friend persistence stopped for reconciliation");
 }
 
-bool SociFriendRepository::InsertMutualFriends(std::uint32_t char_id,std::uint32_t friend_id) {
+bool SociFriendRepository::InsertMutualFriends(std::uint32_t char_id,std::uint32_t friend_id, FriendAuthority) {
     std::lock_guard guard(m_pair_mutex);CheckWritable();
     try {
         DbContext ctx(m_pool);auto& sql=ctx.Session();soci::transaction tx(sql);
@@ -45,7 +45,7 @@ bool SociFriendRepository::InsertMutualFriends(std::uint32_t char_id,std::uint32
     }
 }
 
-FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id)
+FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id, FriendAuthority)
 {
     FriendLoad out;
     const int cid = static_cast<int>(char_id);
@@ -121,7 +121,7 @@ FriendLoad SociFriendRepository::LoadForChar(std::uint32_t char_id)
 }
 
 bool SociFriendRepository::MakeGroup(std::uint32_t char_id, std::uint8_t group,
-                                     const std::string& name)
+                                     const std::string& name, FriendAuthority)
 {
     CheckWritable();
     try
@@ -145,7 +145,7 @@ bool SociFriendRepository::MakeGroup(std::uint32_t char_id, std::uint8_t group,
 }
 
 bool SociFriendRepository::DeleteGroup(std::uint32_t char_id,
-                                       std::uint8_t group)
+                                       std::uint8_t group, FriendAuthority)
 {
     CheckWritable();
     try
@@ -169,7 +169,7 @@ bool SociFriendRepository::DeleteGroup(std::uint32_t char_id,
 
 bool SociFriendRepository::RenameGroup(std::uint32_t char_id,
                                        std::uint8_t group,
-                                       const std::string& name)
+                                       const std::string& name, FriendAuthority)
 {
     CheckWritable();
     try
@@ -193,7 +193,7 @@ bool SociFriendRepository::RenameGroup(std::uint32_t char_id,
 
 bool SociFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
                                              std::uint32_t friend_id,
-                                             std::uint8_t group)
+                                             std::uint8_t group, FriendAuthority)
 {
     CheckWritable();
     try
@@ -218,7 +218,7 @@ bool SociFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
 }
 
 bool SociFriendRepository::InsertFriend(std::uint32_t char_id,
-                                        std::uint32_t friend_id)
+                                        std::uint32_t friend_id, FriendAuthority)
 {
     CheckWritable();
     try
@@ -242,7 +242,7 @@ bool SociFriendRepository::InsertFriend(std::uint32_t char_id,
 }
 
 bool SociFriendRepository::EraseFriend(std::uint32_t char_id,
-                                       std::uint32_t friend_id)
+                                       std::uint32_t friend_id, FriendAuthority)
 {
     CheckWritable();
     try
@@ -265,7 +265,7 @@ bool SociFriendRepository::EraseFriend(std::uint32_t char_id,
 }
 
 bool SociFriendRepository::RegSoulmate(std::uint32_t char_id,
-                                       std::uint32_t target)
+                                       std::uint32_t target, FriendAuthority)
 {
     CheckWritable();
     try
@@ -293,8 +293,22 @@ bool SociFriendRepository::RegSoulmate(std::uint32_t char_id,
     }
 }
 
+bool SociFriendRepository::EndSoulmate(std::uint32_t char_id,std::uint32_t time,FriendAuthority) {
+    std::lock_guard guard(m_pair_mutex);CheckWritable();
+    try {
+        DbContext ctx(m_pool);soci::transaction tx(ctx.Session());
+        const int id=std::bit_cast<std::int32_t>(char_id),stamp=std::bit_cast<std::int32_t>(time);
+        ctx.Session()<<"UPDATE \"TSOULMATETABLE\" SET \"dwTime\"=:t WHERE \"dwCharID\"=:c",
+            soci::use(stamp,"t"),soci::use(id,"c");
+        tx.commit();return true;
+    } catch(...) {
+        m_pair_failed.store(true);if(m_stop_on_failure)m_stop_on_failure();
+        throw std::runtime_error("Soulmate end persistence failed; reconciliation required");
+    }
+}
+
 bool SociFriendRepository::DelSoulmate(std::uint32_t char_id,
-                                       std::uint32_t target)
+                                       std::uint32_t target, FriendAuthority)
 {
     CheckWritable();
     try

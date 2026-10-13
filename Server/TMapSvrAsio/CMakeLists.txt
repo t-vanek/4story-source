@@ -123,6 +123,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/loot.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/quest.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/social.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/friend.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/bow.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/control.cpp
     ${TMAPSVR_ASIO_SRC}/services/soci_session_validator.cpp

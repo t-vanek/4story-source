@@ -7,6 +7,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
@@ -17,6 +18,19 @@
 namespace tworldsvr::handlers {
 
 namespace {
+
+bool CurrentWriter(const HandlerContext& ctx,const std::shared_ptr<PeerSession>& peer,
+                   const std::shared_ptr<TChar>& ch,std::uint32_t key) {
+    if(!ch||!peer||!peer->Wire()->IsOpen()||!ctx.peers||ctx.peers->Find(peer->Wid())!=peer)return false;
+    std::lock_guard guard(ch->lock);const auto server=static_cast<std::uint8_t>(peer->Wid());
+    const auto con=std::find_if(ch->cons.begin(),ch->cons.end(),[server](const auto& c){return c.server_id==server;});
+    return peer->Wid()==(0x0400U|server)&&ch->key==key&&!ch->closing&&!ch->logout&&ch->main_server_id==server&&
+           con!=ch->cons.end()&&con->ready&&con->valid;
+}
+// RegSoulmate writes only the initiator. Replace its old inbound projection,
+// while preserving the target's independent own pairing (source RegSoulmate).
+struct Mate;
+void ProjectPair(const HandlerContext& ctx,TChar& self,const Mate& m);
 
 // One char's describe-fields needed to fill the partner's TSoulmate.
 struct Mate
@@ -38,6 +52,14 @@ void SetSoulmate(TChar& self, const Mate& m)
     self.soul_silence = 0;   // legacy TWorldSvr.cpp:4333
 }
 
+void ProjectPair(const HandlerContext& ctx,TChar& self,const Mate& m) {
+    std::uint32_t old=0;Mate own;
+    {std::lock_guard guard(self.lock);old=self.soulmate.target;own=SnapshotMate(self);SetSoulmate(self,m);}
+    if(auto previous=ctx.chars->Find(old)) {std::lock_guard guard(previous->lock);previous->inbound_soulmates.erase(own.id);}
+    if(auto target=ctx.chars->Find(m.id)) {std::lock_guard guard(target->lock);
+        target->inbound_soulmates[own.id]=TSoulmate{own.id,own.name,own.level,own.klass,true,own.region};}
+}
+
 } // namespace
 
 boost::asio::awaitable<void>
@@ -52,16 +74,15 @@ NotifySoulmateOnLogout(const HandlerContext& ctx, std::shared_ptr<TChar> who)
         partner   = who->soulmate.target;
         connected = who->soulmate.connected;
     }
-    if (partner != 0 && connected)
-        if (auto p = ctx.chars->Find(partner))
-        {
-            std::lock_guard g(p->lock);
-            if (p->soulmate.target == who_id)
-            {
-                p->soulmate.connected = false;
-                p->soulmate.region = 0;
-            }
-        }
+    if(partner&&connected)if(auto p=ctx.chars->Find(partner)) {
+        std::lock_guard guard(p->lock);auto it=p->inbound_soulmates.find(who_id);
+        if(it!=p->inbound_soulmates.end()){it->second.connected=false;it->second.region=0;}
+    }
+    std::vector<std::uint32_t> incoming;
+    {std::lock_guard guard(who->lock);for(const auto& [owner,mate]:who->inbound_soulmates)incoming.push_back(owner);}
+    for(auto owner:incoming)if(auto p=ctx.chars->Find(owner)) {
+        std::lock_guard guard(p->lock);if(p->soulmate.target==who_id){p->soulmate.connected=false;p->soulmate.region=0;}
+    }
     co_return;   // legacy LeaveSoulmate sends no packet
 }
 
@@ -74,11 +95,12 @@ OnSoulmateSearchAck(std::shared_ptr<PeerSession> peer,
     if (!ctx.chars) { spdlog::warn("OnSoulmateSearchAck[{}]: no chars", ip);
         co_return; }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::uint8_t  min_level = 0, npc_inven = 0, npc_item = 0;
     if (!r.Read(char_id) || !r.Read(key) || !r.Read(min_level) ||
-        !r.Read(npc_inven) || !r.Read(npc_item))
+        !r.Read(npc_inven) || !r.Read(npc_item)||!r.Eof())
     {
         spdlog::warn("OnSoulmateSearchAck[{}]: short body", ip);
         co_return;
@@ -86,21 +108,22 @@ OnSoulmateSearchAck(std::shared_ptr<PeerSession> peer,
 
     auto searcher = ctx.chars->Find(char_id);
     if (!searcher) co_return;
+    if(!CurrentWriter(ctx,peer,searcher,key))co_return;
     std::uint8_t  s_country = 0, s_level = 0, s_realsex = 0, s_sex = 0;
-    Mate          self_mate;
     {
         std::lock_guard g(searcher->lock);
         if (searcher->key != key) co_return;
         s_country = searcher->country; s_level = searcher->level;
         s_realsex = searcher->real_sex; s_sex = searcher->sex;
-        self_mate = SnapshotMate(*searcher);
     }
 
     struct Cand { Mate mate; std::uint8_t realsex = 0, sex = 0;
                   bool has_sm = false; };
     std::vector<Cand> cands;
     std::uint8_t best = min_level;
-    for (auto id : ctx.chars->SnapshotIds())
+    auto candidate_ids=ctx.chars->SnapshotIds();
+    std::sort(candidate_ids.begin(),candidate_ids.end()); // Original DWORD-keyed map order.
+    for (auto id : candidate_ids)
     {
         if (id == char_id) continue;
         auto c = ctx.chars->Find(id);
@@ -141,14 +164,14 @@ OnSoulmateSearchAck(std::shared_ptr<PeerSession> peer,
 
     const Mate match = cands.front().mate;
 
-    // Register the mutual pairing in-memory + persist both rows.
-    { std::lock_guard g(searcher->lock); SetSoulmate(*searcher, match); }
-    if (auto m = ctx.chars->Find(match.id))
-    { std::lock_guard g(m->lock); SetSoulmate(*m, self_mate); }
-    if (ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id, mid = match.id]
-            { repo->RegSoulmate(char_id, mid); repo->RegSoulmate(mid, char_id); });
+    if(ctx.friend_repo) {
+        const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.friend_repo,char_id,mid=match.id,key,peer]
+            {return repo->RegSoulmate(char_id,mid,{key,static_cast<std::uint8_t>(peer->Wid())});});
+        if(!saved)co_return;
+    }
+    if(ctx.chars->Find(char_id)!=searcher||!CurrentWriter(ctx,peer,searcher,key))co_return;
+    if(ctx.chars->Find(match.id))ProjectPair(ctx,*searcher,match);else co_return;
 
     co_await senders::SendMwSoulmateSearchReq(peer, char_id, key,
         soulmate::kSuccess, match.id, match.name, match.region, npc_inven,
@@ -167,12 +190,13 @@ OnSoulmateRegAck(std::shared_ptr<PeerSession> peer,
     if (!ctx.chars) { spdlog::warn("OnSoulmateRegAck[{}]: no chars", ip);
         co_return; }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::string   name;
     std::uint8_t  reg = 0, npc_inven = 0, npc_item = 0;
     if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(name) ||
-        !r.Read(reg) || !r.Read(npc_inven) || !r.Read(npc_item))
+        !r.Read(reg) || !r.Read(npc_inven) || !r.Read(npc_item)||!r.Eof())
     {
         spdlog::warn("OnSoulmateRegAck[{}]: short body", ip);
         co_return;
@@ -180,13 +204,12 @@ OnSoulmateRegAck(std::shared_ptr<PeerSession> peer,
 
     auto self = ctx.chars->Find(char_id);
     if (!self) co_return;
+    if(!CurrentWriter(ctx,peer,self,key))co_return;
     std::uint8_t s_country = 0, s_level = 0;
-    Mate         self_mate;
     {
         std::lock_guard g(self->lock);
         if (self->key != key) co_return;
         s_country = self->country; s_level = self->level;
-        self_mate = SnapshotMate(*self);
     }
 
     auto reply = [&](std::uint8_t result, std::uint32_t sm,
@@ -218,15 +241,14 @@ OnSoulmateRegAck(std::shared_ptr<PeerSession> peer,
 
     if (reg)
     {
-        // Commit the mutual pairing in-memory + persist both rows.
-        { std::lock_guard g(self->lock); SetSoulmate(*self, t_mate); }
-        if (auto t2 = ctx.chars->Find(t_mate.id))
-        { std::lock_guard g(t2->lock); SetSoulmate(*t2, self_mate); }
-        if (ctx.friend_repo)
-            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-                [repo = ctx.friend_repo, char_id, tid = t_mate.id]
-                { repo->RegSoulmate(char_id, tid);
-                  repo->RegSoulmate(tid, char_id); });
+        if(ctx.friend_repo) {
+            const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [repo=ctx.friend_repo,char_id,tid=t_mate.id,key,peer]
+                {return repo->RegSoulmate(char_id,tid,{key,static_cast<std::uint8_t>(peer->Wid())});});
+            if(!saved)co_return;
+        }
+        if(ctx.chars->Find(char_id)!=self||ctx.chars->Find(t_mate.id)!=target||!CurrentWriter(ctx,peer,self,key))co_return;
+        ProjectPair(ctx,*self,t_mate);
     }
     co_await reply(soulmate::kSuccess, t_mate.id, t_mate.name, t_mate.region);
     co_return;
@@ -241,9 +263,10 @@ OnSoulmateEndAck(std::shared_ptr<PeerSession> peer,
     if (!ctx.chars) { spdlog::warn("OnSoulmateEndAck[{}]: no chars", ip);
         co_return; }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
-    if (!r.Read(char_id) || !r.Read(key))
+    if (!r.Read(char_id) || !r.Read(key)||!r.Eof())
     {
         spdlog::warn("OnSoulmateEndAck[{}]: short body", ip);
         co_return;
@@ -251,6 +274,7 @@ OnSoulmateEndAck(std::shared_ptr<PeerSession> peer,
 
     auto self = ctx.chars->Find(char_id);
     if (!self) co_return;
+    if(!CurrentWriter(ctx,peer,self,key))co_return;
     std::uint32_t partner = 0;
     {
         std::lock_guard g(self->lock);
@@ -264,25 +288,16 @@ OnSoulmateEndAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Clear both sides in-memory + delete both rows. The initiator
-    // gets the silence stamp (legacy SoulmateEnd, TWorldSvr.cpp:4418).
-    const auto end_time =
-        static_cast<std::uint32_t>(std::time(nullptr));
-    {
-        std::lock_guard g(self->lock);
-        self->soulmate     = TSoulmate{};
-        self->soul_silence = end_time;
+    const auto end_time=static_cast<std::uint32_t>(std::time(nullptr));
+    if(ctx.friend_repo) {
+        const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.friend_repo,char_id,end_time,key,peer]
+            {return repo->EndSoulmate(char_id,end_time,{key,static_cast<std::uint8_t>(peer->Wid())});});
+        if(!saved)co_return;
     }
-    if (auto p = ctx.chars->Find(partner))
-    {
-        std::lock_guard g(p->lock);
-        if (p->soulmate.target == char_id) p->soulmate = TSoulmate{};
-    }
-    if (ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id, partner]
-            { repo->DelSoulmate(char_id, partner);
-              repo->DelSoulmate(partner, char_id); });
+    if(ctx.chars->Find(char_id)!=self||!CurrentWriter(ctx,peer,self,key))co_return;
+    {std::lock_guard guard(self->lock);self->soulmate=TSoulmate{};self->soul_silence=end_time;}
+    if(auto p=ctx.chars->Find(partner)){std::lock_guard guard(p->lock);p->inbound_soulmates.erase(char_id);}
     co_await senders::SendMwSoulmateEndReq(peer, char_id, key,
         soulmate::kSuccess, end_time);
     spdlog::info("OnSoulmateEndAck[{}]: char_id={} dissolved pairing with {}",

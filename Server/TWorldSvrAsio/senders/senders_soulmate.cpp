@@ -4,6 +4,14 @@
 #include "MessageId.h"
 
 namespace tworldsvr::senders {
+boost::asio::awaitable<void> SendMwSoulmateReq(std::shared_ptr<PeerSession> peer,std::uint32_t character,
+    std::uint32_t key,std::uint32_t target,const std::string& name,std::uint32_t time) {
+    std::vector<std::byte> body;
+    wire::WritePOD<std::uint32_t>(body,character);wire::WritePOD<std::uint32_t>(body,key);
+    wire::WritePOD<std::uint32_t>(body,target);wire::WriteString(body,name);wire::WritePOD<std::uint32_t>(body,time);
+    co_await peer->Wire()->SendPacket(tnetlib::protocol::ToUint16(tnetlib::protocol::MessageId::MW_SOULMATE_REQ),std::move(body));
+}
+
 
 boost::asio::awaitable<void>
 SendMwSoulmateSearchReq(std::shared_ptr<PeerSession> peer,

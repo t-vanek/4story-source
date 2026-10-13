@@ -278,4 +278,5 @@ boost::asio::awaitable<void> OnCtCtrlSvrReq(
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
 
+boost::asio::awaitable<void> OnFriendReq(std::shared_ptr<tnetlib::AsioSession>,std::uint16_t,std::vector<std::byte>,const HandlerContext&);
 } // namespace tmapsvr

@@ -99,6 +99,11 @@ def import_mailboxes(conn, manifest_path, world, characters, source_timezone, va
         if world not in worlds:
             raise RuntimeError('NATIVE_WORLD_REQUIRED')
         for active_world in worlds:
+            # Native World may mutate social/mail state without a live Map.
+            # Hold its process namespace through this whole offline projection.
+            if not conn.execute('SELECT pg_try_advisory_xact_lock(%s,%s)',
+                                (0x34574C44, active_world)).fetchone()[0]:
+                raise RuntimeError('ACTIVE_WORLD_OWNER')
             for server in range(256):
                 if not conn.execute('SELECT pg_try_advisory_xact_lock(%s,%s)',
                                     (0x344D4150, (active_world << 8) | server)).fetchone()[0]:

@@ -33,6 +33,7 @@
 #include "../services/corps_registry.h"
 #include "../services/tms_registry.h"
 #include "../services/friend_repository.h"
+#include "../services/social_operation_gate.h"
 #include "../services/item_state_repository.h"
 #include "../services/cash_sale_repository.h"
 #include "../services/service_ops_repository.h"
@@ -88,6 +89,7 @@ struct HandlerContext
     // in-memory registry is the only store, e.g. the no-[database]
     // dev path + tests that don't seed a fake).
     IFriendRepository*        friend_repo = nullptr;
+    std::shared_ptr<SocialOperationGate> friend_operations=std::make_shared<SocialOperationGate>();
 
     // W3a-4d: TGUILDCHART mirror loaded at boot. Handlers consult
     // it for per-level caps (member cap, cabinet slots, peerage
@@ -2340,8 +2342,9 @@ boost::asio::awaitable<void> CloseChar(
 // avatar-sex tiebreakers) and pairs the best candidate. REG
 // registers (bReg=1) or previews (bReg=0) a named pairing. END
 // dissolves the current pairing. The legacy DB round-trip
-// (DM_SOULMATEREG/END_REQ) is collapsed to an in-memory mutual
-// pairing; persistence is deferred.
+// (DM_SOULMATEREG/END_REQ) uses the directed repository transaction
+// before cache/response publication. Native Map search/registration economy
+// and complete initial-load level checks remain separate integration work.
 //
 // Wire (SSHandler.cpp:9354/9467/9549):
 //   SEARCH : DWORD char_id, key, BYTE min_level, npc_inven, npc_item

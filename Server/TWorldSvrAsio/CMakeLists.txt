@@ -104,6 +104,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/fake_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/soci_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/postgresql_reserved_mail.cpp
+    ${TWORLD_ASIO_SRC}/services/postgresql_world_owner.cpp
+    ${TWORLD_ASIO_SRC}/services/postgresql_friend_repository.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_registry.cpp
     ${TWORLD_ASIO_SRC}/services/guild_wanted_sweep.cpp
     ${TWORLD_ASIO_SRC}/services/guild_tactics_wanted_registry.cpp

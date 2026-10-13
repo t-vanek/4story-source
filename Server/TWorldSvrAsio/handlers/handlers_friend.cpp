@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <unordered_set>
 
 namespace tworldsvr::handlers {
 
@@ -19,31 +20,29 @@ std::shared_ptr<PeerSession>
 FindMapPeer(const HandlerContext& ctx, std::uint8_t msi)
 {
     if (msi == 0 || !ctx.peers) return nullptr;
-    for (auto& p : ctx.peers->Snapshot())
-        if (static_cast<std::uint8_t>(p->Wid() & 0xFF) == msi)
-            return p;
-    return nullptr;
+    auto peer=ctx.peers->Find(0x0400U|msi);
+    return ctx.peers->IsCurrentMap(peer)&&peer->Wire()->IsOpen()?peer:nullptr;
 }
 
 // Upsert a char's friend entry to a connected mutual friend
 // (FT_FRIENDFRIEND). Caller holds the char's lock.
 void UpsertMutual(TChar& c, std::uint32_t id, const std::string& name,
-                  std::uint32_t region)
+                  std::uint32_t region,std::uint8_t level,std::uint8_t klass)
 {
     for (auto& f : c.friends)
         if (f.id == id)
         {
             f.type = frnd::kTypeFriendFriend;
-            f.connected = true;
-            f.region = region;
+            f.connected = true;f.protected_connection=false;
+            f.region = region;f.level=level;f.klass=klass;
             return;
         }
-    c.friends.push_back({id, name, frnd::kTypeFriendFriend, true, region, 0});
+    c.friends.push_back({id,name,frnd::kTypeFriendFriend,true,region,0,level,klass});
 }
 
 bool CurrentFriendWriter(const HandlerContext& ctx,const std::shared_ptr<PeerSession>& peer,
                          const std::shared_ptr<TChar>& character,std::uint32_t key) {
-    if(!ctx.peers||!peer||!character||ctx.peers->Find(peer->Wid())!=peer)return false;
+    if(!ctx.peers||!peer||!peer->Wire()->IsOpen()||!character||ctx.peers->Find(peer->Wid())!=peer)return false;
     std::lock_guard g(character->lock);
     const auto sid=static_cast<std::uint8_t>(peer->Wid());
     const auto con=std::find_if(character->cons.begin(),character->cons.end(),[sid](const auto& row){return row.server_id==sid;});
@@ -65,13 +64,14 @@ OnFriendProtectedAskAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     // A char tried to friend a protection-enabled target (the map
     // gates that); world relays the auto-refuse to the target's map,
     // naming the requester (legacy OnMW_FRIENDPROTECTEDASK_ACK).
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::string   target_name;
-    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name))
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name)||!r.Eof())
     {
         spdlog::warn("OnFriendProtectedAskAck[{}]: short body ({} bytes)", ip,
             body.size());
@@ -80,6 +80,7 @@ OnFriendProtectedAskAck(std::shared_ptr<PeerSession> peer,
 
     auto requester = ctx.chars->Find(char_id);
     if (!requester) co_return;
+    if(!CurrentFriendWriter(ctx,peer,requester,key))co_return;
     std::string req_name;
     { std::lock_guard g(requester->lock);
       if (requester->key != key) co_return;
@@ -93,6 +94,12 @@ OnFriendProtectedAskAck(std::shared_ptr<PeerSession> peer,
         t_id = target->char_id; t_key = target->key;
         t_msi = target->main_server_id;
     }
+    // This is the invited recipient refusing the inviter. Consume the same
+    // authorization as a client decline, before a delayed forged REPLY.
+    {std::lock_guard guard(requester->lock);
+     const auto pending=requester->friend_invites.find(t_id);
+     if(pending==requester->friend_invites.end()||pending->second!=t_key)co_return;
+     requester->friend_invites.erase(pending);}
     if (auto p = FindMapPeer(ctx, t_msi))
         co_await senders::SendMwFriendAddReq(p, t_id, t_key, frnd::kRefuse,
             /*friend_id=*/0, req_name, 0, 0, 0, 0);
@@ -119,6 +126,7 @@ OnProtectedCheckAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::uint8_t  connect = 0;
@@ -162,10 +170,13 @@ OnProtectedCheckAck(std::shared_ptr<PeerSession> peer,
     // Disconnect: persist the requester→friend edge erasure via the
     // W4-17 write-back (legacy SendDM_FRIENDERASE_REQ runs here).
     // The in-memory edge stays until the next reload, matching legacy.
-    if (connect == frnd::kDisconnection && ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id, friend_id]
-            { repo->EraseFriend(char_id, friend_id); });
+    if (connect == frnd::kDisconnection && ctx.friend_repo) {
+        const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.friend_repo,char_id,friend_id,key,peer]
+            {return repo->EraseFriend(char_id,friend_id,{key,static_cast<std::uint8_t>(peer->Wid())});});
+        if(!saved)co_return;
+    }
+    if(ctx.chars->Find(char_id)!=requester||!CurrentFriendWriter(ctx,peer,requester,key))co_return;
 
     auto target = ctx.chars->FindByName(protected_name);
     if (!target) co_return;
@@ -190,12 +201,12 @@ OnProtectedCheckAck(std::shared_ptr<PeerSession> peer,
                 target_has_requester = true;
                 if (connect == frnd::kConnection)
                 {
-                    f.connected = true;
+                    f.connected = true;f.protected_connection=false;
                     f.region    = req_region;
                 }
                 else
                 {
-                    f.connected = false;
+                    f.connected = false;f.protected_connection=true;
                 }
                 break;
             }
@@ -214,12 +225,12 @@ OnProtectedCheckAck(std::shared_ptr<PeerSession> peer,
                 requester_has_target = true;
                 if (connect == frnd::kConnection)
                 {
-                    f.connected = true;
+                    f.connected = true;f.protected_connection=false;
                     f.region    = target_region;
                 }
                 else
                 {
-                    f.connected = false;
+                    f.connected = false;f.protected_connection=true;
                 }
                 break;
             }
@@ -252,10 +263,11 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::string   target_name;
-    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name))
+    if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(target_name)||!r.Eof())
     {
         spdlog::warn("OnFriendAskAck[{}]: short body ({} bytes)", ip,
             body.size());
@@ -264,6 +276,7 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
 
     auto requester = ctx.chars->Find(char_id);
     if (!requester) co_return;
+    if(!CurrentFriendWriter(ctx,peer,requester,key))co_return;
     std::uint32_t actual_key = 0, req_region = 0;
     std::uint8_t  req_country = 0;
     std::string   req_name;
@@ -356,7 +369,7 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
         // Persist before publishing either in-memory side or success reply.
         if (ctx.friend_repo) {
             const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
-                [repo=ctx.friend_repo,char_id,t_id]{return repo->InsertMutualFriends(char_id,t_id);});
+                [repo=ctx.friend_repo,char_id,t_id,key,peer,t_key,t_msi]{return repo->InsertMutualFriends(char_id,t_id,{key,static_cast<std::uint8_t>(peer->Wid()),t_key,t_msi});});
             if(!saved)co_return;
         }
         if(ctx.chars->Find(char_id)!=requester||ctx.chars->Find(t_id)!=target)co_return;
@@ -397,10 +410,17 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Forward the friend dialog to the target's map.
+    // Bind acceptance to an actual dialog, so a forged client REPLY cannot
+    // create the inviter's directed edge without consent. The source omitted
+    // this authorization; this explicit security repair changes no wire field.
+    bool busy=false;
+    {std::lock_guard guard(target->lock);
+     if(target->key!=t_key||target->closing||target->logout)co_return;
+     busy=!target->friend_invites.contains(char_id)&&target->friend_invites.size()>=frnd::kMaxFriend;
+     if(!busy)target->friend_invites[char_id]=key;}
+    if(busy){co_await reply(frnd::kBusy,0,target_name,0,0,0);co_return;}
     if (auto tp = FindMapPeer(ctx, t_msi))
-        co_await senders::SendMwFriendAskReq(tp, t_id, t_key, req_name,
-            char_id);
+        co_await senders::SendMwFriendAskReq(tp,t_id,t_key,req_name,char_id);
     spdlog::info("OnFriendAskAck[{}]: char_id={} asked '{}' to befriend",
         ip, char_id, target_name);
     co_return;
@@ -418,12 +438,13 @@ OnFriendReplyAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::string   inviter_name;
     std::uint8_t  reply = 0;
     if (!r.Read(char_id) || !r.Read(key) || !r.ReadString(inviter_name) ||
-        !r.Read(reply))
+        !r.Read(reply)||!r.Eof())
     {
         spdlog::warn("OnFriendReplyAck[{}]: short body ({} bytes)", ip,
             body.size());
@@ -432,6 +453,7 @@ OnFriendReplyAck(std::shared_ptr<PeerSession> peer,
 
     auto inviter = ctx.chars->FindByName(inviter_name);  // pPlayer
     auto answerer = ctx.chars->Find(char_id);            // pFriend
+    if(!CurrentFriendWriter(ctx,peer,answerer,key))co_return;
 
     bool friend_ok = false;
     std::uint32_t f_key = 0;
@@ -483,6 +505,12 @@ OnFriendReplyAck(std::shared_ptr<PeerSession> peer,
         f_name = answerer->name;
     }
 
+    if(!CurrentFriendWriter(ctx,peer,answerer,key))co_return;
+    {std::lock_guard guard(answerer->lock);
+     const auto pending=answerer->friend_invites.find(p_id);
+     if(pending==answerer->friend_invites.end()||pending->second!=p_key)co_return;
+     if(reply!=0)answerer->friend_invites.erase(pending);}
+
     if (reply != 0 /* ASK_YES (NetCode.h:222) */)
     {
         // Decline — relay the answer code to the inviter.
@@ -496,17 +524,18 @@ OnFriendReplyAck(std::shared_ptr<PeerSession> peer,
     if(!CurrentFriendWriter(ctx,peer,answerer,key))co_return;
     if(ctx.friend_repo) {
         const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
-            [repo=ctx.friend_repo,p_id,char_id]{return repo->InsertMutualFriends(p_id,char_id);});
+            [repo=ctx.friend_repo,p_id,char_id,key,peer,p_key,p_msi]{return repo->InsertMutualFriends(char_id,p_id,{key,static_cast<std::uint8_t>(peer->Wid()),p_key,p_msi});});
         if(!saved)co_return;
     }
     if(ctx.chars->Find(char_id)!=answerer||ctx.chars->Find(p_id)!=inviter)co_return;
     if(!CurrentFriendWriter(ctx,peer,answerer,key))co_return;
     {std::lock_guard g(answerer->lock);if(answerer->key!=key||answerer->closing||answerer->logout)co_return;}
     {std::lock_guard g(inviter->lock);if(inviter->key!=p_key||inviter->closing||inviter->logout)co_return;}
+    {std::lock_guard guard(answerer->lock);answerer->friend_invites.erase(p_id);}
     { std::lock_guard g(inviter->lock);
-      UpsertMutual(*inviter, char_id, f_name, f_region); }
+      UpsertMutual(*inviter,char_id,f_name,f_region,f_level,f_class); }
     { std::lock_guard g(answerer->lock);
-      UpsertMutual(*answerer, p_id, p_name, p_region); }
+      UpsertMutual(*answerer,p_id,p_name,p_region,p_level,p_class); }
 
     if (auto p = FindMapPeer(ctx, p_msi))
         co_await senders::SendMwFriendAddReq(p, p_id, p_key, frnd::kSuccess,
@@ -531,9 +560,10 @@ OnFriendEraseAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0, target_id = 0;
-    if (!r.Read(char_id) || !r.Read(key) || !r.Read(target_id))
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(target_id)||!r.Eof())
     {
         spdlog::warn("OnFriendEraseAck[{}]: short body ({} bytes)", ip,
             body.size());
@@ -542,6 +572,7 @@ OnFriendEraseAck(std::shared_ptr<PeerSession> peer,
 
     auto self = ctx.chars->Find(char_id);
     if (!self) co_return;
+    if(!CurrentFriendWriter(ctx,peer,self,key))co_return;
     std::uint32_t actual_key = 0;
     bool          found = false, connected = false;
     std::uint8_t  type = 0;
@@ -560,6 +591,15 @@ OnFriendEraseAck(std::shared_ptr<PeerSession> peer,
             frnd::kNotFound, target_id);
         co_return;
     }
+
+    if(!CurrentFriendWriter(ctx,peer,self,key))co_return;
+    if((type==frnd::kTypeFriendFriend||type==frnd::kTypeFriend)&&ctx.friend_repo) {
+        const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.friend_repo,char_id,target_id,key,peer]
+            {return repo->EraseFriend(char_id,target_id,{key,static_cast<std::uint8_t>(peer->Wid()),0,0,true});});
+        if(!saved)co_return;
+    }
+    if(ctx.chars->Find(char_id)!=self||!CurrentFriendWriter(ctx,peer,self,key))co_return;
 
     if (type == frnd::kTypeFriendFriend)
     {
@@ -596,13 +636,6 @@ OnFriendEraseAck(std::shared_ptr<PeerSession> peer,
 
     co_await senders::SendMwFriendEraseReq(peer, char_id, key, frnd::kSuccess,
         target_id);
-    // Both the demote and one-way branches drop the char's forward
-    // edge; FT_TARGET leaves the DB untouched (legacy CSPFriendErase).
-    if ((type == frnd::kTypeFriendFriend || type == frnd::kTypeFriend) &&
-        ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id, target_id]
-            { repo->EraseFriend(char_id, target_id); });
     spdlog::info("OnFriendEraseAck[{}]: char_id={} erased friend {}",
         ip, char_id, target_id);
     co_return;
@@ -617,18 +650,20 @@ OnFriendGroupMakeAck(std::shared_ptr<PeerSession> peer,
     if (!ctx.chars) { spdlog::warn("OnFriendGroupMakeAck[{}]: no chars", ip);
         co_return; }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::uint8_t  group = 0;
     std::string   name;
     if (!r.Read(char_id) || !r.Read(key) || !r.Read(group) ||
-        !r.ReadString(name))
+        !r.ReadString(name)||!r.Eof())
     {
         spdlog::warn("OnFriendGroupMakeAck[{}]: short body", ip);
         co_return;
     }
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return;
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
 
     std::uint8_t result = frnd::kSuccess;
     bool         key_ok = true;
@@ -645,17 +680,23 @@ OnFriendGroupMakeAck(std::shared_ptr<PeerSession> peer,
             for (const auto& gp : c->friend_groups)
                 if (gp.first == group || gp.second == name)
                 { result = frnd::kAlready; break; }
-            if (result == frnd::kSuccess)
-                c->friend_groups.emplace_back(group, name);
+
         }
     }
     if (!key_ok) co_return;
-    co_await senders::SendMwFriendGroupMakeReq(peer, char_id, key, result,
-        result == frnd::kSuccess ? group : 0, name);
-    if (result == frnd::kSuccess && ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id, group, name]
-            { repo->MakeGroup(char_id, group, name); });
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
+    if(result==frnd::kSuccess) {
+        if(ctx.friend_repo) {
+            const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [repo=ctx.friend_repo,char_id,group,name,key,peer]
+                {return repo->MakeGroup(char_id,group,name,{key,static_cast<std::uint8_t>(peer->Wid())});});
+            if(!saved)co_return;
+        }
+        if(ctx.chars->Find(char_id)!=c||!CurrentFriendWriter(ctx,peer,c,key))co_return;
+        std::lock_guard g(c->lock);c->friend_groups.emplace_back(group,name);
+    }
+    co_await senders::SendMwFriendGroupMakeReq(peer,char_id,key,result,
+        result==frnd::kSuccess?group:0,name);
     co_return;
 }
 
@@ -668,16 +709,18 @@ OnFriendGroupDeleteAck(std::shared_ptr<PeerSession> peer,
     if (!ctx.chars) { spdlog::warn("OnFriendGroupDeleteAck[{}]: no chars", ip);
         co_return; }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::uint8_t  group = 0;
-    if (!r.Read(char_id) || !r.Read(key) || !r.Read(group))
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(group)||!r.Eof())
     {
         spdlog::warn("OnFriendGroupDeleteAck[{}]: short body", ip);
         co_return;
     }
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return;
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
 
     bool key_ok = true, exists = false, occupied = false;
     {
@@ -690,21 +733,22 @@ OnFriendGroupDeleteAck(std::shared_ptr<PeerSession> peer,
             for (const auto& f : c->friends)
                 if (f.type != frnd::kTypeTarget && f.group == group)
                     occupied = true;
-            if (exists && !occupied)
-            {
-                auto& v = c->friend_groups;
-                for (auto it = v.begin(); it != v.end(); ++it)
-                    if (it->first == group) { v.erase(it); break; }
-            }
+
         }
     }
     if (!key_ok || !exists) co_return;  // legacy: no reply when absent
-    co_await senders::SendMwFriendGroupDeleteReq(peer, char_id, key,
-        occupied ? frnd::kRefuse : frnd::kSuccess, group);
-    if (!occupied && ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id, group]
-            { repo->DeleteGroup(char_id, group); });
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
+    if(!occupied) {
+        if(ctx.friend_repo) {
+            const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [repo=ctx.friend_repo,char_id,group,key,peer]
+                {return repo->DeleteGroup(char_id,group,{key,static_cast<std::uint8_t>(peer->Wid())});});
+            if(!saved)co_return;
+        }
+        if(ctx.chars->Find(char_id)!=c||!CurrentFriendWriter(ctx,peer,c,key))co_return;
+        std::lock_guard g(c->lock);std::erase_if(c->friend_groups,[group](const auto& row){return row.first==group;});
+    }
+    co_await senders::SendMwFriendGroupDeleteReq(peer,char_id,key,occupied?frnd::kRefuse:frnd::kSuccess,group);
     co_return;
 }
 
@@ -717,17 +761,19 @@ OnFriendGroupChangeAck(std::shared_ptr<PeerSession> peer,
     if (!ctx.chars) { spdlog::warn("OnFriendGroupChangeAck[{}]: no chars", ip);
         co_return; }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0, friend_id = 0;
     std::uint8_t  group = 0;
     if (!r.Read(char_id) || !r.Read(key) || !r.Read(friend_id) ||
-        !r.Read(group))
+        !r.Read(group)||!r.Eof())
     {
         spdlog::warn("OnFriendGroupChangeAck[{}]: short body", ip);
         co_return;
     }
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return;
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
 
     bool key_ok = true, ok = false;
     {
@@ -741,16 +787,20 @@ OnFriendGroupChangeAck(std::shared_ptr<PeerSession> peer,
                     if (gp.first == group) group_ok = true;
             if (group_ok)
                 for (auto& f : c->friends)
-                    if (f.id == friend_id) { f.group = group; ok = true; }
+                    if (f.id == friend_id) ok = true;
         }
     }
     if (!key_ok || !ok) co_return;  // legacy: silent drop on bad group/friend
-    co_await senders::SendMwFriendGroupChangeReq(peer, char_id, key,
-        frnd::kSuccess, group, friend_id);
-    if (ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id, friend_id, group]
-            { repo->ChangeFriendGroup(char_id, friend_id, group); });
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
+    if(ctx.friend_repo) {
+        const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.friend_repo,char_id,friend_id,group,key,peer]
+            {return repo->ChangeFriendGroup(char_id,friend_id,group,{key,static_cast<std::uint8_t>(peer->Wid())});});
+        if(!saved)co_return;
+    }
+    if(ctx.chars->Find(char_id)!=c||!CurrentFriendWriter(ctx,peer,c,key))co_return;
+    {std::lock_guard g(c->lock);for(auto& f:c->friends)if(f.id==friend_id)f.group=group;}
+    co_await senders::SendMwFriendGroupChangeReq(peer,char_id,key,frnd::kSuccess,group,friend_id);
     co_return;
 }
 
@@ -763,18 +813,20 @@ OnFriendGroupNameAck(std::shared_ptr<PeerSession> peer,
     if (!ctx.chars) { spdlog::warn("OnFriendGroupNameAck[{}]: no chars", ip);
         co_return; }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::uint8_t  group = 0;
     std::string   name;
     if (!r.Read(char_id) || !r.Read(key) || !r.Read(group) ||
-        !r.ReadString(name))
+        !r.ReadString(name)||!r.Eof())
     {
         spdlog::warn("OnFriendGroupNameAck[{}]: short body", ip);
         co_return;
     }
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return;
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
 
     bool         key_ok = true;
     std::uint8_t result = frnd::kSuccess;
@@ -791,18 +843,24 @@ OnFriendGroupNameAck(std::shared_ptr<PeerSession> peer,
             else
             {
                 for (auto& gp : c->friend_groups)
-                    if (gp.first == group) { gp.second = name; found = true; }
+                    if (gp.first == group) found = true;
                 if (!found) result = frnd::kNotFound;
             }
         }
     }
     if (!key_ok) co_return;
-    co_await senders::SendMwFriendGroupNameReq(peer, char_id, key, result,
-        group, name);
-    if (result == frnd::kSuccess && ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id, group, name]
-            { repo->RenameGroup(char_id, group, name); });
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
+    if(result==frnd::kSuccess) {
+        if(ctx.friend_repo) {
+            const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [repo=ctx.friend_repo,char_id,group,name,key,peer]
+                {return repo->RenameGroup(char_id,group,name,{key,static_cast<std::uint8_t>(peer->Wid())});});
+            if(!saved)co_return;
+        }
+        if(ctx.chars->Find(char_id)!=c||!CurrentFriendWriter(ctx,peer,c,key))co_return;
+        std::lock_guard g(c->lock);for(auto& gp:c->friend_groups)if(gp.first==group)gp.second=name;
+    }
+    co_await senders::SendMwFriendGroupNameReq(peer,char_id,key,result,group,name);
     co_return;
 }
 
@@ -854,7 +912,7 @@ NotifyFriendsOnLogin(const HandlerContext& ctx, std::shared_ptr<TChar> who)
 
     std::uint32_t who_id = 0, who_region = 0;
     std::string   who_name;
-    struct FE { std::uint32_t id; std::uint8_t type; };
+    struct FE {std::uint32_t id;std::uint8_t type;bool protected_connection;};
     std::vector<FE> entries;
     {
         std::lock_guard g(who->lock);
@@ -862,7 +920,7 @@ NotifyFriendsOnLogin(const HandlerContext& ctx, std::shared_ptr<TChar> who)
         who_name   = who->name;
         who_region = who->region;
         for (const auto& f : who->friends)
-            entries.push_back({f.id, f.type});
+            entries.push_back({f.id,f.type,f.protected_connection});
     }
 
     // Mirror of NotifyFriendsOnLogout, fired once the char's identity
@@ -871,6 +929,7 @@ NotifyFriendsOnLogin(const HandlerContext& ctx, std::shared_ptr<TChar> who)
     // char's ADDCHAR hydrate and its ENTERSVR still gets the toast.
     for (const auto& e : entries)
     {
+        if(e.protected_connection)continue;
         auto partner = ctx.chars->Find(e.id);
         if (!partner) continue;                 // offline now → skip
         std::uint32_t pkey = 0;
@@ -878,7 +937,7 @@ NotifyFriendsOnLogin(const HandlerContext& ctx, std::shared_ptr<TChar> who)
         {
             std::lock_guard g(partner->lock);
             for (auto& pf : partner->friends)
-                if (pf.id == who_id)
+                if (pf.id == who_id&&!pf.protected_connection)
                 { pf.connected = true; pf.region = who_region; }
             pkey = partner->key;
             pmsi = partner->main_server_id;
@@ -904,39 +963,45 @@ OnFriendListAck(std::shared_ptr<PeerSession> peer,
     if (!ctx.chars) { spdlog::warn("OnFriendListAck[{}]: no chars", ip);
         co_return; }
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
-    if (!r.Read(char_id) || !r.Read(key))
+    if (!r.Read(char_id) || !r.Read(key)||!r.Eof())
     {
         spdlog::warn("OnFriendListAck[{}]: short body", ip);
         co_return;
     }
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return;
+    if(!CurrentFriendWriter(ctx,peer,c,key))co_return;
 
     // Snapshot the groups + non-pending friend entries + the soulmate
     // target (legacy ships it inline in MW_FRIENDLIST_REQ so the client
     // can render the soulmate slot in the friend window).
     std::vector<std::pair<std::uint8_t, std::string>> groups;
     std::vector<senders::FriendListRow> rows;
-    std::uint32_t soulmate_target = 0;
+    std::unordered_set<std::uint32_t> connected_rows;
+    std::uint32_t soulmate_target = 0;senders::FriendListSoulmate mate;
     {
         std::lock_guard g(c->lock);
         if (c->key != key) co_return;
         groups = c->friend_groups;
-        soulmate_target = c->soulmate.target;
+        soulmate_target=c->soulmate.target;
+        mate={c->soulmate.name,c->soulmate.level,c->soulmate.klass,static_cast<std::uint8_t>(c->soulmate.connected),c->soulmate.region};
         for (const auto& f : c->friends)
         {
             if (f.type == frnd::kTypeTarget) continue;
             senders::FriendListRow row;
             row.id = f.id; row.name = f.name; row.group = f.group;
+            row.level=f.level;row.klass=f.klass;
+            if(f.connected&&!f.protected_connection)connected_rows.insert(f.id);
             rows.push_back(std::move(row));
         }
     }
 
     // Resolve each friend's live level/class/region + online flag.
     for (auto& row : rows)
-        if (auto fc = ctx.chars->Find(row.id))
+        if(connected_rows.contains(row.id))if (auto fc = ctx.chars->Find(row.id))
         {
             std::lock_guard fg(fc->lock);
             row.connected = 1;
@@ -946,7 +1011,7 @@ OnFriendListAck(std::shared_ptr<PeerSession> peer,
         }
 
     co_await senders::SendMwFriendListReq(peer, char_id, key,
-        soulmate_target, groups, rows);
+        soulmate_target,groups,rows,&mate);
     co_return;
 }
 

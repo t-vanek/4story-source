@@ -19,6 +19,7 @@
 #include <vector>
 
 namespace tmapsvr {
+boost::asio::awaitable<void> OnWorldFriendReq(std::uint16_t,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnMWCharInfoReq(std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnMWNativeRouteReq(std::vector<std::byte>,const HandlerContext&,bool server_list);
 boost::asio::awaitable<void> OnMWCharDataReq(std::vector<std::byte>,const HandlerContext&);

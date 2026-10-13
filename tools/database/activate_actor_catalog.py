@@ -18,6 +18,7 @@ from migrate import connect, digest, load_snapshot, read_target, table_hash, tar
 OLD_ACTOR_KEYS=frozenset(('TGAME_RAGEZONE','dbo',t) for t in ('TITEMMAGICCHART','TSKILLPOINTCHART'))
 POLICY='actor-v1-to-v2-additive-statistics'
 MAP_LOCK_NAMESPACE=0x344D4150
+WORLD_LOCK_NAMESPACE=0x34574C44
 
 
 def actor_profile(path,mapping_path,pinned_path,expected):
@@ -69,10 +70,17 @@ def offline_owner_barrier(conn):
     # fenced operation. Exclusive NOWAIT serializes old/new startup and workers
     # without needing a lock protocol that older binaries do not implement.
     conn.execute('LOCK TABLE app_world.map_runtime_owner IN ACCESS EXCLUSIVE MODE NOWAIT')
+    # Since066, World social/mail/boot readers also need an offline barrier.
+    # The owner table is absent on earlier schemas, where no native World can
+    # claim this generation. A startup that acquired the advisory lock just
+    # after the check must still wait for publication before claiming its row.
+    if conn.execute("SELECT to_regclass('app_world.world_runtime_owner')").fetchone()[0]:
+        conn.execute('LOCK TABLE app_world.world_runtime_owner IN ACCESS EXCLUSIVE MODE NOWAIT')
     live=conn.execute("SELECT 1 FROM pg_catalog.pg_locks WHERE locktype='advisory' "
                       'AND database=(SELECT oid FROM pg_catalog.pg_database WHERE datname=current_database()) '
-                      'AND classid=%s AND objsubid=2 AND granted LIMIT 1',(MAP_LOCK_NAMESPACE,)).fetchone()
-    if live:raise RuntimeError('ACTIVE_MAP_OWNER_BLOCKS_ACTOR_PUBLICATION')
+                      'AND classid IN (%s,%s) AND objsubid=2 AND granted LIMIT 1',
+                      (MAP_LOCK_NAMESPACE,WORLD_LOCK_NAMESPACE)).fetchone()
+    if live:raise RuntimeError('ACTIVE_MAP_OR_WORLD_OWNER_BLOCKS_ACTOR_PUBLICATION')
 
 
 def activate_actor_catalog(conn,manifest_path,mapping_path=MAPPING,pinned_path=PINNED,*,previous_manifest=None):

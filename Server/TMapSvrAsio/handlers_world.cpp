@@ -843,6 +843,19 @@ DispatchWorld(std::uint16_t          wId,
         spdlog::warn("world link: rejected local-only DM_LOADCHAR_REQ");
         break;
 
+    case MessageId::MW_FRIENDLIST_REQ:
+    case MessageId::MW_FRIENDADD_REQ:
+    case MessageId::MW_FRIENDASK_REQ:
+    case MessageId::MW_FRIENDERASE_REQ:
+    case MessageId::MW_FRIENDGROUPMAKE_REQ:
+    case MessageId::MW_FRIENDGROUPDELETE_REQ:
+    case MessageId::MW_FRIENDGROUPCHANGE_REQ:
+    case MessageId::MW_FRIENDGROUPNAME_REQ:
+    case MessageId::MW_FRIENDCONNECTION_REQ:
+    case MessageId::MW_FRIENDREGION_REQ:
+    case MessageId::MW_SOULMATE_REQ:
+    case MessageId::MW_SOULMATEEND_REQ:
+        co_await OnWorldFriendReq(wId,std::move(body),ctx);break;
     case MessageId::MW_CHARINFO_REQ:
         co_await OnMWCharInfoReq(std::move(body),ctx);break;
     case MessageId::MW_ROUTE_REQ:

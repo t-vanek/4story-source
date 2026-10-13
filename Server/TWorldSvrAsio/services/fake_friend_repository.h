@@ -21,20 +21,21 @@ public:
     void SetSoulmate(std::uint32_t char_id, std::uint32_t target,
                      std::uint32_t time_unix);
 
-    FriendLoad LoadForChar(std::uint32_t char_id) override;
+    FriendLoad LoadForChar(std::uint32_t char_id, FriendAuthority authority = {}) override;
 
     bool MakeGroup(std::uint32_t char_id, std::uint8_t group,
-                   const std::string& name) override;
-    bool DeleteGroup(std::uint32_t char_id, std::uint8_t group) override;
+                   const std::string& name, FriendAuthority authority = {}) override;
+    bool DeleteGroup(std::uint32_t char_id, std::uint8_t group, FriendAuthority authority = {}) override;
     bool RenameGroup(std::uint32_t char_id, std::uint8_t group,
-                     const std::string& name) override;
+                     const std::string& name, FriendAuthority authority = {}) override;
     bool ChangeFriendGroup(std::uint32_t char_id, std::uint32_t friend_id,
-                           std::uint8_t group) override;
-    bool InsertFriend(std::uint32_t char_id, std::uint32_t friend_id) override;
-    bool InsertMutualFriends(std::uint32_t char_id, std::uint32_t friend_id) override;
-    bool EraseFriend(std::uint32_t char_id, std::uint32_t friend_id) override;
-    bool RegSoulmate(std::uint32_t char_id, std::uint32_t target) override;
-    bool DelSoulmate(std::uint32_t char_id, std::uint32_t target) override;
+                           std::uint8_t group, FriendAuthority authority = {}) override;
+    bool InsertFriend(std::uint32_t char_id, std::uint32_t friend_id, FriendAuthority authority = {}) override;
+    bool InsertMutualFriends(std::uint32_t char_id, std::uint32_t friend_id, FriendAuthority authority = {}) override;
+    bool EraseFriend(std::uint32_t char_id, std::uint32_t friend_id, FriendAuthority authority = {}) override;
+    bool RegSoulmate(std::uint32_t char_id, std::uint32_t target, FriendAuthority authority = {}) override;
+    bool EndSoulmate(std::uint32_t char_id, std::uint32_t time, FriendAuthority authority = {}) override;
+    bool DelSoulmate(std::uint32_t char_id, std::uint32_t target, FriendAuthority authority = {}) override;
 
 private:
     mutable std::mutex                              m_mtx;

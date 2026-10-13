@@ -57,10 +57,10 @@ void ApplyFriendLoad(const HandlerContext& ctx, TChar& ch,
         TFriend tf;
         tf.id        = f.id;
         tf.name      = f.name;
-        tf.group     = f.group;
+        tf.group     = f.group;tf.level=f.level;tf.klass=f.klass;tf.protected_connection=f.protected_by_owner;
         tf.type      = reverse_ids.count(f.id) ? frnd::kTypeFriendFriend
                                                : frnd::kTypeFriend;
-        tf.connected = ctx.chars && ctx.chars->Find(f.id) != nullptr;
+        tf.connected = !f.protected_by_owner && ctx.chars && ctx.chars->Find(f.id) != nullptr;
         ch.friends.push_back(std::move(tf));
     }
     for (const auto& r : fl.reverse)
@@ -69,15 +69,24 @@ void ApplyFriendLoad(const HandlerContext& ctx, TChar& ch,
         TFriend tf;
         tf.id        = r.id;
         tf.name      = r.name;
-        tf.type      = frnd::kTypeTarget;
-        tf.connected = ctx.chars && ctx.chars->Find(r.id) != nullptr;
+        tf.type      = frnd::kTypeTarget;tf.protected_connection=r.protected_by_owner;
+        tf.connected = !r.protected_by_owner && ctx.chars && ctx.chars->Find(r.id) != nullptr;
         ch.friends.push_back(std::move(tf));
     }
 
-    if (fl.has_soulmate && fl.soulmate_target != 0)
+    ch.inbound_soulmates.clear();
+    for(const auto& row:fl.incoming_soulmates) {
+        ch.inbound_soulmates[row.owner]=TSoulmate{row.target,row.target_name,row.target_level,row.target_class,
+            ctx.chars&&ctx.chars->Find(row.owner)!=nullptr,0};
+    }
+    ch.soulmate=TSoulmate{};
+    ch.soul_silence=0;
+    if(fl.soulmate_time)ch.soul_silence=fl.soulmate_time;
+    if (fl.has_soulmate && fl.soulmate_target != 0 && !fl.soulmate_time)
     {
         ch.soulmate = TSoulmate{};
         ch.soulmate.target    = fl.soulmate_target;
+        ch.soulmate.name=fl.soulmate_name;ch.soulmate.level=fl.soulmate_level;ch.soulmate.klass=fl.soulmate_class;
         ch.soulmate.connected =
             ctx.chars && ctx.chars->Find(fl.soulmate_target) != nullptr;
     }
@@ -119,6 +128,8 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
     // wrapper (set by OnRelaysvrReq).
     const std::uint8_t server_id =
         static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+
+    if(!ctx.peers||!server_id||peer->Wid()!=(0x0400U|server_id)||ctx.peers->Find(peer->Wid())!=peer)co_return;
 
     if (auto existing = ctx.chars->Find(char_id))
     {
@@ -184,11 +195,19 @@ OnAddCharAck(std::shared_ptr<PeerSession>  peer,
     // io_context; skipped when no repo is wired.
     if (ctx.friend_repo)
     {
+        auto operation=co_await ctx.friend_operations->Acquire();
         auto fl = co_await fourstory::db::CoOffloadIf(ctx.db_pool,
-            [repo = ctx.friend_repo, char_id]
-            { return repo->LoadForChar(char_id); });
-        if (auto self = ctx.chars->Find(char_id))
-            ApplyFriendLoad(ctx, *self, fl);
+            [repo=ctx.friend_repo,char_id,key,server_id]
+            {return repo->LoadForChar(char_id,{key,server_id});});
+        if(!fl.authority_valid) {
+            co_await senders::SendMwInvalidCharReq(peer,char_id,key,0);
+            co_return;
+        }
+        if(auto self=ctx.chars->Find(char_id)) {
+            {std::lock_guard guard(self->lock);if(self->key!=key||self->user_id!=user_id||self->closing||self->logout)co_return;}
+            if(!ctx.peers||ctx.peers->Find(peer->Wid())!=peer)co_return;
+            ApplyFriendLoad(ctx,*self,fl);
+        } else co_return;
     }
 
     spdlog::info("OnAddCharAck[{}]: char_id={} user_id={} "
@@ -338,7 +357,7 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
     std::uint16_t party_id = 0;
     std::int64_t  chat_ban_time = 0;
     std::string   self_name;
-    std::uint32_t soulmate_target = 0;
+    std::uint32_t soulmate_target = 0;senders::FriendListSoulmate mate_descriptor;
     {
         std::lock_guard g(self->lock);
         guild_id         = self->guild_id;
@@ -346,7 +365,8 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
         party_id         = self->party_id;
         chat_ban_time    = self->chat_ban_time;
         self_name        = self->name;
-        soulmate_target  = self->soulmate.target;
+        soulmate_target=self->soulmate.target;
+        mate_descriptor={self->soulmate.name,self->soulmate.level,self->soulmate.klass,static_cast<std::uint8_t>(self->soulmate.connected),self->soulmate.region};
     }
 
     if (guild_id && ctx.guilds)
@@ -396,6 +416,12 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
     co_await senders::SendMwCharInfoReq(peer, char_id, key, info);
     co_await senders::SendMwRouteReq(peer, char_id, key,
         channel, map_id, pos_x, pos_y, pos_z);
+    // Original DM_SOULMATELIST_ACK emits this independent packet for an own
+    // directed row, including its silence stamp. CHARINFO has no mate fields.
+    std::string mate_name;std::uint32_t mate_time=0;
+    {std::lock_guard guard(self->lock);mate_name=self->soulmate.name;mate_time=self->soul_silence;}
+    if(soulmate_target||mate_time)
+        co_await senders::SendMwSoulmateReq(peer,char_id,key,soulmate_target,mate_name,mate_time);
 
     // Friend list: groups + non-pending friends, with online status /
     // level / class / region resolved live from the registry. Same
@@ -403,6 +429,7 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
     // (W4-23 — was the deferred zero-sentinel until this slice).
     std::vector<std::pair<std::uint8_t, std::string>> fl_groups;
     std::vector<senders::FriendListRow>               fl_rows;
+    std::unordered_set<std::uint32_t> connected_friends;
     {
         std::lock_guard g(self->lock);
         fl_groups = self->friend_groups;
@@ -412,12 +439,13 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
             senders::FriendListRow row;
             row.id    = f.id;
             row.name  = f.name;
-            row.group = f.group;
+            row.group = f.group;row.level=f.level;row.klass=f.klass;
+            if(f.connected&&!f.protected_connection)connected_friends.insert(f.id);
             fl_rows.push_back(std::move(row));
         }
     }
     for (auto& row : fl_rows)
-        if (auto fc = ctx.chars->Find(row.id))
+        if(connected_friends.contains(row.id))if (auto fc = ctx.chars->Find(row.id))
         {
             std::lock_guard fg(fc->lock);
             row.connected = 1;
@@ -426,7 +454,7 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
             row.region = fc->region;
         }
     co_await senders::SendMwFriendListReq(peer, char_id, key,
-        soulmate_target, fl_groups, fl_rows);
+        soulmate_target,fl_groups,fl_rows,&mate_descriptor);
 
     // CheckChatBan — legacy looks up the cluster-wide m_mapBanChar
     // ban list (deferred — same family as W4-19's deferred cluster-
@@ -545,9 +573,17 @@ OnRegionAck(std::shared_ptr<PeerSession>  peer,
         if (auto p = ctx.chars->Find(soulmate_target))
         {
             std::lock_guard g(p->lock);
-            if (p->soulmate.target == char_id)
-            { p->soulmate.connected = true; p->soulmate.region = region; }
+            auto incoming=p->inbound_soulmates.find(char_id);
+            if(incoming!=p->inbound_soulmates.end())
+            {incoming->second.connected=true;incoming->second.region=region;}
         }
+
+    std::vector<std::uint32_t> soulmate_owners;
+    {std::lock_guard guard(c->lock);for(const auto& [owner,mate]:c->inbound_soulmates)soulmate_owners.push_back(owner);}
+    for(auto owner:soulmate_owners)if(auto incoming=ctx.chars->Find(owner)) {
+        std::lock_guard guard(incoming->lock);
+        if(incoming->soulmate.target==char_id){incoming->soulmate.connected=true;incoming->soulmate.region=region;}
+    }
 
     // Mirror it into each connected real-friend's reverse entry.
     for (const auto& fe : friends)
@@ -682,12 +718,11 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
 
     if(!r.Eof()||!ctx.peers||ctx.peers->Find(peer->Wid())!=peer||(peer->Wid()>>8)!=4)co_return;
 
+    auto operation=co_await ctx.friend_operations->Acquire();
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return;
     std::uint8_t  main_msi = 0;
     std::vector<std::uint8_t> other_msis;
-    std::uint32_t sm_target = 0;
-    std::uint8_t  sm_known_level = 0;
     bool ok = false;
     {
         std::lock_guard g(c->lock);
@@ -700,8 +735,6 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
             for (const auto& con : c->cons)
                 if (con.valid && con.server_id != main_msi)
                     other_msis.push_back(con.server_id);
-            sm_target = c->soulmate.target;
-            sm_known_level = c->soulmate.level;
             ok = true;
         }
     }
@@ -712,33 +745,44 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
         if (auto p = FindMapPeer(ctx, msi))
             co_await senders::SendMwLevelUpReq(p, char_id, key, level);
 
-    if (sm_target != 0)
-    {
-        // Keep the partner's view of our level current.
-        if (auto p = ctx.chars->Find(sm_target))
-        {
-            std::lock_guard g(p->lock);
-            if (p->soulmate.target == char_id) p->soulmate.level = level;
+    // Source OnMW_LEVELUP_ACK walks the whole owner-keyed soulmate map,
+    // including incoming directed pairings. Update each affected own mate and
+    // stamp only that owner's row; never delete the target's independent row.
+    std::vector<std::uint32_t> owners;
+    {std::lock_guard guard(c->lock);
+     if(c->soulmate.target)owners.push_back(char_id);
+     for(const auto& [owner,mate]:c->inbound_soulmates)owners.push_back(owner);}
+    std::sort(owners.begin(),owners.end());owners.erase(std::unique(owners.begin(),owners.end()),owners.end());
+    const auto ended=static_cast<std::uint32_t>(std::time(nullptr));
+    for(const auto owner_id:owners) {
+        auto owner=ctx.chars->Find(owner_id);if(!owner)continue;
+        std::uint32_t owner_key=0,target=0;std::uint8_t server=0,owner_level=0,mate_level=0;
+        {std::lock_guard guard(owner->lock);
+         if(owner->closing||owner->logout||!owner->soulmate.target)continue;
+         if(owner_id!=char_id) {
+             if(owner->soulmate.target!=char_id)continue; // Stale incoming projection.
+             owner->soulmate.level=level;
+         }
+         owner_key=owner->key;target=owner->soulmate.target;server=owner->main_server_id;
+         owner_level=owner->level;mate_level=owner->soulmate.level;}
+        if(owner_id==char_id)if(auto partner=ctx.chars->Find(target)) {
+            std::lock_guard guard(partner->lock);auto incoming=partner->inbound_soulmates.find(owner_id);
+            if(incoming!=partner->inbound_soulmates.end())incoming->second.level=level;
         }
-        // Auto-dissolve if the level gap now exceeds the window
-        // (legacy CheckSoulmateEnd).
-        if (std::abs(int(level) - int(sm_known_level)) >
-            soulmate::kLevelWindow)
-        {
-            { std::lock_guard g(c->lock);
-              if (c->soulmate.target == sm_target) c->soulmate = TSoulmate{}; }
-            if (auto p = ctx.chars->Find(sm_target))
-            { std::lock_guard g(p->lock);
-              if (p->soulmate.target == char_id) p->soulmate = TSoulmate{}; }
-            if (ctx.friend_repo)
-                co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-                    [repo = ctx.friend_repo, char_id, sm_target]
-                    { repo->DelSoulmate(char_id, sm_target);
-                      repo->DelSoulmate(sm_target, char_id); });
-            spdlog::info("OnLevelUpAck[{}]: char_id={} level {} dissolved "
-                         "soulmate {} (gap > {})", ip, char_id, level,
-                sm_target, soulmate::kLevelWindow);
+        if(std::abs(int(owner_level)-int(mate_level))<=soulmate::kLevelWindow)continue;
+        auto main=ctx.peers->Find(static_cast<std::uint16_t>(0x0400U|server));if(!main)continue;
+        if(ctx.friend_repo) {
+            const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [repo=ctx.friend_repo,owner_id,owner_key,server,ended]
+                {return repo->EndSoulmate(owner_id,ended,{owner_key,server});});
+            if(!saved)continue;
         }
+        if(ctx.chars->Find(owner_id)!=owner||ctx.peers->Find(main->Wid())!=main)continue;
+        {std::lock_guard guard(owner->lock);
+         if(owner->key!=owner_key||owner->closing||owner->logout||owner->soulmate.target!=target)continue;
+         owner->soulmate=TSoulmate{};owner->soul_silence=ended;}
+        if(auto partner=ctx.chars->Find(target)){std::lock_guard guard(partner->lock);partner->inbound_soulmates.erase(owner_id);}
+        co_await senders::SendMwSoulmateEndReq(main,owner_id,owner_key,soulmate::kSuccess,ended);
     }
     co_return;
 }

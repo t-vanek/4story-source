@@ -274,9 +274,7 @@ struct EnterCharReqPayload
     std::int64_t  chat_ban_time     = 0;
 
     std::uint32_t soulmate          = 0;
-    std::uint32_t soul_silence      = 0;   // legacy m_dwSoulSilence;
-                                           // not modelled on TChar yet
-                                           // (always 0 today)
+    std::uint32_t soul_silence      = 0;   // legacy m_dwSoulSilence
     std::string   soulmate_name;
 
     std::uint8_t  klass             = 0;
@@ -1819,9 +1817,13 @@ struct FriendListRow
     std::uint32_t region    = 0;
 };
 
+struct FriendListSoulmate {
+    std::string name;std::uint8_t level=0,klass=0,connected=0;std::uint32_t region=0;
+};
+
 // MW_FRIENDLIST_REQ — the char's full friend list (sent when the
-// client opens the friend window). The soulmate slot is emitted as
-// the "no soulmate" sentinel (DWORD 0) until soulmate ports.
+// client opens the friend window). A nonzero soulmate ID is
+// followed by STRING name, BYTE level/class/connected and DWORD region.
 //
 // Wire layout (SSSender.cpp:1723):
 //   DWORD char_id, DWORD key,
@@ -1836,7 +1838,8 @@ boost::asio::awaitable<void> SendMwFriendListReq(
     std::uint32_t                                             key,
     std::uint32_t                                             soulmate_target,
     const std::vector<std::pair<std::uint8_t, std::string>>&  groups,
-    const std::vector<FriendListRow>&                         friends);
+    const std::vector<FriendListRow>&                         friends,
+    const FriendListSoulmate* soulmate=nullptr);
 
 // --- W4-3 friend groups (senders_friend.cpp) ----------------------
 
@@ -1895,6 +1898,10 @@ boost::asio::awaitable<void> SendMwSoulmateSearchReq(
     std::uint32_t                region,
     std::uint8_t                 npc_inven,
     std::uint8_t                 npc_item);
+
+// Original load notification: DWORD char/key/target, STRING name, DWORD silence.
+boost::asio::awaitable<void> SendMwSoulmateReq(std::shared_ptr<PeerSession>,
+    std::uint32_t char_id,std::uint32_t key,std::uint32_t target,const std::string& name,std::uint32_t time);
 
 // MW_SOULMATEREG_REQ — register/preview result.
 //   Wire: DWORD char_id, key, BYTE result, reg, npc_inven,

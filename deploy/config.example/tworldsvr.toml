@@ -1,4 +1,5 @@
-# Container smoke configuration: in-memory registries, no database.
+# World configuration inputs. Production no longer starts without a database.
+# Full native guild/war/event bootstrap and container acceptance remain pending.
 [server]
 port = 3815
 
@@ -8,8 +9,23 @@ port = 3815
 # listener to the private peer network. This is not cryptographic peer identity.
 control_ip_allowlist = []
 
+[database]
+backend = "postgresql"
+# Required private local libpq connection. Never bake a credential into an image.
+connection_string = ""
+pool_size = 4
+worker_threads = 2
+
 [health]
 port = 18087
 
 [log]
 level = "info"
+
+# Native PG World social/mail paths require migrations001-066 and both
+# deploy/sql/world-{social,mail}-runtime-grants.sql. Other World repositories
+# remain an implementation dependency; this is not a complete PG cluster.
+[native_world]
+# Empty accepts ASCII only. Set a lossless ANSI profile only from client/data
+# evidence; the backup Latin1 group names alone do not identify a client EXE.
+client_text_encoding = ""

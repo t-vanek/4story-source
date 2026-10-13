@@ -33,7 +33,7 @@ void FakeFriendRepository::SetSoulmate(std::uint32_t char_id,
     fl.soulmate_time   = time_unix;
 }
 
-FriendLoad FakeFriendRepository::LoadForChar(std::uint32_t char_id)
+FriendLoad FakeFriendRepository::LoadForChar(std::uint32_t char_id, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     auto it = m_data.find(char_id);
@@ -41,7 +41,7 @@ FriendLoad FakeFriendRepository::LoadForChar(std::uint32_t char_id)
 }
 
 bool FakeFriendRepository::MakeGroup(std::uint32_t char_id, std::uint8_t group,
-                                     const std::string& name)
+                                     const std::string& name, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     m_data[char_id].groups.emplace_back(group, name);
@@ -49,7 +49,7 @@ bool FakeFriendRepository::MakeGroup(std::uint32_t char_id, std::uint8_t group,
 }
 
 bool FakeFriendRepository::DeleteGroup(std::uint32_t char_id,
-                                       std::uint8_t group)
+                                       std::uint8_t group, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     auto& v = m_data[char_id].groups;
@@ -60,7 +60,7 @@ bool FakeFriendRepository::DeleteGroup(std::uint32_t char_id,
 
 bool FakeFriendRepository::RenameGroup(std::uint32_t char_id,
                                        std::uint8_t group,
-                                       const std::string& name)
+                                       const std::string& name, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     for (auto& gp : m_data[char_id].groups)
@@ -70,7 +70,7 @@ bool FakeFriendRepository::RenameGroup(std::uint32_t char_id,
 
 bool FakeFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
                                              std::uint32_t friend_id,
-                                             std::uint8_t group)
+                                             std::uint8_t group, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     for (auto& f : m_data[char_id].forward)
@@ -79,7 +79,7 @@ bool FakeFriendRepository::ChangeFriendGroup(std::uint32_t char_id,
 }
 
 bool FakeFriendRepository::InsertFriend(std::uint32_t char_id,
-                                        std::uint32_t friend_id)
+                                        std::uint32_t friend_id, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     auto& fwd = m_data[char_id].forward;
@@ -89,7 +89,7 @@ bool FakeFriendRepository::InsertFriend(std::uint32_t char_id,
     return true;
 }
 
-bool FakeFriendRepository::InsertMutualFriends(std::uint32_t char_id,std::uint32_t friend_id)
+bool FakeFriendRepository::InsertMutualFriends(std::uint32_t char_id,std::uint32_t friend_id, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     // Preserve the existing test adapter's directed-row shape and idempotence.
@@ -104,7 +104,7 @@ bool FakeFriendRepository::InsertMutualFriends(std::uint32_t char_id,std::uint32
     return true;
 }
 bool FakeFriendRepository::EraseFriend(std::uint32_t char_id,
-                                       std::uint32_t friend_id)
+                                       std::uint32_t friend_id, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     auto& fwd = m_data[char_id].forward;
@@ -114,7 +114,7 @@ bool FakeFriendRepository::EraseFriend(std::uint32_t char_id,
 }
 
 bool FakeFriendRepository::RegSoulmate(std::uint32_t char_id,
-                                       std::uint32_t target)
+                                       std::uint32_t target, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     auto& fl = m_data[char_id];
@@ -124,8 +124,15 @@ bool FakeFriendRepository::RegSoulmate(std::uint32_t char_id,
     return true;
 }
 
+bool FakeFriendRepository::EndSoulmate(std::uint32_t char_id,std::uint32_t time,FriendAuthority) {
+    std::lock_guard guard(m_mtx);
+    auto found=m_data.find(char_id);
+    if(found!=m_data.end())found->second.soulmate_time=time;
+    return true;
+}
+
 bool FakeFriendRepository::DelSoulmate(std::uint32_t char_id,
-                                       std::uint32_t target)
+                                       std::uint32_t target, FriendAuthority)
 {
     std::lock_guard g(m_mtx);
     auto& fl = m_data[char_id];

@@ -146,6 +146,9 @@ AppConfig LoadConfig(const std::string& path)
             cfg.database.worker_threads = static_cast<std::size_t>(*v);
         }
     }
+    if(auto native=tbl["native_world"].as_table())
+        if(auto value=(*native)["client_text_encoding"].value<std::string>())
+            cfg.native_world_client_text_encoding=*value;
     if (auto h = tbl["health"].as_table())
     {
         if (auto p = (*h)["port"].value<std::int64_t>())

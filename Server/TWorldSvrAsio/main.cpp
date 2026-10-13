@@ -19,8 +19,6 @@
 #include "services/char_registry.h"
 #include "services/ctrl_svr_slot.h"
 #include "services/event_registry.h"
-#include "services/fake_guild_level_repository.h"
-#include "services/fake_guild_repository.h"
 #include "services/guild_level_cache.h"
 #include "services/guild_registry.h"
 #include "services/mapper_profiles.h"
@@ -35,6 +33,8 @@
 #include "services/soci_guild_level_repository.h"
 #include "services/soci_guild_repository.h"
 #include "services/soci_friend_repository.h"
+#include "services/postgresql_friend_repository.h"
+#include "services/postgresql_world_owner.h"
 #include "services/postgresql_reserved_mail.h"
 #include "fourstory/db/co_offload.h"
 #include "services/soci_item_state_repository.h"
@@ -98,6 +98,10 @@ int main(int argc, char** argv)
     {
         auto cfg = tworldsvr::LoadConfig(config_path);
         spdlog::set_level(cfg.log_level);
+        if(cfg.database.connection_string.empty()||cfg.database.backend.empty())
+            throw std::runtime_error("World requires an explicit database configuration");
+        if(!cfg.database.worker_threads)
+            throw std::runtime_error("World requires database.worker_threads>0");
 
         boost::asio::io_context io;
 
@@ -135,10 +139,9 @@ int main(int argc, char** argv)
         // Pool sizing follows TLoginSvrAsio / TControlSvrAsio: N
         // SOCI sessions + a worker thread_pool that handlers offload
         // synchronous SOCI calls onto via fourstory::db::CoOffloadIf.
-        // Both are nullable — no [database] section keeps the boot
-        // path light for dev runs (the in-memory registries + the
-        // fake guild repo cover every code path that doesn't actually
-        // need persistence).
+        // The production executable requires this infrastructure. Fake
+        // repositories remain available only to the existing test targets.
+        std::unique_ptr<tworldsvr::PostgreSQLWorldOwner> world_owner;
         std::unique_ptr<fourstory::db::SessionPool>      db_pool_owner;
         std::unique_ptr<boost::asio::thread_pool>        worker_pool;
         std::unique_ptr<tworldsvr::IGuildRepository>     guild_repo;
@@ -185,7 +188,14 @@ int main(int argc, char** argv)
 
             if(backend==fourstory::db::Backend::PostgreSQL) {
                 if(!worker_pool)throw std::runtime_error("Native World mail requires database.worker_threads>0");
-                reserved_mail=std::make_unique<tworldsvr::PostgreSQLReservedMail>(*db_pool_owner,cfg.group_id);
+                world_owner=std::make_unique<tworldsvr::PostgreSQLWorldOwner>(cfg.database.connection_string,cfg.group_id);
+                friend_repo=std::make_unique<tworldsvr::PostgreSQLFriendRepository>(*db_pool_owner,cfg.group_id,
+                    world_owner->Token(),cfg.native_world_client_text_encoding,[&io,&friend_persistence_failed] {
+                        if(!friend_persistence_failed.exchange(true))
+                            spdlog::critical("native social persistence failed; World stopped for reconciliation");
+                        io.stop();
+                    });
+                reserved_mail=std::make_unique<tworldsvr::PostgreSQLReservedMail>(*db_pool_owner,cfg.group_id,world_owner->Token());
             }
 
             // Fail-fast on missing TGUILD* columns before the
@@ -196,10 +206,10 @@ int main(int argc, char** argv)
             guild_level_repo =
                 std::make_unique<tworldsvr::SociGuildLevelRepository>(
                     *db_pool_owner);
-            friend_repo = std::make_unique<tworldsvr::SociFriendRepository>(
+            if(!friend_repo)friend_repo = std::make_unique<tworldsvr::SociFriendRepository>(
                 *db_pool_owner,[&io,&friend_persistence_failed] {
                     if(!friend_persistence_failed.exchange(true))
-                        spdlog::critical("mutual friend persistence failed; World stopped for reconciliation");
+                        spdlog::critical("social persistence failed; World stopped for reconciliation");
                     io.stop();
                 });
             item_state_repo =
@@ -232,15 +242,6 @@ int main(int argc, char** argv)
             bow_repo =
                 std::make_unique<tworldsvr::SociBowRepository>(
                     *db_pool_owner);
-        }
-        else
-        {
-            spdlog::info("no [database] — registries are the only "
-                         "persistence layer; using FakeGuildRepository "
-                         "+ FakeGuildLevelRepository (empty TGUILDCHART)");
-            guild_repo = std::make_unique<tworldsvr::FakeGuildRepository>();
-            guild_level_repo =
-                std::make_unique<tworldsvr::FakeGuildLevelRepository>();
         }
 
         // --- Char + guild registries ------------------------------
@@ -370,8 +371,7 @@ int main(int argc, char** argv)
         }
 
         // Warm the guild-level chart from the backing store. Empty
-        // on the FakeGuildLevelRepository path; SOCI returns every
-        // TGUILDCHART row in production. Handlers consult Find()
+        // SOCI returns every TGUILDCHART row. Handlers consult Find()
         // for per-level caps (CheckPeerage gate, AddMember cap,
         // cabinet slot count). nullptr-tolerant.
         if (guild_level_repo)
@@ -381,8 +381,7 @@ int main(int argc, char** argv)
                 guild_levels.Size());
         }
 
-        // Warm the guild cache from the backing store. Empty for
-        // the no-DB / fake repo path; a real DB returns every
+        // Warm the guild cache from the required backing store: every
         // non-disbanded TGUILDTABLE row.
         if (guild_repo)
         {
@@ -519,6 +518,22 @@ int main(int argc, char** argv)
             month_sweeper->Start();
             spdlog::info("month-rollover check enabled (period={}s)",
                 cfg.month_rollover_check_period_sec);
+        }
+
+        std::shared_ptr<fourstory::ops::RegistryRefresher> world_owner_sweeper;
+        if(world_owner) {
+            world_owner_sweeper=fourstory::ops::RegistryRefresher::Make(io,std::chrono::seconds(1));
+            world_owner_sweeper->AddCoroutineHook(
+                [&io,&friend_persistence_failed,owner=world_owner.get(),workers=worker_pool.get()]()
+                    ->boost::asio::awaitable<void> {
+                    const auto healthy=co_await fourstory::db::CoOffloadIf(workers,[owner]{return owner->Healthy();});
+                    if(!healthy) {
+                        if(!friend_persistence_failed.exchange(true))
+                            spdlog::critical("native World ownership lost; stopped without reclaim or write replay");
+                        io.stop();
+                    }
+                });
+            world_owner_sweeper->Start();
         }
 
         // W6-43: war-country index - boot load + periodic refresh
@@ -673,6 +688,7 @@ int main(int argc, char** argv)
         if (wanted_sweeper) wanted_sweeper->Stop();
         if (tactics_sweeper) tactics_sweeper->Stop();
         if (reserved_mail_sweeper) reserved_mail_sweeper->Stop();
+        if(world_owner_sweeper)world_owner_sweeper->Stop();
 
         // Drain in-flight SOCI work before tearing the pool down so
         // a query doesn't keep a session reference alive past the

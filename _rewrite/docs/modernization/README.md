@@ -25,6 +25,16 @@ The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
 
+Code `e84ece4` / `65be6d1` integrates quest SENDPOST and native offline bill
+returns. QUESTEXEC/child hooks select original rewards into the fenced reserved
+queue; World returns due offline bills with authoritative item ownership and
+notification/audit in one transaction. Written064/065 and `--quest-mail` are
+unexecuted. Map/World compile/link in Debug/Release; no tests, DB or runtime ran.
+The backup appearance omission is explicitly repaired from CTItem; source gem/
+grade losses and distinct online/offline sender-ID rules are preserved. Full
+Phase A, PostgreSQL-only World bootstrap and original-client acceptance remain
+incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-quest-mail-offline-bills-20261013/README.md).
+
 Code `45d130d` integrates the World minute timer and native reserved-mail delivery:
 source batch limit30, new item IDs at delivery, raw attributes, post/status and
 Map notification receipts commit together. Written063, grants and historical

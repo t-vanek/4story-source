@@ -5,13 +5,26 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
+**Current Phase A, `e84ece4` / `65be6d1`:** written migration chain001–065
+(next066). New044–065 are unapplied. Migration064 adds complete pinned
+TQTITLECHART byte publication via `activate_quest_catalog.py --quest-mail`;
+source prefix/truncation and NULL behavior are preserved. Quest SENDPOST writes
+native TRESERVEDPOST inside the existing fenced quest transaction. Migration065
+adds the native offline bill clock/audit, using normalized post attachment
+ownership and the existing World worker. Player send/protected/import paths061,
+notification audit062 and World reserved delivery/import063 remain integrated,
+unverified. Reapply written Map/World mail grants after the later Phase B upgrade.
+No database publication/import/migration or runtime was performed. Full native
+World/social/other producers and PG-only runtime remain incomplete.
+[Source contracts and compile-only evidence](../_rewrite/docs/modernization/evidence/phase-a-quest-mail-offline-bills-20261013/README.md).
+
 Code `d3904c5` additionally writes060 for native return/payment, normalized mail
 ownership and durable notification receipts. `import_mailboxes.py` requires an
 explicit complete archival manifest, character mapping, source clock and text
 profiles; it refuses unresolved obsolete attachment rows. Both are unexecuted.
 [Source scope and deferred migration acceptance](../_rewrite/docs/modernization/evidence/phase-a-mail-returns-20261013/README.md).
 
-**Current Phase A code `d3904c5`:** the migration chain reaches060 (next061).
+**Historical Phase A code `d3904c5`:** the migration chain reaches060 (next061).
 New044–060 migrations and import/publication tools are written only. Migration059
 adds native post attachment ownership, original server-message byte publication
 and post text byte storage, preserving pre-existing carried-item fingerprints.

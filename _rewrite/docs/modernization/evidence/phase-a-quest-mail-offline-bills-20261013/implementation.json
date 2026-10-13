@@ -1,0 +1,183 @@
+{
+  "recorded_at": "2026-10-13T19:22:04.094664+00:00",
+  "base_commit": "c537883",
+  "code_commit": "c2a90ba8b551130e3eb6f507a537d2e96833e741",
+  "quest_mail_commit": "e84ece4e624e5aed99d9e06ee197c80cea83fc4d",
+  "branch": "main",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "publication_and_migration_state": "IMPLEMENTED_UNVERIFIED",
+  "scope": "Original QT_SENDPOST -> fenced native queue -> existing World/Map delivery; World offline bill job -> atomic post/items/receipt; not full quests/mail/World runtime",
+  "source_references": [
+    "Server/TMapSvr/QuestSendPost.cpp::ExecQuest",
+    "Server/TMapSvr/SSSender.cpp::SendDM_QUESTSENDPOST_REQ",
+    "Server/TMapSvr/SSHandler.cpp::OnDM_QUESTSENDPOST_REQ",
+    "Server/TMapSvr/DBAccess.h::CSPQuestSendPost",
+    "Server/TMapSvr/TItem.cpp::Copy/SetDuration/SetEndTime",
+    "Lib/Own/TNetLib/TNetLib/TNetDef.h::__TIMETODB",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TQuestSendPost.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TJobsPostReturn.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TPostBillsUpdate.sql",
+    "_rewrite/docs/database-reconstruction/evidence/backup-schema.json"
+  ],
+  "files": [
+    {
+      "path": "Lib/Own/FourStoryCommon/fourstory/db/native_mail_lock.h",
+      "sha256": "3296bb7807ca2b5036572d53b04f1c0a64e2d9f4b9240a4d8d23c8ba0786e5ff"
+    },
+    {
+      "path": "Server/TMapSvrAsio/CMakeLists.txt",
+      "sha256": "f720bba5fafaea431bd3977c468dd711137b1ff27e56f480e478329cca507599"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
+      "sha256": "57a987adda89045de9c10e9fd3b74cc25402a21b29aad6b6fadaa3c0f3799f11"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_quest_items.cpp",
+      "sha256": "13bddb8f5112303aa79cf71cef8975f45c2b80c1974ab0afaca04650c6836a86"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_quest_mail.cpp",
+      "sha256": "f1c8bca57ec1e7cd8e9d14206c3c6250e6c4e740fd9480db667c655ad82a094c"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_service.h",
+      "sha256": "a34a42badd023e89f273e7e6b253e4fe65207c3e61fe7362d01210b3e89b5b12"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/main.cpp",
+      "sha256": "5db6bc901031d1d26044857a028c8bebc3b860c8e625370f466f8836ccf2b155"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_reserved_mail.cpp",
+      "sha256": "75be04528e7630c75f7f0e1e7d8303bd2d69c34a8eefec5f68e18071d5c28be2"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_reserved_mail.h",
+      "sha256": "c1e8f24561f30b0c0cbd916444ff6eeea9687b228798446226fb680cc2a66efe"
+    },
+    {
+      "path": "database/postgresql/064-native-quest-mail-content.sql",
+      "sha256": "be186403edf5eb2b7338cc4763459e0a7175f4bbefcc196e3c9e7767aae1ab0c"
+    },
+    {
+      "path": "database/postgresql/065-native-offline-bill-return.sql",
+      "sha256": "7c2809b57e0a6d2f1ea3a34d9a8c4187300c051879096aae77bb92d0010e091e"
+    },
+    {
+      "path": "deploy/sql/map-runtime-grants.sql",
+      "sha256": "aafe344470be78abba32a259f773f00e634413ebdc3907f777a8541279330008"
+    },
+    {
+      "path": "deploy/sql/world-mail-runtime-grants.sql",
+      "sha256": "e3aabf3e28bb37cab76aaeec3c70d27fd92b36ad9cc85ba9f4fe583a8453c9ef"
+    },
+    {
+      "path": "tools/database/activate_quest_catalog.py",
+      "sha256": "3ecc4f6f6b3ecc5c46a1ce095783d42874a3152976129f9c4c71edd0b0b8d884"
+    }
+  ],
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tmapsvr_asio tworldsvr_asio -j1",
+      "exit_code": 0,
+      "logs": [
+        "debug-build.log",
+        "debug-final-build.log"
+      ]
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tmapsvr_asio tworldsvr_asio -j1",
+      "exit_code": 0,
+      "logs": [
+        "release-build.log",
+        "release-final-build.log"
+      ]
+    }
+  ],
+  "build_testing": false,
+  "cpp_standard": "C++20",
+  "native_postgresql_build": true,
+  "incremental_builds": true,
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "4.3.0",
+  "static_checks": [
+    "git diff --check",
+    "Python AST parse only; no publisher/importer execution",
+    "Original call graph and SQL column/parameter review"
+  ],
+  "historical_migrations_001_063_unchanged": true,
+  "new_migrations": [
+    "064-native-quest-mail-content.sql",
+    "065-native-offline-bill-return.sql"
+  ],
+  "preserved_backups": [
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "size_bytes": 34009088,
+      "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259"
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "size_bytes": 36560896,
+      "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+    }
+  ],
+  "tests_executed": 0,
+  "migrations_applied": 0,
+  "publication_runs": 0,
+  "import_runs": 0,
+  "server_runs": 0,
+  "client_sessions": 0,
+  "sanitizer_runs": 0,
+  "container_builds": 0,
+  "container_starts": 0,
+  "published": false,
+  "runtime_postgresql_only": false,
+  "supported_client_binary": null,
+  "source_conflict_repairs": {
+    "TQuestSendPost.wMoggItemID": "Explicit original CTItem appearance; constructor0 and magic Copy field; backup omission NOT NULL/no default remains archived unchanged",
+    "TJobsPostReturn.attachments": "Replace obsolete TPOSTITEMTABLE mutation with sole authoritative native STORAGE_POST ownership, atomic with post/notification/audit"
+  },
+  "source_losses_preserved": [
+    "TQuestSendPost ignores bGradeEffect argument; source default0",
+    "TQuestSendPost inserts bGem literal0",
+    "Offline TJobsPostReturn retains dwSendID; online TPostBillsUpdate swaps it",
+    "Absent/NULL TQTITLE is source return2 with no post; CQuestSendPost bRun still executes children"
+  ],
+  "modern_differences": [
+    "Queue and child quest effects share one ownership-fenced transaction",
+    "Reject source BYTE loop/packet overflow, zero stack divisor, NUL/unrepresentable bytes and oversized sender without data loss",
+    "Strict CP1252 decoding from actual Latin1 backup columns; exact source byte publication",
+    "Offline World durable minute scheduler with128 batch bound; source SQL Agent schedule not available",
+    "Offline Login account barrier, ordered nonblocking mailbox locks, atomic normalized item/post/notification/audit",
+    "Retain missing sender bills instead of orphaning attachments",
+    "UTC clock policy and unknown COMMIT poison/World stop",
+    "World account locking grant allows dLastLogin only, not changing account IDs; no actual account UPDATE in worker"
+  ],
+  "remaining": [
+    "Full native World bootstrap/ownership/social/guild/event repositories",
+    "Admin/event/BR/rank and other original mail producers; notification retention and source staged-save/obsolete import reconciliation",
+    "Quest DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/REGEN and broader event producers",
+    "Complete combat/AI/economy/social/modes/operational scope",
+    "Phase B migration/import/PG/protocol/concurrency/fault/original-client acceptance",
+    "Phase C complete local containers"
+  ],
+  "deferred_verification": [
+    "All unit/integration/regression/protocol/TCP/PG tests",
+    "Actual publication/import/migration and role grants",
+    "Source SQL literal bytes, prefix casing/long-text truncation/NULL branching",
+    "Multi-World/Map/Login races, restart, crash, unknown commit and DB failure",
+    "Original executable/assets unavailable; binary identity unsupported",
+    "Sanitizers and complete local cluster"
+  ],
+  "preserved_unrelated_work": [
+    "_rewrite/docs/audits/"
+  ],
+  "compiled_cpp_commit": "65be6d14c243c5104ea91e28ae0d4e0828e93af5",
+  "sql_grant_commit": "c2a90ba8b551130e3eb6f507a537d2e96833e741"
+}

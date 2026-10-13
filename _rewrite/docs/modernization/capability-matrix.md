@@ -20,10 +20,20 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–063 and archival/import tools are written, not executed. Earlier increments compiled all six modern binaries at their recorded revisions.
+Migrations044–065 and archival/import tools are written, not executed. Earlier increments compiled all six modern binaries at their recorded revisions.
 The current changed Map/World targets compile in Debug/Release; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
 [Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
+
+Code `e84ece4` / `65be6d1` integrates quest SENDPOST and native offline bill
+returns. QUESTEXEC/child hooks select original rewards into the fenced reserved
+queue; World returns due offline bills with authoritative item ownership and
+notification/audit in one transaction. Written064/065 and `--quest-mail` are
+unexecuted. Map/World compile/link in Debug/Release; no tests, DB or runtime ran.
+The backup appearance omission is explicitly repaired from CTItem; source gem/
+grade losses and distinct online/offline sender-ID rules are preserved. Full
+Phase A, PostgreSQL-only World bootstrap and original-client acceptance remain
+incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-quest-mail-offline-bills-20261013/README.md).
 
 Code `45d130d` integrates the World minute timer and native reserved-mail delivery:
 source batch limit30, new item IDs at delivery, raw attributes, post/status and
@@ -44,7 +54,9 @@ quest/event/admin mail, offline jobs and gameplay remain required.
 |---|---|---|
 | Player mail normal/package/bill | Original53A2 → source recipient/country/block/capacity/funds/raw item gates → fenced PG transaction → ordered53A3 response | Trade reservation producers; native name/collation profile; World/event/offline mail; no Phase B/client acceptance |
 | Protected lists | Original5377/5379/5472 → native remembered bytes/options → admission5376 and original graph transfer | Chat/invite/deal/duel consumers; atomic World friend persistence; no database/import/client acceptance |
-| World reserved delivery | World minute → PG pending queue → atomic post/new raw item/status/receipt → fenced Map53A4 | Quest/admin/event/BR/rank producers; full native World bootstrap; no PG/client acceptance |
+| Quest mail SENDPOST | Original QUESTEXEC/child hooks → source reward selection/raw fields/title bytes → fenced PG reserved queue → existing World/Map delivery | Other event producers/actions; exact SQL/wire/PG acceptance; full World bootstrap |
+| World reserved delivery | World minute → PG pending queue → atomic post/new raw item/status/receipt → fenced Map53A4 | Admin/event/BR/rank producers; full native World bootstrap; no PG/client acceptance |
+| Offline bill return | World worker → offline recipient/stored-time gate → Login/mailbox barriers → atomic post/raw attachment owners/notification/audit | Source SQL Agent schedule unavailable; historical obsolete/staged reconciliation; no PG/failure/client acceptance |
 | Queued mail notifications | Enqueue audit retained; original recipient live second; return cancels obsolete receipt; current primary timer delivers53A4 | Failure/recovery/counter tests and receipt retention |
 
 Code `d3904c5` adds **INTEGRATED_UNVERIFIED** POSTRETURN/payment, sender-owned

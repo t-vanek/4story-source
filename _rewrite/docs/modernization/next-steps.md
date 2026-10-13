@@ -17,7 +17,33 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–063; the next free number is064.
+immutable. Phase A has added unapplied migrations044–065; the next free number is066.
+
+Code `e84ece4` / `65be6d1` integrates quest SENDPOST and native offline bill
+returns. QUESTEXEC/child hooks select original rewards into the fenced reserved
+queue; World returns due offline bills with authoritative item ownership and
+notification/audit in one transaction. Written064/065 and `--quest-mail` are
+unexecuted. Map/World compile/link in Debug/Release; no tests, DB or runtime ran.
+The backup appearance omission is explicitly repaired from CTItem; source gem/
+grade losses and distinct online/offline sender-ID rules are preserved. Full
+Phase A, PostgreSQL-only World bootstrap and original-client acceptance remain
+incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-quest-mail-offline-bills-20261013/README.md).
+
+Active next source paths after this increment:
+
+1. `TWorldSvrAsio/db/schema_validator.cpp`, World main and native ownership:
+   replace the remaining legacy bootstrap/repositories, starting with mutual
+   friend erase behind PROTECTEDCHECK and source social transactions.
+2. Quest DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/REGEN plus non-request
+   kill/position/map/monster producers; preserve completed SENDPOST and rewards.
+3. Other admin/event/BR/rank reserved-mail producers; notification retention and
+   historical staged-save/obsolete attachment reconciliation. Offline bill
+   returns are integrated, not executed or accepted.
+4. Complete all other Phase A gameplay/operational responsibilities. Then perform
+   the whole static implementation gate, Phase B and Phase C in that order.
+
+The older increment notes below retain their original scope; the two gaps for
+SENDPOST and the offline job are superseded by the current code above.
 
 Code `45d130d` integrates the World minute timer and native reserved-mail delivery:
 source batch limit30, new item IDs at delivery, raw attributes, post/status and

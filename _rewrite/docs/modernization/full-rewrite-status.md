@@ -8,14 +8,44 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–063 are **written, not applied**.
-Latest code increment: `45d130d` (World reserved-mail delivery/importer), based on `0f05d33`.
+evidence remain unchanged. New migrations044–065 are **written, not applied**.
+Latest code increments: `e84ece4` / `65be6d1` (quest mail and offline bill returns), based on `c537883`.
+Previous code increment: `45d130d` (World reserved-mail delivery/importer), based on `0f05d33`.
 Previous code increments: `85bf923` / `feea4a1` / `b4ff581` (player mail send/protected lists/importer), based on `8cd91ff`.
 Previous code increment: `d3904c5` (native mail returns/payment/notifications/importer),
 based on `802a232`. Previous `18ee496` implements item expiration and mail, based on `abc40d4`.
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Quest mail and offline bill returns — `e84ece4` / `65be6d1`
+
+- Original QT_SENDPOST now reaches the existing native QUESTEXEC/child/reward
+  transaction: source selection/order, raw item chunks, temporary versus delivery
+  identities, exact title/message bytes and child gate. Queue and child effects
+  share account/owner/epoch/head/checkpoint fences. Missing/NULL title is source
+  SP return2 with no mail, while the original true bRun still executes children.
+- Written064 and explicit offline `--quest-mail` publish the complete pinned
+  TQTITLECHART byte/value profile against the active Map/character/actor receipts.
+  Actual backup columns are varchar/Latin1, not assumed Unicode. Prefix lengths
+  and post-prefix truncation are retained. Appearance takes actual CTItem state
+  as a documented repair of the omitted NOT NULL field; grade effect/gem source
+  losses remain0. The archive and migrations001–063 are unchanged.
+- Actual World DB worker now runs recipient-offline TJobsPostReturn semantics:
+  stored receive-time expiry, source retained dwSendID, atomic native item/post/
+  notification/audit and shared Login account/mailbox barriers. Missing senders
+  retain bills/items and produce a warning. Native minute/batch128 and normalized
+  attachment authority replace the unknown SQL Agent schedule/obsolete table
+  explicitly. Unknown commit stops World without replay.
+- Map and World Debug/Release compile/link passed. No migration, publication,
+  import, test, server, sanitizer or container ran. All new production scope is
+  **INTEGRATED_UNVERIFIED**, SQL/tool publication **IMPLEMENTED_UNVERIFIED**.
+- Next: complete native World bootstrap/ownership/social repositories; other
+  quest map/monster/effect actions and non-request event producers; admin/event/
+  BR/rank mail, notification retention and obsolete/staged import reconciliation;
+  full combat/AI/economy/social/modes. Full Phase A and PG-only runtime are incomplete.
+
+[Source scope, explicit differences and deferred acceptance](evidence/phase-a-quest-mail-offline-bills-20261013/README.md).
 
 ## World reserved-mail delivery — `45d130d`
 
@@ -436,12 +466,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    upgrade branches are now integrated at0fe24d2, not verified. Preserve the new
    full-stack/magic/caller behavior and exact per-operation World observation;
    it is not a complete event replay/recovery barrier.
-   Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN
+   Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/REGEN
    and all non-request kill/use-item/position/spawn producers. Quest mail uses
    TRESERVEDPOST then TGetReservedPost and storage2. Migration059 now provides
    native attachment ownership, expired-bag delivery and read/claim/delete paths;
-   returns/payment and an offline importer are added byd3904c5. Continue reserved
-   producers, POSTSEND, offline expiry/job reconciliation and exact source import
+   returns/payment and an offline importer are added byd3904c5. Quest mail and offline returns are integrated at e84ece4/65be6d1. Continue other
+   reserved producers, staged/obsolete import reconciliation and exact source import
    blockers using that same ownership path. Do not add another mail backend.
 2. Implement source Map switches (QCT20), neutral NPC territory authority and
    conditional guild/hero trainer discounts. No substitute country/switch values.

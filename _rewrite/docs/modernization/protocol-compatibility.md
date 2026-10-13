@@ -4,6 +4,19 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
+Code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
+soulmate persistence (written migration066), original Map friend/group relays,
+conditional soulmate FRIENDLIST fields and Map soulmate state/end handling.
+Native social/mail transactions fence the current World; social writes also
+validate primary Map/session claims. Commits precede cache/replies; uncertain
+writes stop World without replay.
+The full historical social importer/grants and offline World barriers are written
+only. Production World now requires an explicit database, while native guild/war/
+event bootstrap and complete soulmate Map economy/XP/load checks remain unfinished.
+Map/World compile/link in Debug and Release; no tests, DB or runtime ran.
+These scoped paths are **INTEGRATED_UNVERIFIED**, and Phase A/PG-only runtime are
+still incomplete. [Source contracts, repairs and compile evidence](evidence/phase-a-native-social-20261013/README.md).
+
 Phase A additions after `2fa2396` are **INTEGRATED_UNVERIFIED**: native quest list
 and timers after CHARINFO; original NPCTALK/QUESTDROP/QUESTENDTIMER results;
 QUESTEXEC branches for default talk, NPC talk, chapter, drop, mission/guild action,
@@ -13,7 +26,7 @@ prototype; missing action/world integrations still reject rather than issue a
 fabricated success. See [working status](full-rewrite-status.md) for explicit
 changes to tie ordering, randomness, UTC expiration and transaction boundaries.
 
-Code `11e0df1` / `dd07164` additionally repairs both mutual-friend acceptance
+Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
 with registered ready-primary checks before persistence and after await. Any
 mutual persistence failure stops World without a write replay. World compiles

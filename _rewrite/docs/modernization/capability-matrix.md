@@ -2,6 +2,19 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
+Code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
+soulmate persistence (written migration066), original Map friend/group relays,
+conditional soulmate FRIENDLIST fields and Map soulmate state/end handling.
+Native social/mail transactions fence the current World; social writes also
+validate primary Map/session claims. Commits precede cache/replies; uncertain
+writes stop World without replay.
+The full historical social importer/grants and offline World barriers are written
+only. Production World now requires an explicit database, while native guild/war/
+event bootstrap and complete soulmate Map economy/XP/load checks remain unfinished.
+Map/World compile/link in Debug and Release; no tests, DB or runtime ran.
+These scoped paths are **INTEGRATED_UNVERIFIED**, and Phase A/PG-only runtime are
+still incomplete. [Source contracts, repairs and compile evidence](evidence/phase-a-native-social-20261013/README.md).
+
 All current changes are **UNVERIFIED**. Historical VERIFIED entries below apply
 only to their recorded commits. See [working coverage](full-rewrite-status.md)
 and [source-to-runtime rows](legacy-modern-coverage.csv). Added native quest
@@ -20,12 +33,12 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–065 and archival/import tools are written, not executed. Earlier increments compiled all six modern binaries at their recorded revisions.
+Migrations044–066 and archival/import tools are written, not executed. Earlier increments compiled all six modern binaries at their recorded revisions.
 The current changed Map/World targets compile in Debug/Release; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
 [Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
 
-Code `11e0df1` / `dd07164` additionally repairs both mutual-friend acceptance
+Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
 with registered ready-primary checks before persistence and after await. Any
 mutual persistence failure stops World without a write replay. World compiles
@@ -328,7 +341,7 @@ been verified.
 | Money, trade, shops, crafting/upgrades | Existing money/loot/NPC handlers and World cash/item operations; enumerate original CS branches | Atomic ownership and currency changes, rollback/races | Money/loot/item tool/cashsale tests are partial | IMPLEMENTING; duplication/race/reconnect acceptance pending |
 | Parties and corps | World party/corps registries and handler modules | Persistence only where original durability is proven | Party join/order/move/delete/corps suites | INTEGRATED subset; full Map/World/client behavior comparison pending |
 | Guilds, peerage, tactics, cabinet | Existing World guild handlers/repos/cache | Backup-vs-validator fields and role-code meanings require separate derived schema | Numerous guild and cabinet codec tests | IMPLEMENTING PG; never invent role codes/fields as historical data |
-| Friends, chat, soulmate, social | World friend/chat/soulmate handlers and existing repository interfaces | Friend/chat-ban/soulmate persistence pending | Existing load/persist/group/presence/reply tests | INTEGRATED subsets; PG and complete client proof pending |
+| Friends, chat, soulmate, social | Native World repository/ownership and Map friendship/state/end dispatch; remaining source social systems | Written066 directed friends/groups/soulmate; chat/guild/other persistence pending | Original server/client parser inspection and Debug/Release compilation at1f1eb59/e709281; no new tests | INTEGRATED_UNVERIFIED scoped native friends/groups/state/end; full soulmate economy/XP/load checks and World bootstrap IMPLEMENTING |
 | Mail/posts, rankings and events | World post/rank/monthrank/event schedulers and handlers | Persistent post/rank/event state pending | Dedicated World tests | IMPLEMENTING; restart recovery and epoch/time semantics pending |
 | Castle/territory/war, arena, tournament, Bow/BR | Existing World war/tournament/Bow/BR registries, schedulers, repositories and Map modes | Event/reward/ranking transactions pending | Existing branch-specific suites | IMPLEMENTING; complete simulation/mode and native persistence acceptance pending |
 | Mounts, pets, recalls, companions | Map companion service; World recall/spolecnik handlers | Backed-up procedures and companion state need semantic mapping | Companion/recall handler tests | IMPLEMENTING; dynamic attribute levels require a new catalog contract |

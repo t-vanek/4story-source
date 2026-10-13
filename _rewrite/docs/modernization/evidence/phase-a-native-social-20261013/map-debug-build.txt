@@ -1,0 +1,273 @@
+[0/1] Re-running CMake...
+-- OpenSSL legacy provider: /usr/lib/ossl-modules/legacy.so
+-- Configuring done (0.1s)
+CMake Warning at Server/TLoginSvrAsio/CMakeLists.txt:115 (add_executable):
+  Cannot generate a safe runtime search path for target tloginsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TPatchSvrAsio/CMakeLists.txt:56 (add_executable):
+  Cannot generate a safe runtime search path for target tpatchsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TLogSvrAsio/CMakeLists.txt:52 (add_executable):
+  Cannot generate a safe runtime search path for target tlogsvr_asio because
+  files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TControlSvrAsio/CMakeLists.txt:92 (add_executable):
+  Cannot generate a safe runtime search path for target tcontrolsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TMapSvrAsio/CMakeLists.txt:213 (add_executable):
+  Cannot generate a safe runtime search path for target tmapsvr_asio because
+  files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TWorldSvrAsio/CMakeLists.txt:169 (add_executable):
+  Cannot generate a safe runtime search path for target tworldsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TLoginSvrAsio/CMakeLists.txt:122 (add_executable):
+  Cannot generate a safe runtime search path for target
+  tloginsvr_bcrypt_migrate because files in some directories may conflict
+  with libraries in implicit directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+-- Generating done (0.0s)
+-- Build files have been written to: /home/tomasvanek/RiderProjects/4story-source/build/phase-a-compile
+[1/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/config.cpp.o
+[2/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/map_server.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp: In member function ‘boost::asio::awaitable<void> tmapsvr::MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp:203:17: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  203 |                 if(ctx.skill_cooldown&&identity->phase!=SessionPhase::TransferOut)
+      |                 ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp:205:21: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  205 |                     auto* player = ctx.player_service;
+      |                     ^~~~
+[3/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/ops/admin_shell.cpp.o
+[4/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_world.cpp.o
+[5/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_native_entry.cpp.o
+[6/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_main_transfer.cpp.o
+[7/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/dispatch.cpp.o
+[8/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/session.cpp.o
+[9/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/movement.cpp.o
+[10/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/npc.cpp.o
+[11/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/skill.cpp.o
+[12/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/inventory.cpp.o
+[13/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/title.cpp.o
+[14/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/secure_code.cpp.o
+[15/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/maintained_effect.cpp.o
+[16/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/character_statistics.cpp.o
+[17/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/combat.cpp.o
+[18/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/loot.cpp.o
+[19/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/quest.cpp.o
+[20/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/social.cpp.o
+[21/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/friend.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp: In function ‘boost::asio::awaitable<void> tmapsvr::OnFriendReq(std::shared_ptr<tnetlib::AsioSession>, uint16_t, std::vector<std::byte>, const HandlerContext&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:58:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   58 |         if(!r.ReadString(name))throw std::runtime_error("Invalid FRIENDASK");Text(name);
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:58:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   58 |         if(!r.ReadString(name))throw std::runtime_error("Invalid FRIENDASK");Text(name);
+      |                                                                              ^~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:69:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   69 |         if(!r.ReadString(name)||!r.Read(reply))throw std::runtime_error("Invalid FRIENDREPLY");Text(name);
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:69:96: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   69 |         if(!r.ReadString(name)||!r.Read(reply))throw std::runtime_error("Invalid FRIENDREPLY");Text(name);
+      |                                                                                                ^~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:72:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   72 |         if(!r.Read(target))throw std::runtime_error("Invalid FRIENDERASE");relay=MessageId::MW_FRIENDERASE_ACK;break;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:72:76: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   72 |         if(!r.Read(target))throw std::runtime_error("Invalid FRIENDERASE");relay=MessageId::MW_FRIENDERASE_ACK;break;
+      |                                                                            ^~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:74:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   74 |         if(!r.Read(group)||!r.ReadString(name))throw std::runtime_error("Invalid FRIENDGROUP text");Text(name);
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:74:101: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   74 |         if(!r.Read(group)||!r.ReadString(name))throw std::runtime_error("Invalid FRIENDGROUP text");Text(name);
+      |                                                                                                     ^~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:84:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   84 |         if(!r.Read(group))throw std::runtime_error("Invalid FRIENDGROUPDELETE");relay=MessageId::MW_FRIENDGROUPDELETE_ACK;break;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:84:81: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   84 |         if(!r.Read(group))throw std::runtime_error("Invalid FRIENDGROUPDELETE");relay=MessageId::MW_FRIENDGROUPDELETE_ACK;break;
+      |                                                                                 ^~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:86:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   86 |         if(!r.Read(target)||!r.Read(group))throw std::runtime_error("Invalid FRIENDGROUPCHANGE");relay=MessageId::MW_FRIENDGROUPCHANGE_ACK;break;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:86:98: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   86 |         if(!r.Read(target)||!r.Read(group))throw std::runtime_error("Invalid FRIENDGROUPCHANGE");relay=MessageId::MW_FRIENDGROUPCHANGE_ACK;break;
+      |                                                                                                  ^~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp: In function ‘boost::asio::awaitable<void> tmapsvr::OnWorldFriendReq(uint16_t, std::vector<std::byte>, const HandlerContext&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:115:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  115 |         if(!r.Read(result)||!r.Read(target)||!r.ReadString(name)||!r.Read(level)||!r.Read(group)||!r.Read(klass)||!r.Read(region))
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:116:67: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  116 |             throw std::runtime_error("Invalid friend add result");response=MessageId::CS_FRIENDADD_ACK;break;
+      |                                                                   ^~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:118:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  118 |         if(!r.ReadString(name)||!r.Read(target)||!r.Eof())throw std::runtime_error("Invalid friend dialog");Text(name);
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:118:109: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  118 |         if(!r.ReadString(name)||!r.Read(target)||!r.Eof())throw std::runtime_error("Invalid friend dialog");Text(name);
+      |                                                                                                             ^~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:128:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  128 |         if(!r.Read(result)||!r.Read(target))throw std::runtime_error("Invalid friend erase result");response=MessageId::CS_FRIENDERASE_ACK;break;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:128:101: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  128 |         if(!r.Read(result)||!r.Read(target))throw std::runtime_error("Invalid friend erase result");response=MessageId::CS_FRIENDERASE_ACK;break;
+      |                                                                                                     ^~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:133:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  133 |         if(!r.Read(result)||!r.Read(group))throw std::runtime_error("Invalid group erase result");response=MessageId::CS_FRIENDGROUPDELETE_ACK;break;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:133:99: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  133 |         if(!r.Read(result)||!r.Read(group))throw std::runtime_error("Invalid group erase result");response=MessageId::CS_FRIENDGROUPDELETE_ACK;break;
+      |                                                                                                   ^~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:135:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  135 |         if(!r.Read(result)||!r.Read(group)||!r.Read(target))throw std::runtime_error("Invalid friend bucket result");response=MessageId::CS_FRIENDGROUPCHANGE_ACK;break;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:135:118: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  135 |         if(!r.Read(result)||!r.Read(group)||!r.Read(target))throw std::runtime_error("Invalid friend bucket result");response=MessageId::CS_FRIENDGROUPCHANGE_ACK;break;
+      |                                                                                                                      ^~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:137:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  137 |         if(!r.Read(result)||!r.ReadString(name)||!r.Read(region))throw std::runtime_error("Invalid friend presence");response=MessageId::CS_FRIENDCONNECTION_ACK;break;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:137:118: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  137 |         if(!r.Read(result)||!r.ReadString(name)||!r.Read(region))throw std::runtime_error("Invalid friend presence");response=MessageId::CS_FRIENDCONNECTION_ACK;break;
+      |                                                                                                                      ^~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:139:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  139 |         if(!r.ReadString(name)||!r.Read(region))throw std::runtime_error("Invalid friend region");response=MessageId::CS_FRIENDREGION_ACK;break;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/handlers/friend.cpp:139:99: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  139 |         if(!r.ReadString(name)||!r.Read(region))throw std::runtime_error("Invalid friend region");response=MessageId::CS_FRIENDREGION_ACK;break;
+      |                                                                                                   ^~~~~~~~
+[22/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/bow.cpp.o
+[23/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/control.cpp.o
+[24/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/world_server.cpp.o
+[25/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/dispatch.cpp.o
+[26/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o
+[27/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char_base.cpp.o
+[28/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_guild.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_guild.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::OnGuildPointRewardAck(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_guild.cpp:2930:19: warning: variable ‘target_key’ set but not used [-Wunused-but-set-variable=]
+ 2930 |     std::uint32_t target_key = 0;
+      |                   ^~~~~~~~~~
+[29/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_party.cpp.o
+[30/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_corps.cpp.o
+[31/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_friend.cpp.o
+[32/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_chat.cpp.o
+[33/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_soulmate.cpp.o
+[34/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_tms.cpp.o
+[35/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_post.cpp.o
+[36/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_occupy.cpp.o
+[37/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_event.cpp.o
+[38/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_combat.cpp.o
+[39/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_item.cpp.o
+[40/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_admin.cpp.o
+[41/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_rank.cpp.o
+[42/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_recallmon.cpp.o
+[43/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_conn.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::{anonymous}::ReconcileConList(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&, const char*)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:155:32: warning: variable ‘channel’ set but not used [-Wunused-but-set-variable=]
+  155 |     std::uint8_t  main_id = 0, channel = 0;
+      |                                ^~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:156:19: warning: variable ‘map_id’ set but not used [-Wunused-but-set-variable=]
+  156 |     std::uint16_t map_id = 0;
+      |                   ^~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:19: warning: variable ‘px’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                   ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:27: warning: variable ‘py’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                           ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:35: warning: variable ‘pz’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                                   ^~
+[44/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_bow.cpp.o
+[45/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_br.cpp.o
+[46/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_rps.cpp.o
+[47/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_cashshop.cpp.o
+[48/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_cmgift.cpp.o
+[49/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_ctrlsvr.cpp.o
+[50/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_service.cpp.o
+[51/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_apex.cpp.o
+[52/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_tournament.cpp.o
+[53/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_relay.cpp.o
+[54/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_relay.cpp.o
+[55/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_guild.cpp.o
+[56/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_party.cpp.o
+[57/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_corps.cpp.o
+[58/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_friend.cpp.o
+[59/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_chat.cpp.o
+[60/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_soulmate.cpp.o
+[61/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_tms.cpp.o
+[62/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_post.cpp.o
+[63/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_occupy.cpp.o
+[64/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_event.cpp.o
+[65/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_combat.cpp.o
+[66/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_item.cpp.o
+[67/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_admin.cpp.o
+[68/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_rank.cpp.o
+[69/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_recallmon.cpp.o
+[70/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_conn.cpp.o
+[71/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_bow.cpp.o
+[72/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_br.cpp.o
+[73/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_rps.cpp.o
+[74/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_cashshop.cpp.o
+[75/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/senders/senders_tournament.cpp.o
+[76/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_friend_repository.cpp.o
+[77/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_friend_repository.cpp.o
+[78/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/postgresql_friend_repository.cpp.o
+[79/85] Linking CXX static library lib/libtmapsvr_asio_core.a
+[80/85] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio.dir/main.cpp.o
+[81/85] Linking CXX static library lib/libtworldsvr_asio_core.a
+[82/85] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio.dir/main.cpp.o
+[83/85] Linking CXX executable bin/tmapsvr_asio
+[84/85] Linking CXX executable bin/tworldsvr_asio

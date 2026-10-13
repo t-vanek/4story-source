@@ -5,7 +5,19 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, `e84ece4` / `65be6d1`:** written migration chain001–065
+**Current Phase A, `1f1eb59` / `e709281`:** written chain001–066, next067;
+new044–066 remain unapplied.066 adds native directed social tables and operational
+World owner/audit/import receipts. World social and mail transactions fence that
+owner generation; social writes additionally validate live primary Map claims.
+Social caches cannot restore older normalized rows. `import_social_state.py` requires the complete pinned archive,
+original name bytes, exact identity maps/codecs and offline World/Map owners.
+Existing import/publication barriers now cover native World as well. Apply both
+written World social and mail grant scripts only during the later isolated
+upgrade. No schema/import/grant execution or DB tests occurred. Complete guild/
+war/event/other native World bootstrap, full social/gameplay and PG-only runtime
+remain incomplete. [Scope and compile-only evidence](../_rewrite/docs/modernization/evidence/phase-a-native-social-20261013/README.md).
+
+**Previous increment, `e84ece4` / `65be6d1`:** written migration chain001–065
 (next066). New044–065 are unapplied. Migration064 adds complete pinned
 TQTITLECHART byte publication via `activate_quest_catalog.py --quest-mail`;
 source prefix/truncation and NULL behavior are preserved. Quest SENDPOST writes

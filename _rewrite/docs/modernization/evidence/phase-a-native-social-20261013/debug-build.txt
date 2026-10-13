@@ -1,0 +1,65 @@
+[1/45] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_world.cpp.o
+[2/45] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/dispatch.cpp.o
+[3/45] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/friend.cpp.o
+[4/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/world_server.cpp.o
+[5/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/dispatch.cpp.o
+[6/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o
+[7/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char_base.cpp.o
+[8/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_guild.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_guild.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::OnGuildPointRewardAck(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_guild.cpp:2930:19: warning: variable ‘target_key’ set but not used [-Wunused-but-set-variable=]
+ 2930 |     std::uint32_t target_key = 0;
+      |                   ^~~~~~~~~~
+[9/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_party.cpp.o
+[10/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_corps.cpp.o
+[11/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_friend.cpp.o
+[12/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_chat.cpp.o
+[13/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_soulmate.cpp.o
+[14/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_tms.cpp.o
+[15/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_post.cpp.o
+[16/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_occupy.cpp.o
+[17/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_event.cpp.o
+[18/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_combat.cpp.o
+[19/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_item.cpp.o
+[20/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_admin.cpp.o
+[21/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_rank.cpp.o
+[22/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_recallmon.cpp.o
+[23/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_conn.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::{anonymous}::ReconcileConList(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&, const char*)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:155:32: warning: variable ‘channel’ set but not used [-Wunused-but-set-variable=]
+  155 |     std::uint8_t  main_id = 0, channel = 0;
+      |                                ^~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:156:19: warning: variable ‘map_id’ set but not used [-Wunused-but-set-variable=]
+  156 |     std::uint16_t map_id = 0;
+      |                   ^~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:19: warning: variable ‘px’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                   ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:27: warning: variable ‘py’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                           ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_conn.cpp:157:35: warning: variable ‘pz’ set but not used [-Wunused-but-set-variable=]
+  157 |     float         px = 0, py = 0, pz = 0;
+      |                                   ^~
+[24/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_bow.cpp.o
+[25/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_br.cpp.o
+[26/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_rps.cpp.o
+[27/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_cashshop.cpp.o
+[28/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_cmgift.cpp.o
+[29/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_ctrlsvr.cpp.o
+[30/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_service.cpp.o
+[31/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_apex.cpp.o
+[32/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_tournament.cpp.o
+[33/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_relay.cpp.o
+[34/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/char_registry.cpp.o
+[35/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_broadcast.cpp.o
+[36/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/fake_friend_repository.cpp.o
+[37/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_friend_repository.cpp.o
+[38/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/postgresql_world_owner.cpp.o
+[39/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/postgresql_friend_repository.cpp.o
+[40/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/guild_tactics_sweep.cpp.o
+[41/45] Linking CXX static library lib/libtmapsvr_asio_core.a
+[42/45] Linking CXX static library lib/libtworldsvr_asio_core.a
+[43/45] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio.dir/main.cpp.o
+[44/45] Linking CXX executable bin/tmapsvr_asio
+[45/45] Linking CXX executable bin/tworldsvr_asio

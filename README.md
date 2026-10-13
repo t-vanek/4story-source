@@ -26,7 +26,20 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Code `11e0df1` / `dd07164` additionally repairs both mutual-friend acceptance
+Code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
+soulmate persistence (written migration066), original Map friend/group relays,
+conditional soulmate FRIENDLIST fields and Map soulmate state/end handling.
+Native social/mail transactions fence the current World; social writes also
+validate primary Map/session claims. Commits precede cache/replies; uncertain
+writes stop World without replay.
+The full historical social importer/grants and offline World barriers are written
+only. Production World now requires an explicit database, while native guild/war/
+event bootstrap and complete soulmate Map economy/XP/load checks remain unfinished.
+Map/World compile/link in Debug and Release; no tests, DB or runtime ran.
+These scoped paths are **INTEGRATED_UNVERIFIED**, and Phase A/PG-only runtime are
+still incomplete. [Source contracts, repairs and compile evidence](_rewrite/docs/modernization/evidence/phase-a-native-social-20261013/README.md).
+
+Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
 with registered ready-primary checks before persistence and after await. Any
 mutual persistence failure stops World without a write replay. World compiles
@@ -59,7 +72,7 @@ in Debug/Release; no new tests, database runs or cluster startup occurred.
 Full World/social/economy/gameplay remains incomplete.
 [Exact source scope and evidence](_rewrite/docs/modernization/evidence/phase-a-mail-send-protected-20261013/README.md).
 
-New migrations **044–065** and native code extend quest state/actions, skill audit,
+New migrations **044–066** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -123,9 +136,9 @@ jobs and World reserved/event/admin producers remain required.
 
 Compilation results for the changed Map target are recorded with that increment.
 Earlier evidence covers all six modern targets at its stated commits. Historical
-import tools and migrations044–065 are written, not executed. No tests, database
+import tools and migrations044–066 are written, not executed. No tests, database
 migration, server startup or container run belongs to this increment. Previous
-migrations001–062 remain unchanged; the next unused migration number is064.
+migrations001–065 remain unchanged; the next unused migration number is067.
 
 ## Historical verification through `2fa2396`
 

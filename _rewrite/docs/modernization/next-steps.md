@@ -10,6 +10,19 @@ The latest owner instruction requires the complete Phase A implementation before
 tests, migration application and containers. Only static inspection and compilation
 are used during Phase A. See [active rewrite status](full-rewrite-status.md).
 
+Code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
+soulmate persistence (written migration066), original Map friend/group relays,
+conditional soulmate FRIENDLIST fields and Map soulmate state/end handling.
+Native social/mail transactions fence the current World; social writes also
+validate primary Map/session claims. Commits precede cache/replies; uncertain
+writes stop World without replay.
+The full historical social importer/grants and offline World barriers are written
+only. Production World now requires an explicit database, while native guild/war/
+event bootstrap and complete soulmate Map economy/XP/load checks remain unfinished.
+Map/World compile/link in Debug and Release; no tests, DB or runtime ran.
+These scoped paths are **INTEGRATED_UNVERIFIED**, and Phase A/PG-only runtime are
+still incomplete. [Source contracts, repairs and compile evidence](evidence/phase-a-native-social-20261013/README.md).
+
 Historical baseline at `2fa2396` (2026-10-11): account secure-code lifecycle is integrated
 through all seven original requests, migration042, protected native learning and
 inventory/equipment, CHARINFO, fresh/full-graph persistence and current-owner
@@ -17,9 +30,9 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–065; the next free number is066.
+immutable. Phase A has added unapplied migrations044–066; the next free number is067.
 
-Code `11e0df1` / `dd07164` additionally repairs both mutual-friend acceptance
+Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
 with registered ready-primary checks before persistence and after await. Any
 mutual persistence failure stops World without a write replay. World compiles
@@ -40,8 +53,9 @@ incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-q
 Active next source paths after this increment:
 
 1. `TWorldSvrAsio/db/schema_validator.cpp`, World main and native ownership:
-   replace the remaining legacy bootstrap/repositories, starting with mutual
-   friend erase behind PROTECTEDCHECK and source social transactions.
+   replace the remaining legacy guild/war/event/rank/item/service bootstrap and
+   repositories. Native friend/group/erase and World process ownership are now
+   integrated; complete soulmate Map economy, initial-load level checks and XP.
 2. Quest DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/REGEN plus non-request
    kill/position/map/monster producers; preserve completed SENDPOST and rewards.
 3. Other admin/event/BR/rank reserved-mail producers; notification retention and
@@ -50,8 +64,9 @@ Active next source paths after this increment:
 4. Complete all other Phase A gameplay/operational responsibilities. Then perform
    the whole static implementation gate, Phase B and Phase C in that order.
 
-The older increment notes below retain their original scope; the two gaps for
-SENDPOST and the offline job are superseded by the current code above.
+The older increment notes below retain their original scope. The gaps for
+SENDPOST, offline bills and native friend/group ownership are superseded by
+the current code above; complete native World and soulmate gameplay remain open.
 
 Code `45d130d` integrates the World minute timer and native reserved-mail delivery:
 source batch limit30, new item IDs at delivery, raw attributes, post/status and

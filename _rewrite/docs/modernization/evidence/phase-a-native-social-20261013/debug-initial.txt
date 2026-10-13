@@ -1,0 +1,96 @@
+[0/1] Re-running CMake...
+-- OpenSSL legacy provider: /usr/lib/ossl-modules/legacy.so
+-- Configuring done (0.1s)
+CMake Warning at Server/TLoginSvrAsio/CMakeLists.txt:115 (add_executable):
+  Cannot generate a safe runtime search path for target tloginsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TPatchSvrAsio/CMakeLists.txt:56 (add_executable):
+  Cannot generate a safe runtime search path for target tpatchsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TLogSvrAsio/CMakeLists.txt:52 (add_executable):
+  Cannot generate a safe runtime search path for target tlogsvr_asio because
+  files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TControlSvrAsio/CMakeLists.txt:92 (add_executable):
+  Cannot generate a safe runtime search path for target tcontrolsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TMapSvrAsio/CMakeLists.txt:212 (add_executable):
+  Cannot generate a safe runtime search path for target tmapsvr_asio because
+  files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TWorldSvrAsio/CMakeLists.txt:169 (add_executable):
+  Cannot generate a safe runtime search path for target tworldsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TLoginSvrAsio/CMakeLists.txt:122 (add_executable):
+  Cannot generate a safe runtime search path for target
+  tloginsvr_bcrypt_migrate because files in some directories may conflict
+  with libraries in implicit directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+-- Generating done (0.0s)
+-- Build files have been written to: /home/tomasvanek/RiderProjects/4story-source/build/phase-a-compile
+[1/42] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/config.cpp.o
+[2/42] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/world_server.cpp.o
+[3/42] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/dispatch.cpp.o
+[4/42] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o
+FAILED: [code=1] Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o 
+/usr/bin/c++ -DFMT_SHARED -DFOURSTORY_HAS_POSTGRESQL=1 -DSPDLOG_COMPILED_LIB -DSPDLOG_FMT_EXTERNAL -DSPDLOG_SHARED_LIB -I/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio -I/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon -I/home/tomasvanek/RiderProjects/4story-source/Lib/Own/TNetLib/TNetLib -I/home/tomasvanek/RiderProjects/4story-source/Lib/Own/TProtocol/include -isystem /tmp/fourstory-phase-a-deps/usr/include -I/tmp/fourstory-phase-a-deps/usr/include -g -std=c++20 -fPIC -Wall -Wextra -Wno-unused-parameter -DTOML_HEADER_ONLY=0 -DTOML_SHARED_LIB=1 -MD -MT Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o -MF Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o.d -o Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o -c /home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp: In function ‘void tworldsvr::handlers::{anonymous}::ApplyFriendLoad(const tworldsvr::HandlerContext&, tworldsvr::TChar&, const tworldsvr::FriendLoad&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp:60:35: error: ‘struct tworldsvr::TFriend’ has no member named ‘level’
+   60 |         tf.group     = f.group;tf.level=f.level;tf.klass=f.klass;
+      |                                   ^~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp:60:52: error: ‘struct tworldsvr::TFriend’ has no member named ‘klass’
+   60 |         tf.group     = f.group;tf.level=f.level;tf.klass=f.klass;
+      |                                                    ^~~~~
+ninja: build stopped: subcommand failed.

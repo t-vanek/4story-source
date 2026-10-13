@@ -1,0 +1,16 @@
+[1/61] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/world_server.cpp.o
+[2/61] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/dispatch.cpp.o
+[3/61] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o
+FAILED: [code=1] Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o 
+/usr/bin/c++ -DFMT_SHARED -DFOURSTORY_HAS_POSTGRESQL=1 -DSPDLOG_COMPILED_LIB -DSPDLOG_FMT_EXTERNAL -DSPDLOG_SHARED_LIB -I/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio -I/home/tomasvanek/RiderProjects/4story-source/Lib/Own/FourStoryCommon -I/home/tomasvanek/RiderProjects/4story-source/Lib/Own/TNetLib/TNetLib -I/home/tomasvanek/RiderProjects/4story-source/Lib/Own/TProtocol/include -isystem /tmp/fourstory-phase-a-deps/usr/include -I/tmp/fourstory-phase-a-deps/usr/include -g -std=c++20 -fPIC -Wall -Wextra -Wno-unused-parameter -DTOML_HEADER_ONLY=0 -DTOML_SHARED_LIB=1 -MD -MT Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o -MF Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o.d -o Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_char.cpp.o -c /home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp: In function ‘boost::asio::awaitable<void> tworldsvr::handlers::OnEnterSvrAck(std::shared_ptr<tworldsvr::PeerSession>, std::vector<std::byte>, const tworldsvr::HandlerContext&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp:369:14: error: ‘struct tworldsvr::senders::CharInfoPayload’ has no member named ‘soulmate’
+  369 |         info.soulmate=self->soulmate.target;info.soul_silence=self->soul_silence;info.soulmate_name=self->soulmate.name;
+      |              ^~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp:369:50: error: ‘struct tworldsvr::senders::CharInfoPayload’ has no member named ‘soul_silence’
+  369 |         info.soulmate=self->soulmate.target;info.soul_silence=self->soul_silence;info.soulmate_name=self->soulmate.name;
+      |                                                  ^~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TWorldSvrAsio/handlers/handlers_char.cpp:369:87: error: ‘struct tworldsvr::senders::CharInfoPayload’ has no member named ‘soulmate_name’
+  369 |         info.soulmate=self->soulmate.target;info.soul_silence=self->soul_silence;info.soulmate_name=self->soulmate.name;
+      |                                                                                       ^~~~~~~~~~~~~
+ninja: build stopped: subcommand failed.

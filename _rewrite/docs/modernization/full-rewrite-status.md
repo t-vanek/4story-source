@@ -5,11 +5,12 @@ verification/migration and Phase C container startup. **Phase A is still active;
 the IMPLEMENTATION_COMPLETE_UNVERIFIED gate has not been reached.**
 
 Starting revision: `2fa2396`, local `main`. All changes in this increment are
-**INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
+**INTEGRATED_UNVERIFIED**, **IMPLEMENTED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–065 are **written, not applied**.
-Latest code increment: `11e0df1` / `dd07164` (atomic mutual friend acceptance), based on `5fe42f8`.
+evidence remain unchanged. New migrations044–066 are **written, not applied**.
+Latest code increment: `1f1eb59` / `e709281` (native World social persistence and original Map relay), based on `374d56a`.
+Previous code increment: `11e0df1` / `dd07164` (atomic mutual friend adapter repair), based on `5fe42f8`.
 Previous code increments: `e84ece4` / `65be6d1` (quest mail and offline bill returns), based on `c537883`.
 Previous code increment: `45d130d` (World reserved-mail delivery/importer), based on `0f05d33`.
 Previous code increments: `85bf923` / `feea4a1` / `b4ff581` (player mail send/protected lists/importer), based on `8cd91ff`.
@@ -18,6 +19,36 @@ based on `802a232`. Previous `18ee496` implements item expiration and mail, base
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Native World social persistence and original Map relay — `1f1eb59` / `e709281`
+
+- Existing World main selects native PostgreSQL social repositories, holds a
+  dedicated World process generation and fences social/mail transactions. Live
+  Map owner/current-user/key/account locks protect directed writes and mutual
+  acceptance. A coroutine permit serializes social validation/commit/projection.
+  Stale loads reject explicitly; persistence failures stop World without replay.
+- Friend/group packets now reach client→Map→World→PG→original result. Original
+  limits/security/protection/BOW no-ops and group bucket semantics are retained.
+  A server-side invitation key prevents unsolicited/stale REPLY from creating
+  another player's friend row; protected refusal consumes that authorization.
+- FRIENDLIST nonzero soulmate now includes all descriptor fields required by
+  independent original client/server sources. Directed soulmate registration,
+  end timestamps, load expiration, incoming projections and online level/end
+  notifications replace the incorrect mutual-row/deletion model. Map standalone
+  state and client END are connected; full NPC costs/consumption/XP and initial
+  load-gap CheckSoulmateEnd remain **IMPLEMENTING**.
+- Written066/grants/social importer and added World offline barriers are
+  **IMPLEMENTED_UNVERIFIED**, not executed. New scope is
+  **INTEGRATED_UNVERIFIED**; Map/World compile/link in Debug/Release. No test, SQL,
+  runtime, client or container was run. Original sources/backups/001–065 remain.
+  Next free migration is067. No executable build/assets can be named.
+- Production World rejects missing database/workers; fake tests remain. Actual
+  World still validates/constructs unported guild/war/event/rank/item/service
+  repositories. No schema validator was bypassed. Full Phase A and PG-only
+  runtime remain incomplete; next implement those bootstrap/repository contracts
+  and complete source social/gameplay dependencies.
+
+[Source contracts, explicit differences and deferred acceptance](evidence/phase-a-native-social-20261013/README.md).
 
 ## Atomic mutual friend acceptance — `11e0df1` / `dd07164`
 
@@ -501,8 +532,10 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    complete missing pre-version contracts if further authoritative SQL is found.
    Operator/offline tools, service variants and remaining admin behavior still
    need per-responsibility review; native DB paths alone do not complete Control.
-4. World friend/group/soulmate/guild/war/event repositories still require native
-   world/session ownership, atomic mutual operations and response integration.
+4. Native World friend/group ownership and Map response integration are now
+   scoped by1f1eb59/e709281. Complete initial-load soulmate level checks, Map
+   search/registration/NPC purse/item atomicity and party XP; port guild/war/event/
+   rank/item/service repositories and the actual schema validator/bootstrap.
    Existing SpCall/unqualified legacy repositories must not be treated as PG-ready.
 5. Complete general combat targets/effects/interrupts, AI and rewards; all remaining
    inventories/economy/crafting/mail/trade, social/companions/modes/BOW/BR; all

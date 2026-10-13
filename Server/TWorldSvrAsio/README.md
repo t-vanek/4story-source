@@ -1,3 +1,12 @@
+> Current Phase A: `1f1eb59` / `e709281` adds native World social ownership,
+> directed friend/group/soulmate persistence066 and original Map relay/state/end.
+> Production World requires an explicit database/workers; no fake boot fallback.
+> Guild/war/event/other bootstrap and full soulmate economy remain incomplete.
+> Map/World compile/link only; no test, migration, server or container was run.
+> [Exact current scope](../../_rewrite/docs/modernization/evidence/phase-a-native-social-20261013/README.md).
+>
+> The earlier increment notes below retain their original scope.
+
 > Active Phase A: `45d130d` wires native reserved-mail delivery to the real World
 > PostgreSQL pool and minute timer (migration063). No new tests/runtime were run.
 > Other World startup/schema/repository paths remain incomplete; the historical

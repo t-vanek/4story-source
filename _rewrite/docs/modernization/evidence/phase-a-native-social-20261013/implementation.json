@@ -1,0 +1,300 @@
+{
+  "recorded_at": "2026-10-13T20:44:22.066085+00:00",
+  "base_commit": "374d56a",
+  "implementation_commit": "1f1eb59b4d38cc2fd70481e485b2fff212be1f4e",
+  "code_commit": "e709281156b9393c63c79e624d2258273c30386a",
+  "branch": "main",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "runtime_postgresql_only": false,
+  "scope": "Native World social repository/owner, friend and group client-Map-World relay, directed soulmate persistence with Map state/end; full soulmate search/economy and World bootstrap remain incomplete",
+  "source_references": [
+    "Server/TWorldSvr/SSHandler.cpp:5769 OnMW_PROTECTEDCHECK_ACK;5880 OnMW_FRIENDASK_ACK;6015 OnMW_FRIENDREPLY_ACK;6240-6500 friend groups;9030-9200 soul load;9350-9575 soul requests;2910-2980 level",
+    "Server/TWorldSvr/TWorldSvr.cpp:4288 CheckSoulmateEnd;4302 RegSoulmate;4410 EndSoulmate",
+    "Server/TWorldSvr/SSSender.cpp:1723 SendMW_FRIENDLIST_REQ;2851 SendMW_SOULMATE_REQ",
+    "Server/TMapSvr/CSHandler.cpp:6961-7085 friend basic;8441-8555 groups;13301 OnCS_SOULMATEEND_REQ",
+    "Server/TMapSvr/SSHandler.cpp:10083-10405 friend results;14058 OnMW_SOULMATE_REQ;14380 OnMW_SOULMATEEND_REQ",
+    "Server/TMapSvr/CSSender.cpp:3046-3114 friends;3599-3649 groups;4594 soul state;4649 soul end",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TFriendInsert.sql;TFriendDelete.sql;TFriendGroupMake.sql;TFriendGroupDelete.sql;TFriendGroupName.sql;TFriendGroupChange.sql;TSoulmateReg.sql;TSoulmateDel.sql;TSoulmateEnd.sql",
+    "_rewrite/docs/schema/TGAME_RAGEZONE.views.sql:312 TVIEW_SOULMATE",
+    "Client/TClient/CSHandler.cpp:9338 OnCS_FRIENDLIST_ACK;12910 OnCS_SOULMATE_ACK;13110 OnCS_SOULMATEEND_ACK (independent parser inspection only)"
+  ],
+  "files": [
+    {
+      "path": "Server/TMapSvrAsio/CMakeLists.txt",
+      "sha256": "d4547307db55b8ee2f4d245851b13771904196d2e16d8aebf08ac6f3202f3589"
+    },
+    {
+      "path": "Server/TMapSvrAsio/handlers.h",
+      "sha256": "604f340a7365a02e29b9345176600581da845c830f0eae90c475a555047fb782"
+    },
+    {
+      "path": "Server/TMapSvrAsio/handlers/dispatch.cpp",
+      "sha256": "0af025f743257cb06d6051fc5fa34dbea015c91eb1ccf59966d9cd7017542f2e"
+    },
+    {
+      "path": "Server/TMapSvrAsio/handlers/friend.cpp",
+      "sha256": "9ed0d0930c84f26b4d7174ae570f5ee1eac13c1c9802d26faa7c2c73e8306cf6"
+    },
+    {
+      "path": "Server/TMapSvrAsio/handlers_world.cpp",
+      "sha256": "b36ffdd1661cb43bb39413159b4825b8c37fb112cfaa4d18d50a19a60fb52b8a"
+    },
+    {
+      "path": "Server/TMapSvrAsio/handlers_world.h",
+      "sha256": "6acdfed9f599d8edddb1507dfc453b844f650f9f39daec0391fa1081de7953be"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/CMakeLists.txt",
+      "sha256": "81629e9229a15a31a381033d64e42a03dc8fa02f2d07e1d9764d4b0d2be4d488"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/config.cpp",
+      "sha256": "c9228795d6baab2ad81ef5eef9069367d8ee6af418d3950acbc1f52456ca0a64"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/config.h",
+      "sha256": "6eed7242c715562a87a76466261899b2db068dcd7ac6d417816a813e046d8657"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/handlers/handlers.h",
+      "sha256": "0ccaa7dc48b707ea7171d640b6c3f0db4d3edb27124c5bfbde5a187ed79aa2d3"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/handlers/handlers_char.cpp",
+      "sha256": "6c3f0f3e79e7fd157b105484a962b528118de85dd1947f9a95a0ee19dafc2ef8"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/handlers/handlers_friend.cpp",
+      "sha256": "a79ffd0b9368310105fe87453fe5a780d85dd34e84aae401a0e6d33f7db88dbe"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/handlers/handlers_soulmate.cpp",
+      "sha256": "ac6f0c8301f1c75e34a0421add2f16b2cd37150918347b68ebb7a2dd207eab4d"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/main.cpp",
+      "sha256": "5e66e479bdac7d89a21e0be56275dfc6dd24d4817ded6f93268aa4c7b1d82fef"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/senders/senders.h",
+      "sha256": "23029e8e844f6a8d7922fa72476cb2e8a8d8c6c92ae1027024147aa5c10da6e1"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/senders/senders_friend.cpp",
+      "sha256": "fc529b3f34297f4deccbbd852225761f9ebab6b4864737cc96352bd289f797dd"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/senders/senders_soulmate.cpp",
+      "sha256": "23a3a054fe7c810f6d196f5f2b196e968105e6de2086561d096cd135170247e4"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/char_registry.h",
+      "sha256": "382117816f92addadb699c555dfa980dc0344cc402ac0482cc83ab1bb144f33e"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/fake_friend_repository.cpp",
+      "sha256": "7b834da952d625829b28063ea8fb848434a846e0952518d1bbc79ce35a8f7711"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/fake_friend_repository.h",
+      "sha256": "4a71cf6a364faea4b9c54b4db69a8cba0c5a2807cbe3822a190bfccb4ed54507"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/friend_repository.h",
+      "sha256": "095acf4a69ef6fb985579f37b815d2f22e996be0f7ba425a47e3032957a8b6ef"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_friend_repository.cpp",
+      "sha256": "1061f1232f6d20e94687f7ce7af535ea89c0b874d8ecae13bbe0274d6ca998a9"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_friend_repository.h",
+      "sha256": "d967b1b4cd4835ce96e93dda8bc3244fe39d90e9f576609be2ec38a48891a088"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_reserved_mail.cpp",
+      "sha256": "f877f62b70dc45f235c5abd76e2aab48b3954012450c557355eab6f252d05f87"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_reserved_mail.h",
+      "sha256": "96cb3a9c1868e89be5799f2dca353dd5964af77d7ac7f95388db452d1636b163"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_world_owner.cpp",
+      "sha256": "b1e5b95ccf767a8fc81f553b3813d7ea855f37293d3d761b5b82e5bbe3f1135a"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_world_owner.h",
+      "sha256": "1bbd0d2681d3e07f4895ad55fa08d225fb1a6b49040067765153ddf3220f8af1"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/soci_friend_repository.cpp",
+      "sha256": "324bbdba17ea89f16f433463f0d497b7e37967ca1d1cdf3dce9e90d8930c3163"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/soci_friend_repository.h",
+      "sha256": "a549865e00d80e9e8e64c2bdea8250bbdd97df0ad695a452c2dc885764880919"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/social_operation_gate.h",
+      "sha256": "498c1b0249273dcfc3bc0bcb8056e9d101a7e933cf4c0f714332bc04702d02ae"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/tworldsvr.example.toml",
+      "sha256": "3284386c33aea09d2ac14b7e377cdfd47c3e569aa49dfbdd900ddfb6e715f2e9"
+    },
+    {
+      "path": "database/postgresql/066-native-world-social.sql",
+      "sha256": "b75b1347fea178df46e1afa4cd23866ee4fea567776122a270e580a10f14f35d"
+    },
+    {
+      "path": "deploy/config.example/tworldsvr.toml",
+      "sha256": "7e88f32078daf2e6ade05500b450e6e14f2e788952a64150675ed27eb2a38e27"
+    },
+    {
+      "path": "deploy/sql/world-social-runtime-grants.sql",
+      "sha256": "e97cf19b056d6e9bbf95865611f0e6b807242fd735c1d3fbe0262064b1e4b65b"
+    },
+    {
+      "path": "tools/database/activate_actor_catalog.py",
+      "sha256": "fb2a7700bd612b2adbc8f21cf92434dc2fab563a30c84ff289467819da20e186"
+    },
+    {
+      "path": "tools/database/import_during_items.py",
+      "sha256": "5d6b721a61d2bcc896e8ee938ee6d8a58c50b24e0f73aad443965b78681f02a7"
+    },
+    {
+      "path": "tools/database/import_item_cooldowns.py",
+      "sha256": "ba90f3a33cead0fd3f6f1bbfb4858683f1473a5897d9675175a2cd926c4fbd80"
+    },
+    {
+      "path": "tools/database/import_mailboxes.py",
+      "sha256": "2eee4a91baa735a87944dffb91a99a1587abab83e7814d2907e5a5ee7add8a0d"
+    },
+    {
+      "path": "tools/database/import_protected_characters.py",
+      "sha256": "b0c54d3d385daeff7188cb4a782eb81f53fd3e1f1641227e4bd1532a83f6fde5"
+    },
+    {
+      "path": "tools/database/import_pvp_balances.py",
+      "sha256": "458979ac805b1e319d375d693881558b24c48a507adb0daf1f786b01ea3d9786"
+    },
+    {
+      "path": "tools/database/import_quest_progress.py",
+      "sha256": "8b4e3392938810189a35cc3d5f292655e7c07f07f6311ca0b76e2f4caa5ede53"
+    },
+    {
+      "path": "tools/database/import_reserved_mail.py",
+      "sha256": "1de669493b657f75b1d2377c23ac9c030ce41142282db42efaa04b20056d9135"
+    },
+    {
+      "path": "tools/database/import_social_state.py",
+      "sha256": "5bb57746bacb21fd191ef78094c7b5f1232b47aaf480323c2057ecb875758ec6"
+    }
+  ],
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tmapsvr_asio tworldsvr_asio -j1",
+      "exit_code": 0,
+      "binaries": [
+        {
+          "path": "build/phase-a-compile/bin/tmapsvr_asio",
+          "sha256": "a49ad3cb2a392337f4e075537b8e9c480b52934306b325252ee3999348c18885"
+        },
+        {
+          "path": "build/phase-a-compile/bin/tworldsvr_asio",
+          "sha256": "48cda8016ea47a744ff1d7479fb798d6028357ceed4f41052ee30d0a0f3cb85b"
+        }
+      ],
+      "run": false
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tmapsvr_asio tworldsvr_asio -j1",
+      "exit_code": 0,
+      "binaries": [
+        {
+          "path": "build/phase-a-quest-release/bin/tmapsvr_asio",
+          "sha256": "0373c53db7356fea38067d52f11ead620694a8981c2e0ab78ee5744365620cbe"
+        },
+        {
+          "path": "build/phase-a-quest-release/bin/tworldsvr_asio",
+          "sha256": "0b489f8218b668096b773cc4ae1756dc245c95bec53ce50f5733f80694d4eebc"
+        }
+      ],
+      "run": false
+    }
+  ],
+  "logs": [
+    {
+      "path": "debug-initial.txt",
+      "sha256": "5158e89cd143ab2595d3d1681e02782809758293851cbb948fce7a9c43716bf2"
+    },
+    {
+      "path": "debug-corrected.txt",
+      "sha256": "492eb045494431728677355eec4dee324dbf0f02cf94b0f6b987d7cb6f8be0f8"
+    },
+    {
+      "path": "debug-charinfo-correction.txt",
+      "sha256": "1dfdfa6ef2ea76a9654f00a5bca48c35adf08ee10dcf020ed72b82dded5b4700"
+    },
+    {
+      "path": "map-debug-build.txt",
+      "sha256": "a16f364ac1c30da72c840fe6189bfc047fae7189dc1acabf0d7b5f1588ca4828"
+    },
+    {
+      "path": "debug-build.txt",
+      "sha256": "c437a441983497ee42ac04d962fea286af53a8a744e0cc207bfdbe5d1cd07c63"
+    },
+    {
+      "path": "debug-final.txt",
+      "sha256": "79eb271fa0dc5cbc1fbc2f77bb3388c31454b1a4652dcc2c13905b96badc9819"
+    },
+    {
+      "path": "release-build.txt",
+      "sha256": "886a02f4b1409edc4220e562ed250381c75dd862f1eda2131c8f45930d700f0e"
+    },
+    {
+      "path": "presence-debug.txt",
+      "sha256": "9c92d8cb01ca5a5fbf36f521d95e234dafa59cc1241050c1e9347e931d846eef"
+    },
+    {
+      "path": "presence-release.txt",
+      "sha256": "9c92d8cb01ca5a5fbf36f521d95e234dafa59cc1241050c1e9347e931d846eef"
+    }
+  ],
+  "build_testing": false,
+  "cpp_standard": "C++20",
+  "native_postgresql_driver": "SOCI PostgreSQL/libpq; no MSSQL bridge on new paths",
+  "toolchain": "GCC16.2.1 / CMake4.3.0 / Fedora44",
+  "static_ast_parses": 9,
+  "tests_executed": 0,
+  "server_runs": 0,
+  "client_sessions": 0,
+  "sanitizer_runs": 0,
+  "migrations_applied": 0,
+  "imports_executed": 0,
+  "container_builds": 0,
+  "container_starts": 0,
+  "published": false,
+  "new_unapplied_migration": "066-native-world-social.sql",
+  "next_free_migration": 67,
+  "supported_client_binary": null,
+  "backups": [
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "size_bytes": 34009088,
+      "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259"
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "size_bytes": 36560896,
+      "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+    }
+  ],
+  "migrations_001_065_original_sources_client_historical_evidence_unchanged": true,
+  "deferred_acceptance": "See README.md; no Phase B/C activity"
+}
